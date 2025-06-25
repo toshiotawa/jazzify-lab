@@ -271,7 +271,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         noteNoteNameStyle: settings.noteNoteNameStyle ?? 'abc',
         noteAccidentalStyle: settings.noteAccidentalStyle ?? 'sharp',
         pianoHeight: settings.pianoHeight,
-        transpose: settings.transpose
+        transpose: settings.transpose,
+        practiceGuide: settings.practiceGuide ?? 'key'
       });
     }
   }, [gameEngine, updateEngineSettings, pixiRenderer, settings.keyboardNoteNameStyle, settings.noteNoteNameStyle, settings.noteAccidentalStyle, settings.pianoHeight, settings.transpose]);
@@ -354,7 +355,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       noteNoteNameStyle: settings.noteNoteNameStyle ?? 'abc',
       noteAccidentalStyle: settings.noteAccidentalStyle ?? 'sharp',
       pianoHeight: settings.pianoHeight,
-      transpose: settings.transpose
+      transpose: settings.transpose,
+      practiceGuide: settings.practiceGuide ?? 'key'
     });
     
     // ピアノキーボードのクリックイベントを接続

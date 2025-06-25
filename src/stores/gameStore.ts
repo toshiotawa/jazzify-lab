@@ -71,6 +71,9 @@ const defaultSettings: GameSettings = {
   
   // レイテンシ手動調整
   latencyAdjustment: 0,
+  
+  // 練習モードガイド
+  practiceGuide: 'key',
 };
 
 const defaultState: GameState = {

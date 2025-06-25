@@ -122,6 +122,9 @@ export interface GameSettings {
   
   /** 追加レイテンシ補正（秒）。正の値で描画/判定を遅らせる、負で早める */
   latencyAdjustment?: number;
+  
+  /** 練習モードのガイド設定: off | key | key_auto */
+  practiceGuide?: 'off' | 'key' | 'key_auto';
 }
 
 // ===== 採点システム =====

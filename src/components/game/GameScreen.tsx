@@ -445,6 +445,22 @@ const SettingsPanel: React.FC = () => {
                 </label>
               </div>
             </div>
+
+            {/* 練習モードガイド設定 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                練習モードガイド
+              </label>
+              <select
+                value={settings.practiceGuide ?? 'key'}
+                onChange={(e) => gameActions.updateSettings({ practiceGuide: e.target.value as any })}
+                className="select select-bordered w-full max-w-xs bg-gray-800 text-white"
+              >
+                <option value="off">OFF</option>
+                <option value="key_auto">鍵盤 + オートプレイ</option>
+                <option value="key">鍵盤のみ</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>

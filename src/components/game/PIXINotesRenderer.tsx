@@ -53,6 +53,8 @@ interface RendererSettings {
   noteAccidentalStyle: 'sharp' | 'flat';
   /** ストアの transpose 値（±6） */
   transpose: number;
+  /** 練習モードガイド設定 */
+  practiceGuide?: 'off' | 'key' | 'key_auto';
 }
 
 // ===== PIXI.js レンダラークラス =====
@@ -104,7 +106,8 @@ export class PIXINotesRendererInstance {
     keyboardNoteNameStyle: 'abc',
     noteNoteNameStyle: 'abc',
     noteAccidentalStyle: 'sharp',
-    transpose: 0
+    transpose: 0,
+    practiceGuide: 'key'
   };
   
   private onDragActive: boolean = false;
@@ -951,9 +954,8 @@ export class PIXINotesRendererInstance {
     }
 
     // ==== 判定ライン通過時のピアノキー点灯（デバッグ用） ====
-    // GameEngine 側で crossingLogged が true になったフレームでハイライトを発火
-    if (note.crossingLogged && !noteSprite.noteData.crossingLogged) {
-      // ピアノキーを短時間ハイライト
+    if (note.crossingLogged && !noteSprite.noteData.crossingLogged && this.settings.practiceGuide !== 'off') {
+      // ピアノキーを短時間ハイライト (ガイドが有効な場合のみ)
       this.highlightKey(effectivePitch, true);
       setTimeout(() => {
         this.highlightKey(effectivePitch, false);

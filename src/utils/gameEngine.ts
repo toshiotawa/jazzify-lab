@@ -447,6 +447,8 @@ export class GameEngine {
   private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
     const timePassed = currentTime - note.time;
     
+    // *自動ヒットは checkHitLineCrossing で処理*
+    
     // Miss判定チェック
     if (note.state === 'visible' && timePassed > JUDGMENT_TIMING.missMs / 1000) {
       return { ...note, state: 'missed' };
@@ -489,10 +491,26 @@ export class GameEngine {
         noteCenter >= hitLineY &&
         note.state === 'visible' &&
         !note.crossingLogged) { // 重複ログ防止
-      
+
       const timeError = (currentTime - note.time) * 1000; // ms
       console.log(`⚡ 判定ライン通過: ${note.id} (時間誤差: ${timeError.toFixed(1)}ms, 実際時刻: ${currentTime.toFixed(3)}s, 理論時刻: ${note.time.toFixed(3)}s)`);
-      
+
+      // ===== オートプレイ機能 (練習モードガイド: key_auto) =====
+      if (this.settings.practiceGuide === 'key_auto') {
+        const judgment: JudgmentResult = {
+          type: 'good',
+          timingError: Math.abs(timeError),
+          noteId: note.id,
+          timestamp: currentTime
+        };
+        this.updateScore(judgment);
+
+        // ノート状態更新
+        note.state = 'hit';
+        note.hitTime = currentTime;
+        note.timingError = Math.abs(timeError);
+      }
+
       // 重複ログ防止フラグを設定
       note.crossingLogged = true;
     }
