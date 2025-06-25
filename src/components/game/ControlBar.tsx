@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { useGameStore } from '@/stores/gameStore';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { 
   FaPlay, 
   FaPause, 
@@ -22,7 +22,6 @@ import {
  * シークバー、再生コントロール、ループ、移調機能を提供
  */
 const ControlBar: React.FC = () => {
-  const gameState = useGameStore();
   const {
     mode,
     isPlaying,
@@ -30,7 +29,29 @@ const ControlBar: React.FC = () => {
     currentSong,
     settings,
     abRepeat
-  } = gameState;
+  } = useGameSelector((state) => ({
+    mode: state.mode,
+    isPlaying: state.isPlaying,
+    currentTime: state.currentTime,
+    currentSong: state.currentSong,
+    settings: state.settings,
+    abRepeat: state.abRepeat
+  }));
+
+  const {
+    play,
+    pause: pauseAction,
+    stop,
+    seek,
+    skipBackward,
+    skipForward,
+    setABRepeatStart,
+    setABRepeatEnd,
+    toggleABRepeat,
+    clearABRepeatStart,
+    clearABRepeatEnd,
+    transpose
+  } = useGameActions();
 
   const isPracticeMode = mode === 'practice';
   const canInteract = isPracticeMode;
@@ -47,81 +68,81 @@ const ControlBar: React.FC = () => {
   const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (!canInteract) return;
     const newTime = parseFloat(e.target.value);
-    gameState.seek(newTime);
-  }, [canInteract, gameState]);
+    seek(newTime);
+  }, [canInteract, seek]);
 
   // 5秒スキップハンドラー
   const handleSkipBackward = useCallback(() => {
-    gameState.skipBackward(5);
-  }, [gameState]);
+    skipBackward(5);
+  }, [skipBackward]);
 
   const handleSkipForward = useCallback(() => {
-    gameState.skipForward(5);
-  }, [gameState]);
+    skipForward(5);
+  }, [skipForward]);
 
   // ABリピートハンドラー
   const handleSetAStart = useCallback(() => {
-    gameState.setABRepeatStart(currentTime);
-  }, [gameState, currentTime]);
+    setABRepeatStart(currentTime);
+  }, [setABRepeatStart, currentTime]);
 
   const handleSetBEnd = useCallback(() => {
-    gameState.setABRepeatEnd(currentTime);
-  }, [gameState, currentTime]);
+    setABRepeatEnd(currentTime);
+  }, [setABRepeatEnd, currentTime]);
 
   // ループON/OFF切り替え（改善版）
   const handleToggleLoop = useCallback(() => {
     if (abRepeat.startTime !== null && abRepeat.endTime !== null) {
       // A/B地点が設定済みの場合、ON/OFFを切り替え
-      gameState.toggleABRepeat();
+      toggleABRepeat();
     } else {
       // A/B地点が未設定の場合、現在時刻を中心とした短いループを自動設定
       const autoStartTime = Math.max(0, currentTime - 5); // 5秒前
       const autoEndTime = Math.min(songDuration, currentTime + 10); // 10秒後
-      gameState.setABRepeatStart(autoStartTime);
-      gameState.setABRepeatEnd(autoEndTime);
+      setABRepeatStart(autoStartTime);
+      setABRepeatEnd(autoEndTime);
       // 自動でループを有効化
-      setTimeout(() => gameState.toggleABRepeat(), 50);
+      setTimeout(() => toggleABRepeat(), 50);
     }
-  }, [gameState, abRepeat, currentTime, songDuration]);
+  }, [toggleABRepeat, setABRepeatStart, setABRepeatEnd, abRepeat, currentTime, songDuration]);
 
   // 最初に戻るハンドラー（練習モード用）
   const handleRestart = useCallback(() => {
-    gameState.seek(0);
+    seek(0);
     if (!isPlaying) {
-      gameState.play();
+      play();
     }
-  }, [gameState, isPlaying]);
+  }, [seek, isPlaying, play]);
 
   // 本番モード用の再生/最初に戻るボタン（一時停止なし）
   const handlePlayOrRestart = useCallback(() => {
     if (currentTime > 0) {
       // 時間が進んでいるなら最初に戻って再生
-      gameState.seek(0);
-      gameState.play();
+      seek(0);
+      play();
     } else {
       // 最初の状態なら再生
-      gameState.play();
+      play();
     }
-  }, [gameState, currentTime]);
+  }, [seek, currentTime, play]);
 
   // A地点クリア
   const handleClearA = useCallback(() => {
-    gameState.clearABRepeatStart();
-  }, [gameState]);
+    clearABRepeatStart();
+  }, [clearABRepeatStart]);
 
   // B地点クリア
   const handleClearB = useCallback(() => {
-    gameState.clearABRepeatEnd();
-  }, [gameState]);
+    clearABRepeatEnd();
+  }, [clearABRepeatEnd]);
 
   // 移調ハンドラー
   const handleTransposeDown = useCallback(() => {
-    gameState.transpose(-1);
-  }, [gameState]);
+    transpose(-1);
+  }, [transpose]);
 
   const handleTransposeUp = useCallback(() => {
-    gameState.transpose(1);
-  }, [gameState]);
+    transpose(1);
+  }, [transpose]);
 
   return (
     <div className="control-bar bg-game-surface border-t border-gray-700 w-full sticky bottom-0 z-20">
@@ -208,7 +229,7 @@ const ControlBar: React.FC = () => {
               </button>
 
               <button
-                onClick={() => isPlaying ? gameState.pause() : gameState.play()}
+                onClick={() => isPlaying ? pauseAction() : play()}
                 className="control-btn control-btn-primary"
                 disabled={!currentSong}
                 title={isPlaying ? '一時停止' : '再生'}
@@ -286,6 +307,7 @@ const ControlBar: React.FC = () => {
                   onClick={handleTransposeDown}
                   className="control-btn control-btn-xs control-btn-secondary"
                   title="半音下げる"
+                  disabled={settings.transpose <= -6}
                 >
                   ♭
                 </button>
@@ -296,6 +318,7 @@ const ControlBar: React.FC = () => {
                   onClick={handleTransposeUp}
                   className="control-btn control-btn-xs control-btn-secondary"
                   title="半音上げる"
+                  disabled={settings.transpose >= 6}
                 >
                   ♯
                 </button>
@@ -318,7 +341,7 @@ const ControlBar: React.FC = () => {
               </button>
 
               <button
-                onClick={() => gameState.stop()}
+                onClick={() => stop()}
                 className="control-btn control-btn-secondary"
                 disabled={!currentSong}
                 title="停止"

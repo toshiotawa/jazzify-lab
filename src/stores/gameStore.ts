@@ -60,7 +60,7 @@ const defaultSettings: GameSettings = {
   
   // ビューポート設定
   viewportHeight: 600,
-  pianoHeight: 80,
+  pianoHeight: 160,
   
   // 入力デバイス
   selectedMidiDevice: null,
@@ -654,13 +654,27 @@ export const useGameStore = create<GameStoreState>()(
         }),
         
         // 新規追加: 移調制御
-        transpose: (semitones: number) => set((state) => {
-          state.settings.transpose += semitones;
-        }),
-        
-        setTranspose: (semitones: number) => set((state) => {
-          state.settings.transpose = semitones;
-        })
+        transpose: (semitones: number) => {
+          // まず現在の値を取得して範囲内にクランプ
+          const { settings, updateEngineSettings } = get();
+          const next = Math.max(-6, Math.min(6, settings.transpose + semitones));
+
+          set((state) => {
+            state.settings.transpose = next;
+          });
+
+          // GameEngine へ即時反映
+          updateEngineSettings();
+        },
+
+        setTranspose: (semitones: number) => {
+          const { updateEngineSettings } = get();
+          const clamped = Math.max(-6, Math.min(6, semitones));
+          set((state) => {
+            state.settings.transpose = clamped;
+          });
+          updateEngineSettings();
+        }
       }))
     ),
     {

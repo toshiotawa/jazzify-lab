@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useGameStore } from '@/stores/gameStore';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
 
@@ -8,8 +8,14 @@ import ControlBar from './ControlBar';
  * ゲームのメインUI要素を統合
  */
 const GameScreen: React.FC = () => {
-  const gameState = useGameStore();
-  const { currentTab, currentSong, score } = gameState;
+  const { currentTab, currentSong, score, isSettingsOpen } = useGameSelector((s) => ({
+    currentTab: s.currentTab,
+    currentSong: s.currentSong,
+    score: s.score,
+    isSettingsOpen: s.isSettingsOpen
+  }));
+
+  const gameActions = useGameActions();
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
   return (
@@ -24,19 +30,19 @@ const GameScreen: React.FC = () => {
             <div className="flex space-x-2">
               <TabButton
                 active={currentTab === 'practice'}
-                onClick={() => gameState.setCurrentTab('practice')}
+                onClick={() => gameActions.setCurrentTab('practice')}
               >
                 練習モード
               </TabButton>
               <TabButton
                 active={currentTab === 'performance'}
-                onClick={() => gameState.setCurrentTab('performance')}
+                onClick={() => gameActions.setCurrentTab('performance')}
               >
                 本番モード
               </TabButton>
               <TabButton
                 active={currentTab === 'songs'}
-                onClick={() => gameState.setCurrentTab('songs')}
+                onClick={() => gameActions.setCurrentTab('songs')}
               >
                 曲選択
               </TabButton>
@@ -62,7 +68,7 @@ const GameScreen: React.FC = () => {
 
               {/* 設定ボタン */}
               <button
-                onClick={() => gameState.toggleSettings()}
+                onClick={() => gameActions.toggleSettings()}
                 className="btn btn-secondary btn-sm"
               >
                 ⚙️ 設定
@@ -97,7 +103,7 @@ const GameScreen: React.FC = () => {
       </main>
 
       {/* 設定パネル（オーバーレイ） */}
-      {gameState.isSettingsOpen && <SettingsPanel />}
+      {isSettingsOpen && <SettingsPanel />}
     </div>
   );
 };
@@ -126,7 +132,7 @@ const TabButton: React.FC<TabButtonProps> = ({ active, onClick, children }) => {
  * 楽曲選択画面
  */
 const SongSelectionScreen: React.FC = () => {
-  const gameState = useGameStore();
+  const gameActions = useGameActions();
 
   return (
     <div className="flex-1 p-6 overflow-auto">
@@ -175,8 +181,8 @@ const SongSelectionScreen: React.FC = () => {
                 
                 console.log(`🎵 Demo-1読み込み完了: ${demo1Notes.length}ノーツ, ${actualDuration}秒`);
                 
-                gameState.loadSong(demo1Song, demo1Notes);
-                gameState.setCurrentTab('practice');
+                gameActions.loadSong(demo1Song, demo1Notes);
+                gameActions.setCurrentTab('practice');
               } catch (error) {
                 console.error('Demo-1楽曲の読み込みに失敗しました:', error);
                 // エラー表示の改善
@@ -206,8 +212,8 @@ const SongSelectionScreen: React.FC = () => {
                 { id: '2', time: 73.0, pitch: 72 },
                 { id: '3', time: 73.5, pitch: 76 }
               ];
-              gameState.loadSong(sampleSong, sampleNotes);
-              gameState.setCurrentTab('practice');
+              gameActions.loadSong(sampleSong, sampleNotes);
+              gameActions.setCurrentTab('practice');
             }}
           />
           
@@ -223,8 +229,11 @@ const SongSelectionScreen: React.FC = () => {
  * ゲームプレイ画面
  */
 const GamePlayScreen: React.FC = () => {
-  const gameState = useGameStore();
-  const { currentSong, mode } = gameState;
+  const { currentSong, mode } = useGameSelector((s) => ({
+    currentSong: s.currentSong,
+    mode: s.mode
+  }));
+  const gameActions = useGameActions();
 
   if (!currentSong) {
     return (
@@ -233,7 +242,7 @@ const GamePlayScreen: React.FC = () => {
           <div className="text-6xl mb-4">🎵</div>
           <h3 className="text-xl text-gray-300 mb-4">楽曲を選択してください</h3>
           <button
-            onClick={() => gameState.setCurrentTab('songs')}
+            onClick={() => gameActions.setCurrentTab('songs')}
             className="btn btn-primary"
           >
             楽曲選択に移動
@@ -297,16 +306,22 @@ const EmptySlot: React.FC<{ text: string }> = ({ text }) => {
  * 設定パネル（簡易版）
  */
 const SettingsPanel: React.FC = () => {
-  const gameState = useGameStore();
+  const { settings } = useGameSelector((s) => ({ settings: s.settings }));
+  const gameActions = useGameActions();
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onMouseDown={(e) => {
+      // オーバーレイ部分（背景領域）をクリックした場合のみモーダルを閉じる
+      if (e.target === e.currentTarget) {
+        gameActions.setSettingsOpen(false);
+      }
+    }}>
       <div className="modal-content">
         <div className="card-header">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold text-white">設定</h2>
             <button
-              onClick={() => gameState.setSettingsOpen(false)}
+              onClick={() => gameActions.setSettingsOpen(false)}
               className="text-gray-400 hover:text-white"
             >
               ✕
@@ -323,14 +338,14 @@ const SettingsPanel: React.FC = () => {
               </label>
               <div className="flex space-x-2">
                 <button
-                  onClick={() => gameState.setInstrumentMode('piano')}
-                  className={`btn ${gameState.settings.instrumentMode === 'piano' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => gameActions.setInstrumentMode('piano')}
+                  className={`btn ${settings.instrumentMode === 'piano' ? 'btn-primary' : 'btn-secondary'}`}
                 >
                   🎹 ピアノ
                 </button>
                 <button
-                  onClick={() => gameState.setInstrumentMode('guitar')}
-                  className={`btn ${gameState.settings.instrumentMode === 'guitar' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => gameActions.setInstrumentMode('guitar')}
+                  className={`btn ${settings.instrumentMode === 'guitar' ? 'btn-primary' : 'btn-secondary'}`}
                 >
                   🎸 ギター
                 </button>
@@ -340,16 +355,16 @@ const SettingsPanel: React.FC = () => {
             {/* 音量設定 */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                音楽音量: {Math.round(gameState.settings.musicVolume * 100)}%
+                音楽音量: {Math.round(settings.musicVolume * 100)}%
               </label>
               <input
                 type="range"
                 min="0"
                 max="1"
                 step="0.1"
-                value={gameState.settings.musicVolume}
+                value={settings.musicVolume}
                 onChange={(e) => 
-                  gameState.updateSettings({ musicVolume: parseFloat(e.target.value) })
+                  gameActions.updateSettings({ musicVolume: parseFloat(e.target.value) })
                 }
                 className="slider"
               />
@@ -358,16 +373,16 @@ const SettingsPanel: React.FC = () => {
             {/* ノーツスピード */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                ノーツスピード: {gameState.settings.notesSpeed}x
+                ノーツスピード: {settings.notesSpeed}x
               </label>
               <input
                 type="range"
                 min="0.5"
                 max="3.0"
                 step="0.1"
-                value={gameState.settings.notesSpeed}
+                value={settings.notesSpeed}
                 onChange={(e) => 
-                  gameState.updateSettings({ notesSpeed: parseFloat(e.target.value) })
+                  gameActions.updateSettings({ notesSpeed: parseFloat(e.target.value) })
                 }
                 className="slider"
               />
@@ -379,8 +394,8 @@ const SettingsPanel: React.FC = () => {
                 鍵盤音名表示
               </label>
               <select
-                value={gameState.settings.keyboardNoteNameStyle ?? 'abc'}
-                onChange={(e) => gameState.updateSettings({ keyboardNoteNameStyle: e.target.value as any })}
+                value={settings.keyboardNoteNameStyle ?? 'abc'}
+                onChange={(e) => gameActions.updateSettings({ keyboardNoteNameStyle: e.target.value as any })}
                 className="select select-bordered w-full max-w-xs bg-gray-800 text-white"
               >
                 <option value="off">OFF</option>
@@ -395,8 +410,8 @@ const SettingsPanel: React.FC = () => {
                 ノーツ音名表示
               </label>
               <select
-                value={gameState.settings.noteNoteNameStyle ?? 'abc'}
-                onChange={(e) => gameState.updateSettings({ noteNoteNameStyle: e.target.value as any })}
+                value={settings.noteNoteNameStyle ?? 'abc'}
+                onChange={(e) => gameActions.updateSettings({ noteNoteNameStyle: e.target.value as any })}
                 className="select select-bordered w-full max-w-xs bg-gray-800 text-white mb-2"
               >
                 <option value="off">OFF</option>
@@ -411,8 +426,8 @@ const SettingsPanel: React.FC = () => {
                     type="radio"
                     name="accidental-style"
                     value="sharp"
-                    checked={(gameState.settings.noteAccidentalStyle ?? 'sharp') === 'sharp'}
-                    onChange={() => gameState.updateSettings({ noteAccidentalStyle: 'sharp' })}
+                    checked={(settings.noteAccidentalStyle ?? 'sharp') === 'sharp'}
+                    onChange={() => gameActions.updateSettings({ noteAccidentalStyle: 'sharp' })}
                     className="radio radio-sm"
                   />
                   <span className="text-sm text-gray-300"># 表示</span>
@@ -422,8 +437,8 @@ const SettingsPanel: React.FC = () => {
                     type="radio"
                     name="accidental-style"
                     value="flat"
-                    checked={(gameState.settings.noteAccidentalStyle ?? 'sharp') === 'flat'}
-                    onChange={() => gameState.updateSettings({ noteAccidentalStyle: 'flat' })}
+                    checked={(settings.noteAccidentalStyle ?? 'sharp') === 'flat'}
+                    onChange={() => gameActions.updateSettings({ noteAccidentalStyle: 'flat' })}
                     className="radio radio-sm"
                   />
                   <span className="text-sm text-gray-300">♭ 表示</span>

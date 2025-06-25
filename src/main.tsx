@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { enableMapSet } from 'immer';
+import * as Tone from 'tone';
 
 // ImmerでMap/Setを使用できるようにする
 enableMapSet();
@@ -41,6 +42,9 @@ const initializeApp = async () => {
     hideLoading();
     
     console.log('🎵 Jazz Learning Game initialized successfully');
+
+    // Tone.js を window に公開
+    (window as any).Tone = Tone;
   } catch (error) {
     console.error('Failed to initialize app:', error);
     

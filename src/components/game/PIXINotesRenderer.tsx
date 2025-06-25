@@ -14,7 +14,8 @@ interface PIXINotesRendererProps {
   width: number;
   height: number;
   currentTime: number; // 現在時刻を追加（アニメーション同期用）
-  onReady?: (renderer: PIXINotesRendererInstance) => void;
+  /** レンダラー準備完了・破棄通知。null で破棄を示す */
+  onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
 }
 
@@ -50,6 +51,8 @@ interface RendererSettings {
   keyboardNoteNameStyle: 'off' | 'abc' | 'solfege';
   noteNoteNameStyle: 'off' | 'abc' | 'solfege';
   noteAccidentalStyle: 'sharp' | 'flat';
+  /** ストアの transpose 値（±6） */
+  transpose: number;
 }
 
 // ===== PIXI.js レンダラークラス =====
@@ -100,7 +103,8 @@ export class PIXINotesRendererInstance {
     },
     keyboardNoteNameStyle: 'abc',
     noteNoteNameStyle: 'abc',
-    noteAccidentalStyle: 'sharp'
+    noteAccidentalStyle: 'sharp',
+    transpose: 0
   };
   
   private onDragActive: boolean = false;
@@ -874,6 +878,7 @@ export class PIXINotesRendererInstance {
   }
   
   private createNoteSprite(note: ActiveNote): void {
+    const effectivePitch = note.pitch + this.settings.transpose;
     const x = this.pitchToX(note.pitch);
     const y = this.calculateNoteY(note);
     
@@ -885,7 +890,7 @@ export class PIXINotesRendererInstance {
     
     // 音名ラベル
     let label: PIXI.Text | undefined;
-    const noteNameForLabel = this.getMidiNoteName(note.pitch, true);
+    const noteNameForLabel = this.getMidiNoteName(effectivePitch, true);
     if (noteNameForLabel) {
       label = new PIXI.Text(noteNameForLabel, {
         fontSize: 10,
@@ -925,6 +930,7 @@ export class PIXINotesRendererInstance {
   }
   
   private updateNoteSprite(noteSprite: NoteSprite, note: ActiveNote, currentTime?: number): void {
+    const effectivePitch = note.pitch + this.settings.transpose;
     const x = this.pitchToX(note.pitch);
     const y = this.calculateNoteY(note);
     
@@ -948,9 +954,9 @@ export class PIXINotesRendererInstance {
     // GameEngine 側で crossingLogged が true になったフレームでハイライトを発火
     if (note.crossingLogged && !noteSprite.noteData.crossingLogged) {
       // ピアノキーを短時間ハイライト
-      this.highlightKey(note.pitch, true);
+      this.highlightKey(effectivePitch, true);
       setTimeout(() => {
-        this.highlightKey(note.pitch, false);
+        this.highlightKey(effectivePitch, false);
       }, 150);
     }
 
@@ -1007,7 +1013,7 @@ export class PIXINotesRendererInstance {
     // より美しいグラデーション効果を再現
     if (state === 'visible') {
       // 黒鍵判定
-      const isBlackNote = pitch !== undefined && this.isBlackKey(pitch);
+      const isBlackNote = pitch !== undefined && this.isBlackKey(pitch + this.settings.transpose);
       
       if (isBlackNote) {
         // 黒鍵ノーツ（紫系のグラデーション）
@@ -1186,7 +1192,7 @@ export class PIXINotesRendererInstance {
   private getStateColor(state: ActiveNote['state'], pitch?: number): number {
     switch (state) {
       case 'visible': 
-        if (pitch !== undefined && this.isBlackKey(pitch)) {
+        if (pitch !== undefined && this.isBlackKey(pitch + this.settings.transpose)) {
           return this.settings.colors.visibleBlack;
         }
         return this.settings.colors.visible;
@@ -1209,13 +1215,15 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    if (this.isBlackKey(pitch)) {
+    const effectivePitch = pitch + this.settings.transpose;
+
+    if (this.isBlackKey(effectivePitch)) {
       // 黒鍵の場合は正確な位置計算（隣接する白鍵の中央）
-      return this.calculateBlackKeyPosition(pitch, minNote, maxNote, totalWhiteKeys);
+      return this.calculateBlackKeyPosition(effectivePitch, minNote, maxNote, totalWhiteKeys);
     } else {
       // 白鍵の場合
       let whiteKeyIndex = 0;
-      for (let note = minNote; note < pitch; note++) {
+      for (let note = minNote; note < effectivePitch; note++) {
         if (!this.isBlackKey(note)) {
           whiteKeyIndex++;
         }
@@ -1240,7 +1248,90 @@ export class PIXINotesRendererInstance {
    * 設定更新
    */
   updateSettings(newSettings: Partial<RendererSettings>): void {
+    // 破棄後に呼ばれた場合の安全ガード
+    // this.app.renderer は destroy() 後にプロパティが undefined になるためチェック
+    if (!this.app || (this.app as any)._destroyed || !this.app.screen) {
+      console.warn('PIXINotesRendererInstance.updateSettings: renderer already destroyed, skipping');
+      return;
+    }
+
+    const prevPianoHeight = this.settings.pianoHeight;
+    const prevTranspose = this.settings.transpose;
     this.settings = { ...this.settings, ...newSettings };
+
+    // ピアノ高さが変更された場合、判定ラインと背景を再配置
+    if (newSettings.pianoHeight !== undefined && newSettings.pianoHeight !== prevPianoHeight) {
+      // 新しい判定ラインYを計算
+      this.settings.hitLineY = this.app.screen.height - this.settings.pianoHeight;
+
+      // 既存のヒットラインを削除して再描画
+      this.hitLineContainer.removeChildren();
+      this.setupHitLine();
+
+      // ==== 背景／ガイドラインを再生成 ====
+      try {
+        // 背景 (container の先頭)
+        if (this.container.children.length > 0) {
+          this.container.removeChildAt(0);
+        }
+
+        // ガイドライン (notesContainer の先頭)
+        if (this.notesContainer.children.length > 0) {
+          const first = this.notesContainer.getChildAt(0);
+          if (first) {
+            this.notesContainer.removeChild(first);
+          }
+        }
+      } catch (err) {
+        console.warn('背景再生成時にエラーが発生しました', err);
+      }
+
+      // 新しい背景とガイドラインを再作成
+      this.createNotesAreaBackground();
+    }
+
+    // === transpose が変化した場合、既存ノートのラベル / カラーを更新 ===
+    if (newSettings.transpose !== undefined && newSettings.transpose !== prevTranspose) {
+      this.noteSprites.forEach((noteSprite) => {
+        const pitch = noteSprite.noteData.pitch;
+        const effectivePitch = pitch + this.settings.transpose;
+        const noteName = this.getMidiNoteName(effectivePitch, true);
+
+        // ----- ラベル更新 -----
+        if (noteName) {
+          if (noteSprite.label) {
+            noteSprite.label.text = noteName;
+          } else {
+            // ラベルが無い場合は生成
+            const label = new PIXI.Text(noteName, {
+              fontSize: 10,
+              fill: 0xFFFFFF,
+              fontFamily: 'Arial, sans-serif',
+              fontWeight: 'bold',
+              align: 'center',
+              stroke: 0x000000,
+              strokeThickness: 2
+            });
+            label.anchor.set(0.5, 1);
+            label.x = 0;
+            label.y = -8;
+            noteSprite.sprite.addChild(label);
+            noteSprite.label = label;
+          }
+        } else if (noteSprite.label) {
+          // 表示スタイルが off の場合ラベルを削除
+          noteSprite.sprite.removeChild(noteSprite.label);
+          noteSprite.label.destroy();
+          noteSprite.label = undefined;
+        }
+
+        // ----- カラー・形状更新 -----
+        this.drawNoteShape(noteSprite.sprite, noteSprite.noteData.state, pitch);
+        if (noteSprite.glowSprite) {
+          this.drawGlowShape(noteSprite.glowSprite, noteSprite.noteData.state, pitch);
+        }
+      });
+    }
   }
   
   /**
@@ -1257,6 +1348,23 @@ export class PIXINotesRendererInstance {
     
     this.setupPiano();
     this.setupHitLine();
+
+    // ===== 背景とガイドラインを再生成 =====
+    try {
+      if (this.container.children.length > 0) {
+        this.container.removeChildAt(0);
+      }
+      if (this.notesContainer.children.length > 0) {
+        const first = this.notesContainer.getChildAt(0);
+        if (first) {
+          this.notesContainer.removeChild(first);
+        }
+      }
+    } catch (err) {
+      console.warn('resize 時の背景クリアに失敗', err);
+    }
+
+    this.createNotesAreaBackground();
   }
   
   /**
@@ -1387,20 +1495,18 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<PIXINotesRendererInstance | null>(null);
   
-  // PIXI.js レンダラー初期化
+  // ===== PIXI.js レンダラー初期化 (一度だけ) =====
   useEffect(() => {
-    if (!containerRef.current) return;
-    
-    // コンテナを一時的に非表示にして初期化中のチラつきを防ぐ
+    if (!containerRef.current || rendererRef.current) return;
+
+    // 初期ローディング時にフェードイン
     containerRef.current.style.opacity = '0';
     containerRef.current.style.visibility = 'hidden';
-    
+
     const renderer = new PIXINotesRendererInstance(width, height);
     rendererRef.current = renderer;
-    
     containerRef.current.appendChild(renderer.view);
-    
-    // 初期化完了後に表示
+
     requestAnimationFrame(() => {
       if (containerRef.current) {
         containerRef.current.style.opacity = '1';
@@ -1408,16 +1514,24 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
         containerRef.current.style.transition = 'opacity 0.2s ease-in-out';
       }
     });
-    
+
     onReady?.(renderer);
-    
+
     return () => {
       if (rendererRef.current) {
         rendererRef.current.destroy();
         rendererRef.current = null;
       }
+      onReady?.(null);
     };
-  }, [width, height, onReady]);
+  }, []); // 初回のみ
+
+  // onReady が変更された場合にも現在の renderer を通知
+  useEffect(() => {
+    if (rendererRef.current) {
+      onReady?.(rendererRef.current);
+    }
+  }, [onReady]);
   
   // ノーツ更新
   useEffect(() => {

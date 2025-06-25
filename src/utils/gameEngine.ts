@@ -23,7 +23,12 @@ export const JUDGMENT_TIMING: JudgmentTiming = {
 };
 
 export const LOOKAHEAD_TIME = 3.0; // 3秒先まで表示
-export const CLEANUP_TIME = 1.0;   // 1秒後にクリーンアップ
+export const CLEANUP_TIME = 2.0;        // 2秒後にクリーンアップ（従来比 +1s）
+export const MISSED_CLEANUP_TIME = 1.0; // Miss 判定後 1秒間は残す
+
+// ===== 描画関連定数 =====
+/** PIXI.js ノートスプライトの高さ(px) と合わせる */
+const NOTE_SPRITE_HEIGHT = 5;
 
 // ===== 型定義 =====
 
@@ -309,17 +314,21 @@ export class GameEngine {
   }
   
   private adjustInputNote(inputNote: number): number {
-    let adjusted = inputNote + this.settings.transpose;
+    // 入力ノートにオクターブシフトのみ適用（トランスポーズは判定側で取り扱う）
+    let adjusted = inputNote;
     adjusted += this.settings.noteOctaveShift * 12;
     return adjusted;
   }
   
   private isNoteMatch(targetPitch: number, inputPitch: number): boolean {
-    if (targetPitch === inputPitch) return true;
+    // 曲側のピッチにトランスポーズを適用
+    const transposedTarget = targetPitch + this.settings.transpose;
+
+    if (transposedTarget === inputPitch) return true;
     
     if (this.settings.allowOctaveError) {
       const pitchClass = (pitch: number) => pitch % 12;
-      return pitchClass(targetPitch) === pitchClass(inputPitch);
+      return pitchClass(transposedTarget) === pitchClass(inputPitch);
     }
     
     return false;
@@ -444,8 +453,8 @@ export class GameEngine {
       return { ...note, state: 'missed' };
     }
     
-    // Missedノーツの早期クリーンアップ（画面下端に到達したら即座に削除）
-    if (note.state === 'missed' && timePassed > 0.5) {
+    // Missed ノーツは一定時間残してから削除
+    if (note.state === 'missed' && timePassed > MISSED_CLEANUP_TIME) {
       return { ...note, state: 'completed' };
     }
     
@@ -471,9 +480,9 @@ export class GameEngine {
     const pianoHeight = this.settings.pianoHeight ?? 80;
     const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
 
-    const noteHeight = 28;
-    const noteCenter = (note.y || 0) + noteHeight / 2;
-    const prevNoteCenter = (note.previousY || 0) + noteHeight / 2;
+    const noteHeight = NOTE_SPRITE_HEIGHT;
+    const noteCenter = (note.y || 0);
+    const prevNoteCenter = (note.previousY || 0);
     
     // 判定ラインを通過した瞬間を検出（中心がラインに到達したフレームも含む）
     if (note.previousY !== undefined && 
@@ -498,26 +507,27 @@ export class GameEngine {
     const pianoHeight = this.settings.pianoHeight ?? 80;
     const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
 
-    const noteHeight = 28;
+    const noteHeight = NOTE_SPRITE_HEIGHT;
     
-    // **改善されたタイミング計算**
+    // **改善されたタイミング計算 (ver.2)**
+    // GameEngine では "ノート中心" が y に入る → 判定ラインに中心が到達するのが演奏タイミング
     // 基本の降下時間は一定（速度設定はビジュアル速度のみ）
     const baseFallDuration = LOOKAHEAD_TIME; // 常に3秒で降下
     const visualSpeedMultiplier = this.settings.notesSpeed; // ビジュアル速度乗数
-    
+
     // 実際の物理降下距離とタイミング
-    const startY = -noteHeight; // 画面上端より少し上から開始
-    const endY = hitLineY - (noteHeight / 2); // 判定ライン（ノーツの上端が判定ラインに到達）
-    const totalDistance = endY - startY; // 総降下距離
+    const startYCenter = -noteHeight;            // ノート中心が画面上端より少し上から開始
+    const endYCenter   = hitLineY;               // ノート中心が判定ラインに到達
+    const totalDistance = endYCenter - startYCenter; // 総降下距離（中心基準）
     
     // **高精度計算**: 速度設定は見た目の速度のみ、タイミングは変更しない
     const pixelsPerSecond = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
     
-    // timeToHit = 0の瞬間にノーツ中心が判定ラインに正確に到達するように計算
-    const perfectY = endY - (timeToHit * pixelsPerSecond);
+    // timeToHit = 0 の瞬間にノーツ中心が判定ラインに到達するように計算
+    const perfectY = endYCenter - (timeToHit * pixelsPerSecond);
     
     // 表示範囲制限（画面外は描画しない）
-    const minY = startY - 100; // 上端より上
+    const minY = startYCenter - 100; // 上端より上
     const maxY = screenHeight + 100; // 下端より下
     
     const finalY = Math.max(minY, Math.min(perfectY, maxY));
