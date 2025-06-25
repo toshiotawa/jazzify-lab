@@ -1,0 +1,379 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* グローバルスタイル */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply antialiased;
+    font-feature-settings: 'cv03', 'cv04', 'cv11';
+    margin: 0;
+    overflow: hidden; /* ゲーム画面では画面外スクロールを無効 */
+  }
+  
+  * {
+    box-sizing: border-box;
+  }
+  
+  /* ユーザー選択を無効化（ゲーム画面での誤選択防止） */
+  .game-area {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+  }
+  
+  /* スクロールバーのスタイル（Webkit） */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-game-surface;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary-600 rounded-md;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary-700;
+  }
+}
+
+/* コンポーネントレベルのスタイル */
+@layer components {
+  /* ボタンスタイル */
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+  
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-game-surface text-white border border-primary-600 hover:bg-primary-600 focus:ring-primary-500;
+  }
+  
+  .btn-success {
+    @apply btn bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
+  }
+  
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+  
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+  
+  .btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+  
+  .btn-xs {
+    @apply px-2 py-1 text-xs;
+  }
+  
+  .btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* グラデーション付きコントロールボタン */
+  .control-btn {
+    @apply relative px-4 py-3 rounded-xl font-semibold text-white transition-all duration-300 
+           shadow-lg hover:shadow-xl transform hover:scale-105 
+           focus:outline-none focus:ring-4 focus:ring-opacity-50
+           active:scale-95 overflow-hidden;
+  }
+  
+  .control-btn:before {
+    content: '';
+    @apply absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  }
+  
+  .control-btn:hover:before {
+    @apply opacity-100;
+  }
+  
+  .control-btn-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #1e40af 50%, #1e3a8a 100%);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+    @apply focus:ring-blue-500;
+  }
+  
+  .control-btn-primary:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e3a8a 100%);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+  }
+  
+  .control-btn-secondary {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 50%, #374151 100%);
+    box-shadow: 0 4px 15px rgba(107, 114, 128, 0.4);
+    @apply focus:ring-gray-500;
+  }
+  
+  .control-btn-secondary:hover {
+    background: linear-gradient(135deg, #9ca3af 0%, #6b7280 50%, #4b5563 100%);
+    box-shadow: 0 6px 20px rgba(107, 114, 128, 0.6);
+  }
+  
+  .control-btn-loop {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 50%, #374151 100%);
+    box-shadow: 0 4px 15px rgba(107, 114, 128, 0.4);
+    @apply focus:ring-gray-500;
+  }
+  
+  .control-btn-loop:hover {
+    background: linear-gradient(135deg, #9ca3af 0%, #6b7280 50%, #4b5563 100%);
+    box-shadow: 0 6px 20px rgba(107, 114, 128, 0.6);
+  }
+  
+  .control-btn-loop-active {
+    background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    @apply focus:ring-emerald-500;
+    animation: pulseLoop 2s ease-in-out infinite;
+  }
+  
+  .control-btn-loop-active:hover {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+  }
+  
+  .control-btn-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    @apply focus:ring-red-500;
+  }
+  
+  .control-btn-danger:hover {
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6);
+  }
+  
+  .control-btn-sm {
+    @apply px-3 py-2 text-sm;
+  }
+  
+  .control-btn-xs {
+    @apply px-2 py-1 text-xs;
+  }
+  
+  .control-btn:disabled {
+    @apply opacity-50 cursor-not-allowed transform-none hover:scale-100;
+    background: linear-gradient(135deg, #4b5563 0%, #374151 50%, #1f2937 100%);
+    box-shadow: none;
+  }
+  
+  @keyframes pulseLoop {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 6px 25px rgba(245, 158, 11, 0.8);
+    }
+  }
+  
+  /* カードスタイル */
+  .card {
+    @apply bg-game-surface rounded-xl shadow-lg border border-gray-700;
+  }
+  
+  .card-header {
+    @apply px-6 py-4 border-b border-gray-700;
+  }
+  
+  .card-body {
+    @apply px-6 py-4;
+  }
+  
+  /* インプットスタイル */
+  .input {
+    @apply w-full px-3 py-2 bg-game-accent border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors;
+  }
+  
+  .select {
+    @apply input cursor-pointer;
+  }
+  
+  /* スライダースタイル */
+  .slider {
+    @apply w-full h-2 bg-game-accent rounded-lg appearance-none cursor-pointer;
+  }
+  
+  .slider::-webkit-slider-thumb {
+    @apply appearance-none w-5 h-5 bg-primary-600 rounded-full cursor-pointer hover:bg-primary-700 transition-colors;
+  }
+  
+  .slider::-moz-range-thumb {
+    @apply w-5 h-5 bg-primary-600 rounded-full cursor-pointer border-none hover:bg-primary-700 transition-colors;
+  }
+  
+  /* タブスタイル */
+  .tab {
+    @apply px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer;
+  }
+  
+  .tab-active {
+    @apply bg-primary-600 text-white;
+  }
+  
+  .tab-inactive {
+    @apply text-gray-400 hover:text-white hover:bg-game-accent;
+  }
+  
+  /* モーダルスタイル */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4;
+  }
+  
+  .modal-content {
+    @apply bg-game-surface rounded-xl shadow-2xl border border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-hidden;
+  }
+  
+  /* ゲーム特有のスタイル */
+  .game-container {
+    @apply w-full h-screen bg-gradient-game flex flex-col overflow-hidden;
+  }
+  
+  .notes-area {
+    @apply relative overflow-hidden;
+    background: linear-gradient(180deg, rgba(15, 15, 35, 0.9) 0%, rgba(26, 26, 46, 0.95) 100%);
+  }
+  
+  .piano-container {
+    @apply relative border-t border-gray-700;
+    background: linear-gradient(180deg, rgba(22, 33, 62, 0.9) 0%, rgba(15, 52, 96, 0.95) 100%);
+  }
+  
+  .score-display {
+    @apply text-2xl font-bold text-white text-center py-2;
+    text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  }
+  
+  /* アニメーション */
+  .fade-in {
+    @apply animate-fade-in;
+  }
+  
+  .slide-up {
+    @apply animate-slide-up;
+  }
+  
+  .pulse-gentle {
+    @apply animate-pulse-slow;
+  }
+  
+  .bounce-gentle {
+    @apply animate-bounce-gentle;
+  }
+  
+  /* ノーツエフェクト */
+  .note-hit-effect {
+    @apply absolute pointer-events-none;
+    animation: noteHitEffect 0.6s ease-out forwards;
+  }
+  
+  @keyframes noteHitEffect {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.3);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
+  
+  .combo-text {
+    @apply absolute text-2xl font-bold text-yellow-400 pointer-events-none;
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.7);
+    animation: comboAnimation 1s ease-out forwards;
+  }
+  
+  @keyframes comboAnimation {
+    0% {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: translateY(-20px) scale(1.2);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-40px) scale(1);
+      opacity: 0;
+    }
+  }
+}
+
+/* ユーティリティクラス */
+@layer utilities {
+  /* グラデーション背景 */
+  .bg-gradient-game {
+    background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+  }
+  
+  .bg-gradient-jazz {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+  
+  /* テキストグラデーション */
+  .text-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  /* レスポンシブ対応 */
+  .mobile-scroll {
+    @apply overflow-x-auto scrollbar-none;
+    scroll-snap-type: x mandatory;
+  }
+  
+  .mobile-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .mobile-scroll {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  /* フォーカス管理 */
+  .focus-visible {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-game-bg;
+  }
+  
+  /* アクセシビリティ */
+  .sr-only {
+    @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0;
+    clip: rect(0, 0, 0, 0);
+  }
+  
+  /* パフォーマンス最適化 */
+  .hardware-acceleration {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+  
+  .gpu-layer {
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+} 
