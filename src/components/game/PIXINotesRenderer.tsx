@@ -966,7 +966,7 @@ export class PIXINotesRendererInstance {
       const hitLineY = this.settings.hitLineY;
       
       if (Math.abs(y - hitLineY) < 20 && Math.abs(timeToHit) < 0.1) {
-        console.log(`🎯 ノーツ同期: pitch=${note.pitch}, timeToHit=${timeToHit.toFixed(3)}s, y=${y.toFixed(1)}px, hitLineY=${hitLineY}px`);
+        //console.log(`🎯 ノーツ同期: pitch=${note.pitch}, timeToHit=${timeToHit.toFixed(3)}s, y=${y.toFixed(1)}px, hitLineY=${hitLineY}px`);
       }
     }
     
@@ -977,9 +977,21 @@ export class PIXINotesRendererInstance {
         this.drawGlowShape(noteSprite.glowSprite, note.state, note.pitch);
       }
       
+      // GOOD 判定で透明化した際にラベルも非表示にする
+      if (note.state === 'hit' && noteSprite.label) {
+        noteSprite.label.visible = false;
+      }
+      
+      // シークやABリピートでノートが再度 "visible" 状態になった場合、
+      // 非表示になっていたラベルを再表示する
+      if (note.state === 'visible' && noteSprite.label) {
+        noteSprite.label.visible = true;
+      }
+      
       // ヒット/ミス時のエフェクト
       if (note.state === 'hit' || note.state === 'missed') {
-        this.createHitEffect(x, noteSprite.sprite.y, note.state, note.timingError ? 'good' : 'perfect');
+        const judgmentLabel = note.state === 'hit' ? 'good' : 'miss';
+        this.createHitEffect(x, noteSprite.sprite.y, note.state, judgmentLabel);
       }
     }
     
@@ -1010,6 +1022,15 @@ export class PIXINotesRendererInstance {
     
     const { noteWidth, noteHeight } = this.settings;
     
+    // GOOD 判定（state === 'hit') ではノーツを透明にする
+    if (state === 'hit') {
+      // 透明化してスペースを残す（クリック判定など影響させない）
+      graphics.beginFill(0x000000, 0);
+      graphics.drawRect(-noteWidth / 2, -noteHeight / 2, noteWidth, noteHeight);
+      graphics.endFill();
+      return;
+    }
+
     // より美しいグラデーション効果を再現
     if (state === 'visible') {
       // 黒鍵判定
@@ -1119,6 +1140,11 @@ export class PIXINotesRendererInstance {
   private drawGlowShape(graphics: PIXI.Graphics, state: ActiveNote['state'], pitch?: number): void {
     graphics.clear();
     
+    // GOOD 判定後のノーツは透明のためグローを描画しない
+    if (state === 'hit') {
+      return;
+    }
+
     const color = this.getStateColor(state, pitch);
     const { noteWidth, noteHeight } = this.settings;
     
@@ -1135,56 +1161,87 @@ export class PIXINotesRendererInstance {
   }
   
   private createHitEffect(x: number, y: number, state: 'hit' | 'missed', judgment?: string): void {
+    // GOOD ヒット時のみ特殊グローエフェクトを表示
+    const isGoodHit = state === 'hit' && judgment === 'good';
+    const duration = 500; // 0.5 秒
+
+    if (isGoodHit) {
+      // ===== 円形グローエフェクト =====
+      const glow = new PIXI.Graphics();
+      glow.beginFill(this.settings.colors.good, 0.8);
+      const radius = 16;
+      glow.drawCircle(0, 0, radius);
+      glow.endFill();
+      glow.x = x;
+      glow.y = y;
+      this.effectsContainer.addChild(glow);
+
+      // ===== ガイドレーンのグローエフェクト =====
+      const laneGlow = new PIXI.Graphics();
+      const laneWidth = 6;
+      const laneHeight = this.settings.hitLineY;
+      laneGlow.beginFill(this.settings.colors.good, 0.25);
+      laneGlow.drawRect(-laneWidth / 2, -laneHeight, laneWidth, laneHeight);
+      laneGlow.endFill();
+      laneGlow.x = x;
+      laneGlow.y = this.settings.hitLineY;
+      this.effectsContainer.addChild(laneGlow);
+
+      // フェードアウトアニメーション
+      const start = Date.now();
+      const animate = () => {
+        const elapsed = Date.now() - start;
+        const progress = elapsed / duration;
+        if (progress >= 1) {
+          this.effectsContainer.removeChild(glow);
+          glow.destroy();
+          this.effectsContainer.removeChild(laneGlow);
+          laneGlow.destroy();
+          return;
+        }
+        const alpha = 1 - progress;
+        glow.alpha = alpha;
+        laneGlow.alpha = alpha * 0.5;
+        glow.scale.set(1 + progress * 0.5);
+        requestAnimationFrame(animate);
+      };
+      requestAnimationFrame(animate);
+      return; // パーティクルは生成しない
+    }
+
+    // MISS もしくはその他の場合は簡易パーティクルエフェクト (従来ロジック)
     if (!this.settings.effects.particles) return;
-    
-    const isHit = state === 'hit';
-    const particleCount = isHit ? 20 : 10;
-    const baseColor = isHit ? this.settings.colors.hit : this.settings.colors.missed;
-    
-    // パーティクル生成
+
+    const particleCount = 10;
+    const baseColor = this.settings.colors.missed;
+
     for (let i = 0; i < particleCount; i++) {
       const particle = new PIXI.Graphics();
-      
-      // パーティクルの色（判定に応じて）
-      let particleColor = baseColor;
-      if (judgment === 'perfect') particleColor = this.settings.colors.perfect;
-      else if (judgment === 'good') particleColor = this.settings.colors.good;
-      
-      particle.beginFill(particleColor);
+      particle.beginFill(baseColor);
       particle.drawCircle(0, 0, Math.random() * 3 + 1);
       particle.endFill();
-      
       particle.x = x + (Math.random() - 0.5) * 20;
       particle.y = y + (Math.random() - 0.5) * 20;
-      
-      // アニメーション
       const velocity = {
         x: (Math.random() - 0.5) * 100,
         y: Math.random() * -50 - 25
       };
-      
       this.particles.addChild(particle);
-      
-      // フェードアウトアニメーション
       const startTime = Date.now();
       const animateParticle = () => {
         const elapsed = Date.now() - startTime;
-        const progress = elapsed / 1000; // 1秒間
-        
+        const progress = elapsed / 1000;
         if (progress >= 1) {
           this.particles.removeChild(particle);
           particle.destroy();
           return;
         }
-        
-        particle.x += velocity.x * 0.016; // 60fps想定
+        particle.x += velocity.x * 0.016;
         particle.y += velocity.y * 0.016;
         particle.alpha = 1 - progress;
-        velocity.y += 200 * 0.016; // 重力
-        
+        velocity.y += 200 * 0.016;
         requestAnimationFrame(animateParticle);
       };
-      
       requestAnimationFrame(animateParticle);
     }
   }

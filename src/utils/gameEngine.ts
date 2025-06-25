@@ -195,7 +195,7 @@ export class GameEngine {
     const currentTime = this.getCurrentTime();
     const adjustedInput = this.adjustInputNote(inputNote);
     
-    // 最適なマッチングノートを検索
+    // 可視ノーツのうち、ピッチが一致し GOOD 判定範囲内のものを探す
     const candidates = Array.from(this.activeNotes.values())
       .filter(note => note.state === 'visible')
       .filter(note => this.isNoteMatch(note.pitch, adjustedInput))
@@ -203,19 +203,19 @@ export class GameEngine {
         note,
         timingError: Math.abs(currentTime - note.time) * 1000
       }))
-      .filter(({ timingError }) => timingError <= JUDGMENT_TIMING.missMs)
+      // GOOD 判定幅以内のみ許可
+      .filter(({ timingError }) => timingError <= JUDGMENT_TIMING.goodMs)
       .sort((a, b) => a.timingError - b.timingError);
     
     if (candidates.length === 0) return null;
     
     const { note, timingError } = candidates[0];
-    const judgment = this.calculateJudgment(timingError);
-    
+
     return {
       noteId: note.id,
       inputNote: adjustedInput,
       timingError,
-      judgment,
+      judgment: 'good',
       timestamp: currentTime
     };
   }
@@ -335,7 +335,7 @@ export class GameEngine {
   }
   
   private calculateJudgment(timingErrorMs: number): 'perfect' | 'good' | 'miss' {
-    if (timingErrorMs <= JUDGMENT_TIMING.perfectMs) return 'perfect';
+    // 判定をGOODとMISSのみに簡略化
     if (timingErrorMs <= JUDGMENT_TIMING.goodMs) return 'good';
     return 'miss';
   }
@@ -358,9 +358,8 @@ export class GameEngine {
   }
   
   private calculateFinalScore(): number {
-    const baseScore = (this.score.goodCount / Math.max(1, this.score.totalNotes)) * 800;
-    const comboBonus = Math.min(this.score.maxCombo * 2, 200);
-    return Math.min(Math.round(baseScore + comboBonus), 1000);
+    // GOOD 1 回あたり 1000 点、MISS は 0 点
+    return this.score.goodCount * 1000;
   }
   
   private calculateRank(accuracy: number): 'S' | 'A' | 'B' | 'C' | 'D' {
@@ -575,9 +574,12 @@ export class GameEngine {
         latencyOffset: this.latencyOffset
       };
       
+      // Immer により凍結されてもエンジン側が変更できるようディープコピーを渡す
+      const activeNotesForUi = activeNotes.map(note => ({ ...note }));
+      
       this.onUpdate?.({
         currentTime,
-        activeNotes,
+        activeNotes: activeNotesForUi,
         timing,
         score: { ...this.score },
         abRepeatState: {

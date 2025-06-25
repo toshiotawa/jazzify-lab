@@ -199,10 +199,9 @@ const calculateRank = (accuracy: number): ScoreRank => {
   return 'D';
 };
 
-const calculateScore = (goodCount: number, maxCombo: number, _accuracy: number): number => {
-  const baseScore = (goodCount / Math.max(1, goodCount + 0)) * 800; // Miss考慮なし（Good/Miss判定のみ）
-  const comboBonus = Math.min(maxCombo * 2, 200); // コンボボーナス最大200点
-  return Math.min(Math.round(baseScore + comboBonus), 1000);
+const calculateScore = (goodCount: number, _maxCombo: number, _accuracy: number): number => {
+  // GOOD 1 回あたり 1000 点、MISS は 0 点
+  return goodCount * 1000;
 };
 
 // ===== ストア作成 =====
