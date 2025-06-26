@@ -65,11 +65,6 @@ export class GameEngine {
     rank: 'D'
   };
   
-  // ABリピート状態
-  private abRepeatStart: number | null = null;
-  private abRepeatEnd: number | null = null;
-  private abRepeatEnabled: boolean = false;
-  
   // 音楽同期
   private audioContext: AudioContext | null = null;
   private startTime: number = 0;
@@ -78,6 +73,7 @@ export class GameEngine {
   
   private animationFrame: number | null = null;
   private onUpdate?: (data: GameEngineUpdate) => void;
+  private onJudgment?: (judgment: JudgmentResult) => void;
   
   constructor(settings: GameSettings) {
     this.settings = settings;
@@ -85,6 +81,11 @@ export class GameEngine {
   
   setUpdateCallback(callback: (data: GameEngineUpdate) => void): void {
     this.onUpdate = callback;
+  }
+  
+  /** 判定イベント受信側を登録 */
+  setJudgmentCallback(callback: (judgment: JudgmentResult) => void): void {
+    this.onJudgment = callback;
   }
   
   loadSong(notes: NoteData[]): void {
@@ -230,6 +231,9 @@ export class GameEngine {
     
     this.updateScore(judgment);
     
+    // ストア側へイベント通知
+    this.onJudgment?.(judgment);
+    
     // ノーツの状態更新
     const note = this.activeNotes.get(hit.noteId);
     if (note) {
@@ -241,29 +245,15 @@ export class GameEngine {
     return judgment;
   }
   
-  setABRepeatStart(time?: number): void {
-    this.abRepeatStart = time ?? this.getCurrentTime();
-  }
+  setABRepeatStart(_time?: number): void {}
   
-  setABRepeatEnd(time?: number): void {
-    this.abRepeatEnd = time ?? this.getCurrentTime();
-  }
+  setABRepeatEnd(_time?: number): void {}
   
-  enableABRepeat(): void {
-    if (this.abRepeatStart !== null && this.abRepeatEnd !== null) {
-      this.abRepeatEnabled = true;
-    }
-  }
+  enableABRepeat(): void {}
   
-  disableABRepeat(): void {
-    this.abRepeatEnabled = false;
-  }
+  disableABRepeat(): void {}
   
-  clearABRepeat(): void {
-    this.abRepeatStart = null;
-    this.abRepeatEnd = null;
-    this.abRepeatEnabled = false;
-  }
+  clearABRepeat(): void {}
   
   updateSettings(settings: GameSettings): void {
     this.settings = settings;
@@ -284,9 +274,9 @@ export class GameEngine {
         latencyOffset: this.latencyOffset
       },
       abRepeat: {
-        start: this.abRepeatStart,
-        end: this.abRepeatEnd,
-        enabled: this.abRepeatEnabled
+        start: null,
+        end: null,
+        enabled: false
       }
     };
   }
@@ -509,6 +499,9 @@ export class GameEngine {
         note.state = 'hit';
         note.hitTime = currentTime;
         note.timingError = Math.abs(timeError);
+
+        // イベント通知
+        this.onJudgment?.(judgment);
       }
 
       // 重複ログ防止フラグを設定
@@ -552,16 +545,8 @@ export class GameEngine {
     return Math.round(finalY * 10) / 10; // 小数点第1位まで精度を保つ
   }
   
-  private checkABRepeatLoop(currentTime: number): void {
-    if (!this.abRepeatEnabled || this.abRepeatStart === null || this.abRepeatEnd === null) {
-      return;
-    }
-    
-    if (currentTime >= this.abRepeatEnd) {
-      // ABリピート時の完全リセット
-      console.log(`🔄 ABリピート: ${currentTime.toFixed(2)}s → ${this.abRepeatStart.toFixed(2)}s`);
-      this.seek(this.abRepeatStart);
-    }
+  private checkABRepeatLoop(_currentTime: number): void {
+    // Managed in store now
   }
   
   private startGameLoop(): void {
@@ -583,6 +568,9 @@ export class GameEngine {
           };
           this.updateScore(missJudgment);
           note.judged = true; // 重複判定を防ぐフラグ
+
+          // イベント通知
+          this.onJudgment?.(missJudgment);
         }
       }
       
@@ -601,9 +589,9 @@ export class GameEngine {
         timing,
         score: { ...this.score },
         abRepeatState: {
-          start: this.abRepeatStart,
-          end: this.abRepeatEnd,
-          enabled: this.abRepeatEnabled
+          start: null,
+          end: null,
+          enabled: false
         }
       });
       

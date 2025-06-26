@@ -367,4 +367,4 @@ export interface CompatibilityLayer {
   guitar: any;
 }
 
-export default {}; 
+export type JudgmentEvent = JudgmentResult; 

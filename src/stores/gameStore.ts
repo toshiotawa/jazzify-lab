@@ -228,19 +228,49 @@ export const useGameStore = create<GameStoreState>()(
           // エンジンの更新コールバック設定
           engine.setUpdateCallback((data: any) => {
             set((state) => {
-              state.currentTime = data.currentTime;
+              // currentTime は AudioContext 同期ループで更新する
               state.engineActiveNotes = data.activeNotes;
-              state.score = data.score;
               
-              // ABリピート状態の同期
-              state.abRepeat.enabled = data.abRepeatState.enabled;
-              state.abRepeat.startTime = data.abRepeatState.start;
-              state.abRepeat.endTime = data.abRepeatState.end;
+              // ===== ABリピート自動ループ =====
+              const { abRepeat, gameEngine } = state;
+              if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
+                if (state.currentTime >= abRepeat.endTime) {
+                  console.log(`🔄 ABリピート(Store): ${state.currentTime.toFixed(2)}s → ${abRepeat.startTime.toFixed(2)}s`);
+                  gameEngine?.seek(abRepeat.startTime);
+                  state.currentTime = abRepeat.startTime;
+                }
+              }
               
               // デバッグ情報更新（オプション）
               if (state.settings.showFPS) {
                 state.debug.renderTime = performance.now() % 1000;
               }
+            });
+          });
+          
+          // 判定イベントコールバック登録
+          engine.setJudgmentCallback((judgment) => {
+            set((state) => {
+              // スコア・コンボ管理
+              if (judgment.type === 'good') {
+                state.score.goodCount += 1;
+                state.score.combo += 1;
+                state.score.maxCombo = Math.max(state.score.maxCombo, state.score.combo);
+
+                // 成功ノートをアクティブセットに追加
+                state.activeNotes.add(judgment.noteId);
+              } else {
+                state.score.missCount += 1;
+                state.score.combo = 0;
+              }
+
+              const totalJudged = state.score.goodCount + state.score.missCount;
+              state.score.accuracy = totalJudged > 0 ? state.score.goodCount / totalJudged : 0;
+              state.score.score = state.score.goodCount * 1000;
+              state.score.rank = calculateRank(state.score.accuracy);
+
+              // 履歴保存
+              state.judgmentHistory.push(judgment);
             });
           });
           
@@ -268,16 +298,8 @@ export const useGameStore = create<GameStoreState>()(
           
           const hit = state.gameEngine.handleInput(inputNote);
           if (hit) {
-            const judgment = state.gameEngine.processHit(hit);
-            
-            set((state) => {
-              state.judgmentHistory.push(judgment);
-              
-              // アクティブノーツの状態更新
-              if (hit.judgment !== 'miss') {
-                state.activeNotes.add(hit.noteId);
-              }
-            });
+            // エンジンに判定を任せ、コールバックで結果を受け取る
+            state.gameEngine.processHit(hit);
           }
         },
         
@@ -378,19 +400,9 @@ export const useGameStore = create<GameStoreState>()(
           const currentTime = time ?? state.currentTime;
           state.abRepeat.startTime = currentTime;
           
-          // GameEngine にも同期
-          if (state.gameEngine) {
-            state.gameEngine.setABRepeatStart(currentTime);
-          }
-          
           // 終了時間が開始時間より前の場合はクリア
           if (state.abRepeat.endTime !== null && state.abRepeat.endTime <= currentTime) {
             state.abRepeat.endTime = null;
-            // GameEngine 側もクリア
-            if (state.gameEngine) {
-              state.gameEngine.clearABRepeat();
-              state.gameEngine.setABRepeatStart(currentTime);
-            }
           }
         }),
         
@@ -400,11 +412,6 @@ export const useGameStore = create<GameStoreState>()(
           // 開始時間が設定されていない、または開始時間より後の場合のみ設定
           if (state.abRepeat.startTime !== null && currentTime > state.abRepeat.startTime) {
             state.abRepeat.endTime = currentTime;
-            
-            // GameEngine にも同期
-            if (state.gameEngine) {
-              state.gameEngine.setABRepeatEnd(currentTime);
-            }
           }
         }),
         
@@ -414,10 +421,6 @@ export const useGameStore = create<GameStoreState>()(
             startTime: null,
             endTime: null
           };
-          
-          if (state.gameEngine) {
-            state.gameEngine.clearABRepeat();
-          }
         }),
 
         // A地点のみクリア
@@ -425,10 +428,6 @@ export const useGameStore = create<GameStoreState>()(
           state.abRepeat.startTime = null;
           // A地点がクリアされたらループも無効化
           state.abRepeat.enabled = false;
-          
-          if (state.gameEngine) {
-            state.gameEngine.clearABRepeat();
-          }
         }),
 
         // B地点のみクリア
@@ -436,23 +435,11 @@ export const useGameStore = create<GameStoreState>()(
           state.abRepeat.endTime = null;
           // B地点がクリアされたらループも無効化
           state.abRepeat.enabled = false;
-          
-          if (state.gameEngine) {
-            state.gameEngine.clearABRepeat();
-          }
         }),
         
         toggleABRepeat: () => set((state) => {
           if (state.abRepeat.startTime !== null && state.abRepeat.endTime !== null) {
             state.abRepeat.enabled = !state.abRepeat.enabled;
-            
-            if (state.gameEngine) {
-              if (state.abRepeat.enabled) {
-                state.gameEngine.enableABRepeat();
-              } else {
-                state.gameEngine.disableABRepeat();
-              }
-            }
           }
         }),
         
