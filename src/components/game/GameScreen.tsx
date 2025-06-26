@@ -229,9 +229,8 @@ const SongSelectionScreen: React.FC = () => {
  * ゲームプレイ画面
  */
 const GamePlayScreen: React.FC = () => {
-  const { currentSong, mode } = useGameSelector((s) => ({
-    currentSong: s.currentSong,
-    mode: s.mode
+  const { currentSong } = useGameSelector((s) => ({
+    currentSong: s.currentSong
   }));
   const gameActions = useGameActions();
 

@@ -349,11 +349,6 @@ export class GameEngine {
     return false;
   }
   
-  private calculateJudgment(timingErrorMs: number): 'perfect' | 'good' | 'miss' {
-    // 判定をGOODとMISSのみに簡略化
-    if (timingErrorMs <= JUDGMENT_TIMING.goodMs) return 'good';
-    return 'miss';
-  }
   
   private updateScore(judgment: JudgmentResult): void {
     this.score.totalNotes++;
@@ -496,7 +491,6 @@ export class GameEngine {
     const pianoHeight = this.settings.pianoHeight ?? 80;
     const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
 
-    const noteHeight = NOTE_SPRITE_HEIGHT;
     const noteCenter = (note.y || 0);
     const prevNoteCenter = (note.previousY || 0);
     

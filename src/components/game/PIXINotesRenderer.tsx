@@ -77,10 +77,6 @@ export class PIXINotesRendererInstance {
   private onKeyRelease?: (note: number) => void;
   
   // リアルタイムアニメーション用
-  /* eslint-disable @typescript-eslint/no-unused-vars */
-  private _currentTime: number = 0;
-  private _animationSpeed: number = 1.0;
-  /* eslint-enable */
   private lastFrameTime: number = performance.now();
   
   private settings: RendererSettings = {
@@ -749,7 +745,6 @@ export class PIXINotesRendererInstance {
     }
     
     const isBlackKey = this.isBlackKey(midiNote);
-    const _noteName = this.getMidiNoteName(midiNote, true);
     
     // console.log(`🎨 Highlighting ${isBlackKey ? 'BLACK' : 'WHITE'} key: ${midiNote} (${_noteName}) - ${active ? 'ON' : 'OFF'}`, {
     //   keySprite: keySprite,
