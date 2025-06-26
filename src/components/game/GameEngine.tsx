@@ -32,7 +32,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     updateEngineSettings,
     updateSettings,
     updateTime,
-    pause,
     stop
   } = useGameStore();
   
@@ -149,6 +148,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         // 5) AudioContext を resume し、再生位置を同期
         audioContext.resume();
 
+        // ==== 再生スピード適用 ====
+        audio.playbackRate = settings.playbackSpeed;
+        // ピッチ保持を試みる（ブラウザによって実装が異なる）
+        try {
+          // @ts-ignore - ベンダープレフィックス対応
+          audio.preservesPitch = true;
+          // @ts-ignore
+          audio.mozPreservesPitch = true;
+          // @ts-ignore
+          audio.webkitPreservesPitch = true;
+        } catch (_) {/* ignore */}
+
         const syncTime = Math.max(0, currentTime);
         audio.currentTime = syncTime;
 
@@ -190,12 +201,34 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
   }, [settings.musicVolume]);
   
+  // 再生スピード変更の同期
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = settings.playbackSpeed;
+
+      // ピッチを保持
+      try {
+        // @ts-ignore
+        audioRef.current.preservesPitch = true;
+        // @ts-ignore
+        audioRef.current.mozPreservesPitch = true;
+        // @ts-ignore
+        audioRef.current.webkitPreservesPitch = true;
+      } catch (_) {/* ignore */}
+    }
+
+    // GameEngine にも設定を反映
+    if (gameEngine) {
+      updateEngineSettings();
+    }
+  }, [settings.playbackSpeed, gameEngine, updateEngineSettings]);
+  
   // 時間同期ループ
   const startTimeSync = useCallback(() => {
     const syncTime = () => {
       if (audioContextRef.current && isPlaying) {
         const audioCtxTime = audioContextRef.current.currentTime;
-        const logicalTime = audioCtxTime - baseOffsetRef.current;
+        const logicalTime = (audioCtxTime - baseOffsetRef.current) * settings.playbackSpeed;
         updateTime(logicalTime);
         
         // 楽曲終了チェック
@@ -208,7 +241,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }
     };
     syncTime();
-  }, [isPlaying, currentSong?.duration, updateTime, stop]);
+  }, [isPlaying, currentSong?.duration, updateTime, stop, settings.playbackSpeed]);
   
   const stopTimeSync = useCallback(() => {
     if (animationFrameRef.current) {
@@ -220,7 +253,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   // シーク機能
   useEffect(() => {
     if (audioContextRef.current && audioLoaded) {
-      const audioTime = audioContextRef.current.currentTime - baseOffsetRef.current;
+      const audioTime = (audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
       const timeDiff = Math.abs(audioTime - currentTime);
       // 0.3秒以上のずれがある場合のみシーク（より厳密な同期）
       if (timeDiff > 0.3) {
@@ -239,7 +272,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
       }
     }
-  }, [currentTime, audioLoaded, gameEngine]);
+  }, [currentTime, audioLoaded, gameEngine, settings.playbackSpeed]);
   
   // ゲームエンジン初期化
   useEffect(() => {

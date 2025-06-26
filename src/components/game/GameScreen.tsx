@@ -388,6 +388,24 @@ const SettingsPanel: React.FC = () => {
               />
             </div>
 
+            {/* 再生スピード */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                再生スピード: {Math.round(settings.playbackSpeed * 100)}%
+              </label>
+              <input
+                type="range"
+                min="0.5"
+                max="1.5"
+                step="0.05"
+                value={settings.playbackSpeed}
+                onChange={(e) => 
+                  gameActions.updateSettings({ playbackSpeed: parseFloat(e.target.value) })
+                }
+                className="slider"
+              />
+            </div>
+
             {/* 鍵盤音名表示 */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">

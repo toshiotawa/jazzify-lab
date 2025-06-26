@@ -6,14 +6,10 @@ import {
   FaStop, 
   FaBackward, 
   FaForward, 
-  FaRedo,
-  FaTimes,
-  FaHome
+  FaTimes
 } from 'react-icons/fa';
 import { 
   MdLoop,
-  MdSkipPrevious,
-  MdSkipNext,
   MdReplay
 } from 'react-icons/md';
 
@@ -104,14 +100,6 @@ const ControlBar: React.FC = () => {
       setTimeout(() => toggleABRepeat(), 50);
     }
   }, [toggleABRepeat, setABRepeatStart, setABRepeatEnd, abRepeat, currentTime, songDuration]);
-
-  // 最初に戻るハンドラー（練習モード用）
-  const handleRestart = useCallback(() => {
-    seek(0);
-    if (!isPlaying) {
-      play();
-    }
-  }, [seek, isPlaying, play]);
 
   // 本番モード用の再生/最初に戻るボタン（一時停止なし）
   const handlePlayOrRestart = useCallback(() => {

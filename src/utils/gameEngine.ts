@@ -94,10 +94,12 @@ export class GameEngine {
     this.notes = [];
     
     // **ユニークIDの確実な生成**
+    const lookahead = this.getLookaheadTime();
+
     this.notes = notes.map((note, index) => ({
       ...note,
       id: note.id || `demo1-${index}`, // インデックスベースでユニークなID
-      appearTime: note.time - LOOKAHEAD_TIME // 常に3秒前に出現
+      appearTime: note.time - lookahead // スピードに応じて先読み時間を調整
     }));
     
     // 処理済みフラグをクリア
@@ -256,7 +258,28 @@ export class GameEngine {
   clearABRepeat(): void {}
   
   updateSettings(settings: GameSettings): void {
+    const prevSpeed = this.settings.playbackSpeed ?? 1;
+    // 現在の論理時間を保持（旧スピードで計算）
+    const currentLogicalTime = this.getCurrentTime();
+
+    // 設定更新
     this.settings = settings;
+
+    const newSpeed = this.settings.playbackSpeed ?? 1;
+
+    // スピードが変化した場合、startTime を調整してタイムラインを連続に保つ
+    if (this.audioContext && prevSpeed !== newSpeed) {
+      // elapsedNew * newSpeed = currentLogicalTime を満たすように startTime を再計算
+      const elapsedNew = currentLogicalTime / newSpeed;
+      this.startTime = this.audioContext.currentTime - elapsedNew - this.latencyOffset;
+    }
+
+    // notesSpeed が変化した場合、未処理ノートの appearTime を更新
+    const dynamicLookahead = this.getLookaheadTime();
+    this.notes.forEach((note) => {
+      // まだ appearTime を計算済みでも更新
+      note.appearTime = note.time - dynamicLookahead;
+    });
   }
   
   destroy(): void {
@@ -285,7 +308,9 @@ export class GameEngine {
   
   private getCurrentTime(): number {
     if (!this.audioContext) return 0;
-    return this.audioContext.currentTime - this.startTime - this.latencyOffset;
+    const elapsed = this.audioContext.currentTime - this.startTime - this.latencyOffset;
+    const speed = this.settings.playbackSpeed ?? 1;
+    return elapsed * speed;
   }
   
   private calculateLatency(): void {
@@ -380,12 +405,12 @@ export class GameEngine {
     for (const note of this.notes) {
       // appearTimeが計算されていない場合は計算
       if (!note.appearTime) {
-        note.appearTime = note.time - LOOKAHEAD_TIME; // 常に3秒前に出現
+        note.appearTime = note.time - this.getLookaheadTime(); // 動的先読み
       }
       
       // ノート生成条件を厳密に制限
       const shouldAppear = currentTime >= note.appearTime && 
-                          currentTime < note.time + CLEANUP_TIME; // <= から < に変更
+                          currentTime < note.time + this.getCleanupTime(); // <= から < に変更
       const alreadyActive = this.activeNotes.has(note.id);
       
       // 一度削除されたノートは二度と生成しない
@@ -439,18 +464,18 @@ export class GameEngine {
     
     // *自動ヒットは checkHitLineCrossing で処理*
     
-    // Miss判定チェック
+    // Miss判定チェック (判定幅は固定)
     if (note.state === 'visible' && timePassed > JUDGMENT_TIMING.missMs / 1000) {
       return { ...note, state: 'missed' };
     }
     
-    // Missed ノーツは一定時間残してから削除
-    if (note.state === 'missed' && timePassed > MISSED_CLEANUP_TIME) {
+    // Missed ノーツは速度に応じた時間残してから削除
+    if (note.state === 'missed' && timePassed > this.getMissedCleanupTime()) {
       return { ...note, state: 'completed' };
     }
     
-    // 通常のクリーンアップチェック
-    if (timePassed > CLEANUP_TIME) {
+    // 通常のクリーンアップチェック (速度に応じて延長)
+    if (timePassed > this.getCleanupTime()) {
       return { ...note, state: 'completed' };
     }
     
@@ -521,8 +546,9 @@ export class GameEngine {
     
     // **改善されたタイミング計算 (ver.2)**
     // GameEngine では "ノート中心" が y に入る → 判定ラインに中心が到達するのが演奏タイミング
-    // 基本の降下時間は一定（速度設定はビジュアル速度のみ）
-    const baseFallDuration = LOOKAHEAD_TIME; // 常に3秒で降下
+    // 基本の降下時間は LOOKAHEAD_TIME だが、視覚速度が変わると実際の降下時間も変わるため
+    // appearTime と整合させるため動的な lookahead を使用
+    const baseFallDuration = LOOKAHEAD_TIME; // 3秒を基準にしたまま速度倍率で伸縮
     const visualSpeedMultiplier = this.settings.notesSpeed; // ビジュアル速度乗数
 
     // 実際の物理降下距離とタイミング
@@ -606,5 +632,32 @@ export class GameEngine {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
     }
+  }
+
+  // ===== 動的タイムスケール計算ヘルパー =====
+  /**
+   * ノーツ降下スピード (settings.notesSpeed) に応じたスケールを返す
+   * notesSpeed < 1 (遅い) ならスケール > 1、 notesSpeed > 1 (速い) なら < 1
+   */
+  private getSpeedScale(): number {
+    const speed = this.settings.notesSpeed || 1;
+    // safety guard – clamp to avoid division by zero or extreme values
+    const clamped = Math.max(0.1, Math.min(4, speed));
+    return 1 / clamped;
+  }
+
+  /** 現在の設定に基づくノーツ出現(先読み)時間 */
+  private getLookaheadTime(): number {
+    return LOOKAHEAD_TIME * this.getSpeedScale();
+  }
+
+  /** 現在の設定に基づくクリーンアップ時間 */
+  private getCleanupTime(): number {
+    return CLEANUP_TIME * this.getSpeedScale();
+  }
+
+  /** Miss 判定後の残存時間 */
+  private getMissedCleanupTime(): number {
+    return MISSED_CLEANUP_TIME * this.getSpeedScale();
   }
 }

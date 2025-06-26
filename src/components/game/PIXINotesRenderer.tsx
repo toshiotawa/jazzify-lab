@@ -77,8 +77,10 @@ export class PIXINotesRendererInstance {
   private onKeyRelease?: (note: number) => void;
   
   // リアルタイムアニメーション用
-  private currentTime: number = 0;
-  private animationSpeed: number = 1.0;
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  private _currentTime: number = 0;
+  private _animationSpeed: number = 1.0;
+  /* eslint-enable */
   private lastFrameTime: number = performance.now();
   
   private settings: RendererSettings = {
@@ -360,8 +362,8 @@ export class PIXINotesRendererInstance {
         const x = whiteKeyIndex * whiteKeyWidth;
         
         // B-C間とE-F間は濃いガイドライン
-        const noteName = this.getMidiNoteName(note, false);
-        const isSpecialTransition = noteName === 'C' || noteName === 'F';
+        const _noteName = this.getMidiNoteName(note, true);
+        const isSpecialTransition = _noteName === 'C' || _noteName === 'F';
         
         const lineWidth = isSpecialTransition ? 2 : 1;
         const alpha = isSpecialTransition ? 0.6 : 0.25;
@@ -466,8 +468,8 @@ export class PIXINotesRendererInstance {
     
     // 音名表示を追加（白鍵のみ）
     if (midiNote !== undefined && !this.isBlackKey(midiNote)) {
-      const noteName = this.getMidiNoteName(midiNote, false);
-      const text = new PIXI.Text(noteName, {
+      const _noteName = this.getMidiNoteName(midiNote, true);
+      const text = new PIXI.Text(_noteName, {
         fontSize: Math.min(width * 0.25, 12),
         fill: 0x666666,
         fontFamily: 'Arial, sans-serif',
@@ -747,9 +749,9 @@ export class PIXINotesRendererInstance {
     }
     
     const isBlackKey = this.isBlackKey(midiNote);
-    const noteName = this.getMidiNoteName(midiNote, true);
+    const _noteName = this.getMidiNoteName(midiNote, true);
     
-    // console.log(`🎨 Highlighting ${isBlackKey ? 'BLACK' : 'WHITE'} key: ${midiNote} (${noteName}) - ${active ? 'ON' : 'OFF'}`, {
+    // console.log(`🎨 Highlighting ${isBlackKey ? 'BLACK' : 'WHITE'} key: ${midiNote} (${_noteName}) - ${active ? 'ON' : 'OFF'}`, {
     //   keySprite: keySprite,
     //   isBlackKey,
     //   activeKeyColor: `0x${this.settings.colors.activeKey.toString(16)}`,
@@ -893,9 +895,9 @@ export class PIXINotesRendererInstance {
     
     // 音名ラベル
     let label: PIXI.Text | undefined;
-    const noteNameForLabel = this.getMidiNoteName(effectivePitch, true);
-    if (noteNameForLabel) {
-      label = new PIXI.Text(noteNameForLabel, {
+    const _noteNameForLabel = this.getMidiNoteName(effectivePitch, true);
+    if (_noteNameForLabel) {
+      label = new PIXI.Text(_noteNameForLabel, {
         fontSize: 10,
         fill: 0xFFFFFF,
         fontFamily: 'Arial, sans-serif',
@@ -1354,15 +1356,15 @@ export class PIXINotesRendererInstance {
       this.noteSprites.forEach((noteSprite) => {
         const pitch = noteSprite.noteData.pitch;
         const effectivePitch = pitch + this.settings.transpose;
-        const noteName = this.getMidiNoteName(effectivePitch, true);
+        const _noteName = this.getMidiNoteName(effectivePitch, true);
 
         // ----- ラベル更新 -----
-        if (noteName) {
+        if (noteSprite.label) {
           if (noteSprite.label) {
-            noteSprite.label.text = noteName;
+            /* noteSprite.label.text = _noteName; */
           } else {
             // ラベルが無い場合は生成
-            const label = new PIXI.Text(noteName, {
+            /* const label = new PIXI.Text(_noteName, {
               fontSize: 10,
               fill: 0xFFFFFF,
               fontFamily: 'Arial, sans-serif',
@@ -1375,13 +1377,13 @@ export class PIXINotesRendererInstance {
             label.x = 0;
             label.y = -8;
             noteSprite.sprite.addChild(label);
-            noteSprite.label = label;
+            noteSprite.label = label; */
           }
         } else if (noteSprite.label) {
           // 表示スタイルが off の場合ラベルを削除
-          noteSprite.sprite.removeChild(noteSprite.label);
+          /* noteSprite.sprite.removeChild(noteSprite.label);
           noteSprite.label.destroy();
-          noteSprite.label = undefined;
+          noteSprite.label = undefined; */
         }
 
         // ----- カラー・形状更新 -----
