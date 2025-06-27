@@ -367,4 +367,53 @@ export interface CompatibilityLayer {
   guitar: any;
 }
 
-export type JudgmentEvent = JudgmentResult; 
+export type JudgmentEvent = JudgmentResult;
+
+// ===== MIDI関連の型定義 =====
+
+export interface MidiMessage {
+  data: Uint8Array;
+  timeStamp: number;
+}
+
+export interface MidiInput {
+  id: string;
+  name: string;
+  manufacturer?: string;
+  state: string;
+  connection: string;
+  addEventListener: (type: string, listener: (event: any) => void) => void;
+  removeEventListener: (type: string, listener: (event: any) => void) => void;
+  onmidimessage: ((event: { data: Uint8Array }) => void) | null;
+}
+
+export interface MidiAccess {
+  inputs: Map<string, MidiInput>;
+  outputs: Map<string, any>;
+  onstatechange: ((event: any) => void) | null;
+  sysexEnabled: boolean;
+}
+
+export interface ToneSampler {
+  toDestination(): ToneSampler;
+  triggerAttack(note: string | number, time?: number, velocity?: number): void;
+  triggerRelease(note: string | number, time?: number): void;
+  connect(destination: any): void;
+  dispose(): void;
+}
+
+export interface ToneFrequency {
+  toFrequency(): number;
+}
+
+export interface ToneStatic {
+  Sampler: new (options: any) => ToneSampler;
+  Frequency: new (note: string | number) => ToneFrequency;
+  context: any;
+}
+
+export interface MidiControllerOptions {
+  onNoteOn: (note: number, velocity?: number) => void;
+  onNoteOff: (note: number) => void;
+  onConnectionChange?: (connected: boolean) => void;
+} 

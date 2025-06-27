@@ -119,10 +119,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               // @ts-ignore
               Tone.setContext(audioContext);
             } else {
-              // 旧API
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-              // @ts-ignore
-              Tone.context = audioContext;
+              // 旧API - コンテキストの直接代入は避ける
+              console.warn('Unable to set Tone.js context - using default context');
             }
           } catch (err) {
             console.warn('Tone context assignment failed', err);
