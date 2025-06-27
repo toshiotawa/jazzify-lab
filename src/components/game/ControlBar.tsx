@@ -101,7 +101,6 @@ const ControlBar: React.FC = () => {
     }
   }, [toggleABRepeat, setABRepeatStart, setABRepeatEnd, abRepeat, currentTime, songDuration]);
 
-
   // 本番モード用の再生/最初に戻るボタン（一時停止なし）
   const handlePlayOrRestart = useCallback(() => {
     if (currentTime > 0) {
