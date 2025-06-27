@@ -528,17 +528,32 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           const VISIBLE_WHITE_KEYS = 24; // モバイルで画面に収めたい白鍵数(約2オクターブ)
           const MIN_WHITE_KEY_PX = 22;   // PC での最小白鍵幅
 
-          const fullWidthAtMin = TOTAL_WHITE_KEYS * MIN_WHITE_KEY_PX;
+          const fullWidthAtMin = TOTAL_WHITE_KEYS * MIN_WHITE_KEY_PX; // 1144px
+          const adjustedThreshold = 1100; // paddingを考慮した実用的な閾値
 
           let idealWidth: number;
-          if (gameAreaSize.width >= fullWidthAtMin) {
-            // PC 等、画面が十分広い → スクロール不要
+          let displayMode: string;
+          if (gameAreaSize.width >= adjustedThreshold) {
+            // PC 等、画面が十分広い → 88鍵全表示（スクロール不要）
             idealWidth = gameAreaSize.width;
+            displayMode = 'PC_FULL_88_KEYS';
           } else {
-            // モバイル等、画面が狭い → 2〜3 オクターブ分を基準にスケーリング
+            // モバイル等、画面が狭い → 横スクロール表示
             const whiteKeyWidth = gameAreaSize.width / VISIBLE_WHITE_KEYS;
             idealWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
+            displayMode = 'MOBILE_SCROLL';
           }
+          
+          // デバッグ情報をコンソールに出力
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`🎹 鍵盤表示モード: ${displayMode}`, {
+              gameAreaWidth: gameAreaSize.width,
+              threshold: adjustedThreshold,
+              idealWidth,
+              fullWidthAtMin,
+            });
+          }
+          
           return (
             <div className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
               <div style={{ width: idealWidth, height: '100%' }}>
