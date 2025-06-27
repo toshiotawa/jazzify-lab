@@ -39,12 +39,25 @@ export default defineConfig({
     rollupOptions: {
       external: [],
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'pixi': ['pixi.js'],
-          'audio': ['tone'],
-          'ui-libs': ['react-icons', 'clsx', 'tailwind-merge'],
-          'state': ['zustand', 'immer']
+        manualChunks: (id) => {
+          if (id.includes('react') || id.includes('react-dom')) {
+            return 'react-vendor';
+          }
+          if (id.includes('pixi.js')) {
+            return 'pixi';
+          }
+          if (id.includes('tone')) {
+            return 'audio';
+          }
+          if (id.includes('zustand') || id.includes('immer')) {
+            return 'state';
+          }
+          if (id.includes('react-icons') || id.includes('clsx') || id.includes('tailwind-merge')) {
+            return 'ui-libs';
+          }
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
         },
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',

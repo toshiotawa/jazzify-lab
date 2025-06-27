@@ -114,6 +114,11 @@ temp/
 
 # TypeScript cache
 *.tsbuildinfo
+node_modules/.cache/
+.cache/
+
+# Vite cache
+node_modules/.vite/
 
 # Webpack stats
 stats.json
