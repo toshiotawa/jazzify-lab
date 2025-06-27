@@ -53,7 +53,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // 楽曲読み込み時の音声設定
   useEffect(() => {
-    if (currentSong?.audioFile && audioRef.current) {
+    if (currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current) {
       const audio = audioRef.current;
       
       const handleLoadedMetadata = () => {
@@ -77,6 +77,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
         audio.removeEventListener('error', handleError);
       };
+    } else if (currentSong && (!currentSong.audioFile || currentSong.audioFile.trim() === '')) {
+      // 音声ファイルなしの楽曲の場合
+      console.log(`🎵 音声なしモードで楽曲を読み込み: ${currentSong.title}`);
+      setAudioLoaded(true); // 音声なしでも "読み込み完了" として扱う
     } else {
       setAudioLoaded(false);
     }
@@ -84,96 +88,119 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // 再生状態同期
   useEffect(() => {
-    if (!audioRef.current || !audioLoaded || !gameEngine) return;
+    if (!gameEngine) return;
 
     const run = async () => {
-      const audio = audioRef.current!;
-
       if (isPlaying) {
-        // 1) AudioContext を初期化 (存在しなければ)
-        if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        }
-        const audioContext = audioContextRef.current!;
+        // 音声ファイルありの場合とnしの場合で分岐
+        const hasAudio = currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
+        
+        if (hasAudio) {
+          // === 音声ありモード ===
+          const audio = audioRef.current!;
 
-        // 2) MediaElementSource を生成（初回のみ）
-        if (!mediaSourceRef.current) {
-          mediaSourceRef.current = audioContext.createMediaElementSource(audio);
-        }
+          // 1) AudioContext を初期化 (存在しなければ)
+          if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          }
+          const audioContext = audioContextRef.current!;
 
-        // 3) Tone.js PitchShift エフェクトを初期化（初回のみ）
-        if (!pitchShiftRef.current) {
-          try {
-            await Tone.start();
-          } catch (err) {
-            console.warn('Tone.start() failed or was already started', err);
+          // 2) MediaElementSource を生成（初回のみ）
+          if (!mediaSourceRef.current) {
+            mediaSourceRef.current = audioContext.createMediaElementSource(audio);
           }
 
-          // Tone.js が独自の AudioContext を持っている場合、現在のものに切り替え
-          try {
-            // Tone v14 以降は setContext が存在
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            if (Tone.setContext) {
+          // 3) Tone.js PitchShift エフェクトを初期化（初回のみ）
+          if (!pitchShiftRef.current) {
+            try {
+              await Tone.start();
+            } catch (err) {
+              console.warn('Tone.start() failed or was already started', err);
+            }
+
+            // Tone.js が独自の AudioContext を持っている場合、現在のものに切り替え
+            try {
+              // Tone v14 以降は setContext が存在
               // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-ignore
-              Tone.setContext(audioContext);
-            } else {
-              // 旧API - コンテキストの直接代入は避ける
-              console.warn('Unable to set Tone.js context - using default context');
+              if (Tone.setContext) {
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                Tone.setContext(audioContext);
+              } else {
+                // 旧API - コンテキストの直接代入は避ける
+                console.warn('Unable to set Tone.js context - using default context');
+              }
+            } catch (err) {
+              console.warn('Tone context assignment failed', err);
             }
-          } catch (err) {
-            console.warn('Tone context assignment failed', err);
+
+            pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
           }
 
-          pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
+          // 4) Web Audio → Tone.js エフェクトへ橋渡し
+          try {
+            mediaSourceRef.current.disconnect();
+          } catch (_) {/* already disconnected */}
+
+          try {
+            // Tone.connect を使用するとネイティブ AudioNode と ToneAudioNode を安全に接続できる
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            Tone.connect(mediaSourceRef.current, pitchShiftRef.current);
+          } catch (err) {
+            console.error('Tone.connect failed:', err);
+          }
+
+          // 5) AudioContext を resume し、再生位置を同期
+          audioContext.resume();
+
+          // ==== 再生スピード適用 ====
+          audio.playbackRate = settings.playbackSpeed;
+          // ピッチ保持を試みる（ブラウザによって実装が異なる）
+          try {
+            // @ts-ignore - ベンダープレフィックス対応
+            audio.preservesPitch = true;
+            // @ts-ignore
+            audio.mozPreservesPitch = true;
+            // @ts-ignore
+            audio.webkitPreservesPitch = true;
+          } catch (_) {/* ignore */}
+
+          const syncTime = Math.max(0, currentTime);
+          audio.currentTime = syncTime;
+
+          // 6) AudioContext と HTMLAudio のオフセットを記録
+          baseOffsetRef.current = audioContext.currentTime - syncTime;
+
+          // 7) GameEngine を AudioContext に紐付けて開始
+          gameEngine.start(audioContext);
+          gameEngine.seek(syncTime);
+
+          // 8) HTMLAudio 再生 (AudioContext と同軸)
+          audio.play().catch(e => console.error('音声再生エラー:', e));
+        } else {
+          // === 音声なしモード ===
+          console.log('🎵 音声なしモードでゲームエンジンを開始');
+          
+          // AudioContextを簡易作成
+          if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          }
+          const audioContext = audioContextRef.current!;
+          audioContext.resume();
+
+          // ゲームエンジンを開始（音声同期なし）
+          gameEngine.start(audioContext);
+          gameEngine.seek(Math.max(0, currentTime));
         }
-
-        // 4) Web Audio → Tone.js エフェクトへ橋渡し
-        try {
-          mediaSourceRef.current.disconnect();
-        } catch (_) {/* already disconnected */}
-
-        try {
-          // Tone.connect を使用するとネイティブ AudioNode と ToneAudioNode を安全に接続できる
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          Tone.connect(mediaSourceRef.current, pitchShiftRef.current);
-        } catch (err) {
-          console.error('Tone.connect failed:', err);
-        }
-
-        // 5) AudioContext を resume し、再生位置を同期
-        audioContext.resume();
-
-        // ==== 再生スピード適用 ====
-        audio.playbackRate = settings.playbackSpeed;
-        // ピッチ保持を試みる（ブラウザによって実装が異なる）
-        try {
-          // @ts-ignore - ベンダープレフィックス対応
-          audio.preservesPitch = true;
-          // @ts-ignore
-          audio.mozPreservesPitch = true;
-          // @ts-ignore
-          audio.webkitPreservesPitch = true;
-        } catch (_) {/* ignore */}
-
-        const syncTime = Math.max(0, currentTime);
-        audio.currentTime = syncTime;
-
-        // 6) AudioContext と HTMLAudio のオフセットを記録
-        baseOffsetRef.current = audioContext.currentTime - syncTime;
-
-        // 7) GameEngine を AudioContext に紐付けて開始
-        gameEngine.start(audioContext);
-        gameEngine.seek(syncTime);
-
-        // 8) HTMLAudio 再生 (AudioContext と同軸)
-        audio.play().catch(e => console.error('音声再生エラー:', e));
 
         startTimeSync();
       } else {
-        audio.pause();
+        // 一時停止処理
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
         
         // GameEngineを一時停止
         gameEngine.pause();
@@ -248,25 +275,41 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
   }, []);
   
-  // シーク機能
+  // シーク機能（音声ありと音声なし両方対応）
   useEffect(() => {
-    if (audioContextRef.current && audioLoaded) {
-      const audioTime = (audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-      const timeDiff = Math.abs(audioTime - currentTime);
-      // 0.3秒以上のずれがある場合のみシーク（より厳密な同期）
-      if (timeDiff > 0.3) {
-        const safeTime = Math.max(0, Math.min(currentTime, (currentSong?.duration || currentTime)));
-        if (audioRef.current) audioRef.current.currentTime = safeTime;
-        
-        // オフセット再計算
-        if (audioContextRef.current) {
-          baseOffsetRef.current = audioContextRef.current.currentTime - safeTime;
-        }
-        
-        // GameEngineも同時にシーク
-        if (gameEngine) {
+    if (audioContextRef.current && gameEngine) {
+      const hasAudio = currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
+      
+      if (hasAudio) {
+        // 音声ありの場合: 音声とゲームエンジンの同期
+        const audioTime = (audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
+        const timeDiff = Math.abs(audioTime - currentTime);
+        // 0.3秒以上のずれがある場合のみシーク（より厳密な同期）
+        if (timeDiff > 0.3) {
+          const safeTime = Math.max(0, Math.min(currentTime, (currentSong?.duration || currentTime)));
+          if (audioRef.current) audioRef.current.currentTime = safeTime;
+          
+          // オフセット再計算
+          if (audioContextRef.current) {
+            baseOffsetRef.current = audioContextRef.current.currentTime - safeTime;
+          }
+          
+          // GameEngineも同時にシーク
           gameEngine.seek(safeTime);
           console.log(`🔄 Audio & GameEngine synced to ${safeTime.toFixed(2)}s`);
+        }
+      } else {
+        // 音声なしの場合: ゲームエンジンのみシーク
+        const timeDiff = Math.abs((audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed - currentTime);
+        if (timeDiff > 0.3) {
+          const safeTime = Math.max(0, Math.min(currentTime, (currentSong?.duration || currentTime)));
+          
+          // オフセット再計算（音声なしモード）
+          baseOffsetRef.current = audioContextRef.current.currentTime - safeTime;
+          
+          // GameEngineシーク
+          gameEngine.seek(safeTime);
+          console.log(`🔄 GameEngine (音声なし) synced to ${safeTime.toFixed(2)}s`);
         }
       }
     }

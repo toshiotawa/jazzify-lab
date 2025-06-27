@@ -191,29 +191,42 @@ const SongSelectionScreen: React.FC = () => {
             }}
           />
           
-          {/* サンプル楽曲カード */}
+          {/* Alice in Wonderland楽曲カード（JSONデータのみ - 音声なし）*/}
           <SongCard
             title="Alice in Wonderland"
-            artist="Bill Evans"
-            onSelect={() => {
-              // サンプルデータでテスト
-              const sampleSong = {
-                id: 'alice-in-wonderland',
-                title: 'Alice in Wonderland',
-                artist: 'Bill Evans',
-                difficulty: 3,
-                duration: 240,
-                audioFile: '/bill-evans-alice-in-wonderland.mp3',
-                notesFile: '/bill-evans-alice-in-wonderland.json',
-                genreCategory: 'jazz'
-              };
-              const sampleNotes = [
-                { id: '1', time: 72.555, pitch: 69 },
-                { id: '2', time: 73.0, pitch: 72 },
-                { id: '3', time: 73.5, pitch: 76 }
-              ];
-              gameActions.loadSong(sampleSong, sampleNotes);
-              gameActions.setCurrentTab('practice');
+            artist="Bill Evans (譜面のみ)"
+            onSelect={async () => {
+              try {
+                // JSONデータを読み込み
+                const response = await fetch('/bill-evans-alice-in-wonderland.json');
+                const data = await response.json();
+                
+                const aliceSong = {
+                  id: 'alice-in-wonderland',
+                  title: 'Alice in Wonderland',
+                  artist: 'Bill Evans (譜面のみ)',
+                  difficulty: 3,
+                  duration: 240, // 適当な長さ
+                  audioFile: '', // 音声ファイルなし
+                  notesFile: '/bill-evans-alice-in-wonderland.json',
+                  genreCategory: 'jazz'
+                };
+                
+                // JSONデータをNoteData形式に変換（最初の100ノートのみ）
+                const aliceNotes = data.notes.slice(0, 100).map((note: any, index: number) => ({
+                  id: `alice-${index}`,
+                  time: note.time,
+                  pitch: note.pitch
+                }));
+                
+                console.log(`🎵 Alice in Wonderland読み込み完了: ${aliceNotes.length}ノーツ（音声なしモード）`);
+                
+                gameActions.loadSong(aliceSong, aliceNotes);
+                gameActions.setCurrentTab('practice');
+              } catch (error) {
+                console.error('Alice in Wonderland楽曲の読み込みに失敗しました:', error);
+                alert('Alice in Wonderland楽曲の読み込みに失敗しました。');
+              }
             }}
           />
           

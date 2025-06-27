@@ -443,13 +443,27 @@ export class PIXINotesRendererInstance {
       // ここではパーティクルエフェクトなどの補助的アニメーションのみ実行
       
       // パーティクルアニメーション（もしあれば）
+      const childrenToRemove: PIXI.DisplayObject[] = [];
       for (const child of this.effectsContainer.children) {
         if (child.alpha > 0) {
           child.alpha -= deltaTime * 2; // フェードアウト
           if (child.alpha <= 0) {
-            this.effectsContainer.removeChild(child);
-            child.destroy();
+            childrenToRemove.push(child);
           }
+        }
+      }
+      
+      // 安全に削除
+      for (const child of childrenToRemove) {
+        try {
+          if (child.parent) {
+            child.parent.removeChild(child);
+          }
+          if (!child.destroyed) {
+            child.destroy({ children: true, texture: false, baseTexture: false });
+          }
+        } catch (error) {
+          console.warn('⚠️ Particle cleanup error:', error);
         }
       }
     });
@@ -1006,16 +1020,35 @@ export class PIXINotesRendererInstance {
     const noteSprite = this.noteSprites.get(noteId);
     if (!noteSprite) return;
     
-    this.notesContainer.removeChild(noteSprite.sprite);
-    noteSprite.sprite.destroy();
-    
-    if (noteSprite.glowSprite) {
-      this.notesContainer.removeChild(noteSprite.glowSprite);
-      noteSprite.glowSprite.destroy();
-    }
+    // 安全な削除処理
+    try {
+      // ラベルを先に削除
+      if (noteSprite.label) {
+        if (noteSprite.sprite.children.includes(noteSprite.label)) {
+          noteSprite.sprite.removeChild(noteSprite.label);
+        }
+        noteSprite.label.destroy({ children: true, texture: false, baseTexture: false });
+      }
 
-    if (noteSprite.label) {
-      noteSprite.label.destroy();
+      // メインスプライト削除
+      if (noteSprite.sprite && noteSprite.sprite.parent) {
+        noteSprite.sprite.parent.removeChild(noteSprite.sprite);
+      }
+      if (noteSprite.sprite && !noteSprite.sprite.destroyed) {
+        noteSprite.sprite.destroy({ children: true, texture: false, baseTexture: false });
+      }
+      
+      // グロースプライト削除
+      if (noteSprite.glowSprite) {
+        if (noteSprite.glowSprite.parent) {
+          noteSprite.glowSprite.parent.removeChild(noteSprite.glowSprite);
+        }
+        if (!noteSprite.glowSprite.destroyed) {
+          noteSprite.glowSprite.destroy({ children: true, texture: false, baseTexture: false });
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️ Note sprite cleanup error for ${noteId}:`, error);
     }
     
     this.noteSprites.delete(noteId);
@@ -1432,8 +1465,29 @@ export class PIXINotesRendererInstance {
    * リソース解放
    */
   destroy(): void {
-    this.noteSprites.clear();
-    this.app.destroy(true, { children: true, texture: true, baseTexture: true });
+    try {
+      // ノートスプライトを安全に削除
+      const noteIds = Array.from(this.noteSprites.keys());
+      for (const noteId of noteIds) {
+        this.removeNoteSprite(noteId);
+      }
+      this.noteSprites.clear();
+
+      // ピアノスプライトをクリア
+      this.pianoSprites.clear();
+      this.highlightedKeys.clear();
+
+      // PIXI.jsアプリケーションを破棄
+      if (this.app && (this.app as any)._destroyed !== true) {
+        this.app.destroy(true, { 
+          children: true, 
+          texture: false,  // テクスチャは共有されている可能性があるのでfalse
+          baseTexture: false 
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ PIXI renderer destroy error:', error);
+    }
   }
   
   /**
