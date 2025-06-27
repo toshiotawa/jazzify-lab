@@ -3,7 +3,11 @@ import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react({
+    babel: {
+      plugins: process.env.NODE_ENV === 'development' ? [] : undefined
+    }
+  })],
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
@@ -18,16 +22,41 @@ export default defineConfig({
     }
   },
   assetsInclude: ['**/*.wasm'],
+  esbuild: {
+    target: 'es2020',
+    sourcemap: process.env.NODE_ENV === 'development',
+    minifyIdentifiers: true,
+    minifySyntax: true,
+    minifyWhitespace: true,
+    legalComments: 'none'
+  },
   build: {
     target: 'es2020',
+    sourcemap: false,
+    minify: 'esbuild',
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
+      external: [],
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
-          pixi: ['pixi.js'],
-          audio: ['tone']
-        }
+          'react-vendor': ['react', 'react-dom'],
+          'pixi': ['pixi.js'],
+          'audio': ['tone'],
+          'ui-libs': ['react-icons', 'clsx', 'tailwind-merge'],
+          'state': ['zustand', 'immer']
+        },
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]'
+      },
+      treeshake: {
+        preset: 'recommended',
+        moduleSideEffects: false
       }
+    },
+    commonjsOptions: {
+      transformMixedEsModules: true
     },
     copyPublicDir: true
   },
@@ -38,6 +67,17 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    exclude: ['@/wasm']
-  }
+    include: [
+      'react', 
+      'react-dom', 
+      'react-icons',
+      'clsx',
+      'tailwind-merge'
+    ],
+    exclude: ['@/wasm'],
+    esbuildOptions: {
+      target: 'es2020'
+    }
+  },
+  cacheDir: 'node_modules/.vite'
 }) 
