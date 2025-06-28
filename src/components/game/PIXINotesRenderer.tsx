@@ -753,11 +753,8 @@ export class PIXINotesRendererInstance {
   
   /**
    * ピアノキーの状態更新（演奏時のハイライト）
-   * @param midiNote - MIDIノート番号
-   * @param active - ハイライト状態
-   * @param type - ハイライト種類（'guide': 練習ガイド=緑, 'manual'またはundefined: 手動入力=オレンジ）
    */
-  highlightKey(midiNote: number, active: boolean, type: 'guide' | 'manual' = 'manual'): void {
+  highlightKey(midiNote: number, active: boolean): void {
     const keySprite = this.pianoSprites.get(midiNote);
     if (!keySprite) {
       console.warn(`⚠️ Key sprite not found for note: ${midiNote}`);
@@ -767,24 +764,23 @@ export class PIXINotesRendererInstance {
     const isBlackKey = this.isBlackKey(midiNote);
     const _noteName = this.getMidiNoteName(midiNote);
     
-    // ハイライト色を種類によって決定
-    const highlightColor = type === 'guide' ? 0x10B981 : 0xFF8C00; // 緑 : オレンジ
-    const brightHighlightColor = type === 'guide' ? 0x34D399 : 0xFFB347; // 明るい緑 : 明るいオレンジ
-    
-    console.log(`🎨 Highlighting ${isBlackKey ? 'BLACK' : 'WHITE'} key: ${midiNote} (${_noteName}) - ${active ? 'ON' : 'OFF'} [${type}]`, {
-      color: `0x${highlightColor.toString(16)}`
-    });
+    // console.log(`🎨 Highlighting ${isBlackKey ? 'BLACK' : 'WHITE'} key: ${midiNote} (${_noteName}) - ${active ? 'ON' : 'OFF'}`, {
+    //   keySprite: keySprite,
+    //   isBlackKey,
+    //   activeKeyColor: `0x${this.settings.colors.activeKey.toString(16)}`,
+    //   highlightedKeys: Array.from(this.highlightedKeys)
+    // });
     
     if (active) {
       // ハイライト状態に追加
       this.highlightedKeys.add(midiNote);
       
       if (isBlackKey) {
-        // 黒鍵のハイライト：指定色で再描画
-        this.redrawBlackKeyHighlight(keySprite, true, highlightColor, brightHighlightColor);
+        // 黒鍵のハイライト：オレンジ色で再描画
+        this.redrawBlackKeyHighlight(keySprite, true);
       } else {
         // 白鍵のハイライト：tintを使用
-        keySprite.tint = highlightColor;
+        keySprite.tint = this.settings.colors.activeKey;
       }
     } else {
       // ハイライト状態から削除
@@ -804,12 +800,8 @@ export class PIXINotesRendererInstance {
   
   /**
    * 黒鍵のハイライト状態を再描画
-   * @param keySprite - 黒鍵のGraphicsオブジェクト
-   * @param highlighted - ハイライト状態
-   * @param highlightColor - メインハイライト色（デフォルト：オレンジ）
-   * @param brightHighlightColor - 明るいハイライト色（デフォルト：明るいオレンジ）
    */
-  private redrawBlackKeyHighlight(keySprite: PIXI.Graphics, highlighted: boolean, highlightColor: number = 0xFF8C00, brightHighlightColor: number = 0xFFB347): void {
+  private redrawBlackKeyHighlight(keySprite: PIXI.Graphics, highlighted: boolean): void {
     keySprite.clear();
     
     // 基本的な寸法を再計算（createBlackKeyと同じ値）
@@ -819,46 +811,48 @@ export class PIXINotesRendererInstance {
     const blackKeyHeight = this.settings.pianoHeight * 0.65;
     
     if (highlighted) {
-      console.log(`🎨 Drawing highlighted black key with color: 0x${highlightColor.toString(16)}`);
+      // console.log(`🎨 Drawing highlighted black key with color: 0x${this.settings.colors.activeKey.toString(16)}`);
       
-      // ハイライト色のグロー効果（外側）
-      keySprite.beginFill(highlightColor, 0.6);
+      // より鮮やかなオレンジ色のグロー効果（外側）
+      keySprite.beginFill(0xFF8C00, 0.6); // より鮮やかなオレンジ
       keySprite.drawRect(-adjustedWidth * 0.9 / 2, -2, adjustedWidth * 0.9, blackKeyHeight + 4);
       keySprite.endFill();
       
-      // ハイライト状態：指定色で描画
-      keySprite.beginFill(highlightColor);
+      // ハイライト状態：鮮やかなオレンジ色で描画
+      keySprite.beginFill(0xFF8C00); // より鮮やかなオレンジ色 (DarkOrange)
       keySprite.drawRect(-adjustedWidth * 0.75 / 2, 0, adjustedWidth * 0.75, blackKeyHeight);
       keySprite.endFill();
       
-      // 上部のハイライト効果（より明るい色）
-      keySprite.beginFill(brightHighlightColor, 0.9);
+      // 上部のハイライト効果（より明るいオレンジ）
+      keySprite.beginFill(0xFFB347, 0.9); // 明るいオレンジ
       keySprite.drawRect(-adjustedWidth * 0.75 / 2, 0, adjustedWidth * 0.75, blackKeyHeight * 0.3);
       keySprite.endFill();
       
-      // クリック領域（ハイライト時は薄い色）
-      keySprite.beginFill(highlightColor, 0.3);
+      // クリック領域（ハイライト時は薄いオレンジ）
+      keySprite.beginFill(0xFF8C00, 0.3);
       keySprite.drawRect(-adjustedWidth / 2, 0, adjustedWidth, blackKeyHeight);
       keySprite.endFill();
     } else {
-      // 通常状態：黒色で描画
-      keySprite.beginFill(0x2c2c2c);
+      // 黒鍵の影（背面）
+      keySprite.beginFill(0x000000, 0.3); // 薄い黒の影
+      keySprite.drawRect(-adjustedWidth * 0.75 / 2 + 1, 1, adjustedWidth * 0.75, blackKeyHeight);
+      keySprite.endFill();
+      
+      // 通常状態：純粋な黒色で描画
+      keySprite.beginFill(this.settings.colors.blackKey); // 純粋な黒色
       keySprite.drawRect(-adjustedWidth * 0.75 / 2, 0, adjustedWidth * 0.75, blackKeyHeight);
       keySprite.endFill();
       
-      // 上部のハイライト効果（グレー）
-      keySprite.beginFill(0x4c4c4c, 0.7);
-      keySprite.drawRect(-adjustedWidth * 0.75 / 2, 0, adjustedWidth * 0.75, blackKeyHeight * 0.3);
+      // 黒鍵の上端ハイライト（微妙な光沢効果）
+      keySprite.beginFill(0x333333, 0.6); // 薄いグレー
+      keySprite.drawRect(-adjustedWidth * 0.75 / 2, 0, adjustedWidth * 0.75, 2);
       keySprite.endFill();
       
-      // クリック領域（透明）
-      keySprite.beginFill(0x000000, 0.0);
+      // クリック領域（透明、視覚的な影響なし）
+      keySprite.beginFill(0x000000, 0.0); // 完全透明
       keySprite.drawRect(-adjustedWidth / 2, 0, adjustedWidth, blackKeyHeight);
       keySprite.endFill();
     }
-    
-    // インタラクティブ性を有効化
-    keySprite.interactive = true;
   }
   
   /**
@@ -976,10 +970,10 @@ export class PIXINotesRendererInstance {
 
     // ==== 判定ライン通過時のピアノキー点灯（デバッグ用） ====
     if (note.crossingLogged && !noteSprite.noteData.crossingLogged && this.settings.practiceGuide !== 'off') {
-      // ピアノキーを短時間ハイライト (ガイドが有効な場合のみ、緑色で表示)
-      this.highlightKey(effectivePitch, true, 'guide');
+      // ピアノキーを短時間ハイライト (ガイドが有効な場合のみ)
+      this.highlightKey(effectivePitch, true);
       setTimeout(() => {
-        this.highlightKey(effectivePitch, false, 'guide');
+        this.highlightKey(effectivePitch, false);
       }, 150);
     }
 

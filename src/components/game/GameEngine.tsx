@@ -380,13 +380,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       if (currentTimestamp - timestamp < 0.5) { // 0.5秒以内の通知のみ処理
         console.log(`🎹 練習ガイド: キーハイライト実行 - pitch=${pitch}`);
         
-        // キーをハイライト（練習ガイドは緑色）
-        pixiRenderer.highlightKey(pitch, true, 'guide');
+        // キーをハイライト
+        pixiRenderer.highlightKey(pitch, true);
         
         // 一定時間後にハイライトを解除
         setTimeout(() => {
           if (pixiRenderer) {
-            pixiRenderer.highlightKey(pitch, false, 'guide');
+            pixiRenderer.highlightKey(pitch, false);
           }
         }, 150); // 150ms後にハイライト解除（マウスクリックと同じ長さ）
       }
@@ -461,11 +461,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // ================= ピアノキー演奏ハンドラー =================
   const handlePianoKeyPress = useCallback((note: number) => {
-    // PIXI.jsピアノキーのハイライト（手動入力はオレンジ色）
+    // PIXI.jsピアノキーのハイライト
     if (pixiRenderer) {
-      pixiRenderer.highlightKey(note, true, 'manual');
+      pixiRenderer.highlightKey(note, true);
       setTimeout(() => {
-        pixiRenderer.highlightKey(note, false, 'manual');
+        pixiRenderer.highlightKey(note, false);
       }, 150);
     }
     // ゲームエンジンにノート入力
@@ -499,7 +499,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }, // キー押下
       (note: number) => {
         if (renderer) {
-          renderer.highlightKey(note, false, 'manual');
+          renderer.highlightKey(note, false);
         }
       } // キー解放
     );
