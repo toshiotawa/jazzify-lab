@@ -308,9 +308,8 @@ export class GameEngine {
   
   private getCurrentTime(): number {
     if (!this.audioContext) return 0;
-    const elapsed = this.audioContext.currentTime - this.startTime - this.latencyOffset;
-    const speed = this.settings.playbackSpeed ?? 1;
-    return elapsed * speed;
+    return (this.audioContext.currentTime - this.startTime - this.latencyOffset)
+      * (this.settings.playbackSpeed ?? 1);
   }
   
   private calculateLatency(): void {
@@ -607,7 +606,7 @@ export class GameEngine {
       };
       
       // Immer により凍結されてもエンジン側が変更できるようディープコピーを渡す
-      const activeNotesForUi = activeNotes.map(note => ({ ...note }));
+      const activeNotesForUi = activeNotes;
       
       this.onUpdate?.({
         currentTime,
