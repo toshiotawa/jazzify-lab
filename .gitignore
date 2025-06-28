@@ -124,11 +124,11 @@ node_modules/.vite/
 stats.json
 
 # Game specific
-# Audio files (too large for git)
-*.mp3
-*.wav
-*.ogg
-*.m4a
+# Large audio files (keep small demo files)
+# *.mp3
+# *.wav
+# *.ogg
+# *.m4a
 
 # WASM files (will be added separately)
 # *.wasm
