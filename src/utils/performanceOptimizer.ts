@@ -198,6 +198,8 @@ export class PerformanceMonitor {
   private fps = 0;
   private frameStartTime = 0;
   private frameDuration = 0;
+  private optimizationWarnings = new Set<string>();
+  private lastOptimizationCheck = 0;
   
   startFrame(): void {
     this.frameStartTime = performance.now();
@@ -215,6 +217,9 @@ export class PerformanceMonitor {
       this.fps = this.frameCount;
       this.frameCount = 0;
       this.lastTime = now;
+      
+      // 最適化状態の定期検証（1秒ごと）
+      this.checkOptimizationHealth();
     }
     
     return this.fps;
@@ -230,6 +235,160 @@ export class PerformanceMonitor {
   
   isPerformanceGood(): boolean {
     return this.fps >= 50 && this.frameDuration <= 20; // 50FPS以上、20ms以下
+  }
+  
+  /**
+   * 最適化の健全性チェック
+   */
+  private checkOptimizationHealth(): void {
+    const now = performance.now();
+    if (now - this.lastOptimizationCheck < 5000) return; // 5秒間隔
+    
+    this.lastOptimizationCheck = now;
+    
+    // FPS低下の検出
+    if (this.fps < 45) {
+      this.warnOnce('LOW_FPS', `🔴 FPS低下検出: ${this.fps}FPS (目標: 60FPS)`);
+    }
+    
+    // フレーム時間超過の検出
+    if (this.frameDuration > 25) {
+      this.warnOnce('HIGH_FRAME_TIME', `🔴 フレーム時間超過: ${this.frameDuration.toFixed(1)}ms (目標: <20ms)`);
+    }
+    
+    // 統合フレーム制御の動作確認
+    if (!window.unifiedFrameController) {
+      this.warnOnce('MISSING_FRAME_CONTROLLER', '🔴 統合フレーム制御が無効化されています！');
+    }
+    
+    // レンダー最適化の動作確認
+    if (!window.renderOptimizer) {
+      this.warnOnce('MISSING_RENDER_OPTIMIZER', '🔴 レンダー最適化が無効化されています！');
+    }
+  }
+  
+  /**
+   * 重複警告を防ぐワーニングシステム
+   */
+  private warnOnce(key: string, message: string): void {
+    if (!this.optimizationWarnings.has(key)) {
+      console.warn(message);
+      this.optimizationWarnings.add(key);
+      
+      // 5分後に警告をリセット（継続的問題の検出のため）
+      setTimeout(() => {
+        this.optimizationWarnings.delete(key);
+      }, 300000);
+    }
+  }
+  
+  /**
+   * パフォーマンス状態の詳細レポート
+   */
+  getPerformanceReport(): {
+    fps: number;
+    frameDuration: number;
+    isHealthy: boolean;
+    warnings: string[];
+    optimizations: {
+      frameController: boolean;
+      renderOptimizer: boolean;
+      unifiedControl: boolean;
+    };
+  } {
+    return {
+      fps: this.fps,
+      frameDuration: this.frameDuration,
+      isHealthy: this.isPerformanceGood(),
+      warnings: Array.from(this.optimizationWarnings),
+      optimizations: {
+        frameController: !!window.unifiedFrameController,
+        renderOptimizer: !!window.renderOptimizer,
+        unifiedControl: !!window.unifiedFrameController?.getConfig
+      }
+    };
+  }
+}
+
+/**
+ * 開発時デバッグ用パフォーマンスダッシュボード
+ */
+export class PerformanceDebugger {
+  private static instance: PerformanceDebugger;
+  private debugElement: HTMLDivElement | null = null;
+  private isEnabled = false;
+  
+  static getInstance(): PerformanceDebugger {
+    if (!this.instance) {
+      this.instance = new PerformanceDebugger();
+    }
+    return this.instance;
+  }
+  
+  enable(): void {
+    if (this.isEnabled) return;
+    this.isEnabled = true;
+    
+    this.createDebugUI();
+    this.startMonitoring();
+  }
+  
+  disable(): void {
+    if (!this.isEnabled) return;
+    this.isEnabled = false;
+    
+    if (this.debugElement) {
+      this.debugElement.remove();
+      this.debugElement = null;
+    }
+  }
+  
+  private createDebugUI(): void {
+    this.debugElement = document.createElement('div');
+    this.debugElement.id = 'performance-debug';
+    this.debugElement.style.cssText = `
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+      font-size: 12px;
+      z-index: 9999;
+      min-width: 250px;
+    `;
+    document.body.appendChild(this.debugElement);
+  }
+  
+  private startMonitoring(): void {
+    const updateDebugInfo = () => {
+      if (!this.isEnabled || !this.debugElement) return;
+      
+      const report = performanceMonitor.getPerformanceReport();
+      
+      this.debugElement.innerHTML = `
+        <div><strong>🎯 パフォーマンス監視</strong></div>
+        <div>FPS: ${report.fps} / 60</div>
+        <div>フレーム時間: ${report.frameDuration.toFixed(1)}ms</div>
+        <div>状態: ${report.isHealthy ? '✅ 正常' : '⚠️ 要注意'}</div>
+        <hr style="margin: 5px 0;">
+        <div><strong>最適化状態:</strong></div>
+        <div>統合制御: ${report.optimizations.frameController ? '✅' : '❌'}</div>
+        <div>レンダー最適化: ${report.optimizations.renderOptimizer ? '✅' : '❌'}</div>
+        <div>制御API: ${report.optimizations.unifiedControl ? '✅' : '❌'}</div>
+        ${report.warnings.length > 0 ? `
+          <hr style="margin: 5px 0;">
+          <div style="color: #ff6b6b;"><strong>警告:</strong></div>
+          ${report.warnings.map(w => `<div style="color: #ff6b6b;">• ${w}</div>`).join('')}
+        ` : ''}
+      `;
+      
+      setTimeout(updateDebugInfo, 1000);
+    };
+    
+    updateDebugInfo();
   }
 }
 
@@ -338,8 +497,27 @@ export const performanceUtils = {
   }
 };
 
+// グローバル公開（デバッグ・検証用）
+declare global {
+  interface Window {
+    unifiedFrameController: UnifiedFrameController;
+    renderOptimizer: RenderOptimizer;
+    performanceMonitor: PerformanceMonitor;
+    performanceDebugger: PerformanceDebugger;
+  }
+}
+
 // シングルトンインスタンス
 export const unifiedFrameController = new UnifiedFrameController(PRODUCTION_CONFIG);
 export const frameController = new FrameRateController(LIGHTWEIGHT_CONFIG);
 export const performanceMonitor = new PerformanceMonitor();
-export const renderOptimizer = new RenderOptimizer(); 
+export const renderOptimizer = new RenderOptimizer();
+export const performanceDebugger = PerformanceDebugger.getInstance();
+
+// グローバルアクセス用（デバッグ・検証）
+if (typeof window !== 'undefined') {
+  window.unifiedFrameController = unifiedFrameController;
+  window.renderOptimizer = renderOptimizer;
+  window.performanceMonitor = performanceMonitor;
+  window.performanceDebugger = performanceDebugger;
+} 
