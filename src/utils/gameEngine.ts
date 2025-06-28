@@ -452,6 +452,11 @@ export class GameEngine {
     
     // *自動ヒットは checkHitLineCrossing で処理*
     
+    // Hit状態のノーツは短時間後に削除（エフェクト表示のため）
+    if (note.state === 'hit' && note.hitTime && (currentTime - note.hitTime) > 0.3) {
+      return { ...note, state: 'completed' };
+    }
+    
     // Miss判定チェック (判定幅は固定)
     if (note.state === 'visible' && timePassed > JUDGMENT_TIMING.missMs / 1000) {
       return { ...note, state: 'missed' };
@@ -517,16 +522,6 @@ export class GameEngine {
           // オートプレイ: 自動的にノーツをヒット判定
           console.log(`🎹 オートプレイ実行: ノート ${note.id} (pitch=${effectivePitch})`);
           
-          // まず直接ノーツの状態を 'hit' に変更（確実にノーツを消すため）
-          const hitNote: ActiveNote = {
-            ...updatedNote,
-            state: 'hit',
-            hitTime: currentTime,
-            timingError: Math.abs(timeError),
-            judged: true // 重複判定を防止
-          };
-          this.activeNotes.set(note.id, hitNote);
-          
           // 自動判定を実行
           const autoHit: NoteHit = {
             noteId: note.id,
@@ -536,35 +531,13 @@ export class GameEngine {
             timestamp: currentTime
           };
           
-          // 判定処理を実行（スコア更新のため）
+          // 判定処理を実行（これによりノーツが'hit'状態になりスコアも更新される）
           const judgment = this.processHit(autoHit);
-          console.log(`✨ オートプレイ判定: ${judgment.type}, ノーツ状態: ${hitNote.state}`);
+          console.log(`✨ オートプレイ判定: ${judgment.type}`);
         }
         
-        // 鍵盤ハイライト（key と key_auto 両方で実行）
-        if (this.onUpdate) {
-          // ハイライト情報を含む更新データを送信
-          const updateData: GameEngineUpdate = {
-            currentTime: this.getCurrentTime(),
-            activeNotes: Array.from(this.activeNotes.values()),
-            timing: {
-              currentTime: this.getCurrentTime(),
-              audioTime: this.audioContext?.currentTime || 0,
-              latencyOffset: this.latencyOffset
-            },
-            score: { ...this.score },
-            abRepeatState: { start: null, end: null, enabled: false }
-          };
-          
-          // 特別なプロパティとしてハイライト情報を追加
-          (updateData as any).keyHighlight = {
-            noteId: note.id,
-            pitch: effectivePitch,
-            action: 'highlight'
-          };
-          
-          this.onUpdate(updateData);
-        }
+        // 鍵盤ハイライトはPIXIRenderer側で直接処理されるため、ここでは特別な処理は不要
+        console.log(`🎹 判定ライン通過検出完了: pitch=${effectivePitch}, practiceGuide=${practiceGuide} (ハイライトはPIXIRenderer側で処理)`)
       }
     }
   }

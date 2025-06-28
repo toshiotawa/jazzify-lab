@@ -240,19 +240,7 @@ export const useGameStore = create<GameStoreState>()(
               // currentTime は AudioContext 同期ループで更新する
               state.engineActiveNotes = data.activeNotes;
               
-              // ===== 練習モードガイド: キーハイライト処理 =====
-              if (data.keyHighlight && data.keyHighlight.action === 'highlight') {
-                const pitch = data.keyHighlight.pitch;
-                console.log(`🎹 キーハイライト実行: pitch=${pitch}`);
-                
-                // PIXIRendererのキーハイライト機能を呼び出し
-                // この処理は非同期で実行されるため、GameEngineComponentで処理する必要があります
-                // ここではハイライト情報をstateに保存し、GameEngineComponentで処理させる
-                state.lastKeyHighlight = {
-                  pitch: pitch,
-                  timestamp: Date.now()
-                };
-              }
+              // キーハイライト処理はPIXIRenderer側で直接実行されるため、ストア経由の処理は不要
               
               // ===== ABリピート自動ループ =====
               const { abRepeat, gameEngine } = state;
