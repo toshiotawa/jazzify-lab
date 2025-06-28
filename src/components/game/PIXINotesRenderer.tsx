@@ -6,6 +6,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
+import { unifiedFrameController, renderOptimizer, performanceMonitor } from '@/utils/performanceOptimizer';
 
 // ===== 型定義 =====
 
@@ -101,9 +102,9 @@ export class PIXINotesRendererInstance {
       activeKey: 0xFBBF24,     // amber-400
     },
     effects: {
-      glow: true,
-      particles: true,
-      trails: false
+      glow: false,             // 本番環境ではグロー効果を無効化
+      particles: false,        // パーティクル効果を無効化
+      trails: false            // トレイル効果を無効化
     },
     noteNameStyle: 'abc',
     noteAccidentalStyle: 'sharp',
@@ -115,7 +116,7 @@ export class PIXINotesRendererInstance {
   private currentDragNote: number | null = null;
   
   constructor(width: number, height: number) {
-    // PIXI.js アプリケーション初期化
+    // PIXI.js アプリケーション初期化（パフォーマンス最適化）
     this.app = new PIXI.Application({
       width,
       height,
@@ -123,7 +124,14 @@ export class PIXINotesRendererInstance {
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
+      powerPreference: 'high-performance', // 高性能GPU使用
+      backgroundAlpha: 1,
+      clearBeforeRender: true,
+      preserveDrawingBuffer: false // パフォーマンス向上
     });
+    
+    // フレームレート最適化
+    this.app.ticker.maxFPS = unifiedFrameController.getConfig().targetFPS;
     
     // インタラクションを有効化（重要）
     this.app.stage.eventMode = 'static';
@@ -415,45 +423,67 @@ export class PIXINotesRendererInstance {
   }
   
   private setupAnimationTicker(): void {
-    // **完璧な同期のためのアニメーションティッカー**
-    // 補間を排除し、ダイレクト更新のみ実行
+    // **統合フレームレート制御によるアニメーションティッカー**
+    // GameEngineとの競合を解決し、パフォーマンスを最適化
     this.app.ticker.add(() => {
       const currentFrameTime = performance.now();
+      
+      // 統合フレーム制御でスキップ判定
+      if (unifiedFrameController.shouldSkipFrame(currentFrameTime)) {
+        return;
+      }
+      
+      // エフェクト更新の頻度制御
+      if (!unifiedFrameController.shouldUpdateEffects(currentFrameTime)) {
+        return;
+      }
+      
       const deltaTime = (currentFrameTime - this.lastFrameTime) / 1000;
       this.lastFrameTime = currentFrameTime;
       
-      // フレームレート制御（60FPS目標）
-      if (deltaTime > 1/30) return;
+      // エフェクト軽量化設定に基づく処理
+      const config = unifiedFrameController.getConfig();
       
-      // **パフォーマンス向上のみを目的とした軽量処理**
-      // ノーツの位置更新は updateNoteSprite で行われるため、
-      // ここではパーティクルエフェクトなどの補助的アニメーションのみ実行
-      
-      // パーティクルアニメーション（もしあれば）
-      const childrenToRemove: PIXI.DisplayObject[] = [];
-      for (const child of this.effectsContainer.children) {
-        if (child.alpha > 0) {
-          child.alpha -= deltaTime * 2; // フェードアウト
-          if (child.alpha <= 0) {
-            childrenToRemove.push(child);
-          }
-        }
+      // パーティクルエフェクト処理（軽量化モード対応）
+      if (!config.reduceEffects || this.settings.effects.particles) {
+        this.updateParticleEffects(deltaTime);
       }
       
-      // 安全に削除
-      for (const child of childrenToRemove) {
-        try {
-          if (child.parent) {
-            child.parent.removeChild(child);
-          }
-          if (!child.destroyed) {
-            child.destroy({ children: true, texture: false, baseTexture: false });
-          }
-        } catch (error) {
-          console.warn('⚠️ Particle cleanup error:', error);
-        }
-      }
+      // エフェクト更新完了をマーク
+      unifiedFrameController.markEffectUpdate(currentFrameTime);
     });
+  }
+  
+  private updateParticleEffects(deltaTime: number): void {
+    const childrenToRemove: PIXI.DisplayObject[] = [];
+    const maxProcessPerFrame = 10; // 1フレームあたりの最大処理数
+    let processed = 0;
+    
+    for (const child of this.effectsContainer.children) {
+      if (processed >= maxProcessPerFrame) break;
+      
+      if (child.alpha > 0) {
+        child.alpha -= deltaTime * 2; // フェードアウト
+        if (child.alpha <= 0) {
+          childrenToRemove.push(child);
+        }
+      }
+      processed++;
+    }
+    
+    // 安全に削除（バッチ処理）
+    for (const child of childrenToRemove) {
+      try {
+        if (child.parent) {
+          child.parent.removeChild(child);
+        }
+        if (!child.destroyed) {
+          child.destroy({ children: true, texture: false, baseTexture: false });
+        }
+      } catch (error) {
+        console.warn('⚠️ Particle cleanup error:', error);
+      }
+    }
   }
   
   private createWhiteKey(x: number, width: number, midiNote?: number): PIXI.Graphics {
@@ -820,23 +850,54 @@ export class PIXINotesRendererInstance {
   updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
     const currentNoteIds = new Set(activeNotes.map(note => note.id));
     
-    // 古いノーツを削除
+    // パフォーマンス制御設定を取得
+    const config = unifiedFrameController.getConfig();
+    
+    // 古いノーツを削除（レンダー最適化適用）
+    const notesToRemove: string[] = [];
     for (const [noteId] of this.noteSprites) {
       if (!currentNoteIds.has(noteId)) {
-        this.removeNoteSprite(noteId);
+        notesToRemove.push(noteId);
       }
     }
     
-    // ノーツを更新または作成
+    // バッチ削除で処理を軽量化
+    for (const noteId of notesToRemove) {
+      this.removeNoteSprite(noteId);
+    }
+    
+    // アクティブノーツ数制限
+    let processedNotes = 0;
+    const maxNotesToProcess = config.limitActiveNotes;
+    
+    // ノーツ更新またはスプライト作成（差分更新）
     for (const note of activeNotes) {
+      if (processedNotes >= maxNotesToProcess) {
+        break; // 制限に達したら処理を停止
+      }
+      
       const existingSprite = this.noteSprites.get(note.id);
       
       if (existingSprite) {
-        this.updateNoteSprite(existingSprite, note, currentTime);
+        // 位置変更チェック（差分更新）
+        const x = this.pitchToX(note.pitch);
+        const y = this.calculateNoteY(note);
+        
+        if (renderOptimizer.hasPositionChanged(note.id, x, y) || 
+            existingSprite.noteData.state !== note.state) {
+          this.updateNoteSprite(existingSprite, note, currentTime);
+          renderOptimizer.markDirty(note.id);
+        }
       } else {
         this.createNoteSprite(note);
+        renderOptimizer.markDirty(note.id);
       }
+      
+      processedNotes++;
     }
+    
+    // レンダー最適化のクリーンアップ
+    renderOptimizer.cleanup(currentNoteIds);
   }
   
   private createNoteSprite(note: ActiveNote): void {

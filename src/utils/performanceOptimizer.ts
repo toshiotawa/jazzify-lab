@@ -23,6 +23,23 @@ export interface PerformanceConfig {
   garbageCollectionInterval: number;
 }
 
+// 🎯 本番用軽量化モード設定
+export const PRODUCTION_CONFIG: PerformanceConfig = {
+  targetFPS: 60, // 60FPSを維持
+  skipFrameThreshold: 16, // 16ms (60FPS)
+  maxSkipFrames: 1, // 最大1フレームスキップ
+  
+  enableHardwareAcceleration: true,
+  reduceEffects: true, // エフェクト軽量化
+  limitActiveNotes: 30, // 同時表示ノーツ数制限
+  
+  noteUpdateInterval: 16, // 60FPS相当
+  effectUpdateInterval: 33, // 30FPS相当（エフェクトは低頻度）
+  
+  objectPoolSize: 50,
+  garbageCollectionInterval: 3000 // 3秒ごと
+};
+
 // 🎯 軽量化モード設定
 export const LIGHTWEIGHT_CONFIG: PerformanceConfig = {
   targetFPS: 30, // 60FPS → 30FPSに軽量化
@@ -56,6 +73,59 @@ export const STANDARD_CONFIG: PerformanceConfig = {
   objectPoolSize: 100,
   garbageCollectionInterval: 10000
 };
+
+/**
+ * 統合フレームレート制御クラス
+ * GameEngineとPIXIの競合を解決
+ */
+export class UnifiedFrameController {
+  private lastFrameTime = 0;
+  private frameSkipCount = 0;
+  private config: PerformanceConfig;
+  private lastNoteUpdateTime = 0;
+  private lastEffectUpdateTime = 0;
+  
+  constructor(config: PerformanceConfig = PRODUCTION_CONFIG) {
+    this.config = config;
+  }
+  
+  shouldSkipFrame(currentTime: number): boolean {
+    const deltaTime = currentTime - this.lastFrameTime;
+    
+    if (deltaTime < this.config.skipFrameThreshold) {
+      this.frameSkipCount++;
+      return this.frameSkipCount < this.config.maxSkipFrames;
+    }
+    
+    this.frameSkipCount = 0;
+    this.lastFrameTime = currentTime;
+    return false;
+  }
+  
+  shouldUpdateNotes(currentTime: number): boolean {
+    return (currentTime - this.lastNoteUpdateTime) >= this.config.noteUpdateInterval;
+  }
+  
+  shouldUpdateEffects(currentTime: number): boolean {
+    return (currentTime - this.lastEffectUpdateTime) >= this.config.effectUpdateInterval;
+  }
+  
+  markNoteUpdate(currentTime: number): void {
+    this.lastNoteUpdateTime = currentTime;
+  }
+  
+  markEffectUpdate(currentTime: number): void {
+    this.lastEffectUpdateTime = currentTime;
+  }
+  
+  updateConfig(config: Partial<PerformanceConfig>): void {
+    this.config = { ...this.config, ...config };
+  }
+  
+  getConfig(): PerformanceConfig {
+    return { ...this.config };
+  }
+}
 
 /**
  * フレームレート制御クラス
@@ -126,6 +196,16 @@ export class PerformanceMonitor {
   private frameCount = 0;
   private lastTime = 0;
   private fps = 0;
+  private frameStartTime = 0;
+  private frameDuration = 0;
+  
+  startFrame(): void {
+    this.frameStartTime = performance.now();
+  }
+  
+  endFrame(): void {
+    this.frameDuration = performance.now() - this.frameStartTime;
+  }
   
   updateFPS(): number {
     this.frameCount++;
@@ -142,6 +222,59 @@ export class PerformanceMonitor {
   
   getFPS(): number {
     return this.fps;
+  }
+  
+  getFrameDuration(): number {
+    return this.frameDuration;
+  }
+  
+  isPerformanceGood(): boolean {
+    return this.fps >= 50 && this.frameDuration <= 20; // 50FPS以上、20ms以下
+  }
+}
+
+/**
+ * レンダリング最適化ヘルパー
+ */
+export class RenderOptimizer {
+  private dirtyFlags = new Set<string>();
+  private lastPositions = new Map<string, { x: number; y: number }>();
+  
+  markDirty(id: string): void {
+    this.dirtyFlags.add(id);
+  }
+  
+  isDirty(id: string): boolean {
+    return this.dirtyFlags.has(id);
+  }
+  
+  clearDirty(id: string): void {
+    this.dirtyFlags.delete(id);
+  }
+  
+  hasPositionChanged(id: string, x: number, y: number): boolean {
+    const lastPos = this.lastPositions.get(id);
+    if (!lastPos) {
+      this.lastPositions.set(id, { x, y });
+      return true;
+    }
+    
+    const changed = Math.abs(lastPos.x - x) > 0.5 || Math.abs(lastPos.y - y) > 0.5;
+    if (changed) {
+      this.lastPositions.set(id, { x, y });
+    }
+    
+    return changed;
+  }
+  
+  cleanup(activeIds: Set<string>): void {
+    // 古いポジションデータを削除
+    for (const [id] of this.lastPositions) {
+      if (!activeIds.has(id)) {
+        this.lastPositions.delete(id);
+        this.dirtyFlags.delete(id);
+      }
+    }
   }
 }
 
@@ -188,9 +321,25 @@ export const performanceUtils = {
       clearTimeout(timeout);
       timeout = setTimeout(() => func.apply(null, args), wait);
     }) as T;
+  },
+  
+  /**
+   * スロットル処理
+   */
+  throttle<T extends (...args: any[]) => any>(func: T, limit: number): T {
+    let inThrottle: boolean;
+    return ((...args: any[]) => {
+      if (!inThrottle) {
+        func.apply(null, args);
+        inThrottle = true;
+        setTimeout(() => inThrottle = false, limit);
+      }
+    }) as T;
   }
 };
 
 // シングルトンインスタンス
+export const unifiedFrameController = new UnifiedFrameController(PRODUCTION_CONFIG);
 export const frameController = new FrameRateController(LIGHTWEIGHT_CONFIG);
-export const performanceMonitor = new PerformanceMonitor(); 
+export const performanceMonitor = new PerformanceMonitor();
+export const renderOptimizer = new RenderOptimizer(); 

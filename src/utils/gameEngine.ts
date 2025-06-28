@@ -13,6 +13,7 @@ import type {
   GameScore,
   JudgmentResult
 } from '@/types';
+import { unifiedFrameController, performanceMonitor } from './performanceOptimizer';
 
 // ===== 定数定義 =====
 
@@ -641,34 +642,54 @@ export class GameEngine {
   
   private startGameLoop(): void {
     const gameLoop = () => {
-      const currentTime = this.getCurrentTime();
-      const activeNotes = this.updateNotes(currentTime);
+      const frameStartTime = performance.now();
       
-      // ABリピートチェック
-      this.checkABRepeatLoop(currentTime);
+      // パフォーマンス監視開始
+      performanceMonitor.startFrame();
       
-      // Miss判定処理（重複処理を防ぐ）
-      for (const note of activeNotes) {
-        if (note.state === 'missed' && !note.judged) {
-          const missJudgment: JudgmentResult = {
-            type: 'miss',
-            timingError: 0,
-            noteId: note.id,
-            timestamp: currentTime
-          };
-          this.updateScore(missJudgment);
-          
-          // 重複判定を防ぐフラグ - 新しいオブジェクトを作成して置き換え
-          const updatedNote: ActiveNote = {
-            ...note,
-            judged: true
-          };
-          this.activeNotes.set(note.id, updatedNote);
-
-          // イベント通知
-          this.onJudgment?.(missJudgment);
-        }
+      // フレームスキップ制御
+      if (unifiedFrameController.shouldSkipFrame(frameStartTime)) {
+        this.animationFrame = requestAnimationFrame(gameLoop);
+        return;
       }
+      
+      const currentTime = this.getCurrentTime();
+      
+      // ノーツ更新の頻度制御
+      let activeNotes: ActiveNote[] = [];
+      if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
+        activeNotes = this.updateNotes(currentTime);
+        unifiedFrameController.markNoteUpdate(frameStartTime);
+        
+        // Miss判定処理（重複処理を防ぐ）
+        for (const note of activeNotes) {
+          if (note.state === 'missed' && !note.judged) {
+            const missJudgment: JudgmentResult = {
+              type: 'miss',
+              timingError: 0,
+              noteId: note.id,
+              timestamp: currentTime
+            };
+            this.updateScore(missJudgment);
+            
+            // 重複判定を防ぐフラグ - 新しいオブジェクトを作成して置き換え
+            const updatedNote: ActiveNote = {
+              ...note,
+              judged: true
+            };
+            this.activeNotes.set(note.id, updatedNote);
+
+            // イベント通知
+            this.onJudgment?.(missJudgment);
+          }
+        }
+      } else {
+        // 前回の activeNotes を再利用
+        activeNotes = Array.from(this.activeNotes.values());
+      }
+      
+      // ABリピートチェック（軽量化）
+      this.checkABRepeatLoop(currentTime);
       
       const timing: MusicalTiming = {
         currentTime,
@@ -676,12 +697,10 @@ export class GameEngine {
         latencyOffset: this.latencyOffset
       };
       
-      // Immer により凍結されてもエンジン側が変更できるようディープコピーを渡す
-      const activeNotesForUi = activeNotes;
-      
+      // UI更新（毎フレーム必要）
       this.onUpdate?.({
         currentTime,
-        activeNotes: activeNotesForUi,
+        activeNotes,
         timing,
         score: { ...this.score },
         abRepeatState: {
@@ -690,6 +709,22 @@ export class GameEngine {
           enabled: false
         }
       });
+      
+      // パフォーマンス監視終了
+      performanceMonitor.endFrame();
+      
+      // FPS更新
+      const fps = performanceMonitor.updateFPS();
+      
+      // パフォーマンス劣化時の自動調整
+      if (fps < 45) {
+        console.warn(`⚠️ パフォーマンス低下検出 (FPS: ${fps}), 軽量化モードに切り替え`);
+        unifiedFrameController.updateConfig({
+          reduceEffects: true,
+          limitActiveNotes: 20,
+          effectUpdateInterval: 50
+        });
+      }
       
       this.animationFrame = requestAnimationFrame(gameLoop);
     };
