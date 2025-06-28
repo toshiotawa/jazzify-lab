@@ -3,38 +3,38 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { enableMapSet } from 'immer';
-import * as Tone from 'tone';
 
 // ImmerでMap/Setを使用できるようにする
 enableMapSet();
 
-// デバッグ情報を画面に表示する関数
+// 本番環境でもデバッグ情報を表示する関数
 const showDebugInfo = (message: string, isError = false) => {
-  const loadingElement = document.getElementById('loading');
-  if (loadingElement) {
-    const debugDiv = document.getElementById('debug-info') || document.createElement('div');
-    debugDiv.id = 'debug-info';
-    debugDiv.style.cssText = `
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      background: ${isError ? '#ef4444' : '#3b82f6'};
-      color: white;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-family: monospace;
-      font-size: 12px;
-      z-index: 10000;
-      max-width: 300px;
-      word-wrap: break-word;
-    `;
-    debugDiv.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
-    
-    if (!document.getElementById('debug-info')) {
-      document.body.appendChild(debugDiv);
-    }
+  const timestamp = new Date().toLocaleTimeString();
+  console.log(`🎵 [${timestamp}] ${message}`);
+  
+  // 画面にも表示
+  const debugDiv = document.getElementById('debug-info') || document.createElement('div');
+  debugDiv.id = 'debug-info';
+  debugDiv.style.cssText = `
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: ${isError ? '#ef4444' : '#3b82f6'};
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 12px;
+    z-index: 10000;
+    max-width: 400px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+  `;
+  debugDiv.textContent = `${timestamp}: ${message}`;
+  
+  if (!document.getElementById('debug-info')) {
+    document.body.appendChild(debugDiv);
   }
-  console.log(`🎵 ${message}`);
 };
 
 // ローディング画面を非表示にする
@@ -48,7 +48,7 @@ const hideLoading = () => {
   }
 };
 
-// エラー表示関数
+// エラー表示関数（簡素化）
 const showError = (error: any) => {
   const loadingElement = document.getElementById('loading');
   if (loadingElement) {
@@ -85,7 +85,7 @@ window.addEventListener('unhandledrejection', (event) => {
   showError(event.reason);
 });
 
-// アプリケーションの初期化
+// 簡素化されたアプリケーション初期化
 const initializeApp = async () => {
   try {
     showDebugInfo('Starting initialization...');
@@ -94,40 +94,41 @@ const initializeApp = async () => {
     if (!document.getElementById('root')) {
       throw new Error('Root element not found');
     }
-    
     showDebugInfo('Root element found');
     
-    // React の厳密モードを確認
+    // React アプリケーションの初期化（StrictModeを削除）
     showDebugInfo('Creating React root...');
     const rootElement = document.getElementById('root')!;
     const root = ReactDOM.createRoot(rootElement);
     
     showDebugInfo('Rendering React app...');
-    root.render(
-      <React.StrictMode>
-        <App />
-      </React.StrictMode>
-    );
+    root.render(<App />);
     
     showDebugInfo('React app rendered successfully');
     
-    // Tone.js を window に公開
-    (window as any).Tone = Tone;
-    showDebugInfo('Tone.js attached to window');
+    // Tone.js を動的にロードして初期化（遅延ロード）
+    try {
+      const Tone = await import('tone');
+      (window as any).Tone = Tone;
+      showDebugInfo('Tone.js loaded and attached to window');
+    } catch (toneError) {
+      showDebugInfo(`Tone.js loading failed: ${toneError}`, true);
+      // Tone.jsのエラーは致命的ではないため続行
+    }
     
-    // 少し待ってからローディング画面を非表示
+    // 初期化完了後にローディング画面を非表示
     setTimeout(() => {
       showDebugInfo('Hiding loading screen...');
       hideLoading();
       
-      // デバッグ情報を数秒後に自動で削除
+      // デバッグ情報を削除（本番では少し長めに表示）
       setTimeout(() => {
         const debugDiv = document.getElementById('debug-info');
         if (debugDiv) {
           debugDiv.remove();
         }
-      }, 5000);
-    }, 1000);
+      }, 8000);
+    }, 500);
     
     showDebugInfo('Initialization completed successfully');
 
