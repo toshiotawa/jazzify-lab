@@ -426,11 +426,7 @@ export class GameEngine {
     
     // アクティブノーツの状態更新 - 🔧 処理順序を修正
     for (const [noteId, note] of this.activeNotes) {
-      // 🔍 処理前の状態をログ
       const isRecentNote = Math.abs(currentTime - note.time) < 2.0; // 判定時間の±2秒以内
-      if (isRecentNote) {
-        console.log(`🔄 ノート処理開始: ${noteId} - 現在状態: ${note.state}, time: ${note.time.toFixed(3)}, currentTime: ${currentTime.toFixed(3)}`);
-      }
       
       // 🎯 STEP 1: 判定ライン通過検出を先に実行（オートプレイ処理含む）
       this.checkHitLineCrossing(note, currentTime);
@@ -443,7 +439,6 @@ export class GameEngine {
       
       const updatedNote = this.updateNoteState(latestNote, currentTime);
       if (isRecentNote && updatedNote.state !== latestNote.state) {
-        console.log(`🔀 STEP2後の状態変化: ${noteId} - ${latestNote.state} → ${updatedNote.state}`);
       }
       
       if (updatedNote.state === 'completed') {
@@ -455,15 +450,11 @@ export class GameEngine {
         
         this.activeNotes.delete(noteId);
         if (isRecentNote) {
-          console.log(`🗑️ ノート削除: ${noteId} (state: completed)`);
         }
       } else {
         this.activeNotes.set(noteId, updatedNote);
         visibleNotes.push(updatedNote);
         
-        if (isRecentNote) {
-          console.log(`✅ ノート処理完了: ${noteId} - 最終状態: ${updatedNote.state}`);
-        }
       }
     }
     
@@ -496,7 +487,6 @@ export class GameEngine {
     
     // Miss判定チェック (visible状態のみ)
     if (note.state === 'visible' && timePassed > JUDGMENT_TIMING.missMs / 1000) {
-      console.log(`❌ Miss判定: ${note.id} (時間経過: ${timePassed.toFixed(3)}s > ${(JUDGMENT_TIMING.missMs / 1000).toFixed(3)}s)`);
       return { ...note, state: 'missed' };
     }
     
@@ -542,7 +532,6 @@ export class GameEngine {
         !note.crossingLogged) { // 重複ログ防止
 
       const timeError = (currentTime - adjustedNoteTime) * 1000; // ms
-      console.log(`⚡ 判定ライン通過: ${note.id} (タイミング調整済み時間誤差: ${timeError.toFixed(1)}ms, 練習ガイド: ${this.settings.practiceGuide})`);
 
       // 重複ログ防止フラグを即座に設定
       const updatedNote: ActiveNote = {
@@ -559,7 +548,6 @@ export class GameEngine {
         // キーハイライト通知を送信（key、key_auto両方で実行）
         if (this.onKeyHighlight) {
           this.onKeyHighlight(effectivePitch, currentTime);
-          console.log(`🎹 キーハイライト通知送信: pitch=${effectivePitch}, timestamp=${currentTime.toFixed(3)}`);
         }
         
         if (practiceGuide === 'key_auto') {
@@ -606,7 +594,6 @@ export class GameEngine {
           }
         }
         
-        console.log(`🎹 練習モードガイド処理完了: pitch=${effectivePitch}, guide=${practiceGuide}`);
       }
     }
   }

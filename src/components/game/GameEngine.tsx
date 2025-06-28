@@ -378,7 +378,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       
       // タイムスタンプが新しい場合のみハイライトを実行（重複防止）
       if (currentTimestamp - timestamp < 0.5) { // 0.5秒以内の通知のみ処理
-        console.log(`🎹 練習ガイド: キーハイライト実行 - pitch=${pitch}`);
         
         // キーをハイライト
         pixiRenderer.highlightKey(pitch, true);

@@ -126,8 +126,7 @@ export class PIXINotesRendererInstance {
     });
     
     // インタラクションを有効化（重要）
-    this.app.stage.interactive = true;
-    this.app.stage.interactiveChildren = true;
+    this.app.stage.eventMode = 'static';
     
     // 判定ラインをピアノの上端に正確に配置
     this.settings.hitLineY = height - this.settings.pianoHeight;
@@ -139,14 +138,7 @@ export class PIXINotesRendererInstance {
     this.setupParticles();
     this.setupAnimationTicker();
     
-    // デバッグ情報をコンソールに出力
-    console.log('🎹 PIXI.js Piano Renderer initialized:', {
-      width,
-      height,
-      hitLineY: this.settings.hitLineY,
-      pianoHeight: this.settings.pianoHeight,
-      interactive: this.app.stage.interactive
-    });
+
   }
   
   private setupContainers(): void {
@@ -213,7 +205,6 @@ export class PIXINotesRendererInstance {
     
     // 白鍵を描画
     let whiteKeyIndex = 0;
-    console.log('🎹 Creating white keys...');
     for (let note = minNote; note <= maxNote; note++) {
       if (!this.isBlackKey(note)) {
         const whiteKey = this.createWhiteKey(whiteKeyIndex * whiteKeyWidth, whiteKeyWidth, note);
@@ -224,7 +215,6 @@ export class PIXINotesRendererInstance {
     }
     
     // 黒鍵を描画（白鍵の上、正確な位置計算）
-    console.log('🎹 Creating black keys...');
     for (let note = minNote; note <= maxNote; note++) {
       if (this.isBlackKey(note)) {
         const position = this.calculateBlackKeyPosition(note, minNote, maxNote, totalWhiteKeys);
@@ -243,14 +233,12 @@ export class PIXINotesRendererInstance {
     this.pianoContainer.addChild(blackKeysContainer);
     
     // ===== グリッサンド用ドラッグハンドラ =====
-    this.pianoContainer.interactive = true;
+    this.pianoContainer.eventMode = 'static';
     this.pianoContainer.on('pointerdown', this.handleDragStart.bind(this));
     this.pianoContainer.on('pointermove', this.handleDragMove.bind(this));
     this.pianoContainer.on('pointerup', this.handleDragEnd.bind(this));
     this.pianoContainer.on('pointerupoutside', this.handleDragEnd.bind(this));
     this.pianoContainer.on('pointercancel', this.handleDragEnd.bind(this));
-    
-    console.log(`🎹 Piano setup completed: ${whiteKeyIndex} white keys, ${blackKeysContainer.children.length} black keys`);
   }
   
   /**
@@ -466,8 +454,6 @@ export class PIXINotesRendererInstance {
         }
       }
     });
-    
-    console.log('🎬 PIXI.js 精密同期ティッカー開始 - 補間無効化済み');
   }
   
   private createWhiteKey(x: number, width: number, midiNote?: number): PIXI.Graphics {
@@ -499,31 +485,27 @@ export class PIXINotesRendererInstance {
     
           // インタラクション設定を強化
       if (midiNote !== undefined) {
-        key.interactive = true;
+        key.eventMode = 'static';
         key.cursor = 'pointer';
       
       // より確実なイベント処理
       key.on('pointerdown', (event) => {
-        // console.log(`🎹 White key pressed: ${midiNote} (${this.getMidiNoteName(midiNote)})`);
         event.stopPropagation();
         this.handleKeyPress(midiNote);
       });
       
       key.on('pointerup', (event) => {
-        // console.log(`🎹 White key released: ${midiNote}`);
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
       
       // タッチデバイス対応
       key.on('touchstart', (event) => {
-        // console.log(`📱 White key touch: ${midiNote}`);
         event.stopPropagation();
         this.handleKeyPress(midiNote);
       });
       
       key.on('touchend', (event) => {
-        // console.log(`📱 White key touch end: ${midiNote}`);
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
@@ -572,43 +554,29 @@ export class PIXINotesRendererInstance {
     key.x = x;
     key.y = this.settings.hitLineY; // 判定ライン位置から開始
     
-    // デバッグ情報（コメントアウト済み）
-    // if (midiNote !== undefined) {
-    //   console.log(`🎹 Creating black key: Note=${midiNote}, X=${x}, Width=${adjustedWidth}, VisibleWidth=${adjustedWidth * 0.75}`);
-    // }
-    
           // インタラクション設定を強化
       if (midiNote !== undefined) {
-        key.interactive = true;
+        key.eventMode = 'static';
         key.cursor = 'pointer';
       
               // より確実なイベント処理
         key.on('pointerdown', (event) => {
-          // console.log(`🎹 BLACK KEY PRESSED: ${midiNote} (${this.getMidiNoteName(midiNote)})`, {
-          //   eventType: event.type,
-          //   position: { x: event.global.x, y: event.global.y },
-          //   keyPosition: { x: key.x, y: key.y },
-          //   keyBounds: key.getBounds()
-          // });
           event.stopPropagation();
           this.handleKeyPress(midiNote);
         });
       
       key.on('pointerup', (event) => {
-        // console.log(`🎹 Black key released: ${midiNote}`);
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
       
       // タッチデバイス対応
       key.on('touchstart', (event) => {
-        // console.log(`📱 Black key touch: ${midiNote}`);
         event.stopPropagation();
         this.handleKeyPress(midiNote);
       });
       
       key.on('touchend', (event) => {
-        // console.log(`📱 Black key touch end: ${midiNote}`);
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
@@ -734,20 +702,6 @@ export class PIXINotesRendererInstance {
     // 2つの白鍵の中央位置の中点を計算
     const centerPosition = (prevKeyCenter + nextKeyCenter) / 2;
     
-    // デバッグ情報（コメントアウト済み）
-    // console.log(`🎹 Black key position calculated:`, {
-    //   note,
-    //   noteName: this.getMidiNoteName(note),
-    //   prevWhiteNote,
-    //   nextWhiteNote,
-    //   prevWhiteKeyIndex,
-    //   nextWhiteKeyIndex,
-    //   whiteKeyWidth,
-    //   prevKeyCenter,
-    //   nextKeyCenter,
-    //   finalPosition: centerPosition
-    // });
-    
     return centerPosition;
   }
   
@@ -762,14 +716,6 @@ export class PIXINotesRendererInstance {
     }
     
     const isBlackKey = this.isBlackKey(midiNote);
-    const _noteName = this.getMidiNoteName(midiNote);
-    
-    // console.log(`🎨 Highlighting ${isBlackKey ? 'BLACK' : 'WHITE'} key: ${midiNote} (${_noteName}) - ${active ? 'ON' : 'OFF'}`, {
-    //   keySprite: keySprite,
-    //   isBlackKey,
-    //   activeKeyColor: `0x${this.settings.colors.activeKey.toString(16)}`,
-    //   highlightedKeys: Array.from(this.highlightedKeys)
-    // });
     
     if (active) {
       // ハイライト状態に追加
@@ -811,8 +757,6 @@ export class PIXINotesRendererInstance {
     const blackKeyHeight = this.settings.pianoHeight * 0.65;
     
     if (highlighted) {
-      // console.log(`🎨 Drawing highlighted black key with color: 0x${this.settings.colors.activeKey.toString(16)}`);
-      
       // より鮮やかなオレンジ色のグロー効果（外側）
       keySprite.beginFill(0xFF8C00, 0.6); // より鮮やかなオレンジ
       keySprite.drawRect(-adjustedWidth * 0.9 / 2, -2, adjustedWidth * 0.9, blackKeyHeight + 4);
@@ -977,19 +921,10 @@ export class PIXINotesRendererInstance {
       }, 150);
     }
 
-    // タイミング同期デバッグ（判定ライン付近のみ）
-    if (currentTime !== undefined && note.time !== undefined) {
-      const timeToHit = note.time - currentTime;
-      const hitLineY = this.settings.hitLineY;
-      
-      if (Math.abs(y - hitLineY) < 20 && Math.abs(timeToHit) < 0.1) {
-        //console.log(`🎯 ノーツ同期: pitch=${note.pitch}, timeToHit=${timeToHit.toFixed(3)}s, y=${y.toFixed(1)}px, hitLineY=${hitLineY}px`);
-      }
-    }
+
     
     // 状態変更チェック
     if (noteSprite.noteData.state !== note.state) {
-      console.log(`🎨 ノート状態変更検知: ${note.id} - ${noteSprite.noteData.state} → ${note.state}`);
       
       this.drawNoteShape(noteSprite.sprite, note.state, note.pitch);
       if (noteSprite.glowSprite) {
@@ -999,7 +934,6 @@ export class PIXINotesRendererInstance {
       // GOOD 判定で透明化した際にラベルも非表示にする
       if (note.state === 'hit' && noteSprite.label) {
         noteSprite.label.visible = false;
-        console.log(`👻 ノート透明化: ${note.id} - ラベルも非表示に`);
       }
       
       // シークやABリピートでノートが再度 "visible" 状態になった場合、
@@ -1011,7 +945,6 @@ export class PIXINotesRendererInstance {
       // ヒット/ミス時のエフェクト
       if (note.state === 'hit' || note.state === 'missed') {
         const judgmentLabel = note.state === 'hit' ? 'good' : 'miss';
-        console.log(`🎇 エフェクト発火開始: ${note.id} - state: ${note.state}, judgment: ${judgmentLabel}, position: (${x.toFixed(1)}, ${noteSprite.sprite.y.toFixed(1)})`);
         this.createHitEffect(x, noteSprite.sprite.y, note.state, judgmentLabel);
       }
     }
@@ -1064,12 +997,10 @@ export class PIXINotesRendererInstance {
     
     // GOOD 判定（state === 'hit') ではノーツを透明にする
     if (state === 'hit') {
-      console.log(`👻 ノーツ透明化実行: state=${state}, pitch=${pitch}`);
       // 透明化してスペースを残す（クリック判定など影響させない）
       graphics.beginFill(0x000000, 0);
       graphics.drawRect(-noteWidth / 2, -noteHeight / 2, noteWidth, noteHeight);
       graphics.endFill();
-      console.log(`✅ ノーツ透明化完了: 完全透明の矩形を描画`);
       return;
     }
 
@@ -1203,15 +1134,12 @@ export class PIXINotesRendererInstance {
   }
   
   private createHitEffect(x: number, y: number, state: 'hit' | 'missed', judgment?: string): void {
-    console.log(`🎆 createHitEffect 開始: state=${state}, judgment=${judgment}, position=(${x.toFixed(1)}, ${y.toFixed(1)})`);
     
     // GOOD ヒット時のみ特殊グローエフェクトを表示
     const isGoodHit = state === 'hit' && judgment === 'good';
     const duration = 800; // 0.8 秒に延長（より長く見える）
 
     if (isGoodHit) {
-      console.log(`✨ GOODヒットエフェクト生成中: duration=${duration}ms`);
-      
       // ===== 円形グローエフェクト =====
       const glow = new PIXI.Graphics();
       glow.beginFill(this.settings.colors.good, 0.9); // アルファ値を0.9に増加
@@ -1221,7 +1149,6 @@ export class PIXINotesRendererInstance {
       glow.x = x;
       glow.y = y;
       this.effectsContainer.addChild(glow);
-      console.log(`🌟 円形グロー作成: radius=${radius}, color=0x${this.settings.colors.good.toString(16)}`);
 
       // ===== ガイドレーンのグローエフェクト =====
       const laneGlow = new PIXI.Graphics();
@@ -1233,17 +1160,14 @@ export class PIXINotesRendererInstance {
       laneGlow.x = x;
       laneGlow.y = this.settings.hitLineY;
       this.effectsContainer.addChild(laneGlow);
-      console.log(`🌊 レーングロー作成: width=${laneWidth}, height=${laneHeight}`);
 
       // フェードアウトアニメーション
       const start = Date.now();
-      console.log(`🎬 フェードアウトアニメーション開始: startTime=${start}`);
       
       const animate = () => {
         const elapsed = Date.now() - start;
         const progress = elapsed / duration;
         if (progress >= 1) {
-          console.log(`🎬 エフェクトアニメーション完了: elapsed=${elapsed}ms`);
           // 安全なオブジェクト削除処理
           try {
             if (glow && !glow.destroyed && this.effectsContainer.children.includes(glow)) {
@@ -1285,12 +1209,10 @@ export class PIXINotesRendererInstance {
     }
 
     // MISS もしくはその他の場合は簡易パーティクルエフェクト (従来ロジック)
-    console.log(`💥 MISSエフェクト処理: particlesEnabled=${this.settings.effects.particles}`);
     if (!this.settings.effects.particles) return;
 
     const particleCount = 10;
     const baseColor = this.settings.colors.missed;
-    console.log(`🎪 パーティクル生成開始: count=${particleCount}, color=0x${baseColor.toString(16)}`);
 
     for (let i = 0; i < particleCount; i++) {
       const particle = new PIXI.Graphics();
@@ -1343,7 +1265,6 @@ export class PIXINotesRendererInstance {
       };
       requestAnimationFrame(animateParticle);
     }
-    console.log(`🎆 createHitEffect 完了`);
   }
   
   private getStateColor(state: ActiveNote['state'], pitch?: number): number {
@@ -1486,7 +1407,6 @@ export class PIXINotesRendererInstance {
           noteSprite.label = label;
         }
       });
-      console.log(`🎵 音名表示設定更新: ${prevNoteNameStyle} → ${this.settings.noteNameStyle}`);
     }
 
     // === transpose が変化した場合、既存ノートのラベル / カラーを更新 ===
@@ -1597,29 +1517,19 @@ export class PIXINotesRendererInstance {
    * ピアノキー入力コールバックの設定
    */
   setKeyCallbacks(onKeyPress: (note: number) => void, onKeyRelease: (note: number) => void): void {
-    console.log('🎹 Setting piano key callbacks');
     this.onKeyPress = onKeyPress;
     this.onKeyRelease = onKeyRelease;
-    
-    // コールバック設定の確認
-    console.log('✅ Piano callbacks set:', {
-      onKeyPress: typeof onKeyPress,
-      onKeyRelease: typeof onKeyRelease
-    });
   }
 
   /**
    * 内部キープレスハンドラー
    */
   private handleKeyPress(midiNote: number): void {
-    // console.log(`🎵 Key press handled internally: ${midiNote}`);
-    
     // ビジュアルフィードバック
     this.highlightKey(midiNote, true);
     
     // 外部コールバック呼び出し
     if (this.onKeyPress) {
-      // console.log(`🔄 Calling external onKeyPress callback for note: ${midiNote}`);
       this.onKeyPress(midiNote);
     } else {
       console.warn(`⚠️ No onKeyPress callback set! Note: ${midiNote}`);
@@ -1630,8 +1540,6 @@ export class PIXINotesRendererInstance {
    * 内部キーリリースハンドラー
    */
   private handleKeyRelease(midiNote: number): void {
-    // console.log(`🎵 Key release handled internally: ${midiNote}`);
-    
     // 黒鍵は少し長めにハイライトを維持
     const isBlackKey = this.isBlackKey(midiNote);
     const highlightDuration = isBlackKey ? 200 : 150;
@@ -1642,7 +1550,6 @@ export class PIXINotesRendererInstance {
     
     // 外部コールバック呼び出し
     if (this.onKeyRelease) {
-      // console.log(`🔄 Calling external onKeyRelease callback for note: ${midiNote}`);
       this.onKeyRelease(midiNote);
     } else {
       console.warn(`⚠️ No onKeyRelease callback set! Note: ${midiNote}`);
