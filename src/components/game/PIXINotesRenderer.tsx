@@ -1230,10 +1230,24 @@ export class PIXINotesRendererInstance {
         const elapsed = Date.now() - start;
         const progress = elapsed / duration;
         if (progress >= 1) {
-          this.effectsContainer.removeChild(glow);
-          glow.destroy();
-          this.effectsContainer.removeChild(laneGlow);
-          laneGlow.destroy();
+          // 安全なオブジェクト削除処理
+          try {
+            if (glow && !glow.destroyed && this.effectsContainer.children.includes(glow)) {
+              this.effectsContainer.removeChild(glow);
+              glow.destroy();
+            }
+          } catch (err) {
+            console.warn('glow削除時にエラー:', err);
+          }
+          
+          try {
+            if (laneGlow && !laneGlow.destroyed && this.effectsContainer.children.includes(laneGlow)) {
+              this.effectsContainer.removeChild(laneGlow);
+              laneGlow.destroy();
+            }
+          } catch (err) {
+            console.warn('laneGlow削除時にエラー:', err);
+          }
           return;
         }
         
@@ -1242,11 +1256,15 @@ export class PIXINotesRendererInstance {
           return;
         }
         
-        const alpha = 1 - progress;
-        glow.alpha = alpha;
-        laneGlow.alpha = alpha * 0.5;
-        glow.scale.set(1 + progress * 0.5);
-        requestAnimationFrame(animate);
+        try {
+          const alpha = 1 - progress;
+          glow.alpha = alpha;
+          laneGlow.alpha = alpha * 0.5;
+          glow.scale.set(1 + progress * 0.5);
+          requestAnimationFrame(animate);
+        } catch (err) {
+          console.warn('アニメーション処理でエラー:', err);
+        }
       };
       requestAnimationFrame(animate);
       return; // パーティクルは生成しない
@@ -1275,8 +1293,15 @@ export class PIXINotesRendererInstance {
         const elapsed = Date.now() - startTime;
         const progress = elapsed / 1000;
         if (progress >= 1) {
-          this.particles.removeChild(particle);
-          particle.destroy();
+          // 安全なパーティクル削除処理
+          try {
+            if (particle && !particle.destroyed && this.particles.children.includes(particle)) {
+              this.particles.removeChild(particle);
+              particle.destroy();
+            }
+          } catch (err) {
+            console.warn('パーティクル削除時にエラー:', err);
+          }
           return;
         }
         
@@ -1290,11 +1315,15 @@ export class PIXINotesRendererInstance {
           return;
         }
         
-        particle.x += velocity.x * 0.016;
-        particle.y += velocity.y * 0.016;
-        particle.alpha = 1 - progress;
-        velocity.y += 200 * 0.016;
-        requestAnimationFrame(animateParticle);
+        try {
+          particle.x += velocity.x * 0.016;
+          particle.y += velocity.y * 0.016;
+          particle.alpha = 1 - progress;
+          velocity.y += 200 * 0.016;
+          requestAnimationFrame(animateParticle);
+        } catch (err) {
+          console.warn('パーティクルアニメーション処理でエラー:', err);
+        }
       };
       requestAnimationFrame(animateParticle);
     }
