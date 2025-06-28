@@ -149,17 +149,40 @@ const SongSelectionScreen: React.FC = () => {
               try {
                 // demo-1のノーツデータを読み込み
                 const response = await fetch('/demo-1.json');
+                if (!response.ok) {
+                  throw new Error(`ノーツデータの読み込みに失敗: ${response.status}`);
+                }
                 const data = await response.json();
                 
-                // 音声ファイルの長さを動的に取得
-                const audio = new Audio('/demo-1.mp3');
-                await new Promise((resolve, reject) => {
-                  audio.addEventListener('loadedmetadata', resolve);
-                  audio.addEventListener('error', reject);
-                  audio.load();
-                });
-                
-                const actualDuration = Math.floor(audio.duration) || 60;
+                // 音声ファイルの長さを動的に取得（エラーハンドリング改善）
+                let actualDuration = 60; // デフォルト値
+                try {
+                  const audio = new Audio('/demo-1.mp3');
+                  await new Promise((resolve, reject) => {
+                    const loadedHandler = () => {
+                      actualDuration = Math.floor(audio.duration) || 60;
+                      resolve(void 0);
+                    };
+                    const errorHandler = (e: Event) => {
+                      console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用:', e);
+                      resolve(void 0); // エラーでも続行
+                    };
+                    
+                    audio.addEventListener('loadedmetadata', loadedHandler);
+                    audio.addEventListener('error', errorHandler);
+                    audio.addEventListener('canplaythrough', loadedHandler);
+                    
+                    // タイムアウト設定
+                    setTimeout(() => {
+                      console.warn('音声ファイル読み込みタイムアウト、デフォルト時間を使用');
+                      resolve(void 0);
+                    }, 3000);
+                    
+                    audio.load();
+                  });
+                } catch (audioError) {
+                  console.warn('音声ファイルの処理中にエラー、デフォルト時間を使用:', audioError);
+                }
                 
                 const demo1Song = {
                   id: 'demo-1',
@@ -173,6 +196,10 @@ const SongSelectionScreen: React.FC = () => {
                 };
                 
                 // JSONデータをNoteData形式に変換
+                if (!data.notes || !Array.isArray(data.notes)) {
+                  throw new Error('ノーツデータの形式が不正です');
+                }
+                
                 const demo1Notes = data.notes.map((note: any, index: number) => ({
                   id: `demo1-${index}`,
                   time: note.time,
@@ -185,8 +212,7 @@ const SongSelectionScreen: React.FC = () => {
                 gameActions.setCurrentTab('practice');
               } catch (error) {
                 console.error('Demo-1楽曲の読み込みに失敗しました:', error);
-                // エラー表示の改善
-                alert('Demo-1楽曲の読み込みに失敗しました。音声ファイルが存在するか確認してください。');
+                alert(`Demo-1楽曲の読み込みに失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
               }
             }}
           />
@@ -199,6 +225,9 @@ const SongSelectionScreen: React.FC = () => {
               try {
                 // JSONデータを読み込み
                 const response = await fetch('/bill-evans-alice-in-wonderland.json');
+                if (!response.ok) {
+                  throw new Error(`ノーツデータの読み込みに失敗: ${response.status}`);
+                }
                 const data = await response.json();
                 
                 const aliceSong = {
@@ -212,8 +241,20 @@ const SongSelectionScreen: React.FC = () => {
                   genreCategory: 'jazz'
                 };
                 
-                // JSONデータをNoteData形式に変換（最初の100ノートのみ）
-                const aliceNotes = data.notes.slice(0, 100).map((note: any, index: number) => ({
+                // JSONデータをNoteData形式に変換（配列構造に対応）
+                let notesArray: any[] = [];
+                if (Array.isArray(data)) {
+                  // 直接配列の場合
+                  notesArray = data;
+                } else if (data.notes && Array.isArray(data.notes)) {
+                  // notesプロパティがある場合
+                  notesArray = data.notes;
+                } else {
+                  throw new Error('ノーツデータの形式が不正です');
+                }
+                
+                // 最初の100ノートのみ
+                const aliceNotes = notesArray.slice(0, 100).map((note: any, index: number) => ({
                   id: `alice-${index}`,
                   time: note.time,
                   pitch: note.pitch
@@ -225,7 +266,7 @@ const SongSelectionScreen: React.FC = () => {
                 gameActions.setCurrentTab('practice');
               } catch (error) {
                 console.error('Alice in Wonderland楽曲の読み込みに失敗しました:', error);
-                alert('Alice in Wonderland楽曲の読み込みに失敗しました。');
+                alert(`Alice in Wonderland楽曲の読み込みに失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
               }
             }}
           />
