@@ -25,7 +25,7 @@ export class MIDIController {
   private isInitialized = false;
   
   // PIXI.js レンダラーのキーハイライト用コールバック
-  private onKeyHighlight?: (note: number, active: boolean) => void;
+  private onKeyHighlight?: (note: number, active: boolean, type?: 'guide' | 'manual') => void;
   
   // MIDI入力の有効/無効状態
   private isEnabled = false;
@@ -159,9 +159,9 @@ export class MIDIController {
       // アクティブノーツに追加
       this.activeNotes.add(note);
       
-      // PIXI.js キーハイライト
+      // PIXI.js キーハイライト（MIDI入力は手動入力として扱う）
       if (this.onKeyHighlight) {
-        this.onKeyHighlight(note, true);
+        this.onKeyHighlight(note, true, 'manual');
       }
       
       // ゲームエンジンに通知
@@ -183,9 +183,9 @@ export class MIDIController {
       // アクティブノーツから削除
       this.activeNotes.delete(note);
       
-      // PIXI.js キーハイライト解除
+      // PIXI.js キーハイライト解除（MIDI入力は手動入力として扱う）
       if (this.onKeyHighlight) {
-        this.onKeyHighlight(note, false);
+        this.onKeyHighlight(note, false, 'manual');
       }
       
       // ゲームエンジンに通知
@@ -324,7 +324,7 @@ export class MIDIController {
     this.onConnectionChange = callback;
   }
   
-  public setKeyHighlightCallback(callback: (note: number, active: boolean) => void): void {
+  public setKeyHighlightCallback(callback: (note: number, active: boolean, type?: 'guide' | 'manual') => void): void {
     this.onKeyHighlight = callback;
     console.log('🎹 Key highlight callback set');
   }
