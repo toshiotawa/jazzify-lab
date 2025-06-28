@@ -21,7 +21,8 @@
       "Bash(git restore:*)",
       "Bash(ls:*)",
       "Bash(pkill:*)",
-      "Bash(gh repo view:*)"
+      "Bash(gh repo view:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

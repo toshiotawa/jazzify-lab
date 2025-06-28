@@ -378,19 +378,28 @@ const SettingsPanel: React.FC = () => {
   const gameActions = useGameActions();
 
   return (
-    <div className="modal-overlay" onMouseDown={(e) => {
-      // オーバーレイ部分（背景領域）をクリックした場合のみモーダルを閉じる
-      if (e.target === e.currentTarget) {
-        gameActions.setSettingsOpen(false);
-      }
-    }}>
+    <div 
+      className="modal-overlay" 
+      onMouseDown={(e) => {
+        // オーバーレイ部分（背景領域）をクリックした場合のみモーダルを閉じる
+        if (e.target === e.currentTarget) {
+          gameActions.setSettingsOpen(false);
+        }
+      }}
+      onClick={(e) => {
+        // 追加の安全対策: onClick でも同様の処理
+        if (e.target === e.currentTarget) {
+          gameActions.setSettingsOpen(false);
+        }
+      }}
+    >
       <div className="modal-content">
         <div className="card-header">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold text-white">設定</h2>
             <button
               onClick={() => gameActions.setSettingsOpen(false)}
-              className="text-gray-400 hover:text-white"
+              className="text-gray-400 hover:text-white text-2xl leading-none"
             >
               ✕
             </button>
@@ -474,34 +483,44 @@ const SettingsPanel: React.FC = () => {
               />
             </div>
 
-            {/* 鍵盤音名表示 */}
+            {/* 判定タイミング調整 */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                鍵盤音名表示
+                判定タイミング調整: {settings.timingAdjustment > 0 ? '+' : ''}{settings.timingAdjustment}ms
               </label>
-              <select
-                value={settings.keyboardNoteNameStyle ?? 'abc'}
-                onChange={(e) => gameActions.updateSettings({ keyboardNoteNameStyle: e.target.value as any })}
-                className="select select-bordered w-full max-w-xs bg-gray-800 text-white"
-              >
-                <option value="off">OFF</option>
-                <option value="abc">ABC</option>
-                <option value="solfege">ドレミ</option>
-              </select>
+              <div className="text-xs text-gray-400 mb-2">
+                楽譜のノーツタイミングを調整します（早い: -, 遅い: +）
+              </div>
+              <input
+                type="range"
+                min="-100"
+                max="100"
+                step="1"
+                value={settings.timingAdjustment}
+                onChange={(e) => 
+                  gameActions.updateSettings({ timingAdjustment: parseInt(e.target.value) })
+                }
+                className="slider"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>-100ms (早い)</span>
+                <span>0ms</span>
+                <span>+100ms (遅い)</span>
+              </div>
             </div>
 
-            {/* ノーツ音名表示 */}
+            {/* 音名表示設定（統一版） */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                ノーツ音名表示
+                音名表示（鍵盤・ノーツ共通）
               </label>
               <select
-                value={settings.noteNoteNameStyle ?? 'abc'}
-                onChange={(e) => gameActions.updateSettings({ noteNoteNameStyle: e.target.value as any })}
+                value={settings.noteNameStyle}
+                onChange={(e) => gameActions.updateSettings({ noteNameStyle: e.target.value as any })}
                 className="select select-bordered w-full max-w-xs bg-gray-800 text-white mb-2"
               >
                 <option value="off">OFF</option>
-                <option value="abc">ABC</option>
+                <option value="abc">ABC (C, D, E...)</option>
                 <option value="solfege">ドレミ</option>
               </select>
 
@@ -543,9 +562,12 @@ const SettingsPanel: React.FC = () => {
                 className="select select-bordered w-full max-w-xs bg-gray-800 text-white"
               >
                 <option value="off">OFF</option>
-                <option value="key_auto">鍵盤 + オートプレイ</option>
-                <option value="key">鍵盤のみ</option>
+                <option value="key_auto">鍵盤ハイライト + オートプレイ</option>
+                <option value="key">鍵盤ハイライトのみ</option>
               </select>
+              <div className="text-xs text-gray-400 mt-1">
+                ノーツが判定ラインを通過する際の表示ガイド
+              </div>
             </div>
           </div>
         </div>

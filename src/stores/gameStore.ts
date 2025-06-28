@@ -51,10 +51,12 @@ const defaultSettings: GameSettings = {
   allowOctaveError: false,
   noteOctaveShift: 0,
   
+  // タイミング調整設定
+  timingAdjustment: 0,
+  
   // 表示設定
   showNoteNames: true,
-  keyboardNoteNameStyle: 'abc',
-  noteNoteNameStyle: 'abc',
+  noteNameStyle: 'abc',
   noteAccidentalStyle: 'sharp',
   showFPS: false,
   
@@ -120,6 +122,12 @@ interface GameStoreState extends GameState {
   // Phase 2: ゲームエンジン統合
   gameEngine: any | null; // GameEngine型は動的インポートで使用
   engineActiveNotes: ActiveNote[];
+  
+  // 練習モードガイド: キーハイライト情報
+  lastKeyHighlight?: {
+    pitch: number;
+    timestamp: number;
+  };
   
   // アクション
   setMode: (mode: GameMode) => void;
@@ -218,6 +226,7 @@ export const useGameStore = create<GameStoreState>()(
         // Phase 2: ゲームエンジン
         gameEngine: null,
         engineActiveNotes: [],
+        lastKeyHighlight: undefined,
         
         // Phase 2: ゲームエンジン制御
         initializeGameEngine: async () => {
@@ -230,6 +239,20 @@ export const useGameStore = create<GameStoreState>()(
             set((state) => {
               // currentTime は AudioContext 同期ループで更新する
               state.engineActiveNotes = data.activeNotes;
+              
+              // ===== 練習モードガイド: キーハイライト処理 =====
+              if (data.keyHighlight && data.keyHighlight.action === 'highlight') {
+                const pitch = data.keyHighlight.pitch;
+                console.log(`🎹 キーハイライト実行: pitch=${pitch}`);
+                
+                // PIXIRendererのキーハイライト機能を呼び出し
+                // この処理は非同期で実行されるため、GameEngineComponentで処理する必要があります
+                // ここではハイライト情報をstateに保存し、GameEngineComponentで処理させる
+                state.lastKeyHighlight = {
+                  pitch: pitch,
+                  timestamp: Date.now()
+                };
+              }
               
               // ===== ABリピート自動ループ =====
               const { abRepeat, gameEngine } = state;

@@ -48,8 +48,8 @@ interface RendererSettings {
     particles: boolean;
     trails: boolean;
   };
-  keyboardNoteNameStyle: 'off' | 'abc' | 'solfege';
-  noteNoteNameStyle: 'off' | 'abc' | 'solfege';
+  /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
+  noteNameStyle: 'off' | 'abc' | 'solfege';
   noteAccidentalStyle: 'sharp' | 'flat';
   /** ストアの transpose 値（±6） */
   transpose: number;
@@ -105,8 +105,7 @@ export class PIXINotesRendererInstance {
       particles: true,
       trails: false
     },
-    keyboardNoteNameStyle: 'abc',
-    noteNoteNameStyle: 'abc',
+    noteNameStyle: 'abc',
     noteAccidentalStyle: 'sharp',
     transpose: 0,
     practiceGuide: 'key'
@@ -362,7 +361,7 @@ export class PIXINotesRendererInstance {
         const x = whiteKeyIndex * whiteKeyWidth;
         
         // B-C間とE-F間は濃いガイドライン
-        const _noteName = this.getMidiNoteName(note, true);
+        const _noteName = this.getMidiNoteName(note);
         const isSpecialTransition = _noteName === 'C' || _noteName === 'F';
         
         const lineWidth = isSpecialTransition ? 2 : 1;
@@ -482,7 +481,7 @@ export class PIXINotesRendererInstance {
     
     // 音名表示を追加（白鍵のみ）
     if (midiNote !== undefined && !this.isBlackKey(midiNote)) {
-      const _noteName = this.getMidiNoteName(midiNote, true);
+      const _noteName = this.getMidiNoteName(midiNote);
       const text = new PIXI.Text(_noteName, {
         fontSize: Math.min(width * 0.25, 12),
         fill: 0x666666,
@@ -634,11 +633,11 @@ export class PIXINotesRendererInstance {
   }
   
   /**
-   * MIDIノート番号から音名を取得（白鍵のみ、オクターブ番号なし）
+   * MIDIノート番号から音名を取得（統一された設定を使用）
    */
-  private getMidiNoteName(midiNote: number, forNoteSprite: boolean = false): string {
-    // 選択された表示スタイルを取得
-    const style = forNoteSprite ? this.settings.noteNoteNameStyle : this.settings.keyboardNoteNameStyle;
+  private getMidiNoteName(midiNote: number): string {
+    // 統一された表示スタイルを取得
+    const style = this.settings.noteNameStyle;
     const accidental = this.settings.noteAccidentalStyle;
 
     if (style === 'off') return '';
@@ -763,7 +762,7 @@ export class PIXINotesRendererInstance {
     }
     
     const isBlackKey = this.isBlackKey(midiNote);
-    const _noteName = this.getMidiNoteName(midiNote, true);
+    const _noteName = this.getMidiNoteName(midiNote);
     
     // console.log(`🎨 Highlighting ${isBlackKey ? 'BLACK' : 'WHITE'} key: ${midiNote} (${_noteName}) - ${active ? 'ON' : 'OFF'}`, {
     //   keySprite: keySprite,
@@ -909,7 +908,7 @@ export class PIXINotesRendererInstance {
     
     // 音名ラベル
     let label: PIXI.Text | undefined;
-    const _noteNameForLabel = this.getMidiNoteName(effectivePitch, true);
+    const _noteNameForLabel = this.getMidiNoteName(effectivePitch);
     if (_noteNameForLabel) {
       label = new PIXI.Text(_noteNameForLabel, {
         fontSize: 10,
@@ -1397,6 +1396,7 @@ export class PIXINotesRendererInstance {
 
     const prevPianoHeight = this.settings.pianoHeight;
     const prevTranspose = this.settings.transpose;
+    const prevNoteNameStyle = this.settings.noteNameStyle;
     this.settings = { ...this.settings, ...newSettings };
 
     // ピアノ高さが変更された場合、判定ラインと背景を再配置
@@ -1430,42 +1430,81 @@ export class PIXINotesRendererInstance {
       this.createNotesAreaBackground();
     }
 
+    // === noteNameStyle が変化した場合、鍵盤とノートの音名表示を更新 ===
+    if (newSettings.noteNameStyle !== undefined && newSettings.noteNameStyle !== prevNoteNameStyle) {
+      // 鍵盤の音名表示を更新（鍵盤を再描画）
+      this.pianoContainer.removeChildren();
+      this.pianoSprites.clear();
+      this.setupPiano();
+
+      // 既存ノートのラベルを更新
+      this.noteSprites.forEach((noteSprite) => {
+        const pitch = noteSprite.noteData.pitch;
+        const effectivePitch = pitch + this.settings.transpose;
+        const noteName = this.getMidiNoteName(effectivePitch);
+
+        // 古いラベルを削除
+        if (noteSprite.label) {
+          noteSprite.sprite.removeChild(noteSprite.label);
+          noteSprite.label.destroy();
+          noteSprite.label = undefined;
+        }
+
+        // 新しいラベルを生成（noteNameStyleがoffでなければ）
+        if (noteName) {
+          const label = new PIXI.Text(noteName, {
+            fontSize: 10,
+            fill: 0xFFFFFF,
+            fontFamily: 'Arial, sans-serif',
+            fontWeight: 'bold',
+            align: 'center',
+            stroke: 0x000000,
+            strokeThickness: 2
+          });
+          label.anchor.set(0.5, 1);
+          label.x = 0;
+          label.y = -8;
+          noteSprite.sprite.addChild(label);
+          noteSprite.label = label;
+        }
+      });
+      console.log(`🎵 音名表示設定更新: ${prevNoteNameStyle} → ${this.settings.noteNameStyle}`);
+    }
+
     // === transpose が変化した場合、既存ノートのラベル / カラーを更新 ===
     if (newSettings.transpose !== undefined && newSettings.transpose !== prevTranspose) {
       this.noteSprites.forEach((noteSprite) => {
         const pitch = noteSprite.noteData.pitch;
         const effectivePitch = pitch + this.settings.transpose;
-        const _noteName = this.getMidiNoteName(effectivePitch, true);
+        const noteName = this.getMidiNoteName(effectivePitch);
 
-        // ----- ラベル更新 -----
-        if (noteSprite.label) {
-          if (noteSprite.label) {
-            /* noteSprite.label.text = _noteName; */
-          } else {
-            // ラベルが無い場合は生成
-            /* const label = new PIXI.Text(_noteName, {
-              fontSize: 10,
-              fill: 0xFFFFFF,
-              fontFamily: 'Arial, sans-serif',
-              fontWeight: 'bold',
-              align: 'center',
-              stroke: 0x000000,
-              strokeThickness: 2
-            });
-            label.anchor.set(0.5, 1);
-            label.x = 0;
-            label.y = -8;
-            noteSprite.sprite.addChild(label);
-            noteSprite.label = label; */
-          }
-        } else if (noteSprite.label) {
+        // ラベル更新
+        if (noteSprite.label && noteName) {
+          noteSprite.label.text = noteName;
+        } else if (!noteSprite.label && noteName) {
+          // ラベルが無い場合は生成
+          const label = new PIXI.Text(noteName, {
+            fontSize: 10,
+            fill: 0xFFFFFF,
+            fontFamily: 'Arial, sans-serif',
+            fontWeight: 'bold',
+            align: 'center',
+            stroke: 0x000000,
+            strokeThickness: 2
+          });
+          label.anchor.set(0.5, 1);
+          label.x = 0;
+          label.y = -8;
+          noteSprite.sprite.addChild(label);
+          noteSprite.label = label;
+        } else if (noteSprite.label && !noteName) {
           // 表示スタイルが off の場合ラベルを削除
-          /* noteSprite.sprite.removeChild(noteSprite.label);
+          noteSprite.sprite.removeChild(noteSprite.label);
           noteSprite.label.destroy();
-          noteSprite.label = undefined; */
+          noteSprite.label = undefined;
         }
 
-        // ----- カラー・形状更新 -----
+        // カラー・形状更新
         this.drawNoteShape(noteSprite.sprite, noteSprite.noteData.state, pitch);
         if (noteSprite.glowSprite) {
           this.drawGlowShape(noteSprite.glowSprite, noteSprite.noteData.state, pitch);

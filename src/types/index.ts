@@ -97,12 +97,14 @@ export interface GameSettings {
   allowOctaveError: boolean;   // オクターブ違いを正解にする
   noteOctaveShift: number;     // -2 to +2
   
+  // タイミング調整設定
+  /** 楽譜データの時間調整 (ms) - 楽譜のノーツタイミングを±100ms調整 */
+  timingAdjustment: number;    // -100 to +100 (ms)
+  
   // 表示設定
   showNoteNames: boolean; // (deprecated) True if legacy for note names
-  /** 鍵盤の音名表示モード: off | abc | solfege */
-  keyboardNoteNameStyle?: 'off' | 'abc' | 'solfege';
-  /** ノーツの音名表示モード: off | abc | solfege */
-  noteNoteNameStyle?: 'off' | 'abc' | 'solfege';
+  /** 統一された音名表示モード（鍵盤・ノーツ共通）: off | abc | solfege */
+  noteNameStyle: 'off' | 'abc' | 'solfege';
   /** ノーツ音名の臨時記号(#/♭)スタイル */
   noteAccidentalStyle?: 'sharp' | 'flat';
   showFPS: boolean;

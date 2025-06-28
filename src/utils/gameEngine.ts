@@ -89,50 +89,31 @@ export class GameEngine {
   }
   
   loadSong(notes: NoteData[]): void {
-    // **重複防止のための完全リセット**
-    this.activeNotes.clear();
-    this.notes = [];
+    console.log(`🎵 GameEngine: ${notes.length}ノーツを読み込み開始`);
     
-    // **ユニークIDの確実な生成**
-    const lookahead = this.getLookaheadTime();
-
+    // タイミング調整は判定時のみ適用し、表示タイミングは変更しない
     this.notes = notes.map((note, index) => ({
       ...note,
-      id: note.id || `demo1-${index}`, // インデックスベースでユニークなID
-      appearTime: note.time - lookahead // スピードに応じて先読み時間を調整
+      id: note.id || `note-${index}`,
+      // 表示タイミングは元のまま保持
+      time: note.time,
+      // 表示開始時間の計算
+      appearTime: note.time - LOOKAHEAD_TIME
     }));
     
-    // 処理済みフラグをクリア
-    this.notes.forEach(note => {
-      delete (note as any)._wasProcessed;
+    console.log(`🎵 GameEngine: ${this.notes.length}ノーツ読み込み完了`, {
+      firstNoteTime: this.notes[0]?.time,
+      lastNoteTime: this.notes[this.notes.length - 1]?.time
     });
     
+    // アクティブノーツをクリア
+    this.activeNotes.clear();
+    
+    // スコアリセット
     this.resetScore();
     
-    // 重複チェック（デバッグ用）
-    const idSet = new Set();
-    const duplicates: string[] = [];
-    for (const note of this.notes) {
-      if (idSet.has(note.id)) {
-        duplicates.push(note.id);
-      }
-      idSet.add(note.id);
-    }
-    
-    if (duplicates.length > 0) {
-      console.error(`🚨 重複ノートID検出: ${duplicates.join(', ')}`);
-    }
-    
-    // デバッグ情報
-    console.log(`🎮 GameEngine.loadSong: ${this.notes.length}個のノートをロード`, {
-      totalNotes: this.notes.length,
-      uniqueIds: idSet.size,
-      duplicates: duplicates.length,
-      firstNote: this.notes[0],
-      lookaheadTime: LOOKAHEAD_TIME,
-      speed: this.settings.notesSpeed,
-      firstAppearTime: this.notes[0]?.appearTime
-    });
+    // 合計ノーツ数を設定
+    this.score.totalNotes = this.notes.length;
   }
   
   start(audioContext: AudioContext): void {
@@ -198,13 +179,17 @@ export class GameEngine {
     const currentTime = this.getCurrentTime();
     const adjustedInput = this.adjustInputNote(inputNote);
     
+    // タイミング調整を秒単位に変換
+    const timingAdjustmentSec = (this.settings.timingAdjustment || 0) / 1000;
+    
     // 可視ノーツのうち、ピッチが一致し GOOD 判定範囲内のものを探す
     const candidates = Array.from(this.activeNotes.values())
       .filter(note => note.state === 'visible')
       .filter(note => this.isNoteMatch(note.pitch, adjustedInput))
       .map(note => ({
         note,
-        timingError: Math.abs(currentTime - note.time) * 1000
+        // タイミング調整を適用した判定時間と比較
+        timingError: Math.abs(currentTime - (note.time + timingAdjustmentSec)) * 1000
       }))
       // GOOD 判定幅以内のみ許可
       .filter(({ timingError }) => timingError <= JUDGMENT_TIMING.goodMs)
@@ -499,9 +484,12 @@ export class GameEngine {
     const pianoHeight = this.settings.pianoHeight ?? 80;
     const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
 
-    const noteHeight = NOTE_SPRITE_HEIGHT;
     const noteCenter = (note.y || 0);
     const prevNoteCenter = (note.previousY || 0);
+    
+    // タイミング調整を考慮した判定時間
+    const timingAdjustmentSec = (this.settings.timingAdjustment || 0) / 1000;
+    const adjustedNoteTime = note.time + timingAdjustmentSec;
     
     // 判定ラインを通過した瞬間を検出（中心がラインに到達したフレームも含む）
     if (note.previousY !== undefined && 
@@ -510,38 +498,73 @@ export class GameEngine {
         note.state === 'visible' &&
         !note.crossingLogged) { // 重複ログ防止
 
-      const timeError = (currentTime - note.time) * 1000; // ms
-      // console.log(`⚡ 判定ライン通過: ${note.id} (時間誤差: ${timeError.toFixed(1)}ms, 実際時刻: ${currentTime.toFixed(3)}s, 理論時刻: ${note.time.toFixed(3)}s)`);
+      const timeError = (currentTime - adjustedNoteTime) * 1000; // ms
+      console.log(`⚡ 判定ライン通過: ${note.id} (タイミング調整済み時間誤差: ${timeError.toFixed(1)}ms, 練習ガイド: ${this.settings.practiceGuide})`);
 
-      // ===== オートプレイ機能 (練習モードガイド: key_auto) =====
-      if (this.settings.practiceGuide === 'key_auto') {
-        const judgment: JudgmentResult = {
-          type: 'good',
-          timingError: Math.abs(timeError),
-          noteId: note.id,
-          timestamp: currentTime
-        };
-        this.updateScore(judgment);
+      // 重複ログ防止フラグを即座に設定
+      const updatedNote: ActiveNote = {
+        ...note,
+        crossingLogged: true
+      };
+      this.activeNotes.set(note.id, updatedNote);
 
-        // ノート状態更新 - 新しいオブジェクトを作成して置き換え
-        const updatedNote: ActiveNote = {
-          ...note,
-          state: 'hit',
-          hitTime: currentTime,
-          timingError: Math.abs(timeError),
-          crossingLogged: true
-        };
-        this.activeNotes.set(note.id, updatedNote);
-
-        // イベント通知
-        this.onJudgment?.(judgment);
-      } else {
-        // 重複ログ防止フラグのみ設定
-        const updatedNote: ActiveNote = {
-          ...note,
-          crossingLogged: true
-        };
-        this.activeNotes.set(note.id, updatedNote);
+      // 練習モードガイド処理
+      const practiceGuide = this.settings.practiceGuide ?? 'key';
+      if (practiceGuide !== 'off') {
+        const effectivePitch = note.pitch + this.settings.transpose;
+        
+        if (practiceGuide === 'key_auto') {
+          // オートプレイ: 自動的にノーツをヒット判定
+          console.log(`🎹 オートプレイ実行: ノート ${note.id} (pitch=${effectivePitch})`);
+          
+          // まず直接ノーツの状態を 'hit' に変更（確実にノーツを消すため）
+          const hitNote: ActiveNote = {
+            ...updatedNote,
+            state: 'hit',
+            hitTime: currentTime,
+            timingError: Math.abs(timeError),
+            judged: true // 重複判定を防止
+          };
+          this.activeNotes.set(note.id, hitNote);
+          
+          // 自動判定を実行
+          const autoHit: NoteHit = {
+            noteId: note.id,
+            inputNote: effectivePitch,
+            timingError: Math.abs(timeError),
+            judgment: 'good',
+            timestamp: currentTime
+          };
+          
+          // 判定処理を実行（スコア更新のため）
+          const judgment = this.processHit(autoHit);
+          console.log(`✨ オートプレイ判定: ${judgment.type}, ノーツ状態: ${hitNote.state}`);
+        }
+        
+        // 鍵盤ハイライト（key と key_auto 両方で実行）
+        if (this.onUpdate) {
+          // ハイライト情報を含む更新データを送信
+          const updateData: GameEngineUpdate = {
+            currentTime: this.getCurrentTime(),
+            activeNotes: Array.from(this.activeNotes.values()),
+            timing: {
+              currentTime: this.getCurrentTime(),
+              audioTime: this.audioContext?.currentTime || 0,
+              latencyOffset: this.latencyOffset
+            },
+            score: { ...this.score },
+            abRepeatState: { start: null, end: null, enabled: false }
+          };
+          
+          // 特別なプロパティとしてハイライト情報を追加
+          (updateData as any).keyHighlight = {
+            noteId: note.id,
+            pitch: effectivePitch,
+            action: 'highlight'
+          };
+          
+          this.onUpdate(updateData);
+        }
       }
     }
   }
