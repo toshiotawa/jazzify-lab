@@ -1236,6 +1236,12 @@ export class PIXINotesRendererInstance {
           laneGlow.destroy();
           return;
         }
+        
+        // オブジェクトが破棄されていないか確認
+        if (!glow || glow.destroyed || !laneGlow || laneGlow.destroyed) {
+          return;
+        }
+        
         const alpha = 1 - progress;
         glow.alpha = alpha;
         laneGlow.alpha = alpha * 0.5;
@@ -1273,6 +1279,17 @@ export class PIXINotesRendererInstance {
           particle.destroy();
           return;
         }
+        
+        // パーティクルが破棄されていないか確認
+        if (!particle || particle.destroyed) {
+          return;
+        }
+        
+        // positionプロパティの存在確認
+        if (!particle.position) {
+          return;
+        }
+        
         particle.x += velocity.x * 0.016;
         particle.y += velocity.y * 0.016;
         particle.alpha = 1 - progress;

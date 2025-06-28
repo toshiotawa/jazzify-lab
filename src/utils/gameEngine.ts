@@ -236,12 +236,16 @@ export class GameEngine {
     // ストア側へイベント通知
     this.onJudgment?.(judgment);
     
-    // ノーツの状態更新
+    // ノーツの状態更新 - 新しいオブジェクトを作成して置き換え
     const note = this.activeNotes.get(hit.noteId);
     if (note) {
-      note.state = 'hit';
-      note.hitTime = hit.timestamp;
-      note.timingError = hit.timingError;
+      const updatedNote: ActiveNote = {
+        ...note,
+        state: 'hit',
+        hitTime: hit.timestamp,
+        timingError: hit.timingError
+      };
+      this.activeNotes.set(hit.noteId, updatedNote);
     }
     
     return judgment;
@@ -519,17 +523,26 @@ export class GameEngine {
         };
         this.updateScore(judgment);
 
-        // ノート状態更新
-        note.state = 'hit';
-        note.hitTime = currentTime;
-        note.timingError = Math.abs(timeError);
+        // ノート状態更新 - 新しいオブジェクトを作成して置き換え
+        const updatedNote: ActiveNote = {
+          ...note,
+          state: 'hit',
+          hitTime: currentTime,
+          timingError: Math.abs(timeError),
+          crossingLogged: true
+        };
+        this.activeNotes.set(note.id, updatedNote);
 
         // イベント通知
         this.onJudgment?.(judgment);
+      } else {
+        // 重複ログ防止フラグのみ設定
+        const updatedNote: ActiveNote = {
+          ...note,
+          crossingLogged: true
+        };
+        this.activeNotes.set(note.id, updatedNote);
       }
-
-      // 重複ログ防止フラグを設定
-      note.crossingLogged = true;
     }
   }
   
@@ -592,7 +605,13 @@ export class GameEngine {
             timestamp: currentTime
           };
           this.updateScore(missJudgment);
-          note.judged = true; // 重複判定を防ぐフラグ
+          
+          // 重複判定を防ぐフラグ - 新しいオブジェクトを作成して置き換え
+          const updatedNote: ActiveNote = {
+            ...note,
+            judged: true
+          };
+          this.activeNotes.set(note.id, updatedNote);
 
           // イベント通知
           this.onJudgment?.(missJudgment);
