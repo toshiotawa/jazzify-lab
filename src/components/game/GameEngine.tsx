@@ -603,15 +603,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             displayMode = 'MOBILE_SCROLL';
           }
           
-          // デバッグ情報をコンソールに出力
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`🎹 鍵盤表示モード: ${displayMode}`, {
-              gameAreaWidth: gameAreaSize.width,
-              threshold: adjustedThreshold,
-              idealWidth,
-              fullWidthAtMin,
-            });
-          }
           
           return (
             <div className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>

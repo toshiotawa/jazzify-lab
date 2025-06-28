@@ -424,12 +424,27 @@ export class GameEngine {
       }
     }
     
-    // アクティブノーツの状態更新
+    // アクティブノーツの状態更新 - 🔧 処理順序を修正
     for (const [noteId, note] of this.activeNotes) {
-      const updatedNote = this.updateNoteState(note, currentTime);
+      // 🔍 処理前の状態をログ
+      const isRecentNote = Math.abs(currentTime - note.time) < 2.0; // 判定時間の±2秒以内
+      if (isRecentNote) {
+        console.log(`🔄 ノート処理開始: ${noteId} - 現在状態: ${note.state}, time: ${note.time.toFixed(3)}, currentTime: ${currentTime.toFixed(3)}`);
+      }
       
-      // 判定ライン通過検出
-      this.checkHitLineCrossing(updatedNote, currentTime);
+      // 🎯 STEP 1: 判定ライン通過検出を先に実行（オートプレイ処理含む）
+      this.checkHitLineCrossing(note, currentTime);
+      
+      // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
+      const latestNote = this.activeNotes.get(noteId) || note;
+      if (isRecentNote && latestNote.state !== note.state) {
+        console.log(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
+      }
+      
+      const updatedNote = this.updateNoteState(latestNote, currentTime);
+      if (isRecentNote && updatedNote.state !== latestNote.state) {
+        console.log(`🔀 STEP2後の状態変化: ${noteId} - ${latestNote.state} → ${updatedNote.state}`);
+      }
       
       if (updatedNote.state === 'completed') {
         // 削除時に元ノートにフラグを設定
@@ -439,13 +454,16 @@ export class GameEngine {
         }
         
         this.activeNotes.delete(noteId);
-        // デバッグログを条件付きで表示
-        // if (Math.abs(currentTime - note.time) < 4.0) {
-        //   console.log(`🗑️ ノート削除: ${noteId} (state: completed)`);
-        // }
+        if (isRecentNote) {
+          console.log(`🗑️ ノート削除: ${noteId} (state: completed)`);
+        }
       } else {
         this.activeNotes.set(noteId, updatedNote);
         visibleNotes.push(updatedNote);
+        
+        if (isRecentNote) {
+          console.log(`✅ ノート処理完了: ${noteId} - 最終状態: ${updatedNote.state}`);
+        }
       }
     }
     
@@ -455,15 +473,30 @@ export class GameEngine {
   private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
     const timePassed = currentTime - note.time;
     
-    // *自動ヒットは checkHitLineCrossing で処理*
-    
-    // Hit状態のノーツは短時間後に削除（エフェクト表示のため）
-    if (note.state === 'hit' && note.hitTime && (currentTime - note.hitTime) > 0.3) {
-      return { ...note, state: 'completed' };
+    // 🛡️ Hit状態のノートは保護（他の判定で上書きしない）
+    if (note.state === 'hit') {
+      // Hit状態のノーツは短時間後に削除（エフェクト表示のため）
+      if (note.hitTime && (currentTime - note.hitTime) > 0.3) {
+        console.log(`✅ Hitノート削除: ${note.id} (エフェクト表示完了)`);
+        return { ...note, state: 'completed' };
+      }
+      
+      // Hit状態のノートは位置更新のみ実行（状態は変更しない）
+      const previousY = note.y;
+      const newY = this.calculateNoteY(note, currentTime);
+      
+      return {
+        ...note,
+        previousY,
+        y: newY
+      };
     }
     
-    // Miss判定チェック (判定幅は固定)
+    // *自動ヒットは checkHitLineCrossing で処理*
+    
+    // Miss判定チェック (visible状態のみ)
     if (note.state === 'visible' && timePassed > JUDGMENT_TIMING.missMs / 1000) {
+      console.log(`❌ Miss判定: ${note.id} (時間経過: ${timePassed.toFixed(3)}s > ${(JUDGMENT_TIMING.missMs / 1000).toFixed(3)}s)`);
       return { ...note, state: 'missed' };
     }
     
@@ -531,7 +564,10 @@ export class GameEngine {
         
         if (practiceGuide === 'key_auto') {
           // オートプレイ: 自動的にノーツをヒット判定
-          console.log(`🎹 オートプレイ実行: ノート ${note.id} (pitch=${effectivePitch})`);
+          console.log(`🤖 オートプレイ実行開始: ノート ${note.id} (pitch=${effectivePitch})`);
+          
+          // 現在のノート状態をログ
+          console.log(`📋 オートプレイ前ノート状態: ${note.id} - state: ${note.state}, time: ${note.time.toFixed(3)}, currentTime: ${currentTime.toFixed(3)}`);
           
           // 自動判定を実行
           const autoHit: NoteHit = {
@@ -544,7 +580,30 @@ export class GameEngine {
           
           // 判定処理を実行（これによりノーツが'hit'状態になりスコアも更新される）
           const judgment = this.processHit(autoHit);
-          console.log(`✨ オートプレイ判定: ${judgment.type}`);
+          console.log(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
+          
+          // 強制的にノーツ状態を確認
+          const updatedNoteAfterHit = this.activeNotes.get(note.id);
+          if (updatedNoteAfterHit) {
+            console.log(`🔍 オートプレイ後ノート状態確認: ${note.id} - state: ${updatedNoteAfterHit.state}, hitTime: ${updatedNoteAfterHit.hitTime}`);
+            
+            // 念のため再度状態をセット（確実にhit状態にする）
+            if (updatedNoteAfterHit.state !== 'hit') {
+              console.warn(`⚠️ オートプレイ後の状態が異常: ${note.id} - 期待値: hit, 実際値: ${updatedNoteAfterHit.state}`);
+              const forcedHitNote: ActiveNote = {
+                ...updatedNoteAfterHit,
+                state: 'hit',
+                hitTime: currentTime,
+                timingError: Math.abs(timeError)
+              };
+              this.activeNotes.set(note.id, forcedHitNote);
+              console.log(`🔧 強制修正完了: ${note.id} - state を 'hit' に変更`);
+            } else {
+              console.log(`✅ オートプレイ状態確認OK: ${note.id} - 正常にhit状態です`);
+            }
+          } else {
+            console.warn(`⚠️ オートプレイ後にノートが見つからない: ${note.id}`);
+          }
         }
         
         console.log(`🎹 練習モードガイド処理完了: pitch=${effectivePitch}, guide=${practiceGuide}`);
