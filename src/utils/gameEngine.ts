@@ -74,9 +74,10 @@ export class GameEngine {
   private animationFrame: number | null = null;
   private onUpdate?: (data: GameEngineUpdate) => void;
   private onJudgment?: (judgment: JudgmentResult) => void;
+  private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
   
   constructor(settings: GameSettings) {
-    this.settings = settings;
+    this.settings = { ...settings };
   }
   
   setUpdateCallback(callback: (data: GameEngineUpdate) => void): void {
@@ -86,6 +87,10 @@ export class GameEngine {
   /** 判定イベント受信側を登録 */
   setJudgmentCallback(callback: (judgment: JudgmentResult) => void): void {
     this.onJudgment = callback;
+  }
+  
+  setKeyHighlightCallback(callback: (pitch: number, timestamp: number) => void): void {
+    this.onKeyHighlight = callback;
   }
   
   loadSong(notes: NoteData[]): void {
@@ -518,6 +523,12 @@ export class GameEngine {
       if (practiceGuide !== 'off') {
         const effectivePitch = note.pitch + this.settings.transpose;
         
+        // キーハイライト通知を送信（key、key_auto両方で実行）
+        if (this.onKeyHighlight) {
+          this.onKeyHighlight(effectivePitch, currentTime);
+          console.log(`🎹 キーハイライト通知送信: pitch=${effectivePitch}, timestamp=${currentTime.toFixed(3)}`);
+        }
+        
         if (practiceGuide === 'key_auto') {
           // オートプレイ: 自動的にノーツをヒット判定
           console.log(`🎹 オートプレイ実行: ノート ${note.id} (pitch=${effectivePitch})`);
@@ -536,8 +547,7 @@ export class GameEngine {
           console.log(`✨ オートプレイ判定: ${judgment.type}`);
         }
         
-        // 鍵盤ハイライトはPIXIRenderer側で直接処理されるため、ここでは特別な処理は不要
-        console.log(`🎹 判定ライン通過検出完了: pitch=${effectivePitch}, practiceGuide=${practiceGuide} (ハイライトはPIXIRenderer側で処理)`)
+        console.log(`🎹 練習モードガイド処理完了: pitch=${effectivePitch}, guide=${practiceGuide}`);
       }
     }
   }

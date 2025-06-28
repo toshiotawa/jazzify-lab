@@ -193,6 +193,10 @@ interface GameStoreState extends GameState {
   
   // リセット
   resetGame: () => void;
+  
+  // 練習モードガイド制御
+  setLastKeyHighlight: (pitch: number, timestamp: number) => void;
+  clearLastKeyHighlight: () => void;
 }
 
 // ===== ヘルパー関数 =====
@@ -674,7 +678,15 @@ export const useGameStore = create<GameStoreState>()(
             state.settings.transpose = clamped;
           });
           updateEngineSettings();
-        }
+        },
+        
+        // 練習モードガイド制御
+        setLastKeyHighlight: (pitch: number, timestamp: number) => set((state) => {
+          state.lastKeyHighlight = { pitch, timestamp };
+        }),
+        clearLastKeyHighlight: () => set((state) => {
+          state.lastKeyHighlight = undefined;
+        })
       }))
     ),
     {

@@ -26,13 +26,15 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     currentSong,
     currentTime,
     settings,
+    lastKeyHighlight,
     initializeGameEngine,
     destroyGameEngine,
     handleNoteInput,
     updateEngineSettings,
     updateSettings,
     updateTime,
-    stop
+    stop,
+    setLastKeyHighlight
   } = useGameStore();
   
   const [isEngineReady, setIsEngineReady] = useState(false);
@@ -59,16 +61,34 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       const handleLoadedMetadata = () => {
         setAudioLoaded(true);
         console.log(`🎵 音声ファイル読み込み完了: ${audio.duration}秒`);
+        console.log(`🎵 音声ファイル詳細:`, {
+          src: audio.src,
+          duration: audio.duration,
+          readyState: audio.readyState,
+          networkState: audio.networkState
+        });
       };
       
       const handleError = (e: any) => {
-        console.error('音声ファイルの読み込みに失敗:', e);
+        console.error('🚨 音声読み込みエラー詳細:', {
+          error: e,
+          src: audio.src,
+          readyState: audio.readyState,
+          networkState: audio.networkState,
+          lastError: audio.error
+        });
         setAudioLoaded(false);
+      };
+      
+      const handleCanPlay = () => {
+        console.log('🎵 音声再生可能状態に到達');
       };
       
       audio.addEventListener('loadedmetadata', handleLoadedMetadata);
       audio.addEventListener('error', handleError);
+      audio.addEventListener('canplay', handleCanPlay);
       
+      console.log(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
       audio.src = currentSong.audioFile;
       audio.volume = settings.musicVolume;
       audio.preload = 'metadata';
@@ -76,6 +96,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       return () => {
         audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
         audio.removeEventListener('error', handleError);
+        audio.removeEventListener('canplay', handleCanPlay);
       };
     } else if (currentSong && (!currentSong.audioFile || currentSong.audioFile.trim() === '')) {
       // 音声ファイルなしの楽曲の場合
@@ -334,6 +355,44 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     };
   }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine]);
   
+  // 練習モードガイド: GameEngineのキーハイライトコールバック設定
+  useEffect(() => {
+    if (gameEngine) {
+      // GameEngine から渡される timestamp は AudioContext のタイムラインを基準としているため、
+      // React 側のパフォーマンスタイムラインと整合しない場合がある。
+      // UI 側では performance.now() ベースで扱うことで、過去 0.5s 以内かどうかを正しく判定できるようにする。
+      gameEngine.setKeyHighlightCallback((pitch: number, _timestamp: number) => {
+        // performance.now() は ms 単位なので秒に変換
+        const wallClockSec = performance.now() / 1000;
+        setLastKeyHighlight(pitch, wallClockSec);
+      });
+      console.log('🎹 練習モードガイド: GameEngineキーハイライトコールバック設定完了');
+    }
+  }, [gameEngine, setLastKeyHighlight]);
+  
+  // 練習モードガイド: キーハイライト処理
+  useEffect(() => {
+    if (lastKeyHighlight && pixiRenderer && settings.practiceGuide !== 'off' && isPlaying) {
+      const { pitch, timestamp } = lastKeyHighlight;
+      const currentTimestamp = performance.now() / 1000;
+      
+      // タイムスタンプが新しい場合のみハイライトを実行（重複防止）
+      if (currentTimestamp - timestamp < 0.5) { // 0.5秒以内の通知のみ処理
+        console.log(`🎹 練習ガイド: キーハイライト実行 - pitch=${pitch}`);
+        
+        // キーをハイライト
+        pixiRenderer.highlightKey(pitch, true);
+        
+        // 一定時間後にハイライトを解除
+        setTimeout(() => {
+          if (pixiRenderer) {
+            pixiRenderer.highlightKey(pitch, false);
+          }
+        }, 150); // 150ms後にハイライト解除（マウスクリックと同じ長さ）
+      }
+    }
+  }, [lastKeyHighlight, pixiRenderer, settings.practiceGuide, isPlaying]);
+  
   // 設定変更時の更新（transpose を含む）
   useEffect(() => {
     if (gameEngine) {
@@ -341,15 +400,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     if (pixiRenderer) {
       pixiRenderer.updateSettings({
-        keyboardNoteNameStyle: settings.keyboardNoteNameStyle ?? 'abc',
-        noteNoteNameStyle: settings.noteNoteNameStyle ?? 'abc',
+        noteNameStyle: settings.noteNameStyle,
         noteAccidentalStyle: settings.noteAccidentalStyle ?? 'sharp',
         pianoHeight: settings.pianoHeight,
         transpose: settings.transpose,
         practiceGuide: settings.practiceGuide ?? 'key'
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.keyboardNoteNameStyle, settings.noteNoteNameStyle, settings.noteAccidentalStyle, settings.pianoHeight, settings.transpose]);
+  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.noteAccidentalStyle, settings.pianoHeight, settings.transpose, settings.practiceGuide]);
+  
+  // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
   // トランスポーズに合わせてオーディオのピッチを変更（tempo も変わるが簡易実装）
   useEffect(() => {
@@ -425,8 +485,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     
     // 初期設定を反映
     renderer.updateSettings({
-      keyboardNoteNameStyle: settings.keyboardNoteNameStyle ?? 'abc',
-      noteNoteNameStyle: settings.noteNoteNameStyle ?? 'abc',
+      noteNameStyle: settings.noteNameStyle,
       noteAccidentalStyle: settings.noteAccidentalStyle ?? 'sharp',
       pianoHeight: settings.pianoHeight,
       transpose: settings.transpose,
@@ -446,7 +505,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     );
     
     console.log('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, settings.keyboardNoteNameStyle, settings.noteNoteNameStyle, settings.noteAccidentalStyle, settings.pianoHeight]);
+  }, [handlePianoKeyPress, settings.noteNameStyle, settings.noteAccidentalStyle, settings.pianoHeight]);
   
   // キーボード入力処理（テスト用）
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
@@ -546,12 +605,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           
           // デバッグ情報をコンソールに出力
           if (process.env.NODE_ENV === 'development') {
-            //console.log(`🎹 鍵盤表示モード: ${displayMode}`, {
-            //  gameAreaWidth: gameAreaSize.width,
-            //  threshold: adjustedThreshold,
-            //  idealWidth,
-            //  fullWidthAtMin,
-            //});
+            console.log(`🎹 鍵盤表示モード: ${displayMode}`, {
+              gameAreaWidth: gameAreaSize.width,
+              threshold: adjustedThreshold,
+              idealWidth,
+              fullWidthAtMin,
+            });
           }
           
           return (
