@@ -28,25 +28,18 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
-    sourcemap: process.env.NODE_ENV === 'development',
+    sourcemap: false,
     minify: 'esbuild',
     emptyOutDir: true,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks: (id) => {
-          if (id.includes('react') || id.includes('react-dom')) {
-            return 'react-vendor';
-          }
-          if (id.includes('pixi.js')) {
-            return 'pixi';
-          }
-          if (id.includes('tone')) {
-            return 'audio';
-          }
-          if (id.includes('node_modules')) {
-            return 'vendor';
-          }
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'pixi': ['pixi.js'],
+          'audio': ['tone'],
+          'icons': ['react-icons'],
+          'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer']
         },
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
