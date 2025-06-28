@@ -40,6 +40,9 @@
     Content-Type = "audio/mpeg"
     Accept-Ranges = "bytes"
     Cache-Control = "public, max-age=604800"
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, HEAD, OPTIONS"
+    Access-Control-Allow-Headers = "Range"
 
 [[headers]]
   for = "*.json"
