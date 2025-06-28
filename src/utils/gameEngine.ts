@@ -424,9 +424,9 @@ export class GameEngine {
         
         this.activeNotes.set(note.id, activeNote);
         // デバッグログを条件付きで表示
-        if (Math.abs(currentTime - note.time) < 4.0) { // 判定時間の±4秒以内のみログ
-          console.log(`🎵 新しいノート出現: ${note.id} (pitch=${note.pitch}, time=${note.time}, y=${activeNote.y?.toFixed(1) || 'undefined'})`);
-        }
+        // if (Math.abs(currentTime - note.time) < 4.0) { // 判定時間の±4秒以内のみログ
+        //   console.log(`🎵 新しいノート出現: ${note.id} (pitch=${note.pitch}, time=${note.time}, y=${activeNote.y?.toFixed(1) || 'undefined'})`);
+        // }
       }
     }
     
@@ -446,9 +446,9 @@ export class GameEngine {
         
         this.activeNotes.delete(noteId);
         // デバッグログを条件付きで表示
-        if (Math.abs(currentTime - note.time) < 4.0) {
-          console.log(`🗑️ ノート削除: ${noteId} (state: completed)`);
-        }
+        // if (Math.abs(currentTime - note.time) < 4.0) {
+        //   console.log(`🗑️ ノート削除: ${noteId} (state: completed)`);
+        // }
       } else {
         this.activeNotes.set(noteId, updatedNote);
         visibleNotes.push(updatedNote);
@@ -507,7 +507,7 @@ export class GameEngine {
         !note.crossingLogged) { // 重複ログ防止
 
       const timeError = (currentTime - note.time) * 1000; // ms
-      console.log(`⚡ 判定ライン通過: ${note.id} (時間誤差: ${timeError.toFixed(1)}ms, 実際時刻: ${currentTime.toFixed(3)}s, 理論時刻: ${note.time.toFixed(3)}s)`);
+      // console.log(`⚡ 判定ライン通過: ${note.id} (時間誤差: ${timeError.toFixed(1)}ms, 実際時刻: ${currentTime.toFixed(3)}s, 理論時刻: ${note.time.toFixed(3)}s)`);
 
       // ===== オートプレイ機能 (練習モードガイド: key_auto) =====
       if (this.settings.practiceGuide === 'key_auto') {
