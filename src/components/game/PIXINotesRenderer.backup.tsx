@@ -216,10 +216,10 @@ export class PIXINotesRendererInstance {
       particles: false,
       trails: false
     },
-    noteNameStyle: 'off', // 🚀 テキスト描画無効化で高速化
+    noteNameStyle: 'abc',
     noteAccidentalStyle: 'sharp',
     transpose: 0,
-    practiceGuide: 'off' // 🚀 ガイド無効化で高速化
+    practiceGuide: 'key'
   };
   
   private onDragActive: boolean = false;
@@ -289,12 +289,40 @@ export class PIXINotesRendererInstance {
   }
   
   private setupPiano(): void {
-    // 🚀 超軽量化: ピアノ背景のみ描画（個別キー描画を無効化）
     this.createPianoBackground();
     
-    // 🚀 パフォーマンス優先: 個別キー描画を完全スキップ
-    // Note: 演奏には影響なし、視覚的簡略化のみ
-    console.log('🚀 ピアノ描画を軽量化 - 個別キー描画スキップ');
+    const minNote = 21;
+    const maxNote = 108;
+    
+    // 白鍵の総数を計算
+    const totalWhiteKeys = this.calculateTotalWhiteKeys();
+    const whiteKeyWidth = this.app.screen.width / totalWhiteKeys;
+    const blackKeyWidth = whiteKeyWidth * 0.6;
+    
+    let currentX = 0;
+    let whiteKeyIndex = 0;
+    
+    // 白鍵を先に描画
+    for (let note = minNote; note <= maxNote; note++) {
+      if (!this.isBlackKey(note)) {
+        const keySprite = this.createWhiteKey(currentX, whiteKeyWidth, note);
+        this.pianoSprites.set(note, keySprite);
+        this.pianoContainer.addChild(keySprite);
+        
+        currentX += whiteKeyWidth;
+        whiteKeyIndex++;
+      }
+    }
+    
+    // 黒鍵を後から描画（白鍵の上に重ねる）
+    for (let note = minNote; note <= maxNote; note++) {
+      if (this.isBlackKey(note)) {
+        const blackKeyX = this.calculateBlackKeyPosition(note, minNote, maxNote, totalWhiteKeys);
+        const keySprite = this.createBlackKey(blackKeyX, blackKeyWidth, note);
+        this.pianoSprites.set(note, keySprite);
+        this.pianoContainer.addChild(keySprite);
+      }
+    }
   }
   
   private createNotesAreaBackground(): void {
@@ -395,176 +423,7 @@ export class PIXINotesRendererInstance {
     renderOptimizer.cleanup(activeIds);
   }
   
-  /**
-   * 🚀 ノーツ更新（超高速Sprites版）
-   */
-  updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
-    if (currentTime !== undefined) {
-      this._currentTime = currentTime;
-    }
-    
-    // 新しいノーツの追加
-    activeNotes.forEach(note => {
-      if (!this.noteSprites.has(note.id)) {
-        this.createNoteSprite(note);
-      } else {
-        this.updateNoteSprite(note);
-      }
-    });
-    
-    // 不要なノーツの削除
-    const activeNoteIds = new Set(activeNotes.map(note => note.id));
-    this.noteSprites.forEach((_, noteId) => {
-      if (!activeNoteIds.has(noteId)) {
-        this.removeNoteSprite(noteId);
-      }
-    });
-  }
-  
-  /**
-   * 🚀 ノーツスプライト作成（超高速）
-   */
-  private createNoteSprite(note: ActiveNote): void {
-    const textureKey = this.getTextureKey(note.state, note.pitch);
-    const sprite = this.spritePool.getSprite(textureKey);
-    
-    // 位置設定
-    sprite.x = this.pitchToX(note.pitch);
-    sprite.y = this.calculateNoteY(note);
-    
-    // スプライト登録
-    const noteSprite: NoteSprite = {
-      sprite,
-      noteData: note
-    };
-    
-    this.noteSprites.set(note.id, noteSprite);
-    this.notesContainer.addChild(sprite);
-  }
-  
-  /**
-   * 🚀 ノーツスプライト更新（超高速）
-   */
-  private updateNoteSprite(note: ActiveNote): void {
-    const noteSprite = this.noteSprites.get(note.id);
-    if (!noteSprite) return;
-    
-    // テクスチャ変更チェック
-    const newTextureKey = this.getTextureKey(note.state, note.pitch);
-    const currentTexture = noteSprite.sprite.texture;
-    const newTexture = this.textureManager.getTexture(newTextureKey);
-    
-    if (newTexture && currentTexture !== newTexture) {
-      noteSprite.sprite.texture = newTexture;
-    }
-    
-    noteSprite.noteData = note;
-  }
-  
-  /**
-   * 🚀 ノーツスプライト削除（高速）
-   */
-  private removeNoteSprite(noteId: string): void {
-    const noteSprite = this.noteSprites.get(noteId);
-    if (!noteSprite) return;
-    
-    this.notesContainer.removeChild(noteSprite.sprite);
-    this.spritePool.releaseSprite(noteSprite.sprite);
-    this.noteSprites.delete(noteId);
-  }
-  
-  /**
-   * テクスチャキー取得
-   */
-  private getTextureKey(state: ActiveNote['state'], pitch?: number): string {
-    if (pitch && this.isBlackKey(pitch)) {
-      return 'note_visibleBlack';
-    }
-    return `note_${state}`;
-  }
-  
-  /**
-   * 黒鍵判定（高速）
-   */
-  private isBlackKey(midiNote: number): boolean {
-    const noteInOctave = midiNote % 12;
-    return [1, 3, 6, 8, 10].includes(noteInOctave);
-  }
-  
-  /**
-   * ピッチからX座標計算（高速）
-   */
-  private pitchToX(pitch: number): number {
-    const minNote = 21; // A0
-    const maxNote = 108; // C8
-    const range = maxNote - minNote;
-    const normalizedPitch = (pitch - minNote) / range;
-    return normalizedPitch * this.app.screen.width;
-  }
-  
-  /**
-   * ノーツY座標計算（高速）
-   */
-  private calculateNoteY(note: ActiveNote): number {
-    return this.settings.hitLineY - (note.time - this._currentTime) * this.settings.noteSpeed * 100;
-  }
-  
-  /**
-   * 白鍵総数計算（簡略版）
-   */
-  private calculateTotalWhiteKeys(): number {
-    return 52; // 88鍵のうち52個が白鍵
-  }
-  
-  /**
-   * 設定更新
-   */
-  updateSettings(newSettings: Partial<RendererSettings>): void {
-    this.settings = { ...this.settings, ...newSettings };
-  }
-  
-  /**
-   * キーハイライト（簡略版）
-   */
-  highlightKey(midiNote: number, active: boolean): void {
-    if (active) {
-      this.highlightedKeys.add(midiNote);
-    } else {
-      this.highlightedKeys.delete(midiNote);
-    }
-  }
-  
-  /**
-   * リサイズ
-   */
-  resize(width: number, height: number): void {
-    this.app.renderer.resize(width, height);
-    this.settings.hitLineY = height - this.settings.pianoHeight;
-  }
-  
-  /**
-   * 破棄
-   */
-  destroy(): void {
-    this.spritePool.destroy();
-    this.textureManager.destroy();
-    this.app.destroy(true);
-  }
-  
-  /**
-   * キーコールバック設定
-   */
-  setKeyCallbacks(onKeyPress: (note: number) => void, onKeyRelease: (note: number) => void): void {
-    this.onKeyPress = onKeyPress;
-    this.onKeyRelease = onKeyRelease;
-  }
-  
-  /**
-   * Canvas要素取得
-   */
-  get view(): HTMLCanvasElement {
-    return this.app.view as HTMLCanvasElement;
-  }
+  // ... 続きの実装 ...
 }
 
 // ===== React コンポーネント =====

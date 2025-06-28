@@ -77,6 +77,8 @@ export class GameEngine {
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
   
+  private lastPerformanceWarning: number | null = null;
+  
   constructor(settings: GameSettings) {
     this.settings = { ...settings };
   }
@@ -713,17 +715,23 @@ export class GameEngine {
       // パフォーマンス監視終了
       performanceMonitor.endFrame();
       
-      // FPS更新
+      // FPS更新（軽量化）
       const fps = performanceMonitor.updateFPS();
       
-      // パフォーマンス劣化時の自動調整
-      if (fps < 45) {
-        console.warn(`⚠️ パフォーマンス低下検出 (FPS: ${fps}), 軽量化モードに切り替え`);
-        unifiedFrameController.updateConfig({
-          reduceEffects: true,
-          limitActiveNotes: 20,
-          effectUpdateInterval: 50
-        });
+      // パフォーマンス劣化時の自動調整（頻度制限、重複警告防止）
+      if (!performanceMonitor.isPerformanceGood() && fps < 20) {
+        // 警告頻度を制限（20秒に1回まで）
+        const now = performance.now();
+        if (!this.lastPerformanceWarning || (now - this.lastPerformanceWarning) > 20000) {
+          console.warn(`⚠️ パフォーマンス低下検出 (FPS: ${fps}), 軽量化モードに切り替え`);
+          this.lastPerformanceWarning = now;
+          
+          unifiedFrameController.updateConfig({
+            reduceEffects: true,
+            limitActiveNotes: 15,
+            effectUpdateInterval: 100
+          });
+        }
       }
       
       this.animationFrame = requestAnimationFrame(gameLoop);

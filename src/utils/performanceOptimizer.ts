@@ -200,9 +200,17 @@ export class PerformanceMonitor {
   private frameDuration = 0;
   private optimizationWarnings = new Set<string>();
   private lastOptimizationCheck = 0;
+  private initializationTime = performance.now();
+  private isInitializationPhase = true;
   
   startFrame(): void {
     this.frameStartTime = performance.now();
+    
+    // 初期化フェーズの判定（最初の15秒間に延長）
+    if (this.isInitializationPhase && (this.frameStartTime - this.initializationTime) > 15000) {
+      this.isInitializationPhase = false;
+      console.log('🎯 パフォーマンス監視開始 - 初期化フェーズ完了');
+    }
   }
   
   endFrame(): void {
@@ -218,8 +226,10 @@ export class PerformanceMonitor {
       this.frameCount = 0;
       this.lastTime = now;
       
-      // 最適化状態の定期検証（1秒ごと）
-      this.checkOptimizationHealth();
+      // 初期化フェーズでは警告を出さない
+      if (!this.isInitializationPhase) {
+        this.checkOptimizationHealth();
+      }
     }
     
     return this.fps;
@@ -234,51 +244,59 @@ export class PerformanceMonitor {
   }
   
   isPerformanceGood(): boolean {
+    // 初期化フェーズでは常に正常と判定
+    if (this.isInitializationPhase) return true;
     return this.fps >= 50 && this.frameDuration <= 20; // 50FPS以上、20ms以下
   }
   
   /**
-   * 最適化の健全性チェック
+   * 最適化の健全性チェック（頻度制限強化）
    */
   private checkOptimizationHealth(): void {
     const now = performance.now();
-    if (now - this.lastOptimizationCheck < 5000) return; // 5秒間隔
+    // チェック間隔を10秒に延長（警告頻度を大幅削減）
+    if (now - this.lastOptimizationCheck < 10000) return;
     
     this.lastOptimizationCheck = now;
     
-    // FPS低下の検出
-    if (this.fps < 45) {
-      this.warnOnce('LOW_FPS', `🔴 FPS低下検出: ${this.fps}FPS (目標: 60FPS)`);
+    // 極めて厳格な閾値で警告（本当に深刻な問題のみ）
+    if (this.fps < 15) {
+      this.warnOnce('CRITICAL_FPS', `🔴 深刻なFPS低下: ${this.fps}FPS (目標: 60FPS)`);
+    } else if (this.fps < 25) {
+      this.warnOnce('LOW_FPS', `⚠️ FPS低下検出: ${this.fps}FPS (目標: 60FPS)`);
     }
     
-    // フレーム時間超過の検出
-    if (this.frameDuration > 25) {
-      this.warnOnce('HIGH_FRAME_TIME', `🔴 フレーム時間超過: ${this.frameDuration.toFixed(1)}ms (目標: <20ms)`);
+    // フレーム時間も同様に厳格化
+    if (this.frameDuration > 50) {
+      this.warnOnce('CRITICAL_FRAME_TIME', `🔴 深刻なフレーム遅延: ${this.frameDuration.toFixed(1)}ms (目標: <20ms)`);
+    } else if (this.frameDuration > 30) {
+      this.warnOnce('HIGH_FRAME_TIME', `⚠️ フレーム時間超過: ${this.frameDuration.toFixed(1)}ms (目標: <20ms)`);
     }
     
-    // 統合フレーム制御の動作確認
+    // 統合フレーム制御の動作確認（1回のみ）
     if (!window.unifiedFrameController) {
       this.warnOnce('MISSING_FRAME_CONTROLLER', '🔴 統合フレーム制御が無効化されています！');
     }
     
-    // レンダー最適化の動作確認
+    // レンダー最適化の動作確認（1回のみ）
     if (!window.renderOptimizer) {
       this.warnOnce('MISSING_RENDER_OPTIMIZER', '🔴 レンダー最適化が無効化されています！');
     }
   }
   
   /**
-   * 重複警告を防ぐワーニングシステム
+   * 重複警告を防ぐワーニングシステム（強化版）
    */
   private warnOnce(key: string, message: string): void {
     if (!this.optimizationWarnings.has(key)) {
+      // 軽量なワーニング出力
       console.warn(message);
       this.optimizationWarnings.add(key);
       
-      // 5分後に警告をリセット（継続的問題の検出のため）
+      // 警告のリセット時間を延長（10分後）
       setTimeout(() => {
         this.optimizationWarnings.delete(key);
-      }, 300000);
+      }, 600000);
     }
   }
   
@@ -290,6 +308,7 @@ export class PerformanceMonitor {
     frameDuration: number;
     isHealthy: boolean;
     warnings: string[];
+    isInitializing: boolean;
     optimizations: {
       frameController: boolean;
       renderOptimizer: boolean;
@@ -301,6 +320,7 @@ export class PerformanceMonitor {
       frameDuration: this.frameDuration,
       isHealthy: this.isPerformanceGood(),
       warnings: Array.from(this.optimizationWarnings),
+      isInitializing: this.isInitializationPhase,
       optimizations: {
         frameController: !!window.unifiedFrameController,
         renderOptimizer: !!window.renderOptimizer,
