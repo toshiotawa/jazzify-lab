@@ -157,14 +157,28 @@ const SongSelectionScreen: React.FC = () => {
                 // 音声ファイルの長さを動的に取得（エラーハンドリング改善）
                 let actualDuration = 60; // デフォルト値
                 try {
+                  console.log(`🎵 Demo-1音声ファイル読み込み試行: /demo-1.mp3`);
                   const audio = new Audio('/demo-1.mp3');
+                  
                   await new Promise((resolve, reject) => {
                     const loadedHandler = () => {
                       actualDuration = Math.floor(audio.duration) || 60;
+                      console.log(`🎵 Demo-1音声読み込み成功:`, {
+                        duration: actualDuration,
+                        src: audio.src,
+                        readyState: audio.readyState,
+                        networkState: audio.networkState
+                      });
                       resolve(void 0);
                     };
                     const errorHandler = (e: Event) => {
-                      console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用:', e);
+                      console.warn('🚨 Demo-1音声ファイルの読み込みに失敗、デフォルト時間を使用:', {
+                        error: e,
+                        src: audio.src,
+                        readyState: audio.readyState,
+                        networkState: audio.networkState,
+                        lastError: audio.error
+                      });
                       resolve(void 0); // エラーでも続行
                     };
                     
@@ -174,14 +188,14 @@ const SongSelectionScreen: React.FC = () => {
                     
                     // タイムアウト設定
                     setTimeout(() => {
-                      console.warn('音声ファイル読み込みタイムアウト、デフォルト時間を使用');
+                      console.warn('🚨 Demo-1音声ファイル読み込みタイムアウト、デフォルト時間を使用');
                       resolve(void 0);
                     }, 3000);
                     
                     audio.load();
                   });
                 } catch (audioError) {
-                  console.warn('音声ファイルの処理中にエラー、デフォルト時間を使用:', audioError);
+                  console.warn('🚨 Demo-1音声ファイルの処理中にエラー、デフォルト時間を使用:', audioError);
                 }
                 
                 const demo1Song = {
