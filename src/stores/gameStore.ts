@@ -2,7 +2,7 @@
  * メインゲーム状態管理ストア (Zustand)
  */
 
-import { create } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type {
@@ -486,7 +486,7 @@ const calculateScore = (goodCount: number, _maxCombo: number, _accuracy: number)
 
 // ===== ストア作成 =====
 
-export const useGameStore = create<GameStoreState>()(
+export const useGameStore = createWithEqualityFn<GameStoreState>()(
   devtools(
     subscribeWithSelector(
       immer((set, get) => ({

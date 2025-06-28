@@ -18,14 +18,14 @@ import { unifiedFrameController, performanceMonitor } from './performanceOptimiz
 // ===== 定数定義 =====
 
 export const JUDGMENT_TIMING: JudgmentTiming = {
-  perfectMs: 50,  // ±50ms = Perfect
-  goodMs: 300,    // ±300ms = Good  
-  missMs: 500     // それ以外 = Miss
+  perfectMs: 0,   // Perfect判定は使用しない
+  goodMs: 500,    // ±500ms = Good (more forgiving)
+  missMs: 1500    // それ以外 = Miss (extended for better note visibility)
 };
 
-export const LOOKAHEAD_TIME = 3.0; // 3秒先まで表示
-export const CLEANUP_TIME = 2.0;        // 2秒後にクリーンアップ（従来比 +1s）
-export const MISSED_CLEANUP_TIME = 1.0; // Miss 判定後 1秒間は残す
+export const LOOKAHEAD_TIME = 5.0; // 5秒先まで表示（より長く表示）
+export const CLEANUP_TIME = 3.0;        // 3秒後にクリーンアップ（より長く残す）
+export const MISSED_CLEANUP_TIME = 2.0; // Miss 判定後 2秒間は残す
 
 // ===== 描画関連定数 =====
 /** PIXI.js ノートスプライトの高さ(px) と合わせる */
@@ -167,10 +167,12 @@ export class GameEngine {
       // **完全なアクティブノーツリセット**
       this.activeNotes.clear();
       
-      // シーク位置より後のノートの処理済みフラグをクリア
+      // シーク位置より後のノートの処理済みフラグとappearTimeをクリア
       this.notes.forEach(note => {
         if (note.time >= safeTime) {
           delete (note as any)._wasProcessed;
+          // Fix: Reset appearTime to force recalculation based on new seek position
+          delete (note as any).appearTime;
         }
       });
       
@@ -488,9 +490,14 @@ export class GameEngine {
     
     // *自動ヒットは checkHitLineCrossing で処理*
     
-    // Miss判定チェック (visible状態のみ)
-    if (note.state === 'visible' && timePassed > JUDGMENT_TIMING.missMs / 1000) {
-      return { ...note, state: 'missed' };
+    // Miss判定チェック (visible状態のみ) - シーク直後の誤判定を防ぐ
+    const missThreshold = JUDGMENT_TIMING.missMs / 1000;
+    if (note.state === 'visible' && timePassed > missThreshold) {
+      // シーク直後のノーツは一定時間miss判定を猶予
+      const noteAge = currentTime - (note.appearTime || note.time - this.getLookaheadTime());
+      if (noteAge > 2.0) { // 2秒以上表示されているノーツのみmiss判定
+        return { ...note, state: 'missed' };
+      }
     }
     
     // Missed ノーツは速度に応じた時間残してから削除
