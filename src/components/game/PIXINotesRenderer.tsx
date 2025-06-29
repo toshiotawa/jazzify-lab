@@ -1758,7 +1758,7 @@ export class PIXINotesRendererInstance {
     if (isHitState(note.state)) {
       if (!noteSprite.effectPlayed) {
         // エフェクトを生成（state に依存しない）
-        this.createHitEffect(noteSprite.sprite.x, this.settings.hitLineY);
+        this.createHitEffect(noteSprite.sprite.x, noteSprite.sprite.y);
         noteSprite.effectPlayed = true;
       }
 
@@ -2346,7 +2346,7 @@ export class PIXINotesRendererInstance {
 
     // 4. 見つかったノートの現在位置を使用してエフェクトを生成
     const x = targetSprite.sprite.x;
-    this.createHitEffect(x, this.settings.hitLineY);
+    this.createHitEffect(x, targetSprite.sprite.y);
   }
 
   /**
