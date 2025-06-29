@@ -19,7 +19,7 @@ export interface NoteData {
 
 // ===== Phase 2: ゲームエンジン型定義 =====
 
-export type NoteState = 'waiting' | 'visible' | 'hit' | 'missed' | 'completed';
+export type NoteState = 'waiting' | 'visible' | 'hit' | 'good' | 'perfect' | 'missed' | 'completed';
 
 export interface ActiveNote extends NoteData {
   state: NoteState;
