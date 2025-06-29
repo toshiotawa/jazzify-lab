@@ -23,7 +23,9 @@
       "Bash(pkill:*)",
       "Bash(gh repo view:*)",
       "Bash(curl:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(grep:*)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   }

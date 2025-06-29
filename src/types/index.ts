@@ -6,7 +6,7 @@
 
 export type GameMode = 'practice' | 'performance';
 export type InstrumentMode = 'piano' | 'guitar';
-export type InputMode = 'midi' | 'audio';
+export type InputMode = 'midi' | 'audio' | 'both';
 
 // ===== ノーツデータ =====
 

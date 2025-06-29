@@ -18,6 +18,9 @@ export interface LightweightConfig {
   
   // 更新頻度
   updateInterval: number;
+  
+  // デバッグログ制御
+  enableDebugLogs: boolean;
 }
 
 // 軽量化モード（パフォーマンス重視）
@@ -26,7 +29,8 @@ export const LIGHTWEIGHT_MODE: LightweightConfig = {
   maxActiveNotes: 15,      // 同時表示ノーツ数を制限
   reduceEffects: true,     // パーティクルエフェクト軽減
   simplifiedGraphics: true, // グラフィック簡略化
-  updateInterval: 33       // 30FPS相当（33ms）
+  updateInterval: 33,      // 30FPS相当（33ms）
+  enableDebugLogs: false   // デバッグログを無効化
 };
 
 // 標準モード（品質重視）
@@ -35,7 +39,8 @@ export const STANDARD_MODE: LightweightConfig = {
   maxActiveNotes: 30,
   reduceEffects: false,
   simplifiedGraphics: false,
-  updateInterval: 16       // 60FPS相当（16ms）
+  updateInterval: 16,      // 60FPS相当（16ms）
+  enableDebugLogs: true    // デバッグログを有効化（標準モード）
 };
 
 // 現在の設定（デフォルトは軽量化モード）
@@ -68,4 +73,23 @@ export class SimpleFPSController {
   }
 }
 
-export const fpsController = new SimpleFPSController(); 
+export const fpsController = new SimpleFPSController();
+
+// デバッグログ制御ヘルパー
+export const debugLog = (message: string, ...args: any[]) => {
+  if (currentConfig.enableDebugLogs) {
+    console.log(message, ...args);
+  }
+};
+
+export const debugWarn = (message: string, ...args: any[]) => {
+  if (currentConfig.enableDebugLogs) {
+    console.warn(message, ...args);
+  }
+};
+
+export const debugError = (message: string, ...args: any[]) => {
+  if (currentConfig.enableDebugLogs) {
+    console.error(message, ...args);
+  }
+}; 

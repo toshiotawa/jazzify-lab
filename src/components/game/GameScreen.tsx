@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
+import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 
 /**
  * メインゲーム画面コンポーネント
@@ -429,22 +430,150 @@ const SettingsPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* 入力モード選択 */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  入力モード
+                </label>
+                
+                {/* ラジオボタン選択 */}
+                <div className="space-y-2">
+                  <label className="flex items-center space-x-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="input-mode"
+                      value="midi"
+                      checked={settings.inputMode === 'midi'}
+                      onChange={() => gameActions.updateSettings({ inputMode: 'midi' })}
+                      className="radio radio-primary"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm text-white font-medium">🎹 MIDI入力</span>
+                      <p className="text-xs text-gray-400 mt-1">
+                        MIDIキーボード + 画面ピアノキー（クリック/タッチ対応）
+                      </p>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-center space-x-3 cursor-pointer opacity-60">
+                    <input
+                      type="radio"
+                      name="input-mode"
+                      value="audio"
+                      checked={settings.inputMode === 'audio'}
+                      onChange={() => gameActions.updateSettings({ inputMode: 'audio' })}
+                      className="radio radio-primary"
+                      disabled
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm text-gray-300 font-medium">🎤 音声入力</span>
+                      <p className="text-xs text-gray-500 mt-1">
+                        マイクからリアルタイムピッチ検出（今後実装予定）
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* MIDI デバイス設定 */}
+              {settings.inputMode === 'midi' && (
+                <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
+                  <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
+                                      <MidiDeviceSelector
+                      value={settings.selectedMidiDevice}
+                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
+                    />
+                </div>
+              )}
+
+              {/* 音声入力設定（今後実装予定） */}
+              {settings.inputMode === 'audio' && (
+                <div className="bg-amber-900 bg-opacity-20 p-4 rounded-lg border border-amber-700 border-opacity-30">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium text-amber-200">🎤 音声入力設定</h4>
+                    <button 
+                      className="btn btn-xs btn-outline btn-amber opacity-50" 
+                      disabled
+                    >
+                      🔄 再検出
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {/* デバイス選択（プレースホルダー） */}
+                    <div>
+                      <label className="block text-xs text-amber-200 mb-1">
+                        マイクデバイス
+                      </label>
+                      <select
+                        className="select select-bordered select-sm w-full bg-gray-800 text-gray-400 border-amber-600"
+                        disabled
+                      >
+                        <option>今後実装予定</option>
+                      </select>
+                    </div>
+                    
+                    {/* 実装予定機能 */}
+                    <div className="text-xs text-amber-300 bg-amber-800 bg-opacity-30 p-2 rounded">
+                      <p className="font-medium mb-1">🚧 実装予定機能:</p>
+                      <ul className="space-y-1 text-amber-200">
+                        <li>• WebAssembly (PYIN) リアルタイムピッチ検出</li>
+                        <li>• マイク入力レベル調整・ノイズゲート</li>
+                        <li>• 楽器音色に最適化された検出精度調整</li>
+                                                 <li>• レイテンシ自動補正（20ms未満を目標）</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* 音量設定 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                音楽音量: {Math.round(settings.musicVolume * 100)}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={settings.musicVolume}
-                onChange={(e) => 
-                  gameActions.updateSettings({ musicVolume: parseFloat(e.target.value) })
-                }
-                className="slider"
-              />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  音楽音量: {Math.round(settings.musicVolume * 100)}%
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={settings.musicVolume}
+                  onChange={(e) => 
+                    gameActions.updateSettings({ musicVolume: parseFloat(e.target.value) })
+                  }
+                  className="slider w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  MIDI音量: {Math.round(settings.midiVolume * 100)}%
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={settings.midiVolume}
+                  onChange={(e) => {
+                    const newVolume = parseFloat(e.target.value);
+                    gameActions.updateSettings({ midiVolume: newVolume });
+                    // MIDIControllerに即座に反映（デバウンス付き）
+                    requestAnimationFrame(() => {
+                      import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
+                        updateGlobalVolume(newVolume);
+                      });
+                    });
+                  }}
+                  className="slider w-full accent-amber-400"
+                />
+                <div className="text-xs text-gray-400 mt-1">
+                  🎹 MIDI入力・マウス/タッチ演奏・オートプレイすべてに適用
+                </div>
+              </div>
             </div>
 
             {/* ノーツスピード */}

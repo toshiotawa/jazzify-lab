@@ -7,7 +7,6 @@ import React, { useEffect, useRef } from 'react';
 import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
 import { unifiedFrameController, renderOptimizer, performanceMonitor } from '@/utils/performanceOptimizer';
-import { log, perfLog, devLog } from '@/utils/logger';
 
 // ===== 型定義 =====
 
@@ -79,9 +78,8 @@ interface LabelTextures {
 export class PIXINotesRendererInstance {
   private app: PIXI.Application;
   private container!: PIXI.Container;
-  private whiteNotes!: PIXI.ParticleContainer; // 白鍵ノーツ専用コンテナ
-  private blackNotes!: PIXI.ParticleContainer; // 黒鍵ノーツ専用コンテナ
-  private labelsContainer!: PIXI.Container; // ラベル専用コンテナ
+  private notesContainer!: PIXI.ParticleContainer; // ParticleContainer に変更
+  private labelsContainer!: PIXI.ParticleContainer; // ラベル専用コンテナ（パフォーマンス最適化）
   private effectsContainer!: PIXI.Container;
   private hitLineContainer!: PIXI.Container;
   private pianoContainer!: PIXI.Container;
@@ -90,9 +88,6 @@ export class PIXINotesRendererInstance {
   private particles!: PIXI.Container;
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
   private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
-  
-  // ★ ガイドライン管理用プロパティを追加
-  private guidelines?: PIXI.Graphics;
   
   // ===== テクスチャキャッシュ =====
   private noteTextures!: NoteTextures;
@@ -106,7 +101,8 @@ export class PIXINotesRendererInstance {
   private fpsCounter = 0;
   private lastFpsTime = 0;
   
-
+  // フォールバック制御
+  private labelContainerFallback = false;
   
   // リアルタイムアニメーション用
   /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -114,11 +110,10 @@ export class PIXINotesRendererInstance {
   private _animationSpeed: number = 1.0;
   /* eslint-enable */
   private lastFrameTime: number = performance.now();
-  private effectsElapsed: number = 0; // エフェクト更新用の経過時間カウンター
   
   private settings: RendererSettings = {
-    noteWidth: 0,          // ★ 後で決定
-    noteHeight: 8,
+    noteWidth: 5,
+    noteHeight: 5,
     hitLineY: 0,
     pianoHeight: 160,
     noteSpeed: 1.0,
@@ -148,15 +143,9 @@ export class PIXINotesRendererInstance {
   private currentDragNote: number | null = null;
   
   constructor(width: number, height: number) {
-    devLog.info(`🎯 PIXINotesRenderer constructor: ${width}x${height}`);
+    console.log(`🎯 PIXINotesRenderer constructor: ${width}x${height}`);
     
-    // ★ まず白鍵幅を求めてnoteWidthを設定
-    const totalWhite = this.calculateTotalWhiteKeys();
-    const whiteKeyWidth = width / totalWhite;
-    this.settings.noteWidth = whiteKeyWidth - 2;   // 1px ずつ余白
-    devLog.info(`🎹 White key width: ${whiteKeyWidth.toFixed(2)}px, Note width: ${this.settings.noteWidth.toFixed(2)}px`);
-    
-    // PIXI.js アプリケーション初期化（統合レンダリングループ版）
+    // PIXI.js アプリケーション初期化（unifiedFrameController統合版）
     this.app = new PIXI.Application({
       width,
       height,
@@ -174,61 +163,137 @@ export class PIXINotesRendererInstance {
     // 強制的にCanvasサイズを設定
     this.app.renderer.resize(width, height);
     
-    devLog.debug(`🎯 PIXI.js App created - Canvas: ${this.app.view.width}x${this.app.view.height}`);
+    console.log(`🎯 PIXI.js App created - Canvas: ${this.app.view.width}x${this.app.view.height}`);
+    console.log(`🎯 PIXI.js App view element:`, this.app.view);
+    
+    // ===== 競合ループ解決：PIXIを unifiedFrameController 配下に統合 =====
+    // PIXIの自動フレームレート制御を無効化（unifiedFrameControllerが管理）
+    this.app.ticker.autoStart = false;
+    this.app.ticker.stop();
+    
+    // 緊急対策: 手動レンダリング有効化（デバッグ用）
+    console.log('⚠️ Enabling manual rendering for debugging...');
+    this.app.ticker.start();
+    console.log('✅ PIXI ticker started manually');
     
     // インタラクションを有効化（重要）
     this.app.stage.eventMode = 'static';
     
     // 判定ラインをピアノの上端に正確に配置
+    // 緊急修正: 実際のCanvas高さに基づいて計算
     const actualHeight = this.app.view.height;
     this.settings.hitLineY = actualHeight - this.settings.pianoHeight;
     
-    // サイズ不整合がある場合のみ警告
-    if (width !== this.app.view.width || height !== this.app.view.height) {
-      log.warn(`🚨 Canvas size mismatch - Expected: ${width}x${height}, Actual: ${this.app.view.width}x${this.app.view.height}`);
-    }
+    console.log(`🚨 Size mismatch detected!`);
+    console.log(`🚨 Constructor size: ${width}x${height}`);
+    console.log(`🚨 Actual canvas size: ${this.app.view.width}x${this.app.view.height}`);
+    console.log(`🚨 Original hitLineY: ${height - this.settings.pianoHeight}`);
+    console.log(`🚨 Corrected hitLineY: ${this.settings.hitLineY}`);
     
     // テクスチャを事前生成
+    console.log('🔧 Starting texture generation...');
     try {
       this.generateNoteTextures();
-      this.generateLabelTextures();
-      devLog.debug('✅ Texture generation completed');
+      console.log('✅ generateNoteTextures completed');
     } catch (error) {
-      log.error('❌ Texture generation failed:', error);
+      console.error('❌ generateNoteTextures failed:', error);
     }
     
-    // セットアップシーケンス
+    try {
+      // 再有効化
+      this.generateLabelTextures();
+      console.log('✅ generateLabelTextures completed');
+    } catch (error) {
+      console.error('❌ generateLabelTextures failed:', error);
+    }
+    
+    // app.stage の基本テスト
+    console.log('🔧 Testing app.stage...');
+    console.log('🔧 app.stage exists:', !!this.app.stage);
+    console.log('🔧 app.stage children count:', this.app.stage.children.length);
+    
+    console.log('🔧 Starting setup sequence...');
+    
     try {
       this.setupContainers();
-      this.createTestVisual();
-      this.createNotesAreaBackground();
-      this.setupPiano();
-      this.setupHitLine();
-      this.setupParticles();
-      devLog.debug('✅ PIXI setup sequence completed');
+      console.log('✅ setupContainers completed');
     } catch (error) {
-      log.error('❌ PIXI setup failed:', error);
+      console.error('❌ setupContainers failed:', error);
     }
     
-    // ★ エフェクト更新をTickerに統合
-    this.effectsElapsed = 0;
-    this.app.ticker.add((tickerDelta) => {
-      // パーティクルなど低頻度エフェクト
-      this.effectsElapsed += this.app.ticker.deltaMS;
-      if (this.effectsElapsed >= 33) { // ≒ 30 FPS
-        this.updateParticleEffects(this.effectsElapsed / 1000);
-        this.effectsElapsed = 0;
-      }
-    });
+    try {
+      this.createTestVisual(); // デバッグ用テスト図形（再有効化）
+      console.log('✅ createTestVisual completed');
+    } catch (error) {
+      console.error('❌ createTestVisual failed:', error);
+    }
     
-    log.info('✅ PIXI.js renderer initialized successfully');
+    try {
+      this.createNotesAreaBackground(); // 新しい背景システム
+      console.log('✅ createNotesAreaBackground completed');
+    } catch (error) {
+      console.error('❌ createNotesAreaBackground failed:', error);
+    }
+    
+    try {
+      this.setupPiano();
+      console.log('✅ setupPiano completed');
+    } catch (error) {
+      console.error('❌ setupPiano failed:', error);
+    }
+    
+    try {
+      this.setupHitLine();
+      console.log('✅ setupHitLine completed');
+    } catch (error) {
+      console.error('❌ setupHitLine failed:', error);
+    }
+    
+    try {
+      this.setupParticles();
+      console.log('✅ setupParticles completed');
+    } catch (error) {
+      console.error('❌ setupParticles failed:', error);
+    }
+    this.setupLightweightEffectsTicker(); // 軽量エフェクトティッカー
+    
+    // ===== 緊急診断: レンダリング強制実行 =====
+    console.log('🔧 Manual rendering test...');
+    
+    // Stage内容確認
+    console.log('🔧 Final stage children count:', this.app.stage.children.length);
+    
+    // 手動レンダリング実行
+    try {
+      this.app.renderer.render(this.app.stage);
+      console.log('✅ Manual render successful');
+    } catch (error) {
+      console.error('❌ Manual render failed:', error);
+    }
+    
+    // 定期レンダリングも開始
+    const renderInterval = setInterval(() => {
+      try {
+        this.app.renderer.render(this.app.stage);
+        console.log('🔄 Periodic render executed');
+      } catch (error) {
+        console.error('❌ Periodic render failed:', error);
+        clearInterval(renderInterval);
+      }
+    }, 100); // 100ms間隔
+    
+    // 5秒後に停止
+    setTimeout(() => {
+      clearInterval(renderInterval);
+      console.log('🔧 Periodic rendering stopped');
+    }, 5000);
   }
 
   /**
    * デバッグ用テスト図形（PIXI.js表示確認）
    */
   private createTestVisual(): void {
-    devLog.debug('🧪 Creating test visual to verify PIXI.js canvas...');
+    console.log('🧪 Creating test visual to verify PIXI.js canvas...');
     
     try {
       // 赤い矩形をテスト描画
@@ -240,7 +305,7 @@ export class PIXINotesRendererInstance {
       testRect.y = 50;
       
       this.container.addChild(testRect);
-      devLog.debug('✅ Test rectangle added to main container');
+      console.log('✅ Test rectangle added to main container');
       
       // 青い円もテスト描画
       const testCircle = new PIXI.Graphics();
@@ -251,10 +316,10 @@ export class PIXINotesRendererInstance {
       testCircle.y = 100;
       
       this.container.addChild(testCircle);
-      devLog.debug('✅ Test circle added to main container');
+      console.log('✅ Test circle added to main container');
       
     } catch (error) {
-      log.error('❌ Failed to create test visual:', error);
+      console.error('❌ Failed to create test visual:', error);
     }
   }
   
@@ -262,24 +327,16 @@ export class PIXINotesRendererInstance {
    * ノーツテクスチャを事前生成
    */
   private generateNoteTextures(): void {
-    // ★ 既存のテクスチャを破棄（再生成時）
-    if (this.noteTextures) {
-      Object.values(this.noteTextures).forEach(texture => {
-        if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
-          texture.destroy();
-        }
-      });
-    }
     let { noteWidth, noteHeight } = this.settings;
     
-    // 最小サイズを保証（平らなノーツ対応）
-    if (noteHeight < 6) {
-      console.warn(`⚠️ Note height too small (${noteHeight}), using minimum 6px`);
-      noteHeight = 6;
+    // 最小サイズを保証（表示問題の緊急対策）
+    if (noteHeight < 20) {
+      console.warn(`⚠️ Note height too small (${noteHeight}), using minimum 20px`);
+      noteHeight = 20;
     }
-    if (noteWidth < 8) {
-      console.warn(`⚠️ Note width too small (${noteWidth}), using minimum 8px`);
-      noteWidth = 8;
+    if (noteWidth < 10) {
+      console.warn(`⚠️ Note width too small (${noteWidth}), using minimum 15px`);
+      noteWidth = 15;
     }
     
     console.log(`🎯 Generating note textures with size: ${noteWidth}x${noteHeight}`);
@@ -294,11 +351,9 @@ export class PIXINotesRendererInstance {
       missed: PIXI.Texture.EMPTY
     };
     
-    // 黒鍵ノーツテクスチャ（白鍵の0.6倍の幅）
+    // 黒鍵ノーツテクスチャ
     const blackGraphics = new PIXI.Graphics();
-    const blackRatio = 0.6;
-    const blackWidth = noteWidth * blackRatio;
-    this.drawNoteShapeToGraphics(blackGraphics, 'visible', true, blackWidth, noteHeight);
+    this.drawNoteShapeToGraphics(blackGraphics, 'visible', true, noteWidth, noteHeight);
     this.noteTextures.blackVisible = this.app.renderer.generateTexture(blackGraphics);
     
     // ヒット状態テクスチャ（透明）
@@ -485,11 +540,36 @@ export class PIXINotesRendererInstance {
       return null;
     }
 
-    log.debug(`✅ getLabelTexture: Found texture for "${noteName}" (${texture.width}x${texture.height})`);
+    console.log(`✅ getLabelTexture: Found texture for "${noteName}" (${texture.width}x${texture.height})`);
     return texture;
   }
 
-
+  /**
+   * ラベルコンテナをフォールバック（通常のContainerに変更）
+   */
+  private fallbackToRegularLabelContainer(): void {
+    if (this.labelContainerFallback) return; // 既にフォールバック済み
+    
+    console.warn('🔄 Falling back to regular Container for labels due to ParticleContainer issues');
+    
+    try {
+      // 既存のParticleContainerを削除
+      if (this.labelsContainer && this.labelsContainer.parent) {
+        this.labelsContainer.parent.removeChild(this.labelsContainer);
+        this.labelsContainer.destroy();
+      }
+      
+      // 新しい通常のContainerを作成
+      this.labelsContainer = new PIXI.Container() as any;
+      this.container.addChild(this.labelsContainer);
+      
+      this.labelContainerFallback = true;
+      console.log('✅ Successfully created fallback regular Container for labels');
+      
+    } catch (error) {
+      console.error('❌ Failed to create fallback container:', error);
+    }
+  }
   
   /**
    * Graphics に描画（テクスチャ生成用）
@@ -510,11 +590,11 @@ export class PIXINotesRendererInstance {
       return;
     }
 
-    // より美しいグラデーション効果を再現（平らなノーツ対応）
+    // より美しいグラデーション効果を再現
     if (state === 'visible') {
       if (isBlackKey) {
-        // 黒鍵ノーツ（紫系のグラデーション）- 平らなノーツ用に調整
-        const steps = Math.max(2, Math.min(4, Math.floor(height / 2))); // 高さに応じて段数を調整
+        // 黒鍵ノーツ（紫系のグラデーション）
+        const steps = 8;
         const stepHeight = height / steps;
         
         for (let i = 0; i < steps; i++) {
@@ -537,7 +617,7 @@ export class PIXINotesRendererInstance {
             -height / 2 + i * stepHeight,
             width,
             stepHeight + 1,
-            i === 0 ? Math.min(3, height / 2) : 0 // 高さに応じて角丸を調整
+            i === 0 ? 4 : 0
           );
           graphics.endFill();
         }
@@ -549,16 +629,16 @@ export class PIXINotesRendererInstance {
           -height / 2,
           width,
           height / 3,
-          Math.min(3, height / 2) // 高さに応じて角丸を調整
+          4
         );
         graphics.endFill();
         
         // 紫の輪郭線
         graphics.lineStyle(1, 0x8B5CF6, 0.8);
-        graphics.drawRoundedRect(-width / 2, -height / 2, width, height, Math.min(3, height / 2)); // 高さに応じて角丸を調整
+        graphics.drawRoundedRect(-width / 2, -height / 2, width, height, 4);
       } else {
-        // 白鍵ノーツ（青系のグラデーション）- 平らなノーツ用に調整
-        const steps = Math.max(2, Math.min(4, Math.floor(height / 2))); // 高さに応じて段数を調整
+        // 白鍵ノーツ（青系のグラデーション）
+        const steps = 8;
         const stepHeight = height / steps;
         
         for (let i = 0; i < steps; i++) {
@@ -581,7 +661,7 @@ export class PIXINotesRendererInstance {
             -height / 2 + i * stepHeight,
             width,
             stepHeight + 1,
-            i === 0 ? Math.min(3, height / 2) : 0 // 高さに応じて角丸を調整
+            i === 0 ? 4 : 0
           );
           graphics.endFill();
         }
@@ -593,23 +673,23 @@ export class PIXINotesRendererInstance {
           -height / 2,
           width,
           height / 3,
-          Math.min(3, height / 2) // 高さに応じて角丸を調整
+          4
         );
         graphics.endFill();
         
         // 青の輪郭線
         graphics.lineStyle(1, 0x4F46E5, 0.8);
-        graphics.drawRoundedRect(-width / 2, -height / 2, width, height, Math.min(3, height / 2)); // 高さに応じて角丸を調整
+        graphics.drawRoundedRect(-width / 2, -height / 2, width, height, 4);
       }
     } else {
       const color = this.getStateColor(state);
       graphics.beginFill(color);
-      graphics.drawRoundedRect(-width / 2, -height / 2, width, height, Math.min(3, height / 2)); // 高さに応じて角丸を調整
+      graphics.drawRoundedRect(-width / 2, -height / 2, width, height, 4);
       graphics.endFill();
       
       // 輪郭線
       graphics.lineStyle(1, color, 0.8);
-      graphics.drawRoundedRect(-width / 2, -height / 2, width, height, Math.min(3, height / 2)); // 高さに応じて角丸を調整
+      graphics.drawRoundedRect(-width / 2, -height / 2, width, height, 4);
     }
   }
   
@@ -624,32 +704,28 @@ export class PIXINotesRendererInstance {
     this.pianoContainer = new PIXI.Container();
     this.container.addChild(this.pianoContainer);
 
-    // 2-a. 白鍵ノーツ専用コンテナ
-    this.whiteNotes = new PIXI.ParticleContainer(
-      3000, // 最大3000個の白鍵ノーツをサポート
+    // 2. ノーツコンテナ（ParticleContainer に変更）
+    this.notesContainer = new PIXI.ParticleContainer(
+      5000, // 最大5000個のノーツをサポート
       { 
         position: true, 
+        tint: true, 
         alpha: true,
-        uvs: true,   // 👈 複数テクスチャ対応に必須
-        tint: true
+        scale: true
       }
     );
-    this.container.addChild(this.whiteNotes);
+    this.container.addChild(this.notesContainer);
 
-    // 2-b. 黒鍵ノーツ専用コンテナ
-    this.blackNotes = new PIXI.ParticleContainer(
-      2000, // 最大2000個の黒鍵ノーツをサポート
+    // 3. ラベル専用コンテナ（ParticleContainer に変更で最適化）
+    this.labelsContainer = new PIXI.ParticleContainer(
+      5000, // 最大5000個のラベルをサポート
       { 
         position: true, 
+        tint: true, 
         alpha: true,
-        uvs: true,   // 👈 複数テクスチャ対応に必須
-        tint: true
+        scale: true
       }
     );
-    this.container.addChild(this.blackNotes);
-
-    // 3. ラベル専用コンテナ（普通のContainerに変更で安定性向上）
-    this.labelsContainer = new PIXI.Container() as any;
     this.container.addChild(this.labelsContainer);
 
     // 4. ヒットラインコンテナ（ノーツ上、エフェクト下）
@@ -822,14 +898,7 @@ export class PIXINotesRendererInstance {
    * 白鍵に合わせた縦ガイドラインを作成（簡素化版）
    */
   private createVerticalGuidelines(): void {
-    // ★ 再生成時に古いものを破棄
-    if (this.guidelines) {
-      this.guidelines.destroy();
-      this.guidelines = undefined;
-    }
-    
     const guidelines = new PIXI.Graphics();
-    this.guidelines = guidelines; // ★ 保持しておく
     
     // 88鍵ピアノの設定
     const minNote = 21; // A0
@@ -849,31 +918,29 @@ export class PIXINotesRendererInstance {
     let whiteKeyIndex = 0;
     for (let note = minNote; note <= maxNote; note++) {
       if (!this.isBlackKey(note)) {
-        // ★ ピクセル中央に合わせるため 0.5px シフト
-        const x = Math.round(whiteKeyIndex * whiteKeyWidth) + 0.5;
+        const x = whiteKeyIndex * whiteKeyWidth;
         
         // 全ての白鍵に境界線を描画
         const noteName = this.getMidiNoteName(note);
         const isOctaveMarker = noteName === 'C';
         
-        // Cノートは少し濃く、他も見やすい濃さに調整
+        // Cノートは少し濃く、他は薄く
         const lineWidth = isOctaveMarker ? 2 : 1;
-        const alpha = isOctaveMarker ? 0.4 : 0.35; // ★ 0.25 → 0.35 に変更
+        const alpha = isOctaveMarker ? 0.4 : 0.15;
         const color = isOctaveMarker ? 0x8B5CF6 : 0x6B7280;
         
         guidelines.lineStyle(lineWidth, color, alpha);
         guidelines.moveTo(x, 0);
-        // ★ ヒットラインの1px上で止める
-        guidelines.lineTo(x, this.settings.hitLineY - 1);
+        guidelines.lineTo(x, this.settings.hitLineY);
         
         whiteKeyIndex++;
       }
     }
     
     // ガイドラインは Graphics なので ParticleContainer ではなく通常のコンテナに追加
-    // 白鍵ノーツの後ろに配置するため、whiteNotes の直前に挿入
-    const whiteNotesIndex = this.container.getChildIndex(this.whiteNotes);
-    this.container.addChildAt(guidelines, whiteNotesIndex);
+    // ノーツの後ろに配置するため、notesContainer の直前に挿入
+    const notesIndex = this.container.getChildIndex(this.notesContainer);
+    this.container.addChildAt(guidelines, notesIndex);
   }
   
   /**
@@ -919,7 +986,32 @@ export class PIXINotesRendererInstance {
   }
   
   private setupLightweightEffectsTicker(): void {
-    // 統合済みのため空実装（エフェクト更新はPIXIのTickerに統合済み）
+    // **軽量エフェクトティッカー - ノーツ位置更新は行わない**
+    // 競合ループ回避：PIXIはエフェクトのみ、ノーツ位置はupdateNotesで管理
+    
+    // エフェクト専用の軽量ティッカー（低頻度更新）
+    const effectsTicker = () => {
+      const currentFrameTime = performance.now();
+      
+      // 30FPSでエフェクト更新（ノーツより低頻度）
+      if (currentFrameTime - this.lastFrameTime < 33) {
+        requestAnimationFrame(effectsTicker);
+        return;
+      }
+      
+      const deltaTime = (currentFrameTime - this.lastFrameTime) / 1000;
+      this.lastFrameTime = currentFrameTime;
+      
+      // パーティクルエフェクトのみ更新（軽量化）
+      if (this.settings.effects.particles) {
+        this.updateParticleEffects(deltaTime);
+      }
+      
+      requestAnimationFrame(effectsTicker);
+    };
+    
+    // エフェクトティッカー開始
+    requestAnimationFrame(effectsTicker);
   }
   
   private updateParticleEffects(deltaTime: number): void {
@@ -986,35 +1078,18 @@ export class PIXINotesRendererInstance {
         key.eventMode = 'static';
         key.cursor = 'pointer';
       
-      // ポインタキャプチャ対応の確実なイベント処理
+      // より確実なイベント処理
       key.on('pointerdown', (event) => {
         event.stopPropagation();
-        // ポインタキャプチャで押したまま外に出ても確実にpointerupを受信
-        try {
-          (event.currentTarget as any).capturePointer?.(event.pointerId);
-        } catch (err) {
-          // Safari等未対応ブラウザでは無視
-        }
         this.handleKeyPress(midiNote);
       });
       
       key.on('pointerup', (event) => {
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
-        try {
-          (event.currentTarget as any).releasePointer?.(event.pointerId);
-        } catch (err) {
-          // Safari等未対応ブラウザでは無視
-        }
       });
       
-      // ポインタキャンセル時も確実に解除
-      key.on('pointercancel', (event) => {
-        event.stopPropagation();
-        this.handleKeyRelease(midiNote);
-      });
-      
-      // タッチデバイス対応（フォールバック）
+      // タッチデバイス対応
       key.on('touchstart', (event) => {
         event.stopPropagation();
         this.handleKeyPress(midiNote);
@@ -1074,35 +1149,18 @@ export class PIXINotesRendererInstance {
         key.eventMode = 'static';
         key.cursor = 'pointer';
       
-      // ポインタキャプチャ対応の確実なイベント処理
-      key.on('pointerdown', (event) => {
-        event.stopPropagation();
-        // ポインタキャプチャで押したまま外に出ても確実にpointerupを受信
-        try {
-          (event.currentTarget as any).capturePointer?.(event.pointerId);
-        } catch (err) {
-          // Safari等未対応ブラウザでは無視
-        }
-        this.handleKeyPress(midiNote);
-      });
+              // より確実なイベント処理
+        key.on('pointerdown', (event) => {
+          event.stopPropagation();
+          this.handleKeyPress(midiNote);
+        });
       
       key.on('pointerup', (event) => {
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
-        try {
-          (event.currentTarget as any).releasePointer?.(event.pointerId);
-        } catch (err) {
-          // Safari等未対応ブラウザでは無視
-        }
       });
       
-      // ポインタキャンセル時も確実に解除
-      key.on('pointercancel', (event) => {
-        event.stopPropagation();
-        this.handleKeyRelease(midiNote);
-      });
-      
-      // タッチデバイス対応（フォールバック）
+      // タッチデバイス対応
       key.on('touchstart', (event) => {
         event.stopPropagation();
         this.handleKeyPress(midiNote);
@@ -1347,14 +1405,6 @@ export class PIXINotesRendererInstance {
   }
   
   /**
-   * 88鍵中の白鍵幅（ピクセル）を返す
-   */
-  private getWhiteKeyWidth(): number {
-    const totalWhite = this.calculateTotalWhiteKeys();   // 52鍵
-    return this.app.screen.width / totalWhite;
-  }
-  
-  /**
    * ノーツ表示の更新 - 超高速化版
    * 降下計算は矩形あたり1行、絶対時刻から直接Y座標を計算
    */
@@ -1372,7 +1422,7 @@ export class PIXINotesRendererInstance {
     // FPS監視（デバッグ用）
     this.fpsCounter++;
     if (currentTime - this.lastFpsTime >= 1000) {
-      perfLog.info(`🚀 PIXI FPS: ${this.fpsCounter} | Notes: ${activeNotes.length} | Sprites: ${this.noteSprites.size} | hitLineY: ${this.settings.hitLineY} | speedPxPerSec: ${speedPxPerSec.toFixed(1)}`);
+      console.log(`🚀 PIXI FPS: ${this.fpsCounter} | Notes: ${activeNotes.length} | Sprites: ${this.noteSprites.size} | hitLineY: ${this.settings.hitLineY} | speedPxPerSec: ${speedPxPerSec.toFixed(1)}`);
       this.fpsCounter = 0;
       this.lastFpsTime = currentTime;
     }
@@ -1394,29 +1444,20 @@ export class PIXINotesRendererInstance {
         sprite = this.createNoteSprite(note);
       }
       
-      // ▼ updateNotes() の Y 座標更新ロジック頭だけ置換
-      const suppliedY = note.y;               // Engine がくれた絶対座標
-      let newY: number;
-
-      if (suppliedY !== undefined) {
-        newY = suppliedY;                     // ★ これを最優先
-      } else {
-        // フォールバック: 従来の自前計算
-        const newYcalc = this.settings.hitLineY -
-                         (note.time - currentTime) * speedPxPerSec;
-        newY = newYcalc;
-      }
-
+      // ===== 描画コストゼロの計算のみ =====
+      // 絶対時刻から直接Y座標を計算（GameEngine依存なし）
+      // Fix: currentTime is already in seconds, don't divide by 1000
+      const newY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
       sprite.sprite.y = newY;
       
       // 詳細位置デバッグ（初回のみ）
       if (activeNotes.length > 0 && this.fpsCounter === 1) {
-        devLog.debug(`🎯 Position calculation: note.time=${note.time}, currentTime=${currentTime}, timeToHit=${note.time - currentTime}, newY=${newY}, hitLineY=${this.settings.hitLineY}, speedPxPerSec=${speedPxPerSec.toFixed(1)}`);
+        console.log(`🎯 Position calculation: note.time=${note.time}, currentTime=${currentTime}, timeToHit=${note.time - currentTime}, newY=${newY}, hitLineY=${this.settings.hitLineY}, speedPxPerSec=${speedPxPerSec.toFixed(1)}`);
       }
       
       // ラベルとグローも同じY座標に同期
-      if (sprite.label) sprite.label.y = newY - 8;
-      if (sprite.glowSprite) sprite.glowSprite.y = newY;
+      if (sprite.label) sprite.label.y = sprite.sprite.y - 8;
+      if (sprite.glowSprite) sprite.glowSprite.y = sprite.sprite.y;
       
       // X座標はピッチ変更時のみ更新（頻度が低い）
       if (sprite.noteData.pitch !== note.pitch) {
@@ -1449,13 +1490,13 @@ export class PIXINotesRendererInstance {
     sprite.x = x;
     sprite.y = 0; // 後で設定
     
-    log.debug(`🎵 Creating main note sprite: texture=${texture.width}x${texture.height}, x=${x}, y=0, pitch=${effectivePitch}`);
+    console.log(`🎵 Creating main note sprite: texture=${texture.width}x${texture.height}, x=${x}, y=0, pitch=${effectivePitch}`);
     
     // 音名ラベル（テクスチャアトラスから取得して labelsContainer に配置）
     let label: PIXI.Sprite | undefined;
     const _noteNameForLabel = this.getMidiNoteName(effectivePitch);
     if (_noteNameForLabel) {
-      log.debug(`🏷️ Creating label for note: ${_noteNameForLabel} (pitch: ${effectivePitch})`);
+      console.log(`🏷️ Creating label for note: ${_noteNameForLabel} (pitch: ${effectivePitch})`);
       
       try {
         const labelTexture = this.getLabelTexture(_noteNameForLabel);
@@ -1465,24 +1506,36 @@ export class PIXINotesRendererInstance {
           label.x = x;
           label.y = 0; // 後で設定
           
-          // 通常のContainerへ追加
+          // ParticleContainer への追加を試行
           try {
             this.labelsContainer.addChild(label);
-            log.debug(`✅ Successfully added label sprite to container for "${_noteNameForLabel}"`);
+            console.log(`✅ Successfully added label sprite to container for "${_noteNameForLabel}"`);
           } catch (containerError) {
-            log.error(`❌ Failed to add label to container for "${_noteNameForLabel}":`, containerError);
-            label.destroy();
-            label = undefined;
+            console.error(`❌ Failed to add label to ParticleContainer for "${_noteNameForLabel}":`, containerError);
+            console.log(`🔄 Attempting fallback to regular container...`);
+            
+            // フォールバック処理を実行
+            this.fallbackToRegularLabelContainer();
+            
+            // フォールバック後に再試行
+            try {
+              this.labelsContainer.addChild(label);
+              console.log(`✅ Successfully added label to fallback container for "${_noteNameForLabel}"`);
+            } catch (fallbackError) {
+              console.error(`❌ Even fallback container failed for "${_noteNameForLabel}":`, fallbackError);
+              label.destroy();
+              label = undefined;
+            }
           }
         } else {
-          log.warn(`⚠️ No texture available for label "${_noteNameForLabel}"`);
+          console.warn(`⚠️ No texture available for label "${_noteNameForLabel}"`);
         }
       } catch (error) {
-        log.error(`❌ Error creating label sprite for "${_noteNameForLabel}":`, error);
+        console.error(`❌ Error creating label sprite for "${_noteNameForLabel}":`, error);
         label = undefined;
       }
     } else {
-      devLog.debug(`🔍 No label name generated for pitch ${effectivePitch}`);
+      console.log(`🔍 No label name generated for pitch ${effectivePitch}`);
     }
     
     // グロー効果スプライト（デフォルトOFF、必要時のみ）
@@ -1495,12 +1548,10 @@ export class PIXINotesRendererInstance {
     }
     
     try {
-      // 適切なコンテナにノーツを追加（白鍵 or 黒鍵）
-      const targetContainer = isBlackNote ? this.blackNotes : this.whiteNotes;
-      targetContainer.addChild(sprite);
-      // 頻繁に実行されるため、成功ログは削除
+      this.notesContainer.addChild(sprite);
+      console.log(`✅ Successfully added main note sprite to notesContainer (pitch: ${effectivePitch})`);
     } catch (error) {
-      log.error(`❌ Failed to add note sprite to container:`, error);
+      console.error(`❌ Failed to add main note sprite to notesContainer:`, error);
     }
     
     const noteSprite: NoteSprite = {
@@ -1526,26 +1577,35 @@ export class PIXINotesRendererInstance {
       setTimeout(() => this.highlightKey(effectivePitch, false), 150);
     }
 
-    // ===== ヒット時はテクスチャを触らずαだけを落とす =====
-    if (note.state === 'hit') {
-      noteSprite.sprite.alpha = 0;          // 本体ごと即非表示
-    } else {
-      noteSprite.sprite.alpha = 1;
-      const isBlackNote = this.isBlackKey(effectivePitch);
-      noteSprite.sprite.texture = isBlackNote
-        ? this.noteTextures.blackVisible
-        : this.noteTextures.whiteVisible;
+    // ===== テクスチャ交換による状態変更 =====
+    const isBlackNote = this.isBlackKey(effectivePitch);
+    let newTexture: PIXI.Texture;
+    
+    switch (note.state) {
+      case 'hit':
+        newTexture = this.noteTextures.hit;
+        break;
+      case 'missed':
+        // ミス時も通常の色を維持
+        newTexture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
+        break;
+      case 'visible':
+      default:
+        newTexture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
+        break;
     }
+    
+    noteSprite.sprite.texture = newTexture;
     
     // グロー効果の更新
       if (noteSprite.glowSprite) {
         this.drawGlowShape(noteSprite.glowSprite, note.state, note.pitch);
       }
       
-        // ラベルもαで同期させる（visibleだとGCがズレる）
+    // ラベル表示/非表示制御
     if (noteSprite.label) {
-      noteSprite.label.alpha = note.state === 'hit' ? 0 : 1;
-    }
+      noteSprite.label.visible = note.state !== 'hit';
+      }
       
       // ヒット時のエフェクトのみ（ミス時は無し）
       if (note.state === 'hit') {
@@ -1610,7 +1670,7 @@ export class PIXINotesRendererInstance {
       -noteHeight / 2 - 4,
       noteWidth + 8,
       noteHeight + 8,
-      Math.min(4, noteHeight / 2) // 高さに応じて角丸を調整
+      6
     );
     graphics.endFill();
   }
@@ -1735,8 +1795,14 @@ export class PIXINotesRendererInstance {
         if (this.container.children.length > 0) {
           this.container.removeChildAt(0);
         }
-        
-        // ガイドラインは createNotesAreaBackground() で新しく作成される
+
+        // ガイドライン (notesContainer の先頭)
+        if (this.notesContainer.children.length > 0) {
+          const first = this.notesContainer.getChildAt(0);
+          if (first) {
+            this.notesContainer.removeChild(first);
+          }
+        }
       } catch (err) {
         console.warn('背景再生成時にエラーが発生しました', err);
       }
@@ -1789,29 +1855,26 @@ export class PIXINotesRendererInstance {
         const effectivePitch = pitch + this.settings.transpose;
         const noteName = this.getMidiNoteName(effectivePitch);
 
-        // 1) X 座標を再計算してノーツ位置を更新
-        const newX = this.pitchToX(pitch); // transpose を内部で考慮
-        noteSprite.sprite.x = newX;
-        if (noteSprite.label) noteSprite.label.x = newX;
-        if (noteSprite.glowSprite) noteSprite.glowSprite.x = newX;
-
-        // 2) ラベル更新（テクスチャアトラス使用）
+        // ラベル更新（テクスチャアトラス使用）
         if (noteSprite.label && noteName) {
+          // 既存ラベルのテクスチャを更新
           const newTexture = this.getLabelTexture(noteName);
           if (newTexture) {
             noteSprite.label.texture = newTexture;
           }
         } else if (!noteSprite.label && noteName) {
+          // ラベルが無い場合は生成
           const labelTexture = this.getLabelTexture(noteName);
           if (labelTexture) {
             const label = new PIXI.Sprite(labelTexture);
             label.anchor.set(0.5, 1);
-            label.x = newX;
+            label.x = noteSprite.sprite.x;
             label.y = 0; // 後で設定
             this.labelsContainer.addChild(label);
             noteSprite.label = label;
           }
         } else if (noteSprite.label && !noteName) {
+          // 表示スタイルが off の場合ラベルを削除
           if (this.labelsContainer.children.includes(noteSprite.label)) {
             this.labelsContainer.removeChild(noteSprite.label);
           }
@@ -1819,11 +1882,11 @@ export class PIXINotesRendererInstance {
           noteSprite.label = undefined;
         }
 
-        // 3) カラー・形状更新（Sprite用のテクスチャ交換）
+        // カラー・形状更新（Sprite用のテクスチャ交換）
         const noteData = noteSprite.noteData;
         const isBlackNote = this.isBlackKey(noteData.pitch + this.settings.transpose);
         let newTexture: PIXI.Texture;
-
+        
         switch (noteData.state) {
           case 'hit':
             newTexture = this.noteTextures.hit;
@@ -1836,9 +1899,9 @@ export class PIXINotesRendererInstance {
             newTexture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
             break;
         }
-
+        
         noteSprite.sprite.texture = newTexture;
-
+        
         if (noteSprite.glowSprite) {
           this.drawGlowShape(noteSprite.glowSprite, noteData.state, noteData.pitch);
         }
@@ -1869,40 +1932,17 @@ export class PIXINotesRendererInstance {
       if (this.container.children.length > 0) {
         this.container.removeChildAt(0);
       }
-      // ガイドラインクリーンアップは createNotesAreaBackground() で自動処理
+      if (this.notesContainer.children.length > 0) {
+        const first = this.notesContainer.getChildAt(0);
+        if (first) {
+          this.notesContainer.removeChild(first);
+        }
+      }
     } catch (err) {
       console.warn('resize 時の背景クリアに失敗', err);
     }
 
     this.createNotesAreaBackground();
-    
-    // ★ 白鍵幅が変わった場合はテクスチャを再生成
-    const newWhiteKeyWidth = this.getWhiteKeyWidth();
-    const newNoteWidth = newWhiteKeyWidth - 2;
-    if (Math.abs(newNoteWidth - this.settings.noteWidth) > 0.1) { // 誤差を考慮
-      this.settings.noteWidth = newNoteWidth;
-      devLog.info(`🔄 Regenerating note textures with new width: ${newNoteWidth.toFixed(2)}px`);
-      
-      // 新しい幅でテクスチャを作り直し
-      this.generateNoteTextures();
-      
-      // 既存ノートに新テクスチャを反映
-      this.noteSprites.forEach(ns => {
-        const isBlack = this.isBlackKey(ns.noteData.pitch + this.settings.transpose);
-        switch (ns.noteData.state) {
-          case 'hit':
-            ns.sprite.texture = this.noteTextures.hit;
-            break;
-          case 'missed':
-            ns.sprite.texture = this.noteTextures.missed;
-            break;
-          case 'visible':
-          default:
-            ns.sprite.texture = isBlack ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
-            break;
-        }
-      });
-    }
   }
   
   /**
@@ -1920,12 +1960,6 @@ export class PIXINotesRendererInstance {
       // ピアノスプライトをクリア
       this.pianoSprites.clear();
       this.highlightedKeys.clear();
-
-      // ★ ガイドラインも破棄
-      if (this.guidelines) {
-        this.guidelines.destroy();
-        this.guidelines = undefined;
-      }
 
       // PIXI.jsアプリケーションを破棄
       if (this.app && (this.app as any)._destroyed !== true) {
@@ -1967,8 +2001,13 @@ export class PIXINotesRendererInstance {
    * 内部キーリリースハンドラー
    */
   private handleKeyRelease(midiNote: number): void {
-    // 即座にハイライトを解除
-    this.highlightKey(midiNote, false);
+    // 黒鍵は少し長めにハイライトを維持
+    const isBlackKey = this.isBlackKey(midiNote);
+    const highlightDuration = isBlackKey ? 200 : 150;
+    
+    setTimeout(() => {
+      this.highlightKey(midiNote, false);
+    }, highlightDuration);
     
     // 外部コールバック呼び出し
     if (this.onKeyRelease) {
@@ -2007,8 +2046,6 @@ export class PIXINotesRendererInstance {
 
   private handleDragEnd(): void {
     if (this.currentDragNote !== null) {
-      // 即座にハイライトを解除
-      this.highlightKey(this.currentDragNote, false);
       this.handleKeyRelease(this.currentDragNote);
       this.currentDragNote = null;
     }
