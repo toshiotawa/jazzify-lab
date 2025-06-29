@@ -9,12 +9,11 @@ import type { ActiveNote } from '@/types';
 import { unifiedFrameController, renderOptimizer, performanceMonitor } from '@/utils/performanceOptimizer';
 import { log, perfLog, devLog } from '@/utils/logger';
 
-// ===== ノート状態正規化ヘルパー =====
-const isResolvedState = (state: ActiveNote['state']) =>
-  state === 'hit' || state === 'good' || state === 'perfect';
-
-const isMissState = (state: ActiveNote['state']) =>
-  state === 'missed';
+// ===== ノート状態判定ヘルパー =====
+// Renderer 側では "good" / "perfect" / "hit" をすべて "当たり" とみなす
+const isHitState = (state: ActiveNote['state']) =>
+  state === 'good' || state === 'perfect' || state === 'hit';
+const isMissState = (state: ActiveNote['state']) => state === 'missed';
 
 // ===== 型定義 =====
 
@@ -33,6 +32,7 @@ interface NoteSprite {
   noteData: ActiveNote;
   glowSprite?: PIXI.Graphics;
   label?: PIXI.Sprite; // Text から Sprite に変更（テクスチャアトラス用）
+  effectPlayed?: boolean; // エフェクト重複生成防止
 }
 
 interface RendererSettings {
@@ -694,7 +694,16 @@ export class PIXINotesRendererInstance {
 
     // 5. エフェクトコンテナ（最前面）
     this.effectsContainer = new PIXI.Container();
+    this.effectsContainer.name = 'EffectsContainer'; // デバッグ用
     this.container.addChild(this.effectsContainer);
+    
+    console.log('📦 Container setup complete. Z-order:');
+    console.log('  0: Piano (background)');
+    console.log('  1: White Notes');
+    console.log('  2: Black Notes');
+    console.log('  3: Labels');
+    console.log('  4: Hit Line');
+    console.log('  5: Effects (foreground)');
   }
   
   private setupHitLine(): void {
@@ -969,8 +978,9 @@ export class PIXINotesRendererInstance {
     for (const child of this.effectsContainer.children) {
       if (processed >= maxProcessPerFrame) break;
       
-      // 🎯 HitエフェクトはContainerとして追加されるためスキップ
-      if (child instanceof PIXI.Container) {
+      // 🎯 Hitエフェクトコンテナを保護（名前またはタイプでチェック）
+      if (child instanceof PIXI.Container || (child as any).name === 'HitEffect') {
+        console.log(`⚡ Skipping HitEffect from auto-fade: ${(child as any).name || 'Container'}`);
         continue;
       }
       
@@ -1592,8 +1602,8 @@ export class PIXINotesRendererInstance {
       
       // ===== 状態変更チェック（変更時のみ、重い処理） =====
       if (sprite.noteData.state !== note.state) {
-        // 🚀 良判定(ヒット/グッド/パーフェクト)時は即座処理
-        if (isResolvedState(note.state)) {
+        // 🚀 ヒット系判定時は即座処理
+        if (isHitState(note.state)) {
           // エフェクトは updateNoteState 内で生成するためここでは作成しない
           // 2. ノートステータスを更新（α=0にする）
           this.updateNoteState(sprite, note);
@@ -1710,7 +1720,8 @@ export class PIXINotesRendererInstance {
       sprite,
       glowSprite,
       noteData: note,
-      label
+      label,
+      effectPlayed: false
     };
     
     this.noteSprites.set(note.id, noteSprite);
@@ -1737,16 +1748,19 @@ export class PIXINotesRendererInstance {
       }
     }
 
-    // ===== ヒット時はエフェクトを生成してから削除 =====
-    if (note.state === 'hit') {
-      // エフェクトを生成
-      this.createHitEffect(noteSprite.sprite.x, this.settings.hitLineY, note.state);
-      
+    // ===== ヒット系判定時はエフェクトを生成してから削除 =====
+    if (isHitState(note.state)) {
+      if (!noteSprite.effectPlayed) {
+        // エフェクトを生成（state に依存しない）
+        this.createHitEffect(noteSprite.sprite.x, this.settings.hitLineY);
+        noteSprite.effectPlayed = true;
+      }
+
       // ノーツを透明にする
       noteSprite.sprite.alpha = 0;
       // ラベルも即非表示
       if (noteSprite.label) noteSprite.label.alpha = 0;
-      
+
       // ノーツデータを更新してから削除しない（削除はupdateSpriteStatesで行う）
       noteSprite.noteData = note;
       return;
@@ -1836,72 +1850,82 @@ export class PIXINotesRendererInstance {
     graphics.endFill();
   }
   
-  private createHitEffect(x: number, y: number, state: 'hit' | 'missed'): void {
-    // ヒット時のみエフェクトを生成
-    if (state === 'hit') {
-      // より目立つ複合エフェクト
-      const effectContainer = new PIXI.Container();
-      
-      // 1. 外側の大きな円（薄い）
-      const outerCircle = new PIXI.Graphics();
-      outerCircle.beginFill(this.settings.colors.good, 0.3);
-      outerCircle.drawCircle(0, 0, 30);
-      outerCircle.endFill();
-      effectContainer.addChild(outerCircle);
-      
-      // 2. 中間の円
-      const middleCircle = new PIXI.Graphics();
-      middleCircle.beginFill(this.settings.colors.good, 0.5);
-      middleCircle.drawCircle(0, 0, 20);
-      middleCircle.endFill();
-      effectContainer.addChild(middleCircle);
-      
-      // 3. 内側の明るい円
-      const innerCircle = new PIXI.Graphics();
-      innerCircle.beginFill(this.settings.colors.good, 0.9);
-      innerCircle.drawCircle(0, 0, 10);
-      innerCircle.endFill();
-      effectContainer.addChild(innerCircle);
-      
-      effectContainer.x = x;
-      effectContainer.y = y;
-      this.effectsContainer.addChild(effectContainer);
-      
-      // スケールアニメーション + フェードアウト
-      const startScale = 0.5;
-      const endScale = 1.5;
-      const duration = 0.5; // 500ms
-      let elapsed = 0;
-      
-      effectContainer.scale.set(startScale);
-      
-      const animateTicker = (delta: number) => {
-        elapsed += delta * (1 / 60); // deltaをフレーム時間に変換
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // イージングアウト
-        const easeOut = 1 - Math.pow(1 - progress, 3);
-        
-        // スケールアニメーション
-        const currentScale = startScale + (endScale - startScale) * easeOut;
-        effectContainer.scale.set(currentScale);
-        
-        // フェードアウト
-        effectContainer.alpha = 1 - progress;
-        
-        if (progress >= 1) {
-          this.app.ticker.remove(animateTicker);
-          if (effectContainer.parent) {
-            this.effectsContainer.removeChild(effectContainer);
-          }
-          effectContainer.destroy({ children: true });
-        }
-      };
-      
-      this.app.ticker.add(animateTicker);
-    }
+  private createHitEffect(x: number, y: number): void {
+    // 常にヒットエフェクトを生成（呼び出し側で判定済み）
+    console.log(`⚡ Generating hit effect at (${x.toFixed(1)}, ${y.toFixed(1)})`);
     
-    // ミス時のパーティクルエフェクトは削除
+    // より目立つ複合エフェクト
+    const effectContainer = new PIXI.Container();
+    effectContainer.name = 'HitEffect'; // デバッグ用名前付け
+    
+    // 1. 外側の大きな円（薄い）
+    const outerCircle = new PIXI.Graphics();
+    outerCircle.beginFill(this.settings.colors.good, 0.8); // より濃く
+    outerCircle.drawCircle(0, 0, 50); // より大きく
+    outerCircle.endFill();
+    effectContainer.addChild(outerCircle);
+    
+    // 2. 中間の円
+    const middleCircle = new PIXI.Graphics();
+    middleCircle.beginFill(this.settings.colors.good, 0.9); // より濃く
+    middleCircle.drawCircle(0, 0, 35); // より大きく
+    middleCircle.endFill();
+    effectContainer.addChild(middleCircle);
+    
+    // 3. 内側の明るい円
+    const innerCircle = new PIXI.Graphics();
+    innerCircle.beginFill(0xFFFFFF, 1.0); // 白色で完全不透明
+    innerCircle.drawCircle(0, 0, 20); // より大きく
+    innerCircle.endFill();
+    effectContainer.addChild(innerCircle);
+    
+    effectContainer.x = x;
+    effectContainer.y = y;
+    effectContainer.alpha = 1.0; // 初期alpha確実に設定
+    
+    // エフェクトコンテナを最前面に強制配置
+    this.effectsContainer.addChild(effectContainer);
+    this.container.setChildIndex(this.effectsContainer, this.container.children.length - 1);
+    
+    console.log(`⚡ Effect added to container. Children count: ${this.effectsContainer.children.length}`);
+    
+    // スケールアニメーション + フェードアウト
+    const startScale = 0.5;
+    const endScale = 2.0; // より大きく拡大
+    const duration = 1.0; // 1秒間表示
+    let elapsed = 0;
+    
+    effectContainer.scale.set(startScale);
+    
+    const animateTicker = (delta: number) => {
+      elapsed += delta * (1 / 60); // deltaをフレーム時間に変換
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // イージングアウト
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      
+      // スケールアニメーション
+      const currentScale = startScale + (endScale - startScale) * easeOut;
+      effectContainer.scale.set(currentScale);
+      
+      // フェードアウト（後半のみ）
+      if (progress > 0.7) {
+        effectContainer.alpha = 1 - ((progress - 0.7) / 0.3);
+      } else {
+        effectContainer.alpha = 1.0; // 前半は完全不透明
+      }
+      
+      if (progress >= 1) {
+        console.log(`⚡ Effect animation completed, removing from container`);
+        this.app.ticker.remove(animateTicker);
+        if (effectContainer.parent) {
+          this.effectsContainer.removeChild(effectContainer);
+        }
+        effectContainer.destroy({ children: true });
+      }
+    };
+    
+    this.app.ticker.add(animateTicker);
   }
   
   private getStateColor(state: ActiveNote['state'], pitch?: number): number {
@@ -2224,15 +2248,15 @@ export class PIXINotesRendererInstance {
     // アクティブキープレス状態に追加
     this.activeKeyPresses.add(midiNote);
     
-    // ビジュアルフィードバック
-    this.highlightKey(midiNote, true);
-    
-    // 外部コールバック呼び出し
+    // 外部コールバック呼び出し（GameEngine経由で状態更新）
     if (this.onKeyPress) {
       this.onKeyPress(midiNote);
     } else {
       console.warn(`⚠️ No onKeyPress callback set! Note: ${midiNote}`);
     }
+    
+    // 注意: ビジュアルフィードバックはGameEngineの状態更新に委ね、
+    // 直接的なhighlightKey呼び出しは削除しました
   }
   
   /**
@@ -2242,15 +2266,15 @@ export class PIXINotesRendererInstance {
     // アクティブキープレス状態から削除
     this.activeKeyPresses.delete(midiNote);
     
-    // 即座にハイライトを解除
-    this.highlightKey(midiNote, false);
-    
-    // 外部コールバック呼び出し
+    // 外部コールバック呼び出し（GameEngine経由で状態更新）
     if (this.onKeyRelease) {
       this.onKeyRelease(midiNote);
     } else {
       console.warn(`⚠️ No onKeyRelease callback set! Note: ${midiNote}`);
     }
+    
+    // 注意: ハイライト解除もGameEngineの状態更新に委ね、
+    // 直接的なhighlightKey呼び出しは削除しました
   }
 
   /**
@@ -2282,8 +2306,6 @@ export class PIXINotesRendererInstance {
 
   private handleDragEnd(): void {
     if (this.currentDragNote !== null) {
-      // 即座にハイライトを解除
-      this.highlightKey(this.currentDragNote, false);
       this.handleKeyRelease(this.currentDragNote);
       this.currentDragNote = null;
     }

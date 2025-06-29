@@ -532,32 +532,23 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [updateSettings, updateEngineSettings]);
   
   // ================= ピアノキー演奏ハンドラー =================
-  const handlePianoKeyPress = useCallback(async (note: number, autoRelease: boolean = true) => {
+  const handlePianoKeyPress = useCallback(async (note: number) => {
     try {
       // 共通音声システムで音を鳴らす
       const { playNote } = await import('@/utils/MidiController');
       await playNote(note, 100); // マウス/タッチ用の固定velocity
       
-      // PIXI.jsピアノキーのハイライト
-      if (pixiRenderer) {
-        pixiRenderer.highlightKey(note, true);
-        if (autoRelease) {
-          setTimeout(() => {
-            if (pixiRenderer) {
-              pixiRenderer.highlightKey(note, false);
-            }
-          }, 150);
-        }
-      }
-      
-      // ゲームエンジンにノート入力
+      // ゲームエンジンにノート入力（ハイライトはGameEngineの状態更新に委ねる）
       handleNoteInput(note);
+      
+      // 注意: キーハイライトは削除し、GameEngineの判定ロジックに完全に委ねました
+      // これにより、マウスクリックとキーボード入力で一貫したエフェクト表示が実現されます
       
       devLog.debug(`🎹 Piano key played: ${note}`);
     } catch (error) {
       log.error('❌ Piano key play error:', error);
     }
-  }, [pixiRenderer, handleNoteInput]);
+  }, [handleNoteInput]);
 
   // ================= ピアノキーリリースハンドラー =================
   const handlePianoKeyRelease = useCallback(async (note: number) => {
@@ -566,16 +557,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       const { stopNote } = await import('@/utils/MidiController');
       stopNote(note);
       
-      // PIXI.jsピアノキーのハイライト解除
-      if (pixiRenderer) {
-        pixiRenderer.highlightKey(note, false);
-      }
+      // 注意: ハイライト解除も削除し、GameEngineの状態更新に完全に委ねました
       
       devLog.debug(`🎹 Piano key released: ${note}`);
     } catch (error) {
       log.error('❌ Piano key release error:', error);
     }
-  }, [pixiRenderer]);
+  }, []);
 
   // ================= PIXI.js レンダラー準備完了ハンドラー =================
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -600,8 +588,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     // ピアノキーボードのクリックイベントを接続
     renderer.setKeyCallbacks(
       (note: number) => {
-        // マウス/タッチ操作ではキーを離すまでハイライトを維持する
-        handlePianoKeyPress(note, false);
+        handlePianoKeyPress(note);
       }, // キー押下
       (note: number) => {
         handlePianoKeyRelease(note);

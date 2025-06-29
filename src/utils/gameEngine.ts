@@ -537,12 +537,22 @@ export class GameEngine {
   private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
     const timePassed = currentTime - note.time;
     
-    // 🛡️ Hit状態のノートは保護（他の判定で上書きしない）
+    // 🛡️ Hit状態のノートは保護し、エフェクト描画のため一定時間後に削除
     if (note.state === 'hit') {
-      // 🚀 Hit状態のノーツは即座に削除（エフェクト表示はRenderer側で処理）
-      // 修正前: 0.3秒保留 → 修正後: 即座削除
-      devLog.debug(`✅ Hitノート即座削除: ${note.id}`);
-      return { ...note, state: 'completed' };
+      // hitTime が記録されているか確認
+      if (note.hitTime) {
+        // 約3フレーム (50ms) 表示を維持してエフェクト描画を確保してから削除
+        if (currentTime - note.hitTime > 0.05) {
+          devLog.debug(`✅ Hitノートをクリーンアップ: ${note.id} (${((currentTime - note.hitTime) * 1000).toFixed(1)}ms経過)`);
+          return { ...note, state: 'completed' };
+        }
+      } else {
+        // hitTime がない場合は、即座に完了させる (フォールバック)
+        log.warn(`⚠️ HitノートにhitTimeがありません: ${note.id}`);
+        return { ...note, state: 'completed' };
+      }
+      // 50ms経過していない場合は状態を維持してエフェクト描画を許可
+      return note;
     }
     
     // *自動ヒットは checkHitLineCrossing で処理*
