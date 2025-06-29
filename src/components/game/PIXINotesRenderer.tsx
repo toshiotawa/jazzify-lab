@@ -1858,6 +1858,13 @@ export class PIXINotesRendererInstance {
     const effectContainer = new PIXI.Container();
     effectContainer.name = 'HitEffect'; // デバッグ用名前付け
     
+    // === ポインターイベントを完全無効化 ===
+    // ヒットエフェクトが鍵盤上に重なる間も入力を阻害しないため、
+    // イベントモードを none に設定してポインターを透過させる。
+    // PIXI v7 では interactive フラグではなく eventMode を使用する。
+    (effectContainer as any).eventMode = 'none';
+    effectContainer.interactive = false;
+    
     // 1. 外側の大きな円（薄い）
     const outerCircle = new PIXI.Graphics();
     outerCircle.beginFill(this.settings.colors.good, 0.8); // より濃く
@@ -2247,16 +2254,16 @@ export class PIXINotesRendererInstance {
   private handleKeyPress(midiNote: number): void {
     // アクティブキープレス状態に追加
     this.activeKeyPresses.add(midiNote);
-    
+
+    // 直感的なユーザーフィードバックとして即時ハイライト
+    this.highlightKey(midiNote, true);
+
     // 外部コールバック呼び出し（GameEngine経由で状態更新）
     if (this.onKeyPress) {
       this.onKeyPress(midiNote);
     } else {
       console.warn(`⚠️ No onKeyPress callback set! Note: ${midiNote}`);
     }
-    
-    // 注意: ビジュアルフィードバックはGameEngineの状態更新に委ね、
-    // 直接的なhighlightKey呼び出しは削除しました
   }
   
   /**
@@ -2265,16 +2272,16 @@ export class PIXINotesRendererInstance {
   private handleKeyRelease(midiNote: number): void {
     // アクティブキープレス状態から削除
     this.activeKeyPresses.delete(midiNote);
-    
+
+    // ハイライト解除
+    this.highlightKey(midiNote, false);
+
     // 外部コールバック呼び出し（GameEngine経由で状態更新）
     if (this.onKeyRelease) {
       this.onKeyRelease(midiNote);
     } else {
       console.warn(`⚠️ No onKeyRelease callback set! Note: ${midiNote}`);
     }
-    
-    // 注意: ハイライト解除もGameEngineの状態更新に委ね、
-    // 直接的なhighlightKey呼び出しは削除しました
   }
 
   /**
