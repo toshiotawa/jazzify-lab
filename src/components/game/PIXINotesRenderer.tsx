@@ -147,6 +147,9 @@ export class PIXINotesRendererInstance {
   private onDragActive: boolean = false;
   private currentDragNote: number | null = null;
   
+  // キープレス状態追跡（音が伸び続けるバグ防止の保険）
+  private activeKeyPresses: Set<number> = new Set();
+  
   constructor(width: number, height: number) {
     devLog.info(`🎯 PIXINotesRenderer constructor: ${width}x${height}`);
     
@@ -219,6 +222,16 @@ export class PIXINotesRendererInstance {
         this.updateParticleEffects(this.effectsElapsed / 1000);
         this.effectsElapsed = 0;
       }
+    });
+    
+    // グローバルpointerupイベントで保険を掛ける（音が伸び続けるバグの最終防止）
+    this.app.stage.eventMode = 'static';
+    this.app.stage.on('globalpointerup', () => {
+      // アクティブなキープレスを全て解除
+      for (const midiNote of this.activeKeyPresses) {
+        this.handleKeyRelease(midiNote);
+      }
+      this.activeKeyPresses.clear();
     });
     
     log.info('✅ PIXI.js renderer initialized successfully');
@@ -986,6 +999,18 @@ export class PIXINotesRendererInstance {
         key.eventMode = 'static';
         key.cursor = 'pointer';
       
+      // リリース処理の共通関数
+      const releaseKey = (event?: PIXI.FederatedPointerEvent) => {
+        this.handleKeyRelease(midiNote);
+        if (event) {
+          try {
+            (event.currentTarget as any).releasePointer?.(event.pointerId);
+          } catch (err) {
+            // Safari等未対応ブラウザでは無視
+          }
+        }
+      };
+      
       // ポインタキャプチャ対応の確実なイベント処理
       key.on('pointerdown', (event) => {
         event.stopPropagation();
@@ -998,20 +1023,22 @@ export class PIXINotesRendererInstance {
         this.handleKeyPress(midiNote);
       });
       
+      // 複数のリリースイベントに対応
       key.on('pointerup', (event) => {
         event.stopPropagation();
-        this.handleKeyRelease(midiNote);
-        try {
-          (event.currentTarget as any).releasePointer?.(event.pointerId);
-        } catch (err) {
-          // Safari等未対応ブラウザでは無視
-        }
+        releaseKey(event);
+      });
+      
+      // 鍵盤外でリリースした場合（重要: 音が伸び続けるバグの修正）
+      key.on('pointerupoutside', (event) => {
+        event.stopPropagation();
+        releaseKey(event);
       });
       
       // ポインタキャンセル時も確実に解除
       key.on('pointercancel', (event) => {
         event.stopPropagation();
-        this.handleKeyRelease(midiNote);
+        releaseKey(event);
       });
       
       // タッチデバイス対応（フォールバック）
@@ -1074,6 +1101,18 @@ export class PIXINotesRendererInstance {
         key.eventMode = 'static';
         key.cursor = 'pointer';
       
+      // リリース処理の共通関数
+      const releaseKey = (event?: PIXI.FederatedPointerEvent) => {
+        this.handleKeyRelease(midiNote);
+        if (event) {
+          try {
+            (event.currentTarget as any).releasePointer?.(event.pointerId);
+          } catch (err) {
+            // Safari等未対応ブラウザでは無視
+          }
+        }
+      };
+      
       // ポインタキャプチャ対応の確実なイベント処理
       key.on('pointerdown', (event) => {
         event.stopPropagation();
@@ -1086,20 +1125,22 @@ export class PIXINotesRendererInstance {
         this.handleKeyPress(midiNote);
       });
       
+      // 複数のリリースイベントに対応
       key.on('pointerup', (event) => {
         event.stopPropagation();
-        this.handleKeyRelease(midiNote);
-        try {
-          (event.currentTarget as any).releasePointer?.(event.pointerId);
-        } catch (err) {
-          // Safari等未対応ブラウザでは無視
-        }
+        releaseKey(event);
+      });
+      
+      // 鍵盤外でリリースした場合（重要: 音が伸び続けるバグの修正）
+      key.on('pointerupoutside', (event) => {
+        event.stopPropagation();
+        releaseKey(event);
       });
       
       // ポインタキャンセル時も確実に解除
       key.on('pointercancel', (event) => {
         event.stopPropagation();
-        this.handleKeyRelease(midiNote);
+        releaseKey(event);
       });
       
       // タッチデバイス対応（フォールバック）
@@ -1522,8 +1563,16 @@ export class PIXINotesRendererInstance {
 
     // ==== 判定ライン通過時のピアノキー点灯 ====
     if (note.crossingLogged && !noteSprite.noteData.crossingLogged && this.settings.practiceGuide !== 'off') {
-      this.highlightKey(effectivePitch, true);
-      setTimeout(() => this.highlightKey(effectivePitch, false), 150);
+      // マウス操作中でない場合のみ練習モード用ハイライトを実行
+      if (!this.activeKeyPresses.has(effectivePitch)) {
+        this.highlightKey(effectivePitch, true);
+        setTimeout(() => {
+          // タイマー実行時にもマウス操作チェック（競合防止）
+          if (!this.activeKeyPresses.has(effectivePitch)) {
+            this.highlightKey(effectivePitch, false);
+          }
+        }, 150);
+      }
     }
 
     // ===== ヒット時はテクスチャを触らずαだけを落とす =====
@@ -1910,6 +1959,12 @@ export class PIXINotesRendererInstance {
    */
   destroy(): void {
     try {
+      // アクティブキープレス状態をクリア（音が伸び続けるバグ防止）
+      for (const midiNote of this.activeKeyPresses) {
+        this.handleKeyRelease(midiNote);
+      }
+      this.activeKeyPresses.clear();
+
       // ノートスプライトを安全に削除
       const noteIds = Array.from(this.noteSprites.keys());
       for (const noteId of noteIds) {
@@ -1952,6 +2007,9 @@ export class PIXINotesRendererInstance {
    * 内部キープレスハンドラー
    */
   private handleKeyPress(midiNote: number): void {
+    // アクティブキープレス状態に追加
+    this.activeKeyPresses.add(midiNote);
+    
     // ビジュアルフィードバック
     this.highlightKey(midiNote, true);
     
@@ -1967,6 +2025,9 @@ export class PIXINotesRendererInstance {
    * 内部キーリリースハンドラー
    */
   private handleKeyRelease(midiNote: number): void {
+    // アクティブキープレス状態から削除
+    this.activeKeyPresses.delete(midiNote);
+    
     // 即座にハイライトを解除
     this.highlightKey(midiNote, false);
     
