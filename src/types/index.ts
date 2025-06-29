@@ -127,6 +127,37 @@ export interface GameSettings {
   
   /** 練習モードのガイド設定: off | key | key_auto */
   practiceGuide?: 'off' | 'key' | 'key_auto';
+  
+  // ===== エフェクト設定 =====
+  /** エフェクト全般の有効/無効 */
+  enableEffects: boolean;
+  
+  /** キー押下時の即時エフェクト設定 */
+  keyPressEffect: {
+    /** エフェクト有効/無効 */
+    enabled: boolean;
+    /** 判定ライン近接の閾値係数（ノート高さに対する倍率） */
+    proximityThreshold: number; // デフォルト: 1.5
+    /** エフェクトサイズ倍率 */
+    sizeMultiplier: number; // デフォルト: 1.0
+    /** エフェクト持続時間（秒） */
+    duration: number; // デフォルト: 0.3
+  };
+  
+  /** ヒット判定エフェクト設定 */
+  hitEffect: {
+    /** エフェクト有効/無効 */
+    enabled: boolean;
+    /** エフェクトサイズ倍率 */
+    sizeMultiplier: number; // デフォルト: 1.0
+    /** エフェクト持続時間（秒） */
+    duration: number; // デフォルト: 0.3
+    /** エフェクトの透明度 */
+    opacity: number; // デフォルト: 1.0
+  };
+  
+  /** パフォーマンスモード（軽量化） */
+  performanceMode: 'standard' | 'lightweight' | 'ultra_light';
 }
 
 // ===== 採点システム =====

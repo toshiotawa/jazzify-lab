@@ -59,6 +59,24 @@ interface PerformanceMetrics {
   frameDrops: number;
   lastFrameTime: number;
   averageFrameTime: number;
+  
+  // ===== エフェクト関連の統計情報 =====
+  effects: {
+    /** 生成されたエフェクト総数 */
+    totalGenerated: number;
+    /** 成功したエフェクト数 */
+    successCount: number;
+    /** スキップされたエフェクト数（パフォーマンス制限等） */
+    skippedCount: number;
+    /** 近接チェックで拒否されたエフェクト数 */
+    proximityRejectCount: number;
+    /** ノーツ未発見で拒否されたエフェクト数 */
+    noteNotFoundRejectCount: number;
+    /** エフェクト処理の平均時間（ms） */
+    averageProcessTime: number;
+    /** 最後のエフェクト処理時間（ms） */
+    lastProcessTime: number;
+  };
 }
 
 // ===== デフォルト値 =====
@@ -115,6 +133,25 @@ const defaultSettings: GameSettings = {
   
   // 練習モードガイド
   practiceGuide: 'key',
+  
+  // ===== エフェクト設定 =====
+  enableEffects: true,
+  
+  keyPressEffect: {
+    enabled: true,
+    proximityThreshold: 1.5, // ノート高さの1.5倍以内
+    sizeMultiplier: 1.0,
+    duration: 0.3
+  },
+  
+  hitEffect: {
+    enabled: true,
+    sizeMultiplier: 1.0,
+    duration: 0.3,
+    opacity: 1.0
+  },
+  
+  performanceMode: 'standard'
 };
 
 // ===== 新機能: デフォルトプリセット =====
@@ -174,7 +211,17 @@ const defaultPerformanceMetrics: PerformanceMetrics = {
   audioLatency: 0,
   frameDrops: 0,
   lastFrameTime: 0,
-  averageFrameTime: 16.67 // 60fps = 16.67ms per frame
+  averageFrameTime: 16.67, // 60fps = 16.67ms per frame
+  
+  effects: {
+    totalGenerated: 0,
+    successCount: 0,
+    skippedCount: 0,
+    proximityRejectCount: 0,
+    noteNotFoundRejectCount: 0,
+    averageProcessTime: 0,
+    lastProcessTime: 0
+  }
 };
 
 const defaultState: GameState = {
@@ -275,6 +322,41 @@ const validateSettings = (settings: Partial<GameSettings>): { valid: boolean; er
   if (normalized.pianoHeight < 80 || normalized.pianoHeight > 300) {
     errors.push('ピアノの高さは80-300pxの範囲で設定してください');
     normalized.pianoHeight = Math.max(80, Math.min(300, normalized.pianoHeight));
+  }
+  
+  // ===== エフェクト設定の検証 =====
+  if (normalized.keyPressEffect) {
+    if (normalized.keyPressEffect.proximityThreshold < 0.5 || normalized.keyPressEffect.proximityThreshold > 5.0) {
+      errors.push('キー押下エフェクトの近接閾値は0.5-5.0の範囲で設定してください');
+      normalized.keyPressEffect.proximityThreshold = Math.max(0.5, Math.min(5.0, normalized.keyPressEffect.proximityThreshold));
+    }
+    
+    if (normalized.keyPressEffect.sizeMultiplier < 0.1 || normalized.keyPressEffect.sizeMultiplier > 3.0) {
+      errors.push('キー押下エフェクトのサイズ倍率は0.1-3.0の範囲で設定してください');
+      normalized.keyPressEffect.sizeMultiplier = Math.max(0.1, Math.min(3.0, normalized.keyPressEffect.sizeMultiplier));
+    }
+    
+    if (normalized.keyPressEffect.duration < 0.1 || normalized.keyPressEffect.duration > 2.0) {
+      errors.push('キー押下エフェクトの持続時間は0.1-2.0秒の範囲で設定してください');
+      normalized.keyPressEffect.duration = Math.max(0.1, Math.min(2.0, normalized.keyPressEffect.duration));
+    }
+  }
+  
+  if (normalized.hitEffect) {
+    if (normalized.hitEffect.sizeMultiplier < 0.1 || normalized.hitEffect.sizeMultiplier > 3.0) {
+      errors.push('ヒットエフェクトのサイズ倍率は0.1-3.0の範囲で設定してください');
+      normalized.hitEffect.sizeMultiplier = Math.max(0.1, Math.min(3.0, normalized.hitEffect.sizeMultiplier));
+    }
+    
+    if (normalized.hitEffect.duration < 0.1 || normalized.hitEffect.duration > 2.0) {
+      errors.push('ヒットエフェクトの持続時間は0.1-2.0秒の範囲で設定してください');
+      normalized.hitEffect.duration = Math.max(0.1, Math.min(2.0, normalized.hitEffect.duration));
+    }
+    
+    if (normalized.hitEffect.opacity < 0.0 || normalized.hitEffect.opacity > 1.0) {
+      errors.push('ヒットエフェクトの透明度は0.0-1.0の範囲で設定してください');
+      normalized.hitEffect.opacity = Math.max(0.0, Math.min(1.0, normalized.hitEffect.opacity));
+    }
   }
   
   return {
@@ -438,6 +520,13 @@ interface GameStoreState extends GameState {
   recordFrameTime: (frameTime: number) => void;
   incrementFrameDrops: () => void;
   resetPerformanceMetrics: () => void;
+  
+  // ===== 新機能: エフェクト統計管理 =====
+  recordEffectGenerated: () => void;
+  recordEffectSuccess: (processTime: number) => void;
+  recordEffectSkipped: (reason: 'performance' | 'proximity' | 'note_not_found') => void;
+  resetEffectStats: () => void;
+  getEffectStats: () => PerformanceMetrics['effects'];
   
   // ===== 新機能: エラー管理強化 =====
   addError: (category: keyof GameStoreState['errors'], error: string) => void;
@@ -1134,6 +1223,50 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           state.performance = { ...defaultPerformanceMetrics };
         }),
         
+        // ===== 新機能: エフェクト統計管理 =====
+        recordEffectGenerated: () => set((state) => {
+          state.performance.effects.totalGenerated++;
+        }),
+        
+        recordEffectSuccess: (processTime: number) => set((state) => {
+          state.performance.effects.successCount++;
+          state.performance.effects.lastProcessTime = processTime;
+          // 移動平均で平均処理時間を更新
+          const currentAvg = state.performance.effects.averageProcessTime;
+          state.performance.effects.averageProcessTime = 
+            currentAvg === 0 ? processTime : (currentAvg * 0.9) + (processTime * 0.1);
+        }),
+        
+        recordEffectSkipped: (reason: 'performance' | 'proximity' | 'note_not_found') => set((state) => {
+          state.performance.effects.skippedCount++;
+          switch (reason) {
+            case 'proximity':
+              state.performance.effects.proximityRejectCount++;
+              break;
+            case 'note_not_found':
+              state.performance.effects.noteNotFoundRejectCount++;
+              break;
+            // 'performance' はカウンターなし（skippedCountに含まれる）
+          }
+        }),
+        
+        resetEffectStats: () => set((state) => {
+          state.performance.effects = {
+            totalGenerated: 0,
+            successCount: 0,
+            skippedCount: 0,
+            proximityRejectCount: 0,
+            noteNotFoundRejectCount: 0,
+            averageProcessTime: 0,
+            lastProcessTime: 0
+          };
+        }),
+        
+        getEffectStats: () => {
+          const state = get();
+          return state.performance.effects;
+        },
+        
         // ===== 新機能: エラー管理強化 =====
         addError: (category, error) => set((state) => {
           state.errors[category].push(error);
@@ -1231,7 +1364,7 @@ export const useFPS = () => useGameStore((state) => state.performance.fps);
 export const useFrameDrops = () => useGameStore((state) => state.performance.frameDrops);
 export const useAverageFrameTime = () => useGameStore((state) => state.performance.averageFrameTime);
 export const useIsPerformanceGood = () => useGameStore((state) => 
-  state.performance.fps >= 45 && state.performance.frameDrops < 10
+  state.performance.fps >= 55 && state.performance.frameDrops < 10
 );
 
 // エラー関連
@@ -1272,4 +1405,16 @@ export const useSettingsValidation = () => {
     clearSettingsErrors: () => clearErrors('settings')
   };
 };
+
+// ===== エフェクト統計関連フック =====
+export const useEffectStats = () => useGameStore((state) => state.performance.effects);
+export const useEffectSuccessRate = () => useGameStore((state) => {
+  const effects = state.performance.effects;
+  return effects.totalGenerated > 0 ? effects.successCount / effects.totalGenerated : 0;
+});
+export const useEffectPerformance = () => useGameStore((state) => ({
+  averageProcessTime: state.performance.effects.averageProcessTime,
+  lastProcessTime: state.performance.effects.lastProcessTime,
+  isPerformanceGood: state.performance.effects.averageProcessTime < 2.0 // 2ms以内が良好
+}));
 
