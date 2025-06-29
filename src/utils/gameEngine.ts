@@ -504,12 +504,7 @@ export class GameEngine {
       const gracePeriod = 2.0; // 2秒の猶予期間（生成直後の保護）
       
       if (noteAge > gracePeriod) {
-        // Miss判定ログを制限（頻繁に実行される可能性があるため）
-        devLog.debug(`🔴 Miss判定: noteId=${note.id}, 判定ライン通過後=${timePassed.toFixed(2)}s, noteAge=${noteAge.toFixed(2)}s`);
         return { ...note, state: 'missed' };
-      } else {
-        // 猶予期間ログも制限
-        devLog.debug(`⏳ Miss判定猶予中: noteId=${note.id}, 判定ライン通過後=${timePassed.toFixed(2)}s, noteAge=${noteAge.toFixed(2)}s (猶予期間: ${gracePeriod}s)`);
       }
     }
     

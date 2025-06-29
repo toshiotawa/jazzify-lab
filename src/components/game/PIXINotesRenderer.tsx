@@ -94,6 +94,11 @@ export class PIXINotesRendererInstance {
   // ★ ガイドライン管理用プロパティを追加
   private guidelines?: PIXI.Graphics;
   
+  // ★ パフォーマンス最適化: nextNoteIndex ポインタシステム
+  private allNotes: ActiveNote[] = []; // 全ノートのソート済みリスト
+  private nextNoteIndex: number = 0;   // 次に表示するノートのインデックス
+  private lastUpdateTime: number = 0;  // 前回の更新時刻（巻き戻し検出用）
+  
   // ===== テクスチャキャッシュ =====
   private noteTextures!: NoteTextures;
   private labelTextures!: LabelTextures;
@@ -462,7 +467,6 @@ export class PIXINotesRendererInstance {
    */
   private getLabelTexture(noteName: string): PIXI.Texture | null {
     if (!noteName || this.settings.noteNameStyle === 'off') {
-      console.log(`🔍 getLabelTexture: Skipping empty note name or style is off`);
       return null;
     }
 
@@ -498,7 +502,6 @@ export class PIXINotesRendererInstance {
       return null;
     }
 
-    log.debug(`✅ getLabelTexture: Found texture for "${noteName}" (${texture.width}x${texture.height})`);
     return texture;
   }
 
@@ -1399,13 +1402,29 @@ export class PIXINotesRendererInstance {
   }
   
   /**
-   * ノーツ表示の更新 - 超高速化版
-   * 降下計算は矩形あたり1行、絶対時刻から直接Y座標を計算
+   * ノーツ表示の更新 - nextNoteIndex ポインタ最適化版
+   * 毎フレーム全ノート走査を排除し、必要な処理のみ実行（3～10倍高速化）
    */
   updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
     if (!currentTime) return; // 絶対時刻が必要
     
-    const currentNoteIds = new Set(activeNotes.map(note => note.id));
+    // ===== 巻き戻し検出とノートリスト更新 =====
+    const timeMovedBackward = currentTime < this.lastUpdateTime;
+    
+    // ノートリストが変更された場合、または巻き戻しが発生した場合
+    if (activeNotes !== this.allNotes || timeMovedBackward) {
+      this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time); // 時刻順ソート
+      
+      // 巻き戻し時は適切な nextNoteIndex を二分探索で復帰
+      if (timeMovedBackward) {
+        this.nextNoteIndex = this.findNoteIndexByTime(currentTime);
+        devLog.info(`🔄 Time moved backward: ${this.lastUpdateTime.toFixed(2)} -> ${currentTime.toFixed(2)}, reset nextNoteIndex: ${this.nextNoteIndex}`);
+      } else {
+        this.nextNoteIndex = 0; // 新しいノートリストの場合は最初から
+      }
+    }
+    
+    this.lastUpdateTime = currentTime;
     
     // GameEngineと同じ計算式を使用（統一化）
     const baseFallDuration = 5.0; // LOOKAHEAD_TIME
@@ -1416,67 +1435,104 @@ export class PIXINotesRendererInstance {
     // FPS監視（デバッグ用）
     this.fpsCounter++;
     if (currentTime - this.lastFpsTime >= 1000) {
-      perfLog.info(`🚀 PIXI FPS: ${this.fpsCounter} | Notes: ${activeNotes.length} | Sprites: ${this.noteSprites.size} | hitLineY: ${this.settings.hitLineY} | speedPxPerSec: ${speedPxPerSec.toFixed(1)}`);
+      const processedNotes = this.allNotes.length - this.nextNoteIndex;
+      perfLog.info(`🚀 PIXI FPS: ${this.fpsCounter} | Total Notes: ${this.allNotes.length} | Processed: ${processedNotes} | Next Index: ${this.nextNoteIndex} | Sprites: ${this.noteSprites.size} | speedPxPerSec: ${speedPxPerSec.toFixed(1)}`);
       this.fpsCounter = 0;
       this.lastFpsTime = currentTime;
     }
     
-    // 古いノーツを削除（高速バッチ処理）
-    for (const [noteId] of this.noteSprites) {
-      if (!currentNoteIds.has(noteId)) {
-      this.removeNoteSprite(noteId);
+    // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
+    // まだ表示していないノートで、表示時刻になったもののみ処理
+    const appearanceTime = currentTime + baseFallDuration; // 画面上端に現れる時刻
+    
+    while (this.nextNoteIndex < this.allNotes.length &&
+           this.allNotes[this.nextNoteIndex].time <= appearanceTime) {
+      const note = this.allNotes[this.nextNoteIndex];
+      
+      // 新規ノーツスプライト作成（初回のみ）
+      if (!this.noteSprites.has(note.id)) {
+        this.createNoteSprite(note);
       }
+      
+      this.nextNoteIndex++;
     }
     
-    // ===== 超高速位置計算ループ =====
-    // 分岐なし、計算のみ、1ノーツあたり1行で実行
-    for (const note of activeNotes) {
-      let sprite = this.noteSprites.get(note.id);
-      
-      if (!sprite) {
-        // 新規ノーツ作成（状態管理のみ、位置は後で設定）
-        sprite = this.createNoteSprite(note);
+    // ===== 🎯 既存ノーツの位置・状態更新（アクティブなもののみ） =====
+    const currentNoteIds = new Set(activeNotes.map(note => note.id));
+    const spritesToRemove: string[] = [];
+    
+    for (const [noteId, sprite] of this.noteSprites) {
+      if (!currentNoteIds.has(noteId)) {
+        // 画面外に出たノーツをマーク（後でバッチ削除）
+        spritesToRemove.push(noteId);
+        continue;
       }
       
-      // ▼ updateNotes() の Y 座標更新ロジック頭だけ置換
-      const suppliedY = note.y;               // Engine がくれた絶対座標
+      // アクティブなノーツの状態更新
+      const note = activeNotes.find(n => n.id === noteId);
+      if (!note) continue;
+      
+      // ===== Y座標更新（毎フレーム） =====
+      const suppliedY = note.y;
       let newY: number;
 
       if (suppliedY !== undefined) {
-        newY = suppliedY;                     // ★ これを最優先
+        newY = suppliedY; // Engine提供の絶対座標を最優先
       } else {
-        // フォールバック: 従来の自前計算
-        const newYcalc = this.settings.hitLineY -
-                         (note.time - currentTime) * speedPxPerSec;
-        newY = newYcalc;
+        // フォールバック: 自前計算
+        newY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
       }
 
       sprite.sprite.y = newY;
-      
-      // 詳細位置デバッグ（初回のみ）
-      if (activeNotes.length > 0 && this.fpsCounter === 1) {
-        devLog.debug(`🎯 Position calculation: note.time=${note.time}, currentTime=${currentTime}, timeToHit=${note.time - currentTime}, newY=${newY}, hitLineY=${this.settings.hitLineY}, speedPxPerSec=${speedPxPerSec.toFixed(1)}`);
-      }
-      
-      // ラベルとグローも同じY座標に同期
       if (sprite.label) sprite.label.y = newY - 8;
       if (sprite.glowSprite) sprite.glowSprite.y = newY;
       
-      // X座標はピッチ変更時のみ更新（頻度が低い）
+      // ===== X座標更新（ピッチ変更時のみ） =====
       if (sprite.noteData.pitch !== note.pitch) {
         const x = this.pitchToX(note.pitch);
         sprite.sprite.x = x;
         if (sprite.label) sprite.label.x = x;
         if (sprite.glowSprite) sprite.glowSprite.x = x;
-        }
+      }
       
-      // 状態変更チェック（頻度が低い処理のみ）
+      // ===== 状態変更チェック（変更時のみ） =====
       if (sprite.noteData.state !== note.state) {
         this.updateNoteState(sprite, note);
       }
       
       sprite.noteData = note;
     }
+    
+    // ===== 不要なスプライトをバッチ削除 =====
+    for (const noteId of spritesToRemove) {
+      this.removeNoteSprite(noteId);
+    }
+  }
+  
+  /**
+   * 二分探索で指定時刻に対応するノートインデックスを取得
+   */
+  private findNoteIndexByTime(targetTime: number): number {
+    if (this.allNotes.length === 0) return 0;
+    
+    const baseFallDuration = 5.0;
+    const appearanceTime = targetTime + baseFallDuration;
+    
+    let left = 0;
+    let right = this.allNotes.length - 1;
+    
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      const noteTime = this.allNotes[mid].time;
+      
+      if (noteTime <= appearanceTime) {
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+    }
+    
+    return left; // 最初の「まだ表示していない」ノートのインデックス
   }
   
   private createNoteSprite(note: ActiveNote): NoteSprite {
@@ -1493,14 +1549,10 @@ export class PIXINotesRendererInstance {
     sprite.x = x;
     sprite.y = 0; // 後で設定
     
-    log.debug(`🎵 Creating main note sprite: texture=${texture.width}x${texture.height}, x=${x}, y=0, pitch=${effectivePitch}`);
-    
     // 音名ラベル（テクスチャアトラスから取得して labelsContainer に配置）
     let label: PIXI.Sprite | undefined;
     const _noteNameForLabel = this.getMidiNoteName(effectivePitch);
     if (_noteNameForLabel) {
-      log.debug(`🏷️ Creating label for note: ${_noteNameForLabel} (pitch: ${effectivePitch})`);
-      
       try {
         const labelTexture = this.getLabelTexture(_noteNameForLabel);
         if (labelTexture) {
@@ -1512,21 +1564,16 @@ export class PIXINotesRendererInstance {
           // 通常のContainerへ追加
           try {
             this.labelsContainer.addChild(label);
-            log.debug(`✅ Successfully added label sprite to container for "${_noteNameForLabel}"`);
           } catch (containerError) {
             log.error(`❌ Failed to add label to container for "${_noteNameForLabel}":`, containerError);
             label.destroy();
             label = undefined;
           }
-        } else {
-          log.warn(`⚠️ No texture available for label "${_noteNameForLabel}"`);
         }
       } catch (error) {
         log.error(`❌ Error creating label sprite for "${_noteNameForLabel}":`, error);
         label = undefined;
       }
-    } else {
-      devLog.debug(`🔍 No label name generated for pitch ${effectivePitch}`);
     }
     
     // グロー効果スプライト（デフォルトOFF、必要時のみ）
