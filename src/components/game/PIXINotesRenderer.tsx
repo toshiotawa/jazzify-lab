@@ -2126,11 +2126,15 @@ export class PIXINotesRendererInstance {
 
         switch (noteData.state) {
           case 'hit':
+          case 'good':
+          case 'perfect':
             newTexture = this.noteTextures.hit;
             break;
+          /*
+           * 巻き戻し後に残っている missed ノートが transpose で赤くならないよう、
+           * missed は visible と同じ扱いにする。
+           */
           case 'missed':
-            newTexture = this.noteTextures.missed;
-            break;
           case 'visible':
           default:
             newTexture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
@@ -2141,65 +2145,6 @@ export class PIXINotesRendererInstance {
 
         if (noteSprite.glowSprite) {
           this.drawGlowShape(noteSprite.glowSprite, noteData.state, noteData.pitch);
-        }
-      });
-    }
-  }
-  
-  /**
-   * リサイズ対応
-   */
-  resize(width: number, height: number): void {
-    this.app.renderer.resize(width, height);
-    
-    // 修正: app.view.height を使用
-    this.settings.hitLineY = this.app.view.height - this.settings.pianoHeight;
-    console.log(`🔧 Resize hitLineY: ${this.settings.hitLineY}`);
-    
-    // ピアノとヒットラインの再描画
-    this.pianoContainer.removeChildren();
-    this.pianoSprites.clear();
-    this.hitLineContainer.removeChildren();
-    
-    this.setupPiano();
-    this.setupHitLine();
-
-    // ===== 背景とガイドラインを再生成 =====
-    try {
-      if (this.container.children.length > 0) {
-        this.container.removeChildAt(0);
-      }
-      // ガイドラインクリーンアップは createNotesAreaBackground() で自動処理
-    } catch (err) {
-      console.warn('resize 時の背景クリアに失敗', err);
-    }
-
-    this.createNotesAreaBackground();
-    
-    // ★ 白鍵幅が変わった場合はテクスチャを再生成
-    const newWhiteKeyWidth = this.getWhiteKeyWidth();
-    const newNoteWidth = newWhiteKeyWidth - 2;
-    if (Math.abs(newNoteWidth - this.settings.noteWidth) > 0.1) { // 誤差を考慮
-      this.settings.noteWidth = newNoteWidth;
-      devLog.info(`🔄 Regenerating note textures with new width: ${newNoteWidth.toFixed(2)}px`);
-      
-      // 新しい幅でテクスチャを作り直し
-      this.generateNoteTextures();
-      
-      // 既存ノートに新テクスチャを反映
-      this.noteSprites.forEach(ns => {
-        const isBlack = this.isBlackKey(ns.noteData.pitch + this.settings.transpose);
-        switch (ns.noteData.state) {
-          case 'hit':
-            ns.sprite.texture = this.noteTextures.hit;
-            break;
-          case 'missed':
-            ns.sprite.texture = this.noteTextures.missed;
-            break;
-          case 'visible':
-          default:
-            ns.sprite.texture = isBlack ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
-            break;
         }
       });
     }
@@ -2372,6 +2317,65 @@ export class PIXINotesRendererInstance {
     // エフェクト位置計算
     const x = this.pitchToX(midiNote);
     this.createHitEffect(x, this.settings.hitLineY);
+  }
+
+  /**
+   * リサイズ対応
+   */
+  resize(width: number, height: number): void {
+    this.app.renderer.resize(width, height);
+    
+    // 修正: app.view.height を使用
+    this.settings.hitLineY = this.app.view.height - this.settings.pianoHeight;
+    console.log(`🔧 Resize hitLineY: ${this.settings.hitLineY}`);
+    
+    // ピアノとヒットラインの再描画
+    this.pianoContainer.removeChildren();
+    this.pianoSprites.clear();
+    this.hitLineContainer.removeChildren();
+    
+    this.setupPiano();
+    this.setupHitLine();
+
+    // ===== 背景とガイドラインを再生成 =====
+    try {
+      if (this.container.children.length > 0) {
+        this.container.removeChildAt(0);
+      }
+      // ガイドラインクリーンアップは createNotesAreaBackground() で自動処理
+    } catch (err) {
+      console.warn('resize 時の背景クリアに失敗', err);
+    }
+
+    this.createNotesAreaBackground();
+    
+    // ★ 白鍵幅が変わった場合はテクスチャを再生成
+    const newWhiteKeyWidth = this.getWhiteKeyWidth();
+    const newNoteWidth = newWhiteKeyWidth - 2;
+    if (Math.abs(newNoteWidth - this.settings.noteWidth) > 0.1) { // 誤差を考慮
+      this.settings.noteWidth = newNoteWidth;
+      devLog.info(`🔄 Regenerating note textures with new width: ${newNoteWidth.toFixed(2)}px`);
+      
+      // 新しい幅でテクスチャを作り直し
+      this.generateNoteTextures();
+      
+      // 既存ノートに新テクスチャを反映
+      this.noteSprites.forEach(ns => {
+        const isBlack = this.isBlackKey(ns.noteData.pitch + this.settings.transpose);
+        switch (ns.noteData.state) {
+          case 'hit':
+          case 'good':
+          case 'perfect':
+            ns.sprite.texture = this.noteTextures.hit;
+            break;
+          case 'missed':
+          case 'visible':
+          default:
+            ns.sprite.texture = isBlack ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
+            break;
+        }
+      });
+    }
   }
 }
 
