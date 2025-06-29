@@ -2264,6 +2264,9 @@ export class PIXINotesRendererInstance {
     // 直感的なユーザーフィードバックとして即時ハイライト
     this.highlightKey(midiNote, true);
 
+    // === 追加: キー押下エフェクトを即座に表示 ===
+    this.triggerKeyPressEffect(midiNote);
+
     // 外部コールバック呼び出し（GameEngine経由で状態更新）
     if (this.onKeyPress) {
       this.onKeyPress(midiNote);
@@ -2359,6 +2362,16 @@ export class PIXINotesRendererInstance {
       }
     };
     this.app.ticker.add(tickerFunc);
+  }
+
+  /**
+   * キー押下に応じた即時ヒットエフェクトを発火
+   * GameEngine の判定を待たずに視覚フィードバックを返すための補助メソッド。
+   */
+  public triggerKeyPressEffect(midiNote: number): void {
+    // エフェクト位置計算
+    const x = this.pitchToX(midiNote);
+    this.createHitEffect(x, this.settings.hitLineY);
   }
 }
 

@@ -599,6 +599,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (midiControllerRef.current) {
       midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
         renderer.highlightKey(note, active);
+        // アクティブ(ノートオン)時に即時エフェクトを発火
+        if (active) {
+          renderer.triggerKeyPressEffect(note);
+        }
       });
       
       // 既に接続済みのデバイスがある場合、接続状態を確認して再設定
