@@ -2314,8 +2314,38 @@ export class PIXINotesRendererInstance {
    * GameEngine の判定を待たずに視覚フィードバックを返すための補助メソッド。
    */
   public triggerKeyPressEffect(midiNote: number): void {
-    // エフェクト位置計算
-    const x = this.pitchToX(midiNote);
+    /*
+     * ユーザーが鍵盤を押下した際に発火する即時ヒットエフェクト。
+     * ------------------------------------------------------------
+     * 変更点 :
+     *   1. トランスポーズ値が二重に適用される問題を回避するため、
+     *      pitchToX ではなく現在描画中のノートスプライトの座標を利用する。
+     *   2. 画面上に対応するノートが存在しない場合（＝演奏すべきノートが無い場合）は
+     *      エフェクトを生成しない。
+     */
+
+    // 1. 現在表示中のノートスプライトから一致するものを探す
+    //    rawMidi = noteSprite.pitch + transpose が実際に押される MIDI ノートになる。
+    const targetSprite = Array.from(this.noteSprites.values()).find((ns) => {
+      const rawMidi = ns.noteData.pitch + this.settings.transpose;
+      return rawMidi === midiNote && ns.noteData.state === 'visible';
+    });
+
+    // 2. 一致するノートが無い場合はエフェクトを出さない（不要表示防止）
+    if (!targetSprite) {
+      return;
+    }
+
+    // 3. ノートが判定ライン近くにあるかを確認（早押し時の誤エフェクト防止）
+    const distanceToHitLine = Math.abs(targetSprite.sprite.y - this.settings.hitLineY);
+    const threshold = this.settings.noteHeight * 1.5; // ノート高さの約1.5倍以内
+    if (distanceToHitLine > threshold) {
+      // まだ判定ラインに到達していないためエフェクトを生成しない
+      return;
+    }
+
+    // 4. 見つかったノートの現在位置を使用してエフェクトを生成
+    const x = targetSprite.sprite.x;
     this.createHitEffect(x, this.settings.hitLineY);
   }
 
