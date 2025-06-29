@@ -409,26 +409,7 @@ const SettingsPanel: React.FC = () => {
         
         <div className="card-body">
           <div className="space-y-4">
-            {/* 楽器モード */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                楽器モード
-              </label>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => gameActions.setInstrumentMode('piano')}
-                  className={`btn ${settings.instrumentMode === 'piano' ? 'btn-primary' : 'btn-secondary'}`}
-                >
-                  🎹 ピアノ
-                </button>
-                <button
-                  onClick={() => gameActions.setInstrumentMode('guitar')}
-                  className={`btn ${settings.instrumentMode === 'guitar' ? 'btn-primary' : 'btn-secondary'}`}
-                >
-                  🎸 ギター
-                </button>
-              </div>
-            </div>
+
 
             {/* 入力モード選択 */}
             <div className="space-y-4">
@@ -438,8 +419,8 @@ const SettingsPanel: React.FC = () => {
                 </label>
                 
                 {/* ラジオボタン選択 */}
-                <div className="space-y-2">
-                  <label className="flex items-center space-x-3 cursor-pointer">
+                <div className="flex space-x-4">
+                  <label className="flex items-center space-x-2 cursor-pointer">
                     <input
                       type="radio"
                       name="input-mode"
@@ -448,15 +429,10 @@ const SettingsPanel: React.FC = () => {
                       onChange={() => gameActions.updateSettings({ inputMode: 'midi' })}
                       className="radio radio-primary"
                     />
-                    <div className="flex-1">
-                      <span className="text-sm text-white font-medium">🎹 MIDI入力</span>
-                      <p className="text-xs text-gray-400 mt-1">
-                        MIDIキーボード + 画面ピアノキー（クリック/タッチ対応）
-                      </p>
-                    </div>
+                    <span className="text-sm text-white font-medium">🎹 MIDI入力</span>
                   </label>
                   
-                  <label className="flex items-center space-x-3 cursor-pointer opacity-60">
+                  <label className="flex items-center space-x-2 cursor-pointer opacity-60">
                     <input
                       type="radio"
                       name="input-mode"
@@ -466,12 +442,7 @@ const SettingsPanel: React.FC = () => {
                       className="radio radio-primary"
                       disabled
                     />
-                    <div className="flex-1">
-                      <span className="text-sm text-gray-300 font-medium">🎤 音声入力</span>
-                      <p className="text-xs text-gray-500 mt-1">
-                        マイクからリアルタイムピッチ検出（今後実装予定）
-                      </p>
-                    </div>
+                    <span className="text-sm text-gray-300 font-medium">🎤 音声入力</span>
                   </label>
                 </div>
               </div>
@@ -570,9 +541,6 @@ const SettingsPanel: React.FC = () => {
                   }}
                   className="slider w-full accent-amber-400"
                 />
-                <div className="text-xs text-gray-400 mt-1">
-                  🎹 MIDI入力・マウス/タッチ演奏・オートプレイすべてに適用
-                </div>
               </div>
             </div>
 

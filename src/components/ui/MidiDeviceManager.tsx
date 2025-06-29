@@ -124,7 +124,7 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
             className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-blue-600"
             disabled={isRefreshing}
           >
-            <option value="">🖱️ 画面ピアノのみ</option>
+            <option value="">なし</option>
             {devices.map((device) => (
               <option key={device.id} value={device.id}>
                 {`🎹 ${device.name}${!device.connected ? ' (切断)' : ''}`}
@@ -154,7 +154,7 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
           {value ? (
             <span className="text-green-400">✅ 選択済み</span>
           ) : (
-            <span className="text-gray-400">🖱️ 画面ピアノのみ</span>
+            <span className="text-gray-400">なし</span>
           )}
         </div>
         
@@ -165,25 +165,7 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
         )}
       </div>
 
-      {/* 使用方法 */}
-      <div className="text-xs text-blue-300 bg-blue-800 bg-opacity-30 p-2 rounded">
-        <p className="font-medium mb-1">📝 使用方法:</p>
-        <ul className="space-y-1 text-blue-200">
-          <li>• MIDIキーボード: USB/Bluetooth接続後、自動検出されます</li>
-          <li>• 画面ピアノ: マウス/タッチで直接演奏可能</li>
-          <li>• グリッサンド: ドラッグで連続演奏ができます</li>
-        </ul>
-      </div>
-      
-      {/* 注意事項 */}
-      <div className="text-xs text-amber-300 bg-amber-900 bg-opacity-20 p-2 rounded border border-amber-700 border-opacity-30">
-        <p className="font-medium mb-1">⚠️ 注意事項:</p>
-        <ul className="space-y-1 text-amber-200">
-          <li>• 初回使用時はブラウザにMIDI許可が必要です</li>
-          <li>• デバイスが認識されない場合は「再検出」をお試しください</li>
-          <li>• 複数デバイス接続時は最後に選択したものが有効になります</li>
-        </ul>
-      </div>
+
     </div>
   );
 };
