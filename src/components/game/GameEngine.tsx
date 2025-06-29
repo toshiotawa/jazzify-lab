@@ -28,6 +28,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     currentTime,
     settings,
     lastKeyHighlight,
+    isSettingsOpen,
     initializeGameEngine,
     destroyGameEngine,
     handleNoteInput,
@@ -35,6 +36,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     updateSettings,
     updateTime,
     stop,
+    pause,
     setLastKeyHighlight
   } = useGameStore();
   
@@ -240,6 +242,14 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, audioLoaded, gameEngine]);
+  
+  // 設定モーダルが開いた時に音楽を一時停止
+  useEffect(() => {
+    if (isSettingsOpen && isPlaying) {
+      pause();
+      log.info('⚙️ 設定モーダルを開いたため音楽を一時停止しました');
+    }
+  }, [isSettingsOpen, isPlaying, pause]);
   
   // 音量変更の同期
   useEffect(() => {
