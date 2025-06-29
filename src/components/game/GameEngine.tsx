@@ -532,7 +532,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [updateSettings, updateEngineSettings]);
   
   // ================= ピアノキー演奏ハンドラー =================
-  const handlePianoKeyPress = useCallback(async (note: number) => {
+  const handlePianoKeyPress = useCallback(async (note: number, autoRelease: boolean = true) => {
     try {
       // 共通音声システムで音を鳴らす
       const { playNote } = await import('@/utils/MidiController');
@@ -541,9 +541,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       // PIXI.jsピアノキーのハイライト
       if (pixiRenderer) {
         pixiRenderer.highlightKey(note, true);
-        setTimeout(() => {
-          pixiRenderer.highlightKey(note, false);
-        }, 150);
+        if (autoRelease) {
+          setTimeout(() => {
+            if (pixiRenderer) {
+              pixiRenderer.highlightKey(note, false);
+            }
+          }, 150);
+        }
       }
       
       // ゲームエンジンにノート入力
@@ -596,7 +600,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     // ピアノキーボードのクリックイベントを接続
     renderer.setKeyCallbacks(
       (note: number) => {
-        handlePianoKeyPress(note);
+        // マウス/タッチ操作ではキーを離すまでハイライトを維持する
+        handlePianoKeyPress(note, false);
       }, // キー押下
       (note: number) => {
         handlePianoKeyRelease(note);
