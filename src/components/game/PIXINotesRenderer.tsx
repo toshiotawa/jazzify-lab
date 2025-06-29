@@ -742,12 +742,15 @@ export class PIXINotesRendererInstance {
     this.pianoContainer.addChild(blackKeysContainer);
     
     // ===== グリッサンド用ドラッグハンドラ =====
-    this.pianoContainer.eventMode = 'static';
-    this.pianoContainer.on('pointerdown', this.handleDragStart.bind(this));
-    this.pianoContainer.on('pointermove', this.handleDragMove.bind(this));
-    this.pianoContainer.on('pointerup', this.handleDragEnd.bind(this));
-    this.pianoContainer.on('pointerupoutside', this.handleDragEnd.bind(this));
-    this.pianoContainer.on('pointercancel', this.handleDragEnd.bind(this));
+    // 安定性向上のためグリッサンド機能を無効化。
+    // マウス／タッチ操作によるキーのドラッグ移動での連続発音を行わない。
+    // 個別鍵盤の pointerdown / pointerup はそれぞれの鍵盤に実装済み。
+    // this.pianoContainer.eventMode = 'static';
+    // this.pianoContainer.on('pointerdown', this.handleDragStart.bind(this));
+    // this.pianoContainer.on('pointermove', this.handleDragMove.bind(this));
+    // this.pianoContainer.on('pointerup', this.handleDragEnd.bind(this));
+    // this.pianoContainer.on('pointerupoutside', this.handleDragEnd.bind(this));
+    // this.pianoContainer.on('pointercancel', this.handleDragEnd.bind(this));
   }
   
   /**
