@@ -486,10 +486,10 @@ const SettingsPanel: React.FC = () => {
             {/* 判定タイミング調整 */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                判定タイミング調整: {settings.timingAdjustment > 0 ? '+' : ''}{settings.timingAdjustment}ms
+                表示タイミング調整 (判定も同期): {settings.timingAdjustment > 0 ? '+' : ''}{settings.timingAdjustment}ms
               </label>
               <div className="text-xs text-gray-400 mb-2">
-                楽譜のノーツタイミングを調整します（早い: -, 遅い: +）
+                ノーツの表示位置と判定タイミングを調整します（早い: -, 遅い: +）
               </div>
               <input
                 type="range"

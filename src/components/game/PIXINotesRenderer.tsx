@@ -91,6 +91,9 @@ export class PIXINotesRendererInstance {
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
   private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
   
+  // ★ ガイドライン管理用プロパティを追加
+  private guidelines?: PIXI.Graphics;
+  
   // ===== テクスチャキャッシュ =====
   private noteTextures!: NoteTextures;
   private labelTextures!: LabelTextures;
@@ -114,7 +117,7 @@ export class PIXINotesRendererInstance {
   private effectsElapsed: number = 0; // エフェクト更新用の経過時間カウンター
   
   private settings: RendererSettings = {
-    noteWidth: 15,
+    noteWidth: 0,          // ★ 後で決定
     noteHeight: 8,
     hitLineY: 0,
     pianoHeight: 160,
@@ -146,6 +149,12 @@ export class PIXINotesRendererInstance {
   
   constructor(width: number, height: number) {
     devLog.info(`🎯 PIXINotesRenderer constructor: ${width}x${height}`);
+    
+    // ★ まず白鍵幅を求めてnoteWidthを設定
+    const totalWhite = this.calculateTotalWhiteKeys();
+    const whiteKeyWidth = width / totalWhite;
+    this.settings.noteWidth = whiteKeyWidth - 2;   // 1px ずつ余白
+    devLog.info(`🎹 White key width: ${whiteKeyWidth.toFixed(2)}px, Note width: ${this.settings.noteWidth.toFixed(2)}px`);
     
     // PIXI.js アプリケーション初期化（統合レンダリングループ版）
     this.app = new PIXI.Application({
@@ -253,6 +262,14 @@ export class PIXINotesRendererInstance {
    * ノーツテクスチャを事前生成
    */
   private generateNoteTextures(): void {
+    // ★ 既存のテクスチャを破棄（再生成時）
+    if (this.noteTextures) {
+      Object.values(this.noteTextures).forEach(texture => {
+        if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
+          texture.destroy();
+        }
+      });
+    }
     let { noteWidth, noteHeight } = this.settings;
     
     // 最小サイズを保証（平らなノーツ対応）
@@ -277,9 +294,11 @@ export class PIXINotesRendererInstance {
       missed: PIXI.Texture.EMPTY
     };
     
-    // 黒鍵ノーツテクスチャ
+    // 黒鍵ノーツテクスチャ（白鍵の0.6倍の幅）
     const blackGraphics = new PIXI.Graphics();
-    this.drawNoteShapeToGraphics(blackGraphics, 'visible', true, noteWidth, noteHeight);
+    const blackRatio = 0.6;
+    const blackWidth = noteWidth * blackRatio;
+    this.drawNoteShapeToGraphics(blackGraphics, 'visible', true, blackWidth, noteHeight);
     this.noteTextures.blackVisible = this.app.renderer.generateTexture(blackGraphics);
     
     // ヒット状態テクスチャ（透明）
@@ -803,7 +822,14 @@ export class PIXINotesRendererInstance {
    * 白鍵に合わせた縦ガイドラインを作成（簡素化版）
    */
   private createVerticalGuidelines(): void {
+    // ★ 再生成時に古いものを破棄
+    if (this.guidelines) {
+      this.guidelines.destroy();
+      this.guidelines = undefined;
+    }
+    
     const guidelines = new PIXI.Graphics();
+    this.guidelines = guidelines; // ★ 保持しておく
     
     // 88鍵ピアノの設定
     const minNote = 21; // A0
@@ -823,20 +849,22 @@ export class PIXINotesRendererInstance {
     let whiteKeyIndex = 0;
     for (let note = minNote; note <= maxNote; note++) {
       if (!this.isBlackKey(note)) {
-        const x = whiteKeyIndex * whiteKeyWidth;
+        // ★ ピクセル中央に合わせるため 0.5px シフト
+        const x = Math.round(whiteKeyIndex * whiteKeyWidth) + 0.5;
         
         // 全ての白鍵に境界線を描画
         const noteName = this.getMidiNoteName(note);
         const isOctaveMarker = noteName === 'C';
         
-        // Cノートは少し濃く、他は薄く
+        // Cノートは少し濃く、他も見やすい濃さに調整
         const lineWidth = isOctaveMarker ? 2 : 1;
-        const alpha = isOctaveMarker ? 0.4 : 0.15;
+        const alpha = isOctaveMarker ? 0.4 : 0.35; // ★ 0.25 → 0.35 に変更
         const color = isOctaveMarker ? 0x8B5CF6 : 0x6B7280;
         
         guidelines.lineStyle(lineWidth, color, alpha);
         guidelines.moveTo(x, 0);
-        guidelines.lineTo(x, this.settings.hitLineY);
+        // ★ ヒットラインの1px上で止める
+        guidelines.lineTo(x, this.settings.hitLineY - 1);
         
         whiteKeyIndex++;
       }
@@ -1285,6 +1313,14 @@ export class PIXINotesRendererInstance {
   }
   
   /**
+   * 88鍵中の白鍵幅（ピクセル）を返す
+   */
+  private getWhiteKeyWidth(): number {
+    const totalWhite = this.calculateTotalWhiteKeys();   // 52鍵
+    return this.app.screen.width / totalWhite;
+  }
+  
+  /**
    * ノーツ表示の更新 - 超高速化版
    * 降下計算は矩形あたり1行、絶対時刻から直接Y座標を計算
    */
@@ -1324,10 +1360,19 @@ export class PIXINotesRendererInstance {
         sprite = this.createNoteSprite(note);
       }
       
-      // ===== 描画コストゼロの計算のみ =====
-      // 絶対時刻から直接Y座標を計算（GameEngine依存なし）
-      // Fix: currentTime is already in seconds, don't divide by 1000
-      const newY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
+      // ▼ updateNotes() の Y 座標更新ロジック頭だけ置換
+      const suppliedY = note.y;               // Engine がくれた絶対座標
+      let newY: number;
+
+      if (suppliedY !== undefined) {
+        newY = suppliedY;                     // ★ これを最優先
+      } else {
+        // フォールバック: 従来の自前計算
+        const newYcalc = this.settings.hitLineY -
+                         (note.time - currentTime) * speedPxPerSec;
+        newY = newYcalc;
+      }
+
       sprite.sprite.y = newY;
       
       // 詳細位置デバッグ（初回のみ）
@@ -1336,8 +1381,8 @@ export class PIXINotesRendererInstance {
       }
       
       // ラベルとグローも同じY座標に同期
-      if (sprite.label) sprite.label.y = sprite.sprite.y - 8;
-      if (sprite.glowSprite) sprite.glowSprite.y = sprite.sprite.y;
+      if (sprite.label) sprite.label.y = newY - 8;
+      if (sprite.glowSprite) sprite.glowSprite.y = newY;
       
       // X座標はピッチ変更時のみ更新（頻度が低い）
       if (sprite.noteData.pitch !== note.pitch) {
@@ -1796,6 +1841,34 @@ export class PIXINotesRendererInstance {
     }
 
     this.createNotesAreaBackground();
+    
+    // ★ 白鍵幅が変わった場合はテクスチャを再生成
+    const newWhiteKeyWidth = this.getWhiteKeyWidth();
+    const newNoteWidth = newWhiteKeyWidth - 2;
+    if (Math.abs(newNoteWidth - this.settings.noteWidth) > 0.1) { // 誤差を考慮
+      this.settings.noteWidth = newNoteWidth;
+      devLog.info(`🔄 Regenerating note textures with new width: ${newNoteWidth.toFixed(2)}px`);
+      
+      // 新しい幅でテクスチャを作り直し
+      this.generateNoteTextures();
+      
+      // 既存ノートに新テクスチャを反映
+      this.noteSprites.forEach(ns => {
+        const isBlack = this.isBlackKey(ns.noteData.pitch + this.settings.transpose);
+        switch (ns.noteData.state) {
+          case 'hit':
+            ns.sprite.texture = this.noteTextures.hit;
+            break;
+          case 'missed':
+            ns.sprite.texture = this.noteTextures.missed;
+            break;
+          case 'visible':
+          default:
+            ns.sprite.texture = isBlack ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
+            break;
+        }
+      });
+    }
   }
   
   /**
@@ -1813,6 +1886,12 @@ export class PIXINotesRendererInstance {
       // ピアノスプライトをクリア
       this.pianoSprites.clear();
       this.highlightedKeys.clear();
+
+      // ★ ガイドラインも破棄
+      if (this.guidelines) {
+        this.guidelines.destroy();
+        this.guidelines = undefined;
+      }
 
       // PIXI.jsアプリケーションを破棄
       if (this.app && (this.app as any)._destroyed !== true) {

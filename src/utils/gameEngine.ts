@@ -14,13 +14,14 @@ import type {
   JudgmentResult
 } from '@/types';
 import { unifiedFrameController, performanceMonitor } from './performanceOptimizer';
+import { log, perfLog, devLog } from './logger';
 
 // ===== 定数定義 =====
 
 export const JUDGMENT_TIMING: JudgmentTiming = {
   perfectMs: 0,   // Perfect判定は使用しない
   goodMs: 500,    // ±500ms = Good (more forgiving)
-  missMs: 1500    // それ以外 = Miss (extended for better note visibility)
+  missMs: 500     // 判定ライン通過後500ms = Miss (user request)
 };
 
 export const LOOKAHEAD_TIME = 5.0; // 5秒先まで表示（より長く表示）
@@ -96,20 +97,25 @@ export class GameEngine {
     this.onKeyHighlight = callback;
   }
   
+  // ★ 追加: 設定値を秒へ変換して返すヘルパー
+  private getTimingAdjSec(): number {
+    return (this.settings.timingAdjustment ?? 0) / 1000;
+  }
+  
   loadSong(notes: NoteData[]): void {
-    console.log(`🎵 GameEngine: ${notes.length}ノーツを読み込み開始`);
+    log.info(`🎵 GameEngine: ${notes.length}ノーツを読み込み開始`);
     
-    // タイミング調整は判定時のみ適用し、表示タイミングは変更しない
+    // ▼ appearTime 計算を timingAdjustment 込みに
     this.notes = notes.map((note, index) => ({
       ...note,
       id: note.id || `note-${index}`,
       // 表示タイミングは元のまま保持
       time: note.time,
-      // 表示開始時間の計算
-      appearTime: note.time - LOOKAHEAD_TIME
+      // 表示開始時間の計算（タイミング調整を含める）
+      appearTime: note.time + this.getTimingAdjSec() - LOOKAHEAD_TIME
     }));
     
-    console.log(`🎵 GameEngine: ${this.notes.length}ノーツ読み込み完了`, {
+    log.info(`🎵 GameEngine: ${this.notes.length}ノーツ読み込み完了`, {
       firstNoteTime: this.notes[0]?.time,
       lastNoteTime: this.notes[this.notes.length - 1]?.time
     });
@@ -131,7 +137,7 @@ export class GameEngine {
     this.pausedTime = 0;
     this.startGameLoop();
     
-    console.log(`🚀 GameEngine.start: ゲームループ開始`, {
+    log.info(`🚀 GameEngine.start: ゲームループ開始`, {
       audioTime: audioContext.currentTime,
       totalNotes: this.notes.length,
       startTime: this.startTime
@@ -176,7 +182,7 @@ export class GameEngine {
         }
       });
       
-      console.log(`🎮 GameEngine.seek: ${safeTime.toFixed(2)}s`, {
+      devLog.debug(`🎮 GameEngine.seek: ${safeTime.toFixed(2)}s`, {
         audioTime: this.audioContext.currentTime.toFixed(2),
         clearedNotes: oldActiveCount,
         newStartTime: this.startTime.toFixed(2),
@@ -276,8 +282,8 @@ export class GameEngine {
     // notesSpeed が変化した場合、未処理ノートの appearTime を更新
     const dynamicLookahead = this.getLookaheadTime();
     this.notes.forEach((note) => {
-      // まだ appearTime を計算済みでも更新
-      note.appearTime = note.time - dynamicLookahead;
+      // まだ appearTime を計算済みでも更新（タイミング調整を含める）
+      note.appearTime = note.time + this.getTimingAdjSec() - dynamicLookahead;
     });
   }
   
@@ -323,7 +329,7 @@ export class GameEngine {
     // 合計レイテンシ
     this.latencyOffset = baseLatency + outputLatency + manualCompensation;
 
-    console.log(`🔧 レイテンシ計算: base=${(baseLatency*1000).toFixed(1)}ms, output=${(outputLatency*1000).toFixed(1)}ms, manual=${(manualCompensation*1000).toFixed(1)}ms → total=${(this.latencyOffset*1000).toFixed(1)}ms`);
+    log.info(`🔧 レイテンシ計算: base=${(baseLatency*1000).toFixed(1)}ms, output=${(outputLatency*1000).toFixed(1)}ms, manual=${(manualCompensation*1000).toFixed(1)}ms → total=${(this.latencyOffset*1000).toFixed(1)}ms`);
   }
   
   private adjustInputNote(inputNote: number): number {
@@ -401,9 +407,9 @@ export class GameEngine {
     
     // **新しいノーツを表示開始 - 重複防止の改善**
     for (const note of this.notes) {
-      // appearTimeが計算されていない場合は計算
+      // ▼ まだ appearTime 未計算の場合も同様
       if (!note.appearTime) {
-        note.appearTime = note.time - this.getLookaheadTime(); // 動的先読み
+        note.appearTime = note.time + this.getTimingAdjSec() - this.getLookaheadTime();
       }
       
       // ノート生成条件を厳密に制限
@@ -439,7 +445,7 @@ export class GameEngine {
       // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
       const latestNote = this.activeNotes.get(noteId) || note;
       if (isRecentNote && latestNote.state !== note.state) {
-        console.log(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
+        devLog.debug(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
       }
       
       const updatedNote = this.updateNoteState(latestNote, currentTime);
@@ -473,7 +479,7 @@ export class GameEngine {
     if (note.state === 'hit') {
       // Hit状態のノーツは短時間後に削除（エフェクト表示のため）
       if (note.hitTime && (currentTime - note.hitTime) > 0.3) {
-        console.log(`✅ Hitノート削除: ${note.id} (エフェクト表示完了)`);
+        devLog.debug(`✅ Hitノート削除: ${note.id} (エフェクト表示完了)`);
         return { ...note, state: 'completed' };
       }
       
@@ -490,13 +496,20 @@ export class GameEngine {
     
     // *自動ヒットは checkHitLineCrossing で処理*
     
-    // Miss判定チェック (visible状態のみ) - シーク直後の誤判定を防ぐ
-    const missThreshold = JUDGMENT_TIMING.missMs / 1000;
-    if (note.state === 'visible' && timePassed > missThreshold) {
-      // シーク直後のノーツは一定時間miss判定を猶予
+    // Miss判定チェック - 判定ライン通過後500ms後にmiss判定
+    const missDelayAfterHitLine = 0.5; // 500ms
+    if (note.state === 'visible' && timePassed > missDelayAfterHitLine) {
+      // シーク直後とノーツ生成直後の猶予期間を設ける
       const noteAge = currentTime - (note.appearTime || note.time - this.getLookaheadTime());
-      if (noteAge > 2.0) { // 2秒以上表示されているノーツのみmiss判定
+      const gracePeriod = 2.0; // 2秒の猶予期間（生成直後の保護）
+      
+      if (noteAge > gracePeriod) {
+        // Miss判定ログを制限（頻繁に実行される可能性があるため）
+        devLog.debug(`🔴 Miss判定: noteId=${note.id}, 判定ライン通過後=${timePassed.toFixed(2)}s, noteAge=${noteAge.toFixed(2)}s`);
         return { ...note, state: 'missed' };
+      } else {
+        // 猶予期間ログも制限
+        devLog.debug(`⏳ Miss判定猶予中: noteId=${note.id}, 判定ライン通過後=${timePassed.toFixed(2)}s, noteAge=${noteAge.toFixed(2)}s (猶予期間: ${gracePeriod}s)`);
       }
     }
     
@@ -530,9 +543,8 @@ export class GameEngine {
     const noteCenter = (note.y || 0);
     const prevNoteCenter = (note.previousY || 0);
     
-    // タイミング調整を考慮した判定時間
-    const timingAdjustmentSec = (this.settings.timingAdjustment || 0) / 1000;
-    const adjustedNoteTime = note.time + timingAdjustmentSec;
+    // ▼ crossing 判定用の "表示上の" 到達時刻を利用
+    const displayTime = note.time + this.getTimingAdjSec();
     
     // 判定ラインを通過した瞬間を検出（中心がラインに到達したフレームも含む）
     if (note.previousY !== undefined && 
@@ -541,7 +553,7 @@ export class GameEngine {
         note.state === 'visible' &&
         !note.crossingLogged) { // 重複ログ防止
 
-      const timeError = (currentTime - adjustedNoteTime) * 1000; // ms
+      const timeError = (currentTime - displayTime) * 1000;   // ms
 
       // 重複ログ防止フラグを即座に設定
       const updatedNote: ActiveNote = {
@@ -562,10 +574,10 @@ export class GameEngine {
         
         if (practiceGuide === 'key_auto') {
           // オートプレイ: 自動的にノーツをヒット判定
-          console.log(`🤖 オートプレイ実行開始: ノート ${note.id} (pitch=${effectivePitch})`);
+          devLog.debug(`🤖 オートプレイ実行開始: ノート ${note.id} (pitch=${effectivePitch})`);
           
           // 現在のノート状態をログ
-          console.log(`📋 オートプレイ前ノート状態: ${note.id} - state: ${note.state}, time: ${note.time.toFixed(3)}, currentTime: ${currentTime.toFixed(3)}`);
+          devLog.debug(`📋 オートプレイ前ノート状態: ${note.id} - state: ${note.state}, time: ${note.time.toFixed(3)}, currentTime: ${currentTime.toFixed(3)}`);
           
           // 自動判定を実行
           const autoHit: NoteHit = {
@@ -578,16 +590,16 @@ export class GameEngine {
           
           // 判定処理を実行（これによりノーツが'hit'状態になりスコアも更新される）
           const judgment = this.processHit(autoHit);
-          console.log(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
+          devLog.debug(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
           
           // 強制的にノーツ状態を確認
           const updatedNoteAfterHit = this.activeNotes.get(note.id);
           if (updatedNoteAfterHit) {
-            console.log(`🔍 オートプレイ後ノート状態確認: ${note.id} - state: ${updatedNoteAfterHit.state}, hitTime: ${updatedNoteAfterHit.hitTime}`);
+            devLog.debug(`🔍 オートプレイ後ノート状態確認: ${note.id} - state: ${updatedNoteAfterHit.state}, hitTime: ${updatedNoteAfterHit.hitTime}`);
             
             // 念のため再度状態をセット（確実にhit状態にする）
             if (updatedNoteAfterHit.state !== 'hit') {
-              console.warn(`⚠️ オートプレイ後の状態が異常: ${note.id} - 期待値: hit, 実際値: ${updatedNoteAfterHit.state}`);
+              log.warn(`⚠️ オートプレイ後の状態が異常: ${note.id} - 期待値: hit, 実際値: ${updatedNoteAfterHit.state}`);
               const forcedHitNote: ActiveNote = {
                 ...updatedNoteAfterHit,
                 state: 'hit',
@@ -595,12 +607,12 @@ export class GameEngine {
                 timingError: Math.abs(timeError)
               };
               this.activeNotes.set(note.id, forcedHitNote);
-              console.log(`🔧 強制修正完了: ${note.id} - state を 'hit' に変更`);
+              devLog.debug(`🔧 強制修正完了: ${note.id} - state を 'hit' に変更`);
             } else {
-              console.log(`✅ オートプレイ状態確認OK: ${note.id} - 正常にhit状態です`);
+              devLog.debug(`✅ オートプレイ状態確認OK: ${note.id} - 正常にhit状態です`);
             }
           } else {
-            console.warn(`⚠️ オートプレイ後にノートが見つからない: ${note.id}`);
+            log.warn(`⚠️ オートプレイ後にノートが見つからない: ${note.id}`);
           }
         }
         
@@ -609,7 +621,9 @@ export class GameEngine {
   }
   
   private calculateNoteY(note: NoteData, currentTime: number): number {
-    const timeToHit = note.time - currentTime;
+    // ▼ timeToHit の計算を変更
+    const displayTime = note.time + this.getTimingAdjSec();
+    const timeToHit = displayTime - currentTime;
     
     // 動的レイアウト対応
     const screenHeight = this.settings.viewportHeight ?? 600;
@@ -730,7 +744,7 @@ export class GameEngine {
         // 警告頻度を制限（20秒に1回まで）
         const now = performance.now();
         if (!this.lastPerformanceWarning || (now - this.lastPerformanceWarning) > 20000) {
-          console.warn(`⚠️ パフォーマンス低下検出 (FPS: ${fps}), 軽量化モードに切り替え`);
+          log.warn(`⚠️ パフォーマンス低下検出 (FPS: ${fps}), 軽量化モードに切り替え`);
           this.lastPerformanceWarning = now;
           
           unifiedFrameController.updateConfig({
