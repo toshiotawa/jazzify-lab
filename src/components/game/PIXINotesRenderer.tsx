@@ -695,6 +695,12 @@ export class PIXINotesRendererInstance {
     // 5. エフェクトコンテナ（最前面）
     this.effectsContainer = new PIXI.Container();
     this.effectsContainer.name = 'EffectsContainer'; // デバッグ用
+    
+    // === エフェクトコンテナ全体でポインターイベントを無効化 ===
+    // ヒットエフェクトが表示されても下の鍵盤操作を阻害しないよう設定
+    (this.effectsContainer as any).eventMode = 'none';
+    this.effectsContainer.interactive = false;
+    
     this.container.addChild(this.effectsContainer);
     
     console.log('📦 Container setup complete. Z-order:');
@@ -703,7 +709,7 @@ export class PIXINotesRendererInstance {
     console.log('  2: Black Notes');
     console.log('  3: Labels');
     console.log('  4: Hit Line');
-    console.log('  5: Effects (foreground)');
+    console.log('  5: Effects (foreground) - pointer events disabled');
   }
   
   private setupHitLine(): void {
@@ -1854,7 +1860,7 @@ export class PIXINotesRendererInstance {
     // 常にヒットエフェクトを生成（呼び出し側で判定済み）
     console.log(`⚡ Generating hit effect at (${x.toFixed(1)}, ${y.toFixed(1)})`);
     
-    // より目立つ複合エフェクト
+    // 小さく控えめなエフェクト
     const effectContainer = new PIXI.Container();
     effectContainer.name = 'HitEffect'; // デバッグ用名前付け
     
@@ -1865,24 +1871,24 @@ export class PIXINotesRendererInstance {
     (effectContainer as any).eventMode = 'none';
     effectContainer.interactive = false;
     
-    // 1. 外側の大きな円（薄い）
+    // 1. 外側の円（小さく）
     const outerCircle = new PIXI.Graphics();
-    outerCircle.beginFill(this.settings.colors.good, 0.8); // より濃く
-    outerCircle.drawCircle(0, 0, 50); // より大きく
+    outerCircle.beginFill(this.settings.colors.good, 0.6);
+    outerCircle.drawCircle(0, 0, 15); // 50 → 15 に縮小
     outerCircle.endFill();
     effectContainer.addChild(outerCircle);
     
     // 2. 中間の円
     const middleCircle = new PIXI.Graphics();
-    middleCircle.beginFill(this.settings.colors.good, 0.9); // より濃く
-    middleCircle.drawCircle(0, 0, 35); // より大きく
+    middleCircle.beginFill(this.settings.colors.good, 0.8);
+    middleCircle.drawCircle(0, 0, 10); // 35 → 10 に縮小
     middleCircle.endFill();
     effectContainer.addChild(middleCircle);
     
     // 3. 内側の明るい円
     const innerCircle = new PIXI.Graphics();
     innerCircle.beginFill(0xFFFFFF, 1.0); // 白色で完全不透明
-    innerCircle.drawCircle(0, 0, 20); // より大きく
+    innerCircle.drawCircle(0, 0, 6); // 20 → 6 に縮小
     innerCircle.endFill();
     effectContainer.addChild(innerCircle);
     
@@ -1896,10 +1902,10 @@ export class PIXINotesRendererInstance {
     
     console.log(`⚡ Effect added to container. Children count: ${this.effectsContainer.children.length}`);
     
-    // スケールアニメーション + フェードアウト
-    const startScale = 0.5;
-    const endScale = 2.0; // より大きく拡大
-    const duration = 1.0; // 1秒間表示
+    // 短時間のスケールアニメーション + フェードアウト
+    const startScale = 0.3; // 0.5 → 0.3 に縮小
+    const endScale = 1.2; // 2.0 → 1.2 に縮小
+    const duration = 0.3; // 1.0 → 0.3 に短縮（一瞬だけ表示）
     let elapsed = 0;
     
     effectContainer.scale.set(startScale);
@@ -1915,9 +1921,9 @@ export class PIXINotesRendererInstance {
       const currentScale = startScale + (endScale - startScale) * easeOut;
       effectContainer.scale.set(currentScale);
       
-      // フェードアウト（後半のみ）
-      if (progress > 0.7) {
-        effectContainer.alpha = 1 - ((progress - 0.7) / 0.3);
+      // フェードアウト（早めに開始）
+      if (progress > 0.4) { // 0.7 → 0.4 に変更（早めにフェード開始）
+        effectContainer.alpha = 1 - ((progress - 0.4) / 0.6); // フェード期間も調整
       } else {
         effectContainer.alpha = 1.0; // 前半は完全不透明
       }
