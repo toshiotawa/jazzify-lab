@@ -435,7 +435,60 @@ export class GameEngine {
       }
     }
     
-    // アクティブノーツの状態更新 - 🔧 処理順序を修正
+    // ===== 🚀 CPU最適化: ループ分離による高速化 =====
+    // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
+    this.updateNotePositions(currentTime);
+    
+    // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
+    const frameStartTime = performance.now();
+    if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
+      perfLog.debug('🎯 GameEngine: 判定・状態更新ループ実行');
+      this.updateNoteLogic(currentTime);
+      unifiedFrameController.markNoteUpdate(frameStartTime);
+    }
+    
+    // visibleNotes配列を構築（軽量）
+    for (const note of this.activeNotes.values()) {
+      if (note.state !== 'completed') {
+        visibleNotes.push(note);
+      }
+    }
+    
+    return visibleNotes;
+  }
+
+  /**
+   * 🚀 位置更新専用ループ（毎フレーム実行）
+   * Y座標計算のみの軽量処理
+   */
+  private updateNotePositions(currentTime: number): void {
+    for (const [noteId, note] of this.activeNotes) {
+      // 前フレームのY座標を保存
+      const previousY = note.y;
+      
+      // 新しいY座標を計算（軽量処理）
+      const newY = this.calculateNoteY(note, currentTime);
+      
+      // 新しいオブジェクトを作成して置き換え（Immer不要の軽量更新）
+      const updatedNote: ActiveNote = {
+        ...note,
+        previousY,
+        y: newY
+      };
+      
+      this.activeNotes.set(noteId, updatedNote);
+    }
+  }
+
+  /**
+   * 🎯 判定・状態更新専用ループ（フレーム間引き実行）
+   * 重い処理（判定、状態変更、削除）のみ
+   */
+  private updateNoteLogic(currentTime: number): void {
+    const logicStartTime = performance.now();
+    const notesToDelete: string[] = [];
+    const activeNotesCount = this.activeNotes.size;
+    
     for (const [noteId, note] of this.activeNotes) {
       const isRecentNote = Math.abs(currentTime - note.time) < 2.0; // 判定時間の±2秒以内
       
@@ -453,23 +506,32 @@ export class GameEngine {
       }
       
       if (updatedNote.state === 'completed') {
+        // 削除対象としてマーク（ループ中の削除を避ける）
+        notesToDelete.push(noteId);
+        
         // 削除時に元ノートにフラグを設定
         const originalNote = this.notes.find(n => n.id === noteId);
         if (originalNote) {
           (originalNote as any)._wasProcessed = true;
         }
         
-        this.activeNotes.delete(noteId);
         if (isRecentNote) {
         }
       } else {
         this.activeNotes.set(noteId, updatedNote);
-        visibleNotes.push(updatedNote);
-        
       }
     }
     
-    return visibleNotes;
+    // バッチ削除（ループ後に実行）
+    for (const noteId of notesToDelete) {
+      this.activeNotes.delete(noteId);
+    }
+    
+    // パフォーマンス監視（条件付きログ）
+    const logicDuration = performance.now() - logicStartTime;
+    if (logicDuration > 8 || activeNotesCount > 50) { // 8ms超過または50ノーツ超過時のみ
+      perfLog.info(`🎯 GameEngine判定ループ: ${logicDuration.toFixed(2)}ms | Notes: ${activeNotesCount} | Deleted: ${notesToDelete.length}`);
+    }
   }
   
   private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
@@ -477,21 +539,10 @@ export class GameEngine {
     
     // 🛡️ Hit状態のノートは保護（他の判定で上書きしない）
     if (note.state === 'hit') {
-      // Hit状態のノーツは短時間後に削除（エフェクト表示のため）
-      if (note.hitTime && (currentTime - note.hitTime) > 0.3) {
-        devLog.debug(`✅ Hitノート削除: ${note.id} (エフェクト表示完了)`);
-        return { ...note, state: 'completed' };
-      }
-      
-      // Hit状態のノートは位置更新のみ実行（状態は変更しない）
-      const previousY = note.y;
-      const newY = this.calculateNoteY(note, currentTime);
-      
-      return {
-        ...note,
-        previousY,
-        y: newY
-      };
+      // 🚀 Hit状態のノーツは即座に削除（エフェクト表示はRenderer側で処理）
+      // 修正前: 0.3秒保留 → 修正後: 即座削除
+      devLog.debug(`✅ Hitノート即座削除: ${note.id}`);
+      return { ...note, state: 'completed' };
     }
     
     // *自動ヒットは checkHitLineCrossing で処理*

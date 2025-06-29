@@ -12,6 +12,7 @@ import {
   MdLoop,
   MdReplay
 } from 'react-icons/md';
+import FPSMonitor from '@/components/ui/FPSMonitor';
 
 /**
  * ゲームコントロールバーコンポーネント
@@ -203,7 +204,7 @@ const ControlBar: React.FC = () => {
       </div>
 
       {/* コントロールボタン - 1行レイアウト */}
-      <div className="controls-container p-4 flex flex-col sm:flex-row">
+      <div className="controls-container p-4 flex flex-col sm:flex-row justify-between items-center">
         <div className="flex justify-center items-center space-x-3 flex-wrap overflow-x-auto">
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
@@ -338,6 +339,11 @@ const ControlBar: React.FC = () => {
               </button>
             </>
           )}
+        </div>
+        
+        {/* 右側: FPSモニター */}
+        <div className="mt-2 sm:mt-0 flex items-center">
+          <FPSMonitor minimal={true} className="flex-shrink-0" />
         </div>
       </div>
     </div>
