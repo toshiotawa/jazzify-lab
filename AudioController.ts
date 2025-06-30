@@ -1,59 +1,29 @@
 /**
- * AudioController.ts - TypeScript版オーディオコントローラー
- * 音響入力処理、ピッチ検出、WASM統合を管理
+ * AudioController.ts - 高度なピッチ検出システム
+ * WASM統合、リアルタイム音響処理、HMMによる音符安定化を実装
  */
 
-import { platform } from '../../platform';
+import init, { 
+    analyze_pitch, 
+    alloc, 
+    free, 
+    get_memory,
+    init_pitch_detector,
+    get_ring_buffer_ptr,
+    get_ring_buffer_size,
+    process_audio_block
+} from './src/wasm/pitch_detector.js';
 
-// WASM関数の型定義
-interface WASMModule {
-  [key: string]: any;
-}
-
-declare global {
-  interface Window {
-    AudioContext: typeof AudioContext;
-    webkitAudioContext: typeof AudioContext;
-  }
-}
-
-// 基本インターフェース
-export interface AudioControllerOptions {
-  onNoteOn: (note: number) => void;
-  onNoteOff: (note: number) => void;
-  onConnectionChange?: (connected: boolean) => void;
-}
-
-export interface SpectralPeak {
-  frequency: number;
-  magnitude: number;
-  index: number;
-}
-
-export interface SpectralAnalysis {
-  peaks: SpectralPeak[];
-  centroid: number;
-  spread: number;
-  clarity: number;
-}
-
-export interface PitchResult {
-  frequency: number;
-  confidence: number;
-  observationProbs?: Float32Array;
-}
-
-export interface AudioDevice {
-  deviceId: string;
-  label: string;
-  kind: string;
-}
-
-export interface HMMState {
-  noteProbs: Float32Array;
-  prevStateProbs: Float32Array;
-  transitionMatrix: Float32Array;
-}
+import type { 
+  AudioControllerOptions, 
+  SpectralPeak, 
+  SpectralAnalysis, 
+  PitchResult,
+  PitchCandidate,
+  PitchHistory,
+  AudioProcessingSettings,
+  WASMModule
+} from './src/types';
 
 // WASM外部モジュール初期化
 let wasmMemory: WebAssembly.Memory | null = null;
@@ -61,7 +31,7 @@ let wasmInstance: any = null;
 
 // iOS検出ユーティリティ
 const isIOS = (): boolean => {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
 };
 
 /**
@@ -72,66 +42,65 @@ class HMMProcessor {
   private readonly minNote: number;
   private readonly maxNote: number;
   private readonly numStates: number;
-  private readonly stateProbs: Float32Array;
-  private readonly prevStateProbs: Float32Array;
+  private readonly currentStateProbs: Float32Array;
   private readonly transitionMatrix: Float32Array;
 
   constructor(minNote: number = 21, maxNote: number = 108) {
     this.minNote = minNote;
     this.maxNote = maxNote;
     this.numStates = maxNote - minNote + 1;
-    this.stateProbs = new Float32Array(this.numStates);
-    this.prevStateProbs = new Float32Array(this.numStates);
+    this.currentStateProbs = new Float32Array(this.numStates);
     this.transitionMatrix = new Float32Array(this.numStates * this.numStates);
     
+    // 初期化: 均等分布
+    this.currentStateProbs.fill(1 / this.numStates);
     this.calculateTransitionProbabilities();
   }
 
   private calculateTransitionProbabilities(): void {
-    // ピアノの演奏パターンに基づく遷移確率を計算
+    const sameNoteProb = 0.6;
+    const stepProb = 0.3;
+
     for (let i = 0; i < this.numStates; i++) {
-      for (let j = 0; j < this.numStates; j++) {
-        const semitones = Math.abs(i - j);
-        let probability: number;
-        
-        if (semitones === 0) {
-          probability = 0.7; // 同じノート継続の高い確率
-        } else if (semitones === 1) {
-          probability = 0.15; // 半音階移動
-        } else if (semitones <= 3) {
-          probability = 0.1; // 近接ノート
-        } else if (semitones === 12) {
-          probability = 0.03; // オクターブ跳躍
-        } else if (semitones <= 7) {
-          probability = 0.01; // 中距離跳躍
-        } else {
-          probability = 0.001; // 大きな跳躍（稀）
+      // 同一音維持
+      this.transitionMatrix[i * this.numStates + i] = sameNoteProb;
+      
+      // 半音～2全音程度の移動
+      for (let j = Math.max(0, i-4); j <= Math.min(this.numStates-1, i+4); j++) {
+        if (j !== i) {
+          this.transitionMatrix[i * this.numStates + j] = stepProb / 8;
         }
-        
-        this.transitionMatrix[i * this.numStates + j] = probability;
+      }
+      
+      // 大きな跳躍
+      const remainingProb = 1 - (sameNoteProb + stepProb);
+      const largeJumpNotes = this.numStates - 9;
+      if (largeJumpNotes > 0) {
+        for (let j = 0; j < this.numStates; j++) {
+          if (Math.abs(i - j) > 4) {
+            this.transitionMatrix[i * this.numStates + j] += remainingProb / largeJumpNotes;
+          }
+        }
       }
     }
   }
 
   public update(observations: Float32Array): void {
-    // Viterbiアルゴリズムによる最尤状態推定
-    this.prevStateProbs.set(this.stateProbs);
+    const newProbs = new Float32Array(this.numStates);
     
     for (let j = 0; j < this.numStates; j++) {
-      let maxProb = 0;
+      let sum = 0;
       for (let i = 0; i < this.numStates; i++) {
-        const transitionProb = this.transitionMatrix[i * this.numStates + j];
-        const prob = this.prevStateProbs[i] * transitionProb * observations[j];
-        maxProb = Math.max(maxProb, prob);
+        sum += this.currentStateProbs[i] * this.transitionMatrix[i * this.numStates + j];
       }
-      this.stateProbs[j] = maxProb;
+      newProbs[j] = sum * observations[j];
     }
     
     // 正規化
-    const sum = this.stateProbs.reduce((acc, val) => acc + val, 0);
-    if (sum > 0) {
+    const total = newProbs.reduce((a, b) => a + b, 0);
+    if (total > 0) {
       for (let i = 0; i < this.numStates; i++) {
-        this.stateProbs[i] /= sum;
+        this.currentStateProbs[i] = newProbs[i] / total;
       }
     }
   }
@@ -141,8 +110,8 @@ class HMMProcessor {
     let bestNote = -1;
     
     for (let i = 0; i < this.numStates; i++) {
-      if (this.stateProbs[i] > maxProb) {
-        maxProb = this.stateProbs[i];
+      if (this.currentStateProbs[i] > maxProb) {
+        maxProb = this.currentStateProbs[i];
         bestNote = this.minNote + i;
       }
     }
@@ -157,7 +126,7 @@ class HMMProcessor {
  */
 export class AudioController {
   // コールバック関数
-  private readonly onNoteOn: (note: number) => void;
+  private readonly onNoteOn: (note: number, velocity?: number) => void;
   private readonly onNoteOff: (note: number) => void;
   private onConnectionChange: ((connected: boolean) => void) | null = null;
 
@@ -177,36 +146,19 @@ export class AudioController {
   private isProcessing: boolean = false;
   private pauseProcessing: boolean = false;
   private readonly isIOSDevice: boolean;
+  private activeNote: number | null = null;
 
   // オーディオパラメータ
   private sampleRate: number | null = null;
-  private readonly bufferSize: number = 512;
-  private readonly lowFreqBufferSize: number = 1024;
-  private readonly minFrequency: number = 27.5;
-  private readonly maxFrequency: number = 4186.01;
-
-  // 検出閾値
-  private readonly amplitudeThreshold: number = 0.1;
-  private readonly consecutiveFramesThreshold: number = 1;
-  private readonly noteOnThreshold: number = 0.05;
-  private readonly noteOffThreshold: number = 0.03;
-  private readonly maxAllowedPitchChange: number = 1.5;
-  private readonly lowFrequencyThreshold: number = 200.0;
-  private readonly lowFrequencyAmplitudeThreshold: number = 0.08;
-  private readonly veryLowFreqThreshold: number = 100.0;
-  private readonly pyinThreshold: number = 0.1;
-  private readonly silenceThreshold: number = 0.01;
-
-  // アダプティブバッファリング
-  private readonly adaptiveBuffering: boolean = true;
+  private readonly processingSettings: AudioProcessingSettings;
 
   // バッファ管理
   private readonly samples: Float32Array;
   private readonly lowFreqSamples: Float32Array;
   private accumulatedSamples: Float32Array = new Float32Array(0);
-  private readonly pitchHistory: Array<{ note: number; confidence: number }> = [];
+  private readonly pitchHistory: PitchHistory[] = [];
   private readonly pitchHistorySize: number = 3;
-  private readonly pitchProbabilityBuffer: Float32Array[] = [];
+  private pitchProbabilityBuffer: Float32Array[] = [];
 
   // ノート状態
   private lastDetectedNote: number = -1;
@@ -216,7 +168,6 @@ export class AudioController {
   private lastNoteOnTime: number = 0;
   private lastDetectedFrequency: number = 0;
   private isNoteOn: boolean = false;
-  private activeNote: number | null = null;
   private lastPitchConfidence: number = 0.0;
 
   // WASM統合
@@ -228,6 +179,12 @@ export class AudioController {
   private readonly noteFrequencies = new Map<number, number>();
   private readonly hmmProcessor: HMMProcessor;
 
+  // キーハイライトコールバック（MIDIController統合用）
+  private keyHighlightCallback: ((note: number, active: boolean) => void) | null = null;
+  
+  // PIXIレンダラーエフェクト用コールバック（GameEngine統合用）
+  private keyPressEffectCallback: ((note: number) => void) | null = null;
+
   constructor(options: AudioControllerOptions) {
     console.log('[AudioController] Constructor called');
     
@@ -235,9 +192,28 @@ export class AudioController {
     this.onNoteOff = options.onNoteOff;
     this.onConnectionChange = options.onConnectionChange || null;
 
+    // 処理設定の初期化
+    this.processingSettings = {
+      bufferSize: 512,
+      lowFreqBufferSize: 1024,
+      minFrequency: 27.5,
+      maxFrequency: 4186.01,
+      amplitudeThreshold: 0.1,
+      consecutiveFramesThreshold: 1,
+      noteOnThreshold: 0.05,
+      noteOffThreshold: 0.03,
+      maxAllowedPitchChange: 1.5,
+      lowFrequencyThreshold: 200.0,
+      lowFrequencyAmplitudeThreshold: 0.08,
+      veryLowFreqThreshold: 100.0,
+      pyinThreshold: 0.1,
+      silenceThreshold: 0.01,
+      adaptiveBuffering: true,
+    };
+
     // バッファ初期化
-    this.samples = new Float32Array(this.bufferSize);
-    this.lowFreqSamples = new Float32Array(this.lowFreqBufferSize);
+    this.samples = new Float32Array(this.processingSettings.bufferSize);
+    this.lowFreqSamples = new Float32Array(this.processingSettings.lowFreqBufferSize);
 
     // プラットフォーム検出
     this.isIOSDevice = isIOS();
@@ -248,7 +224,6 @@ export class AudioController {
     // システム初期化
     this.initializeNoteFrequencies();
     this.hmmProcessor = new HMMProcessor();
-    this.addDebugDisplay();
     
     // WASM初期化を非同期で実行
     this.initializeWASM().catch((error) => {
@@ -261,12 +236,9 @@ export class AudioController {
    */
   private async initializeWASM(): Promise<void> {
     try {
-      // 動的インポートでWASMモジュールをロード
-      const wasmModule = await import('../../wasm/pitch_detector.js');
-      
       console.log("WASM モジュールの初期化を開始");
-      wasmInstance = await wasmModule.default();
-      wasmMemory = wasmInstance.get_memory();
+      wasmInstance = await init();
+      wasmMemory = get_memory();
       console.log("WASM モジュールが初期化されました");
     } catch (error) {
       console.error('WASM initialization failed:', error);
@@ -282,33 +254,6 @@ export class AudioController {
       const frequency = 440 * Math.pow(2, (i - 69) / 12);
       this.noteFrequencies.set(i, frequency);
     }
-  }
-
-  /**
-   * デバッグ表示の追加
-   */
-  private addDebugDisplay(): void {
-    // デバッグ情報の表示エリアを作成
-    const debugElement = platform.createElement('div');
-    debugElement.id = 'audio-debug-info';
-    debugElement.style.position = 'fixed';
-    debugElement.style.top = '10px';
-    debugElement.style.right = '10px';
-    debugElement.style.backgroundColor = 'rgba(0,0,0,0.8)';
-    debugElement.style.color = 'white';
-    debugElement.style.padding = '10px';
-    debugElement.style.borderRadius = '5px';
-    debugElement.style.fontSize = '12px';
-    debugElement.style.fontFamily = 'monospace';
-    debugElement.style.zIndex = '9999';
-    debugElement.style.display = 'none';
-    
-    const body = platform.getDocument().body;
-    body.appendChild(debugElement);
-  }
-
-  public setConnectionChangeCallback(callback: (connected: boolean) => void): void {
-    this.onConnectionChange = callback;
   }
 
   /**
@@ -356,31 +301,70 @@ export class AudioController {
         return false;
       }
 
-      // AudioContextの作成
-      if (!this.audioContext) {
-        console.log('新しいAudioContextを作成します');
-        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        this.sampleRate = this.audioContext.sampleRate;
-        console.log('[AudioController] New AudioContext created. State:', this.audioContext.state, 'Sample Rate:', this.sampleRate);
+      // AudioContextの作成または再利用
+      let needNewContext = true;
+      if (this.isIOSDevice && this.audioContext) {
+        if (this.audioContext.state === 'suspended') {
+          try {
+            console.log('iOS: 既存のAudioContextを再開します');
+            await this.audioContext.resume();
+            needNewContext = false;
+          } catch (e) {
+            console.warn('既存のAudioContextの再開に失敗しました:', e);
+            needNewContext = true;
+          }
+        } else if (this.audioContext.state === 'running') {
+          console.log('iOS: 既存のAudioContextは既に実行中です');
+          needNewContext = false;
+        }
       }
 
-      // オーディオソースの作成と処理開始
+      if (needNewContext || !this.audioContext) {
+        if (this.audioContext && !this.isIOSDevice) {
+          console.log('既存のAudioContextを閉じます');
+          await this.audioContext.close();
+        }
+        console.log('新しいAudioContextを作成します');
+        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        this.sampleRate = this.audioContext.sampleRate;
+        console.log('[AudioController] New AudioContext created. State:', this.audioContext.state, 'Sample Rate:', this.sampleRate);
+      } else {
+        this.sampleRate = this.audioContext.sampleRate;
+        console.log('[AudioController] Using existing AudioContext. State:', this.audioContext.state, 'Sample Rate:', this.sampleRate);
+      }
+
+      // オーディオソースの作成
       const source = this.audioContext.createMediaStreamSource(this.mediaStream);
       console.log('MediaStreamSourceを作成しました');
 
-      // 基本的な音声処理の設定
-      this.setupBasicAudioProcessing(source);
+      // ブラウザに応じた処理を選択
+      if (window.AudioWorkletNode) {
+        console.log('AudioWorkletを使用します');
+        await this.setupAudioWorklet(source);
+      } else {
+        console.log('ScriptProcessorNodeを使用します');
+        this.createScriptProcessorFallback(source);
+      }
 
       // 現在のデバイスIDを記録
       const tracks = this.mediaStream.getAudioTracks();
       if (tracks.length > 0) {
         const settings = tracks[0].getSettings();
         this.currentDeviceId = settings.deviceId || deviceId;
+        
+        // すべてのオーディオデバイス選択リストを同期
+        document.querySelectorAll('.audio-devices').forEach(select => {
+          (select as HTMLSelectElement).value = this.currentDeviceId || '';
+        });
+        console.log('デバイスセレクトボックスを同期しました');
       }
 
       this.notifyConnectionChange(true);
       this.hideError();
       console.log('オーディオデバイス接続完了:', deviceId);
+      
+      // デバイスリストを更新
+      await this.updateDeviceList();
       
       return true;
     } catch (error) {
@@ -391,14 +375,119 @@ export class AudioController {
   }
 
   /**
-   * 基本的な音声処理の設定
+   * AudioWorkletの設定
    */
-  private setupBasicAudioProcessing(source: MediaStreamAudioSourceNode): void {
-    if (!this.audioContext) return;
+  private async setupAudioWorklet(source: MediaStreamAudioSourceNode): Promise<void> {
+    try {
+      console.log('Setting up AudioWorklet, sample rate:', this.audioContext!.sampleRate);
+      
+      // Wait for WASM to be ready
+      if (!wasmMemory) {
+        console.log('Waiting for WASM to initialize...');
+        await new Promise<void>(resolve => {
+          const checkWasm = () => {
+            if (wasmMemory) {
+              resolve();
+            } else {
+              setTimeout(checkWasm, 10);
+            }
+          };
+          checkWasm();
+        });
+      }
+      
+      // Initialize WASM pitch detector with sample rate
+      console.log('Initializing WASM pitch detector');
+      init_pitch_detector(this.audioContext!.sampleRate);
+      
+      await this.audioContext!.audioWorklet.addModule('/js/audio/audio-worklet-processor.js');
+      this.workletNode = new AudioWorkletNode(this.audioContext!, 'audio-processor');
+      
+      // Get ring buffer pointer and size from WASM
+      const ringBufferPtr = get_ring_buffer_ptr();
+      const ringSize = get_ring_buffer_size();
+      
+      console.log('Ring buffer ptr:', ringBufferPtr, 'size:', ringSize);
+      
+      // Store reference for WorkletNode to access WASM memory
+      this.ringBufferPtr = ringBufferPtr;
+      this.ringSize = ringSize;
+      this.writeIndex = 0;
+      
+      // Initialize AudioWorklet with ring buffer info (without memory object)
+      this.workletNode.port.postMessage({
+        type: 'init',
+        ptr: ringBufferPtr,
+        ringSize: ringSize
+      });
+      
+      this.workletNode.port.onmessage = (e) => {
+        console.log('Received message from AudioWorklet:', e.data.type);
+        if (e.data.type === 'samples') {
+          // Process samples with new low-latency method
+          this.processLowLatencySamples(e.data.samples);
+        } else if (e.data.samples) {
+          // Fallback to old method if needed
+          console.log('Using fallback processAudioData');
+          this.processAudioData(e.data.samples);
+        } else {
+          console.log('Unknown message type:', e.data);
+        }
+      };
+      
+      source.connect(this.workletNode);
+      this.workletNode.connect(this.audioContext!.destination);
+      this.isProcessing = true;
+      console.log('AudioWorkletNode設定完了 (リングバッファモード)');
+    } catch (workletError) {
+      console.warn('AudioWorklet初期化エラー、ScriptProcessorにフォールバック:', workletError);
+      this.createScriptProcessorFallback(source);
+    }
+  }
 
-    // ScriptProcessorを使用した基本的な処理
+  /**
+   * ScriptProcessorフォールバック
+   */
+  private createScriptProcessorFallback(source: MediaStreamAudioSourceNode): void {
+    // audioContextがnullの場合は再作成
+    if (!this.audioContext) {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      this.audioContext = new AudioContextClass();
+      
+      if (this.audioContext.state !== 'running') {
+        this.audioContext.resume();
+      }
+      
+      this.sampleRate = this.audioContext.sampleRate;
+      // sourceも再作成が必要
+      if (this.mediaStream) {
+        source = this.audioContext.createMediaStreamSource(this.mediaStream);
+      } else {
+        console.error('メディアストリームが存在しません');
+        throw new Error('メディアストリームが利用できません');
+      }
+    }
+
+    // 一部のブラウザではcreateScriptProcessorが非推奨または利用不可
+    if (typeof this.audioContext.createScriptProcessor !== 'function') {
+      console.warn('ScriptProcessorNodeがサポートされていません。AnalyserNodeフォールバックを使用します');
+      // AnalyserNodeを使ったフォールバック
+      this.analyserNode = this.audioContext.createAnalyser();
+      this.analyserNode.fftSize = this.processingSettings.bufferSize * 2;
+      source.connect(this.analyserNode);
+      
+      // データ取得用のタイマーを設定
+      this.analyserTimer = window.setInterval(() => {
+        const dataArray = new Float32Array(this.processingSettings.bufferSize);
+        this.analyserNode!.getFloatTimeDomainData(dataArray);
+        this.processAudioData(dataArray);
+      }, 100); // 100msごとに処理
+      
+      return;
+    }
+
     this.scriptNode = this.audioContext.createScriptProcessor(
-      this.bufferSize,
+      this.processingSettings.bufferSize,
       1,
       1
     );
@@ -408,100 +497,716 @@ export class AudioController {
     };
     source.connect(this.scriptNode);
     this.scriptNode.connect(this.audioContext.destination);
-    this.isProcessing = true;
-    console.log('基本音声処理設定完了');
+    console.log('ScriptProcessorNode設定完了');
   }
 
   /**
-   * オーディオデータの処理
+   * 低遅延サンプル処理（WASM統合）
+   */
+  private processLowLatencySamples(samples: Float32Array): void {
+    if (this.pauseProcessing) {
+      return;
+    }
+    
+    if (!wasmMemory || !wasmInstance) {
+      this.processAudioData(samples);
+      return;
+    }
+    
+    if (!this.ringBufferPtr || !this.ringSize) {
+      this.processAudioData(samples);
+      return;
+    }
+    
+    const currentMemory = get_memory();
+    const requiredBytes = this.ringBufferPtr + (this.ringSize * 4);
+    if (requiredBytes > currentMemory.buffer.byteLength) {
+      console.error('Ring buffer pointer out of bounds!');
+      this.processAudioData(samples);
+      return;
+    }
+    
+    const ringBuffer = new Float32Array(currentMemory.buffer, this.ringBufferPtr, this.ringSize);
+    
+    // サンプルをリングバッファにコピー
+    for (let i = 0; i < samples.length; i++) {
+      ringBuffer[this.writeIndex] = samples[i];
+      this.writeIndex = (this.writeIndex + 1) % this.ringSize;
+    }
+    
+    // 32サンプルごとに処理（超低遅延）
+    if ((this.writeIndex & 0x1F) === 0) {
+      const frequency = process_audio_block(this.writeIndex);
+      
+      if (frequency > 0 && frequency >= this.processingSettings.minFrequency && frequency <= this.processingSettings.maxFrequency) {
+        this.handleDetectedPitch(frequency);
+      } else {
+        this.handleNoPitch();
+      }
+    }
+  }
+
+  /**
+   * 基本音声データ処理
    */
   private processAudioData(inputData: Float32Array): void {
     if (!this.isProcessing) return;
 
-    // 最大振幅を計算
-    const maxAmplitude = this.calculateMaxAmplitude(inputData);
+    // 累積バッファに今回のサンプルを追加
+    if (!this.accumulatedSamples) {
+      this.accumulatedSamples = new Float32Array(0);
+    }
+    const newBuffer = new Float32Array(this.accumulatedSamples.length + inputData.length);
+    newBuffer.set(this.accumulatedSamples);
+    newBuffer.set(inputData, this.accumulatedSamples.length);
+    this.accumulatedSamples = newBuffer;
+
+    // 累積サンプル数が bufferSize 以上になったらブロック毎に処理
+    while (this.accumulatedSamples.length >= this.processingSettings.bufferSize) {
+      // 先頭 bufferSize サンプルを切り出す
+      const block = this.accumulatedSamples.subarray(0, this.processingSettings.bufferSize);
+      this.processBlock(block);
+
+      // プロセス済みのサンプルを除去
+      const remaining = new Float32Array(this.accumulatedSamples.length - this.processingSettings.bufferSize);
+      remaining.set(this.accumulatedSamples.subarray(this.processingSettings.bufferSize));
+      this.accumulatedSamples = remaining;
+    }
+    
+    // Adaptive buffering for low frequencies
+    if (this.processingSettings.adaptiveBuffering && this.accumulatedSamples.length >= this.processingSettings.lowFreqBufferSize) {
+      // Check if we might be dealing with low frequencies
+      const preliminaryBlock = this.accumulatedSamples.subarray(0, this.processingSettings.bufferSize);
+      const maxAmplitude = this.calculateMaxAmplitude(preliminaryBlock);
+      
+      if (maxAmplitude > this.processingSettings.noteOnThreshold) {
+        // Perform a quick spectral analysis to check if low frequency content is present
+        const spectral = this.analyzeSpectralContent(preliminaryBlock);
+        if (spectral.centroid < this.processingSettings.veryLowFreqThreshold) {
+          // Use larger buffer for low frequency detection
+          const largeBlock = this.accumulatedSamples.subarray(0, this.processingSettings.lowFreqBufferSize);
+          this.processLowFreqBlock(largeBlock);
+          
+          // Remove processed samples
+          const remaining = new Float32Array(this.accumulatedSamples.length - this.processingSettings.lowFreqBufferSize);
+          remaining.set(this.accumulatedSamples.subarray(this.processingSettings.lowFreqBufferSize));
+          this.accumulatedSamples = remaining;
+        }
+      }
+    }
+  }
+
+  private processLowFreqBlock(block: Float32Array): void {
+    // Process low frequency content with larger buffer
+    this.lowFreqSamples.set(block);
+    
+    // Calculate maximum amplitude
+    const maxAmplitude = this.calculateMaxAmplitude(this.lowFreqSamples);
+    
+    // Update note state
+    this.updateNoteState(maxAmplitude);
+    
+    if (!this.isNoteOn) {
+      this.resetDetection();
+      return;
+    }
+    
+    // Analyze with larger buffer for better low frequency resolution
+    const spectral = this.analyzeSpectralContent(this.lowFreqSamples);
+    const pitchResult = this.analyzePitchLowFreq(this.lowFreqSamples, spectral);
+    const frequency = pitchResult.frequency;
+    const confidence = pitchResult.confidence;
+    const observationProbs = pitchResult.observationProbs;
+    
+    // Record confidence
+    this.lastPitchConfidence = confidence;
+    
+    this.processDetectedFrequency(frequency, observationProbs, confidence);
+  }
+
+  private processBlock(block: Float32Array): void {
+    // このブロックはthis.bufferSize の長さになっている前提
+    this.samples.set(block);
+
+    // 最大振幅を計算（最適化コードはそのまま）
+    let maxAmplitude = 0;
+    let i = 0;
+    const bufferSize = this.processingSettings.bufferSize;
+    for (; i < bufferSize - 3; i += 4) {
+      maxAmplitude = Math.max(maxAmplitude, 
+        Math.max(
+          Math.max(Math.abs(this.samples[i]), Math.abs(this.samples[i + 1])),
+          Math.max(Math.abs(this.samples[i + 2]), Math.abs(this.samples[i + 3]))
+        )
+      );
+    }
+    for (; i < bufferSize; i++) {
+      maxAmplitude = Math.max(maxAmplitude, Math.abs(this.samples[i]));
+    }
     
     // ノートの状態を更新
     this.updateNoteState(maxAmplitude);
 
-    if (this.isNoteOn) {
-      // 基本的なピッチ検出（将来的により高度なアルゴリズムに置き換え）
-      const frequency = this.detectBasicPitch(inputData);
-      if (frequency > 0) {
-        const note = this.getClosestNote(frequency);
-        if (note !== this.currentNote) {
-          if (this.currentNote !== -1) {
-            this.onNoteOff(this.currentNote);
-          }
-          this.currentNote = note;
-          this.onNoteOn(note);
+    if (!this.isNoteOn) {
+      this.resetDetection();
+      return;
+    }
+
+    // PYINアルゴリズムで周波数を検出
+    const spectral = this.analyzeSpectralContent(this.samples);
+    const pitchResult = this.analyzePitch(this.samples, spectral);
+    const frequency = pitchResult.frequency;
+    const confidence = pitchResult.confidence;
+    const observationProbs = pitchResult.observationProbs;
+    
+    // 信頼度の記録（デバッグ用）
+    this.lastPitchConfidence = confidence;
+    
+    this.processDetectedFrequency(frequency, observationProbs, confidence);
+  }
+
+  private processDetectedFrequency(frequency: number, observationProbs?: Float32Array, confidence?: number): void {
+    // PYIN の検出結果が信頼性が低い場合、spectral 分析を補完として使用
+    if (frequency <= 0 || (confidence !== undefined && confidence < 0.4)) {
+      const spectral = this.analyzeSpectralContent(this.samples);
+      if (spectral.peaks.length > 0) {
+        frequency = spectral.peaks[0].frequency;
+        // スペクトル分析の信頼度を補正
+        confidence = Math.min(0.7, spectral.clarity);
+      } else {
+        this.resetDetection();
+        return;
+      }
+    }
+    
+    const currentTime = performance.now() / 1000;
+    // 無音時の誤検出を防ぐため、計測された最大振幅が silenceThreshold 未満なら処理をスキップ
+    const currentMaxAmplitude = this.calculateMaxAmplitude(this.samples);
+    if (currentMaxAmplitude < this.processingSettings.silenceThreshold) {
+      this.resetDetection();
+      return;
+    }
+
+    // PYIN と spectral から候補となるノート番号を取得
+    const pyinCandidate = this.getClosestNote(frequency);
+    const spectralData = this.analyzeSpectralContent(this.samples);
+    const spectralCandidate = spectralData.peaks.length > 0
+      ? this.getClosestNote(spectralData.peaks[0].frequency)
+      : pyinCandidate;
+    
+    // より信頼性の高い情報を使用
+    let candidate: number;
+    if (confidence !== undefined && confidence > 0.7) {
+      // PYIN の信頼度が高い場合はその結果を優先
+      candidate = pyinCandidate;
+    } else {
+      // スペクトル解析との比較で決定
+      candidate = Math.abs(frequency - this.noteFrequencies.get(pyinCandidate)!) < 
+                 Math.abs(spectralData.peaks[0]?.frequency - this.noteFrequencies.get(spectralCandidate)!) 
+                 ? pyinCandidate : spectralCandidate;
+    }
+
+    // HMM による安定化処理
+    if (observationProbs) {
+      this.hmmProcessor.update(observationProbs);
+      const hmmNote = this.hmmProcessor.getMostProbableNote();
+      candidate = this.resolveNoteConflict(hmmNote, candidate);
+    }
+
+    // ピッチ履歴に追加
+    this.updatePitchHistory(candidate, confidence || 0.5);
+
+    // 安定したピッチを取得
+    const stableNote = this.getStableNote();
+    if (stableNote !== -1) {
+      this.handleDetectedPitch(this.noteFrequencies.get(stableNote)!);
+    }
+  }
+
+  /**
+   * 検出されたピッチを処理
+   */
+  private handleDetectedPitch(frequency: number): void {
+    if (this.isSeekingOrLooping()) {
+      return;
+    }
+
+    const detectedNote = this.getClosestNote(frequency);
+    const currentTime = performance.now() / 1000;
+
+    // 前回と同じノートかチェック
+    if (detectedNote === this.lastDetectedNote) {
+      this.consecutiveFrames++;
+    } else {
+      // 新しいノートを検出
+      if (this.activeNote !== null && this.activeNote !== detectedNote) {
+        // 前のノートをoff
+        this.onNoteOff(this.activeNote);
+      }
+      
+      this.lastDetectedNote = detectedNote;
+      this.consecutiveFrames = 1;
+    }
+
+    // 閾値を超えたらノートオン
+    if (this.consecutiveFrames >= this.processingSettings.consecutiveFramesThreshold) {
+      if (this.activeNote !== detectedNote) {
+        // 前のノートがある場合はハイライト解除
+        if (this.activeNote !== null && this.keyHighlightCallback) {
+          this.keyHighlightCallback(this.activeNote, false);
+        }
+        
+        this.activeNote = detectedNote;
+        this.onNoteOn(detectedNote, 80); // デフォルトベロシティ
+        this.lastNoteOnTime = currentTime;
+        
+        // 新しいノートのハイライト
+        if (this.keyHighlightCallback) {
+          this.keyHighlightCallback(detectedNote, true);
+        }
+        
+        // キープレスエフェクト発火
+        if (this.keyPressEffectCallback) {
+          this.keyPressEffectCallback(detectedNote);
         }
       }
-    } else if (this.currentNote !== -1) {
-      this.onNoteOff(this.currentNote);
-      this.currentNote = -1;
     }
+
+    this.lastDetectedFrequency = frequency;
   }
 
   /**
-   * 最大振幅の計算
+   * ピッチが検出されなかった場合の処理
+   */
+  private handleNoPitch(): void {
+    this.consecutiveFrames = 0;
+    
+    const currentTime = performance.now() / 1000;
+    
+    // 一定時間後にノートオフ
+    if (this.activeNote !== null && (currentTime - this.lastNoteOnTime) > 0.1) {
+      this.onNoteOff(this.activeNote);
+      
+      // ハイライト解除
+      if (this.keyHighlightCallback) {
+        this.keyHighlightCallback(this.activeNote, false);
+      }
+      
+      this.activeNote = null;
+    }
+    
+    this.resetDetection();
+  }
+
+  /**
+   * 周波数からMIDIノート番号を取得
+   */
+  private getClosestNote(frequency: number): number {
+    if (frequency <= 0) return -1;
+    
+    // 12平均律でMIDIノート番号を計算
+    const noteNumber = Math.round(69 + 12 * Math.log2(frequency / 440));
+    
+    // 有効範囲（A0-C8: 21-108）内かチェック
+    if (noteNumber < 21 || noteNumber > 108) {
+      return -1;
+    }
+    
+    return noteNumber;
+  }
+
+  /**
+   * 最大振幅を計算
    */
   private calculateMaxAmplitude(samples: Float32Array): number {
-    let max = 0;
+    let maxAmplitude = 0;
     for (let i = 0; i < samples.length; i++) {
-      max = Math.max(max, Math.abs(samples[i]));
+      maxAmplitude = Math.max(maxAmplitude, Math.abs(samples[i]));
     }
-    return max;
+    return maxAmplitude;
   }
 
   /**
-   * ノート状態の更新
+   * ノート状態を更新
    */
   private updateNoteState(amplitude: number): void {
-    if (amplitude > this.noteOnThreshold) {
+    if (amplitude > this.processingSettings.noteOnThreshold) {
       this.isNoteOn = true;
-    } else if (amplitude < this.noteOffThreshold) {
+    } else if (amplitude < this.processingSettings.noteOffThreshold) {
       this.isNoteOn = false;
     }
   }
 
   /**
-   * 基本的なピッチ検出（自己相関関数）
+   * 検出をリセット
    */
-  private detectBasicPitch(samples: Float32Array): number {
-    if (!this.sampleRate) return 0;
-    
-    const minPeriod = Math.floor(this.sampleRate / this.maxFrequency);
-    const maxPeriod = Math.floor(this.sampleRate / this.minFrequency);
-    
-    let bestPeriod = 0;
-    let bestCorrelation = 0;
-    
-    for (let period = minPeriod; period <= maxPeriod; period++) {
-      let correlation = 0;
-      for (let i = 0; i < samples.length - period; i++) {
-        correlation += samples[i] * samples[i + period];
-      }
-      
-      if (correlation > bestCorrelation) {
-        bestCorrelation = correlation;
-        bestPeriod = period;
-      }
-    }
-    
-    return bestPeriod > 0 ? this.sampleRate / bestPeriod : 0;
+  private resetDetection(): void {
+    this.lastDetectedNote = -1;
+    this.consecutiveFrames = 0;
+    this.lastDetectedFrequency = 0;
   }
 
   /**
-   * 周波数からMIDIノート番号への変換
+   * シークやループ中かチェック
    */
-  private getClosestNote(frequency: number): number {
-    // A4 = 440Hz = MIDIノート69
-    return Math.round(69 + 12 * Math.log2(frequency / 440));
+  private isSeekingOrLooping(): boolean {
+    // gameInstanceへの参照が必要な場合は外部から提供される想定
+    return false;
   }
-  
+
   /**
-   * オーディオ接続状態の通知
+   * ピッチ履歴を更新
+   */
+  private updatePitchHistory(note: number, confidence: number): void {
+    const timestamp = performance.now() / 1000;
+    
+    this.pitchHistory.push({
+      note,
+      confidence,
+      timestamp
+    });
+    
+    // 履歴サイズを制限
+    if (this.pitchHistory.length > this.pitchHistorySize) {
+      this.pitchHistory.shift();
+    }
+  }
+
+  /**
+   * 安定したピッチを取得
+   */
+  private getStableNote(): number {
+    if (this.pitchHistory.length < this.pitchHistorySize) {
+      return -1;
+    }
+
+    // 最新の履歴から最も多く出現するノートを取得
+    const noteCounts = new Map<number, number>();
+    let totalConfidence = 0;
+
+    for (const history of this.pitchHistory) {
+      const count = noteCounts.get(history.note) || 0;
+      noteCounts.set(history.note, count + 1);
+      totalConfidence += history.confidence;
+    }
+
+    // 平均信頼度が閾値を下回る場合は安定していない
+    const avgConfidence = totalConfidence / this.pitchHistory.length;
+    if (avgConfidence < 0.6) {
+      return -1;
+    }
+
+    // 最も多く出現するノートを返す
+    let maxCount = 0;
+    let stableNote = -1;
+
+    for (const [note, count] of noteCounts) {
+      if (count > maxCount) {
+        maxCount = count;
+        stableNote = note;
+      }
+    }
+
+    // 過半数を超える必要がある
+    return maxCount > this.pitchHistorySize / 2 ? stableNote : -1;
+  }
+
+  /**
+   * HMMと現在の候補の競合を解決
+   */
+  private resolveNoteConflict(hmmNote: number, currentCandidate: number): number {
+    // HMMの信頼度が高い場合はHMMを優先
+    if (Math.abs(hmmNote - currentCandidate) <= 2) {
+      return hmmNote;
+    }
+    
+    // 大きく異なる場合は現在の候補を優先
+    return currentCandidate;
+  }
+
+  /**
+   * スペクトル分析
+   */
+  private analyzeSpectralContent(samples: Float32Array): SpectralAnalysis {
+    // FFT計算
+    const fftSize = Math.min(samples.length, 2048);
+    const fftBuffer = new Float32Array(fftSize);
+    fftBuffer.set(samples.subarray(0, fftSize));
+    
+    // ウィンドウ関数（Hanning window）適用
+    for (let i = 0; i < fftSize; i++) {
+      const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / (fftSize - 1)));
+      fftBuffer[i] *= window;
+    }
+
+    const magnitudes = this.computeFFTMagnitude(fftBuffer);
+    const peaks = this.findSpectralPeaks(magnitudes);
+    const centroid = this.calculateSpectralCentroid(peaks);
+    const spread = this.calculateSpectralSpread(peaks, centroid);
+
+    // クラリティ（明瞭度）計算
+    const clarity = peaks.length > 0 ? peaks[0].magnitude / (magnitudes.reduce((a, b) => a + b, 0) / magnitudes.length) : 0;
+
+    return {
+      peaks,
+      centroid,
+      spread,
+      clarity: Math.min(1.0, clarity)
+    };
+  }
+
+  /**
+   * PYIN ピッチ分析
+   */
+  private analyzePitch(samples: Float32Array, spectral: SpectralAnalysis): PitchResult {
+    if (!wasmMemory || !this.sampleRate) {
+      return this.fallbackPitchDetection(samples, spectral);
+    }
+
+    try {
+      // WASM メモリにサンプルをコピー
+      const ptr = alloc(samples.length * 4);
+      const wasmBuffer = new Float32Array(wasmMemory.buffer, ptr, samples.length);
+      wasmBuffer.set(samples);
+
+      // WASM ピッチ分析実行
+      const frequency = analyze_pitch(ptr, samples.length, this.sampleRate, this.processingSettings.pyinThreshold);
+      
+      // メモリ解放
+      free(ptr, samples.length * 4);
+
+      const confidence = this.calculatePYINConfidence(samples, frequency);
+      
+      return {
+        frequency,
+        confidence,
+        observationProbs: this.calculateObservationProbs(spectral.peaks)
+      };
+    } catch (error) {
+      console.warn('WASM pitch analysis failed, using fallback:', error);
+      return this.fallbackPitchDetection(samples, spectral);
+    }
+  }
+
+  /**
+   * 低周波数用ピッチ分析
+   */
+  private analyzePitchLowFreq(samples: Float32Array, spectral: SpectralAnalysis): PitchResult {
+    // より大きなバッファでより精密な分析
+    const extendedSpectral = this.analyzeSpectralContent(samples);
+    return this.analyzePitch(samples, extendedSpectral);
+  }
+
+  /**
+   * フォールバック ピッチ検出
+   */
+  private fallbackPitchDetection(samples: Float32Array, spectral: SpectralAnalysis): PitchResult {
+    if (spectral.peaks.length === 0) {
+      return { frequency: 0, confidence: 0 };
+    }
+
+    // 最大ピークを基準とする
+    const dominantPeak = spectral.peaks[0];
+    const confidence = Math.min(1.0, spectral.clarity * 0.8);
+
+    return {
+      frequency: dominantPeak.frequency,
+      confidence,
+      observationProbs: this.calculateObservationProbs(spectral.peaks)
+    };
+  }
+
+  /**
+   * 観測確率計算
+   */
+  private calculateObservationProbs(peaks: SpectralPeak[]): Float32Array {
+    const numStates = 88; // 88鍵盤
+    const probs = new Float32Array(numStates);
+    
+    for (const peak of peaks) {
+      const noteIndex = this.getClosestNote(peak.frequency) - 21; // A0 = 21
+      if (noteIndex >= 0 && noteIndex < numStates) {
+        probs[noteIndex] += peak.magnitude;
+      }
+    }
+    
+    // 正規化
+    const total = probs.reduce((a, b) => a + b, 0);
+    if (total > 0) {
+      for (let i = 0; i < numStates; i++) {
+        probs[i] /= total;
+      }
+    }
+    
+    return probs;
+  }
+
+  /**
+   * FFT magnitude 計算（簡易実装）
+   */
+  private computeFFTMagnitude(samples: Float32Array): Float32Array {
+    const N = samples.length;
+    const magnitudes = new Float32Array(N / 2);
+    
+    // 簡易DFT実装（実際の本格実装では高速FFTを使用）
+    for (let k = 0; k < N / 2; k++) {
+      let real = 0;
+      let imag = 0;
+      
+      for (let n = 0; n < N; n++) {
+        const angle = -2 * Math.PI * k * n / N;
+        real += samples[n] * Math.cos(angle);
+        imag += samples[n] * Math.sin(angle);
+      }
+      
+      magnitudes[k] = Math.sqrt(real * real + imag * imag);
+    }
+    
+    return magnitudes;
+  }
+
+  /**
+   * スペクトルピーク検出
+   */
+  private findSpectralPeaks(magnitudes: Float32Array): SpectralPeak[] {
+    const peaks: SpectralPeak[] = [];
+    const threshold = Math.max(...magnitudes) * 0.1; // 最大値の10%以上
+    
+    for (let i = 1; i < magnitudes.length - 1; i++) {
+      if (magnitudes[i] > magnitudes[i - 1] && 
+          magnitudes[i] > magnitudes[i + 1] && 
+          magnitudes[i] > threshold) {
+        
+        const frequency = (i * (this.sampleRate || 44100)) / (2 * magnitudes.length);
+        peaks.push({
+          frequency,
+          magnitude: magnitudes[i],
+          index: i
+        });
+      }
+    }
+    
+    // magnitude で降順ソート
+    peaks.sort((a, b) => b.magnitude - a.magnitude);
+    
+    // 最大10個のピークまで
+    return peaks.slice(0, 10);
+  }
+
+  /**
+   * スペクトル重心計算
+   */
+  private calculateSpectralCentroid(peaks: SpectralPeak[]): number {
+    if (peaks.length === 0) return 0;
+    
+    let weightedSum = 0;
+    let totalWeight = 0;
+    
+    for (const peak of peaks) {
+      weightedSum += peak.frequency * peak.magnitude;
+      totalWeight += peak.magnitude;
+    }
+    
+    return totalWeight > 0 ? weightedSum / totalWeight : 0;
+  }
+
+  /**
+   * スペクトル拡散計算
+   */
+  private calculateSpectralSpread(peaks: SpectralPeak[], centroid: number): number {
+    if (peaks.length === 0) return 0;
+    
+    let weightedVariance = 0;
+    let totalWeight = 0;
+    
+    for (const peak of peaks) {
+      const deviation = peak.frequency - centroid;
+      weightedVariance += deviation * deviation * peak.magnitude;
+      totalWeight += peak.magnitude;
+    }
+    
+    return totalWeight > 0 ? Math.sqrt(weightedVariance / totalWeight) : 0;
+  }
+
+  /**
+   * PYIN信頼度計算
+   */
+  private calculatePYINConfidence(samples: Float32Array, frequency: number): number {
+    if (frequency <= 0) return 0;
+    
+    // 簡易信頼度計算（実際の実装ではより複雑な計算）
+    const amplitude = this.calculateMaxAmplitude(samples);
+    const normalizedAmp = Math.min(1.0, amplitude / 0.5);
+    
+    // 周波数が有効範囲内かチェック
+    const inRange = frequency >= this.processingSettings.minFrequency && 
+                   frequency <= this.processingSettings.maxFrequency;
+    
+    return inRange ? normalizedAmp * 0.8 : 0;
+  }
+
+  /**
+   * デバイスリスト更新
+   */
+  public async updateDeviceList(): Promise<void> {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(device => device.kind === 'audioinput');
+      
+      // デバイスセレクトボックス更新
+      document.querySelectorAll('.audio-devices').forEach(select => {
+        const selectElement = select as HTMLSelectElement;
+        selectElement.innerHTML = '<option value="">Select microphone...</option>';
+        
+        audioInputs.forEach(device => {
+          const option = document.createElement('option');
+          option.value = device.deviceId;
+          option.textContent = device.label || `Microphone ${device.deviceId}`;
+          selectElement.appendChild(option);
+        });
+      });
+    } catch (error) {
+      console.error('Failed to update device list:', error);
+    }
+  }
+
+  /**
+   * エラー表示
+   */
+  private showError(message: string, selectId?: string): void {
+    const targetSelector = selectId ? `#${selectId}` : '.audio-devices';
+    const elements = document.querySelectorAll(targetSelector);
+    
+    elements.forEach(element => {
+      let errorDiv = element.parentElement?.querySelector('.error-message');
+      if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message text-red-500 text-sm mt-1';
+        element.parentElement?.appendChild(errorDiv);
+      }
+      errorDiv.textContent = message;
+      this.errorDisplays.set(element.id, errorDiv);
+    });
+  }
+
+  /**
+   * エラー非表示
+   */
+  private hideError(selectId?: string): void {
+    const targetSelector = selectId ? `#${selectId}` : '.audio-devices';
+    const elements = document.querySelectorAll(targetSelector);
+    
+    elements.forEach(element => {
+      const errorDiv = element.parentElement?.querySelector('.error-message');
+      if (errorDiv) {
+        errorDiv.remove();
+      }
+      this.errorDisplays.delete(element.id);
+    });
+  }
+
+  /**
+   * 接続状態変更通知
    */
   private notifyConnectionChange(connected: boolean): void {
     if (this.onConnectionChange) {
@@ -510,312 +1215,160 @@ export class AudioController {
   }
 
   /**
-   * エラー表示（デバイス固有）
+   * 処理の一時停止（シーク時など）
    */
-  private showError(message: string, selectId?: string): void {
-    console.error('[AudioController]', message);
-    
-    const errorElement = platform.createElement('div');
-    errorElement.className = 'audio-error-message';
-    errorElement.textContent = message;
-    errorElement.style.position = 'fixed';
-    errorElement.style.top = '50px';
-    errorElement.style.left = '50%';
-    errorElement.style.transform = 'translateX(-50%)';
-    errorElement.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
-    errorElement.style.color = 'white';
-    errorElement.style.padding = '10px';
-    errorElement.style.borderRadius = '5px';
-    errorElement.style.zIndex = '10000';
-    
-    if (selectId) {
-      this.errorDisplays.set(selectId, errorElement);
-    }
-    
-    const body = platform.getDocument().body;
-    body.appendChild(errorElement);
-    
-    // 5秒後に自動削除
+  public pauseProcessingForSeek(): void {
+    this.pauseProcessing = true;
     setTimeout(() => {
-      if (errorElement.parentNode) {
-        errorElement.parentNode.removeChild(errorElement);
-      }
-      if (selectId) {
-        this.errorDisplays.delete(selectId);
-      }
-    }, 5000);
+      this.pauseProcessing = false;
+    }, 100);
   }
 
   /**
-   * エラー非表示
-   */
-  private hideError(selectId?: string): void {
-    if (selectId && this.errorDisplays.has(selectId)) {
-      const errorElement = this.errorDisplays.get(selectId);
-      if (errorElement && errorElement.parentNode) {
-        errorElement.parentNode.removeChild(errorElement);
-      }
-      this.errorDisplays.delete(selectId);
-    } else {
-      // 全てのエラー表示を削除
-      const errorElements = platform.querySelectorAll('.audio-error-message');
-      errorElements.forEach(element => {
-        if (element.parentNode) {
-          element.parentNode.removeChild(element);
-        }
-      });
-      this.errorDisplays.clear();
-    }
-  }
-
-  /**
-   * 接続状態の確認
+   * 接続状態取得
    */
   public isConnected(): boolean {
     return this.mediaStream !== null && this.isProcessing;
   }
 
   /**
-   * 現在のデバイスIDを取得
+   * 現在のデバイスID取得
    */
   public getCurrentDeviceId(): string | null {
     return this.currentDeviceId;
   }
 
   /**
-   * デバイス切断
-   */
-  public async disconnect(): Promise<void> {
-    try {
-      console.log('AudioController disconnecting...');
-      
-      this.isProcessing = false;
-      
-      if (this.analyserTimer) {
-        clearInterval(this.analyserTimer);
-        this.analyserTimer = null;
-      }
-      
-      if (this.scriptNode) {
-        this.scriptNode.disconnect();
-        this.scriptNode = null;
-      }
-      
-      if (this.workletNode) {
-        this.workletNode.disconnect();
-        this.workletNode = null;
-      }
-      
-      if (this.mediaStream) {
-        this.mediaStream.getTracks().forEach(track => track.stop());
-        this.mediaStream = null;
-      }
-      
-      if (this.audioContext && this.audioContext.state !== 'closed') {
-        await this.audioContext.close();
-        this.audioContext = null;
-      }
-      
-      this.currentDeviceId = null;
-      this.notifyConnectionChange(false);
-      
-      console.log('AudioController disconnected successfully');
-    } catch (error) {
-      console.error('Error during AudioController disconnect:', error);
-    }
-  }
-
-  /**
-   * オーディオコントロールの設定（型定義に必要なメソッド）
-   * UI要素の初期化と関連付けを行う
-   */
-  public setupAudioControls(): void {
-    try {
-      console.log('[AudioController] Setting up audio controls UI');
-      
-      // デバイスリストの更新
-      this.updateDeviceList();
-      
-      // オーディオ入力設定UIの初期化
-      this.initializeAudioUI();
-      
-      console.log('[AudioController] Audio controls setup completed');
-    } catch (error) {
-      console.error('[AudioController] Failed to setup audio controls:', error);
-    }
-  }
-
-  /**
-   * 音声入力開始
+   * リスニング開始
    */
   public startListening(): void {
-    if (!this.isConnected()) {
-      console.warn('[AudioController] Cannot start listening - not connected');
-      return;
-    }
-    
-    this.pauseProcessing = false;
     this.isProcessing = true;
-    console.log('[AudioController] Started listening');
+    this.pauseProcessing = false;
   }
 
   /**
-   * 音声入力停止
+   * リスニング停止
    */
   public stopListening(): void {
-    this.pauseProcessing = true;
-    console.log('[AudioController] Stopped listening');
-  }
-
-  /**
-   * 設定の更新
-   */
-  public updateConfig(config: any): void {
-    try {
-      console.log('[AudioController] Updating configuration:', config);
+    this.isProcessing = false;
+    if (this.activeNote !== null) {
+      this.onNoteOff(this.activeNote);
       
-      // 設定の適用（必要に応じて拡張）
-      if (config.sampleRate && this.audioContext) {
-        console.log(`[AudioController] Sample rate update requested: ${config.sampleRate}`);
+      // ハイライト解除
+      if (this.keyHighlightCallback) {
+        this.keyHighlightCallback(this.activeNote, false);
       }
       
-      if (config.bufferSize) {
-        console.log(`[AudioController] Buffer size update requested: ${config.bufferSize}`);
-      }
-      
-    } catch (error) {
-      console.error('[AudioController] Failed to update config:', error);
+      this.activeNote = null;
     }
   }
 
   /**
-   * デバイスリストの更新
+   * キーハイライトコールバック設定（MIDIController統合用）
    */
-  public async updateDeviceList(): Promise<void> {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioDevices = devices.filter(device => device.kind === 'audioinput');
-      
-      console.log('[AudioController] Available audio devices:', audioDevices.length);
-      
-      // UI要素の更新（存在する場合）
-      const deviceSelect = platform.getElementById('audio-device-select') as any;
-      if (deviceSelect) {
-        // 既存のオプションをクリア
-        deviceSelect.innerHTML = '';
-        
-        // デフォルトオプションを追加
-        const defaultOption = platform.createElement('option');
-        defaultOption.value = '';
-        defaultOption.textContent = 'Default Device';
-        deviceSelect.appendChild(defaultOption);
-        
-        // デバイスオプションを追加
-        audioDevices.forEach(device => {
-          const option = platform.createElement('option');
-          option.value = device.deviceId;
-          option.textContent = device.label || `Device ${device.deviceId.substring(0, 8)}`;
-          deviceSelect.appendChild(option);
-        });
-      }
-      
-    } catch (error) {
-      console.error('[AudioController] Failed to update device list:', error);
-    }
+  public setKeyHighlightCallback(callback: (note: number, active: boolean) => void): void {
+    this.keyHighlightCallback = callback;
   }
 
   /**
-   * オーディオUI要素の初期化
+   * キープレスエフェクトコールバック設定（PIXIレンダラー統合用）
    */
-  private initializeAudioUI(): void {
-    try {
-      // デバイス選択イベントの設定
-      const deviceSelect = platform.getElementById('audio-device-select') as any;
-      if (deviceSelect) {
-        const changeHandler = async (event: any) => {
-          const deviceId = event.target.value;
-          if (deviceId) {
-            await this.connectDevice(deviceId);
-          } else {
-            await this.disconnect();
-          }
-        };
-        
-        platform.addEventListener(deviceSelect, 'change', changeHandler);
-      }
-      
-      // その他のAudio UI要素の初期化
-      this.initializeVolumeControls();
-      this.initializeThresholdControls();
-      
-    } catch (error) {
-      console.error('[AudioController] Failed to initialize audio UI:', error);
-    }
+  public setKeyPressEffectCallback(callback: (note: number) => void): void {
+    this.keyPressEffectCallback = callback;
   }
 
   /**
-   * 音量コントロールの初期化
-   */
-  private initializeVolumeControls(): void {
-    const volumeSlider = platform.getElementById('audio-volume-slider') as any;
-    if (volumeSlider) {
-      const volumeHandler = (event: any) => {
-        const volume = parseFloat(event.target.value);
-        console.log(`[AudioController] Volume changed: ${volume}`);
-        // 音量調整の実装（必要に応じて）
-      };
-      
-      platform.addEventListener(volumeSlider, 'input', volumeHandler);
-    }
-  }
-
-  /**
-   * 閾値コントロールの初期化
-   */
-  private initializeThresholdControls(): void {
-    const thresholdSlider = platform.getElementById('audio-threshold-slider') as any;
-    if (thresholdSlider) {
-      const thresholdHandler = (event: any) => {
-        const threshold = parseFloat(event.target.value);
-        console.log(`[AudioController] Threshold changed: ${threshold}`);
-        // 閾値調整の実装（必要に応じて）
-      };
-      
-      platform.addEventListener(thresholdSlider, 'input', thresholdHandler);
-    }
-  }
-
-  /**
-   * シーク・ループ時の処理一時停止（既存最適化機能の保護）
-   */
-  public pauseProcessingForSeek(): void {
-    this.pauseProcessing = true;
-    console.log('[AudioController] Processing paused for seek operation');
-    
-    // 100ms後に自動復帰
-    setTimeout(() => {
-      this.pauseProcessing = false;
-      console.log('[AudioController] Processing resumed after seek');
-    }, 100);
-  }
-
-  /**
-   * 有効状態の取得（型定義互換性のため）
+   * 処理有効状態取得
    */
   public get enabled(): boolean {
-    return this.isConnected();
+    return this.isProcessing;
   }
 
   /**
-   * 有効状態の設定（型定義互換性のため）
+   * 処理有効状態設定
    */
   public set enabled(value: boolean) {
-    if (value && !this.isConnected()) {
+    if (value) {
       this.startListening();
-    } else if (!value && this.isConnected()) {
+    } else {
       this.stopListening();
     }
   }
-}
 
-export default AudioController; 
+  /**
+   * 設定更新
+   */
+  public updateConfig(config: any): void {
+    // 設定に応じて処理パラメータを更新
+    if (config.minFrequency !== undefined) {
+      this.processingSettings.minFrequency = config.minFrequency;
+    }
+    if (config.maxFrequency !== undefined) {
+      this.processingSettings.maxFrequency = config.maxFrequency;
+    }
+    if (config.amplitudeThreshold !== undefined) {
+      this.processingSettings.amplitudeThreshold = config.amplitudeThreshold;
+    }
+    if (config.pyinThreshold !== undefined) {
+      this.processingSettings.pyinThreshold = config.pyinThreshold;
+      console.log(`🎤 PYIN threshold updated to: ${config.pyinThreshold}`);
+    }
+  }
+
+  /**
+   * オーディオ入力設定画面用のセットアップ
+   */
+  public setupAudioControls(): void {
+    // デバイスリスト更新とイベントリスナー設定
+    this.updateDeviceList();
+  }
+
+  /**
+   * 切断処理
+   */
+  public async disconnect(): Promise<void> {
+    this.isProcessing = false;
+    
+    // アクティブノートのハイライトを解除
+    if (this.activeNote !== null) {
+      this.onNoteOff(this.activeNote);
+      
+      if (this.keyHighlightCallback) {
+        this.keyHighlightCallback(this.activeNote, false);
+      }
+      
+      this.activeNote = null;
+    }
+    
+    // メディアストリーム停止
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach(track => track.stop());
+      this.mediaStream = null;
+    }
+    
+    // AudioWorklet/ScriptProcessor切断
+    if (this.workletNode) {
+      this.workletNode.disconnect();
+      this.workletNode = null;
+    }
+    
+    if (this.scriptNode) {
+      this.scriptNode.disconnect();
+      this.scriptNode = null;
+    }
+    
+    if (this.analyserTimer) {
+      clearInterval(this.analyserTimer);
+      this.analyserTimer = null;
+    }
+    
+    // AudioContext終了（iOS以外）
+    if (this.audioContext && !this.isIOSDevice) {
+      await this.audioContext.close();
+      this.audioContext = null;
+    }
+    
+    this.currentDeviceId = null;
+    this.notifyConnectionChange(false);
+  }
+} 

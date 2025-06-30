@@ -125,6 +125,9 @@ const defaultSettings: GameSettings = {
   selectedMidiDevice: null,
   selectedAudioDevice: null,
   
+  // 音声入力設定
+  pyinThreshold: 0.1,          // デフォルト10%
+  
   // キー設定
   transpose: 0,
   

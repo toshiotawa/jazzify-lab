@@ -119,6 +119,9 @@ export interface GameSettings {
   selectedMidiDevice: string | null;
   selectedAudioDevice: string | null;
   
+  // 音声入力設定
+  pyinThreshold: number;       // 0.05-0.5 (PYIN ピッチ検出の閾値)
+  
   // キー設定
   transpose: number;           // -6 to +6 (半音)
   
@@ -451,4 +454,82 @@ export interface MidiControllerOptions {
   onNoteOn: (note: number, velocity?: number) => void;
   onNoteOff: (note: number) => void;
   onConnectionChange?: (connected: boolean) => void;
-} 
+}
+
+// ===== 音声入力・ピッチ検出関連 =====
+
+export interface AudioControllerOptions {
+  onNoteOn: (note: number, velocity?: number) => void;
+  onNoteOff: (note: number) => void;
+  onConnectionChange?: (connected: boolean) => void;
+}
+
+export interface SpectralPeak {
+  frequency: number;
+  magnitude: number;
+  index: number;
+}
+
+export interface SpectralAnalysis {
+  peaks: SpectralPeak[];
+  centroid: number;
+  spread: number;
+  clarity: number;
+}
+
+export interface PitchResult {
+  frequency: number;
+  confidence: number;
+  candidates?: PitchCandidate[];
+  observationProbs?: Float32Array;
+}
+
+export interface PitchCandidate {
+  frequency: number;
+  confidence: number;
+  midiNote: number;
+}
+
+export interface HMMState {
+  noteProbs: Float32Array;
+  prevStateProbs: Float32Array;
+  transitionMatrix: Float32Array;
+}
+
+// WASM関数の型定義
+export interface WASMModule {
+  alloc: (size: number) => number;
+  free: (ptr: number, size: number) => void;
+  get_memory: () => WebAssembly.Memory;
+  init_pitch_detector: (sample_rate: number) => void;
+  get_ring_buffer_ptr: () => number;
+  get_ring_buffer_size: () => number;
+  analyze_pitch: (ptr: number, length: number, sample_rate: number, yin_threshold: number) => number;
+  process_audio_block: (new_write_index: number) => number;
+}
+
+export interface PitchHistory {
+  note: number;
+  confidence: number;
+  timestamp: number;
+}
+
+export interface AudioProcessingSettings {
+  bufferSize: number;
+  lowFreqBufferSize: number;
+  minFrequency: number;
+  maxFrequency: number;
+  amplitudeThreshold: number;
+  consecutiveFramesThreshold: number;
+  noteOnThreshold: number;
+  noteOffThreshold: number;
+  maxAllowedPitchChange: number;
+  lowFrequencyThreshold: number;
+  lowFrequencyAmplitudeThreshold: number;
+  veryLowFreqThreshold: number;
+  pyinThreshold: number;
+  silenceThreshold: number;
+  adaptiveBuffering: boolean;
+}
+
+// ===== 既存のAudioDevice型の拡張 ===== 
