@@ -3,6 +3,7 @@ import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import ResultModal from './ResultModal';
 
 /**
  * メインゲーム画面コンポーネント
@@ -51,13 +52,6 @@ const GameScreen: React.FC = () => {
 
             {/* 右側のコントロール */}
             <div className="flex items-center space-x-4">
-              {/* スコア表示 */}
-              {currentSong && (
-                <div className="score-display">
-                  スコア: {score.score}
-                </div>
-              )}
-
               {/* ヘッダー開閉トグル */}
               <button
                 onClick={() => setHeaderCollapsed(true)}
@@ -105,6 +99,9 @@ const GameScreen: React.FC = () => {
 
       {/* 設定パネル（オーバーレイ） */}
       {isSettingsOpen && <SettingsPanel />}
+
+      {/* リザルトモーダル */}
+      <ResultModal />
     </div>
   );
 };

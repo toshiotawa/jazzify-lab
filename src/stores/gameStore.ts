@@ -253,13 +253,15 @@ const defaultState: GameState = {
   // UI状態
   isSettingsOpen: false,
   currentTab: 'practice',
+  /** リザルトモーダル表示 */
+  resultModalOpen: false,
   
   // デバッグ情報
   debug: {
     fps: 60,
     renderTime: 0,
     audioLatency: 0
-  }
+  },
 };
 
 // ===== 新機能: 設定検証・正規化関数 =====
@@ -551,6 +553,10 @@ interface GameStoreState extends GameState {
   // 練習モードガイド制御
   setLastKeyHighlight: (pitch: number, timestamp: number) => void;
   clearLastKeyHighlight: () => void;
+  
+  // リザルトモーダル
+  openResultModal: () => void;
+  closeResultModal: () => void;
 }
 
 // ===== ヘルパー関数 =====
@@ -1319,6 +1325,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           });
           return summary;
         },
+        
+        // リザルトモーダル
+        openResultModal: () => set((state) => { state.resultModalOpen = true; }),
+        closeResultModal: () => set((state) => { state.resultModalOpen = false; }),
       }))
     ),
     {

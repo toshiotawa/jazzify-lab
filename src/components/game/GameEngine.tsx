@@ -27,6 +27,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     currentSong,
     currentTime,
     settings,
+    score,
     lastKeyHighlight,
     isSettingsOpen,
     initializeGameEngine,
@@ -37,7 +38,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     updateTime,
     stop,
     pause,
-    setLastKeyHighlight
+    setLastKeyHighlight,
+    openResultModal
   } = useGameStore();
   
   const [isEngineReady, setIsEngineReady] = useState(false);
@@ -325,6 +327,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         // 楽曲終了チェック
         if (logicalTime >= (currentSong?.duration || 0)) {
           stop();
+          openResultModal();
           return;
         }
         
@@ -332,7 +335,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }
     };
     syncTime();
-  }, [isPlaying, currentSong?.duration, updateTime, stop, settings.playbackSpeed]);
+  }, [isPlaying, currentSong?.duration, updateTime, stop, settings.playbackSpeed, openResultModal]);
   
   const stopTimeSync = useCallback(() => {
     if (animationFrameRef.current) {
@@ -738,6 +741,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         className="relative flex-1 bg-gray-900 rounded-lg overflow-hidden"
         style={{ minHeight: '40vh' }}
       >
+        {/* GOOD / MISS オーバーレイ */}
+        <div className="absolute top-2 left-2 z-20 text-white text-sm font-mono bg-black bg-opacity-60 px-2 py-1 rounded pointer-events-none">
+          ✅ {score.goodCount} &nbsp; ✖ {score.missCount}
+        </div>
         {/* PIXI.js ノーツレンダラー（統合済み） */}
         {(() => {
           const TOTAL_WHITE_KEYS = 52; // 88鍵ピアノの白鍵数

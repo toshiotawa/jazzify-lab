@@ -213,6 +213,8 @@ export interface GameState {
   // UI状態
   isSettingsOpen: boolean;
   currentTab: 'practice' | 'performance' | 'songs';
+  /** リザルトモーダル表示 */
+  resultModalOpen: boolean;
   
   // デバッグ情報
   debug: {
