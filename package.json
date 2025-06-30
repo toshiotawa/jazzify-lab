@@ -7,11 +7,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:prod": "vite build --mode production",
+    "build:perf": "vite build --mode production --logLevel warn",
     "build:fast": "vite build --mode production",
     "build:check": "tsc && vite build",
+    "build:analyze": "vite build --mode production",
     "preview": "vite preview",
+    "preview:prod": "vite build --mode production && vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules/.vite"
   },
   "dependencies": {
     "clsx": "^2.0.0",

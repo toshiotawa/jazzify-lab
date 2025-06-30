@@ -61,4 +61,18 @@ declare global {
   }
 }
 
+// Vite 環境変数の型定義
+interface ImportMetaEnv {
+  readonly VITE_APP_TITLE: string;
+  readonly DEV: boolean;
+  readonly PROD: boolean;
+  readonly SSR: boolean;
+  readonly MODE: string;
+  readonly BASE_URL: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
 export {};

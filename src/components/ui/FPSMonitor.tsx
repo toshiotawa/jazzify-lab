@@ -1,6 +1,6 @@
 /**
  * FPSモニターコンポーネント
- * パフォーマンス監視用のFPS表示
+ * パフォーマンス監視用のFPS表示（プロダクション環境では無効）
  */
 
 import React, { useState, useEffect } from 'react';
@@ -18,6 +18,11 @@ const FPSMonitor: React.FC<FPSMonitorProps> = ({
   minimal = false, 
   className 
 }) => {
+  // プロダクション環境では何も表示しない
+  if (import.meta.env.PROD) {
+    return null;
+  }
+
   const [fps, setFps] = useState(60);
   const debug = useGameStore((state) => state.debug);
   

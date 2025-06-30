@@ -1,25 +1,26 @@
 /**
- * 統一ログシステム - パフォーマンス最適化版
- * フレーム毎のログスパムを防止し、CPU消費を削減
+ * 統一ログシステム - プロダクション最適化版
+ * 本番環境では全ログを無効化し、CPU消費を完全に削減
  */
 
 type LogLevel = 'silent' | 'error' | 'warn' | 'info' | 'debug';
 
-// 環境に応じたデフォルトレベル設定
-let currentLevel: LogLevel = import.meta.env.PROD ? 'warn' : 'debug';
+// プロダクション環境では強制的にsilentに設定
+let currentLevel: LogLevel = import.meta.env.PROD ? 'silent' : 'debug';
 
 /**
- * ログレベルを動的に変更
- * URL パラメータ ?debug=true でデバッグ有効化可能
+ * ログレベルを動的に変更（プロダクションでは無効）
  */
 export function setLogLevel(level: LogLevel): void {
-  currentLevel = level;
+  if (!import.meta.env.PROD) {
+    currentLevel = level;
+  }
 }
 
 /**
- * URL パラメータでログレベルを制御
+ * URL パラメータでログレベルを制御（開発環境のみ）
  */
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && !import.meta.env.PROD) {
   const params = new URLSearchParams(window.location.search);
   if (params.get('debug') === 'true') {
     currentLevel = 'debug';
@@ -29,9 +30,19 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * 統一ログインターフェース
+ * プロダクション環境用空関数
  */
-export const log = {
+const noop = () => {};
+
+/**
+ * 統一ログインターフェース - プロダクション最適化
+ */
+export const log = import.meta.env.PROD ? {
+  error: noop,
+  warn: noop,
+  info: noop,
+  debug: noop,
+} : {
   error: (...args: unknown[]) => 
     currentLevel !== 'silent' && console.error(...args),
   
@@ -46,7 +57,7 @@ export const log = {
 };
 
 /**
- * 頻度制限付きログ（FPS測定など）
+ * 頻度制限付きログ（プロダクションでは完全無効）
  */
 class ThrottledLogger {
   private lastLogTime = 0;
@@ -57,6 +68,7 @@ class ThrottledLogger {
   }
   
   info(message: string, ...args: unknown[]): void {
+    if (import.meta.env.PROD) return;
     const now = performance.now();
     if (now - this.lastLogTime >= this.interval) {
       log.info(message, ...args);
@@ -65,6 +77,7 @@ class ThrottledLogger {
   }
   
   debug(message: string, ...args: unknown[]): void {
+    if (import.meta.env.PROD) return;
     const now = performance.now();
     if (now - this.lastLogTime >= this.interval) {
       log.debug(message, ...args);
@@ -74,19 +87,22 @@ class ThrottledLogger {
 }
 
 /**
- * パフォーマンス監視用の制限付きロガー
+ * パフォーマンス監視用の制限付きロガー（プロダクションでは無効）
  */
-export const perfLog = new ThrottledLogger(1000);
+export const perfLog = import.meta.env.PROD ? {
+  info: noop,
+  debug: noop,
+} : new ThrottledLogger(1000);
 
 /**
  * 開発専用ログ（プロダクションでは完全無効）
  */
 export const devLog = {
-  debug: (...args: unknown[]) => 
-    !import.meta.env.PROD && currentLevel === 'debug' && console.log(...args),
+  debug: import.meta.env.PROD ? noop : (...args: unknown[]) => 
+    currentLevel === 'debug' && console.log(...args),
   
-  info: (...args: unknown[]) => 
-    !import.meta.env.PROD && ['info', 'debug'].includes(currentLevel) && console.info(...args),
+  info: import.meta.env.PROD ? noop : (...args: unknown[]) => 
+    ['info', 'debug'].includes(currentLevel) && console.info(...args),
 };
 
 /**
