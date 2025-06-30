@@ -607,6 +607,37 @@ const SettingsPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* オクターブ違い許容設定 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                オクターブ違いの音を正解にする
+              </label>
+              <div className="flex items-center space-x-4 mt-1">
+                <label className="flex items-center space-x-1 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="allow-octave-error"
+                    value="on"
+                    checked={settings.allowOctaveError}
+                    onChange={() => gameActions.updateSettings({ allowOctaveError: true })}
+                    className="radio radio-sm"
+                  />
+                  <span className="text-sm text-gray-300">ON</span>
+                </label>
+                <label className="flex items-center space-x-1 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="allow-octave-error"
+                    value="off"
+                    checked={!settings.allowOctaveError}
+                    onChange={() => gameActions.updateSettings({ allowOctaveError: false })}
+                    className="radio radio-sm"
+                  />
+                  <span className="text-sm text-gray-300">OFF</span>
+                </label>
+              </div>
+            </div>
+
             {/* 音名表示設定（統一版） */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
