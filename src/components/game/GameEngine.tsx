@@ -304,11 +304,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       const newElapsedReal = currentLogicalTime / settings.playbackSpeed;
       baseOffsetRef.current = audioContextRef.current.currentTime - newElapsedReal;
       
-      devLog.debug(`🔧 再生速度変更: ${settings.playbackSpeed}x - baseOffset再計算完了`, {
-        currentLogicalTime: currentLogicalTime.toFixed(3),
-        newElapsedReal: newElapsedReal.toFixed(3),
-        newBaseOffset: baseOffsetRef.current.toFixed(3)
-      });
+      // ログ削除: FPS最適化のため
+      // devLog.debug(`🔧 再生速度変更: ${settings.playbackSpeed}x - baseOffset再計算完了`);
     }
 
     // GameEngine にも設定を反映
@@ -593,7 +590,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       // 注意: キーハイライトは削除し、GameEngineの判定ロジックに完全に委ねました
       // これにより、マウスクリックとキーボード入力で一貫したエフェクト表示が実現されます
       
-      devLog.debug(`🎹 Piano key played: ${note}`);
+      // ログ削除: FPS最適化のため
+    // devLog.debug(`🎹 Piano key played: ${note}`);
     } catch (error) {
       log.error('❌ Piano key play error:', error);
     }
@@ -608,7 +606,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       
       // 注意: ハイライト解除も削除し、GameEngineの状態更新に完全に委ねました
       
-      devLog.debug(`🎹 Piano key released: ${note}`);
+      // ログ削除: FPS最適化のため
+    // devLog.debug(`🎹 Piano key released: ${note}`);
     } catch (error) {
       log.error('❌ Piano key release error:', error);
     }

@@ -1616,7 +1616,8 @@ export class PIXINotesRendererInstance {
           
           // 3. 即座に削除マーク（0.3秒待機なし）
           spritesToRemove.push(noteId);
-          devLog.debug(`🎯 Hit即座削除: ${noteId}`);
+                      // ログ削除: FPS最適化のため
+            // devLog.debug(`🎯 Hit即座削除: ${noteId}`);
         } else {
           // Hit以外の通常の状態更新
           this.updateNoteState(sprite, note);

@@ -156,13 +156,8 @@ export class GameEngine {
       const realTimeElapsed = this.pausedTime / (this.settings.playbackSpeed ?? 1);
       this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
       
-      devLog.debug(`🔄 GameEngine.resume: ${this.pausedTime.toFixed(2)}s`, {
-        pausedTime: this.pausedTime.toFixed(3),
-        playbackSpeed: (this.settings.playbackSpeed ?? 1).toFixed(2),
-        realTimeElapsed: realTimeElapsed.toFixed(3),
-        newStartTime: this.startTime.toFixed(3),
-        latencyOffset: this.latencyOffset.toFixed(3)
-      });
+      // ログ削除: FPS最適化のため
+      // devLog.debug(`🔄 GameEngine.resume: ${this.pausedTime.toFixed(2)}s`);
     }
     this.startGameLoop();
   }
@@ -197,15 +192,8 @@ export class GameEngine {
         }
       });
       
-      devLog.debug(`🎮 GameEngine.seek: ${safeTime.toFixed(2)}s`, {
-        audioTime: this.audioContext.currentTime.toFixed(2),
-        playbackSpeed: (this.settings.playbackSpeed ?? 1).toFixed(2),
-        realTimeElapsed: realTimeElapsed.toFixed(2),
-        newStartTime: this.startTime.toFixed(2),
-        latencyOffset: this.latencyOffset.toFixed(3),
-        clearedNotes: oldActiveCount,
-        resetProcessedFlags: this.notes.filter(n => n.time >= safeTime && !(n as any)._wasProcessed).length
-      });
+      // ログ削除: FPS最適化のため
+      // devLog.debug(`🎮 GameEngine.seek: ${safeTime.toFixed(2)}s`);
     }
   }
   
@@ -297,12 +285,8 @@ export class GameEngine {
       const realTimeElapsed = currentLogicalTime / newSpeed;
       this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
       
-      devLog.debug(`🔧 GameEngine.updateSettings: 速度変更 ${prevSpeed}x → ${newSpeed}x`, {
-        currentLogicalTime: currentLogicalTime.toFixed(3),
-        realTimeElapsed: realTimeElapsed.toFixed(3),
-        newStartTime: this.startTime.toFixed(3),
-        latencyOffset: this.latencyOffset.toFixed(3)
-      });
+      // ログ削除: FPS最適化のため
+      // devLog.debug(`🔧 GameEngine.updateSettings: 速度変更 ${prevSpeed}x → ${newSpeed}x`);
     }
 
     // notesSpeed が変化した場合、未処理ノートの appearTime を更新
@@ -524,7 +508,8 @@ export class GameEngine {
       // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
       const latestNote = this.activeNotes.get(noteId) || note;
       if (isRecentNote && latestNote.state !== note.state) {
-        devLog.debug(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
+        // ログ削除: FPS最適化のため
+        // devLog.debug(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
       }
       
       const updatedNote = this.updateNoteState(latestNote, currentTime);
@@ -569,7 +554,8 @@ export class GameEngine {
       if (note.hitTime) {
         // 約3フレーム (50ms) 表示を維持してエフェクト描画を確保してから削除
         if (currentTime - note.hitTime > 0.05) {
-          devLog.debug(`✅ Hitノートをクリーンアップ: ${note.id} (${((currentTime - note.hitTime) * 1000).toFixed(1)}ms経過)`);
+          // ログ削除: FPS最適化のため
+        // devLog.debug(`✅ Hitノートをクリーンアップ: ${note.id}`);
           return { ...note, state: 'completed' };
         }
       } else {
@@ -656,10 +642,8 @@ export class GameEngine {
         
         if (practiceGuide === 'key_auto') {
           // オートプレイ: 自動的にノーツをヒット判定
-          devLog.debug(`🤖 オートプレイ実行開始: ノート ${note.id} (pitch=${effectivePitch})`);
-          
-          // 現在のノート状態をログ
-          devLog.debug(`📋 オートプレイ前ノート状態: ${note.id} - state: ${note.state}, time: ${note.time.toFixed(3)}, currentTime: ${currentTime.toFixed(3)}`);
+          // ログ削除: FPS最適化のため
+          // devLog.debug(`🤖 オートプレイ実行開始: ノート ${note.id} (pitch=${effectivePitch})`);
           
           // 自動判定を実行
           const autoHit: NoteHit = {
@@ -672,12 +656,14 @@ export class GameEngine {
           
           // 判定処理を実行（これによりノーツが'hit'状態になりスコアも更新される）
           const judgment = this.processHit(autoHit);
-          devLog.debug(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
+          // ログ削除: FPS最適化のため
+          // devLog.debug(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
           
           // 強制的にノーツ状態を確認
           const updatedNoteAfterHit = this.activeNotes.get(note.id);
           if (updatedNoteAfterHit) {
-            devLog.debug(`🔍 オートプレイ後ノート状態確認: ${note.id} - state: ${updatedNoteAfterHit.state}, hitTime: ${updatedNoteAfterHit.hitTime}`);
+            // ログ削除: FPS最適化のため
+            // devLog.debug(`🔍 オートプレイ後ノート状態確認: ${note.id} - state: ${updatedNoteAfterHit.state}, hitTime: ${updatedNoteAfterHit.hitTime}`);
             
             // 念のため再度状態をセット（確実にhit状態にする）
             if (updatedNoteAfterHit.state !== 'hit') {
@@ -689,9 +675,11 @@ export class GameEngine {
                 timingError: Math.abs(timeError)
               };
               this.activeNotes.set(note.id, forcedHitNote);
-              devLog.debug(`🔧 強制修正完了: ${note.id} - state を 'hit' に変更`);
+              // ログ削除: FPS最適化のため
+              // devLog.debug(`🔧 強制修正完了: ${note.id} - state を 'hit' に変更`);
             } else {
-              devLog.debug(`✅ オートプレイ状態確認OK: ${note.id} - 正常にhit状態です`);
+              // ログ削除: FPS最適化のため
+              // devLog.debug(`✅ オートプレイ状態確認OK: ${note.id} - 正常にhit状態です`);
             }
           } else {
             log.warn(`⚠️ オートプレイ後にノートが見つからない: ${note.id}`);
