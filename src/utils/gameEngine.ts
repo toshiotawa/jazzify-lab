@@ -151,7 +151,18 @@ export class GameEngine {
   
   resume(): void {
     if (this.audioContext) {
-      this.startTime = this.audioContext.currentTime - this.pausedTime;
+      // 🔧 修正: 再生速度を考慮したresume計算
+      // pausedTimeは論理時間なので、実時間に変換してからstartTimeを計算
+      const realTimeElapsed = this.pausedTime / (this.settings.playbackSpeed ?? 1);
+      this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
+      
+      devLog.debug(`🔄 GameEngine.resume: ${this.pausedTime.toFixed(2)}s`, {
+        pausedTime: this.pausedTime.toFixed(3),
+        playbackSpeed: (this.settings.playbackSpeed ?? 1).toFixed(2),
+        realTimeElapsed: realTimeElapsed.toFixed(3),
+        newStartTime: this.startTime.toFixed(3),
+        latencyOffset: this.latencyOffset.toFixed(3)
+      });
     }
     this.startGameLoop();
   }
@@ -167,7 +178,11 @@ export class GameEngine {
       const safeTime = Math.max(0, time);
       const oldActiveCount = this.activeNotes.size;
       
-      this.startTime = this.audioContext.currentTime - safeTime;
+      // 🔧 修正: 再生速度を考慮したstartTime計算
+      // safeTimeは論理時間、audioContext.currentTimeは実時間のため、
+      // 論理時間を実時間に変換してからオフセットを計算する
+      const realTimeElapsed = safeTime / (this.settings.playbackSpeed ?? 1);
+      this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
       this.pausedTime = 0;
       
       // **完全なアクティブノーツリセット**
@@ -184,8 +199,11 @@ export class GameEngine {
       
       devLog.debug(`🎮 GameEngine.seek: ${safeTime.toFixed(2)}s`, {
         audioTime: this.audioContext.currentTime.toFixed(2),
-        clearedNotes: oldActiveCount,
+        playbackSpeed: (this.settings.playbackSpeed ?? 1).toFixed(2),
+        realTimeElapsed: realTimeElapsed.toFixed(2),
         newStartTime: this.startTime.toFixed(2),
+        latencyOffset: this.latencyOffset.toFixed(3),
+        clearedNotes: oldActiveCount,
         resetProcessedFlags: this.notes.filter(n => n.time >= safeTime && !(n as any)._wasProcessed).length
       });
     }
@@ -274,9 +292,17 @@ export class GameEngine {
 
     // スピードが変化した場合、startTime を調整してタイムラインを連続に保つ
     if (this.audioContext && prevSpeed !== newSpeed) {
-      // elapsedNew * newSpeed = currentLogicalTime を満たすように startTime を再計算
-      const elapsedNew = currentLogicalTime / newSpeed;
-      this.startTime = this.audioContext.currentTime - elapsedNew - this.latencyOffset;
+      // 🔧 修正: seekメソッドと同じ計算方式に統一
+      // 論理時間を新しい速度での実時間に変換してからstartTimeを計算
+      const realTimeElapsed = currentLogicalTime / newSpeed;
+      this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
+      
+      devLog.debug(`🔧 GameEngine.updateSettings: 速度変更 ${prevSpeed}x → ${newSpeed}x`, {
+        currentLogicalTime: currentLogicalTime.toFixed(3),
+        realTimeElapsed: realTimeElapsed.toFixed(3),
+        newStartTime: this.startTime.toFixed(3),
+        latencyOffset: this.latencyOffset.toFixed(3)
+      });
     }
 
     // notesSpeed が変化した場合、未処理ノートの appearTime を更新

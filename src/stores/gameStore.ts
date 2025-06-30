@@ -601,12 +601,16 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               // キーハイライト処理はPIXIRenderer側で直接実行されるため、ストア経由の処理は不要
               
               // ===== ABリピート自動ループ =====
-              const { abRepeat, gameEngine } = state;
+              const { abRepeat } = state;
               if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
                 if (state.currentTime >= abRepeat.endTime) {
                   console.log(`🔄 ABリピート(Store): ${state.currentTime.toFixed(2)}s → ${abRepeat.startTime.toFixed(2)}s`);
-                  gameEngine?.seek(abRepeat.startTime);
-                  state.currentTime = abRepeat.startTime;
+                  // 🔧 修正: get()の代わりにuseGameStore.getState()を使用
+                  const seekTime = abRepeat.startTime;
+                  setTimeout(() => {
+                    const store = useGameStore.getState();
+                    store.seek(seekTime);
+                  }, 0);
                 }
               }
               
@@ -748,17 +752,41 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           }
         }),
         
-        seek: (time) => set((state) => {
+        seek: (time) => {
+          const state = get();
           const newTime = Math.max(0, Math.min(time, state.currentSong?.duration || time));
-          state.currentTime = newTime;
-          state.activeNotes.clear();
+          
+          set((state) => {
+            state.currentTime = newTime;
+            state.activeNotes.clear();
+          });
           
           // GameEngineにもシーク処理を伝達
           if (state.gameEngine) {
             state.gameEngine.seek(newTime);
             console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
           }
-        }),
+          
+          // 🔧 追加: 再生中の音声を即座にシーク
+          // グローバルにアクセス可能な音声要素とbaseOffsetRefを更新
+          if (state.isPlaying && (window as any).__gameAudioRef) {
+            const audioRef = (window as any).__gameAudioRef;
+            const audioContextRef = (window as any).__gameAudioContextRef;
+            const baseOffsetRef = (window as any).__gameBaseOffsetRef;
+            const settings = state.settings;
+            
+            if (audioRef.current && audioContextRef.current && baseOffsetRef) {
+              // 音声を即座にシーク
+              audioRef.current.currentTime = newTime;
+              
+              // baseOffsetRefを再計算（再生速度を考慮）
+              const realTimeElapsed = newTime / settings.playbackSpeed;
+              baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
+              
+              console.log(`🎵 Audio seek to ${newTime.toFixed(2)}s (再生中)`);
+            }
+          }
+        },
         
         updateTime: (time) => set((state) => {
           state.currentTime = time;
@@ -986,30 +1014,24 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         resetGame: () => set(() => ({ ...defaultState })),
         
         // 新規追加: 時間制御とループ機能
-        skipForward: (seconds: number) => set((state) => {
+        skipForward: (seconds: number) => {
+          const state = get();
           const maxTime = state.currentSong?.duration || 0;
           const newTime = Math.min(state.currentTime + seconds, maxTime);
-          state.currentTime = newTime;
-          state.activeNotes.clear();
           
-          // GameEngineにもシーク処理を伝達
-          if (state.gameEngine) {
-            state.gameEngine.seek(newTime);
-            console.log(`⏩ Skip forward to ${newTime.toFixed(2)}s`);
-          }
-        }),
+          // seekメソッドを再利用（音声シーク処理も含まれる）
+          state.seek(newTime);
+          console.log(`⏩ Skip forward to ${newTime.toFixed(2)}s`);
+        },
         
-        skipBackward: (seconds: number) => set((state) => {
+        skipBackward: (seconds: number) => {
+          const state = get();
           const newTime = Math.max(0, state.currentTime - seconds);
-          state.currentTime = newTime;
-          state.activeNotes.clear();
           
-          // GameEngineにもシーク処理を伝達
-          if (state.gameEngine) {
-            state.gameEngine.seek(newTime);
-            console.log(`⏪ Skip backward to ${newTime.toFixed(2)}s`);
-          }
-        }),
+          // seekメソッドを再利用（音声シーク処理も含まれる）
+          state.seek(newTime);
+          console.log(`⏪ Skip backward to ${newTime.toFixed(2)}s`);
+        },
         
         // 新規追加: 移調制御
         transpose: (semitones: number) => {

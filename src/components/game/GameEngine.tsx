@@ -56,6 +56,19 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const baseOffsetRef = useRef<number>(0); // currentTime = audioCtx.time - baseOffset
   const animationFrameRef = useRef<number | null>(null);
   
+  // 🔧 追加: グローバルアクセス用に参照を公開（再生中のシーク対応）
+  useEffect(() => {
+    (window as any).__gameAudioRef = audioRef;
+    (window as any).__gameAudioContextRef = audioContextRef;
+    (window as any).__gameBaseOffsetRef = baseOffsetRef;
+    
+    return () => {
+      delete (window as any).__gameAudioRef;
+      delete (window as any).__gameAudioContextRef;
+      delete (window as any).__gameBaseOffsetRef;
+    };
+  }, []);
+  
   // 楽曲読み込み時の音声設定
   useEffect(() => {
     if (currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current) {
@@ -191,11 +204,14 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           audio.webkitPreservesPitch = true;
         } catch (_) {/* ignore */}
 
-        const syncTime = Math.max(0, currentTime);
+        // 🔧 修正: 再開時は gameEngine の正確な時間を使用
+        const syncTime = gameEngine ? Math.max(0, gameEngine.getState().currentTime) : Math.max(0, currentTime);
         audio.currentTime = syncTime;
 
         // 6) AudioContext と HTMLAudio のオフセットを記録
-        baseOffsetRef.current = audioContext.currentTime - syncTime;
+        // 再生速度を考慮した正確な baseOffset 計算
+        const realTimeElapsed = syncTime / settings.playbackSpeed;
+        baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
 
         // 7) GameEngine を AudioContext に紐付けて開始
         gameEngine.start(audioContext);
@@ -214,9 +230,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           const audioContext = audioContextRef.current!;
           audioContext.resume();
 
+          // 🔧 修正: 音声なしモードでも gameEngine の正確な時間を使用
+          const syncTime = gameEngine ? Math.max(0, gameEngine.getState().currentTime) : Math.max(0, currentTime);
+          
           // ゲームエンジンを開始（音声同期なし）
           gameEngine.start(audioContext);
-          gameEngine.seek(Math.max(0, currentTime));
+          gameEngine.seek(syncTime);
+          
+          // 音声なしモードでも baseOffset を適切に設定
+          const realTimeElapsed = syncTime / settings.playbackSpeed;
+          baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
         }
 
         startTimeSync();
@@ -274,11 +297,25 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       } catch (_) {/* ignore */}
     }
 
+    // 🔧 追加: 再生中に速度が変更された場合、baseOffsetRefを再計算
+    if (audioContextRef.current && isPlaying) {
+      const currentLogicalTime = currentTime;
+      // 新しい速度での経過時間を計算し、baseOffsetを調整
+      const newElapsedReal = currentLogicalTime / settings.playbackSpeed;
+      baseOffsetRef.current = audioContextRef.current.currentTime - newElapsedReal;
+      
+      devLog.debug(`🔧 再生速度変更: ${settings.playbackSpeed}x - baseOffset再計算完了`, {
+        currentLogicalTime: currentLogicalTime.toFixed(3),
+        newElapsedReal: newElapsedReal.toFixed(3),
+        newBaseOffset: baseOffsetRef.current.toFixed(3)
+      });
+    }
+
     // GameEngine にも設定を反映
     if (gameEngine) {
       updateEngineSettings();
     }
-  }, [settings.playbackSpeed, gameEngine, updateEngineSettings]);
+  }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, currentTime]);
   
   // 時間同期ループ
   const startTimeSync = useCallback(() => {
@@ -321,9 +358,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         const safeTime = Math.max(0, Math.min(currentTime, (currentSong?.duration || currentTime)));
         if (audioRef.current) audioRef.current.currentTime = safeTime;
         
-        // オフセット再計算
+        // オフセット再計算（再生速度を考慮）
         if (audioContextRef.current) {
-          baseOffsetRef.current = audioContextRef.current.currentTime - safeTime;
+          const realTimeElapsed = safeTime / settings.playbackSpeed;
+          baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
         }
         
         // GameEngineも同時にシーク
@@ -336,8 +374,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         if (timeDiff > 0.3) {
           const safeTime = Math.max(0, Math.min(currentTime, (currentSong?.duration || currentTime)));
           
-          // オフセット再計算（音声なしモード）
-          baseOffsetRef.current = audioContextRef.current.currentTime - safeTime;
+          // オフセット再計算（音声なしモード、再生速度を考慮）
+          const realTimeElapsed = safeTime / settings.playbackSpeed;
+          baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
           
           // GameEngineシーク
           gameEngine.seek(safeTime);
