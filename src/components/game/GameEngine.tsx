@@ -28,6 +28,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     currentTime,
     settings,
     score,
+    mode,
     lastKeyHighlight,
     isSettingsOpen,
     initializeGameEngine,
@@ -713,7 +714,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   return (
     <div className={cn("h-full w-full flex flex-col", className)}>
       {/* ==== フローティング ステータスメニュー ==== */}
-      <div className="fixed top-20 left-4 z-40 pointer-events-none select-none">
+      <div className="fixed bottom-20 left-4 z-40 pointer-events-none select-none">
         <div className="bg-black bg-opacity-70 text-white text-xs rounded-md shadow px-3 py-2 space-y-1">
           <div className="flex items-center space-x-2">
             <div className={cn(
@@ -742,9 +743,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         style={{ minHeight: '40vh' }}
       >
         {/* GOOD / MISS オーバーレイ */}
-        <div className="absolute top-2 left-2 z-20 text-white text-sm font-mono bg-black bg-opacity-60 px-2 py-1 rounded pointer-events-none">
-          ✅ {score.goodCount} &nbsp; ✖ {score.missCount}
+        {mode === 'performance' && (
+        <div className="absolute top-3 left-3 z-20 text-lg font-bold bg-black bg-opacity-70 px-3 py-2 rounded-lg pointer-events-none">
+          <span className="text-green-400">✓ {score.goodCount}</span>
+          <span className="mx-3 text-gray-500">|</span>
+          <span className="text-red-400">× {score.missCount}</span>
         </div>
+        )}
         {/* PIXI.js ノーツレンダラー（統合済み） */}
         {(() => {
           const TOTAL_WHITE_KEYS = 52; // 88鍵ピアノの白鍵数
