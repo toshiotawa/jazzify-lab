@@ -33,6 +33,7 @@ interface NoteSprite {
   glowSprite?: PIXI.Graphics;
   label?: PIXI.Sprite; // Text から Sprite に変更（テクスチャアトラス用）
   effectPlayed?: boolean; // エフェクト重複生成防止
+  transposeAtCreation?: number; // 作成時のトランスポーズ値を記録
 }
 
 interface RendererSettings {
@@ -1542,6 +1543,32 @@ export class PIXINotesRendererInstance {
         if (sprite.glowSprite) sprite.glowSprite.x = x;
       }
       
+      // ===== トランスポーズ変更検出 =====
+      if (sprite.transposeAtCreation !== this.settings.transpose) {
+        const effectivePitch = note.pitch + this.settings.transpose;
+        const isBlackNote = this.isBlackKey(effectivePitch);
+        
+        // テクスチャを即座に更新
+        if (note.state === 'visible' || note.state === 'missed') {
+          const newTexture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
+          sprite.sprite.texture = newTexture;
+        }
+        
+        // 適切なコンテナに移動
+        const currentContainer = sprite.sprite.parent;
+        const targetContainer = isBlackNote ? this.blackNotes : this.whiteNotes;
+        
+        if (currentContainer !== targetContainer) {
+          if (currentContainer) {
+            currentContainer.removeChild(sprite.sprite);
+          }
+          targetContainer.addChild(sprite.sprite);
+        }
+        
+        // トランスポーズ値を更新
+        sprite.transposeAtCreation = this.settings.transpose;
+      }
+      
       // ===== 🚀 位置関連プロパティのみ部分更新（state保持） =====
       // 新しいオブジェクトを作成し、座標のみ更新、状態は元のまま保持
       sprite.noteData = {
@@ -1697,7 +1724,8 @@ export class PIXINotesRendererInstance {
       glowSprite,
       noteData: note,
       label,
-      effectPlayed: false
+      effectPlayed: false,
+      transposeAtCreation: this.settings.transpose
     };
     
     this.noteSprites.set(note.id, noteSprite);
@@ -1741,11 +1769,15 @@ export class PIXINotesRendererInstance {
       noteSprite.noteData = note;
       return;
     } else {
-      noteSprite.sprite.alpha = 1;
-      const isBlackNote = this.isBlackKey(effectivePitch);
-      noteSprite.sprite.texture = isBlackNote
-        ? this.noteTextures.blackVisible
-        : this.noteTextures.whiteVisible;
+      // ノーツの状態が変わった時のみテクスチャを更新
+      // （トランスポーズ変更時はupdateSettingsで一括更新されるため、ここでは更新しない）
+      if (noteSprite.noteData.state !== note.state) {
+        noteSprite.sprite.alpha = 1;
+        const isBlackNote = this.isBlackKey(effectivePitch);
+        noteSprite.sprite.texture = isBlackNote
+          ? this.noteTextures.blackVisible
+          : this.noteTextures.whiteVisible;
+      }
     }
     
     // グロー効果の更新
@@ -2071,6 +2103,7 @@ export class PIXINotesRendererInstance {
 
     // === transpose が変化した場合、既存ノートのラベル / カラーを更新 ===
     if (newSettings.transpose !== undefined && newSettings.transpose !== prevTranspose) {
+      // 全てのノートスプライトを即座に更新
       this.noteSprites.forEach((noteSprite) => {
         const pitch = noteSprite.noteData.pitch;
         const effectivePitch = pitch + this.settings.transpose;
@@ -2106,21 +2139,18 @@ export class PIXINotesRendererInstance {
           noteSprite.label = undefined;
         }
 
-        // 3) カラー・形状更新（Sprite用のテクスチャ交換）
+        // 3) カラー・形状更新（Sprite用のテクスチャ交換）- 即座に反映
         const noteData = noteSprite.noteData;
         const isBlackNote = this.isBlackKey(noteData.pitch + this.settings.transpose);
         let newTexture: PIXI.Texture;
 
+        // 状態に関わらず、白鍵・黒鍵の判定を最新のトランスポーズ値で更新
         switch (noteData.state) {
           case 'hit':
           case 'good':
           case 'perfect':
             newTexture = this.noteTextures.hit;
             break;
-          /*
-           * 巻き戻し後に残っている missed ノートが transpose で赤くならないよう、
-           * missed は visible と同じ扱いにする。
-           */
           case 'missed':
           case 'visible':
           default:
@@ -2128,12 +2158,29 @@ export class PIXINotesRendererInstance {
             break;
         }
 
+        // テクスチャを即座に更新（PIXIの描画を強制）
         noteSprite.sprite.texture = newTexture;
+
+        // 黒鍵・白鍵で異なるコンテナに配置されているため、必要に応じてコンテナも変更
+        const currentContainer = noteSprite.sprite.parent;
+        const targetContainer = isBlackNote ? this.blackNotes : this.whiteNotes;
+        
+        if (currentContainer !== targetContainer) {
+          // 現在のコンテナから削除
+          if (currentContainer) {
+            currentContainer.removeChild(noteSprite.sprite);
+          }
+          // 新しいコンテナに追加
+          targetContainer.addChild(noteSprite.sprite);
+        }
 
         if (noteSprite.glowSprite) {
           this.drawGlowShape(noteSprite.glowSprite, noteData.state, noteData.pitch);
         }
       });
+
+      // PIXIレンダラーに即座に描画を強制
+      this.app.renderer.render(this.app.stage);
     }
   }
   
