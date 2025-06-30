@@ -186,7 +186,9 @@ export class PIXINotesRendererInstance {
       powerPreference: 'high-performance', // 高性能GPU使用
       backgroundAlpha: 1,
       clearBeforeRender: true,
-      preserveDrawingBuffer: false // パフォーマンス向上
+      preserveDrawingBuffer: false, // パフォーマンス向上
+      // 統一フレーム制御: SharedTicker を使用して GameEngine と同期
+      sharedTicker: true
     });
     
     // 強制的にCanvasサイズを設定
@@ -229,14 +231,14 @@ export class PIXINotesRendererInstance {
     
     // ★ エフェクト更新＋パフォーマンス監視をTickerに統合
     this.effectsElapsed = 0;
-    this.app.ticker.add((tickerDelta) => {
+    PIXI.Ticker.shared.add((tickerDelta) => {
       // パフォーマンス監視開始
       if (this.performanceEnabled) {
         performanceMonitor.startFrame();
       }
       
       // パーティクルなど低頻度エフェクト
-      this.effectsElapsed += this.app.ticker.deltaMS;
+      this.effectsElapsed += PIXI.Ticker.shared.deltaMS;
       if (this.effectsElapsed >= 33) { // ≒ 30 FPS
         this.updateParticleEffects(this.effectsElapsed / 1000);
         this.effectsElapsed = 0;

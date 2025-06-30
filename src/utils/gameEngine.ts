@@ -15,6 +15,7 @@ import type {
 } from '@/types';
 import { unifiedFrameController, performanceMonitor } from './performanceOptimizer';
 import { log, perfLog, devLog } from './logger';
+import * as PIXI from 'pixi.js';
 
 // ===== 定数定義 =====
 
@@ -73,7 +74,7 @@ export class GameEngine {
   private pausedTime: number = 0;
   private latencyOffset: number = 0;
   
-  private animationFrame: number | null = null;
+  private tickerListener: ((delta: number) => void) | null = null;
   private onUpdate?: (data: GameEngineUpdate) => void;
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
@@ -734,6 +735,8 @@ export class GameEngine {
   }
   
   private startGameLoop(): void {
+    const ticker = PIXI.Ticker.shared;
+
     const gameLoop = () => {
       const frameStartTime = performance.now();
       
@@ -742,8 +745,7 @@ export class GameEngine {
       
       // フレームスキップ制御
       if (unifiedFrameController.shouldSkipFrame(frameStartTime)) {
-        this.animationFrame = requestAnimationFrame(gameLoop);
-        return;
+        return; // スキップ時はロジック・描画を行わず、次のTicker呼び出しを待つ
       }
       
       const currentTime = this.getCurrentTime();
@@ -824,17 +826,17 @@ export class GameEngine {
           });
         }
       }
-      
-      this.animationFrame = requestAnimationFrame(gameLoop);
     };
     
-    this.animationFrame = requestAnimationFrame(gameLoop);
+    this.tickerListener = gameLoop;
+    ticker.add(gameLoop);
   }
   
   private stopGameLoop(): void {
-    if (this.animationFrame !== null) {
-      cancelAnimationFrame(this.animationFrame);
-      this.animationFrame = null;
+    const ticker = PIXI.Ticker.shared;
+    if (this.tickerListener) {
+      ticker.remove(this.tickerListener);
+      this.tickerListener = null;
     }
   }
 
