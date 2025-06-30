@@ -303,12 +303,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       // 新しい速度での経過時間を計算し、baseOffsetを調整
       const newElapsedReal = currentLogicalTime / settings.playbackSpeed;
       baseOffsetRef.current = audioContextRef.current.currentTime - newElapsedReal;
-      
-      devLog.debug(`🔧 再生速度変更: ${settings.playbackSpeed}x - baseOffset再計算完了`, {
-        currentLogicalTime: currentLogicalTime.toFixed(3),
-        newElapsedReal: newElapsedReal.toFixed(3),
-        newBaseOffset: baseOffsetRef.current.toFixed(3)
-      });
     }
 
     // GameEngine にも設定を反映

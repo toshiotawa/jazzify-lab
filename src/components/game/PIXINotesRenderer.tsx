@@ -984,9 +984,9 @@ export class PIXINotesRendererInstance {
     for (const child of this.effectsContainer.children) {
       if (processed >= maxProcessPerFrame) break;
       
-      // 🎯 Hitエフェクトコンテナを保護（名前またはタイプでチェック）
-      if (child instanceof PIXI.Container || (child as any).name === 'HitEffect') {
-        console.log(`⚡ Skipping HitEffect from auto-fade: ${(child as any).name || 'Container'}`);
+      // 🎯 Hitエフェクトコンテナを保護（名前で厳密にチェック）
+      // ログは削除してパフォーマンス向上
+      if ((child as any).name === 'HitEffect') {
         continue;
       }
       
