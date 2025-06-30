@@ -24,7 +24,7 @@ const GameScreen: React.FC = () => {
       {/* ヘッダー（展開状態） */}
       {!headerCollapsed && (
         <header
-          className="flex-shrink-0 bg-game-surface border-b border-gray-700 p-4"
+          className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-4 py-2"
         >
           <div className="flex justify-between items-center">
             {/* タブナビゲーション */}
@@ -81,7 +81,7 @@ const GameScreen: React.FC = () => {
 
       {/* ヘッダー（収納時のミニバー） */}
       {headerCollapsed && (
-        <div className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-4 py-1">
+        <div className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-2 py-1">
           <div className="flex justify-end">
             <button
               onClick={() => setHeaderCollapsed(false)}
@@ -95,7 +95,7 @@ const GameScreen: React.FC = () => {
       )}
 
       {/* メインコンテンツエリア */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden min-h-0">
         {currentTab === 'songs' ? (
           <SongSelectionScreen />
         ) : (
@@ -136,9 +136,9 @@ const SongSelectionScreen: React.FC = () => {
   const gameActions = useGameActions();
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
+    <div className="flex-1 p-3 sm:p-6 overflow-auto">
       <div className="max-w-4xl mx-auto">
-        <h2 className="text-2xl font-bold text-white mb-6">楽曲選択</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">楽曲選択</h2>
         
         {/* 楽曲リスト */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -322,10 +322,10 @@ const GamePlayScreen: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Phase 3: ゲームエンジン統合 */}
-      <div className="flex-1 p-4">
-        <GameEngineComponent className="h-full flex flex-col" />
+      <div className="flex-1 min-h-0">
+        <GameEngineComponent className="h-full w-full" />
       </div>
 
       {/* 新しいコントロールバー（シークバー + 詳細コントロール） */}

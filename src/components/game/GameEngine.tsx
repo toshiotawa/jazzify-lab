@@ -708,7 +708,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }
   
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("h-full w-full flex flex-col", className)}>
       {/* ==== フローティング ステータスメニュー ==== */}
       <div className="fixed top-20 left-4 z-40 pointer-events-none select-none">
         <div className="bg-black bg-opacity-70 text-white text-xs rounded-md shadow px-3 py-2 space-y-1">

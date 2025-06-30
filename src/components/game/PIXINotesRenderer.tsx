@@ -218,7 +218,6 @@ export class PIXINotesRendererInstance {
     // セットアップシーケンス
     try {
       this.setupContainers();
-      this.createTestVisual();
       this.createNotesAreaBackground();
       this.setupPiano();
       this.setupHitLine();
@@ -262,39 +261,7 @@ export class PIXINotesRendererInstance {
     log.info('✅ PIXI.js renderer initialized successfully');
   }
 
-  /**
-   * デバッグ用テスト図形（PIXI.js表示確認）
-   */
-  private createTestVisual(): void {
-    devLog.debug('🧪 Creating test visual to verify PIXI.js canvas...');
-    
-    try {
-      // 赤い矩形をテスト描画
-      const testRect = new PIXI.Graphics();
-      testRect.beginFill(0xFF0000); // 赤色
-      testRect.drawRect(0, 0, 100, 50);
-      testRect.endFill();
-      testRect.x = 50;
-      testRect.y = 50;
-      
-      this.container.addChild(testRect);
-      devLog.debug('✅ Test rectangle added to main container');
-      
-      // 青い円もテスト描画
-      const testCircle = new PIXI.Graphics();
-      testCircle.beginFill(0x0000FF); // 青色
-      testCircle.drawCircle(0, 0, 25);
-      testCircle.endFill();
-      testCircle.x = 200;
-      testCircle.y = 100;
-      
-      this.container.addChild(testCircle);
-      devLog.debug('✅ Test circle added to main container');
-      
-    } catch (error) {
-      log.error('❌ Failed to create test visual:', error);
-    }
-  }
+
   
   /**
    * ノーツテクスチャを事前生成

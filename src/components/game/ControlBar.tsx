@@ -136,7 +136,7 @@ const ControlBar: React.FC = () => {
   return (
     <div className="control-bar bg-game-surface border-t border-gray-700 w-full sticky bottom-0 z-20">
       {/* シークバー */}
-      <div className="seekbar-container p-3 border-b border-gray-700">
+      <div className="seekbar-container px-3 py-2 border-b border-gray-700">
         <div className="flex items-center space-x-3">
           <div className="relative flex-1">
             <input
@@ -204,7 +204,7 @@ const ControlBar: React.FC = () => {
       </div>
 
       {/* コントロールボタン - 1行レイアウト */}
-      <div className="controls-container p-4 flex flex-col sm:flex-row justify-between items-center">
+      <div className="controls-container px-4 py-2 flex flex-col sm:flex-row justify-between items-center">
         <div className="flex justify-center items-center space-x-3 flex-wrap overflow-x-auto">
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
