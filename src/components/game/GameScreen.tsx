@@ -4,6 +4,7 @@ import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
 import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import ResultModal from './ResultModal';
+import SheetMusicDisplay from './SheetMusicDisplay';
 
 /**
  * メインゲーム画面コンポーネント
@@ -204,6 +205,7 @@ const SongSelectionScreen: React.FC = () => {
                   duration: actualDuration,
                   audioFile: '/demo-1.mp3',
                   notesFile: '/demo-1.json',
+                  musicXmlFile: '/demo-1.xml',
                   genreCategory: 'demo'
                 };
                 
@@ -320,8 +322,16 @@ const GamePlayScreen: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* Phase 3: ゲームエンジン統合 */}
-      <div className="flex-1 min-h-0">
+      {/* 楽譜表示エリア（上半分） */}
+      <div className="h-1/2 min-h-0 border-b border-gray-700">
+        <SheetMusicDisplay 
+          musicXmlUrl={currentSong.musicXmlFile}
+          className="h-full"
+        />
+      </div>
+      
+      {/* ゲームエンジン（下半分） */}
+      <div className="h-1/2 min-h-0">
         <GameEngineComponent className="h-full w-full" />
       </div>
 

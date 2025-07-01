@@ -74,6 +74,7 @@ export interface SongMetadata {
   duration: number;   // 秒
   audioFile: string;
   notesFile: string;
+  musicXmlFile?: string; // MusicXMLファイルのパス
   genreCategory: string;
   previewStart?: number; // プレビュー開始時間
   tags?: string[];
