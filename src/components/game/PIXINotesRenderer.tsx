@@ -476,15 +476,40 @@ export class PIXINotesRendererInstance {
 
     const style = this.settings.noteNameStyle;
     
-    // MusicXMLから来た音名を判定して適切なテクスチャマップを選択
+    // MusicXMLから来た音名を正規化（表示用の形式に変換）
+    let normalizedName = noteName;
+    
+    if (style === 'abc') {
+      // ABC記法の場合、そのまま使用（C#, Db など）
+      // ただし、ダブルシャープ/フラットは単純化
+      normalizedName = normalizedName.replace('x', '#').replace('bb', 'b');
+    } else if (style === 'solfege') {
+      // ソルフェージュ記法に変換
+      const noteToSolfege: { [key: string]: string } = {
+        'C': 'ド', 'D': 'レ', 'E': 'ミ', 'F': 'ファ', 
+        'G': 'ソ', 'A': 'ラ', 'B': 'シ'
+      };
+      
+      const baseNote = normalizedName[0];
+      const accidental = normalizedName.slice(1);
+      
+      if (noteToSolfege[baseNote]) {
+        normalizedName = noteToSolfege[baseNote];
+        if (accidental === '#' || accidental === 'x') {
+          normalizedName += '#';
+        } else if (accidental === 'b' || accidental === 'bb') {
+          normalizedName += '♭';
+        }
+      }
+    }
+    
+    // 音名に含まれる臨時記号を検出してテクスチャマップを選択
+    const hasSharp = normalizedName.includes('#');
+    const hasFlat = normalizedName.includes('b') || normalizedName.includes('♭');
+
     let textureMap: Map<string, PIXI.Texture>;
     
-    // 音名に含まれる臨時記号を検出
-    const hasSharp = noteName.includes('#') || noteName.includes('x');
-    const hasFlat = noteName.includes('b') || noteName.includes('♭');
-
     if (style === 'abc') {
-      // MusicXMLの臨時記号に基づいて選択
       textureMap = hasFlat ? this.labelTextures.abc_flat : this.labelTextures.abc_sharp;
     } else if (style === 'solfege') {
       textureMap = hasFlat ? this.labelTextures.solfege_flat : this.labelTextures.solfege_sharp;
@@ -492,16 +517,16 @@ export class PIXINotesRendererInstance {
       textureMap = this.labelTextures.abc_sharp; // fallback
     }
 
-    const texture = textureMap.get(noteName);
+    const texture = textureMap.get(normalizedName);
     
     if (!texture) {
-      console.warn(`⚠️ getLabelTexture: No texture found for "${noteName}" (style: ${style})`);
+      console.warn(`⚠️ getLabelTexture: No texture found for "${normalizedName}" (original: "${noteName}", style: ${style})`);
       console.log(`Available textures in map:`, Array.from(textureMap.keys()));
       return null;
     }
 
     if (texture === PIXI.Texture.EMPTY) {
-      console.warn(`⚠️ getLabelTexture: Found empty texture for "${noteName}"`);
+      console.warn(`⚠️ getLabelTexture: Found empty texture for "${normalizedName}"`);
       return null;
     }
 
