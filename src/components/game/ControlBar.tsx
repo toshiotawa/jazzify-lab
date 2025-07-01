@@ -134,7 +134,7 @@ const ControlBar: React.FC = () => {
   }, [transpose]);
 
   return (
-    <div className="control-bar bg-game-surface border-t border-gray-700 w-full sticky bottom-0 z-20">
+    <div className="control-bar bg-game-surface border-t border-gray-700 w-full z-20">
       {/* シークバー */}
       <div className="seekbar-container px-3 py-2 border-b border-gray-700">
         <div className="flex items-center space-x-3">
@@ -203,9 +203,9 @@ const ControlBar: React.FC = () => {
         </div>
       </div>
 
-      {/* コントロールボタン - 1行レイアウト */}
-      <div className="controls-container px-4 py-2 flex flex-col sm:flex-row justify-between items-center">
-        <div className="flex justify-center items-center space-x-3 flex-wrap overflow-x-auto">
+      {/* コントロールボタン - モバイル対応レイアウト */}
+      <div className="controls-container px-2 sm:px-4 py-2 flex flex-col sm:flex-row justify-between items-center">
+        <div className="flex justify-center items-center space-x-2 sm:space-x-3 flex-wrap overflow-x-auto max-w-full">
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
             <>
@@ -235,7 +235,7 @@ const ControlBar: React.FC = () => {
               </button>
 
               {/* ループコントロール */}
-              <div className="flex items-center space-x-2 ml-4">
+              <div className="flex items-center space-x-2 sm:ml-4">
                 <button
                   onClick={handleToggleLoop}
                   className={`control-btn control-btn-sm ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'}`}
@@ -245,8 +245,8 @@ const ControlBar: React.FC = () => {
                 </button>
               </div>
 
-              {/* A/B地点設定（コンパクト） */}
-              <div className="flex items-center space-x-1 ml-2 text-xs">
+              {/* A/B地点設定（モバイル対応） */}
+              <div className="hidden sm:flex items-center space-x-1 ml-2 text-xs">
                 <button
                   onClick={handleSetAStart}
                   className="control-btn control-btn-xs control-btn-secondary"
@@ -291,7 +291,7 @@ const ControlBar: React.FC = () => {
               </div>
 
               {/* 移調コントロール */}
-              <div className="flex items-center space-x-1 ml-4">
+              <div className="flex items-center space-x-1 sm:ml-4">
                 <button
                   onClick={handleTransposeDown}
                   className="control-btn control-btn-xs control-btn-secondary"

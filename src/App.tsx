@@ -103,7 +103,7 @@ const App: React.FC = () => {
       <div 
         className={cn(
           'game-container',
-          'relative w-full h-screen overflow-hidden',
+          'relative w-full h-screen overflow-hidden flex flex-col',
           'bg-gradient-game text-white',
           'font-sans antialiased'
         )}

@@ -322,21 +322,26 @@ const GamePlayScreen: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* 楽譜表示エリア（上半分） */}
-      <div className="h-1/2 min-h-0 border-b border-gray-700">
-        <SheetMusicDisplay 
-          musicXmlUrl={currentSong.musicXmlFile}
-          className="h-full"
-        />
-      </div>
-      
-      {/* ゲームエンジン（下半分） */}
-      <div className="h-1/2 min-h-0">
-        <GameEngineComponent className="h-full w-full" />
+      {/* メインコンテンツエリア（楽譜 + PIXI） */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* 楽譜表示エリア（上半分） */}
+        <div className="flex-1 min-h-0 border-b border-gray-700">
+          <SheetMusicDisplay 
+            musicXmlUrl={currentSong.musicXmlFile}
+            className="h-full"
+          />
+        </div>
+        
+        {/* ゲームエンジン（下半分） */}
+        <div className="flex-1 min-h-0">
+          <GameEngineComponent className="h-full w-full" />
+        </div>
       </div>
 
-      {/* 新しいコントロールバー（シークバー + 詳細コントロール） */}
-      <ControlBar />
+      {/* コントロールバー（固定高さ） */}
+      <div className="flex-shrink-0">
+        <ControlBar />
+      </div>
     </div>
   );
 };

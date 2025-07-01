@@ -87,7 +87,7 @@
   /* グラデーション付きコントロールボタン */
   .control-btn {
     /* 軽量化: スケール拡大でコントロールバーが揺れるのを防止 */
-    @apply relative px-4 py-3 rounded-xl font-semibold text-white transition-all duration-200 
+    @apply relative px-3 py-2 sm:px-4 sm:py-3 rounded-xl font-semibold text-white transition-all duration-200 
            shadow-md hover:shadow-lg 
            focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-opacity-40
            active:scale-95 overflow-hidden;
