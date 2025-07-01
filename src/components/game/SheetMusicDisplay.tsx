@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
-import { useGameSelector } from '@/stores/helpers';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import platform from '@/platform';
 
 interface SheetMusicDisplayProps {
@@ -32,6 +32,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     notes: s.notes,
     transpose: s.settings.transpose || 0
   }));
+  
+  const gameActions = useGameActions();
 
   // OSMDの初期化
   const initializeOSMD = useCallback(async () => {
@@ -91,11 +93,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     }
   }, [musicXmlUrl, transpose]);
 
-  // 音符の時刻とX座標のマッピングを作成
+  // 音符の時刻とX座標のマッピングを作成 + 音名情報を抽出
   const createTimeMapping = useCallback(() => {
     if (!osmdRef.current || !notes || notes.length === 0) return;
 
     const mapping: TimeMappingEntry[] = [];
+    const noteNamesMap: { [noteId: string]: string } = {};
     const graphicSheet = osmdRef.current.GraphicSheet;
     
     if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
@@ -129,6 +132,25 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
                       });
                     }
                     
+                    // 音名情報を抽出
+                    const sourceNote = graphicNote.sourceNote;
+                    if (sourceNote && sourceNote.Pitch) {
+                      const pitch = sourceNote.Pitch;
+                      let noteName = pitch.FundamentalNote.toString();
+                      
+                      // 臨時記号の処理
+                      if (pitch.Accidental) {
+                        switch (pitch.Accidental) {
+                          case 1: noteName += '#'; break;
+                          case -1: noteName += 'b'; break;
+                          case 2: noteName += 'x'; break; // ダブルシャープ
+                          case -2: noteName += 'bb'; break; // ダブルフラット
+                        }
+                      }
+                      
+                      noteNamesMap[note.id] = noteName;
+                    }
+                    
                     noteIndex++;
                   }
                 }
@@ -139,8 +161,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       }
     }
     
+    // 音名情報をnotesに反映
+    if (Object.keys(noteNamesMap).length > 0) {
+      gameActions.updateNoteNames(noteNamesMap);
+    }
+    
     setTimeMapping(mapping);
-  }, [notes]);
+  }, [notes, gameActions]);
 
   // スクロールアニメーション
   const updateScroll = useCallback(() => {

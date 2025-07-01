@@ -60,7 +60,6 @@ interface RendererSettings {
   };
   /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
   noteNameStyle: 'off' | 'abc' | 'solfege';
-  noteAccidentalStyle: 'sharp' | 'flat';
   /** ストアの transpose 値（±6） */
   transpose: number;
   /** 練習モードガイド設定 */
@@ -155,7 +154,6 @@ export class PIXINotesRendererInstance {
       trails: false            // トレイル効果を完全無効化
     },
     noteNameStyle: 'abc',
-    noteAccidentalStyle: 'sharp',
     transpose: 0,
     practiceGuide: 'key'
   };
@@ -467,14 +465,19 @@ export class PIXINotesRendererInstance {
     }
 
     const style = this.settings.noteNameStyle;
-    const accidental = this.settings.noteAccidentalStyle;
-
+    
+    // MusicXMLから来た音名を判定して適切なテクスチャマップを選択
     let textureMap: Map<string, PIXI.Texture>;
+    
+    // 音名に含まれる臨時記号を検出
+    const hasSharp = noteName.includes('#') || noteName.includes('x');
+    const hasFlat = noteName.includes('b') || noteName.includes('♭');
 
     if (style === 'abc') {
-      textureMap = accidental === 'flat' ? this.labelTextures.abc_flat : this.labelTextures.abc_sharp;
+      // MusicXMLの臨時記号に基づいて選択
+      textureMap = hasFlat ? this.labelTextures.abc_flat : this.labelTextures.abc_sharp;
     } else if (style === 'solfege') {
-      textureMap = accidental === 'flat' ? this.labelTextures.solfege_flat : this.labelTextures.solfege_sharp;
+      textureMap = hasFlat ? this.labelTextures.solfege_flat : this.labelTextures.solfege_sharp;
     } else {
       textureMap = this.labelTextures.abc_sharp; // fallback
     }
@@ -482,7 +485,7 @@ export class PIXINotesRendererInstance {
     const texture = textureMap.get(noteName);
     
     if (!texture) {
-      console.warn(`⚠️ getLabelTexture: No texture found for "${noteName}" (style: ${style}, accidental: ${accidental})`);
+      console.warn(`⚠️ getLabelTexture: No texture found for "${noteName}" (style: ${style})`);
       console.log(`Available textures in map:`, Array.from(textureMap.keys()));
       return null;
     }
@@ -1196,24 +1199,20 @@ export class PIXINotesRendererInstance {
   private getMidiNoteName(midiNote: number): string {
     // 統一された表示スタイルを取得
     const style = this.settings.noteNameStyle;
-    const accidental = this.settings.noteAccidentalStyle;
 
     if (style === 'off') return '';
 
-    // 12音階の名前テーブル
+    // 12音階の名前テーブル（デフォルトはシャープ）
     const sharpNamesABC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const flatNamesABC  = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-
     const sharpNamesSolfege = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
-    const flatNamesSolfege  = ['ド', 'レ♭', 'レ', 'ミ♭', 'ミ', 'ファ', 'ソ♭', 'ソ', 'ラ♭', 'ラ', 'シ♭', 'シ'];
 
     const index = midiNote % 12;
 
     if (style === 'abc') {
-      return accidental === 'flat' ? flatNamesABC[index] : sharpNamesABC[index];
+      return sharpNamesABC[index];
     }
     if (style === 'solfege') {
-      return accidental === 'flat' ? flatNamesSolfege[index] : sharpNamesSolfege[index];
+      return sharpNamesSolfege[index];
     }
 
     // fallback
@@ -1674,12 +1673,21 @@ export class PIXINotesRendererInstance {
     sprite.x = x;
     sprite.y = 0; // 後で設定
     
-    // 音名ラベル（テクスチャアトラスから取得して labelsContainer に配置）
+    // 音名ラベル（MusicXMLから取得した音名を優先）
     let label: PIXI.Sprite | undefined;
-    const _noteNameForLabel = this.getMidiNoteName(effectivePitch);
-    if (_noteNameForLabel) {
+    let noteNameForLabel: string | undefined;
+    
+    // MusicXMLから取得した音名を優先
+    if (note.noteName) {
+      noteNameForLabel = note.noteName;
+    } else {
+      // フォールバック: 従来のロジックで音名を生成
+      noteNameForLabel = this.getMidiNoteName(effectivePitch);
+    }
+    
+    if (noteNameForLabel && this.settings.noteNameStyle !== 'off') {
       try {
-        const labelTexture = this.getLabelTexture(_noteNameForLabel);
+        const labelTexture = this.getLabelTexture(noteNameForLabel);
         if (labelTexture) {
           label = new PIXI.Sprite(labelTexture);
           label.anchor.set(0.5, 1);
@@ -1690,13 +1698,13 @@ export class PIXINotesRendererInstance {
           try {
             this.labelsContainer.addChild(label);
           } catch (containerError) {
-            log.error(`❌ Failed to add label to container for "${_noteNameForLabel}":`, containerError);
+            log.error(`❌ Failed to add label to container for "${noteNameForLabel}":`, containerError);
             label.destroy();
             label = undefined;
           }
         }
       } catch (error) {
-        log.error(`❌ Error creating label sprite for "${_noteNameForLabel}":`, error);
+        log.error(`❌ Error creating label sprite for "${noteNameForLabel}":`, error);
         label = undefined;
       }
     }

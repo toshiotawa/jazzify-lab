@@ -114,7 +114,7 @@ const defaultSettings: GameSettings = {
   // 表示設定
   showNoteNames: true,
   noteNameStyle: 'abc',
-  noteAccidentalStyle: 'sharp',
+  
   showFPS: false,
   
   // ビューポート設定
@@ -560,6 +560,9 @@ interface GameStoreState extends GameState {
   // リザルトモーダル
   openResultModal: () => void;
   closeResultModal: () => void;
+  
+  // 音名情報更新
+  updateNoteNames: (noteNamesMap: { [noteId: string]: string }) => void;
 }
 
 // ===== ヘルパー関数 =====
@@ -1332,6 +1335,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         // リザルトモーダル
         openResultModal: () => set((state) => { state.resultModalOpen = true; }),
         closeResultModal: () => set((state) => { state.resultModalOpen = false; }),
+        
+        // 音名情報更新
+        updateNoteNames: (noteNamesMap) => set((state) => {
+          // notesに音名情報を追加
+          state.notes = state.notes.map(note => ({
+            ...note,
+            noteName: noteNamesMap[note.id] || note.noteName
+          }));
+        }),
       }))
     ),
     {

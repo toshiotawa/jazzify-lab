@@ -620,7 +620,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (pixiRenderer) {
       pixiRenderer.updateSettings({
         noteNameStyle: settings.noteNameStyle,
-        noteAccidentalStyle: settings.noteAccidentalStyle ?? 'sharp',
+
         pianoHeight: settings.pianoHeight,
         transpose: settings.transpose,
         practiceGuide: settings.practiceGuide ?? 'key'
@@ -632,7 +632,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pyinThreshold: settings.pyinThreshold
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.noteAccidentalStyle, settings.pianoHeight, settings.transpose, settings.practiceGuide, settings.pyinThreshold]);
+  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.pianoHeight, settings.transpose, settings.practiceGuide, settings.pyinThreshold]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
@@ -734,7 +734,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     // 初期設定を反映
     renderer.updateSettings({
       noteNameStyle: settings.noteNameStyle,
-      noteAccidentalStyle: settings.noteAccidentalStyle ?? 'sharp',
+      
       pianoHeight: settings.pianoHeight,
       transpose: settings.transpose,
       practiceGuide: settings.practiceGuide ?? 'key'
@@ -788,7 +788,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.noteAccidentalStyle, settings.pianoHeight, settings.selectedMidiDevice]);
+  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.pianoHeight, settings.selectedMidiDevice]);
   
   // キーボード入力処理（テスト用）
   const handleKeyPress = useCallback((event: KeyboardEvent) => {

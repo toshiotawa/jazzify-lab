@@ -663,31 +663,7 @@ const SettingsPanel: React.FC = () => {
                 <option value="solfege">ドレミ</option>
               </select>
 
-              {/* # / ♭ 表示選択 */}
-              <div className="flex items-center space-x-4 mt-2">
-                <label className="flex items-center space-x-1 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="accidental-style"
-                    value="sharp"
-                    checked={(settings.noteAccidentalStyle ?? 'sharp') === 'sharp'}
-                    onChange={() => gameActions.updateSettings({ noteAccidentalStyle: 'sharp' })}
-                    className="radio radio-sm"
-                  />
-                  <span className="text-sm text-gray-300"># 表示</span>
-                </label>
-                <label className="flex items-center space-x-1 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="accidental-style"
-                    value="flat"
-                    checked={(settings.noteAccidentalStyle ?? 'sharp') === 'flat'}
-                    onChange={() => gameActions.updateSettings({ noteAccidentalStyle: 'flat' })}
-                    className="radio radio-sm"
-                  />
-                  <span className="text-sm text-gray-300">♭ 表示</span>
-                </label>
-              </div>
+
             </div>
 
             {/* 練習モードガイド設定 */}

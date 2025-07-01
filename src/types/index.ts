@@ -15,6 +15,7 @@ export interface NoteData {
   time: number;      // 秒単位での時間
   pitch: number;     // MIDIノート番号 (21-108)
   appearTime?: number; // ノーツが表示される時間（計算で設定）
+  noteName?: string;  // MusicXMLから取得した音名（例: "C", "D#", "Eb"）
 }
 
 // ===== Phase 2: ゲームエンジン型定義 =====
@@ -106,8 +107,6 @@ export interface GameSettings {
   showNoteNames: boolean; // (deprecated) True if legacy for note names
   /** 統一された音名表示モード（鍵盤・ノーツ共通）: off | abc | solfege */
   noteNameStyle: 'off' | 'abc' | 'solfege';
-  /** ノーツ音名の臨時記号(#/♭)スタイル */
-  noteAccidentalStyle?: 'sharp' | 'flat';
   showFPS: boolean;
   
   // ビューポート設定（動的レイアウト対応）

@@ -23,6 +23,10 @@ declare module 'opensheetmusicdisplay' {
       NoteTie?: {
         StartNote: boolean;
       };
+      Pitch?: {
+        FundamentalNote: number;
+        Accidental?: number;
+      };
     };
     PositionAndShape: {
       AbsolutePosition: {
