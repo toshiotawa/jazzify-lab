@@ -324,16 +324,16 @@ const GamePlayScreen: React.FC = () => {
     <div className="flex-1 flex flex-col min-h-0">
       {/* メインコンテンツエリア（楽譜 + PIXI） */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* 楽譜表示エリア（上半分） */}
-        <div className="flex-1 min-h-0 border-b border-gray-700 overflow-hidden">
+        {/* 楽譜表示エリア */}
+        <div className="h-[35%] sm:h-[40%] min-h-[150px] sm:min-h-[200px] border-b border-gray-700 overflow-hidden">
           <SheetMusicDisplay 
             musicXmlUrl={currentSong.musicXmlFile}
             className="h-full"
           />
         </div>
         
-        {/* ゲームエンジン（下半分） */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        {/* ゲームエンジン（PIXIエリア - ピアノを含む） */}
+        <div className="flex-1 min-h-[250px] sm:min-h-[300px] overflow-hidden">
           <GameEngineComponent className="h-full w-full" />
         </div>
       </div>
