@@ -118,7 +118,17 @@ export class PIXINotesRendererInstance {
   private fpsCounter = 0;
   private lastFpsTime = 0;
   
-
+  // ★ スクロール機能用プロパティを追加
+  private scrollContainer!: PIXI.Container; // スクロール可能なコンテナ
+  private isDragging: boolean = false;
+  private dragStartX: number = 0;
+  private dragStartScrollX: number = 0;
+  private scrollX: number = 0;
+  private scrollVelocity: number = 0;
+  private lastDragX: number = 0;
+  private lastDragTime: number = 0;
+  private scrollBounds = { min: 0, max: 0 };
+  private scrollInertiaFrame: number | null = null;
   
   // リアルタイムアニメーション用
   /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -623,66 +633,183 @@ export class PIXINotesRendererInstance {
   }
   
   private setupContainers(): void {
-    // メインコンテナを生成
+    devLog.debug('🎯 Setting up PIXI containers...');
+    
+    // ★ スクロール可能なメインコンテナを作成
+    this.scrollContainer = new PIXI.Container();
+    this.scrollContainer.eventMode = 'static';
+    this.scrollContainer.cursor = 'grab';
+    this.app.stage.addChild(this.scrollContainer);
+    
+    // メインコンテナ（スクロールコンテナの子として追加）
     this.container = new PIXI.Container();
-    this.app.stage.addChild(this.container);
-
-    // Z順: 背面 → 前面
-
-    // 1. ピアノコンテナ（最背面）
-    this.pianoContainer = new PIXI.Container();
-    this.container.addChild(this.pianoContainer);
-
-    // 2-a. 白鍵ノーツ専用コンテナ
-    this.whiteNotes = new PIXI.ParticleContainer(
-      3000, // 最大3000個の白鍵ノーツをサポート
-      { 
-        position: true, 
-        alpha: true,
-        uvs: true,   // 👈 複数テクスチャ対応に必須
-        tint: true
-      }
-    );
-    this.container.addChild(this.whiteNotes);
-
-    // 2-b. 黒鍵ノーツ専用コンテナ
-    this.blackNotes = new PIXI.ParticleContainer(
-      2000, // 最大2000個の黒鍵ノーツをサポート
-      { 
-        position: true, 
-        alpha: true,
-        uvs: true,   // 👈 複数テクスチャ対応に必須
-        tint: true
-      }
-    );
-    this.container.addChild(this.blackNotes);
-
-    // 3. ラベル専用コンテナ（普通のContainerに変更で安定性向上）
-    this.labelsContainer = new PIXI.Container() as any;
-    this.container.addChild(this.labelsContainer);
-
-    // 4. ヒットラインコンテナ（ノーツ上、エフェクト下）
+    this.scrollContainer.addChild(this.container);
+    
+    // 判定ライン用コンテナ（スクロールしない）
     this.hitLineContainer = new PIXI.Container();
-    this.container.addChild(this.hitLineContainer);
-
-    // 5. エフェクトコンテナ（最前面）
+    this.app.stage.addChild(this.hitLineContainer);
+    
+    // ピアノ鍵盤用コンテナ（スクロールしない）
+    this.pianoContainer = new PIXI.Container();
+    this.pianoContainer.y = this.settings.hitLineY;
+    this.app.stage.addChild(this.pianoContainer);
+    
+    // エフェクト用コンテナ（スクロールしない）
     this.effectsContainer = new PIXI.Container();
-    this.effectsContainer.name = 'EffectsContainer'; // デバッグ用
+    this.app.stage.addChild(this.effectsContainer);
     
-    // === エフェクトコンテナ全体でポインターイベントを無効化 ===
-    // ヒットエフェクトが表示されても下の鍵盤操作を阻害しないよう設定
-    (this.effectsContainer as any).eventMode = 'none';
-    this.effectsContainer.interactive = false;
+    // 白鍵ノーツ用ParticleContainer
+    this.whiteNotes = new PIXI.ParticleContainer(5000, {
+      position: true,
+      rotation: false,
+      scale: true,
+      uvs: false,
+      tint: true,
+      alpha: true
+    });
+    this.container.addChild(this.whiteNotes);
     
-    this.container.addChild(this.effectsContainer);
+    // 黒鍵ノーツ用ParticleContainer
+    this.blackNotes = new PIXI.ParticleContainer(3000, {
+      position: true,
+      rotation: false,
+      scale: true,
+      uvs: false,
+      tint: true,
+      alpha: true
+    });
+    this.container.addChild(this.blackNotes);
     
-    console.log('📦 Container setup complete. Z-order:');
-    console.log('  0: Piano (background)');
-    console.log('  1: White Notes');
-    console.log('  2: Black Notes');
-    console.log('  3: Labels');
-    console.log('  4: Hit Line');
-    console.log('  5: Effects (foreground) - pointer events disabled');
+    // ラベル用コンテナ（通常のContainer）
+    this.labelsContainer = new PIXI.Container();
+    this.container.addChild(this.labelsContainer);
+    
+    // ★ スクロールイベントの設定
+    this.setupScrollEvents();
+    
+    devLog.debug('✅ Container setup completed');
+  }
+  
+  // ★ スクロールイベントの設定
+  private setupScrollEvents(): void {
+    // ポインターダウン（ドラッグ開始）
+    this.scrollContainer.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
+      if (this.onDragActive) return; // ノートドラッグ中はスクロール無効
+      
+      this.isDragging = true;
+      this.dragStartX = event.globalX;
+      this.dragStartScrollX = this.scrollX;
+      this.lastDragX = event.globalX;
+      this.lastDragTime = performance.now();
+      this.scrollVelocity = 0;
+      this.scrollContainer.cursor = 'grabbing';
+      
+      // 慣性スクロールを停止
+      if (this.scrollInertiaFrame !== null) {
+        PIXI.Ticker.shared.remove(this.updateScrollInertia, this);
+        this.scrollInertiaFrame = null;
+      }
+    });
+    
+    // ポインタームーブ（ドラッグ中）
+    this.app.stage.on('pointermove', (event: PIXI.FederatedPointerEvent) => {
+      if (!this.isDragging) return;
+      
+      const currentX = event.globalX;
+      const deltaX = currentX - this.dragStartX;
+      const currentTime = performance.now();
+      const deltaTime = currentTime - this.lastDragTime;
+      
+      // 新しいスクロール位置を計算
+      const newScrollX = this.dragStartScrollX - deltaX;
+      
+      // スクロール範囲を制限
+      this.scrollX = Math.max(this.scrollBounds.min, Math.min(this.scrollBounds.max, newScrollX));
+      
+      // 速度を計算（慣性スクロール用）
+      if (deltaTime > 0) {
+        this.scrollVelocity = (currentX - this.lastDragX) / deltaTime * 16; // 60FPSベース
+      }
+      
+      this.lastDragX = currentX;
+      this.lastDragTime = currentTime;
+      
+      // スクロール位置を適用
+      this.updateScrollPosition();
+    });
+    
+    // ポインターアップ（ドラッグ終了）
+    this.app.stage.on('pointerup', () => {
+      if (!this.isDragging) return;
+      
+      this.isDragging = false;
+      this.scrollContainer.cursor = 'grab';
+      
+      // 慣性スクロールを開始
+      if (Math.abs(this.scrollVelocity) > 0.5) {
+        PIXI.Ticker.shared.add(this.updateScrollInertia, this);
+      }
+    });
+    
+    // マウスホイールスクロール
+    this.app.view.addEventListener('wheel', (event: WheelEvent) => {
+      event.preventDefault();
+      
+      const scrollSpeed = 1.5;
+      this.scrollX += event.deltaY * scrollSpeed;
+      
+      // スクロール範囲を制限
+      this.scrollX = Math.max(this.scrollBounds.min, Math.min(this.scrollBounds.max, this.scrollX));
+      
+      // スクロール位置を適用
+      this.updateScrollPosition();
+    });
+  }
+  
+  // ★ 慣性スクロールの更新
+  private updateScrollInertia = (): void => {
+    if (this.isDragging) return;
+    
+    // 摩擦を適用
+    this.scrollVelocity *= 0.95;
+    
+    // 速度が十分小さくなったら停止
+    if (Math.abs(this.scrollVelocity) < 0.5) {
+      PIXI.Ticker.shared.remove(this.updateScrollInertia, this);
+      this.scrollInertiaFrame = null;
+      return;
+    }
+    
+    // スクロール位置を更新
+    this.scrollX -= this.scrollVelocity;
+    
+    // スクロール範囲を制限
+    this.scrollX = Math.max(this.scrollBounds.min, Math.min(this.scrollBounds.max, this.scrollX));
+    
+    // スクロール位置を適用
+    this.updateScrollPosition();
+  };
+  
+  // ★ スクロール位置の更新
+  private updateScrollPosition(): void {
+    this.scrollContainer.x = -this.scrollX;
+  }
+  
+  // ★ スクロール範囲の更新
+  private updateScrollBounds(): void {
+    // コンテンツの幅を計算（最も右にあるノートの位置 + 余白）
+    let maxX = this.app.view.width;
+    
+    this.noteSprites.forEach((noteSprite) => {
+      const x = noteSprite.sprite.x + noteSprite.sprite.width;
+      if (x > maxX) {
+        maxX = x;
+      }
+    });
+    
+    // スクロール範囲を設定
+    this.scrollBounds.min = 0;
+    this.scrollBounds.max = Math.max(0, maxX - this.app.view.width + 100); // 右端に100pxの余白
   }
   
   private setupHitLine(): void {
@@ -1416,92 +1543,36 @@ export class PIXINotesRendererInstance {
    * 位置更新と状態更新を分離してCPU使用量を30-50%削減
    */
   updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
-    if (!currentTime) return; // 絶対時刻が必要
-    
-    // ノーツ更新のパフォーマンス測定開始
-    const notesUpdateStartTime = performance.now();
-    
-    // ===== 巻き戻し検出とノートリスト更新 =====
-    const timeMovedBackward = currentTime < this.lastUpdateTime;
-    
-    // ===== シーク検出: activeNotesの数が大幅に変化した場合 =====
-    const notesCountChanged = Math.abs(activeNotes.length - this.allNotes.length) > 10;
-    const seekDetected = timeMovedBackward || notesCountChanged;
-    
-    // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
-    if (seekDetected) {
-      devLog.info(`🔄 Seek detected: clearing all note sprites (old: ${this.allNotes.length}, new: ${activeNotes.length})`);
-      // 全てのノートスプライトを削除
-      const noteIds = Array.from(this.noteSprites.keys());
-      for (const noteId of noteIds) {
-        this.removeNoteSprite(noteId);
-      }
-      this.noteSprites.clear();
+    if (!this.app || !this.container) {
+      console.warn('⚠️ updateNotes called but renderer not ready');
+      return;
     }
     
-    // ノートリストが変更された場合、または巻き戻しが発生した場合
-    if (activeNotes !== this.allNotes || seekDetected) {
-      this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time); // 時刻順ソート
-      
-      // 巻き戻し時は適切な nextNoteIndex を二分探索で復帰
-      if (seekDetected) {
-        this.nextNoteIndex = this.findNoteIndexByTime(currentTime);
-        devLog.info(`🔄 Time moved backward: ${this.lastUpdateTime.toFixed(2)} -> ${currentTime.toFixed(2)}, reset nextNoteIndex: ${this.nextNoteIndex}`);
-      } else {
-        this.nextNoteIndex = 0; // 新しいノートリストの場合は最初から
-      }
+    // 現在時刻を更新
+    if (currentTime !== undefined) {
+      this._currentTime = currentTime;
     }
     
-    this.lastUpdateTime = currentTime;
+    // ★ ポインタシステムのリセット判定
+    if (currentTime !== undefined && currentTime < this.lastUpdateTime - 0.5) {
+      devLog.info(`🔄 Time rewind detected: ${this.lastUpdateTime.toFixed(2)} -> ${currentTime.toFixed(2)}, resetting pointer`);
+      this.nextNoteIndex = 0;
+    }
+    this.lastUpdateTime = currentTime || 0;
     
-    // GameEngineと同じ計算式を使用（統一化）
-    const baseFallDuration = 5.0; // LOOKAHEAD_TIME
-    const visualSpeedMultiplier = this.settings.noteSpeed;
-    const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
-    const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
-    
-    // FPS監視（デバッグ用）
-    this.fpsCounter++;
-    if (currentTime - this.lastFpsTime >= 1000) {
-      const processedNotes = this.allNotes.length - this.nextNoteIndex;
-      perfLog.info(`🚀 PIXI FPS: ${this.fpsCounter} | Total Notes: ${this.allNotes.length} | Processed: ${processedNotes} | Next Index: ${this.nextNoteIndex} | Sprites: ${this.noteSprites.size} | speedPxPerSec: ${speedPxPerSec.toFixed(1)}`);
-      this.fpsCounter = 0;
-      this.lastFpsTime = currentTime;
+    // ★ 新しいノートリストで全体を更新
+    if (activeNotes !== this.allNotes) {
+      this.allNotes = activeNotes;
+      this.nextNoteIndex = 0;
+      devLog.debug(`📝 Note list updated: ${activeNotes.length} notes`);
     }
     
-    // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
-    // まだ表示していないノートで、表示時刻になったもののみ処理
-    const appearanceTime = currentTime + baseFallDuration; // 画面上端に現れる時刻
-    
-    while (this.nextNoteIndex < this.allNotes.length &&
-           this.allNotes[this.nextNoteIndex].time <= appearanceTime) {
-      const note = this.allNotes[this.nextNoteIndex];
-      
-      // 新規ノーツスプライト作成（初回のみ）
-      if (!this.noteSprites.has(note.id)) {
-        this.createNoteSprite(note);
-      }
-      
-      this.nextNoteIndex++;
-    }
-    
-    // ===== 🚀 CPU最適化: ループ分離による高速化 =====
-    // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
-    this.updateSpritePositions(activeNotes, currentTime, speedPxPerSec);
-    
-    // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
-    const frameStartTime = performance.now();
-    
-    // 状態・削除処理ループ（フレーム間引き無効化）
+    // スプライト位置とステートを更新
+    this.updateSpritePositions(activeNotes, this._currentTime, this.settings.noteSpeed * 300);
     this.updateSpriteStates(activeNotes);
     
-    // ノーツ更新のパフォーマンス測定終了
-    const notesUpdateDuration = performance.now() - notesUpdateStartTime;
-    
-    // 重い更新処理の場合のみログ出力（5ms以上またはノート数が多い場合）
-    if (notesUpdateDuration > 5 || activeNotes.length > 100) {
-      perfLog.info(`🎯 PIXI updateNotes: ${notesUpdateDuration.toFixed(2)}ms | Notes: ${activeNotes.length} | Sprites: ${this.noteSprites.size}`);
-    }
+    // ★ スクロール範囲を更新
+    this.updateScrollBounds();
   }
 
   /**
