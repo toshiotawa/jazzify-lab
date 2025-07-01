@@ -25,6 +25,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeMapping, setTimeMapping] = useState<TimeMappingEntry[]>([]);
+  const [validationResult, setValidationResult] = useState<{ valid: boolean; errors: string[] } | null>(null);
   
   const { currentTime, isPlaying, notes, transpose } = useGameSelector((s) => ({
     currentTime: s.currentTime,
@@ -93,7 +94,31 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     }
   }, [musicXmlUrl, transpose]);
 
-  // 音符の時刻とX座標のマッピングを作成 + 音名情報を抽出
+  // MIDIノート番号から音名を取得（臨時記号考慮）
+  const getMidiNoteName = (midiNote: number, preferFlat: boolean = false): { step: string; alter: number } => {
+    const noteNames = preferFlat ? 
+      ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] :
+      ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    
+    const noteIndex = midiNote % 12;
+    const noteName = noteNames[noteIndex];
+    
+    // 音名と臨時記号を分離
+    let step = noteName[0];
+    let alter = 0;
+    
+    if (noteName.length > 1) {
+      if (noteName[1] === '#') {
+        alter = 1;
+      } else if (noteName[1] === 'b') {
+        alter = -1;
+      }
+    }
+    
+    return { step, alter };
+  };
+
+  // 音符の時刻とX座標のマッピングを作成 + 音名情報を抽出 + 整合性チェック
   const createTimeMapping = useCallback(() => {
     if (!osmdRef.current || !notes || notes.length === 0) return;
 
@@ -107,6 +132,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     }
 
     let noteIndex = 0;
+    const xmlNotes: { pitch: number; noteName: string }[] = [];
     
     // 全ての音符を走査
     for (const page of graphicSheet.MusicPages) {
@@ -121,37 +147,43 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
                     continue;
                   }
                   
-                  if (noteIndex < notes.length) {
-                    const note = notes[noteIndex];
-                    const absX = graphicNote.PositionAndShape.AbsolutePosition.x;
+                  // MusicXMLの音符情報を取得
+                  const sourceNote = graphicNote.sourceNote;
+                  if (sourceNote && sourceNote.Pitch) {
+                    const pitch = sourceNote.Pitch;
+                    const midiNote = pitch.getHalfTone() + 60; // C4 = 60を基準に計算
                     
-                    if (absX !== undefined) {
-                      mapping.push({
-                        timeMs: note.time * 1000, // 秒をミリ秒に変換
-                        xPosition: absX * 10 // OSMDの単位系からピクセルへ変換（概算）
-                      });
+                    // 音名を取得（MusicXMLの表記を優先）
+                    let noteName = pitch.FundamentalNote.toString();
+                    
+                    // 臨時記号の処理
+                    if (pitch.Accidental !== undefined && pitch.Accidental !== null && pitch.Accidental !== 0) {
+                      switch (pitch.Accidental) {
+                        case 1: noteName += '#'; break;
+                        case -1: noteName += 'b'; break;
+                        case 2: noteName += 'x'; break; // ダブルシャープ
+                        case -2: noteName += 'bb'; break; // ダブルフラット
+                      }
                     }
                     
-                    // 音名情報を抽出
-                    const sourceNote = graphicNote.sourceNote;
-                    if (sourceNote && sourceNote.Pitch) {
-                      const pitch = sourceNote.Pitch;
-                      let noteName = pitch.FundamentalNote.toString();
+                    xmlNotes.push({ pitch: midiNote, noteName });
+                    
+                    // JSONのノートとマッピング
+                    if (noteIndex < notes.length) {
+                      const note = notes[noteIndex];
+                      const absX = graphicNote.PositionAndShape.AbsolutePosition.x;
                       
-                      // 臨時記号の処理
-                      if (pitch.Accidental) {
-                        switch (pitch.Accidental) {
-                          case 1: noteName += '#'; break;
-                          case -1: noteName += 'b'; break;
-                          case 2: noteName += 'x'; break; // ダブルシャープ
-                          case -2: noteName += 'bb'; break; // ダブルフラット
-                        }
+                      if (absX !== undefined) {
+                        mapping.push({
+                          timeMs: note.time * 1000, // 秒をミリ秒に変換
+                          xPosition: absX * 10 // OSMDの単位系からピクセルへ変換（概算）
+                        });
                       }
                       
+                      // MusicXMLの音名をJSONノートに関連付け
                       noteNamesMap[note.id] = noteName;
+                      noteIndex++;
                     }
-                    
-                    noteIndex++;
                   }
                 }
               }
@@ -159,6 +191,38 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
           }
         }
       }
+    }
+    
+    // 整合性チェック
+    const errors: string[] = [];
+    
+    // 1. 音符数のチェック
+    if (xmlNotes.length !== notes.length) {
+      errors.push(`音符数の不一致: JSON=${notes.length}個, MusicXML=${xmlNotes.length}個（タイ除外後）`);
+    }
+    
+    // 2. 各音符のピッチチェック
+    const checkLength = Math.min(xmlNotes.length, notes.length);
+    for (let i = 0; i < checkLength; i++) {
+      const jsonNote = notes[i];
+      const xmlNote = xmlNotes[i];
+      
+      if (jsonNote.pitch !== xmlNote.pitch) {
+        errors.push(`${i + 1}番目の音符のピッチ不一致: JSON=${jsonNote.pitch} (MIDI), MusicXML=${xmlNote.pitch} (MIDI)`);
+      }
+    }
+    
+    // 検証結果を保存
+    setValidationResult({
+      valid: errors.length === 0,
+      errors
+    });
+    
+    if (errors.length > 0) {
+      console.warn('🎵 JSONとMusicXMLの整合性チェック結果:');
+      errors.forEach(error => console.warn(`  - ${error}`));
+    } else {
+      console.log('✅ JSONとMusicXMLの整合性チェック: OK');
     }
     
     // 音名情報をnotesに反映
@@ -244,6 +308,21 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
         style={{ left: '100px' }}
       />
+      
+      {/* 整合性チェック結果の表示 */}
+      {validationResult && !validationResult.valid && (
+        <div className="absolute top-2 right-2 bg-yellow-900 bg-opacity-90 text-yellow-200 text-xs p-2 rounded max-w-xs z-20">
+          <div className="font-semibold mb-1">⚠️ 整合性チェック警告</div>
+          <ul className="list-disc list-inside">
+            {validationResult.errors.slice(0, 3).map((error: string, index: number) => (
+              <li key={index} className="truncate">{error}</li>
+            ))}
+            {validationResult.errors.length > 3 && (
+              <li>他 {validationResult.errors.length - 3} 件のエラー</li>
+            )}
+          </ul>
+        </div>
+      )}
       
       {/* 楽譜コンテナ */}
       <div className="relative h-full">
