@@ -22,7 +22,7 @@ const GameScreen: React.FC = () => {
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
   return (
-    <div className="game-container h-screen flex flex-col bg-gradient-game">
+    <div className="game-container h-screen h-[100dvh] flex flex-col bg-gradient-game">
       {/* ヘッダー（展開状態） */}
       {!headerCollapsed && (
         <header
@@ -90,7 +90,7 @@ const GameScreen: React.FC = () => {
       )}
 
       {/* メインコンテンツエリア */}
-      <main className="flex-1 flex flex-col min-h-0 relative">
+      <main className="flex-1 flex flex-col min-h-0">
         {currentTab === 'songs' ? (
           <SongSelectionScreen />
         ) : (
@@ -321,11 +321,11 @@ const GamePlayScreen: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 relative">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* メインコンテンツエリア（楽譜 + PIXI） */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden pb-[140px]">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* 楽譜表示エリア（上半分） */}
-        <div className="flex-1 min-h-0 border-b border-gray-700">
+        <div className="flex-1 min-h-0 border-b border-gray-700 overflow-hidden">
           <SheetMusicDisplay 
             musicXmlUrl={currentSong.musicXmlFile}
             className="h-full"
@@ -333,13 +333,13 @@ const GamePlayScreen: React.FC = () => {
         </div>
         
         {/* ゲームエンジン（下半分） */}
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <GameEngineComponent className="h-full w-full" />
         </div>
       </div>
 
-      {/* コントロールバー（画面下部に固定） */}
-      <div className="absolute bottom-0 left-0 right-0 z-30">
+      {/* コントロールバー（固定高さ） */}
+      <div className="flex-shrink-0 bg-game-surface">
         <ControlBar />
       </div>
     </div>

@@ -6,6 +6,7 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    height: 100%;
   }
   
   body {
@@ -13,8 +14,13 @@
     font-feature-settings: 'cv03', 'cv04', 'cv11';
     margin: 0;
     overflow: hidden; /* ゲーム画面では画面外スクロールを無効 */
-    height: 100vh;
-    height: 100dvh; /* モバイル対応 */
+    height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh; /* モバイル対応 */
+  }
+  
+  #root {
+    height: 100%;
   }
   
   * {
