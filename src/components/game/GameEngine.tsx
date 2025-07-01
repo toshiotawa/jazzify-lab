@@ -652,8 +652,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       if (!gameAreaRef.current) return;
       const rect = gameAreaRef.current.getBoundingClientRect();
       const newSize = {
-        width: rect.width || 800,
-        height: rect.height || 600
+        width: Math.max(rect.width, 320),  // 最小幅を保証
+        height: Math.max(rect.height, 200) // 最小高さを保証
       };
       setGameAreaSize(newSize);
 
@@ -862,7 +862,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       <div 
         ref={gameAreaRef}
         className="relative flex-1 bg-gray-900 rounded-lg overflow-hidden"
-        style={{ minHeight: '40vh' }}
+        style={{ minHeight: '200px' }}
       >
         {/* GOOD / MISS オーバーレイ */}
         {mode === 'performance' && (
@@ -917,6 +917,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             <div>PIXI.js レンダラー: 稼働中</div>
             <div>アクティブノーツ: {engineActiveNotes.length}</div>
             <div>解像度: {gameAreaSize.width}×{gameAreaSize.height}</div>
+            <div>画面モード: {window.innerWidth > 1024 ? '横画面' : '縦画面'}</div>
           </div>
         )}
       </div>
