@@ -90,7 +90,7 @@ const GameScreen: React.FC = () => {
       )}
 
       {/* メインコンテンツエリア */}
-      <main className="flex-1 flex flex-col overflow-hidden min-h-0">
+      <main className="flex-1 flex flex-col min-h-0 relative">
         {currentTab === 'songs' ? (
           <SongSelectionScreen />
         ) : (
@@ -321,9 +321,9 @@ const GamePlayScreen: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0 relative">
       {/* メインコンテンツエリア（楽譜 + PIXI） */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden pb-[140px]">
         {/* 楽譜表示エリア（上半分） */}
         <div className="flex-1 min-h-0 border-b border-gray-700">
           <SheetMusicDisplay 
@@ -338,8 +338,8 @@ const GamePlayScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* コントロールバー（固定高さ） */}
-      <div className="flex-shrink-0">
+      {/* コントロールバー（画面下部に固定） */}
+      <div className="absolute bottom-0 left-0 right-0 z-30">
         <ControlBar />
       </div>
     </div>
