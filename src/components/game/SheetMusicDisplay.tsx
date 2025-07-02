@@ -25,6 +25,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeMapping, setTimeMapping] = useState<TimeMappingEntry[]>([]);
+  const previousTransposeRef = useRef<number>(0);
   
   const { currentTime, isPlaying, notes, transpose } = useGameSelector((s) => ({
     currentTime: s.currentTime,
@@ -85,6 +86,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       // タイムマッピングを作成
       createTimeMapping();
       
+      previousTransposeRef.current = transpose;
+      
     } catch (err) {
       console.error('楽譜の読み込みエラー:', err);
       setError(err instanceof Error ? err.message : '楽譜の読み込みに失敗しました');
@@ -92,6 +95,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       setIsLoading(false);
     }
   }, [musicXmlUrl, transpose]);
+
+  // 移調値が変更された時の処理
+  useEffect(() => {
+    if (osmdRef.current && transpose !== previousTransposeRef.current) {
+      // 移調値が変更された場合は楽譜を再読み込み
+      initializeOSMD();
+    }
+  }, [transpose, initializeOSMD]);
 
   // 音符の時刻とX座標のマッピングを作成 + 音名情報を抽出
   const createTimeMapping = useCallback(() => {
@@ -223,7 +234,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
   // MusicXMLが変更されたら再初期化
   useEffect(() => {
     initializeOSMD();
-  }, [initializeOSMD]);
+  }, [musicXmlUrl]); // transposeは別のuseEffectで処理
 
   // クリーンアップ
   useEffect(() => {
@@ -245,8 +256,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         style={{ left: '100px' }}
       />
       
-      {/* 楽譜コンテナ */}
-      <div className="relative h-full">
+      {/* 楽譜コンテナ - 上部に余白を追加 */}
+      <div className="relative h-full pt-8 pb-4">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
             <div className="text-white">楽譜を読み込み中...</div>
@@ -273,7 +284,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         >
           <div 
             ref={containerRef} 
-            className="h-full"
+            className="h-full flex items-center"
             style={{ minWidth: '3000px' }} // 十分な幅を確保
           />
         </div>
