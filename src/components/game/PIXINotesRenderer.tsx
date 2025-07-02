@@ -3,7 +3,8 @@
  * 高性能なノーツ降下アニメーション - ParticleContainer + テクスチャ最適化版
  */
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
+import { useEffect, useRef } from 'react';
 import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
 import { unifiedFrameController, renderOptimizer, performanceMonitor } from '@/utils/performanceOptimizer';
