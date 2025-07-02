@@ -23,7 +23,7 @@ const GameScreen: React.FC = () => {
 
   return (
     <div 
-      className="game-container h-screen flex flex-col bg-gradient-game"
+      className="game-container h-screen h-[100dvh] flex flex-col bg-gradient-game"
       style={{
         touchAction: 'none',
         userSelect: 'none',
@@ -98,7 +98,7 @@ const GameScreen: React.FC = () => {
         </div>
       )}
 
-      {/* メインコンテンツエリア */}
+      {/* メインコンテンツエリア */
       <main className="flex-1 flex flex-col overflow-hidden min-h-0">
         {currentTab === 'songs' ? (
           <SongSelectionScreen />
@@ -330,22 +330,27 @@ const GamePlayScreen: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      {/* 楽譜表示エリア（上半分） */}
-      <div className="h-1/2 min-h-0 border-b border-gray-700">
-        <SheetMusicDisplay 
-          musicXmlUrl={currentSong.musicXmlFile}
-          className="h-full"
-        />
-      </div>
-      
-      {/* ゲームエンジン（下半分） */}
-      <div className="h-1/2 min-h-0">
-        <GameEngineComponent className="h-full w-full" />
+    <div className="flex-1 flex flex-col min-h-0 relative">
+      {/* メインコンテンツエリア（ControlBarの高さを引いた領域） */}
+      <div className="flex-1 flex flex-col min-h-0 pb-[112px] sm:pb-[96px]">
+        {/* 楽譜表示エリア（上半分） */}
+        <div className="h-1/2 min-h-0 border-b border-gray-700">
+          <SheetMusicDisplay 
+            musicXmlUrl={currentSong.musicXmlFile}
+            className="h-full"
+          />
+        </div>
+        
+        {/* ゲームエンジン（下半分） */}
+        <div className="h-1/2 min-h-0">
+          <GameEngineComponent className="h-full w-full" />
+        </div>
       </div>
 
-      {/* 新しいコントロールバー（シークバー + 詳細コントロール） */}
-      <ControlBar />
+      {/* 新しいコントロールバー（シークバー + 詳細コントロール） - 絶対位置で固定 */}
+      <div className="absolute bottom-0 left-0 right-0">
+        <ControlBar />
+      </div>
     </div>
   );
 };

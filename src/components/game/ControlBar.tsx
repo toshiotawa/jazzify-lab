@@ -134,7 +134,7 @@ const ControlBar: React.FC = () => {
   }, [transpose]);
 
   return (
-    <div className="control-bar bg-game-surface border-t border-gray-700 w-full sticky bottom-0 z-20">
+    <div className="control-bar bg-game-surface border-t border-gray-700 w-full z-20">
       {/* シークバー */}
       <div className="seekbar-container px-3 py-2 border-b border-gray-700">
         <div className="flex items-center space-x-3">
