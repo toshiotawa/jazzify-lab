@@ -328,24 +328,10 @@ const GamePlayScreen: React.FC = () => {
     );
   }
 
-  // シークバーが非表示の場合は下部のパディングを減らす
-  const controlBarHeight = settings.showSeekbar ? 120 : 70; // モバイル
-  const controlBarHeightDesktop = settings.showSeekbar ? 100 : 60; // デスクトップ
-
   return (
-    <div className="flex-1 flex flex-col h-full relative">
-      {/* コントロールバー - 画面下部に固定表示 */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-gray-900 border-t border-gray-700">
-        <ControlBar />
-      </div>
-
-      {/* メインコンテンツエリア - flexで残りのスペースを使用 */}
-      <div 
-        className="flex-1 flex flex-col overflow-hidden"
-        style={{
-          paddingBottom: `${controlBarHeight}px`
-        }}
-      >
+    <div className="flex-1 flex flex-col h-full">
+      {/* メインコンテンツエリア - 残りのスペースを使用 */}
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* 楽譜表示エリア（上側） - flex-1で余った領域を使用 */}
         <div className="flex-1 min-h-0 border-b border-gray-700 overflow-hidden">
           <SheetMusicDisplay 
@@ -358,6 +344,11 @@ const GamePlayScreen: React.FC = () => {
         <div className="flex-1 min-h-0">
           <GameEngineComponent className="h-full w-full" />
         </div>
+      </div>
+
+      {/* コントロールバー - フレックスボックス内の通常要素として配置 */}
+      <div className="flex-shrink-0 bg-gray-900 border-t border-gray-700">
+        <ControlBar />
       </div>
     </div>
   );

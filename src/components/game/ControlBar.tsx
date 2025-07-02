@@ -142,7 +142,7 @@ const ControlBar: React.FC = () => {
   }, [updateSettings, settings.showSeekbar]);
 
   return (
-    <div className="w-full pb-safe">
+    <div className="w-full">
       {/* シークバー - showSeekbarフラグで制御 */}
       {settings.showSeekbar && (
         <div className="px-3 py-2 bg-gray-900">
