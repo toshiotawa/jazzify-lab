@@ -330,25 +330,28 @@ const GamePlayScreen: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 relative">
-      {/* メインコンテンツエリア（ControlBarの高さを引いた領域） */}
-      <div className="flex-1 flex flex-col min-h-0 pb-[112px] sm:pb-[96px]">
+    <div className="flex-1 flex flex-col h-full relative">
+      {/* メインコンテンツエリア - ControlBarのための固定高さを確保 */}
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* 楽譜表示エリア（上半分） */}
-        <div className="h-1/2 min-h-0 border-b border-gray-700">
+        <div className="h-1/2 min-h-0 border-b border-gray-700 overflow-hidden">
           <SheetMusicDisplay 
             musicXmlUrl={currentSong.musicXmlFile}
             className="h-full"
           />
         </div>
         
-        {/* ゲームエンジン（下半分） */}
-        <div className="h-1/2 min-h-0">
-          <GameEngineComponent className="h-full w-full" />
+        {/* ゲームエンジン（下半分） - ControlBarの高さ分のpaddingを追加 */}
+        <div className="h-1/2 min-h-0 relative">
+          {/* コントロールバーの高さ分の余白を確保（モバイル: 120px, デスクトップ: 100px） */}
+          <div className="absolute inset-0 pb-[120px] sm:pb-[100px]">
+            <GameEngineComponent className="h-full w-full" />
+          </div>
         </div>
       </div>
 
-      {/* 新しいコントロールバー（シークバー + 詳細コントロール） - 絶対位置で固定 */}
-      <div className="absolute bottom-0 left-0 right-0">
+      {/* コントロールバー - 画面下部に固定表示 */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-gray-900 border-t border-gray-700">
         <ControlBar />
       </div>
     </div>

@@ -134,9 +134,9 @@ const ControlBar: React.FC = () => {
   }, [transpose]);
 
   return (
-    <div className="control-bar bg-game-surface border-t border-gray-700 w-full z-20">
+    <div className="w-full pb-safe">
       {/* シークバー */}
-      <div className="seekbar-container px-3 py-2 border-b border-gray-700">
+      <div className="px-3 py-2 bg-gray-900">
         <div className="flex items-center space-x-3">
           <div className="relative flex-1">
             <input
@@ -204,7 +204,7 @@ const ControlBar: React.FC = () => {
       </div>
 
       {/* コントロールボタン - 1行レイアウト */}
-      <div className="controls-container px-4 py-2 flex flex-col sm:flex-row justify-between items-center">
+      <div className="px-4 py-2 bg-gray-900 border-t border-gray-700 flex flex-col sm:flex-row justify-between items-center">
         <div className="flex justify-center items-center space-x-3 flex-wrap overflow-x-auto">
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調

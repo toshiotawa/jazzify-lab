@@ -67,6 +67,9 @@ export default {
         'gradient-jazz': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         'gradient-game': 'linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%)',
       },
+      padding: {
+        'safe': 'env(safe-area-inset-bottom)',
+      },
     },
   },
   plugins: [],
