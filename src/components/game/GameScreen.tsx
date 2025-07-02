@@ -98,7 +98,7 @@ const GameScreen: React.FC = () => {
         </div>
       )}
 
-      {/* メインコンテンツエリア */
+      {/* メインコンテンツエリア */}
       <main className="flex-1 flex flex-col overflow-hidden min-h-0">
         {currentTab === 'songs' ? (
           <SongSelectionScreen />
@@ -107,10 +107,8 @@ const GameScreen: React.FC = () => {
         )}
       </main>
 
-      {/* 設定パネル（オーバーレイ） */}
       {isSettingsOpen && <SettingsPanel />}
 
-      {/* リザルトモーダル */}
       <ResultModal />
     </div>
   );
