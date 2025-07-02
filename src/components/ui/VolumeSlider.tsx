@@ -27,7 +27,7 @@ export const VolumeSlider: React.FC<VolumeSliderProps> = ({
   onChange,
   className = 'w-40'
 }) => {
-  const rafRef = useRef<number | undefined>();
+  const rafRef = useRef<number | undefined>(undefined);
   
   // デバウンス付き音量更新
   const updateVolumeWithDebounce = useCallback((newValue: number) => {
