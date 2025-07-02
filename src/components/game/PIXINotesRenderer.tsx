@@ -260,19 +260,6 @@ export class PIXINotesRendererInstance {
       this.activeKeyPresses.clear();
     });
     
-    // ステージレベルでタッチイベントをフィルタリング
-    this.app.stage.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
-      // ピアノキー以外のエリアではイベントを伝播させる
-      const y = event.global.y;
-      if (y < this.settings.hitLineY) {
-        // ノーツエリアの場合、イベントを通過させる
-        (event.currentTarget as any).eventMode = 'none';
-        setTimeout(() => {
-          (event.currentTarget as any).eventMode = 'passive';
-        }, 0);
-      }
-    });
-    
     log.info('✅ PIXI.js renderer initialized successfully');
   }
 
@@ -772,6 +759,11 @@ export class PIXINotesRendererInstance {
     this.pianoContainer.addChild(whiteKeysContainer);
     this.pianoContainer.addChild(blackKeysContainer);
     
+    // ピアノエリアのタッチスクロールを無効化
+    this.pianoContainer.on('touchmove', (event: PIXI.FederatedPointerEvent) => {
+      event.stopPropagation();
+    });
+    
     // ===== グリッサンド用ドラッグハンドラ =====
     // 安定性向上のためグリッサンド機能を無効化。
     // マウス／タッチ操作によるキーのドラッグ移動での連続発音を行わない。
@@ -1081,6 +1073,12 @@ export class PIXINotesRendererInstance {
         releaseKey(event);
       });
       
+      // ポインタが鍵盤から離れた場合も解除（スクロール対応）
+      key.on('pointerleave', (event) => {
+        event.stopPropagation();
+        releaseKey(event);
+      });
+      
       // タッチデバイス対応（フォールバック）
       key.on('touchstart', (event) => {
         event.stopPropagation();
@@ -1088,6 +1086,11 @@ export class PIXINotesRendererInstance {
       });
       
       key.on('touchend', (event) => {
+        event.stopPropagation();
+        this.handleKeyRelease(midiNote);
+      });
+      
+      key.on('touchcancel', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
@@ -1183,6 +1186,12 @@ export class PIXINotesRendererInstance {
         releaseKey(event);
       });
       
+      // ポインタが鍵盤から離れた場合も解除（スクロール対応）
+      key.on('pointerleave', (event) => {
+        event.stopPropagation();
+        releaseKey(event);
+      });
+      
       // タッチデバイス対応（フォールバック）
       key.on('touchstart', (event) => {
         event.stopPropagation();
@@ -1190,6 +1199,11 @@ export class PIXINotesRendererInstance {
       });
       
       key.on('touchend', (event) => {
+        event.stopPropagation();
+        this.handleKeyRelease(midiNote);
+      });
+      
+      key.on('touchcancel', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
@@ -2508,15 +2522,17 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       // キャンバスにタッチ/スクロール設定を追加
       const canvas = renderer.view as HTMLCanvasElement;
       
-      // デフォルトではタッチスクロールを許可
-      canvas.style.touchAction = 'auto';
+      // ノーツエリアのみ横スクロール可能、ピアノエリアは不可
+      canvas.style.touchAction = 'none'; // 基本は無効化し、イベントハンドラで制御
       
       // canvasのスタイルを調整してモバイルスクロールを改善
       canvas.style.position = 'absolute';
       canvas.style.top = '0';
       canvas.style.left = '0';
       
-      // タッチイベントリスナーを追加してピアノエリアのみ制御
+      // タッチイベントリスナーを追加してエリア別の制御
+      let isInPianoArea = false;
+      
       canvas.addEventListener('touchstart', (e) => {
         const rect = canvas.getBoundingClientRect();
         const touch = e.touches[0];
@@ -2524,18 +2540,39 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
         
         // ピアノエリアかどうかを判定
         if (renderer && y >= renderer.settings.hitLineY) {
-          // ピアノエリアではスクロールを無効化
-          canvas.style.touchAction = 'none';
+          // ピアノエリアではスクロールを完全に無効化
+          isInPianoArea = true;
+          e.preventDefault(); // スクロールを防ぐ
         } else {
-          // ノーツエリアではスクロールを許可
-          canvas.style.touchAction = 'pan-x';
+          // ノーツエリアでは横スクロールを許可
+          isInPianoArea = false;
+          
+          // ノーツエリアでタッチ開始時は、既存のアクティブキーを全て解除
+          // （スクロール時のハイライト残り防止）
+          if (renderer) {
+            for (const midiNote of renderer.activeKeyPresses) {
+              renderer.handleKeyRelease(midiNote);
+            }
+            renderer.activeKeyPresses.clear();
+          }
         }
-      }, { passive: true });
+      }, { passive: false }); // preventDefaultのためpassive: false
+      
+      canvas.addEventListener('touchmove', (e) => {
+        // ピアノエリアでのタッチムーブを完全に無効化
+        if (isInPianoArea) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, { passive: false });
       
       canvas.addEventListener('touchend', () => {
-        // タッチ終了時はスクロールを再度許可
-        canvas.style.touchAction = 'auto';
-      }, { passive: true });
+        isInPianoArea = false;
+      });
+      
+      canvas.addEventListener('touchcancel', () => {
+        isInPianoArea = false;
+      });
       
     } catch (error) {
       console.error('❌ appendChild failed:', error);

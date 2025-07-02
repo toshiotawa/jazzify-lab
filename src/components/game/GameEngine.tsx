@@ -911,8 +911,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                 height: '100%',
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
-                WebkitTouchCallout: 'none'
+                WebkitTouchCallout: 'none',
+                position: 'relative'
               }}>
+                {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
+                
                 <PIXINotesRenderer
                   activeNotes={engineActiveNotes}
                   width={idealWidth}
