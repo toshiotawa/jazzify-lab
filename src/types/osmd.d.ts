@@ -27,6 +27,10 @@ declare module 'opensheetmusicdisplay' {
         FundamentalNote: number;
         Accidental?: number;
       };
+      TransposedPitch?: {
+        FundamentalNote: number;
+        Accidental?: number;
+      };
     };
     PositionAndShape: {
       AbsolutePosition: {
@@ -68,12 +72,18 @@ declare module 'opensheetmusicdisplay' {
     Transpose: number;
   }
 
+  export class TransposeCalculator {
+    constructor();
+  }
+
   export class OpenSheetMusicDisplay {
     constructor(container: HTMLElement, options?: IOSMDOptions);
     load(url: string): Promise<void>;
     render(): void;
+    updateGraphic(): void;
     clear(): void;
     GraphicSheet: GraphicSheet;
     Sheet: MusicSheet;
+    TransposeCalculator?: TransposeCalculator;
   }
 }

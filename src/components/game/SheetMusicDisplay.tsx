@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
+import { OpenSheetMusicDisplay, IOSMDOptions, TransposeCalculator } from 'opensheetmusicdisplay';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import platform from '@/platform';
 
@@ -78,6 +78,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       // OSMDインスタンスを作成
       osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
       
+      // TransposeCalculatorをインスタンス化して設定
+      osmdRef.current.TransposeCalculator = new TransposeCalculator();
+      
       // MusicXMLを読み込み
       await osmdRef.current.load(musicXmlUrl);
       
@@ -86,7 +89,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         osmdRef.current.Sheet.Transpose = currentTranspose;
       }
       
-      // レンダリング
+      // レイアウト更新とレンダリング
+      osmdRef.current.updateGraphic();
       osmdRef.current.render();
       
       // タイムマッピングを作成
@@ -113,7 +117,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         // 楽譜の移調値を更新
         osmdRef.current.Sheet.Transpose = transpose;
         
-        // 再レンダリング
+        // レイアウト更新と再レンダリング
+        osmdRef.current.updateGraphic();
         osmdRef.current.render();
         
         // タイムマッピングを再作成
@@ -170,21 +175,24 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
                     
                     // 音名情報を抽出
                     const sourceNote = graphicNote.sourceNote;
-                    if (sourceNote && sourceNote.Pitch) {
-                      const pitch = sourceNote.Pitch;
-                      let noteName = pitch.FundamentalNote.toString();
-                      
-                      // 臨時記号の処理
-                      if (pitch.Accidental) {
-                        switch (pitch.Accidental) {
-                          case 1: noteName += '#'; break;
-                          case -1: noteName += 'b'; break;
-                          case 2: noteName += 'x'; break; // ダブルシャープ
-                          case -2: noteName += 'bb'; break; // ダブルフラット
+                    if (sourceNote) {
+                      // TransposedPitchがある場合はそちらを優先
+                      const pitch = sourceNote.TransposedPitch || sourceNote.Pitch;
+                      if (pitch) {
+                        let noteName = pitch.FundamentalNote.toString();
+                        
+                        // 臨時記号の処理
+                        if (pitch.Accidental) {
+                          switch (pitch.Accidental) {
+                            case 1: noteName += '#'; break;
+                            case -1: noteName += 'b'; break;
+                            case 2: noteName += 'x'; break; // ダブルシャープ
+                            case -2: noteName += 'bb'; break; // ダブルフラット
+                          }
                         }
+                        
+                        noteNamesMap[note.id] = noteName;
                       }
-                      
-                      noteNamesMap[note.id] = noteName;
                     }
                     
                     noteIndex++;
