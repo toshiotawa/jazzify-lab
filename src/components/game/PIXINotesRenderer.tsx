@@ -2483,6 +2483,8 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
     
     try {
       containerRef.current.appendChild(renderer.view);
+      // Enable horizontal pan gesture so that swiping allows scrolling on small screens
+      renderer.view.style.touchAction = 'pan-x';
       console.log('✅ Canvas added to DOM');
     } catch (error) {
       console.error('❌ appendChild failed:', error);
