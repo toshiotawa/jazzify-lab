@@ -5,6 +5,7 @@ import ControlBar from './ControlBar';
 import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
+import ResizeHandle from '@/components/ui/ResizeHandle';
 
 /**
  * メインゲーム画面コンポーネント
@@ -310,6 +311,9 @@ const GamePlayScreen: React.FC = () => {
     settings: s.settings
   }));
   const gameActions = useGameActions();
+  
+  // 楽譜エリアの高さ比率を管理（パーセンテージ）
+  const [sheetMusicHeightPercentage, setSheetMusicHeightPercentage] = useState(30);
 
   if (!currentSong) {
     return (
@@ -331,17 +335,31 @@ const GamePlayScreen: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full">
       {/* メインコンテンツエリア - 残りのスペースを使用 */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* 楽譜表示エリア（上側） - 30% */}
-        <div className="h-[30%] min-h-0 border-b border-gray-700 overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* 楽譜表示エリア（上側） - 動的な高さ */}
+        <div 
+          className="min-h-0 overflow-hidden"
+          style={{ height: `${sheetMusicHeightPercentage}%` }}
+        >
           <SheetMusicDisplay 
             musicXmlUrl={currentSong.musicXmlFile}
             className="h-full"
           />
         </div>
         
-        {/* ゲームエンジン（下側） - 70%（ピアノが確実に表示される） */}
-        <div className="h-[70%] min-h-0">
+        {/* リサイズハンドル */}
+        <ResizeHandle
+          onResize={setSheetMusicHeightPercentage}
+          initialPercentage={sheetMusicHeightPercentage}
+          minPercentage={10}
+          maxPercentage={80}
+        />
+        
+        {/* ゲームエンジン（下側） - 残りの高さ */}
+        <div 
+          className="min-h-0"
+          style={{ height: `${100 - sheetMusicHeightPercentage}%` }}
+        >
           <GameEngineComponent className="h-full w-full" />
         </div>
       </div>
