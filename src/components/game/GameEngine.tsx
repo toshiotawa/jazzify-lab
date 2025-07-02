@@ -909,7 +909,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               <div style={{ 
                 width: idealWidth, 
                 height: '100%',
-                touchAction: 'pan-x',
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
                 WebkitTouchCallout: 'none'

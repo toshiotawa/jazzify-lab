@@ -388,6 +388,17 @@
     overscroll-behavior-y: none;
   }
   
+  /* PIXIキャンバスでノーツエリアのタッチイベントを通過 */
+  .pixi-mobile-scroll canvas {
+    /* ピアノキー以外の部分ではタッチイベントを通過 */
+    pointer-events: auto;
+  }
+  
+  /* ピアノキー部分のみインタラクティブにする */
+  .pixi-mobile-scroll[data-piano-active="true"] canvas {
+    pointer-events: auto;
+  }
+  
   /* モバイルでのスクロールバー表示（薄く表示） */
   @media (max-width: 768px) {
     .pixi-mobile-scroll::-webkit-scrollbar {

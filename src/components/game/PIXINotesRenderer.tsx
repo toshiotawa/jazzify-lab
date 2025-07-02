@@ -131,7 +131,8 @@ export class PIXINotesRendererInstance {
   // パフォーマンス監視フラグ
   private performanceEnabled: boolean = true;
   
-  private settings: RendererSettings = {
+  // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
+  public readonly settings: RendererSettings = {
     noteWidth: 0,          // ★ 後で決定
     noteHeight: 8,
     hitLineY: 0,
@@ -196,7 +197,8 @@ export class PIXINotesRendererInstance {
     devLog.debug(`🎯 PIXI.js App created - Canvas: ${this.app.view.width}x${this.app.view.height}`);
     
     // インタラクションを有効化（重要）
-    this.app.stage.eventMode = 'static';
+    // モバイルスクロールのため、ステージレベルではpassiveに設定
+    this.app.stage.eventMode = 'passive';
     
     // 判定ラインをピアノの上端に正確に配置
     const actualHeight = this.app.view.height;
@@ -250,13 +252,25 @@ export class PIXINotesRendererInstance {
     });
     
     // グローバルpointerupイベントで保険を掛ける（音が伸び続けるバグの最終防止）
-    this.app.stage.eventMode = 'static';
     this.app.stage.on('globalpointerup', () => {
       // アクティブなキープレスを全て解除
       for (const midiNote of this.activeKeyPresses) {
         this.handleKeyRelease(midiNote);
       }
       this.activeKeyPresses.clear();
+    });
+    
+    // ステージレベルでタッチイベントをフィルタリング
+    this.app.stage.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
+      // ピアノキー以外のエリアではイベントを伝播させる
+      const y = event.global.y;
+      if (y < this.settings.hitLineY) {
+        // ノーツエリアの場合、イベントを通過させる
+        (event.currentTarget as any).eventMode = 'none';
+        setTimeout(() => {
+          (event.currentTarget as any).eventMode = 'passive';
+        }, 0);
+      }
     });
     
     log.info('✅ PIXI.js renderer initialized successfully');
@@ -631,6 +645,8 @@ export class PIXINotesRendererInstance {
 
     // 1. ピアノコンテナ（最背面）
     this.pianoContainer = new PIXI.Container();
+    // ピアノキーはインタラクティブ
+    this.pianoContainer.eventMode = 'static';
     this.container.addChild(this.pianoContainer);
 
     // 2-a. 白鍵ノーツ専用コンテナ
@@ -643,6 +659,8 @@ export class PIXINotesRendererInstance {
         tint: true
       }
     );
+    // ノーツエリアはイベント無効（スクロール許可）
+    (this.whiteNotes as any).eventMode = 'none';
     this.container.addChild(this.whiteNotes);
 
     // 2-b. 黒鍵ノーツ専用コンテナ
@@ -655,6 +673,8 @@ export class PIXINotesRendererInstance {
         tint: true
       }
     );
+    // ノーツエリアはイベント無効（スクロール許可）
+    (this.blackNotes as any).eventMode = 'none';
     this.container.addChild(this.blackNotes);
 
     // 3. ラベル専用コンテナ（普通のContainerに変更で安定性向上）
@@ -2484,6 +2504,39 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
     try {
       containerRef.current.appendChild(renderer.view);
       console.log('✅ Canvas added to DOM');
+      
+      // キャンバスにタッチ/スクロール設定を追加
+      const canvas = renderer.view as HTMLCanvasElement;
+      
+      // デフォルトではタッチスクロールを許可
+      canvas.style.touchAction = 'auto';
+      
+      // canvasのスタイルを調整してモバイルスクロールを改善
+      canvas.style.position = 'absolute';
+      canvas.style.top = '0';
+      canvas.style.left = '0';
+      
+      // タッチイベントリスナーを追加してピアノエリアのみ制御
+      canvas.addEventListener('touchstart', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        const y = touch.clientY - rect.top;
+        
+        // ピアノエリアかどうかを判定
+        if (renderer && y >= renderer.settings.hitLineY) {
+          // ピアノエリアではスクロールを無効化
+          canvas.style.touchAction = 'none';
+        } else {
+          // ノーツエリアではスクロールを許可
+          canvas.style.touchAction = 'pan-x';
+        }
+      }, { passive: true });
+      
+      canvas.addEventListener('touchend', () => {
+        // タッチ終了時はスクロールを再度許可
+        canvas.style.touchAction = 'auto';
+      }, { passive: true });
+      
     } catch (error) {
       console.error('❌ appendChild failed:', error);
     }
@@ -2545,7 +2598,9 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
         minWidth: width,
         minHeight: height,
         overflow: 'hidden',
-        backgroundColor: '#111827' // ロード中の背景色
+        backgroundColor: '#111827', // ロード中の背景色
+        // タッチイベントの伝播を調整
+        position: 'relative'
       }}
     />
   );
