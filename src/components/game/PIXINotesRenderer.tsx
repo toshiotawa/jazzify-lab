@@ -197,8 +197,9 @@ export class PIXINotesRendererInstance {
     devLog.debug(`🎯 PIXI.js App created - Canvas: ${this.app.view.width}x${this.app.view.height}`);
     
     // インタラクションを有効化（重要）
-    // モバイルスクロールのため、ステージレベルではpassiveに設定
-    this.app.stage.eventMode = 'passive';
+    // モバイルスクロールのため、ステージレベルでは`static`に設定
+    // 背景エリアは`none`で、ピアノキーのみ`static`で個別に制御
+    this.app.stage.eventMode = 'static';
     
     // 判定ラインをピアノの上端に正確に配置
     const actualHeight = this.app.view.height;
@@ -626,6 +627,8 @@ export class PIXINotesRendererInstance {
   private setupContainers(): void {
     // メインコンテナを生成
     this.container = new PIXI.Container();
+    // メインコンテナもイベントを透過（スクロール可能に）
+    this.container.eventMode = 'passive';
     this.app.stage.addChild(this.container);
 
     // Z順: 背面 → 前面
@@ -666,10 +669,12 @@ export class PIXINotesRendererInstance {
 
     // 3. ラベル専用コンテナ（普通のContainerに変更で安定性向上）
     this.labelsContainer = new PIXI.Container() as any;
+    this.labelsContainer.eventMode = 'none'; // イベント透過
     this.container.addChild(this.labelsContainer);
 
     // 4. ヒットラインコンテナ（ノーツ上、エフェクト下）
     this.hitLineContainer = new PIXI.Container();
+    this.hitLineContainer.eventMode = 'none'; // イベント透過
     this.container.addChild(this.hitLineContainer);
 
     // 5. エフェクトコンテナ（最前面）
@@ -759,11 +764,6 @@ export class PIXINotesRendererInstance {
     this.pianoContainer.addChild(whiteKeysContainer);
     this.pianoContainer.addChild(blackKeysContainer);
     
-    // ピアノエリアのタッチスクロールを無効化
-    this.pianoContainer.on('touchmove', (event: PIXI.FederatedPointerEvent) => {
-      event.stopPropagation();
-    });
-    
     // ===== グリッサンド用ドラッグハンドラ =====
     // 安定性向上のためグリッサンド機能を無効化。
     // マウス／タッチ操作によるキーのドラッグ移動での連続発音を行わない。
@@ -822,6 +822,9 @@ export class PIXINotesRendererInstance {
     // 星のエフェクトを追加
     this.createStarField(background);
     
+    // 背景エリアのイベントを透過（スクロール可能に）
+    background.eventMode = 'none';
+    
     this.container.addChildAt(background, 0); // 最背面に配置
     
     // === 縦ガイドライン（白鍵レーン）===
@@ -869,6 +872,9 @@ export class PIXINotesRendererInstance {
     
     const guidelines = new PIXI.Graphics();
     this.guidelines = guidelines; // ★ 保持しておく
+    
+    // ガイドラインのイベントを透過（スクロール可能に）
+    guidelines.eventMode = 'none';
     
     // 88鍵ピアノの設定
     const minNote = 21; // A0
@@ -947,6 +953,9 @@ export class PIXINotesRendererInstance {
     // ピアノ背景の位置設定 - 画面底部に固定
     background.x = 0;
     background.y = this.settings.hitLineY;
+    
+    // ピアノ背景のイベントを透過
+    background.eventMode = 'none';
     
     this.pianoContainer.addChild(background);
   }
@@ -1079,7 +1088,7 @@ export class PIXINotesRendererInstance {
         releaseKey(event);
       });
       
-      // タッチデバイス対応（フォールバック）
+      // タッチデバイス対応
       key.on('touchstart', (event) => {
         event.stopPropagation();
         this.handleKeyPress(midiNote);
@@ -1192,7 +1201,7 @@ export class PIXINotesRendererInstance {
         releaseKey(event);
       });
       
-      // タッチデバイス対応（フォールバック）
+      // タッチデバイス対応
       key.on('touchstart', (event) => {
         event.stopPropagation();
         this.handleKeyPress(midiNote);
@@ -2522,57 +2531,16 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       // キャンバスにタッチ/スクロール設定を追加
       const canvas = renderer.view as HTMLCanvasElement;
       
-      // ノーツエリアのみ横スクロール可能、ピアノエリアは不可
-      canvas.style.touchAction = 'none'; // 基本は無効化し、イベントハンドラで制御
+      // デフォルトで横スクロールを許可
+      canvas.style.touchAction = 'pan-x';
       
       // canvasのスタイルを調整してモバイルスクロールを改善
       canvas.style.position = 'absolute';
       canvas.style.top = '0';
       canvas.style.left = '0';
       
-      // タッチイベントリスナーを追加してエリア別の制御
-      let isInPianoArea = false;
-      
-      canvas.addEventListener('touchstart', (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const touch = e.touches[0];
-        const y = touch.clientY - rect.top;
-        
-        // ピアノエリアかどうかを判定
-        if (renderer && y >= renderer.settings.hitLineY) {
-          // ピアノエリアではスクロールを完全に無効化
-          isInPianoArea = true;
-          e.preventDefault(); // スクロールを防ぐ
-        } else {
-          // ノーツエリアでは横スクロールを許可
-          isInPianoArea = false;
-          
-          // ノーツエリアでタッチ開始時は、既存のアクティブキーを全て解除
-          // （スクロール時のハイライト残り防止）
-          if (renderer) {
-            for (const midiNote of renderer.activeKeyPresses) {
-              renderer.handleKeyRelease(midiNote);
-            }
-            renderer.activeKeyPresses.clear();
-          }
-        }
-      }, { passive: false }); // preventDefaultのためpassive: false
-      
-      canvas.addEventListener('touchmove', (e) => {
-        // ピアノエリアでのタッチムーブを完全に無効化
-        if (isInPianoArea) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }, { passive: false });
-      
-      canvas.addEventListener('touchend', () => {
-        isInPianoArea = false;
-      });
-      
-      canvas.addEventListener('touchcancel', () => {
-        isInPianoArea = false;
-      });
+      // キャンバス全体で横スクロールを許可
+      canvas.style.touchAction = 'pan-x';
       
     } catch (error) {
       console.error('❌ appendChild failed:', error);
