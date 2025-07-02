@@ -657,8 +657,17 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       };
       setGameAreaSize(newSize);
 
-      // 小さい画面では鍵盤高さを縮小（横幅ベースで算出）
-      const dynamicPianoHeight = Math.max(40, Math.min(100, newSize.width / 6));
+      // 横画面対応: 画面の向きを考慮した鍵盤高さの動的算出
+      const isLandscape = newSize.width > newSize.height;
+      let dynamicPianoHeight: number;
+      
+      if (isLandscape) {
+        // 横画面: 画面高さの20%〜35%の範囲で鍵盤高さを設定
+        dynamicPianoHeight = Math.max(60, Math.min(120, newSize.height * 0.25));
+      } else {
+        // 縦画面: 従来通り画面幅ベース（より控えめに）
+        dynamicPianoHeight = Math.max(40, Math.min(80, newSize.width / 8));
+      }
 
       // ストアに反映
       updateSettings({
@@ -917,7 +926,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             <div>PIXI.js レンダラー: 稼働中</div>
             <div>アクティブノーツ: {engineActiveNotes.length}</div>
             <div>解像度: {gameAreaSize.width}×{gameAreaSize.height}</div>
-            <div>画面モード: {window.innerWidth > 1024 ? '横画面' : '縦画面'}</div>
+            <div>画面モード: {gameAreaSize.width > gameAreaSize.height ? '横画面' : '縦画面'}</div>
           </div>
         )}
       </div>
