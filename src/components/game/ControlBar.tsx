@@ -6,7 +6,9 @@ import {
   FaStop, 
   FaBackward, 
   FaForward, 
-  FaTimes
+  FaTimes,
+  FaCompressAlt,
+  FaExpandAlt
 } from 'react-icons/fa';
 import { 
   MdLoop,
@@ -47,7 +49,8 @@ const ControlBar: React.FC = () => {
     toggleABRepeat,
     clearABRepeatStart,
     clearABRepeatEnd,
-    transpose
+    transpose,
+    updateSettings
   } = useGameActions();
 
   const isPracticeMode = mode === 'practice';
@@ -133,75 +136,82 @@ const ControlBar: React.FC = () => {
     transpose(1);
   }, [transpose]);
 
+  // シークバー表示/非表示の切り替え
+  const toggleSeekbar = useCallback(() => {
+    updateSettings({ showSeekbar: !settings.showSeekbar });
+  }, [updateSettings, settings.showSeekbar]);
+
   return (
     <div className="w-full pb-safe">
-      {/* シークバー */}
-      <div className="px-3 py-2 bg-gray-900">
-        <div className="flex items-center space-x-3">
-          <div className="relative flex-1">
-            <input
-              type="range"
-              min="0"
-              max={songDuration}
-              value={currentTime}
-              step="0.1"
-              onChange={handleSeek}
-              disabled={!canInteract}
-              className={`w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer 
-                ${canInteract ? 'hover:bg-gray-600' : 'opacity-50 cursor-not-allowed'}
-                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 
-                [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg
-                [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full 
-                [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0`}
-            />
+      {/* シークバー - showSeekbarフラグで制御 */}
+      {settings.showSeekbar && (
+        <div className="px-3 py-2 bg-gray-900">
+          <div className="flex items-center space-x-3">
+            <div className="relative flex-1">
+              <input
+                type="range"
+                min="0"
+                max={songDuration}
+                value={currentTime}
+                step="0.1"
+                onChange={handleSeek}
+                disabled={!canInteract}
+                className={`w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer 
+                  ${canInteract ? 'hover:bg-gray-600' : 'opacity-50 cursor-not-allowed'}
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
+                  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 
+                  [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg
+                  [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full 
+                  [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0`}
+              />
+              
+              {/* ループマーカー */}
+              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
+                <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
+                  {/* A地点マーカー */}
+                  {abRepeat.startTime !== null && (
+                    <div
+                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
+                      style={{
+                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                        transform: 'translateX(-50%)'
+                      }}
+                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
+                    />
+                  )}
+                  
+                  {/* B地点マーカー */}
+                  {abRepeat.endTime !== null && (
+                    <div
+                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
+                      style={{
+                        left: `${(abRepeat.endTime / songDuration) * 100}%`,
+                        transform: 'translateX(-50%)'
+                      }}
+                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
+                    />
+                  )}
+                  
+                  {/* ループ範囲の背景 */}
+                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
+                    <div
+                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
+                      style={{
+                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
             
-            {/* ループマーカー */}
-            {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
-              <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
-                {/* A地点マーカー */}
-                {abRepeat.startTime !== null && (
-                  <div
-                    className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
-                    style={{
-                      left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                      transform: 'translateX(-50%)'
-                    }}
-                    title={`A地点: ${formatTime(abRepeat.startTime)}`}
-                  />
-                )}
-                
-                {/* B地点マーカー */}
-                {abRepeat.endTime !== null && (
-                  <div
-                    className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
-                    style={{
-                      left: `${(abRepeat.endTime / songDuration) * 100}%`,
-                      transform: 'translateX(-50%)'
-                    }}
-                    title={`B地点: ${formatTime(abRepeat.endTime)}`}
-                  />
-                )}
-                
-                {/* ループ範囲の背景 */}
-                {abRepeat.startTime !== null && abRepeat.endTime !== null && (
-                  <div
-                    className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
-                    style={{
-                      left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                      width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
-                    }}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-          
-          <div className="text-sm text-gray-300 min-w-[80px] text-right">
-            {formatTime(currentTime)} / {formatTime(songDuration)}
+            <div className="text-sm text-gray-300 min-w-[80px] text-right">
+              {formatTime(currentTime)} / {formatTime(songDuration)}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* コントロールボタン - 1行レイアウト */}
       <div className="px-4 py-2 bg-gray-900 border-t border-gray-700 flex flex-col sm:flex-row justify-between items-center">
@@ -341,9 +351,18 @@ const ControlBar: React.FC = () => {
           )}
         </div>
         
-        {/* 右側: FPSモニター */}
-        <div className="mt-2 sm:mt-0 flex items-center">
+        {/* 右側: FPSモニターとシークバー切り替えボタン */}
+        <div className="mt-2 sm:mt-0 flex items-center space-x-2">
           <FPSMonitor minimal={true} className="flex-shrink-0" />
+          
+          {/* シークバー表示/非表示ボタン */}
+          <button
+            onClick={toggleSeekbar}
+            className="control-btn control-btn-xs control-btn-secondary"
+            title={settings.showSeekbar ? 'シークバーを隠す' : 'シークバーを表示'}
+          >
+            {settings.showSeekbar ? <FaCompressAlt /> : <FaExpandAlt />}
+          </button>
         </div>
       </div>
     </div>

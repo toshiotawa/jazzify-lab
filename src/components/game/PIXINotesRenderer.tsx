@@ -64,6 +64,8 @@ interface RendererSettings {
   transpose: number;
   /** 練習モードガイド設定 */
   practiceGuide?: 'off' | 'key' | 'key_auto';
+  showHitLine: boolean;
+  viewportHeight: number;
 }
 
 // ===== テクスチャキャッシュ =====
@@ -136,7 +138,7 @@ export class PIXINotesRendererInstance {
     noteWidth: 0,          // ★ 後で決定
     noteHeight: 8,
     hitLineY: 0,
-    pianoHeight: 160,
+    pianoHeight: 100,
     noteSpeed: 1.0,
     colors: {
       visible: 0x3B82F6,       // blue-500（白鍵ノーツ）
@@ -156,7 +158,9 @@ export class PIXINotesRendererInstance {
     },
     noteNameStyle: 'abc',
     transpose: 0,
-    practiceGuide: 'key'
+    practiceGuide: 'key',
+    showHitLine: true,
+    viewportHeight: 600,
   };
   
   private onDragActive: boolean = false;

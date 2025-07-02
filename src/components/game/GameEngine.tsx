@@ -660,10 +660,15 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       // 小さい画面では鍵盤高さを縮小（横幅ベースで算出）
       const dynamicPianoHeight = Math.max(40, Math.min(100, newSize.width / 6));
 
+      // 横スクロールが必要かチェック（画面幅が1100px未満の場合）
+      const needsHorizontalScroll = newSize.width < 1100;
+
       // ストアに反映
       updateSettings({
         viewportHeight: newSize.height,
-        pianoHeight: dynamicPianoHeight
+        pianoHeight: dynamicPianoHeight,
+        // 横スクロールが必要な場合、シークバーをデフォルトで非表示
+        ...(settings.showSeekbar === undefined && needsHorizontalScroll ? { showSeekbar: false } : {})
       });
       updateEngineSettings();
     };
@@ -682,7 +687,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       observer.disconnect();
       window.removeEventListener('resize', updateSize);
     };
-  }, [updateSettings, updateEngineSettings]);
+  }, [updateSettings, updateEngineSettings, settings]);
   
   // ================= ピアノキー演奏ハンドラー =================
   const handlePianoKeyPress = useCallback(async (note: number) => {

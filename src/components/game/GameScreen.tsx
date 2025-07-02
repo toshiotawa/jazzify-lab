@@ -306,9 +306,10 @@ const SongSelectionScreen: React.FC = () => {
  * ゲームプレイ画面
  */
 const GamePlayScreen: React.FC = () => {
-  const { currentSong, mode } = useGameSelector((s) => ({
+  const { currentSong, mode, settings } = useGameSelector((s) => ({
     currentSong: s.currentSong,
-    mode: s.mode
+    mode: s.mode,
+    settings: s.settings
   }));
   const gameActions = useGameActions();
 
@@ -329,6 +330,10 @@ const GamePlayScreen: React.FC = () => {
     );
   }
 
+  // シークバーが非表示の場合は下部のパディングを減らす
+  const controlBarHeight = settings.showSeekbar ? 120 : 70; // モバイル
+  const controlBarHeightDesktop = settings.showSeekbar ? 100 : 60; // デスクトップ
+
   return (
     <div className="flex-1 flex flex-col h-full relative">
       {/* メインコンテンツエリア - ControlBarのための固定高さを確保 */}
@@ -341,10 +346,15 @@ const GamePlayScreen: React.FC = () => {
           />
         </div>
         
-        {/* ゲームエンジン（下半分） - ControlBarの高さ分のpaddingを追加 */}
+        {/* ゲームエンジン（下半分） - ControlBarの高さ分のpaddingを動的に調整 */}
         <div className="h-1/2 min-h-0 relative">
-          {/* コントロールバーの高さ分の余白を確保（モバイル: 120px, デスクトップ: 100px） */}
-          <div className="absolute inset-0 pb-[120px] sm:pb-[100px]">
+          {/* コントロールバーの高さ分の余白を確保 */}
+          <div 
+            className="absolute inset-0"
+            style={{
+              paddingBottom: `${controlBarHeight}px`
+            }}
+          >
             <GameEngineComponent className="h-full w-full" />
           </div>
         </div>

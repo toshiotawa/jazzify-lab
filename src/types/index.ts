@@ -108,6 +108,8 @@ export interface GameSettings {
   /** 統一された音名表示モード（鍵盤・ノーツ共通）: off | abc | solfege */
   noteNameStyle: 'off' | 'abc' | 'solfege';
   showFPS: boolean;
+  /** シークバーの表示/非表示 */
+  showSeekbar: boolean;
   
   // ビューポート設定（動的レイアウト対応）
   /** ゲームエリア（ノーツ降下領域を含むキャンバス）の高さ(px) */

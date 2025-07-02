@@ -116,10 +116,11 @@ const defaultSettings: GameSettings = {
   noteNameStyle: 'abc',
   
   showFPS: false,
+  showSeekbar: true,  // デフォルトでシークバーを表示
   
   // ビューポート設定
   viewportHeight: 600,
-  pianoHeight: 160,
+  pianoHeight: 100,  // ピアノの高さを調整（160から100に減少）
   
   // 入力デバイス
   selectedMidiDevice: null,
@@ -677,7 +678,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           }
         }),
         
-        handleNoteInput: (inputNote) => {
+        handleNoteInput: (inputNote: number) => {
           const state = get();
           if (!state.gameEngine || !state.isPlaying) return;
           
@@ -696,7 +697,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         },
         
         // 楽曲制御
-        loadSong: (song, notes) => set((state) => {
+        loadSong: (song: SongMetadata, notes: NoteData[]) => set((state) => {
           state.currentSong = song;
           state.notes = notes;
           state.currentTime = 0;
