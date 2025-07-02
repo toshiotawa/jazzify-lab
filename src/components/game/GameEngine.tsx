@@ -648,6 +648,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   useEffect(() => {
     if (!gameAreaRef.current) return;
 
+    let resizeTimer: number | null = null;
     const updateSize = () => {
       if (!gameAreaRef.current) return;
       const rect = gameAreaRef.current.getBoundingClientRect();
@@ -673,19 +674,41 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       updateEngineSettings();
     };
 
+    // デバウンス付きのサイズ更新
+    const debouncedUpdateSize = () => {
+      if (resizeTimer !== null) {
+        clearTimeout(resizeTimer);
+      }
+      resizeTimer = window.setTimeout(() => {
+        updateSize();
+      }, 100);
+    };
+
     // 初回サイズ取得
     updateSize();
 
     // ResizeObserver でコンテナサイズ変化を監視
-    const observer = new ResizeObserver(updateSize);
+    const observer = new ResizeObserver((entries) => {
+      // ResizeObserver loop エラーを防ぐためのガード
+      if (!entries || entries.length === 0) return;
+      
+      // requestAnimationFrameを使用してレイアウト計算を次のフレームに延期
+      requestAnimationFrame(() => {
+        debouncedUpdateSize();
+      });
+    });
+    
     observer.observe(gameAreaRef.current);
 
     // サブで window サイズ変化も監視（iOS Safari 回転等に保険）
-    window.addEventListener('resize', updateSize);
+    window.addEventListener('resize', debouncedUpdateSize);
 
     return () => {
+      if (resizeTimer !== null) {
+        clearTimeout(resizeTimer);
+      }
       observer.disconnect();
-      window.removeEventListener('resize', updateSize);
+      window.removeEventListener('resize', debouncedUpdateSize);
     };
   }, [updateSettings, updateEngineSettings, settings]);
   

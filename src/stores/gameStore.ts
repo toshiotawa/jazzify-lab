@@ -120,7 +120,7 @@ const defaultSettings: GameSettings = {
   
   // ビューポート設定
   viewportHeight: 600,
-  pianoHeight: 100,  // ピアノの高さを調整（160から100に減少）
+  pianoHeight: 80,  // ピアノの高さをさらに調整（100から80に減少）
   
   // 入力デバイス
   selectedMidiDevice: null,

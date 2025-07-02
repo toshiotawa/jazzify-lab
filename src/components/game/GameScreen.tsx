@@ -23,7 +23,7 @@ const GameScreen: React.FC = () => {
 
   return (
     <div 
-      className="game-container h-screen h-[100dvh] flex flex-col bg-gradient-game"
+      className="game-container h-[100dvh] flex flex-col bg-gradient-game"
       style={{
         touchAction: 'none',
         userSelect: 'none',
@@ -334,33 +334,30 @@ const GamePlayScreen: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col h-full relative">
-      {/* メインコンテンツエリア - ControlBarのための固定高さを確保 */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* 楽譜表示エリア（上半分） */}
-        <div className="h-1/2 min-h-0 border-b border-gray-700 overflow-hidden">
+      {/* コントロールバー - 画面下部に固定表示 */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-gray-900 border-t border-gray-700">
+        <ControlBar />
+      </div>
+
+      {/* メインコンテンツエリア - flexで残りのスペースを使用 */}
+      <div 
+        className="flex-1 flex flex-col overflow-hidden"
+        style={{
+          paddingBottom: `${controlBarHeight}px`
+        }}
+      >
+        {/* 楽譜表示エリア（上側） - flex-1で余った領域を使用 */}
+        <div className="flex-1 min-h-0 border-b border-gray-700 overflow-hidden">
           <SheetMusicDisplay 
             musicXmlUrl={currentSong.musicXmlFile}
             className="h-full"
           />
         </div>
         
-        {/* ゲームエンジン（下半分） - ControlBarの高さ分のpaddingを動的に調整 */}
-        <div className="h-1/2 min-h-0 relative">
-          {/* コントロールバーの高さ分の余白を確保 */}
-          <div 
-            className="absolute inset-0"
-            style={{
-              paddingBottom: `${controlBarHeight}px`
-            }}
-          >
-            <GameEngineComponent className="h-full w-full" />
-          </div>
+        {/* ゲームエンジン（下側） - flex-1で余った領域を使用 */}
+        <div className="flex-1 min-h-0">
+          <GameEngineComponent className="h-full w-full" />
         </div>
-      </div>
-
-      {/* コントロールバー - 画面下部に固定表示 */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-gray-900 border-t border-gray-700">
-        <ControlBar />
       </div>
     </div>
   );

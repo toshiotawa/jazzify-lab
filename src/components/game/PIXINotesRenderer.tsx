@@ -66,6 +66,7 @@ interface RendererSettings {
   practiceGuide?: 'off' | 'key' | 'key_auto';
   showHitLine: boolean;
   viewportHeight: number;
+  timingAdjustment: number;
 }
 
 // ===== テクスチャキャッシュ =====
@@ -137,8 +138,8 @@ export class PIXINotesRendererInstance {
   public readonly settings: RendererSettings = {
     noteWidth: 0,          // ★ 後で決定
     noteHeight: 8,
-    hitLineY: 0,
-    pianoHeight: 100,
+    hitLineY: 0, // 計算で設定
+    pianoHeight: 80,  // 100から80に変更
     noteSpeed: 1.0,
     colors: {
       visible: 0x3B82F6,       // blue-500（白鍵ノーツ）
@@ -161,6 +162,7 @@ export class PIXINotesRendererInstance {
     practiceGuide: 'key',
     showHitLine: true,
     viewportHeight: 600,
+    timingAdjustment: 0,
   };
   
   private onDragActive: boolean = false;
