@@ -214,8 +214,8 @@ const ControlBar: React.FC = () => {
       )}
 
       {/* コントロールボタン - 1行レイアウト */}
-      <div className="px-4 py-2 bg-gray-900 border-t border-gray-700 flex flex-col sm:flex-row justify-between items-center">
-        <div className="flex justify-center items-center space-x-3 flex-wrap overflow-x-auto">
+      <div className="px-4 py-2 bg-gray-900 border-t border-gray-700 flex justify-between items-center">
+        <div className="flex justify-center items-center space-x-3 overflow-x-auto whitespace-nowrap">
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
             <>
@@ -245,7 +245,7 @@ const ControlBar: React.FC = () => {
               </button>
 
               {/* ループコントロール */}
-              <div className="flex items-center space-x-2 ml-4">
+              <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
                 <button
                   onClick={handleToggleLoop}
                   className={`control-btn control-btn-sm ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'}`}
@@ -256,7 +256,7 @@ const ControlBar: React.FC = () => {
               </div>
 
               {/* A/B地点設定（コンパクト） */}
-              <div className="flex items-center space-x-1 ml-2 text-xs">
+              <div className="flex items-center space-x-1 ml-2 text-xs flex-shrink-0">
                 <button
                   onClick={handleSetAStart}
                   className="control-btn control-btn-xs control-btn-secondary"
@@ -301,7 +301,7 @@ const ControlBar: React.FC = () => {
               </div>
 
               {/* 移調コントロール */}
-              <div className="flex items-center space-x-1 ml-4">
+              <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
                 <button
                   onClick={handleTransposeDown}
                   className="control-btn control-btn-xs control-btn-secondary"
@@ -352,7 +352,7 @@ const ControlBar: React.FC = () => {
         </div>
         
         {/* 右側: FPSモニターとシークバー切り替えボタン */}
-        <div className="mt-2 sm:mt-0 flex items-center space-x-2">
+        <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
           <FPSMonitor minimal={true} className="flex-shrink-0" />
           
           {/* シークバー表示/非表示ボタン */}

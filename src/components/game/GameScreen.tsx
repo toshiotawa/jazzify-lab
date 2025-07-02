@@ -332,16 +332,16 @@ const GamePlayScreen: React.FC = () => {
     <div className="flex-1 flex flex-col h-full">
       {/* メインコンテンツエリア - 残りのスペースを使用 */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* 楽譜表示エリア（上側） - flex-1で余った領域を使用 */}
-        <div className="flex-1 min-h-0 border-b border-gray-700 overflow-hidden">
+        {/* 楽譜表示エリア（上側） - 50%固定 */}
+        <div className="h-1/2 min-h-0 border-b border-gray-700 overflow-hidden">
           <SheetMusicDisplay 
             musicXmlUrl={currentSong.musicXmlFile}
             className="h-full"
           />
         </div>
         
-        {/* ゲームエンジン（下側） - flex-1で余った領域を使用 */}
-        <div className="flex-1 min-h-0">
+        {/* ゲームエンジン（下側） - 50%固定 */}
+        <div className="h-1/2 min-h-0">
           <GameEngineComponent className="h-full w-full" />
         </div>
       </div>
