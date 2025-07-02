@@ -657,8 +657,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       };
       setGameAreaSize(newSize);
 
-      // 小さい画面では鍵盤高さを縮小（横幅ベースで算出）
-      const dynamicPianoHeight = Math.max(40, Math.min(100, newSize.width / 6));
+      // 小さい画面では鍵盤高さを縮小（横画面時特別対応）
+      const isLandscape = window.innerHeight < 500;
+      const dynamicPianoHeight = isLandscape 
+        ? Math.max(60, Math.min(80, newSize.height * 0.25)) // 横画面時: 高さの25%（最小60px、最大80px）
+        : Math.max(80, Math.min(160, newSize.width / 6));   // 縦画面時: 幅ベース（最小80px、最大160px）
 
       // ストアに反映
       updateSettings({

@@ -2395,9 +2395,12 @@ export class PIXINotesRendererInstance {
    * リサイズ対応
    */
   resize(width: number, height: number): void {
+    console.log(`🔧 PIXI resize: ${width}x${height}`);
+    
+    // PIXIアプリケーションのリサイズ
     this.app.renderer.resize(width, height);
     
-    // 修正: app.view.height を使用
+    // 新しいサイズでヒットライン位置を再計算
     this.settings.hitLineY = this.app.view.height - this.settings.pianoHeight;
     console.log(`🔧 Resize hitLineY: ${this.settings.hitLineY}`);
     
@@ -2426,7 +2429,7 @@ export class PIXINotesRendererInstance {
     const newNoteWidth = newWhiteKeyWidth - 2;
     if (Math.abs(newNoteWidth - this.settings.noteWidth) > 0.1) { // 誤差を考慮
       this.settings.noteWidth = newNoteWidth;
-      devLog.info(`🔄 Regenerating note textures with new width: ${newNoteWidth.toFixed(2)}px`);
+      console.log(`🔄 Regenerating note textures with new width: ${newNoteWidth.toFixed(2)}px`);
       
       // 新しい幅でテクスチャを作り直し
       this.generateNoteTextures();
@@ -2448,6 +2451,29 @@ export class PIXINotesRendererInstance {
         }
       });
     }
+
+    // 既存のノートスプライトの位置を再計算（横画面時のレイアウト変更対応）
+    this.noteSprites.forEach((noteSprite) => {
+      const pitch = noteSprite.noteData.pitch;
+      const newX = this.pitchToX(pitch);
+      
+      // ノートスプライトの位置を更新
+      noteSprite.sprite.x = newX;
+      if (noteSprite.label) noteSprite.label.x = newX;
+      if (noteSprite.glowSprite) noteSprite.glowSprite.x = newX;
+      
+      // Y座標も再計算（ヒットライン位置が変わった場合に対応）
+      const newY = this.calculateNoteY(noteSprite.noteData);
+      noteSprite.sprite.y = newY;
+      if (noteSprite.label) {
+        noteSprite.label.y = newY - noteSprite.sprite.height / 2 - 5;
+      }
+    });
+
+    // リサイズ後に強制的に一度描画を実行
+    this.app.renderer.render(this.app.stage);
+    
+    console.log(`✅ PIXI resize completed: ${this.app.view.width}x${this.app.view.height}`);
   }
 }
 

@@ -133,10 +133,13 @@ const ControlBar: React.FC = () => {
     transpose(1);
   }, [transpose]);
 
+  // 横画面時の判定
+  const isLandscape = typeof window !== 'undefined' && window.innerHeight < 500;
+
   return (
     <div className="control-bar bg-game-surface border-t border-gray-700 w-full shadow-lg">
       {/* シークバー */}
-      <div className="seekbar-container px-3 py-2 border-b border-gray-700">
+      <div className={`seekbar-container px-3 border-b border-gray-700 ${isLandscape ? 'py-1' : 'py-2'}`}>
         <div className="flex items-center space-x-3">
           <div className="relative flex-1">
             <input
@@ -204,7 +207,7 @@ const ControlBar: React.FC = () => {
       </div>
 
       {/* コントロールボタン - モバイル対応レイアウト */}
-      <div className="controls-container px-2 sm:px-4 py-2 flex flex-col sm:flex-row justify-between items-center">
+      <div className={`controls-container px-2 sm:px-4 flex flex-col sm:flex-row justify-between items-center ${isLandscape ? 'py-1' : 'py-2'}`}>
         <div className="flex justify-center items-center space-x-2 sm:space-x-3 flex-wrap overflow-x-auto max-w-full">
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調

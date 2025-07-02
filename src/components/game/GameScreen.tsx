@@ -21,10 +21,14 @@ const GameScreen: React.FC = () => {
   const gameActions = useGameActions();
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
+  // 横画面時（高さが狭い場合）は自動的にヘッダーを収納
+  const isLandscape = typeof window !== 'undefined' && window.innerHeight < 500;
+  const shouldCollapseHeader = isLandscape || headerCollapsed;
+
   return (
     <div className="game-container h-screen h-[100dvh] flex flex-col bg-gradient-game">
-      {/* ヘッダー（展開状態） */}
-      {!headerCollapsed && (
+      {/* ヘッダー（展開状態） - 横画面時は自動収納 */}
+      {!shouldCollapseHeader && (
         <header
           className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-4 py-2"
         >
@@ -74,17 +78,35 @@ const GameScreen: React.FC = () => {
         </header>
       )}
 
-      {/* ヘッダー（収納時のミニバー） */}
-      {headerCollapsed && (
+      {/* ヘッダー（収納時のミニバー） - 横画面時も常に表示 */}
+      {shouldCollapseHeader && (
         <div className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-2 py-1">
-          <div className="flex justify-end">
-            <button
-              onClick={() => setHeaderCollapsed(false)}
-              className="btn btn-secondary btn-xs"
-              title="ヘッダーを展開"
-            >
-              ▼
-            </button>
+          <div className="flex justify-between items-center">
+            {!isLandscape && (
+              <button
+                onClick={() => setHeaderCollapsed(false)}
+                className="btn btn-secondary btn-xs"
+                title="ヘッダーを展開"
+              >
+                ▼
+              </button>
+            )}
+            {/* 横画面時用のコンパクトな設定ボタン */}
+            {isLandscape && (
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-gray-400">
+                  {currentTab === 'practice' ? '練習' : 
+                   currentTab === 'performance' ? '本番' : '楽曲'}
+                </span>
+                <button
+                  onClick={() => gameActions.toggleSettings()}
+                  className="btn btn-secondary btn-xs"
+                  title="設定"
+                >
+                  ⚙️
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -320,26 +342,42 @@ const GamePlayScreen: React.FC = () => {
     );
   }
 
+  // 横画面かどうかを判定
+  const isLandscapeMode = typeof window !== 'undefined' && window.innerHeight < 500;
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* メインコンテンツエリア（楽譜 + PIXI） */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-        {/* 楽譜表示エリア */}
-        <div className="h-[35%] sm:h-[40%] lg:h-full lg:w-1/2 min-h-[150px] sm:min-h-[200px] border-b lg:border-b-0 lg:border-r border-gray-700 overflow-hidden">
+        {/* 楽譜表示エリア - 横画面時は小さく */}
+        <div className={cn(
+          "border-b lg:border-b-0 lg:border-r border-gray-700 overflow-hidden",
+          isLandscapeMode 
+            ? "h-[25%] lg:h-full lg:w-1/3 min-h-[100px]" // 横画面時は25%高さ、1/3幅
+            : "h-[35%] sm:h-[40%] lg:h-full lg:w-1/2 min-h-[150px] sm:min-h-[200px]" // 縦画面時は従来通り
+        )}>
           <SheetMusicDisplay 
             musicXmlUrl={currentSong.musicXmlFile}
             className="h-full"
           />
         </div>
         
-        {/* ゲームエンジン（PIXIエリア - ピアノを含む） */}
-        <div className="flex-1 lg:w-1/2 min-h-[250px] sm:min-h-[300px] overflow-hidden">
+        {/* ゲームエンジン（PIXIエリア - ピアノを含む） - 横画面時はより広く */}
+        <div className={cn(
+          "overflow-hidden",
+          isLandscapeMode 
+            ? "flex-1 lg:w-2/3 min-h-[180px]" // 横画面時は2/3幅、最小高さを低く
+            : "flex-1 lg:w-1/2 min-h-[250px] sm:min-h-[300px]" // 縦画面時は従来通り
+        )}>
           <GameEngineComponent className="h-full w-full" />
         </div>
       </div>
 
-      {/* コントロールバー（固定高さ） */}
-      <div className="flex-shrink-0 bg-game-surface">
+      {/* コントロールバー（固定高さ） - 横画面時はより薄く */}
+      <div className={cn(
+        "flex-shrink-0 bg-game-surface",
+        isLandscapeMode ? "py-1" : "" // 横画面時はパディングを減らす
+      )}>
         <ControlBar />
       </div>
     </div>
