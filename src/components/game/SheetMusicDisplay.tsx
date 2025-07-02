@@ -35,11 +35,17 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
   }));
   
   const gameActions = useGameActions();
+  
+  // 最新のtranspose値を保持
+  const transposeRef = useRef(transpose);
+  transposeRef.current = transpose;
 
   // OSMDの初期化
   const initializeOSMD = useCallback(async () => {
     if (!containerRef.current || !musicXmlUrl) return;
 
+    const currentTranspose = transposeRef.current;
+    console.log('Initializing OSMD with transpose:', currentTranspose);
     setIsLoading(true);
     setError(null);
 
@@ -76,8 +82,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       await osmdRef.current.load(musicXmlUrl);
       
       // 移調設定
-      if (transpose !== 0) {
-        osmdRef.current.Sheet.Transpose = transpose;
+      if (currentTranspose !== 0) {
+        osmdRef.current.Sheet.Transpose = currentTranspose;
       }
       
       // レンダリング
@@ -86,7 +92,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       // タイムマッピングを作成
       createTimeMapping();
       
-      previousTransposeRef.current = transpose;
+      previousTransposeRef.current = currentTranspose;
+      console.log('OSMD initialized successfully');
       
     } catch (err) {
       console.error('楽譜の読み込みエラー:', err);
@@ -94,13 +101,31 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     } finally {
       setIsLoading(false);
     }
-  }, [musicXmlUrl, transpose]);
+  }, [musicXmlUrl]); // transposeを依存配列から削除
 
   // 移調値が変更された時の処理
   useEffect(() => {
     if (osmdRef.current && transpose !== previousTransposeRef.current) {
-      // 移調値が変更された場合は楽譜を再読み込み
-      initializeOSMD();
+      // 移調値が変更された場合
+      console.log('Transpose changed from', previousTransposeRef.current, 'to', transpose);
+      
+      try {
+        // 楽譜の移調値を更新
+        osmdRef.current.Sheet.Transpose = transpose;
+        
+        // 再レンダリング
+        osmdRef.current.render();
+        
+        // タイムマッピングを再作成
+        createTimeMapping();
+        
+        previousTransposeRef.current = transpose;
+        console.log('Transpose updated successfully');
+      } catch (err) {
+        console.error('移調エラー:', err);
+        // エラーが発生した場合は楽譜を再読み込み
+        initializeOSMD();
+      }
     }
   }, [transpose, initializeOSMD]);
 
