@@ -333,7 +333,7 @@ const GamePlayScreen: React.FC = () => {
         </div>
         
         {/* ゲームエンジン（PIXIエリア - ピアノを含む） */}
-        <div className="flex-1 lg:w-1/2 min-h-[250px] sm:min-h-[300px] overflow-hidden">
+        <div className="flex-1 lg:w-1/2 min-h-[150px] md:min-h-[250px] overflow-hidden">
           <GameEngineComponent className="h-full w-full" />
         </div>
       </div>
