@@ -22,7 +22,16 @@ const GameScreen: React.FC = () => {
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
   return (
-    <div className="game-container h-screen flex flex-col bg-gradient-game">
+    <div 
+      className="game-container h-screen flex flex-col bg-gradient-game"
+      style={{
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+        overscrollBehavior: 'none'
+      }}
+    >
       {/* ヘッダー（展開状態） */}
       {!headerCollapsed && (
         <header

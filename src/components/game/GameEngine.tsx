@@ -896,8 +896,24 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           
           
           return (
-            <div className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div style={{ width: idealWidth, height: '100%' }}>
+            <div 
+              className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x pixi-mobile-scroll" 
+              style={{ 
+                WebkitOverflowScrolling: 'touch',
+                scrollSnapType: 'x proximity',
+                scrollBehavior: 'smooth',
+                msOverflowStyle: '-ms-autohiding-scrollbar',
+                scrollbarWidth: 'thin'
+              }}
+            >
+              <div style={{ 
+                width: idealWidth, 
+                height: '100%',
+                touchAction: 'pan-x',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                WebkitTouchCallout: 'none'
+              }}>
                 <PIXINotesRenderer
                   activeNotes={engineActiveNotes}
                   width={idealWidth}
