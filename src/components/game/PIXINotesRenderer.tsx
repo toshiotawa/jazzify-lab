@@ -200,7 +200,17 @@ export class PIXINotesRendererInstance {
     // 強制的にCanvasサイズを設定
     this.app.renderer.resize(width, height);
     
+    // 背景色を明示的に設定
+    this.app.renderer.backgroundColor = 0x0A0A0F;
+    
+    // Canvas要素のスタイルを直接設定（フォールバック）
+    (this.app.view as HTMLCanvasElement).style.backgroundColor = '#0A0A0F';
+    
+    // デバッグ用: canvasに赤い枠線を追加
+    (this.app.view as HTMLCanvasElement).style.border = '2px solid red';
+    
     devLog.debug(`🎯 PIXI.js App created - Canvas: ${this.app.view.width}x${this.app.view.height}`);
+    console.log(`🎨 Background color set to: 0x0A0A0F`);
     
     // インタラクションを有効化（重要）
     // モバイルスクロールのため、ステージレベルでは`static`に設定
@@ -228,18 +238,46 @@ export class PIXINotesRendererInstance {
     // セットアップシーケンス
     try {
       this.setupContainers();
+      console.log('✅ Containers setup completed');
+      
       this.createNotesAreaBackground();
+      console.log('✅ Background created');
+      
       this.setupPiano();
+      console.log('✅ Piano setup completed');
+      
       this.setupHitLine();
+      console.log('✅ Hit line setup completed');
+      
       this.setupParticles();
+      console.log('✅ Particles setup completed');
+      
       devLog.debug('✅ PIXI setup sequence completed');
     } catch (error) {
+      console.error('❌ PIXI setup failed:', error);
       log.error('❌ PIXI setup failed:', error);
     }
     
+    // デバッグ用: 簡単なテスト図形を描画
+    const testGraphics = new PIXI.Graphics();
+    testGraphics.beginFill(0xFF0000); // 赤色
+    testGraphics.drawRect(10, 10, 100, 100); // 左上に赤い四角
+    testGraphics.endFill();
+    this.app.stage.addChild(testGraphics);
+    console.log('🔴 Test red square added to stage');
+    
+    // 初回レンダリング
+    this.app.render();
+    console.log('🎬 Initial render completed');
+    
     // ★ エフェクト更新＋パフォーマンス監視をTickerに統合
     this.effectsElapsed = 0;
+    let frameCount = 0;
     PIXI.Ticker.shared.add((tickerDelta) => {
+      frameCount++;
+      if (frameCount === 1) {
+        console.log('🎬 First ticker frame executed');
+      }
       // パフォーマンス監視開始
       if (this.performanceEnabled) {
         performanceMonitor.startFrame();
@@ -847,7 +885,9 @@ export class PIXINotesRendererInstance {
     // 背景エリアのイベントを透過（スクロール可能に）
     background.eventMode = 'none';
     
+    console.log(`🎨 Adding background to container. Background bounds:`, background.getBounds());
     this.container.addChildAt(background, 0); // 最背面に配置
+    console.log(`✅ Background added. Container children count:`, this.container.children.length);
     
     // === 縦ガイドライン（白鍵レーン）===
     this.createVerticalGuidelines();
@@ -2541,24 +2581,24 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
     if (!containerRef.current || rendererRef.current) return;
 
     // 初期ローディング時にフェードイン
-    // 一時的にコメントアウト（デバッグ用）
-    // containerRef.current.style.opacity = '0';
-    // containerRef.current.style.visibility = 'hidden';
-    
-    console.log('🎯 Skipping initial hide for debugging...');
+    containerRef.current.style.opacity = '0';
+    containerRef.current.style.transition = 'opacity 0.3s ease-in-out';
 
     const renderer = new PIXINotesRendererInstance(width, height);
     rendererRef.current = renderer;
     
-    // ===== 簡略デバッグ（パフォーマンス重視） =====
-    console.log('🔍 Basic check: Canvas size:', renderer.view.width, 'x', renderer.view.height);
-    
-    try {
-      containerRef.current.appendChild(renderer.view);
-      console.log('✅ Canvas added to DOM');
+          // ===== 簡略デバッグ（パフォーマンス重視） =====
+      console.log('🔍 Basic check: Canvas size:', renderer.view.width, 'x', renderer.view.height);
+      console.log('🔍 Canvas element:', renderer.view);
+      console.log('🔍 Container element:', containerRef.current);
       
-      // キャンバスにタッチ/スクロール設定を追加
-      const canvas = renderer.view as HTMLCanvasElement;
+      try {
+        containerRef.current.appendChild(renderer.view);
+        console.log('✅ Canvas added to DOM');
+        console.log('🔍 Canvas parent after append:', renderer.view.parentElement);
+        
+        // キャンバスにタッチ/スクロール設定を追加
+        const canvas = renderer.view as HTMLCanvasElement;
       
       // デフォルトで横スクロールを許可
       canvas.style.touchAction = 'pan-x';
@@ -2575,19 +2615,13 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       console.error('❌ appendChild failed:', error);
     }
 
-    console.log('🎯 PIXI Container initially hidden, scheduling fade-in...');
-    
-    requestAnimationFrame(() => {
-      console.log('🎯 Fade-in animation frame executing...');
+    // フェードイン処理（少し遅延を入れて安定化）
+    setTimeout(() => {
       if (containerRef.current) {
         containerRef.current.style.opacity = '1';
-        containerRef.current.style.visibility = 'visible';
-        containerRef.current.style.transition = 'opacity 0.2s ease-in-out';
-        console.log('✅ PIXI Container made visible');
-      } else {
-        console.error('❌ containerRef.current is null during fade-in');
+        console.log('✅ PIXI Container fade-in completed');
       }
-    });
+    }, 100);
 
     onReady?.(renderer);
 
