@@ -239,7 +239,7 @@ export class PIXINotesRendererInstance {
     
     // ★ エフェクト更新＋パフォーマンス監視をTickerに統合
     this.effectsElapsed = 0;
-    PIXI.Ticker.shared.add((tickerDelta) => {
+    PIXI.Ticker.shared.add((tickerDelta: number) => {
       // パフォーマンス監視開始
       if (this.performanceEnabled) {
         performanceMonitor.startFrame();
