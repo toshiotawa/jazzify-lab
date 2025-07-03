@@ -93,6 +93,24 @@ export function applyOSMDPatches(osmd: OpenSheetMusicDisplay): void {
       const enharmonicPref = getEnharmonicPrefForKey(currentFifths);
       (osmd.EngravingRules as any).enharmonicPref = enharmonicPref;
       
+      // F#メジャーの場合、Gbメジャーとして扱うための追加設定
+      if (currentFifths === 6) {
+        console.log('🎹 Converting F# major to Gb major');
+        // OSMDの内部設定を変更してGbメジャーとして扱う
+        if (osmd.Sheet.SourceMeasures && osmd.Sheet.SourceMeasures.length > 0) {
+          const firstMeasure = osmd.Sheet.SourceMeasures[0];
+          if (firstMeasure && firstMeasure.Rules && Array.isArray(firstMeasure.Rules)) {
+            for (const rule of firstMeasure.Rules) {
+              if (rule.Key && rule.Key.Fifths === 6) {
+                // -6 (Gb major) として再設定
+                rule.Key.Fifths = -6;
+                console.log('✅ Converted to Gb major');
+              }
+            }
+          }
+        }
+      }
+      
       console.log(`✅ Applied enharmonic preference for key with ${currentFifths} fifths:`, enharmonicPref.slice(0, 3), '...');
     }
 
@@ -152,6 +170,13 @@ function disableEncodeNaturals(osmd: OpenSheetMusicDisplay): { instruments: numb
         }
       }
     }
+
+    // EngravingRulesレベルでの設定
+    if (osmd.EngravingRules) {
+      (osmd.EngravingRules as any).AlwaysRenderNaturals = false;
+      (osmd.EngravingRules as any).DrawKeySignatureNaturals = false;
+      console.log('✅ Disabled AlwaysRenderNaturals and DrawKeySignatureNaturals');
+    }
   } catch (error) {
     console.error('Error disabling encodeNaturals:', error);
   }
@@ -178,8 +203,47 @@ function patchRenderingHooks(osmd: OpenSheetMusicDisplay): void {
       
       return result;
     };
+
+    // renderメソッドもラップして、レンダリング後の処理を追加
+    const originalRender = osmd.render.bind(osmd);
+    osmd.render = function() {
+      const result = originalRender();
+      
+      // レンダリング後にナチュラル記号を削除
+      removeUnnecessaryNaturals(osmd);
+      
+      return result;
+    };
   } catch (error) {
     console.error('Error patching rendering hooks:', error);
+  }
+}
+
+/**
+ * 不要なナチュラル記号を削除
+ */
+function removeUnnecessaryNaturals(osmd: OpenSheetMusicDisplay): void {
+  try {
+    // SVG要素から直接ナチュラル記号を探して削除
+    const container = (osmd as any).container;
+    if (container) {
+      const svgElements = container.querySelectorAll('svg');
+      svgElements.forEach((svg: SVGElement) => {
+        // ナチュラル記号のパスを探す（通常は特定のUnicode文字または特定のパス形状）
+        const naturalSymbols = svg.querySelectorAll('text');
+        naturalSymbols.forEach((text: SVGTextElement) => {
+          if (text.textContent && text.textContent.includes('♮')) {
+            // 移調が0の場合のみナチュラル記号を削除
+            if (osmd.Sheet.Transpose === 0) {
+              text.style.display = 'none';
+              console.log('🗑️ Removed unnecessary natural symbol');
+            }
+          }
+        });
+      });
+    }
+  } catch (error) {
+    console.error('Error removing unnecessary naturals:', error);
   }
 }
 
@@ -282,13 +346,18 @@ export function updateOSMDAfterTranspose(osmd: OpenSheetMusicDisplay, newTranspo
     (osmd.EngravingRules as any).enharmonicPref = enharmonicPref;
     
     // Cキーに戻った場合の特別処理
-    if (effectiveFifths === 0 && baseFifths !== 0) {
-      console.log('Returned to C key - ensuring no unnecessary naturals');
+    if (newTranspose === 0) {
+      console.log('🎹 Transpose set to 0 - ensuring clean display');
       // 強制的にencodeNaturalsを無効化
       disableEncodeNaturals(osmd);
+      
+      // EngravingRulesの追加設定
+      (osmd.EngravingRules as any).AlwaysRenderNaturals = false;
+      (osmd.EngravingRules as any).DrawKeySignatureNaturals = false;
+      (osmd.EngravingRules as any).DrawCourtesyAccidentals = false;
     }
     
-    console.log(`Updated enharmonic preference after transpose: base=${baseFifths}, effective=${effectiveFifths}`);
+    console.log(`Updated enharmonic preference after transpose: base=${baseFifths}, effective=${effectiveFifths}, transpose=${newTranspose}`);
   } catch (error) {
     console.error('Error updating OSMD after transpose:', error);
   }

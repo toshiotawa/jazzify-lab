@@ -205,18 +205,21 @@ const SongSelectionScreen: React.FC = () => {
                   console.warn('🚨 Demo-1音声ファイルの処理中にエラー、デフォルト時間を使用:', audioError);
                 }
                 
-                const demo1Song = {
+                // 楽曲情報を作成
+                const songInfo: Song = {
                   id: 'demo-1',
                   title: 'Demo-1',
-                  artist: 'Jazz Learning Game',
-                  difficulty: 2,
+                  artist: 'ジャズ学習アプリ',
                   duration: actualDuration,
+                  tempo: 120,
                   audioFile: '/demo-1.mp3',
                   notesFile: '/demo-1.json',
                   musicXmlFile: '/demo-1.xml',
-                  genreCategory: 'demo',
-                  key: 'C',
-                  keyType: 'major' as const
+                  key: 'C',  // キー情報を追加
+                  keyType: 'major',  // キータイプを追加
+                  difficulty: 'easy',
+                  difficultyLevel: 1,
+                  genre: 'practice' as const,
                 };
                 
                 // JSONデータをNoteData形式に変換
@@ -232,7 +235,7 @@ const SongSelectionScreen: React.FC = () => {
                 
                 console.log(`🎵 Demo-1読み込み完了: ${demo1Notes.length}ノーツ, ${actualDuration}秒`);
                 
-                gameActions.loadSong(demo1Song, demo1Notes);
+                gameActions.loadSong(songInfo, demo1Notes);
                 gameActions.setCurrentTab('practice');
               } catch (error) {
                 console.error('Demo-1楽曲の読み込みに失敗しました:', error);

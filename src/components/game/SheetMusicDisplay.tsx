@@ -157,6 +157,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       // 移調値が変更された場合
       console.log('Transpose changed from', previousTransposeRef.current, 'to', transpose);
       
+      // transpose が 0 の場合は楽譜を再読み込み（クリーンな状態にするため）
+      if (transpose === 0 && previousTransposeRef.current !== 0) {
+        console.log('🔄 Reloading sheet music for clean display at transpose 0');
+        initializeOSMD();
+        return;
+      }
+      
       try {
         // 楽譜の移調値を更新
         osmdRef.current.Sheet.Transpose = transpose;
@@ -166,20 +173,43 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         
         // デバッグ用: 移調後のキー情報を更新
         let keyInfo = 'Unknown key';
+        let originalFifths = 0;
         if (osmdRef.current.Sheet.SourceMeasures && osmdRef.current.Sheet.SourceMeasures.length > 0) {
           const firstMeasure = osmdRef.current.Sheet.SourceMeasures[0];
           if (firstMeasure && firstMeasure.Rules && Array.isArray(firstMeasure.Rules)) {
             for (const rule of firstMeasure.Rules) {
               if (rule.Key) {
-                const fifths = rule.Key.Fifths;
+                originalFifths = rule.Key.Fifths;
                 const mode = rule.Key.Mode === 1 ? 'minor' : 'major';
-                keyInfo = `${fifths} fifths (${mode})`;
+                
+                // 移調後の実効的な五度圏位置を計算
+                const transposedFifths = originalFifths + Math.round(transpose * 7 / 12);
+                
+                // 実効的なキーを表示
+                let effectiveKey = '';
+                if (mode === 'major') {
+                  const majorKeysByFifths: Record<string, string> = {
+                    '-7': 'Cb', '-6': 'Gb', '-5': 'Db', '-4': 'Ab', '-3': 'Eb', '-2': 'Bb', '-1': 'F',
+                    '0': 'C',
+                    '1': 'G', '2': 'D', '3': 'A', '4': 'E', '5': 'B', '6': 'Gb', '7': 'C#'
+                  };
+                  effectiveKey = majorKeysByFifths[transposedFifths.toString()] || '?';
+                } else {
+                  const minorKeysByFifths: Record<string, string> = {
+                    '-7': 'Ab', '-6': 'Eb', '-5': 'Bb', '-4': 'F', '-3': 'C', '-2': 'G', '-1': 'D',
+                    '0': 'A',
+                    '1': 'E', '2': 'B', '3': 'F#', '4': 'C#', '5': 'G#', '6': 'D#', '7': 'A#'
+                  };
+                  effectiveKey = minorKeysByFifths[transposedFifths.toString()] || '?';
+                }
+                
+                keyInfo = `Original: ${originalFifths} fifths, Transposed: ${effectiveKey} ${mode}`;
                 break;
               }
             }
           }
         }
-        setCurrentKeyInfo(`Original: ${keyInfo}, Transpose: ${transpose}`);
+        setCurrentKeyInfo(`${keyInfo}, Transpose: ${transpose}`);
         
         // レイアウト更新と再レンダリング
         osmdRef.current.updateGraphic();

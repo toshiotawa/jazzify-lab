@@ -107,103 +107,111 @@ export function getScaleDegree(midiNote: number, keySignature: KeySignature): nu
 }
 
 /**
- * キーに基づいた正しい音名を取得
+ * 正確な度数計算に基づいた音名取得
  */
 export function getCorrectNoteName(midiNote: number, keySignature: KeySignature): string {
-  const { octave, chromaticIndex } = getMidiNoteInfo(midiNote);
-  const scaleDegree = getScaleDegree(midiNote, keySignature);
+  const { chromaticIndex } = getMidiNoteInfo(midiNote);
   
-  // メジャースケールの度数から基本音名を決定
-  const majorScalePattern = [0, 2, 4, 5, 7, 9, 11]; // C major scale intervals
+  // キーのルート音の基本音名インデックス
   const keyRootIndex = NOTE_NAMES.indexOf(keySignature.key[0] as any);
   
-  // スケール内の音かチェック
-  let noteIndex = -1;
-  let accidental = '';
+  // キーのルートのクロマティック位置
+  let rootChromaticIndex = SEMITONE_DISTANCES[keyRootIndex];
+  if (keySignature.key.includes('#')) rootChromaticIndex += 1;
+  if (keySignature.key.includes('b')) rootChromaticIndex -= 1;
+  rootChromaticIndex = (rootChromaticIndex + 12) % 12;
   
-  for (let i = 0; i < majorScalePattern.length; i++) {
-    if (majorScalePattern[i] === scaleDegree) {
-      noteIndex = (keyRootIndex + i) % 7;
+  // 相対的な半音数（度数）
+  const relativeSemitones = (chromaticIndex - rootChromaticIndex + 12) % 12;
+  
+  // メジャースケールの度数パターン
+  const scalePattern = [
+    { semitones: 0, degree: 1, noteOffset: 0 },   // 1度（完全1度）
+    { semitones: 2, degree: 2, noteOffset: 1 },   // 2度（長2度）
+    { semitones: 4, degree: 3, noteOffset: 2 },   // 3度（長3度）
+    { semitones: 5, degree: 4, noteOffset: 3 },   // 4度（完全4度）
+    { semitones: 7, degree: 5, noteOffset: 4 },   // 5度（完全5度）
+    { semitones: 9, degree: 6, noteOffset: 5 },   // 6度（長6度）
+    { semitones: 11, degree: 7, noteOffset: 6 },  // 7度（長7度）
+  ];
+  
+  // 最も近い度数を見つける
+  let closestPattern = scalePattern[0];
+  let accidentalOffset = 0;
+  
+  for (const pattern of scalePattern) {
+    if (pattern.semitones === relativeSemitones) {
+      closestPattern = pattern;
+      accidentalOffset = 0;
       break;
     }
   }
   
-  // スケール外の音の場合、最も近い音を基準に臨時記号を決定
-  if (noteIndex === -1) {
-    // 下の音を基準にするか上の音を基準にするか決定
-    const useFlat = keySignature.preferredAccidentals === 'flat' || 
-                    (keySignature.flats && keySignature.flats.length > 0);
+  // スケール内にない音の場合
+  if (accidentalOffset === 0 && closestPattern.semitones !== relativeSemitones) {
+    // 上下の度数を探す
+    for (const pattern of scalePattern) {
+      // 半音上の場合（増音程または臨時記号のシャープ）
+      if (pattern.semitones === relativeSemitones - 1) {
+        closestPattern = pattern;
+        accidentalOffset = 1; // シャープ
+        break;
+      }
+      // 半音下の場合（減音程または臨時記号のフラット）
+      if ((pattern.semitones === relativeSemitones + 1) || 
+          (pattern.semitones === relativeSemitones - 11)) {
+        closestPattern = pattern;
+        accidentalOffset = -1; // フラット
+        break;
+      }
+    }
     
-    if (useFlat) {
-      // フラット系：上の音を基準に♭
-      for (let i = 0; i < majorScalePattern.length; i++) {
-        if (majorScalePattern[i] === (scaleDegree + 1) % 12) {
-          noteIndex = (keyRootIndex + i) % 7;
-          accidental = 'b';
-          break;
-        }
-      }
-    } else {
-      // シャープ系：下の音を基準に#
-      for (let i = 0; i < majorScalePattern.length; i++) {
-        if (majorScalePattern[i] === (scaleDegree - 1 + 12) % 12) {
-          noteIndex = (keyRootIndex + i) % 7;
-          accidental = '#';
-          break;
-        }
+    // 特殊なケース：増4度（F# in C major）、減5度（Gb in C major）
+    if (relativeSemitones === 6) {
+      if (keySignature.preferredAccidentals === 'flat' || keySignature.flats && keySignature.flats.length > 0) {
+        // Gbとして扱う（5度のフラット）
+        closestPattern = scalePattern[4]; // 5度
+        accidentalOffset = -1;
+      } else {
+        // F#として扱う（4度のシャープ）
+        closestPattern = scalePattern[3]; // 4度
+        accidentalOffset = 1;
       }
     }
   }
   
-  // それでも見つからない場合（ダブルシャープ/フラットが必要な場合）
-  if (noteIndex === -1) {
-    // デフォルトでクロマティックな音名を返す
-    return getMidiNoteInfo(midiNote).noteLetter;
+  // 基本音名を決定
+  const baseNoteIndex = (keyRootIndex + closestPattern.noteOffset) % 7;
+  const baseName = NOTE_NAMES[baseNoteIndex];
+  
+  // 調号による変化を考慮
+  let finalAccidental = accidentalOffset;
+  
+  // この音に調号がある場合
+  if (keySignature.sharps?.includes(baseName)) {
+    finalAccidental += 1;
+  } else if (keySignature.flats?.includes(baseName)) {
+    finalAccidental -= 1;
   }
   
-  const baseName = NOTE_NAMES[noteIndex];
-  
-  // 調号による変化を確認
-  const needsSharp = keySignature.sharps?.includes(baseName);
-  const needsFlat = keySignature.flats?.includes(baseName);
-  
-  // 実際の音と期待される音の差を計算
-  let expectedChromaticIndex = SEMITONE_DISTANCES[noteIndex];
-  if (needsSharp) expectedChromaticIndex += 1;
-  if (needsFlat) expectedChromaticIndex -= 1;
-  expectedChromaticIndex = (expectedChromaticIndex + 12) % 12;
-  
-  const diff = (chromaticIndex - expectedChromaticIndex + 12) % 12;
-  
-  // 臨時記号を決定
-  if (diff === 0) {
-    // 調号通りの音（臨時記号なし）
-    return baseName;
-  } else if (diff === 1) {
-    if (needsSharp) {
-      return baseName + 'x'; // ダブルシャープ
-    } else {
-      return baseName + '#';
-    }
-  } else if (diff === 11) {
-    if (needsFlat) {
-      return baseName + 'bb'; // ダブルフラット
-    } else {
-      return baseName + 'b';
-    }
-  } else if (diff === 2) {
-    // 2半音上 = ダブルシャープの可能性
-    if (accidental === '#') {
-      return baseName + 'x';
-    }
-  } else if (diff === 10) {
-    // 2半音下 = ダブルフラットの可能性
-    if (accidental === 'b') {
-      return baseName + 'bb';
-    }
+  // 臨時記号を文字列に変換
+  let accidentalString = '';
+  switch (finalAccidental) {
+    case -2: accidentalString = 'bb'; break; // ダブルフラット
+    case -1: accidentalString = 'b'; break;  // フラット
+    case 0: accidentalString = ''; break;    // ナチュラル（表示なし）
+    case 1: accidentalString = '#'; break;   // シャープ
+    case 2: accidentalString = 'x'; break;   // ダブルシャープ
+    default:
+      // 3以上または-3以下の場合は、理論的に正しくないが表示
+      if (finalAccidental > 0) {
+        accidentalString = '#'.repeat(finalAccidental);
+      } else {
+        accidentalString = 'b'.repeat(-finalAccidental);
+      }
   }
   
-  return baseName + accidental;
+  return baseName + accidentalString;
 }
 
 /**
