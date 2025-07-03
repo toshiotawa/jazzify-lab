@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { OpenSheetMusicDisplay, IOSMDOptions, TransposeCalculator } from 'opensheetmusicdisplay';
+import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import platform from '@/platform';
+import { fetchAndTransposeMusicXML } from '@/utils/musicXmlTransposer';
 
 interface SheetMusicDisplayProps {
   musicXmlUrl?: string;
@@ -78,19 +79,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       // OSMDインスタンスを作成
       osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
       
-      // TransposeCalculatorをインスタンス化して設定
-      osmdRef.current.TransposeCalculator = new TransposeCalculator();
+      // MusicXMLを取得して移調処理を適用
+      const xmlString = await fetchAndTransposeMusicXML(musicXmlUrl, currentTranspose);
       
-      // MusicXMLを読み込み
-      await osmdRef.current.load(musicXmlUrl);
-      
-      // 移調設定
-      if (currentTranspose !== 0) {
-        osmdRef.current.Sheet.Transpose = currentTranspose;
-      }
+      // 移調済みのMusicXMLを読み込み
+      await osmdRef.current.load(xmlString);
       
       // レイアウト更新とレンダリング
-      osmdRef.current.updateGraphic();
       osmdRef.current.render();
       
       // タイムマッピングを作成
@@ -109,30 +104,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
 
   // 移調値が変更された時の処理
   useEffect(() => {
-    if (osmdRef.current && transpose !== previousTransposeRef.current) {
-      // 移調値が変更された場合
+    if (transpose !== previousTransposeRef.current && musicXmlUrl) {
+      // 移調値が変更された場合は楽譜を再読み込み
       console.log('Transpose changed from', previousTransposeRef.current, 'to', transpose);
-      
-      try {
-        // 楽譜の移調値を更新
-        osmdRef.current.Sheet.Transpose = transpose;
-        
-        // レイアウト更新と再レンダリング
-        osmdRef.current.updateGraphic();
-        osmdRef.current.render();
-        
-        // タイムマッピングを再作成
-        createTimeMapping();
-        
-        previousTransposeRef.current = transpose;
-        console.log('Transpose updated successfully');
-      } catch (err) {
-        console.error('移調エラー:', err);
-        // エラーが発生した場合は楽譜を再読み込み
-        initializeOSMD();
-      }
+      initializeOSMD();
     }
-  }, [transpose, initializeOSMD]);
+  }, [transpose, initializeOSMD, musicXmlUrl]);
 
   // 音符の時刻とX座標のマッピングを作成 + 音名情報を抽出
   const createTimeMapping = useCallback(() => {
@@ -176,8 +153,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
                     // 音名情報を抽出
                     const sourceNote = graphicNote.sourceNote;
                     if (sourceNote) {
-                      // TransposedPitchがある場合はそちらを優先
-                      const pitch = sourceNote.TransposedPitch || sourceNote.Pitch;
+                      // 既に移調済みのMusicXMLを読み込んでいるので、そのままPitchを使用
+                      const pitch = sourceNote.Pitch;
                       if (pitch) {
                         let noteName = pitch.FundamentalNote.toString();
                         
