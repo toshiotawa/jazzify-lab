@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { type FC, useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions, TransposeCalculator } from 'opensheetmusicdisplay';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import platform from '@/platform';
@@ -19,7 +19,7 @@ interface TimeMappingEntry {
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
  */
-const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, className = '' }) => {
+const SheetMusicDisplay: FC<SheetMusicDisplayProps> = ({ musicXmlUrl, className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
@@ -47,7 +47,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
   const [currentKeyInfo, setCurrentKeyInfo] = useState<string>('');
 
   // 音符の時刻とX座標のマッピングを作成 + 音名情報を抽出
-  const createTimeMapping = useCallback(() => {
+  const createTimeMapping = useCallback((): void => {
     if (!osmdRef.current || !notes || notes.length === 0) return;
 
     const mapping: TimeMappingEntry[] = [];
@@ -379,7 +379,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
   }, [transpose, initializeOSMD, currentSong, createTimeMapping]);
 
   // スクロールアニメーション
-  const updateScroll = useCallback(() => {
+  const updateScroll = useCallback((): void => {
     if (!scoreWrapperRef.current || timeMapping.length === 0) return;
     
     const currentTimeMs = currentTime * 1000;
