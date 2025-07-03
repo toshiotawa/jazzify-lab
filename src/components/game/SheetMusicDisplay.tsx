@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions, TransposeCalculator } from 'opensheetmusicdisplay';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import platform from '@/platform';
+import { getKeySignature, getCorrectNoteName, getPreferredKey } from '@/utils/musicTheory';
 
 interface SheetMusicDisplayProps {
   musicXmlUrl?: string;
@@ -27,11 +28,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
   const [timeMapping, setTimeMapping] = useState<TimeMappingEntry[]>([]);
   const previousTransposeRef = useRef<number>(0);
   
-  const { currentTime, isPlaying, notes, transpose } = useGameSelector((s) => ({
+  const { currentTime, isPlaying, notes, transpose, currentSong } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
-    transpose: s.settings.transpose || 0
+    transpose: s.settings.transpose || 0,
+    currentSong: s.currentSong
   }));
   
   const gameActions = useGameActions();
@@ -147,6 +149,51 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       return;
     }
 
+    // 楽曲のキー情報を取得（F#メジャーの場合はGbメジャーに変換）
+    let keySignature = null;
+    if (currentSong?.key) {
+      keySignature = getPreferredKey(currentSong.key, currentSong.keyType || 'major');
+    }
+    
+    // MusicXMLからキー情報を取得（楽曲データにキー情報がない場合）
+    if (!keySignature && osmdRef.current.Sheet && osmdRef.current.Sheet.SourceMeasures.length > 0) {
+      const firstMeasure = osmdRef.current.Sheet.SourceMeasures[0];
+      if (firstMeasure && firstMeasure.Rules) {
+        for (const rule of firstMeasure.Rules) {
+          if (rule.Key) {
+            // MusicXMLのキー情報から調を判定
+            const keyMode = rule.Key.Mode === 1 ? 'minor' : 'major';
+            const fifths = rule.Key.Fifths;
+            
+            // 五度圏の位置から調を決定
+            let keyName = '';
+            if (keyMode === 'major') {
+              // メジャーキー: 五度圏順
+              const majorKeysByFifths: Record<string, string> = {
+                '-7': 'Cb', '-6': 'Gb', '-5': 'Db', '-4': 'Ab', '-3': 'Eb', '-2': 'Bb', '-1': 'F',
+                '0': 'C',
+                '1': 'G', '2': 'D', '3': 'A', '4': 'E', '5': 'B', '6': 'Gb', '7': 'C#'  // F#はGbとして扱う
+              };
+              keyName = majorKeysByFifths[fifths.toString()] || 'C';
+            } else {
+              // マイナーキー: 五度圏順
+              const minorKeysByFifths: Record<string, string> = {
+                '-7': 'Ab', '-6': 'Eb', '-5': 'Bb', '-4': 'F', '-3': 'C', '-2': 'G', '-1': 'D',
+                '0': 'A',
+                '1': 'E', '2': 'B', '3': 'F#', '4': 'C#', '5': 'G#', '6': 'D#', '7': 'A#'
+              };
+              keyName = minorKeysByFifths[fifths.toString()] || 'A';
+            }
+            
+            if (keyName) {
+              keySignature = getPreferredKey(keyName, keyMode);
+              break;
+            }
+          }
+        }
+      }
+    }
+
     let noteIndex = 0;
     
     // 全ての音符を走査
@@ -179,19 +226,37 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
                       // TransposedPitchがある場合はそちらを優先
                       const pitch = sourceNote.TransposedPitch || sourceNote.Pitch;
                       if (pitch) {
-                        let noteName = pitch.FundamentalNote.toString();
-                        
-                        // 臨時記号の処理
-                        if (pitch.Accidental) {
-                          switch (pitch.Accidental) {
-                            case 1: noteName += '#'; break;
-                            case -1: noteName += 'b'; break;
-                            case 2: noteName += 'x'; break; // ダブルシャープ
-                            case -2: noteName += 'bb'; break; // ダブルフラット
+                        // キー情報がある場合は正しい音名を計算
+                        if (keySignature) {
+                          // MIDIノート番号を計算
+                          const octave = pitch.Octave;
+                          const noteIndex = ['C', 'D', 'E', 'F', 'G', 'A', 'B'].indexOf(pitch.FundamentalNote.toString());
+                          let midiNote = (octave + 1) * 12 + [0, 2, 4, 5, 7, 9, 11][noteIndex];
+                          
+                          // 臨時記号による調整
+                          if (pitch.Accidental) {
+                            midiNote += pitch.Accidental;
                           }
+                          
+                          // 正しい音名を取得
+                          const correctNoteName = getCorrectNoteName(midiNote, keySignature);
+                          noteNamesMap[note.id] = correctNoteName;
+                        } else {
+                          // キー情報がない場合は従来の処理
+                          let noteName = pitch.FundamentalNote.toString();
+                          
+                          // 臨時記号の処理
+                          if (pitch.Accidental) {
+                            switch (pitch.Accidental) {
+                              case 1: noteName += '#'; break;
+                              case -1: noteName += 'b'; break;
+                              case 2: noteName += 'x'; break; // ダブルシャープ
+                              case -2: noteName += 'bb'; break; // ダブルフラット
+                            }
+                          }
+                          
+                          noteNamesMap[note.id] = noteName;
                         }
-                        
-                        noteNamesMap[note.id] = noteName;
                       }
                     }
                     
@@ -211,7 +276,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     }
     
     setTimeMapping(mapping);
-  }, [notes, gameActions]);
+  }, [notes, gameActions, currentSong]);
 
   // スクロールアニメーション
   const updateScroll = useCallback(() => {

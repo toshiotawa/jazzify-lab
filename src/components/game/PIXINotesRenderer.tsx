@@ -344,6 +344,18 @@ export class PIXINotesRendererInstance {
       const flatNamesABC = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
       const sharpNamesSolfege = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
       const flatNamesSolfege = ['ド', 'レ♭', 'レ', 'ミ♭', 'ミ', 'ファ', 'ソ♭', 'ソ', 'ラ♭', 'ラ', 'シ♭', 'シ'];
+      
+      // 追加の音名パターン（MusicXMLから来る可能性がある）
+      const additionalNamesABC = [
+        'E#', 'B#', 'Cb', 'Fb',  // 異名同音
+        'Cx', 'Dx', 'Ex', 'Fx', 'Gx', 'Ax', 'Bx',  // ダブルシャープ
+        'Dbb', 'Ebb', 'Fbb', 'Gbb', 'Abb', 'Bbb', 'Cbb'  // ダブルフラット
+      ];
+      const additionalNamesSolfege = [
+        'ミ#', 'シ#', 'ド♭', 'ファ♭',  // 異名同音
+        'ドx', 'レx', 'ミx', 'ファx', 'ソx', 'ラx', 'シx',  // ダブルシャープ
+        'レ♭♭', 'ミ♭♭', 'ファ♭♭', 'ソ♭♭', 'ラ♭♭', 'シ♭♭', 'ド♭♭'  // ダブルフラット
+      ];
 
       // ラベルスタイル設定
       const labelStyle = new PIXI.TextStyle({
@@ -364,21 +376,23 @@ export class PIXINotesRendererInstance {
       };
 
       // ABC Sharp テクスチャ生成
-      sharpNamesABC.forEach(name => {
+      [...sharpNamesABC, ...additionalNamesABC].forEach(name => {
         try {
           const text = new PIXI.Text(name, labelStyle);
           const texture = this.app.renderer.generateTexture(text);
           
           if (!texture || texture === PIXI.Texture.EMPTY) {
-            console.warn(`⚠️ Failed to generate texture for ABC sharp: ${name}`);
+            console.warn(`⚠️ Failed to generate texture for ABC: ${name}`);
             return;
           }
           
+          // 両方のマップに追加（どちらからでもアクセスできるように）
           this.labelTextures.abc_sharp.set(name, texture);
+          this.labelTextures.abc_flat.set(name, texture);
           text.destroy();
-          console.log(`✅ Generated ABC sharp texture: ${name}`);
+          console.log(`✅ Generated ABC texture: ${name}`);
         } catch (error) {
-          console.error(`❌ Error generating ABC sharp texture for ${name}:`, error);
+          console.error(`❌ Error generating ABC texture for ${name}:`, error);
         }
       });
 
@@ -402,21 +416,23 @@ export class PIXINotesRendererInstance {
       });
 
       // Solfege Sharp テクスチャ生成
-      sharpNamesSolfege.forEach(name => {
+      [...sharpNamesSolfege, ...additionalNamesSolfege].forEach(name => {
         try {
           const text = new PIXI.Text(name, labelStyle);
           const texture = this.app.renderer.generateTexture(text);
           
           if (!texture || texture === PIXI.Texture.EMPTY) {
-            console.warn(`⚠️ Failed to generate texture for Solfege sharp: ${name}`);
+            console.warn(`⚠️ Failed to generate texture for Solfege: ${name}`);
             return;
           }
           
+          // 両方のマップに追加（どちらからでもアクセスできるように）
           this.labelTextures.solfege_sharp.set(name, texture);
+          this.labelTextures.solfege_flat.set(name, texture);
           text.destroy();
-          console.log(`✅ Generated Solfege sharp texture: ${name}`);
+          console.log(`✅ Generated Solfege texture: ${name}`);
         } catch (error) {
-          console.error(`❌ Error generating Solfege sharp texture for ${name}:`, error);
+          console.error(`❌ Error generating Solfege texture for ${name}:`, error);
         }
       });
 

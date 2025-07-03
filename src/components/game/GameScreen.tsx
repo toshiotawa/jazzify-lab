@@ -214,7 +214,9 @@ const SongSelectionScreen: React.FC = () => {
                   audioFile: '/demo-1.mp3',
                   notesFile: '/demo-1.json',
                   musicXmlFile: '/demo-1.xml',
-                  genreCategory: 'demo'
+                  genreCategory: 'demo',
+                  key: 'C',
+                  keyType: 'major' as const
                 };
                 
                 // JSONデータをNoteData形式に変換
@@ -260,7 +262,9 @@ const SongSelectionScreen: React.FC = () => {
                   duration: 240, // 適当な長さ
                   audioFile: '', // 音声ファイルなし
                   notesFile: '/bill-evans-alice-in-wonderland.json',
-                  genreCategory: 'jazz'
+                  genreCategory: 'jazz',
+                  key: 'Gb',  // F#メジャーの代わりにGbメジャーを使用
+                  keyType: 'major' as const
                 };
                 
                 // JSONデータをNoteData形式に変換（配列構造に対応）

@@ -25,10 +25,12 @@ declare module 'opensheetmusicdisplay' {
       };
       Pitch?: {
         FundamentalNote: number;
+        Octave: number;
         Accidental?: number;
       };
       TransposedPitch?: {
         FundamentalNote: number;
+        Octave: number;
         Accidental?: number;
       };
     };
@@ -70,6 +72,20 @@ declare module 'opensheetmusicdisplay' {
 
   export interface MusicSheet {
     Transpose: number;
+    SourceMeasures?: SourceMeasure[];
+  }
+
+  export interface SourceMeasure {
+    Rules?: MusicSheetRule[];
+  }
+
+  export interface MusicSheetRule {
+    Key?: KeyInstruction;
+  }
+
+  export interface KeyInstruction {
+    Fifths: number;
+    Mode: number; // 0 = major, 1 = minor
   }
 
   export class TransposeCalculator {

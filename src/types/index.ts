@@ -79,6 +79,8 @@ export interface SongMetadata {
   genreCategory: string;
   previewStart?: number; // プレビュー開始時間
   tags?: string[];
+  key?: string;         // 調（例: "C", "Gb", "F#"）
+  keyType?: 'major' | 'minor'; // 長調か短調か
 }
 
 // ===== ゲーム設定 =====
