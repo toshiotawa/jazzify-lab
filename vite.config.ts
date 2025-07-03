@@ -56,9 +56,7 @@ export default defineConfig(({ mode }) => {
           assetFileNames: 'assets/[name]-[hash].[ext]'
         },
         treeshake: {
-          preset: 'recommended',
-          // console関数を不要コードとして削除
-          manualPureFunctions: ['console.log', 'console.info', 'console.debug', 'console.warn', 'console.error'],
+          preset: 'recommended'
         }
       },
       commonjsOptions: {
