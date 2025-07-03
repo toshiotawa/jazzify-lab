@@ -1,4 +1,5 @@
 import { MusicXML } from '@stringsync/musicxml';
+import { Interval, Note, Key } from 'tonal';
 
 /**
  * 半音オフセットから調号（五度圏）への変換テーブル
@@ -101,8 +102,8 @@ export const transposeMusicXML = async (xmlString: string, semitones: number): P
   // 正規化: -12 〜 +11 の範囲に収める
   const normalizedSemitones = ((semitones % 12) + 12) % 12;
   
-  // フラット系の調を優先するかどうか
-  const preferFlat = TRANSPOSE_TO_FIFTHS[normalizedSemitones] < 0;
+  // 移調のインターバルを作成
+  const interval = Interval.fromSemitones(semitones);
   
   // 1. 全ての音符を移調
   const notes = doc.querySelectorAll('note');
@@ -120,33 +121,51 @@ export const transposeMusicXML = async (xmlString: string, semitones: number): P
     const alter = alterElem ? parseInt(alterElem.textContent || '0') : 0;
     const octave = parseInt(octaveElem.textContent || '4');
     
-    // MIDI番号に変換して移調
-    const originalMidi = noteToMidi(step, alter, octave);
-    const transposedMidi = originalMidi + semitones;
+    // tonalの音名形式に変換
+    let noteName = step;
+    if (alter > 0) {
+      noteName += '#'.repeat(alter);
+    } else if (alter < 0) {
+      noteName += 'b'.repeat(Math.abs(alter));
+    }
+    noteName += octave;
     
-    // 新しい音名を取得
-    const newNote = midiToNote(transposedMidi, preferFlat);
+    // tonalを使って移調
+    const transposedNote = Note.transpose(noteName, interval);
+    if (!transposedNote) return;
+    
+    // 移調された音符の情報を解析
+    const parsedNote = Note.get(transposedNote);
     
     // 要素を更新
-    stepElem.textContent = newNote.step;
+    stepElem.textContent = parsedNote.letter;
     
     // octaveが存在し、数値であることを確認
-    if (newNote.octave !== undefined && newNote.octave !== null) {
-      octaveElem.textContent = String(newNote.octave);
+    if (parsedNote.oct !== undefined && parsedNote.oct !== null) {
+      octaveElem.textContent = String(parsedNote.oct);
     } else {
-      console.error('Invalid octave value:', newNote.octave);
-      return; // forEachの中なのでreturnを使用
+      console.error('Invalid octave value:', parsedNote.oct);
+      return;
     }
     
     // alter要素の処理
-    if (newNote.alter !== 0) {
+    let newAlter = 0;
+    if (parsedNote.acc) {
+      if (parsedNote.acc.includes('#')) {
+        newAlter = parsedNote.acc.length;
+      } else if (parsedNote.acc.includes('b')) {
+        newAlter = -parsedNote.acc.length;
+      }
+    }
+    
+    if (newAlter !== 0) {
       if (!alterElem) {
         // alter要素が存在しない場合は作成
         const newAlterElem = doc.createElement('alter');
-        newAlterElem.textContent = String(newNote.alter);
+        newAlterElem.textContent = String(newAlter);
         pitch.insertBefore(newAlterElem, octaveElem);
       } else {
-        alterElem.textContent = String(newNote.alter);
+        alterElem.textContent = String(newAlter);
       }
     } else if (alterElem) {
       // alter が 0 の場合は要素を削除
