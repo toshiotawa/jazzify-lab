@@ -3,6 +3,7 @@ import { OpenSheetMusicDisplay, IOSMDOptions, TransposeCalculator } from 'opensh
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import platform from '@/platform';
 import { getKeySignature, getCorrectNoteName, getPreferredKey } from '@/utils/musicTheory';
+import { applyOSMDPatches, updateOSMDAfterTranspose } from '@/utils/osmdPatches';
 
 interface SheetMusicDisplayProps {
   musicXmlUrl?: string;
@@ -94,9 +95,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       // MusicXMLを読み込み
       await osmdRef.current.load(musicXmlUrl);
       
+      // OSMDパッチを適用（encodeNaturals問題と異名同音問題を修正）
+      applyOSMDPatches(osmdRef.current);
+      
       // 移調設定
       if (currentTranspose !== 0) {
         osmdRef.current.Sheet.Transpose = currentTranspose;
+        // 移調後の設定を更新
+        updateOSMDAfterTranspose(osmdRef.current, currentTranspose);
       }
       
       // レイアウト更新とレンダリング
@@ -126,6 +132,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       try {
         // 楽譜の移調値を更新
         osmdRef.current.Sheet.Transpose = transpose;
+        
+        // 移調後の設定を更新（異名同音の優先設定など）
+        updateOSMDAfterTranspose(osmdRef.current, transpose);
         
         // レイアウト更新と再レンダリング
         osmdRef.current.updateGraphic();

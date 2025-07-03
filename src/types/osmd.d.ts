@@ -79,6 +79,7 @@ declare module 'opensheetmusicdisplay' {
   export interface MusicSheet {
     Transpose: number;
     SourceMeasures?: SourceMeasure[];
+    Instruments?: Instrument[];
   }
 
   export interface SourceMeasure {
@@ -92,6 +93,15 @@ declare module 'opensheetmusicdisplay' {
   export interface KeyInstruction {
     Fifths: number;
     Mode: number; // 0 = major, 1 = minor
+    encodeNaturals?: boolean;
+  }
+
+  export interface Instrument {
+    Staves?: Staff[];
+  }
+
+  export interface Staff {
+    KeyInstructions?: KeyInstruction[];
   }
 
   export class TransposeCalculator {
