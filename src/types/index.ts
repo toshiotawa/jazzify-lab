@@ -199,6 +199,8 @@ export interface GameState {
   // 楽曲情報
   currentSong: SongMetadata | null;
   notes: NoteData[];
+  rawNotes: NoteData[]; // <--- 追加: 加工前のノートデータ
+  musicXml: string | null; // <--- 追加: 移調済みMusicXML
   activeNotes: Set<string>;    // 現在表示中のノートID
   
   // ABリピート（練習モード）
@@ -534,4 +536,4 @@ export interface AudioProcessingSettings {
   adaptiveBuffering: boolean;
 }
 
-// ===== 既存のAudioDevice型の拡張 ===== 
+// ===== 既存のAudioDevice型の拡張 =====

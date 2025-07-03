@@ -78,10 +78,8 @@ interface NoteTextures {
 }
 
 interface LabelTextures {
-  abc_sharp: Map<string, PIXI.Texture>;
-  abc_flat: Map<string, PIXI.Texture>;
-  solfege_sharp: Map<string, PIXI.Texture>;
-  solfege_flat: Map<string, PIXI.Texture>;
+  abc: Map<string, PIXI.Texture>;
+  solfege: Map<string, PIXI.Texture>;
 }
 
 // ===== PIXI.js レンダラークラス =====
@@ -336,17 +334,34 @@ export class PIXINotesRendererInstance {
    * ラベル用テクスチャアトラスを生成
    */
   private generateLabelTextures(): void {
-    console.log('🎯 Starting label texture generation...');
-    
-    try {
-      // 全ての音名パターンを定義
-      const sharpNamesABC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      const flatNamesABC = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-      const sharpNamesSolfege = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
-      const flatNamesSolfege = ['ド', 'レ♭', 'レ', 'ミ♭', 'ミ', 'ファ', 'ソ♭', 'ソ', 'ラ♭', 'ラ', 'シ♭', 'シ'];
+    console.log('🎯 Starting comprehensive label texture generation...');
 
-      // ラベルスタイル設定
-      const labelStyle = new PIXI.TextStyle({
+    // 既存のテクスチャを破棄
+    if (this.labelTextures) {
+      this.labelTextures.abc?.forEach(t => t.destroy());
+      this.labelTextures.solfege?.forEach(t => t.destroy());
+    }
+
+    // ABC表記とソルフェージュ表記の包括的なマッピング
+    // ダブルシャープ、ダブルフラット、白鍵の異名同音を含む
+    const noteNameMapping: { [abc: string]: string } = {
+      // Naturals
+      'A': 'ラ', 'B': 'シ', 'C': 'ド', 'D': 'レ', 'E': 'ミ', 'F': 'ファ', 'G': 'ソ',
+      // Sharps
+      'A#': 'ラ#', 'C#': 'ド#', 'D#': 'レ#', 'F#': 'ファ#', 'G#': 'ソ#',
+      // Flats
+      'Ab': 'ラ♭', 'Bb': 'シ♭', 'Db': 'レ♭', 'Eb': 'ミ♭', 'Gb': 'ソ♭',
+      // Enharmonic White Keys
+      'B#': 'シ#', 'E#': 'ミ#',
+      'Cb': 'ド♭', 'Fb': 'ファ♭',
+      // Double Sharps
+      'Ax': 'ラx', 'Bx': 'シx', 'Cx': 'ドx', 'Dx': 'レx', 'Ex': 'ミx', 'Fx': 'ファx', 'Gx': 'ソx',
+      // Double Flats
+      'Abb': 'ラ♭♭', 'Bbb': 'シ♭♭', 'Cbb': 'ド♭♭', 'Dbb': 'レ♭♭', 'Ebb': 'ミ♭♭', 'Fbb': 'ファ♭♭', 'Gbb': 'ソ♭♭',
+    };
+
+    // ラベルスタイル設定
+    const labelStyle = new PIXI.TextStyle({
         fontSize: 10,
         fill: 0xFFFFFF,
         fontFamily: 'Arial, sans-serif',
@@ -354,108 +369,38 @@ export class PIXINotesRendererInstance {
         align: 'center',
         stroke: 0x000000,
         strokeThickness: 2
-      });
+    });
 
-      this.labelTextures = {
-        abc_sharp: new Map(),
-        abc_flat: new Map(), 
-        solfege_sharp: new Map(),
-        solfege_flat: new Map()
-      };
+    this.labelTextures = {
+      abc: new Map(),
+      solfege: new Map()
+    };
 
-      // ABC Sharp テクスチャ生成
-      sharpNamesABC.forEach(name => {
-        try {
-          const text = new PIXI.Text(name, labelStyle);
-          const texture = this.app.renderer.generateTexture(text);
-          
-          if (!texture || texture === PIXI.Texture.EMPTY) {
-            console.warn(`⚠️ Failed to generate texture for ABC sharp: ${name}`);
-            return;
-          }
-          
-          this.labelTextures.abc_sharp.set(name, texture);
-          text.destroy();
-          console.log(`✅ Generated ABC sharp texture: ${name}`);
-        } catch (error) {
-          console.error(`❌ Error generating ABC sharp texture for ${name}:`, error);
+    for (const abcName in noteNameMapping) {
+      try {
+        // ABC
+        const abcText = new PIXI.Text(abcName, labelStyle);
+        const abcTexture = this.app.renderer.generateTexture(abcText);
+        if (abcTexture && abcTexture !== PIXI.Texture.EMPTY) {
+          this.labelTextures.abc.set(abcName, abcTexture);
         }
-      });
+        abcText.destroy();
 
-      // ABC Flat テクスチャ生成
-      flatNamesABC.forEach(name => {
-        try {
-          const text = new PIXI.Text(name, labelStyle);
-          const texture = this.app.renderer.generateTexture(text);
-          
-          if (!texture || texture === PIXI.Texture.EMPTY) {
-            console.warn(`⚠️ Failed to generate texture for ABC flat: ${name}`);
-            return;
-          }
-          
-          this.labelTextures.abc_flat.set(name, texture);
-          text.destroy();
-          console.log(`✅ Generated ABC flat texture: ${name}`);
-        } catch (error) {
-          console.error(`❌ Error generating ABC flat texture for ${name}:`, error);
+        // Solfege
+        const solfegeName = noteNameMapping[abcName];
+        const solfegeText = new PIXI.Text(solfegeName, labelStyle);
+        const solfegeTexture = this.app.renderer.generateTexture(solfegeText);
+        if (solfegeTexture && solfegeTexture !== PIXI.Texture.EMPTY) {
+          this.labelTextures.solfege.set(abcName, solfegeTexture); // キーはABC表記で統一
         }
-      });
+        solfegeText.destroy();
 
-      // Solfege Sharp テクスチャ生成
-      sharpNamesSolfege.forEach(name => {
-        try {
-          const text = new PIXI.Text(name, labelStyle);
-          const texture = this.app.renderer.generateTexture(text);
-          
-          if (!texture || texture === PIXI.Texture.EMPTY) {
-            console.warn(`⚠️ Failed to generate texture for Solfege sharp: ${name}`);
-            return;
-          }
-          
-          this.labelTextures.solfege_sharp.set(name, texture);
-          text.destroy();
-          console.log(`✅ Generated Solfege sharp texture: ${name}`);
-        } catch (error) {
-          console.error(`❌ Error generating Solfege sharp texture for ${name}:`, error);
-        }
-      });
-
-      // Solfege Flat テクスチャ生成
-      flatNamesSolfege.forEach(name => {
-        try {
-          const text = new PIXI.Text(name, labelStyle);
-          const texture = this.app.renderer.generateTexture(text);
-          
-          if (!texture || texture === PIXI.Texture.EMPTY) {
-            console.warn(`⚠️ Failed to generate texture for Solfege flat: ${name}`);
-            return;
-          }
-          
-          this.labelTextures.solfege_flat.set(name, texture);
-          text.destroy();
-          console.log(`✅ Generated Solfege flat texture: ${name}`);
-        } catch (error) {
-          console.error(`❌ Error generating Solfege flat texture for ${name}:`, error);
-        }
-      });
-      
-      console.log(`🎯 Label texture generation completed! Total textures: ${
-        this.labelTextures.abc_sharp.size + 
-        this.labelTextures.abc_flat.size + 
-        this.labelTextures.solfege_sharp.size + 
-        this.labelTextures.solfege_flat.size
-      }`);
-      
-    } catch (error) {
-      console.error('❌ Critical error in generateLabelTextures:', error);
-      // フォールバック: 空のテクスチャマップを作成
-      this.labelTextures = {
-        abc_sharp: new Map(),
-        abc_flat: new Map(), 
-        solfege_sharp: new Map(),
-        solfege_flat: new Map()
-      };
+      } catch (error) {
+        console.error(`❌ Error generating texture for ${abcName}:`, error);
+      }
     }
+    
+    console.log(`🎯 Label texture generation completed! Total ABC textures: ${this.labelTextures.abc.size}`);
   }
 
   /**
@@ -466,40 +411,25 @@ export class PIXINotesRendererInstance {
       return null;
     }
 
-    // ラベルテクスチャが初期化されているかチェック
     if (!this.labelTextures) {
       console.error('❌ getLabelTexture: labelTextures not initialized!');
       return null;
     }
 
     const style = this.settings.noteNameStyle;
-    
-    // MusicXMLから来た音名を判定して適切なテクスチャマップを選択
-    let textureMap: Map<string, PIXI.Texture>;
-    
-    // 音名に含まれる臨時記号を検出
-    const hasSharp = noteName.includes('#') || noteName.includes('x');
-    const hasFlat = noteName.includes('b') || noteName.includes('♭');
+    const noteNameWithoutOctave = noteName.replace(/\d+$/, '');
+
+    let texture: PIXI.Texture | undefined;
 
     if (style === 'abc') {
-      // MusicXMLの臨時記号に基づいて選択
-      textureMap = hasFlat ? this.labelTextures.abc_flat : this.labelTextures.abc_sharp;
+      texture = this.labelTextures.abc.get(noteNameWithoutOctave);
     } else if (style === 'solfege') {
-      textureMap = hasFlat ? this.labelTextures.solfege_flat : this.labelTextures.solfege_sharp;
-    } else {
-      textureMap = this.labelTextures.abc_sharp; // fallback
+      // ソルフェージュもキーはABC表記で引く
+      texture = this.labelTextures.solfege.get(noteNameWithoutOctave);
     }
 
-    const texture = textureMap.get(noteName);
-    
-    if (!texture) {
-      console.warn(`⚠️ getLabelTexture: No texture found for "${noteName}" (style: ${style})`);
-      console.log(`Available textures in map:`, Array.from(textureMap.keys()));
-      return null;
-    }
-
-    if (texture === PIXI.Texture.EMPTY) {
-      console.warn(`⚠️ getLabelTexture: Found empty texture for "${noteName}"`);
+    if (!texture || texture === PIXI.Texture.EMPTY) {
+      console.warn(`⚠️ getLabelTexture: No texture found for "${noteNameWithoutOctave}" (style: ${style})`);
       return null;
     }
 
@@ -1504,7 +1434,7 @@ export class PIXINotesRendererInstance {
     this.lastUpdateTime = currentTime;
     
     // GameEngineと同じ計算式を使用（統一化）
-    const baseFallDuration = 5.0; // LOOKAHEAD_TIME
+    const baseFallDuration = 15.0 //LOOKAHEAD_TIME
     const visualSpeedMultiplier = this.settings.noteSpeed;
     const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
     const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
@@ -1650,8 +1580,8 @@ export class PIXINotesRendererInstance {
       const note = activeNotes.find(n => n.id === noteId);
       if (!note) continue;
       
-      // ===== 状態変更チェック（変更時のみ、重い処理） =====
-      if (sprite.noteData.state !== note.state) {
+      // ===== 状態 or 音名 変更チェック（変更時のみ、重い処理） =====
+      if (sprite.noteData.state !== note.state || sprite.noteData.noteName !== note.noteName) {
         // 🚀 ヒット系判定時は即座処理
         if (isHitState(note.state)) {
           // エフェクトは updateNoteState 内で生成するためここでは作成しない
@@ -1794,6 +1724,33 @@ export class PIXINotesRendererInstance {
    */
   private updateNoteState(noteSprite: NoteSprite, note: ActiveNote): void {
     const effectivePitch = note.pitch + this.settings.transpose;
+    const oldNoteName = noteSprite.noteData.noteName;
+
+    // ==== ラベル更新ロジック ====
+    // 音名が変更された場合、ラベルを再生成する
+    if (oldNoteName !== note.noteName) {
+      // 既存ラベルを破棄
+      if (noteSprite.label) {
+        if (noteSprite.label.parent) {
+          noteSprite.label.parent.removeChild(noteSprite.label);
+        }
+        noteSprite.label.destroy();
+        noteSprite.label = undefined;
+      }
+      
+      // 新しい音名でラベルを生成
+      if (note.noteName && this.settings.noteNameStyle !== 'off') {
+        const newTexture = this.getLabelTexture(note.noteName);
+        if (newTexture) {
+          const newLabel = new PIXI.Sprite(newTexture);
+          newLabel.anchor.set(0.5, 1);
+          newLabel.x = noteSprite.sprite.x;
+          newLabel.y = noteSprite.sprite.y - 8; // 位置は別途positionループで更新される
+          noteSprite.label = newLabel;
+          this.labelsContainer.addChild(newLabel);
+        }
+      }
+    }
 
     // ==== 判定ライン通過時のピアノキー点灯 ====
     if (note.crossingLogged && !noteSprite.noteData.crossingLogged && this.settings.practiceGuide !== 'off') {
@@ -2092,7 +2049,7 @@ export class PIXINotesRendererInstance {
     const prevPianoHeight = this.settings.pianoHeight;
     const prevTranspose = this.settings.transpose;
     const prevNoteNameStyle = this.settings.noteNameStyle;
-    this.settings = { ...this.settings, ...newSettings };
+    Object.assign(this.settings, newSettings);
 
     // ピアノ高さが変更された場合、判定ラインと背景を再配置
     if (newSettings.pianoHeight !== undefined && newSettings.pianoHeight !== prevPianoHeight) {

@@ -238,6 +238,8 @@ const defaultState: GameState = {
   // 楽曲情報
   currentSong: null,
   notes: [],
+  rawNotes: [],
+  musicXml: null,
   activeNotes: new Set(),
   
   // ABリピート
@@ -697,38 +699,74 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         },
         
         // 楽曲制御
-        loadSong: (song: SongMetadata, notes: NoteData[]) => set((state) => {
-          state.currentSong = song;
-          state.notes = notes;
-          state.currentTime = 0;
-          state.isPlaying = false;
-          state.isPaused = false;
-          
-          // スコアリセット
-          state.score = { 
-            ...defaultScore, 
-            totalNotes: notes.length 
+        loadSong: async (song: SongMetadata, notes: NoteData[]) => {
+          // 移調と音名マージのロジックを一元化
+          const _processSongData = async (targetSong: SongMetadata, rawNotes: NoteData[], transpose: number) => {
+            let finalNotes = rawNotes;
+            let finalXml: string | null = null;
+            
+            if (targetSong.musicXmlFile) {
+              try {
+                const { transposeMusicXml } = await import('@/utils/musicXmlTransposer');
+                const { extractPlayableNoteNames, mergeJsonWithNames } = await import('@/utils/musicXmlMapper');
+                
+                const xmlResponse = await fetch(targetSong.musicXmlFile);
+                const xmlString = await xmlResponse.text();
+                
+                finalXml = transposeMusicXml(xmlString, transpose);
+                const xmlDoc = new DOMParser().parseFromString(finalXml, 'application/xml');
+                const noteNames = extractPlayableNoteNames(xmlDoc);
+                finalNotes = mergeJsonWithNames(rawNotes, noteNames);
+                
+                console.log(`🎵 MusicXML音名マージ完了: ${noteNames.length}音名 → ${finalNotes.length}ノーツ`);
+              } catch (error) {
+                console.warn('⚠️ MusicXML音名抽出に失敗:', error);
+                finalXml = null; // エラー時はnullに
+              }
+            }
+            return { finalNotes, finalXml };
           };
-          state.judgmentHistory = [];
-          state.activeNotes.clear();
-          
-          // ABリピートクリア
-          state.abRepeat = {
-            enabled: false,
-            startTime: null,
-            endTime: null
-          };
-          
-          // GameEngineに楽曲ロード
-          if (state.gameEngine) {
-            state.gameEngine.loadSong(notes);
-            console.log(`🎵 GameEngine に楽曲ロード: ${notes.length}ノーツ`);
-          }
-        }),
+
+          const currentTranspose = get().settings.transpose;
+          const { finalNotes, finalXml } = await _processSongData(song, notes, currentTranspose);
+
+          set((state) => {
+            state.currentSong = song;
+            state.rawNotes = notes; // 元のノートを保存
+            state.notes = finalNotes; // 処理後のノートを保存
+            state.musicXml = finalXml; // 移調済みXMLを保存
+            state.currentTime = 0;
+            state.isPlaying = false;
+            state.isPaused = false;
+            
+            // スコアリセット
+            state.score = { 
+              ...defaultScore, 
+              totalNotes: finalNotes.length 
+            };
+            state.judgmentHistory = [];
+            state.activeNotes.clear();
+            
+            // ABリピートクリア
+            state.abRepeat = {
+              enabled: false,
+              startTime: null,
+              endTime: null
+            };
+            
+            // GameEngineに楽曲ロード
+            if (state.gameEngine) {
+              state.gameEngine.loadSong(finalNotes);
+              console.log(`🎵 GameEngine に楽曲ロード: ${finalNotes.length}ノーツ`);
+            }
+          });
+        },
         
         clearSong: () => set((state) => {
           state.currentSong = null;
           state.notes = [];
+          state.rawNotes = [];
+          state.musicXml = null;
           state.currentTime = 0;
           state.isPlaying = false;
           state.isPaused = false;
@@ -1048,25 +1086,60 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // 新規追加: 移調制御
         transpose: (semitones: number) => {
-          // まず現在の値を取得して範囲内にクランプ
-          const { settings, updateEngineSettings } = get();
-          const next = Math.max(-6, Math.min(6, settings.transpose + semitones));
-
-          set((state) => {
-            state.settings.transpose = next;
-          });
-
-          // GameEngine へ即時反映
-          updateEngineSettings();
+          const { settings, setTranspose } = get();
+          const nextValue = settings.transpose + semitones;
+          setTranspose(nextValue);
         },
 
-        setTranspose: (semitones: number) => {
-          const { updateEngineSettings } = get();
-          const clamped = Math.max(-6, Math.min(6, semitones));
+        setTranspose: async (semitones: number) => {
+          const { updateEngineSettings, currentSong, rawNotes } = get();
+          const clamped = Math.max(-12, Math.min(12, semitones));
+
+          // 処理がなければ早期リターン
+          if (!currentSong || rawNotes.length === 0) {
+            set(state => { state.settings.transpose = clamped; });
+            updateEngineSettings();
+            return;
+          }
+
+          // 楽曲データ処理ロジック
+          const _processSongData = async (targetSong: SongMetadata, notes: NoteData[], transpose: number) => {
+             let finalNotes = notes;
+             let finalXml: string | null = null;
+             if (targetSong.musicXmlFile) {
+               try {
+                 const { transposeMusicXml } = await import('@/utils/musicXmlTransposer');
+                 const { extractPlayableNoteNames, mergeJsonWithNames } = await import('@/utils/musicXmlMapper');
+                 const xmlResponse = await fetch(targetSong.musicXmlFile);
+                 const xmlString = await xmlResponse.text();
+                 finalXml = transposeMusicXml(xmlString, transpose);
+                 const xmlDoc = new DOMParser().parseFromString(finalXml, 'application/xml');
+                 const noteNames = extractPlayableNoteNames(xmlDoc);
+                 finalNotes = mergeJsonWithNames(notes, noteNames);
+               } catch (error) {
+                 console.warn('⚠️ MusicXML音名抽出に失敗:', error);
+                 finalXml = null;
+               }
+             }
+             return { finalNotes, finalXml };
+          };
+          
+          const { finalNotes, finalXml } = await _processSongData(currentSong, rawNotes, clamped);
+
           set((state) => {
             state.settings.transpose = clamped;
+            state.notes = finalNotes;
+            state.musicXml = finalXml;
+            
+            // GameEngineにも更新を通知
+            if (state.gameEngine) {
+              state.gameEngine.loadSong(finalNotes);
+              console.log(`🎵 GameEngineに移調後のノートを再ロード: ${finalNotes.length}ノーツ`);
+            }
           });
+          
           updateEngineSettings();
+          console.log(`🎵 Transpose changed to ${clamped}, song re-processed without playback interruption.`);
         },
         
         // 練習モードガイド制御

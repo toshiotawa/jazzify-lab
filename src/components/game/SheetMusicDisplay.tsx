@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { OpenSheetMusicDisplay, IOSMDOptions, TransposeCalculator } from 'opensheetmusicdisplay';
+import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import platform from '@/platform';
+import { useGameStore } from '@/stores/gameStore';
 
 interface SheetMusicDisplayProps {
-  musicXmlUrl?: string;
   className?: string;
 }
 
@@ -17,45 +17,42 @@ interface TimeMappingEntry {
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
  */
-const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, className = '' }) => {
+const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [timeMapping, setTimeMapping] = useState<TimeMappingEntry[]>([]);
-  const previousTransposeRef = useRef<number>(0);
   
-  const { currentTime, isPlaying, notes, transpose } = useGameSelector((s) => ({
+  // timeMappingはアニメーションループで使うため、useRefで状態の即時反映を保証
+  const timeMappingRef = useRef<TimeMappingEntry[]>([]);
+  
+  const { currentTime, isPlaying, notes, musicXml } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
-    transpose: s.settings.transpose || 0
+    musicXml: s.musicXml,
   }));
   
   const gameActions = useGameActions();
   
-  // 最新のtranspose値を保持
-  const transposeRef = useRef(transpose);
-  transposeRef.current = transpose;
+  // OSMDの初期化とレンダリング
+  const loadAndRenderSheet = useCallback(async () => {
+    if (!containerRef.current || !musicXml) {
+      // musicXmlがない場合はクリア
+      osmdRef.current?.clear();
+      timeMappingRef.current = [];
+      setError(musicXml === '' ? '楽譜データがありません' : null);
+      return;
+    }
 
-  // OSMDの初期化
-  const initializeOSMD = useCallback(async () => {
-    if (!containerRef.current || !musicXmlUrl) return;
-
-    const currentTranspose = transposeRef.current;
-    console.log('Initializing OSMD with transpose:', currentTranspose);
     setIsLoading(true);
     setError(null);
 
     try {
-      // 既存のOSMDインスタンスをクリーンアップ
-      if (osmdRef.current) {
-        osmdRef.current.clear();
-      }
-
-      // OSMDオプション設定
+      // 既存のOSMDインスタンスをクリア
+      if (!osmdRef.current) {
       const options: IOSMDOptions = {
         autoResize: true,
         backend: 'svg',
@@ -64,82 +61,47 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         drawLyricist: false,
         drawPartNames: false,
         drawingParameters: 'compacttight',
-        renderSingleHorizontalStaffline: true, // 横1行モード
-        stretchLastSystemLine: false,
-        pageFormat: 'Endless', // エンドレス（横長）フォーマット
-        pageBackgroundColor: '#00000000', // 透明背景
-        defaultColorNotehead: '#ffffff',
-        defaultColorStem: '#ffffff',
-        defaultColorRest: '#ffffff',
-        defaultColorLabel: '#ffffff',
-        defaultColorTitle: '#ffffff'
+          renderSingleHorizontalStaffline: true,
+          pageFormat: 'Endless',
+          pageBackgroundColor: '#ffffff',
+        defaultColorNotehead: '#000000',
+        defaultColorStem: '#000000',
+        defaultColorRest: '#000000',
+        defaultColorLabel: '#000000',
+        defaultColorTitle: '#000000'
       };
-
-      // OSMDインスタンスを作成
       osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
-      
-      // TransposeCalculatorをインスタンス化して設定
-      osmdRef.current.TransposeCalculator = new TransposeCalculator();
-      
-      // MusicXMLを読み込み
-      await osmdRef.current.load(musicXmlUrl);
-      
-      // 移調設定
-      if (currentTranspose !== 0) {
-        osmdRef.current.Sheet.Transpose = currentTranspose;
       }
       
-      // レイアウト更新とレンダリング
-      osmdRef.current.updateGraphic();
+      await osmdRef.current.load(musicXml);
       osmdRef.current.render();
       
       // タイムマッピングを作成
       createTimeMapping();
       
-      previousTransposeRef.current = currentTranspose;
-      console.log('OSMD initialized successfully');
+      console.log('OSMD initialized and rendered successfully');
       
     } catch (err) {
-      console.error('楽譜の読み込みエラー:', err);
-      setError(err instanceof Error ? err.message : '楽譜の読み込みに失敗しました');
+      console.error('楽譜の読み込みまたはレンダリングエラー:', err);
+      setError(err instanceof Error ? err.message : '楽譜の処理中にエラーが発生しました');
     } finally {
       setIsLoading(false);
     }
-  }, [musicXmlUrl]); // transposeを依存配列から削除
+  }, [musicXml]); // musicXmlが変更されたら再実行
 
-  // 移調値が変更された時の処理
+  // musicXmlが変更されたら楽譜を再読み込み・再レンダリング
   useEffect(() => {
-    if (osmdRef.current && transpose !== previousTransposeRef.current) {
-      // 移調値が変更された場合
-      console.log('Transpose changed from', previousTransposeRef.current, 'to', transpose);
-      
-      try {
-        // 楽譜の移調値を更新
-        osmdRef.current.Sheet.Transpose = transpose;
-        
-        // レイアウト更新と再レンダリング
-        osmdRef.current.updateGraphic();
-        osmdRef.current.render();
-        
-        // タイムマッピングを再作成
-        createTimeMapping();
-        
-        previousTransposeRef.current = transpose;
-        console.log('Transpose updated successfully');
-      } catch (err) {
-        console.error('移調エラー:', err);
-        // エラーが発生した場合は楽譜を再読み込み
-        initializeOSMD();
-      }
-    }
-  }, [transpose, initializeOSMD]);
+    loadAndRenderSheet();
+  }, [loadAndRenderSheet]);
 
-  // 音符の時刻とX座標のマッピングを作成 + 音名情報を抽出
+  // 音符の時刻とX座標のマッピングを作成
   const createTimeMapping = useCallback(() => {
-    if (!osmdRef.current || !notes || notes.length === 0) return;
+    if (!osmdRef.current || !notes || notes.length === 0) {
+      console.warn('タイムマッピング作成スキップ: OSMD未初期化またはノートデータなし');
+      return;
+    }
 
     const mapping: TimeMappingEntry[] = [];
-    const noteNamesMap: { [noteId: string]: string } = {};
     const graphicSheet = osmdRef.current.GraphicSheet;
     
     if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
@@ -148,8 +110,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     }
 
     let noteIndex = 0;
+    let osmdPlayableNoteCount = 0;
     
-    // 全ての音符を走査
+    console.log(`📊 OSMD Note Extraction Starting: ${notes.length} JSON notes to match`);
+    
+    // 全ての音符を走査して演奏可能なノートのみを抽出
+    const osmdPlayableNotes = [];
     for (const page of graphicSheet.MusicPages) {
       for (const system of page.MusicSystems) {
         for (const staffLine of system.StaffLines) {
@@ -157,11 +123,29 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
             for (const staffEntry of measure.staffEntries) {
               for (const voice of staffEntry.graphicalVoiceEntries) {
                 for (const graphicNote of voice.notes) {
-                  // タイで結ばれた後続音符はスキップ
+                  // isRest() が true、または sourceNote がない場合は休符と見なす
+                  if (!graphicNote.sourceNote || (graphicNote.sourceNote as any).isRest?.()) {
+                    continue;
+                  }
+                  
+                  // タイで結ばれた後続音符はスキップ (OSMDの公式な方法)
                   if (graphicNote.sourceNote.NoteTie && !graphicNote.sourceNote.NoteTie.StartNote) {
                     continue;
                   }
                   
+                  osmdPlayableNotes.push(graphicNote);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    osmdPlayableNoteCount = osmdPlayableNotes.length;
+
+    // マッピングを作成
+    for (const graphicNote of osmdPlayableNotes) {
                   if (noteIndex < notes.length) {
                     const note = notes[noteIndex];
                     const absX = graphicNote.PositionAndShape.AbsolutePosition.x;
@@ -172,86 +156,83 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
                         xPosition: absX * 10 // OSMDの単位系からピクセルへ変換（概算）
                       });
                     }
-                    
-                    // 音名情報を抽出
-                    const sourceNote = graphicNote.sourceNote;
-                    if (sourceNote) {
-                      // TransposedPitchがある場合はそちらを優先
-                      const pitch = sourceNote.TransposedPitch || sourceNote.Pitch;
-                      if (pitch) {
-                        let noteName = pitch.FundamentalNote.toString();
-                        
-                        // 臨時記号の処理
-                        if (pitch.Accidental) {
-                          switch (pitch.Accidental) {
-                            case 1: noteName += '#'; break;
-                            case -1: noteName += 'b'; break;
-                            case 2: noteName += 'x'; break; // ダブルシャープ
-                            case -2: noteName += 'bb'; break; // ダブルフラット
-                          }
-                        }
-                        
-                        noteNamesMap[note.id] = noteName;
-                      }
-                    }
-                    
                     noteIndex++;
-                  }
-                }
-              }
-            }
-          }
-        }
       }
     }
     
-    // 音名情報をnotesに反映
-    if (Object.keys(noteNamesMap).length > 0) {
-      gameActions.updateNoteNames(noteNamesMap);
+    console.log(`📊 OSMD Note Extraction Summary:
+    OSMD playable notes: ${osmdPlayableNoteCount}
+    JSON notes count: ${notes.length}
+    Mapped notes: ${mapping.length}
+    Match status: ${osmdPlayableNoteCount === notes.length ? '✅ Perfect match!' : '❌ Mismatch!'}`);
+    
+    if (osmdPlayableNoteCount !== notes.length) {
+      console.error(`ノート数の不一致: OSMD(${osmdPlayableNoteCount}) vs JSON(${notes.length}). プレイヘッドがずれる可能性があります。`);
     }
     
-    setTimeMapping(mapping);
-  }, [notes, gameActions]);
+    timeMappingRef.current = mapping; // refを更新
+  }, [notes]);
 
   // スクロールアニメーション
   const updateScroll = useCallback(() => {
-    if (!scoreWrapperRef.current || timeMapping.length === 0) return;
+    const mapping = timeMappingRef.current;
+    if (!scoreWrapperRef.current || mapping.length === 0) {
+      if (isPlaying) {
+        animationFrameRef.current = platform.requestAnimationFrame(updateScroll);
+      }
+      return;
+    }
     
-    const currentTimeMs = currentTime * 1000;
+    const currentTimeMs = useGameStore.getState().currentTime * 1000;
     
-    // 現在時刻に最も近い音符を見つける
     let targetX = 0;
-    for (let i = timeMapping.length - 1; i >= 0; i--) {
-      if (timeMapping[i].timeMs <= currentTimeMs) {
-        targetX = timeMapping[i].xPosition;
-        
-        // 次の音符との間を補間
-        if (i < timeMapping.length - 1) {
-          const nextEntry = timeMapping[i + 1];
-          const prevEntry = timeMapping[i];
-          const progress = (currentTimeMs - prevEntry.timeMs) / (nextEntry.timeMs - prevEntry.timeMs);
-          targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
+    
+    // 最初のノートより前の場合、または最後のノートを過ぎた場合を考慮
+    if (currentTimeMs < mapping[0].timeMs) {
+      targetX = 0; // 開始前は先頭に
+    } else if (currentTimeMs > mapping[mapping.length - 1].timeMs) {
+      targetX = mapping[mapping.length - 1].xPosition; // 終了後は末尾に
+    } else {
+      // 現在の再生時間に最も近いノート区間を見つける
+      let currentSegmentIndex = -1;
+      for (let i = 0; i < mapping.length - 1; i++) {
+        if (currentTimeMs >= mapping[i].timeMs && currentTimeMs < mapping[i + 1].timeMs) {
+          currentSegmentIndex = i;
+          break;
         }
-        break;
+      }
+
+      if (currentSegmentIndex !== -1) {
+        const prevEntry = mapping[currentSegmentIndex];
+        const nextEntry = mapping[currentSegmentIndex + 1];
+        const segmentDuration = nextEntry.timeMs - prevEntry.timeMs;
+        const timeIntoSegment = currentTimeMs - prevEntry.timeMs;
+        const progress = segmentDuration > 0 ? timeIntoSegment / segmentDuration : 0;
+        
+        // 2点間のX座標を線形補間
+        targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
+      } else {
+         // マッピングの最後の要素（楽曲終了時）
+        targetX = mapping[mapping.length - 1].xPosition;
       }
     }
     
-    // プレイヘッドの位置（画面左から100px）
     const playheadPosition = 100;
     const scrollX = targetX - playheadPosition;
     
-    // スクロール適用
     scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
     
     if (isPlaying) {
       animationFrameRef.current = platform.requestAnimationFrame(updateScroll);
     }
-  }, [currentTime, isPlaying, timeMapping]);
+  }, [isPlaying]); // isPlayingのみに依存
 
   // 再生状態が変わったらアニメーションを開始/停止
   useEffect(() => {
     if (isPlaying) {
-      updateScroll();
+      if (animationFrameRef.current === null) {
+        animationFrameRef.current = platform.requestAnimationFrame(updateScroll);
+      }
     } else if (animationFrameRef.current) {
       platform.cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
@@ -263,11 +244,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       }
     };
   }, [isPlaying, updateScroll]);
-
-  // MusicXMLが変更されたら再初期化
-  useEffect(() => {
-    initializeOSMD();
-  }, [musicXmlUrl]); // transposeは別のuseEffectで処理
 
   // クリーンアップ
   useEffect(() => {
@@ -281,8 +257,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     };
   }, []);
 
+  // シークや一時停止中もプレイヘッドを即座に更新
+  useEffect(() => {
+    if (!isPlaying) {
+      updateScroll();
+    }
+  }, [currentTime, isPlaying, updateScroll]);
+
   return (
-    <div className={`relative overflow-hidden bg-gray-900 ${className}`}>
+    <div className={`relative overflow-x-hidden overflow-y-hidden bg-white text-black ${className}`}>
       {/* プレイヘッド（赤い縦線） */}
       <div 
         className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
@@ -292,20 +275,20 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       {/* 楽譜コンテナ - 上部に余白を追加 */}
       <div className="relative h-full pt-8 pb-4">
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
-            <div className="text-white">楽譜を読み込み中...</div>
+          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+            <div className="text-black">楽譜を読み込み中...</div>
           </div>
         )}
         
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
-            <div className="text-red-400">エラー: {error}</div>
+          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+            <div className="text-red-600">エラー: {error}</div>
           </div>
         )}
         
-        {!musicXmlUrl && (
+        {(!musicXml && !isLoading) && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-gray-500">楽譜データがありません</div>
+            <div className="text-gray-600">楽譜データがありません</div>
           </div>
         )}
         
