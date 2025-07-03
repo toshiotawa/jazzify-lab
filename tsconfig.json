@@ -46,7 +46,8 @@
     
     /* 増分ビルドの有効化 */
     "incremental": true,
-    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo.json"
+    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo.json",
+    "types": ["vite/client", "node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.*", "**/*.spec.*"],
