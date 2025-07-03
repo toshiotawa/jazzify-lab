@@ -201,7 +201,8 @@ function updateKeySignature(attributes: elements.Attributes, semitones: number):
           // Tonal.jsで移調
           const interval = Tonal.Interval.fromSemitones(semitones);
           const currentKeyName = currentKey + (isMinor ? ' minor' : ' major');
-          const transposedKeyName = Tonal.Key.transpose(currentKeyName, interval);
+          // tonal types lack Key.transpose in declaration, cast to any
+          const transposedKeyName = (Tonal as any).Key.transpose(currentKeyName, interval);
           
           console.log(`[musicXmlTransposer] 調号移調: ${currentKeyName} → ${transposedKeyName}`);
           

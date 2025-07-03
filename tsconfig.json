@@ -7,7 +7,7 @@
     "skipLibCheck": true,
 
     /* Bundler mode */
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -46,7 +46,9 @@
     
     /* 増分ビルドの有効化 */
     "incremental": true,
-    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo.json"
+    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo.json",
+
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.*", "**/*.spec.*"],

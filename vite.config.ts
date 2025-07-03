@@ -1,6 +1,12 @@
+/// <reference types="node" />
+/// <reference types="vite/client" />
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { resolve } from 'path'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
+
+const rootDir = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production';
@@ -9,15 +15,15 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     resolve: {
       alias: {
-        '@': resolve(__dirname, './src'),
-        '@/components': resolve(__dirname, './src/components'),
-        '@/stores': resolve(__dirname, './src/stores'),
-        '@/engines': resolve(__dirname, './src/engines'),
-        '@/systems': resolve(__dirname, './src/systems'),
-        '@/platform': resolve(__dirname, './src/platform'),
-        '@/data': resolve(__dirname, './src/data'),
-        '@/types': resolve(__dirname, './src/types'),
-        '@/utils': resolve(__dirname, './src/utils')
+        '@': resolve(rootDir, './src'),
+        '@/components': resolve(rootDir, './src/components'),
+        '@/stores': resolve(rootDir, './src/stores'),
+        '@/engines': resolve(rootDir, './src/engines'),
+        '@/systems': resolve(rootDir, './src/systems'),
+        '@/platform': resolve(rootDir, './src/platform'),
+        '@/data': resolve(rootDir, './src/data'),
+        '@/types': resolve(rootDir, './src/types'),
+        '@/utils': resolve(rootDir, './src/utils')
       }
     },
     assetsInclude: ['**/*.wasm'],
@@ -56,9 +62,7 @@ export default defineConfig(({ mode }) => {
           assetFileNames: 'assets/[name]-[hash].[ext]'
         },
         treeshake: {
-          preset: 'recommended',
-          // console関数を不要コードとして削除
-          manualPureFunctions: ['console.log', 'console.info', 'console.debug', 'console.warn', 'console.error'],
+          preset: 'recommended'
         }
       },
       commonjsOptions: {

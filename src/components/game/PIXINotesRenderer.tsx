@@ -135,7 +135,7 @@ export class PIXINotesRendererInstance {
   private performanceEnabled: boolean = true;
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
-  public readonly settings: RendererSettings = {
+  public settings: RendererSettings = {
     noteWidth: 0,          // ★ 後で決定
     noteHeight: 8,
     hitLineY: 0, // 計算で設定
@@ -239,7 +239,7 @@ export class PIXINotesRendererInstance {
     
     // ★ エフェクト更新＋パフォーマンス監視をTickerに統合
     this.effectsElapsed = 0;
-    PIXI.Ticker.shared.add((tickerDelta) => {
+    PIXI.Ticker.shared.add((tickerDelta: number) => {
       // パフォーマンス監視開始
       if (this.performanceEnabled) {
         performanceMonitor.startFrame();
@@ -1059,7 +1059,7 @@ export class PIXINotesRendererInstance {
       };
       
       // ポインタキャプチャ対応の確実なイベント処理
-      key.on('pointerdown', (event) => {
+      key.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         // ポインタキャプチャで押したまま外に出ても確実にpointerupを受信
         try {
@@ -1071,36 +1071,36 @@ export class PIXINotesRendererInstance {
       });
       
       // 複数のリリースイベントに対応
-      key.on('pointerup', (event) => {
+      key.on('pointerup', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         releaseKey(event);
       });
       
       // 鍵盤外でリリースした場合（重要: 音が伸び続けるバグの修正）
-      key.on('pointerupoutside', (event) => {
+      key.on('pointerupoutside', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         releaseKey(event);
       });
       
       // ポインタキャンセル時も確実に解除
-      key.on('pointercancel', (event) => {
+      key.on('pointercancel', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         releaseKey(event);
       });
       
       // ポインタが鍵盤から離れた場合も解除（スクロール対応）
-      key.on('pointerleave', (event) => {
+      key.on('pointerleave', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         releaseKey(event);
       });
       
       // タッチデバイス対応
-      key.on('touchstart', (event) => {
+      key.on('touchstart', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyPress(midiNote);
       });
       
-      key.on('touchend', (event) => {
+      key.on('touchend', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
@@ -1172,7 +1172,7 @@ export class PIXINotesRendererInstance {
       };
       
       // ポインタキャプチャ対応の確実なイベント処理
-      key.on('pointerdown', (event) => {
+      key.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         // ポインタキャプチャで押したまま外に出ても確実にpointerupを受信
         try {
@@ -1184,36 +1184,36 @@ export class PIXINotesRendererInstance {
       });
       
       // 複数のリリースイベントに対応
-      key.on('pointerup', (event) => {
+      key.on('pointerup', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         releaseKey(event);
       });
       
       // 鍵盤外でリリースした場合（重要: 音が伸び続けるバグの修正）
-      key.on('pointerupoutside', (event) => {
+      key.on('pointerupoutside', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         releaseKey(event);
       });
       
       // ポインタキャンセル時も確実に解除
-      key.on('pointercancel', (event) => {
+      key.on('pointercancel', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         releaseKey(event);
       });
       
       // ポインタが鍵盤から離れた場合も解除（スクロール対応）
-      key.on('pointerleave', (event) => {
+      key.on('pointerleave', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         releaseKey(event);
       });
       
       // タッチデバイス対応
-      key.on('touchstart', (event) => {
+      key.on('touchstart', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyPress(midiNote);
       });
       
-      key.on('touchend', (event) => {
+      key.on('touchend', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
