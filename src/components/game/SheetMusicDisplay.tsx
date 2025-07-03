@@ -160,11 +160,21 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
                     if (sourceNote) {
                       // TransposedPitchがある場合はそちらを優先
                       const pitch = sourceNote.TransposedPitch || sourceNote.Pitch;
-                      if (pitch) {
-                        let noteName = pitch.FundamentalNote.toString();
+                      if (pitch && pitch.FundamentalNote) {
+                        let noteName = '';
+                        
+                        // FundamentalNoteが文字列またはtoStringメソッドを持つオブジェクトか確認
+                        if (typeof pitch.FundamentalNote === 'string') {
+                          noteName = pitch.FundamentalNote;
+                        } else if (pitch.FundamentalNote && typeof pitch.FundamentalNote.toString === 'function') {
+                          noteName = pitch.FundamentalNote.toString();
+                        } else {
+                          console.warn('FundamentalNote is not a valid type:', pitch.FundamentalNote);
+                          continue;
+                        }
                         
                         // 臨時記号の処理
-                        if (pitch.Accidental) {
+                        if (pitch.Accidental !== undefined && pitch.Accidental !== null) {
                           switch (pitch.Accidental) {
                             case 1: noteName += '#'; break;
                             case -1: noteName += 'b'; break;

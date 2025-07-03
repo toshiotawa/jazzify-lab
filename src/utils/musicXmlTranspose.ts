@@ -129,17 +129,24 @@ export const transposeMusicXML = async (xmlString: string, semitones: number): P
     
     // 要素を更新
     stepElem.textContent = newNote.step;
-    octaveElem.textContent = newNote.octave.toString();
+    
+    // octaveが存在し、数値であることを確認
+    if (newNote.octave !== undefined && newNote.octave !== null) {
+      octaveElem.textContent = String(newNote.octave);
+    } else {
+      console.error('Invalid octave value:', newNote.octave);
+      return; // forEachの中なのでreturnを使用
+    }
     
     // alter要素の処理
     if (newNote.alter !== 0) {
       if (!alterElem) {
         // alter要素が存在しない場合は作成
         const newAlterElem = doc.createElement('alter');
-        newAlterElem.textContent = newNote.alter.toString();
+        newAlterElem.textContent = String(newNote.alter);
         pitch.insertBefore(newAlterElem, octaveElem);
       } else {
-        alterElem.textContent = newNote.alter.toString();
+        alterElem.textContent = String(newNote.alter);
       }
     } else if (alterElem) {
       // alter が 0 の場合は要素を削除
@@ -168,7 +175,12 @@ export const transposeMusicXML = async (xmlString: string, semitones: number): P
     const newKey = (originalKey + semitones) % 12;
     const newFifths = TRANSPOSE_TO_FIFTHS[newKey];
     
-    fifthsElem.textContent = newFifths.toString();
+    // newFifthsが存在することを確認
+    if (newFifths !== undefined && newFifths !== null) {
+      fifthsElem.textContent = String(newFifths);
+    } else {
+      console.error('Invalid key mapping for transpose:', newKey);
+    }
   });
   
   // 3. 既存の<transpose>要素があれば削除
