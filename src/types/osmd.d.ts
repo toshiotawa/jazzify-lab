@@ -1,4 +1,9 @@
 declare module 'opensheetmusicdisplay' {
+  export interface EngravingRules {
+    DrawCourtesyAccidentals?: boolean;
+    [key: string]: any;
+  }
+
   export interface IOSMDOptions {
     autoResize?: boolean;
     backend?: 'svg' | 'canvas';
@@ -16,6 +21,7 @@ declare module 'opensheetmusicdisplay' {
     defaultColorRest?: string;
     defaultColorLabel?: string;
     defaultColorTitle?: string;
+    engravingRules?: EngravingRules;
   }
 
   export interface GraphicalNote {
@@ -101,5 +107,6 @@ declare module 'opensheetmusicdisplay' {
     GraphicSheet: GraphicSheet;
     Sheet: MusicSheet;
     TransposeCalculator?: TransposeCalculator;
+    EngravingRules?: EngravingRules;
   }
 }

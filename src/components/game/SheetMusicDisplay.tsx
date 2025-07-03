@@ -74,11 +74,19 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         defaultColorStem: '#ffffff',
         defaultColorRest: '#ffffff',
         defaultColorLabel: '#ffffff',
-        defaultColorTitle: '#ffffff'
+        defaultColorTitle: '#ffffff',
+        engravingRules: {
+          DrawCourtesyAccidentals: false // 親切記号を無効化
+        }
       };
 
       // OSMDインスタンスを作成
       osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
+      
+      // 親切記号を無効化（別の方法）
+      if (osmdRef.current.EngravingRules) {
+        osmdRef.current.EngravingRules.DrawCourtesyAccidentals = false;
+      }
       
       // TransposeCalculatorをインスタンス化して設定
       osmdRef.current.TransposeCalculator = new TransposeCalculator();
