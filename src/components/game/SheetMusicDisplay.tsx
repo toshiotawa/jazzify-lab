@@ -19,7 +19,7 @@ interface TimeMappingEntry {
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
  */
-const SheetMusicDisplay: FC<SheetMusicDisplayProps> = ({ musicXmlUrl, className = '' }) => {
+const SheetMusicDisplay: FC<SheetMusicDisplayProps> = ({ musicXmlUrl, className = '' }: SheetMusicDisplayProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
