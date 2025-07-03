@@ -175,25 +175,46 @@ function updateKeySignature(attributes: elements.Attributes, semitones: number):
           
           // fifthsの値から調を特定（0 = C major/A minor）
           const fifthsIndex = currentFifths + 7; // -7〜7を0〜14にマップ
-          let currentKey = majorKeys[fifthsIndex] || 'C';
           
-          // modeがある場合はそれを使用、なければメジャーと仮定
-          const modes = key.getModes ? key.getModes() : [];
-          const isMinor = modes.length > 0 && modes[0]?.contents?.[0] === 'minor';
+          // 範囲チェック
+          if (fifthsIndex < 0 || fifthsIndex >= majorKeys.length) {
+            console.warn(`[musicXmlTransposer] 不正なfifths値: ${currentFifths}`);
+            continue;
+          }
+          
+          // デフォルトでメジャーと仮定（一般的な楽譜の多くはメジャー）
+          let currentKey = majorKeys[fifthsIndex];
+          let isMinor = false;
+          
+          // keyValueの3番目の要素がModeの場合がある
+          if (keyValue.length > 2 && keyValue[2]) {
+            const mode = keyValue[2];
+            if (mode && 'contents' in mode && Array.isArray(mode.contents)) {
+              isMinor = mode.contents[0] === 'minor';
+            }
+          }
           
           if (isMinor) {
-            currentKey = minorKeys[fifthsIndex] || 'A';
+            currentKey = minorKeys[fifthsIndex];
           }
           
           // Tonal.jsで移調
           const interval = Tonal.Interval.fromSemitones(semitones);
-          const transposedKey = Tonal.Key.transpose(currentKey + (isMinor ? ' minor' : ' major'), interval);
+          const currentKeyName = currentKey + (isMinor ? ' minor' : ' major');
+          const transposedKeyName = Tonal.Key.transpose(currentKeyName, interval);
           
-          console.log(`[musicXmlTransposer] 調号移調: ${currentKey}${isMinor ? ' minor' : ' major'} → ${transposedKey}`);
+          console.log(`[musicXmlTransposer] 調号移調: ${currentKeyName} → ${transposedKeyName}`);
           
-          if (transposedKey) {
+          if (transposedKeyName) {
+            // 移調後の調から基本的な音名を抽出（" major"や" minor"を除去）
+            const transposedKeyParts = transposedKeyName.split(' ');
+            const transposedKeyRoot = transposedKeyParts[0];
+            const transposedIsMinor = transposedKeyParts[1] === 'minor';
+            
             // 移調後の調の情報を取得
-            const keyInfo = isMinor ? Tonal.Key.minorKey(transposedKey) : Tonal.Key.majorKey(transposedKey);
+            const keyInfo = transposedIsMinor 
+              ? Tonal.Key.minorKey(transposedKeyRoot) 
+              : Tonal.Key.majorKey(transposedKeyRoot);
             
             if (keyInfo && keyInfo.alteration !== undefined) {
               // Tonal.jsのalterationはシャープの数（マイナスはフラットの数）
