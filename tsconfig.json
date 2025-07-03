@@ -46,9 +46,7 @@
     
     /* 増分ビルドの有効化 */
     "incremental": true,
-    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo.json",
-
-    "types": ["react", "react-dom"]
+    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo.json"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.*", "**/*.spec.*"],

@@ -1,5 +1,4 @@
-/// <reference types="react" />
-import { type FC, useEffect, useRef, useState, useCallback } from 'react';
+import React, { type FC, useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions, TransposeCalculator } from 'opensheetmusicdisplay';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import platform from '@/platform';
@@ -20,7 +19,7 @@ interface TimeMappingEntry {
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
  */
-const SheetMusicDisplay: FC<SheetMusicDisplayProps> = ({ musicXmlUrl, className = '' }: SheetMusicDisplayProps) => {
+const SheetMusicDisplay: FC<SheetMusicDisplayProps> = ({ musicXmlUrl, className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
@@ -200,7 +199,7 @@ const SheetMusicDisplay: FC<SheetMusicDisplayProps> = ({ musicXmlUrl, className 
   }, [notes, gameActions, currentSong]);
 
   // OSMDの初期化
-  const initializeOSMD = useCallback(async () => {
+  const initializeOSMD = useCallback(async (): Promise<void> => {
     if (!containerRef.current || !musicXmlUrl) return;
 
     const currentTranspose = transposeRef.current;
