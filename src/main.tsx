@@ -138,6 +138,20 @@ const initializeApp = async () => {
   }
 };
 
+// vConsoleの初期化（開発環境またはdebugパラメータがある場合）
+const isDebugMode = window.location.search.includes('debug=true') || 
+                   window.location.hostname === 'localhost' ||
+                   window.location.hostname === '127.0.0.1';
+
+if (isDebugMode) {
+  import('vconsole').then(({ default: VConsole }) => {
+    new VConsole();
+    console.log('🔧 vConsole initialized for mobile debugging');
+  }).catch(err => {
+    console.warn('Failed to load vConsole:', err);
+  });
+}
+
 // DOMContentLoaded でアプリケーションを初期化
 if (document.readyState === 'loading') {
   showDebugInfo('Waiting for DOM to load...');

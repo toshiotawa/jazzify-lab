@@ -1745,9 +1745,16 @@ export class PIXINotesRendererInstance {
     // MusicXMLから取得した音名を優先
     if (note.noteName) {
       noteNameForLabel = note.noteName;
+      // デバッグログ（最初の5音のみ）
+      if (this.noteSprites.size < 5) {
+        console.log(`🎹 PIXI: Using MusicXML note name: ${noteNameForLabel} for note ${note.id}`);
+      }
     } else {
       // フォールバック: 従来のロジックで音名を生成
       noteNameForLabel = this.getMidiNoteName(effectivePitch);
+      if (this.noteSprites.size < 5) {
+        console.log(`⚠️ PIXI: No MusicXML note name, using fallback: ${noteNameForLabel} for note ${note.id}`);
+      }
     }
     
     if (noteNameForLabel && this.settings.noteNameStyle !== 'off') {

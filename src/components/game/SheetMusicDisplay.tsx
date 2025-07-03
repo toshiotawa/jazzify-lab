@@ -153,10 +153,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     let keySignature = null;
     if (currentSong?.key) {
       keySignature = getPreferredKey(currentSong.key, currentSong.keyType || 'major');
+      console.log(`🎼 Song key info: ${currentSong.key} ${currentSong.keyType || 'major'}`);
+      console.log(`🎹 Using key signature:`, keySignature);
     }
     
     // MusicXMLからキー情報を取得（楽曲データにキー情報がない場合）
-    if (!keySignature && osmdRef.current.Sheet && osmdRef.current.Sheet.SourceMeasures.length > 0) {
+    if (!keySignature && osmdRef.current.Sheet && osmdRef.current.Sheet.SourceMeasures && osmdRef.current.Sheet.SourceMeasures.length > 0) {
       const firstMeasure = osmdRef.current.Sheet.SourceMeasures[0];
       if (firstMeasure && firstMeasure.Rules) {
         for (const rule of firstMeasure.Rules) {
@@ -187,11 +189,19 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
             
             if (keyName) {
               keySignature = getPreferredKey(keyName, keyMode);
+              console.log(`🎵 MusicXML key detected: ${keyName} ${keyMode} (fifths: ${fifths})`);
+              console.log(`🎹 Using key signature:`, keySignature);
               break;
             }
           }
         }
       }
+    }
+    
+    // キー情報が取得できなかった場合はデフォルトでCメジャーを使用
+    if (!keySignature) {
+      keySignature = getKeySignature('C', 'major');
+      console.log('⚠️ No key signature found, using default: C major');
     }
 
     let noteIndex = 0;
@@ -241,6 +251,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
                           // 正しい音名を取得
                           const correctNoteName = getCorrectNoteName(midiNote, keySignature);
                           noteNamesMap[note.id] = correctNoteName;
+                          
+                          // デバッグログ（最初の10音のみ）
+                          if (noteIndex < 10) {
+                            console.log(`🎵 Note ${noteIndex}: MIDI ${midiNote} → ${correctNoteName} (in ${keySignature.key} ${keySignature.type})`);
+                          }
                         } else {
                           // キー情報がない場合は従来の処理
                           let noteName = pitch.FundamentalNote.toString();
