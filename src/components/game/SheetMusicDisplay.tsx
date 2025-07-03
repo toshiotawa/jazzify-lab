@@ -105,7 +105,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       let keyInfo = 'Unknown key';
       if (osmdRef.current.Sheet.SourceMeasures && osmdRef.current.Sheet.SourceMeasures.length > 0) {
         const firstMeasure = osmdRef.current.Sheet.SourceMeasures[0];
+        
+        // デバッグ: Rulesの構造を確認
         if (firstMeasure && firstMeasure.Rules) {
+          console.log('🔍 Rules type:', typeof firstMeasure.Rules);
+          console.log('🔍 Rules is Array:', Array.isArray(firstMeasure.Rules));
+          console.log('🔍 Rules content:', firstMeasure.Rules);
+        }
+        
+        if (firstMeasure && firstMeasure.Rules && Array.isArray(firstMeasure.Rules)) {
           for (const rule of firstMeasure.Rules) {
             if (rule.Key) {
               const fifths = rule.Key.Fifths;
@@ -160,7 +168,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         let keyInfo = 'Unknown key';
         if (osmdRef.current.Sheet.SourceMeasures && osmdRef.current.Sheet.SourceMeasures.length > 0) {
           const firstMeasure = osmdRef.current.Sheet.SourceMeasures[0];
-          if (firstMeasure && firstMeasure.Rules) {
+          if (firstMeasure && firstMeasure.Rules && Array.isArray(firstMeasure.Rules)) {
             for (const rule of firstMeasure.Rules) {
               if (rule.Key) {
                 const fifths = rule.Key.Fifths;
@@ -214,7 +222,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     // MusicXMLからキー情報を取得（楽曲データにキー情報がない場合）
     if (!keySignature && osmdRef.current.Sheet && osmdRef.current.Sheet.SourceMeasures && osmdRef.current.Sheet.SourceMeasures.length > 0) {
       const firstMeasure = osmdRef.current.Sheet.SourceMeasures[0];
-      if (firstMeasure && firstMeasure.Rules) {
+      if (firstMeasure && firstMeasure.Rules && Array.isArray(firstMeasure.Rules)) {
         for (const rule of firstMeasure.Rules) {
           if (rule.Key) {
             // MusicXMLのキー情報から調を判定

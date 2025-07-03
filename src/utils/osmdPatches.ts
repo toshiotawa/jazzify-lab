@@ -78,7 +78,7 @@ export function applyOSMDPatches(osmd: OpenSheetMusicDisplay): void {
       let currentFifths = 0;
       if (osmd.Sheet.SourceMeasures && osmd.Sheet.SourceMeasures.length > 0) {
         const firstMeasure = osmd.Sheet.SourceMeasures[0];
-        if (firstMeasure && firstMeasure.Rules) {
+        if (firstMeasure && firstMeasure.Rules && Array.isArray(firstMeasure.Rules)) {
           for (const rule of firstMeasure.Rules) {
             if (rule.Key) {
               currentFifths = rule.Key.Fifths;
@@ -138,7 +138,7 @@ function disableEncodeNaturals(osmd: OpenSheetMusicDisplay): { instruments: numb
     // SourceMeasuresレベルでの設定
     if (osmd.Sheet.SourceMeasures) {
       for (const measure of osmd.Sheet.SourceMeasures) {
-        if (measure.Rules) {
+        if (measure.Rules && Array.isArray(measure.Rules)) {
           for (const rule of measure.Rules) {
             if ((rule as any).Key) {
               Object.defineProperty((rule as any).Key, 'encodeNaturals', {
@@ -261,7 +261,7 @@ export function updateOSMDAfterTranspose(osmd: OpenSheetMusicDisplay, newTranspo
     let baseFifths = 0;
     if (osmd.Sheet.SourceMeasures && osmd.Sheet.SourceMeasures.length > 0) {
       const firstMeasure = osmd.Sheet.SourceMeasures[0];
-      if (firstMeasure && firstMeasure.Rules) {
+      if (firstMeasure && firstMeasure.Rules && Array.isArray(firstMeasure.Rules)) {
         for (const rule of firstMeasure.Rules) {
           if (rule.Key) {
             baseFifths = rule.Key.Fifths;
