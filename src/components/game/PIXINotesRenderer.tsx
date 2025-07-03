@@ -135,7 +135,7 @@ export class PIXINotesRendererInstance {
   private performanceEnabled: boolean = true;
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
-  public readonly settings: RendererSettings = {
+  public settings: RendererSettings = {
     noteWidth: 0,          // ★ 後で決定
     noteHeight: 8,
     hitLineY: 0, // 計算で設定
