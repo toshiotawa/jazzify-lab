@@ -1095,17 +1095,17 @@ export class PIXINotesRendererInstance {
       });
       
       // タッチデバイス対応
-      key.on('touchstart', (event: PIXI.FederatedTouchEvent) => {
+      key.on('touchstart', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyPress(midiNote);
       });
       
-      key.on('touchend', (event: PIXI.FederatedTouchEvent) => {
+      key.on('touchend', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
       
-      key.on('touchcancel', (event: PIXI.FederatedTouchEvent) => {
+      key.on('touchcancel', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
@@ -1208,17 +1208,17 @@ export class PIXINotesRendererInstance {
       });
       
       // タッチデバイス対応
-      key.on('touchstart', (event: PIXI.FederatedTouchEvent) => {
+      key.on('touchstart', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyPress(midiNote);
       });
       
-      key.on('touchend', (event: PIXI.FederatedTouchEvent) => {
+      key.on('touchend', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
       
-      key.on('touchcancel', (event: PIXI.FederatedTouchEvent) => {
+      key.on('touchcancel', (event: PIXI.FederatedPointerEvent) => {
         event.stopPropagation();
         this.handleKeyRelease(midiNote);
       });
