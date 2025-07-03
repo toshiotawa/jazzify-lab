@@ -89,6 +89,13 @@ export function applyOSMDPatches(osmd: OpenSheetMusicDisplay): void {
         }
       }
 
+      // F#メジャー(6シャープ) → Gbメジャー(6フラット) に変換
+      if (currentFifths >= 6) {
+        console.log('🎼 Converting F# major key signature (6 sharps) to Gb major (6 flats)');
+        forceFlatKeySignature(osmd);
+        currentFifths = -6;
+      }
+
       // 適切な異名同音優先設定を適用
       const enharmonicPref = getEnharmonicPrefForKey(currentFifths);
       (osmd.EngravingRules as any).enharmonicPref = enharmonicPref;
@@ -271,8 +278,12 @@ export function updateOSMDAfterTranspose(osmd: OpenSheetMusicDisplay, newTranspo
       }
     }
 
+    // F#メジャー(6シャープ)をGbメジャー(6フラット)として扱う
+    if (baseFifths >= 6) {
+      baseFifths = -6;
+    }
+
     // 移調による五度圏の移動を計算（簡易版）
-    // 実際の計算はより複雑だが、ここでは概算
     const transposeSteps = newTranspose;
     const fifthsChange = Math.round(transposeSteps * 7 / 12);
     const effectiveFifths = baseFifths + fifthsChange;
@@ -281,15 +292,49 @@ export function updateOSMDAfterTranspose(osmd: OpenSheetMusicDisplay, newTranspo
     const enharmonicPref = getEnharmonicPrefForKey(effectiveFifths);
     (osmd.EngravingRules as any).enharmonicPref = enharmonicPref;
     
-    // Cキーに戻った場合の特別処理
-    if (effectiveFifths === 0 && baseFifths !== 0) {
+    // Cキーに戻った場合の特別処理（baseFifths に関わらず）
+    if (effectiveFifths === 0) {
       console.log('Returned to C key - ensuring no unnecessary naturals');
-      // 強制的にencodeNaturalsを無効化
       disableEncodeNaturals(osmd);
     }
     
     console.log(`Updated enharmonic preference after transpose: base=${baseFifths}, effective=${effectiveFifths}`);
   } catch (error) {
     console.error('Error updating OSMD after transpose:', error);
+  }
+}
+
+function forceFlatKeySignature(osmd: OpenSheetMusicDisplay): void {
+  try {
+    // 1. SourceMeasures の Key.Fifths を -6 に置き換え
+    if (osmd.Sheet.SourceMeasures) {
+      for (const measure of osmd.Sheet.SourceMeasures) {
+        if (measure.Rules && Array.isArray(measure.Rules)) {
+          for (const rule of measure.Rules) {
+            if (rule.Key) {
+              (rule.Key as any).Fifths = -6;
+            }
+          }
+        }
+      }
+    }
+    // 2. Staff KeyInstructions も同様に修正
+    if (osmd.Sheet.Instruments) {
+      for (const instrument of osmd.Sheet.Instruments) {
+        if (instrument.Staves) {
+          for (const staff of instrument.Staves) {
+            if (staff.KeyInstructions) {
+              staff.KeyInstructions.forEach((ki: any) => {
+                if (ki.Key) {
+                  ki.Key.Fifths = -6;
+                }
+              });
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error forcing flat key signature:', e);
   }
 }

@@ -124,6 +124,17 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
           }
         }
       }
+
+      // OSMDからキー情報が取得できない場合は、楽曲データのキー情報を使用
+      if (keyInfo === 'Unknown key' && currentSong?.key) {
+        const preferred = getPreferredKey(currentSong.key, currentSong.keyType || 'major');
+        if (preferred) {
+          keyInfo = `${preferred.key} ${preferred.type}`;
+        } else {
+          keyInfo = `${currentSong.key} ${currentSong.keyType || 'major'}`;
+        }
+      }
+
       setCurrentKeyInfo(`Original: ${keyInfo}, Transpose: ${currentTranspose}`);
       
       // 移調設定
@@ -179,6 +190,17 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
             }
           }
         }
+
+        // OSMDからキー情報が取得できない場合は、楽曲データのキー情報を使用
+        if (keyInfo === 'Unknown key' && currentSong?.key) {
+          const preferred = getPreferredKey(currentSong.key, currentSong.keyType || 'major');
+          if (preferred) {
+            keyInfo = `${preferred.key} ${preferred.type}`;
+          } else {
+            keyInfo = `${currentSong.key} ${currentSong.keyType || 'major'}`;
+          }
+        }
+
         setCurrentKeyInfo(`Original: ${keyInfo}, Transpose: ${transpose}`);
         
         // レイアウト更新と再レンダリング
