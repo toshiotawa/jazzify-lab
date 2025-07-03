@@ -13,6 +13,8 @@ export async function transposeMusicXML(xmlString: string, semitones: number): P
     return xmlString;
   }
 
+  console.log(`[musicXmlTransposer] 移調開始: ${semitones}半音`);
+
   // MusicXMLをパース
   const musicXml = MusicXML.parse(xmlString);
   const root = musicXml.getRoot();
@@ -49,7 +51,9 @@ export async function transposeMusicXML(xmlString: string, semitones: number): P
   }
 
   // シリアライズして返す
-  return musicXml.serialize();
+  const result = musicXml.serialize();
+  console.log(`[musicXmlTransposer] 移調完了`);
+  return result;
 }
 
 /**
@@ -146,7 +150,7 @@ function transposeNote(note: elements.Note, semitones: number): void {
 }
 
 /**
- * 調号を更新する
+ * 調号を更新する（Tonal.jsのKey機能を使用）
  * @param attributes Attributesオブジェクト
  * @param semitones 移調する半音数
  */
@@ -164,23 +168,53 @@ function updateKeySignature(attributes: elements.Attributes, semitones: number):
         if (fifths && 'contents' in fifths && Array.isArray(fifths.contents)) {
           const currentFifths = fifths.contents[0] || 0;
           
-          // 五度圏の値を半音数から計算
-          // 1半音 = 7五度（完全五度の関係）
-          const fifthsChange = Math.round(semitones * 7 / 12);
-          let newFifths = currentFifths + fifthsChange;
+          // 現在の調を判定（メジャーとマイナーの両方に対応）
+          // MusicXMLのfifthsから調を特定
+          const majorKeys = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'];
+          const minorKeys = ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'D', 'G', 'C', 'F', 'Bb', 'Eb', 'Ab'];
           
-          // -7〜7の範囲に収める
-          while (newFifths > 7) newFifths -= 12;
-          while (newFifths < -7) newFifths += 12;
+          // fifthsの値から調を特定（0 = C major/A minor）
+          const fifthsIndex = currentFifths + 7; // -7〜7を0〜14にマップ
+          let currentKey = majorKeys[fifthsIndex] || 'C';
           
-          // 値を更新
-          fifths.contents[0] = newFifths;
+          // modeがある場合はそれを使用、なければメジャーと仮定
+          const modes = key.getModes ? key.getModes() : [];
+          const isMinor = modes.length > 0 && modes[0]?.contents?.[0] === 'minor';
+          
+          if (isMinor) {
+            currentKey = minorKeys[fifthsIndex] || 'A';
+          }
+          
+          // Tonal.jsで移調
+          const interval = Tonal.Interval.fromSemitones(semitones);
+          const transposedKey = Tonal.Key.transpose(currentKey + (isMinor ? ' minor' : ' major'), interval);
+          
+          console.log(`[musicXmlTransposer] 調号移調: ${currentKey}${isMinor ? ' minor' : ' major'} → ${transposedKey}`);
+          
+          if (transposedKey) {
+            // 移調後の調の情報を取得
+            const keyInfo = isMinor ? Tonal.Key.minorKey(transposedKey) : Tonal.Key.majorKey(transposedKey);
+            
+            if (keyInfo && keyInfo.alteration !== undefined) {
+              // Tonal.jsのalterationはシャープの数（マイナスはフラットの数）
+              // MusicXMLのfifthsと同じ形式
+              const newFifths = keyInfo.alteration;
+              
+              // -7〜7の範囲に収める（念のため）
+              const clampedFifths = Math.max(-7, Math.min(7, newFifths));
+              
+              console.log(`[musicXmlTransposer] fifths更新: ${currentFifths} → ${clampedFifths}`);
+              
+              // 値を更新
+              fifths.contents[0] = clampedFifths;
+            }
+          }
         }
       }
     }
   }
   
-  // transpose要素があれば削除
+  // transpose要素があれば削除（移調済みなので不要）
   const transpositions = attributes.getTranspositions();
   if (transpositions && transpositions.length > 0) {
     attributes.setTranspositions([]);
