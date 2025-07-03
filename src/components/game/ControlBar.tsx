@@ -129,12 +129,14 @@ const ControlBar: React.FC = () => {
 
   // 移調ハンドラー
   const handleTransposeDown = useCallback(() => {
+    console.log('[ControlBar] handleTransposeDown clicked, current transpose:', settings.transpose);
     transpose(-1);
-  }, [transpose]);
+  }, [transpose, settings.transpose]);
 
   const handleTransposeUp = useCallback(() => {
+    console.log('[ControlBar] handleTransposeUp clicked, current transpose:', settings.transpose);
     transpose(1);
-  }, [transpose]);
+  }, [transpose, settings.transpose]);
 
   // シークバー表示/非表示の切り替え
   const toggleSeekbar = useCallback(() => {

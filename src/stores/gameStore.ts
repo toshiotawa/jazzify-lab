@@ -1050,7 +1050,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         transpose: (semitones: number) => {
           // まず現在の値を取得して範囲内にクランプ
           const { settings, updateEngineSettings } = get();
-          const next = Math.max(-6, Math.min(6, settings.transpose + semitones));
+          const current = settings.transpose;
+          const next = Math.max(-6, Math.min(6, current + semitones));
+          
+          console.log(`[gameStore] transpose: current=${current}, semitones=${semitones}, next=${next}`);
 
           set((state) => {
             state.settings.transpose = next;
@@ -1058,11 +1061,16 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
 
           // GameEngine へ即時反映
           updateEngineSettings();
+          
+          console.log(`[gameStore] transpose completed: ${current} → ${next}`);
         },
 
         setTranspose: (semitones: number) => {
           const { updateEngineSettings } = get();
           const clamped = Math.max(-6, Math.min(6, semitones));
+          
+          console.log(`[gameStore] setTranspose: ${semitones} → ${clamped}`);
+          
           set((state) => {
             state.settings.transpose = clamped;
           });

@@ -249,11 +249,18 @@ function updateKeySignature(attributes: elements.Attributes, semitones: number):
  * @returns 移調後のMusicXML文字列
  */
 export async function fetchAndTransposeMusicXML(url: string, semitones: number): Promise<string> {
+  console.log(`[fetchAndTransposeMusicXML] 開始: url=${url}, semitones=${semitones}`);
+  
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch MusicXML: ${response.statusText}`);
   }
   
   const xmlString = await response.text();
-  return transposeMusicXML(xmlString, semitones);
+  console.log(`[fetchAndTransposeMusicXML] MusicXML取得完了, 長さ: ${xmlString.length}文字`);
+  
+  const result = await transposeMusicXML(xmlString, semitones);
+  console.log(`[fetchAndTransposeMusicXML] 移調完了, 結果の長さ: ${result.length}文字`);
+  
+  return result;
 }

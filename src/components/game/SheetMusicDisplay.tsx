@@ -39,20 +39,25 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
   
   // 最新のtranspose値を保持
   const transposeRef = useRef(transpose);
-  transposeRef.current = transpose;
+  
+  useEffect(() => {
+    console.log('[SheetMusicDisplay] transposeRef updated:', transpose);
+    transposeRef.current = transpose;
+  }, [transpose]);
 
   // OSMDの初期化
   const initializeOSMD = useCallback(async () => {
     if (!containerRef.current || !musicXmlUrl) return;
 
     const currentTranspose = transposeRef.current;
-    console.log('Initializing OSMD with transpose:', currentTranspose);
+    console.log('[SheetMusicDisplay] Initializing OSMD with transpose:', currentTranspose);
     setIsLoading(true);
     setError(null);
 
     try {
       // 既存のOSMDインスタンスをクリーンアップ
       if (osmdRef.current) {
+        console.log('[SheetMusicDisplay] Clearing existing OSMD instance');
         osmdRef.current.clear();
       }
 
@@ -92,10 +97,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       createTimeMapping();
       
       previousTransposeRef.current = currentTranspose;
-      console.log('OSMD initialized successfully');
+      console.log('[SheetMusicDisplay] OSMD initialized successfully with transpose:', currentTranspose);
       
     } catch (err) {
-      console.error('楽譜の読み込みエラー:', err);
+      console.error('[SheetMusicDisplay] 楽譜の読み込みエラー:', err);
       setError(err instanceof Error ? err.message : '楽譜の読み込みに失敗しました');
     } finally {
       setIsLoading(false);
@@ -104,9 +109,16 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
 
   // 移調値が変更された時の処理
   useEffect(() => {
+    console.log('[SheetMusicDisplay] transpose effect triggered', {
+      transpose,
+      previousTranspose: previousTransposeRef.current,
+      musicXmlUrl,
+      osmdExists: !!osmdRef.current
+    });
+    
     if (transpose !== previousTransposeRef.current && musicXmlUrl) {
       // 移調値が変更された場合は楽譜を再読み込み
-      console.log('Transpose changed from', previousTransposeRef.current, 'to', transpose);
+      console.log('[SheetMusicDisplay] Transpose changed from', previousTransposeRef.current, 'to', transpose);
       initializeOSMD();
     }
   }, [transpose, initializeOSMD, musicXmlUrl]);
