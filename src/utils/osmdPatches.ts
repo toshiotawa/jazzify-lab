@@ -59,6 +59,8 @@ export function getEnharmonicPrefForKey(fifths: number): EnharmonicPref {
  */
 export function applyOSMDPatches(osmd: OpenSheetMusicDisplay): void {
   try {
+    console.log('🔧 Applying OSMD patches...');
+    
     // Sheet が読み込まれていることを確認
     if (!osmd.Sheet) {
       console.warn('OSMD Sheet not loaded yet');
@@ -67,7 +69,8 @@ export function applyOSMDPatches(osmd: OpenSheetMusicDisplay): void {
 
     // 1. encodeNaturalsを保守的にfalseに設定
     // これにより、移調を戻したときの不要な♮表示を防ぐ
-    disableEncodeNaturals(osmd);
+    const naturalsPatchResult = disableEncodeNaturals(osmd);
+    console.log('✅ encodeNaturals patch applied:', naturalsPatchResult);
 
     // 2. EngravingRulesに異名同音優先設定を追加
     if (osmd.EngravingRules) {
@@ -79,6 +82,7 @@ export function applyOSMDPatches(osmd: OpenSheetMusicDisplay): void {
           for (const rule of firstMeasure.Rules) {
             if (rule.Key) {
               currentFifths = rule.Key.Fifths;
+              console.log(`🎵 Current key has ${currentFifths} fifths`);
               break;
             }
           }
@@ -89,22 +93,26 @@ export function applyOSMDPatches(osmd: OpenSheetMusicDisplay): void {
       const enharmonicPref = getEnharmonicPrefForKey(currentFifths);
       (osmd.EngravingRules as any).enharmonicPref = enharmonicPref;
       
-      console.log(`Applied enharmonic preference for key with ${currentFifths} fifths`);
+      console.log(`✅ Applied enharmonic preference for key with ${currentFifths} fifths:`, enharmonicPref.slice(0, 3), '...');
     }
 
     // 3. レンダリング前のフックを設定
     patchRenderingHooks(osmd);
+    console.log('✅ Rendering hooks patched');
 
-    console.log('OSMD patches applied successfully');
+    console.log('✅ All OSMD patches applied successfully');
   } catch (error) {
-    console.error('Error applying OSMD patches:', error);
+    console.error('❌ Error applying OSMD patches:', error);
   }
 }
 
 /**
  * encodeNaturalsを無効化
  */
-function disableEncodeNaturals(osmd: OpenSheetMusicDisplay): void {
+function disableEncodeNaturals(osmd: OpenSheetMusicDisplay): { instruments: number, measures: number } {
+  let instrumentCount = 0;
+  let measureCount = 0;
+  
   try {
     // Sheetレベルでの設定
     if (osmd.Sheet.Instruments) {
@@ -119,6 +127,7 @@ function disableEncodeNaturals(osmd: OpenSheetMusicDisplay): void {
                   writable: true,
                   configurable: true
                 });
+                instrumentCount++;
               });
             }
           }
@@ -137,6 +146,7 @@ function disableEncodeNaturals(osmd: OpenSheetMusicDisplay): void {
                 writable: true,
                 configurable: true
               });
+              measureCount++;
             }
           }
         }
@@ -145,6 +155,8 @@ function disableEncodeNaturals(osmd: OpenSheetMusicDisplay): void {
   } catch (error) {
     console.error('Error disabling encodeNaturals:', error);
   }
+  
+  return { instruments: instrumentCount, measures: measureCount };
 }
 
 /**

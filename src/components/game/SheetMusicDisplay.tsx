@@ -43,6 +43,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
   const transposeRef = useRef(transpose);
   transposeRef.current = transpose;
 
+  // デバッグ用: 現在のキー情報を保持
+  const [currentKeyInfo, setCurrentKeyInfo] = useState<string>('');
+
   // OSMDの初期化
   const initializeOSMD = useCallback(async () => {
     if (!containerRef.current || !musicXmlUrl) return;
@@ -98,6 +101,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       // OSMDパッチを適用（encodeNaturals問題と異名同音問題を修正）
       applyOSMDPatches(osmdRef.current);
       
+      // デバッグ用: キー情報を取得して表示
+      let keyInfo = 'Unknown key';
+      if (osmdRef.current.Sheet.SourceMeasures && osmdRef.current.Sheet.SourceMeasures.length > 0) {
+        const firstMeasure = osmdRef.current.Sheet.SourceMeasures[0];
+        if (firstMeasure && firstMeasure.Rules) {
+          for (const rule of firstMeasure.Rules) {
+            if (rule.Key) {
+              const fifths = rule.Key.Fifths;
+              const mode = rule.Key.Mode === 1 ? 'minor' : 'major';
+              keyInfo = `${fifths} fifths (${mode})`;
+              break;
+            }
+          }
+        }
+      }
+      setCurrentKeyInfo(`Original: ${keyInfo}, Transpose: ${currentTranspose}`);
+      
       // 移調設定
       if (currentTranspose !== 0) {
         osmdRef.current.Sheet.Transpose = currentTranspose;
@@ -135,6 +155,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         
         // 移調後の設定を更新（異名同音の優先設定など）
         updateOSMDAfterTranspose(osmdRef.current, transpose);
+        
+        // デバッグ用: 移調後のキー情報を更新
+        let keyInfo = 'Unknown key';
+        if (osmdRef.current.Sheet.SourceMeasures && osmdRef.current.Sheet.SourceMeasures.length > 0) {
+          const firstMeasure = osmdRef.current.Sheet.SourceMeasures[0];
+          if (firstMeasure && firstMeasure.Rules) {
+            for (const rule of firstMeasure.Rules) {
+              if (rule.Key) {
+                const fifths = rule.Key.Fifths;
+                const mode = rule.Key.Mode === 1 ? 'minor' : 'major';
+                keyInfo = `${fifths} fifths (${mode})`;
+                break;
+              }
+            }
+          }
+        }
+        setCurrentKeyInfo(`Original: ${keyInfo}, Transpose: ${transpose}`);
         
         // レイアウト更新と再レンダリング
         osmdRef.current.updateGraphic();
@@ -380,6 +417,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
 
   return (
     <div className={`relative overflow-hidden bg-gray-900 ${className}`}>
+      {/* デバッグ情報表示 */}
+      <div className="absolute top-2 right-2 text-xs text-yellow-400 bg-black bg-opacity-50 p-2 rounded z-20">
+        {currentKeyInfo}
+      </div>
+      
       {/* プレイヘッド（赤い縦線） */}
       <div 
         className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
