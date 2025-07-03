@@ -19,6 +19,7 @@
     "clean": "rm -rf dist node_modules/.vite"
   },
   "dependencies": {
+    "@stringsync/musicxml": "^0.3.0",
     "clsx": "^2.0.0",
     "immer": "^10.1.1",
     "opensheetmusicdisplay": "^1.9.0",
