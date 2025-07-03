@@ -46,6 +46,158 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
   // デバッグ用: 現在のキー情報を保持
   const [currentKeyInfo, setCurrentKeyInfo] = useState<string>('');
 
+  // 音符の時刻とX座標のマッピングを作成 + 音名情報を抽出
+  const createTimeMapping = useCallback(() => {
+    if (!osmdRef.current || !notes || notes.length === 0) return;
+
+    const mapping: TimeMappingEntry[] = [];
+    const noteNamesMap: { [noteId: string]: string } = {};
+    const graphicSheet = osmdRef.current.GraphicSheet;
+    
+    if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
+      console.warn('楽譜のグラフィック情報が取得できません');
+      return;
+    }
+
+    // 楽曲のキー情報を取得（F#メジャーの場合はGbメジャーに変換）
+    let keySignature = null;
+    if (currentSong?.key) {
+      keySignature = getPreferredKey(currentSong.key, currentSong.keyType || 'major');
+      console.log(`🎼 Song key info: ${currentSong.key} ${currentSong.keyType || 'major'}`);
+      console.log(`🎹 Using key signature:`, keySignature);
+    }
+    
+    // MusicXMLからキー情報を取得（楽曲データにキー情報がない場合）
+    if (!keySignature && osmdRef.current.Sheet && osmdRef.current.Sheet.SourceMeasures && osmdRef.current.Sheet.SourceMeasures.length > 0) {
+      const firstMeasure = osmdRef.current.Sheet.SourceMeasures[0];
+      if (firstMeasure && firstMeasure.Rules && Array.isArray(firstMeasure.Rules)) {
+        for (const rule of firstMeasure.Rules) {
+          if (rule.Key) {
+            // MusicXMLのキー情報から調を判定
+            const keyMode = rule.Key.Mode === 1 ? 'minor' : 'major';
+            const fifths = rule.Key.Fifths;
+            
+            // 五度圏の位置から調を決定
+            let keyName = '';
+            if (keyMode === 'major') {
+              // メジャーキー: 五度圏順
+              const majorKeysByFifths: Record<string, string> = {
+                '-7': 'Cb', '-6': 'Gb', '-5': 'Db', '-4': 'Ab', '-3': 'Eb', '-2': 'Bb', '-1': 'F',
+                '0': 'C',
+                '1': 'G', '2': 'D', '3': 'A', '4': 'E', '5': 'B', '6': 'Gb', '7': 'C#'  // F#はGbとして扱う
+              };
+              keyName = majorKeysByFifths[fifths.toString()] || 'C';
+            } else {
+              // マイナーキー: 五度圏順
+              const minorKeysByFifths: Record<string, string> = {
+                '-7': 'Ab', '-6': 'Eb', '-5': 'Bb', '-4': 'F', '-3': 'C', '-2': 'G', '-1': 'D',
+                '0': 'A',
+                '1': 'E', '2': 'B', '3': 'F#', '4': 'C#', '5': 'G#', '6': 'D#', '7': 'A#'
+              };
+              keyName = minorKeysByFifths[fifths.toString()] || 'A';
+            }
+            
+            if (keyName) {
+              keySignature = getPreferredKey(keyName, keyMode);
+              console.log(`🎵 MusicXML key detected: ${keyName} ${keyMode} (fifths: ${fifths})`);
+              console.log(`🎹 Using key signature:`, keySignature);
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // キー情報が取得できなかった場合はデフォルトでCメジャーを使用
+    if (!keySignature) {
+      keySignature = getKeySignature('C', 'major');
+      console.log('⚠️ No key signature found, using default: C major');
+    }
+
+    let noteIndexCounter = 0;
+    
+    // 全ての音符を走査
+    for (const page of graphicSheet.MusicPages) {
+      for (const system of page.MusicSystems) {
+        for (const staffLine of system.StaffLines) {
+          for (const measure of staffLine.Measures) {
+            for (const staffEntry of measure.staffEntries) {
+              for (const voice of staffEntry.graphicalVoiceEntries) {
+                for (const graphicNote of voice.notes) {
+                  // タイで結ばれた後続音符はスキップ
+                  if (graphicNote.sourceNote.NoteTie && !graphicNote.sourceNote.NoteTie.StartNote) {
+                    continue;
+                  }
+                  
+                  if (noteIndexCounter < notes.length) {
+                    const note = notes[noteIndexCounter];
+                    const absX = graphicNote.PositionAndShape.AbsolutePosition.x;
+                    
+                    if (absX !== undefined) {
+                      mapping.push({
+                        timeMs: note.time * 1000, // 秒をミリ秒に変換
+                        xPosition: absX * 10 // OSMDの単位系からピクセルへ変換（概算）
+                      });
+                    }
+                    
+                    // 音名情報を抽出
+                    const sourceNote = graphicNote.sourceNote;
+                    if (sourceNote) {
+                      // TransposedPitchがある場合はそちらを優先
+                      const pitch = sourceNote.TransposedPitch || sourceNote.Pitch;
+                      if (pitch) {
+                        // キー情報がある場合は正しい音名を計算
+                        if (keySignature) {
+                          // MIDIノート番号を計算
+                          const octave = pitch.Octave;
+                          const noteIdx = ['C', 'D', 'E', 'F', 'G', 'A', 'B'].indexOf(pitch.FundamentalNote.toString());
+                          let midiNote = (octave + 1) * 12 + [0, 2, 4, 5, 7, 9, 11][noteIdx];
+                          
+                          // 臨時記号による調整
+                          if (pitch.Accidental) {
+                            midiNote += pitch.Accidental;
+                          }
+                          
+                          // 正しい音名を取得
+                          const correctNoteName = getCorrectNoteName(midiNote, keySignature);
+                          noteNamesMap[note.id] = correctNoteName;
+                          
+                          // デバッグログ（最初の10音のみ）
+                          if (noteIndexCounter < 10) {
+                            console.log(`🎵 Note ${noteIndexCounter}: MIDI ${midiNote} → ${correctNoteName} (in ${keySignature.key} ${keySignature.type})`);
+                          }
+                        } else {
+                          // キー情報がない場合は従来の処理
+                          let noteName = pitch.FundamentalNote.toString();
+                          if (pitch.Accidental) {
+                            switch (pitch.Accidental) {
+                              case 1: noteName += '#'; break;
+                              case -1: noteName += 'b'; break;
+                              case 2: noteName += 'x'; break; // ダブルシャープ
+                              case -2: noteName += 'bb'; break; // ダブルフラット
+                            }
+                          }
+                          noteNamesMap[note.id] = noteName;
+                        }
+                      }
+                    }
+                    noteIndexCounter++;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // 音名情報をnotesに反映
+    if (Object.keys(noteNamesMap).length > 0) {
+      gameActions.updateNoteNames(noteNamesMap);
+    }
+    setTimeMapping(mapping);
+  }, [notes, gameActions, currentSong]);
+
   // OSMDの初期化
   const initializeOSMD = useCallback(async () => {
     if (!containerRef.current || !musicXmlUrl) return;
@@ -151,6 +303,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       // タイムマッピングを作成
       createTimeMapping();
       
+      // デバッグ用キー情報を更新
+      setCurrentKeyInfo(`Transpose: ${currentTranspose}`);
+      
       previousTransposeRef.current = currentTranspose;
       console.log('OSMD initialized successfully');
       
@@ -160,7 +315,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
     } finally {
       setIsLoading(false);
     }
-  }, [musicXmlUrl]); // transposeを依存配列から削除
+  }, [musicXmlUrl, currentSong]);
 
   // 移調値が変更された時の処理
   useEffect(() => {
@@ -210,6 +365,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         // タイムマッピングを再作成
         createTimeMapping();
         
+        // デバッグ用キー情報を更新
+        setCurrentKeyInfo(`Transpose: ${transpose}`);
+        
         previousTransposeRef.current = transpose;
         console.log('Transpose updated successfully');
       } catch (err) {
@@ -218,164 +376,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         initializeOSMD();
       }
     }
-  }, [transpose, initializeOSMD]);
-
-  // 音符の時刻とX座標のマッピングを作成 + 音名情報を抽出
-  const createTimeMapping = useCallback(() => {
-    if (!osmdRef.current || !notes || notes.length === 0) return;
-
-    const mapping: TimeMappingEntry[] = [];
-    const noteNamesMap: { [noteId: string]: string } = {};
-    const graphicSheet = osmdRef.current.GraphicSheet;
-    
-    if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
-      console.warn('楽譜のグラフィック情報が取得できません');
-      return;
-    }
-
-    // 楽曲のキー情報を取得（F#メジャーの場合はGbメジャーに変換）
-    let keySignature = null;
-    if (currentSong?.key) {
-      keySignature = getPreferredKey(currentSong.key, currentSong.keyType || 'major');
-      console.log(`🎼 Song key info: ${currentSong.key} ${currentSong.keyType || 'major'}`);
-      console.log(`🎹 Using key signature:`, keySignature);
-    }
-    
-    // MusicXMLからキー情報を取得（楽曲データにキー情報がない場合）
-    if (!keySignature && osmdRef.current.Sheet && osmdRef.current.Sheet.SourceMeasures && osmdRef.current.Sheet.SourceMeasures.length > 0) {
-      const firstMeasure = osmdRef.current.Sheet.SourceMeasures[0];
-      if (firstMeasure && firstMeasure.Rules && Array.isArray(firstMeasure.Rules)) {
-        for (const rule of firstMeasure.Rules) {
-          if (rule.Key) {
-            // MusicXMLのキー情報から調を判定
-            const keyMode = rule.Key.Mode === 1 ? 'minor' : 'major';
-            const fifths = rule.Key.Fifths;
-            
-            // 五度圏の位置から調を決定
-            let keyName = '';
-            if (keyMode === 'major') {
-              // メジャーキー: 五度圏順
-              const majorKeysByFifths: Record<string, string> = {
-                '-7': 'Cb', '-6': 'Gb', '-5': 'Db', '-4': 'Ab', '-3': 'Eb', '-2': 'Bb', '-1': 'F',
-                '0': 'C',
-                '1': 'G', '2': 'D', '3': 'A', '4': 'E', '5': 'B', '6': 'Gb', '7': 'C#'  // F#はGbとして扱う
-              };
-              keyName = majorKeysByFifths[fifths.toString()] || 'C';
-            } else {
-              // マイナーキー: 五度圏順
-              const minorKeysByFifths: Record<string, string> = {
-                '-7': 'Ab', '-6': 'Eb', '-5': 'Bb', '-4': 'F', '-3': 'C', '-2': 'G', '-1': 'D',
-                '0': 'A',
-                '1': 'E', '2': 'B', '3': 'F#', '4': 'C#', '5': 'G#', '6': 'D#', '7': 'A#'
-              };
-              keyName = minorKeysByFifths[fifths.toString()] || 'A';
-            }
-            
-            if (keyName) {
-              keySignature = getPreferredKey(keyName, keyMode);
-              console.log(`🎵 MusicXML key detected: ${keyName} ${keyMode} (fifths: ${fifths})`);
-              console.log(`🎹 Using key signature:`, keySignature);
-              break;
-            }
-          }
-        }
-      }
-    }
-    
-    // キー情報が取得できなかった場合はデフォルトでCメジャーを使用
-    if (!keySignature) {
-      keySignature = getKeySignature('C', 'major');
-      console.log('⚠️ No key signature found, using default: C major');
-    }
-
-    let noteIndex = 0;
-    
-    // 全ての音符を走査
-    for (const page of graphicSheet.MusicPages) {
-      for (const system of page.MusicSystems) {
-        for (const staffLine of system.StaffLines) {
-          for (const measure of staffLine.Measures) {
-            for (const staffEntry of measure.staffEntries) {
-              for (const voice of staffEntry.graphicalVoiceEntries) {
-                for (const graphicNote of voice.notes) {
-                  // タイで結ばれた後続音符はスキップ
-                  if (graphicNote.sourceNote.NoteTie && !graphicNote.sourceNote.NoteTie.StartNote) {
-                    continue;
-                  }
-                  
-                  if (noteIndex < notes.length) {
-                    const note = notes[noteIndex];
-                    const absX = graphicNote.PositionAndShape.AbsolutePosition.x;
-                    
-                    if (absX !== undefined) {
-                      mapping.push({
-                        timeMs: note.time * 1000, // 秒をミリ秒に変換
-                        xPosition: absX * 10 // OSMDの単位系からピクセルへ変換（概算）
-                      });
-                    }
-                    
-                    // 音名情報を抽出
-                    const sourceNote = graphicNote.sourceNote;
-                    if (sourceNote) {
-                      // TransposedPitchがある場合はそちらを優先
-                      const pitch = sourceNote.TransposedPitch || sourceNote.Pitch;
-                      if (pitch) {
-                        // キー情報がある場合は正しい音名を計算
-                        if (keySignature) {
-                          // MIDIノート番号を計算
-                          const octave = pitch.Octave;
-                          const noteIndex = ['C', 'D', 'E', 'F', 'G', 'A', 'B'].indexOf(pitch.FundamentalNote.toString());
-                          let midiNote = (octave + 1) * 12 + [0, 2, 4, 5, 7, 9, 11][noteIndex];
-                          
-                          // 臨時記号による調整
-                          if (pitch.Accidental) {
-                            midiNote += pitch.Accidental;
-                          }
-                          
-                          // 正しい音名を取得
-                          const correctNoteName = getCorrectNoteName(midiNote, keySignature);
-                          noteNamesMap[note.id] = correctNoteName;
-                          
-                          // デバッグログ（最初の10音のみ）
-                          if (noteIndex < 10) {
-                            console.log(`🎵 Note ${noteIndex}: MIDI ${midiNote} → ${correctNoteName} (in ${keySignature.key} ${keySignature.type})`);
-                          }
-                        } else {
-                          // キー情報がない場合は従来の処理
-                          let noteName = pitch.FundamentalNote.toString();
-                          
-                          // 臨時記号の処理
-                          if (pitch.Accidental) {
-                            switch (pitch.Accidental) {
-                              case 1: noteName += '#'; break;
-                              case -1: noteName += 'b'; break;
-                              case 2: noteName += 'x'; break; // ダブルシャープ
-                              case -2: noteName += 'bb'; break; // ダブルフラット
-                            }
-                          }
-                          
-                          noteNamesMap[note.id] = noteName;
-                        }
-                      }
-                    }
-                    
-                    noteIndex++;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    // 音名情報をnotesに反映
-    if (Object.keys(noteNamesMap).length > 0) {
-      gameActions.updateNoteNames(noteNamesMap);
-    }
-    
-    setTimeMapping(mapping);
-  }, [notes, gameActions, currentSong]);
+  }, [transpose, initializeOSMD, currentSong, createTimeMapping]);
 
   // スクロールアニメーション
   const updateScroll = useCallback(() => {
