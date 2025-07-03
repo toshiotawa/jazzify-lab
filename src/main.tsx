@@ -152,6 +152,48 @@ if (isDebugMode) {
   });
 }
 
+// Service Worker のアンレジスター（キャッシュ問題対策）
+const unregisterServiceWorkers = async () => {
+  if ('serviceWorker' in navigator) {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      const unregisterPromises = registrations.map(registration => {
+        console.log('🗑️ Unregistering service worker:', registration.scope);
+        return registration.unregister();
+      });
+      await Promise.all(unregisterPromises);
+      console.log('✅ All service workers unregistered');
+      showDebugInfo('Service workers cleared for cache update');
+    } catch (error) {
+      console.warn('Failed to unregister service workers:', error);
+    }
+  }
+};
+
+// キャッシュクリア（開発/デバッグモード用）
+const clearCaches = async () => {
+  if ('caches' in window && isDebugMode) {
+    try {
+      const cacheNames = await caches.keys();
+      const deletePromises = cacheNames.map(cacheName => {
+        console.log('🗑️ Deleting cache:', cacheName);
+        return caches.delete(cacheName);
+      });
+      await Promise.all(deletePromises);
+      console.log('✅ All caches cleared');
+      showDebugInfo('Browser caches cleared');
+    } catch (error) {
+      console.warn('Failed to clear caches:', error);
+    }
+  }
+};
+
+// デバッグモードでキャッシュ問題を解決
+if (isDebugMode) {
+  unregisterServiceWorkers();
+  clearCaches();
+}
+
 // DOMContentLoaded でアプリケーションを初期化
 if (document.readyState === 'loading') {
   showDebugInfo('Waiting for DOM to load...');
