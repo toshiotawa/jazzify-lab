@@ -115,8 +115,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
 
       // Verovioオプション設定（横スクロール用）
       tk.setOptions({
-        scale: 35,                    // スケール調整
-        pageHeight: 1500,            // 高さを大きくして1行に収める
+        scale: 55,                    // スケール調整（35から55に増加）
+        pageHeight: 2000,            // 高さを大きくして1行に収める（1500から2000に増加）
         pageWidth: 60000,            // 十分な幅を確保
         adjustPageHeight: true,      // 高さを自動調整
         adjustPageWidth: false,      // 幅は固定
@@ -149,8 +149,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         // SVGのスタイル調整（白色の音符）
         const svgElement = containerRef.current.querySelector('svg');
         if (svgElement) {
-          svgElement.style.height = '100%';
+          // 高さを固定値に設定（エリアサイズに依存しない）
+          svgElement.style.height = 'auto';
+          svgElement.style.maxHeight = '250px';  // 最大高さを制限
           svgElement.style.width = 'auto';
+          svgElement.style.display = 'block';
+          svgElement.style.margin = '0 auto';  // 中央寄せ
           
           // 全ての要素を白色に
           const allElements = svgElement.querySelectorAll('*');
@@ -430,8 +434,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
           // SVGのスタイル再調整
           const svgElement = containerRef.current.querySelector('svg');
           if (svgElement) {
-            svgElement.style.height = '100%';
+            // 高さを固定値に設定（エリアサイズに依存しない）
+            svgElement.style.height = 'auto';
+            svgElement.style.maxHeight = '250px';  // 最大高さを制限
             svgElement.style.width = 'auto';
+            svgElement.style.display = 'block';
+            svgElement.style.margin = '0 auto';  // 中央寄せ
             
             const allElements = svgElement.querySelectorAll('*');
             allElements.forEach((element) => {
@@ -545,7 +553,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
       />
       
       {/* 楽譜コンテナ - 上部に余白を追加 */}
-      <div className="relative h-full pt-8 pb-4">
+      <div className="relative h-full pt-8 pb-4 overflow-y-auto overflow-x-hidden">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
             <div className="text-white">楽譜を読み込み中...</div>
@@ -567,13 +575,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ musicXmlUrl, clas
         {/* Verovioレンダリング用コンテナ */}
         <div 
           ref={scoreWrapperRef}
-          className="h-full transition-transform duration-100 ease-out"
-          style={{ willChange: 'transform' }}
+          className="transition-transform duration-100 ease-out"
+          style={{ willChange: 'transform', minHeight: '250px' }}
         >
           <div 
             ref={containerRef} 
-            className="h-full flex items-center verovio-container"
-            style={{ minWidth: `${svgWidth}px` }}
+            className="flex items-center justify-center verovio-container"
+            style={{ minWidth: `${svgWidth}px`, minHeight: '250px' }}
           />
         </div>
       </div>
