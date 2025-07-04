@@ -8,6 +8,7 @@ import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
 import { unifiedFrameController, renderOptimizer, performanceMonitor } from '@/utils/performanceOptimizer';
 import { log, perfLog, devLog } from '@/utils/logger';
+import { cn } from '@/utils/cn';
 
 // ===== ノート状態判定ヘルパー =====
 // Renderer 側では "good" / "perfect" / "hit" をすべて "当たり" とみなす
@@ -2809,7 +2810,10 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   return (
     <div
       ref={containerRef}
-      className={className}
+      className={cn(
+        "custom-pixi-scrollbar",
+        className
+      )}
       style={{ 
         width, 
         height: actualHeight,
@@ -2821,7 +2825,80 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
         // タッチイベントの伝播を調整
         position: 'relative'
       }}
-    />
+    >
+      {/* カスタムスクロールバー用のスタイル */}
+      <style>
+        {`
+          .custom-pixi-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+          }
+          
+          .custom-pixi-scrollbar::-webkit-scrollbar-track {
+            background-color: #1f2937;
+            border-radius: 4px;
+            border: 1px solid #374151;
+          }
+          
+          .custom-pixi-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #6b7280;
+            border-radius: 4px;
+            border: 1px solid #374151;
+          }
+          
+          .custom-pixi-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: #9ca3af;
+          }
+          
+          .custom-pixi-scrollbar::-webkit-scrollbar-corner {
+            background-color: #1f2937;
+          }
+          
+          /* スクロールバーの矢印を完全に削除 */
+          .custom-pixi-scrollbar::-webkit-scrollbar-button {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+          }
+          
+          .custom-pixi-scrollbar::-webkit-scrollbar-button:single-button {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+          }
+          
+          .custom-pixi-scrollbar::-webkit-scrollbar-button:double-button {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+          }
+          
+          .custom-pixi-scrollbar::-webkit-scrollbar-button:horizontal {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+          }
+          
+          .custom-pixi-scrollbar::-webkit-scrollbar-button:vertical {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+          }
+          
+          /* Firefox用 */
+          .custom-pixi-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: #6b7280 #1f2937;
+          }
+          
+          /* ピアノエリアのcanvas要素にもスクロールバーを適用 */
+          .custom-pixi-scrollbar canvas {
+            max-width: none;
+            max-height: none;
+          }
+        `}
+      </style>
+    </div>
   );
 };
 

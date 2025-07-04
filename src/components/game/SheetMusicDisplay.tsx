@@ -21,6 +21,7 @@ interface TimeMappingEntry {
 const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -208,6 +209,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
   }, [isPlaying]);
 
+  // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
+  useEffect(() => {
+    if (isPlaying && scrollContainerRef.current) {
+      // 再生開始時に即座にスクロール位置を0にリセット
+      scrollContainerRef.current.scrollLeft = 0;
+      console.log('🎵 楽譜スクロールを開始位置にリセット');
+    }
+  }, [isPlaying]);
+
   // currentTimeが変更されるたびにスクロール位置を更新
   // これが唯一のUI更新トリガーとなり、古いループを置き換える
   useEffect(() => {
@@ -252,7 +262,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
     // notesの変更はtimeMappingRefの更新をトリガーするが、このeffectの再実行は不要な場合がある。
     // しかし、マッピングが更新された直後のフレームで正しい位置に描画するために含めておく。
-  }, [currentTime, isPlaying, notes]); 
+  }, [currentTime, isPlaying, notes]);
 
   // クリーンアップ
   useEffect(() => {
@@ -267,7 +277,26 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }, []);
 
   return (
-    <div className={`relative overflow-x-hidden overflow-y-hidden bg-white text-black ${className}`}>
+    <div 
+      className={cn(
+        "relative bg-white text-black",
+        // 再生中は横スクロール無効、停止中は横スクロール有効
+        isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
+        // カスタムスクロールバースタイルを適用
+        "custom-sheet-scrollbar",
+        className
+      )}
+      ref={scrollContainerRef}
+      style={{
+        // WebKit系ブラウザ用のカスタムスクロールバー
+        ...(!isPlaying && {
+          '--scrollbar-width': '8px',
+          '--scrollbar-track-color': '#f3f4f6',
+          '--scrollbar-thumb-color': '#9ca3af',
+          '--scrollbar-thumb-hover-color': '#6b7280'
+        })
+      } as React.CSSProperties}
+    >
       {/* プレイヘッド（赤い縦線） */}
       <div 
         className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
@@ -297,16 +326,24 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         {/* OSMDレンダリング用コンテナ */}
         <div 
           ref={scoreWrapperRef}
-          className="h-full transition-transform duration-100 ease-out"
-          style={{ willChange: 'transform' }}
+          className={cn(
+            "h-full",
+            // 再生中は自動スクロールでアニメーション、停止中は手動スクロール用
+            isPlaying ? "transition-transform duration-100 ease-out" : ""
+          )}
+          style={{ 
+            willChange: isPlaying ? 'transform' : 'auto',
+            minWidth: '3000px' // 十分な幅を確保
+          }}
         >
           <div 
             ref={containerRef} 
             className="h-full flex items-center"
-            style={{ minWidth: '3000px' }} // 十分な幅を確保
           />
         </div>
       </div>
+      
+      {/* カスタムスクロールバー用のスタイル - CSS外部化により削除 */}
     </div>
   );
 };

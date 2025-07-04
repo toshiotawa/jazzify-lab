@@ -955,13 +955,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           
           return (
             <div 
-              className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x pixi-mobile-scroll" 
+              className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x pixi-mobile-scroll custom-game-scrollbar" 
               style={{ 
                 WebkitOverflowScrolling: 'touch',
                 scrollSnapType: 'x proximity',
-                scrollBehavior: 'smooth',
-                msOverflowStyle: '-ms-autohiding-scrollbar',
-                scrollbarWidth: 'thin'
+                scrollBehavior: 'smooth'
               }}
             >
               <div style={{ 
