@@ -66,9 +66,9 @@ interface RendererSettings {
   transposingInstrument: string;
   /** 練習モードガイド設定 */
   practiceGuide?: 'off' | 'key' | 'key_auto';
-  showHitLine: boolean;
-  viewportHeight: number;
-  timingAdjustment: number;
+      showHitLine: boolean;
+    viewportHeight: number;
+    timingAdjustment: number;
 }
 
 // ===== テクスチャキャッシュ =====
@@ -163,7 +163,7 @@ export class PIXINotesRendererInstance {
     practiceGuide: 'key',
     showHitLine: true,
     viewportHeight: 600,
-    timingAdjustment: 0,
+    timingAdjustment: 0
   };
   
   private onDragActive: boolean = false;
@@ -175,6 +175,9 @@ export class PIXINotesRendererInstance {
   constructor(width: number, height: number) {
     devLog.info(`🎯 PIXINotesRenderer constructor: ${width}x${height}`);
     
+    // 指定された高さをそのまま使用
+    const adjustedHeight = height;
+    
     // ★ まず白鍵幅を求めてnoteWidthを設定
     const totalWhite = this.calculateTotalWhiteKeys();
     const whiteKeyWidth = width / totalWhite;
@@ -184,7 +187,7 @@ export class PIXINotesRendererInstance {
     // PIXI.js アプリケーション初期化（統合レンダリングループ版）
     this.app = new PIXI.Application({
       width,
-      height,
+      height: adjustedHeight, // ★ 最小高さを保証した高さを使用
       backgroundColor: 0x0A0A0F, // より暗い宇宙的な背景
       antialias: true,
       resolution: 1, // 解像度を固定して一貫性を保つ
@@ -199,7 +202,7 @@ export class PIXINotesRendererInstance {
     });
     
     // 強制的にCanvasサイズを設定
-    this.app.renderer.resize(width, height);
+    this.app.renderer.resize(width, adjustedHeight);
     
     devLog.debug(`🎯 PIXI.js App created - Canvas: ${this.app.view.width}x${this.app.view.height}`);
     
@@ -2207,6 +2210,12 @@ export class PIXINotesRendererInstance {
     const prevTranspose = this.settings.transpose;
     const prevNoteNameStyle = this.settings.noteNameStyle;
     const prevTransposingInstrument = this.settings.transposingInstrument;
+    
+          // ★ ピアノ高さの最小値を保証
+      if (newSettings.pianoHeight !== undefined) {
+        newSettings.pianoHeight = Math.max(70, newSettings.pianoHeight); // 最小70px
+      }
+    
     Object.assign(this.settings, newSettings);
 
     // ピアノ高さが変更された場合、判定ラインと背景を再配置
@@ -2639,10 +2648,11 @@ export class PIXINotesRendererInstance {
    * リサイズ対応
    */
   resize(width: number, height: number): void {
+    // 指定されたサイズでそのままリサイズ
     this.app.renderer.resize(width, height);
     
-    // 修正: app.view.height を使用
-    this.settings.hitLineY = this.app.view.height - this.settings.pianoHeight;
+    // 修正: リサイズ後の高さを使用
+    this.settings.hitLineY = height - this.settings.pianoHeight;
     console.log(`🔧 Resize hitLineY: ${this.settings.hitLineY}`);
     
     // ピアノとヒットラインの再描画
@@ -2708,6 +2718,9 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<PIXINotesRendererInstance | null>(null);
   
+  // 指定された高さをそのまま使用（制限なし）
+  const actualHeight = height;
+  
   // ===== PIXI.js レンダラー初期化 (一度だけ) =====
   useEffect(() => {
     if (!containerRef.current || rendererRef.current) return;
@@ -2719,7 +2732,7 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
     
     console.log('🎯 Skipping initial hide for debugging...');
 
-    const renderer = new PIXINotesRendererInstance(width, height);
+    const renderer = new PIXINotesRendererInstance(width, actualHeight);
     rendererRef.current = renderer;
     
     // ===== 簡略デバッグ（パフォーマンス重視） =====
@@ -2789,9 +2802,9 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   // リサイズ対応
   useEffect(() => {
     if (rendererRef.current) {
-      rendererRef.current.resize(width, height);
+      rendererRef.current.resize(width, actualHeight);
     }
-  }, [width, height]);
+  }, [width, actualHeight]);
   
   return (
     <div
@@ -2799,10 +2812,10 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       className={className}
       style={{ 
         width, 
-        height,
+        height: actualHeight,
         // 初期化時のサイズ変更を防ぐため明示的にサイズを設定
         minWidth: width,
-        minHeight: height,
+        minHeight: actualHeight,
         overflow: 'hidden',
         backgroundColor: '#111827', // ロード中の背景色
         // タッチイベントの伝播を調整

@@ -921,7 +921,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       <div 
         ref={gameAreaRef}
         className="relative flex-1 bg-gray-900 rounded-lg overflow-hidden"
-        style={{ minHeight: '40vh' }}
       >
         {/* GOOD / MISS オーバーレイ */}
         {mode === 'performance' && (
