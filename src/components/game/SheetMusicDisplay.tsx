@@ -31,6 +31,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // timeMappingはアニメーションループで使うため、useRefで状態の即時反映を保証
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
   
+  // ホイールスクロール制御用
+  const [isHovered, setIsHovered] = useState(false);
+  
   const { currentTime, isPlaying, notes, musicXml } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
@@ -264,6 +267,27 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     // しかし、マッピングが更新された直後のフレームで正しい位置に描画するために含めておく。
   }, [currentTime, isPlaying, notes]);
 
+  // ホイールスクロール制御
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      // 楽譜エリアにマウスがホバーしていない、または再生中の場合はスクロールを無効化
+      if (!isHovered || isPlaying) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+
+    const scrollContainer = scrollContainerRef.current;
+    if (scrollContainer) {
+      scrollContainer.addEventListener('wheel', handleWheel, { passive: false });
+      
+      return () => {
+        scrollContainer.removeEventListener('wheel', handleWheel);
+      };
+    }
+  }, [isHovered, isPlaying]);
+
   // クリーンアップ
   useEffect(() => {
     return () => {
@@ -287,6 +311,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         className
       )}
       ref={scrollContainerRef}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         // WebKit系ブラウザ用のカスタムスクロールバー
         ...(!isPlaying && {
