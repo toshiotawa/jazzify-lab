@@ -8,6 +8,14 @@ export type GameMode = 'practice' | 'performance';
 export type InstrumentMode = 'piano' | 'guitar';
 export type InputMode = 'midi' | 'audio' | 'both';
 
+// 移調楽器タイプ
+export type TransposingInstrument = 
+  | 'concert_pitch'      // コンサートピッチ（移調なし）
+  | 'bb_major_2nd'       // in Bb (長2度上) - ソプラノサックス、トランペット、クラリネット
+  | 'bb_major_9th'       // in Bb (1オクターブ+長2度上) - テナーサックス
+  | 'eb_major_6th'       // in Eb (長6度上) - アルトサックス
+  | 'eb_major_13th';     // in Eb (1オクターブ+長6度上) - バリトンサックス
+
 // ===== ノーツデータ =====
 
 export interface NoteData {
@@ -126,6 +134,9 @@ export interface GameSettings {
   
   // キー設定
   transpose: number;           // -6 to +6 (半音)
+  
+  // 移調楽器設定
+  transposingInstrument: TransposingInstrument;
   
   /** 追加レイテンシ補正（秒）。正の値で描画/判定を遅らせる、負で早める */
   latencyAdjustment?: number;

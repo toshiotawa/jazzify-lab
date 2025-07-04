@@ -1,4 +1,49 @@
 import { Note, Interval } from 'tonal';
+import type { TransposingInstrument } from '@/types';
+
+/**
+ * 移調楽器の移調量を取得
+ * @param instrument 移調楽器タイプ
+ * @returns 移調量（半音）
+ */
+export function getTransposingInstrumentSemitones(instrument: TransposingInstrument): number {
+  switch (instrument) {
+    case 'concert_pitch':
+      return 0;
+    case 'bb_major_2nd':
+      return 2; // in Bb (長2度上) - 実音より2半音低く聞こえる → 楽譜は2半音上に書く
+    case 'bb_major_9th':
+      return 14; // in Bb (1オクターブ+長2度上) - 実音より14半音低く聞こえる → 楽譜は14半音上に書く
+    case 'eb_major_6th':
+      return 9; // in Eb (長6度上) - 実音より9半音低く聞こえる → 楽譜は9半音上に書く
+    case 'eb_major_13th':
+      return 21; // in Eb (1オクターブ+長6度上) - 実音より21半音低く聞こえる → 楽譜は21半音上に書く
+    default:
+      return 0;
+  }
+}
+
+/**
+ * 移調楽器の表示名を取得
+ * @param instrument 移調楽器タイプ
+ * @returns 表示名
+ */
+export function getTransposingInstrumentName(instrument: TransposingInstrument): string {
+  switch (instrument) {
+    case 'concert_pitch':
+      return 'コンサートピッチ（移調なし）';
+    case 'bb_major_2nd':
+      return 'in Bb (長2度上) ソプラノサックス、トランペット、クラリネット';
+    case 'bb_major_9th':
+      return 'in Bb (1オクターブ+長2度上) テナーサックス';
+    case 'eb_major_6th':
+      return 'in Eb (長6度上) アルトサックス';
+    case 'eb_major_13th':
+      return 'in Eb (1オクターブ+長6度上) バリトンサックス';
+    default:
+      return 'コンサートピッチ（移調なし）';
+  }
+}
 
 /**
  * Transpose MusicXML string by given semitones, applying custom enharmonic rules.
@@ -85,8 +130,8 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
 // Convert semitones to fifths (circle of fifths key signature).
 function semitonesToFifths(semitones: number): number {
   // Map semitone shift (0=C) to key signature fifths within range -7..7
-  // 0:C(0), 1:C#/Db(+7), 2:D(+2), 3:Eb(-3), 4:E(+4), 5:F(-1), 6:Gb(-6), 7:G(+1), 8:Ab(-4), 9:A(+3), 10:Bb(-2), 11:B(+5)
-  const semitoneToFifthsMap = [0, 7, 2, -3, 4, -1, -6, 1, -4, 3, -2, 5];
+  // 0:C(0), 1:Db(-5), 2:D(+2), 3:Eb(-3), 4:E(+4), 5:F(-1), 6:Gb(-6), 7:G(+1), 8:Ab(-4), 9:A(+3), 10:Bb(-2), 11:B(+5)
+  const semitoneToFifthsMap = [0, -5, 2, -3, 4, -1, -6, 1, -4, 3, -2, 5];
   const mod = ((semitones % 12) + 12) % 12;
   return semitoneToFifthsMap[mod];
 }

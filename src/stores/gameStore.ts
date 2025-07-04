@@ -132,6 +132,9 @@ const defaultSettings: GameSettings = {
   // キー設定
   transpose: 0,
   
+  // 移調楽器設定
+  transposingInstrument: 'concert_pitch',
+  
   // レイテンシ手動調整
   latencyAdjustment: 0,
   
@@ -727,8 +730,13 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             return { finalNotes, finalXml };
           };
 
-          const currentTranspose = get().settings.transpose;
-          const { finalNotes, finalXml } = await _processSongData(song, notes, currentTranspose);
+          const currentSettings = get().settings;
+          // 移調楽器の設定を考慮した移調量を計算
+          const { getTransposingInstrumentSemitones } = await import('@/utils/musicXmlTransposer');
+          const transposingInstrumentSemitones = getTransposingInstrumentSemitones(currentSettings.transposingInstrument);
+          const totalTranspose = currentSettings.transpose + transposingInstrumentSemitones;
+          
+          const { finalNotes, finalXml } = await _processSongData(song, notes, totalTranspose);
 
           set((state) => {
             state.currentSong = song;
@@ -954,17 +962,67 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         }),
         
         // 設定
-        updateSettings: (newSettings) => {
+        updateSettings: async (newSettings) => {
+          // 移調楽器の設定が変更されたかどうかを確認
+          const currentSettings = get().settings;
+          const isTransposingInstrumentChanged = 
+            'transposingInstrument' in newSettings && 
+            newSettings.transposingInstrument !== currentSettings.transposingInstrument;
+          
           // まず Immer の set でストアの設定値を更新
           set((state) => {
             Object.assign(state.settings, newSettings);
           });
 
           // set の外側で最新の設定値を取得し、GameEngine へ反映
-          const { gameEngine, settings } = get();
+          const { gameEngine, settings, currentSong, rawNotes } = get();
           if (gameEngine) {
             // Proxy（Immer Draft）が revoke されるのを防ぐため、プレーンオブジェクトを渡す
             gameEngine.updateSettings({ ...settings });
+          }
+          
+          // 移調楽器の設定が変更された場合、楽譜を再処理
+          if (isTransposingInstrumentChanged && currentSong && rawNotes.length > 0) {
+            const { getTransposingInstrumentSemitones } = await import('@/utils/musicXmlTransposer');
+            const transposingInstrumentSemitones = getTransposingInstrumentSemitones(settings.transposingInstrument);
+            const totalTranspose = settings.transpose + transposingInstrumentSemitones;
+            
+            // 楽曲データ処理ロジック
+            const _processSongData = async (targetSong: SongMetadata, notes: NoteData[], transpose: number) => {
+              let finalNotes = notes;
+              let finalXml: string | null = null;
+              if (targetSong.musicXmlFile) {
+                try {
+                  const { transposeMusicXml } = await import('@/utils/musicXmlTransposer');
+                  const { extractPlayableNoteNames, mergeJsonWithNames } = await import('@/utils/musicXmlMapper');
+                  const xmlResponse = await fetch(targetSong.musicXmlFile);
+                  const xmlString = await xmlResponse.text();
+                  finalXml = transposeMusicXml(xmlString, transpose);
+                  const xmlDoc = new DOMParser().parseFromString(finalXml, 'application/xml');
+                  const noteNames = extractPlayableNoteNames(xmlDoc);
+                  finalNotes = mergeJsonWithNames(notes, noteNames);
+                } catch (error) {
+                  console.warn('⚠️ MusicXML音名抽出に失敗:', error);
+                  finalXml = null;
+                }
+              }
+              return { finalNotes, finalXml };
+            };
+            
+            const { finalNotes, finalXml } = await _processSongData(currentSong, rawNotes, totalTranspose);
+            
+            set((state) => {
+              state.notes = finalNotes;
+              state.musicXml = finalXml;
+              
+              // GameEngineにも更新を通知
+              if (state.gameEngine) {
+                state.gameEngine.loadSong(finalNotes);
+                console.log(`🎵 GameEngineに移調楽器用のノートを再ロード: ${finalNotes.length}ノーツ`);
+              }
+            });
+            
+            console.log(`🎵 移調楽器設定変更により楽譜を再処理: ${settings.transposingInstrument} (+${transposingInstrumentSemitones}半音)`);
           }
         },
         
@@ -1092,7 +1150,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         },
 
         setTranspose: async (semitones: number) => {
-          const { updateEngineSettings, currentSong, rawNotes } = get();
+          const { updateEngineSettings, currentSong, rawNotes, settings } = get();
           const clamped = Math.max(-12, Math.min(12, semitones));
 
           // 処理がなければ早期リターン
@@ -1124,7 +1182,12 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
              return { finalNotes, finalXml };
           };
           
-          const { finalNotes, finalXml } = await _processSongData(currentSong, rawNotes, clamped);
+          // 移調楽器の設定を考慮した移調量を計算
+          const { getTransposingInstrumentSemitones } = await import('@/utils/musicXmlTransposer');
+          const transposingInstrumentSemitones = getTransposingInstrumentSemitones(settings.transposingInstrument);
+          const totalTranspose = clamped + transposingInstrumentSemitones;
+          
+          const { finalNotes, finalXml } = await _processSongData(currentSong, rawNotes, totalTranspose);
 
           set((state) => {
             state.settings.transpose = clamped;

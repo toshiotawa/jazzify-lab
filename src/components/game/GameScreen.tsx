@@ -6,6 +6,8 @@ import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDev
 import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
+import { getTransposingInstrumentName } from '@/utils/musicXmlTransposer';
+import type { TransposingInstrument } from '@/types';
 
 /**
  * メインゲーム画面コンポーネント
@@ -342,7 +344,6 @@ const GamePlayScreen: React.FC = () => {
           style={{ height: `${sheetMusicHeightPercentage}%` }}
         >
           <SheetMusicDisplay 
-            musicXmlUrl={currentSong.musicXmlFile}
             className="h-full"
           />
         </div>
@@ -679,6 +680,28 @@ const SettingsPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* 移調楽器設定 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                移調楽器設定
+              </label>
+              <select
+                value={settings.transposingInstrument}
+                onChange={(e) => gameActions.updateSettings({ transposingInstrument: e.target.value as TransposingInstrument })}
+                className="select select-bordered w-full max-w-xs bg-gray-800 text-white mb-2"
+              >
+                <option value="concert_pitch">コンサートピッチ（移調なし）</option>
+                <option value="bb_major_2nd">in Bb (長2度上) ソプラノサックス、トランペット、クラリネット</option>
+                <option value="bb_major_9th">in Bb (1オクターブ+長2度上) テナーサックス</option>
+                <option value="eb_major_6th">in Eb (長6度上) アルトサックス</option>
+                <option value="eb_major_13th">in Eb (1オクターブ+長6度上) バリトンサックス</option>
+              </select>
+              <div className="text-xs text-gray-400 mt-1">
+                選択した楽器に応じて楽譜が移調されます。鍵盤はコンサートピッチ（C調）のまま表示されます。<br/>
+                <span className="text-yellow-300">+半音数 = 楽譜がその分高く移調されます</span>
+              </div>
+            </div>
+
             {/* 音名表示設定（統一版） */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -693,8 +716,11 @@ const SettingsPanel: React.FC = () => {
                 <option value="abc">ABC (C, D, E...)</option>
                 <option value="solfege">ドレミ</option>
               </select>
-
-
+              <div className="text-xs text-gray-400 mt-1">
+                {settings.transposingInstrument !== 'concert_pitch' && 
+                  `音名は${getTransposingInstrumentName(settings.transposingInstrument)}用に移調されて表示されます。`
+                }
+              </div>
             </div>
 
             {/* 練習モードガイド設定 */}

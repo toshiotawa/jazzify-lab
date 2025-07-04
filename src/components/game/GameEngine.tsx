@@ -330,25 +330,56 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, currentTime]);
   
   // 時間同期ループ
-  const startTimeSync = useCallback(() => {
+  const startTimeSync = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
     const syncTime = () => {
-      if (audioContextRef.current && isPlaying) {
-        const audioCtxTime = audioContextRef.current.currentTime;
-        const logicalTime = (audioCtxTime - baseOffsetRef.current) * settings.playbackSpeed;
-        updateTime(logicalTime);
-        
-        // 楽曲終了チェック
-        if (logicalTime >= (currentSong?.duration || 0)) {
-          stop();
-          openResultModal();
-          return;
-        }
-        
-        animationFrameRef.current = requestAnimationFrame(syncTime);
+      if (!useGameStore.getState().isPlaying) {
+        return; // 再生が停止したらループを終了
       }
+      
+      let newTime = 0;
+      const audio = audioRef.current;
+      const audioCtx = audioContextRef.current;
+      const hasAudio = currentSong?.audioFile && audio;
+
+      if (hasAudio && !audio.paused && audioCtx) {
+        // [修正] 信頼性の高い<audio>要素の現在時刻を直接のソースとする
+        newTime = audio.currentTime;
+      } else if (audioCtx) {
+        // 音声なしモード、または何らかの理由で音声が停止している場合
+        // 従来通りAudioContextの時刻とオフセットで計算
+        const realTimeElapsed = (audioCtx.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
+        newTime = Math.max(0, realTimeElapsed);
+      } else {
+        // フォールバック：ただし、この状況は通常発生しないはず
+        newTime = useGameStore.getState().currentTime + (16 / 1000); // 60fpsと仮定
+      }
+
+      // 状態更新
+      updateTime(newTime);
+      
+      // 楽曲終了チェック
+      const songDuration = useGameStore.getState().currentSong?.duration || 0;
+      if (songDuration > 0 && newTime >= songDuration) {
+        stop(); // 停止して時間をリセット
+        
+        // 本番モード(performance)の場合のみリザルトモーダルを開く
+        if (useGameStore.getState().mode === 'performance') {
+            openResultModal();
+        }
+        return; // ループを終了
+      }
+      
+      // 次のフレームを予約
+      animationFrameRef.current = requestAnimationFrame(syncTime);
     };
-    syncTime();
-  }, [isPlaying, currentSong?.duration, updateTime, stop, settings.playbackSpeed, openResultModal]);
+
+    // ループ開始
+    animationFrameRef.current = requestAnimationFrame(syncTime);
+  };
   
   const stopTimeSync = useCallback(() => {
     if (animationFrameRef.current) {
@@ -620,9 +651,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (pixiRenderer) {
       pixiRenderer.updateSettings({
         noteNameStyle: settings.noteNameStyle,
-
         pianoHeight: settings.pianoHeight,
         transpose: settings.transpose,
+        transposingInstrument: settings.transposingInstrument,
         practiceGuide: settings.practiceGuide ?? 'key'
       });
     }
@@ -632,7 +663,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pyinThreshold: settings.pyinThreshold
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.pianoHeight, settings.transpose, settings.practiceGuide, settings.pyinThreshold]);
+  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
@@ -762,9 +793,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     // 初期設定を反映
     renderer.updateSettings({
       noteNameStyle: settings.noteNameStyle,
-      
       pianoHeight: settings.pianoHeight,
       transpose: settings.transpose,
+      transposingInstrument: settings.transposingInstrument,
       practiceGuide: settings.practiceGuide ?? 'key'
     });
     
@@ -816,7 +847,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.pianoHeight, settings.selectedMidiDevice]);
+  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
   
   // キーボード入力処理（テスト用）
   const handleKeyPress = useCallback((event: KeyboardEvent) => {

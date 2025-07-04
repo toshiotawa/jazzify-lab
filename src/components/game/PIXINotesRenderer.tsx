@@ -62,6 +62,8 @@ interface RendererSettings {
   noteNameStyle: 'off' | 'abc' | 'solfege';
   /** ストアの transpose 値（±6） */
   transpose: number;
+  /** 移調楽器設定 */
+  transposingInstrument: string;
   /** 練習モードガイド設定 */
   practiceGuide?: 'off' | 'key' | 'key_auto';
   showHitLine: boolean;
@@ -157,6 +159,7 @@ export class PIXINotesRendererInstance {
     },
     noteNameStyle: 'abc',
     transpose: 0,
+    transposingInstrument: 'concert_pitch',
     practiceGuide: 'key',
     showHitLine: true,
     viewportHeight: 600,
@@ -1181,11 +1184,35 @@ export class PIXINotesRendererInstance {
 
     if (style === 'off') return '';
 
+    // 移調楽器の設定を考慮した音名計算
+    let displayNote = midiNote;
+    
+    // 移調楽器の移調量を取得（音名表示用）
+    if (this.settings.transposingInstrument !== 'concert_pitch') {
+      // 移調楽器の移調量をハードコードで計算（musicXmlTransposer.tsと同じロジック）
+      let transposingInstrumentSemitones = 0;
+      switch (this.settings.transposingInstrument) {
+        case 'bb_major_2nd':
+          transposingInstrumentSemitones = 2; // in Bb (長2度上) - 実音より2半音低く聞こえる → 楽譜は2半音上に書く
+          break;
+        case 'bb_major_9th':
+          transposingInstrumentSemitones = 14; // in Bb (1オクターブ+長2度上) - 実音より14半音低く聞こえる → 楽譜は14半音上に書く
+          break;
+        case 'eb_major_6th':
+          transposingInstrumentSemitones = 9; // in Eb (長6度上) - 実音より9半音低く聞こえる → 楽譜は9半音上に書く
+          break;
+        case 'eb_major_13th':
+          transposingInstrumentSemitones = 21; // in Eb (1オクターブ+長6度上) - 実音より21半音低く聞こえる → 楽譜は21半音上に書く
+          break;
+      }
+      displayNote = midiNote + transposingInstrumentSemitones;
+    }
+
     // 12音階の名前テーブル（デフォルトはシャープ）
     const sharpNamesABC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const sharpNamesSolfege = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
 
-    const index = midiNote % 12;
+    const index = displayNote % 12;
 
     if (style === 'abc') {
       return sharpNamesABC[index];
@@ -2049,6 +2076,7 @@ export class PIXINotesRendererInstance {
     const prevPianoHeight = this.settings.pianoHeight;
     const prevTranspose = this.settings.transpose;
     const prevNoteNameStyle = this.settings.noteNameStyle;
+    const prevTransposingInstrument = this.settings.transposingInstrument;
     Object.assign(this.settings, newSettings);
 
     // ピアノ高さが変更された場合、判定ラインと背景を再配置
@@ -2102,6 +2130,43 @@ export class PIXINotesRendererInstance {
 
         // 新しいラベルを生成（noteNameStyleがoffでなければ）
         if (noteName) {
+          const labelTexture = this.getLabelTexture(noteName);
+          if (labelTexture) {
+            const label = new PIXI.Sprite(labelTexture);
+            label.anchor.set(0.5, 1);
+            label.x = noteSprite.sprite.x;
+            label.y = 0; // 後で設定
+            this.labelsContainer.addChild(label);
+            noteSprite.label = label;
+          }
+        }
+      });
+    }
+
+    // === transposingInstrument が変化した場合、音名表示を更新 ===
+    if (newSettings.transposingInstrument !== undefined && newSettings.transposingInstrument !== prevTransposingInstrument) {
+      // 鍵盤の音名表示を更新（鍵盤を再描画）
+      this.pianoContainer.removeChildren();
+      this.pianoSprites.clear();
+      this.setupPiano();
+
+      // 既存ノートのラベルを更新
+      this.noteSprites.forEach((noteSprite) => {
+        const pitch = noteSprite.noteData.pitch;
+        const effectivePitch = pitch + this.settings.transpose;
+        const noteName = this.getMidiNoteName(effectivePitch);
+
+        // 古いラベルを削除
+        if (noteSprite.label) {
+          if (this.labelsContainer.children.includes(noteSprite.label)) {
+            this.labelsContainer.removeChild(noteSprite.label);
+          }
+          noteSprite.label.destroy();
+          noteSprite.label = undefined;
+        }
+
+        // 新しいラベルを生成（noteNameStyleがoffでなければ）
+        if (noteName && this.settings.noteNameStyle !== 'off') {
           const labelTexture = this.getLabelTexture(noteName);
           if (labelTexture) {
             const label = new PIXI.Sprite(labelTexture);
