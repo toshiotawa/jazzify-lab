@@ -59,7 +59,7 @@ interface RendererSettings {
     trails: boolean;
   };
   /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
-  noteNameStyle: 'off' | 'abc' | 'solfege';
+  noteNameStyle: 'off' | 'abc' | 'solfege' | 'simple';
   /** ストアの transpose 値（±6） */
   transpose: number;
   /** 移調楽器設定 */
@@ -365,7 +365,7 @@ export class PIXINotesRendererInstance {
 
     // ラベルスタイル設定
     const labelStyle = new PIXI.TextStyle({
-        fontSize: 10,
+        fontSize: 14,
         fill: 0xFFFFFF,
         fontFamily: 'Arial, sans-serif',
         fontWeight: 'bold',
@@ -407,6 +407,96 @@ export class PIXINotesRendererInstance {
   }
 
   /**
+   * 複雑な音名を基本的な音名に変換（簡易表示モード用）
+   */
+  private getSimplifiedNoteName(noteName: string): string {
+    // 複雑な音名を基本的な12音階に変換するマッピング
+    const noteToMidiMap: { [key: string]: number } = {
+      // 白鍵
+      'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11,
+      // 黒鍵（シャープ）
+      'C#': 1, 'D#': 3, 'F#': 6, 'G#': 8, 'A#': 10,
+      // 黒鍵（フラット）
+      'Db': 1, 'Eb': 3, 'Gb': 6, 'Ab': 8, 'Bb': 10,
+      // 異名同音（白鍵）
+      'B#': 0, 'E#': 5, 'Cb': 11, 'Fb': 4,
+      // ダブルシャープ
+      'Ax': 11, 'Bx': 1, 'Cx': 1, 'Dx': 4, 'Ex': 6, 'Fx': 7, 'Gx': 9,
+      // ダブルフラット
+      'Abb': 7, 'Bbb': 9, 'Cbb': 10, 'Dbb': 0, 'Ebb': 2, 'Fbb': 3, 'Gbb': 5,
+    };
+
+    // 基本的な12音階の音名（シャープ記号使用）
+    const basicNoteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+    // 音名をMIDIノート番号に変換
+    const midiNote = noteToMidiMap[noteName];
+    if (midiNote === undefined) {
+      console.warn(`⚠️ Unknown note name for simplification: ${noteName}`);
+      return noteName; // 変換できない場合は元の音名を返す
+    }
+
+    // 基本的な音名に変換
+    return basicNoteNames[midiNote];
+  }
+
+  /**
+   * 簡易表示用の音名変換（複雑な音名のみを基本音名に変換）
+   */
+  private getSimplifiedDisplayName(noteName: string): string {
+    // オクターブ番号を除去
+    const noteNameWithoutOctave = noteName.replace(/\d+$/, '');
+    
+    // 複雑な音名（ダブルシャープ、ダブルフラット、異名同音）の変換マッピング
+    const complexToSimpleMap: { [key: string]: string } = {
+      // 異名同音（白鍵）
+      'B#': 'C', 'E#': 'F', 'Cb': 'B', 'Fb': 'E',
+      // ダブルシャープ → 基本的な音名
+      'Ax': 'B', 'Bx': 'C#', 'Cx': 'D', 'Dx': 'Eb', 'Ex': 'F#', 'Fx': 'G', 'Gx': 'A',
+      // ダブルフラット → 基本的な音名
+      'Abb': 'G', 'Bbb': 'A', 'Cbb': 'Bb', 'Dbb': 'C', 'Ebb': 'D', 'Fbb': 'Eb', 'Gbb': 'F',
+    };
+    
+    // 複雑な音名の場合は変換、シンプルな音名（基本音名、シングル#、シングル♭）はそのまま
+    const simplifiedEnglishName = complexToSimpleMap[noteNameWithoutOctave] || noteNameWithoutOctave;
+    
+    // 英語音名を日本語音名に変換
+    const englishToJapaneseMap: { [key: string]: string } = {
+      // 基本音名
+      'C': 'ド', 'D': 'レ', 'E': 'ミ', 'F': 'ファ', 'G': 'ソ', 'A': 'ラ', 'B': 'シ',
+      // シャープ
+      'C#': 'ド#', 'D#': 'レ#', 'F#': 'ファ#', 'G#': 'ソ#', 'A#': 'ラ#',
+      // フラット
+      'Db': 'レ♭', 'Eb': 'ミ♭', 'Gb': 'ソ♭', 'Ab': 'ラ♭', 'Bb': 'シ♭',
+    };
+    
+    return englishToJapaneseMap[simplifiedEnglishName] || simplifiedEnglishName;
+  }
+
+  /**
+   * 日本語音名から英語音名に変換（テクスチャキー用）
+   */
+  private convertJapaneseToEnglishNoteName(japaneseName: string): string {
+    // 日本語音名から英語音名への逆変換マッピング
+    const japaneseToEnglishMap: { [key: string]: string } = {
+      // 基本音名
+      'ド': 'C', 'レ': 'D', 'ミ': 'E', 'ファ': 'F', 'ソ': 'G', 'ラ': 'A', 'シ': 'B',
+      // シャープ
+      'ド#': 'C#', 'レ#': 'D#', 'ファ#': 'F#', 'ソ#': 'G#', 'ラ#': 'A#',
+      // フラット
+      'レ♭': 'Db', 'ミ♭': 'Eb', 'ソ♭': 'Gb', 'ラ♭': 'Ab', 'シ♭': 'Bb',
+      // 異名同音
+      'シ#': 'B#', 'ミ#': 'E#', 'ド♭': 'Cb', 'ファ♭': 'Fb',
+      // ダブルシャープ
+      'ドx': 'Cx', 'レx': 'Dx', 'ミx': 'Ex', 'ファx': 'Fx', 'ソx': 'Gx', 'ラx': 'Ax', 'シx': 'Bx',
+      // ダブルフラット
+      'ド♭♭': 'Cbb', 'レ♭♭': 'Dbb', 'ミ♭♭': 'Ebb', 'ファ♭♭': 'Fbb', 'ソ♭♭': 'Gbb', 'ラ♭♭': 'Abb', 'シ♭♭': 'Bbb',
+    };
+
+    return japaneseToEnglishMap[japaneseName] || japaneseName;
+  }
+
+  /**
    * 音名に対応するラベルテクスチャを取得
    */
   private getLabelTexture(noteName: string): PIXI.Texture | null {
@@ -426,9 +516,16 @@ export class PIXINotesRendererInstance {
 
     if (style === 'abc') {
       texture = this.labelTextures.abc.get(noteNameWithoutOctave);
-    } else if (style === 'solfege') {
-      // ソルフェージュもキーはABC表記で引く
-      texture = this.labelTextures.solfege.get(noteNameWithoutOctave);
+    } else if (style === 'solfege' || style === 'simple') {
+      // 簡易表示モードでも通常のソルフェージュテクスチャを使用
+      if (/^[A-G]/.test(noteNameWithoutOctave)) {
+        // 英語音名の場合：通常通り
+        texture = this.labelTextures.solfege.get(noteNameWithoutOctave);
+      } else {
+        // 日本語音名の場合：英語音名に逆変換してからテクスチャを取得
+        const englishName = this.convertJapaneseToEnglishNoteName(noteNameWithoutOctave);
+        texture = this.labelTextures.solfege.get(englishName);
+      }
     }
 
     if (!texture || texture === PIXI.Texture.EMPTY) {
@@ -960,7 +1057,7 @@ export class PIXINotesRendererInstance {
     if (midiNote !== undefined && !this.isBlackKey(midiNote)) {
       const _noteName = this.getMidiNoteName(midiNote);
       const text = new PIXI.Text(_noteName, {
-        fontSize: Math.min(width * 0.25, 12),
+        fontSize: Math.min(width * 0.4, 16),
         fill: 0x666666,
         fontFamily: 'Arial, sans-serif',
         fontWeight: 'bold',
@@ -1218,6 +1315,10 @@ export class PIXINotesRendererInstance {
       return sharpNamesABC[index];
     }
     if (style === 'solfege') {
+      return sharpNamesSolfege[index];
+    }
+    if (style === 'simple') {
+      // 簡易表示モード：基本的な音名のみ使用（シャープ記号のみ、複雑な記号は避ける）
       return sharpNamesSolfege[index];
     }
 
@@ -1683,12 +1784,23 @@ export class PIXINotesRendererInstance {
     let label: PIXI.Sprite | undefined;
     let noteNameForLabel: string | undefined;
     
-    // MusicXMLから取得した音名を優先
-    if (note.noteName) {
-      noteNameForLabel = note.noteName;
+    // 簡易表示モードの処理
+    if (this.settings.noteNameStyle === 'simple') {
+      if (note.noteName) {
+        // MusicXMLの音名がある場合は簡易化
+        noteNameForLabel = this.getSimplifiedDisplayName(note.noteName);
+      } else {
+        // フォールバック: 基本的な音名を生成
+        noteNameForLabel = this.getMidiNoteName(effectivePitch);
+      }
     } else {
-      // フォールバック: 従来のロジックで音名を生成
-      noteNameForLabel = this.getMidiNoteName(effectivePitch);
+      // 通常モード：MusicXMLから取得した音名を優先
+      if (note.noteName) {
+        noteNameForLabel = note.noteName;
+      } else {
+        // フォールバック: 従来のロジックで音名を生成
+        noteNameForLabel = this.getMidiNoteName(effectivePitch);
+      }
     }
     
     if (noteNameForLabel && this.settings.noteNameStyle !== 'off') {
@@ -1766,15 +1878,33 @@ export class PIXINotesRendererInstance {
       }
       
       // 新しい音名でラベルを生成
-      if (note.noteName && this.settings.noteNameStyle !== 'off') {
-        const newTexture = this.getLabelTexture(note.noteName);
-        if (newTexture) {
-          const newLabel = new PIXI.Sprite(newTexture);
-          newLabel.anchor.set(0.5, 1);
-          newLabel.x = noteSprite.sprite.x;
-          newLabel.y = noteSprite.sprite.y - 8; // 位置は別途positionループで更新される
-          noteSprite.label = newLabel;
-          this.labelsContainer.addChild(newLabel);
+      if (this.settings.noteNameStyle !== 'off') {
+        let newNoteName: string | undefined;
+        
+        // 簡易表示モードの処理
+        if (this.settings.noteNameStyle === 'simple') {
+          if (note.noteName) {
+            // MusicXMLの音名がある場合は簡易化
+            newNoteName = this.getSimplifiedDisplayName(note.noteName);
+          } else {
+            // フォールバック: 基本的な音名を生成
+            newNoteName = this.getMidiNoteName(effectivePitch);
+          }
+        } else {
+          // 通常モード：MusicXMLの音名を使用
+          newNoteName = note.noteName;
+        }
+        
+        if (newNoteName) {
+          const newTexture = this.getLabelTexture(newNoteName);
+          if (newTexture) {
+            const newLabel = new PIXI.Sprite(newTexture);
+            newLabel.anchor.set(0.5, 1);
+            newLabel.x = noteSprite.sprite.x;
+            newLabel.y = noteSprite.sprite.y - 8; // 位置は別途positionループで更新される
+            noteSprite.label = newLabel;
+            this.labelsContainer.addChild(newLabel);
+          }
         }
       }
     }
@@ -2117,7 +2247,21 @@ export class PIXINotesRendererInstance {
       this.noteSprites.forEach((noteSprite) => {
         const pitch = noteSprite.noteData.pitch;
         const effectivePitch = pitch + this.settings.transpose;
-        const noteName = this.getMidiNoteName(effectivePitch);
+        
+        // 簡易表示モードの処理
+        let noteName: string | undefined;
+        if (this.settings.noteNameStyle === 'simple') {
+          if (noteSprite.noteData.noteName) {
+            // MusicXMLの音名がある場合は簡易化
+            noteName = this.getSimplifiedDisplayName(noteSprite.noteData.noteName);
+          } else {
+            // フォールバック: 基本的な音名を生成
+            noteName = this.getMidiNoteName(effectivePitch);
+          }
+        } else {
+          // 通常モード：MusicXMLの音名を優先
+          noteName = noteSprite.noteData.noteName || this.getMidiNoteName(effectivePitch);
+        }
 
         // 古いラベルを削除
         if (noteSprite.label) {
@@ -2154,7 +2298,21 @@ export class PIXINotesRendererInstance {
       this.noteSprites.forEach((noteSprite) => {
         const pitch = noteSprite.noteData.pitch;
         const effectivePitch = pitch + this.settings.transpose;
-        const noteName = this.getMidiNoteName(effectivePitch);
+        
+        // 簡易表示モードの処理
+        let noteName: string | undefined;
+        if (this.settings.noteNameStyle === 'simple') {
+          if (noteSprite.noteData.noteName) {
+            // MusicXMLの音名がある場合は簡易化
+            noteName = this.getSimplifiedDisplayName(noteSprite.noteData.noteName);
+          } else {
+            // フォールバック: 基本的な音名を生成
+            noteName = this.getMidiNoteName(effectivePitch);
+          }
+        } else {
+          // 通常モード：MusicXMLの音名を優先
+          noteName = noteSprite.noteData.noteName || this.getMidiNoteName(effectivePitch);
+        }
 
         // 古いラベルを削除
         if (noteSprite.label) {
@@ -2195,13 +2353,28 @@ export class PIXINotesRendererInstance {
         if (noteSprite.glowSprite) noteSprite.glowSprite.x = newX;
 
         // 2) ラベル更新（テクスチャアトラス使用）
-        if (noteSprite.label && noteName) {
-          const newTexture = this.getLabelTexture(noteName);
+        // 簡易表示モードの処理
+        let displayNoteName: string | undefined;
+        if (this.settings.noteNameStyle === 'simple') {
+          if (noteSprite.noteData.noteName) {
+            // MusicXMLの音名がある場合は簡易化
+            displayNoteName = this.getSimplifiedDisplayName(noteSprite.noteData.noteName);
+          } else {
+            // フォールバック: 基本的な音名を生成
+            displayNoteName = this.getMidiNoteName(effectivePitch);
+          }
+        } else {
+          // 通常モード：MusicXMLの音名を優先
+          displayNoteName = noteSprite.noteData.noteName || this.getMidiNoteName(effectivePitch);
+        }
+        
+        if (noteSprite.label && displayNoteName) {
+          const newTexture = this.getLabelTexture(displayNoteName);
           if (newTexture) {
             noteSprite.label.texture = newTexture;
           }
-        } else if (!noteSprite.label && noteName) {
-          const labelTexture = this.getLabelTexture(noteName);
+        } else if (!noteSprite.label && displayNoteName) {
+          const labelTexture = this.getLabelTexture(displayNoteName);
           if (labelTexture) {
             const label = new PIXI.Sprite(labelTexture);
             label.anchor.set(0.5, 1);
@@ -2210,7 +2383,7 @@ export class PIXINotesRendererInstance {
             this.labelsContainer.addChild(label);
             noteSprite.label = label;
           }
-        } else if (noteSprite.label && !noteName) {
+        } else if (noteSprite.label && !displayNoteName) {
           if (this.labelsContainer.children.includes(noteSprite.label)) {
             this.labelsContainer.removeChild(noteSprite.label);
           }

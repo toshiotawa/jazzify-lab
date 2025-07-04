@@ -714,11 +714,15 @@ const SettingsPanel: React.FC = () => {
               >
                 <option value="off">OFF</option>
                 <option value="abc">ABC (C, D, E...)</option>
-                <option value="solfege">ドレミ</option>
+                <option value="solfege">ドレミ（理論的音名）</option>
+                <option value="simple">ドレミ（簡易表示）</option>
               </select>
               <div className="text-xs text-gray-400 mt-1">
+                <div className="mb-1">
+                  簡易表示：白鍵は固定（ドレミファソラシ）、黒鍵は基本記号のみ（#、♭）
+                </div>
                 {settings.transposingInstrument !== 'concert_pitch' && 
-                  `音名は${getTransposingInstrumentName(settings.transposingInstrument)}用に移調されて表示されます。`
+                  <div>音名は{getTransposingInstrumentName(settings.transposingInstrument)}用に移調されて表示されます。</div>
                 }
               </div>
             </div>
