@@ -164,7 +164,7 @@ const FPSCounter: React.FC = () => {
   }, []);
   
   return (
-    <div className="fixed top-4 right-4 z-50 bg-black bg-opacity-70 text-green-400 px-3 py-1 rounded text-sm font-mono">
+    <div className="fixed top-4 right-4 z-50 bg-black bg-opacity-70 text-green-400 px-4 py-2 rounded text-lg font-mono">
       FPS: {fps}
       <br />
       Render: {debug.renderTime.toFixed(1)}ms
@@ -181,7 +181,7 @@ const DebugInfo: React.FC = () => {
   const currentTime = useGameStore((state) => state.currentTime);
   
   return (
-    <div className="fixed bottom-4 left-4 z-50 bg-black bg-opacity-70 text-yellow-400 px-3 py-2 rounded text-xs font-mono max-w-xs">
+    <div className="fixed bottom-4 left-4 z-50 bg-black bg-opacity-70 text-yellow-400 px-4 py-3 rounded text-base font-mono max-w-sm">
       <div>Playing: {isPlaying ? 'YES' : 'NO'}</div>
       <div>Time: {currentTime.toFixed(2)}s</div>
       <div>Audio Latency: {debug.audioLatency.toFixed(1)}ms</div>

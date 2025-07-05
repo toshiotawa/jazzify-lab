@@ -21,14 +21,15 @@ const showDebugInfo = (message: string, isError = false) => {
     left: 10px;
     background: ${isError ? '#ef4444' : '#3b82f6'};
     color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
+    padding: 12px 16px;
+    border-radius: 8px;
     font-family: monospace;
-    font-size: 12px;
+    font-size: 16px;
     z-index: 10000;
-    max-width: 400px;
+    max-width: 450px;
     word-wrap: break-word;
     white-space: pre-wrap;
+    line-height: 1.5;
   `;
   debugDiv.textContent = `${timestamp}: ${message}`;
   
@@ -54,19 +55,19 @@ const showError = (error: any) => {
   if (loadingElement) {
     loadingElement.innerHTML = `
       <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center;">
-        <div style="color: #ef4444; font-size: 48px; margin-bottom: 20px;">⚠️</div>
-        <h2 style="color: #ef4444; margin-bottom: 20px;">読み込みエラー</h2>
-        <div style="background: #1f2937; padding: 20px; border-radius: 8px; margin-bottom: 20px; max-width: 600px;">
-          <p style="color: #ffffff; margin-bottom: 10px;">詳細情報:</p>
-          <pre style="color: #93c5fd; font-size: 12px; white-space: pre-wrap; word-wrap: break-word;">${error.toString()}</pre>
+        <div style="color: #ef4444; font-size: 60px; margin-bottom: 24px;">⚠️</div>
+        <h2 style="color: #ef4444; margin-bottom: 24px; font-size: 28px;">読み込みエラー</h2>
+        <div style="background: #1f2937; padding: 24px; border-radius: 10px; margin-bottom: 24px; max-width: 700px;">
+          <p style="color: #ffffff; margin-bottom: 12px; font-size: 18px;">詳細情報:</p>
+          <pre style="color: #93c5fd; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5;">${error.toString()}</pre>
           <br>
-          <p style="color: #9ca3af; font-size: 12px;">
+          <p style="color: #9ca3af; font-size: 14px; line-height: 1.5;">
             Environment: ${window.location.hostname}<br>
             User Agent: ${navigator.userAgent}<br>
             Timestamp: ${new Date().toISOString()}
           </p>
         </div>
-        <button onclick="window.location.reload()" style="background: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px;">
+        <button onclick="window.location.reload()" style="background: #3b82f6; color: white; padding: 16px 32px; border: none; border-radius: 8px; cursor: pointer; font-size: 18px;">
           再読み込み
         </button>
       </div>

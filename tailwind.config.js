@@ -6,6 +6,21 @@ export default {
   ],
   theme: {
     extend: {
+      fontSize: {
+        'xs': ['0.875rem', { lineHeight: '1.5' }],
+        'sm': ['1rem', { lineHeight: '1.6' }],
+        'base': ['1.125rem', { lineHeight: '1.7' }],
+        'lg': ['1.25rem', { lineHeight: '1.8' }],
+        'xl': ['1.5rem', { lineHeight: '1.8' }],
+        '2xl': ['1.75rem', { lineHeight: '1.8' }],
+        '3xl': ['2rem', { lineHeight: '1.8' }],
+        '4xl': ['2.5rem', { lineHeight: '1.8' }],
+        '5xl': ['3rem', { lineHeight: '1.8' }],
+        '6xl': ['3.75rem', { lineHeight: '1.8' }],
+        '7xl': ['4.5rem', { lineHeight: '1.8' }],
+        '8xl': ['6rem', { lineHeight: '1.8' }],
+        '9xl': ['8rem', { lineHeight: '1.8' }],
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
