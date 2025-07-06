@@ -714,7 +714,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             if (targetSong.musicXmlFile) {
               try {
                 const { transposeMusicXml } = await import('@/utils/musicXmlTransposer');
-                const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, transposeChordProgression, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
+                const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
                 
                 const xmlResponse = await fetch(targetSong.musicXmlFile);
                 const xmlString = await xmlResponse.text();
@@ -727,9 +727,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 // ノーツ時間を小節ベースで再計算（プレイヘッド精度向上）
                 finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
                 
-                // コードネーム情報を抽出（JSONノーツの時間情報を基準として同期）
-                const originalChords = extractChordProgressions(xmlDoc, rawNotes);
-                finalChords = transposeChordProgression(originalChords, transpose);
+                                  // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
+                  finalChords = extractChordProgressions(xmlDoc, notes);
                 
                 console.log(`🎵 MusicXML音名マージ完了: ${noteNames.length}音名 → ${finalNotes.length}ノーツ`);
                 console.log(`🎵 コードネーム抽出完了: ${finalChords.length}コード`);
@@ -992,6 +991,18 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           if (gameEngine) {
             // Proxy（Immer Draft）が revoke されるのを防ぐため、プレーンオブジェクトを渡す
             gameEngine.updateSettings({ ...settings });
+            
+            // 🔧 停止中の移調変更対応: 移調設定が変更された場合、停止中でも強制的にengineActiveNotesを更新
+            if ('transpose' in newSettings && !isPlaying) {
+              const engineState = gameEngine.getState();
+              // 別のsetコールで更新
+              setTimeout(() => {
+                set((state) => {
+                  state.engineActiveNotes = engineState.activeNotes;
+                });
+                console.log(`🔄 停止中の移調設定変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
+              }, 0);
+            }
           }
           
           // 移調楽器の設定が変更された場合、楽譜を再処理
@@ -1008,7 +1019,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               if (targetSong.musicXmlFile) {
                 try {
                   const { transposeMusicXml } = await import('@/utils/musicXmlTransposer');
-                  const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, transposeChordProgression, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
+                  const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
                   const xmlResponse = await fetch(targetSong.musicXmlFile);
                   const xmlString = await xmlResponse.text();
                   finalXml = transposeMusicXml(xmlString, transpose);
@@ -1019,9 +1030,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   // ノーツ時間を小節ベースで再計算（プレイヘッド精度向上）
                   finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
                   
-                  // コードネーム情報を抽出（JSONノーツの時間情報を基準として同期）
-                  const originalChords = extractChordProgressions(xmlDoc, notes);
-                  finalChords = transposeChordProgression(originalChords, transpose);
+                  // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
+                  finalChords = extractChordProgressions(xmlDoc, notes);
                 } catch (error) {
                   console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                   finalXml = null;
@@ -1190,7 +1200,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
              if (targetSong.musicXmlFile) {
                try {
                  const { transposeMusicXml } = await import('@/utils/musicXmlTransposer');
-                 const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, transposeChordProgression, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
+                 const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
                  const xmlResponse = await fetch(targetSong.musicXmlFile);
                  const xmlString = await xmlResponse.text();
                  finalXml = transposeMusicXml(xmlString, transpose);
@@ -1201,9 +1211,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                  // ノーツ時間を小節ベースで再計算（プレイヘッド精度向上）
                  finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
                  
-                 // コードネーム情報を抽出（JSONノーツの時間情報を基準として同期）
-                 const originalChords = extractChordProgressions(xmlDoc, notes);
-                 finalChords = transposeChordProgression(originalChords, transpose);
+                 // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
+                 finalChords = extractChordProgressions(xmlDoc, notes);
                } catch (error) {
                  console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                  finalXml = null;
@@ -1229,6 +1238,13 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             if (state.gameEngine) {
               state.gameEngine.loadSong(finalNotes);
               console.log(`🎵 GameEngineに移調後のノートを再ロード: ${finalNotes.length}ノーツ`);
+              
+              // 🔧 停止中の移調変更対応: 停止中でも強制的にengineActiveNotesを更新
+              if (!state.isPlaying) {
+                const engineState = state.gameEngine.getState();
+                state.engineActiveNotes = engineState.activeNotes;
+                console.log(`🔄 停止中の移調変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
+              }
             }
           });
           

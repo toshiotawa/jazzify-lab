@@ -1690,6 +1690,47 @@ export class PIXINotesRendererInstance {
           targetContainer.addChild(sprite.sprite);
         }
         
+        // ===== 音名ラベルを即座に更新 =====
+        if (sprite.label) {
+          // 既存ラベルを削除
+          if (sprite.label.parent) {
+            sprite.label.parent.removeChild(sprite.label);
+          }
+          sprite.label.destroy();
+          sprite.label = undefined;
+        }
+        
+        // 新しい音名でラベルを再生成
+        if (this.settings.noteNameStyle !== 'off') {
+          let newNoteName: string | undefined;
+          
+          // 簡易表示モードの処理
+          if (this.settings.noteNameStyle === 'simple') {
+            if (note.noteName) {
+              // MusicXMLの音名がある場合は簡易化
+              newNoteName = this.getSimplifiedDisplayName(note.noteName);
+            } else {
+              // フォールバック: 基本的な音名を生成
+              newNoteName = this.getMidiNoteName(effectivePitch);
+            }
+          } else {
+            // 通常モード：MusicXMLの音名を使用、なければMIDI音名を生成
+            newNoteName = note.noteName || this.getMidiNoteName(effectivePitch);
+          }
+          
+          if (newNoteName) {
+            const newTexture = this.getLabelTexture(newNoteName);
+            if (newTexture) {
+              const newLabel = new PIXI.Sprite(newTexture);
+              newLabel.anchor.set(0.5, 1);
+              newLabel.x = sprite.sprite.x;
+              newLabel.y = sprite.sprite.y - 8;
+              sprite.label = newLabel;
+              this.labelsContainer.addChild(newLabel);
+            }
+          }
+        }
+        
         // トランスポーズ値を更新
         sprite.transposeAtCreation = this.settings.transpose;
       }
@@ -2733,7 +2774,7 @@ export class PIXINotesRendererInstance {
    * 現在の時刻に基づいてコードネーム表示を更新
    * @param currentTime 現在の再生時刻（秒）
    */
-  private updateCurrentChordDisplay(currentTime: number): void {
+  updateCurrentChordDisplay(currentTime: number): void {
     if (this.currentChords.length === 0) {
       // コードネームがない場合は表示をクリア
       if (this.currentChordText) {
@@ -2901,8 +2942,10 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   useEffect(() => {
     if (rendererRef.current) {
       rendererRef.current.updateChords(chords);
+      // コードネーム配列が更新された際は、現在時刻での表示も即座に更新
+      rendererRef.current.updateCurrentChordDisplay(currentTime);
     }
-  }, [chords]);
+  }, [chords, currentTime]);
   
   // リサイズ対応
   useEffect(() => {

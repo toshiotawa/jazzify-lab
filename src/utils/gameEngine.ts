@@ -80,6 +80,7 @@ export class GameEngine {
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
   
   private lastPerformanceWarning: number | null = null;
+  private isGameLoopRunning: boolean = false; // ゲームループの状態を追跡
   
   constructor(settings: GameSettings) {
     this.settings = { ...settings };
@@ -303,9 +304,14 @@ export class GameEngine {
   }
   
   getState(): GameEngineState {
+    // 停止中でもアクティブノートを生成して表示
+    const activeNotes = this.isGameLoopRunning ? 
+      Array.from(this.activeNotes.values()) : 
+      this.generateStaticActiveNotes(this.getCurrentTime());
+    
     return {
       currentTime: this.getCurrentTime(),
-      activeNotes: Array.from(this.activeNotes.values()),
+      activeNotes,
       score: { ...this.score },
       timing: {
         currentTime: this.getCurrentTime(),
@@ -318,6 +324,47 @@ export class GameEngine {
         enabled: false
       }
     };
+  }
+
+  /**
+   * 停止中でも現在時刻周辺のノートを表示するためのアクティブノート生成
+   */
+  private generateStaticActiveNotes(currentTime: number): ActiveNote[] {
+    const staticNotes: ActiveNote[] = [];
+    const dynamicLookahead = this.getLookaheadTime();
+    
+    // 現在時刻の前後の表示範囲を計算
+    const lookBehind = 2.0; // 過去2秒
+    const lookAhead = dynamicLookahead; // 未来は動的先読み時間
+    
+    for (const note of this.notes) {
+      const timeFromCurrent = note.time - currentTime;
+      
+      // 表示範囲内のノートのみ生成
+      if (timeFromCurrent >= -lookBehind && timeFromCurrent <= lookAhead) {
+        // 停止中は基本的に visible 状態で表示
+        let state: ActiveNote['state'] = 'visible';
+        
+        // 過去のノートは missed 状態で表示（視覚的に区別）
+        if (timeFromCurrent < -0.5) { // 判定時間を500ms過ぎた場合
+          state = 'missed';
+        }
+        
+        const activeNote: ActiveNote = {
+          ...note,
+          state,
+          y: this.calculateNoteY(note, currentTime),
+          // 停止中なので previousY は undefined
+          previousY: undefined,
+          // 停止中は crossingLogged を false にリセット
+          crossingLogged: false
+        };
+        
+        staticNotes.push(activeNote);
+      }
+    }
+    
+    return staticNotes;
   }
   
   // ===== プライベートメソッド =====
@@ -735,6 +782,7 @@ export class GameEngine {
   }
   
   private startGameLoop(): void {
+    this.isGameLoopRunning = true;
     const ticker = PIXI.Ticker.shared;
 
     const gameLoop = () => {
@@ -833,6 +881,7 @@ export class GameEngine {
   }
   
   private stopGameLoop(): void {
+    this.isGameLoopRunning = false;
     const ticker = PIXI.Ticker.shared;
     if (this.tickerListener) {
       ticker.remove(this.tickerListener);

@@ -114,6 +114,56 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
     applyNoteToPitch(transposedNote, pitchEl);
   });
 
+  // transpose harmony elements (chord symbols)
+  doc.querySelectorAll('harmony').forEach((harmonyEl) => {
+    const rootStepEl = harmonyEl.querySelector('root root-step');
+    const rootAlterEl = harmonyEl.querySelector('root root-alter');
+    
+    if (!rootStepEl?.textContent) return;
+    
+    const rootStep = rootStepEl.textContent;
+    const rootAlter = rootAlterEl ? parseInt(rootAlterEl.textContent || '0', 10) : 0;
+    
+    // Build root note string (C, C#, Bb, etc.)
+    let rootNote = rootStep;
+    if (rootAlter > 0) {
+      rootNote += '#'.repeat(rootAlter);
+    } else if (rootAlter < 0) {
+      rootNote += 'b'.repeat(-rootAlter);
+    }
+    
+    // Transpose the root note
+    const transposedRootNote = Note.transpose(rootNote, Interval.fromSemitones(semitones));
+    const parsed = Note.get(transposedRootNote);
+    
+    if (!parsed.empty) {
+      const { letter, acc } = parsed;
+      
+      // Update root-step
+      rootStepEl.textContent = letter;
+      
+      // Update root-alter
+      if (rootAlterEl) {
+        rootAlterEl.remove();
+      }
+      
+      if (acc) {
+        const newRootAlterEl = doc.createElement('root-alter');
+        let alterValue = '0';
+        if (acc === '#') alterValue = '1';
+        else if (acc === '##' || acc === 'x') alterValue = '2';
+        else if (acc === 'b') alterValue = '-1';
+        else if (acc === 'bb') alterValue = '-2';
+        newRootAlterEl.textContent = alterValue;
+        
+        const rootEl = harmonyEl.querySelector('root');
+        if (rootEl) {
+          rootEl.appendChild(newRootAlterEl);
+        }
+      }
+    }
+  });
+
   // transpose key signature <key><fifths>
   doc.querySelectorAll('key').forEach((keyEl) => {
     const fifthsEl = keyEl.querySelector('fifths');

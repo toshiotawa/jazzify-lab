@@ -208,8 +208,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           audio.webkitPreservesPitch = true;
         } catch (_) {/* ignore */}
 
-        // 🔧 修正: 再開時は gameEngine の正確な時間を使用
-        const syncTime = gameEngine ? Math.max(0, gameEngine.getState().currentTime) : Math.max(0, currentTime);
+        // 🔧 修正: シークバー位置を維持 - ストアのcurrentTimeを優先使用
+        const syncTime = Math.max(0, currentTime);
         audio.currentTime = syncTime;
 
         // 6) AudioContext と HTMLAudio のオフセットを記録
@@ -234,8 +234,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           const audioContext = audioContextRef.current!;
           audioContext.resume();
 
-          // 🔧 修正: 音声なしモードでも gameEngine の正確な時間を使用
-          const syncTime = gameEngine ? Math.max(0, gameEngine.getState().currentTime) : Math.max(0, currentTime);
+          // 🔧 修正: 音声なしモードでもシークバー位置を維持 - ストアのcurrentTimeを優先使用
+          const syncTime = Math.max(0, currentTime);
           
           // ゲームエンジンを開始（音声同期なし）
           gameEngine.start(audioContext);

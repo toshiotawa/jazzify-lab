@@ -47,7 +47,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const loadAndRenderSheet = useCallback(async () => {
     if (!containerRef.current || !musicXml) {
       // musicXmlがない場合はクリア
-      osmdRef.current?.clear();
+      if (osmdRef.current) {
+        osmdRef.current.clear();
+      }
       timeMappingRef.current = [];
       setError(musicXml === '' ? '楽譜データがありません' : null);
       return;
@@ -57,8 +59,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     setError(null);
 
     try {
-      // 既存のOSMDインスタンスをクリア
-      if (!osmdRef.current) {
+      // 既存のOSMDインスタンスをクリア（移調時の即時反映のため）
+      if (osmdRef.current) {
+        osmdRef.current.clear();
+      }
+      
+      // OSMDインスタンスを毎回新規作成（移調時の確実な反映のため）
       const options: IOSMDOptions = {
         autoResize: true,
         backend: 'svg',
@@ -67,9 +73,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         drawLyricist: false,
         drawPartNames: false,
         drawingParameters: 'compacttight',
-          renderSingleHorizontalStaffline: true,
-          pageFormat: 'Endless',
-          pageBackgroundColor: '#ffffff',
+        renderSingleHorizontalStaffline: true,
+        pageFormat: 'Endless',
+        pageBackgroundColor: '#ffffff',
         defaultColorNotehead: '#000000',
         defaultColorStem: '#000000',
         defaultColorRest: '#000000',
@@ -77,7 +83,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         defaultColorTitle: '#000000'
       };
       osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
-      }
       
       await osmdRef.current.load(musicXml);
       osmdRef.current.render();
@@ -100,7 +105,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // タイムマッピングを作成
       createTimeMapping();
       
-      console.log('OSMD initialized and rendered successfully');
+      console.log(`✅ OSMD initialized and rendered successfully - transpose reflected`);
       
     } catch (err) {
       console.error('楽譜の読み込みまたはレンダリングエラー:', err);
@@ -108,7 +113,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     } finally {
       setIsLoading(false);
     }
-  }, [musicXml]); // musicXmlが変更されたら再実行
+  }, [musicXml, notes]); // musicXmlとnotesが変更されたら再実行
 
   // musicXmlが変更されたら楽譜を再読み込み・再レンダリング
   useEffect(() => {
@@ -222,9 +227,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }, [isPlaying]);
 
   // currentTimeが変更されるたびにスクロール位置を更新
-  // これが唯一のUI更新トリガーとなり、古いループを置き換える
+  // 停止時・再生時に関わらず、プレイヘッドの位置を更新
   useEffect(() => {
-    if (isPlaying && scoreWrapperRef.current) {
+    if (scoreWrapperRef.current) {
       const mapping = timeMappingRef.current;
       if (mapping.length === 0) return;
 
@@ -261,7 +266,20 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const playheadPosition = 100; // プレイヘッドの画面上のX座標 (px)
       const scrollX = Math.max(0, targetX - playheadPosition);
       
-      scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+      // 再生中は滑らかなアニメーション、停止時は即座に移動
+      if (isPlaying) {
+        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+      } else {
+        // 停止時はアニメーションを無効化して即座に移動
+        scoreWrapperRef.current.style.transition = 'none';
+        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+        // 次のフレームでアニメーションを再有効化
+        requestAnimationFrame(() => {
+          if (scoreWrapperRef.current) {
+            scoreWrapperRef.current.style.transition = '';
+          }
+        });
+      }
     }
     // notesの変更はtimeMappingRefの更新をトリガーするが、このeffectの再実行は不要な場合がある。
     // しかし、マッピングが更新された直後のフレームで正しい位置に描画するために含めておく。
