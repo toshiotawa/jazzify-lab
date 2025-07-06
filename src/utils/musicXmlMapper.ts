@@ -1,4 +1,5 @@
-import type { NoteData } from '@/types';
+import type { NoteData, ChordSymbol, ChordInfo } from '@/types';
+import { Note, Interval } from 'tonal';
 
 /**
  * Extract playable note names from transposed MusicXML document.
@@ -84,4 +85,618 @@ export function mergeJsonWithNames(jsonNotes: NoteData[], noteNames: string[]): 
   
   console.log(`✅ Merged ${merged.length} notes with names`);
   return merged;
-} 
+}
+
+/**
+ * MusicXML内のノーツとコードの位置情報を抽出
+ */
+interface MusicXmlNotePosition {
+  measureNumber: number;
+  positionInMeasure: number; // divisionベースの位置
+  step: string;
+  alter: number;
+  octave: number;
+}
+
+interface MusicXmlChordPosition {
+  measureNumber: number;
+  positionInMeasure: number; // divisionベースの位置
+  symbol: ChordSymbol;
+}
+
+/**
+ * MusicXMLからノーツ位置情報を抽出（時間同期用）
+ */
+function extractNotePositions(doc: Document): MusicXmlNotePosition[] {
+  const positions: MusicXmlNotePosition[] = [];
+  const measures = doc.querySelectorAll('measure');
+  
+  measures.forEach((measure) => {
+    const measureNumber = parseInt(measure.getAttribute('number') || '1', 10);
+    let currentPosition = 0;
+    
+    measure.querySelectorAll('note').forEach((noteEl) => {
+      // Skip rest notes
+      if (noteEl.querySelector('rest')) {
+        // 休符でも位置は進める
+        const durationEl = noteEl.querySelector('duration');
+        if (durationEl) {
+          currentPosition += parseInt(durationEl.textContent || '0', 10);
+        }
+        return;
+      }
+      
+      // Skip tie stop (後ろ側)
+      const ties = Array.from(noteEl.querySelectorAll('tie'));
+      if (ties.some(t => t.getAttribute('type') === 'stop' && !ties.some(t2 => t2.getAttribute('type') === 'start'))) {
+        // タイの後ろ側でも位置は進める
+        const durationEl = noteEl.querySelector('duration');
+        if (durationEl) {
+          currentPosition += parseInt(durationEl.textContent || '0', 10);
+        }
+        return;
+      }
+
+      const pitchEl = noteEl.querySelector('pitch');
+      if (!pitchEl) return;
+
+      const step = pitchEl.querySelector('step')?.textContent ?? 'C';
+      const alter = parseInt(pitchEl.querySelector('alter')?.textContent ?? '0', 10);
+      const octave = parseInt(pitchEl.querySelector('octave')?.textContent ?? '4', 10);
+
+      positions.push({
+        measureNumber,
+        positionInMeasure: currentPosition,
+        step,
+        alter,
+        octave
+      });
+      
+      // 音符の長さ分だけ位置を進める
+      const durationEl = noteEl.querySelector('duration');
+      if (durationEl) {
+        currentPosition += parseInt(durationEl.textContent || '0', 10);
+      }
+    });
+  });
+  
+  return positions;
+}
+
+/**
+ * MusicXMLからコード位置情報を抽出
+ */
+function extractChordPositions(doc: Document): MusicXmlChordPosition[] {
+  const positions: MusicXmlChordPosition[] = [];
+  const measures = doc.querySelectorAll('measure');
+  
+  measures.forEach((measure) => {
+    const measureNumber = parseInt(measure.getAttribute('number') || '1', 10);
+    let currentPosition = 0;
+    
+    // 小節内の全要素を順番にチェック
+    const elements = Array.from(measure.children);
+    
+    elements.forEach((element, elementIndex) => {
+      if (element.tagName === 'harmony') {
+        try {
+          // ルート音名を取得
+          const rootElement = element.querySelector('root root-step');
+          const rootAlterElement = element.querySelector('root root-alter');
+          
+          if (!rootElement?.textContent) {
+            console.warn(`⚠️ ルート音名が見つかりません: measure ${measureNumber}`);
+            return;
+          }
+          
+          const rootStep = rootElement.textContent;
+          const rootAlter = parseInt(rootAlterElement?.textContent || '0', 10);
+          
+          // ルート音名を構築（C, C#, Bb など）
+          let root = rootStep;
+          if (rootAlter > 0) {
+            root += '#'.repeat(rootAlter);
+          } else if (rootAlter < 0) {
+            root += 'b'.repeat(-rootAlter);
+          }
+          
+          // コードタイプを取得
+          const kindElement = element.querySelector('kind');
+          const kindText = kindElement?.getAttribute('text') || '';
+          const kind = kindElement?.textContent || 'major';
+          
+          // 表示用テキストを作成
+          let displayText = root + kindText;
+          
+          const chordSymbol: ChordSymbol = {
+            id: `chord-${measureNumber}-${elementIndex}`,
+            root,
+            kind,
+            displayText,
+            measureNumber,
+            timeOffset: 0 // 後で計算
+          };
+          
+          positions.push({
+            measureNumber,
+            positionInMeasure: currentPosition,
+            symbol: chordSymbol
+          });
+          
+        } catch (error) {
+          console.error(`❌ コード抽出エラー (measure ${measureNumber}):`, error);
+        }
+      } else if (element.tagName === 'note') {
+        // ノーツの長さ分だけ位置を進める
+        const durationEl = element.querySelector('duration');
+        if (durationEl) {
+          currentPosition += parseInt(durationEl.textContent || '0', 10);
+        }
+      }
+    });
+  });
+  
+  return positions;
+}
+
+/**
+ * 小節の時間情報
+ */
+interface MeasureTimeInfo {
+  measureNumber: number;
+  startTime: number;
+  duration: number;
+  totalDivisions: number; // その小節の総division数
+}
+
+/**
+ * JSONノーツから小節の時間情報を推定
+ */
+function estimateMeasureTimeInfo(notePositions: MusicXmlNotePosition[], jsonNotes: NoteData[]): MeasureTimeInfo[] {
+  const measures: MeasureTimeInfo[] = [];
+  const measureNumbers = [...new Set(notePositions.map(pos => pos.measureNumber))].sort((a, b) => a - b);
+  
+  console.log(`📐 小節時間推定開始: ${measureNumbers.length}小節`);
+  
+  for (let i = 0; i < measureNumbers.length; i++) {
+    const measureNumber = measureNumbers[i];
+    const measureNotes = notePositions
+      .map((pos, index) => ({ ...pos, jsonIndex: index }))
+      .filter(pos => pos.measureNumber === measureNumber && pos.jsonIndex < jsonNotes.length)
+      .sort((a, b) => a.positionInMeasure - b.positionInMeasure);
+    
+    let startTime: number;
+    let duration: number;
+    let totalDivisions: number;
+    
+    if (measureNotes.length > 0) {
+      // 音符がある小節：最初の音符の位置から開始時間を逆算
+      const firstNote = measureNotes[0];
+      const firstNoteTime = jsonNotes[firstNote.jsonIndex].time;
+      
+      // 小節内の最大position（総division数）を取得
+      totalDivisions = Math.max(...measureNotes.map(note => note.positionInMeasure)) || 1000;
+      
+      // 小節の開始時間を逆算
+      if (firstNote.positionInMeasure > 0) {
+        // 最初の音符が小節の途中から始まる場合
+        if (measureNotes.length > 1) {
+          // 複数の音符から小節の長さを推定
+          const lastNote = measureNotes[measureNotes.length - 1];
+          const lastNoteTime = jsonNotes[lastNote.jsonIndex].time;
+          const notesTimeSpan = lastNoteTime - firstNoteTime;
+          const notesDivisionSpan = lastNote.positionInMeasure - firstNote.positionInMeasure;
+          
+          if (notesDivisionSpan > 0) {
+            const divisionPerSecond = notesDivisionSpan / notesTimeSpan;
+            duration = totalDivisions / divisionPerSecond;
+            startTime = firstNoteTime - (firstNote.positionInMeasure / divisionPerSecond);
+          } else {
+            // フォールバック：前の小節から推定
+            duration = estimateDurationFromPrevious(measures);
+            startTime = firstNoteTime - (firstNote.positionInMeasure / totalDivisions) * duration;
+          }
+        } else {
+          // 1つの音符のみ：前の小節から推定
+          duration = estimateDurationFromPrevious(measures);
+          startTime = firstNoteTime - (firstNote.positionInMeasure / totalDivisions) * duration;
+        }
+      } else {
+        // 最初の音符が小節の開始位置にある場合
+        startTime = firstNoteTime;
+        if (measureNotes.length > 1) {
+          // 複数の音符から小節の長さを計算
+          const timeSpan = jsonNotes[measureNotes[measureNotes.length - 1].jsonIndex].time - firstNoteTime;
+          const divisionSpan = measureNotes[measureNotes.length - 1].positionInMeasure;
+          duration = divisionSpan > 0 ? (timeSpan * totalDivisions) / divisionSpan : estimateDurationFromPrevious(measures);
+        } else {
+          duration = estimateDurationFromPrevious(measures);
+        }
+      }
+    } else {
+      // 音符がない小節：前後の小節から推定
+      totalDivisions = 1000; // 標準的なdivision数と仮定
+      duration = estimateDurationFromPrevious(measures);
+      
+      if (measures.length > 0) {
+        // 前の小節の終了時間から開始
+        const prevMeasure = measures[measures.length - 1];
+        startTime = prevMeasure.startTime + prevMeasure.duration;
+      } else {
+        startTime = 0; // 最初の小節
+      }
+    }
+    
+    measures.push({
+      measureNumber,
+      startTime,
+      duration,
+      totalDivisions
+    });
+    
+    console.log(`📏 小節${measureNumber}: ${startTime.toFixed(2)}s - ${(startTime + duration).toFixed(2)}s (${duration.toFixed(2)}s, ${totalDivisions}div)`);
+  }
+  
+  return measures;
+}
+
+/**
+ * 前の小節から小節の長さを推定
+ */
+function estimateDurationFromPrevious(measures: MeasureTimeInfo[]): number {
+  if (measures.length === 0) {
+    return 4.0; // デフォルト：4秒（BPM60の4/4拍子）
+  }
+  
+  if (measures.length === 1) {
+    return measures[0].duration;
+  }
+  
+  // 過去2-3小節の平均を使用
+  const recentMeasures = measures.slice(-2);
+  const averageDuration = recentMeasures.reduce((sum, m) => sum + m.duration, 0) / recentMeasures.length;
+  return averageDuration;
+}
+
+/**
+ * JSONノーツの時間情報を使ってコードネームの時間を計算（改善版）
+ * @param doc MusicXMLのDOMDocument
+ * @param jsonNotes JSONノーツデータ（時間情報付き）
+ * @returns コードネーム情報の配列
+ */
+export function extractChordProgressions(doc: Document, jsonNotes: NoteData[]): ChordInfo[] {
+  console.log(`🎵 コードネーム時間同期開始: ${jsonNotes.length} JSONノーツ`);
+  
+  // MusicXMLからノーツとコードの位置情報を抽出
+  const notePositions = extractNotePositions(doc);
+  const chordPositions = extractChordPositions(doc);
+  
+  console.log(`📍 MusicXML位置情報: ${notePositions.length}ノーツ, ${chordPositions.length}コード`);
+  
+  if (notePositions.length !== jsonNotes.length) {
+    console.warn(`⚠️ ノーツ数不一致: MusicXML=${notePositions.length}, JSON=${jsonNotes.length}`);
+  }
+  
+  // 小節の時間情報を推定
+  const measureTimeInfo = estimateMeasureTimeInfo(notePositions, jsonNotes);
+  
+  // コードの時間を計算
+  const chords: ChordInfo[] = [];
+  
+  chordPositions.forEach((chordPos) => {
+    const { measureNumber, positionInMeasure, symbol } = chordPos;
+    
+    // 該当する小節の時間情報を取得
+    const measureInfo = measureTimeInfo.find(m => m.measureNumber === measureNumber);
+    
+    let startTime: number;
+    
+    if (measureInfo) {
+      // 小節の時間情報から正確に計算
+      const relativePosition = positionInMeasure / measureInfo.totalDivisions;
+      startTime = measureInfo.startTime + (relativePosition * measureInfo.duration);
+      console.log(`🎯 小節ベース計算: コード "${symbol.displayText}" = ${startTime.toFixed(2)}s (小節${measureNumber}, 位置${positionInMeasure}/${measureInfo.totalDivisions})`);
+    } else {
+      // フォールバック：従来の補間計算
+      startTime = interpolateChordTime(chordPos, notePositions, jsonNotes);
+      console.warn(`📐 フォールバック補間: コード "${symbol.displayText}" = ${startTime.toFixed(2)}s`);
+    }
+    
+    const chordInfo: ChordInfo = {
+      startTime: Math.max(0, startTime), // 負の値を防ぐ
+      symbol: {
+        ...symbol,
+        timeOffset: positionInMeasure / (measureInfo?.totalDivisions || 1000)
+      },
+      originalSymbol: { ...symbol }
+    };
+    
+    chords.push(chordInfo);
+  });
+  
+  // 終了時間を設定（次のコードの開始時間）
+  for (let i = 0; i < chords.length - 1; i++) {
+    chords[i].endTime = chords[i + 1].startTime;
+  }
+  
+  // 最後のコードの終了時間
+  if (chords.length > 0) {
+    const lastChord = chords[chords.length - 1];
+    const lastNoteTime = jsonNotes[jsonNotes.length - 1]?.time || lastChord.startTime;
+    lastChord.endTime = Math.max(lastNoteTime + 4.0, lastChord.startTime + 2.0); // 最低2秒は表示
+  }
+  
+  console.log(`✅ コードネーム時間同期完了: ${chords.length}コード`);
+  return chords;
+}
+
+/**
+ * コードの時間を前後のノーツから補間計算
+ */
+function interpolateChordTime(
+  chordPos: MusicXmlChordPosition, 
+  notePositions: MusicXmlNotePosition[], 
+  jsonNotes: NoteData[]
+): number {
+  const { measureNumber, positionInMeasure } = chordPos;
+  
+  // 同じ小節内の前後のノーツを探す
+  const measureNotes = notePositions
+    .map((notePos, index) => ({ ...notePos, jsonIndex: index }))
+    .filter(notePos => notePos.measureNumber === measureNumber && notePos.jsonIndex < jsonNotes.length)
+    .sort((a, b) => a.positionInMeasure - b.positionInMeasure);
+  
+  if (measureNotes.length === 0) {
+    // 小節内にノーツがない場合、前の小節の最後のノーツを基準
+    const prevMeasureNotes = notePositions
+      .map((notePos, index) => ({ ...notePos, jsonIndex: index }))
+      .filter(notePos => notePos.measureNumber < measureNumber && notePos.jsonIndex < jsonNotes.length);
+    
+    if (prevMeasureNotes.length > 0) {
+      const lastPrevNote = prevMeasureNotes[prevMeasureNotes.length - 1];
+      return jsonNotes[lastPrevNote.jsonIndex].time + 1.0; // 1秒後と仮定
+    } else {
+      return 0; // フォールバック
+    }
+  }
+  
+  // コード位置より前のノーツ
+  const beforeNotes = measureNotes.filter(note => note.positionInMeasure <= positionInMeasure);
+  // コード位置より後のノーツ
+  const afterNotes = measureNotes.filter(note => note.positionInMeasure > positionInMeasure);
+  
+  if (beforeNotes.length > 0 && afterNotes.length > 0) {
+    // 前後のノーツから線形補間
+    const beforeNote = beforeNotes[beforeNotes.length - 1];
+    const afterNote = afterNotes[0];
+    
+    const beforeTime = jsonNotes[beforeNote.jsonIndex].time;
+    const afterTime = jsonNotes[afterNote.jsonIndex].time;
+    
+    const totalDistance = afterNote.positionInMeasure - beforeNote.positionInMeasure;
+    const chordDistance = positionInMeasure - beforeNote.positionInMeasure;
+    
+    if (totalDistance > 0) {
+      const ratio = chordDistance / totalDistance;
+      return beforeTime + (afterTime - beforeTime) * ratio;
+    } else {
+      return beforeTime;
+    }
+  } else if (beforeNotes.length > 0) {
+    // 後のノーツがない場合、最後のノーツの時間を使用
+    const lastNote = beforeNotes[beforeNotes.length - 1];
+    return jsonNotes[lastNote.jsonIndex].time;
+  } else if (afterNotes.length > 0) {
+    // 前のノーツがない場合、最初のノーツの時間を使用
+    const firstNote = afterNotes[0];
+    return jsonNotes[firstNote.jsonIndex].time;
+  } else {
+    // フォールバック
+    return 0;
+  }
+}
+
+/**
+ * コードネーム専用の移調関数
+ * ダブルフラット・ダブルシャープを避ける簡易的な移調
+ * @param root 元のルート音名（例: "C", "F#", "Bb"）
+ * @param semitones 移調量（半音）
+ * @returns 移調後のルート音名
+ */
+export function transposeChordRoot(root: string, semitones: number): string {
+  if (semitones === 0) return root;
+  
+  try {
+    // tonal.jsで基本的な移調を実行
+    const transposedNote = Note.transpose(root, Interval.fromSemitones(semitones));
+    const parsed = Note.get(transposedNote);
+    
+    if (parsed.empty) {
+      console.warn(`⚠️ 移調失敗: ${root} + ${semitones}半音`);
+      return root;
+    }
+    
+    const { letter, acc } = parsed;
+    
+    // ダブルアクシデンタルの簡易化
+    if (acc === '##' || acc === 'x') {
+      // ダブルシャープを次の音名に変換
+      const nextNote = Note.transpose(letter, 'M2'); // 全音上
+      return Note.get(nextNote).letter;
+    }
+    
+    if (acc === 'bb') {
+      // ダブルフラットを前の音名に変換
+      const prevNote = Note.transpose(letter, 'm2'); // 半音下
+      return Note.get(prevNote).letter;
+    }
+    
+    // 特殊なケース: 白鍵の異名同音の簡易化
+    const specialCases: { [key: string]: string } = {
+      'Cb': 'B',
+      'B#': 'C',
+      'Fb': 'E',
+      'E#': 'F',
+      // 極端なケース
+      'Fbb': 'Eb',
+      'Ex': 'F#',
+      'Cbb': 'Bb',
+      'Bx': 'C#'
+    };
+    
+    const fullNoteName = letter + (acc || '');
+    if (specialCases[fullNoteName]) {
+      return specialCases[fullNoteName];
+    }
+    
+    // 通常のケース（C, C#, Db など）はそのまま
+    return fullNoteName;
+    
+  } catch (error) {
+    console.error(`❌ コード移調エラー: ${root}`, error);
+    return root;
+  }
+}
+
+/**
+ * コードネーム配列全体を移調
+ * @param chords 元のコードネーム配列
+ * @param semitones 移調量（半音）
+ * @returns 移調後のコードネーム配列
+ */
+export function transposeChordProgression(chords: ChordInfo[], semitones: number): ChordInfo[] {
+  if (semitones === 0) return chords;
+  
+  return chords.map(chord => {
+    const transposedRoot = transposeChordRoot(chord.originalSymbol.root, semitones);
+    const transposedDisplayText = chord.originalSymbol.displayText.replace(
+      chord.originalSymbol.root,
+      transposedRoot
+    );
+    
+    return {
+      ...chord,
+      symbol: {
+        ...chord.symbol,
+        root: transposedRoot,
+        displayText: transposedDisplayText
+      }
+    };
+  });
+}
+
+/**
+ * ノーツの時間を小節ベースで再計算する
+ * @param doc MusicXMLのDOMDocument
+ * @param jsonNotes 元のJSONノーツデータ
+ * @returns 小節ベース時間で調整されたノーツデータ
+ */
+export function recalculateNotesWithMeasureTime(doc: Document, jsonNotes: NoteData[]): NoteData[] {
+  console.log(`🎯 ノーツ時間再計算開始: ${jsonNotes.length}ノーツ`);
+  
+  // MusicXMLからノーツ位置情報を抽出
+  const notePositions = extractNotePositions(doc);
+  
+  if (notePositions.length !== jsonNotes.length) {
+    console.warn(`⚠️ ノーツ数不一致: MusicXML=${notePositions.length}, JSON=${jsonNotes.length}`);
+    return jsonNotes; // 不一致の場合は元のデータを返す
+  }
+  
+  // 小節の時間情報を推定
+  const measureTimeInfo = estimateMeasureTimeInfo(notePositions, jsonNotes);
+  
+  // 各ノーツの時間を小節ベースで再計算
+  const recalculatedNotes: NoteData[] = jsonNotes.map((note, index) => {
+    const position = notePositions[index];
+    if (!position) return note;
+    
+    const measureInfo = measureTimeInfo.find(m => m.measureNumber === position.measureNumber);
+    if (!measureInfo) return note;
+    
+    // 小節内の相対位置から正確な時間を計算
+    const relativePosition = position.positionInMeasure / measureInfo.totalDivisions;
+    const recalculatedTime = measureInfo.startTime + (relativePosition * measureInfo.duration);
+    
+    // 元の時間との差分をログ
+    const timeDiff = Math.abs(recalculatedTime - note.time);
+    if (timeDiff > 0.1) { // 100ms以上の差がある場合のみログ
+      console.log(`🎯 ノーツ${index} 時間調整: ${note.time.toFixed(2)}s → ${recalculatedTime.toFixed(2)}s (差分${timeDiff.toFixed(2)}s)`);
+    }
+    
+    return {
+      ...note,
+      time: recalculatedTime
+    };
+  });
+  
+  console.log(`✅ ノーツ時間再計算完了: ${recalculatedNotes.length}ノーツ`);
+  return recalculatedNotes;
+}
+
+/**
+ * 時間ベースのプレイヘッド位置を小節情報から計算
+ * @param doc MusicXMLのDOMDocument
+ * @param jsonNotes 元のJSONノーツデータ
+ * @param currentTime 現在時刻
+ * @returns より正確なプレイヘッド情報 { measureNumber: number, positionInMeasure: number, relativePosition: number }
+ */
+export function calculatePlayheadPosition(doc: Document, jsonNotes: NoteData[], currentTime: number): {
+  measureNumber: number;
+  positionInMeasure: number;
+  relativePosition: number; // 0-1の小節内相対位置
+} | null {
+  if (jsonNotes.length === 0) return null;
+  
+  // MusicXMLからノーツ位置情報を抽出
+  const notePositions = extractNotePositions(doc);
+  
+  if (notePositions.length !== jsonNotes.length) {
+    return null; // 不一致の場合は計算できない
+  }
+  
+  // 小節の時間情報を推定
+  const measureTimeInfo = estimateMeasureTimeInfo(notePositions, jsonNotes);
+  
+  // 現在時刻が含まれる小節を探す
+  for (const measureInfo of measureTimeInfo) {
+    const measureStart = measureInfo.startTime;
+    const measureEnd = measureInfo.startTime + measureInfo.duration;
+    
+    if (currentTime >= measureStart && currentTime < measureEnd) {
+      // 小節内の相対位置を計算
+      const relativePosition = (currentTime - measureStart) / measureInfo.duration;
+      const positionInMeasure = relativePosition * measureInfo.totalDivisions;
+      
+      return {
+        measureNumber: measureInfo.measureNumber,
+        positionInMeasure,
+        relativePosition
+      };
+    }
+  }
+  
+  // 見つからない場合、最も近い小節を推定
+  if (currentTime < measureTimeInfo[0]?.startTime) {
+    // 最初の小節より前
+    return {
+      measureNumber: measureTimeInfo[0]?.measureNumber || 1,
+      positionInMeasure: 0,
+      relativePosition: 0
+    };
+  } else {
+    // 最後の小節より後
+    const lastMeasure = measureTimeInfo[measureTimeInfo.length - 1];
+    if (lastMeasure) {
+      return {
+        measureNumber: lastMeasure.measureNumber,
+        positionInMeasure: lastMeasure.totalDivisions,
+        relativePosition: 1.0
+      };
+    }
+  }
+  
+  return null;
+}
+
+// 小節時間情報推定関数を公開（他でも使用可能に）
+export { estimateMeasureTimeInfo }; 

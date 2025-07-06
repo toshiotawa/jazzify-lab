@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import * as PIXI from 'pixi.js';
-import type { ActiveNote } from '@/types';
+import type { ActiveNote, ChordInfo } from '@/types';
 import { unifiedFrameController, renderOptimizer, performanceMonitor } from '@/utils/performanceOptimizer';
 import { log, perfLog, devLog } from '@/utils/logger';
 import { cn } from '@/utils/cn';
@@ -20,6 +20,7 @@ const isMissState = (state: ActiveNote['state']) => state === 'missed';
 
 interface PIXINotesRendererProps {
   activeNotes: ActiveNote[];
+  chords: ChordInfo[]; // コードネーム情報を追加
   width: number;
   height: number;
   currentTime: number; // 現在時刻を追加（アニメーション同期用）
@@ -172,6 +173,11 @@ export class PIXINotesRendererInstance {
   
   // キープレス状態追跡（音が伸び続けるバグ防止の保険）
   private activeKeyPresses: Set<number> = new Set();
+  
+  // ===== コードネーム表示関連 =====
+  private chordDisplayContainer!: PIXI.Container; // コードネーム表示専用コンテナ
+  private currentChordText?: PIXI.Text; // 現在表示中のコードネーム
+  private currentChords: ChordInfo[] = []; // 現在のコードネーム情報
   
   constructor(width: number, height: number) {
     devLog.info(`🎯 PIXINotesRenderer constructor: ${width}x${height}`);
@@ -712,12 +718,17 @@ export class PIXINotesRendererInstance {
     this.labelsContainer.eventMode = 'none'; // イベント透過
     this.container.addChild(this.labelsContainer);
 
-    // 4. ヒットラインコンテナ（ノーツ上、エフェクト下）
+    // 4. コードネーム表示コンテナ（ノーツの上、ヒットラインの下）
+    this.chordDisplayContainer = new PIXI.Container();
+    this.chordDisplayContainer.eventMode = 'none'; // イベント透過
+    this.container.addChild(this.chordDisplayContainer);
+
+    // 5. ヒットラインコンテナ（ノーツ上、エフェクト下）
     this.hitLineContainer = new PIXI.Container();
     this.hitLineContainer.eventMode = 'none'; // イベント透過
     this.container.addChild(this.hitLineContainer);
 
-    // 5. エフェクトコンテナ（最前面）
+    // 6. エフェクトコンテナ（最前面）
     this.effectsContainer = new PIXI.Container();
     this.effectsContainer.name = 'EffectsContainer'; // デバッグ用
     
@@ -733,8 +744,9 @@ export class PIXINotesRendererInstance {
     console.log('  1: White Notes');
     console.log('  2: Black Notes');
     console.log('  3: Labels');
-    console.log('  4: Hit Line');
-    console.log('  5: Effects (foreground) - pointer events disabled');
+    console.log('  4: Chord Display');
+    console.log('  5: Hit Line');
+    console.log('  6: Effects (foreground) - pointer events disabled');
   }
   
   private setupHitLine(): void {
@@ -1605,6 +1617,9 @@ export class PIXINotesRendererInstance {
     
     // 状態・削除処理ループ（フレーム間引き無効化）
     this.updateSpriteStates(activeNotes);
+    
+    // コードネーム表示の更新
+    this.updateCurrentChordDisplay(currentTime);
     
     // ノーツ更新のパフォーマンス測定終了
     const notesUpdateDuration = performance.now() - notesUpdateStartTime;
@@ -2704,12 +2719,94 @@ export class PIXINotesRendererInstance {
       });
     }
   }
+
+  /**
+   * コードネーム情報を更新
+   * @param chords コードネーム情報の配列
+   */
+  updateChords(chords: ChordInfo[]): void {
+    this.currentChords = chords;
+    console.log(`🎵 Updated chords: ${chords.length} chords loaded`);
+  }
+
+  /**
+   * 現在の時刻に基づいてコードネーム表示を更新
+   * @param currentTime 現在の再生時刻（秒）
+   */
+  private updateCurrentChordDisplay(currentTime: number): void {
+    if (this.currentChords.length === 0) {
+      // コードネームがない場合は表示をクリア
+      if (this.currentChordText) {
+        this.chordDisplayContainer.removeChild(this.currentChordText);
+        this.currentChordText.destroy();
+        this.currentChordText = undefined;
+      }
+      return;
+    }
+
+    // 現在の時刻に該当するコードを探す
+    const currentChord = this.currentChords.find(chord => 
+      currentTime >= chord.startTime && 
+      (chord.endTime === undefined || currentTime < chord.endTime)
+    );
+
+    // 表示するコードネームテキストを決定
+    const displayText = currentChord?.symbol.displayText || '';
+
+    // 現在のテキストと同じ場合は更新しない（パフォーマンス向上）
+    if (this.currentChordText && this.currentChordText.text === displayText) {
+      return;
+    }
+
+    // 古いテキストを削除
+    if (this.currentChordText) {
+      this.chordDisplayContainer.removeChild(this.currentChordText);
+      this.currentChordText.destroy();
+      this.currentChordText = undefined;
+    }
+
+    // 新しいコードネームテキストを作成
+    if (displayText) {
+      const chordStyle = new PIXI.TextStyle({
+        fontSize: 48, // 大きめのフォントサイズ
+        fill: '#FFFFFF', // 白色
+        fontFamily: 'Arial, sans-serif',
+        fontWeight: 'bold',
+        align: 'center',
+        stroke: '#000000', // 黒の縁取り
+        strokeThickness: 3,
+        dropShadow: true,
+        dropShadowColor: '#000000',
+        dropShadowBlur: 6,
+        dropShadowAngle: Math.PI / 6,
+        dropShadowDistance: 3,
+      });
+
+      this.currentChordText = new PIXI.Text(displayText, chordStyle);
+      this.currentChordText.anchor.set(0.5, 0.5);
+      
+      // ノーツエリアの中央に配置
+      this.currentChordText.x = this.app.screen.width / 2;
+      this.currentChordText.y = this.settings.hitLineY / 2; // ノーツエリアの中央高さ
+      
+      // 半透明にして背景を邪魔しすぎないように調整
+      this.currentChordText.alpha = 0.8;
+      
+      this.chordDisplayContainer.addChild(this.currentChordText);
+      
+      // コードが変更された場合のみログ出力（60FPSループでの大量ログを防止）
+      if (this.currentChordText.text !== displayText) {
+        console.log(`🎵 Chord changed: ${displayText} at ${currentTime.toFixed(2)}s`);
+      }
+    }
+  }
 }
 
 // ===== React コンポーネント =====
 
 export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   activeNotes,
+  chords,
   width,
   height,
   currentTime,
@@ -2799,6 +2896,13 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       rendererRef.current.updateNotes(activeNotes, currentTime);
     }
   }, [activeNotes, currentTime]);
+  
+  // コードネーム更新
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.updateChords(chords);
+    }
+  }, [chords]);
   
   // リサイズ対応
   useEffect(() => {

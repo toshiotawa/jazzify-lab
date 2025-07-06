@@ -26,6 +26,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     isPlaying,
     currentSong,
     currentTime,
+    chords,
     settings,
     score,
     mode,
@@ -329,62 +330,60 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
   }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, currentTime]);
   
-  // 時間同期ループ
+  // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
+  const timeIntervalRef = useRef<number | null>(null);
+  
   const startTimeSync = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
+    // ❌ requestAnimationFrameループは使わない
+    // ✅ 軽量なsetIntervalで時間更新（60FPSより低頻度で競合回避）
+    
+    if (timeIntervalRef.current) {
+      clearInterval(timeIntervalRef.current);
     }
-
-    const syncTime = () => {
-      if (!useGameStore.getState().isPlaying) {
-        return; // 再生が停止したらループを終了
-      }
+    
+    const updateGameTime = () => {
+      if (!useGameStore.getState().isPlaying) return;
       
       let newTime = 0;
       const audio = audioRef.current;
       const audioCtx = audioContextRef.current;
-      const hasAudio = currentSong?.audioFile && audio;
-
+      const hasAudio = currentSong?.audioFile && audio && audioLoaded;
+      
       if (hasAudio && !audio.paused && audioCtx) {
-        // [修正] 信頼性の高い<audio>要素の現在時刻を直接のソースとする
+        // 音声ありモード：audio要素の時刻を基準
         newTime = audio.currentTime;
       } else if (audioCtx) {
-        // 音声なしモード、または何らかの理由で音声が停止している場合
-        // 従来通りAudioContextの時刻とオフセットで計算
+        // 音声なしモード：AudioContextの時刻とオフセットで計算
         const realTimeElapsed = (audioCtx.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
         newTime = Math.max(0, realTimeElapsed);
       } else {
-        // フォールバック：ただし、この状況は通常発生しないはず
-        newTime = useGameStore.getState().currentTime + (16 / 1000); // 60fpsと仮定
+        // フォールバック
+        newTime = useGameStore.getState().currentTime + (30 / 1000); // 30ms進行と仮定
       }
-
-      // 状態更新
+      
+      // 🎯 重要：時間を進行させる！
       updateTime(newTime);
       
       // 楽曲終了チェック
       const songDuration = useGameStore.getState().currentSong?.duration || 0;
       if (songDuration > 0 && newTime >= songDuration) {
-        stop(); // 停止して時間をリセット
+        useGameStore.getState().stop();
         
-        // 本番モード(performance)の場合のみリザルトモーダルを開く
+        // 本番モード時にリザルトモーダルを開く
         if (useGameStore.getState().mode === 'performance') {
-            openResultModal();
+          useGameStore.getState().openResultModal();
         }
-        return; // ループを終了
       }
-      
-      // 次のフレームを予約
-      animationFrameRef.current = requestAnimationFrame(syncTime);
     };
-
-    // ループ開始
-    animationFrameRef.current = requestAnimationFrame(syncTime);
+    
+    // 30ms間隔で時間更新（33FPS相当、競合回避）
+    timeIntervalRef.current = window.setInterval(updateGameTime, 30);
   };
   
   const stopTimeSync = useCallback(() => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
+    if (timeIntervalRef.current) {
+      clearInterval(timeIntervalRef.current);
+      timeIntervalRef.current = null;
     }
   }, []);
   
@@ -974,6 +973,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                 
                 <PIXINotesRenderer
                   activeNotes={engineActiveNotes}
+                  chords={chords}
                   width={idealWidth}
                   height={gameAreaSize.height}
                   currentTime={currentTime}

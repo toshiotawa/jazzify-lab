@@ -27,33 +27,21 @@ const FPSMonitor: React.FC<FPSMonitorProps> = ({
   const debug = useGameStore((state) => state.debug);
   
   useEffect(() => {
-    let frameCount = 0;
-    let lastTime = performance.now();
-    let animationId: number;
-    
-    const measureFPS = () => {
-      frameCount++;
-      const currentTime = performance.now();
-      
-      if (currentTime - lastTime >= 1000) {
-        const currentFPS = Math.round((frameCount * 1000) / (currentTime - lastTime));
+    const updateFPSFromPerformanceMonitor = () => {
+      if (window.performanceMonitor) {
+        const currentFPS = window.performanceMonitor.getFPS();
         setFps(currentFPS);
-        frameCount = 0;
-        lastTime = currentTime;
         
         // ストアのデバッグ情報も更新
         useGameStore.getState().updateDebugInfo({ fps: currentFPS });
       }
-      
-      animationId = requestAnimationFrame(measureFPS);
     };
     
-    animationId = requestAnimationFrame(measureFPS);
+    // 1秒間隔で更新（競合しない軽量な方式）
+    const intervalId = setInterval(updateFPSFromPerformanceMonitor, 1000);
     
     return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
+      clearInterval(intervalId);
     };
   }, []);
 

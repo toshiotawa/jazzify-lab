@@ -453,7 +453,7 @@ export class GameEngine {
     // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
     const frameStartTime = performance.now();
     if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
-      perfLog.debug('🎯 GameEngine: 判定・状態更新ループ実行');
+      // perfLog.debug('🎯 GameEngine: 判定・状態更新ループ実行'); // 60FPSログを削除
       this.updateNoteLogic(currentTime);
       unifiedFrameController.markNoteUpdate(frameStartTime);
     }

@@ -16,6 +16,24 @@ export type TransposingInstrument =
   | 'eb_major_6th'       // in Eb (長6度上) - アルトサックス
   | 'eb_major_13th';     // in Eb (1オクターブ+長6度上) - バリトンサックス
 
+// ===== コードネーム表示システム =====
+
+export interface ChordSymbol {
+  id: string;           // ユニークID
+  root: string;         // ルート音名（例: "C", "F#", "Bb"）
+  kind: string;         // コードタイプ（例: "major-seventh", "minor-seventh", "diminished-seventh"）
+  displayText: string;  // 表示用テキスト（例: "CM7", "Fm7", "Bdim7"）
+  measureNumber: number; // 小節番号
+  timeOffset: number;   // 小節内での時間オフセット（0-1）
+}
+
+export interface ChordInfo {
+  startTime: number;    // 開始時刻（秒）
+  endTime?: number;     // 終了時刻（秒、次のコードまで）
+  symbol: ChordSymbol;  // コードシンボル情報
+  originalSymbol: ChordSymbol; // 移調前の元のシンボル（移調表示用）
+}
+
 // ===== ノーツデータ =====
 
 export interface NoteData {
@@ -212,6 +230,7 @@ export interface GameState {
   notes: NoteData[];
   rawNotes: NoteData[]; // <--- 追加: 加工前のノートデータ
   musicXml: string | null; // <--- 追加: 移調済みMusicXML
+  chords: ChordInfo[]; // <--- 追加: コードネーム情報
   activeNotes: Set<string>;    // 現在表示中のノートID
   
   // ABリピート（練習モード）
