@@ -229,11 +229,10 @@ const ControlBar: React.FC = () => {
             <>
               <button
                 onClick={handleSkipBackward}
-
                 className="control-btn control-btn-xxs control-btn-secondary"
                 title="5秒戻る"
               >
-                <FaBackward />
+                <FaBackward size={14} />
               </button>
 
               <button
@@ -244,7 +243,7 @@ const ControlBar: React.FC = () => {
                 disabled={!currentSong}
                 title={isPlaying ? '一時停止' : '再生'}
               >
-                {isPlaying ? <FaPause /> : <FaPlay />}
+                {isPlaying ? <FaPause size={14} /> : <FaPlay size={14} />}
               </button>
 
               <button
@@ -254,7 +253,7 @@ const ControlBar: React.FC = () => {
 
                 title="5秒進む"
               >
-                <FaForward />
+                <FaForward size={14} />
               </button>
 
               {/* ループコントロール */}
@@ -264,7 +263,7 @@ const ControlBar: React.FC = () => {
                   className={`control-btn control-btn-xxs ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'}`}
                   title="ABリピートON/OFF"
                 >
-                  <MdLoop />
+                  <MdLoop size={14} />
                 </button>
               </div>
 
@@ -351,7 +350,7 @@ const ControlBar: React.FC = () => {
                     : '再生'
                 }
               >
-                {currentTime > 0 ? <MdReplay /> : <FaPlay />}
+                {currentTime > 0 ? <MdReplay size={14} /> : <FaPlay size={14} />}
               </button>
 
               <button
@@ -361,7 +360,7 @@ const ControlBar: React.FC = () => {
                 disabled={!currentSong}
                 title="停止"
               >
-                <FaStop />
+                <FaStop size={14} />
               </button>
             </>
           )}
@@ -386,7 +385,7 @@ const ControlBar: React.FC = () => {
             className={`control-btn control-btn-xxs ${settings.showSheetMusic ? 'control-btn-primary' : 'control-btn-secondary'}`}
             title={settings.showSheetMusic ? '楽譜を隠す' : '楽譜を表示'}
           >
-            <FaMusic />
+            <FaMusic size={14} />
           </button>
           
           {/* ヘッダー表示/非表示ボタン */}
@@ -395,7 +394,7 @@ const ControlBar: React.FC = () => {
             className="control-btn control-btn-xxs control-btn-secondary"
             title={settings.showHeader ? 'ヘッダーを隠す' : 'ヘッダーを表示'}
           >
-            {settings.showHeader ? <FaCompressAlt /> : <FaExpandAlt />}
+            {settings.showHeader ? <FaCompressAlt size={14} /> : <FaExpandAlt size={14} />}
 
           </button>
         </div>

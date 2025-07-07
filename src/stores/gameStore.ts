@@ -76,8 +76,34 @@ interface PerformanceMetrics {
     /** エフェクト処理の平均時間（ms） */
     averageProcessTime: number;
     /** 最後のエフェクト処理時間（ms） */
-    lastProcessTime: number;
+  lastProcessTime: number;
   };
+}
+
+// ===== 設定の永続化 =====
+const SETTINGS_STORAGE_KEY = 'jazz-settings';
+
+function loadPersistedSettings(): Partial<GameSettings> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Partial<GameSettings>;
+    delete (parsed as any).playbackSpeed;
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function savePersistedSettings(settings: GameSettings): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const { playbackSpeed, ...rest } = settings;
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(rest));
+  } catch {
+    /* ignore */
+  }
 }
 
 // ===== デフォルト値 =====
@@ -165,6 +191,9 @@ const defaultSettings: GameSettings = {
   
   performanceMode: 'standard'
 };
+
+const persistedSettings = loadPersistedSettings();
+Object.assign(defaultSettings, persistedSettings);
 
 // ===== 新機能: デフォルトプリセット =====
 const defaultPresets: SettingsPreset[] = [
@@ -1763,4 +1792,13 @@ export const useEffectPerformance = () =>
     lastProcessTime: state.performance.effects.lastProcessTime,
     isPerformanceGood: state.performance.effects.averageProcessTime < 2.0 // 2ms以内が良好
   }));
+
+if (typeof window !== 'undefined') {
+  useGameStore.subscribe(
+    (state) => state.settings,
+    (settings) => {
+      savePersistedSettings(settings);
+    }
+  );
+}
 
