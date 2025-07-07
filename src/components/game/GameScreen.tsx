@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
@@ -443,6 +443,63 @@ const SettingsPanel: React.FC = () => {
     mode: s.mode 
   }));
   const gameActions = useGameActions();
+  
+  // ローカルストレージ関連の状態
+  const [hasStoredSettings, setHasStoredSettings] = React.useState(false);
+  
+  // コンポーネントマウント時にローカルストレージの状態をチェック
+  useEffect(() => {
+    const checkStoredSettings = () => {
+      try {
+        const stored = localStorage.getItem('jazzgame_settings');
+        setHasStoredSettings(stored !== null);
+      } catch (error) {
+        console.error('ローカルストレージの確認に失敗:', error);
+        setHasStoredSettings(false);
+      }
+    };
+    
+    checkStoredSettings();
+  }, []);
+  
+  // 設定変更時にローカルストレージの状態を更新
+  useEffect(() => {
+    const checkStoredSettings = () => {
+      try {
+        const stored = localStorage.getItem('jazzgame_settings');
+        setHasStoredSettings(stored !== null);
+      } catch (error) {
+        console.error('ローカルストレージの確認に失敗:', error);
+        setHasStoredSettings(false);
+      }
+    };
+    
+    // 設定変更後に少し遅延してチェック
+    const timeoutId = setTimeout(checkStoredSettings, 100);
+    return () => clearTimeout(timeoutId);
+  }, [settings]);
+  
+  // 設定をリセットする関数
+  const handleResetSettings = () => {
+    if (window.confirm('設定をデフォルトにリセットしますか？この操作は取り消せません。')) {
+      gameActions.resetSettings();
+      setHasStoredSettings(false);
+    }
+  };
+  
+  // ローカルストレージをクリアする関数
+  const handleClearStorage = () => {
+    if (window.confirm('保存された設定を削除しますか？この操作は取り消せません。')) {
+      try {
+        localStorage.removeItem('jazzgame_settings');
+        setHasStoredSettings(false);
+        alert('保存された設定を削除しました。');
+      } catch (error) {
+        console.error('ローカルストレージの削除に失敗:', error);
+        alert('設定の削除に失敗しました。');
+      }
+    }
+  };
 
   return (
     <div 
@@ -840,6 +897,51 @@ const SettingsPanel: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* ローカルストレージ管理セクション */}
+            <div className="border-t border-gray-600 pt-4 mt-6">
+              <h3 className="text-sm font-medium text-gray-300 mb-3">💾 設定の保存・管理</h3>
+              
+              <div className="bg-gray-800 bg-opacity-50 p-4 rounded-lg border border-gray-600">
+                <div className="space-y-3">
+                  {/* 保存状態表示 */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-300">保存状態:</span>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      hasStoredSettings 
+                        ? 'bg-green-600 text-green-100' 
+                        : 'bg-gray-600 text-gray-300'
+                    }`}>
+                      {hasStoredSettings ? '設定が保存されています' : '設定は保存されていません'}
+                    </span>
+                  </div>
+                  
+                  <div className="text-xs text-gray-400">
+                    設定は自動的にローカルストレージに保存されます（再生速度は除く）。
+                    ブラウザを閉じても設定が保持されます。
+                  </div>
+                  
+                  {/* 操作ボタン */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleResetSettings}
+                      className="btn btn-sm btn-outline btn-warning"
+                    >
+                      🔄 デフォルトにリセット
+                    </button>
+                    
+                    {hasStoredSettings && (
+                      <button
+                        onClick={handleClearStorage}
+                        className="btn btn-sm btn-outline btn-error"
+                      >
+                        🗑️ 保存データ削除
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
