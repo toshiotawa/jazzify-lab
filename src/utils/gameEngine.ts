@@ -278,6 +278,13 @@ export class GameEngine {
     // 設定更新
     this.settings = settings;
 
+    // 本番モードでは練習モードガイドを無効化
+    if (this.settings.practiceGuide !== 'off') {
+      // ゲームモードを確認するために、ストアから現在のモードを取得
+      // この処理はストア側で行われるため、ここでは設定のみを更新
+      // 実際の無効化はストアのsetMode/setCurrentTabで行われる
+    }
+
     const newSpeed = this.settings.playbackSpeed ?? 1;
 
     // スピードが変化した場合、startTime を調整してタイムラインを連続に保つ

@@ -278,6 +278,11 @@ const defaultState: GameState = {
   },
 };
 
+// 練習モード専用設定のデフォルト値
+const defaultPracticeModeSettings = {
+  practiceGuide: 'key' as const
+};
+
 // ===== 新機能: 設定検証・正規化関数 =====
 
 const validateSettings = (settings: Partial<GameSettings>): { valid: boolean; errors: string[]; normalized: GameSettings } => {
@@ -435,6 +440,11 @@ interface GameStoreState extends GameState {
   lastKeyHighlight?: {
     pitch: number;
     timestamp: number;
+  };
+  
+  // 練習モード専用設定の保存
+  practiceModeSettings: {
+    practiceGuide: 'off' | 'key' | 'key_auto';
   };
   
   // ===== 新機能: 拡張状態管理 =====
@@ -608,6 +618,9 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         gameEngine: null,
         engineActiveNotes: [],
         lastKeyHighlight: undefined,
+        
+        // 練習モード専用設定
+        practiceModeSettings: defaultPracticeModeSettings,
         
         // Phase 2: ゲームエンジン制御
         initializeGameEngine: async () => {
@@ -987,6 +1000,16 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           // まず Immer の set でストアの設定値を更新
           set((state) => {
             Object.assign(state.settings, newSettings);
+            
+            // 練習モードでpracticeGuideが変更された場合は保存
+            if (state.mode === 'practice' && 'practiceGuide' in newSettings) {
+              state.practiceModeSettings.practiceGuide = newSettings.practiceGuide ?? 'key';
+            }
+            
+            // 本番モードでは練習モードガイドを無効化
+            if (state.mode === 'performance' && state.settings.practiceGuide !== 'off') {
+              state.settings.practiceGuide = 'off';
+            }
           });
 
           // set の外側で最新の設定値を取得し、GameEngine へ反映
@@ -1067,12 +1090,22 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // モード制御
         setMode: (mode) => set((state) => {
+          const previousMode = state.mode;
           state.mode = mode;
+          
           // モード変更時にタブも同期
           if (mode === 'practice') {
             state.currentTab = 'practice';
+            // 練習モードに戻った時は保存した設定を復元
+            state.settings.practiceGuide = state.practiceModeSettings.practiceGuide ?? 'key';
           } else if (mode === 'performance') {
             state.currentTab = 'performance';
+            // 本番モードに切り替える前に練習モード設定を保存
+            if (previousMode === 'practice') {
+              state.practiceModeSettings.practiceGuide = state.settings.practiceGuide ?? 'key';
+            }
+            // 本番モードでは練習モードガイドを無効化
+            state.settings.practiceGuide = 'off';
           }
           
           // モード切り替え時に再生停止するが、時刻はリセットしない
@@ -1092,7 +1125,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           state.score = { ...defaultScore, totalNotes };
           state.judgmentHistory = [];
           
-          console.log(`🔄 モード切り替え: ${mode} - 再生停止・リセット完了`);
+          console.log(`🔄 モード切り替え: ${previousMode} → ${mode} - 再生停止・リセット完了`);
         }),
         
         setInstrumentMode: (mode) => set((state) => {
@@ -1107,8 +1140,16 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           // タブ変更時にゲームモードも同期
           if (tab === 'practice') {
             state.mode = 'practice';
+            // 練習モードに戻った時は保存した設定を復元
+            state.settings.practiceGuide = state.practiceModeSettings.practiceGuide ?? 'key';
           } else if (tab === 'performance') {
             state.mode = 'performance';
+            // 本番モードに切り替える前に練習モード設定を保存
+            if (previousTab === 'practice') {
+              state.practiceModeSettings.practiceGuide = state.settings.practiceGuide ?? 'key';
+            }
+            // 本番モードでは練習モードガイドを無効化
+            state.settings.practiceGuide = 'off';
           }
           
           // 練習・本番モード間の切り替え時は再生停止するが、時刻はリセットしない
@@ -1330,6 +1371,16 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           
           const validation = validateSettings(preset.settings);
           state.settings = { ...state.settings, ...validation.normalized };
+          
+          // 練習モードでpracticeGuideが含まれている場合は保存
+          if (state.mode === 'practice' && 'practiceGuide' in preset.settings) {
+            state.practiceModeSettings.practiceGuide = preset.settings.practiceGuide ?? 'key';
+          }
+          
+          // 本番モードでは練習モードガイドを無効化
+          if (state.mode === 'performance') {
+            state.settings.practiceGuide = 'off';
+          }
           
           if (state.gameEngine) {
             state.gameEngine.updateSettings(state.settings);

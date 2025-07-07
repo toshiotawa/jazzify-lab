@@ -395,7 +395,10 @@ const EmptySlot: React.FC<{ text: string }> = ({ text }) => {
  * 設定パネル（簡易版）
  */
 const SettingsPanel: React.FC = () => {
-  const { settings } = useGameSelector((s) => ({ settings: s.settings }));
+  const { settings, mode } = useGameSelector((s) => ({ 
+    settings: s.settings, 
+    mode: s.mode 
+  }));
   const gameActions = useGameActions();
 
   return (
@@ -739,24 +742,26 @@ const SettingsPanel: React.FC = () => {
               </div>
             </div>
 
-            {/* 練習モードガイド設定 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                練習モードガイド
-              </label>
-              <select
-                value={settings.practiceGuide ?? 'key'}
-                onChange={(e) => gameActions.updateSettings({ practiceGuide: e.target.value as any })}
-                className="select select-bordered w-full max-w-xs bg-gray-800 text-white"
-              >
-                <option value="off">OFF</option>
-                <option value="key_auto">鍵盤ハイライト + オートプレイ</option>
-                <option value="key">鍵盤ハイライトのみ</option>
-              </select>
-              <div className="text-xs text-gray-400 mt-1">
-                ノーツが判定ラインを通過する際の表示ガイド
+            {/* 練習モードガイド設定 - 練習モード時のみ表示 */}
+            {mode === 'practice' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  練習モードガイド
+                </label>
+                <select
+                  value={settings.practiceGuide ?? 'key'}
+                  onChange={(e) => gameActions.updateSettings({ practiceGuide: e.target.value as any })}
+                  className="select select-bordered w-full max-w-xs bg-gray-800 text-white"
+                >
+                  <option value="off">OFF</option>
+                  <option value="key_auto">鍵盤ハイライト + オートプレイ</option>
+                  <option value="key">鍵盤ハイライトのみ</option>
+                </select>
+                <div className="text-xs text-gray-400 mt-1">
+                  ノーツが判定ラインを通過する際の表示ガイド（練習モード専用）
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
