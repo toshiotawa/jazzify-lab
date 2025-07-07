@@ -11,7 +11,12 @@ import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import * as Tone from 'tone';
-import { log, perfLog, devLog } from '@/utils/logger';
+import { devLog, log, perfLog } from '@/utils/logger';
+
+// iOS検出関数
+const isIOS = (): boolean => {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
+};
 
 interface GameEngineComponentProps {
   className?: string;
@@ -194,7 +199,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
 
         // 5) AudioContext を resume し、再生位置を同期
-        audioContext.resume();
+        // 🔧 非同期でresumeしてUIブロックを防ぐ
+        const resumePromise = audioContext.resume();
 
         // ==== 再生スピード適用 ====
         audio.playbackRate = settings.playbackSpeed;
@@ -222,7 +228,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         gameEngine.seek(syncTime);
 
         // 8) HTMLAudio 再生 (AudioContext と同軸)
-        audio.play().catch(e => log.error('音声再生エラー:', e));
+        // resumeが完了してから再生開始
+        resumePromise.then(() => {
+          // iOS向けの追加待機時間（バッファリング）
+          if (isIOS()) {
+            return new Promise(resolve => setTimeout(resolve, 100));
+          }
+          return Promise.resolve();
+        }).then(() => {
+          audio.play().catch(e => log.error('音声再生エラー:', e));
+        }).catch(e => log.error('AudioContext resume エラー:', e));
         } else {
           // === 音声なしモード ===
           log.info('🎵 音声なしモードでゲームエンジンを開始');
@@ -232,7 +247,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
           }
           const audioContext = audioContextRef.current!;
-          audioContext.resume();
+          
+          // 🔧 非同期でresumeしてUIブロックを防ぐ
+          audioContext.resume().catch(e => log.warn('AudioContext resume エラー:', e));
 
           // 🔧 修正: 音声なしモードでもシークバー位置を維持 - ストアのcurrentTimeを優先使用
           const syncTime = Math.max(0, currentTime);
@@ -269,10 +286,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           log.info('🎤 音声ピッチ検出停止');
         }
         
-        // AudioContext も suspend してCPU節約
-        if (audioContextRef.current) {
-          audioContextRef.current.suspend();
-        }
+        // AudioContext の suspend は行わない（頻繁なsuspend/resumeを防ぐ）
+        // if (audioContextRef.current) {
+        //   audioContextRef.current.suspend();
+        // }
 
         stopTimeSync();
       }
@@ -358,25 +375,40 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         newTime = Math.max(0, realTimeElapsed);
       } else {
         // フォールバック
-        newTime = useGameStore.getState().currentTime + (30 / 1000); // 30ms進行と仮定
+        newTime = useGameStore.getState().currentTime + (50 / 1000); // 50ms進行と仮定
       }
       
       // 🎯 重要：時間を進行させる！
       updateTime(newTime);
       
-      // 楽曲終了チェック
-      const songDuration = useGameStore.getState().currentSong?.duration || 0;
-      if (songDuration > 0 && newTime >= songDuration) {
-        useGameStore.getState().stop();
-        
-        // 本番モード時にリザルトモーダルを開く
-        if (useGameStore.getState().mode === 'performance') {
-          useGameStore.getState().openResultModal();
+      // 楽曲終了チェックをrequestIdleCallbackで実行
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => {
+          const songDuration = useGameStore.getState().currentSong?.duration || 0;
+          if (songDuration > 0 && newTime >= songDuration) {
+            useGameStore.getState().stop();
+            
+            // 本番モード時にリザルトモーダルを開く
+            if (useGameStore.getState().mode === 'performance') {
+              useGameStore.getState().openResultModal();
+            }
+          }
+        });
+      } else {
+        // requestIdleCallbackが無い場合は通常実行
+        const songDuration = useGameStore.getState().currentSong?.duration || 0;
+        if (songDuration > 0 && newTime >= songDuration) {
+          useGameStore.getState().stop();
+          
+          // 本番モード時にリザルトモーダルを開く
+          if (useGameStore.getState().mode === 'performance') {
+            useGameStore.getState().openResultModal();
+          }
         }
       }
     };
     
-    // 30ms間隔で時間更新（33FPS相当、競合回避）
+    // 30ms間隔で時間更新（33FPS相当、楽譜スクロールを滑らかに）
     timeIntervalRef.current = window.setInterval(updateGameTime, 30);
   };
   

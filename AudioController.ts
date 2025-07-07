@@ -1393,16 +1393,24 @@ export class AudioController {
     this.notifyConnectionChange(false);
   }
 
-  private fadeInOutput(duration: number = 0.2): void {
+  private fadeInOutput(duration: number = 0.5): void {
     if (this.outputGainNode && this.audioContext) {
       const now = this.audioContext.currentTime;
       this.outputGainNode.gain.cancelScheduledValues(now);
       this.outputGainNode.gain.setValueAtTime(0, now);
-      this.outputGainNode.gain.linearRampToValueAtTime(1, now + duration);
+      
+      // iOS向けの初期化待機
+      if (this.isIOSDevice) {
+        // 初期化のため少し遅延させてからフェードイン開始
+        this.outputGainNode.gain.setValueAtTime(0, now + 0.1);
+        this.outputGainNode.gain.linearRampToValueAtTime(1, now + 0.1 + duration);
+      } else {
+        this.outputGainNode.gain.linearRampToValueAtTime(1, now + duration);
+      }
     }
   }
 
-  private fadeOutOutput(duration: number = 0.1): void {
+  private fadeOutOutput(duration: number = 0.2): void {
     if (this.outputGainNode && this.audioContext) {
       const now = this.audioContext.currentTime;
       this.outputGainNode.gain.cancelScheduledValues(now);
