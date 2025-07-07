@@ -153,7 +153,7 @@ const ControlBar: React.FC = () => {
     <div className="w-full">
       {/* シークバー - showSeekbarフラグで制御 */}
       {settings.showSeekbar && (
-        <div className="px-3 py-1 bg-gray-900">
+        <div className="px-2 py-1 bg-gray-900">
           <div className="flex items-center space-x-3">
             <div className="relative flex-1">
               <input
@@ -222,7 +222,7 @@ const ControlBar: React.FC = () => {
       )}
 
       {/* コントロールボタン - 1行レイアウト */}
-      <div className="px-4 py-2 bg-gray-900 border-t border-gray-700 flex justify-between items-center">
+      <div className="px-3 py-1 bg-gray-900 border-t border-gray-700 flex justify-between items-center">
         <div className="flex justify-center items-center space-x-3 overflow-x-auto whitespace-nowrap">
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
@@ -230,7 +230,7 @@ const ControlBar: React.FC = () => {
               <button
                 onClick={handleSkipBackward}
 
-                className="control-btn control-btn-xs control-btn-secondary"
+                className="control-btn control-btn-xxs control-btn-secondary"
                 title="5秒戻る"
               >
                 <FaBackward />
@@ -239,7 +239,7 @@ const ControlBar: React.FC = () => {
               <button
                 onClick={() => isPlaying ? pauseAction() : play()}
 
-                className="control-btn control-btn-xs control-btn-primary"
+                className="control-btn control-btn-xxs control-btn-primary"
 
                 disabled={!currentSong}
                 title={isPlaying ? '一時停止' : '再生'}
@@ -250,7 +250,7 @@ const ControlBar: React.FC = () => {
               <button
                 onClick={handleSkipForward}
 
-                className="control-btn control-btn-xs control-btn-secondary"
+                className="control-btn control-btn-xxs control-btn-secondary"
 
                 title="5秒進む"
               >
@@ -261,7 +261,7 @@ const ControlBar: React.FC = () => {
               <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
                 <button
                   onClick={handleToggleLoop}
-                  className={`control-btn control-btn-xs ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'}`}
+                  className={`control-btn control-btn-xxs ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'}`}
                   title="ABリピートON/OFF"
                 >
                   <MdLoop />
@@ -272,7 +272,7 @@ const ControlBar: React.FC = () => {
               <div className="flex items-center space-x-1 ml-2 text-xs flex-shrink-0">
                 <button
                   onClick={handleSetAStart}
-                  className={`control-btn control-btn-xs ${abRepeat.startTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
+                  className={`control-btn control-btn-xxs ${abRepeat.startTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
                   title="A地点設定"
                 >
                   A
@@ -283,7 +283,7 @@ const ControlBar: React.FC = () => {
                 {abRepeat.startTime !== null && (
                   <button
                     onClick={handleClearA}
-                    className="control-btn control-btn-xs control-btn-danger"
+                    className="control-btn control-btn-xxs control-btn-danger"
                     title="A地点クリア"
                   >
                     <FaTimes size={10} />
@@ -294,7 +294,7 @@ const ControlBar: React.FC = () => {
                 
                 <button
                   onClick={handleSetBEnd}
-                  className={`control-btn control-btn-xs ${abRepeat.endTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
+                  className={`control-btn control-btn-xxs ${abRepeat.endTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
                   title="B地点設定"
                 >
                   B
@@ -305,7 +305,7 @@ const ControlBar: React.FC = () => {
                 {abRepeat.endTime !== null && (
                   <button
                     onClick={handleClearB}
-                    className="control-btn control-btn-xs control-btn-danger"
+                    className="control-btn control-btn-xxs control-btn-danger"
                     title="B地点クリア"
                   >
                     <FaTimes size={10} />
@@ -317,7 +317,7 @@ const ControlBar: React.FC = () => {
               <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
                 <button
                   onClick={handleTransposeDown}
-                  className="control-btn control-btn-xs control-btn-secondary"
+                  className="control-btn control-btn-xxs control-btn-secondary"
                   title="半音下げる"
                   disabled={settings.transpose <= -6}
                 >
@@ -328,7 +328,7 @@ const ControlBar: React.FC = () => {
                 </span>
                 <button
                   onClick={handleTransposeUp}
-                  className="control-btn control-btn-xs control-btn-secondary"
+                  className="control-btn control-btn-xxs control-btn-secondary"
                   title="半音上げる"
                   disabled={settings.transpose >= 6}
                 >
@@ -342,7 +342,7 @@ const ControlBar: React.FC = () => {
               <button
                 onClick={handlePlayOrRestart}
 
-                className="control-btn control-btn-xs control-btn-primary"
+                className="control-btn control-btn-xxs control-btn-primary"
 
                 disabled={!currentSong}
                 title={
@@ -356,7 +356,7 @@ const ControlBar: React.FC = () => {
 
               <button
                 onClick={() => stop()}
-                className="control-btn control-btn-xs control-btn-secondary"
+                className="control-btn control-btn-xxs control-btn-secondary"
 
                 disabled={!currentSong}
                 title="停止"
@@ -374,7 +374,7 @@ const ControlBar: React.FC = () => {
           {/* 設定ボタン */}
           <button
             onClick={toggleSettings}
-            className="control-btn control-btn-xs control-btn-secondary"
+            className="control-btn control-btn-xxs control-btn-secondary"
             title="設定"
           >
             ⚙️
@@ -383,7 +383,7 @@ const ControlBar: React.FC = () => {
           {/* 楽譜表示切り替えボタン */}
           <button
             onClick={toggleSheetMusic}
-            className={`control-btn control-btn-xs ${settings.showSheetMusic ? 'control-btn-primary' : 'control-btn-secondary'}`}
+            className={`control-btn control-btn-xxs ${settings.showSheetMusic ? 'control-btn-primary' : 'control-btn-secondary'}`}
             title={settings.showSheetMusic ? '楽譜を隠す' : '楽譜を表示'}
           >
             <FaMusic />
@@ -392,7 +392,7 @@ const ControlBar: React.FC = () => {
           {/* ヘッダー表示/非表示ボタン */}
           <button
             onClick={toggleHeader}
-            className="control-btn control-btn-xs control-btn-secondary"
+            className="control-btn control-btn-xxs control-btn-secondary"
             title={settings.showHeader ? 'ヘッダーを隠す' : 'ヘッダーを表示'}
           >
             {settings.showHeader ? <FaCompressAlt /> : <FaExpandAlt />}

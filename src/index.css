@@ -357,6 +357,10 @@
     @apply px-3 py-2 text-sm;
   }
   
+  .control-btn-xxs {
+    @apply px-2 py-1 text-xs;
+  }
+  
   .control-btn:disabled {
     @apply opacity-50 cursor-not-allowed transform-none hover:scale-100;
     background: linear-gradient(135deg, #4b5563 0%, #374151 50%, #1f2937 100%);
@@ -433,12 +437,16 @@
     @apply px-5 py-3 text-lg font-medium rounded-lg transition-all duration-200 cursor-pointer;
   }
   
+  .tab-xs {
+    @apply px-3 py-2 text-base font-medium rounded-lg transition-all duration-200 cursor-pointer;
+  }
+  
   .tab-active {
     @apply bg-primary-600 text-white;
   }
   
   .tab-inactive {
-    @apply text-gray-400 hover:text-white hover:bg-game-accent;
+    @apply text-gray-200 bg-gray-700 bg-opacity-50 hover:text-white hover:bg-game-accent;
   }
   
   /* モーダルスタイル */

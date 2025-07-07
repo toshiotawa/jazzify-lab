@@ -38,7 +38,7 @@ const GameScreen: React.FC = () => {
       {/* ヘッダー */}
       {settings.showHeader && (
         <header
-          className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-4 py-2"
+          className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1"
         >
           <div className="flex justify-between items-center">
             {/* タブナビゲーション */}
@@ -88,7 +88,7 @@ const TabButton: React.FC<TabButtonProps> = ({ active, onClick, children }) => {
   return (
     <button
       onClick={onClick}
-      className={`tab ${active ? 'tab-active' : 'tab-inactive'}`}
+      className={`tab-xs ${active ? 'tab-active' : 'tab-inactive'}`}
     >
       {children}
     </button>
@@ -361,12 +361,13 @@ const ModeToggleButton: React.FC = () => {
         <button
           onClick={() => gameActions.setMode('practice')}
           className={`
-            px-3 py-2 rounded-lg font-bold text-sm
+            px-2 py-1 rounded-lg font-bold text-xs
             transition-all duration-200 hover:scale-105
-            shadow-lg backdrop-blur-sm min-w-[60px]
+            shadow-lg backdrop-blur-sm
+            bg-opacity-80 border border-opacity-60
             ${mode === 'practice' 
-              ? 'bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-400' 
-              : 'bg-gray-600 hover:bg-gray-500 text-gray-200 border-2 border-gray-500'
+              ? 'bg-gradient-to-br from-blue-500/80 to-blue-700/80 hover:from-blue-400/90 hover:to-blue-600/90 text-white border-blue-300/60' 
+              : 'bg-gradient-to-br from-gray-500/60 to-gray-700/60 hover:from-gray-400/70 hover:to-gray-600/70 text-gray-200 border-gray-400/40'
             }
           `}
           title="練習モード（リハーサル）"
@@ -378,12 +379,13 @@ const ModeToggleButton: React.FC = () => {
         <button
           onClick={() => gameActions.setMode('performance')}
           className={`
-            px-3 py-2 rounded-lg font-bold text-sm
+            px-2 py-1 rounded-lg font-bold text-xs
             transition-all duration-200 hover:scale-105
-            shadow-lg backdrop-blur-sm min-w-[60px]
+            shadow-lg backdrop-blur-sm
+            bg-opacity-80 border border-opacity-60
             ${mode === 'performance' 
-              ? 'bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-400' 
-              : 'bg-gray-600 hover:bg-gray-500 text-gray-200 border-2 border-gray-500'
+              ? 'bg-gradient-to-br from-blue-500/80 to-blue-700/80 hover:from-blue-400/90 hover:to-blue-600/90 text-white border-blue-300/60' 
+              : 'bg-gradient-to-br from-gray-500/60 to-gray-700/60 hover:from-gray-400/70 hover:to-gray-600/70 text-gray-200 border-gray-400/40'
             }
           `}
           title="本番モード（ステージ）"
