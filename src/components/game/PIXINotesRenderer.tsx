@@ -88,6 +88,11 @@ interface LabelTextures {
   solfege: Map<string, PIXI.Texture>;
 }
 
+// ===== コードネーム用テクスチャキャッシュ =====
+interface ChordTextures {
+  chords: Map<string, PIXI.Texture>;
+}
+
 // ===== PIXI.js レンダラークラス =====
 
 export class PIXINotesRendererInstance {
@@ -116,6 +121,7 @@ export class PIXINotesRendererInstance {
   // ===== テクスチャキャッシュ =====
   private noteTextures!: NoteTextures;
   private labelTextures!: LabelTextures;
+  private chordTextures!: ChordTextures;
   
   // キーボード入力コールバック
   private onKeyPress?: (note: number) => void;
@@ -140,6 +146,10 @@ export class PIXINotesRendererInstance {
   
   // 破棄状態の追跡
   private isDestroyed: boolean = false;
+  
+  // コードネーム表示の更新頻度制御
+  private lastChordUpdateTime: number = -1;
+  private chordUpdateInterval: number = 0.1; // 100ms間隔で更新（10FPS）
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
   public readonly settings: RendererSettings = {
@@ -182,8 +192,9 @@ export class PIXINotesRendererInstance {
   
   // ===== コードネーム表示関連 =====
   private chordDisplayContainer!: PIXI.Container; // コードネーム表示専用コンテナ
-  private currentChordText?: PIXI.Text; // 現在表示中のコードネーム
+  private currentChordSprite?: PIXI.Sprite; // 現在表示中のコードネーム（Spriteに変更）
   private currentChords: ChordInfo[] = []; // 現在のコードネーム情報
+  private lastChordText: string = ''; // 最後に表示したコードネーム（変更検出用）
   
   constructor(width: number, height: number) {
     devLog.info(`🎯 PIXINotesRenderer constructor: ${width}x${height}`);
@@ -239,6 +250,7 @@ export class PIXINotesRendererInstance {
     try {
       this.generateNoteTextures();
       this.generateLabelTextures();
+      this.generateChordTextures();
       devLog.debug('✅ Texture generation completed');
     } catch (error) {
       log.error('❌ Texture generation failed:', error);
@@ -1692,8 +1704,12 @@ export class PIXINotesRendererInstance {
     // 状態・削除処理ループ（フレーム間引き無効化）
     this.updateSpriteStates(activeNotes);
     
-    // コードネーム表示の更新
-    this.updateCurrentChordDisplay(currentTime);
+    // コードネーム表示の更新（頻度制御）
+    if (currentTime - this.lastChordUpdateTime >= this.chordUpdateInterval) {
+      this.updateCurrentChordDisplay(currentTime);
+      this.lastChordUpdateTime = currentTime;
+    }
+    
     
     // ノーツ更新のパフォーマンス測定終了
     const notesUpdateDuration = performance.now() - notesUpdateStartTime;
@@ -2650,6 +2666,40 @@ export class PIXINotesRendererInstance {
         this.guidelines = undefined;
       }
 
+      // ===== ラベルテクスチャの破棄 =====
+      try {
+        if (this.labelTextures) {
+          this.labelTextures.abc?.forEach(texture => {
+            if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
+              texture.destroy();
+            }
+          });
+          this.labelTextures.solfege?.forEach(texture => {
+            if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
+              texture.destroy();
+            }
+          });
+          this.labelTextures.abc.clear();
+          this.labelTextures.solfege.clear();
+        }
+      } catch (error) {
+        console.warn('⚠️ Label textures cleanup error:', error);
+      }
+      
+      // ===== コードネームテクスチャの破棄 =====
+      try {
+        if (this.chordTextures) {
+          this.chordTextures.chords?.forEach(texture => {
+            if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
+              texture.destroy();
+            }
+          });
+          this.chordTextures.chords.clear();
+        }
+      } catch (error) {
+        console.warn('⚠️ Chord textures cleanup error:', error);
+      }
+
       // PIXI.jsアプリケーションを破棄
       if (this.app && (this.app as any)._destroyed !== true) {
         this.app.destroy(true, { 
@@ -2897,10 +2947,11 @@ export class PIXINotesRendererInstance {
   updateCurrentChordDisplay(currentTime: number): void {
     if (this.currentChords.length === 0) {
       // コードネームがない場合は表示をクリア
-      if (this.currentChordText) {
-        this.chordDisplayContainer.removeChild(this.currentChordText);
-        this.currentChordText.destroy();
-        this.currentChordText = undefined;
+      if (this.currentChordSprite) {
+        this.chordDisplayContainer.removeChild(this.currentChordSprite);
+        this.currentChordSprite.destroy();
+        this.currentChordSprite = undefined;
+        this.lastChordText = '';
       }
       return;
     }
@@ -2915,51 +2966,159 @@ export class PIXINotesRendererInstance {
     const displayText = currentChord?.symbol.displayText || '';
 
     // 現在のテキストと同じ場合は更新しない（パフォーマンス向上）
-    if (this.currentChordText && this.currentChordText.text === displayText) {
+    if (this.lastChordText === displayText) {
       return;
     }
 
-    // 古いテキストを削除
-    if (this.currentChordText) {
-      this.chordDisplayContainer.removeChild(this.currentChordText);
-      this.currentChordText.destroy();
-      this.currentChordText = undefined;
+    // 古いスプライトを削除
+    if (this.currentChordSprite) {
+      this.chordDisplayContainer.removeChild(this.currentChordSprite);
+      this.currentChordSprite.destroy();
+      this.currentChordSprite = undefined;
     }
 
-    // 新しいコードネームテキストを作成
+    // 新しいコードネームスプライトを作成
     if (displayText) {
+      const chordTexture = this.getChordTexture(displayText);
+      
+      if (chordTexture) {
+        this.currentChordSprite = new PIXI.Sprite(chordTexture);
+        this.currentChordSprite.anchor.set(0.5, 0.5);
+        
+        // ノーツエリアの中央に配置
+        this.currentChordSprite.x = this.app.screen.width / 2;
+        this.currentChordSprite.y = this.settings.hitLineY / 2; // ノーツエリアの中央高さ
+        
+        // 半透明にして背景を邪魔しすぎないように調整
+        this.currentChordSprite.alpha = 0.8;
+        
+        this.chordDisplayContainer.addChild(this.currentChordSprite);
+        
+        // コードが変更された場合のみログ出力（60FPSループでの大量ログを防止）
+        if (this.lastChordText !== displayText) {
+          console.log(`🎵 Chord changed: ${displayText} at ${currentTime.toFixed(2)}s`);
+        }
+      } else {
+        // テクスチャが取得できない場合はフォールバック（軽量版）
+        console.warn(`⚠️ Chord texture not found for "${displayText}", using fallback`);
+        
+        const fallbackStyle = new PIXI.TextStyle({
+          fontSize: 32,
+          fill: '#FFFFFF',
+          fontFamily: 'Arial, sans-serif',
+          fontWeight: 'bold',
+          align: 'center',
+          stroke: '#000000',
+          strokeThickness: 1,
+        });
+
+        const fallbackText = new PIXI.Text(displayText, fallbackStyle);
+        fallbackText.anchor.set(0.5, 0.5);
+        fallbackText.x = this.app.screen.width / 2;
+        fallbackText.y = this.settings.hitLineY / 2;
+        fallbackText.alpha = 0.8;
+        
+        this.chordDisplayContainer.addChild(fallbackText);
+        this.currentChordSprite = fallbackText as any; // 型キャストで処理
+      }
+    }
+
+    // 最後に表示したコードネームを更新
+    this.lastChordText = displayText;
+  }
+
+  /**
+   * コードネーム用テクスチャを事前生成
+   */
+  private generateChordTextures(): void {
+    console.log('🎵 Generating chord textures...');
+
+    // 既存のテクスチャを破棄
+    if (this.chordTextures) {
+      this.chordTextures.chords?.forEach(t => t.destroy());
+    }
+
+    // 軽量なコードネーム用スタイル（iOSパフォーマンス最適化）
+    const chordStyle = new PIXI.TextStyle({
+      fontSize: 36, // 48から36に縮小
+      fill: '#FFFFFF',
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'bold',
+      align: 'center',
+      stroke: '#000000',
+      strokeThickness: 2, // 3から2に縮小
+      // dropShadow系とblur系を削除してiOSパフォーマンスを向上
+    });
+
+    // よく使われるコードネームをプリロード
+    const commonChords = [
+      'C', 'Dm', 'Em', 'F', 'G', 'Am', 'Bdim',
+      'CM7', 'Dm7', 'Em7', 'FM7', 'G7', 'Am7', 'Bm7b5',
+      'C7', 'D7', 'E7', 'F7', 'A7', 'B7',
+      'Cmaj7', 'Fmaj7', 'Gmaj7',
+      'C6', 'F6', 'G6', 'Am6',
+      'Csus4', 'Fsus4', 'Gsus4',
+      'C#', 'D#', 'F#', 'G#', 'A#',
+      'Db', 'Eb', 'Gb', 'Ab', 'Bb',
+      'Cm', 'Fm', 'Gm'
+    ];
+
+    this.chordTextures = {
+      chords: new Map()
+    };
+
+    for (const chord of commonChords) {
+      try {
+        const chordText = new PIXI.Text(chord, chordStyle);
+        const texture = this.app.renderer.generateTexture(chordText);
+        if (texture && texture !== PIXI.Texture.EMPTY) {
+          this.chordTextures.chords.set(chord, texture);
+        }
+        chordText.destroy();
+      } catch (error) {
+        console.error(`❌ Error generating chord texture for ${chord}:`, error);
+      }
+    }
+    
+    console.log(`🎵 Chord texture generation completed! Total textures: ${this.chordTextures.chords.size}`);
+  }
+
+  /**
+   * コードネーム用テクスチャを取得または動的生成
+   */
+  private getChordTexture(chordName: string): PIXI.Texture | null {
+    // キャッシュから取得を試行
+    const cachedTexture = this.chordTextures.chords.get(chordName);
+    if (cachedTexture) {
+      return cachedTexture;
+    }
+
+    // 動的に生成（キャッシュにない場合）
+    try {
       const chordStyle = new PIXI.TextStyle({
-        fontSize: 48, // 大きめのフォントサイズ
-        fill: '#FFFFFF', // 白色
+        fontSize: 36,
+        fill: '#FFFFFF',
         fontFamily: 'Arial, sans-serif',
         fontWeight: 'bold',
         align: 'center',
-        stroke: '#000000', // 黒の縁取り
-        strokeThickness: 3,
-        dropShadow: true,
-        dropShadowColor: '#000000',
-        dropShadowBlur: 6,
-        dropShadowAngle: Math.PI / 6,
-        dropShadowDistance: 3,
+        stroke: '#000000',
+        strokeThickness: 2,
       });
 
-      this.currentChordText = new PIXI.Text(displayText, chordStyle);
-      this.currentChordText.anchor.set(0.5, 0.5);
-      
-      // ノーツエリアの中央に配置
-      this.currentChordText.x = this.app.screen.width / 2;
-      this.currentChordText.y = this.settings.hitLineY / 2; // ノーツエリアの中央高さ
-      
-      // 半透明にして背景を邪魔しすぎないように調整
-      this.currentChordText.alpha = 0.8;
-      
-      this.chordDisplayContainer.addChild(this.currentChordText);
-      
-      // コードが変更された場合のみログ出力（60FPSループでの大量ログを防止）
-      if (this.currentChordText.text !== displayText) {
-        console.log(`🎵 Chord changed: ${displayText} at ${currentTime.toFixed(2)}s`);
+      const chordText = new PIXI.Text(chordName, chordStyle);
+      const texture = this.app.renderer.generateTexture(chordText);
+      chordText.destroy();
+
+      // キャッシュに保存
+      if (texture && texture !== PIXI.Texture.EMPTY) {
+        this.chordTextures.chords.set(chordName, texture);
+        return texture;
       }
+    } catch (error) {
+      console.error(`❌ Error generating chord texture for ${chordName}:`, error);
     }
+
+    return null;
   }
 }
 
