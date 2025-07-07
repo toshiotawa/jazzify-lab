@@ -1540,48 +1540,60 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         },
         
         // ===== 新機能: エラー管理強化 =====
-        addError: (category, error) => set((state) => {
-          state.errors[category].push(error);
-        }),
+        addError: (category: keyof GameStoreState['errors'], error: string) =>
+          set((state: GameStoreState) => {
+            state.errors[category].push(error);
+          }),
         
-        clearErrors: (category) => set((state) => {
-          if (category) {
-            state.errors[category] = [];
-          } else {
-            Object.keys(state.errors).forEach(key => {
-              state.errors[key as keyof typeof state.errors] = [];
-            });
-          }
-        }),
+        clearErrors: (category?: keyof GameStoreState['errors']) =>
+          set((state: GameStoreState) => {
+            if (category) {
+              state.errors[category] = [];
+            } else {
+              Object.keys(state.errors).forEach(key => {
+                state.errors[key as keyof typeof state.errors] = [];
+              });
+            }
+          }),
         
         hasErrors: () => {
           const state = get();
-          return Object.values(state.errors).some(errors => errors.length > 0);
+          return Object.values(state.errors).some(
+            (errors: string[]) => errors.length > 0
+          );
         },
         
         getErrorSummary: () => {
           const state = get();
           const summary: string[] = [];
           Object.entries(state.errors).forEach(([category, errors]) => {
-            if (errors.length > 0) {
-              summary.push(`${category}: ${errors.length}件のエラー`);
+            const list = errors as string[];
+            if (list.length > 0) {
+              summary.push(`${category}: ${list.length}件のエラー`);
             }
           });
           return summary;
         },
         
         // リザルトモーダル
-        openResultModal: () => set((state) => { state.resultModalOpen = true; }),
-        closeResultModal: () => set((state) => { state.resultModalOpen = false; }),
+        openResultModal: () =>
+          set((state: GameStoreState) => {
+            state.resultModalOpen = true;
+          }),
+        closeResultModal: () =>
+          set((state: GameStoreState) => {
+            state.resultModalOpen = false;
+          }),
         
         // 音名情報更新
-        updateNoteNames: (noteNamesMap) => set((state) => {
-          // notesに音名情報を追加
-          state.notes = state.notes.map(note => ({
-            ...note,
-            noteName: noteNamesMap[note.id] || note.noteName
-          }));
-        }),
+        updateNoteNames: (noteNamesMap: Record<string, string>) =>
+          set((state: GameStoreState) => {
+            // notesに音名情報を追加
+            state.notes = state.notes.map(note => ({
+              ...note,
+              noteName: noteNamesMap[note.id] || note.noteName
+            }));
+          }),
       }))
     ),
     {
@@ -1592,30 +1604,43 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
 
 // ===== セレクタ =====
 
-export const useCurrentTime = () => useGameStore((state) => state.currentTime);
-export const useIsPlaying = () => useGameStore((state) => state.isPlaying);
-export const useCurrentSong = () => useGameStore((state) => state.currentSong);
-export const useChords = () => useGameStore((state) => state.chords);
-export const useGameMode = () => useGameStore((state) => state.mode);
-export const useInstrumentMode = () => useGameStore((state) => state.settings.instrumentMode);
-export const useGameScore = () => useGameStore((state) => state.score);
-export const useActiveNotes = () => useGameStore((state) => state.activeNotes);
-export const useABRepeat = () => useGameStore((state) => state.abRepeat);
-export const useSettings = () => useGameStore((state) => state.settings);
+export const useCurrentTime = () =>
+  useGameStore((state: GameStoreState) => state.currentTime);
+export const useIsPlaying = () =>
+  useGameStore((state: GameStoreState) => state.isPlaying);
+export const useCurrentSong = () =>
+  useGameStore((state: GameStoreState) => state.currentSong);
+export const useChords = () =>
+  useGameStore((state: GameStoreState) => state.chords);
+export const useGameMode = () =>
+  useGameStore((state: GameStoreState) => state.mode);
+export const useInstrumentMode = () =>
+  useGameStore((state: GameStoreState) => state.settings.instrumentMode);
+export const useGameScore = () =>
+  useGameStore((state: GameStoreState) => state.score);
+export const useActiveNotes = () =>
+  useGameStore((state: GameStoreState) => state.activeNotes);
+export const useABRepeat = () =>
+  useGameStore((state: GameStoreState) => state.abRepeat);
+export const useSettings = () =>
+  useGameStore((state: GameStoreState) => state.settings);
 
 // 複合セレクタ - 再生可能状態
-export const useCanPlay = () => useGameStore((state) => 
-  state.currentSong !== null && state.notes.length > 0 && !state.isPlaying
-);
+export const useCanPlay = () =>
+  useGameStore((state: GameStoreState) =>
+    state.currentSong !== null && state.notes.length > 0 && !state.isPlaying
+  );
 
-export const useABRepeatActive = () => useGameStore((state) => 
-  state.abRepeat.enabled && 
-  state.abRepeat.startTime !== null && 
-  state.abRepeat.endTime !== null
-);
+export const useABRepeatActive = () =>
+  useGameStore((state: GameStoreState) =>
+    state.abRepeat.enabled &&
+    state.abRepeat.startTime !== null &&
+    state.abRepeat.endTime !== null
+  );
 
 // 現在の時間がABリピート範囲内かどうか
-export const useIsInABRange = () => useGameStore((state) => {
+export const useIsInABRange = () =>
+  useGameStore((state: GameStoreState) => {
   const { currentTime, abRepeat } = state;
   if (!abRepeat.enabled || abRepeat.startTime === null || abRepeat.endTime === null) {
     return false;
@@ -1626,65 +1651,94 @@ export const useIsInABRange = () => useGameStore((state) => {
 // ===== 新機能: 拡張セレクタ =====
 
 // 初期化状態関連
-export const useInitializationState = () => useGameStore((state) => state.initialization);
-export const useIsInitialized = () => useGameStore((state) => state.initialization.isInitialized);
-export const useHasAudioPermission = () => useGameStore((state) => state.initialization.hasAudioPermission);
-export const useHasMidiPermission = () => useGameStore((state) => state.initialization.hasMidiPermission);
-export const useIsGameEngineReady = () => useGameStore((state) => state.initialization.gameEngineReady);
-export const useInitializationErrors = () => useGameStore((state) => state.initialization.errors);
+export const useInitializationState = () =>
+  useGameStore((state: GameStoreState) => state.initialization);
+export const useIsInitialized = () =>
+  useGameStore((state: GameStoreState) => state.initialization.isInitialized);
+export const useHasAudioPermission = () =>
+  useGameStore((state: GameStoreState) => state.initialization.hasAudioPermission);
+export const useHasMidiPermission = () =>
+  useGameStore((state: GameStoreState) => state.initialization.hasMidiPermission);
+export const useIsGameEngineReady = () =>
+  useGameStore((state: GameStoreState) => state.initialization.gameEngineReady);
+export const useInitializationErrors = () =>
+  useGameStore((state: GameStoreState) => state.initialization.errors);
 
 // 設定プリセット関連
-export const useSettingsPresets = () => useGameStore((state) => state.settingsPresets);
-export const useSettingsPreset = (presetId: string) => useGameStore((state) => 
-  state.settingsPresets.find(p => p.id === presetId)
-);
+export const useSettingsPresets = () =>
+  useGameStore((state: GameStoreState) => state.settingsPresets);
+export const useSettingsPreset = (presetId: string) =>
+  useGameStore((state: GameStoreState) =>
+    state.settingsPresets.find((p) => p.id === presetId)
+  );
 
 // セッション関連
-export const useCurrentSession = () => useGameStore((state) => state.currentSession);
-export const useSessionHistory = () => useGameStore((state) => state.sessionHistory);
-export const useIsSessionActive = () => useGameStore((state) => state.currentSession !== null);
+export const useCurrentSession = () =>
+  useGameStore((state: GameStoreState) => state.currentSession);
+export const useSessionHistory = () =>
+  useGameStore((state: GameStoreState) => state.sessionHistory);
+export const useIsSessionActive = () =>
+  useGameStore((state: GameStoreState) => state.currentSession !== null);
 
 // パフォーマンス監視関連
-export const usePerformanceMetrics = () => useGameStore((state) => state.performance);
-export const useFPS = () => useGameStore((state) => state.performance.fps);
-export const useFrameDrops = () => useGameStore((state) => state.performance.frameDrops);
-export const useAverageFrameTime = () => useGameStore((state) => state.performance.averageFrameTime);
-export const useIsPerformanceGood = () => useGameStore((state) => 
-  state.performance.fps >= 55 && state.performance.frameDrops < 10
-);
+export const usePerformanceMetrics = () =>
+  useGameStore((state: GameStoreState) => state.performance);
+export const useFPS = () =>
+  useGameStore((state: GameStoreState) => state.performance.fps);
+export const useFrameDrops = () =>
+  useGameStore((state: GameStoreState) => state.performance.frameDrops);
+export const useAverageFrameTime = () =>
+  useGameStore((state: GameStoreState) => state.performance.averageFrameTime);
+export const useIsPerformanceGood = () =>
+  useGameStore((state: GameStoreState) =>
+    state.performance.fps >= 55 && state.performance.frameDrops < 10
+  );
 
 // エラー関連
-export const useErrors = () => useGameStore((state) => state.errors);
-export const useHasErrors = () => useGameStore((state) => state.hasErrors());
-export const useErrorSummary = () => useGameStore((state) => state.getErrorSummary());
-export const useSettingsErrors = () => useGameStore((state) => state.errors.settings);
-export const useGameEngineErrors = () => useGameStore((state) => state.errors.gameEngine);
-export const useAudioErrors = () => useGameStore((state) => state.errors.audio);
-export const useMidiErrors = () => useGameStore((state) => state.errors.midi);
+export const useErrors = () =>
+  useGameStore((state: GameStoreState) => state.errors);
+export const useHasErrors = () =>
+  useGameStore((state: GameStoreState) => state.hasErrors());
+export const useErrorSummary = () =>
+  useGameStore((state: GameStoreState) => state.getErrorSummary());
+export const useSettingsErrors = () =>
+  useGameStore((state: GameStoreState) => state.errors.settings);
+export const useGameEngineErrors = () =>
+  useGameStore((state: GameStoreState) => state.errors.gameEngine);
+export const useAudioErrors = () =>
+  useGameStore((state: GameStoreState) => state.errors.audio);
+export const useMidiErrors = () =>
+  useGameStore((state: GameStoreState) => state.errors.midi);
 
 // 複合状態セレクタ
-export const useGameReadyState = () => useGameStore((state) => ({
-  isInitialized: state.initialization.isInitialized,
-  hasAudioPermission: state.initialization.hasAudioPermission,
-  hasMidiPermission: state.initialization.hasMidiPermission,
-  gameEngineReady: state.initialization.gameEngineReady,
-  hasSong: state.currentSong !== null,
-  hasNotes: state.notes.length > 0,
-  hasErrors: state.hasErrors()
-}));
+export const useGameReadyState = () =>
+  useGameStore((state: GameStoreState) => ({
+    isInitialized: state.initialization.isInitialized,
+    hasAudioPermission: state.initialization.hasAudioPermission,
+    hasMidiPermission: state.initialization.hasMidiPermission,
+    gameEngineReady: state.initialization.gameEngineReady,
+    hasSong: state.currentSong !== null,
+    hasNotes: state.notes.length > 0,
+    hasErrors: state.hasErrors()
+  }));
 
-export const usePlaybackState = () => useGameStore((state) => ({
-  isPlaying: state.isPlaying,
-  isPaused: state.isPaused,
-  currentTime: state.currentTime,
-  canPlay: state.currentSong !== null && state.notes.length > 0 && !state.isPlaying,
-  canPause: state.isPlaying,
-  canResume: state.isPaused
-}));
+export const usePlaybackState = () =>
+  useGameStore((state: GameStoreState) => ({
+    isPlaying: state.isPlaying,
+    isPaused: state.isPaused,
+    currentTime: state.currentTime,
+    canPlay: state.currentSong !== null && state.notes.length > 0 && !state.isPlaying,
+    canPause: state.isPlaying,
+    canResume: state.isPaused
+  }));
 
 export const useSettingsValidation = () => {
-  const updateSettingsSafe = useGameStore((state) => state.updateSettingsSafe);
-  const clearErrors = useGameStore((state) => state.clearErrors);
+  const updateSettingsSafe = useGameStore(
+    (state: GameStoreState) => state.updateSettingsSafe
+  );
+  const clearErrors = useGameStore(
+    (state: GameStoreState) => state.clearErrors
+  );
   
   return {
     updateSettingsSafe,
@@ -1693,14 +1747,19 @@ export const useSettingsValidation = () => {
 };
 
 // ===== エフェクト統計関連フック =====
-export const useEffectStats = () => useGameStore((state) => state.performance.effects);
-export const useEffectSuccessRate = () => useGameStore((state) => {
-  const effects = state.performance.effects;
-  return effects.totalGenerated > 0 ? effects.successCount / effects.totalGenerated : 0;
-});
-export const useEffectPerformance = () => useGameStore((state) => ({
-  averageProcessTime: state.performance.effects.averageProcessTime,
-  lastProcessTime: state.performance.effects.lastProcessTime,
-  isPerformanceGood: state.performance.effects.averageProcessTime < 2.0 // 2ms以内が良好
-}));
+export const useEffectStats = () =>
+  useGameStore((state: GameStoreState) => state.performance.effects);
+export const useEffectSuccessRate = () =>
+  useGameStore((state: GameStoreState) => {
+    const effects = state.performance.effects;
+    return effects.totalGenerated > 0
+      ? effects.successCount / effects.totalGenerated
+      : 0;
+  });
+export const useEffectPerformance = () =>
+  useGameStore((state: GameStoreState) => ({
+    averageProcessTime: state.performance.effects.averageProcessTime,
+    lastProcessTime: state.performance.effects.lastProcessTime,
+    isPerformanceGood: state.performance.effects.averageProcessTime < 2.0 // 2ms以内が良好
+  }));
 
