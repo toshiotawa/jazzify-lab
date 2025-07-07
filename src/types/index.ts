@@ -135,6 +135,8 @@ export interface GameSettings {
   noteNameStyle: 'off' | 'abc' | 'solfege';
   /** 簡易表示モード: 複雑な音名を基本音名に変換 */
   simpleDisplayMode: boolean;
+  /** 楽譜表示のオン/オフ設定 */
+  showSheetMusic: boolean;
   showFPS: boolean;
   /** シークバーの表示/非表示 */
   showSeekbar: boolean;

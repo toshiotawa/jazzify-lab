@@ -343,29 +343,33 @@ const GamePlayScreen: React.FC = () => {
     <div className="flex-1 flex flex-col h-full">
       {/* メインコンテンツエリア - 残りのスペースを使用 */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        {/* 楽譜表示エリア（上側） - 動的な高さ */}
-        <div 
-          className="min-h-0 overflow-hidden flex-shrink-0"
-          style={{ height: `${sheetMusicHeightPercentage}%` }}
-        >
-          <SheetMusicDisplay 
-            className="h-full"
-          />
-        </div>
+        {/* 楽譜表示エリア（上側） - showSheetMusicがtrueの場合のみ表示 */}
+        {settings.showSheetMusic && (
+          <>
+            <div 
+              className="min-h-0 overflow-hidden flex-shrink-0"
+              style={{ height: `${sheetMusicHeightPercentage}%` }}
+            >
+              <SheetMusicDisplay 
+                className="h-full"
+              />
+            </div>
+            
+            {/* リサイズハンドル */}
+            <ResizeHandle
+              onResize={handleSheetMusicResize}
+              initialPercentage={sheetMusicHeightPercentage}
+              minPercentage={5}
+              maxPercentage={95}
+            />
+          </>
+        )}
         
-        {/* リサイズハンドル */}
-        <ResizeHandle
-          onResize={handleSheetMusicResize}
-          initialPercentage={sheetMusicHeightPercentage}
-          minPercentage={5}
-          maxPercentage={95}
-        />
-        
-        {/* ゲームエンジン（下側） - 残りの高さ */}
+        {/* ゲームエンジン（下側） - 楽譜表示の有無に応じて高さを調整 */}
         <div 
           className="flex-1 min-h-0"
           style={{ 
-            height: `${100 - sheetMusicHeightPercentage}%`
+            height: settings.showSheetMusic ? `${100 - sheetMusicHeightPercentage}%` : '100%'
           }}
         >
           <GameEngineComponent className="h-full w-full" />

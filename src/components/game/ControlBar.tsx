@@ -8,7 +8,8 @@ import {
   FaForward, 
   FaTimes,
   FaCompressAlt,
-  FaExpandAlt
+  FaExpandAlt,
+  FaMusic
 } from 'react-icons/fa';
 import { 
   MdLoop,
@@ -140,6 +141,11 @@ const ControlBar: React.FC = () => {
   const toggleSeekbar = useCallback(() => {
     updateSettings({ showSeekbar: !settings.showSeekbar });
   }, [updateSettings, settings.showSeekbar]);
+
+  // 楽譜表示の切り替え
+  const toggleSheetMusic = useCallback(() => {
+    updateSettings({ showSheetMusic: !settings.showSheetMusic });
+  }, [updateSettings, settings.showSheetMusic]);
 
   return (
     <div className="w-full">
@@ -351,9 +357,18 @@ const ControlBar: React.FC = () => {
           )}
         </div>
         
-        {/* 右側: FPSモニターとシークバー切り替えボタン */}
+        {/* 右側: FPSモニター、楽譜表示、シークバー切り替えボタン */}
         <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
           <FPSMonitor minimal={true} className="flex-shrink-0" />
+          
+          {/* 楽譜表示切り替えボタン */}
+          <button
+            onClick={toggleSheetMusic}
+            className={`control-btn control-btn-xs ${settings.showSheetMusic ? 'control-btn-primary' : 'control-btn-secondary'}`}
+            title={settings.showSheetMusic ? '楽譜を隠す' : '楽譜を表示'}
+          >
+            <FaMusic />
+          </button>
           
           {/* シークバー表示/非表示ボタン */}
           <button
