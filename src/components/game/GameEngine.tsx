@@ -415,6 +415,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             audioControllerRef.current.pauseProcessingForSeek();
           }
           
+          // ✅ ストアのcurrentTimeを即時更新して二重シークを防止
+          updateTime(safeTime);
+          
           devLog.debug(`🔄 Audio & GameEngine synced to ${safeTime.toFixed(2)}s`);
         }
       } else {
@@ -434,6 +437,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           if (audioControllerRef.current) {
             audioControllerRef.current.pauseProcessingForSeek();
           }
+          
+          // ✅ currentTime を即時更新して二重シークを防止
+          updateTime(safeTime);
           
           devLog.debug(`🔄 GameEngine (音声なし) synced to ${safeTime.toFixed(2)}s`);
         }

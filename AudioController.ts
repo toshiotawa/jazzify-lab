@@ -185,6 +185,8 @@ export class AudioController {
   // PIXIレンダラーエフェクト用コールバック（GameEngine統合用）
   private keyPressEffectCallback: ((note: number) => void) | null = null;
 
+  private outputGainNode: GainNode | null = null;
+
   constructor(options: AudioControllerOptions) {
     console.log('[AudioController] Constructor called');
     
@@ -421,6 +423,12 @@ export class AudioController {
         ringSize: ringSize
       });
       
+      // Create or reuse GainNode for smooth volume ramp
+      if (!this.outputGainNode) {
+        this.outputGainNode = this.audioContext!.createGain();
+        this.outputGainNode.gain.value = 0; // start muted
+      }
+
       this.workletNode.port.onmessage = (e) => {
         console.log('Received message from AudioWorklet:', e.data.type);
         if (e.data.type === 'samples') {
@@ -436,7 +444,9 @@ export class AudioController {
       };
       
       source.connect(this.workletNode);
-      this.workletNode.connect(this.audioContext!.destination);
+      this.workletNode.connect(this.outputGainNode);
+      this.outputGainNode.connect(this.audioContext!.destination);
+      this.fadeInOutput();
       this.isProcessing = true;
       console.log('AudioWorkletNode設定完了 (リングバッファモード)');
     } catch (workletError) {
@@ -496,7 +506,16 @@ export class AudioController {
       this.processAudioData(inputData);
     };
     source.connect(this.scriptNode);
-    this.scriptNode.connect(this.audioContext.destination);
+
+    // Create or reuse GainNode
+    if (!this.outputGainNode) {
+      this.outputGainNode = this.audioContext!.createGain();
+      this.outputGainNode.gain.value = 0;
+    }
+
+    this.scriptNode.connect(this.outputGainNode);
+    this.outputGainNode.connect(this.audioContext!.destination);
+    this.fadeInOutput();
     console.log('ScriptProcessorNode設定完了');
   }
 
@@ -1244,6 +1263,7 @@ export class AudioController {
   public startListening(): void {
     this.isProcessing = true;
     this.pauseProcessing = false;
+    this.fadeInOutput();
   }
 
   /**
@@ -1251,6 +1271,7 @@ export class AudioController {
    */
   public stopListening(): void {
     this.isProcessing = false;
+    this.fadeOutOutput();
     if (this.activeNote !== null) {
       this.onNoteOff(this.activeNote);
       
@@ -1370,5 +1391,23 @@ export class AudioController {
     
     this.currentDeviceId = null;
     this.notifyConnectionChange(false);
+  }
+
+  private fadeInOutput(duration: number = 0.2): void {
+    if (this.outputGainNode && this.audioContext) {
+      const now = this.audioContext.currentTime;
+      this.outputGainNode.gain.cancelScheduledValues(now);
+      this.outputGainNode.gain.setValueAtTime(0, now);
+      this.outputGainNode.gain.linearRampToValueAtTime(1, now + duration);
+    }
+  }
+
+  private fadeOutOutput(duration: number = 0.1): void {
+    if (this.outputGainNode && this.audioContext) {
+      const now = this.audioContext.currentTime;
+      this.outputGainNode.gain.cancelScheduledValues(now);
+      this.outputGainNode.gain.setValueAtTime(this.outputGainNode.gain.value, now);
+      this.outputGainNode.gain.linearRampToValueAtTime(0, now + duration);
+    }
   }
 } 
