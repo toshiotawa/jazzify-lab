@@ -44,18 +44,6 @@ const GameScreen: React.FC = () => {
             {/* タブナビゲーション */}
             <div className="flex space-x-2">
               <TabButton
-                active={currentTab === 'practice'}
-                onClick={() => gameActions.setCurrentTab('practice')}
-              >
-                練習モード
-              </TabButton>
-              <TabButton
-                active={currentTab === 'performance'}
-                onClick={() => gameActions.setCurrentTab('performance')}
-              >
-                本番モード
-              </TabButton>
-              <TabButton
                 active={currentTab === 'songs'}
                 onClick={() => gameActions.setCurrentTab('songs')}
               >
@@ -344,11 +332,64 @@ const GamePlayScreen: React.FC = () => {
         >
           <GameEngineComponent className="h-full w-full" />
         </div>
+        
+        {/* リハ/ステージ 縦ボタン - 画面中央右に配置 */}
+        <ModeToggleButton />
       </div>
 
       {/* コントロールバー - フレックスボックス内の通常要素として配置 */}
       <div className="flex-shrink-0 bg-gray-900 border-t border-gray-700">
         <ControlBar />
+      </div>
+    </div>
+  );
+};
+
+/**
+ * リハ/ステージ モード切り替えボタン
+ */
+const ModeToggleButton: React.FC = () => {
+  const { mode } = useGameSelector((s) => ({
+    mode: s.mode
+  }));
+  const gameActions = useGameActions();
+
+  return (
+    <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10">
+      <div className="flex flex-col space-y-2">
+        {/* リハボタン */}
+        <button
+          onClick={() => gameActions.setMode('practice')}
+          className={`
+            px-3 py-2 rounded-lg font-bold text-sm
+            transition-all duration-200 hover:scale-105
+            shadow-lg backdrop-blur-sm min-w-[60px]
+            ${mode === 'practice' 
+              ? 'bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-400' 
+              : 'bg-gray-600 hover:bg-gray-500 text-gray-200 border-2 border-gray-500'
+            }
+          `}
+          title="練習モード（リハーサル）"
+        >
+          リハ
+        </button>
+        
+        {/* ステージボタン */}
+        <button
+          onClick={() => gameActions.setMode('performance')}
+          className={`
+            px-3 py-2 rounded-lg font-bold text-sm
+            transition-all duration-200 hover:scale-105
+            shadow-lg backdrop-blur-sm min-w-[60px]
+            ${mode === 'performance' 
+              ? 'bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-400' 
+              : 'bg-gray-600 hover:bg-gray-500 text-gray-200 border-2 border-gray-500'
+            }
+          `}
+          title="本番モード（ステージ）"
+        >
+          ステージ
+        </button>
       </div>
     </div>
   );
