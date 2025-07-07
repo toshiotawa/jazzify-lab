@@ -783,6 +783,41 @@ const SettingsPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* 楽譜表示モード */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                楽譜表示
+              </label>
+              <div className="flex items-center space-x-4 mt-1">
+                <label className="flex items-center space-x-1 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sheet-music-mode"
+                    value="full"
+                    checked={!settings.sheetMusicChordsOnly}
+                    onChange={() =>
+                      gameActions.updateSettings({ sheetMusicChordsOnly: false })
+                    }
+                    className="radio radio-sm"
+                  />
+                  <span className="text-sm text-gray-300">ノート+コード</span>
+                </label>
+                <label className="flex items-center space-x-1 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sheet-music-mode"
+                    value="chords-only"
+                    checked={settings.sheetMusicChordsOnly}
+                    onChange={() =>
+                      gameActions.updateSettings({ sheetMusicChordsOnly: true })
+                    }
+                    className="radio radio-sm"
+                  />
+                  <span className="text-sm text-gray-300">コードのみ</span>
+                </label>
+              </div>
+            </div>
+
             {/* 練習モードガイド設定 - 練習モード時のみ表示 */}
             {mode === 'practice' && (
               <div>
@@ -810,4 +845,4 @@ const SettingsPanel: React.FC = () => {
   );
 };
 
-export default GameScreen; 
+export default GameScreen;

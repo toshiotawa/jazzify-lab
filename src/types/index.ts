@@ -137,6 +137,8 @@ export interface GameSettings {
   simpleDisplayMode: boolean;
   /** 楽譜表示のオン/オフ設定 */
   showSheetMusic: boolean;
+  /** 楽譜をコードネームのみ表示 */
+  sheetMusicChordsOnly: boolean;
   showFPS: boolean;
   /** シークバーの表示/非表示 */
   showSeekbar: boolean;

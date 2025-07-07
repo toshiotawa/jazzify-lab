@@ -69,7 +69,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // 🎯 簡易表示設定に基づいてMusicXMLを前処理
       const processedMusicXml = simplifyMusicXmlForDisplay(musicXml, {
         simpleDisplayMode: settings.simpleDisplayMode,
-        noteNameStyle: settings.noteNameStyle
+        noteNameStyle: settings.noteNameStyle,
+        chordsOnly: settings.sheetMusicChordsOnly
       });
       
       console.log(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}`);
@@ -124,7 +125,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     } finally {
       setIsLoading(false);
     }
-  }, [musicXml, notes, settings.simpleDisplayMode, settings.noteNameStyle]); // 簡易表示設定を依存関係に追加
+  }, [
+    musicXml,
+    notes,
+    settings.simpleDisplayMode,
+    settings.noteNameStyle,
+    settings.sheetMusicChordsOnly
+  ]); // 簡易表示設定を依存関係に追加
 
   // musicXmlが変更されたら楽譜を再読み込み・再レンダリング
   useEffect(() => {
@@ -274,8 +281,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
       }
       
-      const playheadPosition = 100; // プレイヘッドの画面上のX座標 (px)
-      const scrollX = Math.max(0, targetX - playheadPosition);
+      const playheadPosition = 120; // プレイヘッドの画面上のX座標 (px)
+      const scrollX = isPlaying
+        ? Math.max(0, targetX - playheadPosition)
+        : targetX - playheadPosition;
       
       // 再生中は滑らかなアニメーション、停止時は即座に移動
       if (isPlaying) {
@@ -355,7 +364,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       {/* プレイヘッド（赤い縦線） */}
       <div 
         className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
-        style={{ left: '100px' }}
+        style={{ left: '120px' }}
       />
       
       {/* 楽譜コンテナ - 上部に余白を追加 */}
