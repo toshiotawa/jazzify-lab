@@ -790,6 +790,7 @@ export class GameEngine {
   
   private startGameLoop(): void {
     this.isGameLoopRunning = true;
+    // PIXI.Ticker.shared を使用し、unifiedFrameController と同期
     const ticker = PIXI.Ticker.shared;
 
     const gameLoop = () => {

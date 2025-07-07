@@ -98,6 +98,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // 前処理されたMusicXMLを使用
       await osmdRef.current.load(processedMusicXml);
       osmdRef.current.render();
+
+      if (settings.sheetMusicChordsOnly) {
+        const noteEls = containerRef.current.querySelectorAll('[class*=notehead], [class*=rest], [class*=stem]');
+        noteEls.forEach(el => {
+          (el as HTMLElement).style.display = 'none';
+        });
+      }
       
       // レンダリング後に正確なスケールファクターを計算
       const svgElement = containerRef.current.querySelector('svg');

@@ -143,6 +143,7 @@ const ControlBar: React.FC = () => {
     updateSettings({ showHeader: !settings.showHeader });
   }, [updateSettings, settings.showHeader]);
 
+
   // 楽譜表示の切り替え
   const toggleSheetMusic = useCallback(() => {
     updateSettings({ showSheetMusic: !settings.showSheetMusic });
@@ -228,6 +229,7 @@ const ControlBar: React.FC = () => {
             <>
               <button
                 onClick={handleSkipBackward}
+
                 className="control-btn control-btn-xs control-btn-secondary"
                 title="5秒戻る"
               >
@@ -236,7 +238,9 @@ const ControlBar: React.FC = () => {
 
               <button
                 onClick={() => isPlaying ? pauseAction() : play()}
+
                 className="control-btn control-btn-xs control-btn-primary"
+
                 disabled={!currentSong}
                 title={isPlaying ? '一時停止' : '再生'}
               >
@@ -245,7 +249,9 @@ const ControlBar: React.FC = () => {
 
               <button
                 onClick={handleSkipForward}
+
                 className="control-btn control-btn-xs control-btn-secondary"
+
                 title="5秒進む"
               >
                 <FaForward />
@@ -335,7 +341,9 @@ const ControlBar: React.FC = () => {
             <>
               <button
                 onClick={handlePlayOrRestart}
+
                 className="control-btn control-btn-xs control-btn-primary"
+
                 disabled={!currentSong}
                 title={
                   currentTime > 0
@@ -349,6 +357,7 @@ const ControlBar: React.FC = () => {
               <button
                 onClick={() => stop()}
                 className="control-btn control-btn-xs control-btn-secondary"
+
                 disabled={!currentSong}
                 title="停止"
               >
@@ -387,6 +396,7 @@ const ControlBar: React.FC = () => {
             title={settings.showHeader ? 'ヘッダーを隠す' : 'ヘッダーを表示'}
           >
             {settings.showHeader ? <FaCompressAlt /> : <FaExpandAlt />}
+
           </button>
         </div>
       </div>
