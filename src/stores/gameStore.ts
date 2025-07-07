@@ -117,6 +117,7 @@ const defaultSettings: GameSettings = {
   noteNameStyle: 'abc',
   simpleDisplayMode: false,  // 新しい簡易表示モード設定を追加
   showSheetMusic: true,  // 楽譜表示のオン/オフ設定を追加
+  sheetMusicChordsOnly: false,
   
   showFPS: false,
   showSeekbar: true,  // デフォルトでシークバーを表示

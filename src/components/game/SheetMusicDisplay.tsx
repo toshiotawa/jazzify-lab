@@ -97,6 +97,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // 前処理されたMusicXMLを使用
       await osmdRef.current.load(processedMusicXml);
       osmdRef.current.render();
+
+      if (settings.sheetMusicChordsOnly) {
+        const noteEls = containerRef.current.querySelectorAll('[class*=notehead], [class*=rest], [class*=stem]');
+        noteEls.forEach(el => {
+          (el as HTMLElement).style.display = 'none';
+        });
+      }
       
       // レンダリング後に正確なスケールファクターを計算
       const svgElement = containerRef.current.querySelector('svg');
@@ -124,7 +131,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     } finally {
       setIsLoading(false);
     }
-  }, [musicXml, notes, settings.simpleDisplayMode, settings.noteNameStyle]); // 簡易表示設定を依存関係に追加
+  }, [
+    musicXml,
+    notes,
+    settings.simpleDisplayMode,
+    settings.noteNameStyle,
+    settings.sheetMusicChordsOnly
+  ]); // 簡易表示設定を依存関係に追加
 
   // musicXmlが変更されたら楽譜を再読み込み・再レンダリング
   useEffect(() => {
@@ -274,8 +287,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
       }
       
-      const playheadPosition = 100; // プレイヘッドの画面上のX座標 (px)
-      const scrollX = Math.max(0, targetX - playheadPosition);
+      const playheadPosition = 120; // プレイヘッドの画面上のX座標 (px)
+      const scrollX = isPlaying
+        ? Math.max(0, targetX - playheadPosition)
+        : targetX - playheadPosition;
       
       // 再生中は滑らかなアニメーション、停止時は即座に移動
       if (isPlaying) {
@@ -355,7 +370,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       {/* プレイヘッド（赤い縦線） */}
       <div 
         className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
-        style={{ left: '100px' }}
+        style={{ left: '120px' }}
       />
       
       {/* 楽譜コンテナ - 上部に余白を追加 */}
