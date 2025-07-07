@@ -613,12 +613,12 @@ const SettingsPanel: React.FC = () => {
                 表示タイミング調整 (判定も同期): {settings.timingAdjustment > 0 ? '+' : ''}{settings.timingAdjustment}ms
               </label>
               <div className="text-xs text-gray-400 mb-2">
-                ノーツの表示位置と判定タイミングを調整します（早い: -, 遅い: +）
+                ノーツの表示位置と判定タイミングを調整します（早く: -, 遅く: +）
               </div>
               <input
                 type="range"
-                min="-100"
-                max="100"
+                min="-200"
+                max="200"
                 step="1"
                 value={settings.timingAdjustment}
                 onChange={(e) => 
@@ -627,9 +627,9 @@ const SettingsPanel: React.FC = () => {
                 className="slider"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>-100ms (早い)</span>
+                <span>-200ms (早く)</span>
                 <span>0ms</span>
-                <span>+100ms (遅い)</span>
+                <span>+200ms (遅く)</span>
               </div>
             </div>
 
