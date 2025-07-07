@@ -1764,3 +1764,30 @@ export const useEffectPerformance = () =>
     isPerformanceGood: state.performance.effects.averageProcessTime < 2.0 // 2ms以内が良好
   }));
 
+// ===== 設定の永続化 =====
+if (typeof window !== 'undefined') {
+  try {
+    const saved = localStorage.getItem('gameSettings');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // 既存の再生速度設定は保存しないため除外
+      delete parsed.playbackSpeed;
+      useGameStore.getState().updateSettings(parsed);
+    }
+  } catch (e) {
+    console.warn('Failed to load settings from localStorage', e);
+  }
+
+  useGameStore.subscribe(
+    (state) => state.settings,
+    (settings) => {
+      const { playbackSpeed, ...persist } = settings;
+      try {
+        localStorage.setItem('gameSettings', JSON.stringify(persist));
+      } catch (e) {
+        console.warn('Failed to save settings to localStorage', e);
+      }
+    }
+  );
+}
+
