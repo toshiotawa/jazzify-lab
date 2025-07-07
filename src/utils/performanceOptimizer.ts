@@ -202,6 +202,49 @@ export class PerformanceMonitor {
   private lastOptimizationCheck = 0;
   private initializationTime = performance.now();
   private isInitializationPhase = true;
+  private animationFrameId: number | null = null;
+  private isMonitoring = false;
+  
+  constructor() {
+    // 自動的にフレーム監視を開始
+    this.startMonitoring();
+  }
+  
+  /**
+   * 自動フレーム監視を開始
+   */
+  private startMonitoring(): void {
+    if (this.isMonitoring) return;
+    this.isMonitoring = true;
+    
+    const monitorFrame = () => {
+      this.startFrame();
+      
+      // 次のフレームでendFrameを呼ぶ
+      this.animationFrameId = requestAnimationFrame(() => {
+        this.endFrame();
+        this.updateFPS();
+        
+        // 継続的に監視
+        if (this.isMonitoring) {
+          monitorFrame();
+        }
+      });
+    };
+    
+    monitorFrame();
+  }
+  
+  /**
+   * 監視を停止
+   */
+  stopMonitoring(): void {
+    this.isMonitoring = false;
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  }
   
   startFrame(): void {
     this.frameStartTime = performance.now();

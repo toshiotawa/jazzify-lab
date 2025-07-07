@@ -198,6 +198,8 @@ export class PIXINotesRendererInstance {
     this.app = new PIXI.Application({
       width,
       height: adjustedHeight, // ★ 最小高さを保証した高さを使用
+      // 🎯 統合フレーム制御を使用して競合ループを回避
+      autoStart: false, // 自動開始を無効化
       backgroundColor: 0x0A0A0F, // より暗い宇宙的な背景
       antialias: true,
       resolution: 1, // 解像度を固定して一貫性を保つ
@@ -281,10 +283,47 @@ export class PIXINotesRendererInstance {
       this.activeKeyPresses.clear();
     });
     
+    // 🎯 統合フレーム制御でPIXIアプリケーションを開始
+    this.startUnifiedRendering();
+    
     log.info('✅ PIXI.js renderer initialized successfully');
   }
 
 
+  
+  /**
+   * 🎯 統合フレーム制御でPIXIアプリケーションを開始
+   */
+  private startUnifiedRendering(): void {
+    if (!window.unifiedFrameController) {
+      console.warn('⚠️ unifiedFrameController not available, using default PIXI ticker');
+      this.app.start();
+      return;
+    }
+    
+    // 統合フレーム制御を使用してPIXIアプリケーションを制御
+    const renderFrame = () => {
+      const currentTime = performance.now();
+      
+      // 統合フレーム制御でフレームスキップ判定
+      if (window.unifiedFrameController.shouldSkipFrame(currentTime)) {
+        // フレームをスキップ
+        requestAnimationFrame(renderFrame);
+        return;
+      }
+      
+      // PIXIアプリケーションを手動でレンダリング
+      this.app.render();
+      
+      // 次のフレームをスケジュール
+      requestAnimationFrame(renderFrame);
+    };
+    
+    // レンダリングループを開始
+    renderFrame();
+    
+    console.log('🎯 PIXI.js unified frame control started');
+  }
   
   /**
    * ノーツテクスチャを事前生成
@@ -2564,6 +2603,11 @@ export class PIXINotesRendererInstance {
    */
   destroy(): void {
     try {
+      // 🎯 統合フレーム制御を停止
+      if (window.performanceMonitor) {
+        window.performanceMonitor.stopMonitoring();
+      }
+      
       // アクティブキープレス状態をクリア（音が伸び続けるバグ防止）
       for (const midiNote of this.activeKeyPresses) {
         this.handleKeyRelease(midiNote);
