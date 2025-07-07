@@ -138,6 +138,9 @@ export class PIXINotesRendererInstance {
   // パフォーマンス監視フラグ
   private performanceEnabled: boolean = true;
   
+  // 破棄状態の追跡
+  private isDestroyed: boolean = false;
+  
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
   public readonly settings: RendererSettings = {
     noteWidth: 0,          // ★ 後で決定
@@ -312,8 +315,21 @@ export class PIXINotesRendererInstance {
         return;
       }
       
-      // PIXIアプリケーションを手動でレンダリング
-      this.app.render();
+      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
+      if (this.isDestroyed) {
+        // 破棄済みの場合はレンダリングループを停止
+        return;
+      }
+      
+      try {
+        if (this.app && this.app.renderer) {
+          this.app.render();
+        }
+      } catch (error) {
+        console.warn('⚠️ PIXI render error (likely destroyed):', error);
+        // レンダリングループを停止
+        return;
+      }
       
       // 次のフレームをスケジュール
       requestAnimationFrame(renderFrame);
@@ -2602,6 +2618,9 @@ export class PIXINotesRendererInstance {
    * リソース解放
    */
   destroy(): void {
+    // 破棄状態フラグを設定（レンダリングループを停止）
+    this.isDestroyed = true;
+    
     try {
       // 🎯 統合フレーム制御を停止
       if (window.performanceMonitor) {
