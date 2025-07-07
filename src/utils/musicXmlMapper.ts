@@ -702,7 +702,14 @@ export function calculatePlayheadPosition(doc: Document, jsonNotes: NoteData[], 
  * MusicXMLの簡易表示処理: コードネームと音名を簡易化
  * gameStore の設定に基づいてMusicXMLを前処理
  */
-export function simplifyMusicXmlForDisplay(musicXmlText: string, settings: { simpleDisplayMode: boolean; noteNameStyle: 'off' | 'abc' | 'solfege' }): string {
+export function simplifyMusicXmlForDisplay(
+  musicXmlText: string,
+  settings: {
+    simpleDisplayMode: boolean;
+    noteNameStyle: 'off' | 'abc' | 'solfege';
+    chordsOnly?: boolean;
+  }
+): string {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(musicXmlText, 'text/xml');
@@ -713,6 +720,14 @@ export function simplifyMusicXmlForDisplay(musicXmlText: string, settings: { sim
     // 簡易表示ONの場合のみ、音名（臨時記号）の簡易化を実行
     if (settings.simpleDisplayMode) {
       simplifyAccidentals(doc, settings);
+    }
+
+    // コードのみ表示の場合、全てのnote要素を非表示に
+    if (settings.chordsOnly) {
+      const noteElements = doc.querySelectorAll('note');
+      noteElements.forEach((note) => {
+        note.setAttribute('print-object', 'no');
+      });
     }
 
     // 変更されたXMLを文字列として返す

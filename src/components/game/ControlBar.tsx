@@ -138,10 +138,11 @@ const ControlBar: React.FC = () => {
     transpose(1);
   }, [transpose]);
 
-  // シークバー表示/非表示の切り替え
-  const toggleSeekbar = useCallback(() => {
-    updateSettings({ showSeekbar: !settings.showSeekbar });
-  }, [updateSettings, settings.showSeekbar]);
+  // ヘッダー表示/非表示の切り替え
+  const toggleHeader = useCallback(() => {
+    updateSettings({ showHeader: !settings.showHeader });
+  }, [updateSettings, settings.showHeader]);
+
 
   // 楽譜表示の切り替え
   const toggleSheetMusic = useCallback(() => {
@@ -228,7 +229,8 @@ const ControlBar: React.FC = () => {
             <>
               <button
                 onClick={handleSkipBackward}
-                className="control-btn control-btn-sm control-btn-secondary"
+
+                className="control-btn control-btn-xs control-btn-secondary"
                 title="5秒戻る"
               >
                 <FaBackward />
@@ -236,7 +238,9 @@ const ControlBar: React.FC = () => {
 
               <button
                 onClick={() => isPlaying ? pauseAction() : play()}
-                className="control-btn control-btn-sm control-btn-primary"
+
+                className="control-btn control-btn-xs control-btn-primary"
+
                 disabled={!currentSong}
                 title={isPlaying ? '一時停止' : '再生'}
               >
@@ -245,7 +249,9 @@ const ControlBar: React.FC = () => {
 
               <button
                 onClick={handleSkipForward}
-                className="control-btn control-btn-sm control-btn-secondary"
+
+                className="control-btn control-btn-xs control-btn-secondary"
+
                 title="5秒進む"
               >
                 <FaForward />
@@ -255,7 +261,7 @@ const ControlBar: React.FC = () => {
               <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
                 <button
                   onClick={handleToggleLoop}
-                  className={`control-btn control-btn-sm ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'}`}
+                  className={`control-btn control-btn-xs ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'}`}
                   title="ABリピートON/OFF"
                 >
                   <MdLoop />
@@ -266,7 +272,7 @@ const ControlBar: React.FC = () => {
               <div className="flex items-center space-x-1 ml-2 text-xs flex-shrink-0">
                 <button
                   onClick={handleSetAStart}
-                  className="control-btn control-btn-xs control-btn-secondary"
+                  className={`control-btn control-btn-xs ${abRepeat.startTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
                   title="A地点設定"
                 >
                   A
@@ -288,7 +294,7 @@ const ControlBar: React.FC = () => {
                 
                 <button
                   onClick={handleSetBEnd}
-                  className="control-btn control-btn-xs control-btn-secondary"
+                  className={`control-btn control-btn-xs ${abRepeat.endTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
                   title="B地点設定"
                 >
                   B
@@ -335,11 +341,13 @@ const ControlBar: React.FC = () => {
             <>
               <button
                 onClick={handlePlayOrRestart}
-                className="control-btn control-btn-sm control-btn-primary"
+
+                className="control-btn control-btn-xs control-btn-primary"
+
                 disabled={!currentSong}
                 title={
-                  currentTime > 0 
-                    ? '最初に戻って再生' 
+                  currentTime > 0
+                    ? '最初に戻って再生'
                     : '再生'
                 }
               >
@@ -348,7 +356,8 @@ const ControlBar: React.FC = () => {
 
               <button
                 onClick={() => stop()}
-                className="control-btn control-btn-sm control-btn-secondary"
+                className="control-btn control-btn-xs control-btn-secondary"
+
                 disabled={!currentSong}
                 title="停止"
               >
@@ -380,13 +389,14 @@ const ControlBar: React.FC = () => {
             <FaMusic />
           </button>
           
-          {/* シークバー表示/非表示ボタン */}
+          {/* ヘッダー表示/非表示ボタン */}
           <button
-            onClick={toggleSeekbar}
+            onClick={toggleHeader}
             className="control-btn control-btn-xs control-btn-secondary"
-            title={settings.showSeekbar ? 'シークバーを隠す' : 'シークバーを表示'}
+            title={settings.showHeader ? 'ヘッダーを隠す' : 'ヘッダーを表示'}
           >
-            {settings.showSeekbar ? <FaCompressAlt /> : <FaExpandAlt />}
+            {settings.showHeader ? <FaCompressAlt /> : <FaExpandAlt />}
+
           </button>
         </div>
       </div>

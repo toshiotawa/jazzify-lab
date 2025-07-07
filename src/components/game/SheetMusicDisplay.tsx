@@ -69,7 +69,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // 🎯 簡易表示設定に基づいてMusicXMLを前処理
       const processedMusicXml = simplifyMusicXmlForDisplay(musicXml, {
         simpleDisplayMode: settings.simpleDisplayMode,
-        noteNameStyle: settings.noteNameStyle
+        noteNameStyle: settings.noteNameStyle,
+        chordsOnly: settings.sheetMusicChordsOnly
       });
       
       console.log(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}`);
