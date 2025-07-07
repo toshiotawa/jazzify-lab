@@ -709,7 +709,42 @@ const SettingsPanel: React.FC = () => {
               </div>
             </div>
 
-            {/* 音名表示設定（統一版） */}
+            {/* 簡易表示ON/OFF */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                簡易表示
+              </label>
+              <div className="flex items-center space-x-4 mt-1">
+                <label className="flex items-center space-x-1 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="simple-display-mode"
+                    value="on"
+                    checked={settings.simpleDisplayMode}
+                    onChange={() => gameActions.updateSettings({ simpleDisplayMode: true })}
+                    className="radio radio-sm"
+                  />
+                  <span className="text-sm text-gray-300">ON</span>
+                </label>
+                <label className="flex items-center space-x-1 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="simple-display-mode"
+                    value="off"
+                    checked={!settings.simpleDisplayMode}
+                    onChange={() => gameActions.updateSettings({ simpleDisplayMode: false })}
+                    className="radio radio-sm"
+                  />
+                  <span className="text-sm text-gray-300">OFF</span>
+                </label>
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                ONにすると、複雑な音名（異名同音、ダブルシャープ等）が基本的な音名に変換されて表示されます。<br />
+                <strong>PIXIノーツ、鍵盤、OSMD楽譜</strong>のすべてに適用されます。
+              </div>
+            </div>
+
+            {/* 音名表示設定 */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 音名表示（鍵盤・ノーツ共通）
@@ -720,14 +755,10 @@ const SettingsPanel: React.FC = () => {
                 className="select select-bordered w-full max-w-xs bg-gray-800 text-white mb-2"
               >
                 <option value="off">OFF</option>
-                <option value="abc">ABC (C, D, E...)</option>
-                <option value="solfege">ドレミ（理論的音名）</option>
-                <option value="simple">ドレミ（簡易表示）</option>
+                <option value="abc">英語 (C, D, E...)</option>
+                <option value="solfege">ドレミ</option>
               </select>
               <div className="text-xs text-gray-400 mt-1">
-                <div className="mb-1">
-                  簡易表示：白鍵は固定（ドレミファソラシ）、黒鍵は基本記号のみ（#、♭）
-                </div>
                 {settings.transposingInstrument !== 'concert_pitch' && 
                   <div>音名は{getTransposingInstrumentName(settings.transposingInstrument)}用に移調されて表示されます。</div>
                 }

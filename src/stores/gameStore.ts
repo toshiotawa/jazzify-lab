@@ -115,6 +115,7 @@ const defaultSettings: GameSettings = {
   // 表示設定
   showNoteNames: true,
   noteNameStyle: 'abc',
+  simpleDisplayMode: false,  // 新しい簡易表示モード設定を追加
   
   showFPS: false,
   showSeekbar: true,  // デフォルトでシークバーを表示
@@ -992,8 +993,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // Proxy（Immer Draft）が revoke されるのを防ぐため、プレーンオブジェクトを渡す
             gameEngine.updateSettings({ ...settings });
             
-            // 🔧 停止中の移調変更対応: 移調設定が変更された場合、停止中でも強制的にengineActiveNotesを更新
-            if ('transpose' in newSettings && !isPlaying) {
+                          // 🔧 停止中の移調変更対応: 移調設定が変更された場合、停止中でも強制的にengineActiveNotesを更新
+              if ('transpose' in newSettings && !get().isPlaying) {
               const engineState = gameEngine.getState();
               // 別のsetコールで更新
               setTimeout(() => {

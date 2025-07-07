@@ -4,6 +4,7 @@ import { useGameSelector, useGameActions } from '@/stores/helpers';
 import platform from '@/platform';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
+import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 
 interface SheetMusicDisplayProps {
   className?: string;
@@ -34,11 +35,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
-  const { currentTime, isPlaying, notes, musicXml } = useGameSelector((s) => ({
+  const { currentTime, isPlaying, notes, musicXml, settings } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
+    settings: s.settings, // 簡易表示設定を取得
   }));
   
   const gameActions = useGameActions();
@@ -64,6 +66,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         osmdRef.current.clear();
       }
       
+      // 🎯 簡易表示設定に基づいてMusicXMLを前処理
+      const processedMusicXml = simplifyMusicXmlForDisplay(musicXml, {
+        simpleDisplayMode: settings.simpleDisplayMode,
+        noteNameStyle: settings.noteNameStyle
+      });
+      
+      console.log(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}`);
+      
       // OSMDインスタンスを毎回新規作成（移調時の確実な反映のため）
       const options: IOSMDOptions = {
         autoResize: true,
@@ -84,7 +94,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       };
       osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
       
-      await osmdRef.current.load(musicXml);
+      // 前処理されたMusicXMLを使用
+      await osmdRef.current.load(processedMusicXml);
       osmdRef.current.render();
       
       // レンダリング後に正確なスケールファクターを計算
@@ -113,7 +124,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     } finally {
       setIsLoading(false);
     }
-  }, [musicXml, notes]); // musicXmlとnotesが変更されたら再実行
+  }, [musicXml, notes, settings.simpleDisplayMode, settings.noteNameStyle]); // 簡易表示設定を依存関係に追加
 
   // musicXmlが変更されたら楽譜を再読み込み・再レンダリング
   useEffect(() => {

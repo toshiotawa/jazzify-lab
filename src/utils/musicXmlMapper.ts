@@ -518,35 +518,35 @@ export function transposeChordRoot(root: string, semitones: number): string {
     
     const { letter, acc } = parsed;
     
-    // ダブルアクシデンタルの簡易化
-    if (acc === '##' || acc === 'x') {
-      // ダブルシャープを次の音名に変換
-      const nextNote = Note.transpose(letter, 'M2'); // 全音上
-      return Note.get(nextNote).letter;
-    }
-    
-    if (acc === 'bb') {
-      // ダブルフラットを前の音名に変換
-      const prevNote = Note.transpose(letter, 'm2'); // 半音下
-      return Note.get(prevNote).letter;
-    }
-    
-    // 特殊なケース: 白鍵の異名同音の簡易化
-    const specialCases: { [key: string]: string } = {
-      'Cb': 'B',
+    // 複雑な音名の簡易化マッピング（simplifyRootNote関数と同じ）
+    const complexToSimpleMap: { [key: string]: string } = {
+      // 異名同音（白鍵）
       'B#': 'C',
-      'Fb': 'E',
       'E#': 'F',
-      // 極端なケース
-      'Fbb': 'Eb',
+      'Cb': 'B',
+      'Fb': 'E',
+      // ダブルシャープ → 基本的な音名
+      'Ax': 'B',
+      'Bx': 'C#',
+      'Cx': 'D',
+      'Dx': 'E',
       'Ex': 'F#',
-      'Cbb': 'Bb',
-      'Bx': 'C#'
+      'Fx': 'G',
+      'Gx': 'A',
+      // ダブルフラット → 基本的な音名
+      'Abb': 'G',
+      'Bbb': 'A',
+      'Cbb': 'B',
+      'Dbb': 'C',
+      'Ebb': 'D',
+      'Fbb': 'E',
+      'Gbb': 'F',
     };
     
     const fullNoteName = letter + (acc || '');
-    if (specialCases[fullNoteName]) {
-      return specialCases[fullNoteName];
+    if (complexToSimpleMap[fullNoteName]) {
+      console.log(`🎼 コード移調後簡易化: ${fullNoteName} → ${complexToSimpleMap[fullNoteName]}`);
+      return complexToSimpleMap[fullNoteName];
     }
     
     // 通常のケース（C, C#, Db など）はそのまま
@@ -696,6 +696,290 @@ export function calculatePlayheadPosition(doc: Document, jsonNotes: NoteData[], 
   }
   
   return null;
+}
+
+/**
+ * MusicXMLの簡易表示処理: コードネームと音名を簡易化
+ * gameStore の設定に基づいてMusicXMLを前処理
+ */
+export function simplifyMusicXmlForDisplay(musicXmlText: string, settings: { simpleDisplayMode: boolean; noteNameStyle: 'off' | 'abc' | 'solfege' }): string {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(musicXmlText, 'text/xml');
+
+    // コードネームの複雑な音名（ダブルシャープ・ダブルフラット）は常に簡易化
+    simplifyChordNames(doc, settings);
+
+    // 簡易表示ONの場合のみ、音名（臨時記号）の簡易化を実行
+    if (settings.simpleDisplayMode) {
+      simplifyAccidentals(doc, settings);
+    }
+
+    // 変更されたXMLを文字列として返す
+    const serializer = new XMLSerializer();
+    return serializer.serializeToString(doc);
+  } catch (error) {
+    console.warn('⚠️ MusicXML簡易表示処理でエラーが発生しました:', error);
+    return musicXmlText; // エラー時は元のXMLを返す
+  }
+}
+
+/**
+ * コードネームの簡易化
+ */
+function simplifyChordNames(doc: Document, settings: { noteNameStyle: 'off' | 'abc' | 'solfege' }): void {
+  const harmonyElements = doc.querySelectorAll('harmony');
+  
+  harmonyElements.forEach((harmony) => {
+    // ルート音名の簡易化
+    const rootStep = harmony.querySelector('root root-step')?.textContent;
+    const rootAlter = harmony.querySelector('root root-alter')?.textContent;
+    
+    if (rootStep) {
+      const simplifiedRoot = simplifyRootNote(rootStep, rootAlter ? parseInt(rootAlter) : 0, settings);
+      const rootStepElement = harmony.querySelector('root root-step');
+      if (rootStepElement) {
+        rootStepElement.textContent = simplifiedRoot.step;
+      }
+      
+      // 変更されたalterがある場合は更新
+      const rootAlterElement = harmony.querySelector('root root-alter');
+      if (simplifiedRoot.alter !== (rootAlter ? parseInt(rootAlter) : 0)) {
+        if (rootAlterElement) {
+          rootAlterElement.textContent = simplifiedRoot.alter.toString();
+        } else if (simplifiedRoot.alter !== 0) {
+          // alter要素が存在しない場合は作成
+          const rootElement = harmony.querySelector('root');
+          if (rootElement) {
+            const newAlter = doc.createElement('root-alter');
+            newAlter.textContent = simplifiedRoot.alter.toString();
+            rootElement.appendChild(newAlter);
+          }
+        }
+      }
+    }
+
+    // コードタイプの簡易化（必要に応じて）
+    const kindElement = harmony.querySelector('kind');
+    if (kindElement) {
+      const kindText = kindElement.getAttribute('text');
+      if (kindText) {
+        const simplifiedKindText = simplifyChordKind(kindText);
+        kindElement.setAttribute('text', simplifiedKindText);
+      }
+    }
+  });
+}
+
+/**
+ * 音名（臨時記号）の簡易化
+ */
+function simplifyAccidentals(doc: Document, settings: { noteNameStyle: 'off' | 'abc' | 'solfege' }): void {
+  const noteElements = doc.querySelectorAll('note');
+  
+  noteElements.forEach((note) => {
+    const pitch = note.querySelector('pitch');
+    if (!pitch) return; // 休符の場合はスキップ
+
+    const step = pitch.querySelector('step')?.textContent;
+    const alter = pitch.querySelector('alter')?.textContent;
+    const octave = pitch.querySelector('octave')?.textContent;
+
+    if (step) {
+      const originalAlter = alter ? parseInt(alter) : 0;
+      const originalOctave = octave ? parseInt(octave) : 4;
+      const simplified = simplifyNoteAccidental(step, originalAlter, originalOctave, settings);
+
+      // ステップを更新
+      const stepElement = pitch.querySelector('step');
+      if (stepElement) {
+        stepElement.textContent = simplified.step;
+      }
+
+      // alterを更新
+      const alterElement = pitch.querySelector('alter');
+      if (simplified.alter !== originalAlter) {
+        if (alterElement) {
+          if (simplified.alter === 0) {
+            alterElement.remove(); // alterが0になった場合は削除
+          } else {
+            alterElement.textContent = simplified.alter.toString();
+          }
+        } else if (simplified.alter !== 0) {
+          // alter要素が存在しない場合は作成
+          const newAlter = doc.createElement('alter');
+          newAlter.textContent = simplified.alter.toString();
+          pitch.appendChild(newAlter);
+        }
+      }
+
+      // オクターブを更新
+      const octaveElement = pitch.querySelector('octave');
+      if (octaveElement && simplified.octave !== originalOctave) {
+        octaveElement.textContent = simplified.octave.toString();
+      }
+
+      // 表示用の臨時記号（accidental要素）も更新
+      const accidentalElement = note.querySelector('accidental');
+      if (accidentalElement) {
+        const newAccidental = getAccidentalText(simplified.alter);
+        if (newAccidental) {
+          accidentalElement.textContent = newAccidental;
+        } else {
+          accidentalElement.remove(); // 臨時記号が不要になった場合は削除
+        }
+      }
+    }
+  });
+}
+
+/**
+ * ルート音名の簡易化（PIXIの簡易表示ロジックを活用）
+ * オクターブ調整なし版（コードネーム用）
+ */
+function simplifyRootNote(step: string, alter: number, settings: { noteNameStyle: 'off' | 'abc' | 'solfege' }): { step: string; alter: number } {
+  // 複雑な音名を基本音名に変換するマッピング
+  const complexToSimpleMap: { [key: string]: { step: string; alter: number } } = {
+    // 異名同音（白鍵）
+    'B#': { step: 'C', alter: 0 },
+    'E#': { step: 'F', alter: 0 },
+    'Cb': { step: 'B', alter: 0 },
+    'Fb': { step: 'E', alter: 0 },
+    // ダブルシャープ → 基本的な音名
+    'Ax': { step: 'B', alter: 0 },
+    'Bx': { step: 'C', alter: 1 },
+    'Cx': { step: 'D', alter: 0 },
+    'Dx': { step: 'E', alter: 0 },
+    'Ex': { step: 'F', alter: 1 },
+    'Fx': { step: 'G', alter: 0 },
+    'Gx': { step: 'A', alter: 0 },
+    // ダブルフラット → 基本的な音名
+    'Abb': { step: 'G', alter: 0 },
+    'Bbb': { step: 'A', alter: 0 },
+    'Cbb': { step: 'B', alter: 0 },
+    'Dbb': { step: 'C', alter: 0 },
+    'Ebb': { step: 'D', alter: 0 },
+    'Fbb': { step: 'E', alter: 0 },
+    'Gbb': { step: 'F', alter: 0 },
+  };
+
+  // 現在の音名を構築
+  let currentNoteName = step;
+  if (alter === 2) {
+    currentNoteName += 'x'; // ダブルシャープ
+  } else if (alter === 1) {
+    currentNoteName += '#'; // シャープ
+  } else if (alter === -1) {
+    currentNoteName += 'b'; // フラット
+  } else if (alter === -2) {
+    currentNoteName += 'bb'; // ダブルフラット
+  }
+
+  // 簡易化マッピングをチェック
+  const simplified = complexToSimpleMap[currentNoteName];
+  if (simplified) {
+    console.log(`🎼 コード音名簡易化: ${currentNoteName} → ${simplified.step}${simplified.alter === 1 ? '#' : simplified.alter === -1 ? 'b' : ''}`);
+    return simplified;
+  }
+
+  // マッピングにない場合はそのまま返す
+  return { step, alter };
+}
+
+/**
+ * 音名臨時記号の簡易化（オクターブ調整付き）
+ */
+function simplifyNoteAccidental(step: string, alter: number, octave: number, settings: { noteNameStyle: 'off' | 'abc' | 'solfege' }): { step: string; alter: number; octave: number } {
+  // 複雑な音名を基本音名に変換するマッピング（オクターブ調整付き）
+  const complexToSimpleWithOctaveMap: { [key: string]: { step: string; alter: number; octaveAdjustment: number } } = {
+    // 異名同音（白鍵）- オクターブ境界を跨ぐもの
+    'B#': { step: 'C', alter: 0, octaveAdjustment: 1 },  // B#4 → C5
+    'Cb': { step: 'B', alter: 0, octaveAdjustment: -1 }, // Cb5 → B4
+    // 異名同音（白鍵）- 同じオクターブ内
+    'E#': { step: 'F', alter: 0, octaveAdjustment: 0 },  // E#4 → F4
+    'Fb': { step: 'E', alter: 0, octaveAdjustment: 0 },  // Fb4 → E4
+    
+    // ダブルシャープ → 基本的な音名
+    'Ax': { step: 'B', alter: 0, octaveAdjustment: 0 },  // Ax4 → B4
+    'Bx': { step: 'C', alter: 1, octaveAdjustment: 1 },  // Bx4 → C#5
+    'Cx': { step: 'D', alter: 0, octaveAdjustment: 0 },  // Cx4 → D4
+    'Dx': { step: 'E', alter: 0, octaveAdjustment: 0 },  // Dx4 → E4
+    'Ex': { step: 'F', alter: 1, octaveAdjustment: 0 },  // Ex4 → F#4
+    'Fx': { step: 'G', alter: 0, octaveAdjustment: 0 },  // Fx4 → G4
+    'Gx': { step: 'A', alter: 0, octaveAdjustment: 0 },  // Gx4 → A4
+    
+    // ダブルフラット → 基本的な音名
+    'Abb': { step: 'G', alter: 0, octaveAdjustment: 0 }, // Abb4 → G4
+    'Bbb': { step: 'A', alter: 0, octaveAdjustment: 0 }, // Bbb4 → A4
+    'Cbb': { step: 'B', alter: 0, octaveAdjustment: -1 }, // Cbb5 → B4
+    'Dbb': { step: 'C', alter: 0, octaveAdjustment: 0 }, // Dbb4 → C4
+    'Ebb': { step: 'D', alter: 0, octaveAdjustment: 0 }, // Ebb4 → D4
+    'Fbb': { step: 'E', alter: 0, octaveAdjustment: 0 }, // Fbb4 → E4
+    'Gbb': { step: 'F', alter: 0, octaveAdjustment: 0 }, // Gbb4 → F4
+  };
+
+  // 現在の音名を構築
+  let currentNoteName = step;
+  if (alter === 2) {
+    currentNoteName += 'x'; // ダブルシャープ
+  } else if (alter === 1) {
+    currentNoteName += '#'; // シャープ
+  } else if (alter === -1) {
+    currentNoteName += 'b'; // フラット
+  } else if (alter === -2) {
+    currentNoteName += 'bb'; // ダブルフラット
+  }
+
+  // 簡易化マッピングをチェック
+  const simplified = complexToSimpleWithOctaveMap[currentNoteName];
+  if (simplified) {
+    const newOctave = octave + simplified.octaveAdjustment;
+    console.log(`🎼 音符簡易化: ${currentNoteName}${octave} → ${simplified.step}${simplified.alter === 1 ? '#' : simplified.alter === -1 ? 'b' : ''}${newOctave}`);
+    return { 
+      step: simplified.step, 
+      alter: simplified.alter, 
+      octave: newOctave 
+    };
+  }
+
+  // マッピングにない場合はそのまま返す
+  return { step, alter, octave };
+}
+
+/**
+ * コード種類の簡易化
+ */
+function simplifyChordKind(kindText: string): string {
+  // 複雑なコード表記を簡易化するマッピング
+  const kindSimplificationMap: { [key: string]: string } = {
+    'maj7': 'M7',
+    'major-seventh': 'M7',
+    'min7': 'm7', 
+    'minor-seventh': 'm7',
+    'dominant-seventh': '7',
+    'major-ninth': 'M9',
+    'minor-ninth': 'm9',
+    'augmented': 'aug',
+    'diminished': 'dim',
+    'half-diminished': 'm7♭5',
+    // 必要に応じて追加
+  };
+
+  return kindSimplificationMap[kindText] || kindText;
+}
+
+/**
+ * alter値から臨時記号テキストを取得
+ */
+function getAccidentalText(alter: number): string | null {
+  switch (alter) {
+    case 2: return 'double-sharp';
+    case 1: return 'sharp';
+    case 0: return null;
+    case -1: return 'flat';
+    case -2: return 'double-flat';
+    default: return null;
+  }
 }
 
 // 小節時間情報推定関数を公開（他でも使用可能に）

@@ -131,8 +131,10 @@ export interface GameSettings {
   
   // 表示設定
   showNoteNames: boolean; // (deprecated) True if legacy for note names
-  /** 統一された音名表示モード（鍵盤・ノーツ共通）: off | abc | solfege | simple */
-  noteNameStyle: 'off' | 'abc' | 'solfege' | 'simple';
+  /** 統一された音名表示モード（鍵盤・ノーツ共通）: off | abc | solfege */
+  noteNameStyle: 'off' | 'abc' | 'solfege';
+  /** 簡易表示モード: 複雑な音名を基本音名に変換 */
+  simpleDisplayMode: boolean;
   showFPS: boolean;
   /** シークバーの表示/非表示 */
   showSeekbar: boolean;
