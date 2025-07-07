@@ -10,6 +10,7 @@ import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
+import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
 import { devLog, log, perfLog } from '@/utils/logger';
 
@@ -31,7 +32,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     isPlaying,
     currentSong,
     currentTime,
-    chords,
     settings,
     score,
     mode,
@@ -1013,13 +1013,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                 
                 <PIXINotesRenderer
                   activeNotes={engineActiveNotes}
-                  chords={chords}
                   width={idealWidth}
                   height={gameAreaSize.height}
                   currentTime={currentTime}
                   onReady={handlePixiReady}
                   className="w-full h-full"
                 />
+                <ChordOverlay />
               </div>
             </div>
           );
