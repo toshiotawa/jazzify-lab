@@ -138,13 +138,10 @@ const ControlBar: React.FC = () => {
     transpose(1);
   }, [transpose]);
 
-  // シークバーとヘッダー表示/非表示の切り替え
-  const toggleSeekbarAndHeader = useCallback(() => {
-    updateSettings({ 
-      showSeekbar: !settings.showSeekbar,
-      showHeader: !settings.showHeader 
-    });
-  }, [updateSettings, settings.showSeekbar, settings.showHeader]);
+  // シークバー表示/非表示の切り替え
+  const toggleSeekbar = useCallback(() => {
+    updateSettings({ showSeekbar: !settings.showSeekbar });
+  }, [updateSettings, settings.showSeekbar]);
 
   // 楽譜表示の切り替え
   const toggleSheetMusic = useCallback(() => {
@@ -155,7 +152,7 @@ const ControlBar: React.FC = () => {
     <div className="w-full">
       {/* シークバー - showSeekbarフラグで制御 */}
       {settings.showSeekbar && (
-        <div className="px-3 py-2 bg-gray-900">
+        <div className="px-3 py-1 bg-gray-900">
           <div className="flex items-center space-x-3">
             <div className="relative flex-1">
               <input
@@ -166,7 +163,7 @@ const ControlBar: React.FC = () => {
                 step="0.1"
                 onChange={handleSeek}
                 disabled={!canInteract}
-                className={`w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer 
+                className={`w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer
                   ${canInteract ? 'hover:bg-gray-600' : 'opacity-50 cursor-not-allowed'}
                   [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
                   [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 
@@ -231,7 +228,7 @@ const ControlBar: React.FC = () => {
             <>
               <button
                 onClick={handleSkipBackward}
-                className="control-btn control-btn-secondary"
+                className="control-btn control-btn-sm control-btn-secondary"
                 title="5秒戻る"
               >
                 <FaBackward />
@@ -239,7 +236,7 @@ const ControlBar: React.FC = () => {
 
               <button
                 onClick={() => isPlaying ? pauseAction() : play()}
-                className="control-btn control-btn-primary"
+                className="control-btn control-btn-sm control-btn-primary"
                 disabled={!currentSong}
                 title={isPlaying ? '一時停止' : '再生'}
               >
@@ -248,7 +245,7 @@ const ControlBar: React.FC = () => {
 
               <button
                 onClick={handleSkipForward}
-                className="control-btn control-btn-secondary"
+                className="control-btn control-btn-sm control-btn-secondary"
                 title="5秒進む"
               >
                 <FaForward />
@@ -338,7 +335,7 @@ const ControlBar: React.FC = () => {
             <>
               <button
                 onClick={handlePlayOrRestart}
-                className="control-btn control-btn-primary"
+                className="control-btn control-btn-sm control-btn-primary"
                 disabled={!currentSong}
                 title={
                   currentTime > 0 
@@ -351,7 +348,7 @@ const ControlBar: React.FC = () => {
 
               <button
                 onClick={() => stop()}
-                className="control-btn control-btn-secondary"
+                className="control-btn control-btn-sm control-btn-secondary"
                 disabled={!currentSong}
                 title="停止"
               >
@@ -383,13 +380,13 @@ const ControlBar: React.FC = () => {
             <FaMusic />
           </button>
           
-          {/* シークバーとヘッダー表示/非表示ボタン */}
+          {/* シークバー表示/非表示ボタン */}
           <button
-            onClick={toggleSeekbarAndHeader}
+            onClick={toggleSeekbar}
             className="control-btn control-btn-xs control-btn-secondary"
-            title={settings.showSeekbar && settings.showHeader ? '全画面表示' : '全画面表示'}
+            title={settings.showSeekbar ? 'シークバーを隠す' : 'シークバーを表示'}
           >
-            {settings.showSeekbar && settings.showHeader ? <FaCompressAlt /> : <FaExpandAlt />}
+            {settings.showSeekbar ? <FaCompressAlt /> : <FaExpandAlt />}
           </button>
         </div>
       </div>
@@ -397,4 +394,4 @@ const ControlBar: React.FC = () => {
   );
 };
 
-export default ControlBar; 
+export default ControlBar;
