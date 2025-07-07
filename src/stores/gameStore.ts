@@ -120,6 +120,7 @@ const defaultSettings: GameSettings = {
   
   showFPS: false,
   showSeekbar: true,  // デフォルトでシークバーを表示
+  showHeader: true,  // ヘッダー表示のオン/オフ設定を追加
   
   // ビューポート設定
   viewportHeight: 600,

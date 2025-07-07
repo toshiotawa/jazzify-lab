@@ -51,7 +51,8 @@ const ControlBar: React.FC = () => {
     clearABRepeatStart,
     clearABRepeatEnd,
     transpose,
-    updateSettings
+    updateSettings,
+    toggleSettings
   } = useGameActions();
 
   const isPracticeMode = mode === 'practice';
@@ -137,10 +138,13 @@ const ControlBar: React.FC = () => {
     transpose(1);
   }, [transpose]);
 
-  // シークバー表示/非表示の切り替え
-  const toggleSeekbar = useCallback(() => {
-    updateSettings({ showSeekbar: !settings.showSeekbar });
-  }, [updateSettings, settings.showSeekbar]);
+  // シークバーとヘッダー表示/非表示の切り替え
+  const toggleSeekbarAndHeader = useCallback(() => {
+    updateSettings({ 
+      showSeekbar: !settings.showSeekbar,
+      showHeader: !settings.showHeader 
+    });
+  }, [updateSettings, settings.showSeekbar, settings.showHeader]);
 
   // 楽譜表示の切り替え
   const toggleSheetMusic = useCallback(() => {
@@ -357,9 +361,18 @@ const ControlBar: React.FC = () => {
           )}
         </div>
         
-        {/* 右側: FPSモニター、楽譜表示、シークバー切り替えボタン */}
+        {/* 右側: FPSモニター、設定、楽譜表示、シークバー切り替えボタン */}
         <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
           <FPSMonitor minimal={true} className="flex-shrink-0" />
+          
+          {/* 設定ボタン */}
+          <button
+            onClick={toggleSettings}
+            className="control-btn control-btn-xs control-btn-secondary"
+            title="設定"
+          >
+            ⚙️
+          </button>
           
           {/* 楽譜表示切り替えボタン */}
           <button
@@ -370,13 +383,13 @@ const ControlBar: React.FC = () => {
             <FaMusic />
           </button>
           
-          {/* シークバー表示/非表示ボタン */}
+          {/* シークバーとヘッダー表示/非表示ボタン */}
           <button
-            onClick={toggleSeekbar}
+            onClick={toggleSeekbarAndHeader}
             className="control-btn control-btn-xs control-btn-secondary"
-            title={settings.showSeekbar ? 'シークバーを隠す' : 'シークバーを表示'}
+            title={settings.showSeekbar && settings.showHeader ? '全画面表示' : '全画面表示'}
           >
-            {settings.showSeekbar ? <FaCompressAlt /> : <FaExpandAlt />}
+            {settings.showSeekbar && settings.showHeader ? <FaCompressAlt /> : <FaExpandAlt />}
           </button>
         </div>
       </div>

@@ -14,15 +14,15 @@ import type { TransposingInstrument } from '@/types';
  * ゲームのメインUI要素を統合
  */
 const GameScreen: React.FC = () => {
-  const { currentTab, currentSong, score, isSettingsOpen } = useGameSelector((s) => ({
+  const { currentTab, currentSong, score, isSettingsOpen, settings } = useGameSelector((s) => ({
     currentTab: s.currentTab,
     currentSong: s.currentSong,
     score: s.score,
-    isSettingsOpen: s.isSettingsOpen
+    isSettingsOpen: s.isSettingsOpen,
+    settings: s.settings
   }));
 
   const gameActions = useGameActions();
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
   return (
     <div 
@@ -35,8 +35,8 @@ const GameScreen: React.FC = () => {
         overscrollBehavior: 'none'
       }}
     >
-      {/* ヘッダー（展開状態） */}
-      {!headerCollapsed && (
+      {/* ヘッダー */}
+      {settings.showHeader && (
         <header
           className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-4 py-2"
         >
@@ -65,40 +65,10 @@ const GameScreen: React.FC = () => {
 
             {/* 右側のコントロール */}
             <div className="flex items-center space-x-4">
-              {/* ヘッダー開閉トグル */}
-              <button
-                onClick={() => setHeaderCollapsed(true)}
-                className="btn btn-secondary btn-xs"
-                title="ヘッダーを収納"
-              >
-                ▲
-              </button>
-
-              {/* 設定ボタン */}
-              <button
-                onClick={() => gameActions.toggleSettings()}
-                className="btn btn-secondary btn-sm"
-              >
-                ⚙️ 設定
-              </button>
+              {/* 設定ボタンはControlBarに移動 */}
             </div>
           </div>
         </header>
-      )}
-
-      {/* ヘッダー（収納時のミニバー） */}
-      {headerCollapsed && (
-        <div className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-2 py-1">
-          <div className="flex justify-end">
-            <button
-              onClick={() => setHeaderCollapsed(false)}
-              className="btn btn-secondary btn-xs"
-              title="ヘッダーを展開"
-            >
-              ▼
-            </button>
-          </div>
-        </div>
       )}
 
       {/* メインコンテンツエリア */}

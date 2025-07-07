@@ -140,6 +140,8 @@ export interface GameSettings {
   showFPS: boolean;
   /** シークバーの表示/非表示 */
   showSeekbar: boolean;
+  /** ヘッダーの表示/非表示 */
+  showHeader: boolean;
   
   // ビューポート設定（動的レイアウト対応）
   /** ゲームエリア（ノーツ降下領域を含むキャンバス）の高さ(px) */
