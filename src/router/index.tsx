@@ -5,9 +5,11 @@ import { ProtectedRoute } from '../components/auth/ProtectedRoute'
 import { AuthCallback } from '../components/auth/AuthCallback'
 import { LoginPage } from '../pages/LoginPage'
 import { AdminPage } from '../pages/admin/AdminPage'
+
 import { GamePage } from '../pages/GamePage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { SettingsPage } from '../pages/SettingsPage'
+import { DiaryPage } from '../pages/DiaryPage'
 
 const router = createBrowserRouter([
   {
@@ -17,12 +19,14 @@ const router = createBrowserRouter([
       {
         index: true,
         element: <Navigate to="/game" replace />,
+
       },
       {
         path: 'login',
         element: <LoginPage />,
       },
       {
+
         path: 'game',
         element: (
           <ProtectedRoute>
@@ -35,6 +39,7 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <ProfilePage />
+
           </ProtectedRoute>
         ),
       },
@@ -71,5 +76,6 @@ const router = createBrowserRouter([
     element: <Navigate to="/game" replace />,
   },
 ])
+
 
 export const AppRouter = () => <RouterProvider router={router} />

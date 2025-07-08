@@ -1,9 +1,13 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { AccountModal } from '@/components/auth/AccountModal'
+import { ConsentModal } from '@/components/auth/ConsentModal'
 
 export const MainLayout: React.FC = () => {
-  const { state, signOut } = useAuth()
+  const { state } = useAuth()
+  const [isAccountOpen, setIsAccountOpen] = useState(false)
+  const [showConsent, setShowConsent] = useState(false)
   const location = useLocation()
 
   const isActiveRoute = (path: string) => {
@@ -11,7 +15,11 @@ export const MainLayout: React.FC = () => {
   }
 
   const navItems = [
+    { path: '/dashboard', label: 'ホーム', icon: '🏠' },
     { path: '/game', label: 'ゲーム', icon: '🎵' },
+    { path: '/ranking', label: 'ランキング', icon: '🏆' },
+    { path: '/diary', label: '日記', icon: '✏️' },
+    { path: '/lessons', label: 'レッスン', icon: '📚' },
     { path: '/profile', label: 'プロフィール', icon: '👤' },
     { path: '/settings', label: '設定', icon: '⚙️' },
   ]
@@ -27,8 +35,10 @@ export const MainLayout: React.FC = () => {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* Navigation */}
-            <nav className="hidden md:flex space-x-6">
+            {/* Left: logo/top link and navigation */}
+            <div className="flex items-center space-x-6">
+              <Link to="/dashboard" className="text-lg font-bold text-gray-800">Jazz Game</Link>
+              <nav className="hidden md:flex space-x-6">
               {navItems.map((item) => (
                 <Link
                   key={item.path}
@@ -43,7 +53,8 @@ export const MainLayout: React.FC = () => {
                   <span>{item.label}</span>
                 </Link>
               ))}
-            </nav>
+              </nav>
+            </div>
 
             {/* User menu */}
             <div className="flex items-center space-x-4">
@@ -94,6 +105,7 @@ export const MainLayout: React.FC = () => {
                 </Link>
               )}
             </div>
+
           </div>
         </div>
       </header>
@@ -122,6 +134,16 @@ export const MainLayout: React.FC = () => {
           ))}
         </div>
       </nav>
+      <AccountModal isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
+      <ConsentModal
+        isOpen={showConsent}
+        onClose={() => setShowConsent(false)}
+        onAccept={() => {
+          setShowConsent(false)
+          window.location.href = '/game?mode=guest'
+        }}
+        title="おためしプレイ利用規約"
+      />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import React, { createContext, useEffect, useReducer, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { AuthState, AuthContextType, User } from '../types/auth'
-import { UserProfile, MemberRank } from '../types/user'
+import { UserProfile, MemberRank, getRankByExp } from '../types/user'
 
 const initialState: AuthState = {
   user: null,
@@ -153,6 +153,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [state.user])
 
+  const addExp = useCallback(async (amount: number) => {
+    try {
+      if (!state.user) throw new Error('ユーザーがログインしていません')
+      const newExp = state.user.totalExp + amount
+      const newRank = getRankByExp(newExp)
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          total_exp: newExp,
+          member_rank: newRank,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', state.user.id)
+
+      if (error) throw error
+
+      dispatch({
+        type: 'AUTH_SUCCESS',
+        payload: {
+          user: { ...state.user, totalExp: newExp, memberRank: newRank },
+          session: state.session,
+        },
+      })
+    } catch (error) {
+      dispatch({ type: 'AUTH_ERROR', payload: error instanceof Error ? error.message : '経験値の更新に失敗しました' })
+    }
+  }, [state.user, state.session])
+
 
 
   useEffect(() => {
@@ -234,6 +262,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signOut,
     updateProfile,
+    addExp,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

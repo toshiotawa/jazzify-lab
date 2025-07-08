@@ -17,13 +17,31 @@ export const AuthCallback: React.FC = () => {
   useEffect(() => {
     if (state.user) {
       navigate('/game', { replace: true });
+
       return;
     }
 
     const handleAuthCallback = async () => {
       try {
+        const params = new URLSearchParams(window.location.search);
+        const errorDescription = params.get('error_description');
+        const code = params.get('code');
+
+        if (errorDescription) {
+          throw new Error(errorDescription);
+        }
+
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+          // remove code from url
+          const url = new URL(window.location.href);
+          url.searchParams.delete('code');
+          window.history.replaceState({}, '', url.toString());
+        }
+
         const { data, error } = await supabase.auth.getSession();
-        
+
         if (error) {
           throw error;
         }
@@ -49,7 +67,7 @@ export const AuthCallback: React.FC = () => {
 
           // 既存ユーザーの場合、ダッシュボードへリダイレクト
           setCallbackState('complete');
-          navigate('/game', { replace: true });
+          navigate('/dashboard', { replace: true });
         } else {
           throw new Error('認証に失敗しました');
         }
@@ -70,7 +88,7 @@ export const AuthCallback: React.FC = () => {
 
   const handleNicknameComplete = () => {
     setCallbackState('complete');
-    navigate('/game', { replace: true });
+    navigate('/dashboard', { replace: true });
   };
 
   const handleRetry = () => {

@@ -62,6 +62,7 @@ export const MemberRankConfig: Record<MemberRank, MemberRankInfo> = {
 }
 
 export interface UserPreferences {
+＝
   theme: 'light' | 'dark' | 'system'
   language: 'ja' | 'en'
   notifications: {
