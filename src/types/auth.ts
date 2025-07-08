@@ -29,6 +29,7 @@ export interface AuthContextType {
   signIn: (email: string) => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (profile: Partial<User>) => Promise<void>
+  addExp: (amount: number) => Promise<void>
 }
 
 export interface LoginFormData {

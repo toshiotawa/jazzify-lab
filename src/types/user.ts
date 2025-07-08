@@ -17,31 +17,61 @@ export enum MemberRank {
   PLATINUM = 'platinum',
 }
 
-export const MemberRankConfig = {
+export interface MemberRankInfo {
+  label: string
+  color: string
+  xpMultiplier: number
+  features: string[]
+  minExp: number
+  maxExp: number
+}
+
+export const MemberRankConfig: Record<MemberRank, MemberRankInfo> = {
   [MemberRank.FREE]: {
     label: 'Free',
     color: '#9CA3AF',
     xpMultiplier: 1,
     features: ['基本ゲーム', 'おためしプレイ'],
+    minExp: 0,
+    maxExp: 999,
   },
   [MemberRank.STANDARD]: {
     label: 'Standard',
     color: '#60A5FA',
     xpMultiplier: 1.5,
     features: ['基本ゲーム', 'レッスン機能', 'コミュニティ'],
+    minExp: 1000,
+    maxExp: 9999,
   },
   [MemberRank.PREMIUM]: {
     label: 'Premium',
     color: '#F59E0B',
     xpMultiplier: 2,
     features: ['全機能', 'レッスン解放', 'チャレンジ'],
+    minExp: 10000,
+    maxExp: 49999,
   },
   [MemberRank.PLATINUM]: {
     label: 'Platinum',
     color: '#E5E4E2',
     xpMultiplier: 2,
     features: ['全機能', 'レッスンスキップ', '管理者機能'],
+    minExp: 50000,
+    maxExp: Infinity,
   },
+}
+
+export function getRankByExp(exp: number): MemberRank {
+  if (exp >= MemberRankConfig[MemberRank.PLATINUM].minExp) {
+    return MemberRank.PLATINUM
+  }
+  if (exp >= MemberRankConfig[MemberRank.PREMIUM].minExp) {
+    return MemberRank.PREMIUM
+  }
+  if (exp >= MemberRankConfig[MemberRank.STANDARD].minExp) {
+    return MemberRank.STANDARD
+  }
+  return MemberRank.FREE
 }
 
 export interface UserPreferences {

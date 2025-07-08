@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import LoadingScreen from '@/components/ui/LoadingScreen';
@@ -7,7 +7,6 @@ import { NicknameRegistrationForm } from './NicknameRegistrationForm';
 import { ConsentModal } from './ConsentModal';
 
 export const AuthCallback: React.FC = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { state } = useAuth();
   const [callbackState, setCallbackState] = useState<'loading' | 'consent' | 'nickname' | 'complete' | 'error'>('loading');
@@ -16,10 +15,32 @@ export const AuthCallback: React.FC = () => {
   const [isFirstLogin, setIsFirstLogin] = useState(false);
 
   useEffect(() => {
+    if (state.user) {
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
     const handleAuthCallback = async () => {
       try {
+        const params = new URLSearchParams(window.location.search);
+        const errorDescription = params.get('error_description');
+        const code = params.get('code');
+
+        if (errorDescription) {
+          throw new Error(errorDescription);
+        }
+
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+          // remove code from url
+          const url = new URL(window.location.href);
+          url.searchParams.delete('code');
+          window.history.replaceState({}, '', url.toString());
+        }
+
         const { data, error } = await supabase.auth.getSession();
-        
+
         if (error) {
           throw error;
         }
@@ -45,7 +66,7 @@ export const AuthCallback: React.FC = () => {
 
           // 既存ユーザーの場合、ダッシュボードへリダイレクト
           setCallbackState('complete');
-          navigate('/game', { replace: true });
+          navigate('/dashboard', { replace: true });
         } else {
           throw new Error('認証に失敗しました');
         }
@@ -57,7 +78,7 @@ export const AuthCallback: React.FC = () => {
     };
 
     handleAuthCallback();
-  }, [navigate]);
+  }, [navigate, state.user]);
 
   const handleConsentAccept = () => {
     setShowConsentModal(false);
@@ -66,11 +87,11 @@ export const AuthCallback: React.FC = () => {
 
   const handleNicknameComplete = () => {
     setCallbackState('complete');
-    navigate('/game', { replace: true });
+    navigate('/dashboard', { replace: true });
   };
 
   const handleRetry = () => {
-    navigate('/auth/login', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   // エラー状態

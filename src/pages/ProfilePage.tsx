@@ -1,17 +1,28 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { MemberRankConfig } from '../types/user'
+import { MemberRankConfig, getRankByExp, MemberRank } from '../types/user'
+import { getLevelInfo } from '../utils/xp'
+import { ProfileEditModal } from '@/components/auth/ProfileEditModal'
 
 export const ProfilePage: React.FC = () => {
   const { state } = useAuth()
+  const [editOpen, setEditOpen] = useState(false)
 
   if (!state.user) {
     return <div>ユーザー情報を読み込み中...</div>
   }
 
   const rankConfig = MemberRankConfig[state.user.memberRank as keyof typeof MemberRankConfig]
+  const nextRank = getRankByExp(state.user.totalExp + 1)
+  const nextRankInfo = nextRank !== state.user.memberRank ? MemberRankConfig[nextRank as MemberRank] : null
+  const progressRatio =
+    rankConfig.maxExp === Infinity
+      ? 1
+      : (state.user.totalExp - rankConfig.minExp) / (rankConfig.maxExp - rankConfig.minExp)
+  const levelInfo = getLevelInfo(state.user.totalExp)
 
   return (
+    <>
     <div className="max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">プロフィール</h1>
       
@@ -74,24 +85,57 @@ export const ProfilePage: React.FC = () => {
                 <dd className="text-sm text-gray-900">{rankConfig.label}</dd>
               </div>
               <div>
+                <dt className="text-sm text-gray-600">レベル</dt>
+                <dd className="text-sm text-gray-900">{levelInfo.level}</dd>
+              </div>
+              <div>
                 <dt className="text-sm text-gray-600">必要経験値</dt>
                 <dd className="text-sm text-gray-900">
-                  {rankConfig.maxExp === Infinity 
-                    ? `${rankConfig.minExp}+` 
+                  {rankConfig.maxExp === Infinity
+                    ? `${rankConfig.minExp}+`
                     : `${rankConfig.minExp} - ${rankConfig.maxExp}`
                   }
                 </dd>
+              </div>
+              {nextRankInfo && (
+                <div className="w-full mt-2">
+                  <div className="h-2 bg-gray-200 rounded">
+                    <div
+                      className="h-full bg-blue-600 rounded"
+                      style={{ width: `${Math.min(progressRatio, 1) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">
+                    次のランク: {nextRankInfo.label} / {state.user.totalExp} / {rankConfig.maxExp}
+                  </p>
+                </div>
+              )}
+              <div className="w-full mt-2">
+                <div className="h-2 bg-green-200 rounded">
+                  <div
+                    className="h-full bg-green-600 rounded"
+                    style={{ width: `${((state.user.totalExp - levelInfo.currentExp) / (levelInfo.nextExp - levelInfo.currentExp)) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  次のレベルまで {levelInfo.nextExp - state.user.totalExp} XP
+                </p>
               </div>
             </dl>
           </div>
         </div>
 
         <div className="mt-8">
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+            onClick={() => setEditOpen(true)}
+          >
             プロフィールを編集
           </button>
         </div>
       </div>
     </div>
+    <ProfileEditModal isOpen={editOpen} onClose={() => setEditOpen(false)} />
+    </>
   )
 }
