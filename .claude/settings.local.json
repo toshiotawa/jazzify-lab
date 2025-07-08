@@ -38,7 +38,10 @@
       "Bash(supabase:*)",
       "Bash(docker:*)",
       "Bash(sudo usermod:*)",
-      "Bash(newgrp:*)"
+      "Bash(newgrp:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr:*)"
     ],
     "deny": []
   },
