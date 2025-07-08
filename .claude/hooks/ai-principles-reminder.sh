@@ -6,10 +6,10 @@ INPUT=$(cat)
 # 無限ループを防ぎたい場合はこれを入れる
 # 以下を書かないとLLMが頑なに合言葉を言わない場合に無限ループになる
 # が、Claudeを信じているのでコメントアウトしている
-# STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
-# if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
-#     exit 0
-# fi
+ STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
+ if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
+     exit 0
+ fi
 
 # トランスクリプトを処理（.jsonl形式に対応）
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path')
