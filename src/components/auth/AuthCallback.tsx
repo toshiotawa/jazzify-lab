@@ -16,7 +16,8 @@ export const AuthCallback: React.FC = () => {
 
   useEffect(() => {
     if (state.user) {
-      navigate('/dashboard', { replace: true });
+      navigate('/game', { replace: true });
+
       return;
     }
 

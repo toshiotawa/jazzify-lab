@@ -5,9 +5,7 @@ import { ProtectedRoute } from '../components/auth/ProtectedRoute'
 import { AuthCallback } from '../components/auth/AuthCallback'
 import { LoginPage } from '../pages/LoginPage'
 import { AdminPage } from '../pages/admin/AdminPage'
-import { RankingPage } from '../pages/RankingPage'
-import { DashboardPage } from '../pages/DashboardPage'
-import { LessonsPage } from '../pages/LessonsPage'
+
 import { GamePage } from '../pages/GamePage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { SettingsPage } from '../pages/SettingsPage'
@@ -20,21 +18,15 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Navigate to="/dashboard" replace />,
+        element: <Navigate to="/game" replace />,
+
       },
       {
         path: 'login',
         element: <LoginPage />,
       },
       {
-        path: 'dashboard',
-        element: (
-          <ProtectedRoute>
-            <DashboardPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
+
         path: 'game',
         element: (
           <ProtectedRoute>
@@ -43,30 +35,11 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: 'ranking',
-        element: <RankingPage />,
-      },
-      {
-        path: 'diary',
-        element: (
-          <ProtectedRoute>
-            <DiaryPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'lessons',
-        element: (
-          <ProtectedRoute>
-            <LessonsPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
         path: 'profile',
         element: (
           <ProtectedRoute>
             <ProfilePage />
+
           </ProtectedRoute>
         ),
       },
@@ -100,8 +73,9 @@ const router = createBrowserRouter([
   },
   {
     path: '*',
-    element: <Navigate to="/dashboard" replace />,
+    element: <Navigate to="/game" replace />,
   },
 ])
+
 
 export const AppRouter = () => <RouterProvider router={router} />

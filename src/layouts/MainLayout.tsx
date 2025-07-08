@@ -60,36 +60,52 @@ export const MainLayout: React.FC = () => {
             <div className="flex items-center space-x-4">
               {state.user ? (
                 <div className="flex items-center space-x-3">
-                  <Link
-                    to="/profile"
+                  {/* Avatar */}
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200">
+                    {state.user.avatarUrl ? (
+                      <img
+                        src={state.user.avatarUrl}
+                        alt="アバター"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+                        👤
+                      </div>
+                    )}
+                  </div>
+                  
+                  <span className="text-sm text-gray-600">
+                    {state.user.displayName || state.user.email}
+                  </span>
+                  
+                  <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                    {state.user.memberRank}
+                  </span>
+                  
+                  {state.user.isAdmin && (
+                    <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
+                      Admin
+                    </span>
+                  )}
+                  
+                  <button
+                    onClick={signOut}
                     className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
                   >
-                    マイページ
-                  </Link>
-                  <button
-                    onClick={() => setIsAccountOpen(true)}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-                  >
-                    アカウント
+                    ログアウト
                   </button>
                 </div>
               ) : (
-                <>
-                  <button
-                    onClick={() => setShowConsent(true)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                  >
-                    おためしプレイ
-                  </button>
-                  <Link
-                    to="/login"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-                  >
-                    ログイン / 会員登録
-                  </Link>
-                </>
+                <Link
+                  to="/login"
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                >
+                  ログイン / 会員登録
+                </Link>
               )}
             </div>
+
           </div>
         </div>
       </header>

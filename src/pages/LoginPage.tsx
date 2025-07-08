@@ -9,7 +9,8 @@ export const LoginPage: React.FC = () => {
 
   useEffect(() => {
     if (state.user) {
-      navigate('/dashboard', { replace: true })
+      navigate('/game', { replace: true })
+
     }
   }, [state.user, navigate])
 

@@ -61,20 +61,8 @@ export const MemberRankConfig: Record<MemberRank, MemberRankInfo> = {
   },
 }
 
-export function getRankByExp(exp: number): MemberRank {
-  if (exp >= MemberRankConfig[MemberRank.PLATINUM].minExp) {
-    return MemberRank.PLATINUM
-  }
-  if (exp >= MemberRankConfig[MemberRank.PREMIUM].minExp) {
-    return MemberRank.PREMIUM
-  }
-  if (exp >= MemberRankConfig[MemberRank.STANDARD].minExp) {
-    return MemberRank.STANDARD
-  }
-  return MemberRank.FREE
-}
-
 export interface UserPreferences {
+＝
   theme: 'light' | 'dark' | 'system'
   language: 'ja' | 'en'
   notifications: {
