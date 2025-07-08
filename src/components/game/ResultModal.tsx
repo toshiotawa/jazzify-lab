@@ -1,5 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
+import { useAuth } from '@/hooks/useAuth';
+import { calculateExp, getLevelInfo, ExpBreakdown, LevelInfo } from '@/utils/xp';
+import { MemberRank, MemberRankConfig, getRankByExp } from '@/types/user';
+import { ScoreRank } from '@/types';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -9,6 +13,49 @@ const ResultModal: React.FC = () => {
     resultModalOpen: s.resultModalOpen
   }));
   const { closeResultModal, resetScore, seek, play, setCurrentTab } = useGameActions();
+  const { addExp, state: authState } = useAuth();
+  const rewardedRef = useRef(false);
+  const [earnedXp, setEarnedXp] = useState(0);
+  const [xpBreakdown, setXpBreakdown] = useState<ExpBreakdown | null>(null);
+  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
+  const [levelUp, setLevelUp] = useState<{ before: number; after: number } | null>(null);
+  const [rankUp, setRankUp] = useState<{ before: MemberRank; after: MemberRank } | null>(null);
+
+  useEffect(() => {
+    if (resultModalOpen && !rewardedRef.current && authState.user) {
+      rewardedRef.current = true;
+      const breakdown = calculateExp(
+        score.rank as ScoreRank,
+        settings.playbackSpeed,
+        settings.transpose !== 0,
+        authState.user.memberRank as MemberRank
+      );
+      setEarnedXp(breakdown.total);
+      setXpBreakdown(breakdown);
+      const beforeRank = authState.user.memberRank as MemberRank;
+      const afterRank = getRankByExp(authState.user.totalExp + breakdown.total);
+      const beforeInfo = getLevelInfo(authState.user.totalExp);
+      const afterInfo = getLevelInfo(authState.user.totalExp + breakdown.total);
+      const beforeLevel = beforeInfo.level;
+      const afterLevel = afterInfo.level;
+      setLevelInfo(afterInfo);
+      if (afterLevel > beforeLevel) {
+        setLevelUp({ before: beforeLevel, after: afterLevel });
+      }
+      if (afterRank !== beforeRank) {
+        setRankUp({ before: beforeRank, after: afterRank });
+      }
+      addExp(breakdown.total);
+    }
+    if (!resultModalOpen) {
+      rewardedRef.current = false;
+      setEarnedXp(0);
+      setLevelUp(null);
+      setRankUp(null);
+      setXpBreakdown(null);
+      setLevelInfo(null);
+    }
+  }, [resultModalOpen]);
 
   if (!resultModalOpen || !currentSong) return null;
 
@@ -113,6 +160,47 @@ const ResultModal: React.FC = () => {
               <span className="font-mono">{settings.transpose > 0 ? `+${settings.transpose}` : settings.transpose}</span>
             </div>
           </div>
+
+          {earnedXp > 0 && (
+            <div className="text-center text-green-400 mb-2">
+              +{earnedXp} XP 獲得！
+            </div>
+          )}
+          {xpBreakdown && (
+            <div className="text-xs text-gray-400 mb-4 space-y-1">
+              <div>基礎XP: {xpBreakdown.base}</div>
+              <div>速度倍率: x{xpBreakdown.speedMultiplier.toFixed(2)}</div>
+              {xpBreakdown.transposeBonus > 1 && (
+                <div>移調ボーナス: x{xpBreakdown.transposeBonus}</div>
+              )}
+              <div>会員倍率: x{xpBreakdown.rankMultiplier}</div>
+            </div>
+          )}
+          {rankUp && (
+            <div className="text-center text-pink-400 mb-2">
+              {MemberRankConfig[rankUp.before].label} → {MemberRankConfig[rankUp.after].label} Rank UP!
+            </div>
+          )}
+          {levelUp && (
+            <div className="text-center text-yellow-400 mb-6">
+              Lv{levelUp.before} → Lv{levelUp.after} Level UP!
+            </div>
+          )}
+          {levelInfo && (
+            <div className="mb-6">
+              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-green-500 transition-all duration-1000"
+                  style={{
+                    width: `${((authState.user!.totalExp + earnedXp - levelInfo.currentExp) / (levelInfo.nextExp - levelInfo.currentExp)) * 100}%`
+                  }}
+                />
+              </div>
+              <div className="text-xs text-gray-400 text-center mt-1">
+                次のレベルまで {levelInfo.nextExp - (authState.user!.totalExp + earnedXp)} XP
+              </div>
+            </div>
+          )}
 
           {/* アクションボタン */}
           <div className="flex justify-center space-x-4">

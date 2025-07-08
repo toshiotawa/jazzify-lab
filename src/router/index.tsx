@@ -2,9 +2,12 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { MainLayout } from '../layouts/MainLayout'
 import { AuthLayout } from '../layouts/AuthLayout'
 import { ProtectedRoute } from '../components/auth/ProtectedRoute'
-import { LoginForm } from '../components/auth/LoginForm'
 import { AuthCallback } from '../components/auth/AuthCallback'
+import { LoginPage } from '../pages/LoginPage'
 import { AdminPage } from '../pages/admin/AdminPage'
+import { RankingPage } from '../pages/RankingPage'
+import { DashboardPage } from '../pages/DashboardPage'
+import { LessonsPage } from '../pages/LessonsPage'
 import { GamePage } from '../pages/GamePage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { SettingsPage } from '../pages/SettingsPage'
@@ -16,13 +19,37 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Navigate to="/game" replace />,
+        element: <Navigate to="/dashboard" replace />,
+      },
+      {
+        path: 'login',
+        element: <LoginPage />,
+      },
+      {
+        path: 'dashboard',
+        element: (
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'game',
         element: (
           <ProtectedRoute>
             <GamePage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'ranking',
+        element: <RankingPage />,
+      },
+      {
+        path: 'lessons',
+        element: (
+          <ProtectedRoute>
+            <LessonsPage />
           </ProtectedRoute>
         ),
       },
@@ -57,10 +84,6 @@ const router = createBrowserRouter([
     element: <AuthLayout />,
     children: [
       {
-        path: 'login',
-        element: <LoginForm />,
-      },
-      {
         path: 'callback',
         element: <AuthCallback />,
       },
@@ -68,7 +91,7 @@ const router = createBrowserRouter([
   },
   {
     path: '*',
-    element: <Navigate to="/game" replace />,
+    element: <Navigate to="/dashboard" replace />,
   },
 ])
 
