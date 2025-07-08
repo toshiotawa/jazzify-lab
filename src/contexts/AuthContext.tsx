@@ -125,25 +125,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Re-fetch user data
-      await refreshSession()
-    } catch (error) {
-      dispatch({ type: 'AUTH_ERROR', payload: error instanceof Error ? error.message : 'プロフィールの更新に失敗しました' })
-    }
-  }, [state.user])
-
-  const refreshSession = useCallback(async () => {
-    try {
-      dispatch({ type: 'AUTH_LOADING' })
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
-      const { data: { session }, error } = await supabase.auth.getSession()
-      
-      if (error) {
-        throw error
+      if (sessionError) {
+        throw sessionError
       }
 
       if (session) {
-        // Fetch user profile
-        const { data: profile, error: profileError } = await supabase
+        // Fetch updated profile
+        const { data: updatedProfile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
@@ -153,23 +143,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           throw profileError
         }
 
-        const user = transformSupabaseUser(session.user, profile)
+        const user = transformSupabaseUser(session.user, updatedProfile)
         dispatch({ type: 'AUTH_SUCCESS', payload: { user, session } })
       } else {
         dispatch({ type: 'AUTH_SUCCESS', payload: { user: null, session: null } })
       }
     } catch (error) {
-      dispatch({ type: 'AUTH_ERROR', payload: error instanceof Error ? error.message : 'セッションの更新に失敗しました' })
+      dispatch({ type: 'AUTH_ERROR', payload: error instanceof Error ? error.message : 'プロフィールの更新に失敗しました' })
     }
-  }, [])
+  }, [state.user])
+
+
 
   useEffect(() => {
+    let isMounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        dispatch({ type: 'AUTH_LOADING' })
+        
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          throw error
+        }
+
+        if (session && isMounted) {
+          // Fetch user profile
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+
+          if (profileError && profileError.code !== 'PGRST116') {
+            throw profileError
+          }
+
+          const user = transformSupabaseUser(session.user, profile)
+          dispatch({ type: 'AUTH_SUCCESS', payload: { user, session } })
+        } else if (isMounted) {
+          dispatch({ type: 'AUTH_SUCCESS', payload: { user: null, session: null } })
+        }
+      } catch (error) {
+        if (isMounted) {
+          dispatch({ type: 'AUTH_ERROR', payload: error instanceof Error ? error.message : 'セッションの更新に失敗しました' })
+        }
+      }
+    }
+
     // Initial session check
-    refreshSession()
+    initializeAuth()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!isMounted) return;
+
         if (event === 'SIGNED_OUT') {
           dispatch({ type: 'AUTH_SIGNOUT' })
         } else if (session) {
@@ -193,15 +223,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     )
 
-    return () => subscription.unsubscribe()
-  }, [refreshSession])
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    }
+  }, []) // 空の依存配列で無限ループを防ぐ
 
   const value: AuthContextType = {
     state,
     signIn,
     signOut,
     updateProfile,
-    refreshSession,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

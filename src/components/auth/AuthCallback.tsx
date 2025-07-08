@@ -9,7 +9,7 @@ import { ConsentModal } from './ConsentModal';
 export const AuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { state, refreshSession } = useAuth();
+  const { state } = useAuth();
   const [callbackState, setCallbackState] = useState<'loading' | 'consent' | 'nickname' | 'complete' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
@@ -25,9 +25,6 @@ export const AuthCallback: React.FC = () => {
         }
 
         if (data.session) {
-          // セッションの更新
-          await refreshSession();
-          
           // ユーザーのプロフィール情報を確認
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
@@ -60,7 +57,7 @@ export const AuthCallback: React.FC = () => {
     };
 
     handleAuthCallback();
-  }, [navigate, refreshSession]);
+  }, [navigate]);
 
   const handleConsentAccept = () => {
     setShowConsentModal(false);

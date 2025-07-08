@@ -29,7 +29,6 @@ export interface AuthContextType {
   signIn: (email: string) => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (profile: Partial<User>) => Promise<void>
-  refreshSession: () => Promise<void>
 }
 
 export interface LoginFormData {
