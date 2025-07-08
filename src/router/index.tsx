@@ -2,8 +2,8 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { MainLayout } from '../layouts/MainLayout'
 import { AuthLayout } from '../layouts/AuthLayout'
 import { ProtectedRoute } from '../components/auth/ProtectedRoute'
-import { LoginForm } from '../components/auth/LoginForm'
 import { AuthCallback } from '../components/auth/AuthCallback'
+import { LoginPage } from '../pages/LoginPage'
 import { AdminPage } from '../pages/admin/AdminPage'
 import { GamePage } from '../pages/GamePage'
 import { ProfilePage } from '../pages/ProfilePage'
@@ -17,6 +17,10 @@ const router = createBrowserRouter([
       {
         index: true,
         element: <Navigate to="/game" replace />,
+      },
+      {
+        path: 'login',
+        element: <LoginPage />,
       },
       {
         path: 'game',
@@ -56,10 +60,6 @@ const router = createBrowserRouter([
     path: '/auth',
     element: <AuthLayout />,
     children: [
-      {
-        path: 'login',
-        element: <LoginForm />,
-      },
       {
         path: 'callback',
         element: <AuthCallback />,

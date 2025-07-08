@@ -24,7 +24,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (!state.user) {
     return (
       <Navigate
-        to="/auth/login"
+        to="/login"
         state={{ from: location }}
         replace
       />

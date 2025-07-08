@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import LoadingScreen from '@/components/ui/LoadingScreen';
@@ -7,7 +7,6 @@ import { NicknameRegistrationForm } from './NicknameRegistrationForm';
 import { ConsentModal } from './ConsentModal';
 
 export const AuthCallback: React.FC = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { state } = useAuth();
   const [callbackState, setCallbackState] = useState<'loading' | 'consent' | 'nickname' | 'complete' | 'error'>('loading');
@@ -16,6 +15,11 @@ export const AuthCallback: React.FC = () => {
   const [isFirstLogin, setIsFirstLogin] = useState(false);
 
   useEffect(() => {
+    if (state.user) {
+      navigate('/game', { replace: true });
+      return;
+    }
+
     const handleAuthCallback = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
@@ -57,7 +61,7 @@ export const AuthCallback: React.FC = () => {
     };
 
     handleAuthCallback();
-  }, [navigate]);
+  }, [navigate, state.user]);
 
   const handleConsentAccept = () => {
     setShowConsentModal(false);
@@ -70,7 +74,7 @@ export const AuthCallback: React.FC = () => {
   };
 
   const handleRetry = () => {
-    navigate('/auth/login', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   // エラー状態
