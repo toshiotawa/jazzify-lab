@@ -4,56 +4,43 @@ export interface UserProfile {
   displayName: string | null
   avatarUrl: string | null
   memberRank: MemberRank
+  isAdmin: boolean
   totalExp: number
   createdAt: string
   updatedAt: string
 }
 
 export enum MemberRank {
-  BRONZE = 'bronze',
-  SILVER = 'silver',
-  GOLD = 'gold',
+  FREE = 'free',
+  STANDARD = 'standard',
+  PREMIUM = 'premium',
   PLATINUM = 'platinum',
-  DIAMOND = 'diamond',
-  MASTER = 'master',
 }
 
 export const MemberRankConfig = {
-  [MemberRank.BRONZE]: {
-    label: 'ブロンズ',
-    color: '#CD7F32',
-    minExp: 0,
-    maxExp: 999,
+  [MemberRank.FREE]: {
+    label: 'Free',
+    color: '#9CA3AF',
+    xpMultiplier: 1,
+    features: ['基本ゲーム', 'おためしプレイ'],
   },
-  [MemberRank.SILVER]: {
-    label: 'シルバー',
-    color: '#C0C0C0',
-    minExp: 1000,
-    maxExp: 2499,
+  [MemberRank.STANDARD]: {
+    label: 'Standard',
+    color: '#60A5FA',
+    xpMultiplier: 1.5,
+    features: ['基本ゲーム', 'レッスン機能', 'コミュニティ'],
   },
-  [MemberRank.GOLD]: {
-    label: 'ゴールド',
-    color: '#FFD700',
-    minExp: 2500,
-    maxExp: 4999,
+  [MemberRank.PREMIUM]: {
+    label: 'Premium',
+    color: '#F59E0B',
+    xpMultiplier: 2,
+    features: ['全機能', 'レッスン解放', 'チャレンジ'],
   },
   [MemberRank.PLATINUM]: {
-    label: 'プラチナ',
+    label: 'Platinum',
     color: '#E5E4E2',
-    minExp: 5000,
-    maxExp: 9999,
-  },
-  [MemberRank.DIAMOND]: {
-    label: 'ダイヤモンド',
-    color: '#B9F2FF',
-    minExp: 10000,
-    maxExp: 19999,
-  },
-  [MemberRank.MASTER]: {
-    label: 'マスター',
-    color: '#FF6B6B',
-    minExp: 20000,
-    maxExp: Infinity,
+    xpMultiplier: 2,
+    features: ['全機能', 'レッスンスキップ', '管理者機能'],
   },
 }
 

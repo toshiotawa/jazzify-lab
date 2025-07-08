@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   email TEXT NOT NULL,
   display_name TEXT,
   avatar_url TEXT,
-  member_rank TEXT NOT NULL DEFAULT 'bronze' CHECK (member_rank IN ('bronze', 'silver', 'gold', 'platinum', 'diamond', 'master')),
+  member_rank TEXT NOT NULL DEFAULT 'free' CHECK (member_rank IN ('free', 'standard', 'premium', 'platinum')),
+  is_admin BOOLEAN NOT NULL DEFAULT false,
   total_exp INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL

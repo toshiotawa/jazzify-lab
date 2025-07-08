@@ -3,6 +3,7 @@ import { MainLayout } from '../layouts/MainLayout'
 import { AuthLayout } from '../layouts/AuthLayout'
 import { ProtectedRoute } from '../components/auth/ProtectedRoute'
 import { LoginForm } from '../components/auth/LoginForm'
+import { AuthCallback } from '../components/auth/AuthCallback'
 import { AdminPage } from '../pages/admin/AdminPage'
 import { GamePage } from '../pages/GamePage'
 import { ProfilePage } from '../pages/ProfilePage'
@@ -61,7 +62,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'callback',
-        element: <div>認証処理中...</div>,
+        element: <AuthCallback />,
       },
     ],
   },

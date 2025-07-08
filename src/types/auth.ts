@@ -11,6 +11,7 @@ export interface User {
   displayName: string | null
   avatarUrl: string | null
   memberRank: string
+  isAdmin: boolean
   totalExp: number
   createdAt: string
   updatedAt: string
