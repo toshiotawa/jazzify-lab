@@ -11,6 +11,7 @@ import { LessonsPage } from '../pages/LessonsPage'
 import { GamePage } from '../pages/GamePage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { SettingsPage } from '../pages/SettingsPage'
+import { DiaryPage } from '../pages/DiaryPage'
 
 const router = createBrowserRouter([
   {
@@ -44,6 +45,14 @@ const router = createBrowserRouter([
       {
         path: 'ranking',
         element: <RankingPage />,
+      },
+      {
+        path: 'diary',
+        element: (
+          <ProtectedRoute>
+            <DiaryPage />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'lessons',
