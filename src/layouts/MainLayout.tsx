@@ -18,6 +18,7 @@ export const MainLayout: React.FC = () => {
     { path: '/dashboard', label: 'ホーム', icon: '🏠' },
     { path: '/game', label: 'ゲーム', icon: '🎵' },
     { path: '/ranking', label: 'ランキング', icon: '🏆' },
+    { path: '/diary', label: '日記', icon: '✏️' },
     { path: '/lessons', label: 'レッスン', icon: '📚' },
     { path: '/profile', label: 'プロフィール', icon: '👤' },
     { path: '/settings', label: '設定', icon: '⚙️' },
