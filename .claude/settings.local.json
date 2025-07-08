@@ -28,7 +28,9 @@
       "Bash(git rm:*)",
       "Bash(mkdir:*)",
       "Bash(afplay:*)",
-      "Bash(npm run type-check:*)"
+      "Bash(npm run type-check:*)",
+      "Bash(gh pr create:*)",
+      "Bash(npx supabase:*)"
     ],
     "deny": []
   },
