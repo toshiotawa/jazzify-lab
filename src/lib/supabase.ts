@@ -4,7 +4,16 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase URL and anonymous key are required')
+  console.error('Environment variables debug info:')
+  console.error('VITE_SUPABASE_URL:', supabaseUrl)
+  console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? '***hidden***' : 'undefined')
+  console.error('All env vars:', import.meta.env)
+  
+  throw new Error(`Supabase configuration error:
+  - VITE_SUPABASE_URL: ${supabaseUrl ? 'Set' : 'Missing'}
+  - VITE_SUPABASE_ANON_KEY: ${supabaseAnonKey ? 'Set' : 'Missing'}
+  
+  Please check your environment variables configuration.`)
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
