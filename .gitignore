@@ -134,4 +134,10 @@ stats.json
 # *.wasm
 
 # Large JSON files (except sample data)
-# Keep small sample files for development 
+# Keep small sample files for development
+
+# Supabase
+supabase/.branches
+supabase/.temp
+supabase/volumes
+.env.local

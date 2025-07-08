@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App.tsx';
+import { AuthProvider } from './contexts/AuthContext';
+import { AppRouter } from './router';
 import './index.css';
 import { enableMapSet } from 'immer';
 
@@ -103,7 +104,11 @@ const initializeApp = async () => {
     const root = ReactDOM.createRoot(rootElement);
     
     showDebugInfo('Rendering React app...');
-    root.render(<App />);
+    root.render(
+      <AuthProvider>
+        <AppRouter />
+      </AuthProvider>
+    );
     
     showDebugInfo('React app rendered successfully');
     

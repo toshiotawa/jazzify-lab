@@ -1,0 +1,74 @@
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
+import { MainLayout } from '../layouts/MainLayout'
+import { AuthLayout } from '../layouts/AuthLayout'
+import { ProtectedRoute } from '../components/auth/ProtectedRoute'
+import { LoginForm } from '../components/auth/LoginForm'
+import { AdminPage } from '../pages/admin/AdminPage'
+import { GamePage } from '../pages/GamePage'
+import { ProfilePage } from '../pages/ProfilePage'
+import { SettingsPage } from '../pages/SettingsPage'
+
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <MainLayout />,
+    children: [
+      {
+        index: true,
+        element: <Navigate to="/game" replace />,
+      },
+      {
+        path: 'game',
+        element: (
+          <ProtectedRoute>
+            <GamePage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'profile',
+        element: (
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'settings',
+        element: (
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'admin',
+        element: (
+          <ProtectedRoute requireAdmin>
+            <AdminPage />
+          </ProtectedRoute>
+        ),
+      },
+    ],
+  },
+  {
+    path: '/auth',
+    element: <AuthLayout />,
+    children: [
+      {
+        path: 'login',
+        element: <LoginForm />,
+      },
+      {
+        path: 'callback',
+        element: <div>認証処理中...</div>,
+      },
+    ],
+  },
+  {
+    path: '*',
+    element: <Navigate to="/game" replace />,
+  },
+])
+
+export const AppRouter = () => <RouterProvider router={router} />

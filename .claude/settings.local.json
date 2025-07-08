@@ -25,8 +25,34 @@
       "Bash(curl:*)",
       "Bash(rg:*)",
       "Bash(grep:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(mkdir:*)",
+      "Bash(afplay:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(gh pr create:*)",
+      "Bash(npx supabase:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(npm run supabase:start:*)",
+      "Bash(wsl:*)",
+      "Bash(cat:*)",
+      "Bash(supabase:*)",
+      "Bash(docker:*)",
+      "Bash(sudo usermod:*)",
+      "Bash(newgrp:*)"
     ],
     "deny": []
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/mnt/c/Users/saita/Documents/jazzgame/.claude/hooks/ai-principles-reminder.sh"
+          }
+        ]
+      }
+    ]
   }
 }
