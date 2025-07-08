@@ -41,7 +41,8 @@
       "Bash(newgrp:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr merge:*)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(git rebase:*)"
     ],
     "deny": []
   },
