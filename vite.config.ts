@@ -6,6 +6,10 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production';
   
   return {
+    define: {
+      // 環境変数の明示的定義（本番環境でのフォールバック対応）
+      'import.meta.env.VITE_ENVIRONMENT': JSON.stringify(process.env.VITE_ENVIRONMENT || 'local'),
+    },
     plugins: [react()],
     resolve: {
       alias: {

@@ -5,6 +5,9 @@
 [build.environment]
   NODE_VERSION = "18"
   NPM_VERSION = "9"
+  # 本番環境用Supabase設定（実際の値はNetlify管理画面で設定）
+  # VITE_SUPABASE_URL_PROD = "https://your-project-id.supabase.co"
+  # VITE_SUPABASE_ANON_KEY_PROD = "your-production-anon-key"
 
 [[headers]]
   for = "/*"
