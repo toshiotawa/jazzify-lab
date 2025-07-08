@@ -139,4 +139,5 @@ stats.json
 # Supabase
 supabase/.branches
 supabase/.temp
-supabase/volumes 
+supabase/volumes
+.env.local
