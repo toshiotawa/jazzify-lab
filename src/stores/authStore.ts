@@ -80,7 +80,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.loading = true;
         state.error = null;
       });
-      const { error } = await supabase.auth.signInWithOtp({ email });
+      // Supabase へ Magic Link を送信 (redirect URL を明示)
+      const redirectUrl =
+        import.meta.env.VITE_SUPABASE_REDIRECT_URL ??
+        (typeof location !== 'undefined' ? location.origin : undefined);
+
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: redirectUrl ? { emailRedirectTo: redirectUrl } : undefined,
+      });
       set(state => {
         state.loading = false;
         if (error) {
@@ -158,12 +166,20 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       const supabase = getSupabaseClient();
       const { user } = get();
       if (!user) return;
-      const { error } = await supabase.from('profiles').insert({
+      
+      // プロフィール作成（upsertを使用してRLSエラーを回避）
+      const { error } = await supabase.from('profiles').upsert({
         id: user.id,
-        email: user.email,
+        email: user.email!,
         nickname,
+        rank: 'free',
+        xp: 0,
+        level: 1,
         is_admin: false,
+      }, {
+        onConflict: 'id'
       });
+      
       if (error) {
         set(state => { state.error = error.message; });
       } else {

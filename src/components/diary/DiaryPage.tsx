@@ -94,9 +94,9 @@ const DiaryPage: React.FC = () => {
             {(!user || isGuest) ? (
               <div className="text-center text-gray-400 space-y-4">
                 <p>コミュニティ機能はログインユーザー専用です。</p>
-                <div className="flex justify-center gap-3 mt-4">
-                  <button className="btn btn-sm btn-outline" onClick={handleClose}>戻る</button>
-                  <button className="btn btn-sm btn-primary" onClick={()=>{window.location.hash='#login';}}>ログイン / 会員登録</button>
+                <div className="flex flex-col gap-3 mt-4 max-w-xs mx-auto">
+                  <button className="btn btn-sm btn-primary w-full" onClick={()=>{window.location.hash='#login';}}>ログイン / 会員登録</button>
+                  <button className="btn btn-sm btn-outline w-full" onClick={handleClose}>戻る</button>
                 </div>
               </div>
             ) : (

@@ -145,7 +145,7 @@ const LessonPage: React.FC = () => {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={handleClose}>
         <div className="bg-slate-900 w-full max-w-sm rounded-lg p-8 text-white text-center space-y-4" onClick={e=>e.stopPropagation()}>
-          <p className="text-gray-300">コミュニティ機能はログインユーザー専用です。</p>
+          <p className="text-gray-300">レッスン機能はログインユーザー専用です。</p>
           <div className="flex flex-col gap-3 mt-4">
             <button className="btn btn-sm btn-primary w-full" onClick={()=>{window.location.hash='#login';}}>
               ログイン / 会員登録
