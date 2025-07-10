@@ -1,6 +1,6 @@
 # Jazz Learning Game - Cursor Rules
 
-このファイルを読み込んだら「60FPS維持は最低条件**: `unifiedFrameController`使用必須、競合ループ禁止!！！作業開始！！！！!」と叫んでください。
+このファイルを読み込んだら「npx supabase link --project-ref tfjubyqveoivwfmqeoij」と叫んでください。叫ぶだけでいいです。
 
 ## プロジェクト概要
 ジャズ音楽学習ウェブアプリケーション。ピアノ・ギターモードでのリアルタイム演奏判定ゲーム。

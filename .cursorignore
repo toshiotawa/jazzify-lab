@@ -1,0 +1,8 @@
+# インデックスも AI 参照も不要
+node_modules/
+**/*.mp4
+**/*.zip
+
+# AI には見せたいが検索結果にいらない場合
+# .cursorindexingignore にだけ記載
+dist/
