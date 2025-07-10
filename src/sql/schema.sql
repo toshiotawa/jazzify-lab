@@ -174,7 +174,8 @@ create table public.diary_likes (
 -- RLS: diary_likes (本人のみ insert/delete, 公開 select)
 alter table public.diary_likes enable row level security;
 create policy "likes_select" on public.diary_likes for select using ( true );
-create policy "likes_modify" on public.diary_likes for insert, delete with check ( auth.uid() = user_id );
+create policy "likes_insert" on public.diary_likes for insert with check ( auth.uid() = user_id );
+create policy "likes_delete" on public.diary_likes for delete using ( auth.uid() = user_id );
 
 -- RPC: 練習日記投稿でミッション進捗を +1
 create or replace function public.increment_diary_progress(
@@ -220,7 +221,7 @@ create policy "challenges_read_all" on public.challenges
   for select using ( true );
 
 create policy "challenges_admin_modify" on public.challenges
-  for insert, update, delete
+  for all
   using ( (select is_admin from public.profiles where id = auth.uid()) )
   with check ( (select is_admin from public.profiles where id = auth.uid()) );
 
@@ -231,7 +232,7 @@ create policy "challenge_songs_read_all" on public.challenge_songs
   for select using ( true );
 
 create policy "challenge_songs_admin_modify" on public.challenge_songs
-  for insert, update, delete
+  for all
   using ( (select is_admin from public.profiles where id = auth.uid()) )
   with check ( (select is_admin from public.profiles where id = auth.uid()) );
 
@@ -242,7 +243,8 @@ create policy "progress_owner_select" on public.user_challenge_progress
   for select using ( auth.uid() = user_id );
 
 create policy "progress_owner_modify" on public.user_challenge_progress
-  for insert, update, delete
+  for all
+  using ( auth.uid() = user_id )
   with check ( auth.uid() = user_id );
 
 -- Indexes for performance
@@ -277,7 +279,8 @@ create policy "lesson_progress_owner_select" on public.user_lesson_progress
   for select using ( auth.uid() = user_id );
 
 create policy "lesson_progress_owner_modify" on public.user_lesson_progress
-  for insert, update, delete
+  for all
+  using ( auth.uid() = user_id )
   with check ( auth.uid() = user_id );
 
 -- Lesson Progress Indexes
@@ -318,7 +321,7 @@ create policy "announcements_admin_read" on public.announcements
   for select using ( (select is_admin from public.profiles where id = auth.uid()) );
 
 create policy "announcements_admin_modify" on public.announcements
-  for insert, update, delete
+  for all
   using ( (select is_admin from public.profiles where id = auth.uid()) )
   with check ( (select is_admin from public.profiles where id = auth.uid()) );
 
@@ -328,3 +331,8 @@ create index if not exists announcements_active_idx
 
 create index if not exists announcements_created_by_idx
   on public.announcements (created_by); 
+
+  -- Database → Replication → Publication で追加
+alter publication supabase_realtime
+  add table public.practice_diaries,
+          public.diary_comments;
