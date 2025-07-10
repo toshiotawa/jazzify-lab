@@ -192,6 +192,23 @@ begin
 end;
 $$;
 
+-- 日記コメント
+create table public.diary_comments (
+  id uuid primary key default gen_random_uuid(),
+  diary_id uuid references public.practice_diaries(id) on delete cascade,
+  user_id uuid references public.profiles(id) on delete cascade,
+  content text not null,
+  created_at timestamptz default now()
+);
+
+alter table public.diary_comments enable row level security;
+
+create policy "comments_public_read" on public.diary_comments for select using ( true );
+create policy "comments_owner_insert" on public.diary_comments for insert with check ( auth.uid() = user_id );
+create policy "comments_owner_delete" on public.diary_comments for delete using ( auth.uid() = user_id );
+
+create index if not exists comments_diary_idx on public.diary_comments (diary_id);
+
 -- ------------------------------------------------------------
 -- RLS & Indexes for Challenge System (2024-07-10)
 -- ------------------------------------------------------------

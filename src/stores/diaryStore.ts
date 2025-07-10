@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { Diary, fetchDiaries, createDiary, likeDiary } from '@/platform/supabaseDiary';
+import { Diary, fetchDiaries, createDiary, likeDiary, updateDiary, fetchComments, addComment, deleteComment } from '@/platform/supabaseDiary';
+import { getSupabaseClient } from '@/platform/supabaseClient';
 
 interface DiaryState {
   diaries: Diary[];
   loading: boolean;
   error: string | null;
   todayPosted: boolean;
+  comments: Record<string, Array<{ id: string; content: string; created_at: string; nickname: string; avatar_url?: string }>>;
 }
 
 interface DiaryActions {
@@ -20,6 +22,10 @@ interface DiaryActions {
     missionsUpdated: number;
   }>;
   like: (id: string) => Promise<void>;
+  update: (id: string, content: string) => Promise<void>;
+  fetchComments: (diaryId: string) => Promise<void>;
+  addComment: (diaryId: string, content: string) => Promise<void>;
+  deleteComment: (commentId: string, diaryId: string) => Promise<void>;
 }
 
 export const useDiaryStore = create<DiaryState & DiaryActions>()(
@@ -28,6 +34,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     loading: false,
     error: null,
     todayPosted: false,
+    comments: {},
 
     fetch: async () => {
       set(s => { s.loading = true; s.error = null; });
@@ -36,7 +43,8 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
         set(s => { s.diaries = data; });
         // 今日投稿しているか判定
         const today = new Date().toISOString().substring(0,10);
-        const posted = data.some(d => d.practice_date === today && d.user_id === get().diaries[0]?.user_id);
+        const { data: { user } } = await getSupabaseClient().auth.getUser();
+        const posted = user ? data.some(d => d.practice_date === today && d.user_id === user.id) : false;
         set(s => { s.todayPosted = posted; });
       } catch (e:any) {
         set(s => { s.error = e.message; });
@@ -55,6 +63,26 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
         const d = s.diaries.find(di => di.id === id);
         if (d) d.likes += 1;
       });
+    },
+
+    update: async (id: string, content: string) => {
+      await updateDiary(id, content);
+      await get().fetch();
+    },
+
+    fetchComments: async (diaryId: string) => {
+      const comments = await fetchComments(diaryId);
+      set(s => { s.comments[diaryId] = comments; });
+    },
+
+    addComment: async (diaryId: string, content: string) => {
+      await addComment(diaryId, content);
+      await get().fetchComments(diaryId);
+    },
+
+    deleteComment: async (commentId: string, diaryId: string) => {
+      await deleteComment(commentId);
+      await get().fetchComments(diaryId);
     },
   }))
 ); 

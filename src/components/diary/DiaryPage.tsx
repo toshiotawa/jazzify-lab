@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchUserDiaries } from '@/platform/supabaseDiary';
 import { FaArrowLeft, FaCalendarAlt, FaHeart } from 'react-icons/fa';
+import DiaryFeed from './DiaryFeed';
+import { useAuthStore } from '@/stores/authStore';
 
 interface UserDiary {
   id: string;
@@ -29,6 +31,7 @@ const DiaryPage: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user, isGuest } = useAuthStore();
 
   useEffect(() => {
     const checkHash = () => {
@@ -38,6 +41,9 @@ const DiaryPage: React.FC = () => {
         const id = urlParams.get('id');
         setUserId(id);
         setOpen(!!id);
+      } else if (hash === '#diary') {
+        setOpen(true);
+        setUserId(null);
       } else {
         setOpen(false);
         setUserId(null);
@@ -75,6 +81,33 @@ const DiaryPage: React.FC = () => {
   };
 
   if (!open) return null;
+
+  if (!userId) {
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 overflow-auto" onClick={handleClose}>
+        <div className="bg-slate-900 w-full max-w-3xl max-h-[90vh] overflow-auto rounded-lg" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between border-b border-slate-700 p-4">
+            <h2 className="font-bold text-lg">コミュニティ</h2>
+            <button className="btn btn-sm btn-outline" onClick={handleClose}>閉じる</button>
+          </div>
+          <div className="p-4">
+            {(!user || isGuest) ? (
+              <div className="text-center text-gray-400 space-y-4">
+                <p>コミュニティ機能はログインユーザー専用です。</p>
+                <div className="flex justify-center gap-3 mt-4">
+                  <button className="btn btn-sm btn-outline" onClick={handleClose}>戻る</button>
+                  <button className="btn btn-sm btn-primary" onClick={()=>{window.location.hash='#login';}}>ログイン / 会員登録</button>
+                </div>
+              </div>
+            ) : (
+              <DiaryFeed />
+            )}
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   return createPortal(
     <div 

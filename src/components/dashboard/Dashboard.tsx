@@ -275,7 +275,7 @@ const Dashboard: React.FC = () => {
                   </button>
                   
                   <button
-                    onClick={() => window.location.hash = '#community'}
+                    onClick={() => window.location.hash = '#diary'}
                     className="btn btn-sm btn-outline flex flex-col items-center space-y-2 p-4 h-auto"
                   >
                     <FaBell className="w-6 h-6" />

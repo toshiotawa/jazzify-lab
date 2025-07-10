@@ -13,6 +13,15 @@ export interface Diary {
   avatar_url?: string;
 }
 
+export interface DiaryComment {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  nickname: string;
+  avatar_url?: string;
+}
+
 export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   const { data, error } = await getSupabaseClient()
     .from('practice_diaries')
@@ -165,4 +174,71 @@ export async function likeDiary(diaryId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   await supabase.from('diary_likes').insert({ user_id: user.id, diary_id: diaryId }).throwOnError();
+}
+
+export async function updateDiary(diaryId: string, content: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+
+  const { error } = await supabase
+    .from('practice_diaries')
+    .update({ content })
+    .eq('id', diaryId)
+    .eq('user_id', user.id);
+    
+  if (error) throw new Error(`日記の更新に失敗しました: ${error.message}`);
+}
+
+export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
+  type Row = {
+    id: string;
+    user_id: string;
+    content: string;
+    created_at: string;
+    profiles: { nickname: string; avatar_url?: string } | null;
+  };
+
+  const { data: rawData, error } = await getSupabaseClient()
+    .from('diary_comments')
+    .select('id, user_id, content, created_at, profiles(nickname, avatar_url)')
+    .eq('diary_id', diaryId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  const data = rawData as unknown as Row[] | null;
+  if (!data) return [];
+
+  // 型ガード: profiles が必ず存在する前提だが、null チェック
+  return data.map((d) => {
+    const profile = d.profiles ?? { nickname: 'User' };
+    return {
+      id: d.id,
+      user_id: d.user_id,
+      content: d.content,
+      created_at: d.created_at,
+      nickname: profile.nickname,
+      avatar_url: profile.avatar_url,
+    } satisfies DiaryComment;
+  });
+}
+
+export async function addComment(diaryId: string, content: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+  const { error } = await supabase.from('diary_comments').insert({
+    diary_id: diaryId,
+    user_id: user.id,
+    content
+  });
+  if (error) throw error;
+}
+
+export async function deleteComment(commentId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+  const { error } = await supabase.from('diary_comments').delete().eq('id', commentId).eq('user_id', user.id);
+  if (error) throw error;
 } 
