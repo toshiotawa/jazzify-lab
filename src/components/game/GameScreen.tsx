@@ -45,7 +45,7 @@ const GameScreen: React.FC = () => {
           <div className="flex justify-between items-center">
             {/* 左側ナビゲーション */}
             <div className="flex items-center space-x-2">
-              {/* トップページボタン (ダッシュボード) */}
+              {/* トップ (ダッシュボード) */}
               <button
                 className="text-white hover:text-primary-400 font-bold px-2"
                 onClick={() => { window.location.hash = '#dashboard'; }}
@@ -53,15 +53,15 @@ const GameScreen: React.FC = () => {
                 トップ
               </button>
 
-              {/* 日記リンク */}
-              <button
-                className="text-white hover:text-primary-400 px-2"
-                onClick={() => { window.location.hash = '#diary'; }}
+              {/* 曲選択タブ */}
+              <TabButton
+                active={currentTab === 'songs'}
+                onClick={() => gameActions.setCurrentTab('songs')}
               >
-                日記
-              </button>
+                曲選択
+              </TabButton>
 
-              {/* レッスンリンク */}
+              {/* レッスン */}
               <button
                 className="text-white hover:text-primary-400 px-2"
                 onClick={() => { window.location.hash = '#lessons'; }}
@@ -69,13 +69,29 @@ const GameScreen: React.FC = () => {
                 レッスン
               </button>
 
-              {/* 既存タブ */}
-              <TabButton
-                active={currentTab === 'songs'}
-                onClick={() => gameActions.setCurrentTab('songs')}
+              {/* ランキング */}
+              <button
+                className="text-white hover:text-primary-400 px-2"
+                onClick={() => { window.location.hash = '#ranking'; }}
               >
-                曲選択
-              </TabButton>
+                ランキング
+              </button>
+
+              {/* 日記 */}
+              <button
+                className="text-white hover:text-primary-400 px-2"
+                onClick={() => { window.location.hash = '#diary'; }}
+              >
+                日記
+              </button>
+
+              {/* お知らせ */}
+              <button
+                className="text-white hover:text-primary-400 px-2"
+                onClick={() => { window.location.hash = '#dashboard'; }}
+              >
+                お知らせ
+              </button>
             </div>
 
             {/* 右側のコントロール */}
