@@ -40,25 +40,33 @@ const GameScreen: React.FC = () => {
       {/* ヘッダー */}
       {settings.showHeader && (
         <header
-          className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1"
+          className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]"
         >
           <div className="flex justify-between items-center">
             {/* 左側ナビゲーション */}
             <div className="flex items-center space-x-2">
-              {/* トップページボタン */}
+              {/* トップページボタン (ダッシュボード) */}
               <button
                 className="text-white hover:text-primary-400 font-bold px-2"
-                onClick={() => gameActions.setCurrentTab('songs')}
+                onClick={() => { window.location.hash = '#dashboard'; }}
               >
                 トップ
               </button>
 
-              {/* ランキングリンク */}
+              {/* 日記リンク */}
               <button
                 className="text-white hover:text-primary-400 px-2"
-                onClick={() => { window.location.hash = '#ranking'; }}
+                onClick={() => { window.location.hash = '#diary'; }}
               >
-                ランキング
+                日記
+              </button>
+
+              {/* レッスンリンク */}
+              <button
+                className="text-white hover:text-primary-400 px-2"
+                onClick={() => { window.location.hash = '#lessons'; }}
+              >
+                レッスン
               </button>
 
               {/* 既存タブ */}
