@@ -9,6 +9,7 @@ interface DiaryState {
   error: string | null;
   todayPosted: boolean;
   comments: Record<string, Array<{ id: string; content: string; created_at: string; nickname: string; avatar_url?: string }>>;
+  realtimeInitialized: boolean;
 }
 
 interface DiaryActions {
@@ -26,6 +27,7 @@ interface DiaryActions {
   fetchComments: (diaryId: string) => Promise<void>;
   addComment: (diaryId: string, content: string) => Promise<void>;
   deleteComment: (commentId: string, diaryId: string) => Promise<void>;
+  initRealtime: () => void;
 }
 
 export const useDiaryStore = create<DiaryState & DiaryActions>()(
@@ -35,6 +37,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     error: null,
     todayPosted: false,
     comments: {},
+    realtimeInitialized: false,
 
     fetch: async () => {
       set(s => { s.loading = true; s.error = null; });
@@ -84,5 +87,33 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
       await deleteComment(commentId);
       await get().fetchComments(diaryId);
     },
+
+    initRealtime: () => {
+      if (get().realtimeInitialized) return;
+      const supabase = getSupabaseClient();
+
+      // 日記新規投稿
+      supabase.channel('realtime-diaries')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async () => {
+          // 最新データを取得
+          await get().fetch();
+        })
+        .subscribe();
+
+      // コメント新規投稿
+      supabase.channel('realtime-diary-comments')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'diary_comments' }, async (payload) => {
+          const diaryId = (payload.new as any).diary_id;
+          if (diaryId) {
+            await get().fetchComments(diaryId);
+          }
+        })
+        .subscribe();
+
+      set(s => { s.realtimeInitialized = true; });
+    },
   }))
-); 
+);
+
+// 自動でリアルタイム初期化
+useDiaryStore.getState().initRealtime(); 
