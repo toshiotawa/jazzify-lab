@@ -2,6 +2,7 @@ import React from 'react';
 import { Mission, UserMissionProgress } from '@/platform/supabaseMissions';
 import { useMissionStore } from '@/stores/missionStore';
 import { cn } from '@/utils/cn';
+import { FaTrophy, FaMusic, FaCalendarAlt, FaClock, FaCheck } from 'react-icons/fa';
 
 interface Props {
   mission: Mission;
@@ -10,32 +11,164 @@ interface Props {
 
 const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
   const { claim } = useMissionStore();
-  const total = mission.diary_count ??  mission.min_clear_count ?? 1;
+  const total = mission.diary_count ?? mission.min_clear_count ?? 1;
   const cleared = progress?.clear_count ?? 0;
   const completed = progress?.completed ?? false;
+  const progressPercentage = Math.min((cleared / total) * 100, 100);
+  
+  // ミッションタイプアイコンの決定
+  const getMissionIcon = () => {
+    if (mission.type === 'weekly') return <FaCalendarAlt className="w-4 h-4 text-green-400" />;
+    if (mission.type === 'monthly') return <FaClock className="w-4 h-4 text-purple-400" />;
+    return <FaMusic className="w-4 h-4 text-blue-400" />;
+  };
+
+  // 進捗バーの色を動的に変更
+  const getProgressBarColor = () => {
+    if (completed) return 'bg-emerald-500';
+    if (progressPercentage >= 80) return 'bg-yellow-500';
+    if (progressPercentage >= 50) return 'bg-blue-500';
+    return 'bg-gray-500';
+  };
+
+  // 残り日数計算
+  const getRemainingDays = () => {
+    const endDate = new Date(mission.end_date);
+    const today = new Date();
+    const diffTime = endDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
+
+  const remainingDays = getRemainingDays();
 
   return (
-    <div className="p-3 bg-slate-800 rounded-lg space-y-2 text-sm">
-      <div className="font-bold text-gray-100">{mission.title}</div>
-      {mission.description && <div className="text-gray-400 text-xs">{mission.description}</div>}
-
-      {/* progress bar */}
-      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-        <div className="h-full bg-emerald-500" style={{ width: `${Math.min(cleared/total,1)*100}%` }} />
+    <div className={cn(
+      "p-4 rounded-lg space-y-3 text-sm border-2 transition-all duration-300",
+      completed 
+        ? "bg-emerald-900/30 border-emerald-500/50 shadow-emerald-500/20 shadow-lg" 
+        : "bg-slate-800 border-slate-700 hover:border-slate-600"
+    )}>
+      {/* ヘッダー部分 */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center space-x-2 flex-1">
+          {getMissionIcon()}
+          <div className="flex-1">
+            <div className="font-bold text-gray-100 leading-tight">{mission.title}</div>
+            {mission.type && (
+              <div className="text-xs text-gray-400 mt-1">
+                {mission.type === 'weekly' ? 'ウィークリーチャレンジ' : 'マンスリーミッション'}
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {completed && (
+          <div className="flex items-center space-x-1 text-emerald-400">
+            <FaCheck className="w-3 h-3" />
+            <span className="text-xs font-medium">完了</span>
+          </div>
+        )}
       </div>
-      <div className="flex justify-between text-xs text-gray-400">
-        <span>{cleared}/{total}</span>
-        {completed && <span className="text-emerald-400">COMPLETED</span>}
+
+      {/* 説明文 */}
+      {mission.description && (
+        <div className="text-gray-300 text-xs leading-relaxed">
+          {mission.description}
+        </div>
+      )}
+
+      {/* 詳細進捗バー */}
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <span className="text-xs text-gray-400">進捗状況</span>
+          <span className={cn(
+            "text-xs font-bold",
+            completed ? "text-emerald-400" : "text-gray-300"
+          )}>
+            {cleared}/{total} 回
+          </span>
+        </div>
+        
+        <div className="relative h-3 bg-slate-700 rounded-full overflow-hidden">
+          {/* 背景グラデーション */}
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-700 to-slate-600" />
+          
+          {/* 進捗バー */}
+          <div 
+            className={cn(
+              "h-full transition-all duration-500 ease-out relative",
+              getProgressBarColor()
+            )}
+            style={{ width: `${progressPercentage}%` }}
+          >
+            {/* 進捗バーのグラデーション効果 */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent to-white/20" />
+          </div>
+          
+          {/* 進捗パーセンテージ表示 */}
+          {progressPercentage > 0 && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-xs font-bold text-white drop-shadow-lg">
+                {Math.round(progressPercentage)}%
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 詳細情報 */}
+        <div className="flex justify-between items-center text-xs">
+          <div className="flex items-center space-x-3">
+            {/* 残り日数 */}
+            <div className={cn(
+              "flex items-center space-x-1",
+              remainingDays <= 3 ? "text-red-400" : "text-gray-400"
+            )}>
+              <FaClock className="w-3 h-3" />
+              <span>
+                {remainingDays > 0 ? `あと${remainingDays}日` : '期限切れ'}
+              </span>
+            </div>
+            
+            {/* 報酬倍率 */}
+            {mission.reward_multiplier && mission.reward_multiplier > 1 && (
+              <div className="flex items-center space-x-1 text-yellow-400">
+                <FaTrophy className="w-3 h-3" />
+                <span>{mission.reward_multiplier}x ボーナス</span>
+              </div>
+            )}
+          </div>
+          
+          {/* 達成状況 */}
+          <div className={cn(
+            "px-2 py-1 rounded-full text-xs font-medium",
+            completed 
+              ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/30"
+              : progressPercentage >= 80
+              ? "bg-yellow-600/20 text-yellow-400 border border-yellow-500/30"
+              : "bg-slate-600/20 text-slate-400 border border-slate-500/30"
+          )}>
+            {completed ? '達成済み' : progressPercentage >= 80 ? 'もう少し' : '進行中'}
+          </div>
+        </div>
       </div>
 
+      {/* 報酬受取ボタン */}
       <button
         disabled={!completed}
-        className={cn('btn btn-xs w-full', completed ? 'btn-primary' : 'btn-disabled')}
-        onClick={()=>claim(mission.id)}
+        className={cn(
+          'btn btn-sm w-full transition-all duration-300 flex items-center justify-center space-x-2',
+          completed 
+            ? 'btn-primary hover:scale-105 shadow-lg' 
+            : 'btn-disabled opacity-50'
+        )}
+        onClick={() => claim(mission.id)}
       >
-        報酬受取
+        <FaTrophy className="w-4 h-4" />
+        <span>{completed ? '報酬を受け取る' : '報酬受取（未達成）'}</span>
       </button>
     </div>
   );
 };
+
 export default ChallengeCard; 

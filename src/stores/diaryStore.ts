@@ -11,7 +11,14 @@ interface DiaryState {
 
 interface DiaryActions {
   fetch: () => Promise<void>;
-  add: (content: string) => Promise<void>;
+  add: (content: string) => Promise<{
+    success: boolean;
+    xpGained: number;
+    totalXp: number;
+    level: number;
+    levelUp: boolean;
+    missionsUpdated: number;
+  }>;
   like: (id: string) => Promise<void>;
 }
 
@@ -37,8 +44,9 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     },
 
     add: async (content: string) => {
-      await createDiary(content);
+      const result = await createDiary(content);
       await get().fetch();
+      return result;
     },
 
     like: async (id: string) => {

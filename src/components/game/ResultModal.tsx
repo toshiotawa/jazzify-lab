@@ -97,46 +97,46 @@ const ResultModal: React.FC = () => {
 
   return (
     <div className="modal-overlay animate-fade-in" role="dialog" aria-modal="true">
-      <div className="modal-content p-0 space-y-0 max-w-md w-full bg-gradient-to-b from-gray-900 to-gray-800 border border-gray-700 shadow-2xl">
+      <div className="modal-content p-0 space-y-0 max-w-md w-full mx-4 sm:mx-auto bg-gradient-to-b from-gray-900 to-gray-800 border border-gray-700 shadow-2xl">
         {/* ヘッダー部分 */}
-        <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 p-6 border-b border-gray-700">
-          <h2 className="text-3xl font-bold text-center text-white mb-2 tracking-wider">
+        <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 p-4 sm:p-6 border-b border-gray-700">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center text-white mb-2 tracking-wider">
             RESULT
           </h2>
           <div className="text-center">
-            <div className="text-xl font-semibold text-gray-100 mb-1">{currentSong.title}</div>
-            <div className="text-sm text-gray-400">{currentSong.artist}</div>
+            <div className="text-lg sm:text-xl font-semibold text-gray-100 mb-1 truncate">{currentSong.title}</div>
+            <div className="text-sm text-gray-400 truncate">{currentSong.artist}</div>
           </div>
         </div>
 
         {/* ランク表示 */}
-        <div className="text-center py-6">
-          <div className={`text-8xl font-black ${getRankStyle(score.rank)} animate-pulse-slow`}>
+        <div className="text-center py-4 sm:py-6">
+          <div className={`text-6xl sm:text-8xl font-black ${getRankStyle(score.rank)} animate-pulse-slow`}>
             {score.rank}
           </div>
-          <div className="text-yellow-300 text-lg mt-2">
+          <div className="text-yellow-300 text-base sm:text-lg mt-2">
             {getStars(score.accuracy)}
           </div>
         </div>
 
         {/* スコア詳細 */}
-        <div className="px-6 pb-6">
+        <div className="px-4 sm:px-6 pb-4 sm:pb-6">
           {/* メインスコア */}
-          <div className="text-center mb-6">
-            <div className="text-4xl font-bold text-white">
+          <div className="text-center mb-4 sm:mb-6">
+            <div className="text-3xl sm:text-4xl font-bold text-white">
               {score.score.toLocaleString()}
             </div>
             <div className="text-sm text-gray-400">SCORE</div>
           </div>
 
           {/* 詳細統計 */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div className="bg-gray-800/50 rounded-lg p-3 text-center">
-              <div className="text-emerald-400 text-2xl font-bold">{score.goodCount}</div>
+              <div className="text-emerald-400 text-xl sm:text-2xl font-bold">{score.goodCount}</div>
               <div className="text-xs text-gray-400">GOOD</div>
             </div>
             <div className="bg-gray-800/50 rounded-lg p-3 text-center">
-              <div className="text-red-400 text-2xl font-bold">{score.missCount}</div>
+              <div className="text-red-400 text-xl sm:text-2xl font-bold">{score.missCount}</div>
               <div className="text-xs text-gray-400">MISS</div>
             </div>
           </div>
@@ -190,16 +190,16 @@ const ResultModal: React.FC = () => {
           </div>
 
           {/* アクションボタン */}
-          <div className="flex justify-center space-x-4">
+          <div className="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
             <button 
               onClick={handleRetry} 
-              className="control-btn control-btn-primary flex items-center space-x-2"
+              className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
             >
               <span>もう一度</span>
             </button>
             <button 
               onClick={handleChooseSong} 
-              className="control-btn control-btn-secondary flex items-center space-x-2"
+              className="control-btn control-btn-secondary flex items-center justify-center space-x-2 w-full sm:w-auto"
             >
               <span>曲選択</span>
             </button>

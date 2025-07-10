@@ -120,6 +120,8 @@ const SongSelectionScreen: React.FC = () => {
   const { profile } = useAuthStore();
   const [dbSongs, setDbSongs] = React.useState<any[]>([]);
   const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
+  const [sortBy, setSortBy] = React.useState<'artist' | 'title' | 'difficulty'>('artist');
+  const [filterBy, setFilterBy] = React.useState<'all' | 'free' | 'premium'>('all');
 
   React.useEffect(() => {
     (async () => {
@@ -132,38 +134,117 @@ const SongSelectionScreen: React.FC = () => {
     })();
   }, [profile]);
 
+  // 楽曲ソート機能
+  const sortedSongs = React.useMemo(() => {
+    let sorted = [...dbSongs];
+    
+    // フィルタリング
+    if (filterBy !== 'all') {
+      sorted = sorted.filter(song => {
+        if (filterBy === 'free') return song.min_rank === 'free';
+        if (filterBy === 'premium') return ['premium', 'platinum'].includes(song.min_rank);
+        return true;
+      });
+    }
+    
+    // ソート
+    sorted.sort((a, b) => {
+      if (sortBy === 'artist') {
+        // アーティスト順 → タイトル順
+        const artistCompare = (a.artist || '').localeCompare(b.artist || '');
+        if (artistCompare !== 0) return artistCompare;
+        return (a.title || '').localeCompare(b.title || '');
+      }
+      if (sortBy === 'title') {
+        return (a.title || '').localeCompare(b.title || '');
+      }
+      if (sortBy === 'difficulty') {
+        return (a.difficulty || 0) - (b.difficulty || 0);
+      }
+      return 0;
+    });
+    
+    return sorted;
+  }, [dbSongs, sortBy, filterBy]);
+
   return (
     <div className="flex-1 p-3 sm:p-6 overflow-auto">
-      <div className="max-w-4xl mx-auto">
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">楽曲選択</h2>
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-white">楽曲選択</h2>
+          <div className="text-sm text-gray-400">
+            {sortedSongs.length} 曲
+          </div>
+        </div>
+
+        {/* ソート・フィルター コントロール */}
+        <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
+          <div className="flex items-center space-x-2">
+            <label className="text-sm text-gray-300">ソート:</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'artist' | 'title' | 'difficulty')}
+              className="select select-sm bg-slate-700 text-white border-slate-600"
+            >
+              <option value="artist">アーティスト順</option>
+              <option value="title">タイトル順</option>
+              <option value="difficulty">難易度順</option>
+            </select>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <label className="text-sm text-gray-300">フィルター:</label>
+            <select
+              value={filterBy}
+              onChange={(e) => setFilterBy(e.target.value as 'all' | 'free' | 'premium')}
+              className="select select-sm bg-slate-700 text-white border-slate-600"
+            >
+              <option value="all">すべて</option>
+              <option value="free">無料</option>
+              <option value="premium">プレミアム</option>
+            </select>
+          </div>
+        </div>
         
-        {/* 楽曲リスト */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {dbSongs.map((song) => {
+        {/* 楽曲リスト - 軽量化されたレイアウト */}
+        <div className="space-y-2">
+          {sortedSongs.map((song) => {
             const accessible = rankAllowed((profile?.rank ?? 'free') as MembershipRank, song.min_rank as MembershipRank);
             return (
-              <SongCard key={song.id} title={song.title} artist={song.artist} locked={!accessible} onSelect={async () => {
-                if (!accessible) {
-                  setLockedSong({title:song.title,min_rank:song.min_rank});
-                  return;
-                }
-                try {
-                  const data = song.data;
-                  const notes = Array.isArray(data) ? data : data.notes;
-                  const mapped = notes.map((n: any, idx: number) => ({ id: `${song.id}-${idx}`, time: n.time, pitch: n.pitch }));
-                  gameActions.loadSong(song, mapped);
-                  gameActions.setCurrentTab('practice');
-                } catch (err) {
-                  alert('曲読み込みに失敗しました');
-                }
-              }} />
+              <SongListItem 
+                key={song.id} 
+                song={song} 
+                accessible={accessible} 
+                onSelect={async () => {
+                  if (!accessible) {
+                    setLockedSong({title:song.title,min_rank:song.min_rank});
+                    return;
+                  }
+                  try {
+                    const data = song.data;
+                    const notes = Array.isArray(data) ? data : data.notes;
+                    const mapped = notes.map((n: any, idx: number) => ({ id: `${song.id}-${idx}`, time: n.time, pitch: n.pitch }));
+                    gameActions.loadSong(song, mapped);
+                    gameActions.setCurrentTab('practice');
+                  } catch (err) {
+                    alert('曲読み込みに失敗しました');
+                  }
+                }} 
+              />
             );
           })}
           
-          {/* Demo-1楽曲カード */}
-          <SongCard
-            title="Demo-1"
-            artist="Jazz Learning Game"
+          {/* Demo-1楽曲 */}
+          <SongListItem
+            song={{
+              id: 'demo-1',
+              title: 'Demo-1',
+              artist: 'Jazz Learning Game',
+              difficulty: 2,
+              bpm: 120,
+              min_rank: 'free'
+            }}
+            accessible={true}
             onSelect={async () => {
               try {
                 // demo-1のノーツデータを読み込み
@@ -252,9 +333,16 @@ const SongSelectionScreen: React.FC = () => {
           />
           
           {/* Alice in Wonderland楽曲カード（JSONデータのみ - 音声なし）*/}
-          <SongCard
-            title="Alice in Wonderland"
-            artist="Bill Evans (譜面のみ)"
+          <SongListItem
+            song={{
+              id: 'alice-in-wonderland',
+              title: 'Alice in Wonderland',
+              artist: 'Bill Evans (譜面のみ)',
+              difficulty: 3,
+              bpm: 140,
+              min_rank: 'free'
+            }}
+            accessible={true}
             onSelect={async () => {
               try {
                 // JSONデータを読み込み
@@ -305,8 +393,6 @@ const SongSelectionScreen: React.FC = () => {
             }}
           />
           
-          {/* 追加楽曲の予定地 */}
-          <EmptySlot text="新しい楽曲を追加予定" />
         </div>
 
         {lockedSong && (
@@ -460,7 +546,98 @@ const ModeToggleButton: React.FC = () => {
 };
 
 /**
- * 楽曲カードコンポーネント
+ * 楽曲リスト項目コンポーネント（軽量化レイアウト）
+ */
+interface SongListItemProps {
+  song: any;
+  accessible: boolean;
+  onSelect: () => void;
+}
+
+const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, onSelect }) => {
+  const getDifficultyColor = (difficulty: number | null) => {
+    if (!difficulty) return 'text-gray-400';
+    if (difficulty <= 3) return 'text-green-400';
+    if (difficulty <= 6) return 'text-yellow-400';
+    if (difficulty <= 8) return 'text-orange-400';
+    return 'text-red-400';
+  };
+
+  const getRankColor = (rank: string) => {
+    switch (rank) {
+      case 'free': return 'bg-green-100 text-green-800';
+      case 'standard': return 'bg-blue-100 text-blue-800';
+      case 'premium': return 'bg-purple-100 text-purple-800';
+      case 'platinum': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  return (
+    <div 
+      className={`flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-slate-700 
+        hover:border-primary-500 hover:bg-slate-700 transition-colors cursor-pointer
+        ${!accessible ? 'opacity-50' : ''}`}
+      onClick={onSelect}
+    >
+      <div className="flex items-center space-x-4 flex-1 min-w-0">
+        {/* 楽曲情報 */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center space-x-2 mb-1">
+            <h3 className="font-semibold text-white truncate">{song.title}</h3>
+            {!accessible && (
+              <span className="text-xs text-red-400">🔒</span>
+            )}
+          </div>
+          <p className="text-gray-400 text-sm truncate">{song.artist || '不明'}</p>
+        </div>
+
+        {/* 楽曲詳細情報 */}
+        <div className="flex items-center space-x-3 text-xs">
+          {/* 難易度 */}
+          {song.difficulty && (
+            <div className="flex items-center space-x-1">
+              <span className="text-gray-500">難易度:</span>
+              <span className={`font-mono ${getDifficultyColor(song.difficulty)}`}>
+                {song.difficulty}
+              </span>
+            </div>
+          )}
+
+          {/* BPM */}
+          {song.bpm && (
+            <div className="flex items-center space-x-1">
+              <span className="text-gray-500">BPM:</span>
+              <span className="font-mono text-blue-400">{song.bpm}</span>
+            </div>
+          )}
+
+          {/* 会員ランク */}
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRankColor(song.min_rank)}`}>
+            {song.min_rank?.toUpperCase() || 'FREE'}
+          </span>
+        </div>
+      </div>
+
+      {/* 再生ボタン */}
+      <div className="flex items-center ml-4">
+        <button
+          className={`btn btn-sm ${accessible ? 'btn-primary' : 'btn-outline'} flex items-center space-x-1`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+        >
+          <span>▶</span>
+          <span className="hidden sm:inline">プレイ</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * 楽曲カードコンポーネント（レガシー - デモ曲用）
  */
 interface SongCardProps {
   title: string;

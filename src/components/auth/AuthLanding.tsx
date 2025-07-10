@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import { useToast } from '@/stores/toastStore';
+import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 
 const AuthLanding: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -8,14 +8,36 @@ const AuthLanding: React.FC = () => {
   const toast = useToast();
 
   const handleSendLink = async (mode: 'signup' | 'login') => {
-    if (!email) return toast('メールアドレスを入力してください','error');
-    await loginWithMagicLink(email);
-    toast(`Magic Link を送信しました（${mode==='signup'?'会員登録':'ログイン'}）`,'success');
+    // バリデーション
+    if (!email.trim()) {
+      return toast.error(getValidationMessage('メールアドレス', 'required'));
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return toast.error(getValidationMessage('メールアドレス', 'email'));
+    }
+
+    try {
+      await loginWithMagicLink(email);
+      toast.success(
+        `Magic Link を送信しました（${mode==='signup'?'会員登録':'ログイン'}）`,
+        {
+          title: 'メール送信完了',
+          duration: 5000,
+        }
+      );
+    } catch (err) {
+      toast.error(handleApiError(err, 'Magic Link送信'));
+    }
   };
 
   const handleGuest = () => {
     enterGuestMode();
-    toast('ゲストモードで開始','info');
+    toast.info('ゲストモードで開始', {
+      title: 'ゲスト開始',
+      duration: 2000,
+    });
     window.location.hash = '';
   };
 

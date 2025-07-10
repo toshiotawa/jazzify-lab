@@ -19,16 +19,33 @@ const DiaryFeed: React.FC = () => {
   return (
     <div className="space-y-3">
       {diaries.map(d => (
-        <div key={d.id} className="p-3 bg-slate-800 rounded-lg">
+        <div key={d.id} className="p-3 sm:p-4 bg-slate-800 rounded-lg">
           <div className="flex items-center mb-2 space-x-2 text-sm text-gray-300">
             <Avatar url={d.avatar_url} />
-            <span className="font-semibold">{d.nickname || 'User'}</span>
-            <span className="text-gray-500 text-xs">{d.practice_date}</span>
+            <div className="flex-1 min-w-0">
+              <button
+                onClick={() => {
+                  window.location.hash = `#diary-user?id=${d.user_id}`;
+                }}
+                className="font-semibold truncate block sm:inline hover:text-blue-400 transition-colors cursor-pointer"
+              >
+                {d.nickname || 'User'}
+              </button>
+              <span className="text-gray-500 text-xs ml-0 sm:ml-2 block sm:inline">{d.practice_date}</span>
+            </div>
           </div>
-          <p className="whitespace-pre-wrap text-gray-100 mb-2 text-sm">{d.content}</p>
-          <button className="flex items-center text-xs text-gray-400 hover:text-pink-400" onClick={()=>like(d.id)}>
-            <FaHeart className="mr-1" /> {d.likes}
-          </button>
+          <p className="whitespace-pre-wrap text-gray-100 mb-3 text-sm leading-relaxed">{d.content}</p>
+          <div className="flex items-center justify-between">
+            <button 
+              className="flex items-center text-xs text-gray-400 hover:text-pink-400 transition-colors p-1 rounded"
+              onClick={()=>like(d.id)}
+            >
+              <FaHeart className="mr-1" /> {d.likes}
+            </button>
+            <button className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
+              返信
+            </button>
+          </div>
         </div>
       ))}
     </div>

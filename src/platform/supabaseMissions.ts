@@ -2,12 +2,14 @@ import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platfor
 
 export interface Mission {
   id: string;
+  type: 'weekly' | 'monthly';
   diary_count?: number | null;
   title: string;
   description?: string | null;
   start_date: string;
   end_date: string;
   min_clear_count?: number | null;
+  reward_multiplier: number;
 }
 
 export interface UserMissionProgress {

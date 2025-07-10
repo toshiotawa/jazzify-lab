@@ -233,4 +233,81 @@ create index if not exists challenges_active_idx
   on public.challenges (start_date, end_date);
 
 create index if not exists progress_user_idx
-  on public.user_challenge_progress (user_id); 
+  on public.user_challenge_progress (user_id);
+
+-- ------------------------------------------------------------
+-- Lesson Progress System (2024-12-19)
+-- ------------------------------------------------------------
+
+-- ユーザー × レッスン 進捗
+create table public.user_lesson_progress (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.profiles(id) on delete cascade,
+  lesson_id uuid references public.lessons(id) on delete cascade,
+  course_id uuid references public.courses(id) on delete cascade,
+  completed boolean not null default false,
+  completion_date timestamptz,
+  unlock_date timestamptz default now(),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, lesson_id)
+);
+
+alter table public.user_lesson_progress enable row level security;
+
+-- RLS: user_lesson_progress は本人のみ読み書き可
+create policy "lesson_progress_owner_select" on public.user_lesson_progress
+  for select using ( auth.uid() = user_id );
+
+create policy "lesson_progress_owner_modify" on public.user_lesson_progress
+  for insert, update, delete
+  with check ( auth.uid() = user_id );
+
+-- Lesson Progress Indexes
+create index if not exists lesson_progress_user_idx
+  on public.user_lesson_progress (user_id);
+
+create index if not exists lesson_progress_course_idx
+  on public.user_lesson_progress (user_id, course_id);
+
+create index if not exists lesson_progress_completion_idx
+  on public.user_lesson_progress (user_id, completed, completion_date);
+
+-- ------------------------------------------------------------
+-- Announcement System (2024-12-19)
+-- ------------------------------------------------------------
+
+-- お知らせテーブル
+create table public.announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  content text not null,
+  link_url text,
+  link_text text,
+  is_active boolean not null default true,
+  priority integer not null default 1,
+  created_by uuid references public.profiles(id) on delete cascade,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table public.announcements enable row level security;
+
+-- RLS: お知らせ
+create policy "announcements_public_read" on public.announcements
+  for select using ( is_active = true );
+
+create policy "announcements_admin_read" on public.announcements
+  for select using ( (select is_admin from public.profiles where id = auth.uid()) );
+
+create policy "announcements_admin_modify" on public.announcements
+  for insert, update, delete
+  using ( (select is_admin from public.profiles where id = auth.uid()) )
+  with check ( (select is_admin from public.profiles where id = auth.uid()) );
+
+-- インデックス
+create index if not exists announcements_active_idx
+  on public.announcements (is_active, priority, created_at);
+
+create index if not exists announcements_created_by_idx
+  on public.announcements (created_by); 

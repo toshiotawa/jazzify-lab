@@ -12,6 +12,10 @@ import Header from '@/components/ui/Header';
 import ProfileWizard from '@/components/auth/ProfileWizard';
 import AccountModal from '@/components/ui/AccountModal';
 import MypageModal from '@/components/ui/MypageModal';
+import DiaryPage from '@/components/diary/DiaryPage';
+import LessonPage from '@/components/lesson/LessonPage';
+import LessonDetailPage from '@/components/lesson/LessonDetailPage';
+import Dashboard from '@/components/dashboard/Dashboard';
 
 /**
  * メインアプリケーションコンポーネント
@@ -93,6 +97,12 @@ const App: React.FC = () => {
     };
   }, []);
   
+  useEffect(() => {
+    if (isGuest && window.location.hash !== '#dashboard') {
+      window.location.hash = '#dashboard';
+    }
+  }, [isGuest]);
+  
   // 初期化中の表示
   if (!isInitialized) {
     return (
@@ -149,6 +159,10 @@ const App: React.FC = () => {
           </>
         )}
         <MypageModal />
+        <DiaryPage />
+        <LessonPage />
+        <LessonDetailPage />
+        <Dashboard />
         {/* メインゲーム画面 */}
         <GameScreen />
         

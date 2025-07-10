@@ -1,15 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Course, Lesson, fetchCourses, createCourse, fetchLessons, createLesson } from '@/platform/supabaseLessons';
+import { 
+  LessonVideo, 
+  fetchLessonVideos, 
+  addLessonVideo, 
+  deleteLessonVideo 
+} from '@/platform/supabaseLessonContent';
 import { MembershipRank } from '@/platform/supabaseSongs';
-import { useToast } from '@/stores/toastStore';
+import { useToast, handleApiError } from '@/stores/toastStore';
 
 const LessonManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [videos, setVideos] = useState<LessonVideo[]>([]);
   const { register, handleSubmit, reset } = useForm<{ title: string; description: string; min_rank: MembershipRank }>();
   const { register: regLesson, handleSubmit: handleLessonSubmit, reset: resetLesson } = useForm<{ title: string }>();
+  const { register: regVideo, handleSubmit: handleVideoSubmit, reset: resetVideo } = useForm<{ vimeo_url: string }>();
   const toast = useToast();
 
   const loadCourses = async () => {
@@ -30,11 +39,11 @@ const LessonManager: React.FC = () => {
   const onCreateCourse = async (v: any) => {
     try {
       await createCourse({ ...v, description: v.description ?? null });
-      toast('コースを追加しました','success');
+      toast.success('コースを追加しました', { title: '追加完了' });
       reset();
       await loadCourses();
     } catch(e) {
-      toast('コース追加に失敗しました','error');
+      toast.error(handleApiError(e, 'コース追加'), { title: '追加エラー' });
     }
   };
 
@@ -42,11 +51,11 @@ const LessonManager: React.FC = () => {
     if (!selectedCourse) return;
     try {
       await createLesson({ course_id: selectedCourse.id, title: v.title, description: null, order_index: lessons.length });
-      toast('レッスンを追加しました','success');
+      toast.success('レッスンを追加しました', { title: '追加完了' });
       resetLesson();
       await loadLessons(selectedCourse.id);
     } catch(e) {
-      toast('レッスン追加に失敗しました','error');
+      toast.error(handleApiError(e, 'レッスン追加'), { title: '追加エラー' });
     }
   };
 

@@ -9,7 +9,7 @@ import {
   deleteChallenge,
   subscribeChallenges,
 } from '@/platform/supabaseChallenges';
-import { useToast } from '@/stores/toastStore';
+import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 
 interface FormValues {
   type: ChallengeType;
@@ -53,11 +53,16 @@ const ChallengeManager: React.FC = () => {
   const onSubmit = async (v: FormValues) => {
     try {
       await createChallenge({ ...v });
-      toast('チャレンジを追加しました','success');
+      toast.success('チャレンジを追加しました', {
+        title: '追加完了',
+        duration: 3000,
+      });
       reset();
       await load();
     } catch (e) {
-      toast('追加に失敗しました','error');
+      toast.error(handleApiError(e, 'チャレンジ追加'), {
+        title: '追加エラー',
+      });
     }
   };
 
@@ -100,11 +105,16 @@ const ChallengeItem: React.FC<{ challenge: Challenge; onRefresh: () => void }> =
   const onUpdate = async (v: Partial<Challenge>) => {
     try {
       await updateChallenge(challenge.id, v);
-      toast('更新しました','success');
+      toast.success('更新しました', {
+        title: '更新完了',
+        duration: 2000,
+      });
       setEditing(false);
       onRefresh();
     } catch(e) {
-      toast('更新に失敗しました','error');
+      toast.error(handleApiError(e, 'チャレンジ更新'), {
+        title: '更新エラー',
+      });
     }
   };
 
@@ -123,7 +133,20 @@ const ChallengeItem: React.FC<{ challenge: Challenge; onRefresh: () => void }> =
           <span className="truncate text-sm">[{challenge.type}] {challenge.title}</span>
           <div className="space-x-1">
             <button className="btn btn-xs btn-outline" onClick={() => setEditing(true)}>編集</button>
-            <button className="btn btn-xs btn-error" onClick={async () => { try{await deleteChallenge(challenge.id); toast('削除しました','success'); onRefresh();}catch(e){toast('削除に失敗しました','error');} }}>削除</button>
+            <button className="btn btn-xs btn-error" onClick={async () => { 
+              try{
+                await deleteChallenge(challenge.id); 
+                toast.success('削除しました', {
+                  title: '削除完了',
+                  duration: 2000,
+                }); 
+                onRefresh();
+              }catch(e){
+                toast.error(handleApiError(e, 'チャレンジ削除'), {
+                  title: '削除エラー',
+                });
+              } 
+            }}>削除</button>
           </div>
         </div>
       )}
