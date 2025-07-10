@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
+import { addXp, calcLevel } from '@/platform/supabaseXp';
+import { useAuthStore } from '@/stores/authStore';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -8,7 +10,55 @@ const ResultModal: React.FC = () => {
     settings: s.settings,
     resultModalOpen: s.resultModalOpen
   }));
-  const { closeResultModal, resetScore, seek, play, setCurrentTab } = useGameActions();
+  const { closeResultModal, resetScore, seek, setCurrentTab } = useGameActions();
+
+  const { profile, fetchProfile } = useAuthStore();
+
+  const [xpInfo, setXpInfo] = useState<{
+    gained: number;
+    total: number;
+    level: number;
+    remainder: number;
+    next: number;
+    levelUp: boolean;
+  } | null>(null);
+
+  // XP計算・加算
+  useEffect(() => {
+    if (resultModalOpen && currentSong && profile) {
+      (async () => {
+        const baseXp = 1000; // TODO: 難易度などで可変化
+        const speedMul = settings.playbackSpeed;
+        const rankMul = score.rank === 'S' ? 1 : score.rank === 'A' ? 0.8 : 0.5;
+        const transposeMul = settings.transpose !== 0 ? 1.3 : 1;
+        const memberMul = profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1;
+
+        const res = await addXp({
+          songId: currentSong.id,
+          baseXp,
+          speedMultiplier: speedMul,
+          rankMultiplier: rankMul,
+          transposeMultiplier: transposeMul,
+          membershipMultiplier: memberMul,
+        });
+
+        const levelDetail = calcLevel(res.totalXp);
+
+        setXpInfo({
+          gained: res.gainedXp,
+          total: res.totalXp,
+          level: res.level,
+          remainder: levelDetail.remainder,
+          next: levelDetail.nextLevelXp,
+          levelUp: res.level > profile.level,
+        });
+
+        await fetchProfile();
+      })();
+    } else {
+      setXpInfo(null);
+    }
+  }, [resultModalOpen]);
 
   if (!resultModalOpen || !currentSong) return null;
 
@@ -101,6 +151,28 @@ const ResultModal: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* 獲得XP & レベル進捗 */}
+          {xpInfo && (
+            <div className="mb-6">
+              <div className="text-center mb-2">
+                <span className="text-emerald-400 font-bold">+{xpInfo.gained.toLocaleString()} XP</span>
+                {xpInfo.levelUp && (
+                  <span className="ml-2 text-yellow-400 font-extrabold animate-bounce">LEVEL UP!</span>
+                )}
+              </div>
+              <div className="text-xs text-gray-400 flex justify-between mb-1">
+                <span>Lv.{xpInfo.level}</span>
+                <span>{xpInfo.remainder}/{xpInfo.next} XP</span>
+              </div>
+              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-700"
+                  style={{ width: `${(xpInfo.remainder / xpInfo.next) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* 設定情報 */}
           <div className="grid grid-cols-2 gap-2 text-sm text-gray-300 mb-6">

@@ -8,6 +8,8 @@ import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
 import { getTransposingInstrumentName } from '@/utils/musicXmlTransposer';
 import type { TransposingInstrument } from '@/types';
+import { useAuthStore } from '@/stores/authStore';
+import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
 
 /**
  * メインゲーム画面コンポーネント
@@ -41,8 +43,25 @@ const GameScreen: React.FC = () => {
           className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1"
         >
           <div className="flex justify-between items-center">
-            {/* タブナビゲーション */}
-            <div className="flex space-x-2">
+            {/* 左側ナビゲーション */}
+            <div className="flex items-center space-x-2">
+              {/* トップページボタン */}
+              <button
+                className="text-white hover:text-primary-400 font-bold px-2"
+                onClick={() => gameActions.setCurrentTab('songs')}
+              >
+                トップ
+              </button>
+
+              {/* ランキングリンク */}
+              <button
+                className="text-white hover:text-primary-400 px-2"
+                onClick={() => { window.location.hash = '#ranking'; }}
+              >
+                ランキング
+              </button>
+
+              {/* 既存タブ */}
               <TabButton
                 active={currentTab === 'songs'}
                 onClick={() => gameActions.setCurrentTab('songs')}
@@ -52,9 +71,7 @@ const GameScreen: React.FC = () => {
             </div>
 
             {/* 右側のコントロール */}
-            <div className="flex items-center space-x-4">
-              {/* 設定ボタンはControlBarに移動 */}
-            </div>
+            <HeaderRightControls />
           </div>
         </header>
       )}
@@ -100,6 +117,20 @@ const TabButton: React.FC<TabButtonProps> = ({ active, onClick, children }) => {
  */
 const SongSelectionScreen: React.FC = () => {
   const gameActions = useGameActions();
+  const { profile } = useAuthStore();
+  const [dbSongs, setDbSongs] = React.useState<any[]>([]);
+  const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const allSongs = await fetchSongs();
+        setDbSongs(allSongs);
+      } catch (e) {
+        console.error('曲一覧取得失敗', e);
+      }
+    })();
+  }, [profile]);
 
   return (
     <div className="flex-1 p-3 sm:p-6 overflow-auto">
@@ -108,6 +139,27 @@ const SongSelectionScreen: React.FC = () => {
         
         {/* 楽曲リスト */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {dbSongs.map((song) => {
+            const accessible = rankAllowed((profile?.rank ?? 'free') as MembershipRank, song.min_rank as MembershipRank);
+            return (
+              <SongCard key={song.id} title={song.title} artist={song.artist} locked={!accessible} onSelect={async () => {
+                if (!accessible) {
+                  setLockedSong({title:song.title,min_rank:song.min_rank});
+                  return;
+                }
+                try {
+                  const data = song.data;
+                  const notes = Array.isArray(data) ? data : data.notes;
+                  const mapped = notes.map((n: any, idx: number) => ({ id: `${song.id}-${idx}`, time: n.time, pitch: n.pitch }));
+                  gameActions.loadSong(song, mapped);
+                  gameActions.setCurrentTab('practice');
+                } catch (err) {
+                  alert('曲読み込みに失敗しました');
+                }
+              }} />
+            );
+          })}
+          
           {/* Demo-1楽曲カード */}
           <SongCard
             title="Demo-1"
@@ -256,6 +308,16 @@ const SongSelectionScreen: React.FC = () => {
           {/* 追加楽曲の予定地 */}
           <EmptySlot text="新しい楽曲を追加予定" />
         </div>
+
+        {lockedSong && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={()=>setLockedSong(null)}>
+            <div className="bg-slate-800 p-6 rounded-lg text-white space-y-4" onClick={e=>e.stopPropagation()}>
+              <h4 className="text-lg font-bold text-center">この曲はプレイできません</h4>
+              <p className="text-center">{lockedSong.title} は {lockedSong.min_rank.toUpperCase()} プラン以上でプレイ可能です。</p>
+              <button className="btn btn-sm btn-primary w-full" onClick={()=>setLockedSong(null)}>閉じる</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -403,13 +465,14 @@ const ModeToggleButton: React.FC = () => {
 interface SongCardProps {
   title: string;
   artist: string;
+  locked?: boolean;
   onSelect: () => void;
 }
 
-const SongCard: React.FC<SongCardProps> = ({ title, artist, onSelect }) => {
+const SongCard: React.FC<SongCardProps> = ({ title, artist, locked = false, onSelect }) => {
   return (
     <div 
-      className="card hover:border-primary-500 transition-colors cursor-pointer"
+      className={`card hover:border-primary-500 transition-colors cursor-pointer ${locked ? 'opacity-50' : ''}`}
       onClick={onSelect}
     >
       <div className="card-body">
@@ -945,6 +1008,33 @@ const SettingsPanel: React.FC = () => {
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+/**
+ * ヘッダー右端ボタン群
+ */
+const HeaderRightControls: React.FC = () => {
+  const { user, isGuest, hasProfile } = useAuthStore();
+
+  if (!user) {
+    // 未ログイン
+    return (
+      <div className="flex items-center space-x-4">
+        <a href="#login" className="btn btn-sm btn-outline">会員登録 / ログイン</a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center space-x-4">
+      {/* マイページ */}
+      {hasProfile && (
+        <a href="#mypage" className="btn btn-sm btn-ghost text-white hover:text-primary-400">マイページ</a>
+      )}
+      {/* アカウント */}
+      <a href="#account" className="btn btn-sm btn-primary">アカウント</a>
     </div>
   );
 };
