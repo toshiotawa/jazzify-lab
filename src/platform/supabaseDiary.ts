@@ -23,13 +23,40 @@ export interface DiaryComment {
 }
 
 export async function fetchDiaries(limit = 20): Promise<Diary[]> {
-  const { data, error } = await getSupabaseClient()
+  const supabase = getSupabaseClient();
+  
+  // 日記とプロフィール情報を取得
+  const { data: diariesData, error } = await supabase
     .from('practice_diaries')
-    .select('*, profiles:nickname, profiles:avatar_url', { count: 'exact' })
+    .select('*, profiles(nickname, avatar_url)')
     .order('practice_date', { ascending: false })
     .limit(limit);
+    
   if (error) throw error;
-  return data as any;
+  if (!diariesData) return [];
+
+  // 各日記のいいね数を取得
+  const diariesWithLikes = await Promise.all(
+    diariesData.map(async (diary: any) => {
+      const { count } = await supabase
+        .from('diary_likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('diary_id', diary.id);
+      
+      return {
+        id: diary.id,
+        user_id: diary.user_id,
+        content: diary.content,
+        practice_date: diary.practice_date,
+        created_at: diary.created_at,
+        likes: count || 0,
+        nickname: diary.profiles?.nickname || 'User',
+        avatar_url: diary.profiles?.avatar_url,
+      } as Diary;
+    })
+  );
+
+  return diariesWithLikes;
 }
 
 export async function fetchUserDiaries(userId: string): Promise<{

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { fetchLevelRanking, RankingEntry } from '@/platform/supabaseRanking';
 
 const LevelRanking: React.FC = () => {
@@ -34,7 +33,7 @@ const LevelRanking: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-slate-900 text-white overflow-y-auto">
+    <div className="fixed inset-0 z-40 flex flex-col bg-slate-900 text-white overflow-y-auto">
       {/* ヘッダー */}
       <div className="flex items-center justify-between border-b border-slate-700 p-4">
         <h2 className="text-2xl font-bold">レベルランキング</h2>
