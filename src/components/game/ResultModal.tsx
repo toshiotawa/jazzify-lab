@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { addXp, calcLevel } from '@/platform/supabaseXp';
 import { useAuthStore } from '@/stores/authStore';
+import { calculateXP } from '@/utils/xpCalculator';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -27,25 +28,27 @@ const ResultModal: React.FC = () => {
   useEffect(() => {
     if (resultModalOpen && currentSong && profile) {
       (async () => {
-        const baseXp = 1000; // TODO: 難易度などで可変化
-        const speedMul = settings.playbackSpeed;
-        const rankMul = score.rank === 'S' ? 1 : score.rank === 'A' ? 0.8 : 0.5;
-        const transposeMul = settings.transpose !== 0 ? 1.3 : 1;
-        const memberMul = profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1;
+        // ローカルでも表示用に計算しておくが、最終的にはサーバー計算値を優先
+        const gainedLocal = calculateXP({
+          membershipRank: profile.rank,
+          scoreRank: score.rank as any,
+          playbackSpeed: settings.playbackSpeed,
+          transposed: settings.transpose !== 0,
+        });
 
         const res = await addXp({
           songId: currentSong.id,
-          baseXp,
-          speedMultiplier: speedMul,
-          rankMultiplier: rankMul,
-          transposeMultiplier: transposeMul,
-          membershipMultiplier: memberMul,
+          baseXp: 1000, // サーバー側でも再計算するため placeholder
+          speedMultiplier: settings.playbackSpeed,
+          rankMultiplier: score.rank === 'S' ? 1 : score.rank === 'A' ? 0.8 : 0.5,
+          transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
+          membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
         });
 
         const levelDetail = calcLevel(res.totalXp);
 
         setXpInfo({
-          gained: res.gainedXp,
+          gained: res.gainedXp ?? gainedLocal,
           total: res.totalXp,
           level: res.level,
           remainder: levelDetail.remainder,

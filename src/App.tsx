@@ -4,6 +4,14 @@ import GameScreen from '@/components/game/GameScreen';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { cn } from '@/utils/cn';
+import FPSMonitor from '@/components/ui/FPSMonitor';
+import ToastContainer from '@/components/ui/ToastContainer';
+import AuthLanding from '@/components/auth/AuthLanding';
+import { useAuthStore } from '@/stores/authStore';
+import Header from '@/components/ui/Header';
+import ProfileWizard from '@/components/auth/ProfileWizard';
+import AccountModal from '@/components/ui/AccountModal';
+import MypageModal from '@/components/ui/MypageModal';
 
 /**
  * メインアプリケーションコンポーネント
@@ -15,6 +23,18 @@ const App: React.FC = () => {
   
   // ゲームストアの初期化状態
   const settings = useGameStore((state) => state.settings);
+  
+  // 認証ストアの状態
+  const { profile, loading:authLoading, isGuest, user } = useAuthStore();
+  
+  // hash monitor
+  const [hash, setHash] = useState(window.location.hash);
+  useEffect(()=>{
+    const h=()=>setHash(window.location.hash);
+    window.addEventListener('hashchange',h);
+    return()=>window.removeEventListener('hashchange',h);
+  },[]);
+  const forceLogin = hash === '#login';
   
   useEffect(() => {
     const initializeApp = async () => {
@@ -98,6 +118,17 @@ const App: React.FC = () => {
     );
   }
 
+  if (authLoading) return <LoadingScreen />;
+
+  if (!user && !isGuest || forceLogin) {
+    return (
+      <>
+        <AuthLanding />
+        <ToastContainer />
+      </>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <div 
@@ -108,6 +139,16 @@ const App: React.FC = () => {
           'font-sans antialiased'
         )}
       >
+        {/* グローバルヘッダーは GameScreen 内ヘッダーを使用するため削除 */}
+        
+        {/* ログインユーザー専用モーダル類 */}
+        {user && !isGuest && (
+          <>
+        <ProfileWizard />
+        <AccountModal />
+          </>
+        )}
+        <MypageModal />
         {/* メインゲーム画面 */}
         <GameScreen />
         
@@ -120,6 +161,9 @@ const App: React.FC = () => {
         {false && process.env.NODE_ENV === 'development' && (
           <DebugInfo />
         )}
+        
+        <FPSMonitor />
+        <ToastContainer />
       </div>
     </ErrorBoundary>
   );

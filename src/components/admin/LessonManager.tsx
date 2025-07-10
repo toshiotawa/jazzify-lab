@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Course, Lesson, fetchCourses, createCourse, fetchLessons, createLesson } from '@/platform/supabaseLessons';
 import { MembershipRank } from '@/platform/supabaseSongs';
+import { useToast } from '@/stores/toastStore';
 
 const LessonManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -9,6 +10,7 @@ const LessonManager: React.FC = () => {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const { register, handleSubmit, reset } = useForm<{ title: string; description: string; min_rank: MembershipRank }>();
   const { register: regLesson, handleSubmit: handleLessonSubmit, reset: resetLesson } = useForm<{ title: string }>();
+  const toast = useToast();
 
   const loadCourses = async () => {
     const data = await fetchCourses();
@@ -26,16 +28,26 @@ const LessonManager: React.FC = () => {
   }, [selectedCourse]);
 
   const onCreateCourse = async (v: any) => {
-    await createCourse({ ...v, description: v.description ?? null });
-    reset();
-    await loadCourses();
+    try {
+      await createCourse({ ...v, description: v.description ?? null });
+      toast('コースを追加しました','success');
+      reset();
+      await loadCourses();
+    } catch(e) {
+      toast('コース追加に失敗しました','error');
+    }
   };
 
   const onCreateLesson = async (v: any) => {
     if (!selectedCourse) return;
-    await createLesson({ course_id: selectedCourse.id, title: v.title, description: null, order_index: lessons.length });
-    resetLesson();
-    await loadLessons(selectedCourse.id);
+    try {
+      await createLesson({ course_id: selectedCourse.id, title: v.title, description: null, order_index: lessons.length });
+      toast('レッスンを追加しました','success');
+      resetLesson();
+      await loadLessons(selectedCourse.id);
+    } catch(e) {
+      toast('レッスン追加に失敗しました','error');
+    }
   };
 
   return (

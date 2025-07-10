@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/authStore';
 import SongManager from './SongManager';
 import LessonManager from './LessonManager';
+import ChallengeManager from './ChallengeManager';
+import UserManager from './UserManager';
 
 /**
  * 管理画面ゲート – プラチナランクのみアクセス許可
@@ -46,6 +48,7 @@ const AdminDashboard: React.FC = () => {
         <nav className="space-y-2">
           <SidebarLink hash="#admin-songs" label="曲管理" />
           <SidebarLink hash="#admin-lessons" label="レッスン管理" />
+          <SidebarLink hash="#admin-challenges" label="チャレンジ管理" />
           <SidebarLink hash="#admin-users" label="会員管理" />
         </nav>
         <button className="mt-auto btn btn-sm btn-outline w-full" onClick={() => { window.location.hash = ''; }}>
@@ -77,13 +80,7 @@ const DashboardContent: React.FC = () => {
   const hash = window.location.hash;
   if (hash === '#admin-songs') return <SongManager />;
   if (hash === '#admin-lessons') return <LessonManager />;
-  if (hash === '#admin-users') return <UserManagementPlaceholder />;
+  if (hash === '#admin-challenges') return <ChallengeManager />;
+  if (hash === '#admin-users') return <UserManager />;
   return <p className="text-gray-400">サイドバーから管理項目を選択してください。</p>;
-};
-
-const UserManagementPlaceholder: React.FC = () => (
-  <div>
-    <h3 className="text-xl font-bold mb-4">会員管理 (準備中)</h3>
-    <p className="text-sm text-gray-400">このセクションではユーザーのランクを変更できます。</p>
-  </div>
-); 
+}; 

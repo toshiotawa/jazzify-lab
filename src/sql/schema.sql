@@ -190,4 +190,47 @@ begin
   on conflict (user_id, challenge_id)
   do update set clear_count = user_challenge_progress.clear_count + 1;
 end;
-$$; 
+$$;
+
+-- ------------------------------------------------------------
+-- RLS & Indexes for Challenge System (2024-07-10)
+-- ------------------------------------------------------------
+
+-- challenges: 全ユーザー読み取り可、admin のみ書き込み可
+alter table public.challenges enable row level security;
+
+create policy "challenges_read_all" on public.challenges
+  for select using ( true );
+
+create policy "challenges_admin_modify" on public.challenges
+  for insert, update, delete
+  using ( (select is_admin from public.profiles where id = auth.uid()) )
+  with check ( (select is_admin from public.profiles where id = auth.uid()) );
+
+-- challenge_songs: 全ユーザー読み取り可、admin のみ書き込み可
+alter table public.challenge_songs enable row level security;
+
+create policy "challenge_songs_read_all" on public.challenge_songs
+  for select using ( true );
+
+create policy "challenge_songs_admin_modify" on public.challenge_songs
+  for insert, update, delete
+  using ( (select is_admin from public.profiles where id = auth.uid()) )
+  with check ( (select is_admin from public.profiles where id = auth.uid()) );
+
+-- user_challenge_progress: 本人のみ読み書き可
+alter table public.user_challenge_progress enable row level security;
+
+create policy "progress_owner_select" on public.user_challenge_progress
+  for select using ( auth.uid() = user_id );
+
+create policy "progress_owner_modify" on public.user_challenge_progress
+  for insert, update, delete
+  with check ( auth.uid() = user_id );
+
+-- Indexes for performance
+create index if not exists challenges_active_idx
+  on public.challenges (start_date, end_date);
+
+create index if not exists progress_user_idx
+  on public.user_challenge_progress (user_id); 

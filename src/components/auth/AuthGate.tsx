@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import AuthLanding from '@/components/auth/AuthLanding';
 import { cn } from '@/utils/cn';
 
 interface AuthGateProps {
@@ -13,9 +14,7 @@ interface AuthGateProps {
  * - ゲストプレイボタンも提供
  */
 export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
-  const { user, loading, init, loginWithMagicLink, error, isGuest, enterGuestMode, hasProfile, createProfile } = useAuthStore();
-  const [email, setEmail] = useState('');
-  const [linkSent, setLinkSent] = useState(false);
+  const { user, loading, init, error, isGuest, hasProfile, createProfile } = useAuthStore();
 
   useEffect(() => {
     void init();
@@ -41,59 +40,8 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     );
   }
 
-  return (
-    <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 p-6">
-      <div className="bg-black/60 backdrop-blur-sm rounded-lg max-w-md w-full p-8 text-white space-y-6">
-        <h2 className="text-2xl font-bold text-center">Jazz Learning Game</h2>
-        {!linkSent ? (
-          <>
-            <div className="space-y-4">
-              <input
-                type="email"
-                placeholder="メールアドレス"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full px-4 py-2 rounded bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                disabled={!email}
-                onClick={async () => {
-                  await loginWithMagicLink(email);
-                  setLinkSent(true);
-                }}
-                className={cn(
-                  'w-full py-2 rounded font-semibold',
-                  email ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-500 cursor-not-allowed',
-                )}
-              >
-                Magic Link を送信
-              </button>
-              {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-            </div>
-            <div className="text-center">
-              <button
-                onClick={() => enterGuestMode()}
-                className="text-sm underline text-gray-300 hover:text-white"
-              >
-                ログインせずおためしプレイ
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="text-center space-y-4">
-            <p className="text-lg">入力したメールアドレスにリンクを送信しました。</p>
-            <p className="text-sm text-gray-300">メールを開いて認証を完了してください。</p>
-            <button
-              onClick={() => setLinkSent(false)}
-              className="underline text-gray-300 hover:text-white text-sm"
-            >
-              戻る
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  // 未ログイン・ゲストでもない場合は AuthLanding を表示（#login と同デザイン）
+  return <AuthLanding />;
 };
 
 export default AuthGate;

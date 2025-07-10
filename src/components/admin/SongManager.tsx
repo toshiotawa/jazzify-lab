@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { addSong, fetchSongs, deleteSong, Song } from '@/platform/supabaseSongs';
+import { useToast } from '@/stores/toastStore';
 
 const SongManager: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const { register, handleSubmit, reset } = useForm<Omit<Song, 'id' | 'is_public'>>();
+  const toast = useToast();
 
   const load = async () => {
     setLoading(true);
@@ -25,7 +27,7 @@ const SongManager: React.FC = () => {
       reset();
       await load();
     } catch (e) {
-      alert('追加に失敗しました');
+      toast('曲の追加に失敗しました', 'error');
     }
   };
 
@@ -53,7 +55,15 @@ const SongManager: React.FC = () => {
           {songs.map(s => (
             <li key={s.id} className="flex justify-between items-center border-b border-slate-700 py-1">
               <span>{s.title}</span>
-              <button className="btn btn-xs btn-error" onClick={async () => { await deleteSong(s.id); await load(); }}>削除</button>
+              <button className="btn btn-xs btn-error" onClick={async () => {
+                try {
+                  await deleteSong(s.id);
+                  toast('削除しました', 'success');
+                  await load();
+                } catch(e) {
+                  toast('削除に失敗しました','error');
+                }
+              }}>削除</button>
             </li>
           ))}
         </ul>
