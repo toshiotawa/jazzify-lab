@@ -55,43 +55,19 @@ const GameScreen: React.FC = () => {
 
               {/* 曲選択タブ */}
               <TabButton
-                active={currentTab === 'songs'}
-                onClick={() => gameActions.setCurrentTab('songs')}
+                active={currentTab === 'songs' && !['#diary', '#ranking'].includes(window.location.hash)}
+                onClick={() => {
+                  gameActions.setCurrentTab('songs');
+                  window.location.hash = '';
+                }}
               >
                 曲選択
               </TabButton>
 
-              {/* レッスン */}
-              <button
-                className="text-white hover:text-primary-400 px-2"
-                onClick={() => { window.location.hash = '#lessons'; }}
-              >
-                レッスン
-              </button>
-
-              {/* ランキング */}
-              <button
-                className="text-white hover:text-primary-400 px-2"
-                onClick={() => { window.location.hash = '#ranking'; }}
-              >
-                ランキング
-              </button>
-
-              {/* 日記 */}
-              <button
-                className="text-white hover:text-primary-400 px-2"
-                onClick={() => { window.location.hash = '#diary'; }}
-              >
-                日記
-              </button>
-
-              {/* お知らせ */}
-              <button
-                className="text-white hover:text-primary-400 px-2"
-                onClick={() => { window.location.hash = '#dashboard'; }}
-              >
-                お知らせ
-              </button>
+              <HashButton hash="#lessons">レッスン</HashButton>
+              <HashButton hash="#ranking">ランキング</HashButton>
+              <HashButton hash="#diary">日記</HashButton>
+              <HashButton hash="#dashboard">お知らせ</HashButton>
             </div>
 
             {/* 右側のコントロール */}
@@ -130,6 +106,25 @@ const TabButton: React.FC<TabButtonProps> = ({ active, onClick, children }) => {
     <button
       onClick={onClick}
       className={`tab-xs ${active ? 'tab-active' : 'tab-inactive'}`}
+    >
+      {children}
+    </button>
+  );
+};
+
+interface HashButtonProps { hash: string; children: React.ReactNode; }
+const HashButton: React.FC<HashButtonProps> = ({ hash, children }) => {
+  const [currentHash, setCurrentHash] = useState(window.location.hash);
+  useEffect(() => {
+    const handler = () => setCurrentHash(window.location.hash);
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+  const active = currentHash === hash;
+  return (
+    <button
+      className={`px-2 ${active ? 'text-primary-400 font-semibold' : 'text-white hover:text-primary-400'}`}
+      onClick={() => { window.location.hash = hash; }}
     >
       {children}
     </button>

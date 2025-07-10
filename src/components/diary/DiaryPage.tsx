@@ -84,7 +84,7 @@ const DiaryPage: React.FC = () => {
 
   if (!userId) {
     return (
-      <div className="w-full h-full flex flex-col bg-slate-900 text-white overflow-y-auto">
+      <div className="fixed inset-0 z-40 flex flex-col bg-slate-900 text-white overflow-y-auto">
         {/* ヘッダー */}
         <div className="flex items-center justify-between border-b border-slate-700 p-4">
           <h2 className="font-bold text-lg">コミュニティ</h2>
@@ -112,7 +112,7 @@ const DiaryPage: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-slate-900 text-white overflow-y-auto">
+    <div className="fixed inset-0 z-40 flex flex-col bg-slate-900 text-white overflow-y-auto">
       {/* ヘッダー */}
       <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-700">
         <button
