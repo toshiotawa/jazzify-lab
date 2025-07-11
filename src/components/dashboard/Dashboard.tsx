@@ -15,6 +15,7 @@ import {
   FaUser 
 } from 'react-icons/fa';
 import { Mission } from '@/platform/supabaseMissions';
+import GameHeader from '@/components/ui/GameHeader';
 
 /**
  * ダッシュボード画面
@@ -70,25 +71,12 @@ const Dashboard: React.FC = () => {
 
   if (!open) return null;
 
-  return createPortal(
+  return (
     <div 
-      className="fixed inset-0 z-50 bg-gradient-game text-white flex flex-col"
-      onClick={() => {}}
+      className="w-full h-full flex flex-col bg-gradient-game text-white"
     >
-      {/* ヘッダー */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-700">
-        <button
-          onClick={handleClose}
-          className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-          aria-label="戻る"
-        >
-          <FaArrowLeft />
-        </button>
-        <h1 className="text-xl font-bold">ダッシュボード</h1>
-        <div className="w-8" /> {/* スペーサー */}
-      </div>
-
-      {/* メインコンテンツ */}
+      <GameHeader />
+      {/* ダッシュボードコンテンツ */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
           {/* ユーザー情報カード */}
@@ -243,8 +231,7 @@ const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };
 

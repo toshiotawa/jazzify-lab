@@ -13,6 +13,7 @@ import {
   FaVideo,
   FaMusic 
 } from 'react-icons/fa';
+import GameHeader from '@/components/ui/GameHeader';
 
 /**
  * レッスン学習画面
@@ -167,186 +168,187 @@ const LessonPage: React.FC = () => {
     );
   }
 
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col"
-      onClick={() => {}}
-    >
-      {/* ヘッダー */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-700">
-        <button
-          onClick={handleClose}
-          className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-          aria-label="戻る"
-        >
-          <FaArrowLeft />
-        </button>
-        <h1 className="text-xl font-bold">レッスン</h1>
-        <div className="w-8" /> {/* スペーサー */}
-      </div>
-
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-gray-400">読み込み中...</p>
-        </div>
-      ) : (
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* コース一覧サイドバー */}
-          <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col">
-            <div className="p-4 border-b border-slate-700">
-              <h2 className="text-lg font-semibold">コース一覧</h2>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {courses.map(course => (
-                <div
-                  key={course.id}
-                  className={`p-4 rounded-lg cursor-pointer transition-colors ${
-                    selectedCourse?.id === course.id 
-                      ? 'bg-primary-600' 
-                      : 'bg-slate-700 hover:bg-slate-600'
-                  }`}
-                  onClick={() => setSelectedCourse(course)}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium truncate">{course.title}</h3>
-                    <span className="text-xs px-2 py-1 bg-slate-600 rounded capitalize">
-                      {course.min_rank}
-                    </span>
-                  </div>
-                  
-                  {/* コース進捗バー */}
-                  <div className="mb-2">
-                    <div className="flex justify-between text-xs text-gray-400 mb-1">
-                      <span>進捗</span>
-                      <span>{getCourseCompletionRate(course)}%</span>
-                    </div>
-                    <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-emerald-500 transition-all duration-300"
-                        style={{ width: `${getCourseCompletionRate(course)}%` }}
-                      />
-                    </div>
-                  </div>
-                  
-                  {course.description && (
-                    <p className="text-xs text-gray-400 line-clamp-2">
-                      {course.description}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+  return (
+    <div className="w-full h-full flex flex-col bg-gradient-game text-white">
+      <GameHeader />
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col">
+          {/* ヘッダー */}
+          <div className="flex items-center justify-between p-4 border-b border-slate-700">
+            <button
+              onClick={handleClose}
+              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+              aria-label="戻る"
+            >
+              <FaArrowLeft />
+            </button>
+            <h1 className="text-xl font-bold">レッスン</h1>
+            <div className="w-8" /> {/* スペーサー */}
           </div>
 
-          {/* レッスン一覧メインエリア */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {selectedCourse ? (
-              <>
-                <div className="p-6 border-b border-slate-700">
-                  <h2 className="text-2xl font-bold mb-2">{selectedCourse.title}</h2>
-                  {selectedCourse.description && (
-                    <p className="text-gray-400">{selectedCourse.description}</p>
-                  )}
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-gray-400">読み込み中...</p>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+              {/* コース一覧サイドバー */}
+              <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col">
+                <div className="p-4 border-b border-slate-700">
+                  <h2 className="text-lg font-semibold">コース一覧</h2>
                 </div>
-                
-                <div className="flex-1 overflow-y-auto p-6">
-                  <div className="space-y-4">
-                    {lessons.map((lesson, index) => {
-                      const unlocked = isLessonUnlocked(lesson, index);
-                      const completed = progress[lesson.id]?.completed || false;
-                      const completionRate = getLessonCompletionRate(lesson);
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {courses.map(course => (
+                    <div
+                      key={course.id}
+                      className={`p-4 rounded-lg cursor-pointer transition-colors ${
+                        selectedCourse?.id === course.id 
+                          ? 'bg-primary-600' 
+                          : 'bg-slate-700 hover:bg-slate-600'
+                      }`}
+                      onClick={() => setSelectedCourse(course)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-medium truncate">{course.title}</h3>
+                        <span className="text-xs px-2 py-1 bg-slate-600 rounded capitalize">
+                          {course.min_rank}
+                        </span>
+                      </div>
                       
-                      return (
-                        <div
-                          key={lesson.id}
-                          className={`p-4 rounded-lg border-2 transition-all ${
-                            unlocked
-                              ? completed
-                                ? 'border-emerald-500 bg-emerald-900/20 hover:bg-emerald-900/30 cursor-pointer'
-                                : 'border-blue-500 bg-blue-900/20 hover:bg-blue-900/30 cursor-pointer'
-                              : 'border-gray-600 bg-gray-800/20'
-                          }`}
-                          onClick={() => handleLessonClick(lesson, index)}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-4">
-                              {/* レッスン番号とアイコン */}
-                              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
+                      {/* コース進捗バー */}
+                      <div className="mb-2">
+                        <div className="flex justify-between text-xs text-gray-400 mb-1">
+                          <span>進捗</span>
+                          <span>{getCourseCompletionRate(course)}%</span>
+                        </div>
+                        <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-emerald-500 transition-all duration-300"
+                            style={{ width: `${getCourseCompletionRate(course)}%` }}
+                          />
+                        </div>
+                      </div>
+                      
+                      {course.description && (
+                        <p className="text-xs text-gray-400 line-clamp-2">
+                          {course.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* レッスン一覧メインエリア */}
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {selectedCourse ? (
+                  <>
+                    <div className="p-6 border-b border-slate-700">
+                      <h2 className="text-2xl font-bold mb-2">{selectedCourse.title}</h2>
+                      {selectedCourse.description && (
+                        <p className="text-gray-400">{selectedCourse.description}</p>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-6">
+                      <div className="space-y-4">
+                        {lessons.map((lesson, index) => {
+                          const unlocked = isLessonUnlocked(lesson, index);
+                          const completed = progress[lesson.id]?.completed || false;
+                          const completionRate = getLessonCompletionRate(lesson);
+                          
+                          return (
+                            <div
+                              key={lesson.id}
+                              className={`p-4 rounded-lg border-2 transition-all ${
                                 unlocked
                                   ? completed
-                                    ? 'bg-emerald-600 text-white'
-                                    : 'bg-blue-600 text-white'
-                                  : 'bg-gray-600 text-gray-400'
-                              }`}>
-                                {unlocked ? (
-                                  completed ? <FaCheck /> : <FaPlay />
-                                ) : (
-                                  <FaLock />
-                                )}
-                              </div>
+                                    ? 'border-emerald-500 bg-emerald-900/20 hover:bg-emerald-900/30 cursor-pointer'
+                                    : 'border-blue-500 bg-blue-900/20 hover:bg-blue-900/30 cursor-pointer'
+                                  : 'border-gray-600 bg-gray-800/20'
+                              }`}
+                              onClick={() => handleLessonClick(lesson, index)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                  {/* レッスン番号とアイコン */}
+                                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
+                                    unlocked
+                                      ? completed
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-blue-600 text-white'
+                                      : 'bg-gray-600 text-gray-400'
+                                  }`}>
+                                    {unlocked ? (
+                                      completed ? <FaCheck /> : <FaPlay />
+                                    ) : (
+                                      <FaLock />
+                                    )}
+                                  </div>
 
-                              {/* レッスン情報 */}
-                              <div>
-                                <h3 className={`text-lg font-semibold ${
-                                  unlocked ? 'text-white' : 'text-gray-400'
-                                }`}>
-                                  {lesson.title}
-                                </h3>
-                                <div className="flex items-center space-x-3 text-sm text-gray-400">
-                                  <span>レッスン {index + 1}</span>
-                                  <div className="flex items-center space-x-1">
-                                    <FaVideo className="w-3 h-3" />
-                                    <span>動画</span>
+                                  {/* レッスン情報 */}
+                                  <div>
+                                    <h3 className={`text-lg font-semibold ${
+                                      unlocked ? 'text-white' : 'text-gray-400'
+                                    }`}>
+                                      {lesson.title}
+                                    </h3>
+                                    <div className="flex items-center space-x-3 text-sm text-gray-400">
+                                      <span>レッスン {index + 1}</span>
+                                      <div className="flex items-center space-x-1">
+                                        <FaVideo className="w-3 h-3" />
+                                        <span>動画</span>
+                                      </div>
+                                      <div className="flex items-center space-x-1">
+                                        <FaMusic className="w-3 h-3" />
+                                        <span>実習</span>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center space-x-1">
-                                    <FaMusic className="w-3 h-3" />
-                                    <span>実習</span>
-                                  </div>
+                                </div>
+
+                                {/* ステータス表示 */}
+                                <div className="text-right">
+                                  {completed && (
+                                    <div className="flex items-center space-x-1 text-emerald-400 mb-2">
+                                      <FaStar className="w-4 h-4" />
+                                      <span className="text-sm font-medium">完了</span>
+                                    </div>
+                                  )}
+                                  
+                                  {unlocked && (
+                                    <div className="w-32">
+                                      <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                        <span>進捗</span>
+                                        <span>{completionRate}%</span>
+                                      </div>
+                                      <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
+                                        <div 
+                                          className="h-full bg-blue-500 transition-all duration-300"
+                                          style={{ width: `${completionRate}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
-
-                            {/* ステータス表示 */}
-                            <div className="text-right">
-                              {completed && (
-                                <div className="flex items-center space-x-1 text-emerald-400 mb-2">
-                                  <FaStar className="w-4 h-4" />
-                                  <span className="text-sm font-medium">完了</span>
-                                </div>
-                              )}
-                              
-                              {unlocked && (
-                                <div className="w-32">
-                                  <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                    <span>進捗</span>
-                                    <span>{completionRate}%</span>
-                                  </div>
-                                  <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
-                                    <div 
-                                      className="h-full bg-blue-500 transition-all duration-300"
-                                      style={{ width: `${completionRate}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center">
+                    <p className="text-gray-400">コースを選択してください</p>
                   </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <p className="text-gray-400">コースを選択してください</p>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      )}
-    </div>,
-    document.body
+      </div>
+    </div>
   );
 };
 
