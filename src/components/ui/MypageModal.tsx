@@ -53,14 +53,6 @@ const MypagePage: React.FC = () => {
               <span>{profile.xp}</span>
             </div>
           </div>
-          <button
-            className="btn btn-primary w-full"
-            onClick={() => {
-              window.location.hash = '#dashboard';
-            }}
-          >
-            戻る
-          </button>
         </div>
       </div>
     </div>

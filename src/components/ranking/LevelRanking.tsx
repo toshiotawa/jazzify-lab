@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { fetchLevelRanking, RankingEntry } from '@/platform/supabaseRanking';
+import { useAuthStore } from '@/stores/authStore';
 
 const LevelRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#ranking');
   const [entries, setEntries] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user, isGuest } = useAuthStore();
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#ranking');
@@ -13,7 +15,7 @@ const LevelRanking: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (open) {
+    if (open && user && !isGuest) {
       (async () => {
         setLoading(true);
         try {
@@ -24,13 +26,39 @@ const LevelRanking: React.FC = () => {
         }
       })();
     }
-  }, [open]);
+  }, [open, user, isGuest]);
 
   if (!open) return null;
 
   const handleClose = () => {
-    window.location.hash = '';
+    window.location.hash = '#dashboard';
   };
+
+  // ゲストユーザーの場合
+  if (!user || isGuest) {
+    return (
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70" onClick={handleClose}>
+        <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md" onClick={e => e.stopPropagation()}>
+          <h4 className="text-lg font-bold text-center">ランキングはログインユーザー専用です</h4>
+          <p className="text-center text-gray-300">ランキング機能を利用するにはログインが必要です。</p>
+          <div className="flex flex-col gap-3">
+            <button 
+              className="btn btn-sm btn-primary w-full" 
+              onClick={() => { window.location.hash = '#login'; }}
+            >
+              ログイン / 会員登録
+            </button>
+            <button 
+              className="btn btn-sm btn-outline w-full" 
+              onClick={handleClose}
+            >
+              ダッシュボードに戻る
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-slate-900 text-white overflow-y-auto">
@@ -73,8 +101,6 @@ const LevelRanking: React.FC = () => {
           </table>
         )}
       </div>
-
-      <button className="btn btn-sm btn-primary m-4" onClick={handleClose}>閉じる</button>
     </div>
   );
 };
