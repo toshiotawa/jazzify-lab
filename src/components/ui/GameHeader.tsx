@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameActions } from '@/stores/helpers';
+import { FaHome, FaUserCircle } from 'react-icons/fa';
 
 /**
  * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
@@ -82,11 +83,44 @@ const HeaderRightControls: React.FC = () => {
   const { user, isGuest, logout } = useAuthStore();
 
   return (
-    <div className="flex items-center space-x-4">
+    <div className="flex items-center space-x-2 sm:space-x-4">
       {user && !isGuest ? (
         <>
-          <a href="#mypage" className="btn btn-sm btn-ghost text-white hover:text-primary-400">マイページ</a>
-          <a href="#account" className="btn btn-sm btn-primary">アカウント</a>
+          {/* モバイル時はアイコン表示 */}
+          <a 
+            href="#mypage" 
+            className="sm:hidden p-2 text-white hover:text-primary-400 transition-colors"
+            aria-label="マイページ"
+          >
+            <FaHome size={20} />
+          </a>
+          <a 
+            href="#account" 
+            className="sm:hidden p-2 text-white hover:text-primary-400 transition-colors"
+            aria-label="アカウント"
+          >
+            <FaUserCircle size={20} />
+          </a>
+          
+          {/* デスクトップ時はテキスト表示 */}
+          <a href="#mypage" className="hidden sm:inline-flex btn btn-sm btn-ghost text-white hover:text-primary-400">
+            マイページ
+          </a>
+          <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary">
+            アカウント
+          </a>
+        </>
+      ) : isGuest ? (
+        <>
+          <button 
+            className="btn btn-sm btn-primary" 
+            onClick={() => {
+              logout();
+              window.location.hash = '#login';
+            }}
+          >
+            会員登録
+          </button>
         </>
       ) : (
         <button className="btn btn-sm btn-outline" onClick={logout}>ログアウト</button>
