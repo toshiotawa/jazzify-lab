@@ -30,9 +30,6 @@ const App: React.FC = () => {
   // 認証ストアの状態
   const { profile, loading:authLoading, isGuest, user } = useAuthStore();
   
-  // 認証ストアの初期化アクション
-  const initAuth = useAuthStore((state) => state.init);
-  
   // hash monitor
   const [hash, setHash] = useState(window.location.hash);
   useEffect(()=>{
@@ -41,10 +38,6 @@ const App: React.FC = () => {
     return()=>window.removeEventListener('hashchange',h);
   },[]);
   const forceLogin = hash === '#login';
-  
-  // マイページ・アカウントページの単独表示ハンドリング
-  const isMypage = hash === '#mypage';
-  const isAccount = hash === '#account';
   
   // ルートアクセス時にダッシュボードへリダイレクト
   useEffect(() => {
@@ -55,11 +48,6 @@ const App: React.FC = () => {
   
   // ゲーム設定書き換え用アクション
   const updateGameSettings = useGameStore((state) => state.updateSettings);
-  
-  // 認証の初期化（マジックリンクトークンの処理を含む）
-  useEffect(() => {
-    initAuth();
-  }, [initAuth]);
   
   useEffect(() => {
     const initializeApp = async () => {
@@ -177,22 +165,22 @@ const App: React.FC = () => {
     );
   }
 
-  // 認証済み後、ハッシュに応じて単独ページを表示
-  if (isMypage) {
+  // 専用ページ (#account / #mypage) 表示中は他コンテンツを隠す
+  if (hash === '#account') {
     return (
-      <ErrorBoundary>
-        <MypagePage />
+      <>
+        <AccountPage />
         <ToastContainer />
-      </ErrorBoundary>
+      </>
     );
   }
 
-  if (isAccount) {
+  if (hash === '#mypage') {
     return (
-      <ErrorBoundary>
-        <AccountPage />
+      <>
+        <MypagePage />
         <ToastContainer />
-      </ErrorBoundary>
+      </>
     );
   }
 
@@ -210,8 +198,12 @@ const App: React.FC = () => {
         
         {/* ログインユーザー専用モーダル類 */}
         {user && !isGuest && (
-          <ProfileWizard />
+          <>
+        <ProfileWizard />
+        <AccountPage />
+          </>
         )}
+        <MypagePage />
         <DiaryPage />
         <LessonPage />
         <LessonDetailPage />
