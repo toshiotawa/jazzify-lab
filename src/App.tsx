@@ -17,6 +17,7 @@ import LessonDetailPage from '@/components/lesson/LessonDetailPage';
 import Dashboard from '@/components/dashboard/Dashboard';
 import InformationPage from '@/components/information/InformationPage';
 import LevelRanking from '@/components/ranking/LevelRanking';
+import AdminDashboard from '@/components/admin/AdminDashboard';
 
 /**
  * メインアプリケーションコンポーネント
@@ -211,6 +212,13 @@ const App: React.FC = () => {
       break;
     case '#information':
       MainContent = <InformationPage />;
+      break;
+    case '#admin-songs':
+    case '#admin-lessons':
+    case '#admin-challenges':
+    case '#admin-users':
+    case '#admin-announcements':
+      MainContent = <AdminDashboard />;
       break;
     default:
       MainContent = <GameScreen />;
