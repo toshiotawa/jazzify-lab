@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import Header from '@/components/ui/Header';
+import GameHeader from '@/components/ui/GameHeader';
 
 /**
  * マイページページ (モーダル→ページ化)
@@ -29,7 +29,7 @@ const MypagePage: React.FC = () => {
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       {/* Global header */}
-      <Header />
+      <GameHeader />
 
       {/* Page body */}
       <div className="flex-1 w-full flex flex-col items-center overflow-auto p-6">

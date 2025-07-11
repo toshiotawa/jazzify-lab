@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { uploadAvatar } from '@/platform/supabaseStorage';
-import Header from '@/components/ui/Header';
+import GameHeader from '@/components/ui/GameHeader';
 
 const RANK_LABEL: Record<string, string> = {
   free: 'フリー',
@@ -36,7 +36,7 @@ const AccountPage: React.FC = () => {
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       {/* Global header */}
-      <Header />
+      <GameHeader />
 
       {/* Page body */}
       <div className="flex-1 w-full flex flex-col items-center overflow-auto p-6">
