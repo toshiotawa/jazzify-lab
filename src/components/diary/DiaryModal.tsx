@@ -4,11 +4,11 @@ import DiaryPage from './DiaryPage';
 import ChallengeBoard from '@/components/mission/ChallengeBoard';
 
 const DiaryModal: React.FC = () => {
-  const [open, setOpen] = useState(window.location.hash === '#mypage');
+  const [open, setOpen] = useState(window.location.hash === '#diary-modal');
   const [tab, setTab] = useState<'diary' | 'mission'>('diary');
 
   useEffect(() => {
-    const handler = () => setOpen(window.location.hash === '#mypage');
+    const handler = () => setOpen(window.location.hash === '#diary-modal');
     window.addEventListener('hashchange', handler);
     return () => window.removeEventListener('hashchange', handler);
   }, []);

@@ -7,7 +7,6 @@ import AuthGate from '@/components/auth/AuthGate';
 import AccountModal from '@/components/ui/AccountModal';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import LevelRanking from '@/components/ranking/LevelRanking';
-import DiaryModal from '@/components/diary/DiaryModal';
 
 // ImmerでMap/Setを使用できるようにする
 enableMapSet();
@@ -115,7 +114,6 @@ const initializeApp = async () => {
           <AccountModal />
           <AdminDashboard />
           <LevelRanking />
-          <DiaryModal />
         </AuthGate>
       </React.StrictMode>
     );
