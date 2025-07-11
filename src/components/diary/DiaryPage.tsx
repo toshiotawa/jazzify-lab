@@ -95,8 +95,8 @@ const DiaryPage: React.FC = () => {
     // ゲストユーザーの場合のモーダル表示
     if (!user || isGuest) {
       return (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70" onClick={handleClose}>
-          <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
+          <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">
             <h4 className="text-lg font-bold text-center">コミュニティはログインユーザー専用です</h4>
             <p className="text-center text-gray-300">コミュニティ機能を利用するにはログインが必要です。</p>
             <div className="flex flex-col gap-3">
