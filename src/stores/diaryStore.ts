@@ -10,6 +10,7 @@ interface DiaryState {
   todayPosted: boolean;
   comments: Record<string, DiaryComment[]>;
   realtimeInitialized: boolean;
+  likeUsers: Record<string, import('@/platform/supabaseDiary').DiaryLikeUser[]>;
 }
 
 interface DiaryActions {
@@ -28,6 +29,8 @@ interface DiaryActions {
   addComment: (diaryId: string, content: string) => Promise<void>;
   deleteComment: (commentId: string, diaryId: string) => Promise<void>;
   initRealtime: () => void;
+  deleteDiary: (diaryId: string) => Promise<void>;
+  fetchLikeUsers: (diaryId: string) => Promise<void>;
 }
 
 export const useDiaryStore = create<DiaryState & DiaryActions>()(
@@ -38,16 +41,19 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     todayPosted: false,
     comments: {},
     realtimeInitialized: false,
+    likeUsers: {},
 
     fetch: async () => {
       set(s => { s.loading = true; s.error = null; });
       try {
         const data = await fetchDiaries(50);
-        set(s => { s.diaries = data; });
-        // 今日投稿しているか判定
+        // 当日の日記のみ表示
         const today = new Date().toISOString().substring(0,10);
+        const todayDiaries = data.filter(d => d.practice_date === today);
+        set(s => { s.diaries = todayDiaries; });
+        // 今日投稿しているか判定
         const { data: { user } } = await getSupabaseClient().auth.getUser();
-        const posted = user ? data.some(d => d.practice_date === today && d.user_id === user.id) : false;
+        const posted = user ? todayDiaries.some(d => d.user_id === user.id) : false;
         set(s => { s.todayPosted = posted; });
       } catch (e:any) {
         set(s => { s.error = e.message; });
@@ -86,6 +92,18 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     deleteComment: async (commentId: string, diaryId: string) => {
       await deleteComment(commentId);
       await get().fetchComments(diaryId);
+    },
+
+    deleteDiary: async (diaryId: string) => {
+      const { deleteDiary } = await import('@/platform/supabaseDiary');
+      await deleteDiary(diaryId);
+      await get().fetch();
+    },
+
+    fetchLikeUsers: async (diaryId: string) => {
+      const { fetchDiaryLikes } = await import('@/platform/supabaseDiary');
+      const users = await fetchDiaryLikes(diaryId, 50);
+      set(s => { s.likeUsers[diaryId] = users; });
     },
 
     initRealtime: () => {

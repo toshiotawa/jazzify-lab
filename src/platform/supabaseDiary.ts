@@ -11,6 +11,8 @@ export interface Diary {
   likes: number;
   nickname?: string;
   avatar_url?: string;
+  level: number;
+  rank: string;
 }
 
 export interface DiaryComment {
@@ -28,7 +30,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   // 日記とプロフィール情報を取得
   const { data: diariesData, error } = await supabase
     .from('practice_diaries')
-    .select('*, profiles(nickname, avatar_url)')
+    .select('*, profiles(nickname, avatar_url, level, rank)')
     .order('practice_date', { ascending: false })
     .limit(limit);
     
@@ -52,6 +54,8 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
         likes: count || 0,
         nickname: diary.profiles?.nickname || 'User',
         avatar_url: diary.profiles?.avatar_url,
+        level: diary.profiles?.level || 1,
+        rank: diary.profiles?.rank || 'free',
       } as Diary;
     })
   );
@@ -297,4 +301,43 @@ export async function deleteComment(commentId: string): Promise<void> {
   if (!user) throw new Error('ログインが必要です');
   const { error } = await supabase.from('diary_comments').delete().eq('id', commentId).eq('user_id', user.id);
   if (error) throw error;
+}
+
+export interface DiaryLikeUser {
+  user_id: string;
+  nickname: string;
+  avatar_url?: string;
+  level: number;
+  rank: string;
+}
+
+export async function fetchDiaryLikes(diaryId: string, limit = 50): Promise<DiaryLikeUser[]> {
+  const { data, error } = await getSupabaseClient()
+    .from('diary_likes')
+    .select('user_id, profiles(nickname, avatar_url, level, rank)')
+    .eq('diary_id', diaryId)
+    .limit(limit);
+
+  if (error) throw error;
+  if (!data) return [];
+
+  return data.map((row: any) => ({
+    user_id: row.user_id,
+    nickname: row.profiles?.nickname || 'User',
+    avatar_url: row.profiles?.avatar_url,
+    level: row.profiles?.level || 1,
+    rank: row.profiles?.rank || 'free',
+  }));
+}
+
+export async function deleteDiary(diaryId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+  const { error } = await supabase
+    .from('practice_diaries')
+    .delete()
+    .eq('id', diaryId)
+    .eq('user_id', user.id);
+  if (error) throw new Error(`日記の削除に失敗しました: ${error.message}`);
 } 

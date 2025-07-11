@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDiaryStore } from '@/stores/diaryStore';
 import { useAuthStore } from '@/stores/authStore';
-import { FaHeart, FaTrash } from 'react-icons/fa';
+import { FaHeart, FaTrash, FaEdit, FaChevronDown } from 'react-icons/fa';
 import { useToast } from '@/stores/toastStore';
 import { DiaryComment } from '@/platform/supabaseDiary';
 
@@ -14,7 +14,7 @@ const Avatar: React.FC<{ url?: string }> = ({ url }) => (
 );
 
 const DiaryFeed: React.FC = () => {
-  const { diaries, loading, fetch: fetchAll, like, comments, fetchComments, addComment, deleteComment } = useDiaryStore();
+  const { diaries, loading, fetch: fetchAll, like, comments, fetchComments, addComment, deleteComment, deleteDiary, likeUsers, fetchLikeUsers } = useDiaryStore();
   const { user, isGuest } = useAuthStore();
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentText, setCommentText] = useState<Record<string, string>>({});
@@ -53,9 +53,28 @@ const DiaryFeed: React.FC = () => {
                 {d.nickname || 'User'}
               </button>
               <span className="text-gray-500 text-xs ml-0 sm:ml-2 block sm:inline">{d.practice_date}</span>
+              <span className="text-xs ml-2 text-yellow-400">Lv.{d.level}</span>
+              <span className="text-xs ml-1 text-green-400">{d.rank}</span>
             </div>
           </div>
           <p className="whitespace-pre-wrap text-gray-100 mb-3 text-sm leading-relaxed">{d.content}</p>
+          {d.user_id === user?.id && (
+            <div className="flex space-x-2 mb-2 text-xs">
+              <button
+                className="flex items-center text-blue-400 hover:text-blue-300"
+                onClick={() => {
+                  window.location.hash = `#diary-edit?id=${d.id}`;
+                }}
+              ><FaEdit className="mr-1"/> 編集</button>
+              <button
+                className="flex items-center text-red-400 hover:text-red-300"
+                onClick={async () => {
+                  if(!confirm('この日記を削除しますか？')) return;
+                  try { await deleteDiary(d.id); } catch(e:any){ toast.error(e.message); }
+                }}
+              ><FaTrash className="mr-1"/>削除</button>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <button 
               className={`flex items-center text-xs text-gray-400 hover:text-pink-400 transition-colors p-1 rounded ${
@@ -78,11 +97,34 @@ const DiaryFeed: React.FC = () => {
               <FaHeart className="mr-1" /> {d.likes}
             </button>
             <button 
-              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors mr-2"
               onClick={() => setOpenComments(prev => ({ ...prev, [d.id]: !prev[d.id] }))}
             >
               返信 {comments[d.id]?.length || 0}
             </button>
+            <div className="relative">
+              <button
+                className="text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center"
+                onClick={async () => {
+                  if(!likeUsers[d.id]) await fetchLikeUsers(d.id);
+                  setOpenComments(prev=>({...prev, ['likes-'+d.id]: !prev['likes-'+d.id]}));
+                }}
+              >
+                いいねした人 <FaChevronDown className="ml-1" />
+              </button>
+              {openComments['likes-'+d.id] && likeUsers[d.id] && (
+                <div className="absolute z-10 bg-slate-700 p-2 rounded shadow-lg w-52 max-h-60 overflow-y-auto space-y-1">
+                  {likeUsers[d.id].map(u=> (
+                    <div key={u.user_id} className="flex items-center space-x-2 text-xs text-gray-200">
+                      <Avatar url={u.avatar_url} />
+                      <span className="font-semibold truncate">{u.nickname}</span>
+                      <span className="text-yellow-400">Lv.{u.level}</span>
+                    </div>
+                  ))}
+                  {likeUsers[d.id].length===0 && <p className="text-xs text-gray-400">まだいません</p>}
+                </div>
+              )}
+            </div>
           </div>
           {openComments[d.id] && (
             <div className="mt-2 space-y-2">
