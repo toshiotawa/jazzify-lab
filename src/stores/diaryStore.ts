@@ -48,7 +48,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
       try {
         const data = await fetchDiaries(50);
         // 当日の日記のみ表示
-        const today = new Date().toISOString().substring(0,10);
+        const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
         const todayDiaries = data.filter(d => d.practice_date === today);
         set(s => { s.diaries = todayDiaries; });
         // 今日投稿しているか判定

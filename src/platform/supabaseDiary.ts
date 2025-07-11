@@ -143,7 +143,7 @@ export async function createDiary(content: string): Promise<{
   missionsUpdated: number;
 }> {
   const supabase = getSupabaseClient();
-  const today = new Date().toISOString().substring(0, 10);
+  const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
 
