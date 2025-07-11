@@ -44,7 +44,7 @@ const GameScreen: React.FC = () => {
         >
           <div className="flex justify-between items-center">
             {/* 左側ナビゲーション */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
               {/* トップ (ダッシュボード) */}
               <button
                 className="text-white hover:text-primary-400 font-bold px-2"

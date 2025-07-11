@@ -8,7 +8,6 @@ import FPSMonitor from '@/components/ui/FPSMonitor';
 import ToastContainer from '@/components/ui/ToastContainer';
 import AuthLanding from '@/components/auth/AuthLanding';
 import { useAuthStore } from '@/stores/authStore';
-import Header from '@/components/ui/Header';
 import ProfileWizard from '@/components/auth/ProfileWizard';
 import AccountPage from '@/components/ui/AccountModal';
 import MypagePage from '@/components/ui/MypageModal';
@@ -46,6 +45,9 @@ const App: React.FC = () => {
       window.location.hash = '#dashboard';
     }
   }, []);
+  
+  // ゲーム設定書き換え用アクション
+  const updateGameSettings = useGameStore((state) => state.updateSettings);
   
   useEffect(() => {
     const initializeApp = async () => {
@@ -109,6 +111,23 @@ const App: React.FC = () => {
       window.location.hash = '#dashboard';
     }
   }, [isGuest]);
+  
+  // 他画面遷移時にヘッダー非表示状態を自動解除
+  useEffect(() => {
+    const ensureHeaderVisible = () => {
+      const gameHashes = ['#songs', '#practice', '#performance'];
+      const currentHash = window.location.hash;
+      if (!gameHashes.includes(currentHash)) {
+        updateGameSettings({ showHeader: true });
+      }
+    };
+
+    // 初期チェック
+    ensureHeaderVisible();
+
+    window.addEventListener('hashchange', ensureHeaderVisible);
+    return () => window.removeEventListener('hashchange', ensureHeaderVisible);
+  }, [updateGameSettings]);
   
   // 初期化中の表示
   if (!isInitialized) {
