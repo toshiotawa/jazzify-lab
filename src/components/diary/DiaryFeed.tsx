@@ -39,8 +39,19 @@ const DiaryFeed: React.FC = () => {
 
   if (loading) return <p className="text-center text-gray-400">Loading...</p>;
 
+  const goToMyDiary = () => {
+    if (user) {
+      window.location.hash = `#diary-user?id=${user.id}`;
+    }
+  };
+
   return (
     <div className="space-y-3">
+      {user && (
+        <div className="text-right mb-1">
+          <button className="btn btn-xs btn-outline" onClick={goToMyDiary}>自分の日記を見る</button>
+        </div>
+      )}
       {diaries.map(d => (
         <div key={d.id} className="p-3 sm:p-4 bg-slate-800 rounded-lg">
           <div className="flex items-center mb-2 space-x-2 text-sm text-gray-300">
