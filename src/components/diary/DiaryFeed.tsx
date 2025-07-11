@@ -125,7 +125,7 @@ const DiaryFeed: React.FC = () => {
               className="text-xs text-gray-500 hover:text-gray-300 transition-colors mr-2"
               onClick={() => setOpenComments(prev => ({ ...prev, [d.id]: !prev[d.id] }))}
             >
-              返信 {comments[d.id]?.length || 0}
+              返信 {comments[d.id]?.length ?? d.comment_count}
             </button>
             <div className="relative">
               <button

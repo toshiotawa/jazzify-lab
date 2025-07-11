@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCalendarAlt, FaHeart } from 'react-icons/fa';
+import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes } from 'react-icons/fa';
 import DiaryFeed from './DiaryFeed';
 import { useAuthStore } from '@/stores/authStore';
 import DiaryEditor from './DiaryEditor';
 import { fetchUserDiaries } from '@/platform/supabaseDiary';
+import { useDiaryStore } from '@/stores/diaryStore';
+import { useToast } from '@/stores/toastStore';
 
 interface UserDiary {
   id: string;
@@ -33,6 +35,11 @@ const DiaryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user, isGuest } = useAuthStore();
+  const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary } = useDiaryStore();
+  const [openSection, setOpenSection] = useState<Record<string, {likes:boolean;comments:boolean}>>({});
+  const [editingId, setEditingId] = useState<string|null>(null);
+  const [editText, setEditText] = useState<string>('');
+  const toast = useToast();
 
   useEffect(() => {
     const checkHash = () => {
@@ -170,20 +177,78 @@ const DiaryPage: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {diaries.map(diary => (
-                  <div key={diary.id} className="bg-slate-800 rounded-lg p-4">
+                  <div key={diary.id} className="bg-slate-800 rounded-lg p-4 relative">
                     <div className="flex items-center justify-between mb-3 text-sm text-gray-400">
                       <div className="flex items-center space-x-2">
                         <FaCalendarAlt className="w-4 h-4" />
                         <span>{diary.practice_date}</span>
                       </div>
-                      <div className="flex items-center space-x-1">
+                      <button
+                        className="flex items-center space-x-1 hover:text-blue-400"
+                        onClick={async ()=>{
+                          if(!likeUsers[diary.id]) await fetchLikeUsers(diary.id);
+                          setOpenSection(s=>({ ...s, [diary.id]: {likes:!s[diary.id]?.likes, comments: s[diary.id]?.comments||false} }));
+                        }}
+                      >
                         <FaHeart className="w-4 h-4 text-pink-400" />
                         <span>{diary.likes}</span>
-                      </div>
+                        <FaChevronDown className="ml-1" />
+                      </button>
                     </div>
-                    <p className="text-gray-100 leading-relaxed whitespace-pre-wrap">
-                      {diary.content}
-                    </p>
+                    {editingId===diary.id ? (
+                      <>
+                        <textarea className="w-full bg-slate-700 p-2 rounded text-sm" rows={4} value={editText} onChange={e=>setEditText(e.target.value)} />
+                        <div className="flex space-x-2 text-xs mt-2">
+                          <button className="btn btn-xs btn-primary flex items-center" onClick={async()=>{try{await update(diary.id, editText); setEditingId(null);}catch(e:any){toast.error(e.message);}}}><FaSave className="mr-1"/>保存</button>
+                          <button className="btn btn-xs btn-outline flex items-center" onClick={()=>setEditingId(null)}><FaTimes className="mr-1"/>キャンセル</button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-gray-100 leading-relaxed whitespace-pre-wrap">{diary.content}</p>
+                    )}
+
+                    {/* Owner controls */}
+                    {user?.id === userId && editingId!==diary.id && (
+                      <div className="flex space-x-3 text-xs mt-2">
+                        <button className="flex items-center text-blue-400 hover:text-blue-300" onClick={()=>{setEditingId(diary.id); setEditText(diary.content);}}><FaEdit className="mr-1"/>編集</button>
+                        <button className="flex items-center text-red-400 hover:text-red-300" onClick={async()=>{if(!confirm('削除しますか？'))return; try{await deleteDiary(diary.id); setDiaries(prev=>prev.filter(d=>d.id!==diary.id));}catch(e:any){toast.error(e.message);} }}><FaTrash className="mr-1"/>削除</button>
+                      </div>
+                    )}
+
+                    {/* Likes popup */}
+                    {openSection[diary.id]?.likes && likeUsers[diary.id] && (
+                      <div className="absolute right-4 top-12 bg-slate-700 rounded shadow-lg p-2 w-52 max-h-60 overflow-y-auto space-y-1 z-20 whitespace-nowrap">
+                        {likeUsers[diary.id].map(u=>(
+                          <div key={u.user_id} className="flex items-center space-x-2 text-xs text-gray-200">
+                            <img src={u.avatar_url||'https://api.dicebear.com/7.x/identicon/svg?seed=user'} className="w-6 h-6 rounded-full object-cover" />
+                            <span className="truncate">{u.nickname}</span>
+                            <span className="text-yellow-400">Lv.{u.level}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Comments accordion */}
+                    <button
+                      className="text-xs text-gray-400 hover:text-gray-300 mt-3 flex items-center"
+                      onClick={async ()=>{
+                        if(!comments[diary.id]) await fetchComments(diary.id);
+                        setOpenSection(s=>({ ...s, [diary.id]: {comments:!s[diary.id]?.comments, likes:s[diary.id]?.likes||false} }));
+                      }}
+                    >
+                      返信 {comments[diary.id]?.length ?? 0} <FaChevronDown className="ml-1" />
+                    </button>
+                    {openSection[diary.id]?.comments && comments[diary.id] && (
+                      <div className="mt-2 space-y-2">
+                        {comments[diary.id].map(c=>(
+                          <div key={c.id} className="text-xs text-gray-300 flex items-center space-x-2">
+                            <img src={c.avatar_url||'https://api.dicebear.com/7.x/identicon/svg?seed=user'} className="w-6 h-6 rounded-full object-cover" />
+                            <span className="font-semibold">{c.nickname}</span>
+                            <p>{c.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

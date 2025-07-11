@@ -9,6 +9,7 @@ export interface Diary {
   practice_date: string; // yyyy-mm-dd
   created_at: string;
   likes: number;
+  comment_count: number;
   nickname?: string;
   avatar_url?: string;
   level: number;
@@ -40,8 +41,13 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   // 各日記のいいね数を取得
   const diariesWithLikes = await Promise.all(
     diariesData.map(async (diary: any) => {
-      const { count } = await supabase
+      const { count: likeCount } = await supabase
         .from('diary_likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('diary_id', diary.id);
+      
+      const { count: commentCount } = await supabase
+        .from('diary_comments')
         .select('*', { count: 'exact', head: true })
         .eq('diary_id', diary.id);
       
@@ -51,7 +57,8 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
         content: diary.content,
         practice_date: diary.practice_date,
         created_at: diary.created_at,
-        likes: count || 0,
+        likes: likeCount || 0,
+        comment_count: commentCount || 0,
         nickname: diary.profiles?.nickname || 'User',
         avatar_url: diary.profiles?.avatar_url,
         level: diary.profiles?.level || 1,
@@ -93,14 +100,20 @@ export async function fetchUserDiaries(userId: string): Promise<{
   // 各日記のいいね数を取得
   const diariesWithLikes = await Promise.all(
     (diariesData || []).map(async (diary) => {
-      const { count } = await supabase
+      const { count: likeCount } = await supabase
         .from('diary_likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('diary_id', diary.id);
+      
+      const { count: commentCount } = await supabase
+        .from('diary_comments')
         .select('*', { count: 'exact', head: true })
         .eq('diary_id', diary.id);
       
       return {
         ...diary,
-        likes: count || 0,
+        likes: likeCount || 0,
+        comment_count: commentCount || 0,
       };
     })
   );
@@ -181,15 +194,31 @@ export async function createDiary(content: string): Promise<{
   // 会員ランクに応じたXP倍率を適用
   const membershipMultiplier = membershipRank === 'premium' ? 1.5 : membershipRank === 'platinum' ? 2 : 1;
 
-  // XP加算
-  const xpResult = await addXp({
-    songId: null,
-    baseXp: 5000,
-    speedMultiplier: 1,
-    rankMultiplier: 1,
-    transposeMultiplier: 1,
-    membershipMultiplier,
-  });
+  // 既に本日XP獲得済みか確認
+  const { count: xpTodayCount } = await supabase
+    .from('xp_history')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .is('song_id', null)
+    .gte('created_at', today + 'T00:00:00')
+    .lte('created_at', today + 'T23:59:59');
+
+  let xpResult: { gainedXp: number; totalXp: number; level: number } = { gainedXp:0, totalXp:0, level:currentLevel } as any;
+
+  if (!xpTodayCount || xpTodayCount === 0) {
+    xpResult = await addXp({
+      songId: null,
+      baseXp: 5000,
+      speedMultiplier: 1,
+      rankMultiplier: 1,
+      transposeMultiplier: 1,
+      membershipMultiplier,
+    });
+  } else {
+    // XP 付与なし
+    const { data: prof } = await supabase.from('profiles').select('xp, level').eq('id', user.id).single();
+    xpResult = { gainedXp:0, totalXp: prof?.xp || 0, level: prof?.level || currentLevel } as any;
+  }
 
   return {
     success: true,
