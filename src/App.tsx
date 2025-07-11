@@ -185,6 +185,29 @@ const App: React.FC = () => {
     );
   }
 
+  // メインコンテンツの条件付きレンダリング
+  let MainContent: React.ReactNode;
+  switch (hash) {
+    case '#dashboard':
+      MainContent = <Dashboard />;
+      break;
+    case '#diary':
+      MainContent = <DiaryPage />;
+      break;
+    case '#lessons':
+      MainContent = <LessonPage />;
+      break;
+    case '#lesson-detail':
+      MainContent = <LessonDetailPage />;
+      break;
+    case '#information':
+      MainContent = <InformationPage />;
+      break;
+    default:
+      MainContent = <GameScreen />;
+      break;
+  }
+
   return (
     <ErrorBoundary>
       <div 
@@ -195,23 +218,16 @@ const App: React.FC = () => {
           'font-sans antialiased'
         )}
       >
-        {/* グローバルヘッダーは GameScreen 内ヘッダーを使用するため削除 */}
-        
         {/* ログインユーザー専用モーダル類 */}
         {user && !isGuest && (
           <>
-        <ProfileWizard />
-        <AccountPage />
+            <ProfileWizard />
+            <AccountPage />
           </>
         )}
-        <MypagePage />
-        <DiaryPage />
-        <LessonPage />
-        <LessonDetailPage />
-        <Dashboard />
-        <InformationPage />
-        {/* メインゲーム画面 */}
-        <GameScreen />
+        
+        {/* メインコンテンツ */}
+        {MainContent}
         
         {/* グローバルな状態表示 */}
         {settings.showFPS && (
