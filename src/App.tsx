@@ -16,6 +16,7 @@ import LessonPage from '@/components/lesson/LessonPage';
 import LessonDetailPage from '@/components/lesson/LessonDetailPage';
 import Dashboard from '@/components/dashboard/Dashboard';
 import InformationPage from '@/components/information/InformationPage';
+import LevelRanking from '@/components/ranking/LevelRanking';
 
 /**
  * メインアプリケーションコンポーネント
@@ -187,11 +188,16 @@ const App: React.FC = () => {
 
   // メインコンテンツの条件付きレンダリング
   let MainContent: React.ReactNode;
-  switch (hash) {
+  
+  // ハッシュをベース部分だけで判定するための処理
+  const baseHash = hash.split('?')[0];
+  
+  switch (baseHash) {
     case '#dashboard':
       MainContent = <Dashboard />;
       break;
     case '#diary':
+    case '#diary-user':
       MainContent = <DiaryPage />;
       break;
     case '#lessons':
@@ -199,6 +205,9 @@ const App: React.FC = () => {
       break;
     case '#lesson-detail':
       MainContent = <LessonDetailPage />;
+      break;
+    case '#ranking':
+      MainContent = <LevelRanking />;
       break;
     case '#information':
       MainContent = <InformationPage />;
