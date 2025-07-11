@@ -39,6 +39,10 @@ const App: React.FC = () => {
   },[]);
   const forceLogin = hash === '#login';
   
+  // マイページ・アカウントページの単独表示ハンドリング
+  const isMypage = hash === '#mypage';
+  const isAccount = hash === '#account';
+  
   // ルートアクセス時にダッシュボードへリダイレクト
   useEffect(() => {
     if (window.location.hash === '' || window.location.hash === '#') {
@@ -165,6 +169,25 @@ const App: React.FC = () => {
     );
   }
 
+  // 認証済み後、ハッシュに応じて単独ページを表示
+  if (isMypage) {
+    return (
+      <ErrorBoundary>
+        <MypagePage />
+        <ToastContainer />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isAccount) {
+    return (
+      <ErrorBoundary>
+        <AccountPage />
+        <ToastContainer />
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <div 
@@ -179,12 +202,8 @@ const App: React.FC = () => {
         
         {/* ログインユーザー専用モーダル類 */}
         {user && !isGuest && (
-          <>
-        <ProfileWizard />
-        <AccountPage />
-          </>
+          <ProfileWizard />
         )}
-        <MypagePage />
         <DiaryPage />
         <LessonPage />
         <LessonDetailPage />
