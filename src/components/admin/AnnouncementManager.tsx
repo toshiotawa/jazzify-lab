@@ -173,7 +173,7 @@ const AnnouncementManager: React.FC = () => {
               <input
                 {...register('title', { 
                   required: 'タイトルは必須です',
-                  maxLength: { value: 100, message: 'タイトルは100文字以内で入力してください' }
+                  maxLength: { value: 100, message: '100文字以内' }
                 })}
                 className="input input-bordered w-full"
                 placeholder="お知らせのタイトルを入力"
@@ -188,7 +188,7 @@ const AnnouncementManager: React.FC = () => {
               <textarea
                 {...register('content', { 
                   required: '内容は必須です',
-                  maxLength: { value: 1000, message: '内容は1000文字以内で入力してください' }
+                  maxLength: { value: 1000, message: '1000文字以内' }
                 })}
                 className="textarea textarea-bordered w-full"
                 rows={4}
@@ -286,30 +286,30 @@ const AnnouncementManager: React.FC = () => {
           <div className="divide-y divide-slate-700">
             {announcements.map((announcement, index) => (
               <div key={announcement.id} className="p-4 hover:bg-slate-700/50 transition-colors">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h5 className="font-medium truncate">{announcement.title}</h5>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <h5 className="font-medium truncate max-w-xs md:max-w-md">{announcement.title}</h5>
+                      <span className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
                         announcement.is_active 
                           ? 'bg-emerald-100 text-emerald-800' 
                           : 'bg-gray-100 text-gray-800'
                       }`}>
                         {announcement.is_active ? '公開中' : '非公開'}
                       </span>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-400 whitespace-nowrap">
                         優先度: {announcement.priority}
                       </span>
                     </div>
                     
-                    <p className="text-sm text-gray-300 mb-2 line-clamp-2">
+                    <p className="text-sm text-gray-300 mb-2 line-clamp-2 break-all">
                       {announcement.content}
                     </p>
                     
                     {announcement.link_url && (
                       <div className="flex items-center space-x-1 text-xs text-blue-400">
                         <FaExternalLinkAlt />
-                        <span>{announcement.link_text || 'リンク'}</span>
+                        <span className="truncate max-w-xs">{announcement.link_text || 'リンク'}</span>
                       </div>
                     )}
                     
@@ -318,7 +318,7 @@ const AnnouncementManager: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2 ml-4">
+                  <div className="flex flex-wrap gap-1 justify-end">
                     {/* 表示順変更 */}
                     <button
                       onClick={() => handleChangePriority(announcement.id, 'up')}

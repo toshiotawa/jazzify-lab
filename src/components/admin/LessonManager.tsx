@@ -60,21 +60,22 @@ const LessonManager: React.FC = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Course List & Add */}
-      <div>
-        <h3 className="text-xl font-bold mb-2">コース一覧</h3>
-        <ul className="space-y-1 mb-4 max-h-60 overflow-auto">
+      <div className="space-y-4">
+        <h3 className="text-xl font-bold">コース一覧</h3>
+        <ul className="space-y-1 max-h-60 overflow-auto bg-slate-800/50 rounded-lg p-2">
           {courses.map(c => (
-            <li key={c.id} className={`p-2 rounded cursor-pointer ${selectedCourse?.id===c.id?'bg-slate-700':'hover:bg-slate-800'}`} onClick={()=>setSelectedCourse(c)}>
-              {c.title} <span className="text-xs text-gray-400">({c.min_rank})</span>
+            <li key={c.id} className={`p-2 rounded cursor-pointer transition-colors ${selectedCourse?.id===c.id?'bg-slate-700':'hover:bg-slate-700/50'}`} onClick={()=>setSelectedCourse(c)}>
+              <span className="truncate block">{c.title}</span>
+              <span className="text-xs text-gray-400">({c.min_rank})</span>
             </li>
           ))}
         </ul>
 
         <form className="space-y-2" onSubmit={handleSubmit(onCreateCourse)}>
           <input className="input input-bordered w-full" placeholder="コースタイトル" {...register('title',{required:true})} />
-          <textarea className="textarea textarea-bordered w-full" placeholder="説明 (任意)" {...register('description')} />
+          <textarea className="textarea textarea-bordered w-full" placeholder="説明 (任意)" rows={2} {...register('description')} />
           <select className="select select-bordered w-full" {...register('min_rank')} defaultValue="premium">
             <option value="free">フリー</option>
             <option value="standard">スタンダード</option>
@@ -87,11 +88,14 @@ const LessonManager: React.FC = () => {
 
       {/* Lessons of selected course */}
       {selectedCourse && (
-        <div>
-          <h3 className="text-xl font-bold mb-2">{selectedCourse.title} のレッスン</h3>
-          <ul className="space-y-1 mb-4 max-h-60 overflow-auto">
+        <div className="space-y-4">
+          <h3 className="text-xl font-bold truncate">{selectedCourse.title} のレッスン</h3>
+          <ul className="space-y-1 max-h-60 overflow-auto bg-slate-800/50 rounded-lg p-2">
             {lessons.map(l => (
-              <li key={l.id} className="p-2 rounded bg-slate-800/50">#{l.order_index+1} {l.title}</li>
+              <li key={l.id} className="p-2 rounded bg-slate-700/50">
+                <span className="text-sm font-medium">#{l.order_index+1}</span>
+                <span className="ml-2 truncate">{l.title}</span>
+              </li>
             ))}
           </ul>
           <form className="space-y-2" onSubmit={handleLessonSubmit(onCreateLesson)}>

@@ -27,7 +27,7 @@ const SongManager: React.FC = () => {
       reset();
       await load();
     } catch (e) {
-      toast('曲の追加に失敗しました', 'error');
+      toast.error('曲の追加に失敗しました');
     }
   };
 
@@ -49,24 +49,33 @@ const SongManager: React.FC = () => {
         <button type="submit" className="btn btn-primary w-full">追加</button>
       </form>
 
-      <h3 className="text-xl font-bold mb-2">曲一覧</h3>
-      {loading ? <p>Loading...</p> : (
-        <ul className="space-y-1">
-          {songs.map(s => (
-            <li key={s.id} className="flex justify-between items-center border-b border-slate-700 py-1">
-              <span>{s.title}</span>
-              <button className="btn btn-xs btn-error" onClick={async () => {
-                try {
-                  await deleteSong(s.id);
-                  toast('削除しました', 'success');
-                  await load();
-                } catch(e) {
-                  toast('削除に失敗しました','error');
-                }
-              }}>削除</button>
-            </li>
-          ))}
-        </ul>
+      <h3 className="text-xl font-bold mb-4">曲一覧</h3>
+      {loading ? <p className="text-gray-400">Loading...</p> : (
+        <div className="bg-slate-800/50 rounded-lg overflow-hidden">
+          <ul className="divide-y divide-slate-700">
+            {songs.map(s => (
+              <li key={s.id} className="flex items-center justify-between p-3 hover:bg-slate-700/50 transition-colors">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{s.title}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {s.artist && `${s.artist} • `}
+                    {s.min_rank} • {s.difficulty && `難易度 ${s.difficulty}`}
+                  </p>
+                </div>
+                <button className="btn btn-xs btn-error ml-2 flex-shrink-0" onClick={async () => {
+                  if (!confirm(`「${s.title}」を削除しますか？`)) return;
+                  try {
+                    await deleteSong(s.id);
+                    toast.success('削除しました');
+                    await load();
+                  } catch(e) {
+                    toast.error('削除に失敗しました');
+                  }
+                }}>削除</button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

@@ -67,30 +67,40 @@ const ChallengeManager: React.FC = () => {
   };
 
   return (
-    <div>
-      <h3 className="text-xl font-bold mb-4">チャレンジ追加</h3>
-      <form className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-8" onSubmit={handleSubmit(onSubmit)}>
-        <select className="select select-bordered" {...register('type')}> 
-          <option value="weekly">ウィークリー</option>
-          <option value="monthly">マンスリー</option>
-        </select>
-        <input className="input input-bordered" placeholder="タイトル" {...register('title', { required: true })} />
-        <input className="input input-bordered" type="date" {...register('start_date', { required: true })} />
-        <input className="input input-bordered" type="date" {...register('end_date', { required: true })} />
-        <input className="input input-bordered" type="number" step="0.1" placeholder="報酬倍率(例 1.3)" {...register('reward_multiplier', { valueAsNumber: true, required: true })} />
-        <input className="input input-bordered" type="number" placeholder="日記投稿回数" {...register('diary_count')} />
-        <textarea className="textarea textarea-bordered md:col-span-2" placeholder="説明" {...register('description')} />
-        <button className="btn btn-primary md:col-span-2" type="submit">追加</button>
-      </form>
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-xl font-bold mb-4">チャレンジ追加</h3>
+        <form className="grid grid-cols-1 sm:grid-cols-2 gap-2" onSubmit={handleSubmit(onSubmit)}>
+          <select className="select select-bordered" {...register('type')}> 
+            <option value="weekly">ウィークリー</option>
+            <option value="monthly">マンスリー</option>
+          </select>
+          <input className="input input-bordered" placeholder="タイトル" {...register('title', { required: true })} />
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-400 mb-1">開始日</label>
+            <input className="input input-bordered" type="date" {...register('start_date', { required: true })} />
+          </div>
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-400 mb-1">終了日</label>
+            <input className="input input-bordered" type="date" {...register('end_date', { required: true })} />
+          </div>
+          <input className="input input-bordered" type="number" step="0.1" placeholder="報酬倍率(例 1.3)" {...register('reward_multiplier', { valueAsNumber: true, required: true })} />
+          <input className="input input-bordered" type="number" placeholder="日記投稿回数" {...register('diary_count')} />
+          <textarea className="textarea textarea-bordered sm:col-span-2" rows={2} placeholder="説明" {...register('description')} />
+          <button className="btn btn-primary sm:col-span-2" type="submit">追加</button>
+        </form>
+      </div>
 
-      <h3 className="text-xl font-bold mb-2">チャレンジ一覧</h3>
-      {loading ? <p>Loading...</p> : (
-        <ul className="space-y-1">
-          {challenges.map(c => (
-            <ChallengeItem key={c.id} challenge={c} onRefresh={load} />
-          ))}
-        </ul>
-      )}
+      <div>
+        <h3 className="text-xl font-bold mb-4">チャレンジ一覧</h3>
+        {loading ? <p className="text-gray-400">Loading...</p> : (
+          <ul className="space-y-2">
+            {challenges.map(c => (
+              <ChallengeItem key={c.id} challenge={c} onRefresh={load} />
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 };
@@ -119,34 +129,49 @@ const ChallengeItem: React.FC<{ challenge: Challenge; onRefresh: () => void }> =
   };
 
   return (
-    <li className="border-b border-slate-700 py-1">
+    <li className="border border-slate-700 rounded-lg p-4 bg-slate-800/50">
       {editing ? (
-        <form className="grid grid-cols-1 md:grid-cols-2 gap-2" onSubmit={handleSubmit(onUpdate)}>
-          <input className="input input-bordered" {...register('title')} />
-          <textarea className="textarea textarea-bordered md:col-span-2" {...register('description')} />
-          <input className="input input-bordered" type="number" step="0.1" {...register('reward_multiplier', { valueAsNumber: true })} />
-          <button className="btn btn-xs btn-primary" type="submit">保存</button>
-          <button className="btn btn-xs btn-secondary" type="button" onClick={() => setEditing(false)}>キャンセル</button>
+        <form className="grid grid-cols-1 sm:grid-cols-2 gap-2" onSubmit={handleSubmit(onUpdate)}>
+          <input className="input input-bordered sm:col-span-2" placeholder="タイトル" {...register('title')} />
+          <textarea className="textarea textarea-bordered sm:col-span-2" rows={2} placeholder="説明" {...register('description')} />
+          <input className="input input-bordered" type="number" step="0.1" placeholder="報酬倍率" {...register('reward_multiplier', { valueAsNumber: true })} />
+          <div className="sm:col-span-2 flex gap-2">
+            <button className="btn btn-xs btn-primary" type="submit">保存</button>
+            <button className="btn btn-xs btn-secondary" type="button" onClick={() => setEditing(false)}>キャンセル</button>
+          </div>
         </form>
       ) : (
-        <div className="flex justify-between items-center">
-          <span className="truncate text-sm">[{challenge.type}] {challenge.title}</span>
-          <div className="space-x-1">
-            <button className="btn btn-xs btn-outline" onClick={() => setEditing(true)}>編集</button>
-            <button className="btn btn-xs btn-error" onClick={async () => { 
-              try{
-                await deleteChallenge(challenge.id); 
-                toast.success('削除しました', {
-                  title: '削除完了',
-                  duration: 2000,
-                }); 
-                onRefresh();
-              }catch(e){
-                toast.error(handleApiError(e, 'チャレンジ削除'), {
-                  title: '削除エラー',
-                });
-              } 
-            }}>削除</button>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <h4 className="font-medium truncate">{challenge.title}</h4>
+              <p className="text-xs text-gray-400">
+                {new Date(challenge.start_date).toLocaleDateString()} ~ {new Date(challenge.end_date).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="flex gap-1">
+              <button className="btn btn-xs btn-primary" onClick={() => setEditing(true)}>編集</button>
+              <button className="btn btn-xs btn-error" onClick={async () => {
+                if (!confirm('削除しますか？')) return;
+                try {
+                  await deleteChallenge(challenge.id);
+                  toast.success('削除しました');
+                  onRefresh();
+                } catch (e) {
+                  toast.error('削除に失敗しました');
+                }
+              }}>削除</button>
+            </div>
+          </div>
+          {challenge.description && (
+            <p className="text-sm text-gray-300 line-clamp-2">{challenge.description}</p>
+          )}
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="badge badge-sm">{challenge.type}</span>
+            <span className="text-gray-400">報酬: x{challenge.reward_multiplier}</span>
+            {challenge.diary_count && (
+              <span className="text-gray-400">日記: {challenge.diary_count}回</span>
+            )}
           </div>
         </div>
       )}

@@ -115,5 +115,12 @@ const DashboardContent: React.FC = () => {
   if (hash === '#admin-challenges') return <ChallengeManager />;
   if (hash === '#admin-users') return <UserManager />;
   if (hash === '#admin-announcements') return <AnnouncementManager />;
-  return <p className="text-gray-400">サイドバーから管理項目を選択してください。</p>;
+  return (
+    <div className="flex items-center justify-center h-full">
+      <p className="text-gray-400 text-center px-4">
+        <span className="hidden md:inline">サイドバーから管理項目を選択してください。</span>
+        <span className="md:hidden">上部タブから管理項目を選択してください。</span>
+      </p>
+    </div>
+  );
 }; 

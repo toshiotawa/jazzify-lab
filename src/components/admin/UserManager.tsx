@@ -26,20 +26,20 @@ const UserManager: React.FC = () => {
   const handleRankChange = async (id:string, rank:Rank)=>{
     try {
       await updateUserRank(id, rank);
-      toast('ランクを更新しました','success');
+      toast.success('ランクを更新しました');
       await load();
     } catch(e){
-      toast('更新に失敗しました','error');
+      toast.error('更新に失敗しました');
     }
   };
 
   const toggleAdmin = async(id:string, isAdmin:boolean)=>{
     try {
       await setAdminFlag(id, isAdmin);
-      toast('Admin 権限を更新しました','success');
+      toast.success('Admin 権限を更新しました');
       await load();
     } catch(e){
-      toast('更新に失敗しました','error');
+      toast.error('更新に失敗しました');
     }
   };
 
@@ -47,34 +47,40 @@ const UserManager: React.FC = () => {
     <div>
       <h3 className="text-xl font-bold mb-4">ユーザー管理</h3>
       {loading? <p>Loading...</p> : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left border-b border-slate-700">
-              <th className="py-1">Nick</th>
-              <th className="py-1">Email</th>
-              <th className="py-1">Rank</th>
-              <th className="py-1">Admin</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(u=> (
-              <tr key={u.id} className="border-b border-slate-800">
-                <td className="py-1">{u.nickname}</td>
-                <td className="py-1 text-xs text-gray-400">{u.email}</td>
-                <td className="py-1">
-                  <select className="select select-xs" value={u.rank} onChange={e=>handleRankChange(u.id, e.target.value as Rank)}>
-                    {ranks.map(r=>(<option key={r} value={r}>{r}</option>))}
-                  </select>
-                </td>
-                <td className="py-1">
-                  <input type="checkbox" className="checkbox checkbox-sm" checked={u.is_admin} onChange={e=>toggleAdmin(u.id, e.target.checked)} />
-                </td>
-                <td className="py-1 text-right text-xs">Lv{u.level}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
+            <thead>
+              <tr className="text-left border-b border-slate-700">
+                <th className="py-1 px-2">Nick</th>
+                <th className="py-1 px-2 hidden sm:table-cell">Email</th>
+                <th className="py-1 px-2">Rank</th>
+                <th className="py-1 px-2">Admin</th>
+                <th className="py-1 px-2 text-right">Level</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.map(u=> (
+                <tr key={u.id} className="border-b border-slate-800">
+                  <td className="py-1 px-2">
+                    <span className="truncate block max-w-[100px] sm:max-w-none">{u.nickname}</span>
+                  </td>
+                  <td className="py-1 px-2 text-xs text-gray-400 hidden sm:table-cell">
+                    <span className="truncate block max-w-[150px]">{u.email}</span>
+                  </td>
+                  <td className="py-1 px-2">
+                    <select className="select select-xs w-20" value={u.rank} onChange={e=>handleRankChange(u.id, e.target.value as Rank)}>
+                      {ranks.map(r=>(<option key={r} value={r}>{r}</option>))}
+                    </select>
+                  </td>
+                  <td className="py-1 px-2">
+                    <input type="checkbox" className="checkbox checkbox-sm" checked={u.is_admin} onChange={e=>toggleAdmin(u.id, e.target.checked)} />
+                  </td>
+                  <td className="py-1 px-2 text-right text-xs">Lv{u.level}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
