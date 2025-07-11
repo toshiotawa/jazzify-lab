@@ -37,7 +37,44 @@ const GameScreen: React.FC = () => {
         overscrollBehavior: 'none'
       }}
     >
-      {/* 画面内ヘッダーはグローバルHeaderへ統合したため削除 */}
+      {/* ヘッダー */}
+      {settings.showHeader && (
+        <header
+          className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]"
+        >
+          <div className="flex justify-between items-center">
+            {/* 左側ナビゲーション */}
+            <div className="flex items-center space-x-2">
+              {/* トップ (ダッシュボード) */}
+              <button
+                className="text-white hover:text-primary-400 font-bold px-2"
+                onClick={() => { window.location.hash = '#dashboard'; }}
+              >
+                トップ
+              </button>
+
+              {/* 曲選択タブ */}
+              <TabButton
+                active={currentTab === 'songs' && !['#diary', '#ranking'].includes(window.location.hash)}
+                onClick={() => {
+                  gameActions.setCurrentTab('songs');
+                  window.location.hash = '';
+                }}
+              >
+                曲選択
+              </TabButton>
+
+              <HashButton hash="#lessons">レッスン</HashButton>
+              <HashButton hash="#ranking">ランキング</HashButton>
+              <HashButton hash="#diary">日記</HashButton>
+              <HashButton hash="#dashboard">お知らせ</HashButton>
+            </div>
+
+            {/* 右側のコントロール */}
+            <HeaderRightControls />
+          </div>
+        </header>
+      )}
 
       {/* メインコンテンツエリア */}
       <main className="flex-1 flex flex-col overflow-hidden min-h-0">
@@ -68,7 +105,7 @@ const TabButton: React.FC<TabButtonProps> = ({ active, onClick, children }) => {
   return (
     <button
       onClick={onClick}
-      className={`px-2 ${active ? 'text-primary-400 font-semibold' : 'text-white hover:text-primary-400'}`}
+      className={`tab-xs ${active ? 'tab-active' : 'tab-inactive'}`}
     >
       {children}
     </button>
