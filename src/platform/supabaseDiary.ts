@@ -77,6 +77,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
     practice_date: string;
     created_at: string;
     likes: number;
+    comment_count: number;
   }>;
   profile: {
     nickname: string;
@@ -97,7 +98,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
 
   if (diariesError) throw new Error(`日記の取得に失敗しました: ${diariesError.message}`);
 
-  // 各日記のいいね数を取得
+  // 各日記のいいね数とコメント数を取得
   const diariesWithLikes = await Promise.all(
     (diariesData || []).map(async (diary) => {
       const { count: likeCount } = await supabase
@@ -383,4 +384,4 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     .eq('id', diaryId)
     .eq('user_id', user.id);
   if (error) throw new Error(`日記の削除に失敗しました: ${error.message}`);
-} 
+}

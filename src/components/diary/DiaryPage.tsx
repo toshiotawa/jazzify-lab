@@ -13,6 +13,7 @@ interface UserDiary {
   practice_date: string;
   created_at: string;
   likes: number;
+  comment_count: number;
 }
 
 interface UserProfile {
@@ -236,7 +237,7 @@ const DiaryPage: React.FC = () => {
                         setOpenSection(s=>({ ...s, [diary.id]: {comments:!s[diary.id]?.comments, likes:s[diary.id]?.likes||false} }));
                       }}
                     >
-                      返信 {comments[diary.id]?.length ?? 0} <FaChevronDown className="ml-1" />
+                      返信 {comments[diary.id]?.length ?? diary.comment_count} <FaChevronDown className="ml-1" />
                     </button>
                     {openSection[diary.id]?.comments && comments[diary.id] && (
                       <div className="mt-2 space-y-2">
