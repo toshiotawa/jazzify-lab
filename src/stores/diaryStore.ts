@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { Diary, fetchDiaries, createDiary, likeDiary, updateDiary, fetchComments, addComment, deleteComment } from '@/platform/supabaseDiary';
+import { Diary, DiaryComment, fetchDiaries, createDiary, likeDiary, updateDiary, fetchComments, addComment, deleteComment } from '@/platform/supabaseDiary';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 
 interface DiaryState {
@@ -8,7 +8,7 @@ interface DiaryState {
   loading: boolean;
   error: string | null;
   todayPosted: boolean;
-  comments: Record<string, Array<{ id: string; content: string; created_at: string; nickname: string; avatar_url?: string }>>;
+  comments: Record<string, DiaryComment[]>;
   realtimeInitialized: boolean;
 }
 

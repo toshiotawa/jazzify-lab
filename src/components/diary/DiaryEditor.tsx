@@ -104,7 +104,7 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
       ) : (
         <>
           <textarea
-            className="textarea textarea-bordered w-full mb-2 text-white"
+            className="w-full mb-2 p-3 bg-slate-700 text-white border border-slate-600 rounded-lg focus:outline-none focus:border-blue-500"
             maxLength={MAX_LEN}
             rows={4}
             value={text}

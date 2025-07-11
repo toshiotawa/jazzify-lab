@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useDiaryStore } from '@/stores/diaryStore';
 import { useAuthStore } from '@/stores/authStore';
 import { FaHeart, FaTrash } from 'react-icons/fa';
+import { useToast } from '@/stores/toastStore';
+import { DiaryComment } from '@/platform/supabaseDiary';
 
 const Avatar: React.FC<{ url?: string }> = ({ url }) => (
   <img
@@ -16,6 +18,7 @@ const DiaryFeed: React.FC = () => {
   const { user, isGuest } = useAuthStore();
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentText, setCommentText] = useState<Record<string, string>>({});
+  const toast = useToast();
   useEffect(() => { void fetchAll(); }, []);
   useEffect(() => {
     diaries.forEach(d => {
@@ -55,8 +58,22 @@ const DiaryFeed: React.FC = () => {
           <p className="whitespace-pre-wrap text-gray-100 mb-3 text-sm leading-relaxed">{d.content}</p>
           <div className="flex items-center justify-between">
             <button 
-              className="flex items-center text-xs text-gray-400 hover:text-pink-400 transition-colors p-1 rounded"
-              onClick={()=> user && like(d.id)}
+              className={`flex items-center text-xs text-gray-400 hover:text-pink-400 transition-colors p-1 rounded ${
+                d.user_id === user?.id ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              onClick={async () => {
+                if (!user) return;
+                if (d.user_id === user.id) {
+                  toast.error('自分の日記にはいいねできません');
+                  return;
+                }
+                try {
+                  await like(d.id);
+                } catch (e: any) {
+                  toast.error(e.message || 'いいねに失敗しました');
+                }
+              }}
+              disabled={d.user_id === user?.id}
             >
               <FaHeart className="mr-1" /> {d.likes}
             </button>
@@ -91,8 +108,16 @@ const DiaryFeed: React.FC = () => {
                   className="btn btn-xs btn-primary"
                   onClick={async () => {
                     if (!user) return;
-                    await addComment(d.id, commentText[d.id]);
-                    setCommentText(prev => ({ ...prev, [d.id]: '' }));
+                    const text = commentText[d.id]?.trim();
+                    if (!text) return;
+                    
+                    try {
+                      await addComment(d.id, text);
+                      setCommentText(prev => ({ ...prev, [d.id]: '' }));
+                    } catch (e: any) {
+                      console.error('コメント追加エラー:', e);
+                      toast.error(e.message || 'コメントの追加に失敗しました');
+                    }
                   }}
                   disabled={!commentText[d.id]?.trim() || !user}
                 >

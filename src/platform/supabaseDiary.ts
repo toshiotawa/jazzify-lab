@@ -27,7 +27,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   
   // 日記とプロフィール情報を取得
   const { data: diariesData, error } = await supabase
-    .from('diaries')
+    .from('practice_diaries')
     .select('*, profiles(nickname, avatar_url)')
     .order('practice_date', { ascending: false })
     .limit(limit);
@@ -78,7 +78,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
 
   // ユーザーの日記を取得
   const { data: diariesData, error: diariesError } = await supabase
-    .from('diaries')
+    .from('practice_diaries')
     .select('id, content, practice_date, created_at')
     .eq('user_id', userId)
     .order('practice_date', { ascending: false });
@@ -130,7 +130,7 @@ export async function createDiary(content: string): Promise<{
 
   // 今日すでに投稿していないかチェック
   const { data: existing } = await supabase
-    .from('diaries')
+    .from('practice_diaries')
     .select('id')
     .eq('user_id', user.id)
     .eq('practice_date', today)
@@ -151,7 +151,7 @@ export async function createDiary(content: string): Promise<{
   const membershipRank = profile?.rank || 'free';
 
   // 日記投稿
-  const { error } = await supabase.from('diaries').insert({
+  const { error } = await supabase.from('practice_diaries').insert({
     user_id: user.id,
     content,
     practice_date: today,
@@ -200,6 +200,35 @@ export async function likeDiary(diaryId: string) {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
+  
+  // 日記の所有者を確認
+  const { data: diary, error: diaryError } = await supabase
+    .from('practice_diaries')
+    .select('user_id')
+    .eq('id', diaryId)
+    .single();
+    
+  if (diaryError || !diary) {
+    throw new Error('日記が見つかりません');
+  }
+  
+  // 自分の日記にはいいねできない
+  if (diary.user_id === user.id) {
+    throw new Error('自分の日記にはいいねできません');
+  }
+  
+  // 既にいいね済みかチェック
+  const { data: existingLike } = await supabase
+    .from('diary_likes')
+    .select('user_id')
+    .eq('user_id', user.id)
+    .eq('diary_id', diaryId)
+    .single();
+    
+  if (existingLike) {
+    throw new Error('既にいいね済みです');
+  }
+  
   await supabase.from('diary_likes').insert({ user_id: user.id, diary_id: diaryId }).throwOnError();
 }
 
@@ -209,7 +238,7 @@ export async function updateDiary(diaryId: string, content: string): Promise<voi
   if (!user) throw new Error('ログインが必要です');
 
   const { error } = await supabase
-    .from('diaries')
+    .from('practice_diaries')
     .update({ content })
     .eq('id', diaryId)
     .eq('user_id', user.id);
