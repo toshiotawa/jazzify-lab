@@ -27,7 +27,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   
   // 日記とプロフィール情報を取得
   const { data: diariesData, error } = await supabase
-    .from('practice_diaries')
+    .from('diaries')
     .select('*, profiles(nickname, avatar_url)')
     .order('practice_date', { ascending: false })
     .limit(limit);
@@ -78,7 +78,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
 
   // ユーザーの日記を取得
   const { data: diariesData, error: diariesError } = await supabase
-    .from('practice_diaries')
+    .from('diaries')
     .select('id, content, practice_date, created_at')
     .eq('user_id', userId)
     .order('practice_date', { ascending: false });
@@ -130,7 +130,7 @@ export async function createDiary(content: string): Promise<{
 
   // 今日すでに投稿していないかチェック
   const { data: existing } = await supabase
-    .from('practice_diaries')
+    .from('diaries')
     .select('id')
     .eq('user_id', user.id)
     .eq('practice_date', today)
@@ -151,7 +151,7 @@ export async function createDiary(content: string): Promise<{
   const membershipRank = profile?.rank || 'free';
 
   // 日記投稿
-  const { error } = await supabase.from('practice_diaries').insert({
+  const { error } = await supabase.from('diaries').insert({
     user_id: user.id,
     content,
     practice_date: today,
@@ -209,7 +209,7 @@ export async function updateDiary(diaryId: string, content: string): Promise<voi
   if (!user) throw new Error('ログインが必要です');
 
   const { error } = await supabase
-    .from('practice_diaries')
+    .from('diaries')
     .update({ content })
     .eq('id', diaryId)
     .eq('user_id', user.id);

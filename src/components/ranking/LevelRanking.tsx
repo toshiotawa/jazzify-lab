@@ -68,8 +68,6 @@ const LevelRanking: React.FC = () => {
           </table>
         )}
       </div>
-
-      <button className="btn btn-sm btn-primary m-4" onClick={handleClose}>閉じる</button>
     </div>
   );
 };
