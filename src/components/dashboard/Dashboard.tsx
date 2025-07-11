@@ -71,7 +71,10 @@ const Dashboard: React.FC = () => {
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col">
+    <div 
+      className="fixed inset-0 z-50 bg-gradient-game text-white flex flex-col"
+      onClick={() => {}}
+    >
       {/* ヘッダー */}
       <div className="flex items-center justify-between p-4 border-b border-slate-700">
         <button
@@ -82,210 +85,163 @@ const Dashboard: React.FC = () => {
           <FaArrowLeft />
         </button>
         <h1 className="text-xl font-bold">ダッシュボード</h1>
-        <div className="w-10" /> {/* バランス調整用 */}
+        <div className="w-8" /> {/* スペーサー */}
       </div>
 
       {/* メインコンテンツ */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <p className="text-gray-400">読み込み中...</p>
-          </div>
-        ) : (
-          <>
-            {/* ユーザー情報 */}
-            {profile && (
-              <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
-                    <FaUser className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold">{profile.nickname}</h2>
-                    <div className="flex items-center space-x-4 text-sm text-gray-400">
-                      <span>レベル {profile.level}</span>
-                      <span>XP: {profile.xp.toLocaleString()}</span>
-                      <span className="capitalize bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                        {profile.rank}
-                      </span>
-                    </div>
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="max-w-6xl mx-auto space-y-6">
+          {/* ユーザー情報カード */}
+          {profile && (
+            <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+              <div className="flex items-center space-x-4">
+                <img
+                  src={profile.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=user'}
+                  alt="avatar"
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+                <div>
+                  <h2 className="text-2xl font-bold">{profile.nickname}</h2>
+                  <div className="flex items-center space-x-4 text-sm text-gray-400">
+                    <span>Lv.{profile.level}</span>
+                    <span className="capitalize">{profile.rank}</span>
+                    <span>{profile.xp.toLocaleString()} XP</span>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* お知らせ */}
-            <div className="bg-slate-800 rounded-lg border border-slate-700">
-              <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
-                <FaBell className="w-5 h-5 text-yellow-400" />
-                <h3 className="text-lg font-semibold">お知らせ</h3>
-              </div>
-              
-              <div className="p-4">
-                {announcements.length === 0 ? (
-                  <p className="text-gray-400 text-center py-6">
-                    現在お知らせはありません
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {announcements.map((announcement) => (
-                      <div 
-                        key={announcement.id}
-                        className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors"
-                      >
-                        <h4 className="font-semibold mb-2">{announcement.title}</h4>
-                        <p className="text-sm text-gray-300 mb-3 whitespace-pre-wrap">
-                          {announcement.content}
-                        </p>
-                        
-                        {announcement.link_url && (
-                          <a
-                            href={announcement.link_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 text-sm"
-                          >
-                            <FaExternalLinkAlt className="w-3 h-3" />
-                            <span>{announcement.link_text || 'リンクを開く'}</span>
-                          </a>
-                        )}
-                        
-                        <div className="text-xs text-gray-500 mt-2">
-                          {new Date(announcement.created_at).toLocaleDateString()}
+          {/* ゲストプレイ時はお知らせとクイックアクションを表示しない */}
+          {!isGuest && (
+            <>
+              {/* お知らせセクション */}
+              <div className="bg-slate-800 rounded-lg border border-slate-700">
+                <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
+                  <FaBell className="w-5 h-5 text-yellow-400" />
+                  <h3 className="text-lg font-semibold">お知らせ</h3>
+                </div>
+                
+                <div className="p-4">
+                  {announcements.length === 0 ? (
+                    <p className="text-gray-400 text-center py-6">
+                      現在お知らせはありません
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {announcements.map((announcement) => (
+                        <div 
+                          key={announcement.id}
+                          className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors"
+                        >
+                          <h4 className="font-semibold mb-2">{announcement.title}</h4>
+                          <p className="text-sm text-gray-300 mb-3 whitespace-pre-wrap">
+                            {announcement.content}
+                          </p>
+                          
+                          {announcement.link_url && (
+                            <a
+                              href={announcement.link_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 text-sm"
+                            >
+                              <FaExternalLinkAlt className="w-3 h-3" />
+                              <span>{announcement.link_text || 'リンクを開く'}</span>
+                            </a>
+                          )}
+                          
+                          <div className="text-xs text-gray-500 mt-2">
+                            {new Date(announcement.created_at).toLocaleDateString()}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* クイックアクション */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 今日のチャレンジ */}
+                <button
+                  onClick={() => { window.location.hash = '#missions'; }}
+                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                >
+                  <div className="flex items-center space-x-3 mb-3">
+                    <FaBullseye className="w-6 h-6 text-orange-400" />
+                    <h3 className="text-lg font-semibold">今日のチャレンジ</h3>
                   </div>
-                )}
+                  
+                  {challenges.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-300">{challenges[0].title}</p>
+                      <div className="flex items-center space-x-2 text-xs text-gray-400">
+                        <span>{challenges[0].reward_multiplier}x ボーナス</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">チャレンジを確認</p>
+                  )}
+                </button>
+
+                {/* 曲練習 */}
+                <button
+                  onClick={() => { window.location.hash = '#songs'; }}
+                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                >
+                  <div className="flex items-center space-x-3 mb-3">
+                    <FaMusic className="w-6 h-6 text-green-400" />
+                    <h3 className="text-lg font-semibold">曲練習</h3>
+                  </div>
+                  <p className="text-sm text-gray-400">
+                    楽曲を選んで練習を開始
+                  </p>
+                </button>
+
+                {/* レッスン */}
+                <button
+                  onClick={() => { window.location.hash = '#lessons'; }}
+                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                >
+                  <div className="flex items-center space-x-3 mb-3">
+                    <FaTrophy className="w-6 h-6 text-purple-400" />
+                    <h3 className="text-lg font-semibold">レッスン</h3>
+                  </div>
+                  <p className="text-sm text-gray-400">
+                    ジャズ理論を学習
+                  </p>
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ゲストプレイ時の専用メッセージ */}
+          {isGuest && (
+            <div className="bg-slate-800 rounded-lg p-8 border border-slate-700 text-center">
+              <div className="text-6xl mb-4">🎵</div>
+              <h3 className="text-xl font-semibold mb-4">ゲストプレイ中</h3>
+              <p className="text-gray-300 mb-6">
+                現在ゲストとしてプレイしています。<br />
+                ログインすると、より多くの機能をご利用いただけます。
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={() => { window.location.hash = '#songs'; }}
+                  className="btn btn-primary"
+                >
+                  曲を練習する
+                </button>
+                <button
+                  onClick={() => { window.location.hash = '#login'; }}
+                  className="btn btn-outline"
+                >
+                  ログイン / 会員登録
+                </button>
               </div>
             </div>
-
-            {/* チャレンジ・ミッション */}
-            {!isGuest && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* ウィークリーチャレンジ */}
-                <div className="bg-slate-800 rounded-lg border border-slate-700">
-                  <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
-                    <FaBullseye className="w-5 h-5 text-green-400" />
-                    <h3 className="text-lg font-semibold">ウィークリーチャレンジ</h3>
-                  </div>
-                  
-                  <div className="p-4">
-                    {challenges.length === 0 ? (
-                      <p className="text-gray-400 text-center py-6">
-                        現在チャレンジはありません
-                      </p>
-                    ) : (
-                      <div className="space-y-3">
-                        {challenges.slice(0, 3).map((challenge: Mission) => (
-                          <div key={challenge.id} className="bg-slate-700 rounded-lg p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="font-medium text-sm">{challenge.title}</h4>
-                              <FaTrophy className="w-4 h-4 text-yellow-400" />
-                            </div>
-                            <p className="text-xs text-gray-300 mb-2">
-                              {challenge.description}
-                            </p>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-400">
-                                {new Date(challenge.end_date).toLocaleDateString()} まで
-                              </span>
-                              <span className="text-yellow-400">
-                                {challenge.reward_multiplier}x ボーナス
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* マンスリーミッション */}
-                <div className="bg-slate-800 rounded-lg border border-slate-700">
-                  <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
-                    <FaCalendarAlt className="w-5 h-5 text-purple-400" />
-                    <h3 className="text-lg font-semibold">マンスリーミッション</h3>
-                  </div>
-                  
-                  <div className="p-4">
-                    {missions.length === 0 ? (
-                      <p className="text-gray-400 text-center py-6">
-                        現在ミッションはありません
-                      </p>
-                    ) : (
-                      <div className="space-y-3">
-                        {missions.slice(0, 3).map((mission: Mission) => (
-                          <div key={mission.id} className="bg-slate-700 rounded-lg p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="font-medium text-sm">{mission.title}</h4>
-                              <FaTrophy className="w-4 h-4 text-purple-400" />
-                            </div>
-                            <p className="text-xs text-gray-300 mb-2">
-                              {mission.description}
-                            </p>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-400">
-                                {new Date(mission.end_date).toLocaleDateString()} まで
-                              </span>
-                              <span className="text-purple-400">
-                                {mission.reward_multiplier}x ボーナス
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* クイックアクション */}
-            <div className="bg-slate-800 rounded-lg border border-slate-700">
-              <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
-                <FaMusic className="w-5 h-5 text-blue-400" />
-                <h3 className="text-lg font-semibold">クイックアクション</h3>
-              </div>
-              
-              <div className="p-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <button
-                    onClick={() => window.location.hash = '#songs'}
-                    className="btn btn-sm btn-outline flex flex-col items-center space-y-2 p-4 h-auto"
-                  >
-                    <FaMusic className="w-6 h-6" />
-                    <span className="text-xs">楽曲選択</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => window.location.hash = '#lessons'}
-                    className="btn btn-sm btn-outline flex flex-col items-center space-y-2 p-4 h-auto"
-                  >
-                    <FaUser className="w-6 h-6" />
-                    <span className="text-xs">レッスン</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => window.location.hash = '#challenges'}
-                    className="btn btn-sm btn-outline flex flex-col items-center space-y-2 p-4 h-auto"
-                  >
-                    <FaBullseye className="w-6 h-6" />
-                    <span className="text-xs">チャレンジ</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => window.location.hash = '#diary'}
-                    className="btn btn-sm btn-outline flex flex-col items-center space-y-2 p-4 h-auto"
-                  >
-                    <FaBell className="w-6 h-6" />
-                    <span className="text-xs">コミュニティ</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
     </div>,
     document.body

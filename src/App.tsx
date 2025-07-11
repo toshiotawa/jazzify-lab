@@ -15,6 +15,7 @@ import DiaryPage from '@/components/diary/DiaryPage';
 import LessonPage from '@/components/lesson/LessonPage';
 import LessonDetailPage from '@/components/lesson/LessonDetailPage';
 import Dashboard from '@/components/dashboard/Dashboard';
+import InformationPage from '@/components/information/InformationPage';
 
 /**
  * メインアプリケーションコンポーネント
@@ -208,6 +209,7 @@ const App: React.FC = () => {
         <LessonPage />
         <LessonDetailPage />
         <Dashboard />
+        <InformationPage />
         {/* メインゲーム画面 */}
         <GameScreen />
         
