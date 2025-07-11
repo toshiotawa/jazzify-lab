@@ -175,7 +175,7 @@ const AnnouncementManager: React.FC = () => {
                   required: 'タイトルは必須です',
                   maxLength: { value: 100, message: '100文字以内' }
                 })}
-                className="input input-bordered w-full"
+                className="input input-bordered w-full text-white"
                 placeholder="お知らせのタイトルを入力"
               />
               {errors.title && (
@@ -190,7 +190,7 @@ const AnnouncementManager: React.FC = () => {
                   required: '内容は必須です',
                   maxLength: { value: 1000, message: '1000文字以内' }
                 })}
-                className="textarea textarea-bordered w-full"
+                className="textarea textarea-bordered w-full text-white"
                 rows={4}
                 placeholder="お知らせの内容を入力"
               />
@@ -205,7 +205,7 @@ const AnnouncementManager: React.FC = () => {
                 <input
                   {...register('link_url')}
                   type="url"
-                  className="input input-bordered w-full"
+                  className="input input-bordered w-full text-white"
                   placeholder="https://example.com"
                 />
               </div>
@@ -214,7 +214,7 @@ const AnnouncementManager: React.FC = () => {
                 <label className="block text-sm font-medium mb-1">リンクテキスト</label>
                 <input
                   {...register('link_text')}
-                  className="input input-bordered w-full"
+                  className="input input-bordered w-full text-white"
                   placeholder="詳細はこちら"
                 />
               </div>
@@ -230,7 +230,7 @@ const AnnouncementManager: React.FC = () => {
                   })}
                   type="number"
                   min="1"
-                  className="input input-bordered w-full"
+                  className="input input-bordered w-full text-white"
                   placeholder="1"
                 />
                 <p className="text-xs text-gray-400 mt-1">小さいほど上位表示</p>

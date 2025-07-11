@@ -70,23 +70,25 @@ const ChallengeManager: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h3 className="text-xl font-bold mb-4">チャレンジ追加</h3>
-        <form className="grid grid-cols-1 sm:grid-cols-2 gap-2" onSubmit={handleSubmit(onSubmit)}>
-          <select className="select select-bordered" {...register('type')}> 
-            <option value="weekly">ウィークリー</option>
-            <option value="monthly">マンスリー</option>
-          </select>
-          <input className="input input-bordered" placeholder="タイトル" {...register('title', { required: true })} />
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-400 mb-1">開始日</label>
-            <input className="input input-bordered" type="date" {...register('start_date', { required: true })} />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-400 mb-1">終了日</label>
-            <input className="input input-bordered" type="date" {...register('end_date', { required: true })} />
-          </div>
-          <input className="input input-bordered" type="number" step="0.1" placeholder="報酬倍率(例 1.3)" {...register('reward_multiplier', { valueAsNumber: true, required: true })} />
-          <input className="input input-bordered" type="number" placeholder="日記投稿回数" {...register('diary_count')} />
-          <textarea className="textarea textarea-bordered sm:col-span-2" rows={2} placeholder="説明" {...register('description')} />
+        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">チャレンジタイプ</span>
+            <select className="select select-bordered text-white" {...register('type')}>
+              <option value="diary">日記投稿回数</option>
+            </select>
+          </label>
+          <input className="input input-bordered text-white" placeholder="タイトル" {...register('title', { required: true })} />
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">開始日</span>
+            <input className="input input-bordered text-white" type="date" {...register('start_date', { required: true })} />
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">終了日</span>
+            <input className="input input-bordered text-white" type="date" {...register('end_date', { required: true })} />
+          </label>
+          <input className="input input-bordered text-white" type="number" step="0.1" placeholder="報酬倍率(例 1.3)" {...register('reward_multiplier', { valueAsNumber: true, required: true })} />
+          <input className="input input-bordered text-white" type="number" placeholder="日記投稿回数" {...register('diary_count')} />
+          <textarea className="textarea textarea-bordered sm:col-span-2 text-white" rows={2} placeholder="説明" {...register('description')} />
           <button className="btn btn-primary sm:col-span-2" type="submit">追加</button>
         </form>
       </div>
@@ -131,10 +133,10 @@ const ChallengeItem: React.FC<{ challenge: Challenge; onRefresh: () => void }> =
   return (
     <li className="border border-slate-700 rounded-lg p-4 bg-slate-800/50">
       {editing ? (
-        <form className="grid grid-cols-1 sm:grid-cols-2 gap-2" onSubmit={handleSubmit(onUpdate)}>
-          <input className="input input-bordered sm:col-span-2" placeholder="タイトル" {...register('title')} />
-          <textarea className="textarea textarea-bordered sm:col-span-2" rows={2} placeholder="説明" {...register('description')} />
-          <input className="input input-bordered" type="number" step="0.1" placeholder="報酬倍率" {...register('reward_multiplier', { valueAsNumber: true })} />
+        <form className="grid grid-cols-1 sm:grid-cols-2 gap-3" onSubmit={handleSubmit(onUpdate)}>
+          <input className="input input-bordered sm:col-span-2 text-white" placeholder="タイトル" {...register('title')} />
+          <textarea className="textarea textarea-bordered sm:col-span-2 text-white" rows={2} placeholder="説明" {...register('description')} />
+          <input className="input input-bordered text-white" type="number" step="0.1" placeholder="報酬倍率" {...register('reward_multiplier', { valueAsNumber: true })} />
           <div className="sm:col-span-2 flex gap-2">
             <button className="btn btn-xs btn-primary" type="submit">保存</button>
             <button className="btn btn-xs btn-secondary" type="button" onClick={() => setEditing(false)}>キャンセル</button>

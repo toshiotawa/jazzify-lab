@@ -74,9 +74,9 @@ const LessonManager: React.FC = () => {
         </ul>
 
         <form className="space-y-2" onSubmit={handleSubmit(onCreateCourse)}>
-          <input className="input input-bordered w-full" placeholder="コースタイトル" {...register('title',{required:true})} />
-          <textarea className="textarea textarea-bordered w-full" placeholder="説明 (任意)" rows={2} {...register('description')} />
-          <select className="select select-bordered w-full" {...register('min_rank')} defaultValue="premium">
+          <input className="input input-bordered w-full text-white" placeholder="コースタイトル" {...register('title',{required:true})} />
+          <textarea className="textarea textarea-bordered w-full text-white" placeholder="説明 (任意)" rows={2} {...register('description')} />
+          <select className="select select-bordered w-full text-white" {...register('min_rank')} defaultValue="premium">
             <option value="free">フリー</option>
             <option value="standard">スタンダード</option>
             <option value="premium">プレミアム</option>
@@ -99,7 +99,7 @@ const LessonManager: React.FC = () => {
             ))}
           </ul>
           <form className="space-y-2" onSubmit={handleLessonSubmit(onCreateLesson)}>
-            <input className="input input-bordered w-full" placeholder="レッスンタイトル" {...regLesson('title',{required:true})} />
+            <input className="input input-bordered w-full text-white" placeholder="レッスンタイトル" {...regLesson('title',{required:true})} />
             <button className="btn btn-sm btn-secondary w-full" type="submit">レッスン追加</button>
           </form>
         </div>

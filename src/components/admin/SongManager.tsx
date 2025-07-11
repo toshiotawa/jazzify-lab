@@ -35,12 +35,12 @@ const SongManager: React.FC = () => {
     <div>
       <h3 className="text-xl font-bold mb-4">曲登録</h3>
       <form className="space-y-2 mb-8" onSubmit={handleSubmit(onSubmit)}>
-        <input className="input input-bordered w-full" placeholder="タイトル" {...register('title', { required: true })} />
-        <input className="input input-bordered w-full" placeholder="アーティスト" {...register('artist')} />
-        <input className="input input-bordered w-full" placeholder="BPM" type="number" {...register('bpm')} />
-        <input className="input input-bordered w-full" placeholder="難易度(1-10)" type="number" {...register('difficulty')} />
-        <textarea className="textarea textarea-bordered w-full" placeholder="JSON ノーツデータ" {...register('data', { required: true })} />
-        <select className="select select-bordered w-full" {...register('min_rank')} defaultValue="free">
+        <input className="input input-bordered w-full text-white" placeholder="タイトル" {...register('title', { required: true })} />
+        <input className="input input-bordered w-full text-white" placeholder="アーティスト" {...register('artist')} />
+        <input className="input input-bordered w-full text-white" placeholder="BPM" type="number" {...register('bpm')} />
+        <input className="input input-bordered w-full text-white" placeholder="難易度(1-10)" type="number" {...register('difficulty')} />
+        <textarea className="textarea textarea-bordered w-full text-white" placeholder="JSON ノーツデータ" {...register('data', { required: true })} />
+        <select className="select select-bordered w-full text-white" {...register('min_rank')} defaultValue="free">
           <option value="free">フリー</option>
           <option value="standard">スタンダード</option>
           <option value="premium">プレミアム</option>
