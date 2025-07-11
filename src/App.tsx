@@ -10,8 +10,8 @@ import AuthLanding from '@/components/auth/AuthLanding';
 import { useAuthStore } from '@/stores/authStore';
 import Header from '@/components/ui/Header';
 import ProfileWizard from '@/components/auth/ProfileWizard';
-import AccountModal from '@/components/ui/AccountModal';
-import MypageModal from '@/components/ui/MypageModal';
+import AccountPage from '@/components/ui/AccountModal';
+import MypagePage from '@/components/ui/MypageModal';
 import DiaryPage from '@/components/diary/DiaryPage';
 import LessonPage from '@/components/lesson/LessonPage';
 import LessonDetailPage from '@/components/lesson/LessonDetailPage';
@@ -39,6 +39,13 @@ const App: React.FC = () => {
     return()=>window.removeEventListener('hashchange',h);
   },[]);
   const forceLogin = hash === '#login';
+  
+  // ルートアクセス時にダッシュボードへリダイレクト
+  useEffect(() => {
+    if (window.location.hash === '' || window.location.hash === '#') {
+      window.location.hash = '#dashboard';
+    }
+  }, []);
   
   useEffect(() => {
     const initializeApp = async () => {
@@ -155,10 +162,10 @@ const App: React.FC = () => {
         {user && !isGuest && (
           <>
         <ProfileWizard />
-        <AccountModal />
+        <AccountPage />
           </>
         )}
-        <MypageModal />
+        <MypagePage />
         <DiaryPage />
         <LessonPage />
         <LessonDetailPage />

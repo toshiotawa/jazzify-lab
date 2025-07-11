@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/authStore';
-import { useToast } from '@/stores/toastStore';
 
 /**
- * マイページモーダル
+ * マイページページ (モーダル→ページ化)
  * Hash `#mypage` で表示。
- * MVP 実装: プロフィールと累計 XP を閲覧するシンプルな UI。
  */
-const MypageModal: React.FC = () => {
+const MypagePage: React.FC = () => {
   const { profile } = useAuthStore();
-  const toast = useToast();
   const [open, setOpen] = useState<boolean>(false);
 
   useEffect(() => {
@@ -24,22 +20,14 @@ const MypageModal: React.FC = () => {
 
   // 非ログインなら警告して閉じる
   if (!profile) {
-    toast('ログインが必要です', 'warning');
-    window.location.hash = '';
+    alert('ログインが必要です');
+    window.location.hash = '#login';
     return null;
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
-      onClick={() => {
-        window.location.hash = '';
-      }}
-    >
-      <div
-        className="bg-slate-800 rounded-lg p-6 w-full max-w-md text-white space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+  return (
+    <div className="w-full h-full flex flex-col items-center overflow-auto p-6 bg-gradient-game text-white">
+      <div className="w-full max-w-md space-y-4">
         <h2 className="text-xl font-bold text-center">マイページ</h2>
         <div className="space-y-2">
           <div>
@@ -62,15 +50,14 @@ const MypageModal: React.FC = () => {
         <button
           className="btn btn-primary w-full"
           onClick={() => {
-            window.location.hash = '';
+            window.location.hash = '#dashboard';
           }}
         >
-          閉じる
+          戻る
         </button>
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 };
 
-export default MypageModal; 
+export default MypagePage; 

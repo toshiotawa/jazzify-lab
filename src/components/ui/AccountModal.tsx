@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/authStore';
-import { cn } from '@/utils/cn';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { uploadAvatar } from '@/platform/supabaseStorage';
 
@@ -13,9 +11,9 @@ const RANK_LABEL: Record<string, string> = {
 };
 
 /**
- * #account ハッシュに合わせて表示されるアカウントモーダル
+ * #account ハッシュに合わせて表示されるアカウントページ (モーダル→ページ化)
  */
-const AccountModal: React.FC = () => {
+const AccountPage: React.FC = () => {
   const { profile, logout } = useAuthStore();
   const [open, setOpen] = useState(window.location.hash === '#account');
   const [bio, setBio] = useState(profile?.bio || '');
@@ -34,12 +32,9 @@ const AccountModal: React.FC = () => {
 
   if (!open) return null;
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => { window.location.hash = ''; }}>
-      <div
-        className="bg-slate-800 rounded-lg p-8 w-full max-w-sm text-white space-y-6"
-        onClick={e => e.stopPropagation()}
-      >
+  return (
+    <div className="w-full h-full flex flex-col items-center overflow-auto p-6 bg-gradient-game text-white">
+      <div className="w-full max-w-md space-y-6">
         <h2 className="text-xl font-bold text-center">アカウント</h2>
         {profile ? (
           <div className="space-y-2">
@@ -102,19 +97,20 @@ const AccountModal: React.FC = () => {
         ) : (
           <p className="text-center text-sm">プロフィール情報が取得できませんでした。</p>
         )}
+      </div>
+      <div className="mt-8 w-full max-w-md">
         <button
           className="btn btn-sm btn-outline w-full"
           onClick={async () => {
             await logout();
-            window.location.hash = '';
+            window.location.hash = '#dashboard';
           }}
         >
           ログアウト
         </button>
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 };
 
-export default AccountModal; 
+export default AccountPage; 
