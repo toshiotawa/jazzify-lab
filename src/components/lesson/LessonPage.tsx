@@ -126,7 +126,7 @@ const LessonPage: React.FC = () => {
   };
 
   const handleClose = () => {
-    window.location.hash = '';
+    window.location.hash = '#dashboard';
   };
 
   const handleLessonClick = (lesson: Lesson, index: number) => {
@@ -144,13 +144,22 @@ const LessonPage: React.FC = () => {
   if (!profile || isGuest) {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={handleClose}>
-        <div className="bg-slate-900 w-full max-w-sm rounded-lg p-8 text-white text-center space-y-4" onClick={e=>e.stopPropagation()}>
-          <p className="text-gray-300">レッスン機能はログインユーザー専用です。</p>
-          <div className="flex flex-col gap-3 mt-4">
-            <button className="btn btn-sm btn-primary w-full" onClick={()=>{window.location.hash='#login';}}>
+        <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md" onClick={e => e.stopPropagation()}>
+          <h4 className="text-lg font-bold text-center">レッスンはログインユーザー専用です</h4>
+          <p className="text-center text-gray-300">レッスン機能を利用するにはログインが必要です。</p>
+          <div className="flex flex-col gap-3">
+            <button 
+              className="btn btn-sm btn-primary w-full" 
+              onClick={() => { window.location.hash = '#login'; }}
+            >
               ログイン / 会員登録
             </button>
-            <button className="btn btn-sm btn-outline w-full" onClick={handleClose}>戻る</button>
+            <button 
+              className="btn btn-sm btn-outline w-full" 
+              onClick={handleClose}
+            >
+              ダッシュボードに戻る
+            </button>
           </div>
         </div>
       </div>,

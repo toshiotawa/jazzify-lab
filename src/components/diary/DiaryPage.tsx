@@ -86,12 +86,39 @@ const DiaryPage: React.FC = () => {
   };
 
   const handleClose = () => {
-    window.location.hash = '';
+    window.location.hash = '#dashboard';
   };
 
   if (!open) return null;
 
   if (!userId) {
+    // ゲストユーザーの場合のモーダル表示
+    if (!user || isGuest) {
+      return (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70" onClick={handleClose}>
+          <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md" onClick={e => e.stopPropagation()}>
+            <h4 className="text-lg font-bold text-center">コミュニティはログインユーザー専用です</h4>
+            <p className="text-center text-gray-300">コミュニティ機能を利用するにはログインが必要です。</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                className="btn btn-sm btn-primary w-full" 
+                onClick={() => { window.location.hash = '#login'; }}
+              >
+                ログイン / 会員登録
+              </button>
+              <button 
+                className="btn btn-sm btn-outline w-full" 
+                onClick={handleClose}
+              >
+                ダッシュボードに戻る
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ログインユーザーの場合のコミュニティ画面
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-slate-900 text-white overflow-y-auto">
         {/* ヘッダー */}
@@ -100,21 +127,8 @@ const DiaryPage: React.FC = () => {
           <button className="btn btn-sm btn-outline" onClick={handleClose}>閉じる</button>
         </div>
         <div className="p-4 flex-1 overflow-y-auto space-y-4">
-          {/* ログイン済みユーザーの場合はエディタを表示 */}
-          {user && !isGuest && (
-            <DiaryEditor />
-          )}
-          {(!user || isGuest) ? (
-            <div className="text-center text-gray-400 space-y-4">
-              <p>コミュニティ機能はログインユーザー専用です。</p>
-              <div className="flex flex-col gap-3 mt-4 max-w-xs mx-auto">
-                <button className="btn btn-sm btn-primary w-full" onClick={()=>{window.location.hash='#login';}}>ログイン / 会員登録</button>
-                <button className="btn btn-sm btn-outline w-full" onClick={handleClose}>戻る</button>
-              </div>
-            </div>
-          ) : (
-            <DiaryFeed />
-          )}
+          <DiaryEditor />
+          <DiaryFeed />
         </div>
       </div>
     );
