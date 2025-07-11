@@ -18,6 +18,7 @@ interface UserProfile {
   avatar_url?: string;
   level: number;
   rank: string;
+  bio?: string | null;
 }
 
 /**
@@ -154,6 +155,9 @@ const DiaryPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+              {profile.bio && (
+                <p className="mt-3 text-sm text-gray-300 whitespace-pre-wrap">{profile.bio}</p>
+              )}
             </div>
           )}
 

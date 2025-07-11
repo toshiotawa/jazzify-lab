@@ -76,6 +76,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
     avatar_url?: string;
     level: number;
     rank: string;
+    bio?: string | null;
   };
 }> {
   const supabase = getSupabaseClient();
@@ -107,7 +108,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
   // ユーザープロフィールを取得
   const { data: profileData, error: profileError } = await supabase
     .from('profiles')
-    .select('nickname, avatar_url, level, rank')
+    .select('nickname, avatar_url, level, rank, bio')
     .eq('id', userId)
     .single();
 
@@ -312,21 +313,34 @@ export interface DiaryLikeUser {
 }
 
 export async function fetchDiaryLikes(diaryId: string, limit = 50): Promise<DiaryLikeUser[]> {
-  const { data, error } = await getSupabaseClient()
+  const supabase = getSupabaseClient();
+
+  // 1. diary_likes から user_id を取得
+  const { data: likeRows, error: likeErr } = await supabase
     .from('diary_likes')
-    .select('user_id, profiles(nickname, avatar_url, level, rank)')
+    .select('user_id')
     .eq('diary_id', diaryId)
     .limit(limit);
 
-  if (error) throw error;
-  if (!data) return [];
+  if (likeErr) throw likeErr;
+  if (!likeRows || likeRows.length === 0) return [];
 
-  return data.map((row: any) => ({
-    user_id: row.user_id,
-    nickname: row.profiles?.nickname || 'User',
-    avatar_url: row.profiles?.avatar_url,
-    level: row.profiles?.level || 1,
-    rank: row.profiles?.rank || 'free',
+  const userIds = likeRows.map(r => r.user_id);
+
+  // 2. profiles からユーザー情報を取得
+  const { data: profiles, error: profErr } = await supabase
+    .from('profiles')
+    .select('id, nickname, avatar_url, level, rank')
+    .in('id', userIds);
+
+  if (profErr) throw profErr;
+
+  return (profiles || []).map(p => ({
+    user_id: p.id as string,
+    nickname: p.nickname || 'User',
+    avatar_url: p.avatar_url || undefined,
+    level: p.level || 1,
+    rank: p.rank || 'free',
   }));
 }
 

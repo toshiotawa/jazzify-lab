@@ -58,7 +58,12 @@ const LevelRanking: React.FC = () => {
               {entries.map((e, idx) => (
                 <tr key={e.id} className="border-b border-slate-800 hover:bg-slate-800/50">
                   <td className="py-1 px-2">{idx + 1}</td>
-                  <td className="py-1 px-2 truncate max-w-[8rem]">{e.nickname}</td>
+                  <td className="py-1 px-2 truncate max-w-[8rem]">
+                    <button
+                      onClick={()=>{window.location.hash=`#diary-user?id=${e.id}`;}}
+                      className="hover:text-blue-400 transition-colors"
+                    >{e.nickname}</button>
+                  </td>
                   <td className="py-1 px-2">{e.level}</td>
                   <td className="py-1 px-2">{e.xp.toLocaleString()}</td>
                   <td className="py-1 px-2 capitalize">{e.rank}</td>

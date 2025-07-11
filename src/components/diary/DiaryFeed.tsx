@@ -114,10 +114,13 @@ const DiaryFeed: React.FC = () => {
               </button>
               {openComments['likes-'+d.id] && likeUsers[d.id] && (
                 <div className="absolute z-10 bg-slate-700 p-2 rounded shadow-lg w-52 max-h-60 overflow-y-auto space-y-1">
-                  {likeUsers[d.id].map(u=> (
+                  {likeUsers[d.id]?.map(u=> (
                     <div key={u.user_id} className="flex items-center space-x-2 text-xs text-gray-200">
                       <Avatar url={u.avatar_url} />
-                      <span className="font-semibold truncate">{u.nickname}</span>
+                      <button
+                        onClick={()=>{window.location.hash=`#diary-user?id=${u.user_id}`;}}
+                        className="font-semibold truncate hover:text-blue-400 transition-colors"
+                      >{u.nickname}</button>
                       <span className="text-yellow-400">Lv.{u.level}</span>
                     </div>
                   ))}
@@ -131,7 +134,10 @@ const DiaryFeed: React.FC = () => {
               {comments[d.id]?.map(c => (
                 <div key={c.id} className="text-xs text-gray-300 flex items-center space-x-2">
                   <Avatar url={c.avatar_url} />
-                  <span className="font-semibold">{c.nickname}:</span>
+                  <button
+                    onClick={()=>{window.location.hash=`#diary-user?id=${c.user_id}`;}}
+                    className="font-semibold hover:text-blue-400 transition-colors"
+                  >{c.nickname}</button>
                   <p>{c.content}</p>
                   {c.user_id === user?.id && (
                     <button onClick={() => deleteComment(c.id, d.id)} className="text-red-400"><FaTrash /></button>

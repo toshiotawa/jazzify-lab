@@ -19,6 +19,7 @@ interface AuthState {
     isAdmin: boolean;
     id: string;
     avatar_url?: string | null;
+    bio?: string | null;
   } | null;
 }
 
@@ -137,7 +138,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       if (!user) return;
       const { data, error } = await supabase
         .from('profiles')
-        .select('nickname, rank, level, xp, is_admin, avatar_url')
+        .select('nickname, rank, level, xp, is_admin, avatar_url, bio')
         .eq('id', user.id)
         .single();
       set(state => {
@@ -151,6 +152,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             isAdmin: data.is_admin,
             id: user.id,
             avatar_url: data.avatar_url,
+            bio: data.bio,
           } as any;
         }
       });

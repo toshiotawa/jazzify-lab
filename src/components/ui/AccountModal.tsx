@@ -18,6 +18,8 @@ const RANK_LABEL: Record<string, string> = {
 const AccountModal: React.FC = () => {
   const { profile, logout } = useAuthStore();
   const [open, setOpen] = useState(window.location.hash === '#account');
+  const [bio, setBio] = useState(profile?.bio || '');
+  const [saving, setSaving] = useState(false);
 
   // ハッシュ変更で開閉
   useEffect(() => {
@@ -27,6 +29,8 @@ const AccountModal: React.FC = () => {
     window.addEventListener('hashchange', handler);
     return () => window.removeEventListener('hashchange', handler);
   }, []);
+
+  useEffect(()=>{ setBio(profile?.bio || ''); }, [profile]);
 
   if (!open) return null;
 
@@ -69,6 +73,30 @@ const AccountModal: React.FC = () => {
                 }
               }} />
               <button className="btn btn-xs btn-outline" onClick={()=>document.getElementById('avatar-input')?.click()}>アバター変更</button>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="bio" className="text-sm">プロフィール文</label>
+              <textarea
+                id="bio"
+                className="w-full p-2 rounded bg-slate-700 text-sm"
+                rows={4}
+                maxLength={300}
+                value={bio}
+                onChange={e=>setBio(e.target.value)}
+              />
+              <button
+                className="btn btn-xs btn-primary mt-1"
+                disabled={saving}
+                onClick={async ()=>{
+                  setSaving(true);
+                  try{
+                    await getSupabaseClient().from('profiles').update({ bio }).eq('id', profile.id);
+                    await useAuthStore.getState().fetchProfile();
+                  }catch(err:any){
+                    alert('保存失敗: '+err.message);
+                  }finally{ setSaving(false); }
+                }}
+              >保存</button>
             </div>
           </div>
         ) : (
