@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDiaryStore } from '@/stores/diaryStore';
 import { useAuthStore } from '@/stores/authStore';
-import { FaHeart, FaTrash, FaEdit, FaChevronDown } from 'react-icons/fa';
+import { FaHeart, FaTrash, FaEdit, FaChevronDown, FaTimes, FaSave } from 'react-icons/fa';
 import { useToast } from '@/stores/toastStore';
 import { DiaryComment } from '@/platform/supabaseDiary';
 
@@ -14,10 +14,12 @@ const Avatar: React.FC<{ url?: string }> = ({ url }) => (
 );
 
 const DiaryFeed: React.FC = () => {
-  const { diaries, loading, fetch: fetchAll, like, comments, fetchComments, addComment, deleteComment, deleteDiary, likeUsers, fetchLikeUsers } = useDiaryStore();
+  const { diaries, loading, fetch: fetchAll, like, comments, fetchComments, addComment, deleteComment, deleteDiary, likeUsers, fetchLikeUsers, update } = useDiaryStore();
   const { user, isGuest } = useAuthStore();
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentText, setCommentText] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<string|null>(null);
+  const [editText, setEditText] = useState<string>('');
   const toast = useToast();
   useEffect(() => { void fetchAll(); }, []);
   useEffect(() => {
@@ -57,13 +59,36 @@ const DiaryFeed: React.FC = () => {
               <span className="text-xs ml-1 text-green-400">{d.rank}</span>
             </div>
           </div>
-          <p className="whitespace-pre-wrap text-gray-100 mb-3 text-sm leading-relaxed">{d.content}</p>
+          {editingId===d.id ? (
+            <div className="space-y-2 mb-3">
+              <textarea
+                className="w-full bg-slate-700 p-2 rounded text-sm"
+                rows={4}
+                value={editText}
+                onChange={e=>setEditText(e.target.value)}
+              />
+              <div className="flex space-x-2 text-xs">
+                <button
+                  className="btn btn-xs btn-primary flex items-center" onClick={async()=>{
+                    try{
+                      await update(d.id, editText);
+                      setEditingId(null);
+                    }catch(e:any){ toast.error(e.message);} 
+                  }}
+                ><FaSave className="mr-1"/>保存</button>
+                <button className="btn btn-xs btn-outline flex items-center" onClick={()=>setEditingId(null)}><FaTimes className="mr-1"/>キャンセル</button>
+              </div>
+            </div>
+          ) : (
+            <p className="whitespace-pre-wrap text-gray-100 mb-3 text-sm leading-relaxed">{d.content}</p>
+          )}
           {d.user_id === user?.id && (
             <div className="flex space-x-2 mb-2 text-xs">
               <button
                 className="flex items-center text-blue-400 hover:text-blue-300"
                 onClick={() => {
-                  window.location.hash = `#diary-edit?id=${d.id}`;
+                  setEditingId(d.id);
+                  setEditText(d.content);
                 }}
               ><FaEdit className="mr-1"/> 編集</button>
               <button
@@ -113,7 +138,7 @@ const DiaryFeed: React.FC = () => {
                 いいねした人 <FaChevronDown className="ml-1" />
               </button>
               {openComments['likes-'+d.id] && likeUsers[d.id] && (
-                <div className="absolute z-10 bg-slate-700 p-2 rounded shadow-lg w-52 max-h-60 overflow-y-auto space-y-1">
+                <div className="absolute right-0 top-full mt-1 z-10 bg-slate-700 p-2 rounded shadow-lg w-52 max-h-60 overflow-y-auto space-y-1 whitespace-nowrap">
                   {likeUsers[d.id]?.map(u=> (
                     <div key={u.user_id} className="flex items-center space-x-2 text-xs text-gray-200">
                       <Avatar url={u.avatar_url} />
