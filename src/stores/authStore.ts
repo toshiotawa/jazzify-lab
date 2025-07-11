@@ -51,6 +51,32 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       set(state => {
         state.loading = true;
       });
+      
+      // URLからのマジックリンクトークン処理
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        
+        if (accessToken && refreshToken) {
+          console.log('🔑 Magic link tokens detected in URL');
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          
+          if (error) {
+            console.error('❌ Failed to set session from magic link:', error);
+          } else {
+            console.log('✅ Successfully logged in via magic link');
+            // URLからトークンを削除
+            window.location.hash = '#dashboard';
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error processing magic link:', error);
+      }
+      
       const { data: { session } } = await supabase.auth.getSession();
       set(state => {
         state.session = session ?? null;
@@ -60,11 +86,17 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       });
 
       // auth 状態変化監視
-      supabase.auth.onAuthStateChange((_event, session) => {
+      supabase.auth.onAuthStateChange(async (_event, session) => {
+        console.log('🔄 Auth state changed:', _event, session?.user?.email);
         set(state => {
           state.session = session ?? null;
           state.user = session?.user ?? null;
         });
+        
+        // ログイン成功時にプロフィールを取得
+        if (_event === 'SIGNED_IN' && session?.user) {
+          await get().fetchProfile();
+        }
       });
 
       if (session?.user) {
@@ -83,7 +115,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       });
       // Supabase へ Magic Link を送信 (redirect URL を明示)
       const redirectUrl =
-        import.meta.env.VITE_SUPABASE_REDIRECT_URL ??
+        (import.meta.env?.VITE_SUPABASE_REDIRECT_URL as string | undefined) ??
         (typeof location !== 'undefined' ? location.origin : undefined);
 
       const { error } = await supabase.auth.signInWithOtp({

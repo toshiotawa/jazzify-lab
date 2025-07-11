@@ -30,6 +30,9 @@ const App: React.FC = () => {
   // 認証ストアの状態
   const { profile, loading:authLoading, isGuest, user } = useAuthStore();
   
+  // 認証ストアの初期化アクション
+  const initAuth = useAuthStore((state) => state.init);
+  
   // hash monitor
   const [hash, setHash] = useState(window.location.hash);
   useEffect(()=>{
@@ -52,6 +55,11 @@ const App: React.FC = () => {
   
   // ゲーム設定書き換え用アクション
   const updateGameSettings = useGameStore((state) => state.updateSettings);
+  
+  // 認証の初期化（マジックリンクトークンの処理を含む）
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
   
   useEffect(() => {
     const initializeApp = async () => {
