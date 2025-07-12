@@ -245,178 +245,83 @@ const SongSelectionScreen: React.FC = () => {
                     return;
                   }
                   try {
-                    const data = song.data;
-                    const notes = Array.isArray(data) ? data : data.notes;
-                    const mapped = notes.map((n: any, idx: number) => ({ id: `${song.id}-${idx}`, time: n.time, pitch: n.pitch }));
-                    gameActions.loadSong(song, mapped);
+                    // JSONデータの取得（json_urlがある場合はそちらを優先）
+                    let notesData: any;
+                    if (song.json_url) {
+                      const response = await fetch(song.json_url);
+                      if (!response.ok) {
+                        throw new Error(`JSONデータの読み込みに失敗: ${response.status}`);
+                      }
+                      notesData = await response.json();
+                    } else if (song.json_data) {
+                      notesData = song.json_data;
+                    } else {
+                      throw new Error('曲のノーツデータがありません');
+                    }
+                    
+                    // notes配列の抽出
+                    const notes = Array.isArray(notesData) ? notesData : notesData.notes;
+                    if (!notes || !Array.isArray(notes)) {
+                      throw new Error('ノーツデータの形式が不正です');
+                    }
+                    
+                    const mapped = notes.map((n: any, idx: number) => ({ 
+                      id: `${song.id}-${idx}`, 
+                      time: n.time, 
+                      pitch: n.pitch 
+                    }));
+                    
+                    // 音声ファイルの長さを取得（audio_urlがある場合）
+                    let duration = 60; // デフォルト値
+                    if (song.audio_url) {
+                      try {
+                        const audio = new Audio(song.audio_url);
+                        await new Promise((resolve, reject) => {
+                          const loadedHandler = () => {
+                            duration = Math.floor(audio.duration) || 60;
+                            resolve(void 0);
+                          };
+                          const errorHandler = () => {
+                            console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用');
+                            resolve(void 0);
+                          };
+                          
+                          audio.addEventListener('loadedmetadata', loadedHandler);
+                          audio.addEventListener('error', errorHandler);
+                          
+                          setTimeout(() => resolve(void 0), 3000); // タイムアウト
+                          audio.load();
+                        });
+                      } catch (e) {
+                        console.warn('音声ファイルの処理中にエラー:', e);
+                      }
+                    }
+                    
+                    // SongMetadata形式に変換
+                    const songMetadata = {
+                      id: song.id,
+                      title: song.title,
+                      artist: song.artist || '',
+                      difficulty: song.difficulty || 1,
+                      duration: duration,
+                      audioFile: song.audio_url || '',
+                      notesFile: song.json_url || '',
+                      musicXmlFile: song.xml_url || '',
+                      genreCategory: 'database'
+                    };
+                    
+                    gameActions.loadSong(songMetadata, mapped);
                     gameActions.setCurrentTab('practice');
                   } catch (err) {
-                    alert('曲読み込みに失敗しました');
+                    console.error('曲読み込みエラー:', err);
+                    alert(`曲読み込みに失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
                   }
                 }} 
               />
             );
           })}
           
-          {/* Demo-1楽曲 */}
-          <SongListItem
-            song={{
-              id: 'demo-1',
-              title: 'Demo-1',
-              artist: 'Jazz Learning Game',
-              difficulty: 2,
-              bpm: 120,
-              min_rank: 'free'
-            }}
-            accessible={true}
-            onSelect={async () => {
-              try {
-                // demo-1のノーツデータを読み込み
-                const response = await fetch('/demo-1.json');
-                if (!response.ok) {
-                  throw new Error(`ノーツデータの読み込みに失敗: ${response.status}`);
-                }
-                const data = await response.json();
-                
-                // 音声ファイルの長さを動的に取得（エラーハンドリング改善）
-                let actualDuration = 60; // デフォルト値
-                try {
-                  console.log(`🎵 Demo-1音声ファイル読み込み試行: /demo-1.mp3`);
-                  const audio = new Audio('/demo-1.mp3');
-                  
-                  await new Promise((resolve, reject) => {
-                    const loadedHandler = () => {
-                      actualDuration = Math.floor(audio.duration) || 60;
-                      console.log(`🎵 Demo-1音声読み込み成功:`, {
-                        duration: actualDuration,
-                        src: audio.src,
-                        readyState: audio.readyState,
-                        networkState: audio.networkState
-                      });
-                      resolve(void 0);
-                    };
-                    const errorHandler = (e: Event) => {
-                      console.warn('🚨 Demo-1音声ファイルの読み込みに失敗、デフォルト時間を使用:', {
-                        error: e,
-                        src: audio.src,
-                        readyState: audio.readyState,
-                        networkState: audio.networkState,
-                        lastError: audio.error
-                      });
-                      resolve(void 0); // エラーでも続行
-                    };
-                    
-                    audio.addEventListener('loadedmetadata', loadedHandler);
-                    audio.addEventListener('error', errorHandler);
-                    audio.addEventListener('canplaythrough', loadedHandler);
-                    
-                    // タイムアウト設定
-                    setTimeout(() => {
-                      console.warn('🚨 Demo-1音声ファイル読み込みタイムアウト、デフォルト時間を使用');
-                      resolve(void 0);
-                    }, 3000);
-                    
-                    audio.load();
-                  });
-                } catch (audioError) {
-                  console.warn('🚨 Demo-1音声ファイルの処理中にエラー、デフォルト時間を使用:', audioError);
-                }
-                
-                const demo1Song = {
-                  id: 'demo-1',
-                  title: 'Demo-1',
-                  artist: 'Jazz Learning Game',
-                  difficulty: 2,
-                  duration: actualDuration,
-                  audioFile: '/demo-1.mp3',
-                  notesFile: '/demo-1.json',
-                  musicXmlFile: '/demo-1.xml',
-                  genreCategory: 'demo'
-                };
-                
-                // JSONデータをNoteData形式に変換
-                if (!data.notes || !Array.isArray(data.notes)) {
-                  throw new Error('ノーツデータの形式が不正です');
-                }
-                
-                const demo1Notes = data.notes.map((note: any, index: number) => ({
-                  id: `demo1-${index}`,
-                  time: note.time,
-                  pitch: note.pitch
-                }));
-                
-                console.log(`🎵 Demo-1読み込み完了: ${demo1Notes.length}ノーツ, ${actualDuration}秒`);
-                
-                gameActions.loadSong(demo1Song, demo1Notes);
-                gameActions.setCurrentTab('practice');
-              } catch (error) {
-                console.error('Demo-1楽曲の読み込みに失敗しました:', error);
-                alert(`Demo-1楽曲の読み込みに失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
-              }
-            }}
-          />
-          
-          {/* Alice in Wonderland楽曲カード（JSONデータのみ - 音声なし）*/}
-          <SongListItem
-            song={{
-              id: 'alice-in-wonderland',
-              title: 'Alice in Wonderland',
-              artist: 'Bill Evans (譜面のみ)',
-              difficulty: 3,
-              bpm: 140,
-              min_rank: 'free'
-            }}
-            accessible={true}
-            onSelect={async () => {
-              try {
-                // JSONデータを読み込み
-                const response = await fetch('/bill-evans-alice-in-wonderland.json');
-                if (!response.ok) {
-                  throw new Error(`ノーツデータの読み込みに失敗: ${response.status}`);
-                }
-                const data = await response.json();
-                
-                const aliceSong = {
-                  id: 'alice-in-wonderland',
-                  title: 'Alice in Wonderland',
-                  artist: 'Bill Evans (譜面のみ)',
-                  difficulty: 3,
-                  duration: 240, // 適当な長さ
-                  audioFile: '', // 音声ファイルなし
-                  notesFile: '/bill-evans-alice-in-wonderland.json',
-                  genreCategory: 'jazz'
-                };
-                
-                // JSONデータをNoteData形式に変換（配列構造に対応）
-                let notesArray: any[] = [];
-                if (Array.isArray(data)) {
-                  // 直接配列の場合
-                  notesArray = data;
-                } else if (data.notes && Array.isArray(data.notes)) {
-                  // notesプロパティがある場合
-                  notesArray = data.notes;
-                } else {
-                  throw new Error('ノーツデータの形式が不正です');
-                }
-                
-                // 最初の100ノートのみ
-                const aliceNotes = notesArray.slice(0, 100).map((note: any, index: number) => ({
-                  id: `alice-${index}`,
-                  time: note.time,
-                  pitch: note.pitch
-                }));
-                
-                console.log(`🎵 Alice in Wonderland読み込み完了: ${aliceNotes.length}ノーツ（音声なしモード）`);
-                
-                gameActions.loadSong(aliceSong, aliceNotes);
-                gameActions.setCurrentTab('practice');
-              } catch (error) {
-                console.error('Alice in Wonderland楽曲の読み込みに失敗しました:', error);
-                alert(`Alice in Wonderland楽曲の読み込みに失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
-              }
-            }}
-          />
-          
+          {/* ハードコードされたDemo-1は削除（データベースに移行） */}
         </div>
 
         {lockedSong && (
