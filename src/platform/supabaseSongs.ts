@@ -48,38 +48,69 @@ export async function addSongWithFiles(
 ): Promise<Song> {
   const supabase = getSupabaseClient();
   
+  console.log('addSongWithFiles開始:', song);
+  
+  // JSONファイルの内容を読み込んで検証
+  let jsonData = null;
+  if (files.jsonFile) {
+    try {
+      const text = await files.jsonFile.text();
+      jsonData = JSON.parse(text);
+      console.log('JSONファイル解析成功:', jsonData);
+    } catch (e) {
+      console.error('JSONファイル解析エラー:', e);
+      throw new Error('JSONファイルの形式が不正です');
+    }
+  }
+  
   // 1. まず曲レコードを作成（ファイルURL無しで）
+  const insertData = {
+    ...song,
+    is_public: true,
+    // json_dataフィールドにJSONの内容を保存（ファイルがある場合）
+    json_data: jsonData
+  };
+  
+  console.log('データベースに挿入するデータ:', insertData);
+  
   const { data: newSong, error: songError } = await supabase
     .from('songs')
-    .insert({
-      ...song,
-      is_public: true,
-      // json_dataは後で設定（jsonFileがある場合）
-      json_data: files.jsonFile ? null : song.json_data
-    })
+    .insert(insertData)
     .select()
     .single();
   
-  if (songError) throw songError;
+  if (songError) {
+    console.error('データベース挿入エラー:', songError);
+    throw songError;
+  }
+  
+  console.log('データベース挿入成功:', newSong);
   
   // 2. ファイルをアップロード
   const urls: { audio_url?: string; xml_url?: string; json_url?: string } = {};
   
   try {
     if (files.audioFile) {
+      console.log('音声ファイルアップロード開始');
       urls.audio_url = await uploadSongFile(files.audioFile, newSong.id, 'audio');
+      console.log('音声ファイルアップロード成功:', urls.audio_url);
     }
     
     if (files.xmlFile) {
+      console.log('XMLファイルアップロード開始');
       urls.xml_url = await uploadSongFile(files.xmlFile, newSong.id, 'xml');
+      console.log('XMLファイルアップロード成功:', urls.xml_url);
     }
     
     if (files.jsonFile) {
+      console.log('JSONファイルアップロード開始');
       urls.json_url = await uploadSongFile(files.jsonFile, newSong.id, 'json');
+      console.log('JSONファイルアップロード成功:', urls.json_url);
     }
     
     // 3. URLを更新
     if (Object.keys(urls).length > 0) {
+      console.log('URLを更新:', urls);
       const { data: updatedSong, error: updateError } = await supabase
         .from('songs')
         .update(urls)
@@ -87,7 +118,10 @@ export async function addSongWithFiles(
         .select()
         .single();
       
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('URL更新エラー:', updateError);
+        throw updateError;
+      }
       
       clearSupabaseCache();
       return updatedSong;
@@ -97,6 +131,7 @@ export async function addSongWithFiles(
     return newSong;
     
   } catch (error) {
+    console.error('ファイルアップロードエラー:', error);
     // ファイルアップロードに失敗した場合、曲レコードも削除
     await deleteSong(newSong.id);
     throw error;

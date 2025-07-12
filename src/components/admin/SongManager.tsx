@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { addSongWithFiles, fetchSongs, deleteSong, Song, SongFiles } from '@/platform/supabaseSongs';
@@ -23,6 +24,14 @@ const SongManager: React.FC = () => {
   // フォームの値を監視
   const watchedFiles = watch(['audioFile', 'xmlFile', 'jsonFile']);
 
+  // 環境変数チェック
+  useEffect(() => {
+    console.log('環境変数チェック:', {
+      VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL ? '設定済み' : '未設定',
+      VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY ? '設定済み' : '未設定',
+    });
+  }, []);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -30,6 +39,9 @@ const SongManager: React.FC = () => {
       await createSongFilesBucket();
       const data = await fetchSongs();
       setSongs(data);
+    } catch (e: any) {
+      console.error('曲一覧読み込みエラー:', e);
+      toast.error('曲一覧の読み込みに失敗しました');
     } finally {
       setLoading(false);
     }
@@ -51,18 +63,49 @@ const SongManager: React.FC = () => {
         jsonFile: values.jsonFile?.[0]
       };
 
-      await addSongWithFiles({
+      console.log('アップロード開始:', {
+        title: values.title,
+        artist: values.artist,
+        min_rank: values.min_rank,
+        files: {
+          audio: files.audioFile?.name,
+          xml: files.xmlFile?.name,
+          json: files.jsonFile?.name
+        }
+      });
+
+      const result = await addSongWithFiles({
         title: values.title,
         artist: values.artist,
         min_rank: values.min_rank
       }, files);
 
+      console.log('アップロード成功:', result);
       toast.success('曲を追加しました');
       reset();
       await load();
-    } catch (e) {
+    } catch (e: any) {
       console.error('曲の追加エラー:', e);
-      toast.error('曲の追加に失敗しました');
+      console.error('エラー詳細:', {
+        message: e.message,
+        code: e.code,
+        details: e.details,
+        hint: e.hint,
+        statusCode: e.statusCode || e.status
+      });
+      
+      // エラーメッセージを改善
+      let errorMessage = '曲の追加に失敗しました';
+      if (e.message) {
+        errorMessage += `: ${e.message}`;
+      }
+      if (e.code === 'PGRST116') {
+        errorMessage = 'データベースエラー: テーブルまたはカラムが見つかりません';
+      } else if (e.message?.includes('Supabase URL')) {
+        errorMessage = '環境変数が設定されていません。管理者に連絡してください。';
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
     }
