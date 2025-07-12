@@ -73,6 +73,21 @@ export function xpToNextLevel(currentLevel: number): number {
   return 20000;
 }
 
+// 現在のレベルでの経験値の余り（繰り上がらない分）を計算
+export function currentLevelXP(level: number, totalXP: number): number {
+  let remainingXP = totalXP;
+  let currentLevel = 1;
+  
+  // レベル1からcurrentLevelまでの必要経験値を引いていく
+  while (currentLevel < level) {
+    const requiredXP = xpToNextLevel(currentLevel);
+    remainingXP -= requiredXP;
+    currentLevel++;
+  }
+  
+  return Math.max(0, remainingXP);
+}
+
 export function levelAfterGain(level: number, xp: number, gained: number): { level: number; remainingXP: number; leveledUp: boolean } {
   let curLevel = level;
   let totalXP = xp + gained;

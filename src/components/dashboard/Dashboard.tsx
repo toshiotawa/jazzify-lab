@@ -16,7 +16,7 @@ import {
 } from 'react-icons/fa';
 import { Mission } from '@/platform/supabaseMissions';
 import GameHeader from '@/components/ui/GameHeader';
-import { xpToNextLevel } from '@/utils/xpCalculator';
+import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
 
 /**
  * ダッシュボード画面
@@ -100,13 +100,13 @@ const Dashboard: React.FC = () => {
                   {/* 経験値進捗 */}
                   <div className="mt-4">
                     <div className="flex justify-between text-sm text-gray-400 mb-1">
-                      <span>{profile.xp.toLocaleString()} / {xpToNextLevel(profile.level).toLocaleString()} XP</span>
-                      <span>次レベルまで: {(xpToNextLevel(profile.level) - profile.xp).toLocaleString()} XP</span>
+                      <span>{currentLevelXP(profile.level, profile.xp).toLocaleString()} / {xpToNextLevel(profile.level).toLocaleString()} XP</span>
+                      <span>次レベルまで: {(xpToNextLevel(profile.level) - currentLevelXP(profile.level, profile.xp)).toLocaleString()} XP</span>
                     </div>
                     <div className="bg-slate-700 h-2 rounded overflow-hidden">
                       <div 
                         className="bg-blue-500 h-full transition-all"
-                        style={{ width: `${(profile.xp / xpToNextLevel(profile.level)) * 100}%` }}
+                        style={{ width: `${(currentLevelXP(profile.level, profile.xp) / xpToNextLevel(profile.level)) * 100}%` }}
                       />
                     </div>
                   </div>
