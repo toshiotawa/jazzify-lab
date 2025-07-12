@@ -276,13 +276,16 @@ const SongSelectionScreen: React.FC = () => {
                     if (song.audio_url) {
                       try {
                         const audio = new Audio(song.audio_url);
+                        // CORS対応: Supabaseストレージからの音声ファイル用
+                        audio.crossOrigin = 'anonymous';
                         await new Promise((resolve, reject) => {
                           const loadedHandler = () => {
                             duration = Math.floor(audio.duration) || 60;
+                            console.log(`🎵 音声ファイル時間取得成功: ${duration}秒`);
                             resolve(void 0);
                           };
-                          const errorHandler = () => {
-                            console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用');
+                          const errorHandler = (e: any) => {
+                            console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用', e);
                             resolve(void 0);
                           };
                           

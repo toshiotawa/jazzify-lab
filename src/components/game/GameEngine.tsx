@@ -114,6 +114,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       audio.addEventListener('canplay', handleCanPlay);
       
       log.info(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
+      // CORS対応: Supabaseストレージからの音声ファイルでWeb Audio APIを使用するため
+      audio.crossOrigin = 'anonymous';
       audio.src = currentSong.audioFile;
       audio.volume = settings.musicVolume;
       audio.preload = 'metadata';
@@ -153,7 +155,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
         // 2) MediaElementSource を生成（初回のみ）
         if (!mediaSourceRef.current) {
-          mediaSourceRef.current = audioContext.createMediaElementSource(audio);
+          try {
+            mediaSourceRef.current = audioContext.createMediaElementSource(audio);
+            log.info('✅ MediaElementAudioSourceNode created successfully');
+          } catch (error) {
+            log.error('🚨 MediaElementAudioSourceNode creation failed:', error);
+            throw error;
+          }
         }
 
         // 3) Tone.js PitchShift エフェクトを初期化（初回のみ）
@@ -1038,6 +1046,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       {/* HTML5 Audio Element（楽曲再生用） */}
       <audio
         ref={audioRef}
+        crossOrigin="anonymous"
         preload="metadata"
         style={{ display: 'none' }}
         onLoadedMetadata={() => log.info('🎵 音声メタデータ読み込み完了')}
