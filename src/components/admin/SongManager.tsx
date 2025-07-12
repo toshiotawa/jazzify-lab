@@ -237,7 +237,7 @@ const SongManager: React.FC = () => {
                   <p className="font-medium truncate">{s.title}</p>
                   <p className="text-xs text-gray-400 truncate">
                     {s.artist && `${s.artist} • `}
-                    {s.min_rank} • {s.difficulty && `難易度 ${s.difficulty}`}
+                    {s.min_rank}
                   </p>
                   <div className="flex gap-2 mt-1">
                     {s.json_url && <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded">JSON</span>}

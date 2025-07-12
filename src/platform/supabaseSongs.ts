@@ -5,9 +5,9 @@ export interface Song {
   id: string;
   title: string;
   artist?: string;
-  bpm?: number;
-  difficulty?: number;
-  json_data?: any; // 旧data フィールド（インラインJSON用）
+  bpm?: number; // 使用しない
+  difficulty?: number; // 使用しない
+  json_data?: any; // 旧data フィールド（インライン JSON用）
   audio_url?: string;
   xml_url?: string;
   json_url?: string;
