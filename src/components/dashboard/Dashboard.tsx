@@ -100,7 +100,7 @@ const Dashboard: React.FC = () => {
                   {/* 経験値進捗 */}
                   <div className="mt-4">
                     <div className="flex justify-between text-sm text-gray-400 mb-1">
-                      <span>進捗: {profile.xp.toLocaleString()} / {xpToNextLevel(profile.level).toLocaleString()} XP</span>
+                      <span>{profile.xp.toLocaleString()} / {xpToNextLevel(profile.level).toLocaleString()} XP</span>
                       <span>次レベルまで: {(xpToNextLevel(profile.level) - profile.xp).toLocaleString()} XP</span>
                     </div>
                     <div className="bg-slate-700 h-2 rounded overflow-hidden">
