@@ -17,6 +17,7 @@ import {
 import { Mission } from '@/platform/supabaseMissions';
 import GameHeader from '@/components/ui/GameHeader';
 import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
+import { calcLevel } from '@/platform/supabaseXp';
 
 /**
  * ダッシュボード画面
@@ -99,16 +100,23 @@ const Dashboard: React.FC = () => {
                   
                   {/* 経験値進捗 */}
                   <div className="mt-4">
-                    <div className="flex justify-between text-sm text-gray-400 mb-1">
-                      <span>{currentLevelXP(profile.level, profile.xp).toLocaleString()} / {xpToNextLevel(profile.level).toLocaleString()} XP</span>
-                      <span>次レベルまで: {(xpToNextLevel(profile.level) - currentLevelXP(profile.level, profile.xp)).toLocaleString()} XP</span>
-                    </div>
-                    <div className="bg-slate-700 h-2 rounded overflow-hidden">
-                      <div 
-                        className="bg-blue-500 h-full transition-all"
-                        style={{ width: `${(currentLevelXP(profile.level, profile.xp) / xpToNextLevel(profile.level)) * 100}%` }}
-                      />
-                    </div>
+                    {(() => {
+                      const levelInfo = calcLevel(profile.xp);
+                      return (
+                        <>
+                          <div className="flex justify-between text-sm text-gray-400 mb-1">
+                            <span>{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()} XP</span>
+                            <span>次レベルまで: {(levelInfo.nextLevelXp - levelInfo.remainder).toLocaleString()} XP</span>
+                          </div>
+                          <div className="bg-slate-700 h-2 rounded overflow-hidden">
+                            <div 
+                              className="bg-blue-500 h-full transition-all"
+                              style={{ width: `${(levelInfo.remainder / levelInfo.nextLevelXp) * 100}%` }}
+                            />
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
