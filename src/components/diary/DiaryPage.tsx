@@ -7,6 +7,7 @@ import { fetchUserDiaries } from '@/platform/supabaseDiary';
 import { useDiaryStore } from '@/stores/diaryStore';
 import { useToast } from '@/stores/toastStore';
 import GameHeader from '@/components/ui/GameHeader';
+import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 interface UserDiary {
   id: string;
@@ -181,7 +182,7 @@ const DiaryPage: React.FC = () => {
                 <div className="p-4 sm:p-6 border-b border-slate-700">
                   <div className="flex items-center space-x-4">
                     <img
-                      src={profile.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=user'}
+                      src={profile.avatar_url || DEFAULT_AVATAR_URL}
                       alt="avatar"
                       className="w-16 h-16 rounded-full object-cover"
                     />
@@ -252,7 +253,7 @@ const DiaryPage: React.FC = () => {
                           <div className="absolute right-4 top-12 bg-slate-700 rounded shadow-lg p-2 w-52 max-h-60 overflow-y-auto space-y-1 z-20 whitespace-nowrap">
                             {likeUsers[diary.id].map(u=>(
                               <div key={u.user_id} className="flex items-center space-x-2 text-xs text-gray-200">
-                                <img src={u.avatar_url||'https://api.dicebear.com/7.x/identicon/svg?seed=user'} className="w-6 h-6 rounded-full object-cover" />
+                                <img src={u.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
                                 <span className="truncate">{u.nickname}</span>
                                 <span className="text-yellow-400">Lv.{u.level}</span>
                               </div>
@@ -274,7 +275,7 @@ const DiaryPage: React.FC = () => {
                           <div className="mt-2 space-y-2">
                             {comments[diary.id].map(c=>(
                               <div key={c.id} className="text-xs text-gray-300 flex items-center space-x-2">
-                                <img src={c.avatar_url||'https://api.dicebear.com/7.x/identicon/svg?seed=user'} className="w-6 h-6 rounded-full object-cover" />
+                                <img src={c.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
                                 <span className="font-semibold">{c.nickname}</span>
                                 <p>{c.content}</p>
                               </div>

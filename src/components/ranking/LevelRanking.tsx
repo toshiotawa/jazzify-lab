@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchLevelRanking, RankingEntry } from '@/platform/supabaseRanking';
 import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
+import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 const LevelRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#ranking');
@@ -76,7 +77,7 @@ const LevelRanking: React.FC = () => {
             <thead>
               <tr className="border-b border-slate-700 text-left">
                 <th className="py-2 px-2">#</th>
-                <th className="py-2 px-2">ニックネーム</th>
+                <th className="py-2 px-2">ユーザー</th>
                 <th className="py-2 px-2">Lv</th>
                 <th className="py-2 px-2">XP</th>
                 <th className="py-2 px-2">ランク</th>
@@ -86,11 +87,18 @@ const LevelRanking: React.FC = () => {
               {entries.map((e, idx) => (
                 <tr key={e.id} className="border-b border-slate-800 hover:bg-slate-800/50">
                   <td className="py-1 px-2">{idx + 1}</td>
-                  <td className="py-1 px-2 truncate max-w-[8rem]">
+                  <td className="py-1 px-2">
                     <button
                       onClick={()=>{window.location.hash=`#diary-user?id=${e.id}`;}}
-                      className="hover:text-blue-400 transition-colors"
-                    >{e.nickname}</button>
+                      className="flex items-center gap-2 hover:text-blue-400 transition-colors max-w-[12rem]"
+                    >
+                      <img 
+                        src={e.avatar_url || DEFAULT_AVATAR_URL}
+                        alt="avatar"
+                        className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                      />
+                      <span className="truncate">{e.nickname}</span>
+                    </button>
                   </td>
                   <td className="py-1 px-2">{e.level}</td>
                   <td className="py-1 px-2">{e.xp.toLocaleString()}</td>

@@ -7,6 +7,7 @@ export interface RankingEntry {
   xp: number;
   rank: 'free' | 'standard' | 'premium' | 'platinum';
   lessons_cleared: number;
+  avatar_url?: string;
 }
 
 export async function fetchLevelRanking(limit = 100): Promise<RankingEntry[]> {
@@ -14,7 +15,7 @@ export async function fetchLevelRanking(limit = 100): Promise<RankingEntry[]> {
   // lessons_cleared は後で集計列として追加予定、現状0
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, nickname, level, xp, rank')
+    .select('id, nickname, level, xp, rank, avatar_url')
     .order('level', { ascending: false })
     .order('xp', { ascending: false })
     .limit(limit);

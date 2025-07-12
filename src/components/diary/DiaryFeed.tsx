@@ -4,10 +4,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { FaHeart, FaTrash, FaEdit, FaChevronDown, FaTimes, FaSave } from 'react-icons/fa';
 import { useToast } from '@/stores/toastStore';
 import { DiaryComment } from '@/platform/supabaseDiary';
+import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 const Avatar: React.FC<{ url?: string }> = ({ url }) => (
   <img
-    src={url || 'https://api.dicebear.com/7.x/identicon/svg?seed=user'}
+    src={url || DEFAULT_AVATAR_URL}
     alt="avatar"
     className="w-8 h-8 rounded-full object-cover"
   />

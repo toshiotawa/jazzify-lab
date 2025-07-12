@@ -18,6 +18,7 @@ import { Mission } from '@/platform/supabaseMissions';
 import GameHeader from '@/components/ui/GameHeader';
 import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
 import { calcLevel } from '@/platform/supabaseXp';
+import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 /**
  * ダッシュボード画面
@@ -86,7 +87,7 @@ const Dashboard: React.FC = () => {
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
               <div className="flex items-center space-x-4">
                 <img
-                  src={profile.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=user'}
+                  src={profile.avatar_url || DEFAULT_AVATAR_URL}
                   alt="avatar"
                   className="w-16 h-16 rounded-full object-cover"
                 />

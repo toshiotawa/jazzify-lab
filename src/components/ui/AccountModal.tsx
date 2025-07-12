@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { uploadAvatar } from '@/platform/supabaseStorage';
 import GameHeader from '@/components/ui/GameHeader';
+import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 const RANK_LABEL: Record<string, string> = {
   free: 'フリー',
@@ -61,7 +62,7 @@ const AccountPage: React.FC = () => {
                 <span className="font-semibold">{profile.xp.toLocaleString()}</span>
               </div>
               <div className="flex flex-col items-center space-y-2">
-                <img src={profile.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=user'} alt="avatar" className="w-24 h-24 rounded-full object-cover" />
+                <img src={profile.avatar_url || DEFAULT_AVATAR_URL} alt="avatar" className="w-24 h-24 rounded-full object-cover" />
                 <input id="avatar-input" type="file" accept="image/*" hidden onChange={async (e)=>{
                   const file = e.target.files?.[0];
                   if (!file) return;
