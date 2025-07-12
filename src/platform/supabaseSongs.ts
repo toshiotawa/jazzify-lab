@@ -48,7 +48,12 @@ export async function addSongWithFiles(
 ): Promise<Song> {
   const supabase = getSupabaseClient();
   
+  // ユーザー認証を確認
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+  
   console.log('addSongWithFiles開始:', song);
+  console.log('認証ユーザーID:', user.id);
   
   // JSONファイルの内容を読み込んで検証
   let jsonData = null;
@@ -68,7 +73,8 @@ export async function addSongWithFiles(
     ...song,
     is_public: true,
     // json_dataフィールドにJSONの内容を保存（ファイルがある場合）
-    json_data: jsonData
+    json_data: jsonData,
+    created_by: user.id // ユーザーIDを追加
   };
   
   console.log('データベースに挿入するデータ:', insertData);
@@ -149,6 +155,12 @@ export async function addSong(song: Omit<Song, 'id' | 'is_public'>): Promise<voi
 export async function updateSong(id: string, updates: Partial<Song>, files?: SongFiles): Promise<Song> {
   const supabase = getSupabaseClient();
   
+  // ユーザー認証を確認
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+  
+  console.log('updateSong実行 - ユーザーID:', user.id);
+  
   // ファイルがある場合はアップロード
   const urls: { audio_url?: string; xml_url?: string; json_url?: string } = {};
   
@@ -181,11 +193,19 @@ export async function updateSong(id: string, updates: Partial<Song>, files?: Son
 }
 
 export async function deleteSong(id: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  
+  // ユーザー認証を確認
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+  
+  console.log('deleteSong実行 - ユーザーID:', user.id);
+  
   // ストレージからファイルを削除
   await deleteSongFiles(id);
   
   // データベースから削除
-  await getSupabaseClient()
+  await supabase
     .from('songs')
     .delete()
     .eq('id', id);
