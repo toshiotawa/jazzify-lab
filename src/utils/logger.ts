@@ -5,8 +5,8 @@
 
 type LogLevel = 'silent' | 'error' | 'warn' | 'info' | 'debug';
 
-// プロダクション環境では強制的にsilentに設定
-let currentLevel: LogLevel = import.meta.env.PROD ? 'silent' : 'debug';
+// プロダクション環境でもログを有効化（デバッグ用）
+let currentLevel: LogLevel = 'debug';  // import.meta.env.PROD ? 'silent' : 'debug';
 
 /**
  * ログレベルを動的に変更（プロダクションでは無効）
@@ -37,12 +37,7 @@ const noop = () => {};
 /**
  * 統一ログインターフェース - プロダクション最適化
  */
-export const log = import.meta.env.PROD ? {
-  error: noop,
-  warn: noop,
-  info: noop,
-  debug: noop,
-} : {
+export const log = {
   error: (...args: unknown[]) => 
     currentLevel !== 'silent' && console.error(...args),
   
@@ -68,7 +63,6 @@ class ThrottledLogger {
   }
   
   info(message: string, ...args: unknown[]): void {
-    if (import.meta.env.PROD) return;
     const now = performance.now();
     if (now - this.lastLogTime >= this.interval) {
       log.info(message, ...args);
@@ -77,7 +71,6 @@ class ThrottledLogger {
   }
   
   debug(message: string, ...args: unknown[]): void {
-    if (import.meta.env.PROD) return;
     const now = performance.now();
     if (now - this.lastLogTime >= this.interval) {
       log.debug(message, ...args);
@@ -87,21 +80,18 @@ class ThrottledLogger {
 }
 
 /**
- * パフォーマンス監視用の制限付きロガー（プロダクションでは無効）
+ * パフォーマンス監視用の制限付きロガー（プロダクションでも有効）
  */
-export const perfLog = import.meta.env.PROD ? {
-  info: noop,
-  debug: noop,
-} : new ThrottledLogger(1000);
+export const perfLog = new ThrottledLogger(1000);
 
 /**
- * 開発専用ログ（プロダクションでは完全無効）
+ * 開発専用ログ（プロダクションでも有効）
  */
 export const devLog = {
-  debug: import.meta.env.PROD ? noop : (...args: unknown[]) => 
+  debug: (...args: unknown[]) => 
     currentLevel === 'debug' && console.log(...args),
   
-  info: import.meta.env.PROD ? noop : (...args: unknown[]) => 
+  info: (...args: unknown[]) => 
     ['info', 'debug'].includes(currentLevel) && console.info(...args),
 };
 

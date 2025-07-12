@@ -18,10 +18,10 @@ const FPSMonitor: React.FC<FPSMonitorProps> = ({
   minimal = false, 
   className 
 }) => {
-  // プロダクション環境では何も表示しない
-  if (import.meta.env.PROD) {
-    return null;
-  }
+  // プロダクション環境でも表示（デバッグ用）
+  // if (import.meta.env.PROD) {
+  //   return null;
+  // }
 
   const [fps, setFps] = useState(60);
   const debug = useGameStore((state) => state.debug);

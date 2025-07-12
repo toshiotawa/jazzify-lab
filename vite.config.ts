@@ -30,7 +30,7 @@ export default defineConfig(({ mode }) => {
       legalComments: isProduction ? 'none' : 'eof',
       // プロダクション環境でコンソール関数とデバッガーを完全削除
       ...(isProduction && {
-        drop: ['console', 'debugger'],
+        // drop: ['console', 'debugger'],  // console.logを残すためコメントアウト
         dropLabels: ['DEBUG'],
       }),
     },
@@ -58,7 +58,7 @@ export default defineConfig(({ mode }) => {
         treeshake: {
           preset: 'recommended',
           // console関数を不要コードとして削除
-          manualPureFunctions: ['console.log', 'console.info', 'console.debug', 'console.warn', 'console.error'],
+          // manualPureFunctions: ['console.log', 'console.info', 'console.debug', 'console.warn', 'console.error'],  // console.logを残すためコメントアウト
         }
       },
       commonjsOptions: {
