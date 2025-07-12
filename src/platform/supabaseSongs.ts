@@ -74,7 +74,7 @@ export async function addSongWithFiles(
     is_public: true,
     // json_dataフィールドにJSONの内容を保存（ファイルがある場合）
     json_data: jsonData,
-    created_by: user.id // ユーザーIDを追加
+    created_by: user.id // マイグレーション完了により使用可能
   };
   
   console.log('データベースに挿入するデータ:', insertData);
