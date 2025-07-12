@@ -1,6 +1,8 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platform/supabaseClient';
 import { uploadSongFile, deleteSongFiles } from '@/platform/supabaseStorage';
 
+export type SongUsageType = 'general' | 'lesson';
+
 export interface Song {
   id: string;
   title: string;
@@ -13,6 +15,8 @@ export interface Song {
   json_url?: string;
   min_rank: 'free' | 'standard' | 'premium' | 'platinum';
   is_public: boolean;
+  usage_type: SongUsageType;
+  created_by: string;
 }
 
 export interface SongFiles {
@@ -21,11 +25,17 @@ export interface SongFiles {
   jsonFile?: File;
 }
 
-export async function fetchSongs(): Promise<Song[]> {
-  const key = 'songs:all';
+export async function fetchSongs(usageType?: SongUsageType): Promise<Song[]> {
+  const key = `songs:${usageType || 'all'}`;
   const { data, error } = await fetchWithCache(
-    key, 
-    async () => await getSupabaseClient().from('songs').select('*').order('created_at', { ascending: false }),
+    key,
+    async () => {
+      let query = getSupabaseClient().from('songs').select('*').order('created_at', { ascending: false });
+      if (usageType) {
+        query = query.eq('usage_type', usageType);
+      }
+      return query;
+    },
     1000 * 60,
   );
   if (error) throw error;
@@ -43,7 +53,7 @@ export async function fetchSong(id: string): Promise<Song | null> {
 }
 
 export async function addSongWithFiles(
-  song: Omit<Song, 'id' | 'is_public' | 'audio_url' | 'xml_url' | 'json_url'>, 
+  song: Omit<Song, 'id' | 'is_public' | 'audio_url' | 'xml_url' | 'json_url' | 'created_by' | 'json_data'>,
   files: SongFiles
 ): Promise<Song> {
   const supabase = getSupabaseClient();
@@ -145,14 +155,18 @@ export async function addSongWithFiles(
 }
 
 // 旧APIとの互換性のため残す
-export async function addSong(song: Omit<Song, 'id' | 'is_public'>): Promise<void> {
-  await getSupabaseClient()
+export async function addSong(song: Omit<Song, 'id' | 'is_public' | 'created_by'>): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+
+  await supabase
     .from('songs')
-    .insert({ ...song, is_public: true });
+    .insert({ ...song, is_public: true, created_by: user.id });
   clearSupabaseCache();
 }
 
-export async function updateSong(id: string, updates: Partial<Song>, files?: SongFiles): Promise<Song> {
+export async function updateSong(id: string, updates: Partial<Omit<Song, 'id' | 'created_by'>>, files?: SongFiles): Promise<Song> {
   const supabase = getSupabaseClient();
   
   // ユーザー認証を確認
@@ -220,7 +234,7 @@ export function rankAllowed(userRank: MembershipRank, songRank: MembershipRank) 
   return rankOrder.indexOf(userRank) >= rankOrder.indexOf(songRank);
 }
 
-export async function fetchAccessibleSongs(userRank: MembershipRank): Promise<Song[]> {
-  const all = await fetchSongs();
+export async function fetchAccessibleSongs(userRank: MembershipRank, usageType?: SongUsageType): Promise<Song[]> {
+  const all = await fetchSongs(usageType);
   return all.filter(s => rankAllowed(userRank, s.min_rank as MembershipRank));
 } 

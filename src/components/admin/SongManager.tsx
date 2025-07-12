@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { addSongWithFiles, fetchSongs, deleteSong, Song, SongFiles } from '@/platform/supabaseSongs';
+import { addSongWithFiles, fetchSongs, deleteSong, Song, SongFiles, SongUsageType } from '@/platform/supabaseSongs';
 import { createSongFilesBucket } from '@/platform/supabaseStorage';
 import { useToast } from '@/stores/toastStore';
 
@@ -18,6 +18,8 @@ const SongManager: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [activeFormTab, setActiveFormTab] = useState<SongUsageType>('general');
+  const [activeListTab, setActiveListTab] = useState<SongUsageType>('general');
   const { register, handleSubmit, reset, watch } = useForm<SongFormData>();
   const toast = useToast();
 
@@ -32,22 +34,26 @@ const SongManager: React.FC = () => {
     });
   }, []);
 
-  const load = async () => {
+  const loadSongs = async (usageType: SongUsageType) => {
     setLoading(true);
     try {
-      // 初回読み込み時にバケットを作成
-      await createSongFilesBucket();
-      const data = await fetchSongs();
+      const data = await fetchSongs(usageType);
       setSongs(data);
     } catch (e: any) {
-      console.error('曲一覧読み込みエラー:', e);
+      console.error(`[${usageType}] 曲一覧読み込みエラー:`, e);
       toast.error('曲一覧の読み込みに失敗しました');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    createSongFilesBucket().catch(e => console.warn('バケット作成済み:', e));
+  }, []);
+
+  useEffect(() => {
+    loadSongs(activeListTab);
+  }, [activeListTab]);
 
   const onSubmit = async (values: SongFormData) => {
     if (!values.jsonFile?.[0]) {
@@ -67,6 +73,7 @@ const SongManager: React.FC = () => {
         title: values.title,
         artist: values.artist,
         min_rank: values.min_rank,
+        usage_type: activeFormTab,
         files: {
           audio: files.audioFile?.name,
           xml: files.xmlFile?.name,
@@ -77,13 +84,18 @@ const SongManager: React.FC = () => {
       const result = await addSongWithFiles({
         title: values.title,
         artist: values.artist,
-        min_rank: values.min_rank
+        min_rank: values.min_rank,
+        usage_type: activeFormTab,
       }, files);
 
       console.log('アップロード成功:', result);
-      toast.success('曲を追加しました');
+      toast.success(`[${activeFormTab}] 曲を追加しました`);
       reset();
-      await load();
+      if (activeListTab === activeFormTab) {
+        await loadSongs(activeListTab);
+      } else {
+        setActiveListTab(activeFormTab);
+      }
     } catch (e: any) {
       console.error('曲の追加エラー:', e);
       console.error('エラー詳細:', {
@@ -120,6 +132,10 @@ const SongManager: React.FC = () => {
   return (
     <div>
       <h3 className="text-xl font-bold mb-4">曲登録</h3>
+      <div className="tabs tabs-boxed mb-4 bg-slate-800/50">
+        <a className={`tab ${activeFormTab === 'general' ? 'tab-active' : ''}`} onClick={() => setActiveFormTab('general')}>通常曲</a>
+        <a className={`tab ${activeFormTab === 'lesson' ? 'tab-active' : ''}`} onClick={() => setActiveFormTab('lesson')}>レッスン曲</a>
+      </div>
       <form className="space-y-4 mb-8" onSubmit={handleSubmit(onSubmit)}>
         {/* 基本情報 */}
         <div>
@@ -227,7 +243,13 @@ const SongManager: React.FC = () => {
         </button>
       </form>
 
+      <div className="divider my-8"></div>
+
       <h3 className="text-xl font-bold mb-4">曲一覧</h3>
+      <div className="tabs tabs-boxed mb-4 bg-slate-800/50">
+        <a className={`tab ${activeListTab === 'general' ? 'tab-active' : ''}`} onClick={() => setActiveListTab('general')}>通常曲</a>
+        <a className={`tab ${activeListTab === 'lesson' ? 'tab-active' : ''}`} onClick={() => setActiveListTab('lesson')}>レッスン曲</a>
+      </div>
       {loading ? <p className="text-gray-400">Loading...</p> : (
         <div className="bg-slate-800/50 rounded-lg overflow-hidden">
           <ul className="divide-y divide-slate-700">
@@ -249,10 +271,11 @@ const SongManager: React.FC = () => {
                   if (!confirm(`「${s.title}」を削除しますか？`)) return;
                   try {
                     await deleteSong(s.id);
-                    toast.success('削除しました');
-                    await load();
-                  } catch(e) {
-                    toast.error('削除に失敗しました');
+                    toast.success('曲を削除しました');
+                    await loadSongs(activeListTab);
+                  } catch (e: any) {
+                    console.error('曲の削除エラー:', e);
+                    toast.error('曲の削除に失敗しました');
                   }
                 }}>削除</button>
               </li>
