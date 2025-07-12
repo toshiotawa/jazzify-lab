@@ -107,6 +107,23 @@ export interface SongMetadata {
   tags?: string[];
 }
 
+export interface Song {
+  id: string;
+  title: string;
+  artist: string;
+  bpm?: number;
+  difficulty: number; // 1-5
+  duration: number;   // 秒
+  audioFile: string;
+  notesFile: string;
+  musicXmlFile?: string; // MusicXMLファイルのパス
+  genreCategory: string;
+  previewStart?: number; // プレビュー開始時間
+  tags?: string[];
+  json_url?: string;
+  usage_type?: 'general' | 'lesson';
+}
+
 // ===== ゲーム設定 =====
 
 export interface GameSettings {
@@ -575,3 +592,52 @@ export interface AudioProcessingSettings {
 }
 
 // ===== 既存のAudioDevice型の拡張 =====
+
+export interface ClearConditions {
+  key?: number;
+  speed?: number;
+  rank?: string;
+  count?: number;
+}
+
+export interface LessonSong {
+  id: string;
+  lesson_id: string;
+  song_id: string;
+  clear_conditions?: ClearConditions;
+  created_at: string;
+  songs: Pick<Song, 'id' | 'title' | 'artist'>;
+}
+
+export interface Lesson {
+  id: string;
+  course_id: string;
+  title: string;
+  description?: string;
+  assignment_description?: string;
+  order: number;
+  created_at: string;
+  updated_at: string;
+  lesson_songs: LessonSong[];
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  lessons: Lesson[];
+}
+
+export interface Profile {
+  id: string; // uuid
+  updated_at?: string; // timestamp with time zone
+  username?: string; // text
+  avatar_url?: string; // text
+  website?: string; // text
+  nickname?: string; // text
+  is_admin?: boolean; // boolean
+  bio?: string; // text
+  email?: string; // text
+}

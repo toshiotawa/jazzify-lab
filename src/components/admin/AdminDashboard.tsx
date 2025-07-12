@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/authStore';
 import SongManager from './SongManager';
-import LessonManager from './LessonManager';
+import { CourseManager } from './CourseManager';
+import { LessonManager } from './LessonManager';
 import ChallengeManager from './ChallengeManager';
 import UserManager from './UserManager';
 import AnnouncementManager from './AnnouncementManager';
 
 /**
- * 管理画面ゲート – プラチナランクのみアクセス許可
+ * 管理画面ゲート – is_admin フラグを持つユーザーのみアクセス許可
  * Hash: #admin で開く
  */
 const AdminDashboard: React.FC = () => {
@@ -17,6 +18,9 @@ const AdminDashboard: React.FC = () => {
     const hash = window.location.hash;
     return hash.startsWith('#admin');
   });
+  
+  // profile.isAdmin を使用
+  const isAdmin = !!profile?.isAdmin;
 
   useEffect(() => {
     const handler = () => {
@@ -30,7 +34,7 @@ const AdminDashboard: React.FC = () => {
   if (!open) return null;
 
   // 権限チェック
-  if (!profile || !profile.isAdmin) {
+  if (!isAdmin) {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => { window.location.hash = '#dashboard'; }}>
         <div className="bg-slate-800 rounded-lg p-8 w-full max-w-sm text-white space-y-4" onClick={e => e.stopPropagation()}>
@@ -52,6 +56,7 @@ const AdminDashboard: React.FC = () => {
         <h2 className="text-lg font-bold">Admin</h2>
         <nav className="space-y-2 flex-1">
           <SidebarLink hash="#admin-songs" label="曲管理" />
+          <SidebarLink hash="#admin-courses" label="コース管理" />
           <SidebarLink hash="#admin-lessons" label="レッスン管理" />
           <SidebarLink hash="#admin-challenges" label="チャレンジ管理" />
           <SidebarLink hash="#admin-users" label="会員管理" />
@@ -72,6 +77,7 @@ const AdminDashboard: React.FC = () => {
         </div>
         <nav className="flex space-x-2 overflow-x-auto">
           <MobileTabLink hash="#admin-songs" label="曲管理" />
+          <MobileTabLink hash="#admin-courses" label="コース" />
           <MobileTabLink hash="#admin-lessons" label="レッスン" />
           <MobileTabLink hash="#admin-challenges" label="チャレンジ" />
           <MobileTabLink hash="#admin-users" label="会員" />
@@ -114,11 +120,12 @@ const MobileTabLink: React.FC<{ hash: string; label: string }> = ({ hash, label 
 
 const DashboardContent: React.FC = () => {
   const hash = window.location.hash;
-  if (hash === '#admin-songs') return <SongManager />;
-  if (hash === '#admin-lessons') return <LessonManager />;
-  if (hash === '#admin-challenges') return <ChallengeManager />;
-  if (hash === '#admin-users') return <UserManager />;
-  if (hash === '#admin-announcements') return <AnnouncementManager />;
+  if (hash.startsWith('#admin-songs')) return <SongManager />;
+  if (hash.startsWith('#admin-courses')) return <CourseManager />;
+  if (hash.startsWith('#admin-lessons')) return <LessonManager />;
+  if (hash.startsWith('#admin-challenges')) return <ChallengeManager />;
+  if (hash.startsWith('#admin-users')) return <UserManager />;
+  if (hash.startsWith('#admin-announcements')) return <AnnouncementManager />;
   return (
     <div className="flex items-center justify-center h-full">
       <p className="text-gray-400 text-center px-4">
