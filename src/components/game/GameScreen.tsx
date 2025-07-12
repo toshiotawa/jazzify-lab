@@ -26,6 +26,13 @@ const GameScreen: React.FC = () => {
 
   const gameActions = useGameActions();
 
+  // 🔧 自動リダイレクト: 曲が未選択で、今タブが songs 以外なら自動で songs タブへ
+  useEffect(() => {
+    if (!currentSong && currentTab !== 'songs') {
+      gameActions.setCurrentTab('songs');
+    }
+  }, [currentSong, currentTab, gameActions]);
+
   return (
     <div 
       className="game-container h-[100dvh] flex flex-col bg-gradient-game"
