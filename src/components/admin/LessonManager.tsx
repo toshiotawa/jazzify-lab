@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Course, Lesson, Song, ClearConditions } from '@/types';
+import { Course, Lesson, ClearConditions } from '@/types';
+import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesWithDetails } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { addLesson, updateLesson, deleteLesson, addSongToLesson, updateLessonSongConditions } from '@/platform/supabaseLessons';
+import { addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions } from '@/platform/supabaseLessons';
 import { useToast } from '@/stores/toastStore';
+import { FaMusic, FaTrash, FaEdit } from 'react-icons/fa';
 
-type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index'>;
+type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index'> & {
+  video_id?: string;
+};
+
+type SongFormData = {
+  song_id: string;
+  clear_conditions: ClearConditions;
+};
 
 export const LessonManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -14,27 +23,34 @@ export const LessonManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [availableSongs, setAvailableSongs] = useState<Song[]>([]);
-  const [selectedSongId, setSelectedSongId] = useState<string>('');
-  const [videoId, setVideoId] = useState<string>('');
-  const [clearConditions, setClearConditions] = useState<ClearConditions>({});
+  const [availableSongs, setAvailableSongs] = useState<SongData[]>([]);
+  const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set());
 
   const toast = useToast();
   const { register, handleSubmit, reset, setValue } = useForm<LessonFormData>();
+  const { register: registerSong, handleSubmit: handleSubmitSong, reset: resetSong, setValue: setValueSong } = useForm<SongFormData>();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const songDialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const loadInitialData = async () => {
       setLoading(true);
       try {
-        const coursesData = await fetchCoursesWithDetails();
+        const [coursesData, songsData] = await Promise.all([
+          fetchCoursesWithDetails(),
+          fetchSongs()
+        ]);
         setCourses(coursesData);
+        // レッスン用の曲のみフィルタリング
+        const lessonSongs = songsData.filter(song => song.usage_type === 'lesson');
+        setAvailableSongs(lessonSongs);
+        
         if (coursesData.length > 0) {
           const firstCourseId = coursesData[0].id;
           setSelectedCourseId(firstCourseId);
         }
       } catch (error) {
-        toast.error('コースデータの読み込みに失敗しました。');
+        toast.error('データの読み込みに失敗しました。');
         console.error(error);
       } finally {
         setLoading(false);
@@ -45,7 +61,7 @@ export const LessonManager: React.FC = () => {
 
   const lessons = useMemo(() => {
     const course = courses.find(c => c.id === selectedCourseId);
-    return course?.lessons.sort((a, b) => a.order - b.order) || [];
+    return course?.lessons?.sort((a, b) => a.order_index - b.order_index) || [];
   }, [selectedCourseId, courses]);
 
   const openDialog = (lesson?: Lesson) => {
@@ -55,11 +71,11 @@ export const LessonManager: React.FC = () => {
       setValue('description', lesson.description || '');
       setValue('assignment_description', lesson.assignment_description || '');
       setValue('order_index', lesson.order_index);
-      setVideoId(lesson.video_id || '');
+      setValue('video_id', lesson.video_id || '');
     } else {
       setSelectedLesson(null);
       const newOrder = lessons.length > 0 ? Math.max(...lessons.map(l => l.order_index)) + 10 : 10;
-      reset({ title: '', description: '', assignment_description: '', order_index: newOrder });
+      reset({ title: '', description: '', assignment_description: '', order_index: newOrder, video_id: '' });
     }
     dialogRef.current?.showModal();
   };
@@ -67,6 +83,24 @@ export const LessonManager: React.FC = () => {
   const closeDialog = () => {
     dialogRef.current?.close();
   }
+
+  const openSongDialog = (lesson: Lesson) => {
+    setSelectedLesson(lesson);
+    resetSong({
+      song_id: '',
+      clear_conditions: {
+        key: 0,
+        speed: 1.0,
+        rank: 'B',
+        count: 1,
+      }
+    });
+    songDialogRef.current?.showModal();
+  };
+
+  const closeSongDialog = () => {
+    songDialogRef.current?.close();
+  };
 
   const onSubmit = async (formData: LessonFormData) => {
     if (!selectedCourseId) {
@@ -80,6 +114,7 @@ export const LessonManager: React.FC = () => {
         description: formData.description,
         assignment_description: formData.assignment_description,
         order_index: Number(formData.order_index) || 0,
+        video_id: formData.video_id,
       };
 
       if (selectedLesson) {
@@ -101,6 +136,29 @@ export const LessonManager: React.FC = () => {
     }
   };
 
+  const onSubmitSong = async (formData: SongFormData) => {
+    if (!selectedLesson) return;
+    
+    setIsSubmitting(true);
+    try {
+      await addSongToLesson({
+        lesson_id: selectedLesson.id,
+        song_id: formData.song_id,
+        clear_conditions: formData.clear_conditions
+      });
+      toast.success('曲を追加しました。');
+      
+      const updatedCourses = await fetchCoursesWithDetails();
+      setCourses(updatedCourses);
+      closeSongDialog();
+    } catch (error) {
+      toast.error('曲の追加に失敗しました。');
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (window.confirm('本当にこのレッスンを削除しますか？')) {
       try {
@@ -113,6 +171,32 @@ export const LessonManager: React.FC = () => {
         console.error(error);
       }
     }
+  };
+
+  const handleRemoveSong = async (lessonId: string, songId: string) => {
+    if (window.confirm('この曲をレッスンから削除しますか？')) {
+      try {
+        await removeSongFromLesson(lessonId, songId);
+        toast.success('曲を削除しました。');
+        const updatedCourses = await fetchCoursesWithDetails();
+        setCourses(updatedCourses);
+      } catch (error) {
+        toast.error('曲の削除に失敗しました。');
+        console.error(error);
+      }
+    }
+  };
+
+  const toggleExpand = (lessonId: string) => {
+    setExpandedLessons(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(lessonId)) {
+        newSet.delete(lessonId);
+      } else {
+        newSet.add(lessonId);
+      }
+      return newSet;
+    });
   };
 
   return (
@@ -145,30 +229,88 @@ export const LessonManager: React.FC = () => {
         <table className="table w-full">
           <thead>
             <tr>
+              <th className="w-[50px]"></th>
               <th>順序</th>
               <th>レッスンタイトル</th>
               <th>曲数</th>
+              <th>動画</th>
               <th className="text-right">アクション</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="text-center">読み込み中...</td></tr>
+              <tr><td colSpan={6} className="text-center">読み込み中...</td></tr>
             ) : lessons.map(lesson => (
-              <tr key={lesson.id}>
-                <td>{lesson.order_index}</td>
-                <td>{lesson.title}</td>
-                <td>{lesson.lesson_songs?.length || 0}</td>
-                <td className="text-right">
-                  <button className="btn btn-ghost btn-sm" onClick={() => openDialog(lesson)}>編集</button>
-                  <button className="btn btn-ghost btn-sm text-red-500" onClick={() => handleDelete(lesson.id)}>削除</button>
-                </td>
-              </tr>
+              <React.Fragment key={lesson.id}>
+                <tr>
+                  <td>
+                    <button className="btn btn-ghost btn-sm" onClick={() => toggleExpand(lesson.id)}>
+                      {expandedLessons.has(lesson.id) ? '▼' : '▶'}
+                    </button>
+                  </td>
+                  <td>{lesson.order_index}</td>
+                  <td className="font-medium">{lesson.title}</td>
+                  <td>{lesson.lesson_songs?.length || 0}</td>
+                  <td>{lesson.video_id ? '✔' : '-'}</td>
+                  <td className="text-right">
+                    <button className="btn btn-ghost btn-sm" onClick={() => openDialog(lesson)}>編集</button>
+                    <button className="btn btn-ghost btn-sm text-blue-500" onClick={() => openSongDialog(lesson)}>
+                      <FaMusic className="mr-1" /> 曲追加
+                    </button>
+                    <button className="btn btn-ghost btn-sm text-red-500" onClick={() => handleDelete(lesson.id)}>削除</button>
+                  </td>
+                </tr>
+                {expandedLessons.has(lesson.id) && (
+                  <tr>
+                    <td colSpan={6} className="p-0">
+                      <div className="p-4 bg-slate-800/50">
+                        <h5 className="font-semibold mb-2">レッスン内容</h5>
+                        <p className="text-sm text-gray-400 mb-4">{lesson.description || '説明はありません。'}</p>
+                        {lesson.assignment_description && (
+                          <>
+                            <h5 className="font-semibold mb-2">課題説明</h5>
+                            <p className="text-sm text-gray-400 mb-4">{lesson.assignment_description}</p>
+                          </>
+                        )}
+                        <h5 className="font-semibold mb-2">収録曲</h5>
+                        {lesson.lesson_songs && lesson.lesson_songs.length > 0 ? (
+                          <div className="space-y-2">
+                            {lesson.lesson_songs.map(ls => {
+                              const song = availableSongs.find(s => s.id === ls.song_id);
+                              return (
+                                <div key={ls.song_id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                  <div>
+                                    <span className="font-medium">{song?.title || '不明な曲'}</span>
+                                    <span className="text-xs text-gray-400 ml-2">
+                                      (キー: {ls.clear_conditions?.key || 0}, 
+                                      速度: {ls.clear_conditions?.speed || 1.0}x, 
+                                      ランク: {ls.clear_conditions?.rank || 'B'})
+                                    </span>
+                                  </div>
+                                  <button 
+                                    className="btn btn-ghost btn-xs text-red-500"
+                                    onClick={() => handleRemoveSong(lesson.id, ls.song_id)}
+                                  >
+                                    <FaTrash />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400">曲が登録されていません。</p>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
       </div>
       
+      {/* レッスン編集ダイアログ */}
       <dialog ref={dialogRef} className="modal">
         <div className="modal-box">
           <h3 className="font-bold text-lg">{selectedLesson ? 'レッスンの編集' : '新規レッスンの作成'}</h3>
@@ -191,19 +333,84 @@ export const LessonManager: React.FC = () => {
             </div>
             <div>
               <label className="label"><span className="label-text">Bunny Video ID</span></label>
-              <input value={videoId} onChange={(e) => setVideoId(e.target.value)} className="input input-bordered w-full" />
-            </div>
-            <div>
-              <label className="label"><span className="label-text">Add Song</span></label>
-              <select value={selectedSongId} onChange={(e) => setSelectedSongId(e.target.value)} className="select select-bordered w-full">
-                {availableSongs.map(song => <option key={song.id} value={song.id}>{song.title}</option>)}
-              </select>
-              <button type="button" onClick={() => { if (selectedLesson) addSongToLesson({lesson_id: selectedLesson.id, song_id: selectedSongId, clear_conditions: clearConditions}); }}>Add Song</button>
+              <input {...register('video_id')} className="input input-bordered w-full" placeholder="例: 12345" />
             </div>
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeDialog}>キャンセル</button>
               <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
                 {isSubmitting ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </form>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
+
+      {/* 曲追加ダイアログ */}
+      <dialog ref={songDialogRef} className="modal">
+        <div className="modal-box">
+          <h3 className="font-bold text-lg">レッスンに曲を追加</h3>
+          <form onSubmit={handleSubmitSong(onSubmitSong)} className="space-y-4 mt-4">
+            <div>
+              <label className="label"><span className="label-text">曲を選択 *</span></label>
+              <select {...registerSong('song_id', { required: true })} className="select select-bordered w-full">
+                <option value="">-- 曲を選択してください --</option>
+                {availableSongs.map(song => (
+                  <option key={song.id} value={song.id}>
+                    {song.title} {song.artist && `- ${song.artist}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label"><span className="label-text">キー調整</span></label>
+              <input 
+                type="number" 
+                {...registerSong('clear_conditions.key')} 
+                className="input input-bordered w-full" 
+                min="-12" 
+                max="12"
+                defaultValue={0}
+              />
+            </div>
+            <div>
+              <label className="label"><span className="label-text">最低速度</span></label>
+              <input 
+                type="number" 
+                {...registerSong('clear_conditions.speed')} 
+                className="input input-bordered w-full" 
+                min="0.5" 
+                max="2.0" 
+                step="0.1"
+                defaultValue={1.0}
+              />
+            </div>
+            <div>
+              <label className="label"><span className="label-text">最低ランク</span></label>
+              <select {...registerSong('clear_conditions.rank')} className="select select-bordered w-full" defaultValue="B">
+                <option value="S">S</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+              </select>
+            </div>
+            <div>
+              <label className="label"><span className="label-text">最低クリア回数</span></label>
+              <input 
+                type="number" 
+                {...registerSong('clear_conditions.count')} 
+                className="input input-bordered w-full" 
+                min="1" 
+                max="10"
+                defaultValue={1}
+              />
+            </div>
+            <div className="modal-action">
+              <button type="button" className="btn btn-ghost" onClick={closeSongDialog}>キャンセル</button>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                {isSubmitting ? '追加中...' : '追加'}
               </button>
             </div>
           </form>

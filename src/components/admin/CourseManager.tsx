@@ -4,6 +4,7 @@ import { Course } from '@/types';
 import { fetchCoursesWithDetails, addCourse, updateCourse, deleteCourse } from '@/platform/supabaseCourses';
 import { clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
+import { FaArrowUp, FaArrowDown, FaGripVertical } from 'react-icons/fa';
 
 type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only'>;
 
@@ -14,6 +15,7 @@ export const CourseManager: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
+  const [isSorting, setIsSorting] = useState(false);
 
   const toast = useToast();
   const { register, handleSubmit, reset, setValue } = useForm<CourseFormData>();
@@ -63,7 +65,7 @@ export const CourseManager: React.FC = () => {
         await updateCourse(selectedCourse.id, formData);
         toast.success('コースを更新しました。');
       } else {
-        const newOrderIndex = courses.length > 0 ? Math.max(...courses.map(c => c.order_index)) + 1 : 0;
+        const newOrderIndex = courses.length > 0 ? Math.max(...courses.map(c => c.order_index)) + 10 : 0;
         await addCourse({
           title: formData.title,
           description: formData.description,
@@ -92,6 +94,58 @@ export const CourseManager: React.FC = () => {
         toast.error(`コースの削除に失敗しました: ${error.message}`);
         console.error(error);
       }
+    }
+  };
+
+  const handleMoveUp = async (index: number) => {
+    if (index === 0 || isSorting) return;
+    
+    setIsSorting(true);
+    const newCourses = [...sortedCourses];
+    const temp = newCourses[index];
+    newCourses[index] = newCourses[index - 1];
+    newCourses[index - 1] = temp;
+    
+    // 並び順を更新
+    try {
+      await Promise.all(
+        newCourses.map((course, idx) => 
+          updateCourse(course.id, { order_index: idx * 10 })
+        )
+      );
+      await loadCourses();
+      toast.success('並び順を更新しました。');
+    } catch (error: any) {
+      toast.error('並び順の更新に失敗しました。');
+      console.error(error);
+    } finally {
+      setIsSorting(false);
+    }
+  };
+
+  const handleMoveDown = async (index: number) => {
+    if (index === sortedCourses.length - 1 || isSorting) return;
+    
+    setIsSorting(true);
+    const newCourses = [...sortedCourses];
+    const temp = newCourses[index];
+    newCourses[index] = newCourses[index + 1];
+    newCourses[index + 1] = temp;
+    
+    // 並び順を更新
+    try {
+      await Promise.all(
+        newCourses.map((course, idx) => 
+          updateCourse(course.id, { order_index: idx * 10 })
+        )
+      );
+      await loadCourses();
+      toast.success('並び順を更新しました。');
+    } catch (error: any) {
+      toast.error('並び順の更新に失敗しました。');
+      console.error(error);
+    } finally {
+      setIsSorting(false);
     }
   };
 
@@ -136,7 +190,7 @@ export const CourseManager: React.FC = () => {
           <thead>
             <tr>
               <th className="w-[50px]"></th>
-              <th>表示順</th>
+              <th className="w-[100px]">並び順</th>
               <th>コースタイトル</th>
               <th>レッスン数</th>
               <th>プレミアム限定</th>
@@ -165,7 +219,7 @@ export const CourseManager: React.FC = () => {
                   コースがありません。新規コースを追加してください。
                 </td>
               </tr>
-            ) : sortedCourses.map(course => (
+            ) : sortedCourses.map((course, index) => (
               <React.Fragment key={course.id}>
                 <tr>
                   <td>
@@ -173,7 +227,27 @@ export const CourseManager: React.FC = () => {
                       {expandedCourses.has(course.id) ? '▼' : '▶'}
                     </button>
                   </td>
-                  <td>{course.order_index}</td>
+                  <td>
+                    <div className="flex items-center gap-1">
+                      <FaGripVertical className="text-gray-400" />
+                      <button 
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => handleMoveUp(index)}
+                        disabled={index === 0 || isSorting}
+                        aria-label="上に移動"
+                      >
+                        <FaArrowUp />
+                      </button>
+                      <button 
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => handleMoveDown(index)}
+                        disabled={index === sortedCourses.length - 1 || isSorting}
+                        aria-label="下に移動"
+                      >
+                        <FaArrowDown />
+                      </button>
+                    </div>
+                  </td>
                   <td className="font-medium">{course.title}</td>
                   <td>{course.lessons?.length || 0}</td>
                   <td>{course.premium_only ? '✔' : ''}</td>

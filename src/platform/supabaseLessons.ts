@@ -123,16 +123,18 @@ export async function addSongToLesson(lessonSongData: LessonSongData): Promise<L
 
 /**
  * レッスンから曲を削除します。
- * @param {string} lessonSongId
+ * @param {string} lessonId
+ * @param {string} songId
  */
-export async function removeSongFromLesson(lessonSongId: string): Promise<void> {
+export async function removeSongFromLesson(lessonId: string, songId: string): Promise<void> {
   const { error } = await getSupabaseClient()
     .from('lesson_songs')
     .delete()
-    .eq('id', lessonSongId);
+    .eq('lesson_id', lessonId)
+    .eq('song_id', songId);
 
   if (error) {
-    console.error(`Error removing song from lesson ${lessonSongId}:`, error);
+    console.error(`Error removing song ${songId} from lesson ${lessonId}:`, error);
     throw error;
   }
   clearSupabaseCache();

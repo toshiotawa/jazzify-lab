@@ -57,7 +57,10 @@ const LessonPage: React.FC = () => {
     setLoading(true);
     try {
       const coursesData = await fetchCoursesWithDetails();
-      const accessibleCourses = coursesData.filter(course => canAccessCourse(course, profile?.rank || 'free'));
+      // 並び順でソート
+      const sortedCourses = coursesData.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+      // アクセス可能なコースのみフィルタリング
+      const accessibleCourses = sortedCourses.filter(course => canAccessCourse(course, profile?.rank || 'free'));
       setCourses(accessibleCourses);
       
       if (accessibleCourses.length > 0) {
@@ -65,6 +68,7 @@ const LessonPage: React.FC = () => {
       }
     } catch (e: any) {
       toast.error('コースの読み込みに失敗しました');
+      console.error('Error loading courses:', e);
     } finally {
       setLoading(false);
     }
@@ -92,7 +96,23 @@ const LessonPage: React.FC = () => {
 
   const rankOrder = { free: 0, standard: 1, premium: 2, platinum: 3 };
   const canAccessCourse = (course: Course, userRank: string): boolean => {
-    return rankOrder[userRank] >= rankOrder[course.min_rank || 'free'];
+    // premium_onlyフラグを優先的にチェック
+    if (course.premium_only !== undefined) {
+      // プレミアム限定コースの場合、プレミアムまたはプラチナのみアクセス可能
+      if (course.premium_only) {
+        return userRank === 'premium' || userRank === 'platinum';
+      }
+      // プレミアム限定でない場合は全員アクセス可能
+      return true;
+    }
+    
+    // min_rankが設定されている場合はそれをチェック
+    if (course.min_rank) {
+      return rankOrder[userRank as keyof typeof rankOrder] >= rankOrder[course.min_rank as keyof typeof rankOrder];
+    }
+    
+    // デフォルトでは全員アクセス可能
+    return true;
   };
 
   const isLessonUnlocked = (lesson: Lesson, index: number): boolean => {
