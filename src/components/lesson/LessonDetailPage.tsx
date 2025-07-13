@@ -112,11 +112,19 @@ const LessonDetailPage: React.FC = () => {
   const handleComplete = async () => {
     if (!lessonId || !lesson) return;
     
-    // 実習課題が全て完了しているかチェック
-    if (!allRequirementsCompleted) {
-      // 要件に従った文言を表示
-      toast.warning('課題が完了していません。プラチナプランの場合はレッスンをスキップすることができます。');
+    // プラチナプランの場合は自分で完了できない
+    if (profile?.rank === 'platinum') {
+      toast.error('プラチナプランの方は管理者による確認後にレッスンが完了となります。');
       return;
+    }
+    
+    // プレミアムプラン以上のユーザーのみ実習課題のチェックを行う
+    if (profile?.rank === 'premium') {
+      // 実習課題が全て完了しているかチェック
+      if (!allRequirementsCompleted) {
+        toast.warning('プレミアムプランの方は、全ての実習課題を完了してからレッスンを完了してください。');
+        return;
+      }
     }
     
     setCompleting(true);

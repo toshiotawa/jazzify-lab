@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCoursesWithDetails } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
-import { fetchUserLessonProgress, LessonProgress } from '@/platform/supabaseLessonProgress';
+import { fetchUserLessonProgress, unlockLesson, LessonProgress } from '@/platform/supabaseLessonProgress';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { 
@@ -88,7 +88,32 @@ const LessonPage: React.FC = () => {
       progressData.forEach((p: LessonProgress) => {
         progressMap[p.lesson_id] = p;
       });
-      setProgress(progressMap);
+      
+      // ブロック1のレッスンで進捗がないものを自動的に作成（解放状態で）
+      const block1Lessons = lessonsData.filter(lesson => {
+        const blockNumber = lesson.block_number || Math.ceil((lesson.order_index + 1) / 5);
+        return blockNumber === 1;
+      });
+      
+      for (const lesson of block1Lessons) {
+        if (!progressMap[lesson.id]) {
+          try {
+            // ブロック1のレッスンは自動的に解放
+            await unlockLesson(lesson.id, courseId);
+          } catch (e) {
+            console.error('Failed to auto-unlock block 1 lesson:', e);
+          }
+        }
+      }
+      
+      // 再度進捗を取得（新しく作成されたものを含む）
+      const updatedProgressData = await fetchUserLessonProgress(courseId);
+      const updatedProgressMap: Record<string, LessonProgress> = {};
+      updatedProgressData.forEach((p: LessonProgress) => {
+        updatedProgressMap[p.lesson_id] = p;
+      });
+      
+      setProgress(updatedProgressMap);
     } catch (e: any) {
       toast.error('レッスンデータの読み込みに失敗しました');
     }
@@ -116,29 +141,15 @@ const LessonPage: React.FC = () => {
   };
 
   const isLessonUnlocked = (lesson: Lesson, index: number): boolean => {
-    // プラチナプランはすべて解放
-    if (profile?.rank === 'platinum') return true;
-    
-    // 最初の5レッスンは常に解放
-    if (index < 5) return true;
-    
-    // 現在のグループ（5レッスンごと）
-    const currentGroup = Math.floor(index / 5);
-    const previousGroup = currentGroup - 1;
-    
-    // 前のグループのレッスンインデックス範囲
-    const previousGroupStart = previousGroup * 5;
-    const previousGroupEnd = previousGroupStart + 5;
-    
-    // 前のグループのすべてのレッスンが完了しているかチェック
-    for (let i = previousGroupStart; i < previousGroupEnd && i < lessons.length; i++) {
-      const lesson = lessons[i];
-      if (!progress[lesson.id]?.completed) {
-        return false;
-      }
+    // データベースのis_unlockedフィールドを確認
+    const lessonProgress = progress[lesson.id];
+    if (lessonProgress && lessonProgress.is_unlocked !== undefined) {
+      return lessonProgress.is_unlocked;
     }
     
-    return true;
+    // プログレスがない場合は、ブロック1（最初の5レッスン）は解放
+    const blockNumber = lesson.block_number || Math.ceil((index + 1) / 5);
+    return blockNumber === 1;
   };
 
   const getLessonCompletionRate = (lesson: Lesson): number => {

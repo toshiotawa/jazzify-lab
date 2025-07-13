@@ -616,12 +616,13 @@ export interface Lesson {
   id: string;
   course_id: string;
   title: string;
-  description?: string;
-  assignment_description?: string;
+  description: string;
   order_index: number;
+  block_number?: number;
   created_at: string;
   updated_at: string;
-  lesson_songs: LessonSong[];
+  videos?: LessonVideo[];
+  songs?: LessonSong[];
 }
 
 export interface LessonVideo {
@@ -653,4 +654,17 @@ export interface Profile {
   is_admin?: boolean; // boolean
   bio?: string; // text
   email?: string; // text
+}
+
+export interface LessonProgress {
+  id: string;
+  user_id: string;
+  lesson_id: string;
+  course_id: string;
+  completed: boolean;
+  is_unlocked?: boolean;
+  completion_date?: string;
+  unlock_date?: string;
+  created_at: string;
+  updated_at: string;
 }

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useToast } from '@/stores/toastStore';
 import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag } from '@/platform/supabaseAdmin';
-import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, LessonProgress } from '@/platform/supabaseLessonProgress';
+import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, LessonProgress } from '@/platform/supabaseLessonProgress';
 import { fetchCoursesWithDetails } from '@/platform/supabaseCourses';
-import { Course } from '@/types';
-import { FaEdit, FaLock, FaUnlock, FaCheck } from 'react-icons/fa';
+import { Course, Lesson } from '@/types';
+import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen } from 'react-icons/fa';
 
 const ranks = ['free','standard','premium','platinum'] as const;
 
@@ -67,10 +67,8 @@ const UserManager: React.FC = () => {
 
   const loadUserProgress = async (userId: string, courseId: string) => {
     try {
-      const progress = await fetchUserLessonProgress(courseId);
-      // 選択したユーザーの進捗をフィルタリング
-      const userSpecificProgress = progress.filter(p => p.user_id === userId);
-      setUserLessonProgress(userSpecificProgress);
+      const progress = await fetchUserLessonProgress(courseId, userId);
+      setUserLessonProgress(progress);
     } catch (e) {
       console.error('Failed to load progress:', e);
       setUserLessonProgress([]);
@@ -99,6 +97,34 @@ const UserManager: React.FC = () => {
     } catch (e) {
       toast.error('解放に失敗しました');
     }
+  };
+
+  const handleUnlockBlock = async (blockNumber: number) => {
+    if (!selectedUser || !selectedCourse) return;
+    
+    try {
+      await unlockBlock(selectedCourse.id, blockNumber, selectedUser.id);
+      toast.success(`ブロック${blockNumber}を解放しました`);
+      await loadUserProgress(selectedUser.id, selectedCourse.id);
+    } catch (e) {
+      toast.error('ブロックの解放に失敗しました');
+    }
+  };
+
+  // レッスンをブロックごとにグループ化
+  const groupLessonsByBlock = (lessons: Lesson[] | undefined) => {
+    if (!lessons) return {};
+    
+    const blocks: { [key: number]: Lesson[] } = {};
+    lessons.forEach(lesson => {
+      const blockNumber = lesson.block_number || Math.ceil((lesson.order_index + 1) / 5);
+      if (!blocks[blockNumber]) {
+        blocks[blockNumber] = [];
+      }
+      blocks[blockNumber].push(lesson);
+    });
+    
+    return blocks;
   };
 
   return (
@@ -188,39 +214,69 @@ const UserManager: React.FC = () => {
 
             {/* レッスン一覧 */}
             {selectedCourse && (
-              <div className="space-y-2">
-                {selectedCourse.lessons?.map((lesson, index) => {
-                  const progress = userLessonProgress.find(p => p.lesson_id === lesson.id);
-                  const isCompleted = progress?.completed || false;
-                  const isUnlocked = progress !== undefined;
+              <div className="space-y-4">
+                {Object.entries(groupLessonsByBlock(selectedCourse.lessons)).map(([blockNumber, blockLessons]) => {
+                  const blockNum = parseInt(blockNumber);
+                  const blockProgress = blockLessons.map(lesson => 
+                    userLessonProgress.find(p => p.lesson_id === lesson.id)
+                  );
+                  const isBlockUnlocked = blockProgress.some(p => p?.is_unlocked);
+                  const isBlockCompleted = blockProgress.every(p => p?.completed);
                   
                   return (
-                    <div key={lesson.id} className="flex items-center justify-between p-3 bg-slate-700 rounded">
-                      <div className="flex items-center space-x-3">
-                        <span className="text-sm font-medium">
-                          {index + 1}. {lesson.title}
-                        </span>
-                        {isCompleted && <FaCheck className="text-emerald-500" />}
-                        {!isUnlocked && <FaLock className="text-gray-500" />}
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        {!isUnlocked ? (
+                    <div key={blockNum} className="border border-slate-600 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-slate-300">
+                          ブロック {blockNum} {isBlockCompleted && '✅'}
+                        </h4>
+                        {!isBlockUnlocked && (
                           <button
                             className="btn btn-xs btn-primary"
-                            onClick={() => handleUnlockLesson(lesson.id)}
+                            onClick={() => handleUnlockBlock(blockNum)}
                           >
-                            <FaUnlock className="mr-1" />
-                            解放
-                          </button>
-                        ) : (
-                          <button
-                            className={`btn btn-xs ${isCompleted ? 'btn-success' : 'btn-ghost'}`}
-                            onClick={() => handleToggleLessonProgress(lesson.id, isCompleted)}
-                          >
-                            {isCompleted ? '完了済み' : '未完了'}
+                            <FaLockOpen className="mr-1" />
+                            ブロック解放
                           </button>
                         )}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {blockLessons.sort((a, b) => a.order_index - b.order_index).map((lesson, index) => {
+                          const progress = userLessonProgress.find(p => p.lesson_id === lesson.id);
+                          const isCompleted = progress?.completed || false;
+                          const isUnlocked = progress?.is_unlocked || false;
+                          
+                          return (
+                            <div key={lesson.id} className="flex items-center justify-between p-3 bg-slate-700 rounded">
+                              <div className="flex items-center space-x-3">
+                                <span className="text-sm font-medium">
+                                  {lesson.order_index + 1}. {lesson.title}
+                                </span>
+                                {isCompleted && <FaCheck className="text-emerald-500" />}
+                                {!isUnlocked && <FaLock className="text-gray-500" />}
+                              </div>
+                              
+                              <div className="flex items-center space-x-2">
+                                {!isUnlocked ? (
+                                  <button
+                                    className="btn btn-xs btn-primary"
+                                    onClick={() => handleUnlockLesson(lesson.id)}
+                                  >
+                                    <FaUnlock className="mr-1" />
+                                    解放
+                                  </button>
+                                ) : (
+                                  <button
+                                    className={`btn btn-xs ${isCompleted ? 'btn-success' : 'btn-ghost'}`}
+                                    onClick={() => handleToggleLessonProgress(lesson.id, isCompleted)}
+                                  >
+                                    {isCompleted ? '完了済み' : '未完了'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
