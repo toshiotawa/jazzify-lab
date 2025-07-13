@@ -91,7 +91,7 @@ export async function addLessonRequirement(requirement: LessonRequirement): Prom
  */
 export async function updateLessonVideo(
   videoId: string,
-  updates: Partial<Pick<LessonVideo, 'vimeo_url' | 'order_index'>>
+  updates: Partial<{ vimeo_url: string; order_index: number }>
 ): Promise<void> {
   const { error } = await getSupabaseClient()
     .from('lesson_videos')

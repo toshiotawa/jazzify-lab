@@ -620,7 +620,6 @@ export interface Lesson {
   created_at: string;
   updated_at: string;
   lesson_songs: LessonSong[];
-  video_id?: string; // Bunny Video ID
 }
 
 export interface LessonVideo {

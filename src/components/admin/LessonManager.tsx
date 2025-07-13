@@ -8,9 +8,7 @@ import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToL
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit } from 'react-icons/fa';
 
-type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index'> & {
-  video_id?: string;
-};
+type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index'>;
 
 type SongFormData = {
   song_id: string;
@@ -88,11 +86,10 @@ export const LessonManager: React.FC = () => {
       setValue('description', lesson.description || '');
       setValue('assignment_description', lesson.assignment_description || '');
       setValue('order_index', lesson.order_index);
-      setValue('video_id', lesson.video_id || '');
     } else {
       setSelectedLesson(null);
       const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 10 : 10;
-      reset({ title: '', description: '', assignment_description: '', order_index: newOrder, video_id: '' });
+      reset({ title: '', description: '', assignment_description: '', order_index: newOrder });
     }
     dialogRef.current?.showModal();
   };
@@ -132,7 +129,6 @@ export const LessonManager: React.FC = () => {
         description: formData.description,
         assignment_description: formData.assignment_description,
         order_index: Number(formData.order_index) || 0,
-        video_id: formData.video_id,
       };
 
       if (selectedLesson) {
@@ -247,13 +243,12 @@ export const LessonManager: React.FC = () => {
               <th>順序</th>
               <th>レッスンタイトル</th>
               <th>曲数</th>
-              <th>動画</th>
               <th className="text-right">アクション</th>
             </tr>
           </thead>
           <tbody>
             {loading || lessonsLoading ? (
-              <tr><td colSpan={6} className="text-center">読み込み中...</td></tr>
+              <tr><td colSpan={5} className="text-center">読み込み中...</td></tr>
             ) : currentLessons.map(lesson => (
               <React.Fragment key={lesson.id}>
                 <tr>
@@ -265,7 +260,6 @@ export const LessonManager: React.FC = () => {
                   <td>{lesson.order_index}</td>
                   <td className="font-medium">{lesson.title}</td>
                   <td>{lesson.lesson_songs?.length || 0}</td>
-                  <td>{lesson.video_id ? '✔' : '-'}</td>
                   <td className="text-right">
                     <button className="btn btn-ghost btn-sm" onClick={() => openDialog(lesson)}>編集</button>
                     <button className="btn btn-ghost btn-sm text-blue-500" onClick={() => openSongDialog(lesson)}>
@@ -276,7 +270,7 @@ export const LessonManager: React.FC = () => {
                 </tr>
                 {expandedLessons.has(lesson.id) && (
                   <tr>
-                    <td colSpan={6} className="p-0">
+                    <td colSpan={5} className="p-0">
                       <div className="p-4 bg-slate-800/50">
                         <h5 className="font-semibold mb-2">レッスン内容</h5>
                         <p className="text-sm text-gray-400 mb-4">{lesson.description || '説明はありません。'}</p>
@@ -346,10 +340,6 @@ export const LessonManager: React.FC = () => {
             <div>
               <label className="label"><span className="label-text">課題説明</span></label>
               <textarea {...register('assignment_description')} className="textarea textarea-bordered w-full" rows={3}></textarea>
-            </div>
-            <div>
-              <label className="label"><span className="label-text">Bunny Video ID</span></label>
-              <input {...register('video_id')} className="input input-bordered w-full" placeholder="例: 12345" />
             </div>
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeDialog}>キャンセル</button>

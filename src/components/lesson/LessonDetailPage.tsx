@@ -132,8 +132,10 @@ const LessonDetailPage: React.FC = () => {
   };
 
   const getBunnyEmbedUrl = (vimeoUrl: string): string => {
-    // vimeo_urlフィールドにBunny Video IDが格納されていると仮定
-    return `https://iframe.mediadelivery.net/embed/YOUR_LIBRARY_ID/${vimeoUrl}?autoplay=false`;
+    // vimeo_urlフィールドにBunny Video IDが格納されている
+    // TODO: 環境変数でライブラリIDを管理する
+    const BUNNY_LIBRARY_ID = '295659'; // 実際のライブラリIDに置き換えてください
+    return `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${vimeoUrl}?autoplay=false`;
   };
 
   if (!open) return null;
