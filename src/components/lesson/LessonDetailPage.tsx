@@ -3,9 +3,15 @@ import { createPortal } from 'react-dom';
 import { fetchLessonById } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement } from '@/platform/supabaseLessonContent';
 import { updateLessonProgress } from '@/platform/supabaseLessonProgress';
+import { 
+  fetchDetailedRequirementsProgress, 
+  checkAllRequirementsCompleted,
+  LessonRequirementProgress 
+} from '@/platform/supabaseLessonRequirements';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { Lesson } from '@/types';
+import GameHeader from '@/components/ui/GameHeader';
 import { 
   FaArrowLeft, 
   FaPlay, 
@@ -28,6 +34,8 @@ const LessonDetailPage: React.FC = () => {
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [videos, setVideos] = useState<LessonVideo[]>([]);
   const [requirements, setRequirements] = useState<LessonRequirement[]>([]);
+  const [requirementsProgress, setRequirementsProgress] = useState<LessonRequirementProgress[]>([]);
+  const [allRequirementsCompleted, setAllRequirementsCompleted] = useState(false);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
@@ -65,16 +73,19 @@ const LessonDetailPage: React.FC = () => {
     setLoading(true);
     
     try {
-      // レッスン情報、動画、課題を並行取得
-      const [lessonData, videosData, requirementsData] = await Promise.all([
+      // レッスン情報、動画、課題、進捗を並行取得
+      const [lessonData, videosData, requirementsData, progressData] = await Promise.all([
         fetchLessonById(targetLessonId),
         fetchLessonVideos(targetLessonId),
-        fetchLessonRequirements(targetLessonId)
+        fetchLessonRequirements(targetLessonId),
+        fetchDetailedRequirementsProgress(targetLessonId)
       ]);
 
       setLesson(lessonData);
       setVideos(videosData);
       setRequirements(requirementsData);
+      setRequirementsProgress(progressData.progress);
+      setAllRequirementsCompleted(progressData.allCompleted);
       
       if (videosData.length > 0) {
         setCurrentVideoIndex(0);
@@ -92,6 +103,16 @@ const LessonDetailPage: React.FC = () => {
 
   const handleComplete = async () => {
     if (!lessonId || !lesson) return;
+    
+    // 実習課題が全て完了しているかチェック
+    if (!allRequirementsCompleted) {
+      if (profile?.rank === 'platinum') {
+        toast.warning('課題が完了していません。プラチナプランの場合はレッスンをスキップすることができます。');
+      } else {
+        toast.warning('課題が完了していません。すべての実習課題を完了してください。');
+      }
+      return;
+    }
     
     setCompleting(true);
     try {
@@ -142,55 +163,29 @@ const LessonDetailPage: React.FC = () => {
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col"
+      className="fixed inset-0 z-50 bg-gradient-game text-white flex flex-col"
       onClick={() => {}}
     >
-      {/* ヘッダー */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-700">
-        <button
-          onClick={handleClose}
-          className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-          aria-label="戻る"
-        >
-          <FaArrowLeft />
-        </button>
-        
-        <h1 className="text-xl font-bold flex-1 text-center">レッスン詳細</h1>
-        
-        {/* プラチナプラン限定スキップボタン */}
-        {canSkipLesson() && (
-          <button
-            onClick={() => setShowSkipModal(true)}
-            className="flex items-center space-x-2 px-3 py-2 bg-yellow-600 hover:bg-yellow-700 
-              rounded-lg transition-colors text-sm font-medium"
-            title="プラチナプラン限定: レッスンをスキップ"
-          >
-            <FaForward className="w-4 h-4" />
-            <span>スキップ</span>
-          </button>
-        )}
-        
-        {!canSkipLesson() && (
-          <button
-            onClick={handleComplete}
-            disabled={completing}
-            className="btn btn-sm btn-primary"
-          >
-            {completing ? '完了中...' : '完了'}
-          </button>
-        )}
-      </div>
+      {/* GameHeaderを使用 */}
+      <GameHeader />
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
           <p className="text-gray-400">読み込み中...</p>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          {/* メインビデオエリア */}
-          <div className="flex-1 flex flex-col">
-            {videos.length > 0 ? (
-              <>
+        <div className="flex-1 overflow-y-auto">
+          {/* ワンカラムレイアウト */}
+          <div className="max-w-4xl mx-auto p-4 space-y-6">
+            {/* レッスンタイトル */}
+            <div className="bg-slate-800 rounded-lg p-6">
+              <h1 className="text-2xl font-bold mb-2">{lesson?.title}</h1>
+              <p className="text-gray-400">{lesson?.description}</p>
+            </div>
+
+            {/* 動画セクション */}
+            {videos.length > 0 && (
+              <div className="bg-slate-800 rounded-lg overflow-hidden">
                 {/* ビデオプレイヤー */}
                 <div className="aspect-video bg-black">
                   <iframe
@@ -215,7 +210,7 @@ const LessonDetailPage: React.FC = () => {
 
                 {/* ビデオナビゲーション */}
                 {videos.length > 1 && (
-                  <div className="p-4 border-b border-slate-700">
+                  <div className="p-4">
                     <h3 className="text-sm font-medium mb-3">動画一覧</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                       {videos.map((video, index) => (
@@ -239,75 +234,115 @@ const LessonDetailPage: React.FC = () => {
                     </div>
                   </div>
                 )}
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <FaVideo className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-400">このレッスンには動画がありません</p>
-                </div>
               </div>
             )}
-          </div>
 
-          {/* サイドバー（課題・実習） */}
-          <div className="w-full lg:w-96 bg-slate-800 border-l border-slate-700 flex flex-col">
-            <div className="p-4 border-b border-slate-700">
-              <h3 className="text-lg font-semibold">実習課題</h3>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4">
+            {/* 実習課題セクション */}
+            <div className="bg-slate-800 rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-4">実習課題</h3>
+              
               {requirements.length > 0 ? (
                 <div className="space-y-4">
-                  {requirements.map((req, index) => (
-                    <div key={`${req.lesson_id}-${req.song_id}`} className="bg-slate-700 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium">課題 {index + 1}</h4>
-                        <FaMusic className="w-4 h-4 text-blue-400" />
-                      </div>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <span className="text-gray-400">キー:</span>
-                            <span className="ml-2 font-mono">
-                              {(req.clear_conditions?.key || 0) > 0 ? `+${req.clear_conditions?.key}` : req.clear_conditions?.key || 0}
+                  {requirements.map((req, index) => {
+                    // この実習課題の進捗を取得
+                    const progress = requirementsProgress.find(p => p.song_id === req.song_id);
+                    const isCompleted = progress?.is_completed || false;
+                    const clearCount = progress?.clear_count || 0;
+                    const requiredCount = req.clear_conditions?.count || 1;
+                    const clearDates = progress?.clear_dates || [];
+                    const requiresDays = req.clear_conditions?.requires_days || false;
+                    
+                    return (
+                      <div key={`${req.lesson_id}-${req.song_id}`} className={`rounded-lg p-4 relative ${
+                        isCompleted ? 'bg-emerald-900/20 border-2 border-emerald-500' : 'bg-slate-700'
+                      }`}>
+                        {/* 完了マーク */}
+                        {isCompleted && (
+                          <div className="absolute top-4 right-4">
+                            <FaCheckCircle className="w-6 h-6 text-emerald-500" />
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium">課題 {index + 1}</h4>
+                          <FaMusic className="w-4 h-4 text-blue-400" />
+                        </div>
+                        
+                        {/* 進捗表示 */}
+                        <div className="mb-3">
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-gray-400">進捗</span>
+                            <span className={isCompleted ? 'text-emerald-400' : 'text-gray-400'}>
+                              {requiresDays ? `${clearDates.length}/${requiredCount}日` : `${clearCount}/${requiredCount}回`}
                             </span>
                           </div>
-                          <div>
-                            <span className="text-gray-400">速度:</span>
-                            <span className="ml-2 font-mono">{req.clear_conditions?.speed || 1.0}x</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">ランク:</span>
-                            <span className="ml-2 font-semibold">{req.clear_conditions?.rank || 'B'}以上</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">回数:</span>
-                            <span className="ml-2">{req.clear_conditions?.count || 1}回</span>
+                          <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full transition-all duration-300 ${
+                                isCompleted ? 'bg-emerald-500' : 'bg-blue-500'
+                              }`}
+                              style={{ 
+                                width: `${Math.min(100, requiresDays 
+                                  ? (clearDates.length / requiredCount) * 100 
+                                  : (clearCount / requiredCount) * 100
+                                )}%` 
+                              }}
+                            />
                           </div>
                         </div>
                         
-                        <div className="mt-3">
-                          <span className="text-gray-400">表示設定:</span>
-                          <span className="ml-2">
-                            {req.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
-                             req.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
-                          </span>
+                        <div className="space-y-2 text-sm">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-gray-400">キー:</span>
+                              <span className="ml-2 font-mono">
+                                {(req.clear_conditions?.key || 0) > 0 ? `+${req.clear_conditions?.key}` : req.clear_conditions?.key || 0}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">速度:</span>
+                              <span className="ml-2 font-mono">{req.clear_conditions?.speed || 1.0}x</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">ランク:</span>
+                              <span className="ml-2 font-semibold">{req.clear_conditions?.rank || 'B'}以上</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">回数:</span>
+                              <span className="ml-2">{requiresDays ? `${requiredCount}日間` : `${requiredCount}回`}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="mt-3">
+                            <span className="text-gray-400">表示設定:</span>
+                            <span className="ml-2">
+                              {req.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
+                               req.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
+                            </span>
+                          </div>
+                          
+                          {/* 最高ランク表示 */}
+                          {progress?.best_rank && (
+                            <div className="mt-2 pt-2 border-t border-slate-600">
+                              <span className="text-gray-400">最高ランク:</span>
+                              <span className="ml-2 font-semibold text-yellow-400">{progress.best_rank}</span>
+                            </div>
+                          )}
                         </div>
+                        
+                        <button 
+                          className={`w-full mt-3 btn btn-sm ${
+                            isCompleted ? 'btn-success' : 'btn-primary'
+                          }`}
+                          onClick={() => {
+                            window.location.hash = `#songs?id=${req.song_id}`;
+                          }}
+                        >
+                          {isCompleted ? '再挑戦' : '練習開始'}
+                        </button>
                       </div>
-                      
-                      <button 
-                        className="w-full mt-3 btn btn-sm btn-primary"
-                        onClick={() => {
-                          // 楽曲画面へ遷移（実装は後で）
-                          window.location.hash = `#songs?id=${req.song_id}`;
-                        }}
-                      >
-                        練習開始
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center text-gray-400 py-8">
@@ -316,32 +351,58 @@ const LessonDetailPage: React.FC = () => {
                 </div>
               )}
             </div>
-            
-            {/* 完了ボタン */}
-            <div className="p-4 border-t border-slate-700">
-              <button
-                onClick={handleComplete}
-                disabled={completing}
-                className="w-full btn btn-primary flex items-center justify-center space-x-2"
-              >
-                <FaCheckCircle />
-                <span>{completing ? '完了処理中...' : 'レッスン完了'}</span>
-              </button>
-              
-              <p className="text-xs text-gray-400 text-center mt-2">
-                動画視聴と実習課題を完了したら押してください
-              </p>
-            </div>
 
-            <div className="p-4">
-              <h3 className="font-bold">課題説明</h3>
-              <p>{lesson?.assignment_description}</p>
-              {profile?.rank === 'platinum' && assignmentChecks.map((checked, i) => (
-                <label key={i}>
-                  <input type="checkbox" checked={checked} onChange={() => { /* save to Supabase */ }} />
-                  日目 {i+1}
-                </label>
-              ))}
+            {/* 課題説明セクション（プラチナプラン） */}
+            {lesson?.assignment_description && (
+              <div className="bg-slate-800 rounded-lg p-6">
+                <h3 className="text-lg font-semibold mb-4">課題説明</h3>
+                <p className="text-gray-300 mb-4">{lesson.assignment_description}</p>
+                {profile?.rank === 'platinum' && assignmentChecks.map((checked, i) => (
+                  <label key={i} className="flex items-center space-x-2 mb-2">
+                    <input 
+                      type="checkbox" 
+                      checked={checked} 
+                      onChange={() => { /* TODO: save to Supabase */ }} 
+                      className="rounded text-blue-600"
+                    />
+                    <span>{i+1}日目</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {/* 完了・スキップボタンセクション */}
+            <div className="bg-slate-800 rounded-lg p-6">
+              {/* プラチナプラン以外は完了ボタンを表示 */}
+              {profile?.rank !== 'platinum' && (
+                <>
+                  <button
+                    onClick={handleComplete}
+                    disabled={completing}
+                    className="w-full btn btn-primary flex items-center justify-center space-x-2"
+                  >
+                    <FaCheckCircle />
+                    <span>{completing ? '完了処理中...' : 'レッスン完了'}</span>
+                  </button>
+                  
+                  <p className="text-xs text-gray-400 text-center mt-2">
+                    動画視聴と実習課題を完了したら押してください
+                  </p>
+                </>
+              )}
+              
+              {/* プラチナプランはスキップボタンのみ表示 */}
+              {profile?.rank === 'platinum' && (
+                <button
+                  onClick={() => setShowSkipModal(true)}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-600 hover:bg-yellow-700 
+                    rounded-lg transition-colors font-medium"
+                  title="プラチナプラン限定: レッスンをスキップ"
+                >
+                  <FaForward className="w-5 h-5" />
+                  <span>レッスンをスキップ</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

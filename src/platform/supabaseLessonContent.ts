@@ -16,6 +16,7 @@ export interface LessonRequirement {
     rank: string;
     count: number;
     notation_setting: string;
+    requires_days?: boolean;  // 日数条件かどうか（true: 日数でカウント、false: 回数でカウント）
   };
 }
 

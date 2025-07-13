@@ -116,15 +116,29 @@ const LessonPage: React.FC = () => {
   };
 
   const isLessonUnlocked = (lesson: Lesson, index: number): boolean => {
-    // 最初のレッスンは常に解放
-    if (index === 0) return true;
-    
     // プラチナプランはすべて解放
     if (profile?.rank === 'platinum') return true;
     
-    // 前のレッスンが完了していれば解放
-    const prevLesson = lessons[index - 1];
-    return prevLesson ? !!progress[prevLesson.id]?.completed : false;
+    // 最初の5レッスンは常に解放
+    if (index < 5) return true;
+    
+    // 現在のグループ（5レッスンごと）
+    const currentGroup = Math.floor(index / 5);
+    const previousGroup = currentGroup - 1;
+    
+    // 前のグループのレッスンインデックス範囲
+    const previousGroupStart = previousGroup * 5;
+    const previousGroupEnd = previousGroupStart + 5;
+    
+    // 前のグループのすべてのレッスンが完了しているかチェック
+    for (let i = previousGroupStart; i < previousGroupEnd && i < lessons.length; i++) {
+      const lesson = lessons[i];
+      if (!progress[lesson.id]?.completed) {
+        return false;
+      }
+    }
+    
+    return true;
   };
 
   const getLessonCompletionRate = (lesson: Lesson): number => {
