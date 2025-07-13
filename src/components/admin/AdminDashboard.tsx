@@ -119,13 +119,23 @@ const MobileTabLink: React.FC<{ hash: string; label: string }> = ({ hash, label 
 );
 
 const DashboardContent: React.FC = () => {
-  const hash = window.location.hash;
-  if (hash.startsWith('#admin-songs')) return <SongManager />;
-  if (hash.startsWith('#admin-courses')) return <CourseManager />;
-  if (hash.startsWith('#admin-lessons')) return <LessonManager />;
-  if (hash.startsWith('#admin-challenges')) return <ChallengeManager />;
-  if (hash.startsWith('#admin-users')) return <UserManager />;
-  if (hash.startsWith('#admin-announcements')) return <AnnouncementManager />;
+  const [currentHash, setCurrentHash] = useState(window.location.hash);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setCurrentHash(window.location.hash);
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  if (currentHash.startsWith('#admin-songs')) return <SongManager />;
+  if (currentHash.startsWith('#admin-courses')) return <CourseManager />;
+  if (currentHash.startsWith('#admin-lessons')) return <LessonManager />;
+  if (currentHash.startsWith('#admin-challenges')) return <ChallengeManager />;
+  if (currentHash.startsWith('#admin-users')) return <UserManager />;
+  if (currentHash.startsWith('#admin-announcements')) return <AnnouncementManager />;
   return (
     <div className="flex items-center justify-center h-full">
       <p className="text-gray-400 text-center px-4">

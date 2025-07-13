@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Course } from '@/types';
 import { fetchCoursesWithDetails, addCourse, updateCourse, deleteCourse } from '@/platform/supabaseCourses';
+import { clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 
 type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only'>;
@@ -9,6 +10,7 @@ type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only'>;
 export const CourseManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
@@ -23,12 +25,15 @@ export const CourseManager: React.FC = () => {
 
   const loadCourses = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await fetchCoursesWithDetails();
       setCourses(data);
     } catch (error) {
-      toast.error('コースの読み込みに失敗しました。');
-      console.error(error);
+      const errorMessage = error instanceof Error ? error.message : 'コースの読み込みに失敗しました。';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      console.error('Error loading courses:', error);
     } finally {
       setLoading(false);
     }
@@ -106,13 +111,24 @@ export const CourseManager: React.FC = () => {
     [...courses].sort((a, b) => a.order_index - b.order_index),
   [courses]);
 
+  const handleClearCache = async () => {
+    clearSupabaseCache();
+    await loadCourses();
+    toast.success('キャッシュをクリアし、データを再読み込みしました。');
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">コース管理</h2>
-        <button className="btn btn-primary" onClick={() => openDialog()}>
-          新規コース追加
-        </button>
+        <div className="flex gap-2">
+          <button className="btn btn-secondary btn-sm" onClick={handleClearCache}>
+            キャッシュクリア
+          </button>
+          <button className="btn btn-primary" onClick={() => openDialog()}>
+            新規コース追加
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-md border border-gray-700">
@@ -131,6 +147,23 @@ export const CourseManager: React.FC = () => {
             {loading ? (
               <tr>
                 <td colSpan={6} className="text-center">読み込み中...</td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={6} className="text-center text-red-500">
+                  <div className="py-4">
+                    <p className="mb-2">エラー: {error}</p>
+                    <button className="btn btn-sm btn-primary" onClick={loadCourses}>
+                      再読み込み
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ) : courses.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center text-gray-400">
+                  コースがありません。新規コースを追加してください。
+                </td>
               </tr>
             ) : sortedCourses.map(course => (
               <React.Fragment key={course.id}>
