@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchLessonById } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement } from '@/platform/supabaseLessonContent';
-import { updateLessonProgress } from '@/platform/supabaseLessonProgress';
+import { updateLessonProgress, fetchUserLessonProgress, LessonProgress } from '@/platform/supabaseLessonProgress';
 import { 
   fetchDetailedRequirementsProgress, 
   checkAllRequirementsCompleted,
@@ -32,6 +32,7 @@ const LessonDetailPage: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [lessonId, setLessonId] = useState<string | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [lessonProgress, setLessonProgress] = useState<LessonProgress | null>(null);
   const [videos, setVideos] = useState<LessonVideo[]>([]);
   const [requirements, setRequirements] = useState<LessonRequirement[]>([]);
   const [requirementsProgress, setRequirementsProgress] = useState<LessonRequirementProgress[]>([]);
@@ -87,6 +88,13 @@ const LessonDetailPage: React.FC = () => {
       setRequirementsProgress(progressData.progress);
       setAllRequirementsCompleted(progressData.allCompleted);
       
+      // レッスンの完了状態を取得
+      if (lessonData?.course_id) {
+        const userProgress = await fetchUserLessonProgress(lessonData.course_id);
+        const thisLessonProgress = userProgress.find(p => p.lesson_id === targetLessonId);
+        setLessonProgress(thisLessonProgress || null);
+      }
+      
       if (videosData.length > 0) {
         setCurrentVideoIndex(0);
       }
@@ -106,11 +114,8 @@ const LessonDetailPage: React.FC = () => {
     
     // 実習課題が全て完了しているかチェック
     if (!allRequirementsCompleted) {
-      if (profile?.rank === 'platinum') {
-        toast.warning('課題が完了していません。プラチナプランの場合はレッスンをスキップすることができます。');
-      } else {
-        toast.warning('課題が完了していません。すべての実習課題を完了してください。');
-      }
+      // 要件に従った文言を表示
+      toast.warning('課題が完了していません。プラチナプランの場合はレッスンをスキップすることができます。');
       return;
     }
     
@@ -319,7 +324,7 @@ const LessonDetailPage: React.FC = () => {
                                   const todayProgress = progress?.daily_progress?.[today];
                                   const isToday = dayIndex === clearDates.length && !isCompleted;
                                   const todayCount = isToday ? (todayProgress?.count || 0) : 0;
-                                  const dailyRequired = req.clear_conditions.daily_count;
+                                  const dailyRequired = req.clear_conditions?.daily_count || 1;
                                   
                                   return (
                                     <div key={dayNumber} className="text-center">
@@ -345,7 +350,7 @@ const LessonDetailPage: React.FC = () => {
                                           </>
                                         ) : (
                                           <div className="h-full flex items-center justify-center">
-                                            <span className="text-xs text-gray-500">0/{dailyRequired}</span>
+                                            <span className="text-xs text-gray-500">0/{dailyRequired || 1}</span>
                                           </div>
                                         )}
                                       </div>
@@ -415,7 +420,13 @@ const LessonDetailPage: React.FC = () => {
                             isCompleted ? 'btn-success' : 'btn-primary'
                           }`}
                           onClick={() => {
-                            window.location.hash = `#songs?id=${req.song_id}`;
+                            // 練習開始ボタンのリンクを修正（クエリパラメータを正しく設定）
+                            const params = new URLSearchParams();
+                            params.set('id', req.song_id);
+                            params.set('key', String(req.clear_conditions?.key || 0));
+                            params.set('speed', String(req.clear_conditions?.speed || 1.0));
+                            params.set('notation', req.clear_conditions?.notation_setting || 'both');
+                            window.location.hash = `#songs?${params.toString()}`;
                           }}
                         >
                           {isCompleted ? '再挑戦' : '練習開始'}
@@ -458,21 +469,28 @@ const LessonDetailPage: React.FC = () => {
                 <>
                   <button
                     onClick={handleComplete}
-                    disabled={completing}
-                    className="w-full btn btn-primary flex items-center justify-center space-x-2"
+                    disabled={completing || lessonProgress?.completed}
+                    className={`w-full btn ${
+                      lessonProgress?.completed ? 'btn-disabled' : 'btn-primary'
+                    } flex items-center justify-center space-x-2`}
                   >
                     <FaCheckCircle />
-                    <span>{completing ? '完了処理中...' : 'レッスン完了'}</span>
+                    <span>
+                      {lessonProgress?.completed ? 'レッスン完了済み' : 
+                       completing ? '完了処理中...' : 'レッスン完了'}
+                    </span>
                   </button>
                   
                   <p className="text-xs text-gray-400 text-center mt-2">
-                    動画視聴と実習課題を完了したら押してください
+                    {lessonProgress?.completed ? 
+                      'このレッスンは既に完了しています' : 
+                      '動画視聴と実習課題を完了したら押してください'}
                   </p>
                 </>
               )}
               
               {/* プラチナプランはスキップボタンのみ表示 */}
-              {profile?.rank === 'platinum' && (
+              {profile?.rank === 'platinum' && !lessonProgress?.completed && (
                 <button
                   onClick={() => setShowSkipModal(true)}
                   className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-600 hover:bg-yellow-700 

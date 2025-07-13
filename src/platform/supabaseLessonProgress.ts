@@ -52,19 +52,23 @@ export async function fetchUserLessonProgress(courseId: string): Promise<LessonP
 export async function updateLessonProgress(
   lessonId: string, 
   courseId: string, 
-  completed: boolean
+  completed: boolean,
+  targetUserId?: string // 管理者が他のユーザーの進捗を更新する場合
 ): Promise<void> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) throw new Error('ログインが必要です');
+  
+  // 更新対象のユーザーID（指定がなければ自分）
+  const userId = targetUserId || user.id;
 
   const now = new Date().toISOString();
   
   const { error } = await supabase
     .from('user_lesson_progress')
     .upsert({
-      user_id: user.id,
+      user_id: userId,
       lesson_id: lessonId,
       course_id: courseId,
       completed,
@@ -80,18 +84,21 @@ export async function updateLessonProgress(
 /**
  * レッスンを解放
  */
-export async function unlockLesson(lessonId: string, courseId: string): Promise<void> {
+export async function unlockLesson(lessonId: string, courseId: string, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) throw new Error('ログインが必要です');
+  
+  // 更新対象のユーザーID（指定がなければ自分）
+  const userId = targetUserId || user.id;
 
   const now = new Date().toISOString();
   
   const { error } = await supabase
     .from('user_lesson_progress')
     .upsert({
-      user_id: user.id,
+      user_id: userId,
       lesson_id: lessonId,
       course_id: courseId,
       completed: false,

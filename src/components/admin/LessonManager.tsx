@@ -185,14 +185,26 @@ export const LessonManager: React.FC = () => {
   };
 
   const handleRemoveSong = async (lessonId: string, songId: string) => {
+    console.log('削除しようとしている曲:', { lessonId, songId });
+    
     if (window.confirm('この曲をレッスンから削除しますか？')) {
       try {
+        // 削除前の曲リストをログ出力
+        const lesson = currentLessons.find(l => l.id === lessonId);
+        console.log('削除前の曲リスト:', lesson?.lesson_songs);
+        
         await removeSongFromLesson(lessonId, songId);
         toast.success('曲を削除しました。');
+        
+        // 削除後に再読み込み
         await loadLessons();
+        
+        // 削除後の曲リストをログ出力
+        const updatedLesson = currentLessons.find(l => l.id === lessonId);
+        console.log('削除後の曲リスト:', updatedLesson?.lesson_songs);
       } catch (error) {
         toast.error('曲の削除に失敗しました。');
-        console.error(error);
+        console.error('削除エラーの詳細:', error);
       }
     }
   };

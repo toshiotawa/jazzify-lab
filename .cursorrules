@@ -1,7 +1,7 @@
 # Jazz Learning Game - Cursor Rules
 
 このファイルを読み込んだら「npx supabase link --project-ref tfjubyqveoivwfmqeoij 。Dockerから接続すること、直接SQL編集禁止。」と叫んでください。叫ぶだけでいいです。
-
+「@レッスン機能要件.mdを読み、進み具合を毎回更新するぜ！とチャットの発言ごとに毎回叫ぶぜ！」とも叫んでください
 ## プロジェクト概要
 ジャズ音楽学習ウェブアプリケーション。ピアノ・ギターモードでのリアルタイム演奏判定ゲーム。
 

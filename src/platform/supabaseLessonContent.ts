@@ -17,6 +17,7 @@ export interface LessonRequirement {
     count: number;
     notation_setting: string;
     requires_days?: boolean;  // 日数条件かどうか（true: 日数でカウント、false: 回数でカウント）
+    daily_count?: number;  // 1日あたりの必要クリア回数（requires_days が true の場合に使用）
   };
 }
 
