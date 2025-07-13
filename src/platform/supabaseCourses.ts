@@ -8,7 +8,7 @@ const COURSES_CACHE_KEY = 'courses';
  * @returns {Promise<Course[]>}
  */
 export async function fetchCoursesWithDetails(): Promise<Course[]> {
-  const { data, error } = await fetchWithCache<Course[]>(
+  const { data, error } = await fetchWithCache<Course>(
     COURSES_CACHE_KEY,
     async () => await getSupabaseClient()
         .from('courses')
