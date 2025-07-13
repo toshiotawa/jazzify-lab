@@ -182,6 +182,18 @@ const LessonPage: React.FC = () => {
     window.location.hash = `#lesson-detail?id=${lesson.id}`;
   };
 
+  const groupLessonsByBlock = (lessons: Lesson[]) => {
+    const blocks: { [key: number]: Lesson[] } = {};
+    lessons.forEach(lesson => {
+      const blockNumber = lesson.block_number || Math.ceil((lesson.order_index + 1) / 5);
+      if (!blocks[blockNumber]) {
+        blocks[blockNumber] = [];
+      }
+      blocks[blockNumber].push(lesson);
+    });
+    return blocks;
+  };
+
   if (!open) return null;
 
   if (!profile || isGuest) {
@@ -295,86 +307,116 @@ const LessonPage: React.FC = () => {
                     </div>
                     
                     <div className="flex-1 overflow-y-auto p-6">
-                      <div className="space-y-4">
-                        {lessons.map((lesson, index) => {
-                          const unlocked = isLessonUnlocked(lesson, index);
-                          const completed = progress[lesson.id]?.completed || false;
-                          const completionRate = getLessonCompletionRate(lesson);
-                          
+                      <div className="space-y-6">
+                        {Object.entries(groupLessonsByBlock(lessons)).map(([blockNumber, blockLessons]) => {
+                          const blockNum = parseInt(blockNumber);
+                          const isBlockUnlocked = blockLessons.some(lesson => progress[lesson.id]?.is_unlocked);
+                          const isBlockCompleted = blockLessons.every(lesson => progress[lesson.id]?.completed);
+                          const startLesson = (blockNum - 1) * 5 + 1;
+                          const endLesson = Math.min(blockNum * 5, lessons.length);
+
                           return (
-                            <div
-                              key={lesson.id}
-                              className={`p-4 rounded-lg border-2 transition-all ${
-                                unlocked
-                                  ? completed
-                                    ? 'border-emerald-500 bg-emerald-900/20 hover:bg-emerald-900/30 cursor-pointer'
-                                    : 'border-blue-500 bg-blue-900/20 hover:bg-blue-900/30 cursor-pointer'
-                                  : 'border-gray-600 bg-gray-800/20'
-                              }`}
-                              onClick={() => handleLessonClick(lesson, index)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4">
-                                  {/* レッスン番号とアイコン */}
-                                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
-                                    unlocked
-                                      ? completed
-                                        ? 'bg-emerald-600 text-white'
-                                        : 'bg-blue-600 text-white'
-                                      : 'bg-gray-600 text-gray-400'
-                                  }`}>
-                                    {unlocked ? (
-                                      completed ? <FaCheck /> : <FaPlay />
-                                    ) : (
-                                      <FaLock />
-                                    )}
-                                  </div>
-
-                                  {/* レッスン情報 */}
-                                  <div>
-                                    <h3 className={`text-lg font-semibold ${
-                                      unlocked ? 'text-white' : 'text-gray-400'
-                                    }`}>
-                                      {lesson.title}
-                                    </h3>
-                                    <div className="flex items-center space-x-3 text-sm text-gray-400">
-                                      <span>レッスン {index + 1}</span>
-                                      <div className="flex items-center space-x-1">
-                                        <FaVideo className="w-3 h-3" />
-                                        <span>動画</span>
-                                      </div>
-                                      <div className="flex items-center space-x-1">
-                                        <FaMusic className="w-3 h-3" />
-                                        <span>実習</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* ステータス表示 */}
-                                <div className="text-right">
-                                  {completed && (
-                                    <div className="flex items-center space-x-1 text-emerald-400 mb-2">
-                                      <FaStar className="w-4 h-4" />
-                                      <span className="text-sm font-medium">完了</span>
-                                    </div>
-                                  )}
+                            <div key={blockNum} className="bg-slate-800 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-lg font-semibold text-white">
+                                  ブロック {blockNum} (レッスン {startLesson} - {endLesson})
+                                </h4>
+                                {isBlockCompleted ? (
+                                  <span className="flex items-center text-emerald-500">
+                                    <FaCheck className="mr-1" /> 完了
+                                  </span>
+                                ) : isBlockUnlocked ? (
+                                  <span className="text-blue-500">解放中</span>
+                                ) : (
+                                  <span className="flex items-center text-gray-400">
+                                    <FaLock className="mr-1" /> ロック中 - 前のブロックを全て完了してください
+                                  </span>
+                                )}
+                              </div>
+                              <div className="space-y-4">
+                                {blockLessons.sort((a, b) => a.order_index - b.order_index).map((lesson, index) => {
+                                  const unlocked = isLessonUnlocked(lesson, lesson.order_index);
+                                  const completed = progress[lesson.id]?.completed || false;
+                                  const completionRate = getLessonCompletionRate(lesson);
                                   
-                                  {unlocked && (
-                                    <div className="w-32">
-                                      <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                        <span>進捗</span>
-                                        <span>{completionRate}%</span>
-                                      </div>
-                                      <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
-                                        <div 
-                                          className="h-full bg-blue-500 transition-all duration-300"
-                                          style={{ width: `${completionRate}%` }}
-                                        />
+                                  return (
+                                    <div
+                                      key={lesson.id}
+                                      className={`p-4 rounded-lg border-2 transition-all ${
+                                        unlocked
+                                          ? completed
+                                            ? 'border-emerald-500 bg-emerald-900/20 hover:bg-emerald-900/30 cursor-pointer'
+                                            : 'border-blue-500 bg-blue-900/20 hover:bg-blue-900/30 cursor-pointer'
+                                          : 'border-gray-600 bg-gray-800/20'
+                                      }`}
+                                      onClick={() => handleLessonClick(lesson, lesson.order_index)}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-4">
+                                          {/* レッスン番号とアイコン */}
+                                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
+                                            unlocked
+                                              ? completed
+                                                ? 'bg-emerald-600 text-white'
+                                                : 'bg-blue-600 text-white'
+                                              : 'bg-gray-600 text-gray-400'
+                                          }`}>
+                                            {unlocked ? (
+                                              completed ? <FaCheck /> : <FaPlay />
+                                            ) : (
+                                              <FaLock />
+                                            )}
+                                          </div>
+
+                                          {/* レッスン情報 */}
+                                          <div>
+                                            <h3 className={`text-lg font-semibold ${
+                                              unlocked ? 'text-white' : 'text-gray-400'
+                                            }`}>
+                                              {lesson.title}
+                                            </h3>
+                                            <div className="flex items-center space-x-3 text-sm text-gray-400">
+                                              <span>レッスン {lesson.order_index + 1}</span>
+                                              <div className="flex items-center space-x-1">
+                                                <FaVideo className="w-3 h-3" />
+                                                <span>動画</span>
+                                              </div>
+                                              <div className="flex items-center space-x-1">
+                                                <FaMusic className="w-3 h-3" />
+                                                <span>実習</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* ステータス表示 */}
+                                        <div className="text-right">
+                                          {completed && (
+                                            <div className="flex items-center space-x-1 text-emerald-400 mb-2">
+                                              <FaStar className="w-4 h-4" />
+                                              <span className="text-sm font-medium">完了</span>
+                                            </div>
+                                          )}
+                                          
+                                          {unlocked && (
+                                            <div className="w-32">
+                                              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                                <span>進捗</span>
+                                                <span>{completionRate}%</span>
+                                              </div>
+                                              <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
+                                                <div 
+                                                  className="h-full bg-blue-500 transition-all duration-300"
+                                                  style={{ width: `${completionRate}%` }}
+                                                />
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  )}
-                                </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           );
