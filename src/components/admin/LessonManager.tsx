@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Course, Lesson, ClearConditions } from '@/types';
 import { Song as SongData } from '@/platform/supabaseSongs';
-import { fetchCoursesWithDetails } from '@/platform/supabaseCourses';
+import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions } from '@/platform/supabaseLessons';
+import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions } from '@/platform/supabaseLessons';
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit } from 'react-icons/fa';
 
@@ -25,6 +25,8 @@ export const LessonManager: React.FC = () => {
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [availableSongs, setAvailableSongs] = useState<SongData[]>([]);
   const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set());
+  const [currentLessons, setCurrentLessons] = useState<Lesson[]>([]);
+  const [lessonsLoading, setLessonsLoading] = useState(false);
 
   const toast = useToast();
   const { register, handleSubmit, reset, setValue } = useForm<LessonFormData>();
@@ -37,13 +39,11 @@ export const LessonManager: React.FC = () => {
       setLoading(true);
       try {
         const [coursesData, songsData] = await Promise.all([
-          fetchCoursesWithDetails(),
-          fetchSongs()
+          fetchCoursesSimple(),
+          fetchSongs('lesson')
         ]);
         setCourses(coursesData);
-        // レッスン用の曲のみフィルタリング
-        const lessonSongs = songsData.filter(song => song.usage_type === 'lesson');
-        setAvailableSongs(lessonSongs);
+        setAvailableSongs(songsData);
         
         if (coursesData.length > 0) {
           const firstCourseId = coursesData[0].id;
@@ -59,10 +59,27 @@ export const LessonManager: React.FC = () => {
     loadInitialData();
   }, [toast]);
 
-  const lessons = useMemo(() => {
-    const course = courses.find(c => c.id === selectedCourseId);
-    return course?.lessons?.sort((a, b) => a.order_index - b.order_index) || [];
-  }, [selectedCourseId, courses]);
+  // 選択されたコースが変更されたらレッスンを取得
+  useEffect(() => {
+    if (selectedCourseId) {
+      loadLessons();
+    }
+  }, [selectedCourseId]);
+
+  const loadLessons = async () => {
+    if (!selectedCourseId) return;
+    
+    setLessonsLoading(true);
+    try {
+      const lessonData = await fetchLessonsByCourse(selectedCourseId);
+      setCurrentLessons(lessonData);
+    } catch (error) {
+      toast.error('レッスンの読み込みに失敗しました。');
+      console.error(error);
+    } finally {
+      setLessonsLoading(false);
+    }
+  };
 
   const openDialog = (lesson?: Lesson) => {
     if (lesson) {
@@ -74,7 +91,7 @@ export const LessonManager: React.FC = () => {
       setValue('video_id', lesson.video_id || '');
     } else {
       setSelectedLesson(null);
-      const newOrder = lessons.length > 0 ? Math.max(...lessons.map(l => l.order_index)) + 10 : 10;
+      const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 10 : 10;
       reset({ title: '', description: '', assignment_description: '', order_index: newOrder, video_id: '' });
     }
     dialogRef.current?.showModal();
@@ -125,8 +142,7 @@ export const LessonManager: React.FC = () => {
         toast.success('新しいレッスンを追加しました。');
       }
       
-      const updatedCourses = await fetchCoursesWithDetails();
-      setCourses(updatedCourses);
+      await loadLessons();
       closeDialog();
     } catch (error) {
       toast.error('レッスンの保存に失敗しました。');
@@ -148,8 +164,7 @@ export const LessonManager: React.FC = () => {
       });
       toast.success('曲を追加しました。');
       
-      const updatedCourses = await fetchCoursesWithDetails();
-      setCourses(updatedCourses);
+      await loadLessons();
       closeSongDialog();
     } catch (error) {
       toast.error('曲の追加に失敗しました。');
@@ -164,8 +179,7 @@ export const LessonManager: React.FC = () => {
       try {
         await deleteLesson(id);
         toast.success('レッスンを削除しました。');
-        const updatedCourses = await fetchCoursesWithDetails();
-        setCourses(updatedCourses);
+        await loadLessons();
       } catch (error) {
         toast.error('レッスンの削除に失敗しました。');
         console.error(error);
@@ -178,8 +192,7 @@ export const LessonManager: React.FC = () => {
       try {
         await removeSongFromLesson(lessonId, songId);
         toast.success('曲を削除しました。');
-        const updatedCourses = await fetchCoursesWithDetails();
-        setCourses(updatedCourses);
+        await loadLessons();
       } catch (error) {
         toast.error('曲の削除に失敗しました。');
         console.error(error);
@@ -238,9 +251,9 @@ export const LessonManager: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading || lessonsLoading ? (
               <tr><td colSpan={6} className="text-center">読み込み中...</td></tr>
-            ) : lessons.map(lesson => (
+            ) : currentLessons.map(lesson => (
               <React.Fragment key={lesson.id}>
                 <tr>
                   <td>

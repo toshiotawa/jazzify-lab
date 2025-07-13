@@ -1,4 +1,4 @@
-import { getSupabaseClient, clearSupabaseCache } from './supabaseClient';
+import { getSupabaseClient, clearSupabaseCache, fetchWithCache } from './supabaseClient';
 import { Lesson, LessonSong, ClearConditions } from '@/types';
 
 // Note: Lessons are tightly coupled to courses, so we don't use fetchWithCache here.
@@ -10,17 +10,21 @@ import { Lesson, LessonSong, ClearConditions } from '@/types';
  * @returns {Promise<Lesson[]>}
  */
 export async function fetchLessonsByCourse(courseId: string): Promise<Lesson[]> {
-  const { data, error } = await getSupabaseClient()
-    .from('lessons')
-    .select(`
-      *,
-      lesson_songs (
+  const { data, error } = await fetchWithCache<Lesson>(
+    `lessons:${courseId}`,
+    async () => await getSupabaseClient()
+      .from('lessons')
+      .select(`
         *,
-        songs (id, title, artist)
-      )
-    `)
-    .eq('course_id', courseId)
-    .order('order', { ascending: true });
+        lesson_songs (
+          *,
+          songs (id, title, artist)
+        )
+      `)
+      .eq('course_id', courseId)
+      .order('order_index', { ascending: true }),
+    60 * 1000 // 1分キャッシュ
+  );
 
   if (error) {
     console.error(`Error fetching lessons for course ${courseId}:`, error);

@@ -34,6 +34,27 @@ export async function fetchCoursesWithDetails(): Promise<Course[]> {
 }
 
 /**
+ * コース一覧を取得します（レッスン詳細なし・軽量版）
+ * @returns {Promise<Course[]>}
+ */
+export async function fetchCoursesSimple(): Promise<Course[]> {
+  const { data, error } = await fetchWithCache<Course>(
+    'courses-simple',
+    async () => await getSupabaseClient()
+        .from('courses')
+        .select('*')
+        .order('order_index', { ascending: true }),
+    60 * 60 * 1000 // 1時間キャッシュ
+  );
+
+  if (error) {
+    console.error('Error fetching courses:', error);
+    throw error;
+  }
+  return data || [];
+}
+
+/**
  * 新しいコースを追加します。
  * @param {Omit<Course, 'id' | 'created_at' | 'updated_at' | 'lessons'>} courseData
  * @returns {Promise<Course>}
@@ -93,4 +114,6 @@ export async function deleteCourse(id: string): Promise<void> {
   }
 
   clearSupabaseCache();
-} 
+}
+
+export { clearSupabaseCache }; 
