@@ -273,22 +273,102 @@ const LessonDetailPage: React.FC = () => {
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-gray-400">進捗</span>
                             <span className={isCompleted ? 'text-emerald-400' : 'text-gray-400'}>
-                              {requiresDays ? `${clearDates.length}/${requiredCount}日` : `${clearCount}/${requiredCount}回`}
+                              {requiresDays && req.clear_conditions?.daily_count 
+                                ? `${clearDates.length}/${requiredCount}日 (${req.clear_conditions.daily_count}回/日)`
+                                : requiresDays 
+                                  ? `${clearDates.length}/${requiredCount}日` 
+                                  : `${clearCount}/${requiredCount}回`}
                             </span>
                           </div>
-                          <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full transition-all duration-300 ${
-                                isCompleted ? 'bg-emerald-500' : 'bg-blue-500'
-                              }`}
-                              style={{ 
-                                width: `${Math.min(100, requiresDays 
-                                  ? (clearDates.length / requiredCount) * 100 
-                                  : (clearCount / requiredCount) * 100
-                                )}%` 
-                              }}
-                            />
-                          </div>
+                          
+                          {/* 通常の進捗バー（回数条件の場合） */}
+                          {!requiresDays && (
+                            <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full transition-all duration-300 ${
+                                  isCompleted ? 'bg-emerald-500' : 'bg-blue-500'
+                                }`}
+                                style={{ 
+                                  width: `${Math.min(100, (clearCount / requiredCount) * 100)}%` 
+                                }}
+                              />
+                            </div>
+                          )}
+                          
+                          {/* 日数条件の進捗バー */}
+                          {requiresDays && req.clear_conditions?.daily_count && (
+                            <div className="space-y-2">
+                              {/* 全体の日数進捗バー */}
+                              <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-300 ${
+                                    isCompleted ? 'bg-emerald-500' : 'bg-blue-500'
+                                  }`}
+                                  style={{ 
+                                    width: `${Math.min(100, (clearDates.length / requiredCount) * 100)}%` 
+                                  }}
+                                />
+                              </div>
+                              
+                              {/* 各日の進捗 */}
+                              <div className="grid grid-cols-5 gap-1 mt-2">
+                                {Array.from({ length: requiredCount }, (_, dayIndex) => {
+                                  const dayNumber = dayIndex + 1;
+                                  const isCompleted = dayIndex < clearDates.length;
+                                  const today = new Date().toISOString().split('T')[0];
+                                  const todayProgress = progress?.daily_progress?.[today];
+                                  const isToday = dayIndex === clearDates.length && !isCompleted;
+                                  const todayCount = isToday ? (todayProgress?.count || 0) : 0;
+                                  const dailyRequired = req.clear_conditions.daily_count;
+                                  
+                                  return (
+                                    <div key={dayNumber} className="text-center">
+                                      <div className="text-xs mb-1 text-gray-400">{dayNumber}日目</div>
+                                      <div className="h-16 bg-slate-700 rounded relative overflow-hidden">
+                                        {isCompleted ? (
+                                          <div className="h-full bg-emerald-500 flex items-center justify-center">
+                                            <FaCheck className="text-white" />
+                                          </div>
+                                        ) : isToday ? (
+                                          <>
+                                            <div 
+                                              className="absolute bottom-0 left-0 right-0 bg-blue-500 transition-all duration-300"
+                                              style={{ 
+                                                height: `${Math.min(100, (todayCount / dailyRequired) * 100)}%` 
+                                              }}
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                              <span className="text-xs font-semibold text-white drop-shadow">
+                                                {todayCount}/{dailyRequired}
+                                              </span>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="h-full flex items-center justify-center">
+                                            <span className="text-xs text-gray-500">0/{dailyRequired}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* 日数条件だが daily_count が設定されていない場合（後方互換性） */}
+                          {requiresDays && !req.clear_conditions?.daily_count && (
+                            <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full transition-all duration-300 ${
+                                  isCompleted ? 'bg-emerald-500' : 'bg-blue-500'
+                                }`}
+                                style={{ 
+                                  width: `${Math.min(100, (clearDates.length / requiredCount) * 100)}%` 
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
                         
                         <div className="space-y-2 text-sm">

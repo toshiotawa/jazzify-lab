@@ -12,6 +12,7 @@ export interface LessonRequirementProgress {
   is_completed: boolean;
   created_at: string;
   updated_at: string;
+  daily_progress?: Record<string, { count: number; completed: boolean }>; // 日ごとの進捗
 }
 
 /**

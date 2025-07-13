@@ -597,9 +597,10 @@ export interface ClearConditions {
   key?: number;
   speed?: number;
   rank?: string;
-  count?: number;
+  count?: number;  // requires_days が true の場合は日数、false の場合は総回数
   notation_setting?: 'notes_chords' | 'chords_only' | 'both';
   requires_days?: boolean;  // 日数条件かどうか（true: 日数でカウント、false: 回数でカウント）
+  daily_count?: number;  // 1日あたりの必要クリア回数（requires_days が true の場合に使用）
 }
 
 export interface LessonSong {

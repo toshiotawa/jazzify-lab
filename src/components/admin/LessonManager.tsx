@@ -28,7 +28,7 @@ export const LessonManager: React.FC = () => {
 
   const toast = useToast();
   const { register, handleSubmit, reset, setValue } = useForm<LessonFormData>();
-  const { register: registerSong, handleSubmit: handleSubmitSong, reset: resetSong, setValue: setValueSong } = useForm<SongFormData>();
+  const { register: registerSong, handleSubmit: handleSubmitSong, reset: resetSong, setValue: setValueSong, watch: watchSong } = useForm<SongFormData>();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const songDialogRef = useRef<HTMLDialogElement>(null);
 
@@ -293,7 +293,9 @@ export const LessonManager: React.FC = () => {
                                       (キー: {ls.clear_conditions?.key || 0}, 
                                       速度: {ls.clear_conditions?.speed || 1.0}x, 
                                       ランク: {ls.clear_conditions?.rank || 'B'},
-                                      {ls.clear_conditions?.requires_days ? '日数' : '回数'}: {ls.clear_conditions?.count || 1},
+                                      {ls.clear_conditions?.requires_days 
+                                        ? `${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間`
+                                        : `${ls.clear_conditions?.count || 1}回`},
                                       楽譜: {ls.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
                                              ls.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'})
                                     </span>
@@ -416,8 +418,25 @@ export const LessonManager: React.FC = () => {
                 <span className="text-sm">日数でカウント（チェックなし: 回数でカウント）</span>
               </label>
             </div>
+            {watchSong && watchSong('clear_conditions.requires_days') && (
+              <div>
+                <label className="label"><span className="label-text">1日あたりの必要クリア回数</span></label>
+                <input 
+                  type="number" 
+                  {...registerSong('clear_conditions.daily_count')} 
+                  className="input input-bordered w-full" 
+                  min="1" 
+                  max="20"
+                  defaultValue={1}
+                />
+              </div>
+            )}
             <div>
-              <label className="label"><span className="label-text">最低クリア回数/日数</span></label>
+              <label className="label">
+                <span className="label-text">
+                  {watchSong && watchSong('clear_conditions.requires_days') ? '必要日数' : '最低クリア回数'}
+                </span>
+              </label>
               <input 
                 type="number" 
                 {...registerSong('clear_conditions.count')} 
