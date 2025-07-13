@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { fetchLessons, Lesson } from '@/platform/supabaseLessons';
+import { fetchLessonById } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement } from '@/platform/supabaseLessonContent';
 import { updateLessonProgress } from '@/platform/supabaseLessonProgress';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
+import { Lesson } from '@/types';
 import { 
   FaArrowLeft, 
   FaPlay, 
@@ -65,11 +66,13 @@ const LessonDetailPage: React.FC = () => {
     
     try {
       // レッスン情報、動画、課題を並行取得
-      const [videosData, requirementsData] = await Promise.all([
+      const [lessonData, videosData, requirementsData] = await Promise.all([
+        fetchLessonById(targetLessonId),
         fetchLessonVideos(targetLessonId),
         fetchLessonRequirements(targetLessonId)
       ]);
 
+      setLesson(lessonData);
       setVideos(videosData);
       setRequirements(requirementsData);
       
@@ -77,10 +80,11 @@ const LessonDetailPage: React.FC = () => {
         setCurrentVideoIndex(0);
       }
       
-      setAssignmentChecks(lesson?.assignment_description ? Array(5).fill(false) : []);
+      setAssignmentChecks(lessonData?.assignment_description ? Array(5).fill(false) : []);
       
     } catch (e: any) {
       toast.error('レッスンデータの読み込みに失敗しました');
+      console.error('Error loading lesson data:', e);
     } finally {
       setLoading(false);
     }
@@ -127,8 +131,9 @@ const LessonDetailPage: React.FC = () => {
     window.location.hash = '#lessons';
   };
 
-  const getBunnyEmbedUrl = (bunnyVideoId: string): string => {
-    return `https://iframe.mediadelivery.net/embed/YOUR_LIBRARY_ID/${bunnyVideoId}?autoplay=false`;
+  const getBunnyEmbedUrl = (vimeoUrl: string): string => {
+    // vimeo_urlフィールドにBunny Video IDが格納されていると仮定
+    return `https://iframe.mediadelivery.net/embed/YOUR_LIBRARY_ID/${vimeoUrl}?autoplay=false`;
   };
 
   if (!open) return null;
@@ -187,7 +192,7 @@ const LessonDetailPage: React.FC = () => {
                 {/* ビデオプレイヤー */}
                 <div className="aspect-video bg-black">
                   <iframe
-                    src={getBunnyEmbedUrl(videos[currentVideoIndex].bunny_video_id)}
+                    src={getBunnyEmbedUrl(videos[currentVideoIndex].vimeo_url)}
                     className="w-full h-full"
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -264,27 +269,28 @@ const LessonDetailPage: React.FC = () => {
                           <div>
                             <span className="text-gray-400">キー:</span>
                             <span className="ml-2 font-mono">
-                              {req.key_offset > 0 ? `+${req.key_offset}` : req.key_offset}
+                              {(req.clear_conditions?.key || 0) > 0 ? `+${req.clear_conditions?.key}` : req.clear_conditions?.key || 0}
                             </span>
                           </div>
                           <div>
                             <span className="text-gray-400">速度:</span>
-                            <span className="ml-2 font-mono">{req.min_speed}x</span>
+                            <span className="ml-2 font-mono">{req.clear_conditions?.speed || 1.0}x</span>
                           </div>
                           <div>
                             <span className="text-gray-400">ランク:</span>
-                            <span className="ml-2 font-semibold">{req.min_rank}以上</span>
+                            <span className="ml-2 font-semibold">{req.clear_conditions?.rank || 'B'}以上</span>
                           </div>
                           <div>
                             <span className="text-gray-400">回数:</span>
-                            <span className="ml-2">{req.min_clear_count}回</span>
+                            <span className="ml-2">{req.clear_conditions?.count || 1}回</span>
                           </div>
                         </div>
                         
                         <div className="mt-3">
                           <span className="text-gray-400">表示設定:</span>
                           <span className="ml-2">
-                            {req.notation_setting === 'both' ? 'ノート+コード' : 'コードのみ'}
+                            {req.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
+                             req.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
                           </span>
                         </div>
                       </div>

@@ -33,6 +33,31 @@ export async function fetchLessonsByCourse(courseId: string): Promise<Lesson[]> 
   return data || [];
 }
 
+/**
+ * 特定のレッスンIDでレッスンを取得します。
+ * @param {string} lessonId
+ * @returns {Promise<Lesson>}
+ */
+export async function fetchLessonById(lessonId: string): Promise<Lesson> {
+  const { data, error } = await getSupabaseClient()
+    .from('lessons')
+    .select(`
+      *,
+      lesson_songs (
+        *,
+        songs (id, title, artist)
+      )
+    `)
+    .eq('id', lessonId)
+    .single();
+
+  if (error) {
+    console.error(`Error fetching lesson ${lessonId}:`, error);
+    throw error;
+  }
+  return data as Lesson;
+}
+
 type LessonData = Omit<Lesson, 'id' | 'created_at' | 'updated_at' | 'lesson_songs'>;
 
 /**

@@ -3,18 +3,20 @@ import { getSupabaseClient, fetchWithCache } from '@/platform/supabaseClient';
 export interface LessonVideo {
   id: string;
   lesson_id: string;
-  bunny_video_id: string;
+  vimeo_url: string;
   order_index: number;
 }
 
 export interface LessonRequirement {
   lesson_id: string;
   song_id: string;
-  key_offset: number;
-  min_speed: number;
-  min_rank: string;
-  min_clear_count: number;
-  notation_setting: string;
+  clear_conditions?: {
+    key: number;
+    speed: number;
+    rank: string;
+    count: number;
+    notation_setting: string;
+  };
 }
 
 /**
@@ -26,7 +28,7 @@ export async function fetchLessonVideos(lessonId: string): Promise<LessonVideo[]
     cacheKey,
     async () => await getSupabaseClient()
       .from('lesson_videos')
-      .select('id, lesson_id, vimeo_url as bunny_video_id, order_index')
+      .select('*')
       .eq('lesson_id', lessonId)
       .order('order_index', { ascending: true }),
     1000 * 60 * 10 // 10分キャッシュ
@@ -76,7 +78,7 @@ export async function addLessonVideo(
 /**
  * レッスンに課題曲を追加
  */
-export async function addLessonRequirement(requirement: Omit<LessonRequirement, 'id'>): Promise<void> {
+export async function addLessonRequirement(requirement: LessonRequirement): Promise<void> {
   const { error } = await getSupabaseClient()
     .from('lesson_songs')
     .insert(requirement);
