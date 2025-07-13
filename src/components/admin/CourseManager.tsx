@@ -4,7 +4,7 @@ import { Course } from '@/types';
 import { fetchCoursesWithDetails, addCourse, updateCourse, deleteCourse } from '@/platform/supabaseCourses';
 import { useToast } from '@/stores/toastStore';
 
-type CourseFormData = Pick<Course, 'title' | 'description'>;
+type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only'>;
 
 export const CourseManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -39,9 +39,10 @@ export const CourseManager: React.FC = () => {
       setSelectedCourse(course);
       setValue('title', course.title);
       setValue('description', course.description || '');
+      setValue('premium_only', course.premium_only ?? true);
     } else {
       setSelectedCourse(null);
-      reset({ title: '', description: '' });
+      reset({ title: '', description: '', premium_only: true });
     }
     dialogRef.current?.showModal();
   };
@@ -57,13 +58,19 @@ export const CourseManager: React.FC = () => {
         await updateCourse(selectedCourse.id, formData);
         toast.success('コースを更新しました。');
       } else {
-        await addCourse(formData);
+        const newOrderIndex = courses.length > 0 ? Math.max(...courses.map(c => c.order_index)) + 1 : 0;
+        await addCourse({
+          title: formData.title,
+          description: formData.description,
+          premium_only: formData.premium_only,
+          order_index: newOrderIndex,
+        });
         toast.success('新しいコースを追加しました。');
       }
       await loadCourses();
       closeDialog();
-    } catch (error) {
-      toast.error('コースの保存に失敗しました。');
+    } catch (error: any) {
+      toast.error(`コースの保存に失敗しました: ${error.message}`);
       console.error(error);
     } finally {
       setIsSubmitting(false);
@@ -76,8 +83,8 @@ export const CourseManager: React.FC = () => {
         await deleteCourse(id);
         toast.success('コースを削除しました。');
         await loadCourses();
-      } catch (error) {
-        toast.error('コースの削除に失敗しました。');
+      } catch (error: any) {
+        toast.error(`コースの削除に失敗しました: ${error.message}`);
         console.error(error);
       }
     }
@@ -96,11 +103,11 @@ export const CourseManager: React.FC = () => {
   };
   
   const sortedCourses = useMemo(() => 
-    [...courses].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+    [...courses].sort((a, b) => a.order_index - b.order_index),
   [courses]);
 
   return (
-    <div className="p-4">
+    <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">コース管理</h2>
         <button className="btn btn-primary" onClick={() => openDialog()}>
@@ -113,15 +120,17 @@ export const CourseManager: React.FC = () => {
           <thead>
             <tr>
               <th className="w-[50px]"></th>
+              <th>表示順</th>
               <th>コースタイトル</th>
               <th>レッスン数</th>
+              <th>プレミアム限定</th>
               <th className="text-right">アクション</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="text-center">読み込み中...</td>
+                <td colSpan={6} className="text-center">読み込み中...</td>
               </tr>
             ) : sortedCourses.map(course => (
               <React.Fragment key={course.id}>
@@ -131,8 +140,10 @@ export const CourseManager: React.FC = () => {
                       {expandedCourses.has(course.id) ? '▼' : '▶'}
                     </button>
                   </td>
+                  <td>{course.order_index}</td>
                   <td className="font-medium">{course.title}</td>
                   <td>{course.lessons?.length || 0}</td>
+                  <td>{course.premium_only ? '✔' : ''}</td>
                   <td className="text-right">
                     <button className="btn btn-ghost btn-sm" onClick={() => openDialog(course)}>
                       編集
@@ -144,7 +155,7 @@ export const CourseManager: React.FC = () => {
                 </tr>
                 {expandedCourses.has(course.id) && (
                   <tr>
-                    <td colSpan={4} className="p-0">
+                    <td colSpan={6} className="p-0">
                       <div className="p-4 bg-slate-800/50">
                         <h4 className="font-semibold mb-2">コース詳細</h4>
                         <p className="text-sm text-gray-400 mb-4">{course.description || '説明はありません。'}</p>
@@ -184,6 +195,12 @@ export const CourseManager: React.FC = () => {
                 <span className="label-text">説明</span>
               </label>
               <textarea id="description" {...register('description')} className="textarea textarea-bordered w-full" />
+            </div>
+            <div className="form-control">
+              <label className="label cursor-pointer">
+                <span className="label-text">プレミアム限定</span> 
+                <input type="checkbox" {...register('premium_only')} className="toggle toggle-primary" />
+              </label>
             </div>
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeDialog}>キャンセル</button>

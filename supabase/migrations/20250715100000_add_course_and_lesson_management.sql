@@ -1,28 +1,13 @@
--- courses table
-CREATE TABLE public.courses (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    title text NOT NULL,
-    description text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
+-- Add missing columns to existing courses table
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS description text;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
 
--- lessons table
-CREATE TABLE public.lessons (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
-    title text NOT NULL,
-    description text,
-    assignment_description text,
-    "order" integer DEFAULT 0 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;
+-- Add missing columns to existing lessons table
+ALTER TABLE public.lessons ADD COLUMN IF NOT EXISTS assignment_description text;
+ALTER TABLE public.lessons ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
 
--- lesson_songs junction table
-CREATE TABLE public.lesson_songs (
+-- Create lesson_songs table if it doesn't exist
+CREATE TABLE IF NOT EXISTS public.lesson_songs (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     lesson_id uuid NOT NULL REFERENCES public.lessons(id) ON DELETE CASCADE,
     song_id uuid NOT NULL REFERENCES public.songs(id) ON DELETE CASCADE,
@@ -32,21 +17,35 @@ CREATE TABLE public.lesson_songs (
 );
 ALTER TABLE public.lesson_songs ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for courses
-CREATE POLICY "Allow admin full access on courses" ON public.courses FOR ALL
-USING ((EXISTS ( SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)))
-WITH CHECK ((EXISTS ( SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)));
+-- RLS Policies for courses (only if they don't exist)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'courses' AND policyname = 'Allow admin full access on courses') THEN
+        CREATE POLICY "Allow admin full access on courses" ON public.courses FOR ALL
+        USING ((EXISTS ( SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)))
+        WITH CHECK ((EXISTS ( SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)));
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'courses' AND policyname = 'Allow authenticated users to read courses') THEN
+        CREATE POLICY "Allow authenticated users to read courses" ON public.courses FOR SELECT
+        TO authenticated USING (true);
+    END IF;
+END $$;
 
-CREATE POLICY "Allow authenticated users to read courses" ON public.courses FOR SELECT
-TO authenticated USING (true);
-
--- RLS Policies for lessons
-CREATE POLICY "Allow admin full access on lessons" ON public.lessons FOR ALL
-USING ((EXISTS ( SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)))
-WITH CHECK ((EXISTS ( SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)));
-
-CREATE POLICY "Allow authenticated users to read lessons" ON public.lessons FOR SELECT
-TO authenticated USING (true);
+-- RLS Policies for lessons (only if they don't exist)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'lessons' AND policyname = 'Allow admin full access on lessons') THEN
+        CREATE POLICY "Allow admin full access on lessons" ON public.lessons FOR ALL
+        USING ((EXISTS ( SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)))
+        WITH CHECK ((EXISTS ( SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)));
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'lessons' AND policyname = 'Allow authenticated users to read lessons') THEN
+        CREATE POLICY "Allow authenticated users to read lessons" ON public.lessons FOR SELECT
+        TO authenticated USING (true);
+    END IF;
+END $$;
 
 -- RLS Policies for lesson_songs
 CREATE POLICY "Allow admin full access on lesson_songs" ON public.lesson_songs FOR ALL
@@ -65,13 +64,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Triggers for updated_at
-CREATE TRIGGER set_courses_timestamp
-BEFORE UPDATE ON public.courses
-FOR EACH ROW
-EXECUTE FUNCTION public.trigger_set_timestamp();
-
-CREATE TRIGGER set_lessons_timestamp
-BEFORE UPDATE ON public.lessons
-FOR EACH ROW
-EXECUTE FUNCTION public.trigger_set_timestamp(); 
+-- Triggers for updated_at (only if they don't exist)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_courses_timestamp') THEN
+        CREATE TRIGGER set_courses_timestamp
+        BEFORE UPDATE ON public.courses
+        FOR EACH ROW
+        EXECUTE FUNCTION public.trigger_set_timestamp();
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_lessons_timestamp') THEN
+        CREATE TRIGGER set_lessons_timestamp
+        BEFORE UPDATE ON public.lessons
+        FOR EACH ROW
+        EXECUTE FUNCTION public.trigger_set_timestamp();
+    END IF;
+END $$; 

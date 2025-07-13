@@ -628,6 +628,8 @@ export interface Course {
   created_at: string;
   updated_at: string;
   lessons: Lesson[];
+  order_index: number;
+  premium_only?: boolean;
 }
 
 export interface Profile {
