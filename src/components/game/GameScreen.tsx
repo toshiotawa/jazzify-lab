@@ -26,6 +26,126 @@ const GameScreen: React.FC = () => {
 
   const gameActions = useGameActions();
 
+  // レッスン曲の自動読み込み処理を追加
+  useEffect(() => {
+    const checkLessonPlay = async () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#play-lesson')) {
+        const params = new URLSearchParams(hash.split('?')[1] || '');
+        const songId = params.get('id');
+        const key = parseInt(params.get('key') || '0');
+        const speed = parseFloat(params.get('speed') || '1.0');
+        const notation = params.get('notation') || 'both';
+        
+        if (songId) {
+          try {
+            // 曲データを取得（レッスン曲は通常曲も使用できるため、すべての曲から検索）
+            const songs = await fetchSongs(); // すべての曲を取得
+            const song = songs.find(s => s.id === songId);
+            
+            if (!song) {
+              console.error('曲が見つかりません:', songId);
+              // エラー時は曲選択画面に戻る
+              window.location.hash = '#songs';
+              return;
+            }
+            
+            // JSONデータの取得
+            let notesData: any;
+            if (song.json_url) {
+              const response = await fetch(song.json_url);
+              if (!response.ok) {
+                throw new Error(`JSONデータの読み込みに失敗: ${response.status}`);
+              }
+              notesData = await response.json();
+            } else if (song.json_data) {
+              notesData = song.json_data;
+            } else {
+              throw new Error('曲のノーツデータがありません');
+            }
+            
+            // notes配列の抽出
+            const notes = Array.isArray(notesData) ? notesData : notesData.notes;
+            if (!notes || !Array.isArray(notes)) {
+              throw new Error('ノーツデータの形式が不正です');
+            }
+            
+            const mapped = notes.map((n: any, idx: number) => ({ 
+              id: `${song.id}-${idx}`, 
+              time: n.time, 
+              pitch: n.pitch 
+            }));
+            
+            // 音声ファイルの長さを取得
+            let duration = 60; // デフォルト値
+            if (song.audio_url) {
+              try {
+                const audio = new Audio(song.audio_url);
+                audio.crossOrigin = 'anonymous';
+                await new Promise((resolve) => {
+                  const loadedHandler = () => {
+                    duration = Math.floor(audio.duration) || 60;
+                    resolve(void 0);
+                  };
+                  const errorHandler = () => {
+                    console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用');
+                    resolve(void 0);
+                  };
+                  
+                  audio.addEventListener('loadedmetadata', loadedHandler);
+                  audio.addEventListener('error', errorHandler);
+                  
+                  // タイムアウト処理
+                  setTimeout(() => resolve(void 0), 5000);
+                });
+              } catch (e) {
+                console.warn('音声ファイル時間取得エラー:', e);
+              }
+            }
+            
+            // レッスン設定を適用
+            await gameActions.updateSettings({
+              transpose: key,
+              playbackSpeed: speed,
+              // notation設定に基づいて表示設定を更新
+              showNotes: notation === 'notes_chords' || notation === 'both',
+              showChords: notation === 'chords_only' || notation === 'both'
+            });
+            
+            // 曲をロード
+            await gameActions.loadSong({
+              id: song.id,
+              title: song.title,
+              artist: song.artist || '',
+              duration: duration,
+              audioFile: song.audio_url || '',
+              musicXmlFile: song.xml_url || null
+            }, mapped);
+            
+            // 練習モードに切り替えて、通常のゲーム画面を表示
+            gameActions.setCurrentTab('practice');
+            // ハッシュを通常の練習モードに変更（URLをクリーンに）
+            window.location.hash = '#practice';
+            
+          } catch (error) {
+            console.error('レッスン曲の読み込みエラー:', error);
+            window.location.hash = '#songs';
+          }
+        }
+      }
+    };
+    
+    checkLessonPlay();
+    
+    // ハッシュ変更を監視
+    const handleHashChange = () => {
+      checkLessonPlay();
+    };
+    
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [gameActions]);
+
   // 🔧 自動リダイレクト: 曲が未選択で、今タブが songs 以外なら自動で songs タブへ
   useEffect(() => {
     if (!currentSong && currentTab !== 'songs') {

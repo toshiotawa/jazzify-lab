@@ -420,13 +420,13 @@ const LessonDetailPage: React.FC = () => {
                             isCompleted ? 'btn-success' : 'btn-primary'
                           }`}
                           onClick={() => {
-                            // 練習開始ボタンのリンクを修正（クエリパラメータを正しく設定）
+                            // レッスン曲を直接ゲーム画面で開く
                             const params = new URLSearchParams();
                             params.set('id', req.song_id);
                             params.set('key', String(req.clear_conditions?.key || 0));
                             params.set('speed', String(req.clear_conditions?.speed || 1.0));
                             params.set('notation', req.clear_conditions?.notation_setting || 'both');
-                            window.location.hash = `#songs?${params.toString()}`;
+                            window.location.hash = `#play-lesson?${params.toString()}`;
                           }}
                         >
                           {isCompleted ? '再挑戦' : '練習開始'}
