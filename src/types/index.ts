@@ -599,6 +599,7 @@ export interface ClearConditions {
   rank?: string;
   count?: number;
   notation_setting?: 'notes_chords' | 'chords_only' | 'both';
+  requires_days?: boolean;  // 日数条件かどうか（true: 日数でカウント、false: 回数でカウント）
 }
 
 export interface LessonSong {

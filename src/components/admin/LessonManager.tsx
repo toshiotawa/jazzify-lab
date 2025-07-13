@@ -293,6 +293,7 @@ export const LessonManager: React.FC = () => {
                                       (キー: {ls.clear_conditions?.key || 0}, 
                                       速度: {ls.clear_conditions?.speed || 1.0}x, 
                                       ランク: {ls.clear_conditions?.rank || 'B'},
+                                      {ls.clear_conditions?.requires_days ? '日数' : '回数'}: {ls.clear_conditions?.count || 1},
                                       楽譜: {ls.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
                                              ls.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'})
                                     </span>
@@ -403,7 +404,20 @@ export const LessonManager: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="label"><span className="label-text">最低クリア回数</span></label>
+              <label className="label">
+                <span className="label-text">達成条件</span>
+              </label>
+              <label className="flex items-center space-x-2 mb-2">
+                <input 
+                  type="checkbox" 
+                  {...registerSong('clear_conditions.requires_days')} 
+                  className="checkbox checkbox-sm" 
+                />
+                <span className="text-sm">日数でカウント（チェックなし: 回数でカウント）</span>
+              </label>
+            </div>
+            <div>
+              <label className="label"><span className="label-text">最低クリア回数/日数</span></label>
               <input 
                 type="number" 
                 {...registerSong('clear_conditions.count')} 
