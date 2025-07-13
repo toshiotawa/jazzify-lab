@@ -8,7 +8,7 @@ import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToL
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit } from 'react-icons/fa';
 
-type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index'>;
+type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number'>;
 
 type SongFormData = {
   song_id: string;
@@ -86,10 +86,11 @@ export const LessonManager: React.FC = () => {
       setValue('description', lesson.description || '');
       setValue('assignment_description', lesson.assignment_description || '');
       setValue('order_index', lesson.order_index);
+      setValue('block_number', lesson.block_number || 1);
     } else {
       setSelectedLesson(null);
       const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 10 : 10;
-      reset({ title: '', description: '', assignment_description: '', order_index: newOrder });
+      reset({ title: '', description: '', assignment_description: '', order_index: newOrder, block_number: 1 });
     }
     dialogRef.current?.showModal();
   };
@@ -129,6 +130,7 @@ export const LessonManager: React.FC = () => {
         description: formData.description,
         assignment_description: formData.assignment_description,
         order_index: Number(formData.order_index) || 0,
+        block_number: Number(formData.block_number) || 1,
       };
 
       if (selectedLesson) {
@@ -255,6 +257,7 @@ export const LessonManager: React.FC = () => {
               <th>順序</th>
               <th>レッスンタイトル</th>
               <th>曲数</th>
+              <th>ブロック</th>
               <th className="text-right">アクション</th>
             </tr>
           </thead>
@@ -272,6 +275,7 @@ export const LessonManager: React.FC = () => {
                   <td>{lesson.order_index}</td>
                   <td className="font-medium">{lesson.title}</td>
                   <td>{lesson.lesson_songs?.length || 0}</td>
+                  <td>ブロック {lesson.block_number || 1}</td>
                   <td className="text-right">
                     <button className="btn btn-ghost btn-sm" onClick={() => openDialog(lesson)}>編集</button>
                     <button className="btn btn-ghost btn-sm text-blue-500" onClick={() => openSongDialog(lesson)}>
@@ -355,6 +359,10 @@ export const LessonManager: React.FC = () => {
             <div>
               <label className="label"><span className="label-text">課題説明</span></label>
               <textarea {...register('assignment_description')} className="textarea textarea-bordered w-full" rows={3}></textarea>
+            </div>
+            <div>
+              <label className="label"><span className="label-text">ブロック</span></label>
+              <input type="number" {...register('block_number')} className="input input-bordered w-full" />
             </div>
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeDialog}>キャンセル</button>

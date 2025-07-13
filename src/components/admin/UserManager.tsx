@@ -117,7 +117,7 @@ const UserManager: React.FC = () => {
     
     const blocks: { [key: number]: Lesson[] } = {};
     lessons.forEach(lesson => {
-      const blockNumber = lesson.block_number || Math.ceil((lesson.order_index + 1) / 5);
+                    const blockNumber = lesson.block_number || 1;
       if (!blocks[blockNumber]) {
         blocks[blockNumber] = [];
       }

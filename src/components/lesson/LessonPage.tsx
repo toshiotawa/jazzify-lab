@@ -91,7 +91,7 @@ const LessonPage: React.FC = () => {
       
       // ブロック1のレッスンで進捗がないものを自動的に作成（解放状態で）
       const block1Lessons = lessonsData.filter(lesson => {
-        const blockNumber = lesson.block_number || Math.ceil((lesson.order_index + 1) / 5);
+        const blockNumber = lesson.block_number || 1;
         return blockNumber === 1;
       });
       
@@ -148,7 +148,7 @@ const LessonPage: React.FC = () => {
     }
     
     // プログレスがない場合は、ブロック1（最初の5レッスン）は解放
-    const blockNumber = lesson.block_number || Math.ceil((index + 1) / 5);
+          const blockNumber = lesson.block_number || 1;
     return blockNumber === 1;
   };
 
@@ -185,7 +185,7 @@ const LessonPage: React.FC = () => {
   const groupLessonsByBlock = (lessons: Lesson[]) => {
     const blocks: { [key: number]: Lesson[] } = {};
     lessons.forEach(lesson => {
-      const blockNumber = lesson.block_number || Math.ceil((lesson.order_index + 1) / 5);
+              const blockNumber = lesson.block_number || 1;
       if (!blocks[blockNumber]) {
         blocks[blockNumber] = [];
       }

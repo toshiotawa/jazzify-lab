@@ -617,12 +617,14 @@ export interface Lesson {
   course_id: string;
   title: string;
   description: string;
+  assignment_description?: string;
   order_index: number;
   block_number?: number;
   created_at: string;
   updated_at: string;
   videos?: LessonVideo[];
   songs?: LessonSong[];
+  lesson_songs?: LessonSong[];
 }
 
 export interface LessonVideo {

@@ -58,7 +58,7 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
   return data as Lesson;
 }
 
-type LessonData = Omit<Lesson, 'id' | 'created_at' | 'updated_at' | 'lesson_songs'>;
+type LessonData = Omit<Lesson, 'id' | 'created_at' | 'updated_at' | 'lesson_songs' | 'videos' | 'songs'>;
 
 /**
  * 新しいレッスンを追加します。
@@ -66,7 +66,11 @@ type LessonData = Omit<Lesson, 'id' | 'created_at' | 'updated_at' | 'lesson_song
  * @returns {Promise<Lesson>}
  */
 export async function addLesson(lessonData: LessonData): Promise<Lesson> {
-  const insertData = { ...lessonData, order_index: lessonData.order_index ?? 0 };
+  const insertData = { 
+    ...lessonData, 
+    order_index: lessonData.order_index ?? 0,
+    block_number: lessonData.block_number ?? 1
+  };
   const { data, error } = await getSupabaseClient()
     .from('lessons')
     .insert(insertData)
@@ -88,7 +92,11 @@ export async function addLesson(lessonData: LessonData): Promise<Lesson> {
  * @returns {Promise<Lesson>}
  */
 export async function updateLesson(id: string, updates: Partial<LessonData>): Promise<Lesson> {
-  const updateData = { ...updates, order_index: updates.order_index ?? undefined };
+  const updateData = { 
+    ...updates, 
+    order_index: updates.order_index ?? undefined,
+    block_number: updates.block_number ?? undefined
+  };
   const { data, error } = await getSupabaseClient()
     .from('lessons')
     .update(updateData)
