@@ -75,14 +75,12 @@ create table public.lessons (
 
 -- Lesson に紐づく曲
 create table public.lesson_songs (
-  lesson_id uuid references public.lessons(id) on delete cascade,
-  song_id uuid references public.songs(id) on delete cascade,
-  key_offset integer default 0,
-  min_speed numeric default 1.0,
-  min_rank text default 'B',
-  min_clear_count integer default 1,
-  notation_setting text default 'both', -- 'notes_chords' | 'chords_only'
-  primary key (lesson_id, song_id)
+  id uuid default gen_random_uuid() not null primary key,
+  lesson_id uuid not null references public.lessons(id) on delete cascade,
+  song_id uuid not null references public.songs(id) on delete cascade,
+  clear_conditions jsonb,
+  created_at timestamp with time zone default now() not null,
+  constraint lesson_songs_lesson_id_song_id_key unique (lesson_id, song_id)
 );
 
 -- Lesson 動画 (Vimeo 埋め込み用)

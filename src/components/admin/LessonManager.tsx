@@ -110,6 +110,7 @@ export const LessonManager: React.FC = () => {
         speed: 1.0,
         rank: 'B',
         count: 1,
+        notation_setting: 'both'
       }
     });
     songDialogRef.current?.showModal();
@@ -297,7 +298,9 @@ export const LessonManager: React.FC = () => {
                                     <span className="text-xs text-gray-400 ml-2">
                                       (キー: {ls.clear_conditions?.key || 0}, 
                                       速度: {ls.clear_conditions?.speed || 1.0}x, 
-                                      ランク: {ls.clear_conditions?.rank || 'B'})
+                                      ランク: {ls.clear_conditions?.rank || 'B'},
+                                      楽譜: {ls.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
+                                             ls.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'})
                                     </span>
                                   </div>
                                   <button 
@@ -419,6 +422,14 @@ export const LessonManager: React.FC = () => {
                 max="10"
                 defaultValue={1}
               />
+            </div>
+            <div>
+              <label className="label"><span className="label-text">楽譜表示設定</span></label>
+              <select {...registerSong('clear_conditions.notation_setting')} className="select select-bordered w-full" defaultValue="both">
+                <option value="notes_chords">ノート＆コード</option>
+                <option value="chords_only">コードのみ</option>
+                <option value="both">両方</option>
+              </select>
             </div>
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeSongDialog}>キャンセル</button>

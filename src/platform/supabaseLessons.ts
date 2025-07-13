@@ -10,20 +10,14 @@ import { Lesson, LessonSong, ClearConditions } from '@/types';
  * @returns {Promise<Lesson[]>}
  */
 export async function fetchLessonsByCourse(courseId: string): Promise<Lesson[]> {
-  const { data, error } = await fetchWithCache<any>(
+  const { data, error } = await fetchWithCache<Lesson>(
     `lessons:${courseId}`,
     async () => await getSupabaseClient()
       .from('lessons')
       .select(`
         *,
         lesson_songs (
-          lesson_id,
-          song_id,
-          key_offset,
-          min_speed,
-          min_rank,
-          min_clear_count,
-          notation_setting,
+          *,
           songs (id, title, artist)
         )
       `)
@@ -36,26 +30,7 @@ export async function fetchLessonsByCourse(courseId: string): Promise<Lesson[]> 
     console.error(`Error fetching lessons for course ${courseId}:`, error);
     throw error;
   }
-  
-  // lesson_songsの個別カラムをclear_conditionsオブジェクトに変換
-  const lessons = (data || []).map((lesson: any) => ({
-    ...lesson,
-    lesson_songs: lesson.lesson_songs?.map((ls: any) => ({
-      id: `${ls.lesson_id}_${ls.song_id}`, // 仮のID生成
-      lesson_id: ls.lesson_id,
-      song_id: ls.song_id,
-      clear_conditions: {
-        key: ls.key_offset || 0,
-        speed: ls.min_speed || 1.0,
-        rank: ls.min_rank || 'B',
-        count: ls.min_clear_count || 1
-      },
-      created_at: new Date().toISOString(), // 仮の値
-      songs: ls.songs
-    }))
-  }));
-  
-  return lessons as Lesson[];
+  return data || [];
 }
 
 type LessonData = Omit<Lesson, 'id' | 'created_at' | 'updated_at' | 'lesson_songs'>;
@@ -136,61 +111,18 @@ type LessonSongData = {
  * @returns {Promise<LessonSong>}
  */
 export async function addSongToLesson(lessonSongData: LessonSongData): Promise<LessonSong> {
-  // clear_conditionsを個別のカラムに変換
-  const insertData: any = {
-    lesson_id: lessonSongData.lesson_id,
-    song_id: lessonSongData.song_id,
-    key_offset: lessonSongData.clear_conditions?.key || 0,
-    min_speed: lessonSongData.clear_conditions?.speed || 1.0,
-    min_rank: lessonSongData.clear_conditions?.rank || 'B',
-    min_clear_count: lessonSongData.clear_conditions?.count || 1,
-    notation_setting: 'both' // デフォルト値
-  };
-  
   const { data, error } = await getSupabaseClient()
     .from('lesson_songs')
-    .insert(insertData)
-    .select(`
-      lesson_id,
-      song_id,
-      key_offset,
-      min_speed,
-      min_rank,
-      min_clear_count,
-      notation_setting
-    `)
+    .insert(lessonSongData)
+    .select()
     .single();
   
   if (error) {
     console.error('Error adding song to lesson:', error);
     throw error;
   }
-  
-  // song情報を別途取得
-  const { data: songData } = await getSupabaseClient()
-    .from('songs')
-    .select('id, title, artist')
-    .eq('id', data.song_id)
-    .single();
-  
   clearSupabaseCache();
-  
-  // 個別カラムをclear_conditionsオブジェクトに変換
-  const lessonSong: LessonSong = {
-    id: `${data.lesson_id}_${data.song_id}`,
-    lesson_id: data.lesson_id,
-    song_id: data.song_id,
-    clear_conditions: {
-      key: data.key_offset || 0,
-      speed: data.min_speed || 1.0,
-      rank: data.min_rank || 'B',
-      count: data.min_clear_count || 1
-    },
-    created_at: new Date().toISOString(),
-    songs: songData || { id: data.song_id, title: '', artist: '' }
-  };
-  
-  return lessonSong;
+  return data as LessonSong;
 }
 
 /**
@@ -214,64 +146,22 @@ export async function removeSongFromLesson(lessonId: string, songId: string): Pr
 
 /**
  * レッスン曲のクリア条件を更新します。
- * @param {string} lessonId
- * @param {string} songId
+ * @param {string} lessonSongId
  * @param {ClearConditions} updates
  * @returns {Promise<LessonSong>}
  */
-export async function updateLessonSongConditions(lessonId: string, songId: string, updates: ClearConditions): Promise<LessonSong> {
-    // clear_conditionsを個別のカラムに変換
-    const updateData = {
-      key_offset: updates.key,
-      min_speed: updates.speed,
-      min_rank: updates.rank,
-      min_clear_count: updates.count
-    };
-    
+export async function updateLessonSongConditions(lessonSongId: string, updates: ClearConditions): Promise<LessonSong> {
     const { data, error } = await getSupabaseClient()
     .from('lesson_songs')
-    .update(updateData)
-    .eq('lesson_id', lessonId)
-    .eq('song_id', songId)
-    .select(`
-      lesson_id,
-      song_id,
-      key_offset,
-      min_speed,
-      min_rank,
-      min_clear_count,
-      notation_setting
-    `)
+    .update({ clear_conditions: updates })
+    .eq('id', lessonSongId)
+    .select()
     .single();
 
   if (error) {
-    console.error(`Error updating lesson song conditions for lesson ${lessonId}, song ${songId}:`, error);
+    console.error(`Error updating lesson song conditions for ${lessonSongId}:`, error);
     throw error;
   }
-  
-  // song情報を別途取得
-  const { data: songData } = await getSupabaseClient()
-    .from('songs')
-    .select('id, title, artist')
-    .eq('id', data.song_id)
-    .single();
-  
   clearSupabaseCache();
-  
-  // 個別カラムをclear_conditionsオブジェクトに変換
-  const lessonSong: LessonSong = {
-    id: `${data.lesson_id}_${data.song_id}`,
-    lesson_id: data.lesson_id,
-    song_id: data.song_id,
-    clear_conditions: {
-      key: data.key_offset || 0,
-      speed: data.min_speed || 1.0,
-      rank: data.min_rank || 'B',
-      count: data.min_clear_count || 1
-    },
-    created_at: new Date().toISOString(),
-    songs: songData || { id: data.song_id, title: '', artist: '' }
-  };
-  
-  return lessonSong;
+  return data as LessonSong;
 } 

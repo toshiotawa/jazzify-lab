@@ -598,6 +598,7 @@ export interface ClearConditions {
   speed?: number;
   rank?: string;
   count?: number;
+  notation_setting?: 'notes_chords' | 'chords_only' | 'both';
 }
 
 export interface LessonSong {
