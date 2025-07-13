@@ -37,9 +37,10 @@ type LessonData = Omit<Lesson, 'id' | 'created_at' | 'updated_at' | 'lesson_song
  * @returns {Promise<Lesson>}
  */
 export async function addLesson(lessonData: LessonData): Promise<Lesson> {
+  const insertData = { ...lessonData, order_index: lessonData.order_index ?? 0 };
   const { data, error } = await getSupabaseClient()
     .from('lessons')
-    .insert(lessonData)
+    .insert(insertData)
     .select()
     .single();
 
@@ -58,9 +59,10 @@ export async function addLesson(lessonData: LessonData): Promise<Lesson> {
  * @returns {Promise<Lesson>}
  */
 export async function updateLesson(id: string, updates: Partial<LessonData>): Promise<Lesson> {
+  const updateData = { ...updates, order_index: updates.order_index ?? undefined };
   const { data, error } = await getSupabaseClient()
     .from('lessons')
-    .update(updates)
+    .update(updateData)
     .eq('id', id)
     .select()
     .single();

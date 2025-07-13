@@ -615,10 +615,18 @@ export interface Lesson {
   title: string;
   description?: string;
   assignment_description?: string;
-  order: number;
+  order_index: number;
   created_at: string;
   updated_at: string;
   lesson_songs: LessonSong[];
+  video_id?: string; // Bunny Video ID
+}
+
+export interface LessonVideo {
+  id: string;
+  lesson_id: string;
+  bunny_video_id: string;
+  order_index: number;
 }
 
 export interface Course {
@@ -630,6 +638,7 @@ export interface Course {
   lessons: Lesson[];
   order_index: number;
   premium_only?: boolean;
+  min_rank?: 'free' | 'standard' | 'premium' | 'platinum';
 }
 
 export interface Profile {

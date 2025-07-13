@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useToast } from '@/stores/toastStore';
 import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag } from '@/platform/supabaseAdmin';
+import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
 
 const ranks = ['free','standard','premium','platinum'] as const;
 
@@ -10,12 +11,17 @@ const UserManager: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+  const [userProgress, setUserProgress] = useState<Record<string, LessonProgress[]>>({});
 
   const load = async () => {
     setLoading(true);
     try {
       const data = await fetchAllUsers();
       setUsers(data);
+      for (const user of data) {
+        const progress = await fetchUserLessonProgress(user.id);
+        setUserProgress(prev => ({...prev, [user.id]: progress}));
+      }
     } finally {
       setLoading(false);
     }
@@ -56,6 +62,7 @@ const UserManager: React.FC = () => {
                 <th className="py-1 px-2">Rank</th>
                 <th className="py-1 px-2">Admin</th>
                 <th className="py-1 px-2 text-right">Level</th>
+                <th className="py-1 px-2">レッスン進捗</th>
               </tr>
             </thead>
             <tbody>
@@ -76,6 +83,7 @@ const UserManager: React.FC = () => {
                     <input type="checkbox" className="checkbox checkbox-sm" checked={u.is_admin} onChange={e=>toggleAdmin(u.id, e.target.checked)} />
                   </td>
                   <td className="py-1 px-2 text-right text-xs">Lv{u.level}</td>
+                  <td className="py-1 px-2 text-right text-xs">{userProgress[u.id]?.[0]?.completed ? '完了' : '未完了'}</td>
                 </tr>
               ))}
             </tbody>

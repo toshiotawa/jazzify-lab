@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Course, Lesson, Song } from '@/types';
+import { Course, Lesson, Song, ClearConditions } from '@/types';
 import { fetchCoursesWithDetails } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { addLesson, updateLesson, deleteLesson } from '@/platform/supabaseLessons';
+import { addLesson, updateLesson, deleteLesson, addSongToLesson, updateLessonSongConditions } from '@/platform/supabaseLessons';
 import { useToast } from '@/stores/toastStore';
 
-type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order'>;
+type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index'>;
 
 export const LessonManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -14,6 +14,10 @@ export const LessonManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [availableSongs, setAvailableSongs] = useState<Song[]>([]);
+  const [selectedSongId, setSelectedSongId] = useState<string>('');
+  const [videoId, setVideoId] = useState<string>('');
+  const [clearConditions, setClearConditions] = useState<ClearConditions>({});
 
   const toast = useToast();
   const { register, handleSubmit, reset, setValue } = useForm<LessonFormData>();
@@ -50,11 +54,12 @@ export const LessonManager: React.FC = () => {
       setValue('title', lesson.title);
       setValue('description', lesson.description || '');
       setValue('assignment_description', lesson.assignment_description || '');
-      setValue('order', lesson.order);
+      setValue('order_index', lesson.order_index);
+      setVideoId(lesson.video_id || '');
     } else {
       setSelectedLesson(null);
-      const newOrder = lessons.length > 0 ? Math.max(...lessons.map(l => l.order)) + 10 : 10;
-      reset({ title: '', description: '', assignment_description: '', order: newOrder });
+      const newOrder = lessons.length > 0 ? Math.max(...lessons.map(l => l.order_index)) + 10 : 10;
+      reset({ title: '', description: '', assignment_description: '', order_index: newOrder });
     }
     dialogRef.current?.showModal();
   };
@@ -74,7 +79,7 @@ export const LessonManager: React.FC = () => {
         title: formData.title,
         description: formData.description,
         assignment_description: formData.assignment_description,
-        order: Number(formData.order) || 0, // Ensure order is a number
+        order_index: Number(formData.order_index) || 0,
       };
 
       if (selectedLesson) {
@@ -151,7 +156,7 @@ export const LessonManager: React.FC = () => {
               <tr><td colSpan={4} className="text-center">読み込み中...</td></tr>
             ) : lessons.map(lesson => (
               <tr key={lesson.id}>
-                <td>{lesson.order}</td>
+                <td>{lesson.order_index}</td>
                 <td>{lesson.title}</td>
                 <td>{lesson.lesson_songs?.length || 0}</td>
                 <td className="text-right">
@@ -174,7 +179,7 @@ export const LessonManager: React.FC = () => {
             </div>
             <div>
               <label className="label"><span className="label-text">順序</span></label>
-              <input type="number" {...register('order')} className="input input-bordered w-full" />
+              <input type="number" {...register('order_index')} className="input input-bordered w-full" />
             </div>
             <div>
               <label className="label"><span className="label-text">レッスン説明</span></label>
@@ -183,6 +188,17 @@ export const LessonManager: React.FC = () => {
             <div>
               <label className="label"><span className="label-text">課題説明</span></label>
               <textarea {...register('assignment_description')} className="textarea textarea-bordered w-full" rows={3}></textarea>
+            </div>
+            <div>
+              <label className="label"><span className="label-text">Bunny Video ID</span></label>
+              <input value={videoId} onChange={(e) => setVideoId(e.target.value)} className="input input-bordered w-full" />
+            </div>
+            <div>
+              <label className="label"><span className="label-text">Add Song</span></label>
+              <select value={selectedSongId} onChange={(e) => setSelectedSongId(e.target.value)} className="select select-bordered w-full">
+                {availableSongs.map(song => <option key={song.id} value={song.id}>{song.title}</option>)}
+              </select>
+              <button type="button" onClick={() => { if (selectedLesson) addSongToLesson({lesson_id: selectedLesson.id, song_id: selectedSongId, clear_conditions: clearConditions}); }}>Add Song</button>
             </div>
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeDialog}>キャンセル</button>

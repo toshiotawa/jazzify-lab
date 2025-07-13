@@ -3,7 +3,7 @@ import { getSupabaseClient, fetchWithCache } from '@/platform/supabaseClient';
 export interface LessonVideo {
   id: string;
   lesson_id: string;
-  vimeo_url: string;
+  bunny_video_id: string;
   order_index: number;
 }
 
@@ -26,7 +26,7 @@ export async function fetchLessonVideos(lessonId: string): Promise<LessonVideo[]
     cacheKey,
     async () => await getSupabaseClient()
       .from('lesson_videos')
-      .select('*')
+      .select('id, lesson_id, vimeo_url as bunny_video_id, order_index')
       .eq('lesson_id', lessonId)
       .order('order_index', { ascending: true }),
     1000 * 60 * 10 // 10分キャッシュ

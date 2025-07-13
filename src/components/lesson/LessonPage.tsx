@@ -57,14 +57,7 @@ const LessonPage: React.FC = () => {
     setLoading(true);
     try {
       const coursesData = await fetchCoursesWithDetails();
-      // ユーザーのランクでアクセス可能なコースのみフィルタリング
-      // `min_rank` が存在しないため、一時的にコメントアウト
-      /*
-      const accessibleCourses = coursesData.filter(course => 
-        canAccessCourse(course, profile?.rank || 'free')
-      );
-      */
-      const accessibleCourses = coursesData; // 一時的に全コースを許可
+      const accessibleCourses = coursesData.filter(course => canAccessCourse(course, profile?.rank || 'free'));
       setCourses(accessibleCourses);
       
       if (accessibleCourses.length > 0) {
@@ -97,15 +90,9 @@ const LessonPage: React.FC = () => {
     }
   };
 
+  const rankOrder = { free: 0, standard: 1, premium: 2, platinum: 3 };
   const canAccessCourse = (course: Course, userRank: string): boolean => {
-    // `min_rank` が Course 型に存在しないため、常に true を返す
-    return true;
-    /*
-    const rankOrder = ['free', 'standard', 'premium', 'platinum'];
-    const courseRankIndex = rankOrder.indexOf(course.min_rank);
-    const userRankIndex = rankOrder.indexOf(userRank);
-    return userRankIndex >= courseRankIndex;
-    */
+    return rankOrder[userRank] >= rankOrder[course.min_rank || 'free'];
   };
 
   const isLessonUnlocked = (lesson: Lesson, index: number): boolean => {

@@ -33,6 +33,7 @@ const LessonDetailPage: React.FC = () => {
   const [showSkipModal, setShowSkipModal] = useState(false);
   const { profile } = useAuthStore();
   const toast = useToast();
+  const [assignmentChecks, setAssignmentChecks] = useState<boolean[]>([]);
 
   useEffect(() => {
     const checkHash = () => {
@@ -75,6 +76,8 @@ const LessonDetailPage: React.FC = () => {
       if (videosData.length > 0) {
         setCurrentVideoIndex(0);
       }
+      
+      setAssignmentChecks(lesson?.assignment_description ? Array(5).fill(false) : []);
       
     } catch (e: any) {
       toast.error('レッスンデータの読み込みに失敗しました');
@@ -124,14 +127,8 @@ const LessonDetailPage: React.FC = () => {
     window.location.hash = '#lessons';
   };
 
-  const getVimeoEmbedUrl = (vimeoUrl: string): string => {
-    // Vimeo URLから動画IDを抽出
-    const match = vimeoUrl.match(/vimeo\.com\/(\d+)/);
-    if (match) {
-      const videoId = match[1];
-      return `https://player.vimeo.com/video/${videoId}?h=0&badge=0&autopause=0&player_id=0&app_id=58479`;
-    }
-    return vimeoUrl;
+  const getBunnyEmbedUrl = (bunnyVideoId: string): string => {
+    return `https://iframe.mediadelivery.net/embed/YOUR_LIBRARY_ID/${bunnyVideoId}?autoplay=false`;
   };
 
   if (!open) return null;
@@ -190,10 +187,10 @@ const LessonDetailPage: React.FC = () => {
                 {/* ビデオプレイヤー */}
                 <div className="aspect-video bg-black">
                   <iframe
-                    src={getVimeoEmbedUrl(videos[currentVideoIndex].vimeo_url)}
+                    src={getBunnyEmbedUrl(videos[currentVideoIndex].bunny_video_id)}
                     className="w-full h-full"
                     frameBorder="0"
-                    allow="autoplay; fullscreen; picture-in-picture"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                     title={`レッスン動画 ${currentVideoIndex + 1}`}
                   />
@@ -326,6 +323,17 @@ const LessonDetailPage: React.FC = () => {
               <p className="text-xs text-gray-400 text-center mt-2">
                 動画視聴と実習課題を完了したら押してください
               </p>
+            </div>
+
+            <div className="p-4">
+              <h3 className="font-bold">課題説明</h3>
+              <p>{lesson?.assignment_description}</p>
+              {profile?.rank === 'platinum' && assignmentChecks.map((checked, i) => (
+                <label key={i}>
+                  <input type="checkbox" checked={checked} onChange={() => { /* save to Supabase */ }} />
+                  日目 {i+1}
+                </label>
+              ))}
             </div>
           </div>
         </div>
