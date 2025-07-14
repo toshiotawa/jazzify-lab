@@ -135,16 +135,24 @@ export const LessonManager: React.FC = () => {
 
       if (selectedLesson) {
         const updatedLesson = await updateLesson(selectedLesson.id, lessonData);
+        
+        // ① 画面を即時更新（オプティミスティック）
+        setCurrentLessons(prev =>
+          prev.map(l => (l.id === updatedLesson.id ? updatedLesson : l)),
+        );
+        
         toast.success('レッスンを更新しました。');
         
-        // 最新データを再取得
-        await loadLessons();
+        // ② バックグラウンドで厳密データを再取得
+        loadLessons();
       } else {
         const newLesson = await addLesson({ ...lessonData, course_id: selectedCourseId });
+        
+        setCurrentLessons(prev => [...prev, newLesson]);
+        
         toast.success('新しいレッスンを追加しました。');
         
-        // 最新データを再取得
-        await loadLessons();
+        loadLessons();
       }
       
       closeDialog();
@@ -166,10 +174,20 @@ export const LessonManager: React.FC = () => {
         song_id: formData.song_id,
         clear_conditions: formData.clear_conditions
       });
+      
+      // ① 画面を即時更新（オプティミスティック）
+      setCurrentLessons(prev =>
+        prev.map(lesson => 
+          lesson.id === selectedLesson.id 
+            ? { ...lesson, lesson_songs: [...(lesson.lesson_songs || []), newLessonSong] }
+            : lesson
+        )
+      );
+      
       toast.success('曲を追加しました。');
       
-      // 最新データを再取得
-      await loadLessons();
+      // ② バックグラウンドで厳密データを再取得
+      loadLessons();
       
       closeSongDialog();
     } catch (error) {
@@ -184,10 +202,14 @@ export const LessonManager: React.FC = () => {
     if (window.confirm('本当にこのレッスンを削除しますか？')) {
       try {
         await deleteLesson(id);
+        
+        // ① 画面を即時更新（オプティミスティック）
+        setCurrentLessons(prev => prev.filter(l => l.id !== id));
+        
         toast.success('レッスンを削除しました。');
         
-        // 最新データを再取得
-        await loadLessons();
+        // ② バックグラウンドで厳密データを再取得
+        loadLessons();
       } catch (error) {
         toast.error('レッスンの削除に失敗しました。');
         console.error(error);
@@ -205,14 +227,20 @@ export const LessonManager: React.FC = () => {
         console.log('削除前の曲リスト:', lesson?.lesson_songs);
         
         await removeSongFromLesson(lessonId, songId);
+        
+        // ① 画面を即時更新（オプティミスティック）
+        setCurrentLessons(prev =>
+          prev.map(lesson => 
+            lesson.id === lessonId 
+              ? { ...lesson, lesson_songs: lesson.lesson_songs?.filter(ls => ls.song_id !== songId) || [] }
+              : lesson
+          )
+        );
+        
         toast.success('曲を削除しました。');
         
-        // 最新データを再取得
-        await loadLessons();
-        
-        // 削除後の曲リストをログ出力
-        const updatedLesson = currentLessons.find(l => l.id === lessonId);
-        console.log('削除後の曲リスト:', updatedLesson?.lesson_songs?.filter(ls => ls.song_id !== songId));
+        // ② バックグラウンドで厳密データを再取得
+        loadLessons();
       } catch (error) {
         toast.error('曲の削除に失敗しました。');
         console.error('削除エラーの詳細:', error);
@@ -258,7 +286,7 @@ export const LessonManager: React.FC = () => {
         </select>
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-gray-700">
+      <div className="relative overflow-x-auto rounded-md border border-gray-700">
         <table className="table w-full">
           <thead>
             <tr>
@@ -271,9 +299,15 @@ export const LessonManager: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {loading || lessonsLoading ? (
-              <tr><td colSpan={5} className="text-center">読み込み中...</td></tr>
-            ) : currentLessons.map(lesson => (
+            {/* --------- ① 初回ロードのみ全置き換え --------- */}
+            {loading && currentLessons.length === 0 && (
+              <tr>
+                <td colSpan={6} className="text-center">読み込み中...</td>
+              </tr>
+            )}
+
+            {/* --------- ② リフレッシュ時は既存リストを残す --------- */}
+            {currentLessons.map(lesson => (
               <React.Fragment key={lesson.id}>
                 <tr>
                   <td>
@@ -346,6 +380,13 @@ export const LessonManager: React.FC = () => {
             ))}
           </tbody>
         </table>
+
+        {/* lessonsLoading だけで出る半透明オーバーレイ */}
+        {lessonsLoading && (
+          <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center">
+            <span className="loading loading-spinner loading-lg"></span>
+          </div>
+        )}
       </div>
       
       {/* レッスン編集ダイアログ */}
