@@ -151,7 +151,7 @@ const InformationPage: React.FC = () => {
                     {isExpanded && (
                       <div className="p-6 border-t border-slate-700">
                         <div 
-                          className="text-gray-300 mb-4"
+                          className="text-gray-300 mb-4 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
                           dangerouslySetInnerHTML={{ __html: mdToHtml(announcement.content) }}
                         />
                         
@@ -160,7 +160,7 @@ const InformationPage: React.FC = () => {
                             href={announcement.link_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors"
+                            className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors underline"
                           >
                             <FaExternalLinkAlt className="w-4 h-4" />
                             <span>{announcement.link_text || '詳細を見る'}</span>

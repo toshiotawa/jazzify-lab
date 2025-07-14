@@ -180,7 +180,7 @@ const Dashboard: React.FC = () => {
                     <div className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors">
                       <h4 className="font-semibold mb-2">{latestAnnouncement.title}</h4>
                       <div 
-                        className="text-sm text-gray-300 mb-3"
+                        className="text-sm text-gray-300 mb-3 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
                         dangerouslySetInnerHTML={{ __html: mdToHtml(latestAnnouncement.content) }}
                       />
                       
@@ -189,7 +189,7 @@ const Dashboard: React.FC = () => {
                           href={latestAnnouncement.link_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 text-sm"
+                          className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 text-sm underline transition-colors"
                         >
                           <FaExternalLinkAlt className="w-3 h-3" />
                           <span>{latestAnnouncement.link_text || 'リンクを開く'}</span>
