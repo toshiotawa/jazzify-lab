@@ -111,12 +111,13 @@ const LessonPage: React.FC = () => {
       const coursesData = await fetchCoursesWithDetails();
       // 並び順でソート
       const sortedCourses = coursesData.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-      // アクセス可能なコースのみフィルタリング
-      const accessibleCourses = sortedCourses.filter(course => canAccessCourse(course, profile?.rank || 'free'));
-      setCourses(accessibleCourses);
+      // すべてのコースを表示（アクセス制限は表示側で処理）
+      setCourses(sortedCourses);
       
-      if (accessibleCourses.length > 0) {
-        setSelectedCourse(accessibleCourses[0]);
+      // アクセス可能な最初のコースを選択
+      const firstAccessibleCourse = sortedCourses.find(course => canAccessCourse(course, profile?.rank || 'free'));
+      if (firstAccessibleCourse) {
+        setSelectedCourse(firstAccessibleCourse);
       }
     } catch (e: any) {
       toast.error('コースの読み込みに失敗しました');
@@ -336,24 +337,33 @@ const LessonPage: React.FC = () => {
                   <h2 className="text-lg font-semibold">コース一覧</h2>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {courses.map((course: Course) => (
-                    <div
-                      key={course.id}
-                      className={`p-4 rounded-lg cursor-pointer transition-colors ${
-                        selectedCourse?.id === course.id 
-                          ? 'bg-primary-600' 
-                          : 'bg-slate-700 hover:bg-slate-600'
-                      }`}
-                      onClick={() => setSelectedCourse(course)}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-medium truncate">{course.title}</h3>
-                        {/* 
-                        <span className="text-xs px-2 py-1 bg-slate-600 rounded capitalize">
-                          {course.min_rank}
-                        </span>
-                        */}
-                      </div>
+                  {courses.map((course: Course) => {
+                    const accessible = canAccessCourse(course, profile?.rank || 'free');
+                    return (
+                      <div
+                        key={course.id}
+                        className={`p-4 rounded-lg cursor-pointer transition-colors ${
+                          selectedCourse?.id === course.id 
+                            ? 'bg-primary-600' 
+                            : accessible
+                              ? 'bg-slate-700 hover:bg-slate-600'
+                              : 'bg-slate-800 opacity-75'
+                        }`}
+                        onClick={() => {
+                          if (accessible) {
+                            setSelectedCourse(course);
+                          } else {
+                            const requiredRank = course.premium_only ? 'プレミアム' : course.min_rank?.toUpperCase() || 'FREE';
+                            toast.warning(`このコースは${requiredRank}プラン以上でアクセス可能です`);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-medium truncate flex items-center gap-2">
+                            {course.title}
+                            {!accessible && <FaLock className="text-xs text-gray-400" />}
+                          </h3>
+                        </div>
                       
                       {/* コース進捗バー */}
                       <div className="mb-2">
@@ -375,7 +385,8 @@ const LessonPage: React.FC = () => {
                         </p>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

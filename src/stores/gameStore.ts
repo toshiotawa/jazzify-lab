@@ -17,7 +17,8 @@ import type {
   ScoreRank,
   ActiveNote,
   GameError,
-  ChordInfo
+  ChordInfo,
+  ClearConditions
 } from '@/types';
 // GameEngine は実行時にのみ必要なため、型のみインポート
 // import { GameEngine } from '@/utils/gameEngine';
@@ -277,6 +278,9 @@ const defaultState: GameState = {
     renderTime: 0,
     audioLatency: 0
   },
+  
+  // レッスン情報
+  lessonContext: undefined,
 };
 
 // 練習モード専用設定のデフォルト値
@@ -585,6 +589,10 @@ interface GameStoreState extends GameState {
   
   // 音名情報更新
   updateNoteNames: (noteNamesMap: { [noteId: string]: string }) => void;
+  
+  // レッスンコンテキスト
+  setLessonContext: (lessonId: string, clearConditions: ClearConditions) => void;
+  clearLessonContext: () => void;
 }
 
 // ===== ヘルパー関数 =====
@@ -998,13 +1006,49 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             'transposingInstrument' in newSettings && 
             newSettings.transposingInstrument !== currentSettings.transposingInstrument;
           
-          // まず Immer の set でストアの設定値を更新
+          // 🆕 本番モード + レッスンコンテキスト時の課題条件設定変更制限
+          const currentState = get();
+          const filteredSettings = { ...newSettings };
+          
+          if (currentState.mode === 'performance' && currentState.lessonContext) {
+            const { clearConditions } = currentState.lessonContext;
+            
+            // 課題条件に関連する設定変更を無効化
+            if ('transpose' in filteredSettings && clearConditions.key !== undefined) {
+              console.warn('⚠️ 本番モード時はキー設定（transpose）を変更できません');
+              delete filteredSettings.transpose;
+            }
+            
+            if ('playbackSpeed' in filteredSettings && clearConditions.speed !== undefined) {
+              console.warn('⚠️ 本番モード時は速度設定（playbackSpeed）を変更できません');
+              delete filteredSettings.playbackSpeed;
+            }
+            
+            if (clearConditions.notation_setting) {
+              if ('showSheetMusic' in filteredSettings) {
+                console.warn('⚠️ 本番モード時は楽譜表示設定（showSheetMusic）を変更できません');
+                delete filteredSettings.showSheetMusic;
+              }
+              if ('sheetMusicChordsOnly' in filteredSettings) {
+                console.warn('⚠️ 本番モード時は楽譜表示設定（sheetMusicChordsOnly）を変更できません');
+                delete filteredSettings.sheetMusicChordsOnly;
+              }
+            }
+            
+            // 制限された設定がある場合はログ出力
+            const restrictedKeys = Object.keys(newSettings).filter(key => !(key in filteredSettings));
+            if (restrictedKeys.length > 0) {
+              console.log(`🎯 本番モード課題条件制限: ${restrictedKeys.join(', ')} の変更がブロックされました`);
+            }
+          }
+          
+          // まず Immer の set でストアの設定値を更新（フィルタ後の設定を使用）
           set((state) => {
-            Object.assign(state.settings, newSettings);
+            Object.assign(state.settings, filteredSettings);
             
             // 練習モードでpracticeGuideが変更された場合は保存
-            if (state.mode === 'practice' && 'practiceGuide' in newSettings) {
-              state.practiceModeSettings.practiceGuide = newSettings.practiceGuide ?? 'key';
+            if (state.mode === 'practice' && 'practiceGuide' in filteredSettings) {
+              state.practiceModeSettings.practiceGuide = filteredSettings.practiceGuide ?? 'key';
             }
             
             // 本番モードでは練習モードガイドを無効化
@@ -1107,6 +1151,47 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             }
             // 本番モードでは練習モードガイドを無効化
             state.settings.practiceGuide = 'off';
+            
+            // 🆕 レッスンモード時：本番モードで課題条件を強制適用
+            if (state.lessonContext) {
+              const { clearConditions } = state.lessonContext;
+              console.log('🎯 本番モード切り替え: レッスン課題条件を適用', clearConditions);
+              
+              // キー（移調）設定
+              if (clearConditions.key !== undefined) {
+                state.settings.transpose = clearConditions.key;
+              }
+              
+              // 速度設定
+              if (clearConditions.speed !== undefined) {
+                state.settings.playbackSpeed = clearConditions.speed;
+              }
+              
+              // 楽譜表示設定
+              if (clearConditions.notation_setting) {
+                switch (clearConditions.notation_setting) {
+                  case 'notes_chords':
+                    state.settings.showSheetMusic = true;
+                    state.settings.sheetMusicChordsOnly = false;
+                    break;
+                  case 'chords_only':
+                    state.settings.showSheetMusic = true;
+                    state.settings.sheetMusicChordsOnly = true;
+                    break;
+                  case 'both':
+                    state.settings.showSheetMusic = true;
+                    state.settings.sheetMusicChordsOnly = false;
+                    break;
+                }
+              }
+              
+              console.log('✅ 本番モード課題条件適用完了:', {
+                transpose: state.settings.transpose,
+                playbackSpeed: state.settings.playbackSpeed,
+                showSheetMusic: state.settings.showSheetMusic,
+                sheetMusicChordsOnly: state.settings.sheetMusicChordsOnly
+              });
+            }
           }
           
           // モード切り替え時に再生停止するが、時刻はリセットしない
@@ -1595,6 +1680,20 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               noteName: noteNamesMap[note.id] || note.noteName
             }));
           }),
+        
+        // レッスンコンテキスト
+        setLessonContext: (lessonId: string, clearConditions: ClearConditions) =>
+          set((state: GameStoreState) => {
+            state.lessonContext = {
+              lessonId,
+              clearConditions
+            };
+          }),
+        
+        clearLessonContext: () =>
+          set((state: GameStoreState) => {
+            state.lessonContext = undefined;
+          }),
       }))
     ),
     {
@@ -1791,3 +1890,9 @@ if (typeof window !== 'undefined') {
   );
 }
 
+// レッスンコンテキスト
+export const useLessonContext = () =>
+  useGameStore((state: GameStoreState) => state.lessonContext);
+
+export const useIsLessonMode = () =>
+  useGameStore((state: GameStoreState) => !!state.lessonContext);

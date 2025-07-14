@@ -113,17 +113,11 @@ const LessonDetailPage: React.FC = () => {
   const handleComplete = async () => {
     if (!lessonId || !lesson) return;
     
-    // プラチナプランの場合は自分で完了できない
-    if (profile?.rank === 'platinum') {
-      toast.error('プラチナプランの方は管理者による確認後にレッスンが完了となります。');
-      return;
-    }
-    
-    // プレミアムプラン以上のユーザーのみ実習課題のチェックを行う
-    if (profile?.rank === 'premium') {
+    // プレミアム以上のユーザーのみ実習課題のチェックを行う
+    if (profile?.rank === 'premium' || profile?.rank === 'platinum') {
       // 実習課題が全て完了しているかチェック
       if (!allRequirementsCompleted) {
-        toast.warning('プレミアムプランの方は、全ての実習課題を完了してからレッスンを完了してください。');
+        toast.warning('全ての実習課題を完了してからレッスンを完了してください。');
         return;
       }
     }
@@ -448,9 +442,14 @@ const LessonDetailPage: React.FC = () => {
                             // レッスン曲を直接ゲーム画面で開く
                             const params = new URLSearchParams();
                             params.set('id', req.song_id);
+                            params.set('lessonId', req.lesson_id);
                             params.set('key', String(req.clear_conditions?.key || 0));
                             params.set('speed', String(req.clear_conditions?.speed || 1.0));
+                            params.set('rank', req.clear_conditions?.rank || 'B');
+                            params.set('count', String(req.clear_conditions?.count || 1));
                             params.set('notation', req.clear_conditions?.notation_setting || 'both');
+                            params.set('requiresDays', String(req.clear_conditions?.requires_days || false));
+                            params.set('dailyCount', String(req.clear_conditions?.daily_count || 1));
                             window.location.hash = `#play-lesson?${params.toString()}`;
                           }}
                         >
@@ -489,37 +488,33 @@ const LessonDetailPage: React.FC = () => {
 
             {/* 完了・スキップボタンセクション */}
             <div className="bg-slate-800 rounded-lg p-6">
-              {/* プラチナプラン以外は完了ボタンを表示 */}
-              {profile?.rank !== 'platinum' && (
-                <>
-                  <button
-                    onClick={handleComplete}
-                    disabled={completing || lessonProgress?.completed}
-                    className={`w-full btn ${
-                      lessonProgress?.completed ? 'btn-disabled' : 'btn-primary'
-                    } flex items-center justify-center space-x-2`}
-                  >
-                    <FaCheckCircle />
-                    <span>
-                      {lessonProgress?.completed ? 'レッスン完了済み' : 
-                       completing ? '完了処理中...' : 'レッスン完了'}
-                    </span>
-                  </button>
-                  
-                  <p className="text-xs text-gray-400 text-center mt-2">
-                    {lessonProgress?.completed ? 
-                      'このレッスンは既に完了しています' : 
-                      '動画視聴と実習課題を完了したら押してください'}
-                  </p>
-                </>
-              )}
+              {/* 完了ボタン */}
+              <button
+                onClick={handleComplete}
+                disabled={completing || lessonProgress?.completed}
+                className={`w-full btn ${
+                  lessonProgress?.completed ? 'btn-disabled' : 'btn-primary'
+                } flex items-center justify-center space-x-2`}
+              >
+                <FaCheckCircle />
+                <span>
+                  {lessonProgress?.completed ? 'レッスン完了済み' : 
+                   completing ? '完了処理中...' : 'レッスン完了'}
+                </span>
+              </button>
               
-              {/* プラチナプランはスキップボタンのみ表示 */}
+              <p className="text-xs text-gray-400 text-center mt-2">
+                {lessonProgress?.completed ? 
+                  'このレッスンは既に完了しています' : 
+                  '動画視聴と実習課題を完了したら押してください'}
+              </p>
+              
+              {/* プラチナプラン限定：スキップボタン */}
               {profile?.rank === 'platinum' && !lessonProgress?.completed && (
                 <button
                   onClick={() => setShowSkipModal(true)}
                   className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-600 hover:bg-yellow-700 
-                    rounded-lg transition-colors font-medium"
+                    rounded-lg transition-colors font-medium mt-4"
                   title="プラチナプラン限定: レッスンをスキップ"
                 >
                   <FaForward className="w-5 h-5" />

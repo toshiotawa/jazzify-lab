@@ -25,17 +25,28 @@ const GameScreen: React.FC = () => {
   }));
 
   const gameActions = useGameActions();
+  
+  // レッスン曲読み込み中の状態管理を追加
+  const [isLoadingLessonSong, setIsLoadingLessonSong] = useState(false);
 
   // レッスン曲の自動読み込み処理を追加
   useEffect(() => {
     const checkLessonPlay = async () => {
       const hash = window.location.hash;
       if (hash.startsWith('#play-lesson')) {
+        // 読み込み開始
+        setIsLoadingLessonSong(true);
+        
         const params = new URLSearchParams(hash.split('?')[1] || '');
         const songId = params.get('id');
+        const lessonId = params.get('lessonId');
         const key = parseInt(params.get('key') || '0');
         const speed = parseFloat(params.get('speed') || '1.0');
+        const rank = params.get('rank') || 'B';
+        const count = parseInt(params.get('count') || '1');
         const notation = params.get('notation') || 'both';
+        const requiresDays = params.get('requiresDays') === 'true';
+        const dailyCount = parseInt(params.get('dailyCount') || '1');
         
         if (songId) {
           try {
@@ -46,6 +57,7 @@ const GameScreen: React.FC = () => {
             if (!song) {
               console.error('曲が見つかりません:', songId);
               // エラー時は曲選択画面に戻る
+              setIsLoadingLessonSong(false);
               window.location.hash = '#songs';
               return;
             }
@@ -132,6 +144,19 @@ const GameScreen: React.FC = () => {
               showChords: notation === 'chords_only' || notation === 'both'
             });
             
+            // レッスンコンテキストを設定
+            if (lessonId) {
+              gameActions.setLessonContext(lessonId, {
+                key,
+                speed,
+                rank,
+                count,
+                notation_setting: notation,
+                requires_days: requiresDays,
+                daily_count: dailyCount
+              });
+            }
+            
             // 曲をロード
             await gameActions.loadSong({
               id: song.id,
@@ -146,6 +171,9 @@ const GameScreen: React.FC = () => {
             // 先にタブを切り替えてから、ハッシュを変更することで一瞬の曲選択画面表示を防ぐ
             gameActions.setCurrentTab('practice');
             
+            // 読み込み完了
+            setIsLoadingLessonSong(false);
+            
             // 少し遅延させてからハッシュを変更（画面更新の完了を待つ）
             setTimeout(() => {
               window.location.hash = '#practice';
@@ -153,8 +181,11 @@ const GameScreen: React.FC = () => {
             
           } catch (error) {
             console.error('レッスン曲の読み込みエラー:', error);
+            setIsLoadingLessonSong(false);
             window.location.hash = '#songs';
           }
+        } else {
+          setIsLoadingLessonSong(false);
         }
       }
     };
@@ -174,10 +205,23 @@ const GameScreen: React.FC = () => {
   // ただし、レッスン曲読み込み中（#play-lesson）は除外
   useEffect(() => {
     const isPlayLessonHash = window.location.hash.startsWith('#play-lesson');
-    if (!currentSong && currentTab !== 'songs' && !isPlayLessonHash) {
+    // レッスン曲読み込み中は曲選択画面へのリダイレクトをスキップ
+    if (!currentSong && currentTab !== 'songs' && !isPlayLessonHash && !isLoadingLessonSong) {
       gameActions.setCurrentTab('songs');
     }
-  }, [currentSong, currentTab, gameActions]);
+  }, [currentSong, currentTab, gameActions, isLoadingLessonSong]);
+
+  // レッスン曲読み込み中はローディング表示のみを返す
+  if (isLoadingLessonSong) {
+    return (
+      <div className="w-full h-screen bg-gradient-game text-white flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-lg text-gray-300">レッスン曲を読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 
@@ -486,8 +530,15 @@ const SongSelectionScreen: React.FC = () => {
                       genreCategory: 'database'
                     };
                     
-                    gameActions.loadSong(songMetadata, mapped);
-                    gameActions.setCurrentTab('practice');
+                    // 曲をロード（非同期処理）
+                    await gameActions.loadSong(songMetadata, mapped);
+                    
+                    // 曲のロード後、少し遅延してからタブを切り替えることで
+                    // 確実に画面遷移を行う
+                    setTimeout(() => {
+                      gameActions.setCurrentTab('practice');
+                      window.location.hash = '#practice';
+                    }, 50);
                   } catch (err) {
                     console.error('曲読み込みエラー:', err);
                     alert(`曲読み込みに失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -740,14 +791,11 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, onSelect 
         </div>
       </div>
 
-      {/* 再生ボタン */}
+      {/* 再生ボタン - クリックイベントを削除してdivのクリックに統一 */}
       <div className="flex items-center ml-4">
         <button
-          className={`btn btn-sm ${accessible ? 'btn-primary' : 'btn-outline'} flex items-center space-x-1`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
-          }}
+          className={`btn btn-sm ${accessible ? 'btn-primary' : 'btn-outline'} flex items-center space-x-1 pointer-events-none`}
+          tabIndex={-1}
         >
           <span>▶</span>
           <span className="hidden sm:inline">プレイ</span>
@@ -799,11 +847,15 @@ const EmptySlot: React.FC<{ text: string }> = ({ text }) => {
  * 設定パネル（簡易版）
  */
 const SettingsPanel: React.FC = () => {
-  const { settings, mode } = useGameSelector((s) => ({ 
+  const { settings, mode, lessonContext } = useGameSelector((s) => ({ 
     settings: s.settings, 
-    mode: s.mode 
+    mode: s.mode,
+    lessonContext: s.lessonContext
   }));
   const gameActions = useGameActions();
+  
+  // 本番モード + レッスンコンテキスト時の課題条件制限フラグ
+  const isStageWithLessonConstraints = mode === 'performance' && lessonContext;
   
   // ローカルストレージ関連の状態
   const [hasStoredSettings, setHasStoredSettings] = React.useState(false);
@@ -892,6 +944,54 @@ const SettingsPanel: React.FC = () => {
         </div>
         
         <div className="card-body">
+          {/* 本番モード課題条件の全体説明 */}
+          {isStageWithLessonConstraints && (
+            <div className="bg-gradient-to-r from-amber-900/20 to-orange-900/20 border border-amber-500/40 rounded-lg p-4 mb-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <span className="text-xl">🎯</span>
+                <h3 className="text-lg font-bold text-amber-300">本番モード - 課題条件適用中</h3>
+              </div>
+              <div className="text-sm text-amber-200 space-y-1">
+                <p>レッスンの課題条件に従って設定が固定されています。</p>
+                <div className="mt-2 grid grid-cols-1 gap-2 text-xs">
+                  {lessonContext?.clearConditions.key !== undefined && (
+                    <div className="flex justify-between">
+                      <span>キー設定:</span>
+                      <span className="font-mono text-amber-300">
+                        {lessonContext.clearConditions.key > 0 ? `+${lessonContext.clearConditions.key}` : lessonContext.clearConditions.key}半音
+                      </span>
+                    </div>
+                  )}
+                  {lessonContext?.clearConditions.speed !== undefined && (
+                    <div className="flex justify-between">
+                      <span>再生速度:</span>
+                      <span className="font-mono text-amber-300">{lessonContext.clearConditions.speed}倍速以上</span>
+                    </div>
+                  )}
+                  {lessonContext?.clearConditions.rank && (
+                    <div className="flex justify-between">
+                      <span>必要ランク:</span>
+                      <span className="font-mono text-amber-300">{lessonContext.clearConditions.rank}以上</span>
+                    </div>
+                  )}
+                  {lessonContext?.clearConditions.notation_setting && (
+                    <div className="flex justify-between">
+                      <span>楽譜表示:</span>
+                      <span className="font-mono text-amber-300">
+                        {lessonContext.clearConditions.notation_setting === 'notes_chords' ? 'ノート+コード' :
+                         lessonContext.clearConditions.notation_setting === 'chords_only' ? 'コードのみ' :
+                         'ノート+コード'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-3 text-xs text-amber-400">
+                  💡 練習モードに切り替えると設定を自由に変更できます
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4">
 
 
@@ -1054,7 +1154,17 @@ const SettingsPanel: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 再生スピード: {Math.round(settings.playbackSpeed * 100)}%
+                {isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined && (
+                  <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
+                    本番モード固定
+                  </span>
+                )}
               </label>
+              {isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined && (
+                <div className="text-xs text-amber-300 mb-2 bg-amber-900/10 p-2 rounded border border-amber-600/30">
+                  🎯 課題条件: {lessonContext.clearConditions.speed}倍速以上が必要（本番モードでは固定）
+                </div>
+              )}
               <input
                 type="range"
                 min="0.5"
@@ -1065,6 +1175,7 @@ const SettingsPanel: React.FC = () => {
                   gameActions.updateSettings({ playbackSpeed: parseFloat(e.target.value) })
                 }
                 className="slider"
+                disabled={isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined}
               />
             </div>
 
@@ -1207,9 +1318,23 @@ const SettingsPanel: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 楽譜表示
+                {isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting && (
+                  <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
+                    本番モード固定
+                  </span>
+                )}
               </label>
+              {isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting && (
+                <div className="text-xs text-amber-300 mb-2 bg-amber-900/10 p-2 rounded border border-amber-600/30">
+                  🎯 課題条件: {
+                    lessonContext.clearConditions.notation_setting === 'notes_chords' ? 'ノート+コード表示' :
+                    lessonContext.clearConditions.notation_setting === 'chords_only' ? 'コードのみ表示' :
+                    'ノート+コード表示'
+                  }が必要（本番モードでは固定）
+                </div>
+              )}
               <div className="flex items-center space-x-4 mt-1">
-                <label className="flex items-center space-x-1 cursor-pointer">
+                <label className={`flex items-center space-x-1 ${isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                   <input
                     type="radio"
                     name="sheet-music-mode"
@@ -1219,10 +1344,11 @@ const SettingsPanel: React.FC = () => {
                       gameActions.updateSettings({ sheetMusicChordsOnly: false })
                     }
                     className="radio radio-sm"
+                    disabled={isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting !== undefined}
                   />
                   <span className="text-sm text-gray-300">ノート+コード</span>
                 </label>
-                <label className="flex items-center space-x-1 cursor-pointer">
+                <label className={`flex items-center space-x-1 ${isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                   <input
                     type="radio"
                     name="sheet-music-mode"
@@ -1232,6 +1358,7 @@ const SettingsPanel: React.FC = () => {
                       gameActions.updateSettings({ sheetMusicChordsOnly: true })
                     }
                     className="radio radio-sm"
+                    disabled={isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting !== undefined}
                   />
                   <span className="text-sm text-gray-300">コードのみ</span>
                 </label>

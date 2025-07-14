@@ -284,6 +284,12 @@ export interface GameState {
     renderTime: number;
     audioLatency: number;
   };
+  
+  // レッスン情報（レッスンから起動した場合）
+  lessonContext?: {
+    lessonId: string;
+    clearConditions: ClearConditions;
+  };
 }
 
 // ===== 入力システム =====

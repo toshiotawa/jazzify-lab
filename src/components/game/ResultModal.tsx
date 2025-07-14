@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
+import { useLessonContext } from '@/stores/gameStore';
 import { addXp, calcLevel } from '@/platform/supabaseXp';
+import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { useAuthStore } from '@/stores/authStore';
 import { calculateXP } from '@/utils/xpCalculator';
 
@@ -14,6 +16,7 @@ const ResultModal: React.FC = () => {
   const { closeResultModal, resetScore, seek, setCurrentTab } = useGameActions();
 
   const { profile, fetchProfile } = useAuthStore();
+  const lessonContext = useLessonContext();
 
   const [xpInfo, setXpInfo] = useState<{
     gained: number;
@@ -23,6 +26,8 @@ const ResultModal: React.FC = () => {
     next: number;
     levelUp: boolean;
   } | null>(null);
+  
+  const [lessonRequirementSuccess, setLessonRequirementSuccess] = useState<boolean | null>(null);
 
   // XP計算・加算
   useEffect(() => {
@@ -57,11 +62,54 @@ const ResultModal: React.FC = () => {
         });
 
         await fetchProfile();
+        
+        // レッスンモードの場合、課題条件の成否を判定
+        if (lessonContext) {
+          // 課題条件を満たしているかチェック
+          let success = true;
+          
+          // ランク条件
+          if (lessonContext.clearConditions.rank) {
+            const requiredRankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
+            const currentRankOrder = requiredRankOrder[score.rank as keyof typeof requiredRankOrder];
+            const requiredOrder = requiredRankOrder[lessonContext.clearConditions.rank as keyof typeof requiredRankOrder];
+            if (currentRankOrder < requiredOrder) {
+              success = false;
+            }
+          }
+          
+          // 速度条件
+          if (lessonContext.clearConditions.speed && settings.playbackSpeed < lessonContext.clearConditions.speed) {
+            success = false;
+          }
+          
+          // キー条件
+          if (lessonContext.clearConditions.key !== undefined && settings.transpose !== lessonContext.clearConditions.key) {
+            success = false;
+          }
+          
+          setLessonRequirementSuccess(success);
+          
+          // 成功した場合、実習課題の進捗を更新
+          if (success && currentSong) {
+            try {
+              await updateLessonRequirementProgress(
+                lessonContext.lessonId,
+                currentSong.id,
+                score.rank,
+                lessonContext.clearConditions
+              );
+            } catch (error) {
+              console.error('実習課題の進捗更新に失敗:', error);
+            }
+          }
+        }
       })();
     } else {
       setXpInfo(null);
+      setLessonRequirementSuccess(null);
     }
-  }, [resultModalOpen]);
+  }, [resultModalOpen, lessonContext, currentSong, score, settings]);
 
   if (!resultModalOpen || !currentSong) return null;
 
@@ -97,9 +145,9 @@ const ResultModal: React.FC = () => {
 
   return (
     <div className="modal-overlay animate-fade-in" role="dialog" aria-modal="true">
-      <div className="modal-content p-0 space-y-0 max-w-md w-full mx-4 sm:mx-auto bg-gradient-to-b from-gray-900 to-gray-800 border border-gray-700 shadow-2xl">
-        {/* ヘッダー部分 */}
-        <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 p-4 sm:p-6 border-b border-gray-700">
+      <div className="modal-content p-0 space-y-0 max-w-md w-full mx-4 sm:mx-auto bg-gradient-to-b from-gray-900 to-gray-800 border border-gray-700 shadow-2xl overflow-hidden">
+        {/* ヘッダー部分（固定） */}
+        <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 p-4 sm:p-6 border-b border-gray-700 flex-shrink-0">
           <h2 className="text-2xl sm:text-3xl font-bold text-center text-white mb-2 tracking-wider">
             RESULT
           </h2>
@@ -109,7 +157,9 @@ const ResultModal: React.FC = () => {
           </div>
         </div>
 
-        {/* ランク表示 */}
+        {/* スクロール可能なコンテンツエリア */}
+        <div className="flex-1 overflow-y-auto custom-game-scrollbar">
+                  {/* ランク表示 */}
         <div className="text-center py-4 sm:py-6">
           <div className={`text-6xl sm:text-8xl font-black ${getRankStyle(score.rank)} animate-pulse-slow`}>
             {score.rank}
@@ -118,9 +168,39 @@ const ResultModal: React.FC = () => {
             {getStars(score.accuracy)}
           </div>
         </div>
+        
+        {/* レッスン課題条件の成否表示 */}
+        {lessonContext && lessonRequirementSuccess !== null && (
+          <div className="px-4 sm:px-6 py-4">
+            <div className={`text-center p-4 rounded-lg ${
+              lessonRequirementSuccess 
+                ? 'bg-emerald-900/30 border-2 border-emerald-500' 
+                : 'bg-red-900/30 border-2 border-red-500'
+            }`}>
+              <div className="text-lg font-bold mb-2">
+                {lessonRequirementSuccess ? '✅ 課題条件クリア！' : '❌ 課題条件未達成'}
+              </div>
+              <div className="text-sm text-gray-300">
+                <div>必要条件:</div>
+                <div className="mt-1">
+                  ランク: {lessonContext.clearConditions.rank}以上
+                  {lessonContext.clearConditions.speed && ` / 速度: ${lessonContext.clearConditions.speed}倍以上`}
+                  {lessonContext.clearConditions.key !== undefined && ` / キー: ${lessonContext.clearConditions.key > 0 ? '+' : ''}${lessonContext.clearConditions.key}`}
+                </div>
+                {(lessonContext.clearConditions.count || 1) > 1 && (
+                  <div className="mt-1 text-xs">
+                    {lessonContext.clearConditions.requires_days 
+                      ? `${lessonContext.clearConditions.count}日間クリアが必要`
+                      : `${lessonContext.clearConditions.count}回クリアが必要`}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-        {/* スコア詳細 */}
-        <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+          {/* スコア詳細 */}
+          <div className="px-4 sm:px-6 pb-4 sm:pb-6">
           {/* メインスコア */}
           <div className="text-center mb-4 sm:mb-6">
             <div className="text-3xl sm:text-4xl font-bold text-white">
@@ -204,6 +284,7 @@ const ResultModal: React.FC = () => {
               <span>曲選択</span>
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>
