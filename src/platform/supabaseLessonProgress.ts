@@ -168,6 +168,45 @@ export async function unlockBlock(courseId: string, blockNumber: number, targetU
 }
 
 /**
+ * ブロック単位でレッスンを施錠
+ */
+export async function lockBlock(courseId: string, blockNumber: number, targetUserId?: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) throw new Error('ログインが必要です');
+  
+  // 更新対象のユーザーID（指定がなければ自分）
+  const userId = targetUserId || user.id;
+
+  // ブロックに属するレッスンを取得
+  const { data: lessons, error: lessonsError } = await supabase
+    .from('lessons')
+    .select('id')
+    .eq('course_id', courseId)
+    .eq('block_number', blockNumber);
+
+  if (lessonsError) throw new Error(`レッスンの取得に失敗しました: ${lessonsError.message}`);
+  
+  if (!lessons || lessons.length === 0) {
+    throw new Error('指定されたブロックにレッスンが存在しません');
+  }
+
+  // ブロック内のレッスンを一括で施錠（is_unlocked=false）
+  const { error } = await supabase
+    .from('user_lesson_progress')
+    .update({ 
+      is_unlocked: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .in('lesson_id', lessons.map(l => l.id));
+
+  if (error) throw new Error(`ブロックの施錠に失敗しました: ${error.message}`);
+}
+
+/**
  * ブロック完了をチェックして次のブロックを解放
  */
 async function checkAndUnlockNextBlock(userId: string, courseId: string, completedLessonId: string): Promise<void> {

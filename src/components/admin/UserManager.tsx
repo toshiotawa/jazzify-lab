@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useToast } from '@/stores/toastStore';
 import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag } from '@/platform/supabaseAdmin';
-import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, LessonProgress } from '@/platform/supabaseLessonProgress';
+import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, lockBlock, LessonProgress } from '@/platform/supabaseLessonProgress';
 import { fetchCoursesWithDetails } from '@/platform/supabaseCourses';
 import { Course, Lesson } from '@/types';
 import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
@@ -38,21 +38,29 @@ const UserManager: React.FC = () => {
 
   const handleRankChange = async (id:string, rank:Rank)=>{
     try {
+      // 楽観的更新
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, rank } : u));
+      
       await updateUserRank(id, rank);
       toast.success('ランクを更新しました');
-      await load();
     } catch(e){
       toast.error('更新に失敗しました');
+      // エラー時はリロード
+      await load();
     }
   };
 
   const toggleAdmin = async(id:string, isAdmin:boolean)=>{
     try {
+      // 楽観的更新
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, is_admin: isAdmin } : u));
+      
       await setAdminFlag(id, isAdmin);
       toast.success('Admin 権限を更新しました');
-      await load();
     } catch(e){
       toast.error('更新に失敗しました');
+      // エラー時はリロード
+      await load();
     }
   };
 
@@ -99,17 +107,50 @@ const UserManager: React.FC = () => {
     }
   };
 
-  const handleUnlockBlock = async (blockNumber: number) => {
+  // ブロック内のレッスンIDをキャッシュ
+  const blockLessonsCache = useMemo(() => {
+    if (!selectedCourse?.lessons) return {};
+    
+    const blocks: Record<number, string[]> = {};
+    selectedCourse.lessons.forEach(lesson => {
+      const blockNumber = lesson.block_number || 1;
+      if (!blocks[blockNumber]) {
+        blocks[blockNumber] = [];
+      }
+      blocks[blockNumber].push(lesson.id);
+    });
+    
+    return blocks;
+  }, [selectedCourse]);
+
+  const handleToggleBlockLock = useCallback(async (blockNumber: number, shouldUnlock: boolean) => {
     if (!selectedUser || !selectedCourse) return;
     
     try {
-      await unlockBlock(selectedCourse.id, blockNumber, selectedUser.id);
-      toast.success(`ブロック${blockNumber}を解放しました`);
+      const api = shouldUnlock ? unlockBlock : lockBlock;
+      await api(selectedCourse.id, blockNumber, selectedUser.id);
+      toast.success(
+        `ブロック${blockNumber}を${shouldUnlock ? '解放' : '施錠'}しました`
+      );
+
+      // 楽観的更新で即時反映
+      setUserLessonProgress((prev) =>
+        prev.map((p) =>
+          blockLessonsCache[blockNumber]?.includes(p.lesson_id)
+            ? { ...p, is_unlocked: shouldUnlock }
+            : p
+        )
+      );
+
+      // 必要最小の再フェッチ
       await loadUserProgress(selectedUser.id, selectedCourse.id);
     } catch (e) {
-      toast.error('ブロックの解放に失敗しました');
+      toast.error('ブロックの更新に失敗しました');
+      
+      // エラー時はロールバック
+      await loadUserProgress(selectedUser.id, selectedCourse.id);
     }
-  };
+  }, [selectedUser, selectedCourse, blockLessonsCache, toast]);
 
   // レッスンをブロックごとにグループ化
   const groupLessonsByBlock = (lessons: Lesson[] | undefined) => {
@@ -145,11 +186,12 @@ const UserManager: React.FC = () => {
     };
   };
 
-  // レッスンの状態を判定
-  const getLessonStatus = (lessonId: string) => {
+  // レッスンの状態を判定（ブロック依存）
+  const getLessonStatus = (lessonId: string, blockUnlocked: boolean) => {
     const progress = userLessonProgress.find(p => p.lesson_id === lessonId);
     return {
-      isUnlocked: progress?.is_unlocked || false,
+      // ブロックが開いていれば常にアクセス可能
+      isUnlocked: blockUnlocked || progress?.is_unlocked || false,
       isCompleted: progress?.completed || false
     };
   };
@@ -330,10 +372,18 @@ const UserManager: React.FC = () => {
                             
                             {/* ブロック操作ボタン */}
                             <div className="flex items-center space-x-2">
-                              {!blockStatus.isUnlocked && (
+                              {blockStatus.isUnlocked ? (
+                                <button
+                                  className="btn btn-xs btn-warning"
+                                  onClick={() => handleToggleBlockLock(blockNum, false)}
+                                >
+                                  <FaLock className="mr-1" />
+                                  ブロック施錠
+                                </button>
+                              ) : (
                                 <button
                                   className="btn btn-xs btn-primary"
-                                  onClick={() => handleUnlockBlock(blockNum)}
+                                  onClick={() => handleToggleBlockLock(blockNum, true)}
                                 >
                                   <FaLockOpen className="mr-1" />
                                   ブロック解放
@@ -348,7 +398,7 @@ const UserManager: React.FC = () => {
                           {blockLessons
                             .sort((a, b) => a.order_index - b.order_index)
                             .map((lesson) => {
-                              const lessonStatus = getLessonStatus(lesson.id);
+                              const lessonStatus = getLessonStatus(lesson.id, blockStatus.isUnlocked);
                               
                               return (
                                 <div key={lesson.id} className={`p-3 rounded-lg border ${
@@ -365,9 +415,9 @@ const UserManager: React.FC = () => {
                                       {/* レッスン状態アイコン */}
                                       <div className="flex items-center space-x-2">
                                         {lessonStatus.isUnlocked ? (
-                                          <FaEye className="text-green-400 text-xs" title="解放済み" />
+                                          <FaEye className="text-green-400 text-xs" title="アクセス可能" />
                                         ) : (
-                                          <FaEyeSlash className="text-gray-500 text-xs" title="未解放" />
+                                          <FaEyeSlash className="text-gray-500 text-xs" title="ブロック未解放" />
                                         )}
                                         
                                         {lessonStatus.isCompleted && (
@@ -378,34 +428,24 @@ const UserManager: React.FC = () => {
                                     
                                     {/* レッスン操作ボタン */}
                                     <div className="flex items-center space-x-2">
-                                      {/* 解放ボタン */}
-                                      {!lessonStatus.isUnlocked ? (
-                                        <button
-                                          className="btn btn-xs btn-info"
-                                          onClick={() => handleUnlockLesson(lesson.id)}
-                                        >
-                                          <FaUnlock className="mr-1" />
-                                          解放
-                                        </button>
-                                      ) : (
-                                        /* 完了切り替えボタン */
-                                        <button
-                                          className={`btn btn-xs ${lessonStatus.isCompleted ? 'btn-success' : 'btn-outline btn-success'}`}
-                                          onClick={() => handleToggleLessonProgress(lesson.id, lessonStatus.isCompleted)}
-                                        >
-                                          {lessonStatus.isCompleted ? (
-                                            <>
-                                              <FaCheck className="mr-1" />
-                                              完了済み
-                                            </>
-                                          ) : (
-                                            <>
-                                              <FaTimes className="mr-1" />
-                                              未完了
-                                            </>
-                                          )}
-                                        </button>
-                                      )}
+                                      {/* 完了切り替えボタンのみ */}
+                                      <button
+                                        className={`btn btn-xs ${lessonStatus.isCompleted ? 'btn-success' : 'btn-outline btn-success'}`}
+                                        onClick={() => handleToggleLessonProgress(lesson.id, lessonStatus.isCompleted)}
+                                        disabled={!lessonStatus.isUnlocked}
+                                      >
+                                        {lessonStatus.isCompleted ? (
+                                          <>
+                                            <FaCheck className="mr-1" />
+                                            完了済み
+                                          </>
+                                        ) : (
+                                          <>
+                                            <FaTimes className="mr-1" />
+                                            未完了
+                                          </>
+                                        )}
+                                      </button>
                                     </div>
                                   </div>
                                 </div>
