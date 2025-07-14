@@ -1,4 +1,4 @@
-import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from './supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearCacheByPattern } from './supabaseClient';
 import { Course } from '@/types';
 
 const COURSES_CACHE_KEY = 'courses';
@@ -71,7 +71,8 @@ export async function addCourse(courseData: Omit<Course, 'id' | 'created_at' | '
     throw error;
   }
 
-  clearSupabaseCache();
+  // コース関連のキャッシュのみクリア
+  clearCacheByPattern(/^courses/);
   return data as Course;
 }
 
@@ -94,7 +95,8 @@ export async function updateCourse(id: string, updates: Partial<Omit<Course, 'id
     throw error;
   }
 
-  clearSupabaseCache();
+  // コース関連のキャッシュのみクリア
+  clearCacheByPattern(/^courses/);
   return data as Course;
 }
 
@@ -113,7 +115,8 @@ export async function deleteCourse(id: string): Promise<void> {
     throw error;
   }
 
-  clearSupabaseCache();
+  // コース関連のキャッシュのみクリア
+  clearCacheByPattern(/^courses/);
 }
 
-export { clearSupabaseCache }; 
+export { clearCacheByPattern as clearSupabaseCache }; 

@@ -110,4 +110,19 @@ export function subscribeRealtime<T>(
 // キャッシュクリア手動用
 export function clearSupabaseCache() {
   cache.clear();
+}
+
+// 特定のキャッシュキーをクリア（完全一致）
+export function clearCacheByKey(key: string) {
+  cache.delete(key);
+}
+
+// パターンに一致するキャッシュキーをクリア
+export function clearCacheByPattern(pattern: string | RegExp) {
+  const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+  for (const key of cache.keys()) {
+    if (regex.test(key)) {
+      cache.delete(key);
+    }
+  }
 } 
