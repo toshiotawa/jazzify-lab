@@ -48,7 +48,7 @@ const Dashboard: React.FC = () => {
     if (open) {
       loadDashboardData();
     }
-  }, [open]);
+  }, [open, isGuest]);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -57,26 +57,40 @@ const Dashboard: React.FC = () => {
       // お知らせとミッションを並行読み込み
       console.log('Dashboard: Loading announcement and missions...');
       
-      // デバッグのため、全てのアクティブなお知らせも確認
-      const [allActiveData] = await Promise.all([
-        fetchActiveAnnouncements(),
-        loadMissions()
-      ]);
+      // ゲストユーザーでない場合のみお知らせを読み込む
+      const promises: Promise<any>[] = [loadMissions()];
+      if (!isGuest) {
+        promises.push(fetchActiveAnnouncements());
+      }
       
-      const latestData = allActiveData.length > 0 ? allActiveData[0] : null;
+      const results = await Promise.all(promises);
+      const announcementsData: Announcement[] = !isGuest ? results[1] : [];
+      
+      // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
+      const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
+        // まず優先度で比較
+        if (a.priority !== b.priority) {
+          return a.priority - b.priority;
+        }
+        // 優先度が同じ場合は作成日時で比較（新しい順）
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      
+      const latestData = sortedAnnouncements.length > 0 ? sortedAnnouncements[0] : null;
       
       console.log('Dashboard: Latest announcement data:', latestData);
-      console.log('Dashboard: All active announcements:', allActiveData);
-      console.log('Dashboard: Total active announcements count:', allActiveData.length);
+      console.log('Dashboard: All active announcements:', announcementsData);
+      console.log('Dashboard: Sorted announcements:', sortedAnnouncements);
+      console.log('Dashboard: Total active announcements count:', announcementsData.length);
       
       setLatestAnnouncement(latestData);
       
       if (!latestData) {
         console.log('Dashboard: No active announcements found');
-        if (allActiveData.length === 0) {
+        if (announcementsData.length === 0) {
           console.log('Dashboard: No announcements exist at all');
         } else {
-          console.log('Dashboard: Active announcements exist but fetchLatest returned null');
+          console.log('Dashboard: Active announcements exist but latestData is null');
         }
       }
     } catch (e: any) {
