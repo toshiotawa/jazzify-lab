@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchLessonById } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement } from '@/platform/supabaseLessonContent';
-import { updateLessonProgress, fetchUserLessonProgress, LessonProgress } from '@/platform/supabaseLessonProgress';
+import { updateLessonProgress, fetchUserLessonProgress, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
 import { 
   fetchDetailedRequirementsProgress, 
   checkAllRequirementsCompleted,
   LessonRequirementProgress 
 } from '@/platform/supabaseLessonRequirements';
+import { clearSupabaseCache, clearCacheByKey } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { Lesson } from '@/types';
@@ -130,6 +131,13 @@ const LessonDetailPage: React.FC = () => {
     setCompleting(true);
     try {
       await updateLessonProgress(lessonId, lesson.course_id, true);
+      
+      // キャッシュを無効化してデータの即座反映を確保
+      if (profile?.id) {
+        clearCacheByKey(LESSON_PROGRESS_CACHE_KEY(lesson.course_id, profile.id));
+      }
+      clearSupabaseCache(); // 全体キャッシュもクリア
+      
       toast.success('レッスンを完了しました！', {
         title: '🎉 完了',
         duration: 3000,
@@ -139,6 +147,7 @@ const LessonDetailPage: React.FC = () => {
       window.location.hash = '#lessons';
     } catch (e: any) {
       toast.error('完了処理に失敗しました');
+      console.error('レッスン完了エラー:', e);
     } finally {
       setCompleting(false);
     }
@@ -149,11 +158,19 @@ const LessonDetailPage: React.FC = () => {
     
     try {
       await updateLessonProgress(lessonId, lesson.course_id, true); // スキップとして完了扱い
+      
+      // キャッシュを無効化してデータの即座反映を確保
+      if (profile?.id) {
+        clearCacheByKey(LESSON_PROGRESS_CACHE_KEY(lesson.course_id, profile.id));
+      }
+      clearSupabaseCache(); // 全体キャッシュもクリア
+      
       toast.success('レッスンをスキップしました');
       setShowSkipModal(false);
       window.location.hash = '#lessons';
     } catch (e: any) {
       toast.error('スキップ処理に失敗しました');
+      console.error('レッスンスキップエラー:', e);
     }
   };
 

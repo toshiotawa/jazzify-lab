@@ -34,13 +34,21 @@ const LessonPage: React.FC = () => {
 
   useEffect(() => {
     const checkHash = () => {
-      setOpen(window.location.hash === '#lessons');
+      const isLessonsPage = window.location.hash === '#lessons';
+      const wasOpen = open;
+      setOpen(isLessonsPage);
+      
+      // レッスン詳細から戻ってきた場合は強制再読み込み
+      if (isLessonsPage && !wasOpen && profile && selectedCourse) {
+        console.log('レッスン詳細から戻ってきたため、データを強制再読み込み');
+        loadLessons(selectedCourse.id);
+      }
     };
 
     checkHash();
     window.addEventListener('hashchange', checkHash);
     return () => window.removeEventListener('hashchange', checkHash);
-  }, []);
+  }, [open, profile, selectedCourse]);
 
   useEffect(() => {
     if (open && profile) {

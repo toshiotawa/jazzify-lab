@@ -55,9 +55,29 @@ const GameScreen: React.FC = () => {
             if (song.json_url) {
               const response = await fetch(song.json_url);
               if (!response.ok) {
-                throw new Error(`JSONデータの読み込みに失敗: ${response.status}`);
+                throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
               }
-              notesData = await response.json();
+              
+              // レスポンスの内容をチェック
+              const contentType = response.headers.get('content-type');
+              if (!contentType || !contentType.includes('application/json')) {
+                console.warn('⚠️ JSONでないコンテンツタイプ:', contentType);
+              }
+              
+              const responseText = await response.text();
+              
+              // HTMLが返されている場合の検出
+              if (responseText.trim().startsWith('<')) {
+                throw new Error('JSONデータの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
+              }
+              
+              try {
+                notesData = JSON.parse(responseText);
+              } catch (parseError) {
+                console.error('JSON解析エラー:', parseError);
+                console.error('レスポンス内容の先頭100文字:', responseText.substring(0, 100));
+                throw new Error(`JSONデータの解析に失敗しました: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+              }
             } else if (song.json_data) {
               notesData = song.json_data;
             } else {
@@ -122,10 +142,14 @@ const GameScreen: React.FC = () => {
               musicXmlFile: song.xml_url || null
             }, mapped);
             
-            // 練習モードに切り替えて、通常のゲーム画面を表示
+            // 曲のロード完了後に画面遷移を行う
+            // 先にタブを切り替えてから、ハッシュを変更することで一瞬の曲選択画面表示を防ぐ
             gameActions.setCurrentTab('practice');
-            // ハッシュを通常の練習モードに変更（URLをクリーンに）
-            window.location.hash = '#practice';
+            
+            // 少し遅延させてからハッシュを変更（画面更新の完了を待つ）
+            setTimeout(() => {
+              window.location.hash = '#practice';
+            }, 10);
             
           } catch (error) {
             console.error('レッスン曲の読み込みエラー:', error);
@@ -147,8 +171,10 @@ const GameScreen: React.FC = () => {
   }, [gameActions]);
 
   // 🔧 自動リダイレクト: 曲が未選択で、今タブが songs 以外なら自動で songs タブへ
+  // ただし、レッスン曲読み込み中（#play-lesson）は除外
   useEffect(() => {
-    if (!currentSong && currentTab !== 'songs') {
+    const isPlayLessonHash = window.location.hash.startsWith('#play-lesson');
+    if (!currentSong && currentTab !== 'songs' && !isPlayLessonHash) {
       gameActions.setCurrentTab('songs');
     }
   }, [currentSong, currentTab, gameActions]);
@@ -377,9 +403,29 @@ const SongSelectionScreen: React.FC = () => {
                     if (song.json_url) {
                       const response = await fetch(song.json_url);
                       if (!response.ok) {
-                        throw new Error(`JSONデータの読み込みに失敗: ${response.status}`);
+                        throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
                       }
-                      notesData = await response.json();
+                      
+                      // レスポンスの内容をチェック
+                      const contentType = response.headers.get('content-type');
+                      if (!contentType || !contentType.includes('application/json')) {
+                        console.warn('⚠️ JSONでないコンテンツタイプ:', contentType);
+                      }
+                      
+                      const responseText = await response.text();
+                      
+                      // HTMLが返されている場合の検出
+                      if (responseText.trim().startsWith('<')) {
+                        throw new Error('JSONデータの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
+                      }
+                      
+                      try {
+                        notesData = JSON.parse(responseText);
+                      } catch (parseError) {
+                        console.error('JSON解析エラー:', parseError);
+                        console.error('レスポンス内容の先頭100文字:', responseText.substring(0, 100));
+                        throw new Error(`JSONデータの解析に失敗しました: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+                      }
                     } else if (song.json_data) {
                       notesData = song.json_data;
                     } else {
@@ -614,6 +660,8 @@ interface SongListItemProps {
 }
 
 const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, onSelect }) => {
+  const [isLoading, setIsLoading] = React.useState(false);
+
   const getDifficultyColor = (difficulty: number | null) => {
     if (!difficulty) return 'text-gray-400';
     if (difficulty <= 3) return 'text-green-400';
@@ -632,12 +680,23 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, onSelect 
     }
   };
 
+  const handleClick = async () => {
+    if (isLoading || !accessible) return;
+    
+    setIsLoading(true);
+    try {
+      await onSelect();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div 
       className={`flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-slate-700 
         hover:border-primary-500 hover:bg-slate-700 transition-colors cursor-pointer
-        ${!accessible ? 'opacity-50' : ''}`}
-      onClick={onSelect}
+        ${!accessible ? 'opacity-50' : ''} ${isLoading ? 'opacity-75 pointer-events-none' : ''}`}
+      onClick={handleClick}
     >
       <div className="flex items-center space-x-4 flex-1 min-w-0">
         {/* 楽曲情報 */}
@@ -646,6 +705,9 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, onSelect 
             <h3 className="font-semibold text-white truncate">{song.title}</h3>
             {!accessible && (
               <span className="text-xs text-red-400">🔒</span>
+            )}
+            {isLoading && (
+              <span className="text-xs text-blue-400">読み込み中...</span>
             )}
           </div>
           <p className="text-gray-400 text-sm truncate">{song.artist || '不明'}</p>
