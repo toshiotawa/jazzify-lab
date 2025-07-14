@@ -441,6 +441,11 @@ const SongSelectionScreen: React.FC = () => {
                     setLockedSong({title:song.title,min_rank:song.min_rank});
                     return;
                   }
+                  
+                  // 通常曲選択時はレッスンコンテキストをクリア
+                  gameActions.clearLessonContext();
+                  
+                  console.log(`曲を選択: ${song.title}`);
                   try {
                     // JSONデータの取得（json_urlがある場合はそちらを優先）
                     let notesData: any;

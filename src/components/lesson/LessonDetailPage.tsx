@@ -24,6 +24,7 @@ import {
   FaForward,
   FaExclamationTriangle
 } from 'react-icons/fa';
+import { useGameActions } from '@/stores/helpers';
 
 /**
  * レッスン詳細画面
@@ -45,6 +46,7 @@ const LessonDetailPage: React.FC = () => {
   const { profile } = useAuthStore();
   const toast = useToast();
   const [assignmentChecks, setAssignmentChecks] = useState<boolean[]>([]);
+  const gameActions = useGameActions();
 
   useEffect(() => {
     const checkHash = () => {
@@ -170,6 +172,8 @@ const LessonDetailPage: React.FC = () => {
   };
 
   const handleClose = () => {
+    // レッスンコンテキストをクリア
+    gameActions.clearLessonContext();
     window.location.hash = '#lessons';
   };
 

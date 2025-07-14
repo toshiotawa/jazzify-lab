@@ -1156,6 +1156,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               state.settings.practiceGuide = state.practiceModeSettings.practiceGuide;
             }
             // 練習モードに戻った際、楽譜表示を「ノート+コード」に設定
+            state.settings.showSheetMusic = true;
             state.settings.sheetMusicChordsOnly = false;
           } else {
             state.currentTab = 'performance';
