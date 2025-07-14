@@ -148,7 +148,7 @@ export const LessonManager: React.FC = () => {
         toast.success('レッスンを更新しました。');
         
         // ② バックグラウンドで厳密データを再取得
-        loadLessons();
+        await loadLessons(true);
       } else {
         const newLesson = await addLesson({ ...lessonData, course_id: selectedCourseId });
         
@@ -159,7 +159,7 @@ export const LessonManager: React.FC = () => {
         
         toast.success('新しいレッスンを追加しました。');
         
-        loadLessons();
+        await loadLessons(true);
       }
       
       closeDialog();
@@ -182,22 +182,22 @@ export const LessonManager: React.FC = () => {
         clear_conditions: formData.clear_conditions
       });
       
-      // キャッシュを無効化してから再取得
-      invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
-      
-      // ① 画面を即時更新（オプティミスティック）
-      setCurrentLessons(prev =>
-        prev.map(lesson => 
-          lesson.id === selectedLesson.id 
-            ? { ...lesson, lesson_songs: [...(lesson.lesson_songs || []), newLessonSong] }
-            : lesson
-        )
-      );
-      
-      toast.success('曲を追加しました。');
-      
-      // ② バックグラウンドで厳密データを再取得
-      loadLessons();
+              // キャッシュを無効化してから再取得
+        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+        
+        // ① 画面を即時更新（オプティミスティック）
+        setCurrentLessons(prev =>
+          prev.map(lesson => 
+            lesson.id === selectedLesson.id 
+              ? { ...lesson, lesson_songs: [...(lesson.lesson_songs || []), newLessonSong] }
+              : lesson
+          )
+        );
+        
+        toast.success('曲を追加しました。');
+        
+        // ② バックグラウンドで厳密データを再取得
+        await loadLessons(true);
       
       closeSongDialog();
     } catch (error) {
@@ -224,7 +224,7 @@ export const LessonManager: React.FC = () => {
         toast.success('レッスンを削除しました。');
         
         // ② バックグラウンドで厳密データを再取得
-        loadLessons();
+        await loadLessons(true);
       } catch (error) {
         toast.error('レッスンの削除に失敗しました。');
         console.error(error);
@@ -260,7 +260,7 @@ export const LessonManager: React.FC = () => {
         toast.success('曲を削除しました。');
         
         // ② バックグラウンドで厳密データを再取得
-        loadLessons();
+        await loadLessons(true);
       } catch (error) {
         toast.error('曲の削除に失敗しました。');
         console.error('削除エラーの詳細:', error);
