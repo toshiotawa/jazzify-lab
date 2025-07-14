@@ -53,60 +53,56 @@ const Dashboard: React.FC = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     
+    // ミッションのロード（独立）
     try {
-      // お知らせとミッションを並行読み込み
-      console.log('Dashboard: Loading announcement and missions...');
-      
-      // ゲストユーザーでない場合のみお知らせを読み込む
-      const promises: Promise<any>[] = [loadMissions()];
-      if (!isGuest) {
-        promises.push(fetchActiveAnnouncements());
-      }
-      
-      const results = await Promise.all(promises);
-      const announcementsData: Announcement[] = !isGuest ? results[1] : [];
-      
-      // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
-      const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
-        // まず優先度で比較
-        if (a.priority !== b.priority) {
-          return a.priority - b.priority;
+      await loadMissions();
+    } catch (missionError: any) {
+      console.error('Mission loading error:', missionError);
+      toast.error('ミッションの読み込みに失敗しました');
+    }
+
+    // お知らせのロード（ゲスト以外、独立）
+    if (!isGuest) {
+      try {
+        const announcementsData = await fetchActiveAnnouncements();
+        
+        // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
+        const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
+          // まず優先度で比較
+          if (a.priority !== b.priority) {
+            return a.priority - b.priority;
+          }
+          // 優先度が同じ場合は作成日時で比較（新しい順）
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+        
+        const latestData = sortedAnnouncements.length > 0 ? sortedAnnouncements[0] : null;
+        
+        console.log('Dashboard: Latest announcement data:', latestData);
+        console.log('Dashboard: All active announcements:', announcementsData);
+        console.log('Dashboard: Sorted announcements:', sortedAnnouncements);
+        console.log('Dashboard: Total active announcements count:', announcementsData.length);
+        
+        setLatestAnnouncement(latestData);
+        
+        if (!latestData) {
+          console.log('Dashboard: No active announcements found');
+          if (announcementsData.length === 0) {
+            console.log('Dashboard: No announcements exist at all');
+          } else {
+            console.log('Dashboard: Active announcements exist but latestData is null');
+          }
         }
-        // 優先度が同じ場合は作成日時で比較（新しい順）
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
-      
-      const latestData = sortedAnnouncements.length > 0 ? sortedAnnouncements[0] : null;
-      
-      console.log('Dashboard: Latest announcement data:', latestData);
-      console.log('Dashboard: All active announcements:', announcementsData);
-      console.log('Dashboard: Sorted announcements:', sortedAnnouncements);
-      console.log('Dashboard: Total active announcements count:', announcementsData.length);
-      
-      setLatestAnnouncement(latestData);
-      
-      if (!latestData) {
-        console.log('Dashboard: No active announcements found');
-        if (announcementsData.length === 0) {
-          console.log('Dashboard: No announcements exist at all');
-        } else {
-          console.log('Dashboard: Active announcements exist but latestData is null');
-        }
-      }
-    } catch (e: any) {
-      console.error('Dashboard data loading error:', e);
-      // お知らせの読み込みエラーは重要なので詳細を表示
-      if (e.message?.includes('お知らせ')) {
-        toast.error(`お知らせの読み込みに失敗しました: ${e.message}`, {
+      } catch (announcementError: any) {
+        console.error('Announcement loading error:', announcementError);
+        toast.error(`お知らせの読み込みに失敗しました: ${announcementError.message}`, {
           title: 'お知らせエラー',
           duration: 5000,
         });
-      } else {
-        toast.error('データの読み込みに失敗しました');
       }
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   };
 
   const handleClose = () => {
