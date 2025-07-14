@@ -7,7 +7,6 @@ import { fetchSongs } from '@/platform/supabaseSongs';
 import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions } from '@/platform/supabaseLessons';
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit } from 'react-icons/fa';
-import { clearSupabaseCache } from '@/platform/supabaseClient';
 
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number'>;
 
@@ -70,20 +69,7 @@ export const LessonManager: React.FC = () => {
     
     setLessonsLoading(true);
     try {
-      let lessonData = await fetchLessonsByCourse(selectedCourseId);
-      
-      // 空データ検知: 以前にデータがあったのに空になったらキャッシュクリアして再試行
-      if (lessonData.length === 0 && currentLessons.length > 0) {
-        console.log('Empty lessons detected after update, forcing cache bypass and reload...');
-        clearSupabaseCache();
-        
-        // 少し待ってから再読み込み
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        lessonData = await fetchLessonsByCourse(selectedCourseId);
-        console.log(`Retry loaded ${lessonData.length} lessons`);
-      }
-      
+      const lessonData = await fetchLessonsByCourse(selectedCourseId);
       setCurrentLessons(lessonData);
     } catch (error) {
       toast.error('レッスンの読み込みに失敗しました。');
