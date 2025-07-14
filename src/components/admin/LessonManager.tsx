@@ -93,7 +93,7 @@ export const LessonManager: React.FC = () => {
       setValue('block_number', lesson.block_number || 1);
     } else {
       setSelectedLesson(null);
-      const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 1 : 1;
+      const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 10 : 0;
       reset({ title: '', description: '', assignment_description: '', order_index: newOrder, block_number: 1 });
     }
     dialogRef.current?.showModal();
@@ -140,29 +140,23 @@ export const LessonManager: React.FC = () => {
       if (selectedLesson) {
         const updatedLesson = await updateLesson(selectedLesson.id, lessonData);
         
-        // キャッシュを無効化してから再取得
-        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
-        
-        // ① 画面を即時更新（オプティミスティック）
         setCurrentLessons(prev =>
           prev.map(l => (l.id === updatedLesson.id ? updatedLesson : l)),
         );
         
         toast.success('レッスンを更新しました。');
         
-        // ② バックグラウンドで厳密データを再取得（競合ガード付き）
-        loadLessons(true);
+        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+        setTimeout(() => loadLessons(true), 500);
       } else {
         const newLesson = await addLesson({ ...lessonData, course_id: selectedCourseId });
-        
-        // キャッシュを無効化してから再取得
-        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
         
         setCurrentLessons(prev => [...prev, newLesson]);
         
         toast.success('新しいレッスンを追加しました。');
         
-        loadLessons(true);
+        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+        setTimeout(() => loadLessons(true), 500);
       }
       
       closeDialog();
@@ -185,10 +179,6 @@ export const LessonManager: React.FC = () => {
         clear_conditions: formData.clear_conditions
       });
       
-      // キャッシュを無効化してから再取得
-      invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
-      
-      // ① 画面を即時更新（オプティミスティック）
       setCurrentLessons(prev =>
         prev.map(lesson => 
           lesson.id === selectedLesson.id 
@@ -199,8 +189,8 @@ export const LessonManager: React.FC = () => {
       
       toast.success('曲を追加しました。');
       
-      // ② バックグラウンドで厳密データを再取得（競合ガード付き）
-      loadLessons(true);
+      invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+      setTimeout(() => loadLessons(true), 500);
       
       closeSongDialog();
     } catch (error) {
@@ -218,16 +208,12 @@ export const LessonManager: React.FC = () => {
       try {
         await deleteLesson(id);
         
-        // キャッシュを無効化してから再取得
-        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
-        
-        // ① 画面を即時更新（オプティミスティック）
         setCurrentLessons(prev => prev.filter(l => l.id !== id));
         
         toast.success('レッスンを削除しました。');
         
-        // ② バックグラウンドで厳密データを再取得（競合ガード付き）
-        loadLessons(true);
+        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+        setTimeout(() => loadLessons(true), 500);
       } catch (error) {
         toast.error('レッスンの削除に失敗しました。');
         console.error(error);
@@ -242,16 +228,11 @@ export const LessonManager: React.FC = () => {
     
     if (window.confirm('この曲をレッスンから削除しますか？')) {
       try {
-        // 削除前の曲リストをログ出力
         const lesson = currentLessons.find(l => l.id === lessonId);
         console.log('削除前の曲リスト:', lesson?.lesson_songs);
         
         await removeSongFromLesson(lessonId, songId);
         
-        // キャッシュを無効化してから再取得
-        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
-        
-        // ① 画面を即時更新（オプティミスティック）
         setCurrentLessons(prev =>
           prev.map(lesson => 
             lesson.id === lessonId 
@@ -262,8 +243,8 @@ export const LessonManager: React.FC = () => {
         
         toast.success('曲を削除しました。');
         
-        // ② バックグラウンドで厳密データを再取得（競合ガード付き）
-        loadLessons(true);
+        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+        setTimeout(() => loadLessons(true), 500);
       } catch (error) {
         toast.error('曲の削除に失敗しました。');
         console.error('削除エラーの詳細:', error);
@@ -304,7 +285,10 @@ export const LessonManager: React.FC = () => {
           updateLesson(lesson.id, { order_index: idx * 10 })
         )
       );
-      await loadLessons(true);
+      
+      invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+      setTimeout(() => loadLessons(true), 500);
+      
       toast.success('並び順を更新しました。');
     } catch (error: any) {
       toast.error('並び順の更新に失敗しました。');
@@ -329,7 +313,10 @@ export const LessonManager: React.FC = () => {
           updateLesson(lesson.id, { order_index: idx * 10 })
         )
       );
-      await loadLessons(true);
+      
+      invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+      setTimeout(() => loadLessons(true), 500);
+      
       toast.success('並び順を更新しました。');
     } catch (error: any) {
       toast.error('並び順の更新に失敗しました。');
@@ -387,19 +374,13 @@ export const LessonManager: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {/* --------- ① 初回ロードのみ全置き換え --------- */}
             {loading && currentLessons.length === 0 && (
               <tr>
                 <td colSpan={6} className="text-center">読み込み中...</td>
               </tr>
             )}
 
-            {/* --------- ② リフレッシュ時は既存リストを残す --------- */}
-            {lessonsLoading ? (
-              <tr>
-                <td colSpan={6} className="text-center">読み込み中...</td>
-              </tr>
-            ) : error ? (
+            {error && (
               <tr>
                 <td colSpan={6} className="text-center text-red-500">
                   <div className="py-4">
@@ -410,13 +391,17 @@ export const LessonManager: React.FC = () => {
                   </div>
                 </td>
               </tr>
-            ) : sortedLessons.length === 0 ? (
+            )}
+
+            {!loading && !error && sortedLessons.length === 0 && (
               <tr>
                 <td colSpan={6} className="text-center text-gray-400">
                   レッスンがありません。新規レッスンを追加してください。
                 </td>
               </tr>
-            ) : sortedLessons.map((lesson, index) => (
+            )}
+
+            {sortedLessons.map((lesson, index) => (
               <React.Fragment key={lesson.id}>
                 <tr>
                   <td>
@@ -507,11 +492,16 @@ export const LessonManager: React.FC = () => {
                 )}
               </React.Fragment>
             ))}
+            
+            {lessonsLoading && (
+              <tr>
+                <td colSpan={6} className="text-center text-xs text-gray-400">同期中…</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
       
-      {/* レッスン編集ダイアログ */}
       <dialog ref={dialogRef} className="modal">
         <div className="modal-box">
           <h3 className="font-bold text-lg">{selectedLesson ? 'レッスンの編集' : '新規レッスンの作成'}</h3>
@@ -549,7 +539,6 @@ export const LessonManager: React.FC = () => {
         </form>
       </dialog>
 
-      {/* 曲追加ダイアログ */}
       <dialog ref={songDialogRef} className="modal">
         <div className="modal-box">
           <h3 className="font-bold text-lg">レッスンに曲を追加</h3>
