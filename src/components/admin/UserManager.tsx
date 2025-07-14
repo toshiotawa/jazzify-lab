@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useToast } from '@/stores/toastStore';
 import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag, USERS_CACHE_KEY } from '@/platform/supabaseAdmin';
-import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, lockBlock, LessonProgress } from '@/platform/supabaseLessonProgress';
+import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, lockBlock, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
 import { fetchCoursesWithDetails, COURSES_CACHE_KEY } from '@/platform/supabaseCourses';
 import { Course, Lesson } from '@/types';
 import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
@@ -84,9 +84,13 @@ const UserManager: React.FC = () => {
     }
   };
 
-  const loadUserProgress = async (userId: string, courseId: string) => {
+  const loadUserProgress = async (
+    userId: string,
+    courseId: string,
+    forceRefresh = false,
+  ) => {
     try {
-      const progress = await fetchUserLessonProgress(courseId, userId);
+      const progress = await fetchUserLessonProgress(courseId, userId, { forceRefresh });
       setUserLessonProgress(progress);
     } catch (e) {
       console.error('Failed to load progress:', e);
@@ -97,24 +101,63 @@ const UserManager: React.FC = () => {
   const handleToggleLessonProgress = async (lessonId: string, currentCompleted: boolean) => {
     if (!selectedUser || !selectedCourse) return;
     
+    // ① 楽観的 UI 更新（即時反映）
+    setUserLessonProgress(prev =>
+      prev.map(p =>
+        p.lesson_id === lessonId ? { ...p, completed: !currentCompleted } : p,
+      ),
+    );
+
     try {
-      await updateLessonProgress(lessonId, selectedCourse.id, !currentCompleted, selectedUser.id);
-      toast.success(currentCompleted ? 'レッスンを未完了に変更しました' : 'レッスンを完了に変更しました');
-      await loadUserProgress(selectedUser.id, selectedCourse.id);
+      await updateLessonProgress(
+        lessonId,
+        selectedCourse.id,
+        !currentCompleted,
+        selectedUser.id,
+      );
+
+      // ② キャッシュ無効化
+      invalidateCacheKey(
+        LESSON_PROGRESS_CACHE_KEY(selectedCourse.id, selectedUser.id),
+      );
+
+      // ③ 正確なデータで再フェッチ（forceRefresh = true）
+      await loadUserProgress(selectedUser.id, selectedCourse.id, true);
+      toast.success(
+        currentCompleted ? 'レッスンを未完了に変更しました' : 'レッスンを完了に変更しました',
+      );
     } catch (e) {
       toast.error('更新に失敗しました');
+      // ロールバック
+      await loadUserProgress(selectedUser.id, selectedCourse.id, true);
     }
   };
 
   const handleUnlockLesson = async (lessonId: string) => {
     if (!selectedUser || !selectedCourse) return;
     
+    // ① 楽観的 UI 更新（即時反映）
+    setUserLessonProgress(prev =>
+      prev.map(p =>
+        p.lesson_id === lessonId ? { ...p, is_unlocked: true } : p,
+      ),
+    );
+    
     try {
       await unlockLesson(lessonId, selectedCourse.id, selectedUser.id);
+
+      // ② キャッシュ無効化
+      invalidateCacheKey(
+        LESSON_PROGRESS_CACHE_KEY(selectedCourse.id, selectedUser.id),
+      );
+
+      // ③ 正確なデータで再フェッチ（forceRefresh = true）
+      await loadUserProgress(selectedUser.id, selectedCourse.id, true);
       toast.success('レッスンを解放しました');
-      await loadUserProgress(selectedUser.id, selectedCourse.id);
     } catch (e) {
       toast.error('解放に失敗しました');
+      // ロールバック
+      await loadUserProgress(selectedUser.id, selectedCourse.id, true);
     }
   };
 
@@ -137,29 +180,34 @@ const UserManager: React.FC = () => {
   const handleToggleBlockLock = useCallback(async (blockNumber: number, shouldUnlock: boolean) => {
     if (!selectedUser || !selectedCourse) return;
     
+    // ① 楽観的 UI 更新（即時反映）
+    setUserLessonProgress((prev) =>
+      prev.map((p) =>
+        blockLessonsCache[blockNumber]?.includes(p.lesson_id)
+          ? { ...p, is_unlocked: shouldUnlock }
+          : p
+      )
+    );
+
     try {
       const api = shouldUnlock ? unlockBlock : lockBlock;
       await api(selectedCourse.id, blockNumber, selectedUser.id);
+
+      // ② キャッシュ無効化
+      invalidateCacheKey(
+        LESSON_PROGRESS_CACHE_KEY(selectedCourse.id, selectedUser.id),
+      );
+
+      // ③ 正確なデータで再フェッチ（forceRefresh = true）
+      await loadUserProgress(selectedUser.id, selectedCourse.id, true);
       toast.success(
         `ブロック${blockNumber}を${shouldUnlock ? '解放' : '施錠'}しました`
       );
-
-      // 楽観的更新で即時反映
-      setUserLessonProgress((prev) =>
-        prev.map((p) =>
-          blockLessonsCache[blockNumber]?.includes(p.lesson_id)
-            ? { ...p, is_unlocked: shouldUnlock }
-            : p
-        )
-      );
-
-      // 必要最小の再フェッチ
-      await loadUserProgress(selectedUser.id, selectedCourse.id);
     } catch (e) {
       toast.error('ブロックの更新に失敗しました');
       
       // エラー時はロールバック
-      await loadUserProgress(selectedUser.id, selectedCourse.id);
+      await loadUserProgress(selectedUser.id, selectedCourse.id, true);
     }
   }, [selectedUser, selectedCourse, blockLessonsCache, toast]);
 

@@ -1,4 +1,4 @@
-import { getSupabaseClient, fetchWithCache } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearCacheByKey, invalidateCacheKey } from '@/platform/supabaseClient';
 
 export interface LessonProgress {
   id: string;
@@ -24,9 +24,19 @@ export interface LessonRequirement {
 }
 
 /**
+ * レッスン進捗のキャッシュキー
+ */
+export const LESSON_PROGRESS_CACHE_KEY = (courseId: string, userId: string) =>
+  `lesson_progress_${courseId}_${userId}`;
+
+/**
  * ユーザーの特定コースのレッスン進捗を取得
  */
-export async function fetchUserLessonProgress(courseId: string, targetUserId?: string): Promise<LessonProgress[]> {
+export async function fetchUserLessonProgress(
+  courseId: string, 
+  targetUserId?: string,
+  { forceRefresh = false }: { forceRefresh?: boolean } = {}
+): Promise<LessonProgress[]> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   
@@ -35,9 +45,15 @@ export async function fetchUserLessonProgress(courseId: string, targetUserId?: s
   // 取得対象のユーザーID（指定がなければ自分）
   const userId = targetUserId || user.id;
 
-  const cacheKey = `lesson_progress:${userId}:${courseId}`;
+  const key = LESSON_PROGRESS_CACHE_KEY(courseId, userId);
+  
+  // forceRefresh = true の場合はキャッシュクリア
+  if (forceRefresh) {
+    clearCacheByKey(key);
+  }
+
   const { data, error } = await fetchWithCache(
-    cacheKey,
+    key,
     async () => await supabase
       .from('user_lesson_progress')
       .select('*')
@@ -47,6 +63,7 @@ export async function fetchUserLessonProgress(courseId: string, targetUserId?: s
   );
 
   if (error) throw new Error(`進捗データの取得に失敗しました: ${error.message}`);
+  
   return data || [];
 }
 
