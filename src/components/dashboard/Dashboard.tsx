@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useMissionStore } from '@/stores/missionStore';
-import { Announcement, fetchLatestAnnouncement } from '@/platform/supabaseAnnouncements';
+import { Announcement, fetchLatestAnnouncement, fetchActiveAnnouncements } from '@/platform/supabaseAnnouncements';
 import { useToast } from '@/stores/toastStore';
 import { mdToHtml } from '@/utils/markdown';
 import { 
@@ -55,15 +55,40 @@ const Dashboard: React.FC = () => {
     
     try {
       // お知らせとミッションを並行読み込み
-      const [latestData] = await Promise.all([
+      console.log('Dashboard: Loading announcement and missions...');
+      
+      // デバッグのため、全てのアクティブなお知らせも確認
+      const [latestData, allActiveData] = await Promise.all([
         fetchLatestAnnouncement(),
+        fetchActiveAnnouncements(),
         loadMissions()
       ]);
       
+      console.log('Dashboard: Latest announcement data:', latestData);
+      console.log('Dashboard: All active announcements:', allActiveData);
+      console.log('Dashboard: Total active announcements count:', allActiveData.length);
+      
       setLatestAnnouncement(latestData);
+      
+      if (!latestData) {
+        console.log('Dashboard: No active announcements found');
+        if (allActiveData.length === 0) {
+          console.log('Dashboard: No announcements exist at all');
+        } else {
+          console.log('Dashboard: Active announcements exist but fetchLatest returned null');
+        }
+      }
     } catch (e: any) {
       console.error('Dashboard data loading error:', e);
-      toast.error('データの読み込みに失敗しました');
+      // お知らせの読み込みエラーは重要なので詳細を表示
+      if (e.message?.includes('お知らせ')) {
+        toast.error(`お知らせの読み込みに失敗しました: ${e.message}`, {
+          title: 'お知らせエラー',
+          duration: 5000,
+        });
+      } else {
+        toast.error('データの読み込みに失敗しました');
+      }
     } finally {
       setLoading(false);
     }
