@@ -61,22 +61,29 @@ export const LessonManager: React.FC = () => {
   // 選択されたコースが変更されたらレッスンを取得
   useEffect(() => {
     if (selectedCourseId) {
-      loadLessons();
+      loadLessons(true);   // キャッシュを読まず最新を取る
     }
   }, [selectedCourseId]);
 
   const loadLessons = async (forceRefresh = false) => {
-    if (!selectedCourseId) return;
+    const courseId = selectedCourseId;   // スナップショット
+    if (!courseId) return;
     
     setLessonsLoading(true);
     try {
-      const lessonData = await fetchLessonsByCourse(selectedCourseId, { forceRefresh });
-      setCurrentLessons(lessonData);
+      const lessonData = await fetchLessonsByCourse(courseId, { forceRefresh });
+      /** ⇩ レスポンスを採用していいか確認 */
+      if (courseId === selectedCourseId) {
+        setCurrentLessons(lessonData);
+      }
     } catch (error) {
       toast.error('レッスンの読み込みに失敗しました。');
       console.error(error);
     } finally {
-      setLessonsLoading(false);
+      /** 「自分が最後のリクエスト」だけがスピナーを閉じる */
+      if (courseId === selectedCourseId) {
+        setLessonsLoading(false);
+      }
     }
   };
 
@@ -147,8 +154,8 @@ export const LessonManager: React.FC = () => {
         
         toast.success('レッスンを更新しました。');
         
-        // ② バックグラウンドで厳密データを再取得
-        loadLessons();
+        // ② バックグラウンドで厳密データを再取得（競合ガード付き）
+        loadLessons(true);
       } else {
         const newLesson = await addLesson({ ...lessonData, course_id: selectedCourseId });
         
@@ -159,7 +166,7 @@ export const LessonManager: React.FC = () => {
         
         toast.success('新しいレッスンを追加しました。');
         
-        loadLessons();
+        loadLessons(true);
       }
       
       closeDialog();
@@ -196,8 +203,8 @@ export const LessonManager: React.FC = () => {
       
       toast.success('曲を追加しました。');
       
-      // ② バックグラウンドで厳密データを再取得
-      loadLessons();
+      // ② バックグラウンドで厳密データを再取得（競合ガード付き）
+      loadLessons(true);
       
       closeSongDialog();
     } catch (error) {
@@ -223,8 +230,8 @@ export const LessonManager: React.FC = () => {
         
         toast.success('レッスンを削除しました。');
         
-        // ② バックグラウンドで厳密データを再取得
-        loadLessons();
+        // ② バックグラウンドで厳密データを再取得（競合ガード付き）
+        loadLessons(true);
       } catch (error) {
         toast.error('レッスンの削除に失敗しました。');
         console.error(error);
@@ -259,8 +266,8 @@ export const LessonManager: React.FC = () => {
         
         toast.success('曲を削除しました。');
         
-        // ② バックグラウンドで厳密データを再取得
-        loadLessons();
+        // ② バックグラウンドで厳密データを再取得（競合ガード付き）
+        loadLessons(true);
       } catch (error) {
         toast.error('曲の削除に失敗しました。');
         console.error('削除エラーの詳細:', error);
