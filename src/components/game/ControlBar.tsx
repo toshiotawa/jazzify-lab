@@ -28,14 +28,16 @@ const ControlBar: React.FC = () => {
     currentTime,
     currentSong,
     settings,
-    abRepeat
+    abRepeat,
+    lessonContext
   } = useGameSelector((state) => ({
     mode: state.mode,
     isPlaying: state.isPlaying,
     currentTime: state.currentTime,
     currentSong: state.currentSong,
     settings: state.settings,
-    abRepeat: state.abRepeat
+    abRepeat: state.abRepeat,
+    lessonContext: state.lessonContext
   }));
 
   const {
@@ -315,25 +317,29 @@ const ControlBar: React.FC = () => {
 
               {/* 移調コントロール */}
               <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
-                <button
-                  onClick={handleTransposeDown}
-                  className="control-btn control-btn-xxs control-btn-secondary"
-                  title="半音下げる"
-                  disabled={settings.transpose <= -6}
-                >
-                  ♭
-                </button>
-                <span className="text-gray-300 min-w-[30px] text-center text-sm">
-                  {settings.transpose > 0 ? `+${settings.transpose}` : settings.transpose}
-                </span>
-                <button
-                  onClick={handleTransposeUp}
-                  className="control-btn control-btn-xxs control-btn-secondary"
-                  title="半音上げる"
-                  disabled={settings.transpose >= 6}
-                >
-                  ♯
-                </button>
+                {lessonContext ? null : (
+                  <>
+                    <button
+                      onClick={handleTransposeDown}
+                      className="control-btn control-btn-xxs control-btn-secondary"
+                      title="半音下げる"
+                      disabled={settings.transpose <= -6}
+                    >
+                      ♭
+                    </button>
+                    <span className="text-gray-300 min-w-[30px] text-center text-sm">
+                      {settings.transpose > 0 ? `+${settings.transpose}` : settings.transpose}
+                    </span>
+                    <button
+                      onClick={handleTransposeUp}
+                      className="control-btn control-btn-xxs control-btn-secondary"
+                      title="半音上げる"
+                      disabled={settings.transpose >= 6}
+                    >
+                      ♯
+                    </button>
+                  </>
+                )}
               </div>
             </>
           ) : (

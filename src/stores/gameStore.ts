@@ -766,10 +766,21 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           };
 
           const currentSettings = get().settings;
+          const currentLessonContext = get().lessonContext;
+          
+          // レッスンモードでない場合は設定をリセット
+          if (!currentLessonContext) {
+            set((state) => {
+              state.settings.transpose = 0;
+              state.settings.playbackSpeed = 1.0;
+            });
+          }
+          
           // 移調楽器の設定を考慮した移調量を計算
           const { getTransposingInstrumentSemitones } = await import('@/utils/musicXmlTransposer');
-          const transposingInstrumentSemitones = getTransposingInstrumentSemitones(currentSettings.transposingInstrument);
-          const totalTranspose = currentSettings.transpose + transposingInstrumentSemitones;
+          const finalSettings = get().settings; // リセット後の設定を取得
+          const transposingInstrumentSemitones = getTransposingInstrumentSemitones(finalSettings.transposingInstrument);
+          const totalTranspose = finalSettings.transpose + transposingInstrumentSemitones;
           
           const { finalNotes, finalXml, finalChords } = await _processSongData(song, notes, totalTranspose);
 
@@ -1138,12 +1149,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const previousMode = state.mode;
           state.mode = mode;
           
-          // モード変更時にタブも同期
           if (mode === 'practice') {
             state.currentTab = 'practice';
-            // 練習モードに戻った時は保存した設定を復元
-            state.settings.practiceGuide = state.practiceModeSettings.practiceGuide ?? 'key';
-          } else if (mode === 'performance') {
+            // 練習モードでは保存された設定を復元
+            if (state.practiceModeSettings.practiceGuide) {
+              state.settings.practiceGuide = state.practiceModeSettings.practiceGuide;
+            }
+            // 練習モードに戻った際、楽譜表示を「ノート+コード」に設定
+            state.settings.sheetMusicChordsOnly = false;
+          } else {
             state.currentTab = 'performance';
             // 本番モードに切り替える前に練習モード設定を保存
             if (previousMode === 'practice') {

@@ -113,13 +113,10 @@ const LessonDetailPage: React.FC = () => {
   const handleComplete = async () => {
     if (!lessonId || !lesson) return;
     
-    // プレミアム以上のユーザーのみ実習課題のチェックを行う
-    if (profile?.rank === 'premium' || profile?.rank === 'platinum') {
-      // 実習課題が全て完了しているかチェック
-      if (!allRequirementsCompleted) {
-        toast.warning('全ての実習課題を完了してからレッスンを完了してください。');
-        return;
-      }
+    // 実習課題が全て完了しているかチェック（全ユーザー対象）
+    if (!allRequirementsCompleted) {
+      toast.warning('全ての実習課題を完了してからレッスンを完了してください。');
+      return;
     }
     
     setCompleting(true);
