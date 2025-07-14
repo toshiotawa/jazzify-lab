@@ -93,7 +93,7 @@ export const LessonManager: React.FC = () => {
       setValue('block_number', lesson.block_number || 1);
     } else {
       setSelectedLesson(null);
-      const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 10 : 0;
+      const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 1 : 0;
       reset({ title: '', description: '', assignment_description: '', order_index: newOrder, block_number: 1 });
     }
     dialogRef.current?.showModal();
@@ -282,7 +282,7 @@ export const LessonManager: React.FC = () => {
     try {
       await Promise.all(
         newLessons.map((lesson, idx) => 
-          updateLesson(lesson.id, { order_index: idx * 10 })
+          updateLesson(lesson.id, { order_index: idx })
         )
       );
       
@@ -310,7 +310,7 @@ export const LessonManager: React.FC = () => {
     try {
       await Promise.all(
         newLessons.map((lesson, idx) => 
-          updateLesson(lesson.id, { order_index: idx * 10 })
+          updateLesson(lesson.id, { order_index: idx })
         )
       );
       
