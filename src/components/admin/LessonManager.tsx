@@ -280,10 +280,21 @@ export const LessonManager: React.FC = () => {
     });
   };
 
+  const handleCourseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedCourseId(e.target.value);
+  };
+
   const handleClearCache = async () => {
-    clearSupabaseCache();
-    await loadLessons(true);
-    toast.success('キャッシュをクリアし、データを再読み込みしました。');
+    try {
+      setLessonsLoading(true);
+      await clearSupabaseCache();
+      await loadLessons(true); // 強制的に再取得
+      toast.success('キャッシュをクリアしました。');
+    } catch (error) {
+      toast.error('キャッシュのクリアに失敗しました。');
+    } finally {
+      setLessonsLoading(false);
+    }
   };
 
   return (
@@ -306,9 +317,9 @@ export const LessonManager: React.FC = () => {
         </label>
         <select
           id="course-select"
-          className="select select-bordered w-full max-w-xs"
           value={selectedCourseId}
-          onChange={(e) => setSelectedCourseId(e.target.value)}
+          onChange={handleCourseChange}
+          className="select select-bordered w-full max-w-xs"
           disabled={loading}
         >
           {courses.map(course => (
@@ -317,110 +328,61 @@ export const LessonManager: React.FC = () => {
         </select>
       </div>
 
-      <div className="relative overflow-x-auto rounded-md border border-gray-700">
-        <table className="table w-full">
-          <thead>
-            <tr>
-              <th className="w-[50px]"></th>
-              <th>順序</th>
-              <th>レッスンタイトル</th>
-              <th>曲数</th>
-              <th>ブロック</th>
-              <th className="text-right">アクション</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* --------- ① 初回ロードのみ全置き換え --------- */}
-            {loading && currentLessons.length === 0 && (
-              <tr>
-                <td colSpan={6} className="text-center">読み込み中...</td>
-              </tr>
-            )}
-
-            {/* --------- ② リフレッシュ時は既存リストを残す --------- */}
-            {currentLessons.map(lesson => (
-              <React.Fragment key={lesson.id}>
-                <tr>
-                  <td>
-                    <button className="btn btn-ghost btn-sm" onClick={() => toggleExpand(lesson.id)}>
-                      {expandedLessons.has(lesson.id) ? '▼' : '▶'}
-                    </button>
-                  </td>
-                  <td>{lesson.order_index}</td>
-                  <td className="font-medium">{lesson.title}</td>
-                  <td>{lesson.lesson_songs?.length || 0}</td>
-                  <td>ブロック {lesson.block_number || 1}</td>
-                  <td className="text-right">
-                    <button className="btn btn-ghost btn-sm" onClick={() => openDialog(lesson)}>編集</button>
-                    <button className="btn btn-ghost btn-sm text-blue-500" onClick={() => openSongDialog(lesson)}>
-                      <FaMusic className="mr-1" /> 曲追加
-                    </button>
-                    <button className="btn btn-ghost btn-sm text-red-500" onClick={() => handleDelete(lesson.id)}>削除</button>
-                  </td>
-                </tr>
-                {expandedLessons.has(lesson.id) && (
-                  <tr>
-                    <td colSpan={5} className="p-0">
-                      <div className="p-4 bg-slate-800/50">
-                        <h5 className="font-semibold mb-2">レッスン内容</h5>
-                        <p className="text-sm text-gray-400 mb-4">{lesson.description || '説明はありません。'}</p>
-                        {lesson.assignment_description && (
-                          <>
-                            <h5 className="font-semibold mb-2">課題説明</h5>
-                            <p className="text-sm text-gray-400 mb-4">{lesson.assignment_description}</p>
-                          </>
-                        )}
-                        <h5 className="font-semibold mb-2">収録曲</h5>
-                        {lesson.lesson_songs && lesson.lesson_songs.length > 0 ? (
-                          <div className="space-y-2">
-                            {lesson.lesson_songs.map(ls => {
-                              const song = availableSongs.find(s => s.id === ls.song_id);
-                              return (
-                                <div key={ls.song_id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
-                                  <div>
-                                    <span className="font-medium">{song?.title || '不明な曲'}</span>
-                                    <span className="text-xs text-gray-400 ml-2">
-                                      (キー: {ls.clear_conditions?.key || 0}, 
-                                      速度: {ls.clear_conditions?.speed || 1.0}x, 
-                                      ランク: {ls.clear_conditions?.rank || 'B'},
-                                      {ls.clear_conditions?.requires_days 
-                                        ? `${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間`
-                                        : `${ls.clear_conditions?.count || 1}回`},
-                                      楽譜: {ls.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
-                                             ls.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'})
-                                    </span>
-                                  </div>
-                                  <button 
-                                    className="btn btn-ghost btn-xs text-red-500"
-                                    onClick={() => handleRemoveSong(lesson.id, ls.song_id)}
-                                  >
-                                    <FaTrash />
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-400">曲が登録されていません。</p>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-
-        {/* lessonsLoading だけで出る半透明オーバーレイ */}
-        {lessonsLoading && (
-          <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center">
-            <span className="loading loading-spinner loading-lg"></span>
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <span className="loading loading-spinner loading-lg"></span>
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 flex justify-between items-center">
+            <button onClick={() => openDialog()} className="btn btn-primary">新しいレッスンを追加</button>
+            <button onClick={handleClearCache} className="btn btn-ghost">キャッシュクリア</button>
           </div>
-        )}
-      </div>
-      
-      {/* レッスン編集ダイアログ */}
+
+          {lessonsLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <span className="loading loading-spinner loading-lg"></span>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {currentLessons.map((lesson) => (
+                <div key={lesson.id} className="collapse collapse-arrow border border-base-300 bg-base-100">
+                  <input
+                    type="checkbox"
+                    checked={expandedLessons.has(lesson.id)}
+                    onChange={() => toggleExpand(lesson.id)}
+                  />
+                  <div className="collapse-title text-xl font-medium flex justify-between items-center">
+                    <span>{lesson.order_index}. {lesson.title}</span>
+                    <div className="flex items-center space-x-2">
+                      <button onClick={(e) => { e.stopPropagation(); openDialog(lesson); }} className="btn btn-sm btn-circle btn-outline"><FaEdit /></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDelete(lesson.id); }} className="btn btn-sm btn-circle btn-outline btn-error"><FaTrash /></button>
+                    </div>
+                  </div>
+                  <div className="collapse-content">
+                    <p>{lesson.description}</p>
+                    <p><strong>課題:</strong> {lesson.assignment_description}</p>
+                    <div className="divider">レッスン曲</div>
+                    <div className="space-y-2">
+                      {lesson.lesson_songs && lesson.lesson_songs.map(ls => (
+                        <div key={ls.song_id} className="flex items-center justify-between p-2 rounded-lg bg-base-200">
+                          <span>{availableSongs.find(s => s.id === ls.song_id)?.title || '不明な曲'}</span>
+                          <button onClick={() => handleRemoveSong(lesson.id, ls.song_id)} className="btn btn-xs btn-error">削除</button>
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => openSongDialog(lesson)} className="btn btn-sm btn-outline mt-4">
+                      <FaMusic /> 曲を追加
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Lesson Edit/Add Dialog */}
       <dialog ref={dialogRef} className="modal">
         <div className="modal-box">
           <h3 className="font-bold text-lg">{selectedLesson ? 'レッスンの編集' : '新規レッスンの作成'}</h3>
