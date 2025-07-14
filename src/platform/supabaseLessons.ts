@@ -1,4 +1,4 @@
-import { getSupabaseClient, clearCacheByPattern, fetchWithCache } from './supabaseClient';
+import { getSupabaseClient, fetchWithCache } from './supabaseClient';
 import { Lesson, LessonSong, ClearConditions } from '@/types';
 
 // Note: Lessons are tightly coupled to courses, so we don't use fetchWithCache here.
@@ -81,8 +81,6 @@ export async function addLesson(lessonData: LessonData): Promise<Lesson> {
     console.error('Error adding lesson:', error);
     throw error;
   }
-  // レッスンとコース関連のキャッシュのみクリア
-  clearCacheByPattern(/^(lessons:|courses)/);
   return data as Lesson;
 }
 
@@ -109,8 +107,6 @@ export async function updateLesson(id: string, updates: Partial<LessonData>): Pr
     console.error(`Error updating lesson ${id}:`, error);
     throw error;
   }
-  // レッスンとコース関連のキャッシュのみクリア
-  clearCacheByPattern(/^(lessons:|courses)/);
   return data as Lesson;
 }
 
@@ -128,8 +124,6 @@ export async function deleteLesson(id: string): Promise<void> {
     console.error(`Error deleting lesson ${id}:`, error);
     throw error;
   }
-  // レッスンとコース関連のキャッシュのみクリア
-  clearCacheByPattern(/^(lessons:|courses)/);
 }
 
 
@@ -157,8 +151,6 @@ export async function addSongToLesson(lessonSongData: LessonSongData): Promise<L
     console.error('Error adding song to lesson:', error);
     throw error;
   }
-  // レッスンとコース関連のキャッシュのみクリア
-  clearCacheByPattern(/^(lessons:|courses)/);
   return data as LessonSong;
 }
 
@@ -178,8 +170,6 @@ export async function removeSongFromLesson(lessonId: string, songId: string): Pr
     console.error(`Error removing song ${songId} from lesson ${lessonId}:`, error);
     throw error;
   }
-  // レッスンとコース関連のキャッシュのみクリア
-  clearCacheByPattern(/^(lessons:|courses)/);
 }
 
 /**
@@ -200,7 +190,5 @@ export async function updateLessonSongConditions(lessonSongId: string, updates: 
     console.error(`Error updating lesson song conditions for ${lessonSongId}:`, error);
     throw error;
   }
-  // レッスンとコース関連のキャッシュのみクリア
-  clearCacheByPattern(/^(lessons:|courses)/);
   return data as LessonSong;
 } 

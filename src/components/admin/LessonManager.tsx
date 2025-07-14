@@ -134,14 +134,25 @@ export const LessonManager: React.FC = () => {
       };
 
       if (selectedLesson) {
-        await updateLesson(selectedLesson.id, lessonData);
+        const updatedLesson = await updateLesson(selectedLesson.id, lessonData);
         toast.success('レッスンを更新しました。');
+        
+        // ローカル状態を直接更新
+        setCurrentLessons(prev => 
+          prev.map(lesson => 
+            lesson.id === updatedLesson.id 
+              ? { ...lesson, ...updatedLesson }
+              : lesson
+          )
+        );
       } else {
-        await addLesson({ ...lessonData, course_id: selectedCourseId });
+        const newLesson = await addLesson({ ...lessonData, course_id: selectedCourseId });
         toast.success('新しいレッスンを追加しました。');
+        
+        // ローカル状態を直接更新
+        setCurrentLessons(prev => [...prev, newLesson].sort((a, b) => a.order_index - b.order_index));
       }
       
-      await loadLessons();
       closeDialog();
     } catch (error) {
       toast.error('レッスンの保存に失敗しました。');
@@ -156,14 +167,25 @@ export const LessonManager: React.FC = () => {
     
     setIsSubmitting(true);
     try {
-      await addSongToLesson({
+      const newLessonSong = await addSongToLesson({
         lesson_id: selectedLesson.id,
         song_id: formData.song_id,
         clear_conditions: formData.clear_conditions
       });
       toast.success('曲を追加しました。');
       
-      await loadLessons();
+      // ローカル状態を直接更新
+      setCurrentLessons(prev => 
+        prev.map(lesson => 
+          lesson.id === selectedLesson.id 
+            ? {
+                ...lesson,
+                lesson_songs: [...(lesson.lesson_songs || []), newLessonSong]
+              }
+            : lesson
+        )
+      );
+      
       closeSongDialog();
     } catch (error) {
       toast.error('曲の追加に失敗しました。');
@@ -178,7 +200,9 @@ export const LessonManager: React.FC = () => {
       try {
         await deleteLesson(id);
         toast.success('レッスンを削除しました。');
-        await loadLessons();
+        
+        // ローカル状態を直接更新
+        setCurrentLessons(prev => prev.filter(lesson => lesson.id !== id));
       } catch (error) {
         toast.error('レッスンの削除に失敗しました。');
         console.error(error);
@@ -198,12 +222,21 @@ export const LessonManager: React.FC = () => {
         await removeSongFromLesson(lessonId, songId);
         toast.success('曲を削除しました。');
         
-        // 削除後に再読み込み
-        await loadLessons();
+        // ローカル状態を直接更新
+        setCurrentLessons(prev => 
+          prev.map(lesson => 
+            lesson.id === lessonId 
+              ? {
+                  ...lesson,
+                  lesson_songs: lesson.lesson_songs?.filter(ls => ls.song_id !== songId) || []
+                }
+              : lesson
+          )
+        );
         
         // 削除後の曲リストをログ出力
         const updatedLesson = currentLessons.find(l => l.id === lessonId);
-        console.log('削除後の曲リスト:', updatedLesson?.lesson_songs);
+        console.log('削除後の曲リスト:', updatedLesson?.lesson_songs?.filter(ls => ls.song_id !== songId));
       } catch (error) {
         toast.error('曲の削除に失敗しました。');
         console.error('削除エラーの詳細:', error);
