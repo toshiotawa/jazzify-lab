@@ -1,17 +1,50 @@
 import { getSupabaseClient, fetchWithCache } from './supabaseClient';
 import { Lesson, LessonSong, ClearConditions } from '@/types';
 
-// Note: Lessons are tightly coupled to courses, so we don't use fetchWithCache here.
-// The cache for 'courses' which contains lessons is cleared when lessons change.
+// レッスンキャッシュキー生成関数
+export const LESSONS_CACHE_KEY = (courseId: string) => `lessons:${courseId}`;
 
 /**
  * 特定のコースIDに紐づくレッスンを取得します。
  * @param {string} courseId
+ * @param {Object} options オプション
+ * @param {boolean} options.forceRefresh キャッシュを無視して最新データを取得
  * @returns {Promise<Lesson[]>}
  */
-export async function fetchLessonsByCourse(courseId: string): Promise<Lesson[]> {
+export async function fetchLessonsByCourse(
+  courseId: string, 
+  { forceRefresh = false } = {}
+): Promise<Lesson[]> {
+  const cacheKey = LESSONS_CACHE_KEY(courseId);
+
+  if (forceRefresh) {
+    // キャッシュをバイパスして直接取得
+    const { data, error } = await getSupabaseClient()
+      .from('lessons')
+      .select(`
+        *,
+        lesson_songs (
+          *,
+          songs (id, title, artist)
+        )
+      `)
+      .eq('course_id', courseId)
+      .order('order_index', { ascending: true });
+
+    if (error) {
+      console.error(`Error fetching lessons for course ${courseId}:`, error);
+      throw error;
+    }
+
+    // 新しいデータでキャッシュを更新
+    const supabaseClient = await import('./supabaseClient');
+    supabaseClient.clearCacheByKey(cacheKey);
+    
+    return data || [];
+  }
+
   const { data, error } = await fetchWithCache<Lesson>(
-    `lessons:${courseId}`,
+    cacheKey,
     async () => await getSupabaseClient()
       .from('lessons')
       .select(`

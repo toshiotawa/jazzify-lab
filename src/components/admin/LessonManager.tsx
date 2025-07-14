@@ -4,7 +4,8 @@ import { Course, Lesson, ClearConditions } from '@/types';
 import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions } from '@/platform/supabaseLessons';
+import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
+import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit } from 'react-icons/fa';
 
@@ -64,12 +65,12 @@ export const LessonManager: React.FC = () => {
     }
   }, [selectedCourseId]);
 
-  const loadLessons = async () => {
+  const loadLessons = async (forceRefresh = false) => {
     if (!selectedCourseId) return;
     
     setLessonsLoading(true);
     try {
-      const lessonData = await fetchLessonsByCourse(selectedCourseId);
+      const lessonData = await fetchLessonsByCourse(selectedCourseId, { forceRefresh });
       setCurrentLessons(lessonData);
     } catch (error) {
       toast.error('レッスンの読み込みに失敗しました。');
@@ -136,6 +137,9 @@ export const LessonManager: React.FC = () => {
       if (selectedLesson) {
         const updatedLesson = await updateLesson(selectedLesson.id, lessonData);
         
+        // キャッシュを無効化してから再取得
+        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+        
         // ① 画面を即時更新（オプティミスティック）
         setCurrentLessons(prev =>
           prev.map(l => (l.id === updatedLesson.id ? updatedLesson : l)),
@@ -147,6 +151,9 @@ export const LessonManager: React.FC = () => {
         loadLessons();
       } else {
         const newLesson = await addLesson({ ...lessonData, course_id: selectedCourseId });
+        
+        // キャッシュを無効化してから再取得
+        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
         
         setCurrentLessons(prev => [...prev, newLesson]);
         
@@ -165,7 +172,7 @@ export const LessonManager: React.FC = () => {
   };
 
   const onSubmitSong = async (formData: SongFormData) => {
-    if (!selectedLesson) return;
+    if (!selectedLesson || !selectedCourseId) return;
     
     setIsSubmitting(true);
     try {
@@ -174,6 +181,9 @@ export const LessonManager: React.FC = () => {
         song_id: formData.song_id,
         clear_conditions: formData.clear_conditions
       });
+      
+      // キャッシュを無効化してから再取得
+      invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
       
       // ① 画面を即時更新（オプティミスティック）
       setCurrentLessons(prev =>
@@ -199,9 +209,14 @@ export const LessonManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (!selectedCourseId) return;
+    
     if (window.confirm('本当にこのレッスンを削除しますか？')) {
       try {
         await deleteLesson(id);
+        
+        // キャッシュを無効化してから再取得
+        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
         
         // ① 画面を即時更新（オプティミスティック）
         setCurrentLessons(prev => prev.filter(l => l.id !== id));
@@ -218,6 +233,8 @@ export const LessonManager: React.FC = () => {
   };
 
   const handleRemoveSong = async (lessonId: string, songId: string) => {
+    if (!selectedCourseId) return;
+    
     console.log('削除しようとしている曲:', { lessonId, songId });
     
     if (window.confirm('この曲をレッスンから削除しますか？')) {
@@ -227,6 +244,9 @@ export const LessonManager: React.FC = () => {
         console.log('削除前の曲リスト:', lesson?.lesson_songs);
         
         await removeSongFromLesson(lessonId, songId);
+        
+        // キャッシュを無効化してから再取得
+        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
         
         // ① 画面を即時更新（オプティミスティック）
         setCurrentLessons(prev =>
@@ -260,13 +280,24 @@ export const LessonManager: React.FC = () => {
     });
   };
 
+  const handleClearCache = async () => {
+    clearSupabaseCache();
+    await loadLessons(true);
+    toast.success('キャッシュをクリアし、データを再読み込みしました。');
+  };
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">レッスン管理</h2>
-        <button className="btn btn-primary" onClick={() => openDialog()} disabled={!selectedCourseId}>
-          新規レッスン追加
-        </button>
+        <div className="flex gap-2">
+          <button className="btn btn-secondary btn-sm" onClick={handleClearCache}>
+            キャッシュクリア
+          </button>
+          <button className="btn btn-primary" onClick={() => openDialog()} disabled={!selectedCourseId}>
+            新規レッスン追加
+          </button>
+        </div>
       </div>
 
       <div className="mb-4">

@@ -125,4 +125,10 @@ export function clearCacheByPattern(pattern: string | RegExp) {
       cache.delete(key);
     }
   }
+}
+
+// 特定のキャッシュキーを無効化（配列形式にも対応）
+export function invalidateCacheKey(key: string | string[]) {
+  const cacheKey = Array.isArray(key) ? key.join('::') : key;
+  cache.delete(cacheKey);
 } 
