@@ -4,6 +4,7 @@ import { Course, Lesson } from '@/types';
 import { fetchCoursesWithDetails } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress, unlockLesson, LessonProgress } from '@/platform/supabaseLessonProgress';
+import { subscribeRealtime } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { 
@@ -59,6 +60,43 @@ const LessonPage: React.FC = () => {
     }
   }, [selectedCourse?.id]);
 
+  // リアルタイム更新監視を追加
+  useEffect(() => {
+    if (!open || !selectedCourse) return;
+
+    // レッスンテーブルの変更を監視
+    const unsubscribeLessons = subscribeRealtime(
+      'lesson-changes',
+      'lessons',
+      '*',
+      (payload: any) => {
+        console.log('Lesson data changed, reloading...', payload);
+        // データが変更されたら現在のコースのレッスンを再読み込み
+        if (selectedCourse) {
+          loadLessons(selectedCourse.id);
+        }
+      }
+    );
+
+    // lesson_songsテーブルの変更も監視
+    const unsubscribeLessonSongs = subscribeRealtime(
+      'lesson-songs-changes',
+      'lesson_songs',
+      '*',
+      (payload: any) => {
+        console.log('Lesson songs data changed, reloading...', payload);
+        if (selectedCourse) {
+          loadLessons(selectedCourse.id);
+        }
+      }
+    );
+
+    return () => {
+      unsubscribeLessons();
+      unsubscribeLessonSongs();
+    };
+  }, [open, selectedCourse]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -82,10 +120,41 @@ const LessonPage: React.FC = () => {
 
   const loadLessons = async (courseId: string) => {
     try {
+      console.log(`Loading lessons for course: ${courseId}`);
       const [lessonsData, progressData] = await Promise.all([
         fetchLessonsByCourse(courseId),
         fetchUserLessonProgress(courseId)
       ]);
+      
+      console.log(`Loaded ${lessonsData.length} lessons`);
+      
+      // レッスンデータが空で、以前にレッスンがあった場合は強制再読み込み
+      if (lessonsData.length === 0 && lessons.length > 0) {
+        console.log('Empty lessons detected, forcing cache bypass and reload...');
+        // キャッシュをクリアしてもう一度読み込み
+        const { clearSupabaseCache } = await import('@/platform/supabaseClient');
+        clearSupabaseCache();
+        
+        // 少し待ってから再度読み込み
+        setTimeout(async () => {
+          try {
+            const retryLessonsData = await fetchLessonsByCourse(courseId);
+            console.log(`Retry loaded ${retryLessonsData.length} lessons`);
+            setLessons(retryLessonsData);
+            
+            // 進捗データも再取得
+            const retryProgressData = await fetchUserLessonProgress(courseId);
+            const retryProgressMap: Record<string, LessonProgress> = {};
+            retryProgressData.forEach((p: LessonProgress) => {
+              retryProgressMap[p.lesson_id] = p;
+            });
+            setProgress(retryProgressMap);
+          } catch (retryError) {
+            console.error('Retry loading failed:', retryError);
+          }
+        }, 100);
+        return;
+      }
       
       setLessons(lessonsData);
       
@@ -122,6 +191,7 @@ const LessonPage: React.FC = () => {
       setProgress(updatedProgressMap);
     } catch (e: any) {
       toast.error('レッスンデータの読み込みに失敗しました');
+      console.error('Error loading lessons:', e);
     }
   };
 

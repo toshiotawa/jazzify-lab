@@ -61,7 +61,13 @@ export async function fetchWithCache<T>(
   const now = Date.now();
   const cached = cache.get(cacheKey);
   if (cached && cached.expires > now) {
-    return { data: cached.data, error: null, status: 200, count: null }; // 型上 status 固定
+    return { 
+      data: cached.data, 
+      error: null, 
+      status: 200, 
+      statusText: 'OK',
+      count: null 
+    };
   }
 
   const res = await executor();
@@ -74,23 +80,25 @@ export async function fetchWithCache<T>(
 /**
  * Realtime サブスクリプション簡易ヘルパー
  * @param channelName Supabase チャンネル名
+ * @param tableName 監視するテーブル名
  * @param eventType 'INSERT' | 'UPDATE' | 'DELETE' | '*'
  * @param callback イベントコールバック
  */
 export function subscribeRealtime<T>(
   channelName: string,
+  tableName: string,
   eventType: 'INSERT' | 'UPDATE' | 'DELETE' | '*',
-  callback: (payload: T) => void,
+  callback: (payload: any) => void,
 ) {
   const supabase = getSupabaseClient();
   const channel = supabase.channel(channelName);
   channel.on(
-    'postgres_changes',
-    { event: eventType, schema: 'public' },
-    payload => {
+    'postgres_changes' as any,
+    { event: eventType, schema: 'public', table: tableName },
+    (payload: any) => {
       // キャッシュ無効化
       cache.clear();
-      callback(payload as T);
+      callback(payload);
     },
   );
   channel.subscribe();
