@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useMissionStore } from '@/stores/missionStore';
-import { Announcement, fetchLatestAnnouncement, fetchActiveAnnouncements } from '@/platform/supabaseAnnouncements';
+import { Announcement, fetchActiveAnnouncements } from '@/platform/supabaseAnnouncements';
 import { useToast } from '@/stores/toastStore';
 import { mdToHtml } from '@/utils/markdown';
 import { 
@@ -58,11 +58,12 @@ const Dashboard: React.FC = () => {
       console.log('Dashboard: Loading announcement and missions...');
       
       // デバッグのため、全てのアクティブなお知らせも確認
-      const [latestData, allActiveData] = await Promise.all([
-        fetchLatestAnnouncement(),
+      const [allActiveData] = await Promise.all([
         fetchActiveAnnouncements(),
         loadMissions()
       ]);
+      
+      const latestData = allActiveData.length > 0 ? allActiveData[0] : null;
       
       console.log('Dashboard: Latest announcement data:', latestData);
       console.log('Dashboard: All active announcements:', allActiveData);

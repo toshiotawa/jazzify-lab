@@ -152,24 +152,4 @@ export async function updateAnnouncementPriority(id: string, priority: number): 
 
   if (error) throw new Error(`優先度の更新に失敗しました: ${error.message}`);
   clearSupabaseCache();
-}
-
-/**
- * 最新のお知らせ1件を取得（ダッシュボード用）
- */
-export async function fetchLatestAnnouncement(): Promise<Announcement | null> {
-  const { data, error } = await fetchWithCache(
-    'announcements:latest',
-    async () => await getSupabaseClient()
-      .from('announcements')
-      .select('*')
-      .eq('is_active', true)
-      .order('priority', { ascending: true })
-      .order('created_at', { ascending: false })
-      .limit(1),
-    1000 * 60 * 2 // 2分キャッシュ
-  );
-
-  if (error) throw new Error(`最新お知らせの取得に失敗しました: ${error.message}`);
-  return data && data.length > 0 ? data[0] : null;
 } 
