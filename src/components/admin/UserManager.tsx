@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useToast } from '@/stores/toastStore';
-import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag } from '@/platform/supabaseAdmin';
+import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag, USERS_CACHE_KEY } from '@/platform/supabaseAdmin';
 import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, lockBlock, LessonProgress } from '@/platform/supabaseLessonProgress';
-import { fetchCoursesWithDetails } from '@/platform/supabaseCourses';
+import { fetchCoursesWithDetails, COURSES_CACHE_KEY } from '@/platform/supabaseCourses';
 import { Course, Lesson } from '@/types';
 import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
 
 const ranks = ['free','standard','premium','platinum'] as const;
 
@@ -20,12 +21,12 @@ const UserManager: React.FC = () => {
   const [userLessonProgress, setUserLessonProgress] = useState<LessonProgress[]>([]);
   const [showProgressModal, setShowProgressModal] = useState(false);
 
-  const load = async () => {
+  const load = async (forceRefresh = false) => {
     setLoading(true);
     try {
       const [usersData, coursesData] = await Promise.all([
-        fetchAllUsers(),
-        fetchCoursesWithDetails()
+        fetchAllUsers({ forceRefresh }),
+        fetchCoursesWithDetails({ forceRefresh })
       ]);
       setUsers(usersData);
       setCourses(coursesData);
@@ -42,11 +43,16 @@ const UserManager: React.FC = () => {
       setUsers(prev => prev.map(u => u.id === id ? { ...u, rank } : u));
       
       await updateUserRank(id, rank);
+      
+      // キャッシュを無効化してから再取得
+      invalidateCacheKey(USERS_CACHE_KEY());
+      await load(true);
+      
       toast.success('ランクを更新しました');
     } catch(e){
       toast.error('更新に失敗しました');
       // エラー時はリロード
-      await load();
+      await load(true);
     }
   };
 
@@ -56,11 +62,16 @@ const UserManager: React.FC = () => {
       setUsers(prev => prev.map(u => u.id === id ? { ...u, is_admin: isAdmin } : u));
       
       await setAdminFlag(id, isAdmin);
+      
+      // キャッシュを無効化してから再取得
+      invalidateCacheKey(USERS_CACHE_KEY());
+      await load(true);
+      
       toast.success('Admin 権限を更新しました');
     } catch(e){
       toast.error('更新に失敗しました');
       // エラー時はリロード
-      await load();
+      await load(true);
     }
   };
 
@@ -152,6 +163,12 @@ const UserManager: React.FC = () => {
     }
   }, [selectedUser, selectedCourse, blockLessonsCache, toast]);
 
+  const handleClearCache = async () => {
+    clearSupabaseCache();
+    await load(true);
+    toast.success('キャッシュをクリアし、データを再読み込みしました。');
+  };
+
   // レッスンをブロックごとにグループ化
   const groupLessonsByBlock = (lessons: Lesson[] | undefined) => {
     if (!lessons) return {};
@@ -198,7 +215,12 @@ const UserManager: React.FC = () => {
 
   return (
     <div>
-      <h3 className="text-xl font-bold mb-4">ユーザー管理</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-bold">ユーザー管理</h3>
+        <button className="btn btn-secondary btn-sm" onClick={handleClearCache}>
+          キャッシュクリア
+        </button>
+      </div>
       {loading? <p>Loading...</p> : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[600px]">
