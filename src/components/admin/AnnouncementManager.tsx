@@ -35,7 +35,12 @@ const AnnouncementManager: React.FC = () => {
     reset, 
     formState: { errors },
     setValue 
-  } = useForm<CreateAnnouncementData>();
+  } = useForm<CreateAnnouncementData>({
+    defaultValues: {
+      priority: 1,
+      is_active: true
+    }
+  });
   
   const toast = useToast();
   const contentRef = useRef<HTMLTextAreaElement>(null);
@@ -107,7 +112,7 @@ const AnnouncementManager: React.FC = () => {
     setValue('link_url', announcement.link_url || '');
     setValue('link_text', announcement.link_text || '');
     setValue('is_active', announcement.is_active);
-    setValue('priority', announcement.priority);
+    setValue('priority', announcement.priority || 1);
     setShowForm(true);
   };
 
@@ -260,6 +265,7 @@ const AnnouncementManager: React.FC = () => {
                   })}
                   type="number"
                   min="1"
+                  defaultValue={1}
                   className="input input-bordered w-full text-white"
                   placeholder="1"
                 />
