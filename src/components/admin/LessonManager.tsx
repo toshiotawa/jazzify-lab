@@ -7,7 +7,7 @@ import { fetchSongs } from '@/platform/supabaseSongs';
 import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
-import { FaMusic, FaTrash, FaEdit } from 'react-icons/fa';
+import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical } from 'react-icons/fa';
 
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number'>;
 
@@ -26,6 +26,8 @@ export const LessonManager: React.FC = () => {
   const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set());
   const [currentLessons, setCurrentLessons] = useState<Lesson[]>([]);
   const [lessonsLoading, setLessonsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSorting, setIsSorting] = useState(false);
 
   const toast = useToast();
   const { register, handleSubmit, reset, setValue } = useForm<LessonFormData>();
@@ -58,32 +60,26 @@ export const LessonManager: React.FC = () => {
     loadInitialData();
   }, [toast]);
 
-  // 選択されたコースが変更されたらレッスンを取得
   useEffect(() => {
     if (selectedCourseId) {
-      loadLessons(true);   // キャッシュを読まず最新を取る
+      loadLessons(false);
     }
   }, [selectedCourseId]);
 
   const loadLessons = async (forceRefresh = false) => {
-    const courseId = selectedCourseId;   // スナップショット
-    if (!courseId) return;
-    
+    if (!selectedCourseId) return;
     setLessonsLoading(true);
+    setError(null);
     try {
-      const lessonData = await fetchLessonsByCourse(courseId, { forceRefresh });
-      /** ⇩ レスポンスを採用していいか確認 */
-      if (courseId === selectedCourseId) {
-        setCurrentLessons(lessonData);
-      }
+      const data = await fetchLessonsByCourse(selectedCourseId, { forceRefresh });
+      setCurrentLessons(data);
     } catch (error) {
-      toast.error('レッスンの読み込みに失敗しました。');
-      console.error(error);
+      const errorMessage = error instanceof Error ? error.message : 'レッスンの読み込みに失敗しました。';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      console.error('Error loading lessons:', error);
     } finally {
-      /** 「自分が最後のリクエスト」だけがスピナーを閉じる */
-      if (courseId === selectedCourseId) {
-        setLessonsLoading(false);
-      }
+      setLessonsLoading(false);
     }
   };
 
@@ -293,6 +289,60 @@ export const LessonManager: React.FC = () => {
     toast.success('キャッシュをクリアし、データを再読み込みしました。');
   };
 
+  const handleMoveUp = async (index: number) => {
+    if (index === 0 || isSorting) return;
+    
+    setIsSorting(true);
+    const newLessons = [...currentLessons];
+    const temp = newLessons[index];
+    newLessons[index] = newLessons[index - 1];
+    newLessons[index - 1] = temp;
+    
+    try {
+      await Promise.all(
+        newLessons.map((lesson, idx) => 
+          updateLesson(lesson.id, { order_index: idx * 10 })
+        )
+      );
+      await loadLessons(true);
+      toast.success('並び順を更新しました。');
+    } catch (error: any) {
+      toast.error('並び順の更新に失敗しました。');
+      console.error(error);
+    } finally {
+      setIsSorting(false);
+    }
+  };
+
+  const handleMoveDown = async (index: number) => {
+    if (index === currentLessons.length - 1 || isSorting) return;
+    
+    setIsSorting(true);
+    const newLessons = [...currentLessons];
+    const temp = newLessons[index];
+    newLessons[index] = newLessons[index + 1];
+    newLessons[index + 1] = temp;
+    
+    try {
+      await Promise.all(
+        newLessons.map((lesson, idx) => 
+          updateLesson(lesson.id, { order_index: idx * 10 })
+        )
+      );
+      await loadLessons(true);
+      toast.success('並び順を更新しました。');
+    } catch (error: any) {
+      toast.error('並び順の更新に失敗しました。');
+      console.error(error);
+    } finally {
+      setIsSorting(false);
+    }
+  };
+
+  const sortedLessons = useMemo(() => 
+    [...currentLessons].sort((a, b) => a.order_index - b.order_index),
+  [currentLessons]);
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
@@ -329,7 +379,7 @@ export const LessonManager: React.FC = () => {
           <thead>
             <tr>
               <th className="w-[50px]"></th>
-              <th>順序</th>
+              <th className="w-[100px]">並び順</th>
               <th>レッスンタイトル</th>
               <th>曲数</th>
               <th>ブロック</th>
@@ -345,7 +395,28 @@ export const LessonManager: React.FC = () => {
             )}
 
             {/* --------- ② リフレッシュ時は既存リストを残す --------- */}
-            {currentLessons.map(lesson => (
+            {lessonsLoading ? (
+              <tr>
+                <td colSpan={6} className="text-center">読み込み中...</td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={6} className="text-center text-red-500">
+                  <div className="py-4">
+                    <p className="mb-2">エラー: {error}</p>
+                    <button className="btn btn-sm btn-primary" onClick={() => loadLessons(true)}>
+                      再読み込み
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ) : sortedLessons.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center text-gray-400">
+                  レッスンがありません。新規レッスンを追加してください。
+                </td>
+              </tr>
+            ) : sortedLessons.map((lesson, index) => (
               <React.Fragment key={lesson.id}>
                 <tr>
                   <td>
@@ -353,7 +424,27 @@ export const LessonManager: React.FC = () => {
                       {expandedLessons.has(lesson.id) ? '▼' : '▶'}
                     </button>
                   </td>
-                  <td>{lesson.order_index}</td>
+                  <td>
+                    <div className="flex items-center gap-1">
+                      <FaGripVertical className="text-gray-400" />
+                      <button 
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => handleMoveUp(index)}
+                        disabled={index === 0 || isSorting}
+                        aria-label="上に移動"
+                      >
+                        <FaArrowUp />
+                      </button>
+                      <button 
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => handleMoveDown(index)}
+                        disabled={index === currentLessons.length - 1 || isSorting}
+                        aria-label="下に移動"
+                      >
+                        <FaArrowDown />
+                      </button>
+                    </div>
+                  </td>
                   <td className="font-medium">{lesson.title}</td>
                   <td>{lesson.lesson_songs?.length || 0}</td>
                   <td>ブロック {lesson.block_number || 1}</td>
@@ -418,13 +509,6 @@ export const LessonManager: React.FC = () => {
             ))}
           </tbody>
         </table>
-
-        {/* lessonsLoading だけで出る半透明オーバーレイ */}
-        {lessonsLoading && (
-          <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center">
-            <span className="loading loading-spinner loading-lg"></span>
-          </div>
-        )}
       </div>
       
       {/* レッスン編集ダイアログ */}
