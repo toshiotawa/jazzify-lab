@@ -58,7 +58,8 @@ export async function fetchActiveAnnouncements(): Promise<Announcement[]> {
     async () => await getSupabaseClient()
       .from('announcements')
       .select('*')
-      .eq('is_active', true)
+      // RLSポリシーで is_active = true が適用されるため、フロントのクエリは不要
+      // .eq('is_active', true)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: false }),
     1000 * 60 * 2 // 2分キャッシュ
