@@ -137,20 +137,14 @@ export const LessonManager: React.FC = () => {
         const updatedLesson = await updateLesson(selectedLesson.id, lessonData);
         toast.success('レッスンを更新しました。');
         
-        // ローカル状態を直接更新
-        setCurrentLessons(prev => 
-          prev.map(lesson => 
-            lesson.id === updatedLesson.id 
-              ? { ...lesson, ...updatedLesson }
-              : lesson
-          )
-        );
+        // 最新データを再取得
+        await loadLessons();
       } else {
         const newLesson = await addLesson({ ...lessonData, course_id: selectedCourseId });
         toast.success('新しいレッスンを追加しました。');
         
-        // ローカル状態を直接更新
-        setCurrentLessons(prev => [...prev, newLesson].sort((a, b) => a.order_index - b.order_index));
+        // 最新データを再取得
+        await loadLessons();
       }
       
       closeDialog();
@@ -174,17 +168,8 @@ export const LessonManager: React.FC = () => {
       });
       toast.success('曲を追加しました。');
       
-      // ローカル状態を直接更新
-      setCurrentLessons(prev => 
-        prev.map(lesson => 
-          lesson.id === selectedLesson.id 
-            ? {
-                ...lesson,
-                lesson_songs: [...(lesson.lesson_songs || []), newLessonSong]
-              }
-            : lesson
-        )
-      );
+      // 最新データを再取得
+      await loadLessons();
       
       closeSongDialog();
     } catch (error) {
@@ -201,8 +186,8 @@ export const LessonManager: React.FC = () => {
         await deleteLesson(id);
         toast.success('レッスンを削除しました。');
         
-        // ローカル状態を直接更新
-        setCurrentLessons(prev => prev.filter(lesson => lesson.id !== id));
+        // 最新データを再取得
+        await loadLessons();
       } catch (error) {
         toast.error('レッスンの削除に失敗しました。');
         console.error(error);
@@ -222,17 +207,8 @@ export const LessonManager: React.FC = () => {
         await removeSongFromLesson(lessonId, songId);
         toast.success('曲を削除しました。');
         
-        // ローカル状態を直接更新
-        setCurrentLessons(prev => 
-          prev.map(lesson => 
-            lesson.id === lessonId 
-              ? {
-                  ...lesson,
-                  lesson_songs: lesson.lesson_songs?.filter(ls => ls.song_id !== songId) || []
-                }
-              : lesson
-          )
-        );
+        // 最新データを再取得
+        await loadLessons();
         
         // 削除後の曲リストをログ出力
         const updatedLesson = currentLessons.find(l => l.id === lessonId);
