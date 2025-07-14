@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useMissionStore } from '@/stores/missionStore';
-import { Announcement, fetchActiveAnnouncements } from '@/platform/supabaseAnnouncements';
+import { Announcement, fetchLatestAnnouncement } from '@/platform/supabaseAnnouncements';
 import { useToast } from '@/stores/toastStore';
+import { mdToHtml } from '@/utils/markdown';
 import { 
   FaBell, 
   FaExternalLinkAlt, 
@@ -26,7 +27,7 @@ import { DEFAULT_AVATAR_URL } from '@/utils/constants';
  */
 const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
   const { weekly: challenges, monthly: missions, fetchAll: loadMissions } = useMissionStore();
@@ -54,12 +55,12 @@ const Dashboard: React.FC = () => {
     
     try {
       // お知らせとミッションを並行読み込み
-      const [announcementsData] = await Promise.all([
-        fetchActiveAnnouncements(),
+      const [latestData] = await Promise.all([
+        fetchLatestAnnouncement(),
         loadMissions()
       ]);
       
-      setAnnouncements(announcementsData);
+      setLatestAnnouncement(latestData);
     } catch (e: any) {
       console.error('Dashboard data loading error:', e);
       toast.error('データの読み込みに失敗しました');
@@ -135,39 +136,42 @@ const Dashboard: React.FC = () => {
                 </div>
                 
                 <div className="p-4">
-                  {announcements.length === 0 ? (
+                  {!latestAnnouncement ? (
                     <p className="text-gray-400 text-center py-6">
                       現在お知らせはありません
                     </p>
                   ) : (
-                    <div className="space-y-4">
-                      {announcements.map((announcement) => (
-                        <div 
-                          key={announcement.id}
-                          className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors"
+                    <div className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors">
+                      <h4 className="font-semibold mb-2">{latestAnnouncement.title}</h4>
+                      <div 
+                        className="text-sm text-gray-300 mb-3"
+                        dangerouslySetInnerHTML={{ __html: mdToHtml(latestAnnouncement.content) }}
+                      />
+                      
+                      {latestAnnouncement.link_url && (
+                        <a
+                          href={latestAnnouncement.link_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 text-sm"
                         >
-                          <h4 className="font-semibold mb-2">{announcement.title}</h4>
-                          <p className="text-sm text-gray-300 mb-3 whitespace-pre-wrap">
-                            {announcement.content}
-                          </p>
-                          
-                          {announcement.link_url && (
-                            <a
-                              href={announcement.link_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 text-sm"
-                            >
-                              <FaExternalLinkAlt className="w-3 h-3" />
-                              <span>{announcement.link_text || 'リンクを開く'}</span>
-                            </a>
-                          )}
-                          
-                          <div className="text-xs text-gray-500 mt-2">
-                            {new Date(announcement.created_at).toLocaleDateString()}
-                          </div>
-                        </div>
-                      ))}
+                          <FaExternalLinkAlt className="w-3 h-3" />
+                          <span>{latestAnnouncement.link_text || 'リンクを開く'}</span>
+                        </a>
+                      )}
+                      
+                      <div className="text-xs text-gray-500 mt-2">
+                        {new Date(latestAnnouncement.created_at).toLocaleDateString()}
+                      </div>
+
+                      <div className="mt-3">
+                        <button
+                          onClick={() => { window.location.hash = '#information'; }}
+                          className="text-xs text-blue-400 hover:text-blue-300"
+                        >
+                          すべてのお知らせを見る →
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

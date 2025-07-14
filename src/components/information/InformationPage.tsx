@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { Announcement, fetchActiveAnnouncements } from '@/platform/supabaseAnnouncements';
 import { useToast } from '@/stores/toastStore';
-import { FaBell, FaExternalLinkAlt, FaArrowLeft } from 'react-icons/fa';
+import { mdToHtml } from '@/utils/markdown';
+import { FaBell, FaExternalLinkAlt, FaChevronDown } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 
 /**
@@ -13,6 +14,7 @@ const InformationPage: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const { user, isGuest } = useAuthStore();
   const toast = useToast();
 
@@ -46,6 +48,18 @@ const InformationPage: React.FC = () => {
 
   const handleClose = () => {
     window.location.hash = '#dashboard';
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
   };
 
   if (!open) return null;
@@ -103,40 +117,60 @@ const InformationPage: React.FC = () => {
               <p className="text-gray-400">現在お知らせはありません</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {announcements.map((announcement) => (
-                <div 
-                  key={announcement.id}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-slate-600 transition-colors"
-                >
-                  <h2 className="text-xl font-semibold mb-3">{announcement.title}</h2>
-                  <p className="text-gray-300 whitespace-pre-wrap mb-4">
-                    {announcement.content}
-                  </p>
-                  
-                  <div className="flex items-center justify-between">
-                    {announcement.link_url && (
-                      <a
-                        href={announcement.link_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors"
-                      >
-                        <FaExternalLinkAlt className="w-4 h-4" />
-                        <span>{announcement.link_text || '詳細を見る'}</span>
-                      </a>
+            <div className="space-y-3">
+              {announcements.map((announcement) => {
+                const isExpanded = expandedIds.has(announcement.id);
+                return (
+                  <div 
+                    key={announcement.id}
+                    className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden"
+                  >
+                    {/* ヘッダー（クリックで展開/折りたたみ） */}
+                    <button
+                      className="w-full p-4 flex justify-between items-center hover:bg-slate-700 transition-colors text-left"
+                      onClick={() => toggleExpanded(announcement.id)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <h2 className="text-lg font-semibold mb-1 truncate pr-4">{announcement.title}</h2>
+                        <div className="text-sm text-gray-500">
+                          {new Date(announcement.created_at).toLocaleDateString('ja-JP', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </div>
+                      <FaChevronDown 
+                        className={`w-5 h-5 text-gray-400 transition-transform ${
+                          isExpanded ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {/* 詳細（展開時のみ表示） */}
+                    {isExpanded && (
+                      <div className="p-6 border-t border-slate-700">
+                        <div 
+                          className="text-gray-300 mb-4"
+                          dangerouslySetInnerHTML={{ __html: mdToHtml(announcement.content) }}
+                        />
+                        
+                        {announcement.link_url && (
+                          <a
+                            href={announcement.link_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors"
+                          >
+                            <FaExternalLinkAlt className="w-4 h-4" />
+                            <span>{announcement.link_text || '詳細を見る'}</span>
+                          </a>
+                        )}
+                      </div>
                     )}
-                    
-                    <div className="text-sm text-gray-500">
-                      {new Date(announcement.created_at).toLocaleDateString('ja-JP', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   Announcement,
@@ -19,7 +19,8 @@ import {
   FaArrowUp, 
   FaArrowDown,
   FaExternalLinkAlt,
-  FaPlus 
+  FaPlus,
+  FaLink
 } from 'react-icons/fa';
 
 const AnnouncementManager: React.FC = () => {
@@ -37,6 +38,24 @@ const AnnouncementManager: React.FC = () => {
   } = useForm<CreateAnnouncementData>();
   
   const toast = useToast();
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertLink = () => {
+    const url = prompt('リンクURLを入力してください');
+    if (!url) return;
+    const text = prompt('リンクテキスト（空ならURLをそのまま使用）') || url;
+    if (!contentRef.current) return;
+
+    const textarea = contentRef.current;
+    const { selectionStart, selectionEnd, value } = textarea;
+    const linkMarkdown = `[${text}](${url})`;
+    textarea.value =
+      value.substring(0, selectionStart) +
+      linkMarkdown +
+      value.substring(selectionEnd);
+    // React-Hook-Form に値を同期
+    setValue('content', textarea.value, { shouldValidate: true });
+  };
 
   useEffect(() => {
     loadAnnouncements();
@@ -185,15 +204,26 @@ const AnnouncementManager: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium mb-1">内容 *</label>
-              <textarea
-                {...register('content', { 
-                  required: '内容は必須です',
-                  maxLength: { value: 1000, message: '1000文字以内' }
-                })}
-                className="textarea textarea-bordered w-full text-white"
-                rows={4}
-                placeholder="お知らせの内容を入力"
-              />
+              <div className="relative">
+                <textarea
+                  {...register('content', { 
+                    required: '内容は必須です',
+                    maxLength: { value: 1000, message: '1000文字以内' }
+                  })}
+                  ref={contentRef}
+                  className="textarea textarea-bordered w-full text-white pr-12"
+                  rows={4}
+                  placeholder="お知らせの内容を入力（Markdown記法でリンクが使用できます）"
+                />
+                <button
+                  type="button"
+                  onClick={insertLink}
+                  className="absolute right-2 top-2 btn btn-xs btn-outline"
+                  title="リンクを挿入"
+                >
+                  <FaLink />
+                </button>
+              </div>
               {errors.content && (
                 <p className="text-red-400 text-xs mt-1">{errors.content.message}</p>
               )}
