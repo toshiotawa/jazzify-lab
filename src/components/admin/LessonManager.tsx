@@ -89,7 +89,7 @@ export const LessonManager: React.FC = () => {
       setValue('block_number', lesson.block_number || 1);
     } else {
       setSelectedLesson(null);
-      const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 10 : 10;
+      const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 1 : 1;
       reset({ title: '', description: '', assignment_description: '', order_index: newOrder, block_number: 1 });
     }
     dialogRef.current?.showModal();

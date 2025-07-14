@@ -53,6 +53,12 @@ const LessonPage: React.FC = () => {
     }
   }, [selectedCourse]);
 
+  useEffect(() => {
+    if (selectedCourse?.id) {
+      loadLessons(selectedCourse.id);
+    }
+  }, [selectedCourse?.id]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -376,7 +382,7 @@ const LessonPage: React.FC = () => {
                                               {lesson.title}
                                             </h3>
                                             <div className="flex items-center space-x-3 text-sm text-gray-400">
-                                              <span>レッスン {lesson.order_index + 1}</span>
+                                              <span>レッスン {lesson.order_index}</span>
                                               <div className="flex items-center space-x-1">
                                                 <FaVideo className="w-3 h-3" />
                                                 <span>動画</span>

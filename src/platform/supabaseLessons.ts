@@ -68,7 +68,7 @@ type LessonData = Omit<Lesson, 'id' | 'created_at' | 'updated_at' | 'lesson_song
 export async function addLesson(lessonData: LessonData): Promise<Lesson> {
   const insertData = { 
     ...lessonData, 
-    order_index: lessonData.order_index ?? 0,
+    order_index: lessonData.order_index ?? 1,
     block_number: lessonData.block_number ?? 1
   };
   const { data, error } = await getSupabaseClient()
