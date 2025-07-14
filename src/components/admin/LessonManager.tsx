@@ -35,30 +35,35 @@ export const LessonManager: React.FC = () => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const songDialogRef = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => {
-    const loadInitialData = async () => {
-      setLoading(true);
-      try {
-        const [coursesData, songsData] = await Promise.all([
-          fetchCoursesSimple(),
-          fetchSongs('lesson')
-        ]);
-        setCourses(coursesData);
-        setAvailableSongs(songsData);
-        
-        if (coursesData.length > 0) {
-          const firstCourseId = coursesData[0].id;
-          setSelectedCourseId(firstCourseId);
-        }
-      } catch (error) {
-        toast.error('データの読み込みに失敗しました。');
-        console.error(error);
-      } finally {
-        setLoading(false);
+  const loadInitialData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [coursesData, songsData] = await Promise.all([
+        fetchCoursesSimple(),
+        fetchSongs('lesson')
+      ]);
+      setCourses(coursesData);
+      setAvailableSongs(songsData);
+
+      if (!selectedCourseId || !coursesData.some(c => c.id === selectedCourseId)) {
+        const firstCourseId = coursesData[0]?.id || '';
+        setSelectedCourseId(firstCourseId);
       }
-    };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'データの読み込みに失敗しました。';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadInitialData();
-  }, [toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (selectedCourseId) {
@@ -266,7 +271,10 @@ export const LessonManager: React.FC = () => {
 
   const handleClearCache = async () => {
     clearSupabaseCache();
-    await loadLessons(true);
+    await loadInitialData();
+    if (selectedCourseId) {
+      await loadLessons(true);
+    }
     toast.success('キャッシュをクリアし、データを再読み込みしました。');
   };
 
