@@ -425,14 +425,12 @@ const LessonPage: React.FC = () => {
                           const blockNum = parseInt(blockNumber);
                           const isBlockUnlocked = blockLessons.some(lesson => progress[lesson.id]?.is_unlocked);
                           const isBlockCompleted = blockLessons.every(lesson => progress[lesson.id]?.completed);
-                          const startLesson = (blockNum - 1) * 5 + 1;
-                          const endLesson = Math.min(blockNum * 5, lessons.length);
 
                           return (
                             <div key={blockNum} className="bg-slate-800 rounded-lg p-4">
                               <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-lg font-semibold text-white">
-                                  ブロック {blockNum} (レッスン {startLesson} - {endLesson})
+                                  ブロック {blockNum}
                                 </h4>
                                 {isBlockCompleted ? (
                                   <span className="flex items-center text-emerald-500">

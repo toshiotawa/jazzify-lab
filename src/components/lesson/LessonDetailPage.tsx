@@ -22,9 +22,13 @@ import {
   FaCheckCircle,
   FaClock,
   FaForward,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaChevronLeft,
+  FaChevronRight,
+  FaHome
 } from 'react-icons/fa';
 import { useGameActions } from '@/stores/helpers';
+import { getLessonNavigationInfo, getNavigationErrorMessage, getLessonBlockInfo, validateNavigation, LessonNavigationInfo } from '@/utils/lessonNavigation';
 
 /**
  * レッスン詳細画面
@@ -46,6 +50,7 @@ const LessonDetailPage: React.FC = () => {
   const { profile } = useAuthStore();
   const toast = useToast();
   const [assignmentChecks, setAssignmentChecks] = useState<boolean[]>([]);
+  const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
   const gameActions = useGameActions();
 
   useEffect(() => {
@@ -103,6 +108,17 @@ const LessonDetailPage: React.FC = () => {
       }
       
       setAssignmentChecks(lessonData?.assignment_description ? Array(5).fill(false) : []);
+      
+      // ナビゲーション情報を取得
+      if (lessonData?.course_id) {
+        try {
+          const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id);
+          setNavigationInfo(navInfo);
+        } catch (navError) {
+          console.error('Navigation info loading error:', navError);
+          // ナビゲーション情報の取得失敗は致命的ではないので、エラーログのみ
+        }
+      }
       
     } catch (e: any) {
       toast.error('レッスンデータの読み込みに失敗しました');
@@ -177,6 +193,36 @@ const LessonDetailPage: React.FC = () => {
     window.location.hash = '#lessons';
   };
 
+  const handleNavigateToPrevious = () => {
+    const validation = validateNavigation('previous', navigationInfo);
+    
+    if (!validation.canNavigate) {
+      toast.warning(validation.errorMessage);
+      return;
+    }
+    
+    if (navigationInfo?.previousLesson) {
+      window.location.hash = `#lesson-detail?id=${navigationInfo.previousLesson.id}`;
+    }
+  };
+
+  const handleNavigateToNext = () => {
+    const validation = validateNavigation('next', navigationInfo);
+    
+    if (!validation.canNavigate) {
+      toast.warning(validation.errorMessage);
+      return;
+    }
+    
+    if (navigationInfo?.nextLesson) {
+      window.location.hash = `#lesson-detail?id=${navigationInfo.nextLesson.id}`;
+    }
+  };
+
+  const handleBackToCourse = () => {
+    window.location.hash = '#lessons';
+  };
+
   const getBunnyEmbedUrl = (vimeoUrl: string): string => {
     // vimeo_urlフィールドにBunny Video IDが格納されている
     // TODO: 環境変数でライブラリIDを管理する
@@ -202,9 +248,62 @@ const LessonDetailPage: React.FC = () => {
         <div className="flex-1 overflow-y-auto">
           {/* ワンカラムレイアウト */}
           <div className="max-w-4xl mx-auto p-4 space-y-6">
+            {/* ナビゲーションボタン */}
+            {navigationInfo && (
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <button
+                  onClick={handleNavigateToPrevious}
+                  disabled={!navigationInfo.canGoPrevious}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                    navigationInfo.canGoPrevious
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
+                  title={navigationInfo.previousLesson?.title || '前のレッスンはありません'}
+                >
+                  <FaChevronLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">手前のレッスンに戻る</span>
+                  <span className="sm:hidden">前へ</span>
+                </button>
+
+                <button
+                  onClick={handleBackToCourse}
+                  className="flex items-center space-x-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 
+                    text-white rounded-lg transition-colors"
+                  title="レッスン一覧に戻る"
+                >
+                  <FaHome className="w-4 h-4" />
+                  <span className="hidden sm:inline">コースに戻る</span>
+                  <span className="sm:hidden">一覧</span>
+                </button>
+
+                <button
+                  onClick={handleNavigateToNext}
+                  disabled={!navigationInfo.canGoNext}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                    navigationInfo.canGoNext
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
+                  title={navigationInfo.nextLesson?.title || '次のレッスンはありません'}
+                >
+                  <span className="hidden sm:inline">次のレッスンに進む</span>
+                  <span className="sm:hidden">次へ</span>
+                  <FaChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             {/* レッスンタイトル */}
             <div className="bg-slate-800 rounded-lg p-6">
-              <h1 className="text-2xl font-bold mb-2">{lesson?.title}</h1>
+              <div className="flex items-center justify-between mb-2">
+                <h1 className="text-2xl font-bold">{lesson?.title}</h1>
+                {lesson && (
+                  <div className="text-sm text-gray-400">
+                    {getLessonBlockInfo(lesson).displayText}
+                  </div>
+                )}
+              </div>
               <p className="text-gray-400">{lesson?.description}</p>
             </div>
 
