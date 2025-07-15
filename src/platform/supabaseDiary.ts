@@ -31,16 +31,22 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   // 日記とプロフィール情報を取得
   const { data: diariesData, error } = await supabase
     .from('practice_diaries')
-    .select('*, profiles(nickname, avatar_url, level, rank)')
+    .select('*, profiles(nickname, avatar_url, level, rank, email)')
     .order('practice_date', { ascending: false })
-    .limit(limit);
+    .limit(limit * 2); // 余裕をもって多めに取得してフィルタリング後に制限
     
   if (error) throw error;
   if (!diariesData) return [];
 
+  // 自動作成されたプロフィール（nickname = email）のユーザーの日記を除外
+  const filteredDiaries = diariesData.filter((diary: any) => {
+    const profile = diary.profiles;
+    return profile && profile.nickname && profile.nickname !== profile.email;
+  });
+
   // 各日記のいいね数を取得
   const diariesWithLikes = await Promise.all(
-    diariesData.map(async (diary: any) => {
+    filteredDiaries.slice(0, limit).map(async (diary: any) => {
       const { count: likeCount } = await supabase
         .from('diary_likes')
         .select('*', { count: 'exact', head: true })

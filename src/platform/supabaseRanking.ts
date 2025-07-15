@@ -17,11 +17,21 @@ export async function fetchLevelRanking(limit = 100): Promise<RankingEntry[]> {
   // lessons_cleared は後で集計列として追加予定、現状0
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, nickname, level, xp, rank, avatar_url, twitter_handle, selected_title')
+    .select('id, nickname, level, xp, rank, avatar_url, twitter_handle, selected_title, email')
     .not('nickname', 'is', null)
     .order('level', { ascending: false })
     .order('xp', { ascending: false })
-    .limit(limit);
+    .limit(limit * 2); // 余裕をもって多めに取得してフィルタリング後に制限
   if (error) throw error;
-  return (data ?? []).map((p) => ({ ...p, lessons_cleared: 0 })) as RankingEntry[];
+  
+  // 自動作成されたプロフィール（nickname = email）を除外し、emailフィールドを削除
+  const filteredData = (data ?? [])
+    .filter((p) => p.nickname !== p.email) // ニックネームがメールアドレスと異なるもののみ
+    .slice(0, limit) // 指定された件数に制限
+    .map((p) => {
+      const { email, ...profile } = p;
+      return { ...profile, lessons_cleared: 0 };
+    });
+  
+  return filteredData as RankingEntry[];
 } 

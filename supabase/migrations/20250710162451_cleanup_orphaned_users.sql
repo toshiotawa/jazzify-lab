@@ -1,11 +1,10 @@
--- Clean up orphaned users who don't have profiles
--- This removes users who were created by Magic Link but never completed registration
+-- Clean up orphaned profiles that were auto-created
+-- This removes profiles that were created automatically with email as nickname
 
--- Delete users from auth.users who don't have corresponding profiles
-DELETE FROM auth.users 
-WHERE id NOT IN (
-  SELECT id FROM public.profiles
-);
-
--- Add a comment explaining the cleanup
-COMMENT ON TABLE auth.users IS 'Auth users table - cleaned up orphaned users without profiles'; 
+-- Delete auto-created profiles where nickname equals email
+-- Only delete if they have default values indicating they were auto-created
+DELETE FROM public.profiles 
+WHERE nickname = email 
+AND xp = 0 
+AND level = 1 
+AND is_admin = false; 

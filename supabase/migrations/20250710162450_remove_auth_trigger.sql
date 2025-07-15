@@ -5,7 +5,4 @@
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
 -- Drop the function if it exists (optional, but clean)
-DROP FUNCTION IF EXISTS public.handle_new_user();
-
--- Add a comment explaining why this was removed
-COMMENT ON TABLE auth.users IS 'Auth users table - no automatic profile creation trigger'; 
+DROP FUNCTION IF EXISTS public.handle_new_user(); 
