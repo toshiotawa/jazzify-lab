@@ -6,6 +6,8 @@ import { enableMapSet } from 'immer';
 import AuthGate from '@/components/auth/AuthGate';
 import AccountModal from '@/components/ui/AccountModal';
 import AdminDashboard from '@/components/admin/AdminDashboard';
+import { BrowserRouter } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 
 // ImmerでMap/Setを使用できるようにする
 enableMapSet();
@@ -108,11 +110,15 @@ const initializeApp = async () => {
     showDebugInfo('Rendering React app...');
     root.render(
       <React.StrictMode>
-        <AuthGate>
-          <App />
-          <AccountModal />
-          <AdminDashboard />
-        </AuthGate>
+        <HelmetProvider>
+          <BrowserRouter>
+            <AuthGate>
+              <App />
+              <AccountModal />
+              <AdminDashboard />
+            </AuthGate>
+          </BrowserRouter>
+        </HelmetProvider>
       </React.StrictMode>
     );
     
