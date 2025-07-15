@@ -5,6 +5,7 @@ import { addXp, calcLevel } from '@/platform/supabaseXp';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { useAuthStore } from '@/stores/authStore';
 import { calculateXP, calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
+import { FaArrowLeft } from 'react-icons/fa';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -320,6 +321,22 @@ const ResultModal: React.FC = () => {
             >
               <span>曲選択</span>
             </button>
+            {/* レッスンに戻るボタン（レッスンコンテキストがある場合のみ表示） */}
+            {lessonContext && (
+              <button 
+                onClick={() => {
+                  // レッスン詳細ページに戻る
+                  resetScore();
+                  seek(0);
+                  closeResultModal();
+                  window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+                }}
+                className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
+              >
+                <FaArrowLeft />
+                <span>レッスンに戻る</span>
+              </button>
+            )}
           </div>
         </div>
         </div>

@@ -9,7 +9,8 @@ import {
   FaTimes,
   FaCompressAlt,
   FaExpandAlt,
-  FaMusic
+  FaMusic,
+  FaArrowLeft
 } from 'react-icons/fa';
 import { 
   MdLoop,
@@ -226,6 +227,20 @@ const ControlBar: React.FC = () => {
       {/* コントロールボタン - 1行レイアウト */}
       <div className="px-3 py-1 bg-gray-900 border-t border-gray-700 flex justify-between items-center">
         <div className="flex justify-center items-center space-x-3 overflow-x-auto whitespace-nowrap">
+          {/* レッスンに戻るボタン（レッスンコンテキストがある場合のみ表示） */}
+          {lessonContext && (
+            <button
+              onClick={() => {
+                // レッスン詳細ページに戻る
+                window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+              }}
+              className="control-btn control-btn-xxs control-btn-secondary"
+              title="レッスンに戻る"
+            >
+              <FaArrowLeft />
+            </button>
+          )}
+          
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
             <>
