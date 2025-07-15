@@ -10,6 +10,7 @@ import { getTransposingInstrumentName } from '@/utils/musicXmlTransposer';
 import type { TransposingInstrument } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
+import { FaArrowLeft } from 'react-icons/fa';
 
 /**
  * メインゲーム画面コンポーネント
@@ -685,6 +686,9 @@ const GamePlayScreen: React.FC = () => {
         
         {/* リハ/ステージ 縦ボタン - 画面中央右に配置 */}
         <ModeToggleButton />
+        
+        {/* レッスンに戻るボタン - 画面中央左に配置（レッスンコンテキストがある場合のみ） */}
+        <LessonBackButton />
       </div>
 
       {/* コントロールバー - フレックスボックス内の通常要素として配置 */}
@@ -743,6 +747,44 @@ const ModeToggleButton: React.FC = () => {
           ステージ
         </button>
       </div>
+    </div>
+  );
+};
+
+/**
+ * レッスンに戻るボタン - 画面左端に配置
+ */
+const LessonBackButton: React.FC = () => {
+  const { lessonContext } = useGameSelector((s) => ({
+    lessonContext: s.lessonContext
+  }));
+
+  // レッスンコンテキストがない場合は何も表示しない
+  if (!lessonContext) {
+    return null;
+  }
+
+  return (
+    <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
+      <button
+        onClick={() => {
+          // レッスン詳細ページに戻る
+          window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+        }}
+        className="
+          px-3 py-2 rounded-lg font-bold text-sm
+          transition-all duration-200 hover:scale-105
+          shadow-lg backdrop-blur-sm
+          bg-gradient-to-br from-gray-500/80 to-gray-700/80 
+          hover:from-gray-400/90 hover:to-gray-600/90 
+          text-white border border-gray-400/60
+          flex items-center space-x-2
+        "
+        title="レッスンに戻る"
+      >
+        <FaArrowLeft className="w-3 h-3" />
+        <span>レッスンに戻る</span>
+      </button>
     </div>
   );
 };
