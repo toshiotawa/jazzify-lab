@@ -11,6 +11,11 @@ const App: React.FC = () => {
   const { user, isGuest } = useAuthStore();
   const location = useLocation();
 
+  // 認証済みユーザーが / にアクセスした場合、/main#dashboard にリダイレクト
+  if ((user || isGuest) && location.pathname === '/') {
+    return <Navigate to="/main#dashboard" replace />;
+  }
+
   if ((user || isGuest) && location.pathname === '/auth') {
     return <Navigate to="/main" replace />;
   }
