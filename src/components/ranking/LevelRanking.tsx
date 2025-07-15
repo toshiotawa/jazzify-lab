@@ -103,7 +103,7 @@ const LevelRanking: React.FC = () => {
                   <td className="py-1 px-2">
                     <div className="flex items-center gap-1 text-yellow-400">
                       <FaCrown className="text-xs" />
-                      <span className="text-xs truncate max-w-[8rem]">
+                      <span className="text-xs">
                         {(e.selected_title as Title) || DEFAULT_TITLE}
                       </span>
                     </div>
