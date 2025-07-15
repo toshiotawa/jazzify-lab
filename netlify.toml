@@ -50,6 +50,13 @@
     Content-Type = "application/json; charset=utf-8"
     Cache-Control = "public, max-age=300"
 
+# Viteコードチャンクの正しい処理のため、assetsパスを先に処理
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
+
+# SPAのキャッチオールリダイレクト（assetsを除くすべてのパス）
 [[redirects]]
   from = "/*"
   to = "/index.html"
