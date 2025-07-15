@@ -66,10 +66,6 @@ const LevelRanking: React.FC = () => {
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="flex items-center justify-between border-b border-slate-700 p-4">
-          <h2 className="text-2xl font-bold">レベルランキング</h2>
-          <button className="btn btn-sm btn-outline" onClick={handleClose}>閉じる</button>
-        </div>
         {loading ? (
           <p className="text-center text-gray-400">Loading...</p>
         ) : (
