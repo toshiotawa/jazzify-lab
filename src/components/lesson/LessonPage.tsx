@@ -351,7 +351,10 @@ const LessonPage: React.FC = () => {
                 <div className="p-4 border-b border-slate-700">
                   <h2 className="text-lg font-semibold">コース一覧</h2>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ 
+                  WebkitOverflowScrolling: 'touch',
+                  overscrollBehavior: 'contain'
+                }}>
                   {courses.map((course: Course) => {
                     const accessible = canAccessCourse(course, profile?.rank || 'free');
                     return (
