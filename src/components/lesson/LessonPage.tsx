@@ -18,6 +18,7 @@ import {
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import { fetchDetailedRequirementsProgress, LessonRequirementProgress, fetchMultipleLessonRequirementsProgress } from '@/platform/supabaseLessonRequirements';
+import { clearNavigationCacheForCourse, clearAllNavigationCache } from '@/utils/lessonNavigation';
 
 /**
  * レッスン学習画面
@@ -43,6 +44,8 @@ const LessonPage: React.FC = () => {
       // レッスン詳細から戻ってきた場合は強制再読み込み
       if (isLessonsPage && !wasOpen && profile && selectedCourse) {
         console.log('レッスン詳細から戻ってきたため、データを強制再読み込み');
+        // ナビゲーションキャッシュをクリア
+        clearNavigationCacheForCourse(selectedCourse.id);
         loadLessons(selectedCourse.id);
       }
     };

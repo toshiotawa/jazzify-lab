@@ -28,7 +28,15 @@ import {
   FaHome
 } from 'react-icons/fa';
 import { useGameActions } from '@/stores/helpers';
-import { getLessonNavigationInfo, getNavigationErrorMessage, getLessonBlockInfo, validateNavigation, LessonNavigationInfo } from '@/utils/lessonNavigation';
+import { 
+  getLessonNavigationInfo, 
+  getNavigationErrorMessage, 
+  getLessonBlockInfo, 
+  validateNavigation, 
+  cleanupLessonNavigationCache,
+  clearNavigationCacheForCourse,
+  LessonNavigationInfo 
+} from '@/utils/lessonNavigation';
 
 /**
  * レッスン詳細画面
@@ -51,6 +59,7 @@ const LessonDetailPage: React.FC = () => {
   const toast = useToast();
   const [assignmentChecks, setAssignmentChecks] = useState<boolean[]>([]);
   const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
   const gameActions = useGameActions();
 
   useEffect(() => {
@@ -61,16 +70,26 @@ const LessonDetailPage: React.FC = () => {
         const id = urlParams.get('id');
         setLessonId(id);
         setOpen(!!id);
+        setIsNavigating(false); // ナビゲーション状態をリセット
       } else {
         setOpen(false);
         setLessonId(null);
+        setIsNavigating(false);
       }
     };
 
     checkHash();
     window.addEventListener('hashchange', checkHash);
-    return () => window.removeEventListener('hashchange', checkHash);
-  }, []);
+    
+    // クリーンアップ関数
+    return () => {
+      window.removeEventListener('hashchange', checkHash);
+      // コンポーネント破棄時にナビゲーションキャッシュをクリア
+      if (lesson?.course_id) {
+        cleanupLessonNavigationCache(lessonId || '', lesson.course_id);
+      }
+    };
+  }, [lessonId, lesson?.course_id]);
 
   useEffect(() => {
     if (open && lessonId) {
@@ -194,6 +213,11 @@ const LessonDetailPage: React.FC = () => {
   };
 
   const handleNavigateToPrevious = () => {
+    if (isNavigating) {
+      toast.warning('ナビゲーション処理中です。しばらくお待ちください。');
+      return;
+    }
+    
     const validation = validateNavigation('previous', navigationInfo);
     
     if (!validation.canNavigate) {
@@ -201,12 +225,25 @@ const LessonDetailPage: React.FC = () => {
       return;
     }
     
-    if (navigationInfo?.previousLesson) {
-      window.location.hash = `#lesson-detail?id=${navigationInfo.previousLesson.id}`;
+    if (navigationInfo?.previousLesson && lesson?.course_id) {
+      setIsNavigating(true);
+      
+      // キャッシュクリーンアップ
+      cleanupLessonNavigationCache(lessonId || '', lesson.course_id);
+      
+      // 少し遅延してナビゲーション実行（UIの応答性向上）
+      setTimeout(() => {
+        window.location.hash = `#lesson-detail?id=${navigationInfo.previousLesson!.id}`;
+      }, 100);
     }
   };
 
   const handleNavigateToNext = () => {
+    if (isNavigating) {
+      toast.warning('ナビゲーション処理中です。しばらくお待ちください。');
+      return;
+    }
+    
     const validation = validateNavigation('next', navigationInfo);
     
     if (!validation.canNavigate) {
@@ -214,8 +251,16 @@ const LessonDetailPage: React.FC = () => {
       return;
     }
     
-    if (navigationInfo?.nextLesson) {
-      window.location.hash = `#lesson-detail?id=${navigationInfo.nextLesson.id}`;
+    if (navigationInfo?.nextLesson && lesson?.course_id) {
+      setIsNavigating(true);
+      
+      // キャッシュクリーンアップ
+      cleanupLessonNavigationCache(lessonId || '', lesson.course_id);
+      
+      // 少し遅延してナビゲーション実行（UIの応答性向上）
+      setTimeout(() => {
+        window.location.hash = `#lesson-detail?id=${navigationInfo.nextLesson!.id}`;
+      }, 100);
     }
   };
 
@@ -253,17 +298,17 @@ const LessonDetailPage: React.FC = () => {
               <div className="flex items-center justify-between gap-4 mb-4">
                 <button
                   onClick={handleNavigateToPrevious}
-                  disabled={!navigationInfo.canGoPrevious}
+                  disabled={!navigationInfo.canGoPrevious || isNavigating}
                   className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                    navigationInfo.canGoPrevious
+                    navigationInfo.canGoPrevious && !isNavigating
                       ? 'bg-blue-600 hover:bg-blue-700 text-white'
                       : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   }`}
-                  title={navigationInfo.previousLesson?.title || '前のレッスンはありません'}
+                  title={isNavigating ? '処理中...' : (navigationInfo.previousLesson?.title || '前のレッスンはありません')}
                 >
                   <FaChevronLeft className="w-4 h-4" />
-                  <span className="hidden sm:inline">手前のレッスンに戻る</span>
-                  <span className="sm:hidden">前へ</span>
+                  <span className="hidden sm:inline">{isNavigating ? '処理中...' : '手前のレッスンに戻る'}</span>
+                  <span className="sm:hidden">{isNavigating ? '処理中' : '前へ'}</span>
                 </button>
 
                 <button
@@ -279,16 +324,16 @@ const LessonDetailPage: React.FC = () => {
 
                 <button
                   onClick={handleNavigateToNext}
-                  disabled={!navigationInfo.canGoNext}
+                  disabled={!navigationInfo.canGoNext || isNavigating}
                   className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                    navigationInfo.canGoNext
+                    navigationInfo.canGoNext && !isNavigating
                       ? 'bg-green-600 hover:bg-green-700 text-white'
                       : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   }`}
-                  title={navigationInfo.nextLesson?.title || '次のレッスンはありません'}
+                  title={isNavigating ? '処理中...' : (navigationInfo.nextLesson?.title || '次のレッスンはありません')}
                 >
-                  <span className="hidden sm:inline">次のレッスンに進む</span>
-                  <span className="sm:hidden">次へ</span>
+                  <span className="hidden sm:inline">{isNavigating ? '処理中...' : '次のレッスンに進む'}</span>
+                  <span className="sm:hidden">{isNavigating ? '処理中' : '次へ'}</span>
                   <FaChevronRight className="w-4 h-4" />
                 </button>
               </div>
