@@ -36,11 +36,11 @@ const AdminDashboard: React.FC = () => {
   // 権限チェック
   if (!isAdmin) {
     return createPortal(
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => { window.location.hash = '#dashboard'; }}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => { window.location.href = '/main#dashboard'; }}>
         <div className="bg-slate-800 rounded-lg p-8 w-full max-w-sm text-white space-y-4" onClick={e => e.stopPropagation()}>
           <h2 className="text-xl font-bold text-center">管理画面</h2>
           <p className="text-center text-sm">アクセス権限がありません。</p>
-          <button className="btn btn-sm btn-primary w-full" onClick={() => { window.location.hash = '#dashboard'; }}>
+          <button className="btn btn-sm btn-primary w-full" onClick={() => { window.location.href = '/main#dashboard'; }}>
             戻る
           </button>
         </div>
@@ -62,7 +62,7 @@ const AdminDashboard: React.FC = () => {
           <SidebarLink hash="#admin-users" label="会員管理" />
           <SidebarLink hash="#admin-announcements" label="お知らせ管理" />
         </nav>
-        <button className="btn btn-sm btn-outline w-full" onClick={() => { window.location.hash = '#dashboard'; }}>
+        <button className="btn btn-sm btn-outline w-full" onClick={() => { window.location.href = '/main#dashboard'; }}>
           閉じる
         </button>
       </aside>
@@ -71,7 +71,7 @@ const AdminDashboard: React.FC = () => {
       <div className="md:hidden bg-slate-800 border-b border-slate-700 p-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold">Admin</h2>
-          <button className="btn btn-sm btn-outline" onClick={() => { window.location.hash = '#dashboard'; }}>
+          <button className="btn btn-sm btn-outline" onClick={() => { window.location.href = '/main#dashboard'; }}>
             閉じる
           </button>
         </div>

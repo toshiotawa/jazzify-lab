@@ -10,13 +10,14 @@ const App: React.FC = () => {
   const location = useLocation();
 
   if ((user || isGuest) && location.pathname === '/auth') {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/main" replace />;
   }
 
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={<AuthLanding />} />
+      <Route path="/main" element={<LegacyApp />} />
       <Route path="/*" element={<LegacyApp />} />
     </Routes>
   );

@@ -19,7 +19,7 @@ const GameHeader: React.FC = () => {
           <button
             className="text-white hover:text-primary-400 font-bold px-2"
             onClick={() => {
-              window.location.hash = '#dashboard';
+              window.location.href = '/main#dashboard';
             }}
           >
             トップ

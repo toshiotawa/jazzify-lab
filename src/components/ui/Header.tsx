@@ -52,7 +52,7 @@ const Header: React.FC = () => {
         )}
         {user && (
           <>
-            <button className="btn btn-sm btn-primary" onClick={()=>{location.hash='#dashboard'}}>
+            <button className="btn btn-sm btn-primary" onClick={()=>{location.href='/main#dashboard'}}>
               ダッシュボード
             </button>
             <button className="btn btn-sm" onClick={()=>{location.hash='#account'}}>
@@ -79,35 +79,23 @@ const Header: React.FC = () => {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="absolute top-full left-0 w-full bg-slate-900/95 backdrop-blur-sm border-t border-slate-700 md:hidden">
-          <div className="px-4 py-3 space-y-2">
+        <div className="absolute top-full left-0 w-full bg-slate-900/95 backdrop-blur z-30 md:hidden">
+          <div className="flex flex-col space-y-2 p-4">
             {!user && !isGuest && (
               <>
-                <button 
-                  className="btn btn-sm btn-primary w-full text-left" 
-                  onClick={()=>{location.hash='#login'; setMenuOpen(false);}}
-                >
+                <button className="btn btn-sm btn-primary w-full text-left" onClick={()=>{location.hash='#login'; setMenuOpen(false);}}>
                   会員登録
                 </button>
-                <button 
-                  className="btn btn-sm btn-outline w-full text-left" 
-                  onClick={()=>{location.hash='#login'; setMenuOpen(false);}}
-                >
+                <button className="btn btn-sm btn-outline w-full text-left" onClick={()=>{location.hash='#login'; setMenuOpen(false);}}>
                   ログイン
                 </button>
-                <button 
-                  className="btn btn-sm btn-secondary w-full text-left" 
-                  onClick={handleGuest}
-                >
+                <button className="btn btn-sm btn-secondary w-full text-left" onClick={handleGuest}>
                   おためしプレイ
                 </button>
               </>
             )}
             {isGuest && (
-              <button 
-                className="btn btn-sm btn-secondary w-full text-left" 
-                onClick={handleLogoutToLogin}
-              >
+              <button className="btn btn-sm btn-secondary w-full text-left" onClick={handleLogoutToLogin}>
                 ログイン / 会員登録
               </button>
             )}
@@ -115,7 +103,7 @@ const Header: React.FC = () => {
               <>
                 <button 
                   className="btn btn-sm btn-primary w-full text-left" 
-                  onClick={()=>{location.hash='#dashboard'; setMenuOpen(false);}}
+                  onClick={()=>{location.href='/main#dashboard'; setMenuOpen(false);}}
                 >
                   ダッシュボード
                 </button>

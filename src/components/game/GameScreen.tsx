@@ -245,7 +245,7 @@ const GameScreen: React.FC = () => {
               {/* トップ (ダッシュボード) */}
               <button
                 className="text-white hover:text-primary-400 font-bold px-2"
-                onClick={() => { window.location.hash = '#dashboard'; }}
+                onClick={() => { window.location.href = '/main#dashboard'; }}
               >
                 トップ
               </button>

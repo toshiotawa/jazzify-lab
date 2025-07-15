@@ -110,7 +110,7 @@ const AccountPage: React.FC = () => {
             className="btn btn-sm btn-outline w-full"
             onClick={async () => {
               await logout();
-              window.location.hash = '#dashboard';
+              window.location.href = '/main#dashboard';
             }}
           >
             ログアウト

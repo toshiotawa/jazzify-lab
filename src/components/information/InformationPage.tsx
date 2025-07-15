@@ -47,7 +47,7 @@ const InformationPage: React.FC = () => {
   };
 
   const handleClose = () => {
-    window.location.hash = '#dashboard';
+    window.location.href = '/main#dashboard';
   };
 
   const toggleExpanded = (id: string) => {
@@ -80,7 +80,7 @@ const InformationPage: React.FC = () => {
             </button>
             <button 
               className="btn btn-sm btn-outline w-full" 
-              onClick={handleClose}
+              onClick={() => { window.location.href = '/main#dashboard'; }}
             >
               ダッシュボードに戻る
             </button>

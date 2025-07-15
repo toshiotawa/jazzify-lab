@@ -33,7 +33,7 @@ const LevelRanking: React.FC = () => {
   if (!open) return null;
 
   const handleClose = () => {
-    window.location.hash = '#dashboard';
+    window.location.href = '/main#dashboard';
   };
 
   // ゲストユーザーの場合
