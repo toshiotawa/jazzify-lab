@@ -258,16 +258,17 @@ const ResultModal: React.FC = () => {
                   <div className="grid grid-cols-2 gap-2">
                     <div>基本得点:</div>
                     <div>{xpInfo.detailed.base}</div>
-                    <div>スコアランク基本:</div>
-                    <div>{xpInfo.detailed.base} (ランク依存)</div>
                     <div>速度ボーナス:</div>
                     <div>x{xpInfo.detailed.multipliers.speed.toFixed(2)}</div>
                     <div>移調ボーナス:</div>
                     <div>x{xpInfo.detailed.multipliers.transpose.toFixed(1)}</div>
                     <div>ミッションボーナス:</div>
                     <div>x{xpInfo.detailed.multipliers.mission.toFixed(1)}</div>
-                    <div>契約ランクボーナス:</div>
-                    <div>x{xpInfo.detailed.multipliers.membership.toFixed(1)}</div>
+                    <div>アカウントランク:</div>
+                    <div>{profile?.rank === 'free' ? 'フリー 1.0' : 
+                          profile?.rank === 'standard' ? 'スタンダード 1.0' :
+                          profile?.rank === 'premium' ? 'プレミアム 1.5' :
+                          profile?.rank === 'platinum' ? 'プラチナム 2.0' : '1.0'} x{xpInfo.detailed.multipliers.membership.toFixed(1)}</div>
                     {/* 他のボーナスも必要に応じて */}
                   </div>
                   <div className="mt-2 border-t border-gray-600 pt-2 text-center">
