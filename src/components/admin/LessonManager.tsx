@@ -587,11 +587,12 @@ export const LessonManager: React.FC = () => {
             </div>
             <div>
               <label className="label"><span className="label-text">最低ランク</span></label>
-              <select {...registerSong('clear_conditions.rank')} className="select select-bordered w-full" defaultValue="B">
+あ              <select {...registerSong('clear_conditions.rank')} className="select select-bordered w-full" defaultValue="B">
                 <option value="S">S</option>
                 <option value="A">A</option>
                 <option value="B">B</option>
                 <option value="C">C</option>
+                <option value="D">D</option>
               </select>
             </div>
             <div>
