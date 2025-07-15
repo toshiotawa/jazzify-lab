@@ -194,7 +194,16 @@ const DiaryPage: React.FC = () => {
                         <span className="capitalize">{profile.rank}</span>
                         <span>{diaries.length}件の日記</span>
                       </div>
-                      <span>{profile.twitter_handle || ''}</span>
+                      {profile.twitter_handle ? (
+                        <a 
+                          href={`https://twitter.com/${profile.twitter_handle}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-blue-400 hover:underline text-sm block mt-1"
+                        >
+                          @{profile.twitter_handle}
+                        </a>
+                      ) : null}
                     </div>
                   </div>
                   {profile.bio && (

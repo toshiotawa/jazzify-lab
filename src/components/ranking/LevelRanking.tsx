@@ -104,7 +104,18 @@ const LevelRanking: React.FC = () => {
                   <td className="py-1 px-2">{e.level}</td>
                   <td className="py-1 px-2">{e.xp.toLocaleString()}</td>
                   <td className="py-1 px-2 capitalize">{e.rank}</td>
-                  <td className="py-1 px-2">{e.twitter_handle || '-'}</td>
+                  <td className="py-1 px-2">
+                    {e.twitter_handle ? (
+                      <a 
+                        href={`https://twitter.com/${e.twitter_handle}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-blue-400 hover:underline truncate block max-w-[8rem]"
+                      >
+                        @{e.twitter_handle}
+                      </a>
+                    ) : '-'}
+                  </td>
                 </tr>
               ))}
             </tbody>
