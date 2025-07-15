@@ -22,6 +22,7 @@ interface AuthState {
     bio?: string | null;
     twitter_handle?: string | null;
     selected_title?: string | null;
+    next_season_xp_multiplier?: number;
   } | null;
 }
 
@@ -140,7 +141,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       if (!user) return;
       const { data, error } = await supabase
         .from('profiles')
-        .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle')
+        .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier')
         .eq('id', user.id)
         .single();
       set(state => {
@@ -156,6 +157,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             avatar_url: data.avatar_url,
             bio: data.bio,
             twitter_handle: data.twitter_handle,
+            next_season_xp_multiplier: data.next_season_xp_multiplier,
           } as any;
         }
       });

@@ -663,6 +663,7 @@ export interface Profile {
   bio?: string; // text
   email?: string; // text
   twitter_handle?: string;
+  next_season_xp_multiplier?: number;
 }
 
 export interface LessonProgress {

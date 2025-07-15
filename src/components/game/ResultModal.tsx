@@ -40,11 +40,10 @@ const ResultModal: React.FC = () => {
           scoreRank: score.rank as any,
           playbackSpeed: settings.playbackSpeed,
           transposed: settings.transpose !== 0,
-          // 以下の値は実際のcontextから取得する必要がある。仮に1とするか、適切に設定
-          lessonBonusMultiplier: 1, // TODO: lessonContextから取得
+          lessonBonusMultiplier: lessonContext ? 2 : 1,
           missionBonusMultiplier: 1, // TODO: missionから
           challengeBonusMultiplier: 1, // TODO: challengeから
-          seasonMultiplier: 1, // TODO: profileから取得予定
+          seasonMultiplier: profile.next_season_xp_multiplier ?? 1,
         });
 
         const res = await addXp({
@@ -116,7 +115,7 @@ const ResultModal: React.FC = () => {
       setXpInfo(null);
       setLessonRequirementSuccess(null);
     }
-  }, [resultModalOpen, lessonContext, currentSong, score, settings]);
+  }, [resultModalOpen, lessonContext, currentSong, score, settings, profile]);
 
   if (!resultModalOpen || !currentSong) return null;
 
@@ -258,10 +257,14 @@ const ResultModal: React.FC = () => {
                   <div className="grid grid-cols-2 gap-2">
                     <div>基本得点:</div>
                     <div>{xpInfo.detailed.base}</div>
+                    <div>レッスンボーナス:</div>
+                    <div>x{xpInfo.detailed.multipliers.lesson.toFixed(1)}</div>
                     <div>速度ボーナス:</div>
                     <div>x{xpInfo.detailed.multipliers.speed.toFixed(2)}</div>
                     <div>移調ボーナス:</div>
                     <div>x{xpInfo.detailed.multipliers.transpose.toFixed(1)}</div>
+                    <div>チャレンジボーナス:</div>
+                    <div>x{xpInfo.detailed.multipliers.challenge.toFixed(1)}</div>
                     <div>ミッションボーナス:</div>
                     <div>x{xpInfo.detailed.multipliers.mission.toFixed(1)}</div>
                     <div>アカウントランク:</div>
@@ -269,7 +272,8 @@ const ResultModal: React.FC = () => {
                           profile?.rank === 'standard' ? 'スタンダード 1.0' :
                           profile?.rank === 'premium' ? 'プレミアム 1.5' :
                           profile?.rank === 'platinum' ? 'プラチナム 2.0' : '1.0'} x{xpInfo.detailed.multipliers.membership.toFixed(1)}</div>
-                    {/* 他のボーナスも必要に応じて */}
+                    <div>シーズンボーナス:</div>
+                    <div>x{xpInfo.detailed.multipliers.season.toFixed(1)}</div>
                   </div>
                   <div className="mt-2 border-t border-gray-600 pt-2 text-center">
                     最終得点: {xpInfo.gained}
