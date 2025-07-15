@@ -139,28 +139,42 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       const supabase = getSupabaseClient();
       const { user } = get();
       if (!user) return;
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier')
-        .eq('id', user.id)
-        .single();
-      set(state => {
-        state.hasProfile = !!data && !error;
-        if (data && !error) {
-          state.profile = {
-            nickname: data.nickname,
-            rank: data.rank,
-            level: data.level,
-            xp: data.xp,
-            isAdmin: data.is_admin,
-            id: user.id,
-            avatar_url: data.avatar_url,
-            bio: data.bio,
-            twitter_handle: data.twitter_handle,
-            next_season_xp_multiplier: data.next_season_xp_multiplier,
-          } as any;
-        }
-      });
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier')
+          .eq('id', user.id)
+          .maybeSingle(); // singleの代わりにmaybeSingleを使用してNot Found エラーを防ぐ
+        
+        set(state => {
+          state.hasProfile = !!data && !error;
+          state.error = null; // エラー状態をクリア
+          if (data && !error) {
+            state.profile = {
+              nickname: data.nickname,
+              rank: data.rank,
+              level: data.level,
+              xp: data.xp,
+              isAdmin: data.is_admin,
+              id: user.id,
+              avatar_url: data.avatar_url,
+              bio: data.bio,
+              twitter_handle: data.twitter_handle,
+              next_season_xp_multiplier: data.next_season_xp_multiplier,
+            } as any;
+          } else {
+            state.profile = null;
+          }
+        });
+      } catch (err) {
+        console.error('Profile fetch error:', err);
+        set(state => {
+          state.hasProfile = false;
+          state.profile = null;
+          state.error = 'プロフィールの取得に失敗しました';
+        });
+      }
     },
 
     createProfile: async (nickname, agreed) => {
@@ -170,27 +184,69 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         });
         return;
       }
+      
       const supabase = getSupabaseClient();
       const { user } = get();
-      if (!user) return;
-      
-      // プロフィール作成（upsertを使用してRLSエラーを回避）
-      const { error } = await supabase.from('profiles').upsert({
-        id: user.id,
-        email: user.email!,
-        nickname,
-        rank: 'free',
-        xp: 0,
-        level: 1,
-        is_admin: false,
-      }, {
-        onConflict: 'id'
+      if (!user) {
+        set(state => {
+          state.error = 'ユーザー情報が見つかりません';
+        });
+        return;
+      }
+
+      set(state => {
+        state.loading = true;
+        state.error = null;
       });
-      
-      if (error) {
-        set(state => { state.error = error.message; });
-      } else {
+
+      try {
+        // まず既存のプロフィールを確認
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('nickname, created_at')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (existingProfile) {
+          // 既存プロフィールがある場合
+          set(state => {
+            state.loading = false;
+            state.error = `既にプロフィールが登録されています（ニックネーム: ${existingProfile.nickname}）`;
+          });
+          // 既存プロフィールの情報を再取得
+          await get().fetchProfile();
+          return;
+        }
+
+        // 新規プロフィール作成
+        const { error } = await supabase.from('profiles').insert({
+          id: user.id,
+          email: user.email!,
+          nickname,
+          rank: 'free',
+          xp: 0,
+          level: 1,
+          is_admin: false,
+        });
+        
+        if (error) {
+          throw error;
+        }
+
+        // 作成成功後、プロフィール情報を取得
         await get().fetchProfile();
+        
+        set(state => {
+          state.loading = false;
+          state.error = null;
+        });
+        
+      } catch (error: any) {
+        console.error('Profile creation error:', error);
+        set(state => { 
+          state.loading = false;
+          state.error = error.message || 'プロフィールの作成に失敗しました';
+        });
       }
     },
   }))
