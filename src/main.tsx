@@ -138,6 +138,8 @@ const initializeApp = async () => {
     showDebugInfo('React app rendered successfully');
     
     // Tone.js を動的にロードして初期化（遅延ロード）
+    // Comment out the following block to delay Tone.js loading until game start
+    /*
     try {
       const Tone = await import('tone');
       (window as any).Tone = Tone;
@@ -146,6 +148,8 @@ const initializeApp = async () => {
       showDebugInfo(`Tone.js loading failed: ${toneError}`, true);
       // Tone.jsのエラーは致命的ではないため続行
     }
+    */
+    // Add note: Load Tone.js later, e.g., in GameScreen or when needed
     
     // 初期化完了後にローディング画面を非表示
     setTimeout(() => {

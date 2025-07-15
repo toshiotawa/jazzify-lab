@@ -227,9 +227,8 @@ const LessonDetailPage: React.FC = () => {
     
     if (navigationInfo?.previousLesson && lesson?.course_id) {
       setIsNavigating(true);
-      
-      // キャッシュクリーンアップ
       cleanupLessonNavigationCache(lessonId || '', lesson.course_id);
+      clearSupabaseCache();
       
       // 少し遅延してナビゲーション実行（UIの応答性向上）
       setTimeout(() => {
@@ -253,9 +252,8 @@ const LessonDetailPage: React.FC = () => {
     
     if (navigationInfo?.nextLesson && lesson?.course_id) {
       setIsNavigating(true);
-      
-      // キャッシュクリーンアップ
       cleanupLessonNavigationCache(lessonId || '', lesson.course_id);
+      clearSupabaseCache();
       
       // 少し遅延してナビゲーション実行（UIの応答性向上）
       setTimeout(() => {
