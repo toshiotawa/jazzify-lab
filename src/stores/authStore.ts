@@ -89,9 +89,16 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         import.meta.env.VITE_SUPABASE_REDIRECT_URL ??
         (typeof location !== 'undefined' ? location.origin : undefined);
 
+      const options: { shouldCreateUser: boolean; emailRedirectTo?: string } = {
+        shouldCreateUser: false,
+      };
+      if (redirectUrl) {
+        options.emailRedirectTo = redirectUrl;
+      }
+
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: redirectUrl ? { emailRedirectTo: redirectUrl } : undefined,
+        options,
       });
       set(state => {
         state.loading = false;

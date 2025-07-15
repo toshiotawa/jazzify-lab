@@ -18,6 +18,7 @@ export async function fetchLevelRanking(limit = 100): Promise<RankingEntry[]> {
   const { data, error } = await supabase
     .from('profiles')
     .select('id, nickname, level, xp, rank, avatar_url, twitter_handle, selected_title')
+    .not('nickname', 'is', null)
     .order('level', { ascending: false })
     .order('xp', { ascending: false })
     .limit(limit);
