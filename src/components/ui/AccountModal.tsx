@@ -20,6 +20,7 @@ const AccountPage: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#account');
   const [bio, setBio] = useState(profile?.bio || '');
   const [saving, setSaving] = useState(false);
+  const [twitterHandle, setTwitterHandle] = useState(profile?.twitter_handle?.replace(/^@/, '') || '');
 
   // ハッシュ変更で開閉
   useEffect(() => {
@@ -31,6 +32,7 @@ const AccountPage: React.FC = () => {
   }, []);
 
   useEffect(()=>{ setBio(profile?.bio || ''); }, [profile]);
+  useEffect(()=>{ setTwitterHandle(profile?.twitter_handle?.replace(/^@/, '') || ''); }, [profile]);
 
   if (!open) return null;
 
@@ -92,13 +94,27 @@ const AccountPage: React.FC = () => {
                   onClick={async ()=>{
                     setSaving(true);
                     try{
-                      await getSupabaseClient().from('profiles').update({ bio }).eq('id', profile.id);
+                      await getSupabaseClient().from('profiles').update({ bio, twitter_handle: twitterHandle ? `@${twitterHandle}` : null }).eq('id', profile.id);
                       await useAuthStore.getState().fetchProfile();
                     }catch(err:any){
                       alert('保存失敗: '+err.message);
                     }finally{ setSaving(false); }
                   }}
                 >保存</button>
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="twitter" className="text-sm">Twitter ID</label>
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+                  <input
+                    id="twitter"
+                    className="w-full p-2 pl-6 rounded bg-slate-700 text-sm"
+                    value={twitterHandle}
+                    onChange={e=>setTwitterHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+                    maxLength={15}
+                    placeholder="yourhandle"
+                  />
+                </div>
               </div>
             </div>
           ) : (

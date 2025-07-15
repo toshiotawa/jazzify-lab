@@ -662,6 +662,7 @@ export interface Profile {
   is_admin?: boolean; // boolean
   bio?: string; // text
   email?: string; // text
+  twitter_handle?: string;
 }
 
 export interface LessonProgress {
@@ -675,4 +676,15 @@ export interface LessonProgress {
   unlock_date?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface RankingEntry {
+  id: string;
+  user_id: string;
+  score: number;
+  rank: number;
+  song_id: string;
+  created_at: string;
+  updated_at: string;
+  twitter_handle?: string;
 }

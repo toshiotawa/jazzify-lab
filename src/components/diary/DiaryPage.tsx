@@ -24,6 +24,7 @@ interface UserProfile {
   level: number;
   rank: string;
   bio?: string | null;
+  twitter_handle?: string;
 }
 
 /**
@@ -193,6 +194,7 @@ const DiaryPage: React.FC = () => {
                         <span className="capitalize">{profile.rank}</span>
                         <span>{diaries.length}件の日記</span>
                       </div>
+                      <span>{profile.twitter_handle || ''}</span>
                     </div>
                   </div>
                   {profile.bio && (

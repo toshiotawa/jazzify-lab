@@ -81,6 +81,7 @@ const LevelRanking: React.FC = () => {
                 <th className="py-2 px-2">Lv</th>
                 <th className="py-2 px-2">XP</th>
                 <th className="py-2 px-2">ランク</th>
+                <th className="py-2 px-2">Twitter</th>
               </tr>
             </thead>
             <tbody>
@@ -103,6 +104,7 @@ const LevelRanking: React.FC = () => {
                   <td className="py-1 px-2">{e.level}</td>
                   <td className="py-1 px-2">{e.xp.toLocaleString()}</td>
                   <td className="py-1 px-2 capitalize">{e.rank}</td>
+                  <td className="py-1 px-2">{e.twitter_handle || '-'}</td>
                 </tr>
               ))}
             </tbody>

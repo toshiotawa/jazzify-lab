@@ -20,6 +20,7 @@ interface AuthState {
     id: string;
     avatar_url?: string | null;
     bio?: string | null;
+    twitter_handle?: string | null;
   } | null;
 }
 
@@ -138,7 +139,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       if (!user) return;
       const { data, error } = await supabase
         .from('profiles')
-        .select('nickname, rank, level, xp, is_admin, avatar_url, bio')
+        .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle')
         .eq('id', user.id)
         .single();
       set(state => {
@@ -153,6 +154,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             id: user.id,
             avatar_url: data.avatar_url,
             bio: data.bio,
+            twitter_handle: data.twitter_handle,
           } as any;
         }
       });
