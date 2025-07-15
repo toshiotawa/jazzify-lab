@@ -87,8 +87,21 @@ window.addEventListener('error', (event) => {
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  showDebugInfo(`Unhandled Promise Rejection: ${event.reason}`, true);
-  showError(event.reason);
+  // JSON読み込みエラーの場合は特別な処理
+  if (event.reason && event.reason.message && event.reason.message.includes('Unexpected token')) {
+    console.error('🎵 JSON読み込みエラー:', event.reason.message);
+    showDebugInfo(`JSON読み込みエラー: ${event.reason.message}`, true);
+    
+    // より分かりやすいエラーメッセージ
+    const userFriendlyError = new Error('楽曲ファイルの読み込みに失敗しました。ファイルが正しく配置されているか確認してください。');
+    showError(userFriendlyError);
+  } else {
+    showDebugInfo(`Unhandled Promise Rejection: ${event.reason}`, true);
+    showError(event.reason);
+  }
+  
+  // エラーを防止（ブラウザのデフォルトエラー処理を抑制）
+  event.preventDefault();
 });
 
 // 簡素化されたアプリケーション初期化

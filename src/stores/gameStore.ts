@@ -742,18 +742,36 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
                 
                 const xmlResponse = await fetch(targetSong.musicXmlFile);
+                if (!xmlResponse.ok) {
+                  throw new Error(`MusicXMLファイルの読み込みに失敗: ${xmlResponse.status} ${xmlResponse.statusText}`);
+                }
+                
                 const xmlString = await xmlResponse.text();
+                
+                // HTMLが返されている場合の検出（XML読み込み時）
+                if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
+                  console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
+                  throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
+                }
                 
                 finalXml = transposeMusicXml(xmlString, transpose);
                 const xmlDoc = new DOMParser().parseFromString(finalXml, 'application/xml');
+                
+                // XML解析エラーのチェック
+                const parseError = xmlDoc.querySelector('parsererror');
+                if (parseError) {
+                  console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
+                  throw new Error('MusicXMLファイルの解析に失敗しました');
+                }
+                
                 const noteNames = extractPlayableNoteNames(xmlDoc);
                 finalNotes = mergeJsonWithNames(rawNotes, noteNames);
                 
                 // ノーツ時間を小節ベースで再計算（プレイヘッド精度向上）
                 finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
                 
-                                  // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
-                  finalChords = extractChordProgressions(xmlDoc, notes);
+                // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
+                finalChords = extractChordProgressions(xmlDoc, notes);
                 
                 console.log(`🎵 MusicXML音名マージ完了: ${noteNames.length}音名 → ${finalNotes.length}ノーツ`);
                 console.log(`🎵 コードネーム抽出完了: ${finalChords.length}コード`);
@@ -1098,14 +1116,35 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               let finalNotes = notes;
               let finalXml: string | null = null;
               let finalChords: ChordInfo[] = [];
+              
               if (targetSong.musicXmlFile) {
                 try {
                   const { transposeMusicXml } = await import('@/utils/musicXmlTransposer');
                   const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
+                  
                   const xmlResponse = await fetch(targetSong.musicXmlFile);
+                  if (!xmlResponse.ok) {
+                    throw new Error(`MusicXMLファイルの読み込みに失敗: ${xmlResponse.status} ${xmlResponse.statusText}`);
+                  }
+                  
                   const xmlString = await xmlResponse.text();
+                  
+                  // HTMLが返されている場合の検出（XML読み込み時）
+                  if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
+                    console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
+                    throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
+                  }
+                  
                   finalXml = transposeMusicXml(xmlString, transpose);
                   const xmlDoc = new DOMParser().parseFromString(finalXml, 'application/xml');
+                  
+                  // XML解析エラーのチェック
+                  const parseError = xmlDoc.querySelector('parsererror');
+                  if (parseError) {
+                    console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
+                    throw new Error('MusicXMLファイルの解析に失敗しました');
+                  }
+                  
                   const noteNames = extractPlayableNoteNames(xmlDoc);
                   finalNotes = mergeJsonWithNames(notes, noteNames);
                   
@@ -1342,14 +1381,35 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
              let finalNotes = notes;
              let finalXml: string | null = null;
              let finalChords: ChordInfo[] = [];
+             
              if (targetSong.musicXmlFile) {
                try {
                  const { transposeMusicXml } = await import('@/utils/musicXmlTransposer');
                  const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
+                 
                  const xmlResponse = await fetch(targetSong.musicXmlFile);
+                 if (!xmlResponse.ok) {
+                   throw new Error(`MusicXMLファイルの読み込みに失敗: ${xmlResponse.status} ${xmlResponse.statusText}`);
+                 }
+                 
                  const xmlString = await xmlResponse.text();
+                 
+                 // HTMLが返されている場合の検出（XML読み込み時）
+                 if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
+                   console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
+                   throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
+                 }
+                 
                  finalXml = transposeMusicXml(xmlString, transpose);
                  const xmlDoc = new DOMParser().parseFromString(finalXml, 'application/xml');
+                 
+                 // XML解析エラーのチェック
+                 const parseError = xmlDoc.querySelector('parsererror');
+                 if (parseError) {
+                   console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
+                   throw new Error('MusicXMLファイルの解析に失敗しました');
+                 }
+                 
                  const noteNames = extractPlayableNoteNames(xmlDoc);
                  finalNotes = mergeJsonWithNames(notes, noteNames);
                  

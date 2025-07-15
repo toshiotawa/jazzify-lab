@@ -181,6 +181,28 @@ const GameScreen: React.FC = () => {
             
           } catch (error) {
             console.error('レッスン曲の読み込みエラー:', error);
+            
+            // エラーの詳細情報をログ出力
+            if (error instanceof Error) {
+              console.error('エラーメッセージ:', error.message);
+              console.error('エラースタック:', error.stack);
+            }
+            
+            // ユーザーにエラーを通知（簡素なアラート）
+            let userMessage = '楽曲の読み込みに失敗しました。';
+            if (error instanceof Error) {
+              if (error.message.includes('HTMLが返されました')) {
+                userMessage = 'ファイルが見つかりません。曲データの設定を確認してください。';
+              } else if (error.message.includes('JSON') || error.message.includes('Unexpected token')) {
+                userMessage = '楽曲ファイルの形式が正しくありません。';
+              }
+            }
+            
+            // 非同期でアラートを表示（UIブロックを避ける）
+            setTimeout(() => {
+              alert(userMessage);
+            }, 100);
+            
             setIsLoadingLessonSong(false);
             window.location.hash = '#songs';
           }
@@ -546,7 +568,26 @@ const SongSelectionScreen: React.FC = () => {
                     }, 50);
                   } catch (err) {
                     console.error('曲読み込みエラー:', err);
-                    alert(`曲読み込みに失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                    
+                    // エラーの詳細情報をログ出力
+                    if (err instanceof Error) {
+                      console.error('エラーメッセージ:', err.message);
+                      console.error('エラースタック:', err.stack);
+                    }
+                    
+                    // ユーザーフレンドリーなエラーメッセージ
+                    let userMessage = '楽曲の読み込みに失敗しました';
+                    if (err instanceof Error) {
+                      if (err.message.includes('HTMLが返されました')) {
+                        userMessage = 'ファイルが見つかりません。曲データの設定を確認してください';
+                      } else if (err.message.includes('JSON') || err.message.includes('Unexpected token')) {
+                        userMessage = '楽曲ファイルの形式が正しくありません';
+                      } else {
+                        userMessage += `: ${err.message}`;
+                      }
+                    }
+                    
+                    alert(userMessage);
                   }
                 }} 
               />
