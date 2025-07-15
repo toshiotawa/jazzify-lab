@@ -17,6 +17,7 @@ import {
   FaMusic 
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
+import { fetchDetailedRequirementsProgress, LessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 
 /**
  * レッスン学習画面
@@ -28,6 +29,7 @@ const LessonPage: React.FC = () => {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [progress, setProgress] = useState<Record<string, LessonProgress>>({});
+  const [lessonRequirementsProgress, setLessonRequirementsProgress] = useState<Record<string, LessonRequirementProgress[]>>({});
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
@@ -137,6 +139,23 @@ const LessonPage: React.FC = () => {
       
       console.log(`Loaded ${lessonsData.length} lessons`);
       
+      // Load requirements progress for all lessons
+      const requirementsPromises = lessonsData.map(lesson => 
+        fetchDetailedRequirementsProgress(lesson.id).then(progress => ({
+          lessonId: lesson.id,
+          progress: progress.progress
+        }))
+      );
+      
+      const requirementsResults = await Promise.all(requirementsPromises);
+      const requirementsMap: Record<string, LessonRequirementProgress[]> = {};
+      requirementsResults.forEach(result => {
+        requirementsMap[result.lessonId] = result.progress;
+      });
+      
+      setLessonRequirementsProgress(requirementsMap);
+      setLessons(lessonsData);
+      
       // レッスンデータが空で、以前にレッスンがあった場合は強制再読み込み
       if (lessonsData.length === 0 && lessons.length > 0) {
         console.log('Empty lessons detected, forcing cache bypass and reload...');
@@ -164,8 +183,6 @@ const LessonPage: React.FC = () => {
         }, 100);
         return;
       }
-      
-      setLessons(lessonsData);
       
       // 進捗データをマッピング
       const progressMap: Record<string, LessonProgress> = {};
@@ -238,11 +255,11 @@ const LessonPage: React.FC = () => {
   };
 
   const getLessonCompletionRate = (lesson: Lesson): number => {
-    const lessonProgress = progress[lesson.id];
-    if (!lessonProgress) return 0;
+    const requirements = lessonRequirementsProgress[lesson.id] || [];
+    if (requirements.length === 0) return 0;
     
-    // 簡単な計算: 完了なら100%、未完了なら0%
-    return lessonProgress.completed ? 100 : 0;
+    const completedCount = requirements.filter(req => req.is_completed).length;
+    return Math.round((completedCount / requirements.length) * 100);
   };
 
   const getCourseCompletionRate = (course: Course): number => {
