@@ -20,15 +20,11 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       await init();
-      // 初期化後、ユーザーがいる場合はプロフィールを再確認
-      if (user) {
-        await fetchProfile();
-      }
       setInitializing(false);
     };
     
     void initializeAuth();
-  }, [init, fetchProfile, user]);
+  }, [init]);
 
   // 初期化中またはローディング中
   if (initializing || loading) {
