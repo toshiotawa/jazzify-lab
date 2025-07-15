@@ -791,6 +791,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             set((state) => {
               state.settings.transpose = 0;
               state.settings.playbackSpeed = 1.0;
+              // 楽譜表示設定を常にデフォルト（ノーツ+コード）にリセット
+              state.settings.showSheetMusic = true;
+              state.settings.sheetMusicChordsOnly = false;
+            });
+          } else {
+            // レッスンモードでも楽譜表示設定はデフォルトにリセット（課題条件で後から上書きされる場合を除く）
+            set((state) => {
+              state.settings.showSheetMusic = true;
+              state.settings.sheetMusicChordsOnly = false;
             });
           }
           
@@ -1944,8 +1953,10 @@ if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('gameSettings');
     if (saved) {
       const parsed = JSON.parse(saved);
-      // 既存の再生速度設定は保存しないため除外
+      // 永続化しない設定を除外
       delete parsed.playbackSpeed;
+      delete parsed.showSheetMusic;      // 楽譜表示設定は保存しない
+      delete parsed.sheetMusicChordsOnly; // 楽譜表示設定は保存しない
       useGameStore.getState().updateSettings(parsed);
     }
   } catch (e) {
@@ -1955,7 +1966,8 @@ if (typeof window !== 'undefined') {
   useGameStore.subscribe(
     (state) => state.settings,
     (settings) => {
-      const { playbackSpeed, ...persist } = settings;
+      // 永続化しない設定を除外
+      const { playbackSpeed, showSheetMusic, sheetMusicChordsOnly, ...persist } = settings;
       try {
         localStorage.setItem('gameSettings', JSON.stringify(persist));
       } catch (e) {
