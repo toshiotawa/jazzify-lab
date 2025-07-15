@@ -261,19 +261,11 @@ const LessonPage: React.FC = () => {
   const getCourseCompletionRate = (course: Course): number => {
     if (course.id !== selectedCourse?.id) return 0;
     if (lessons.length === 0) return 0;
-    
-    // 要件進捗ベースで計算
-    let totalRequirements = 0;
-    let completedRequirements = 0;
-    
-    lessons.forEach(lesson => {
-      const requirements = lessonRequirementsProgress[lesson.id] || [];
-      totalRequirements += requirements.length;
-      completedRequirements += requirements.filter(req => req.is_completed).length;
-    });
-    
-    if (totalRequirements === 0) return 0;
-    return Math.round((completedRequirements / totalRequirements) * 100);
+
+    const totalLessons = lessons.length;
+    const completedLessons = lessons.filter(lesson => progress[lesson.id]?.completed).length;
+
+    return Math.round((completedLessons / totalLessons) * 100);
   };
 
   const handleClose = () => {
