@@ -4,7 +4,7 @@ import { useLessonContext } from '@/stores/gameStore';
 import { addXp, calcLevel } from '@/platform/supabaseXp';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { useAuthStore } from '@/stores/authStore';
-import { calculateXP } from '@/utils/xpCalculator';
+import { calculateXP, calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -25,6 +25,7 @@ const ResultModal: React.FC = () => {
     remainder: number;
     next: number;
     levelUp: boolean;
+    detailed?: XPDetailed;
   } | null>(null);
   
   const [lessonRequirementSuccess, setLessonRequirementSuccess] = useState<boolean | null>(null);
@@ -33,12 +34,17 @@ const ResultModal: React.FC = () => {
   useEffect(() => {
     if (resultModalOpen && currentSong && profile) {
       (async () => {
-        // ローカルでも表示用に計算しておくが、最終的にはサーバー計算値を優先
-        const gainedLocal = calculateXP({
+        // ローカルで詳細計算
+        const detailed = calculateXPDetailed({
           membershipRank: profile.rank,
           scoreRank: score.rank as any,
           playbackSpeed: settings.playbackSpeed,
           transposed: settings.transpose !== 0,
+          // 以下の値は実際のcontextから取得する必要がある。仮に1とするか、適切に設定
+          lessonBonusMultiplier: 1, // TODO: lessonContextから取得
+          missionBonusMultiplier: 1, // TODO: missionから
+          challengeBonusMultiplier: 1, // TODO: challengeから
+          seasonMultiplier: 1, // TODO: profileから取得予定
         });
 
         const res = await addXp({
@@ -53,12 +59,13 @@ const ResultModal: React.FC = () => {
         const levelDetail = calcLevel(res.totalXp);
 
         setXpInfo({
-          gained: res.gainedXp ?? gainedLocal,
+          gained: res.gainedXp ?? detailed.total,
           total: res.totalXp,
           level: res.level,
           remainder: levelDetail.remainder,
           next: levelDetail.nextLevelXp,
           levelUp: res.level > profile.level,
+          detailed
         });
 
         await fetchProfile();
@@ -244,6 +251,31 @@ const ResultModal: React.FC = () => {
                   <span className="ml-2 text-yellow-400 font-extrabold animate-bounce">LEVEL UP!</span>
                 )}
               </div>
+              
+              {/* XP詳細 */}
+              {xpInfo.detailed && (
+                <div className="bg-gray-800/50 rounded-lg p-3 mt-4 text-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>基本得点:</div>
+                    <div>{xpInfo.detailed.base}</div>
+                    <div>スコアランク基本:</div>
+                    <div>{xpInfo.detailed.base} (ランク依存)</div>
+                    <div>速度ボーナス:</div>
+                    <div>x{xpInfo.detailed.multipliers.speed.toFixed(2)}</div>
+                    <div>移調ボーナス:</div>
+                    <div>x{xpInfo.detailed.multipliers.transpose.toFixed(1)}</div>
+                    <div>ミッションボーナス:</div>
+                    <div>x{xpInfo.detailed.multipliers.mission.toFixed(1)}</div>
+                    <div>契約ランクボーナス:</div>
+                    <div>x{xpInfo.detailed.multipliers.membership.toFixed(1)}</div>
+                    {/* 他のボーナスも必要に応じて */}
+                  </div>
+                  <div className="mt-2 border-t border-gray-600 pt-2 text-center">
+                    最終得点: {xpInfo.gained}
+                  </div>
+                </div>
+              )}
+
               <div className="text-xs text-gray-400 flex justify-between mb-1">
                 <span>Lv.{xpInfo.level}</span>
                 <span>{xpInfo.remainder}/{xpInfo.next} XP</span>

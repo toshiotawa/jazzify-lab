@@ -15,6 +15,20 @@ export interface XPCalcParams {
   seasonMultiplier?: number; // プロフィール next_season_xp_multiplier
 }
 
+export interface XPDetailed {
+  base: number;
+  multipliers: {
+    membership: number;
+    speed: number;
+    transpose: number;
+    lesson: number;
+    mission: number;
+    challenge: number;
+    season: number;
+  };
+  total: number;
+}
+
 // 基本 XP をスコアランクから算出
 function baseXPFromRank(rank: ScoreRank): number {
   switch (rank) {
@@ -54,16 +68,58 @@ export function calculateXP(params: XPCalcParams): number {
   } = params;
 
   const base = baseXPFromRank(scoreRank);
-  const multi =
-    rankMultiplier(membershipRank) *
-    speedMultiplier(playbackSpeed) *
-    (transposed ? 1.3 : 1) *
-    lessonBonusMultiplier *
-    missionBonusMultiplier *
-    challengeBonusMultiplier *
-    seasonMultiplier;
+  const membershipBonus = rankMultiplier(membershipRank) - 1;
+  const speedBonus = speedMultiplier(playbackSpeed) - 1;
+  const transposeBonus = transposed ? 0.3 : 0;
+  const lessonBonus = lessonBonusMultiplier - 1;
+  const missionBonus = missionBonusMultiplier - 1;
+  const challengeBonus = challengeBonusMultiplier - 1;
+  const seasonBonus = seasonMultiplier - 1;
 
-  return Math.round(base * multi);
+  const totalBonus = membershipBonus + speedBonus + transposeBonus + lessonBonus + missionBonus + challengeBonus + seasonBonus;
+
+  return Math.round(base * (1 + totalBonus));
+}
+
+export function calculateXPDetailed(params: XPCalcParams): XPDetailed {
+  const {
+    membershipRank,
+    scoreRank,
+    playbackSpeed,
+    transposed,
+    lessonBonusMultiplier = 1,
+    missionBonusMultiplier = 1,
+    challengeBonusMultiplier = 1,
+    seasonMultiplier = 1,
+  } = params;
+
+  const base = baseXPFromRank(scoreRank);
+  const membership = rankMultiplier(membershipRank);
+  const speed = speedMultiplier(playbackSpeed);
+  const transpose = transposed ? 1.3 : 1;
+  const lesson = lessonBonusMultiplier;
+  const mission = missionBonusMultiplier;
+  const challenge = challengeBonusMultiplier;
+  const season = seasonMultiplier;
+
+  // 加算方式に変更
+  const membershipBonus = membership - 1;
+  const speedBonus = speed - 1;
+  const transposeBonus = transpose - 1;
+  const lessonBonus = lesson - 1;
+  const missionBonus = mission - 1;
+  const challengeBonus = challenge - 1;
+  const seasonBonus = season - 1;
+
+  const totalBonus = membershipBonus + speedBonus + transposeBonus + lessonBonus + missionBonus + challengeBonus + seasonBonus;
+
+  const total = Math.round(base * (1 + totalBonus));
+
+  return {
+    base,
+    multipliers: { membership, speed, transpose, lesson, mission, challenge, season },
+    total
+  };
 }
 
 // 次レベル到達に必要な XP
