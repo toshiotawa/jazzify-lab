@@ -24,7 +24,7 @@ interface UserProfile {
   level: number;
   rank: string;
   bio?: string | null;
-  twitter_handle?: string;
+  twitter_handle?: string | null;
 }
 
 /**
@@ -201,7 +201,7 @@ const DiaryPage: React.FC = () => {
                           rel="noopener noreferrer" 
                           className="text-blue-400 hover:underline text-sm block mt-1"
                         >
-                          @{profile.twitter_handle}
+                          {profile.twitter_handle}
                         </a>
                       ) : null}
                     </div>
