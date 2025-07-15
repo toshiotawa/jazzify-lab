@@ -4,6 +4,8 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import { uploadAvatar } from '@/platform/supabaseStorage';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { getAvailableTitles, DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
+import { updateUserTitle } from '@/platform/supabaseTitles';
 
 const RANK_LABEL: Record<string, string> = {
   free: 'フリー',
@@ -21,6 +23,8 @@ const AccountPage: React.FC = () => {
   const [bio, setBio] = useState(profile?.bio || '');
   const [saving, setSaving] = useState(false);
   const [twitterHandle, setTwitterHandle] = useState(profile?.twitter_handle?.replace(/^@/, '') || '');
+  const [selectedTitle, setSelectedTitle] = useState<Title>((profile?.selected_title as Title) || DEFAULT_TITLE);
+  const [titleSaving, setTitleSaving] = useState(false);
 
   // ハッシュ変更で開閉
   useEffect(() => {
@@ -62,6 +66,45 @@ const AccountPage: React.FC = () => {
               <div className="flex justify-between">
                 <span>経験値</span>
                 <span className="font-semibold">{profile.xp.toLocaleString()}</span>
+              </div>
+              
+              {/* 称号選択ドロップダウン */}
+              <div className="space-y-1">
+                <label htmlFor="title" className="text-sm">称号</label>
+                <select
+                  id="title"
+                  className="w-full p-2 rounded bg-slate-700 text-sm"
+                  value={selectedTitle}
+                  onChange={async (e) => {
+                    const newTitle = e.target.value as Title;
+                    setSelectedTitle(newTitle);
+                    setTitleSaving(true);
+                    try {
+                      const success = await updateUserTitle(profile.id, newTitle);
+                      if (success) {
+                        await useAuthStore.getState().fetchProfile();
+                                             } else {
+                         alert('称号の更新に失敗しました');
+                         setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
+                       }
+                     } catch (err: any) {
+                       alert('称号の更新に失敗しました: ' + err.message);
+                       setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
+                    } finally {
+                      setTitleSaving(false);
+                    }
+                  }}
+                  disabled={titleSaving}
+                >
+                  {getAvailableTitles(profile.level).map((title) => (
+                    <option key={title} value={title}>
+                      {title}
+                    </option>
+                  ))}
+                </select>
+                {titleSaving && (
+                  <div className="text-xs text-gray-400">称号を更新中...</div>
+                )}
               </div>
               <div className="flex flex-col items-center space-y-2">
                 <img src={profile.avatar_url || DEFAULT_AVATAR_URL} alt="avatar" className="w-24 h-24 rounded-full object-cover" />

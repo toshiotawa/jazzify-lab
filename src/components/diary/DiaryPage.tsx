@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes } from 'react-icons/fa';
+import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown } from 'react-icons/fa';
 import DiaryFeed from './DiaryFeed';
 import { useAuthStore } from '@/stores/authStore';
 import DiaryEditor from './DiaryEditor';
@@ -8,6 +8,7 @@ import { useDiaryStore } from '@/stores/diaryStore';
 import { useToast } from '@/stores/toastStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
 
 interface UserDiary {
   id: string;
@@ -25,6 +26,7 @@ interface UserProfile {
   rank: string;
   bio?: string | null;
   twitter_handle?: string | null;
+  selected_title?: string | null;
 }
 
 /**
@@ -189,6 +191,15 @@ const DiaryPage: React.FC = () => {
                     />
                     <div>
                       <h3 className="text-xl font-semibold">{profile.nickname}</h3>
+                      
+                      {/* 称号表示 */}
+                      <div className="flex items-center space-x-2 mb-2">
+                        <FaCrown className="text-yellow-400 text-sm" />
+                        <span className="text-yellow-400 font-medium text-sm">
+                          {(profile.selected_title as Title) || DEFAULT_TITLE}
+                        </span>
+                      </div>
+                      
                       <div className="flex items-center space-x-3 text-sm text-gray-400">
                         <span>Lv.{profile.level}</span>
                         <span className="capitalize">{profile.rank}</span>

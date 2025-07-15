@@ -21,6 +21,7 @@ interface AuthState {
     avatar_url?: string | null;
     bio?: string | null;
     twitter_handle?: string | null;
+    selected_title?: string | null;
   } | null;
 }
 

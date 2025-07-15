@@ -3,6 +3,8 @@ import { fetchLevelRanking, RankingEntry } from '@/platform/supabaseRanking';
 import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
+import { FaCrown } from 'react-icons/fa';
 
 const LevelRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#ranking');
@@ -74,6 +76,7 @@ const LevelRanking: React.FC = () => {
               <tr className="border-b border-slate-700 text-left">
                 <th className="py-2 px-2">#</th>
                 <th className="py-2 px-2">ユーザー</th>
+                <th className="py-2 px-2">称号</th>
                 <th className="py-2 px-2">Lv</th>
                 <th className="py-2 px-2">XP</th>
                 <th className="py-2 px-2">ランク</th>
@@ -96,6 +99,14 @@ const LevelRanking: React.FC = () => {
                       />
                       <span className="truncate">{e.nickname}</span>
                     </button>
+                  </td>
+                  <td className="py-1 px-2">
+                    <div className="flex items-center gap-1 text-yellow-400">
+                      <FaCrown className="text-xs" />
+                      <span className="text-xs truncate max-w-[8rem]">
+                        {(e.selected_title as Title) || DEFAULT_TITLE}
+                      </span>
+                    </div>
                   </td>
                   <td className="py-1 px-2">{e.level}</td>
                   <td className="py-1 px-2">{e.xp.toLocaleString()}</td>

@@ -13,13 +13,15 @@ import {
   FaMusic,
   FaArrowLeft,
   FaBullseye,
-  FaUser 
+  FaUser,
+  FaCrown
 } from 'react-icons/fa';
 import { Mission } from '@/platform/supabaseMissions';
 import GameHeader from '@/components/ui/GameHeader';
 import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
 
 /**
  * ダッシュボード画面
@@ -130,6 +132,15 @@ const Dashboard: React.FC = () => {
                 />
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold">{profile.nickname}</h2>
+                  
+                  {/* 称号表示 */}
+                  <div className="flex items-center space-x-2 mb-2">
+                    <FaCrown className="text-yellow-400 text-sm" />
+                    <span className="text-yellow-400 font-medium text-sm">
+                      {(profile.selected_title as Title) || DEFAULT_TITLE}
+                    </span>
+                  </div>
+                  
                   <div className="flex items-center space-x-4 text-sm text-gray-400">
                     <span>Lv.{profile.level}</span>
                     <span className="capitalize">{profile.rank}</span>
