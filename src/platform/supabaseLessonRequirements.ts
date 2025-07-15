@@ -140,4 +140,42 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
     progress,
     allCompleted
   };
+}
+
+/**
+ * 複数のレッスンの実習課題進捗を一括で取得（パフォーマンス向上）
+ */
+export async function fetchMultipleLessonRequirementsProgress(lessonIds: string[]): Promise<Record<string, LessonRequirementProgress[]>> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) throw new Error('ログインが必要です');
+  if (lessonIds.length === 0) return {};
+
+  const cacheKey = `multiple_lesson_requirements_progress:${user.id}:${lessonIds.sort().join(',')}`;
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => await supabase
+      .from('user_lesson_requirements_progress')
+      .select('*')
+      .eq('user_id', user.id)
+      .in('lesson_id', lessonIds),
+    1000 * 60 * 5 // 5分キャッシュ
+  );
+
+  if (error) throw new Error(`実習課題の進捗取得に失敗しました: ${error.message}`);
+  
+  // レッスンIDごとにグループ化
+  const result: Record<string, LessonRequirementProgress[]> = {};
+  lessonIds.forEach(lessonId => {
+    result[lessonId] = [];
+  });
+  
+  (data || []).forEach(progress => {
+    if (result[progress.lesson_id]) {
+      result[progress.lesson_id].push(progress);
+    }
+  });
+  
+  return result;
 } 

@@ -17,7 +17,7 @@ import {
   FaMusic 
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
-import { fetchDetailedRequirementsProgress, LessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
+import { fetchDetailedRequirementsProgress, LessonRequirementProgress, fetchMultipleLessonRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 
 /**
  * レッスン学習画面
@@ -139,19 +139,9 @@ const LessonPage: React.FC = () => {
       
       console.log(`Loaded ${lessonsData.length} lessons`);
       
-      // Load requirements progress for all lessons
-      const requirementsPromises = lessonsData.map(lesson => 
-        fetchDetailedRequirementsProgress(lesson.id).then(progress => ({
-          lessonId: lesson.id,
-          progress: progress.progress
-        }))
-      );
-      
-      const requirementsResults = await Promise.all(requirementsPromises);
-      const requirementsMap: Record<string, LessonRequirementProgress[]> = {};
-      requirementsResults.forEach(result => {
-        requirementsMap[result.lessonId] = result.progress;
-      });
+      // Load requirements progress for all lessons in batch (performance optimization)
+      const lessonIds = lessonsData.map(lesson => lesson.id);
+      const requirementsMap = await fetchMultipleLessonRequirementsProgress(lessonIds);
       
       setLessonRequirementsProgress(requirementsMap);
       setLessons(lessonsData);
@@ -168,7 +158,13 @@ const LessonPage: React.FC = () => {
           try {
             const retryLessonsData = await fetchLessonsByCourse(courseId);
             console.log(`Retry loaded ${retryLessonsData.length} lessons`);
+            
+            // Requirements progress も再取得
+            const retryLessonIds = retryLessonsData.map(lesson => lesson.id);
+            const retryRequirementsMap = await fetchMultipleLessonRequirementsProgress(retryLessonIds);
+            
             setLessons(retryLessonsData);
+            setLessonRequirementsProgress(retryRequirementsMap);
             
             // 進捗データも再取得
             const retryProgressData = await fetchUserLessonProgress(courseId);
@@ -266,8 +262,18 @@ const LessonPage: React.FC = () => {
     if (course.id !== selectedCourse?.id) return 0;
     if (lessons.length === 0) return 0;
     
-    const completedLessons = lessons.filter(lesson => progress[lesson.id]?.completed).length;
-    return Math.round((completedLessons / lessons.length) * 100);
+    // 要件進捗ベースで計算
+    let totalRequirements = 0;
+    let completedRequirements = 0;
+    
+    lessons.forEach(lesson => {
+      const requirements = lessonRequirementsProgress[lesson.id] || [];
+      totalRequirements += requirements.length;
+      completedRequirements += requirements.filter(req => req.is_completed).length;
+    });
+    
+    if (totalRequirements === 0) return 0;
+    return Math.round((completedRequirements / totalRequirements) * 100);
   };
 
   const handleClose = () => {
