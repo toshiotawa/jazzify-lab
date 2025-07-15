@@ -112,7 +112,7 @@ const LevelRanking: React.FC = () => {
                         rel="noopener noreferrer" 
                         className="text-blue-400 hover:underline truncate block max-w-[8rem]"
                       >
-                        @{e.twitter_handle}
+                        {e.twitter_handle}
                       </a>
                     ) : '-'}
                   </td>

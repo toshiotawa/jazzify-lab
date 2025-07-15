@@ -85,6 +85,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
     level: number;
     rank: string;
     bio?: string | null;
+    twitter_handle?: string | null;
   };
 }> {
   const supabase = getSupabaseClient();
@@ -122,7 +123,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
   // ユーザープロフィールを取得
   const { data: profileData, error: profileError } = await supabase
     .from('profiles')
-    .select('nickname, avatar_url, level, rank, bio')
+    .select('nickname, avatar_url, level, rank, bio, twitter_handle')
     .eq('id', userId)
     .single();
 
