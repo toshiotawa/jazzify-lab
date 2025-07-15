@@ -1058,8 +1058,14 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             }
             
             if ('playbackSpeed' in filteredSettings && clearConditions.speed !== undefined) {
-              console.warn('⚠️ 本番モード時は速度設定（playbackSpeed）を変更できません');
-              delete filteredSettings.playbackSpeed;
+              const newSpeed = filteredSettings.playbackSpeed!;
+              const minSpeed = clearConditions.speed;
+              if (newSpeed < minSpeed) {
+                console.warn(`⚠️ 本番モード時は速度設定を${minSpeed}倍速未満に変更できません`);
+                delete filteredSettings.playbackSpeed;
+              } else {
+                console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
+              }
             }
             
             if (clearConditions.notation_setting) {

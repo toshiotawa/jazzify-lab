@@ -1202,18 +1202,20 @@ const SettingsPanel: React.FC = () => {
                 再生スピード: {Math.round(settings.playbackSpeed * 100)}%
                 {isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined && (
                   <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
-                    本番モード固定
+                    最低{lessonContext.clearConditions.speed}倍速
                   </span>
                 )}
               </label>
               {isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined && (
                 <div className="text-xs text-amber-300 mb-2 bg-amber-900/10 p-2 rounded border border-amber-600/30">
-                  🎯 課題条件: {lessonContext.clearConditions.speed}倍速以上が必要（本番モードでは固定）
+                  🎯 課題条件: {lessonContext.clearConditions.speed}倍速以上が必要（本番モードでは{lessonContext.clearConditions.speed}倍速以上で変更可能）
                 </div>
               )}
               <input
                 type="range"
-                min="0.5"
+                min={isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined 
+                     ? lessonContext.clearConditions.speed.toString() 
+                     : "0.5"}
                 max="1.5"
                 step="0.05"
                 value={settings.playbackSpeed}
@@ -1221,7 +1223,6 @@ const SettingsPanel: React.FC = () => {
                   gameActions.updateSettings({ playbackSpeed: parseFloat(e.target.value) })
                 }
                 className="slider"
-                disabled={isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined}
               />
             </div>
 
