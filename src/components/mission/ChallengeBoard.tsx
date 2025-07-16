@@ -4,7 +4,13 @@ import ChallengeCard from './ChallengeCard';
 
 const ChallengeBoard: React.FC = () => {
   const { monthly, progress, loading, fetchAll } = useMissionStore();
-  useEffect(()=>{ void fetchAll(); },[]);
+  
+  // 既にデータがある場合は再取得しない
+  useEffect(() => {
+    if (monthly.length === 0 && !loading) {
+      void fetchAll();
+    }
+  }, [monthly.length, loading, fetchAll]);
 
   if (loading) return <p className="text-center text-gray-400">Loading...</p>;
 

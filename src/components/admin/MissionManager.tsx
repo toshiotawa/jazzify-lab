@@ -98,7 +98,7 @@ const MissionManager: React.FC = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      console.log('ミッション追加: 開始日:', v.start_date, '終了日:', v.end_date, '今日:', today.toISOString().substring(0,10));
+
 
       if (endDate <= startDate) {
         toast.error('終了日は開始日より後の日付を設定してください');

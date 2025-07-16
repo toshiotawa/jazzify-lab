@@ -5,8 +5,10 @@ const ChallengeProgressWidget: React.FC = () => {
   const { monthly, progress, loading, fetchAll, claim } = useMissionStore();
 
   useEffect(() => {
-    fetchAll();
-  }, []);
+    if (monthly.length === 0 && !loading) {
+      fetchAll();
+    }
+  }, [monthly.length, loading, fetchAll]);
 
   if (loading) return <p>Loading missions...</p>;
 

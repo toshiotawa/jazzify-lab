@@ -39,9 +39,7 @@ function getTodayJSTString(): string {
 export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
   const today = getTodayJSTString();
   const key = `missions:monthly:${today}`;
-  console.log('fetchActiveMonthlyMissions: JST今日の日付:', today);
   const { data, error } = await fetchWithCache(key, async () => {
-    console.log('fetchActiveMonthlyMissions: データベースクエリ実行');
     return await getSupabaseClient()
       .from('challenges')
       .select('*, challenge_tracks(*, songs(id,title,artist))')
@@ -50,7 +48,6 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
       .gte('end_date', today);   // 終了日が今日以降（今日を含む）
   }, 1000*30);
   if (error) throw error;
-  console.log('fetchActiveMonthlyMissions: 取得したミッション数:', data?.length || 0);
   return data as Mission[];
 }
 
