@@ -18,6 +18,7 @@ import {
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import SongSelector from './SongSelector';
 import { fetchUserMissionProgress } from '@/platform/supabaseMissions';
+import { fetchSongs } from '@/platform/supabaseSongs';
 import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy } from 'react-icons/fa';
 
 interface FormValues {
@@ -47,6 +48,9 @@ const MissionManager: React.FC = () => {
   const [showSongSelector, setShowSongSelector] = useState(false);
   const [editingSong, setEditingSong] = useState<ChallengeSong | null>(null);
   const [progressMap, setProgressMap] = useState<Record<string, {clear_count:number; completed:boolean}>>({});
+  const [selectedSongs, setSelectedSongs] = useState<string[]>([]);
+  const [showFormSongSelector, setShowFormSongSelector] = useState(false);
+  const [songInfo, setSongInfo] = useState<Record<string, { title: string; artist?: string }>>({});
   const { register, handleSubmit, reset, watch } = useForm<FormValues>({
     defaultValues: {
       type: 'weekly',
@@ -98,12 +102,35 @@ const MissionManager: React.FC = () => {
         song_clear_count: v.category === 'song_clear' ? v.song_clear_count : null,
       };
       
-      await createChallenge(payload);
-      toast.success('ミッションを追加しました', {
-        title: '追加完了',
-        duration: 3000,
-      });
+      const newChallengeId = await createChallenge(payload);
+      
+      // 曲クリアタイプで楽曲が選択されている場合、楽曲を追加
+      if (v.category === 'song_clear' && selectedSongs.length > 0) {
+        const defaultConditions: SongConditions = {
+          key_offset: 0,
+          min_speed: 1.0,
+          min_rank: 'B',
+          min_clear_count: 1,
+          notation_setting: 'both',
+        };
+
+        for (const songId of selectedSongs) {
+          await addSongToChallenge(newChallengeId, songId, defaultConditions);
+        }
+        
+        toast.success(`ミッションを追加し、${selectedSongs.length}曲を追加しました`, {
+          title: '追加完了',
+          duration: 3000,
+        });
+      } else {
+        toast.success('ミッションを追加しました', {
+          title: '追加完了',
+          duration: 3000,
+        });
+      }
+      
       reset();
+      setSelectedSongs([]);
       await load();
     } catch (e) {
       toast.error(handleApiError(e, 'ミッション追加'), {
@@ -142,6 +169,38 @@ const MissionManager: React.FC = () => {
     } catch (error) {
       toast.error('楽曲の追加に失敗しました');
     }
+  };
+
+  const handleFormSongSelect = (songId: string) => {
+    if (!selectedSongs.includes(songId)) {
+      setSelectedSongs([...selectedSongs, songId]);
+      // 楽曲情報を取得して保存
+      fetchSongInfo(songId);
+    }
+  };
+
+  const fetchSongInfo = async (songId: string) => {
+    try {
+      const songs = await fetchSongs();
+      const song = songs.find((s: any) => s.id === songId);
+      if (song) {
+        setSongInfo(prev => ({
+          ...prev,
+          [songId]: { title: song.title, artist: song.artist }
+        }));
+      }
+    } catch (error) {
+      console.error('楽曲情報取得エラー:', error);
+    }
+  };
+
+  const handleFormSongRemove = (songId: string) => {
+    setSelectedSongs(selectedSongs.filter(id => id !== songId));
+    setSongInfo(prev => {
+      const newInfo = { ...prev };
+      delete newInfo[songId];
+      return newInfo;
+    });
   };
 
   const handleSongEdit = (song: ChallengeSong) => {
@@ -224,7 +283,6 @@ const MissionManager: React.FC = () => {
             {...register('title', { required: true })} 
           />
 
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block">
               <span className="text-sm font-medium mb-1 block">開始日</span>
@@ -268,6 +326,56 @@ const MissionManager: React.FC = () => {
             placeholder="ミッションの説明" 
             {...register('description')} 
           />
+
+          {/* 曲クリアタイプの場合、楽曲選択セクション */}
+          {watchedCategory === 'song_clear' && (
+            <div className="border border-slate-600 rounded-lg p-4 bg-slate-800/30">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium text-lg">楽曲選択</h4>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setShowFormSongSelector(true)}
+                >
+                  <FaMusic className="w-4 h-4 mr-2" />
+                  楽曲を追加
+                </button>
+              </div>
+              
+              {selectedSongs.length === 0 ? (
+                <div className="text-center py-4 text-gray-400">
+                  <FaMusic className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>楽曲が選択されていません</p>
+                  <p className="text-sm">「楽曲を追加」ボタンから楽曲を選択してください</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedSongs.map(songId => {
+                    const info = songInfo[songId];
+                    return (
+                      <div key={songId} className="flex items-center justify-between p-2 bg-slate-700/50 rounded">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-white truncate">
+                            {info ? info.title : `楽曲ID: ${songId}`}
+                          </div>
+                          {info?.artist && (
+                            <div className="text-sm text-gray-400 truncate">{info.artist}</div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-error ml-2"
+                          onClick={() => handleFormSongRemove(songId)}
+                        >
+                          <FaTrash className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           
           <button className="btn btn-primary w-full md:w-auto" type="submit">
             <FaPlus className="w-4 h-4 mr-2" />
@@ -371,6 +479,22 @@ const MissionManager: React.FC = () => {
           onClose={() => setShowSongSelector(false)}
           excludeSongIds={selectedMission.songs.map(s => s.song_id)}
         />
+      )}
+
+      {/* フォーム用楽曲選択モーダル */}
+      {showFormSongSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="bg-slate-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">楽曲を選択</h3>
+              <button className="btn btn-sm btn-ghost" onClick={() => setShowFormSongSelector(false)}>✕</button>
+            </div>
+            <SongSelector
+              onSelect={handleFormSongSelect}
+              excludeSongIds={selectedSongs}
+            />
+          </div>
+        </div>
       )}
 
       {/* 楽曲条件編集モーダル */}
