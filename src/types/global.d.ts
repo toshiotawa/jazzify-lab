@@ -1,6 +1,16 @@
 declare global {
   interface Window {
-    Tone: any;
+    Tone: {
+      Context: any;
+      Sampler: any;
+      Frequency: any;
+      setContext: (context: any) => void;
+      loaded: () => Promise<void>;
+      start: () => Promise<void>;
+      context: {
+        state: string;
+      };
+    };
     webkitAudioContext?: typeof AudioContext;
   }
   

@@ -32,7 +32,14 @@ export const initializeAudioSystem = async (): Promise<void> => {
     
     // Tone.jsの存在確認
     if (typeof window === 'undefined' || !window.Tone) {
-      throw new Error('Tone.js is not available');
+      console.warn('⚠️ Tone.js not available, attempting to load...');
+      try {
+        const Tone = await import('tone');
+        (window as any).Tone = Tone;
+        console.log('✅ Tone.js loaded dynamically');
+      } catch (toneError) {
+        throw new Error('Tone.js is not available');
+      }
     }
 
     // 遅延最適化設定: "interactive" モード + lookAhead=0
