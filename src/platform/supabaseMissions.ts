@@ -5,7 +5,7 @@ export interface MissionSong {
   key_offset: number;
   min_speed: number;
   min_rank: string;
-  min_clear_count: number;
+  clears_required: number;
   notation_setting: string;
   songs?: { id: string; title: string; artist?: string };
 }
@@ -18,7 +18,7 @@ export interface Mission {
   description?: string | null;
   start_date: string;
   end_date: string;
-  min_clear_count?: number | null;
+  clears_required?: number | null;
   reward_multiplier: number;
   songs?: MissionSong[];
 }

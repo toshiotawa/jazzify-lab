@@ -19,7 +19,7 @@ export interface LessonRequirement {
   key_offset: number;
   min_speed: number;
   min_rank: string;
-  min_clear_count: number;
+  clears_required: number;
   notation_setting: string;
 }
 

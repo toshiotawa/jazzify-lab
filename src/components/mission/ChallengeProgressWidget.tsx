@@ -18,7 +18,7 @@ const ChallengeProgressWidget: React.FC = () => {
           <ul className="space-y-3">
             {monthly.map(ch => {
               const prog = progress[ch.id];
-              const max = ch.min_clear_count ?? ch.diary_count ?? 1;
+              const max = ch.clears_required ?? ch.diary_count ?? 1;
               const current = prog?.clear_count ?? 0;
               const ratio = Math.min(1, current / max);
               return (

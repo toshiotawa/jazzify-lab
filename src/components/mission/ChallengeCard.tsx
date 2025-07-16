@@ -11,7 +11,7 @@ interface Props {
 
 const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
   const { claim } = useMissionStore();
-  const total = mission.diary_count ?? mission.min_clear_count ?? 1;
+  const total = mission.diary_count ?? mission.clears_required ?? 1;
   const cleared = progress?.clear_count ?? 0;
   const completed = progress?.completed ?? false;
   const progressPercentage = Math.min((cleared / total) * 100, 100);

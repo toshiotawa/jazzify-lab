@@ -22,7 +22,7 @@ export interface ChallengeSong {
   key_offset: number;
   min_speed: number;
   min_rank: string;
-  min_clear_count: number;
+  clears_required: number;
   notation_setting: string;
   song?: {
     id: string;
@@ -113,7 +113,7 @@ export async function addSongToChallenge(challengeId: string, songId: string, co
   key_offset?: number;
   min_speed?: number;
   min_rank?: string;
-  min_clear_count?: number;
+  clears_required?: number;
   notation_setting?: string;
 }) {
   const supabase = getSupabaseClient();
@@ -123,7 +123,7 @@ export async function addSongToChallenge(challengeId: string, songId: string, co
     key_offset: conditions.key_offset ?? 0,
     min_speed: conditions.min_speed ?? 1.0,
     min_rank: conditions.min_rank ?? 'B',
-    min_clear_count: conditions.min_clear_count ?? 1,
+    clears_required: conditions.clears_required ?? 1,
     notation_setting: conditions.notation_setting ?? 'both',
   });
   if (error) throw error;
@@ -137,7 +137,7 @@ export async function updateChallengeSong(challengeId: string, songId: string, c
   key_offset?: number;
   min_speed?: number;
   min_rank?: string;
-  min_clear_count?: number;
+  clears_required?: number;
   notation_setting?: string;
 }) {
   const supabase = getSupabaseClient();

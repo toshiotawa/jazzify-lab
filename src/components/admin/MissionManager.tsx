@@ -37,7 +37,7 @@ interface SongConditions {
   key_offset: number;
   min_speed: number;
   min_rank: string;
-  min_clear_count: number;
+  min_clears_required: number;
   notation_setting: string;
 }
 
@@ -110,7 +110,7 @@ const MissionManager: React.FC = () => {
           key_offset: 0,
           min_speed: 1.0,
           min_rank: 'B',
-          min_clear_count: 1,
+          min_clears_required: 1,
           notation_setting: 'both',
         };
 
@@ -155,7 +155,7 @@ const MissionManager: React.FC = () => {
       key_offset: 0,
       min_speed: 1.0,
       min_rank: 'B',
-      min_clear_count: 1,
+      min_clears_required: 1,
       notation_setting: 'both',
     };
 
@@ -638,7 +638,7 @@ const SongItem: React.FC<{
             キー: {song.key_offset > 0 ? '+' : ''}{song.key_offset} | 
             速度: {song.min_speed}x | 
             ランク: {song.min_rank} | 
-            クリア回数: {song.min_clear_count}回
+            クリア回数: {song.clears_required}回
           </div>
         </div>
         <div className="flex gap-1 ml-2">
@@ -690,7 +690,7 @@ const SongConditionsModal: React.FC<{
     key_offset: song.key_offset,
     min_speed: song.min_speed,
     min_rank: song.min_rank,
-    min_clear_count: song.min_clear_count,
+    min_clears_required: song.clears_required,
     notation_setting: song.notation_setting,
   });
 
@@ -747,8 +747,8 @@ const SongConditionsModal: React.FC<{
             <input
               type="number"
               min="1"
-              value={conditions.min_clear_count}
-              onChange={(e) => setConditions({...conditions, min_clear_count: parseInt(e.target.value) || 1})}
+              value={conditions.min_clears_required}
+              onChange={(e) => setConditions({...conditions, min_clears_required: parseInt(e.target.value) || 1})}
               className="input input-bordered w-full text-white bg-slate-700 border-slate-600"
             />
           </label>
