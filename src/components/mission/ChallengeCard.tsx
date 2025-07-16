@@ -40,24 +40,6 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
   const completed = progress?.completed ?? false;
   const progressPercentage = totalSongs > 0 ? Math.min((completedSongs / totalSongs) * 100, 100) : 0;
   
-  // 曲進捗を取得
-  useEffect(() => {
-    console.log('ChallengeCard useEffect:', { 
-      missionId: mission.id, 
-      songsCount: mission.songs?.length || 0,
-      songs: mission.songs?.map(s => ({ id: s.song_id, title: s.songs?.title })),
-      missionData: mission
-    });
-    if (mission.songs && mission.songs.length > 0) {
-      console.log('曲進捗を取得中:', mission.id);
-      fetchSongProgress(mission.id);
-    }
-  }, [mission.id, mission.songs, fetchSongProgress]);
-  
-  const currentSongProgress = songProgress[mission.id] || [];
-  const allSongsCompleted = currentSongProgress.length > 0 && 
-    currentSongProgress.every(song => song.is_completed);
-  
   console.log('ChallengeCard render:', { 
     missionId: mission.id, 
     currentSongProgressLength: currentSongProgress.length,
