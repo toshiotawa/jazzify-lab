@@ -21,8 +21,6 @@ import { fetchUserMissionProgress } from '@/platform/supabaseMissions';
 import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy } from 'react-icons/fa';
 
 interface FormValues {
-  season_year: number;
-  season_number: number;
   type: ChallengeType;
   category: ChallengeCategory;
   title: string;
@@ -51,8 +49,6 @@ const MissionManager: React.FC = () => {
   const [progressMap, setProgressMap] = useState<Record<string, {clear_count:number; completed:boolean}>>({});
   const { register, handleSubmit, reset, watch } = useForm<FormValues>({
     defaultValues: {
-      season_year: new Date().getFullYear(),
-      season_number: 1,
       type: 'weekly',
       category: 'song_clear',
       start_date: new Date().toISOString().substring(0, 10),
@@ -91,8 +87,6 @@ const MissionManager: React.FC = () => {
     try {
       // カテゴリに応じて適切なフィールドを設定
       const payload = {
-        season_year: v.season_year,
-        season_number: v.season_number,
         type: v.type,
         category: v.category,
         title: v.title,
@@ -229,10 +223,7 @@ const MissionManager: React.FC = () => {
             placeholder="ミッションタイトル" 
             {...register('title', { required: true })} 
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input className="input input-bordered text-white" type="number" placeholder="シーズン年" {...register('season_year', { valueAsNumber: true, required: true })} />
-            <input className="input input-bordered text-white" type="number" placeholder="シーズン番号" {...register('season_number', { valueAsNumber: true, required: true })} />
-          </div>
+
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block">
