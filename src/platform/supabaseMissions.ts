@@ -36,6 +36,11 @@ export interface MissionSongProgress {
   required_count: number;
   is_completed: boolean;
   song?: { id: string; title: string; artist?: string };
+  // クリア条件
+  min_rank?: string;
+  min_speed?: number;
+  key_offset?: number;
+  notation_setting?: string;
 }
 
 // JSTで今日の日付(yyyy-mm-dd)を取得
@@ -144,7 +149,12 @@ export async function fetchMissionSongProgress(missionId: string): Promise<Missi
         clear_count: clearCount,
         required_count: requiredCount,
         is_completed: clearCount >= requiredCount,
-        song: song.songs
+        song: song.songs,
+        // クリア条件を追加
+        min_rank: song.min_rank,
+        min_speed: song.min_speed,
+        key_offset: song.key_offset,
+        notation_setting: song.notation_setting
       };
     })
   );

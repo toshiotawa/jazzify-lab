@@ -14,10 +14,31 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
   const { claim, fetchSongProgress, songProgress } = useMissionStore();
   const [showSongProgress, setShowSongProgress] = useState(false);
   
-  const total = mission.diary_count ?? mission.clears_required ?? 1;
-  const cleared = progress?.clear_count ?? 0;
+  // 曲進捗を取得
+  useEffect(() => {
+    console.log('ChallengeCard useEffect:', { 
+      missionId: mission.id, 
+      songsCount: mission.songs?.length || 0,
+      songs: mission.songs?.map(s => ({ id: s.song_id, title: s.songs?.title })),
+      missionData: mission
+    });
+    if (mission.songs && mission.songs.length > 0) {
+      console.log('曲進捗を取得中:', mission.id);
+      fetchSongProgress(mission.id);
+    }
+  }, [mission.id, mission.songs, fetchSongProgress]);
+  
+  const currentSongProgress = songProgress[mission.id] || [];
+  const allSongsCompleted = currentSongProgress.length > 0 && 
+    currentSongProgress.every(song => song.is_completed);
+  
+  // ミッション全体の進捗を曲数ベースで計算
+  const totalSongs = mission.songs?.length || 0;
+  const completedSongs = currentSongProgress.filter(song => song.is_completed).length;
+  const total = totalSongs;
+  const cleared = completedSongs;
   const completed = progress?.completed ?? false;
-  const progressPercentage = Math.min((cleared / total) * 100, 100);
+  const progressPercentage = totalSongs > 0 ? Math.min((completedSongs / totalSongs) * 100, 100) : 0;
   
   // 曲進捗を取得
   useEffect(() => {
@@ -157,7 +178,7 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
             "text-xs font-bold",
             completed ? "text-emerald-400" : "text-gray-300"
           )}>
-            {cleared}/{total} 回
+            {cleared}/{total} 曲
           </span>
         </div>
         

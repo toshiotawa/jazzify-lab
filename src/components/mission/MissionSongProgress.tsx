@@ -74,6 +74,12 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
                   {song.song?.artist && (
                     <div className="text-sm text-gray-400">{song.song.artist}</div>
                   )}
+                  {/* クリア条件の表示 */}
+                  <div className="text-xs text-gray-500 mt-1">
+                    クリア条件: ランク{song.min_rank || 'B'}以上 / {song.required_count || 1}回クリア
+                    {song.min_speed && song.min_speed !== 1.0 && ` / 速度${song.min_speed}倍以上`}
+                    {song.key_offset && song.key_offset !== 0 && ` / キー${song.key_offset > 0 ? '+' : ''}${song.key_offset}`}
+                  </div>
                 </div>
               </div>
               
