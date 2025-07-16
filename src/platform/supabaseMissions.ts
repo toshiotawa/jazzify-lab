@@ -29,10 +29,17 @@ export interface UserMissionProgress {
   completed: boolean;
 }
 
+// JSTで今日の日付(yyyy-mm-dd)を取得
+function getTodayJSTString(): string {
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().substring(0, 10);
+}
+
 export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
-  const today = new Date().toISOString().substring(0,10);
+  const today = getTodayJSTString();
   const key = `missions:monthly:${today}`;
-  console.log('fetchActiveMonthlyMissions: 今日の日付:', today);
+  console.log('fetchActiveMonthlyMissions: JST今日の日付:', today);
   const { data, error } = await fetchWithCache(key, async () => {
     console.log('fetchActiveMonthlyMissions: データベースクエリ実行');
     return await getSupabaseClient()
