@@ -22,6 +22,8 @@ const DiaryFeed: React.FC = () => {
   const [editingId, setEditingId] = useState<string|null>(null);
   const [editText, setEditText] = useState<string>('');
   const toast = useToast();
+  // Initialize realtime channels when the feed mounts
+  useEffect(() => { useDiaryStore.getState().initRealtime(); }, []);
   useEffect(() => { void fetchAll(); }, []);
   useEffect(() => {
     diaries.forEach(d => {

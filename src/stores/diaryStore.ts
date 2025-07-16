@@ -133,5 +133,6 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
   }))
 );
 
-// 自動でリアルタイム初期化
-useDiaryStore.getState().initRealtime(); 
+// NOTE: Realtime initialization is now triggered from the UI to avoid
+// creating multiple channels inadvertently during hot reloads or when the
+// store is imported in different contexts.
