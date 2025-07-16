@@ -51,6 +51,8 @@ const MissionManager: React.FC = () => {
   const [selectedSongs, setSelectedSongs] = useState<string[]>([]);
   const [showFormSongSelector, setShowFormSongSelector] = useState(false);
   const [songInfo, setSongInfo] = useState<Record<string, { title: string; artist?: string }>>({});
+  const [songConditions, setSongConditions] = useState<Record<string, SongConditions>>({});
+  const [editingFormSong, setEditingFormSong] = useState<string | null>(null);
   const { register, handleSubmit, reset, watch } = useForm<FormValues>({
     defaultValues: {
       type: 'weekly',
@@ -106,16 +108,15 @@ const MissionManager: React.FC = () => {
       
       // 曲クリアタイプで楽曲が選択されている場合、楽曲を追加
       if (v.category === 'song_clear' && selectedSongs.length > 0) {
-        const defaultConditions: SongConditions = {
-          key_offset: 0,
-          min_speed: 1.0,
-          min_rank: 'B',
-          min_clears_required: 1,
-          notation_setting: 'both',
-        };
-
         for (const songId of selectedSongs) {
-          await addSongToChallenge(newChallengeId, songId, defaultConditions);
+          const conditions = songConditions[songId] || {
+            key_offset: 0,
+            min_speed: 1.0,
+            min_rank: 'B',
+            min_clears_required: 1,
+            notation_setting: 'both',
+          };
+          await addSongToChallenge(newChallengeId, songId, conditions);
         }
         
         toast.success(`ミッションを追加し、${selectedSongs.length}曲を追加しました`, {
@@ -131,6 +132,7 @@ const MissionManager: React.FC = () => {
       
       reset();
       setSelectedSongs([]);
+      setSongConditions({});
       await load();
     } catch (e) {
       toast.error(handleApiError(e, 'ミッション追加'), {
@@ -176,6 +178,17 @@ const MissionManager: React.FC = () => {
       setSelectedSongs([...selectedSongs, songId]);
       // 楽曲情報を取得して保存
       fetchSongInfo(songId);
+      // デフォルト条件を設定
+      setSongConditions(prev => ({
+        ...prev,
+        [songId]: {
+          key_offset: 0,
+          min_speed: 1.0,
+          min_rank: 'B',
+          min_clears_required: 1,
+          notation_setting: 'both',
+        }
+      }));
     }
   };
 
@@ -200,6 +213,11 @@ const MissionManager: React.FC = () => {
       const newInfo = { ...prev };
       delete newInfo[songId];
       return newInfo;
+    });
+    setSongConditions(prev => {
+      const newConditions = { ...prev };
+      delete newConditions[songId];
+      return newConditions;
     });
   };
 
@@ -352,6 +370,7 @@ const MissionManager: React.FC = () => {
                 <div className="space-y-2">
                   {selectedSongs.map(songId => {
                     const info = songInfo[songId];
+                    const conditions = songConditions[songId];
                     return (
                       <div key={songId} className="flex items-center justify-between p-2 bg-slate-700/50 rounded">
                         <div className="flex-1 min-w-0">
@@ -361,14 +380,32 @@ const MissionManager: React.FC = () => {
                           {info?.artist && (
                             <div className="text-sm text-gray-400 truncate">{info.artist}</div>
                           )}
+                          {conditions && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              キー: {conditions.key_offset > 0 ? '+' : ''}{conditions.key_offset} | 
+                              速度: {conditions.min_speed}x | 
+                              ランク: {conditions.min_rank} | 
+                              クリア回数: {conditions.min_clears_required}回 | 
+                              楽譜: {conditions.notation_setting === 'both' ? 'ノート+コード' : 'コードのみ'}
+                            </div>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          className="btn btn-xs btn-error ml-2"
-                          onClick={() => handleFormSongRemove(songId)}
-                        >
-                          <FaTrash className="w-3 h-3" />
-                        </button>
+                        <div className="flex gap-1 ml-2">
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-primary"
+                            onClick={() => setEditingFormSong(songId)}
+                          >
+                            <FaEdit className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-error"
+                            onClick={() => handleFormSongRemove(songId)}
+                          >
+                            <FaTrash className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -503,6 +540,23 @@ const MissionManager: React.FC = () => {
           song={editingSong}
           onSave={handleSongUpdate}
           onCancel={() => setEditingSong(null)}
+        />
+      )}
+
+      {/* フォーム用楽曲条件編集モーダル */}
+      {editingFormSong && (
+        <FormSongConditionsModal
+          songId={editingFormSong}
+          songInfo={songInfo[editingFormSong]}
+          conditions={songConditions[editingFormSong]}
+          onSave={(songId, conditions) => {
+            setSongConditions(prev => ({
+              ...prev,
+              [songId]: conditions
+            }));
+            setEditingFormSong(null);
+          }}
+          onCancel={() => setEditingFormSong(null)}
         />
       )}
     </div>
@@ -758,6 +812,108 @@ const SongConditionsModal: React.FC<{
             <select
               value={conditions.notation_setting}
               onChange={(e) => setConditions({...conditions, notation_setting: e.target.value})}
+              className="select select-bordered w-full text-white bg-slate-700 border-slate-600"
+            >
+              <option value="both">ノート+コード</option>
+              <option value="chords">コードのみ</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="flex gap-2 mt-6">
+          <button className="btn btn-primary flex-1" onClick={handleSave}>
+            保存
+          </button>
+          <button className="btn btn-outline flex-1" onClick={onCancel}>
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const FormSongConditionsModal: React.FC<{
+  songId: string;
+  songInfo?: { title: string; artist?: string };
+  conditions?: SongConditions;
+  onSave: (songId: string, conditions: SongConditions) => void;
+  onCancel: () => void;
+}> = ({ songId, songInfo, conditions, onSave, onCancel }) => {
+  const [formConditions, setFormConditions] = useState<SongConditions>(
+    conditions || {
+      key_offset: 0,
+      min_speed: 1.0,
+      min_rank: 'B',
+      min_clears_required: 1,
+      notation_setting: 'both',
+    }
+  );
+
+  const handleSave = () => {
+    onSave(songId, formConditions);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="bg-slate-800 rounded-lg p-6 w-full max-w-md">
+        <h3 className="text-lg font-bold mb-4">
+          楽曲条件編集: {songInfo?.title || `楽曲ID: ${songId}`}
+        </h3>
+        
+        <div className="space-y-4">
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">キーオフセット</span>
+            <input
+              type="number"
+              value={formConditions.key_offset}
+              onChange={(e) => setFormConditions({...formConditions, key_offset: parseInt(e.target.value) || 0})}
+              className="input input-bordered w-full text-white bg-slate-700 border-slate-600"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">最小速度</span>
+            <input
+              type="number"
+              step="0.1"
+              min="0.1"
+              value={formConditions.min_speed}
+              onChange={(e) => setFormConditions({...formConditions, min_speed: parseFloat(e.target.value) || 1.0})}
+              className="input input-bordered w-full text-white bg-slate-700 border-slate-600"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">最小ランク</span>
+            <select
+              value={formConditions.min_rank}
+              onChange={(e) => setFormConditions({...formConditions, min_rank: e.target.value})}
+              className="select select-bordered w-full text-white bg-slate-700 border-slate-600"
+            >
+              <option value="C">C</option>
+              <option value="B">B</option>
+              <option value="A">A</option>
+              <option value="S">S</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">クリア回数</span>
+            <input
+              type="number"
+              min="1"
+              value={formConditions.min_clears_required}
+              onChange={(e) => setFormConditions({...formConditions, min_clears_required: parseInt(e.target.value) || 1})}
+              className="input input-bordered w-full text-white bg-slate-700 border-slate-600"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">楽譜表示</span>
+            <select
+              value={formConditions.notation_setting}
+              onChange={(e) => setFormConditions({...formConditions, notation_setting: e.target.value})}
               className="select select-bordered w-full text-white bg-slate-700 border-slate-600"
             >
               <option value="both">ノート+コード</option>
