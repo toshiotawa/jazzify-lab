@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import SongManager from './SongManager';
 import { CourseManager } from './CourseManager';
 import { LessonManager } from './LessonManager';
-import ChallengeManager from './ChallengeManager';
+import MissionManager from './MissionManager';
 import UserManager from './UserManager';
 import AnnouncementManager from './AnnouncementManager';
 
@@ -133,7 +133,7 @@ const DashboardContent: React.FC = () => {
   if (currentHash.startsWith('#admin-songs')) return <SongManager />;
   if (currentHash.startsWith('#admin-courses')) return <CourseManager />;
   if (currentHash.startsWith('#admin-lessons')) return <LessonManager />;
-  if (currentHash.startsWith('#admin-challenges')) return <ChallengeManager />;
+  if (currentHash.startsWith('#admin-challenges')) return <MissionManager />;
   if (currentHash.startsWith('#admin-users')) return <UserManager />;
   if (currentHash.startsWith('#admin-announcements')) return <AnnouncementManager />;
   return (
