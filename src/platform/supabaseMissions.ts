@@ -35,7 +35,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
   const { data, error } = await fetchWithCache(key, async () =>
     await getSupabaseClient()
       .from('challenges')
-      .select('*, challenge_songs(*, songs(id,title,artist))')
+      .select('*, challenge_tracks(*, songs(id,title,artist))')
       .eq('type','monthly')
       .lte('start_date', today)
       .gte('end_date', today),
@@ -47,7 +47,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
 
 export async function fetchMissionSongs(missionId: string): Promise<MissionSong[]> {
   const { data, error } = await getSupabaseClient()
-    .from('challenge_songs')
+    .from('challenge_tracks')
     .select('*, songs(id,title,artist)')
     .eq('challenge_id', missionId);
   if (error) throw error;

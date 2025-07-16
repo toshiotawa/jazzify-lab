@@ -110,7 +110,7 @@ create table public.challenges (
   song_clear_count integer
 );
 
-create table public.challenge_songs (
+create table public.challenge_tracks (
   challenge_id uuid references public.challenges(id) on delete cascade,
   song_id uuid references public.songs(id) on delete cascade,
   key_offset integer default 0,
@@ -226,13 +226,13 @@ create policy "challenges_admin_modify" on public.challenges
   using ( (select is_admin from public.profiles where id = auth.uid()) )
   with check ( (select is_admin from public.profiles where id = auth.uid()) );
 
--- challenge_songs: 全ユーザー読み取り可、admin のみ書き込み可
-alter table public.challenge_songs enable row level security;
+-- challenge_tracks: 全ユーザー読み取り可、admin のみ書き込み可
+alter table public.challenge_tracks enable row level security;
 
-create policy "challenge_songs_read_all" on public.challenge_songs
+create policy "challenge_tracks_read_all" on public.challenge_tracks
   for select using ( true );
 
-create policy "challenge_songs_admin_modify" on public.challenge_songs
+create policy "challenge_tracks_admin_modify" on public.challenge_tracks
   for all
   using ( (select is_admin from public.profiles where id = auth.uid()) )
   with check ( (select is_admin from public.profiles where id = auth.uid()) );

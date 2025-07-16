@@ -63,7 +63,7 @@ export async function getChallengeWithSongs(challengeId: string): Promise<Challe
     .from('challenges')
     .select(`
       *,
-      challenge_songs(
+      challenge_tracks(
         *,
         songs(id, title, artist)
       )
@@ -117,7 +117,7 @@ export async function addSongToChallenge(challengeId: string, songId: string, co
   notation_setting?: string;
 }) {
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from('challenge_songs').insert({
+  const { error } = await supabase.from('challenge_tracks').insert({
     challenge_id: challengeId,
     song_id: songId,
     key_offset: conditions.key_offset ?? 0,
@@ -142,7 +142,7 @@ export async function updateChallengeSong(challengeId: string, songId: string, c
 }) {
   const supabase = getSupabaseClient();
   const { error } = await supabase
-    .from('challenge_songs')
+    .from('challenge_tracks')
     .update(conditions)
     .eq('challenge_id', challengeId)
     .eq('song_id', songId);
@@ -156,7 +156,7 @@ export async function updateChallengeSong(challengeId: string, songId: string, c
 export async function removeSongFromChallenge(challengeId: string, songId: string) {
   const supabase = getSupabaseClient();
   const { error } = await supabase
-    .from('challenge_songs')
+    .from('challenge_tracks')
     .delete()
     .eq('challenge_id', challengeId)
     .eq('song_id', songId);
@@ -170,7 +170,7 @@ export async function removeSongFromChallenge(challengeId: string, songId: strin
 export async function getChallengeSongs(challengeId: string): Promise<ChallengeSong[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('challenge_songs')
+    .from('challenge_tracks')
     .select(`
       *,
       songs(id, title, artist)
