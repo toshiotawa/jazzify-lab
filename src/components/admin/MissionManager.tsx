@@ -57,7 +57,7 @@ const MissionManager: React.FC = () => {
     defaultValues: {
       type: 'monthly',
       category: 'song_clear',
-      start_date: new Date().toISOString().substring(0, 10),
+      start_date: new Date().toISOString().substring(0, 10), // 今日の日付
       end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10), // 30日後
       reward_multiplier: 1.3,
     },
@@ -68,7 +68,8 @@ const MissionManager: React.FC = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await listChallenges();
+      // アクティブなミッションのみを取得（ユーザー側と同じ条件）
+      const data = await listChallenges({ activeOnly: true });
       setMissions(data);
       try {
         const progress = await fetchUserMissionProgress();
@@ -96,6 +97,8 @@ const MissionManager: React.FC = () => {
       const endDate = new Date(v.end_date);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+
+      console.log('ミッション追加: 開始日:', v.start_date, '終了日:', v.end_date, '今日:', today.toISOString().substring(0,10));
 
       if (endDate <= startDate) {
         toast.error('終了日は開始日より後の日付を設定してください');
@@ -149,6 +152,8 @@ const MissionManager: React.FC = () => {
       reset();
       setSelectedSongs([]);
       setSongConditions({});
+      
+      // キャッシュをクリアして最新データを取得
       await load();
     } catch (e) {
       toast.error(handleApiError(e, 'ミッション追加'), {

@@ -43,14 +43,18 @@ export async function listChallenges(opts?: {
   const today = new Date().toISOString().substring(0, 10);
   const cacheKey = `challenges:${opts?.type ?? 'all'}:${opts?.activeOnly ?? false}`;
 
+  console.log('listChallenges: オプション:', opts, '今日の日付:', today);
+
   const { data, error } = await fetchWithCache(cacheKey, async () => {
     let query = supabase.from('challenges').select('*');
     if (opts?.type) query = query.eq('type', opts.type);
     if (opts?.activeOnly) query = query.lte('start_date', today).gte('end_date', today);
+    console.log('listChallenges: クエリ実行, activeOnly:', opts?.activeOnly);
     return await query.order('start_date', { ascending: false });
   }, 1000 * 30);
 
   if (error) throw error;
+  console.log('listChallenges: 取得したチャレンジ数:', data?.length || 0);
   return data as Challenge[];
 }
 

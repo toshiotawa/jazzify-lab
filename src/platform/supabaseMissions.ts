@@ -32,16 +32,18 @@ export interface UserMissionProgress {
 export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
   const today = new Date().toISOString().substring(0,10);
   const key = `missions:monthly:${today}`;
-  const { data, error } = await fetchWithCache(key, async () =>
-    await getSupabaseClient()
+  console.log('fetchActiveMonthlyMissions: 今日の日付:', today);
+  const { data, error } = await fetchWithCache(key, async () => {
+    console.log('fetchActiveMonthlyMissions: データベースクエリ実行');
+    return await getSupabaseClient()
       .from('challenges')
       .select('*, challenge_tracks(*, songs(id,title,artist))')
       .eq('type','monthly')
-      .lte('start_date', today)
-      .gte('end_date', today),
-    1000*30,
-  );
+      .lte('start_date', today)  // 開始日が今日以前（今日を含む）
+      .gte('end_date', today);   // 終了日が今日以降（今日を含む）
+  }, 1000*30);
   if (error) throw error;
+  console.log('fetchActiveMonthlyMissions: 取得したミッション数:', data?.length || 0);
   return data as Mission[];
 }
 
