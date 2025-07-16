@@ -13,6 +13,21 @@ export interface Challenge {
   diary_count?: number | null; // optional – for future use
 }
 
+export interface ChallengeSong {
+  challenge_id: string;
+  song_id: string;
+  key_offset: number;
+  min_speed: number;
+  min_rank: string;
+  min_clear_count: number;
+  notation_setting: string;
+  song?: {
+    id: string;
+    title: string;
+    artist?: string;
+  };
+}
+
 /**
  * List challenges
  * @param opts optional filters { type, activeOnly }
@@ -34,6 +49,27 @@ export async function listChallenges(opts?: {
 
   if (error) throw error;
   return data as Challenge[];
+}
+
+/**
+ * Get challenge with songs
+ */
+export async function getChallengeWithSongs(challengeId: string): Promise<Challenge & { songs: ChallengeSong[] }> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('challenges')
+    .select(`
+      *,
+      challenge_songs(
+        *,
+        songs(id, title, artist)
+      )
+    `)
+    .eq('id', challengeId)
+    .single();
+  
+  if (error) throw error;
+  return data as Challenge & { songs: ChallengeSong[] };
 }
 
 /**
@@ -65,6 +101,81 @@ export async function deleteChallenge(id: string) {
   const { error } = await supabase.from('challenges').delete().eq('id', id);
   if (error) throw error;
   clearSupabaseCache();
+}
+
+/**
+ * Add song to challenge (admin only)
+ */
+export async function addSongToChallenge(challengeId: string, songId: string, conditions: {
+  key_offset?: number;
+  min_speed?: number;
+  min_rank?: string;
+  min_clear_count?: number;
+  notation_setting?: string;
+}) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('challenge_songs').insert({
+    challenge_id: challengeId,
+    song_id: songId,
+    key_offset: conditions.key_offset ?? 0,
+    min_speed: conditions.min_speed ?? 1.0,
+    min_rank: conditions.min_rank ?? 'B',
+    min_clear_count: conditions.min_clear_count ?? 1,
+    notation_setting: conditions.notation_setting ?? 'both',
+  });
+  if (error) throw error;
+  clearSupabaseCache();
+}
+
+/**
+ * Update challenge song conditions (admin only)
+ */
+export async function updateChallengeSong(challengeId: string, songId: string, conditions: {
+  key_offset?: number;
+  min_speed?: number;
+  min_rank?: string;
+  min_clear_count?: number;
+  notation_setting?: string;
+}) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('challenge_songs')
+    .update(conditions)
+    .eq('challenge_id', challengeId)
+    .eq('song_id', songId);
+  if (error) throw error;
+  clearSupabaseCache();
+}
+
+/**
+ * Remove song from challenge (admin only)
+ */
+export async function removeSongFromChallenge(challengeId: string, songId: string) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('challenge_songs')
+    .delete()
+    .eq('challenge_id', challengeId)
+    .eq('song_id', songId);
+  if (error) throw error;
+  clearSupabaseCache();
+}
+
+/**
+ * Get all songs for challenge
+ */
+export async function getChallengeSongs(challengeId: string): Promise<ChallengeSong[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('challenge_songs')
+    .select(`
+      *,
+      songs(id, title, artist)
+    `)
+    .eq('challenge_id', challengeId);
+  
+  if (error) throw error;
+  return data as ChallengeSong[];
 }
 
 /**
