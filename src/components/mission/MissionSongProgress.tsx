@@ -15,13 +15,16 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
   const { loadSong } = useGameStore();
 
   useEffect(() => {
+    console.log('MissionSongProgress useEffect:', { missionId, songProgressLength: songProgress.length });
     if (songProgress.length === 0) {
+      console.log('曲進捗を取得中:', missionId);
       fetchSongProgress(missionId);
     }
   }, [missionId, songProgress.length, fetchSongProgress]);
 
   const handlePlaySong = async (songId: string) => {
     try {
+      console.log('ミッション曲をプレイ:', { songId, missionId });
       // 曲をロードしてゲーム画面に移動
       window.location.href = `/main#play-mission?song=${songId}&mission=${missionId}`;
     } catch (error) {
@@ -30,6 +33,13 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
   };
 
   const allSongsCompleted = songProgress.length > 0 && songProgress.every(song => song.is_completed);
+  
+  console.log('MissionSongProgress render:', { 
+    missionId, 
+    songProgressLength: songProgress.length, 
+    allSongsCompleted,
+    songProgress: songProgress.map(s => ({ id: s.song_id, title: s.song?.title, completed: s.is_completed }))
+  });
 
   return (
     <div className="space-y-4">
