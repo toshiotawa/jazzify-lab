@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import {
   Challenge,
   ChallengeType,
+  ChallengeCategory,
   ChallengeSong,
   listChallenges,
   createChallenge,
@@ -16,16 +17,18 @@ import {
 } from '@/platform/supabaseChallenges';
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import SongSelector from './SongSelector';
-import { FaMusic, FaTrash, FaEdit, FaPlus } from 'react-icons/fa';
+import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy } from 'react-icons/fa';
 
 interface FormValues {
   type: ChallengeType;
+  category: ChallengeCategory;
   title: string;
   description?: string;
   start_date: string;
   end_date: string;
   reward_multiplier: number;
   diary_count?: number;
+  song_clear_count?: number;
 }
 
 interface SongConditions {
@@ -42,15 +45,17 @@ const ChallengeManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showSongSelector, setShowSongSelector] = useState(false);
   const [editingSong, setEditingSong] = useState<ChallengeSong | null>(null);
-  const { register, handleSubmit, reset } = useForm<FormValues>({
+  const { register, handleSubmit, reset, watch } = useForm<FormValues>({
     defaultValues: {
       type: 'weekly',
+      category: 'song_clear',
       start_date: new Date().toISOString().substring(0, 10),
       end_date: new Date().toISOString().substring(0, 10),
       reward_multiplier: 1.3,
     },
   });
   const toast = useToast();
+  const watchedCategory = watch('category');
 
   const load = async () => {
     setLoading(true);
@@ -70,7 +75,20 @@ const ChallengeManager: React.FC = () => {
 
   const onSubmit = async (v: FormValues) => {
     try {
-      await createChallenge({ ...v });
+      // カテゴリに応じて適切なフィールドを設定
+      const payload = {
+        type: v.type,
+        category: v.category,
+        title: v.title,
+        description: v.description,
+        start_date: v.start_date,
+        end_date: v.end_date,
+        reward_multiplier: v.reward_multiplier,
+        diary_count: v.category === 'diary' ? v.diary_count : null,
+        song_clear_count: v.category === 'song_clear' ? v.song_clear_count : null,
+      };
+      
+      await createChallenge(payload);
       toast.success('チャレンジを追加しました', {
         title: '追加完了',
         duration: 3000,
@@ -151,41 +169,119 @@ const ChallengeManager: React.FC = () => {
     }
   };
 
+  const getCategoryIcon = (category: ChallengeCategory) => {
+    return category === 'diary' ? <FaBook className="w-4 h-4" /> : <FaPlay className="w-4 h-4" />;
+  };
+
+  const getCategoryLabel = (category: ChallengeCategory) => {
+    return category === 'diary' ? '日記投稿' : '曲クリア';
+  };
+
+  const getTypeLabel = (type: ChallengeType) => {
+    return type === 'weekly' ? 'ウィークリー' : 'マンスリー';
+  };
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-xl font-bold mb-4">チャレンジ追加</h3>
+    <div className="space-y-8">
+      {/* チャレンジ追加セクション */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h3 className="text-xl font-bold mb-6 flex items-center">
+          <FaPlus className="w-5 h-5 mr-2" />
+          チャレンジ追加
+        </h3>
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-          <label className="block">
-            <span className="text-sm font-medium mb-1 block">チャレンジタイプ</span>
-            <select className="select select-bordered text-white" {...register('type')}>
-              <option value="weekly">ウィークリー</option>
-              <option value="monthly">マンスリー</option>
-            </select>
-          </label>
-          <input className="input input-bordered text-white" placeholder="タイトル" {...register('title', { required: true })} />
-          <label className="block">
-            <span className="text-sm font-medium mb-1 block">開始日</span>
-            <input className="input input-bordered text-white" type="date" {...register('start_date', { required: true })} />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium mb-1 block">終了日</span>
-            <input className="input input-bordered text-white" type="date" {...register('end_date', { required: true })} />
-          </label>
-          <input className="input input-bordered text-white" type="number" step="0.1" placeholder="報酬倍率(例 1.3)" {...register('reward_multiplier', { valueAsNumber: true, required: true })} />
-          <input className="input input-bordered text-white" type="number" placeholder="日記投稿回数" {...register('diary_count')} />
-          <textarea className="textarea textarea-bordered sm:col-span-2 text-white" rows={2} placeholder="説明" {...register('description')} />
-          <button className="btn btn-primary sm:col-span-2" type="submit">追加</button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className="block">
+              <span className="text-sm font-medium mb-1 block">チャレンジタイプ</span>
+              <select className="select select-bordered w-full text-white" {...register('type')}>
+                <option value="weekly">ウィークリー</option>
+                <option value="monthly">マンスリー</option>
+              </select>
+            </label>
+            
+            <label className="block">
+              <span className="text-sm font-medium mb-1 block">チャレンジカテゴリ</span>
+              <select className="select select-bordered w-full text-white" {...register('category')}>
+                <option value="song_clear">曲クリア</option>
+                <option value="diary">日記投稿</option>
+              </select>
+            </label>
+          </div>
+
+          <input 
+            className="input input-bordered w-full text-white" 
+            placeholder="チャレンジタイトル" 
+            {...register('title', { required: true })} 
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className="block">
+              <span className="text-sm font-medium mb-1 block">開始日</span>
+              <input className="input input-bordered w-full text-white" type="date" {...register('start_date', { required: true })} />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium mb-1 block">終了日</span>
+              <input className="input input-bordered w-full text-white" type="date" {...register('end_date', { required: true })} />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input 
+              className="input input-bordered text-white" 
+              type="number" 
+              step="0.1" 
+              placeholder="報酬倍率(例 1.3)" 
+              {...register('reward_multiplier', { valueAsNumber: true, required: true })} 
+            />
+            
+            {watchedCategory === 'diary' ? (
+              <input 
+                className="input input-bordered text-white" 
+                type="number" 
+                placeholder="必要日記投稿数" 
+                {...register('diary_count', { valueAsNumber: true, required: true })} 
+              />
+            ) : (
+              <input 
+                className="input input-bordered text-white" 
+                type="number" 
+                placeholder="必要曲クリア数" 
+                {...register('song_clear_count', { valueAsNumber: true, required: true })} 
+              />
+            )}
+          </div>
+
+          <textarea 
+            className="textarea textarea-bordered w-full text-white" 
+            rows={3} 
+            placeholder="チャレンジの説明" 
+            {...register('description')} 
+          />
+          
+          <button className="btn btn-primary w-full md:w-auto" type="submit">
+            <FaPlus className="w-4 h-4 mr-2" />
+            チャレンジを追加
+          </button>
         </form>
       </div>
 
-      <div>
-        <h3 className="text-xl font-bold mb-4">チャレンジ一覧</h3>
-        {loading ? <p className="text-gray-400">Loading...</p> : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* チャレンジ一覧セクション */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h3 className="text-xl font-bold mb-6 flex items-center">
+          <FaTrophy className="w-5 h-5 mr-2" />
+          チャレンジ一覧
+        </h3>
+        
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <span className="loading loading-spinner loading-lg"></span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* チャレンジ選択 */}
             <div>
-              <h4 className="font-medium mb-2">チャレンジ選択</h4>
-              <ul className="space-y-2">
+              <h4 className="font-medium mb-4 text-lg">チャレンジ選択</h4>
+              <div className="space-y-3">
                 {challenges.map(c => (
                   <ChallengeItem 
                     key={c.id} 
@@ -195,26 +291,51 @@ const ChallengeManager: React.FC = () => {
                     isSelected={selectedChallenge?.id === c.id}
                   />
                 ))}
-              </ul>
+              </div>
             </div>
 
+            {/* 楽曲管理 */}
             {selectedChallenge && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-medium">楽曲管理: {selectedChallenge.title}</h4>
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={() => setShowSongSelector(true)}
-                  >
-                    <FaPlus className="w-3 h-3 mr-1" />
-                    楽曲追加
-                  </button>
+                  <div>
+                    <h4 className="font-medium text-lg">楽曲管理</h4>
+                    <p className="text-sm text-gray-400">
+                      {selectedChallenge.title} ({getCategoryLabel(selectedChallenge.category)})
+                    </p>
+                  </div>
+                  {selectedChallenge.category === 'song_clear' && (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => setShowSongSelector(true)}
+                    >
+                      <FaMusic className="w-4 h-4 mr-2" />
+                      楽曲追加
+                    </button>
+                  )}
                 </div>
 
-                {selectedChallenge.songs.length === 0 ? (
-                  <p className="text-gray-400 text-center py-8">楽曲が追加されていません</p>
+                {selectedChallenge.category === 'diary' ? (
+                  <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+                    <div className="flex items-center mb-2">
+                      <FaBook className="w-4 h-4 mr-2 text-blue-400" />
+                      <span className="font-medium">日記投稿チャレンジ</span>
+                    </div>
+                    <p className="text-sm text-gray-300">
+                      必要投稿数: {selectedChallenge.diary_count || 0}回
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      楽曲の追加は不要です。日記投稿数で判定されます。
+                    </p>
+                  </div>
+                ) : selectedChallenge.songs.length === 0 ? (
+                  <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-6 text-center">
+                    <FaMusic className="w-6 h-6 mx-auto mb-2 text-yellow-400" />
+                    <p className="text-gray-300 mb-2">楽曲が追加されていません</p>
+                    <p className="text-sm text-gray-400">「楽曲追加」ボタンから楽曲を追加してください</p>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {selectedChallenge.songs.map(song => (
                       <SongItem
                         key={song.song_id}
@@ -262,6 +383,18 @@ const ChallengeItem: React.FC<{
   const { register, handleSubmit } = useForm<Partial<Challenge>>({ defaultValues: challenge });
   const toast = useToast();
 
+  const getCategoryIcon = (category: ChallengeCategory) => {
+    return category === 'diary' ? <FaBook className="w-3 h-3" /> : <FaPlay className="w-3 h-3" />;
+  };
+
+  const getCategoryLabel = (category: ChallengeCategory) => {
+    return category === 'diary' ? '日記投稿' : '曲クリア';
+  };
+
+  const getTypeLabel = (type: ChallengeType) => {
+    return type === 'weekly' ? 'ウィークリー' : 'マンスリー';
+  };
+
   const onUpdate = async (v: Partial<Challenge>) => {
     try {
       await updateChallenge(challenge.id, v);
@@ -293,10 +426,13 @@ const ChallengeItem: React.FC<{
           </div>
         </form>
       ) : (
-        <div className="space-y-2" onClick={onSelect}>
+        <div className="space-y-3" onClick={onSelect}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <h4 className="font-medium truncate">{challenge.title}</h4>
+              <div className="flex items-center gap-2 mb-1">
+                {getCategoryIcon(challenge.category)}
+                <h4 className="font-medium truncate">{challenge.title}</h4>
+              </div>
               <p className="text-xs text-gray-400">
                 {new Date(challenge.start_date).toLocaleDateString()} ~ {new Date(challenge.end_date).toLocaleDateString()}
               </p>
@@ -316,14 +452,20 @@ const ChallengeItem: React.FC<{
               }}>削除</button>
             </div>
           </div>
+          
           {challenge.description && (
             <p className="text-sm text-gray-300 line-clamp-2">{challenge.description}</p>
           )}
+          
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="badge badge-sm">{challenge.type}</span>
+            <span className="badge badge-sm badge-primary">{getTypeLabel(challenge.type)}</span>
+            <span className="badge badge-sm badge-secondary">{getCategoryLabel(challenge.category)}</span>
             <span className="text-gray-400">報酬: x{challenge.reward_multiplier}</span>
-            {challenge.diary_count && (
-              <span className="text-gray-400">日記: {challenge.diary_count}回</span>
+            {challenge.category === 'diary' && challenge.diary_count && (
+              <span className="text-blue-400">必要投稿: {challenge.diary_count}回</span>
+            )}
+            {challenge.category === 'song_clear' && challenge.song_clear_count && (
+              <span className="text-green-400">必要クリア: {challenge.song_clear_count}曲</span>
             )}
           </div>
         </div>

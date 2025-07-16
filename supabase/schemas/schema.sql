@@ -93,10 +93,12 @@ create table public.lesson_videos (
 
 -- チャレンジ / ミッション
 create type public.challenge_type as enum ('weekly', 'monthly');
+create type public.challenge_category as enum ('diary', 'song_clear');
 
 create table public.challenges (
   id uuid primary key default gen_random_uuid(),
   type public.challenge_type not null,
+  category public.challenge_category not null default 'song_clear',
   title text not null,
   description text,
   start_date date not null,
@@ -104,7 +106,8 @@ create table public.challenges (
   reward_multiplier numeric not null default 1.3,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
-  diary_count integer
+  diary_count integer,
+  song_clear_count integer
 );
 
 create table public.challenge_songs (
