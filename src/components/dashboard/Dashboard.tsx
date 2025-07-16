@@ -246,8 +246,6 @@ const Dashboard: React.FC = () => {
                   ) : (
                     <p className="text-sm text-gray-400">ミッションを確認</p>
                   )}
-                    <p className="text-sm text-gray-400">チャレンジを確認</p>
-                  )}
                 </button>
 
                 {/* 曲練習 */}
