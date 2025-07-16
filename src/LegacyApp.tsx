@@ -210,6 +210,12 @@ const App: React.FC = () => {
     case '#ranking':
       MainContent = <LevelRanking />;
       break;
+    case '#missions':
+      MainContent = <MissionPage />;
+      break;
+    case '#mission-ranking':
+      MainContent = <MissionRanking />;
+      break;
     case '#information':
       MainContent = <InformationPage />;
       break;

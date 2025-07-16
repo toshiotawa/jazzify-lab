@@ -78,6 +78,13 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
         </div>
       )}
 
+        {mission.songs && mission.songs.length > 0 && (
+          <ul className="text-xs text-gray-300 list-disc pl-4 space-y-1">
+            {mission.songs.map(s => (
+              <li key={s.song_id}>{s.songs?.title || s.song_id}</li>
+            ))}
+          </ul>
+        )}
       {/* 詳細進捗バー */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
