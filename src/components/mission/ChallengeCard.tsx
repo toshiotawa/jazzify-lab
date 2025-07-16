@@ -24,7 +24,8 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
     console.log('ChallengeCard useEffect:', { 
       missionId: mission.id, 
       songsCount: mission.songs?.length || 0,
-      songs: mission.songs?.map(s => ({ id: s.song_id, title: s.songs?.title }))
+      songs: mission.songs?.map(s => ({ id: s.song_id, title: s.songs?.title })),
+      missionData: mission
     });
     if (mission.songs && mission.songs.length > 0) {
       console.log('曲進捗を取得中:', mission.id);

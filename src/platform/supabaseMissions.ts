@@ -49,15 +49,34 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
   const today = getTodayJSTString();
   const key = `missions:monthly:${today}`;
   const { data, error } = await fetchWithCache(key, async () => {
-    return await getSupabaseClient()
+    const result = await getSupabaseClient()
       .from('challenges')
       .select('*, challenge_tracks(*, songs(id,title,artist))')
       .eq('type','monthly')
       .lte('start_date', today)  // 開始日が今日以前（今日を含む）
       .gte('end_date', today);   // 終了日が今日以降（今日を含む）
+    
+    console.log('fetchActiveMonthlyMissions raw data:', result);
+    return result;
   }, 1000*30);
   if (error) throw error;
-  return data as Mission[];
+  
+  // データを正しくマッピング
+  const missions = data.map((mission: any) => ({
+    ...mission,
+    songs: mission.challenge_tracks?.map((track: any) => ({
+      song_id: track.song_id,
+      key_offset: track.key_offset || 0,
+      min_speed: track.min_speed || 1.0,
+      min_rank: track.min_rank || 'B',
+      clears_required: track.clears_required || 1,
+      notation_setting: track.notation_setting || 'both',
+      songs: track.songs
+    })) || []
+  }));
+  
+  console.log('fetchActiveMonthlyMissions processed missions:', missions);
+  return missions as Mission[];
 }
 
 export async function fetchMissionSongs(missionId: string): Promise<MissionSong[]> {
