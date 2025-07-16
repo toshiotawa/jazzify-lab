@@ -31,9 +31,13 @@ const ResultModal: React.FC = () => {
   
   const [lessonRequirementSuccess, setLessonRequirementSuccess] = useState<boolean | null>(null);
 
-  // XP計算・加算
+  // XP計算・加算（一度だけ実行）
+  const [xpProcessed, setXpProcessed] = useState(false);
+  
   useEffect(() => {
-    if (resultModalOpen && currentSong && profile) {
+    if (resultModalOpen && currentSong && profile && !xpProcessed) {
+      setXpProcessed(true);
+      
       (async () => {
         // ローカルで詳細計算
         const detailed = calculateXPDetailed({
@@ -112,11 +116,12 @@ const ResultModal: React.FC = () => {
           }
         }
       })();
-    } else {
+    } else if (!resultModalOpen) {
       setXpInfo(null);
       setLessonRequirementSuccess(null);
+      setXpProcessed(false);
     }
-  }, [resultModalOpen, lessonContext, currentSong, score, settings, profile]);
+  }, [resultModalOpen, lessonContext, currentSong, profile, xpProcessed]);
 
   if (!resultModalOpen || !currentSong) return null;
 
@@ -124,6 +129,7 @@ const ResultModal: React.FC = () => {
     resetScore();
     seek(0);
     closeResultModal();
+    setXpProcessed(false);
   };
 
   const handleChooseSong = () => {
@@ -131,6 +137,7 @@ const ResultModal: React.FC = () => {
     seek(0);
     closeResultModal();
     setCurrentTab('songs');
+    setXpProcessed(false);
   };
 
   // ランクによる色とグロー効果
@@ -329,6 +336,7 @@ const ResultModal: React.FC = () => {
                   resetScore();
                   seek(0);
                   closeResultModal();
+                  setXpProcessed(false);
                   window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
                 }}
                 className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
