@@ -37,7 +37,6 @@ const GameHeader: React.FC = () => {
 
           <HashButton hash="#lessons">レッスン</HashButton>
           <HashButton hash="#ranking">ランキング</HashButton>
-          <HashButton hash="#mission-ranking">ミッションランキング</HashButton>
           <HashButton hash="#missions">ミッション</HashButton>
           <HashButton hash="#diary">日記</HashButton>
           <HashButton hash="#information">お知らせ</HashButton>

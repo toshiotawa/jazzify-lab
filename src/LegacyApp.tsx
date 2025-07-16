@@ -17,6 +17,8 @@ import LessonDetailPage from '@/components/lesson/LessonDetailPage';
 import Dashboard from '@/components/dashboard/Dashboard';
 import InformationPage from '@/components/information/InformationPage';
 import LevelRanking from '@/components/ranking/LevelRanking';
+import MissionRanking from '@/components/ranking/MissionRanking';
+import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 
 /**
