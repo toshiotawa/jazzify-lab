@@ -340,7 +340,9 @@ const LessonDetailPage: React.FC = () => {
             {/* レッスンタイトル */}
             <div className="bg-slate-800 rounded-lg p-6">
               <div className="flex items-center justify-between mb-2">
-                <h1 className="text-2xl font-bold">{lesson?.title}</h1>
+                <h1 className="text-2xl font-bold">
+                  {lesson && `${getLessonBlockInfo(lesson).lessonDisplayText}: ${lesson.title}`}
+                </h1>
                 {lesson && (
                   <div className="text-sm text-gray-400">
                     {getLessonBlockInfo(lesson).displayText}

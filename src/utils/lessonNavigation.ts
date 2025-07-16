@@ -206,11 +206,16 @@ export function validateNavigation(
  */
 export function getLessonBlockInfo(lesson: Lesson): {
   blockNumber: number;
+  lessonNumber: number;
   displayText: string;
+  lessonDisplayText: string;
 } {
   const blockNumber = lesson.block_number || 1;
+  const lessonNumber = lesson.order_index;
   return {
     blockNumber,
-    displayText: `ブロック ${blockNumber}`
+    lessonNumber,
+    displayText: `ブロック ${blockNumber}`,
+    lessonDisplayText: `レッスン ${lessonNumber}`
   };
 } 
