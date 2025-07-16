@@ -55,10 +55,10 @@ const MissionManager: React.FC = () => {
   const [editingFormSong, setEditingFormSong] = useState<string | null>(null);
   const { register, handleSubmit, reset, watch } = useForm<FormValues>({
     defaultValues: {
-      type: 'weekly',
+      type: 'monthly',
       category: 'song_clear',
       start_date: new Date().toISOString().substring(0, 10),
-      end_date: new Date().toISOString().substring(0, 10),
+      end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10), // 30日後
       reward_multiplier: 1.3,
     },
   });
@@ -91,6 +91,22 @@ const MissionManager: React.FC = () => {
 
   const onSubmit = async (v: FormValues) => {
     try {
+      // 日付の妥当性チェック
+      const startDate = new Date(v.start_date);
+      const endDate = new Date(v.end_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (endDate <= startDate) {
+        toast.error('終了日は開始日より後の日付を設定してください');
+        return;
+      }
+
+      if (startDate < today) {
+        toast.error('開始日は今日以降の日付を設定してください');
+        return;
+      }
+
       // カテゴリに応じて適切なフィールドを設定
       const payload = {
         type: v.type,
@@ -281,9 +297,10 @@ const MissionManager: React.FC = () => {
             <label className="block">
               <span className="text-sm font-medium mb-1 block">ミッションタイプ</span>
               <select className="select select-bordered w-full text-white" {...register('type')}>
+                <option value="monthly">マンスリー（推奨）</option>
                 <option value="weekly">ウィークリー</option>
-                <option value="monthly">マンスリー</option>
               </select>
+              <p className="text-xs text-gray-400 mt-1">マンスリー: 月間ミッション、ウィークリー: 週間ミッション</p>
             </label>
             
             <label className="block">
@@ -305,10 +322,12 @@ const MissionManager: React.FC = () => {
             <label className="block">
               <span className="text-sm font-medium mb-1 block">開始日</span>
               <input className="input input-bordered w-full text-white" type="date" {...register('start_date', { required: true })} />
+              <p className="text-xs text-gray-400 mt-1">ミッションが開始される日</p>
             </label>
             <label className="block">
               <span className="text-sm font-medium mb-1 block">終了日</span>
               <input className="input input-bordered w-full text-white" type="date" {...register('end_date', { required: true })} />
+              <p className="text-xs text-gray-400 mt-1">ミッションが終了する日（開始日以降）</p>
             </label>
           </div>
 
