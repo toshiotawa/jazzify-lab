@@ -16,12 +16,19 @@ DROP FUNCTION IF EXISTS public.handle_new_user();
 -- ============================================
 -- Delete profiles where nickname equals email (these are auto-created profiles)
 -- Only delete if they have default values (xp=0, level=1) indicating they were auto-created
-DELETE FROM public.profiles 
-WHERE nickname = email 
-AND xp = 0 
-AND level = 1 
-AND is_admin = false
-AND created_at > '2025-01-01'::timestamp; -- Only recent auto-created profiles
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'profiles'
+  ) THEN
+    DELETE FROM public.profiles 
+    WHERE nickname = email 
+    AND xp = 0 
+    AND level = 1 
+    AND is_admin = false
+    AND created_at > '2025-01-01'::timestamp; -- Only recent auto-created profiles
+  END IF;
+END $$;
 
 -- ============================================
 -- 4. Ensure no future auto-creation can happen

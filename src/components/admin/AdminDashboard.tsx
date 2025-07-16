@@ -58,7 +58,7 @@ const AdminDashboard: React.FC = () => {
           <SidebarLink hash="#admin-songs" label="曲管理" />
           <SidebarLink hash="#admin-courses" label="コース管理" />
           <SidebarLink hash="#admin-lessons" label="レッスン管理" />
-          <SidebarLink hash="#admin-challenges" label="チャレンジ管理" />
+          <SidebarLink hash="#admin-challenges" label="ミッション管理" />
           <SidebarLink hash="#admin-users" label="会員管理" />
           <SidebarLink hash="#admin-announcements" label="お知らせ管理" />
         </nav>
@@ -79,7 +79,7 @@ const AdminDashboard: React.FC = () => {
           <MobileTabLink hash="#admin-songs" label="曲管理" />
           <MobileTabLink hash="#admin-courses" label="コース" />
           <MobileTabLink hash="#admin-lessons" label="レッスン" />
-          <MobileTabLink hash="#admin-challenges" label="チャレンジ" />
+          <MobileTabLink hash="#admin-challenges" label="ミッション" />
           <MobileTabLink hash="#admin-users" label="会員" />
           <MobileTabLink hash="#admin-announcements" label="お知らせ" />
         </nav>
