@@ -3,19 +3,13 @@ import { useMissionStore } from '@/stores/missionStore';
 import ChallengeCard from './ChallengeCard';
 
 const ChallengeBoard: React.FC = () => {
-  const { weekly, monthly, progress, loading, fetchAll } = useMissionStore();
+  const { monthly, progress, loading, fetchAll } = useMissionStore();
   useEffect(()=>{ void fetchAll(); },[]);
 
   if (loading) return <p className="text-center text-gray-400">Loading...</p>;
 
   return (
     <div className="space-y-6">
-      <section>
-        <h3 className="font-bold mb-2 text-lg">Weekly Challenge</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {weekly.map(m => <ChallengeCard key={m.id} mission={m} progress={progress[m.id]} />)}
-        </div>
-      </section>
       <section>
         <h3 className="font-bold mb-2 text-lg">Monthly Mission</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -25,4 +19,4 @@ const ChallengeBoard: React.FC = () => {
     </div>
   );
 };
-export default ChallengeBoard; 
+export default ChallengeBoard;

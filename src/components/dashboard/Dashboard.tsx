@@ -32,7 +32,7 @@ const Dashboard: React.FC = () => {
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
-  const { weekly: challenges, monthly: missions, fetchAll: loadMissions } = useMissionStore();
+  const { monthly: missions, fetchAll: loadMissions } = useMissionStore();
   const toast = useToast();
 
   useEffect(() => {
@@ -226,24 +226,26 @@ const Dashboard: React.FC = () => {
 
               {/* クイックアクション */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* 今日のチャレンジ */}
+                {/* 今日のミッション */}
                 <button
                   onClick={() => { window.location.hash = '#missions'; }}
                   className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
                 >
                   <div className="flex items-center space-x-3 mb-3">
                     <FaBullseye className="w-6 h-6 text-orange-400" />
-                    <h3 className="text-lg font-semibold">今日のチャレンジ</h3>
+                    <h3 className="text-lg font-semibold">今日のミッション</h3>
                   </div>
                   
-                  {challenges.length > 0 ? (
+                  {missions.length > 0 ? (
                     <div className="space-y-2">
-                      <p className="text-sm text-gray-300">{challenges[0].title}</p>
+                      <p className="text-sm text-gray-300">{missions[0].title}</p>
                       <div className="flex items-center space-x-2 text-xs text-gray-400">
-                        <span>{challenges[0].reward_multiplier}x ボーナス</span>
+                        <span>{missions[0].reward_multiplier}x ボーナス</span>
                       </div>
                     </div>
                   ) : (
+                    <p className="text-sm text-gray-400">ミッションを確認</p>
+                  )}
                     <p className="text-sm text-gray-400">チャレンジを確認</p>
                   )}
                 </button>

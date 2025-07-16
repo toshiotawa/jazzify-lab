@@ -35,3 +35,31 @@ export async function fetchLevelRanking(limit = 100): Promise<RankingEntry[]> {
   
   return filteredData as RankingEntry[];
 } 
+export interface MissionRankingEntry {
+  user_id: string;
+  clear_count: number;
+  nickname: string;
+  avatar_url?: string;
+  level: number;
+  rank: string;
+}
+
+export async function fetchMissionRanking(missionId: string, limit = 100): Promise<MissionRankingEntry[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('user_challenge_progress')
+    .select('user_id, clear_count, profiles(nickname, avatar_url, level, rank)')
+    .eq('challenge_id', missionId)
+    .eq('completed', true)
+    .order('clear_count', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((d: any) => ({
+    user_id: d.user_id,
+    clear_count: d.clear_count,
+    nickname: d.profiles.nickname,
+    avatar_url: d.profiles.avatar_url,
+    level: d.profiles.level,
+    rank: d.profiles.rank,
+  }));
+}
