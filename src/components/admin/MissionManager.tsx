@@ -17,9 +17,12 @@ import {
 } from '@/platform/supabaseChallenges';
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import SongSelector from './SongSelector';
+import { fetchUserMissionProgress } from '@/platform/supabaseMissions';
 import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy } from 'react-icons/fa';
 
 interface FormValues {
+  season_year: number;
+  season_number: number;
   type: ChallengeType;
   category: ChallengeCategory;
   title: string;
@@ -39,14 +42,17 @@ interface SongConditions {
   notation_setting: string;
 }
 
-const ChallengeManager: React.FC = () => {
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [selectedChallenge, setSelectedChallenge] = useState<Challenge & { songs: ChallengeSong[] } | null>(null);
+const MissionManager: React.FC = () => {
+  const [missions, setMissions] = useState<Challenge[]>([]);
+  const [selectedMission, setSelectedMission] = useState<Challenge & { songs: ChallengeSong[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSongSelector, setShowSongSelector] = useState(false);
   const [editingSong, setEditingSong] = useState<ChallengeSong | null>(null);
+  const [progressMap, setProgressMap] = useState<Record<string, {clear_count:number; completed:boolean}>>({});
   const { register, handleSubmit, reset, watch } = useForm<FormValues>({
     defaultValues: {
+      season_year: new Date().getFullYear(),
+      season_number: 1,
       type: 'weekly',
       category: 'song_clear',
       start_date: new Date().toISOString().substring(0, 10),
@@ -61,7 +67,15 @@ const ChallengeManager: React.FC = () => {
     setLoading(true);
     try {
       const data = await listChallenges();
-      setChallenges(data);
+      setMissions(data);
+      try {
+        const progress = await fetchUserMissionProgress();
+        const map: Record<string, {clear_count:number; completed:boolean}> = {};
+        progress.forEach(p=>{ map[p.challenge_id] = {clear_count:p.clear_count, completed:p.completed}; });
+        setProgressMap(map);
+      } catch (e) {
+        console.error('progress fetch failed', e);
+      }
     } finally {
       setLoading(false);
     }
@@ -77,6 +91,8 @@ const ChallengeManager: React.FC = () => {
     try {
       // カテゴリに応じて適切なフィールドを設定
       const payload = {
+        season_year: v.season_year,
+        season_number: v.season_number,
         type: v.type,
         category: v.category,
         title: v.title,
@@ -89,30 +105,30 @@ const ChallengeManager: React.FC = () => {
       };
       
       await createChallenge(payload);
-      toast.success('チャレンジを追加しました', {
+      toast.success('ミッションを追加しました', {
         title: '追加完了',
         duration: 3000,
       });
       reset();
       await load();
     } catch (e) {
-      toast.error(handleApiError(e, 'チャレンジ追加'), {
+      toast.error(handleApiError(e, 'ミッション追加'), {
         title: '追加エラー',
       });
     }
   };
 
-  const handleChallengeSelect = async (challengeId: string) => {
+  const handleMissionSelect = async (missionId: string) => {
     try {
-      const challenge = await getChallengeWithSongs(challengeId);
-      setSelectedChallenge(challenge);
+      const mission = await getChallengeWithSongs(missionId);
+      setSelectedMission(mission);
     } catch (error) {
-      toast.error('チャレンジ詳細の取得に失敗しました');
+      toast.error('ミッション詳細の取得に失敗しました');
     }
   };
 
   const handleSongSelect = async (songId: string) => {
-    if (!selectedChallenge) return;
+    if (!selectedMission) return;
 
     const defaultConditions: SongConditions = {
       key_offset: 0,
@@ -123,11 +139,11 @@ const ChallengeManager: React.FC = () => {
     };
 
     try {
-      await addSongToChallenge(selectedChallenge.id, songId, defaultConditions);
+      await addSongToChallenge(selectedMission.id, songId, defaultConditions);
       toast.success('楽曲を追加しました');
-      // チャレンジ詳細を再読み込み
-      const updatedChallenge = await getChallengeWithSongs(selectedChallenge.id);
-      setSelectedChallenge(updatedChallenge);
+      // ミッション詳細を再読み込み
+      const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
+      setSelectedMission(updatedChallenge);
       setShowSongSelector(false);
     } catch (error) {
       toast.error('楽曲の追加に失敗しました');
@@ -139,14 +155,14 @@ const ChallengeManager: React.FC = () => {
   };
 
   const handleSongUpdate = async (songId: string, conditions: SongConditions) => {
-    if (!selectedChallenge) return;
+    if (!selectedMission) return;
 
     try {
-      await updateChallengeSong(selectedChallenge.id, songId, conditions);
+      await updateChallengeSong(selectedMission.id, songId, conditions);
       toast.success('楽曲条件を更新しました');
-      // チャレンジ詳細を再読み込み
-      const updatedChallenge = await getChallengeWithSongs(selectedChallenge.id);
-      setSelectedChallenge(updatedChallenge);
+      // ミッション詳細を再読み込み
+      const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
+      setSelectedMission(updatedChallenge);
       setEditingSong(null);
     } catch (error) {
       toast.error('楽曲条件の更新に失敗しました');
@@ -154,16 +170,16 @@ const ChallengeManager: React.FC = () => {
   };
 
   const handleSongRemove = async (songId: string) => {
-    if (!selectedChallenge) return;
+    if (!selectedMission) return;
 
     if (!confirm('この楽曲を削除しますか？')) return;
 
     try {
-      await removeSongFromChallenge(selectedChallenge.id, songId);
+      await removeSongFromChallenge(selectedMission.id, songId);
       toast.success('楽曲を削除しました');
-      // チャレンジ詳細を再読み込み
-      const updatedChallenge = await getChallengeWithSongs(selectedChallenge.id);
-      setSelectedChallenge(updatedChallenge);
+      // ミッション詳細を再読み込み
+      const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
+      setSelectedMission(updatedChallenge);
     } catch (error) {
       toast.error('楽曲の削除に失敗しました');
     }
@@ -183,16 +199,16 @@ const ChallengeManager: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* チャレンジ追加セクション */}
+      {/* ミッション追加セクション */}
       <div className="bg-gray-800 rounded-lg p-6">
         <h3 className="text-xl font-bold mb-6 flex items-center">
           <FaPlus className="w-5 h-5 mr-2" />
-          チャレンジ追加
+          ミッション追加
         </h3>
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block">
-              <span className="text-sm font-medium mb-1 block">チャレンジタイプ</span>
+              <span className="text-sm font-medium mb-1 block">ミッションタイプ</span>
               <select className="select select-bordered w-full text-white" {...register('type')}>
                 <option value="weekly">ウィークリー</option>
                 <option value="monthly">マンスリー</option>
@@ -200,7 +216,7 @@ const ChallengeManager: React.FC = () => {
             </label>
             
             <label className="block">
-              <span className="text-sm font-medium mb-1 block">チャレンジカテゴリ</span>
+              <span className="text-sm font-medium mb-1 block">ミッションカテゴリ</span>
               <select className="select select-bordered w-full text-white" {...register('category')}>
                 <option value="song_clear">曲クリア</option>
                 <option value="diary">日記投稿</option>
@@ -210,9 +226,13 @@ const ChallengeManager: React.FC = () => {
 
           <input 
             className="input input-bordered w-full text-white" 
-            placeholder="チャレンジタイトル" 
+            placeholder="ミッションタイトル" 
             {...register('title', { required: true })} 
           />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input className="input input-bordered text-white" type="number" placeholder="シーズン年" {...register('season_year', { valueAsNumber: true, required: true })} />
+            <input className="input input-bordered text-white" type="number" placeholder="シーズン番号" {...register('season_number', { valueAsNumber: true, required: true })} />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block">
@@ -254,22 +274,22 @@ const ChallengeManager: React.FC = () => {
           <textarea 
             className="textarea textarea-bordered w-full text-white" 
             rows={3} 
-            placeholder="チャレンジの説明" 
+            placeholder="ミッションの説明" 
             {...register('description')} 
           />
           
           <button className="btn btn-primary w-full md:w-auto" type="submit">
             <FaPlus className="w-4 h-4 mr-2" />
-            チャレンジを追加
+            ミッションを追加
           </button>
         </form>
       </div>
 
-      {/* チャレンジ一覧セクション */}
+      {/* ミッション一覧セクション */}
       <div className="bg-gray-800 rounded-lg p-6">
         <h3 className="text-xl font-bold mb-6 flex items-center">
           <FaTrophy className="w-5 h-5 mr-2" />
-          チャレンジ一覧
+          ミッション一覧
         </h3>
         
         {loading ? (
@@ -278,33 +298,34 @@ const ChallengeManager: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* チャレンジ選択 */}
+            {/* ミッション選択 */}
             <div>
-              <h4 className="font-medium mb-4 text-lg">チャレンジ選択</h4>
+              <h4 className="font-medium mb-4 text-lg">ミッション選択</h4>
               <div className="space-y-3">
-                {challenges.map(c => (
-                  <ChallengeItem 
-                    key={c.id} 
-                    challenge={c} 
+                {missions.map(c => (
+                  <MissionItem
+                    key={c.id}
+                    mission={c}
+                    progress={progressMap[c.id]}
                     onRefresh={load}
-                    onSelect={() => handleChallengeSelect(c.id)}
-                    isSelected={selectedChallenge?.id === c.id}
+                    onSelect={() => handleMissionSelect(c.id)}
+                    isSelected={selectedMission?.id === c.id}
                   />
                 ))}
               </div>
             </div>
 
             {/* 楽曲管理 */}
-            {selectedChallenge && (
+            {selectedMission && (
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h4 className="font-medium text-lg">楽曲管理</h4>
                     <p className="text-sm text-gray-400">
-                      {selectedChallenge.title} ({getCategoryLabel(selectedChallenge.category)})
+                      {selectedMission.title} ({getCategoryLabel(selectedMission.category)})
                     </p>
                   </div>
-                  {selectedChallenge.category === 'song_clear' && (
+                  {selectedMission.category === 'song_clear' && (
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={() => setShowSongSelector(true)}
@@ -315,20 +336,20 @@ const ChallengeManager: React.FC = () => {
                   )}
                 </div>
 
-                {selectedChallenge.category === 'diary' ? (
+                {selectedMission.category === 'diary' ? (
                   <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
                     <div className="flex items-center mb-2">
                       <FaBook className="w-4 h-4 mr-2 text-blue-400" />
-                      <span className="font-medium">日記投稿チャレンジ</span>
+                      <span className="font-medium">日記投稿ミッション</span>
                     </div>
                     <p className="text-sm text-gray-300">
-                      必要投稿数: {selectedChallenge.diary_count || 0}回
+                      必要投稿数: {selectedMission.diary_count || 0}回
                     </p>
                     <p className="text-sm text-gray-400 mt-1">
                       楽曲の追加は不要です。日記投稿数で判定されます。
                     </p>
                   </div>
-                ) : selectedChallenge.songs.length === 0 ? (
+                ) : selectedMission.songs.length === 0 ? (
                   <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-6 text-center">
                     <FaMusic className="w-6 h-6 mx-auto mb-2 text-yellow-400" />
                     <p className="text-gray-300 mb-2">楽曲が追加されていません</p>
@@ -336,7 +357,7 @@ const ChallengeManager: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {selectedChallenge.songs.map(song => (
+                    {selectedMission.songs.map(song => (
                       <SongItem
                         key={song.song_id}
                         song={song}
@@ -353,11 +374,11 @@ const ChallengeManager: React.FC = () => {
       </div>
 
       {/* 楽曲選択モーダル */}
-      {showSongSelector && selectedChallenge && (
+      {showSongSelector && selectedMission && (
         <SongSelectorModal
           onSelect={handleSongSelect}
           onClose={() => setShowSongSelector(false)}
-          excludeSongIds={selectedChallenge.songs.map(s => s.song_id)}
+          excludeSongIds={selectedMission.songs.map(s => s.song_id)}
         />
       )}
 
@@ -373,14 +394,15 @@ const ChallengeManager: React.FC = () => {
   );
 };
 
-const ChallengeItem: React.FC<{ 
-  challenge: Challenge; 
+const MissionItem: React.FC<{
+  mission: Challenge;
+  progress?: { clear_count: number; completed: boolean };
   onRefresh: () => void;
   onSelect: () => void;
   isSelected: boolean;
-}> = ({ challenge, onRefresh, onSelect, isSelected }) => {
+}> = ({ mission, progress, onRefresh, onSelect, isSelected }) => {
   const [editing, setEditing] = useState(false);
-  const { register, handleSubmit } = useForm<Partial<Challenge>>({ defaultValues: challenge });
+  const { register, handleSubmit } = useForm<Partial<Challenge>>({ defaultValues: mission });
   const toast = useToast();
 
   const getCategoryIcon = (category: ChallengeCategory) => {
@@ -397,7 +419,7 @@ const ChallengeItem: React.FC<{
 
   const onUpdate = async (v: Partial<Challenge>) => {
     try {
-      await updateChallenge(challenge.id, v);
+      await updateChallenge(mission.id, v);
       toast.success('更新しました', {
         title: '更新完了',
         duration: 2000,
@@ -405,7 +427,7 @@ const ChallengeItem: React.FC<{
       setEditing(false);
       onRefresh();
     } catch(e) {
-      toast.error(handleApiError(e, 'チャレンジ更新'), {
+      toast.error(handleApiError(e, 'ミッション更新'), {
         title: '更新エラー',
       });
     }
@@ -430,11 +452,11 @@ const ChallengeItem: React.FC<{
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                {getCategoryIcon(challenge.category)}
-                <h4 className="font-medium truncate">{challenge.title}</h4>
+                {getCategoryIcon(mission.category)}
+                <h4 className="font-medium truncate">{mission.title}</h4>
               </div>
               <p className="text-xs text-gray-400">
-                {new Date(challenge.start_date).toLocaleDateString()} ~ {new Date(challenge.end_date).toLocaleDateString()}
+                {new Date(mission.start_date).toLocaleDateString()} ~ {new Date(mission.end_date).toLocaleDateString()}
               </p>
             </div>
             <div className="flex gap-1">
@@ -443,7 +465,7 @@ const ChallengeItem: React.FC<{
                 e.stopPropagation();
                 if (!confirm('削除しますか？')) return;
                 try {
-                  await deleteChallenge(challenge.id);
+                  await deleteChallenge(mission.id);
                   toast.success('削除しました');
                   onRefresh();
                 } catch (e) {
@@ -453,24 +475,36 @@ const ChallengeItem: React.FC<{
             </div>
           </div>
           
-          {challenge.description && (
-            <p className="text-sm text-gray-300 line-clamp-2">{challenge.description}</p>
+          {mission.description && (
+            <p className="text-sm text-gray-300 line-clamp-2">{mission.description}</p>
           )}
           
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="badge badge-sm badge-primary">{getTypeLabel(challenge.type)}</span>
-            <span className="badge badge-sm badge-secondary">{getCategoryLabel(challenge.category)}</span>
-            <span className="text-gray-400">報酬: x{challenge.reward_multiplier}</span>
-            {challenge.category === 'diary' && challenge.diary_count && (
-              <span className="text-blue-400">必要投稿: {challenge.diary_count}回</span>
+            <span className="badge badge-sm badge-primary">{getTypeLabel(mission.type)}</span>
+            <span className="badge badge-sm badge-secondary">{getCategoryLabel(mission.category)}</span>
+            <span className="text-gray-400">報酬: x{mission.reward_multiplier}</span>
+            {mission.category === 'diary' && mission.diary_count && (
+              <span className="text-blue-400">必要投稿: {mission.diary_count}回</span>
             )}
-            {challenge.category === 'song_clear' && challenge.song_clear_count && (
-              <span className="text-green-400">必要クリア: {challenge.song_clear_count}曲</span>
-            )}
-          </div>
+          {mission.category === 'song_clear' && mission.song_clear_count && (
+            <span className="text-green-400">必要クリア: {mission.song_clear_count}曲</span>
+          )}
         </div>
-      )}
-    </li>
+
+        {progress && (
+          <div className="mt-2">
+            <div className="flex justify-between text-xs">
+              <span>進捗</span>
+              <span>{progress.clear_count}/{mission.diary_count ?? mission.song_clear_count ?? 1}</span>
+            </div>
+            <div className="w-full bg-slate-700 rounded h-2 overflow-hidden">
+              <div className="h-full bg-primary-500" style={{width:`${Math.min(100, (progress.clear_count / (mission.diary_count ?? mission.song_clear_count ?? 1))*100)}%`}} />
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+  </li>
   );
 };
 
@@ -630,4 +664,4 @@ const SongConditionsModal: React.FC<{
   );
 };
 
-export default ChallengeManager; 
+export default MissionManager; 
