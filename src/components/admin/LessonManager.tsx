@@ -128,10 +128,8 @@ export const LessonManager: React.FC = () => {
   };
 
   const onSubmit = async (formData: LessonFormData) => {
-    if (!selectedCourseId) {
-        toast.error('コースが選択されていません。');
-        return;
-    }
+    if (!selectedCourseId) return;
+    
     setIsSubmitting(true);
     try {
       const lessonData = {
@@ -146,7 +144,7 @@ export const LessonManager: React.FC = () => {
         const updatedLesson = await updateLesson(selectedLesson.id, lessonData);
         
         setCurrentLessons(prev =>
-          prev.map(l => (l.id === updatedLesson.id ? updatedLesson : l)),
+          prev.map(l => l.id === selectedLesson.id ? updatedLesson : l)
         );
         
         toast.success('レッスンを更新しました。');
