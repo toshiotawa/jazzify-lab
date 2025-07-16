@@ -68,8 +68,8 @@ const MissionManager: React.FC = () => {
   const load = async () => {
     setLoading(true);
     try {
-      // アクティブなミッションのみを取得（ユーザー側と同じ条件）
-      const data = await listChallenges({ activeOnly: true });
+      // 管理画面では全てのミッションを取得（アクティブでないものも含む）
+      const data = await listChallenges();
       setMissions(data);
       try {
         const progress = await fetchUserMissionProgress();
@@ -451,6 +451,9 @@ const MissionManager: React.FC = () => {
           <FaTrophy className="w-5 h-5 mr-2" />
           ミッション一覧
         </h3>
+        <p className="text-sm text-gray-400 mb-4">
+          全てのミッション（アクティブ・未開始・終了）が表示されます。状態は色分けされています。
+        </p>
         
         {loading ? (
           <div className="flex justify-center py-8">
@@ -610,6 +613,19 @@ const MissionItem: React.FC<{
     return type === 'weekly' ? 'ウィークリー' : 'マンスリー';
   };
 
+  // ミッションの状態を判定
+  const getMissionStatus = () => {
+    const today = new Date().toISOString().substring(0, 10);
+    const startDate = mission.start_date;
+    const endDate = mission.end_date;
+    
+    if (today < startDate) return { status: 'future', label: '未開始', color: 'badge-warning' };
+    if (today > endDate) return { status: 'past', label: '終了', color: 'badge-error' };
+    return { status: 'active', label: 'アクティブ', color: 'badge-success' };
+  };
+
+  const missionStatus = getMissionStatus();
+
   const onUpdate = async (v: Partial<Challenge>) => {
     try {
       await updateChallenge(mission.id, v);
@@ -627,8 +643,14 @@ const MissionItem: React.FC<{
   };
 
   return (
-    <li className={`border border-slate-700 rounded-lg p-4 bg-slate-800/50 cursor-pointer transition-colors ${
-      isSelected ? 'border-primary-500 bg-slate-700/50' : 'hover:bg-slate-700/30'
+    <li className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+      isSelected 
+        ? 'border-primary-500 bg-slate-700/50' 
+        : missionStatus.status === 'active'
+          ? 'border-green-500/50 bg-slate-800/50 hover:bg-slate-700/30'
+          : missionStatus.status === 'future'
+            ? 'border-yellow-500/50 bg-slate-800/50 hover:bg-slate-700/30'
+            : 'border-red-500/50 bg-slate-800/30 hover:bg-slate-700/20'
     }`}>
       {editing ? (
         <form className="grid grid-cols-1 sm:grid-cols-2 gap-3" onSubmit={handleSubmit(onUpdate)}>
@@ -675,6 +697,7 @@ const MissionItem: React.FC<{
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="badge badge-sm badge-primary">{getTypeLabel(mission.type)}</span>
             <span className="badge badge-sm badge-secondary">{getCategoryLabel(mission.category)}</span>
+            <span className={`badge badge-sm ${missionStatus.color}`}>{missionStatus.label}</span>
             <span className="text-gray-400">報酬: x{mission.reward_multiplier}</span>
             {mission.category === 'diary' && mission.diary_count && (
               <span className="text-blue-400">必要投稿: {mission.diary_count}回</span>
