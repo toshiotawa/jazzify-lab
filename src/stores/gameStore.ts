@@ -593,6 +593,10 @@ interface GameStoreState extends GameState {
   // レッスンコンテキスト
   setLessonContext: (lessonId: string, clearConditions: ClearConditions) => void;
   clearLessonContext: () => void;
+  
+  // ミッションコンテキスト
+  setMissionContext: (missionId: string, songId: string) => void;
+  clearMissionContext: () => void;
 }
 
 // ===== ヘルパー関数 =====
@@ -1783,6 +1787,20 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         clearLessonContext: () =>
           set((state: GameStoreState) => {
             state.lessonContext = undefined;
+          }),
+        
+        // ミッションコンテキスト
+        setMissionContext: (missionId: string, songId: string) =>
+          set((state: GameStoreState) => {
+            state.missionContext = {
+              missionId,
+              songId
+            };
+          }),
+        
+        clearMissionContext: () =>
+          set((state: GameStoreState) => {
+            state.missionContext = undefined;
           }),
       }))
     ),

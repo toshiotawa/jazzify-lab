@@ -30,7 +30,7 @@ const GameScreen: React.FC = () => {
   // レッスン曲読み込み中の状態管理を追加
   const [isLoadingLessonSong, setIsLoadingLessonSong] = useState(false);
 
-  // レッスン曲の自動読み込み処理を追加
+  // レッスン曲とミッション曲の自動読み込み処理を追加
   useEffect(() => {
     const checkLessonPlay = async () => {
       const hash = window.location.hash;
@@ -206,6 +206,116 @@ const GameScreen: React.FC = () => {
             
             setIsLoadingLessonSong(false);
             window.location.hash = '#songs';
+          }
+        } else if (hash.startsWith('#play-mission')) {
+          // ミッション曲の読み込み
+          setIsLoadingLessonSong(true);
+          
+          const params = new URLSearchParams(hash.split('?')[1] || '');
+          const songId = params.get('song');
+          const missionId = params.get('mission');
+          
+          if (songId) {
+            try {
+              // 曲データを取得
+              const songs = await fetchSongs();
+              const song = songs.find(s => s.id === songId);
+              
+              if (!song) {
+                console.error('曲が見つかりません:', songId);
+                setIsLoadingLessonSong(false);
+                window.location.hash = '#missions';
+                return;
+              }
+              
+              // JSONデータの取得
+              let notesData: any;
+              if (song.json_url) {
+                const response = await fetch(song.json_url);
+                if (!response.ok) {
+                  throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
+                }
+                
+                const responseText = await response.text();
+                
+                if (responseText.trim().startsWith('<')) {
+                  throw new Error('JSONデータの代わりにHTMLが返されました。');
+                }
+                
+                notesData = JSON.parse(responseText);
+              } else if (song.json_data) {
+                notesData = song.json_data;
+              } else {
+                throw new Error('曲のノーツデータがありません');
+              }
+              
+              // notes配列の抽出
+              const notes = Array.isArray(notesData) ? notesData : notesData.notes;
+              if (!notes || !Array.isArray(notes)) {
+                throw new Error('ノーツデータの形式が不正です');
+              }
+              
+              const mapped = notes.map((n: any, idx: number) => ({ 
+                id: `${song.id}-${idx}`, 
+                time: n.time, 
+                pitch: n.pitch 
+              }));
+              
+              // 音声ファイルの長さを取得
+              let duration = 60;
+              if (song.audio_url) {
+                try {
+                  const audio = new Audio(song.audio_url);
+                  audio.crossOrigin = 'anonymous';
+                  await new Promise((resolve) => {
+                    const loadedHandler = () => {
+                      duration = Math.floor(audio.duration) || 60;
+                      resolve(void 0);
+                    };
+                    const errorHandler = () => {
+                      console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用');
+                      resolve(void 0);
+                    };
+                    
+                    audio.addEventListener('loadedmetadata', loadedHandler);
+                    audio.addEventListener('error', errorHandler);
+                    setTimeout(() => resolve(void 0), 5000);
+                  });
+                } catch (e) {
+                  console.warn('音声ファイル時間取得エラー:', e);
+                }
+              }
+              
+              // ミッションコンテキストを設定
+              if (missionId) {
+                gameActions.setMissionContext(missionId, songId);
+              }
+              
+              // 曲をロード
+              await gameActions.loadSong({
+                id: song.id,
+                title: song.title,
+                artist: song.artist || '',
+                duration: duration,
+                audioFile: song.audio_url || '',
+                musicXmlFile: song.xml_url || null
+              }, mapped);
+              
+              // 画面遷移
+              gameActions.setCurrentTab('practice');
+              setIsLoadingLessonSong(false);
+              
+              setTimeout(() => {
+                window.location.hash = '#practice';
+              }, 10);
+              
+            } catch (error) {
+              console.error('ミッション曲の読み込みエラー:', error);
+              setIsLoadingLessonSong(false);
+              window.location.hash = '#missions';
+            }
+          } else {
+            setIsLoadingLessonSong(false);
           }
         } else {
           setIsLoadingLessonSong(false);

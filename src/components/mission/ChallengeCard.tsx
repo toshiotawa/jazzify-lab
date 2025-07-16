@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Mission, UserMissionProgress } from '@/platform/supabaseMissions';
 import { useMissionStore } from '@/stores/missionStore';
 import { cn } from '@/utils/cn';
-import { FaTrophy, FaMusic, FaCalendarAlt, FaClock, FaCheck } from 'react-icons/fa';
+import { FaTrophy, FaMusic, FaCalendarAlt, FaClock, FaCheck, FaPlay } from 'react-icons/fa';
+import MissionSongProgress from './MissionSongProgress';
 
 interface Props {
   mission: Mission;
@@ -10,11 +11,24 @@ interface Props {
 }
 
 const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
-  const { claim } = useMissionStore();
+  const { claim, fetchSongProgress, songProgress } = useMissionStore();
+  const [showSongProgress, setShowSongProgress] = useState(false);
+  
   const total = mission.diary_count ?? mission.clears_required ?? 1;
   const cleared = progress?.clear_count ?? 0;
   const completed = progress?.completed ?? false;
   const progressPercentage = Math.min((cleared / total) * 100, 100);
+  
+  // 曲進捗を取得
+  useEffect(() => {
+    if (mission.songs && mission.songs.length > 0) {
+      fetchSongProgress(mission.id);
+    }
+  }, [mission.id, mission.songs, fetchSongProgress]);
+  
+  const currentSongProgress = songProgress[mission.id] || [];
+  const allSongsCompleted = currentSongProgress.length > 0 && 
+    currentSongProgress.every(song => song.is_completed);
   
   // ミッションタイプアイコンの決定
   const getMissionIcon = () => {
@@ -44,7 +58,7 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
 
   return (
     <div className={cn(
-      "p-4 rounded-lg space-y-3 text-sm border-2 transition-all duration-300",
+      "p-4 rounded-lg space-y-3 border-2 transition-all duration-300",
       completed 
         ? "bg-emerald-900/30 border-emerald-500/50 shadow-emerald-500/20 shadow-lg" 
         : "bg-slate-800 border-slate-700 hover:border-slate-600"
@@ -78,13 +92,49 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
         </div>
       )}
 
-        {mission.songs && mission.songs.length > 0 && (
-          <ul className="text-xs text-gray-300 list-disc pl-4 space-y-1">
-            {mission.songs.map(s => (
-              <li key={s.song_id}>{s.songs?.title || s.song_id}</li>
-            ))}
-          </ul>
-        )}
+      {/* 曲一覧（簡易表示） */}
+      {mission.songs && mission.songs.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">登録曲</span>
+            <button
+              onClick={() => setShowSongProgress(!showSongProgress)}
+              className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              {showSongProgress ? '詳細を隠す' : '詳細を見る'}
+            </button>
+          </div>
+          
+          {!showSongProgress && (
+            <div className="grid grid-cols-1 gap-2">
+              {mission.songs.slice(0, 3).map(s => (
+                <div key={s.song_id} className="flex items-center space-x-2 text-xs">
+                  <FaMusic className="w-3 h-3 text-blue-400" />
+                  <span className="text-gray-300">
+                    {s.songs?.title || s.song_id}
+                  </span>
+                </div>
+              ))}
+              {mission.songs.length > 3 && (
+                <div className="text-xs text-gray-500">
+                  他 {mission.songs.length - 3} 曲...
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 曲進捗詳細表示 */}
+      {showSongProgress && mission.songs && mission.songs.length > 0 && (
+        <div className="border-t border-slate-700 pt-3">
+          <MissionSongProgress 
+            missionId={mission.id} 
+            songProgress={currentSongProgress} 
+          />
+        </div>
+      )}
+
       {/* 詳細進捗バー */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
@@ -162,17 +212,21 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
 
       {/* 報酬受取ボタン */}
       <button
-        disabled={!completed}
+        disabled={!completed && !allSongsCompleted}
         className={cn(
           'btn btn-sm w-full transition-all duration-300 flex items-center justify-center space-x-2',
-          completed 
+          (completed || allSongsCompleted)
             ? 'btn-primary hover:scale-105 shadow-lg' 
             : 'btn-disabled opacity-50'
         )}
         onClick={() => claim(mission.id)}
       >
         <FaTrophy className="w-4 h-4" />
-        <span>{completed ? '報酬を受け取る' : '報酬受取（未達成）'}</span>
+        <span>
+          {completed ? '報酬を受け取る' : 
+           allSongsCompleted ? '報酬を受け取る（曲クリア済み）' : 
+           '報酬受取（未達成）'}
+        </span>
       </button>
     </div>
   );

@@ -3,6 +3,7 @@ import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { useLessonContext } from '@/stores/gameStore';
 import { addXp, calcLevel } from '@/platform/supabaseXp';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
+import { updateMissionSongProgress } from '@/platform/supabaseMissions';
 import { useAuthStore } from '@/stores/authStore';
 import { calculateXP, calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
 import { FaArrowLeft } from 'react-icons/fa';
@@ -18,6 +19,7 @@ const ResultModal: React.FC = () => {
 
   const { profile, fetchProfile } = useAuthStore();
   const lessonContext = useLessonContext();
+  const missionContext = useGameSelector((s) => s.missionContext);
 
   const [xpInfo, setXpInfo] = useState<{
     gained: number;
@@ -115,13 +117,30 @@ const ResultModal: React.FC = () => {
             }
           }
         }
+        
+        // ミッションモードの場合、進捗を更新
+        if (missionContext && currentSong) {
+          try {
+            await updateMissionSongProgress(
+              missionContext.missionId,
+              currentSong.id,
+              score.rank,
+              {
+                min_rank: 'B', // デフォルト値、実際はミッションの条件から取得
+                min_speed: 1.0
+              }
+            );
+          } catch (error) {
+            console.error('ミッション進捗の更新に失敗:', error);
+          }
+        }
       })();
     } else if (!resultModalOpen) {
       setXpInfo(null);
       setLessonRequirementSuccess(null);
       setXpProcessed(false);
     }
-  }, [resultModalOpen, lessonContext, currentSong, profile, xpProcessed]);
+  }, [resultModalOpen, lessonContext, missionContext, currentSong, profile, xpProcessed]);
 
   if (!resultModalOpen || !currentSong) return null;
 

@@ -290,6 +290,12 @@ export interface GameState {
     lessonId: string;
     clearConditions: ClearConditions;
   };
+  
+  // ミッション情報（ミッションから起動した場合）
+  missionContext?: {
+    missionId: string;
+    songId: string;
+  };
 }
 
 // ===== 入力システム =====
