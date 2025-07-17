@@ -10,6 +10,7 @@ import { getTransposingInstrumentName } from '@/utils/musicXmlTransposer';
 import type { TransposingInstrument } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
+import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft } from 'react-icons/fa';
 
 /**
@@ -214,17 +215,22 @@ const GameScreen: React.FC = () => {
           const params = new URLSearchParams(hash.split('?')[1] || '');
           const songId = params.get('song');
           const missionId = params.get('mission');
-          // ミッション曲の設定パラメータを取得
-          const key = parseInt(params.get('key') || '0');
-          const speed = parseFloat(params.get('speed') || '1.0');
-          const rank = params.get('rank') || 'B';
-          const count = parseInt(params.get('count') || '1');
-          const notation = params.get('notation') || 'both';
           
-          console.log('🎵 Mission play parameters:', { songId, missionId, key, speed, rank, count, notation });
+          console.log('🎵 Mission play parameters:', { songId, missionId });
           
-          if (songId) {
+          if (songId && missionId) {
             try {
+              // ミッション曲の条件をデータベースから取得
+              const challengeSongs = await getChallengeSongs(missionId);
+              const challengeSong = challengeSongs.find(cs => cs.song_id === songId);
+              
+              if (!challengeSong) {
+                console.error('ミッション曲が見つかりません:', { songId, missionId });
+                setIsLoadingLessonSong(false);
+                window.location.hash = '#missions';
+                return;
+              }
+              
               // 曲データを取得
               const songs = await fetchSongs();
               const song = songs.find(s => s.id === songId);
@@ -294,25 +300,23 @@ const GameScreen: React.FC = () => {
                 }
               }
               
-              // ミッション曲の設定を適用
+              // ミッション曲の条件を設定に適用
               await gameActions.updateSettings({
-                transpose: key,
-                playbackSpeed: speed,
+                transpose: challengeSong.key_offset,
+                playbackSpeed: challengeSong.min_speed,
                 // notation設定に基づいて表示設定を更新
-                showNotes: notation === 'notes_chords' || notation === 'both',
-                showChords: notation === 'chords_only' || notation === 'both'
+                showNotes: challengeSong.notation_setting === 'notes_chords' || challengeSong.notation_setting === 'both',
+                showChords: challengeSong.notation_setting === 'chords_only' || challengeSong.notation_setting === 'both'
               });
               
               // ミッションコンテキストを設定
-              if (missionId) {
-                gameActions.setMissionContext(missionId, songId, {
-                  key,
-                  speed,
-                  rank,
-                  count,
-                  notation_setting: notation
-                });
-              }
+              gameActions.setMissionContext(missionId, songId, {
+                key: challengeSong.key_offset,
+                speed: challengeSong.min_speed,
+                rank: challengeSong.min_rank,
+                count: challengeSong.clears_required,
+                notation_setting: challengeSong.notation_setting
+              });
               
               // 曲をロード
               console.log('🎵 Loading mission song:', song.title);

@@ -281,6 +281,9 @@ const defaultState: GameState = {
   
   // レッスン情報
   lessonContext: undefined,
+  
+  // ミッション情報
+  missionContext: undefined,
 };
 
 // 練習モード専用設定のデフォルト値
@@ -1052,6 +1055,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const currentState = get();
           const filteredSettings = { ...newSettings };
           
+          // レッスンコンテキストでの制限
           if (currentState.mode === 'performance' && currentState.lessonContext) {
             const { clearConditions } = currentState.lessonContext;
             
@@ -1071,6 +1075,46 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
               }
             }
+          }
+          
+          // ミッションコンテキストでの制限
+          if (currentState.mode === 'performance' && currentState.missionContext?.clearConditions) {
+            const { clearConditions } = currentState.missionContext;
+            
+            // 課題条件に関連する設定変更を無効化
+            if ('transpose' in filteredSettings && clearConditions.key !== undefined) {
+              console.warn('⚠️ 本番モード時はキー設定（transpose）を変更できません');
+              delete filteredSettings.transpose;
+            }
+            
+            if ('playbackSpeed' in filteredSettings && clearConditions.speed !== undefined) {
+              const newSpeed = filteredSettings.playbackSpeed!;
+              const minSpeed = clearConditions.speed;
+              if (newSpeed < minSpeed) {
+                console.warn(`⚠️ 本番モード時は速度設定を${minSpeed}倍速未満に変更できません`);
+                delete filteredSettings.playbackSpeed;
+              } else {
+                console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
+              }
+            }
+          }
+            
+            // レッスンコンテキストでの楽譜表示制限
+            if (clearConditions.notation_setting) {
+              if ('showSheetMusic' in filteredSettings) {
+                console.warn('⚠️ 本番モード時は楽譜表示設定（showSheetMusic）を変更できません');
+                delete filteredSettings.showSheetMusic;
+              }
+              if ('sheetMusicChordsOnly' in filteredSettings) {
+                console.warn('⚠️ 本番モード時は楽譜表示設定（sheetMusicChordsOnly）を変更できません');
+                delete filteredSettings.sheetMusicChordsOnly;
+              }
+            }
+          }
+          
+          // ミッションコンテキストでの楽譜表示制限
+          if (currentState.mode === 'performance' && currentState.missionContext?.clearConditions) {
+            const { clearConditions } = currentState.missionContext;
             
             if (clearConditions.notation_setting) {
               if ('showSheetMusic' in filteredSettings) {
@@ -1082,12 +1126,12 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 delete filteredSettings.sheetMusicChordsOnly;
               }
             }
-            
-            // 制限された設定がある場合はログ出力
-            const restrictedKeys = Object.keys(newSettings).filter(key => !(key in filteredSettings));
-            if (restrictedKeys.length > 0) {
-              console.log(`🎯 本番モード課題条件制限: ${restrictedKeys.join(', ')} の変更がブロックされました`);
-            }
+          }
+          
+          // 制限された設定がある場合はログ出力
+          const restrictedKeys = Object.keys(newSettings).filter(key => !(key in filteredSettings));
+          if (restrictedKeys.length > 0) {
+            console.log(`🎯 本番モード課題条件制限: ${restrictedKeys.join(', ')} の変更がブロックされました`);
           }
           
           // まず Immer の set でストアの設定値を更新（フィルタ後の設定を使用）
@@ -1229,6 +1273,47 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             if (state.lessonContext) {
               const { clearConditions } = state.lessonContext;
               console.log('🎯 本番モード切り替え: レッスン課題条件を適用', clearConditions);
+              
+              // キー（移調）設定
+              if (clearConditions.key !== undefined) {
+                state.settings.transpose = clearConditions.key;
+              }
+              
+              // 速度設定
+              if (clearConditions.speed !== undefined) {
+                state.settings.playbackSpeed = clearConditions.speed;
+              }
+              
+              // 楽譜表示設定
+              if (clearConditions.notation_setting) {
+                switch (clearConditions.notation_setting) {
+                  case 'notes_chords':
+                    state.settings.showSheetMusic = true;
+                    state.settings.sheetMusicChordsOnly = false;
+                    break;
+                  case 'chords_only':
+                    state.settings.showSheetMusic = true;
+                    state.settings.sheetMusicChordsOnly = true;
+                    break;
+                  case 'both':
+                    state.settings.showSheetMusic = true;
+                    state.settings.sheetMusicChordsOnly = false;
+                    break;
+                }
+              }
+              
+              console.log('✅ 本番モード課題条件適用完了:', {
+                transpose: state.settings.transpose,
+                playbackSpeed: state.settings.playbackSpeed,
+                showSheetMusic: state.settings.showSheetMusic,
+                sheetMusicChordsOnly: state.settings.sheetMusicChordsOnly
+              });
+            }
+            
+            // 🆕 ミッションモード時：本番モードで課題条件を強制適用
+            if (state.missionContext?.clearConditions) {
+              const { clearConditions } = state.missionContext;
+              console.log('🎯 本番モード切り替え: ミッション課題条件を適用', clearConditions);
               
               // キー（移調）設定
               if (clearConditions.key !== undefined) {

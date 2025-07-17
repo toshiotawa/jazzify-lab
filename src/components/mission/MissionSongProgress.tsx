@@ -25,16 +25,11 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
   const handlePlaySong = async (songId: string, songProgress: MissionSongProgressType) => {
     try {
       console.log('ミッション曲をプレイ:', { songId, missionId, songProgress });
-      // ミッションから曲をプレイする際の設定を含むURL形式
+      // ミッションから曲をプレイする際はsongとmissionのみを渡す
+      // 条件はGameScreenでデータベースから取得する
       const params = new URLSearchParams();
       params.set('song', songId);
       params.set('mission', missionId);
-      // ミッション曲の設定を追加
-      params.set('key', String(songProgress.key_offset || 0));
-      params.set('speed', String(songProgress.min_speed || 1.0));
-      params.set('rank', songProgress.min_rank || 'B');
-      params.set('count', String(songProgress.required_count || 1));
-      params.set('notation', songProgress.notation_setting || 'both');
       window.location.hash = `#play-mission?${params.toString()}`;
     } catch (error) {
       console.error('曲の読み込みに失敗:', error);
