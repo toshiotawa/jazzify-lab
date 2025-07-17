@@ -55,21 +55,18 @@ const Dashboard: React.FC = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     
-    // ミッションとお知らせを並行取得
-    const promises = [];
-    
-    // ミッションのロード
-    promises.push(
-      loadMissions().catch((missionError: any) => {
-        console.error('Mission loading error:', missionError);
-        toast.error('ミッションの読み込みに失敗しました');
-      })
-    );
+    // ミッションのロード（独立）
+    try {
+      await loadMissions();
+    } catch (missionError: any) {
+      console.error('Mission loading error:', missionError);
+      toast.error('ミッションの読み込みに失敗しました');
+    }
 
-    // お知らせのロード（ゲスト以外）
+    // お知らせのロード（ゲスト以外、独立）
     if (!isGuest) {
-      promises.push(
-        fetchActiveAnnouncements().then((announcementsData) => {
+      try {
+        const announcementsData = await fetchActiveAnnouncements();
         
         // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
         const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
@@ -98,17 +95,15 @@ const Dashboard: React.FC = () => {
             console.log('Dashboard: Active announcements exist but latestData is null');
           }
         }
-      }).catch((announcementError: any) => {
+      } catch (announcementError: any) {
         console.error('Announcement loading error:', announcementError);
         toast.error(`お知らせの読み込みに失敗しました: ${announcementError.message}`, {
           title: 'お知らせエラー',
           duration: 5000,
         });
-      })
-    );
-    
-    // 全ての並行処理を待機
-    await Promise.all(promises);
+      }
+    }
+
     setLoading(false);
   };
 
