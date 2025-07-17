@@ -137,8 +137,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     notes,
     settings.simpleDisplayMode,
     settings.noteNameStyle,
-    settings.sheetMusicChordsOnly
-  ]); // 簡易表示設定を依存関係に追加
+    settings.sheetMusicChordsOnly,
+    settings.transpose
+  ]); // 簡易表示設定とトランスポーズを依存関係に追加
 
   // musicXmlが変更されたら楽譜を再読み込み・再レンダリング
   useEffect(() => {
