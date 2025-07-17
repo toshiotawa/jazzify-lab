@@ -123,6 +123,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           state.user = session?.user ?? null;
         });
         
+        // ✅ 自タブでもプロフィールを取得する
+        if (
+          (event === 'SIGNED_IN'        && session?.user) ||
+          (event === 'INITIAL_SESSION'  && session?.user) ||
+          (event === 'TOKEN_REFRESHED'  && session?.user)
+        ) {
+          get().fetchProfile().catch(console.error);
+        }
+        
         // 他のタブに認証状態変更を通知
         if (authChannel) {
           authChannel.postMessage({ event, session });
