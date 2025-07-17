@@ -56,7 +56,7 @@ export async function fetchLessonsByCourse(
       `)
       .eq('course_id', courseId)
       .order('order_index', { ascending: true }),
-    60 * 1000 // 1分キャッシュ
+    30 * 1000 // 30秒キャッシュ
   );
 
   if (error) {

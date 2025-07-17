@@ -59,7 +59,7 @@ export async function fetchUserLessonProgress(
       .select('*')
       .eq('user_id', userId)
       .eq('course_id', courseId),
-    1000 * 60 * 5 // 5分キャッシュ
+    1000 * 30 // 30秒キャッシュ
   );
 
   if (error) throw new Error(`進捗データの取得に失敗しました: ${error.message}`);

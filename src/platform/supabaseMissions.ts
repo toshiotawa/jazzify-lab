@@ -63,7 +63,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
     
     console.log('fetchActiveMonthlyMissions raw data:', result);
     return result;
-  }, 1000*30);
+  }, 1000*10);
   if (error) throw error;
   
   // データを正しくマッピング
@@ -108,7 +108,7 @@ export async function fetchUserMissionProgress(): Promise<UserMissionProgress[]>
   const key = `user_mission_progress:${user.id}`;
   const { data, error } = await fetchWithCache(key, async () =>
     await supabase.from('user_challenge_progress').select('*').eq('user_id', user.id),
-    1000*10,
+    1000*5,
   );
   if (error) throw error;
   return data as UserMissionProgress[];
@@ -130,34 +130,42 @@ export async function fetchMissionSongProgress(missionId: string): Promise<Missi
   
   if (songsError) throw songsError;
   
-  // 各曲の進捗を取得
-  const songProgress = await Promise.all(
-    songsData.map(async (song) => {
-      const { data: progressData } = await supabase
-        .from('user_song_progress')
-        .select('clear_count')
-        .eq('user_id', user.id)
-        .eq('song_id', song.song_id)
-        .single();
-      
-      const clearCount = progressData?.clear_count || 0;
-      const requiredCount = song.clears_required || 1;
-      
-      return {
-        challenge_id: missionId,
-        song_id: song.song_id,
-        clear_count: clearCount,
-        required_count: requiredCount,
-        is_completed: clearCount >= requiredCount,
-        song: song.songs,
-        // クリア条件を追加
-        min_rank: song.min_rank,
-        min_speed: song.min_speed,
-        key_offset: song.key_offset,
-        notation_setting: song.notation_setting
-      };
-    })
-  );
+  // 曲IDのリストを作成
+  const songIds = songsData.map(song => song.song_id);
+  
+  // 一括で進捗を取得
+  const { data: progressData } = await supabase
+    .from('user_song_progress')
+    .select('song_id, clear_count')
+    .eq('user_id', user.id)
+    .in('song_id', songIds);
+  
+  // 進捗データをマップ化
+  const progressMap = new Map();
+  if (progressData) {
+    progressData.forEach((item: any) => {
+      progressMap.set(item.song_id, item.clear_count);
+    });
+  }
+  
+  const songProgress = songsData.map((song) => {
+    const clearCount = progressMap.get(song.song_id) || 0;
+    const requiredCount = song.clears_required || 1;
+    
+    return {
+      challenge_id: missionId,
+      song_id: song.song_id,
+      clear_count: clearCount,
+      required_count: requiredCount,
+      is_completed: clearCount >= requiredCount,
+      song: song.songs,
+      // クリア条件を追加
+      min_rank: song.min_rank,
+      min_speed: song.min_speed,
+      key_offset: song.key_offset,
+      notation_setting: song.notation_setting
+    };
+  });
   
   return songProgress;
 }

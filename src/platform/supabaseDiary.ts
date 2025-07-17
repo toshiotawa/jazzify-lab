@@ -44,34 +44,52 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
     return profile && profile.nickname && profile.nickname !== profile.email;
   });
 
-  // 各日記のいいね数を取得
-  const diariesWithLikes = await Promise.all(
-    filteredDiaries.slice(0, limit).map(async (diary: any) => {
-      const { count: likeCount } = await supabase
-        .from('diary_likes')
-        .select('*', { count: 'exact', head: true })
-        .eq('diary_id', diary.id);
-      
-      const { count: commentCount } = await supabase
-        .from('diary_comments')
-        .select('*', { count: 'exact', head: true })
-        .eq('diary_id', diary.id);
-      
-      return {
-        id: diary.id,
-        user_id: diary.user_id,
-        content: diary.content,
-        practice_date: diary.practice_date,
-        created_at: diary.created_at,
-        likes: likeCount || 0,
-        comment_count: commentCount || 0,
-        nickname: diary.profiles?.nickname || 'User',
-        avatar_url: diary.profiles?.avatar_url,
-        level: diary.profiles?.level || 1,
-        rank: diary.profiles?.rank || 'free',
-      } as Diary;
-    })
-  );
+  // 日記IDのリストを作成
+  const diaryIds = filteredDiaries.slice(0, limit).map(diary => diary.id);
+  
+  // 一括でいいね数とコメント数を取得
+  const [likesData, commentsData] = await Promise.all([
+    supabase
+      .from('diary_likes')
+      .select('diary_id, count')
+      .in('diary_id', diaryIds)
+      .then(result => {
+        const likesMap = new Map();
+        if (result.data) {
+          result.data.forEach((item: any) => {
+            likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
+          });
+        }
+        return likesMap;
+      }),
+    supabase
+      .from('diary_comments')
+      .select('diary_id, count')
+      .in('diary_id', diaryIds)
+      .then(result => {
+        const commentsMap = new Map();
+        if (result.data) {
+          result.data.forEach((item: any) => {
+            commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
+          });
+        }
+        return commentsMap;
+      })
+  ]);
+  
+  const diariesWithLikes = filteredDiaries.slice(0, limit).map((diary: any) => ({
+    id: diary.id,
+    user_id: diary.user_id,
+    content: diary.content,
+    practice_date: diary.practice_date,
+    created_at: diary.created_at,
+    likes: likesData.get(diary.id) || 0,
+    comment_count: commentsData.get(diary.id) || 0,
+    nickname: diary.profiles?.nickname || 'User',
+    avatar_url: diary.profiles?.avatar_url,
+    level: diary.profiles?.level || 1,
+    rank: diary.profiles?.rank || 'free',
+  } as Diary));
 
   return diariesWithLikes;
 }

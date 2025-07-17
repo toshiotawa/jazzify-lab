@@ -36,7 +36,7 @@ export async function fetchSongs(usageType?: SongUsageType): Promise<Song[]> {
       }
       return query;
     },
-    1000 * 60,
+    1000 * 30,
   );
   if (error) throw error;
   return data as Song[];
