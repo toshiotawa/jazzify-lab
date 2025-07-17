@@ -901,12 +901,10 @@ const GamePlayScreen: React.FC = () => {
         <MissionBackButton />
       </div>
 
-      {/* コントロールバー - レッスンコンテキストまたはミッションコンテキストがある場合は非表示 */}
-      {!lessonContext && !missionContext && (
-        <div className="flex-shrink-0 bg-gray-900 border-t border-gray-700">
-          <ControlBar />
-        </div>
-      )}
+      {/* コントロールバー - フレックスボックス内の通常要素として配置 */}
+      <div className="flex-shrink-0 bg-gray-900 border-t border-gray-700">
+        <ControlBar />
+      </div>
     </div>
   );
 };
@@ -1604,11 +1602,28 @@ const SettingsPanel: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 移調楽器設定
+                {(isStageWithLessonConstraints && lessonContext?.clearConditions.key !== undefined) || 
+                 (isStageWithMissionConstraints && missionContext?.clearConditions?.key !== undefined) && (
+                  <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
+                    本番モード固定
+                  </span>
+                )}
               </label>
+              {(isStageWithLessonConstraints && lessonContext?.clearConditions.key !== undefined) || 
+               (isStageWithMissionConstraints && missionContext?.clearConditions?.key !== undefined) && (
+                <div className="text-xs text-amber-300 mb-2 bg-amber-900/10 p-2 rounded border border-amber-600/30">
+                  🎯 課題条件: キー設定が固定されています（本番モードでは変更不可）
+                </div>
+              )}
               <select
                 value={settings.transposingInstrument}
                 onChange={(e) => gameActions.updateSettings({ transposingInstrument: e.target.value as TransposingInstrument })}
-                className="select select-bordered w-full max-w-xs bg-gray-800 text-white mb-2"
+                className={`select select-bordered w-full max-w-xs bg-gray-800 text-white mb-2 ${
+                  ((isStageWithLessonConstraints && lessonContext?.clearConditions.key !== undefined) || 
+                   (isStageWithMissionConstraints && missionContext?.clearConditions?.key !== undefined)) ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={(isStageWithLessonConstraints && lessonContext?.clearConditions.key !== undefined) || 
+                         (isStageWithMissionConstraints && missionContext?.clearConditions?.key !== undefined)}
               >
                 <option value="concert_pitch">コンサートピッチ（移調なし）</option>
                 <option value="bb_major_2nd">in Bb (長2度上) ソプラノサックス、トランペット、クラリネット</option>

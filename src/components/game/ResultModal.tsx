@@ -431,6 +431,24 @@ const ResultModal: React.FC = () => {
                 <span>レッスンに戻る</span>
               </button>
             )}
+            
+            {/* ミッションに戻るボタン（ミッションコンテキストがある場合のみ表示） */}
+            {missionContext && (
+              <button 
+                onClick={() => {
+                  // ミッション一覧に戻る
+                  resetScore();
+                  seek(0);
+                  closeResultModal();
+                  setXpProcessed(false);
+                  window.location.hash = '#missions';
+                }}
+                className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
+              >
+                <FaArrowLeft />
+                <span>ミッションに戻る</span>
+              </button>
+            )}
           </div>
         </div>
         </div>

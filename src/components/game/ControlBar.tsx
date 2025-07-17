@@ -29,7 +29,8 @@ const ControlBar: React.FC = () => {
     currentSong,
     settings,
     abRepeat,
-    lessonContext
+    lessonContext,
+    missionContext
   } = useGameSelector((state) => ({
     mode: state.mode,
     isPlaying: state.isPlaying,
@@ -37,7 +38,8 @@ const ControlBar: React.FC = () => {
     currentSong: state.currentSong,
     settings: state.settings,
     abRepeat: state.abRepeat,
-    lessonContext: state.lessonContext
+    lessonContext: state.lessonContext,
+    missionContext: state.missionContext
   }));
 
   const {
@@ -317,7 +319,7 @@ const ControlBar: React.FC = () => {
 
               {/* 移調コントロール */}
               <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
-                {lessonContext ? null : (
+                {(lessonContext || missionContext) ? null : (
                   <>
                     <button
                       onClick={handleTransposeDown}
