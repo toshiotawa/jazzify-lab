@@ -355,11 +355,13 @@ const GameScreen: React.FC = () => {
   }, [gameActions]);
 
   // 🔧 自動リダイレクト: 曲が未選択で、今タブが songs 以外なら自動で songs タブへ
-  // ただし、レッスン曲読み込み中（#play-lesson）は除外
+  // ただし、レッスン曲読み込み中（#play-lesson）またはミッション曲読み込み中（#play-mission）は除外
   useEffect(() => {
-    const isPlayLessonHash = window.location.hash.startsWith('#play-lesson');
-    // レッスン曲読み込み中は曲選択画面へのリダイレクトをスキップ
+    const isPlayLessonHash = window.location.hash.startsWith('#play-lesson') || window.location.hash.startsWith('#play-mission');
+    console.log('🔧 Auto-redirect check:', { currentSong: !!currentSong, currentTab, isPlayLessonHash, isLoadingLessonSong, hash: window.location.hash });
+    // レッスン曲・ミッション曲読み込み中は曲選択画面へのリダイレクトをスキップ
     if (!currentSong && currentTab !== 'songs' && !isPlayLessonHash && !isLoadingLessonSong) {
+      console.log('🔧 Auto-redirecting to songs tab');
       gameActions.setCurrentTab('songs');
     }
   }, [currentSong, currentTab, gameActions, isLoadingLessonSong]);

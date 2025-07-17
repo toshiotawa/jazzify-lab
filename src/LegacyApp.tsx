@@ -228,6 +228,13 @@ const App: React.FC = () => {
     case '#admin-announcements':
       MainContent = <AdminDashboard />;
       break;
+    case '#songs':
+    case '#practice':
+    case '#performance':
+    case '#play-lesson':
+    case '#play-mission':
+      MainContent = <GameScreen />;
+      break;
     default:
       MainContent = <GameScreen />;
       break;
