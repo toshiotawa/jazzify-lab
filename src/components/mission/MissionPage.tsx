@@ -21,27 +21,15 @@ const MissionPage: React.FC = () => {
       (async () => {
         try {
           setError(null);
-          // ミッションデータと進捗を並行取得
-          await Promise.all([
-            fetchAll(),
-            // ミッションの曲進捗も並行取得
-            fetchAll().then(() => {
-              // 各ミッションの曲進捗を並行取得
-              const promises = monthly.map(mission => 
-                mission.songs && mission.songs.length > 0 ? 
-                  fetchMissionSongProgress(mission.id) : 
-                  Promise.resolve([])
-              );
-              return Promise.all(promises);
-            })
-          ]);
+          // ミッションデータと進捗を取得
+          await fetchAll();
         } catch (err) {
           console.error('ミッション取得エラー:', err);
           setError('ミッション情報の取得に失敗しました');
         }
       })();
     }
-  }, [open, fetchAll, monthly]);
+  }, [open, fetchAll]);
 
   if (!open) return null;
 
