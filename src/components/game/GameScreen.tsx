@@ -669,8 +669,9 @@ const SongSelectionScreen: React.FC = () => {
                     return;
                   }
                   
-                  // 通常曲選択時はレッスンコンテキストをクリア
+                  // 通常曲選択時はレッスンコンテキストとミッションコンテキストをクリア
                   gameActions.clearLessonContext();
+                  gameActions.clearMissionContext();
                   
                   console.log(`曲を選択: ${song.title}`);
                   try {
@@ -820,10 +821,12 @@ const SongSelectionScreen: React.FC = () => {
  * ゲームプレイ画面
  */
 const GamePlayScreen: React.FC = () => {
-  const { currentSong, mode, settings } = useGameSelector((s) => ({
+  const { currentSong, mode, settings, lessonContext, missionContext } = useGameSelector((s) => ({
     currentSong: s.currentSong,
     mode: s.mode,
-    settings: s.settings
+    settings: s.settings,
+    lessonContext: s.lessonContext,
+    missionContext: s.missionContext
   }));
   const gameActions = useGameActions();
   
@@ -893,12 +896,17 @@ const GamePlayScreen: React.FC = () => {
         
         {/* レッスンに戻るボタン - 画面中央左に配置（レッスンコンテキストがある場合のみ） */}
         <LessonBackButton />
+        
+        {/* ミッションに戻るボタン - 画面中央左に配置（ミッションコンテキストがある場合のみ） */}
+        <MissionBackButton />
       </div>
 
-      {/* コントロールバー - フレックスボックス内の通常要素として配置 */}
-      <div className="flex-shrink-0 bg-gray-900 border-t border-gray-700">
-        <ControlBar />
-      </div>
+      {/* コントロールバー - レッスンコンテキストまたはミッションコンテキストがある場合は非表示 */}
+      {!lessonContext && !missionContext && (
+        <div className="flex-shrink-0 bg-gray-900 border-t border-gray-700">
+          <ControlBar />
+        </div>
+      )}
     </div>
   );
 };
@@ -988,6 +996,44 @@ const LessonBackButton: React.FC = () => {
       >
         <FaArrowLeft className="w-3 h-3" />
         <span>レッスンに戻る</span>
+      </button>
+    </div>
+  );
+};
+
+/**
+ * ミッションに戻るボタン - 画面左端に配置
+ */
+const MissionBackButton: React.FC = () => {
+  const { missionContext } = useGameSelector((s) => ({
+    missionContext: s.missionContext
+  }));
+
+  // ミッションコンテキストがない場合は何も表示しない
+  if (!missionContext) {
+    return null;
+  }
+
+  return (
+    <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
+      <button
+        onClick={() => {
+          // ミッション一覧に戻る
+          window.location.hash = '#missions';
+        }}
+        className="
+          px-3 py-2 rounded-lg font-bold text-sm
+          transition-all duration-200 hover:scale-105
+          shadow-lg backdrop-blur-sm
+          bg-gradient-to-br from-gray-500/80 to-gray-700/80 
+          hover:from-gray-400/90 hover:to-gray-600/90 
+          text-white border border-gray-400/60
+          flex items-center space-x-2
+        "
+        title="ミッションに戻る"
+      >
+        <FaArrowLeft className="w-3 h-3" />
+        <span>ミッションに戻る</span>
       </button>
     </div>
   );
@@ -1139,15 +1185,19 @@ const EmptySlot: React.FC<{ text: string }> = ({ text }) => {
  * 設定パネル（簡易版）
  */
 const SettingsPanel: React.FC = () => {
-  const { settings, mode, lessonContext } = useGameSelector((s) => ({ 
+  const { settings, mode, lessonContext, missionContext } = useGameSelector((s) => ({ 
     settings: s.settings, 
     mode: s.mode,
-    lessonContext: s.lessonContext
+    lessonContext: s.lessonContext,
+    missionContext: s.missionContext
   }));
   const gameActions = useGameActions();
   
   // 本番モード + レッスンコンテキスト時の課題条件制限フラグ
   const isStageWithLessonConstraints = mode === 'performance' && lessonContext;
+  
+  // 本番モード + ミッションコンテキスト時の課題条件制限フラグ
+  const isStageWithMissionConstraints = mode === 'performance' && missionContext?.clearConditions;
   
   // ローカルストレージ関連の状態
   const [hasStoredSettings, setHasStoredSettings] = React.useState(false);
@@ -1237,42 +1287,60 @@ const SettingsPanel: React.FC = () => {
         
         <div className="card-body">
           {/* 本番モード課題条件の全体説明 */}
-          {isStageWithLessonConstraints && (
+          {(isStageWithLessonConstraints || isStageWithMissionConstraints) && (
             <div className="bg-gradient-to-r from-amber-900/20 to-orange-900/20 border border-amber-500/40 rounded-lg p-4 mb-4">
               <div className="flex items-center space-x-2 mb-2">
                 <span className="text-xl">🎯</span>
-                <h3 className="text-lg font-bold text-amber-300">本番モード - 課題条件適用中</h3>
+                <h3 className="text-lg font-bold text-amber-300">
+                  本番モード - 課題条件適用中
+                  {isStageWithLessonConstraints && '（レッスン）'}
+                  {isStageWithMissionConstraints && '（ミッション）'}
+                </h3>
               </div>
               <div className="text-sm text-amber-200 space-y-1">
-                <p>レッスンの課題条件に従って設定が固定されています。</p>
+                <p>
+                  {isStageWithLessonConstraints && 'レッスンの課題条件に従って設定が固定されています。'}
+                  {isStageWithMissionConstraints && 'ミッションの課題条件に従って設定が固定されています。'}
+                </p>
                 <div className="mt-2 grid grid-cols-1 gap-2 text-xs">
-                  {lessonContext?.clearConditions.key !== undefined && (
+                  {(lessonContext?.clearConditions.key !== undefined || missionContext?.clearConditions?.key !== undefined) && (
                     <div className="flex justify-between">
                       <span>キー設定:</span>
                       <span className="font-mono text-amber-300">
-                        {lessonContext.clearConditions.key > 0 ? `+${lessonContext.clearConditions.key}` : lessonContext.clearConditions.key}半音
+                        {(() => {
+                          const key = lessonContext?.clearConditions.key ?? missionContext?.clearConditions?.key ?? 0;
+                          return key > 0 ? `+${key}` : key;
+                        })()}半音
                       </span>
                     </div>
                   )}
-                  {lessonContext?.clearConditions.speed !== undefined && (
+                  {(lessonContext?.clearConditions.speed !== undefined || missionContext?.clearConditions?.speed !== undefined) && (
                     <div className="flex justify-between">
                       <span>再生速度:</span>
-                      <span className="font-mono text-amber-300">{lessonContext.clearConditions.speed}倍速以上</span>
+                      <span className="font-mono text-amber-300">
+                        {lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速以上
+                      </span>
                     </div>
                   )}
-                  {lessonContext?.clearConditions.rank && (
+                  {(lessonContext?.clearConditions.rank || missionContext?.clearConditions?.rank) && (
                     <div className="flex justify-between">
                       <span>必要ランク:</span>
-                      <span className="font-mono text-amber-300">{lessonContext.clearConditions.rank}以上</span>
+                      <span className="font-mono text-amber-300">
+                        {lessonContext?.clearConditions.rank ?? missionContext?.clearConditions?.rank ?? 'B'}以上
+                      </span>
                     </div>
                   )}
-                  {lessonContext?.clearConditions.notation_setting && (
+                  
+                  {(lessonContext?.clearConditions.notation_setting || missionContext?.clearConditions?.notation_setting) && (
                     <div className="flex justify-between">
                       <span>楽譜表示:</span>
                       <span className="font-mono text-amber-300">
-                        {lessonContext.clearConditions.notation_setting === 'notes_chords' ? 'ノート+コード' :
-                         lessonContext.clearConditions.notation_setting === 'chords_only' ? 'コードのみ' :
-                         'ノート+コード'}
+                        {(() => {
+                          const notation = lessonContext?.clearConditions.notation_setting ?? missionContext?.clearConditions?.notation_setting;
+                          return notation === 'notes_chords' ? 'ノート+コード' :
+                                 notation === 'chords_only' ? 'コードのみ' :
+                                 'ノート+コード';
+                        })()}
                       </span>
                     </div>
                   )}
@@ -1446,21 +1514,24 @@ const SettingsPanel: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 再生スピード: {Math.round(settings.playbackSpeed * 100)}%
-                {isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined && (
+                {(isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined) || 
+                 (isStageWithMissionConstraints && missionContext?.clearConditions?.speed !== undefined) && (
                   <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
-                    最低{lessonContext.clearConditions.speed}倍速
+                    最低{lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速
                   </span>
                 )}
               </label>
-              {isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined && (
+              {(isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined) || 
+               (isStageWithMissionConstraints && missionContext?.clearConditions?.speed !== undefined) && (
                 <div className="text-xs text-amber-300 mb-2 bg-amber-900/10 p-2 rounded border border-amber-600/30">
-                  🎯 課題条件: {lessonContext.clearConditions.speed}倍速以上が必要（本番モードでは{lessonContext.clearConditions.speed}倍速以上で変更可能）
+                  🎯 課題条件: {lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速以上が必要（本番モードでは{lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速以上で変更可能）
                 </div>
               )}
               <input
                 type="range"
-                min={isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined 
-                     ? lessonContext.clearConditions.speed.toString() 
+                min={((isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined) || 
+                      (isStageWithMissionConstraints && missionContext?.clearConditions?.speed !== undefined))
+                     ? (lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0).toString() 
                      : "0.5"}
                 max="1.5"
                 step="0.05"
@@ -1611,23 +1682,29 @@ const SettingsPanel: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 楽譜表示
-                {isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting && (
+                {(isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting) || 
+                 (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting) && (
                   <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
                     本番モード固定
                   </span>
                 )}
               </label>
-              {isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting && (
+              {(isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting) || 
+               (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting) && (
                 <div className="text-xs text-amber-300 mb-2 bg-amber-900/10 p-2 rounded border border-amber-600/30">
                   🎯 課題条件: {
-                    lessonContext.clearConditions.notation_setting === 'notes_chords' ? 'ノート+コード表示' :
-                    lessonContext.clearConditions.notation_setting === 'chords_only' ? 'コードのみ表示' :
-                    'ノート+コード表示'
+                    (() => {
+                      const notation = lessonContext?.clearConditions.notation_setting ?? missionContext?.clearConditions?.notation_setting;
+                      return notation === 'notes_chords' ? 'ノート+コード表示' :
+                             notation === 'chords_only' ? 'コードのみ表示' :
+                             'ノート+コード表示';
+                    })()
                   }が必要（本番モードでは固定）
                 </div>
               )}
               <div className="flex items-center space-x-4 mt-1">
-                <label className={`flex items-center space-x-1 ${isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                <label className={`flex items-center space-x-1 ${((isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting) || 
+                                                                 (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                   <input
                     type="radio"
                     name="sheet-music-mode"
@@ -1637,11 +1714,13 @@ const SettingsPanel: React.FC = () => {
                       gameActions.updateSettings({ sheetMusicChordsOnly: false })
                     }
                     className="radio radio-sm"
-                    disabled={isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting !== undefined}
+                    disabled={(isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting !== undefined) || 
+                             (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting !== undefined)}
                   />
                   <span className="text-sm text-gray-300">ノート+コード</span>
                 </label>
-                <label className={`flex items-center space-x-1 ${isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                <label className={`flex items-center space-x-1 ${((isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting) || 
+                                                                 (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                   <input
                     type="radio"
                     name="sheet-music-mode"
@@ -1651,7 +1730,8 @@ const SettingsPanel: React.FC = () => {
                       gameActions.updateSettings({ sheetMusicChordsOnly: true })
                     }
                     className="radio radio-sm"
-                    disabled={isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting !== undefined}
+                    disabled={(isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting !== undefined) || 
+                             (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting !== undefined)}
                   />
                   <span className="text-sm text-gray-300">コードのみ</span>
                 </label>
