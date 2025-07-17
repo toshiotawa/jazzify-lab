@@ -3,7 +3,7 @@ import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { useLessonContext } from '@/stores/gameStore';
 import { addXp, calcLevel } from '@/platform/supabaseXp';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
-import { updateMissionSongProgress } from '@/platform/supabaseMissions';
+import { updateMissionSongProgress, fetchMissionSongProgress } from '@/platform/supabaseMissions';
 import { useAuthStore } from '@/stores/authStore';
 import { calculateXP, calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
 import { FaArrowLeft } from 'react-icons/fa';
@@ -33,6 +33,7 @@ const ResultModal: React.FC = () => {
   
   const [lessonRequirementSuccess, setLessonRequirementSuccess] = useState<boolean | null>(null);
   const [missionRequirementSuccess, setMissionRequirementSuccess] = useState<boolean | null>(null);
+  const [clearStats, setClearStats] = useState<{current: number; goal: number} | null>(null);
 
   // XP計算・加算（一度だけ実行）
   const [xpProcessed, setXpProcessed] = useState(false);
@@ -49,7 +50,7 @@ const ResultModal: React.FC = () => {
           playbackSpeed: settings.playbackSpeed,
           transposed: settings.transpose !== 0,
           lessonBonusMultiplier: lessonContext ? 2 : 1,
-          missionBonusMultiplier: 1, // TODO: missionから
+          missionBonusMultiplier: missionContext ? 2 : 1,
           challengeBonusMultiplier: 1, // TODO: challengeから
           seasonMultiplier: profile.next_season_xp_multiplier ?? 1,
         });
@@ -161,9 +162,59 @@ const ResultModal: React.FC = () => {
                   min_speed: missionSong.min_speed || 1.0
                 }
               );
+              
+              // クリア回数統計を設定
+              const songProgress = await fetchMissionSongProgress(missionContext.missionId);
+              const newCount = songProgress.find((s: any) => s.song_id === currentSong.id)?.clear_count || 0;
+              setClearStats({ 
+                current: newCount, 
+                goal: missionSong.clears_required || 1 
+              });
             }
           } catch (error) {
             console.error('ミッション進捗の更新に失敗:', error);
+          }
+        }
+        
+        // レッスンモードの場合、クリア回数統計を設定
+        if (lessonContext && currentSong) {
+          try {
+            const result = await updateLessonRequirementProgress(
+              lessonContext.lessonId,
+              currentSong.id,
+              score.rank,
+              lessonContext.clearConditions
+            );
+            const newCount = typeof result === 'object' && result !== null ? (result as any).clear_count || 0 : 0;
+            setClearStats({ 
+              current: newCount, 
+              goal: lessonContext.clearConditions.count || 1 
+            });
+          } catch (error) {
+            console.error('レッスン進捗の更新に失敗:', error);
+          }
+        }
+        
+        // 通常曲の場合、クリア回数統計を設定
+        if (!lessonContext && !missionContext && currentSong) {
+          try {
+            const { getSupabaseClient } = await import('@/platform/supabaseClient');
+            const supabase = getSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (user) {
+              const { data: progress } = await supabase
+                .from('user_song_progress')
+                .select('clear_count')
+                .eq('user_id', user.id)
+                .eq('song_id', currentSong.id)
+                .single();
+              
+              const currentCount = progress?.clear_count || 0;
+              setClearStats({ current: currentCount, goal: 50 });
+            }
+          } catch (error) {
+            console.error('通常曲のクリア回数取得に失敗:', error);
           }
         }
       })();
@@ -171,6 +222,7 @@ const ResultModal: React.FC = () => {
       setXpInfo(null);
       setLessonRequirementSuccess(null);
       setMissionRequirementSuccess(null);
+      setClearStats(null);
       setXpProcessed(false);
     }
   }, [resultModalOpen, lessonContext, missionContext, currentSong, profile, xpProcessed]);
@@ -308,6 +360,24 @@ const ResultModal: React.FC = () => {
                   ランク: B以上 / 速度: 1.0倍以上 / キー: 0
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {clearStats && (
+          <div className="px-4 sm:px-6 py-2">
+            <div className="text-center p-3 rounded-lg bg-slate-800/50 border border-slate-600">
+              <div className="text-sm font-medium text-gray-300 mb-1">
+                クリア回数
+              </div>
+              <div className="text-lg font-bold text-blue-400">
+                {clearStats.current} / {clearStats.goal}
+              </div>
+              {clearStats.current >= clearStats.goal && (
+                <div className="text-xs text-emerald-400 mt-1">
+                  🎉 目標達成！
+                </div>
+              )}
             </div>
           </div>
         )}

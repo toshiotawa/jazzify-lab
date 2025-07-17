@@ -62,12 +62,79 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.isGuest = false;
       });
 
+      // BroadcastChannel でタブ間認証同期
+      let authChannel: BroadcastChannel | null = null;
+      try {
+        authChannel = new BroadcastChannel('supabase-auth');
+        
+        // 他のタブからの認証状態変更を監視
+        authChannel.onmessage = ({ data }) => {
+          const { event, session } = data;
+          if (event === 'SIGNED_IN' && session) {
+            set(state => {
+              state.session = session;
+              state.user = session.user;
+              state.isGuest = false;
+            });
+            // プロフィール情報を再取得
+            get().fetchProfile();
+          } else if (event === 'SIGNED_OUT') {
+            set(state => {
+              state.session = null;
+              state.user = null;
+              state.isGuest = false;
+              state.profile = null;
+            });
+          }
+        };
+      } catch (error) {
+        console.warn('BroadcastChannel not supported, falling back to localStorage events');
+        // フォールバック: localStorage イベント
+        window.addEventListener('storage', (e) => {
+          if (e.key === 'supabase-auth') {
+            try {
+              const data = JSON.parse(e.newValue || '{}');
+              if (data.event === 'SIGNED_IN' && data.session) {
+                set(state => {
+                  state.session = data.session;
+                  state.user = data.session.user;
+                  state.isGuest = false;
+                });
+                get().fetchProfile();
+              } else if (data.event === 'SIGNED_OUT') {
+                set(state => {
+                  state.session = null;
+                  state.user = null;
+                  state.isGuest = false;
+                  state.profile = null;
+                });
+              }
+            } catch (error) {
+              console.error('Error parsing auth storage event:', error);
+            }
+          }
+        });
+      }
+
       // auth 状態変化監視
-      supabase.auth.onAuthStateChange((_event, session) => {
+      supabase.auth.onAuthStateChange((event, session) => {
         set(state => {
           state.session = session ?? null;
           state.user = session?.user ?? null;
         });
+        
+        // 他のタブに認証状態変更を通知
+        if (authChannel) {
+          authChannel.postMessage({ event, session });
+        } else {
+          // localStorage フォールバック
+          try {
+            localStorage.setItem('supabase-auth', JSON.stringify({ event, session }));
+            localStorage.removeItem('supabase-auth'); // 即座に削除してイベントをトリガー
+          } catch (error) {
+            console.warn('localStorage not available for auth sync');
+          }
+        }
       });
 
       if (session?.user) {

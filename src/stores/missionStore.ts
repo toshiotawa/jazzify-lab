@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { Mission, UserMissionProgress, MissionSongProgress, fetchActiveMonthlyMissions, fetchUserMissionProgress, fetchMissionSongProgress, claimReward } from '@/platform/supabaseMissions';
+import { Mission, UserMissionProgress, MissionSongProgress, fetchActiveMonthlyMissions, fetchUserMissionProgress, fetchMissionSongProgress, fetchMissionSongProgressAll, claimReward } from '@/platform/supabaseMissions';
 
 interface State {
   monthly: Mission[];
@@ -11,6 +11,7 @@ interface State {
 interface Actions {
   fetchAll: () => Promise<void>;
   fetchSongProgress: (missionId: string) => Promise<void>;
+  fetchSongProgressAll: (missionIds: string[]) => Promise<void>;
   claim: (id: string) => Promise<void>;
 }
 
@@ -30,6 +31,12 @@ export const useMissionStore = create<State & Actions>()(
       const progMap:Record<string,UserMissionProgress> = {};
       progress.forEach(pr=>{progMap[pr.challenge_id]=pr;});
       set(s=>{s.monthly=missions; s.progress=progMap; s.loading=false;});
+      
+      // ミッションの曲進捗を一括取得
+      const missionIds = missions.map(m => m.id);
+      if (missionIds.length > 0) {
+        await get().fetchSongProgressAll(missionIds);
+      }
     },
 
     fetchSongProgress: async (missionId: string) => {
@@ -40,6 +47,17 @@ export const useMissionStore = create<State & Actions>()(
         });
       } catch (error) {
         console.error('曲進捗の取得に失敗:', error);
+      }
+    },
+
+    fetchSongProgressAll: async (missionIds: string[]) => {
+      try {
+        const songProgressMap = await fetchMissionSongProgressAll(missionIds);
+        set(s => {
+          Object.assign(s.songProgress, songProgressMap);
+        });
+      } catch (error) {
+        console.error('一括曲進捗の取得に失敗:', error);
       }
     },
 

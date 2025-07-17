@@ -171,6 +171,74 @@ export async function fetchMissionSongProgress(missionId: string): Promise<Missi
 }
 
 /**
+ * 複数のミッションの曲進捗を一括取得
+ */
+export async function fetchMissionSongProgressAll(missionIds: string[]): Promise<Record<string, MissionSongProgress[]>> {
+  const supabase = getSupabaseClient();
+  const { data:{ user } } = await supabase.auth.getUser();
+  if (!user || missionIds.length === 0) return {};
+  
+  try {
+    // 全てのミッションの曲一覧を一括取得
+    const { data: songsData, error: songsError } = await supabase
+      .from('challenge_tracks')
+      .select('challenge_id, song_id, min_rank, min_speed, key_offset, notation_setting, clears_required, songs(id,title,artist)')
+      .in('challenge_id', missionIds);
+    
+    if (songsError) throw songsError;
+    
+    // 曲IDのリストを作成
+    const songIds = songsData.map((song: any) => song.song_id);
+    
+    // 一括で進捗を取得
+    const { data: progressData } = await supabase
+      .from('user_song_progress')
+      .select('song_id, clear_count')
+      .eq('user_id', user.id)
+      .in('song_id', songIds);
+    
+    // 進捗データをマップ化
+    const progressMap = new Map();
+    if (progressData) {
+      progressData.forEach((item: any) => {
+        progressMap.set(item.song_id, item.clear_count);
+      });
+    }
+    
+    // ミッションIDごとにグループ化
+    const result: Record<string, MissionSongProgress[]> = {};
+    
+    songsData.forEach((song: any) => {
+      const clearCount = progressMap.get(song.song_id) || 0;
+      const requiredCount = song.clears_required || 1;
+      
+      const songProgress: MissionSongProgress = {
+        challenge_id: song.challenge_id,
+        song_id: song.song_id,
+        clear_count: clearCount,
+        required_count: requiredCount,
+        is_completed: clearCount >= requiredCount,
+        song: song.songs,
+        min_rank: song.min_rank,
+        min_speed: song.min_speed,
+        key_offset: song.key_offset,
+        notation_setting: song.notation_setting
+      };
+      
+      if (!result[song.challenge_id]) {
+        result[song.challenge_id] = [];
+      }
+      result[song.challenge_id].push(songProgress);
+    });
+    
+    return result;
+  } catch (error) {
+    console.error('一括ミッション進捗取得エラー:', error);
+    return {};
+  }
+}
+
+/**
  * ミッションの曲をプレイする
  */
 export async function playMissionSong(missionId: string, songId: string) {
@@ -275,14 +343,20 @@ export async function claimReward(missionId: string) {
   const supabase = getSupabaseClient();
   const { data:{ user } } = await supabase.auth.getUser();
   if (!user) return;
+  
+  // ① 完了フラグ
   await supabase.from('user_challenge_progress')
     .update({ completed: true })
     .eq('user_id', user.id)
     .eq('challenge_id', missionId);
 
-  const { data: prof } = await supabase.from('profiles').select('next_season_xp_multiplier').eq('id', user.id).single();
-  const current = prof?.next_season_xp_multiplier ?? 1;
-  const updated = Math.max(current, 1.3);
-  await supabase.from('profiles').update({ next_season_xp_multiplier: updated }).eq('id', user.id);
+  // ② 固定 XP 付与（2000 XP）
+  const { error } = await supabase.rpc('add_xp', {
+    _user_id: user.id,
+    _gained_xp: 2000,
+    _reason: 'mission_clear'
+  });
+  if (error) throw error;
+  
   clearSupabaseCache();
 }

@@ -44,7 +44,7 @@ interface CacheEntry<T> {
   expires: number; // epoch ms
 }
 
-const DEFAULT_TTL = 1000 * 30; // 30 秒
+const DEFAULT_TTL = 1000 * 300; // 300 秒（5分）
 const cache: Map<string, CacheEntry<any>> = new Map();
 
 /**
