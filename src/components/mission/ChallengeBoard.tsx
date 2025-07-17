@@ -8,9 +8,10 @@ const ChallengeBoard: React.FC = () => {
   // 既にデータがある場合は再取得しない
   useEffect(() => {
     if (monthly.length === 0 && !loading) {
+      console.log('fetchActiveMonthlyMissions processed missions:', monthly.length);
       void fetchAll();
     }
-  }, [monthly.length, loading, fetchAll]);
+  }, [monthly.length, loading]);
 
   if (loading) return <p className="text-center text-gray-400">Loading...</p>;
 

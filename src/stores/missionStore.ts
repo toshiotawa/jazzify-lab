@@ -40,6 +40,12 @@ export const useMissionStore = create<State & Actions>()(
     },
 
     fetchSongProgress: async (missionId: string) => {
+      // 既に進捗がある場合は再取得しない
+      const existingProgress = get().songProgress[missionId];
+      if (existingProgress && existingProgress.length > 0) {
+        return;
+      }
+      
       try {
         const songProgress = await fetchMissionSongProgress(missionId);
         set(s => {
@@ -52,7 +58,18 @@ export const useMissionStore = create<State & Actions>()(
 
     fetchSongProgressAll: async (missionIds: string[]) => {
       try {
-        const songProgressMap = await fetchMissionSongProgressAll(missionIds);
+        // 既に進捗があるミッションを除外
+        const existingProgress = get().songProgress;
+        const missionIdsToFetch = missionIds.filter(id => {
+          const progress = existingProgress[id];
+          return !progress || progress.length === 0;
+        });
+        
+        if (missionIdsToFetch.length === 0) {
+          return;
+        }
+        
+        const songProgressMap = await fetchMissionSongProgressAll(missionIdsToFetch);
         set(s => {
           Object.assign(s.songProgress, songProgressMap);
         });

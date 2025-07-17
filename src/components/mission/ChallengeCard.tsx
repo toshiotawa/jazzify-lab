@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Mission, UserMissionProgress } from '@/platform/supabaseMissions';
 import { useMissionStore } from '@/stores/missionStore';
 import { cn } from '@/utils/cn';
@@ -11,23 +11,8 @@ interface Props {
 }
 
 const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
-  const { claim, fetchSongProgress, songProgress } = useMissionStore();
+  const { claim, songProgress } = useMissionStore();
   const [showSongProgress, setShowSongProgress] = useState(false);
-  
-  // 曲進捗を取得（日記ミッションの場合はスキップ）
-  useEffect(() => {
-    console.log('ChallengeCard useEffect:', { 
-      missionId: mission.id, 
-      songsCount: mission.songs?.length || 0,
-      diaryCount: mission.diary_count || 0,
-      songs: mission.songs?.map(s => ({ id: s.song_id, title: s.songs?.title })),
-      missionData: mission
-    });
-    if (mission.songs && mission.songs.length > 0) {
-      console.log('曲進捗を取得中:', mission.id);
-      fetchSongProgress(mission.id);
-    }
-  }, [mission.id, mission.songs, fetchSongProgress]);
   
   const currentSongProgress = songProgress[mission.id] || [];
   const allSongsCompleted = currentSongProgress.length > 0 && 
