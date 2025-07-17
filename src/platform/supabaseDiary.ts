@@ -51,7 +51,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   const [likesData, commentsData] = await Promise.all([
     supabase
       .from('diary_likes')
-      .select('diary_id, count')
+      .select('diary_id')
       .in('diary_id', diaryIds)
       .then(result => {
         const likesMap = new Map();
@@ -64,7 +64,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
       }),
     supabase
       .from('diary_comments')
-      .select('diary_id, count')
+      .select('diary_id')
       .in('diary_id', diaryIds)
       .then(result => {
         const commentsMap = new Map();
@@ -124,26 +124,44 @@ export async function fetchUserDiaries(userId: string): Promise<{
 
   if (diariesError) throw new Error(`日記の取得に失敗しました: ${diariesError.message}`);
 
-  // 各日記のいいね数とコメント数を取得
-  const diariesWithLikes = await Promise.all(
-    (diariesData || []).map(async (diary) => {
-      const { count: likeCount } = await supabase
-        .from('diary_likes')
-        .select('*', { count: 'exact', head: true })
-        .eq('diary_id', diary.id);
-      
-      const { count: commentCount } = await supabase
-        .from('diary_comments')
-        .select('*', { count: 'exact', head: true })
-        .eq('diary_id', diary.id);
-      
-      return {
-        ...diary,
-        likes: likeCount || 0,
-        comment_count: commentCount || 0,
-      };
-    })
-  );
+  // 日記IDのリストを作成
+  const diaryIds = (diariesData || []).map(diary => diary.id);
+  
+  // 一括でいいね数とコメント数を取得
+  const [likesData, commentsData] = await Promise.all([
+    supabase
+      .from('diary_likes')
+      .select('diary_id')
+      .in('diary_id', diaryIds)
+      .then(result => {
+        const likesMap = new Map();
+        if (result.data) {
+          result.data.forEach((item: any) => {
+            likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
+          });
+        }
+        return likesMap;
+      }),
+    supabase
+      .from('diary_comments')
+      .select('diary_id')
+      .in('diary_id', diaryIds)
+      .then(result => {
+        const commentsMap = new Map();
+        if (result.data) {
+          result.data.forEach((item: any) => {
+            commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
+          });
+        }
+        return commentsMap;
+      })
+  ]);
+  
+  const diariesWithLikes = (diariesData || []).map((diary) => ({
+    ...diary,
+    likes: likesData.get(diary.id) || 0,
+    comment_count: commentsData.get(diary.id) || 0,
+  }));
 
   // ユーザープロフィールを取得
   const { data: profileData, error: profileError } = await supabase
