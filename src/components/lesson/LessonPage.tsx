@@ -135,16 +135,18 @@ const LessonPage: React.FC = () => {
   const loadLessons = async (courseId: string) => {
     try {
       console.log(`Loading lessons for course: ${courseId}`);
-      const [lessonsData, progressData] = await Promise.all([
+      
+      // レッスンデータ、進捗データ、要件進捗を並行取得
+      const [lessonsData, progressData, requirementsMap] = await Promise.all([
         fetchLessonsByCourse(courseId),
-        fetchUserLessonProgress(courseId)
+        fetchUserLessonProgress(courseId),
+        fetchLessonsByCourse(courseId).then(lessons => {
+          const lessonIds = lessons.map(lesson => lesson.id);
+          return fetchMultipleLessonRequirementsProgress(lessonIds);
+        })
       ]);
       
       console.log(`Loaded ${lessonsData.length} lessons`);
-      
-      // Load requirements progress for all lessons in batch (performance optimization)
-      const lessonIds = lessonsData.map(lesson => lesson.id);
-      const requirementsMap = await fetchMultipleLessonRequirementsProgress(lessonIds);
       
       setLessonRequirementsProgress(requirementsMap);
       setLessons(lessonsData);

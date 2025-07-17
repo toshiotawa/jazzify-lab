@@ -25,11 +25,17 @@ const DiaryFeed: React.FC = () => {
   // Initialize realtime channels when the feed mounts
   useEffect(() => { useDiaryStore.getState().initRealtime(); }, []);
   useEffect(() => { void fetchAll(); }, []);
+  
+  // コメントを並行取得
   useEffect(() => {
-    diaries.forEach(d => {
-      if (openComments[d.id]) fetchComments(d.id);
-    });
-  }, [openComments]);
+    const commentPromises = diaries
+      .filter(d => openComments[d.id])
+      .map(d => fetchComments(d.id));
+    
+    if (commentPromises.length > 0) {
+      Promise.all(commentPromises).catch(console.error);
+    }
+  }, [openComments, diaries]);
 
   if (!user || isGuest) return (
     <div className="p-4 text-center text-gray-400">

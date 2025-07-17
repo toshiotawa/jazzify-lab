@@ -63,7 +63,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
     
     console.log('fetchActiveMonthlyMissions raw data:', result);
     return result;
-  }, 1000*10);
+  }, 1000*30);
   if (error) throw error;
   
   // データを正しくマッピング
@@ -108,7 +108,7 @@ export async function fetchUserMissionProgress(): Promise<UserMissionProgress[]>
   const key = `user_mission_progress:${user.id}`;
   const { data, error } = await fetchWithCache(key, async () =>
     await supabase.from('user_challenge_progress').select('*').eq('user_id', user.id),
-    1000*5,
+    1000*15,
   );
   if (error) throw error;
   return data as UserMissionProgress[];

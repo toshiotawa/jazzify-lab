@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import ChallengeBoard from './ChallengeBoard';
 import { useMissionStore } from '@/stores/missionStore';
+import { fetchMissionSongProgress } from '@/platform/supabaseMissions';
 import { FaArrowLeft, FaTrophy, FaCalendarAlt } from 'react-icons/fa';
 
 const MissionPage: React.FC = () => {
@@ -20,14 +21,27 @@ const MissionPage: React.FC = () => {
       (async () => {
         try {
           setError(null);
-          await fetchAll();
+          // ミッションデータと進捗を並行取得
+          await Promise.all([
+            fetchAll(),
+            // ミッションの曲進捗も並行取得
+            fetchAll().then(() => {
+              // 各ミッションの曲進捗を並行取得
+              const promises = monthly.map(mission => 
+                mission.songs && mission.songs.length > 0 ? 
+                  fetchMissionSongProgress(mission.id) : 
+                  Promise.resolve([])
+              );
+              return Promise.all(promises);
+            })
+          ]);
         } catch (err) {
           console.error('ミッション取得エラー:', err);
           setError('ミッション情報の取得に失敗しました');
         }
       })();
     }
-  }, [open, fetchAll]);
+  }, [open, fetchAll, monthly]);
 
   if (!open) return null;
 
