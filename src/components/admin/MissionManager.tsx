@@ -30,7 +30,6 @@ interface FormValues {
   end_date: string;
   reward_multiplier: number;
   diary_count?: number;
-  song_clear_count?: number;
 }
 
 interface SongConditions {
@@ -120,7 +119,6 @@ const MissionManager: React.FC = () => {
         end_date: v.end_date,
         reward_multiplier: v.reward_multiplier,
         diary_count: v.category === 'diary' ? v.diary_count : null,
-        song_clear_count: v.category === 'song_clear' ? v.song_clear_count : null,
       };
       
       const newChallengeId = await createChallenge(payload);
@@ -356,14 +354,7 @@ const MissionManager: React.FC = () => {
                 placeholder="必要日記投稿数" 
                 {...register('diary_count', { valueAsNumber: true, required: true })} 
               />
-            ) : (
-              <input 
-                className="input input-bordered text-white" 
-                type="number" 
-                placeholder="必要曲クリア数" 
-                {...register('song_clear_count', { valueAsNumber: true, required: true })} 
-              />
-            )}
+            ) : null}
           </div>
 
           <textarea 
@@ -706,19 +697,16 @@ const MissionItem: React.FC<{
             {mission.category === 'diary' && mission.diary_count && (
               <span className="text-blue-400">必要投稿: {mission.diary_count}回</span>
             )}
-          {mission.category === 'song_clear' && mission.song_clear_count && (
-            <span className="text-green-400">必要クリア: {mission.song_clear_count}曲</span>
-          )}
         </div>
 
         {progress && (
           <div className="mt-2">
             <div className="flex justify-between text-xs">
               <span>進捗</span>
-              <span>{progress.clear_count}/{mission.diary_count ?? mission.song_clear_count ?? 1}</span>
+              <span>{progress.clear_count}/{mission.diary_count ?? 1}</span>
             </div>
             <div className="w-full bg-slate-700 rounded h-2 overflow-hidden">
-              <div className="h-full bg-primary-500" style={{width:`${Math.min(100, (progress.clear_count / (mission.diary_count ?? mission.song_clear_count ?? 1))*100)}%`}} />
+              <div className="h-full bg-primary-500" style={{width:`${Math.min(100, (progress.clear_count / (mission.diary_count ?? 1))*100)}%`}} />
             </div>
           </div>
         )}

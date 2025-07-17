@@ -6,7 +6,7 @@ import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequir
 import { updateMissionSongProgress, fetchMissionSongProgress } from '@/platform/supabaseMissions';
 import { useAuthStore } from '@/stores/authStore';
 import { calculateXP, calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
-import { FaArrowLeft } from 'react-icons/fa';
+import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -321,8 +321,18 @@ const ResultModal: React.FC = () => {
                 ? 'bg-emerald-900/30 border-2 border-emerald-500' 
                 : 'bg-red-900/30 border-2 border-red-500'
             }`}>
-              <div className="text-lg font-bold mb-2">
-                {lessonRequirementSuccess ? '✅ 課題条件クリア！' : '❌ 課題条件未達成'}
+              <div className="text-lg font-bold mb-2 flex items-center justify-center gap-2">
+                {lessonRequirementSuccess ? (
+                  <>
+                    <FaCheckCircle className="text-emerald-400" />
+                    課題条件クリア！
+                  </>
+                ) : (
+                  <>
+                    <FaTimesCircle className="text-red-400" />
+                    課題条件未達成
+                  </>
+                )}
               </div>
               <div className="text-sm text-gray-300">
                 <div>必要条件:</div>
@@ -351,8 +361,18 @@ const ResultModal: React.FC = () => {
                 ? 'bg-emerald-900/30 border-2 border-emerald-500' 
                 : 'bg-red-900/30 border-2 border-red-500'
             }`}>
-              <div className="text-lg font-bold mb-2">
-                {missionRequirementSuccess ? '✅ ミッション条件クリア！' : '❌ ミッション条件未達成'}
+              <div className="text-lg font-bold mb-2 flex items-center justify-center gap-2">
+                {missionRequirementSuccess ? (
+                  <>
+                    <FaCheckCircle className="text-emerald-400" />
+                    ミッション条件クリア！
+                  </>
+                ) : (
+                  <>
+                    <FaTimesCircle className="text-red-400" />
+                    ミッション条件未達成
+                  </>
+                )}
               </div>
               <div className="text-sm text-gray-300">
                 <div>ミッション課題条件:</div>
@@ -374,8 +394,9 @@ const ResultModal: React.FC = () => {
                 {clearStats.current} / {clearStats.goal}
               </div>
               {clearStats.current >= clearStats.goal && (
-                <div className="text-xs text-emerald-400 mt-1">
-                  🎉 目標達成！
+                <div className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+                  <FaAward className="text-emerald-400" />
+                  目標達成！
                 </div>
               )}
             </div>
@@ -426,13 +447,16 @@ const ResultModal: React.FC = () => {
                   +{xpInfo.gained.toLocaleString()} XP
                 </div>
                 <div className="text-sm text-gray-300">
-                  レベル {xpInfo.level} ({xpInfo.total.toLocaleString()} / {xpInfo.next.toLocaleString()})
+                  レベル {xpInfo.level} ({xpInfo.remainder.toLocaleString()} / {xpInfo.next.toLocaleString()} XP)
                 </div>
               </div>
               
               {xpInfo.levelUp && (
                 <div className="text-center py-2 bg-yellow-500/20 rounded-lg mb-3">
-                  <div className="text-lg font-bold text-yellow-400">🎉 レベルアップ！</div>
+                  <div className="text-lg font-bold text-yellow-400 flex items-center justify-center gap-2">
+                    <FaAward className="text-yellow-400" />
+                    レベルアップ！
+                  </div>
                   <div className="text-sm text-yellow-300">レベル {profile?.level || 1} → {xpInfo.level}</div>
                 </div>
               )}

@@ -17,6 +17,31 @@ import type {
 // 共通音声再生システム
 let globalSampler: ToneSampler | null = null;
 let audioSystemInitialized = false;
+let userInteracted = false;
+
+/**
+ * ユーザーインタラクションの検出
+ */
+const detectUserInteraction = (): Promise<void> => {
+  return new Promise((resolve) => {
+    if (userInteracted) {
+      resolve();
+      return;
+    }
+    
+    const handleUserInteraction = () => {
+      userInteracted = true;
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      resolve();
+    };
+
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('touchstart', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+  });
+};
 
 /**
  * 音声システムの初期化（遅延最適化設定付き）
@@ -30,15 +55,33 @@ export const initializeAudioSystem = async (): Promise<void> => {
   try {
     console.log('🎹 Initializing optimized audio system...');
     
+    // ユーザーインタラクションを待つ
+    await detectUserInteraction();
+    
     // Tone.jsの存在確認
     if (typeof window === 'undefined' || !window.Tone) {
       console.warn('⚠️ Tone.js not available, attempting to load...');
-      try {
-        const Tone = await import('tone');
-        (window as any).Tone = Tone;
-        console.log('✅ Tone.js loaded dynamically');
-      } catch (toneError) {
-        throw new Error('Tone.js is not available');
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const Tone = await import('tone');
+          (window as any).Tone = Tone;
+          console.log('✅ Tone.js loaded dynamically');
+          break;
+        } catch (toneError) {
+          retryCount++;
+          console.warn(`⚠️ Dynamic import attempt ${retryCount} failed:`, toneError);
+          
+          if (retryCount >= maxRetries) {
+            console.error('❌ All dynamic import attempts failed');
+            throw new Error(`音声/MIDIシステム初期化に失敗 (ユーザーインタラクション後に再試行): ${toneError instanceof Error ? toneError.message : 'Unknown error'}`);
+          }
+          
+          // 指数バックオフで再試行
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount - 1)));
+        }
       }
     }
 

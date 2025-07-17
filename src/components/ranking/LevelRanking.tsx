@@ -71,12 +71,13 @@ const LevelRanking: React.FC = () => {
         {loading ? (
           <p className="text-center text-gray-400">Loading...</p>
         ) : (
-          <table className="w-full text-sm border-collapse">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse min-w-full">
             <thead>
               <tr className="border-b border-slate-700 text-left">
                 <th className="py-2 px-2">#</th>
                 <th className="py-2 px-2">ユーザー</th>
-                <th className="py-2 px-2">称号</th>
+                <th className="py-2 px-2 whitespace-nowrap">称号</th>
                 <th className="py-2 px-2">Lv</th>
                 <th className="py-2 px-2">XP</th>
                 <th className="py-2 px-2">ランク</th>
@@ -84,13 +85,19 @@ const LevelRanking: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {entries.map((e, idx) => (
-                <tr key={e.id} className="border-b border-slate-800 hover:bg-slate-800/50">
+              {entries.map((e, idx) => {
+                const isCurrentUser = user?.id === e.id;
+                return (
+                <tr key={e.id} className={`border-b border-slate-800 hover:bg-slate-800/50 ${
+                  isCurrentUser ? 'bg-primary-900/20 border-primary-500/30' : ''
+                }`}>
                   <td className="py-1 px-2">{idx + 1}</td>
                   <td className="py-1 px-2">
                     <button
                       onClick={()=>{window.location.hash=`#diary-user?id=${e.id}`;}}
-                      className="flex items-center gap-2 hover:text-blue-400 transition-colors max-w-[12rem]"
+                      className={`flex items-center gap-2 hover:text-blue-400 transition-colors max-w-[12rem] ${
+                        isCurrentUser ? 'text-primary-400 font-bold' : ''
+                      }`}
                     >
                       <img 
                         src={e.avatar_url || DEFAULT_AVATAR_URL}
@@ -100,7 +107,7 @@ const LevelRanking: React.FC = () => {
                       <span className="truncate">{e.nickname}</span>
                     </button>
                   </td>
-                  <td className="py-1 px-2">
+                  <td className="py-1 px-2 whitespace-nowrap">
                     <div className="flex items-center gap-1 text-yellow-400">
                       <FaCrown className="text-xs" />
                       <span className="text-xs">
@@ -124,9 +131,11 @@ const LevelRanking: React.FC = () => {
                     ) : '-'}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

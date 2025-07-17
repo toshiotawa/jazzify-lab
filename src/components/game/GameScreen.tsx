@@ -11,7 +11,7 @@ import type { TransposingInstrument } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
-import { FaArrowLeft } from 'react-icons/fa';
+import { FaArrowLeft, FaAward } from 'react-icons/fa';
 
 /**
  * メインゲーム画面コンポーネント
@@ -567,7 +567,7 @@ const SongSelectionScreen: React.FC = () => {
   const gameActions = useGameActions();
   const { profile, user } = useAuthStore();
   const [dbSongs, setDbSongs] = React.useState<any[]>([]);
-  const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; best_score?: number; best_rank?: string}>>({});
+  const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string}>>({});
   const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
   const [sortBy, setSortBy] = React.useState<'artist' | 'title' | 'difficulty'>('artist');
   const [filterBy, setFilterBy] = React.useState<'all' | 'free' | 'premium'>('all');
@@ -589,10 +589,15 @@ const SongSelectionScreen: React.FC = () => {
             .eq('user_id', user.id);
           
           if (userStats) {
-            const statsMap: Record<string, {clear_count: number; best_score?: number; best_rank?: string}> = {};
+            const statsMap: Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string}> = {};
             userStats.forEach(stat => {
+              // TODO: In the future, implement proper B-rank+ counting logic
+              // For now, use clear_count as placeholder for B-rank+ count
+              const bRankPlusCount = stat.clear_count; // This should be properly calculated based on actual B+ clears
+              
               statsMap[stat.song_id] = {
                 clear_count: stat.clear_count,
+                b_rank_plus_count: bRankPlusCount,
                 best_score: stat.best_score,
                 best_rank: stat.best_rank
               };
@@ -869,12 +874,29 @@ const GamePlayScreen: React.FC = () => {
         <div className="text-center">
           <div className="text-6xl mb-4">🎵</div>
           <h3 className="text-xl text-gray-300 mb-4">楽曲を選択してください</h3>
-          <button
-            onClick={() => gameActions.setCurrentTab('songs')}
-            className="btn btn-primary"
-          >
-            楽曲選択に移動
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => gameActions.setCurrentTab('songs')}
+              className="btn btn-primary"
+            >
+              楽曲選択に移動
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const { initializeAudioSystem } = await import('@/utils/MidiController');
+                  await initializeAudioSystem();
+                  console.log('✅ Manual audio system initialization successful');
+                } catch (error) {
+                  console.error('❌ Manual audio system initialization failed:', error);
+                  alert('音声システムの初期化に失敗しました。ページを再読み込みしてください。');
+                }
+              }}
+              className="btn btn-secondary text-sm"
+            >
+              音声システム初期化
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1068,7 +1090,7 @@ const MissionBackButton: React.FC = () => {
 interface SongListItemProps {
   song: any;
   accessible: boolean;
-  stats?: {clear_count: number; best_score?: number; best_rank?: string};
+  stats?: {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string};
   onSelect: () => void;
 }
 
@@ -1154,23 +1176,45 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
         
         {/* ユーザー統計情報 */}
         {stats && (
-          <div className="flex items-center space-x-4 text-xs mt-2">
-            <div className="flex items-center space-x-1">
-              <span className="text-gray-500">クリア回数:</span>
-              <span className="font-mono text-green-400">{stats.clear_count}回</span>
+          <div className="space-y-2 text-xs mt-2">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">クリア回数:</span>
+                <span className="font-mono text-green-400">{stats.clear_count}回</span>
+              </div>
+              {stats.best_rank && (
+                <div className="flex items-center space-x-1">
+                  <span className="text-gray-500">最高ランク:</span>
+                  <span className="font-mono text-yellow-400">{stats.best_rank}</span>
+                </div>
+              )}
+              {stats.best_score && (
+                <div className="flex items-center space-x-1">
+                  <span className="text-gray-500">ハイスコア:</span>
+                  <span className="font-mono text-blue-400">{stats.best_score.toLocaleString()}</span>
+                </div>
+              )}
             </div>
-            {stats.best_rank && (
-              <div className="flex items-center space-x-1">
-                <span className="text-gray-500">最高ランク:</span>
-                <span className="font-mono text-yellow-400">{stats.best_rank}</span>
+            
+            {/* B-rank+ clear count progress */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">Bランク以上クリア:</span>
+                <span className="font-mono text-blue-400">{stats.b_rank_plus_count || 0}/50</span>
               </div>
-            )}
-            {stats.best_score && (
-              <div className="flex items-center space-x-1">
-                <span className="text-gray-500">ハイスコア:</span>
-                <span className="font-mono text-blue-400">{stats.best_score.toLocaleString()}</span>
+              <div className="w-full bg-gray-700 rounded-full h-1.5">
+                <div 
+                  className="bg-blue-400 h-1.5 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(100, ((stats.b_rank_plus_count || 0) / 50) * 100)}%` }}
+                />
               </div>
-            )}
+              {(stats.b_rank_plus_count || 0) >= 50 && (
+                <div className="text-emerald-400 text-xs font-semibold flex items-center gap-1">
+                  <FaAward className="text-emerald-400" />
+                  目標達成！
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1530,6 +1574,9 @@ const SettingsPanel: React.FC = () => {
                     requestAnimationFrame(() => {
                       import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
                         updateGlobalVolume(newVolume);
+                      }).catch(error => {
+                        console.error('MidiController import failed:', error);
+                        // フォールバック処理 - 無音で続行
                       });
                     });
                   }}

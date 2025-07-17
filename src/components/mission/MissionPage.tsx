@@ -3,7 +3,7 @@ import GameHeader from '@/components/ui/GameHeader';
 import ChallengeBoard from './ChallengeBoard';
 import { useMissionStore } from '@/stores/missionStore';
 import { fetchMissionSongProgress } from '@/platform/supabaseMissions';
-import { FaArrowLeft, FaTrophy, FaCalendarAlt } from 'react-icons/fa';
+import { FaArrowLeft, FaTrophy, FaCalendarAlt, FaBullseye } from 'react-icons/fa';
 
 const MissionPage: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#missions');
@@ -42,21 +42,6 @@ const MissionPage: React.FC = () => {
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-6xl mx-auto">
-          {/* ヘッダー */}
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={handleClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-              aria-label="戻る"
-            >
-              <FaArrowLeft />
-            </button>
-            <div className="flex items-center space-x-3">
-              <FaTrophy className="text-yellow-400 text-2xl" />
-              <h1 className="text-2xl font-bold">ミッション</h1>
-            </div>
-            <div className="w-8" />
-          </div>
 
           {/* エラー表示 */}
           {error && (
@@ -73,7 +58,9 @@ const MissionPage: React.FC = () => {
             </div>
           ) : monthly.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-6xl mb-4">🎯</div>
+              <div className="text-6xl mb-4 flex justify-center">
+                <FaBullseye className="text-gray-500" />
+              </div>
               <p className="text-gray-400">現在アクティブなミッションはありません</p>
               <p className="text-sm text-gray-500 mt-2">新しいミッションをお待ちください</p>
             </div>
@@ -86,7 +73,8 @@ const MissionPage: React.FC = () => {
                   <h2 className="text-lg font-semibold">月間ミッション</h2>
                 </div>
                 <p className="text-gray-300 text-sm">
-                  毎月新しいミッションが登場します。ミッションをクリアして報酬を獲得しましょう！
+                  毎月新しいミッションが登場します。ミッションをクリアして報酬を獲得しましょう！<br/>
+                  <span className="font-semibold text-yellow-300">※ミッション曲はスコアボーナスが2倍！</span>
                 </p>
               </div>
 
@@ -95,15 +83,6 @@ const MissionPage: React.FC = () => {
             </div>
           )}
 
-          {/* 戻るボタン */}
-          <div className="mt-6 text-center">
-            <button 
-              className="btn btn-outline btn-primary" 
-              onClick={handleClose}
-            >
-              ダッシュボードに戻る
-            </button>
-          </div>
         </div>
       </div>
     </div>
