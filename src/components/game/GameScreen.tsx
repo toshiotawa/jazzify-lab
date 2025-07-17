@@ -35,6 +35,8 @@ const GameScreen: React.FC = () => {
   useEffect(() => {
     const checkLessonPlay = async () => {
       const hash = window.location.hash;
+      console.log('🔍 checkLessonPlay 実行:', { hash });
+      
       if (hash.startsWith('#play-lesson')) {
         // 読み込み開始
         setIsLoadingLessonSong(true);
@@ -210,35 +212,56 @@ const GameScreen: React.FC = () => {
           }
         } else if (hash.startsWith('#play-mission')) {
           // ミッション曲の読み込み
+          console.log('🎵 ミッション曲読み込み開始');
           setIsLoadingLessonSong(true);
           
           const params = new URLSearchParams(hash.split('?')[1] || '');
           const songId = params.get('song');
           const missionId = params.get('mission');
           
-          console.log('🎵 Mission play parameters:', { songId, missionId });
+          console.log('🎵 Mission play parameters:', { songId, missionId, fullHash: hash });
           
           if (songId && missionId) {
             try {
+              console.log('🔍 ミッション曲の条件を取得中:', { songId, missionId });
+              
               // ミッション曲の条件をデータベースから取得
               const challengeSongs = await getChallengeSongs(missionId);
+              console.log('🔍 challengeSongs取得完了:', { challengeSongs });
+              
               const challengeSong = challengeSongs.find(cs => cs.song_id === songId);
+              console.log('🔍 challengeSong検索結果:', { challengeSong });
               
               if (!challengeSong) {
-                console.error('ミッション曲が見つかりません:', { songId, missionId });
+                console.error('❌ ミッション曲が見つかりません:', { 
+                  songId, 
+                  missionId,
+                  availableSongs: challengeSongs.map(cs => cs.song_id)
+                });
                 setIsLoadingLessonSong(false);
-                window.location.hash = '#missions';
+                // ミッション一覧に戻る
+                setTimeout(() => {
+                  window.location.hash = '#missions';
+                }, 100);
                 return;
               }
               
               // 曲データを取得
+              console.log('🔍 曲データを取得中:', { songId });
               const songs = await fetchSongs();
               const song = songs.find(s => s.id === songId);
+              console.log('🔍 曲データ検索結果:', { song: song ? { id: song.id, title: song.title } : null });
               
               if (!song) {
-                console.error('曲が見つかりません:', songId);
+                console.error('❌ 曲が見つかりません:', {
+                  songId,
+                  availableSongs: songs.map(s => ({ id: s.id, title: s.title }))
+                });
                 setIsLoadingLessonSong(false);
-                window.location.hash = '#missions';
+                // ミッション一覧に戻る
+                setTimeout(() => {
+                  window.location.hash = '#missions';
+                }, 100);
                 return;
               }
               
@@ -335,19 +358,31 @@ const GameScreen: React.FC = () => {
               gameActions.setCurrentTab('practice');
               setIsLoadingLessonSong(false);
               
+              console.log('🔧 ミッション曲読み込み完了、practiceタブに遷移中');
               setTimeout(() => {
                 window.location.hash = '#practice';
+                console.log('🔧 ハッシュを#practiceに変更完了');
               }, 10);
               
             } catch (error) {
-              console.error('ミッション曲の読み込みエラー:', error);
+              console.error('❌ ミッション曲の読み込みエラー:', {
+                error,
+                songId,
+                missionId,
+                errorMessage: error instanceof Error ? error.message : 'Unknown error'
+              });
               setIsLoadingLessonSong(false);
-              window.location.hash = '#missions';
+              // エラー時はミッション一覧に戻る
+              setTimeout(() => {
+                window.location.hash = '#missions';
+              }, 100);
             }
           } else {
+            console.warn('⚠️ songIdまたはmissionIdが不足:', { songId, missionId });
             setIsLoadingLessonSong(false);
           }
         } else {
+          console.log('🔍 非該当ハッシュ:', { hash });
           setIsLoadingLessonSong(false);
         }
       }
@@ -368,11 +403,21 @@ const GameScreen: React.FC = () => {
   // ただし、レッスン曲読み込み中（#play-lesson）またはミッション曲読み込み中（#play-mission）は除外
   useEffect(() => {
     const isPlayLessonHash = window.location.hash.startsWith('#play-lesson') || window.location.hash.startsWith('#play-mission');
-    console.log('🔧 Auto-redirect check:', { currentSong: !!currentSong, currentTab, isPlayLessonHash, isLoadingLessonSong, hash: window.location.hash });
+    console.log('🔧 Auto-redirect check:', { 
+      currentSong: !!currentSong, 
+      currentTab, 
+      isPlayLessonHash, 
+      isLoadingLessonSong, 
+      hash: window.location.hash,
+      willRedirect: !currentSong && currentTab !== 'songs' && !isPlayLessonHash && !isLoadingLessonSong
+    });
+    
     // レッスン曲・ミッション曲読み込み中は曲選択画面へのリダイレクトをスキップ
     if (!currentSong && currentTab !== 'songs' && !isPlayLessonHash && !isLoadingLessonSong) {
       console.log('🔧 Auto-redirecting to songs tab');
       gameActions.setCurrentTab('songs');
+    } else if (isPlayLessonHash || isLoadingLessonSong) {
+      console.log('🔧 Auto-redirect skipped (lesson/mission loading)');
     }
   }, [currentSong, currentTab, gameActions, isLoadingLessonSong]);
 
