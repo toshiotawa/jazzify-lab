@@ -213,6 +213,11 @@ export async function createDiary(content: string): Promise<{
   const currentLevel = profile?.level || 1;
   const membershipRank = profile?.rank || 'free';
 
+  // フリープランのユーザーは日記を投稿できない
+  if (membershipRank === 'free') {
+    throw new Error('フリープランでは日記を投稿できません。スタンダードプラン以上にアップグレードしてください。');
+  }
+
   // 日記投稿
   const { error } = await supabase.from('practice_diaries').insert({
     user_id: user.id,
@@ -221,14 +226,26 @@ export async function createDiary(content: string): Promise<{
   });
   if (error) throw new Error(`日記の保存に失敗しました: ${error.message}`);
 
-  // ミッション進捗更新
+  // ミッション進捗更新（1日1回まで）
   let missionsUpdated = 0;
   try {
-    const missions = await fetchActiveMonthlyMissions();
-    for (const m of missions) {
-      if (m.diary_count) {
-        await incrementDiaryProgress(m.id);
-        missionsUpdated++;
+    // 今日のXP履歴をチェックして、既に日記投稿で進捗を増やしているかを確認
+    const { count: todayMissionProgressCount } = await supabase
+      .from('xp_history')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .is('song_id', null)
+      .gte('created_at', today + 'T00:00:00')
+      .lte('created_at', today + 'T23:59:59');
+
+    // 今日まだ日記投稿でミッション進捗を増やしていない場合のみ進捗を増やす
+    if (!todayMissionProgressCount || todayMissionProgressCount === 0) {
+      const missions = await fetchActiveMonthlyMissions();
+      for (const m of missions) {
+        if (m.diary_count) {
+          await incrementDiaryProgress(m.id);
+          missionsUpdated++;
+        }
       }
     }
   } catch (e) {

@@ -6,6 +6,7 @@ import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { getAvailableTitles, DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
 import { updateUserTitle } from '@/platform/supabaseTitles';
+import { compressProfileImage } from '@/utils/imageCompression';
 
 const RANK_LABEL: Record<string, string> = {
   free: 'フリー',
@@ -25,6 +26,7 @@ const AccountPage: React.FC = () => {
   const [twitterHandle, setTwitterHandle] = useState(profile?.twitter_handle?.replace(/^@/, '') || '');
   const [selectedTitle, setSelectedTitle] = useState<Title>((profile?.selected_title as Title) || DEFAULT_TITLE);
   const [titleSaving, setTitleSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   // ハッシュ変更で開閉
   useEffect(() => {
@@ -111,15 +113,29 @@ const AccountPage: React.FC = () => {
                 <input id="avatar-input" type="file" accept="image/*" hidden onChange={async (e)=>{
                   const file = e.target.files?.[0];
                   if (!file) return;
+                  
+                  setAvatarUploading(true);
                   try {
-                    const url = await uploadAvatar(file, profile.id || '');
+                    // 画像を圧縮 (256px, 200KB, WebP)
+                    const compressedBlob = await compressProfileImage(file);
+                    const compressedFile = new File([compressedBlob], file.name, { type: 'image/webp' });
+                    
+                    const url = await uploadAvatar(compressedFile, profile.id || '');
                     await getSupabaseClient().from('profiles').update({ avatar_url: url }).eq('id', profile.id);
                     await useAuthStore.getState().fetchProfile();
                   } catch (err:any){
                     alert('アップロード失敗: '+err.message);
+                  } finally {
+                    setAvatarUploading(false);
                   }
                 }} />
-                <button className="btn btn-xs btn-outline" onClick={()=>document.getElementById('avatar-input')?.click()}>アバター変更</button>
+                <button 
+                  className="btn btn-xs btn-outline" 
+                  onClick={()=>document.getElementById('avatar-input')?.click()}
+                  disabled={avatarUploading}
+                >
+                  {avatarUploading ? '圧縮中...' : 'アバター変更'}
+                </button>
               </div>
               <div className="space-y-1">
                 <label htmlFor="bio" className="text-sm">プロフィール文</label>

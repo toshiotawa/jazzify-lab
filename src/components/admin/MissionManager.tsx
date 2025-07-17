@@ -59,7 +59,7 @@ const MissionManager: React.FC = () => {
       category: 'song_clear',
       start_date: new Date().toISOString().substring(0, 10), // 今日の日付
       end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10), // 30日後
-      reward_multiplier: 1.3,
+      reward_multiplier: 2000,
     },
   });
   const toast = useToast();
@@ -337,13 +337,17 @@ const MissionManager: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input 
-              className="input input-bordered text-white" 
-              type="number" 
-              step="0.1" 
-              placeholder="報酬倍率(例 1.3)" 
-              {...register('reward_multiplier', { valueAsNumber: true, required: true })} 
-            />
+            <div>
+              <label className="text-sm font-medium mb-1 block">報酬XP</label>
+              <input 
+                className="input input-bordered text-white" 
+                type="number" 
+                step="100" 
+                placeholder="経験値 (例: 2000)" 
+                {...register('reward_multiplier', { valueAsNumber: true, required: true })} 
+              />
+              <p className="text-xs text-gray-400 mt-1">ミッション完了時に付与される経験値</p>
+            </div>
             
             {watchedCategory === 'diary' ? (
               <input 
@@ -656,7 +660,7 @@ const MissionItem: React.FC<{
         <form className="grid grid-cols-1 sm:grid-cols-2 gap-3" onSubmit={handleSubmit(onUpdate)}>
           <input className="input input-bordered sm:col-span-2 text-white" placeholder="タイトル" {...register('title')} />
           <textarea className="textarea textarea-bordered sm:col-span-2 text-white" rows={2} placeholder="説明" {...register('description')} />
-          <input className="input input-bordered text-white" type="number" step="0.1" placeholder="報酬倍率" {...register('reward_multiplier', { valueAsNumber: true })} />
+          <input className="input input-bordered text-white" type="number" step="100" placeholder="報酬XP" {...register('reward_multiplier', { valueAsNumber: true })} />
           <div className="sm:col-span-2 flex gap-2">
             <button className="btn btn-xs btn-primary" type="submit">保存</button>
             <button className="btn btn-xs btn-secondary" type="button" onClick={() => setEditing(false)}>キャンセル</button>
@@ -698,7 +702,7 @@ const MissionItem: React.FC<{
             <span className="badge badge-sm badge-primary">{getTypeLabel(mission.type)}</span>
             <span className="badge badge-sm badge-secondary">{getCategoryLabel(mission.category)}</span>
             <span className={`badge badge-sm ${missionStatus.color}`}>{missionStatus.label}</span>
-            <span className="text-gray-400">報酬: x{mission.reward_multiplier}</span>
+            <span className="text-gray-400">報酬: {mission.reward_multiplier}XP</span>
             {mission.category === 'diary' && mission.diary_count && (
               <span className="text-blue-400">必要投稿: {mission.diary_count}回</span>
             )}

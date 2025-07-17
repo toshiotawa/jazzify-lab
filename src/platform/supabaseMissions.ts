@@ -344,16 +344,26 @@ export async function claimReward(missionId: string) {
   const { data:{ user } } = await supabase.auth.getUser();
   if (!user) return;
   
+  // ミッション情報を取得して報酬XPを取得
+  const { data: mission, error: missionError } = await supabase
+    .from('challenges')
+    .select('reward_multiplier')
+    .eq('id', missionId)
+    .single();
+  
+  if (missionError) throw missionError;
+  
   // ① 完了フラグ
   await supabase.from('user_challenge_progress')
     .update({ completed: true })
     .eq('user_id', user.id)
     .eq('challenge_id', missionId);
 
-  // ② 固定 XP 付与（2000 XP）
+  // ② ミッション固有のXP付与
+  const rewardXP = mission?.reward_multiplier || 2000; // デフォルト2000XP
   const { error } = await supabase.rpc('add_xp', {
     _user_id: user.id,
-    _gained_xp: 2000,
+    _gained_xp: rewardXP,
     _reason: 'mission_clear'
   });
   if (error) throw error;

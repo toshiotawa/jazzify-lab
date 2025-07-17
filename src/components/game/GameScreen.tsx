@@ -565,8 +565,9 @@ const HashButton: React.FC<HashButtonProps> = ({ hash, children }) => {
  */
 const SongSelectionScreen: React.FC = () => {
   const gameActions = useGameActions();
-  const { profile } = useAuthStore();
+  const { profile, user } = useAuthStore();
   const [dbSongs, setDbSongs] = React.useState<any[]>([]);
+  const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; best_score?: number; best_rank?: string}>>({});
   const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
   const [sortBy, setSortBy] = React.useState<'artist' | 'title' | 'difficulty'>('artist');
   const [filterBy, setFilterBy] = React.useState<'all' | 'free' | 'premium'>('all');
@@ -576,11 +577,34 @@ const SongSelectionScreen: React.FC = () => {
       try {
         const allSongs = await fetchSongs();
         setDbSongs(allSongs);
+        
+        // ユーザー統計を取得
+        if (user) {
+          const { getSupabaseClient } = await import('@/platform/supabaseClient');
+          const supabase = getSupabaseClient();
+          
+          const { data: userStats } = await supabase
+            .from('user_song_stats')
+            .select('song_id, clear_count, best_score, best_rank')
+            .eq('user_id', user.id);
+          
+          if (userStats) {
+            const statsMap: Record<string, {clear_count: number; best_score?: number; best_rank?: string}> = {};
+            userStats.forEach(stat => {
+              statsMap[stat.song_id] = {
+                clear_count: stat.clear_count,
+                best_score: stat.best_score,
+                best_rank: stat.best_rank
+              };
+            });
+            setSongStats(statsMap);
+          }
+        }
       } catch (e) {
         console.error('曲一覧取得失敗', e);
       }
     })();
-  }, [profile]);
+  }, [profile, user]);
 
   // 楽曲ソート機能
   const sortedSongs = React.useMemo(() => {
@@ -663,6 +687,7 @@ const SongSelectionScreen: React.FC = () => {
                 key={song.id} 
                 song={song} 
                 accessible={accessible} 
+                stats={songStats[song.id]}
                 onSelect={async () => {
                   if (!accessible) {
                     setLockedSong({title:song.title,min_rank:song.min_rank});
@@ -1043,10 +1068,11 @@ const MissionBackButton: React.FC = () => {
 interface SongListItemProps {
   song: any;
   accessible: boolean;
+  stats?: {clear_count: number; best_score?: number; best_rank?: string};
   onSelect: () => void;
 }
 
-const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, onSelect }) => {
+const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, onSelect }) => {
   const [isLoading, setIsLoading] = React.useState(false);
 
   const getDifficultyColor = (difficulty: number | null) => {
@@ -1125,6 +1151,28 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, onSelect 
             {song.min_rank?.toUpperCase() || 'FREE'}
           </span>
         </div>
+        
+        {/* ユーザー統計情報 */}
+        {stats && (
+          <div className="flex items-center space-x-4 text-xs mt-2">
+            <div className="flex items-center space-x-1">
+              <span className="text-gray-500">クリア回数:</span>
+              <span className="font-mono text-green-400">{stats.clear_count}回</span>
+            </div>
+            {stats.best_rank && (
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">最高ランク:</span>
+                <span className="font-mono text-yellow-400">{stats.best_rank}</span>
+              </div>
+            )}
+            {stats.best_score && (
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">ハイスコア:</span>
+                <span className="font-mono text-blue-400">{stats.best_score.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 再生ボタン - クリックイベントを削除してdivのクリックに統一 */}

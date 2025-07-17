@@ -272,11 +272,11 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
               </span>
             </div>
             
-            {/* 報酬倍率 */}
-            {mission.reward_multiplier && mission.reward_multiplier > 1 && (
+            {/* 報酬XP */}
+            {mission.reward_multiplier && mission.reward_multiplier > 0 && (
               <div className="flex items-center space-x-1 text-yellow-400">
                 <FaTrophy className="w-3 h-3" />
-                <span>{mission.reward_multiplier}x ボーナス</span>
+                <span>報酬: {mission.reward_multiplier.toLocaleString()} XP</span>
               </div>
             )}
           </div>
