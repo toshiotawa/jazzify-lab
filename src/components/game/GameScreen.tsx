@@ -148,7 +148,16 @@ const GameScreen: React.FC = () => {
             });
           }
           
-          // 曲をロード
+          // レッスン設定を先に適用（loadSongの前に実行）
+          await gameActions.updateSettings({
+            transpose: key,
+            playbackSpeed: speed,
+            // notation設定に基づいて表示設定を更新
+            showSheetMusic: notation === 'notes_chords' || notation === 'both' || notation === 'chords_only',
+            sheetMusicChordsOnly: notation === 'chords_only'
+          });
+          
+          // 曲をロード（設定適用後に実行）
           await gameActions.loadSong({
             id: song.id,
             title: song.title,
@@ -157,15 +166,6 @@ const GameScreen: React.FC = () => {
             audioFile: song.audio_url || '',
             musicXmlFile: song.xml_url || null
           }, mapped);
-          
-          // レッスン設定を適用（loadSongの後で実行）
-          await gameActions.updateSettings({
-            transpose: key,
-            playbackSpeed: speed,
-            // notation設定に基づいて表示設定を更新
-            showSheetMusic: notation === 'notes_chords' || notation === 'both' || notation === 'chords_only',
-            sheetMusicChordsOnly: notation === 'chords_only'
-          });
           
           // 曲のロード完了後に画面遷移を行う
           // 先にタブを切り替えてから、ハッシュを変更することで一瞬の曲選択画面表示を防ぐ
@@ -335,7 +335,16 @@ const GameScreen: React.FC = () => {
             notation_setting: challengeSong.notation_setting
           });
           
-          // 曲をロード
+          // ミッション曲の条件を先に設定に適用（loadSongの前に実行）
+          await gameActions.updateSettings({
+            transpose: challengeSong.key_offset,
+            playbackSpeed: challengeSong.min_speed,
+            // notation設定に基づいて表示設定を更新
+            showSheetMusic: challengeSong.notation_setting === 'notes_chords' || challengeSong.notation_setting === 'both' || challengeSong.notation_setting === 'chords_only',
+            sheetMusicChordsOnly: challengeSong.notation_setting === 'chords_only'
+          });
+          
+          // 曲をロード（設定適用後に実行）
           console.log('🎵 Loading mission song:', song.title);
           await gameActions.loadSong({
             id: song.id,
@@ -345,15 +354,6 @@ const GameScreen: React.FC = () => {
             audioFile: song.audio_url || '',
             musicXmlFile: song.xml_url || null
           }, mapped);
-          
-          // ミッション曲の条件を設定に適用（loadSongの後で実行）
-          await gameActions.updateSettings({
-            transpose: challengeSong.key_offset,
-            playbackSpeed: challengeSong.min_speed,
-            // notation設定に基づいて表示設定を更新
-            showSheetMusic: challengeSong.notation_setting === 'notes_chords' || challengeSong.notation_setting === 'both' || challengeSong.notation_setting === 'chords_only',
-            sheetMusicChordsOnly: challengeSong.notation_setting === 'chords_only'
-          });
           
           console.log('✅ Mission song loaded successfully, switching to practice tab');
           

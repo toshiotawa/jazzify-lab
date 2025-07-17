@@ -792,9 +792,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
 
           const currentSettings = get().settings;
           const currentLessonContext = get().lessonContext;
+          const currentMissionContext = get().missionContext;
           
-          // レッスンモードでない場合は設定をリセット
-          if (!currentLessonContext) {
+          // レッスンモードまたはミッションモードでない場合は設定をリセット
+          if (!currentLessonContext && !currentMissionContext) {
             set((state) => {
               state.settings.transpose = 0;
               state.settings.playbackSpeed = 1.0;
@@ -803,7 +804,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               state.settings.sheetMusicChordsOnly = false;
             });
           } else {
-            // レッスンモードでも楽譜表示設定はデフォルトにリセット（課題条件で後から上書きされる場合を除く）
+            // レッスンモードまたはミッションモードでも楽譜表示設定はデフォルトにリセット（課題条件で後から上書きされる場合を除く）
             set((state) => {
               state.settings.showSheetMusic = true;
               state.settings.sheetMusicChordsOnly = false;
