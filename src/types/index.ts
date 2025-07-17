@@ -295,6 +295,7 @@ export interface GameState {
   missionContext?: {
     missionId: string;
     songId: string;
+    clearConditions?: ClearConditions;
   };
 }
 

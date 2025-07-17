@@ -595,7 +595,7 @@ interface GameStoreState extends GameState {
   clearLessonContext: () => void;
   
   // ミッションコンテキスト
-  setMissionContext: (missionId: string, songId: string) => void;
+  setMissionContext: (missionId: string, songId: string, clearConditions?: ClearConditions) => void;
   clearMissionContext: () => void;
 }
 
@@ -1790,11 +1790,12 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           }),
         
         // ミッションコンテキスト
-        setMissionContext: (missionId: string, songId: string) =>
+        setMissionContext: (missionId: string, songId: string, clearConditions?: ClearConditions) =>
           set((state: GameStoreState) => {
             state.missionContext = {
               missionId,
-              songId
+              songId,
+              clearConditions
             };
           }),
         

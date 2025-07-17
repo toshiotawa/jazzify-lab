@@ -305,7 +305,13 @@ const GameScreen: React.FC = () => {
               
               // ミッションコンテキストを設定
               if (missionId) {
-                gameActions.setMissionContext(missionId, songId);
+                gameActions.setMissionContext(missionId, songId, {
+                  key,
+                  speed,
+                  rank,
+                  count,
+                  notation_setting: notation
+                });
               }
               
               // 曲をロード
