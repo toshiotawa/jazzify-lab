@@ -1097,7 +1097,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
               }
             }
-          }
             
             // レッスンコンテキストでの楽譜表示制限
             if (clearConditions.notation_setting) {
