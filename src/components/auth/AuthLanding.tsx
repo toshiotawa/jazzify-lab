@@ -19,7 +19,7 @@ const AuthLanding: React.FC = () => {
     }
 
     try {
-      await loginWithMagicLink(email);
+      await loginWithMagicLink(email, mode);
       toast.success(
         `Magic Link を送信しました（${mode==='signup'?'会員登録':'ログイン'}）`,
         {

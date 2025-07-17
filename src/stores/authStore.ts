@@ -154,7 +154,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     /**
      * Magic Link 送信
      */
-    loginWithMagicLink: async (email: string) => {
+    loginWithMagicLink: async (email: string, mode: 'signup' | 'login' = 'login') => {
       const supabase = getSupabaseClient();
       set(state => {
         state.loading = true;
@@ -166,7 +166,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         (typeof location !== 'undefined' ? location.origin : undefined);
 
       const options: { shouldCreateUser: boolean; emailRedirectTo?: string } = {
-        shouldCreateUser: false,
+        shouldCreateUser: mode === 'signup',
       };
       if (redirectUrl) {
         options.emailRedirectTo = redirectUrl;
@@ -252,6 +252,17 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         });
       } catch (err) {
         console.error('Profile fetch error:', err);
+        
+        // ネットワークエラーや一時的なエラーの場合は hasProfile を変更しない
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        if (errorMessage.includes('network') || errorMessage.includes('timeout') || errorMessage.includes('fetch')) {
+          set(state => {
+            state.error = '一時的なネットワークエラーです。しばらくしてから再試行してください。';
+          });
+          return;
+        }
+        
+        // その他のエラーの場合のみ hasProfile を false にする
         set(state => {
           state.hasProfile = false;
           state.profile = null;
