@@ -24,15 +24,42 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
 
   const handlePlaySong = async (songId: string, songProgress: MissionSongProgressType) => {
     try {
-      console.log('ミッション曲をプレイ:', { songId, missionId, songProgress });
+      console.log('🎵 ミッション曲をプレイ開始:', { 
+        songId, 
+        missionId, 
+        songTitle: songProgress.song?.title,
+        songProgress: {
+          clear_count: songProgress.clear_count,
+          required_count: songProgress.required_count,
+          is_completed: songProgress.is_completed
+        }
+      });
+      
       // ミッションから曲をプレイする際はsongとmissionのみを渡す
       // 条件はGameScreenでデータベースから取得する
       const params = new URLSearchParams();
       params.set('song', songId);
       params.set('mission', missionId);
-      window.location.hash = `#play-mission?${params.toString()}`;
+      
+      const hash = `#play-mission?${params.toString()}`;
+      console.log('🔗 生成されたハッシュ:', hash);
+      
+      // ハッシュを設定してGameScreenの処理をトリガー
+      window.location.hash = hash;
+      
+      console.log('✅ ミッション曲プレイ処理完了、GameScreenで処理中...');
     } catch (error) {
-      console.error('曲の読み込みに失敗:', error);
+      console.error('❌ ミッション曲プレイ処理エラー:', {
+        error,
+        songId,
+        missionId,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      // エラー時はミッション一覧に戻る
+      setTimeout(() => {
+        window.location.hash = '#missions';
+      }, 100);
     }
   };
 
@@ -82,7 +109,15 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
               </div>
               
               <button
-                onClick={() => handlePlaySong(song.song_id, song)}
+                onClick={() => {
+                  console.log('🎯 ミッション曲プレイボタンクリック:', {
+                    songId: song.song_id,
+                    songTitle: song.song?.title,
+                    missionId,
+                    isCompleted: song.is_completed
+                  });
+                  handlePlaySong(song.song_id, song);
+                }}
                 className={cn(
                   "btn btn-sm flex items-center space-x-2 transition-all duration-300",
                   song.is_completed
