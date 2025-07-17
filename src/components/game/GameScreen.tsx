@@ -33,359 +33,375 @@ const GameScreen: React.FC = () => {
 
   // レッスン曲とミッション曲の自動読み込み処理を追加
   useEffect(() => {
+    const handleLessonPlay = async (hash: string) => {
+      console.log('🎵 レッスン曲読み込み開始');
+      setIsLoadingLessonSong(true);
+      
+      const params = new URLSearchParams(hash.split('?')[1] || '');
+      const songId = params.get('id');
+      const lessonId = params.get('lessonId');
+      const key = parseInt(params.get('key') || '0');
+      const speed = parseFloat(params.get('speed') || '1.0');
+      const rank = params.get('rank') || 'B';
+      const count = parseInt(params.get('count') || '1');
+      const notation = params.get('notation') || 'both';
+      const requiresDays = params.get('requiresDays') === 'true';
+      const dailyCount = parseInt(params.get('dailyCount') || '1');
+      
+      if (songId) {
+        try {
+          // 曲データを取得（レッスン曲は通常曲も使用できるため、すべての曲から検索）
+          const songs = await fetchSongs(); // すべての曲を取得
+          const song = songs.find(s => s.id === songId);
+          
+          if (!song) {
+            console.error('曲が見つかりません:', songId);
+            // エラー時は曲選択画面に戻る
+            setIsLoadingLessonSong(false);
+            window.location.hash = '#songs';
+            return;
+          }
+          
+          // JSONデータの取得
+          let notesData: any;
+          if (song.json_url) {
+            const response = await fetch(song.json_url);
+            if (!response.ok) {
+              throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
+            }
+            
+            // レスポンスの内容をチェック
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+              console.warn('⚠️ JSONでないコンテンツタイプ:', contentType);
+            }
+            
+            const responseText = await response.text();
+            
+            // HTMLが返されている場合の検出
+            if (responseText.trim().startsWith('<')) {
+              throw new Error('JSONデータの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
+            }
+            
+            try {
+              notesData = JSON.parse(responseText);
+            } catch (parseError) {
+              console.error('JSON解析エラー:', parseError);
+              console.error('レスポンス内容の先頭100文字:', responseText.substring(0, 100));
+              throw new Error(`JSONデータの解析に失敗しました: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+            }
+          } else if (song.json_data) {
+            notesData = song.json_data;
+          } else {
+            throw new Error('曲のノーツデータがありません');
+          }
+          
+          // notes配列の抽出
+          const notes = Array.isArray(notesData) ? notesData : notesData.notes;
+          if (!notes || !Array.isArray(notes)) {
+            throw new Error('ノーツデータの形式が不正です');
+          }
+          
+          const mapped = notes.map((n: any, idx: number) => ({ 
+            id: `${song.id}-${idx}`, 
+            time: n.time, 
+            pitch: n.pitch 
+          }));
+          
+          // 音声ファイルの長さを取得
+          let duration = 60; // デフォルト値
+          if (song.audio_url) {
+            try {
+              const audio = new Audio(song.audio_url);
+              audio.crossOrigin = 'anonymous';
+              await new Promise((resolve) => {
+                const loadedHandler = () => {
+                  duration = Math.floor(audio.duration) || 60;
+                  resolve(void 0);
+                };
+                const errorHandler = () => {
+                  console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用');
+                  resolve(void 0);
+                };
+                
+                audio.addEventListener('loadedmetadata', loadedHandler);
+                audio.addEventListener('error', errorHandler);
+                
+                // タイムアウト処理
+                setTimeout(() => resolve(void 0), 5000);
+              });
+            } catch (e) {
+              console.warn('音声ファイル時間取得エラー:', e);
+            }
+          }
+          
+          // レッスン設定を適用
+          await gameActions.updateSettings({
+            transpose: key,
+            playbackSpeed: speed,
+            // notation設定に基づいて表示設定を更新
+            showNotes: notation === 'notes_chords' || notation === 'both',
+            showChords: notation === 'chords_only' || notation === 'both'
+          });
+          
+          // レッスンコンテキストを設定
+          if (lessonId) {
+            gameActions.setLessonContext(lessonId, {
+              key,
+              speed,
+              rank,
+              count,
+              notation_setting: notation,
+              requires_days: requiresDays,
+              daily_count: dailyCount
+            });
+          }
+          
+          // 曲をロード
+          await gameActions.loadSong({
+            id: song.id,
+            title: song.title,
+            artist: song.artist || '',
+            duration: duration,
+            audioFile: song.audio_url || '',
+            musicXmlFile: song.xml_url || null
+          }, mapped);
+          
+          // 曲のロード完了後に画面遷移を行う
+          // 先にタブを切り替えてから、ハッシュを変更することで一瞬の曲選択画面表示を防ぐ
+          gameActions.setCurrentTab('practice');
+          
+          // 読み込み完了
+          setIsLoadingLessonSong(false);
+          
+          // 少し遅延させてからハッシュを変更（画面更新の完了を待つ）
+          setTimeout(() => {
+            window.location.hash = '#practice';
+          }, 10);
+          
+        } catch (error) {
+          console.error('レッスン曲の読み込みエラー:', error);
+          
+          // エラーの詳細情報をログ出力
+          if (error instanceof Error) {
+            console.error('エラーメッセージ:', error.message);
+            console.error('エラースタック:', error.stack);
+          }
+          
+          // ユーザーにエラーを通知（簡素なアラート）
+          let userMessage = '楽曲の読み込みに失敗しました。';
+          if (error instanceof Error) {
+            if (error.message.includes('HTMLが返されました')) {
+              userMessage = 'ファイルが見つかりません。曲データの設定を確認してください。';
+            } else if (error.message.includes('JSON') || error.message.includes('Unexpected token')) {
+              userMessage = '楽曲ファイルの形式が正しくありません。';
+            }
+          }
+          
+          // 非同期でアラートを表示（UIブロックを避ける）
+          setTimeout(() => {
+            alert(userMessage);
+          }, 100);
+          
+          setIsLoadingLessonSong(false);
+          window.location.hash = '#songs';
+        }
+      } else {
+        console.warn('⚠️ songIdが不足:', { songId });
+        setIsLoadingLessonSong(false);
+      }
+    };
+
+    const handleMissionPlay = async (hash: string) => {
+      console.log('🎵 ミッション曲読み込み開始');
+      setIsLoadingLessonSong(true);
+      
+      // '#play-mission?...' から '?' 以降をパース
+      const [, query] = hash.split('?');
+      const params = new URLSearchParams(query);
+      const songId = params.get('song');
+      const missionId = params.get('mission');
+      
+      console.log('🎵 Mission play parameters:', { songId, missionId, fullHash: hash });
+      
+      if (songId && missionId) {
+        try {
+          console.log('🔍 ミッション曲の条件を取得中:', { songId, missionId });
+          
+          // ミッション曲の条件をデータベースから取得
+          const challengeSongs = await getChallengeSongs(missionId);
+          console.log('🔍 challengeSongs取得完了:', { challengeSongs });
+          
+          const challengeSong = challengeSongs.find(cs => cs.song_id === songId);
+          console.log('🔍 challengeSong検索結果:', { challengeSong });
+          
+          if (!challengeSong) {
+            console.error('❌ ミッション曲が見つかりません:', { 
+              songId, 
+              missionId,
+              availableSongs: challengeSongs.map(cs => cs.song_id)
+            });
+            setIsLoadingLessonSong(false);
+            // ミッション一覧に戻る
+            setTimeout(() => {
+              window.location.hash = '#missions';
+            }, 100);
+            return;
+          }
+          
+          // 曲データを取得
+          console.log('🔍 曲データを取得中:', { songId });
+          const songs = await fetchSongs();
+          const song = songs.find(s => s.id === songId);
+          console.log('🔍 曲データ検索結果:', { song: song ? { id: song.id, title: song.title } : null });
+          
+          if (!song) {
+            console.error('❌ 曲が見つかりません:', {
+              songId,
+              availableSongs: songs.map(s => ({ id: s.id, title: s.title }))
+            });
+            setIsLoadingLessonSong(false);
+            // ミッション一覧に戻る
+            setTimeout(() => {
+              window.location.hash = '#missions';
+            }, 100);
+            return;
+          }
+          
+          // JSONデータの取得
+          let notesData: any;
+          if (song.json_url) {
+            const response = await fetch(song.json_url);
+            if (!response.ok) {
+              throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
+            }
+            
+            const responseText = await response.text();
+            
+            if (responseText.trim().startsWith('<')) {
+              throw new Error('JSONデータの代わりにHTMLが返されました。');
+            }
+            
+            notesData = JSON.parse(responseText);
+          } else if (song.json_data) {
+            notesData = song.json_data;
+          } else {
+            throw new Error('曲のノーツデータがありません');
+          }
+          
+          // notes配列の抽出
+          const notes = Array.isArray(notesData) ? notesData : notesData.notes;
+          if (!notes || !Array.isArray(notes)) {
+            throw new Error('ノーツデータの形式が不正です');
+          }
+          
+          const mapped = notes.map((n: any, idx: number) => ({ 
+            id: `${song.id}-${idx}`, 
+            time: n.time, 
+            pitch: n.pitch 
+          }));
+          
+          // 音声ファイルの長さを取得
+          let duration = 60;
+          if (song.audio_url) {
+            try {
+              const audio = new Audio(song.audio_url);
+              audio.crossOrigin = 'anonymous';
+              await new Promise((resolve) => {
+                const loadedHandler = () => {
+                  duration = Math.floor(audio.duration) || 60;
+                  resolve(void 0);
+                };
+                const errorHandler = () => {
+                  console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用');
+                  resolve(void 0);
+                };
+                
+                audio.addEventListener('loadedmetadata', loadedHandler);
+                audio.addEventListener('error', errorHandler);
+                setTimeout(() => resolve(void 0), 5000);
+              });
+            } catch (e) {
+              console.warn('音声ファイル時間取得エラー:', e);
+            }
+          }
+          
+          // ミッション曲の条件を設定に適用
+          await gameActions.updateSettings({
+            transpose: challengeSong.key_offset,
+            playbackSpeed: challengeSong.min_speed,
+            // notation設定に基づいて表示設定を更新
+            showNotes: challengeSong.notation_setting === 'notes_chords' || challengeSong.notation_setting === 'both',
+            showChords: challengeSong.notation_setting === 'chords_only' || challengeSong.notation_setting === 'both'
+          });
+          
+          // ミッションコンテキストを設定
+          gameActions.setMissionContext(missionId, songId, {
+            key: challengeSong.key_offset,
+            speed: challengeSong.min_speed,
+            rank: challengeSong.min_rank,
+            count: challengeSong.clears_required,
+            notation_setting: challengeSong.notation_setting
+          });
+          
+          // 曲をロード
+          console.log('🎵 Loading mission song:', song.title);
+          await gameActions.loadSong({
+            id: song.id,
+            title: song.title,
+            artist: song.artist || '',
+            duration: duration,
+            audioFile: song.audio_url || '',
+            musicXmlFile: song.xml_url || null
+          }, mapped);
+          
+          console.log('✅ Mission song loaded successfully, switching to practice tab');
+          
+          // 画面遷移
+          gameActions.setCurrentTab('practice');
+          setIsLoadingLessonSong(false);
+          
+          console.log('🔧 ミッション曲読み込み完了、practiceタブに遷移中');
+          setTimeout(() => {
+            window.location.hash = '#practice';
+            console.log('🔧 ハッシュを#practiceに変更完了');
+          }, 10);
+          
+        } catch (error) {
+          console.error('❌ ミッション曲の読み込みエラー:', {
+            error,
+            songId,
+            missionId,
+            errorMessage: error instanceof Error ? error.message : 'Unknown error'
+          });
+          setIsLoadingLessonSong(false);
+          // エラー時はミッション一覧に戻る
+          setTimeout(() => {
+            window.location.hash = '#missions';
+          }, 100);
+        }
+      } else {
+        console.warn('⚠️ songIdまたはmissionIdが不足:', { songId, missionId });
+        setIsLoadingLessonSong(false);
+      }
+    };
+
     const checkLessonPlay = async () => {
       const hash = window.location.hash;
       console.log('🔍 checkLessonPlay 実行:', { hash });
       
       if (hash.startsWith('#play-lesson')) {
-        // 読み込み開始
-        setIsLoadingLessonSong(true);
-        
-        const params = new URLSearchParams(hash.split('?')[1] || '');
-        const songId = params.get('id');
-        const lessonId = params.get('lessonId');
-        const key = parseInt(params.get('key') || '0');
-        const speed = parseFloat(params.get('speed') || '1.0');
-        const rank = params.get('rank') || 'B';
-        const count = parseInt(params.get('count') || '1');
-        const notation = params.get('notation') || 'both';
-        const requiresDays = params.get('requiresDays') === 'true';
-        const dailyCount = parseInt(params.get('dailyCount') || '1');
-        
-        if (songId) {
-          try {
-            // 曲データを取得（レッスン曲は通常曲も使用できるため、すべての曲から検索）
-            const songs = await fetchSongs(); // すべての曲を取得
-            const song = songs.find(s => s.id === songId);
-            
-            if (!song) {
-              console.error('曲が見つかりません:', songId);
-              // エラー時は曲選択画面に戻る
-              setIsLoadingLessonSong(false);
-              window.location.hash = '#songs';
-              return;
-            }
-            
-            // JSONデータの取得
-            let notesData: any;
-            if (song.json_url) {
-              const response = await fetch(song.json_url);
-              if (!response.ok) {
-                throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
-              }
-              
-              // レスポンスの内容をチェック
-              const contentType = response.headers.get('content-type');
-              if (!contentType || !contentType.includes('application/json')) {
-                console.warn('⚠️ JSONでないコンテンツタイプ:', contentType);
-              }
-              
-              const responseText = await response.text();
-              
-              // HTMLが返されている場合の検出
-              if (responseText.trim().startsWith('<')) {
-                throw new Error('JSONデータの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
-              }
-              
-              try {
-                notesData = JSON.parse(responseText);
-              } catch (parseError) {
-                console.error('JSON解析エラー:', parseError);
-                console.error('レスポンス内容の先頭100文字:', responseText.substring(0, 100));
-                throw new Error(`JSONデータの解析に失敗しました: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
-              }
-            } else if (song.json_data) {
-              notesData = song.json_data;
-            } else {
-              throw new Error('曲のノーツデータがありません');
-            }
-            
-            // notes配列の抽出
-            const notes = Array.isArray(notesData) ? notesData : notesData.notes;
-            if (!notes || !Array.isArray(notes)) {
-              throw new Error('ノーツデータの形式が不正です');
-            }
-            
-            const mapped = notes.map((n: any, idx: number) => ({ 
-              id: `${song.id}-${idx}`, 
-              time: n.time, 
-              pitch: n.pitch 
-            }));
-            
-            // 音声ファイルの長さを取得
-            let duration = 60; // デフォルト値
-            if (song.audio_url) {
-              try {
-                const audio = new Audio(song.audio_url);
-                audio.crossOrigin = 'anonymous';
-                await new Promise((resolve) => {
-                  const loadedHandler = () => {
-                    duration = Math.floor(audio.duration) || 60;
-                    resolve(void 0);
-                  };
-                  const errorHandler = () => {
-                    console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用');
-                    resolve(void 0);
-                  };
-                  
-                  audio.addEventListener('loadedmetadata', loadedHandler);
-                  audio.addEventListener('error', errorHandler);
-                  
-                  // タイムアウト処理
-                  setTimeout(() => resolve(void 0), 5000);
-                });
-              } catch (e) {
-                console.warn('音声ファイル時間取得エラー:', e);
-              }
-            }
-            
-            // レッスン設定を適用
-            await gameActions.updateSettings({
-              transpose: key,
-              playbackSpeed: speed,
-              // notation設定に基づいて表示設定を更新
-              showNotes: notation === 'notes_chords' || notation === 'both',
-              showChords: notation === 'chords_only' || notation === 'both'
-            });
-            
-            // レッスンコンテキストを設定
-            if (lessonId) {
-              gameActions.setLessonContext(lessonId, {
-                key,
-                speed,
-                rank,
-                count,
-                notation_setting: notation,
-                requires_days: requiresDays,
-                daily_count: dailyCount
-              });
-            }
-            
-            // 曲をロード
-            await gameActions.loadSong({
-              id: song.id,
-              title: song.title,
-              artist: song.artist || '',
-              duration: duration,
-              audioFile: song.audio_url || '',
-              musicXmlFile: song.xml_url || null
-            }, mapped);
-            
-            // 曲のロード完了後に画面遷移を行う
-            // 先にタブを切り替えてから、ハッシュを変更することで一瞬の曲選択画面表示を防ぐ
-            gameActions.setCurrentTab('practice');
-            
-            // 読み込み完了
-            setIsLoadingLessonSong(false);
-            
-            // 少し遅延させてからハッシュを変更（画面更新の完了を待つ）
-            setTimeout(() => {
-              window.location.hash = '#practice';
-            }, 10);
-            
-          } catch (error) {
-            console.error('レッスン曲の読み込みエラー:', error);
-            
-            // エラーの詳細情報をログ出力
-            if (error instanceof Error) {
-              console.error('エラーメッセージ:', error.message);
-              console.error('エラースタック:', error.stack);
-            }
-            
-            // ユーザーにエラーを通知（簡素なアラート）
-            let userMessage = '楽曲の読み込みに失敗しました。';
-            if (error instanceof Error) {
-              if (error.message.includes('HTMLが返されました')) {
-                userMessage = 'ファイルが見つかりません。曲データの設定を確認してください。';
-              } else if (error.message.includes('JSON') || error.message.includes('Unexpected token')) {
-                userMessage = '楽曲ファイルの形式が正しくありません。';
-              }
-            }
-            
-            // 非同期でアラートを表示（UIブロックを避ける）
-            setTimeout(() => {
-              alert(userMessage);
-            }, 100);
-            
-            setIsLoadingLessonSong(false);
-            window.location.hash = '#songs';
-          }
-        } else if (hash.startsWith('#play-mission')) {
-          // ミッション曲の読み込み
-          console.log('🎵 ミッション曲読み込み開始');
-          setIsLoadingLessonSong(true);
-          
-          const params = new URLSearchParams(hash.split('?')[1] || '');
-          const songId = params.get('song');
-          const missionId = params.get('mission');
-          
-          console.log('🎵 Mission play parameters:', { songId, missionId, fullHash: hash });
-          
-          if (songId && missionId) {
-            try {
-              console.log('🔍 ミッション曲の条件を取得中:', { songId, missionId });
-              
-              // ミッション曲の条件をデータベースから取得
-              const challengeSongs = await getChallengeSongs(missionId);
-              console.log('🔍 challengeSongs取得完了:', { challengeSongs });
-              
-              const challengeSong = challengeSongs.find(cs => cs.song_id === songId);
-              console.log('🔍 challengeSong検索結果:', { challengeSong });
-              
-              if (!challengeSong) {
-                console.error('❌ ミッション曲が見つかりません:', { 
-                  songId, 
-                  missionId,
-                  availableSongs: challengeSongs.map(cs => cs.song_id)
-                });
-                setIsLoadingLessonSong(false);
-                // ミッション一覧に戻る
-                setTimeout(() => {
-                  window.location.hash = '#missions';
-                }, 100);
-                return;
-              }
-              
-              // 曲データを取得
-              console.log('🔍 曲データを取得中:', { songId });
-              const songs = await fetchSongs();
-              const song = songs.find(s => s.id === songId);
-              console.log('🔍 曲データ検索結果:', { song: song ? { id: song.id, title: song.title } : null });
-              
-              if (!song) {
-                console.error('❌ 曲が見つかりません:', {
-                  songId,
-                  availableSongs: songs.map(s => ({ id: s.id, title: s.title }))
-                });
-                setIsLoadingLessonSong(false);
-                // ミッション一覧に戻る
-                setTimeout(() => {
-                  window.location.hash = '#missions';
-                }, 100);
-                return;
-              }
-              
-              // JSONデータの取得
-              let notesData: any;
-              if (song.json_url) {
-                const response = await fetch(song.json_url);
-                if (!response.ok) {
-                  throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
-                }
-                
-                const responseText = await response.text();
-                
-                if (responseText.trim().startsWith('<')) {
-                  throw new Error('JSONデータの代わりにHTMLが返されました。');
-                }
-                
-                notesData = JSON.parse(responseText);
-              } else if (song.json_data) {
-                notesData = song.json_data;
-              } else {
-                throw new Error('曲のノーツデータがありません');
-              }
-              
-              // notes配列の抽出
-              const notes = Array.isArray(notesData) ? notesData : notesData.notes;
-              if (!notes || !Array.isArray(notes)) {
-                throw new Error('ノーツデータの形式が不正です');
-              }
-              
-              const mapped = notes.map((n: any, idx: number) => ({ 
-                id: `${song.id}-${idx}`, 
-                time: n.time, 
-                pitch: n.pitch 
-              }));
-              
-              // 音声ファイルの長さを取得
-              let duration = 60;
-              if (song.audio_url) {
-                try {
-                  const audio = new Audio(song.audio_url);
-                  audio.crossOrigin = 'anonymous';
-                  await new Promise((resolve) => {
-                    const loadedHandler = () => {
-                      duration = Math.floor(audio.duration) || 60;
-                      resolve(void 0);
-                    };
-                    const errorHandler = () => {
-                      console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用');
-                      resolve(void 0);
-                    };
-                    
-                    audio.addEventListener('loadedmetadata', loadedHandler);
-                    audio.addEventListener('error', errorHandler);
-                    setTimeout(() => resolve(void 0), 5000);
-                  });
-                } catch (e) {
-                  console.warn('音声ファイル時間取得エラー:', e);
-                }
-              }
-              
-              // ミッション曲の条件を設定に適用
-              await gameActions.updateSettings({
-                transpose: challengeSong.key_offset,
-                playbackSpeed: challengeSong.min_speed,
-                // notation設定に基づいて表示設定を更新
-                showNotes: challengeSong.notation_setting === 'notes_chords' || challengeSong.notation_setting === 'both',
-                showChords: challengeSong.notation_setting === 'chords_only' || challengeSong.notation_setting === 'both'
-              });
-              
-              // ミッションコンテキストを設定
-              gameActions.setMissionContext(missionId, songId, {
-                key: challengeSong.key_offset,
-                speed: challengeSong.min_speed,
-                rank: challengeSong.min_rank,
-                count: challengeSong.clears_required,
-                notation_setting: challengeSong.notation_setting
-              });
-              
-              // 曲をロード
-              console.log('🎵 Loading mission song:', song.title);
-              await gameActions.loadSong({
-                id: song.id,
-                title: song.title,
-                artist: song.artist || '',
-                duration: duration,
-                audioFile: song.audio_url || '',
-                musicXmlFile: song.xml_url || null
-              }, mapped);
-              
-              console.log('✅ Mission song loaded successfully, switching to practice tab');
-              
-              // 画面遷移
-              gameActions.setCurrentTab('practice');
-              setIsLoadingLessonSong(false);
-              
-              console.log('🔧 ミッション曲読み込み完了、practiceタブに遷移中');
-              setTimeout(() => {
-                window.location.hash = '#practice';
-                console.log('🔧 ハッシュを#practiceに変更完了');
-              }, 10);
-              
-            } catch (error) {
-              console.error('❌ ミッション曲の読み込みエラー:', {
-                error,
-                songId,
-                missionId,
-                errorMessage: error instanceof Error ? error.message : 'Unknown error'
-              });
-              setIsLoadingLessonSong(false);
-              // エラー時はミッション一覧に戻る
-              setTimeout(() => {
-                window.location.hash = '#missions';
-              }, 100);
-            }
-          } else {
-            console.warn('⚠️ songIdまたはmissionIdが不足:', { songId, missionId });
-            setIsLoadingLessonSong(false);
-          }
-        } else {
-          console.log('🔍 非該当ハッシュ:', { hash });
-          setIsLoadingLessonSong(false);
-        }
+        await handleLessonPlay(hash);
+        return;
       }
+      
+      if (hash.startsWith('#play-mission')) {
+        await handleMissionPlay(hash);
+        return;
+      }
+      
+      console.log('🔍 非該当ハッシュ:', { hash });
+      setIsLoadingLessonSong(false);
     };
     
     checkLessonPlay();
