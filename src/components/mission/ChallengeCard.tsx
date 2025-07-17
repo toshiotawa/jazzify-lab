@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Mission, UserMissionProgress } from '@/platform/supabaseMissions';
 import { useMissionStore } from '@/stores/missionStore';
 import { cn } from '@/utils/cn';
-import { FaTrophy, FaMusic, FaCalendarAlt, FaClock, FaCheck, FaPlay } from 'react-icons/fa';
+import { FaTrophy, FaMusic, FaCalendarAlt, FaClock, FaCheck, FaPlay, FaKey, FaTachometerAlt, FaStar, FaListUl } from 'react-icons/fa';
 import MissionSongProgress from './MissionSongProgress';
 
 interface Props {
@@ -73,6 +73,37 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
 
   const remainingDays = getRemainingDays();
 
+  // クリア条件の表示用ヘルパー関数
+  const getClearConditionText = (song: any) => {
+    const conditions = [];
+    
+    if (song.min_rank) {
+      conditions.push(`ランク${song.min_rank}以上`);
+    }
+    
+    if (song.required_count && song.required_count > 1) {
+      conditions.push(`${song.required_count}回クリア`);
+    } else {
+      conditions.push('1回クリア');
+    }
+    
+    if (song.min_speed && song.min_speed !== 1.0) {
+      conditions.push(`速度${song.min_speed}倍以上`);
+    }
+    
+    if (song.key_offset && song.key_offset !== 0) {
+      conditions.push(`キー${song.key_offset > 0 ? '+' : ''}${song.key_offset}`);
+    }
+    
+    if (song.notation_setting) {
+      const notationText = song.notation_setting === 'notes_chords' ? 'ノート+コード' :
+                          song.notation_setting === 'chords_only' ? 'コードのみ' : '両方';
+      conditions.push(`楽譜: ${notationText}`);
+    }
+    
+    return conditions.join(' / ');
+  };
+
   return (
     <div className={cn(
       "p-4 rounded-lg space-y-3 border-2 transition-all duration-300",
@@ -109,7 +140,7 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
         </div>
       )}
 
-      {/* 曲一覧（簡易表示） */}
+      {/* 曲一覧（詳細表示） */}
       {mission.songs && mission.songs.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -123,15 +154,56 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
           </div>
           
           {!showSongProgress && (
-            <div className="grid grid-cols-1 gap-2">
-              {mission.songs.slice(0, 3).map(s => (
-                <div key={s.song_id} className="flex items-center space-x-2 text-xs">
-                  <FaMusic className="w-3 h-3 text-blue-400" />
-                  <span className="text-gray-300">
-                    {s.songs?.title || s.song_id}
-                  </span>
-                </div>
-              ))}
+            <div className="grid grid-cols-1 gap-3">
+              {mission.songs.slice(0, 3).map(s => {
+                const songProgress = currentSongProgress.find(sp => sp.song_id === s.song_id);
+                return (
+                  <div key={s.song_id} className="bg-slate-700/50 p-3 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <FaMusic className="w-3 h-3 text-blue-400" />
+                      <span className="text-sm font-medium text-gray-200">
+                        {s.songs?.title || s.song_id}
+                      </span>
+                      {songProgress?.is_completed && (
+                        <FaCheck className="w-3 h-3 text-emerald-400" />
+                      )}
+                    </div>
+                    
+                    {/* クリア条件の詳細表示 */}
+                    <div className="text-xs text-gray-400 space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <FaStar className="w-2 h-2" />
+                        <span>ランク{s.min_rank || 'B'}以上</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <FaListUl className="w-2 h-2" />
+                        <span>{s.clears_required || 1}回クリア</span>
+                      </div>
+                      {s.min_speed && s.min_speed !== 1.0 && (
+                        <div className="flex items-center space-x-2">
+                          <FaTachometerAlt className="w-2 h-2" />
+                          <span>速度{s.min_speed}倍以上</span>
+                        </div>
+                      )}
+                      {s.key_offset && s.key_offset !== 0 && (
+                        <div className="flex items-center space-x-2">
+                          <FaKey className="w-2 h-2" />
+                          <span>キー{s.key_offset > 0 ? '+' : ''}{s.key_offset}</span>
+                        </div>
+                      )}
+                      {s.notation_setting && (
+                        <div className="flex items-center space-x-2">
+                          <FaMusic className="w-2 h-2" />
+                          <span>
+                            楽譜: {s.notation_setting === 'notes_chords' ? 'ノート+コード' :
+                                   s.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
               {mission.songs.length > 3 && (
                 <div className="text-xs text-gray-500">
                   他 {mission.songs.length - 3} 曲...
@@ -230,20 +302,15 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
       {/* 報酬受取ボタン */}
       <button
         disabled={!completed && !allSongsCompleted}
-        className={cn(
-          'btn btn-sm w-full transition-all duration-300 flex items-center justify-center space-x-2',
-          (completed || allSongsCompleted)
-            ? 'btn-primary hover:scale-105 shadow-lg' 
-            : 'btn-disabled opacity-50'
-        )}
         onClick={() => claim(mission.id)}
+        className={cn(
+          "w-full btn btn-sm transition-all duration-300",
+          completed || allSongsCompleted
+            ? "btn-success hover:scale-105"
+            : "btn-disabled opacity-50"
+        )}
       >
-        <FaTrophy className="w-4 h-4" />
-        <span>
-          {completed ? '報酬を受け取る' : 
-           allSongsCompleted ? '報酬を受け取る（曲クリア済み）' : 
-           '報酬受取（未達成）'}
-        </span>
+        {completed ? '報酬受取済み' : allSongsCompleted ? '報酬を受取る' : '条件未達成'}
       </button>
     </div>
   );

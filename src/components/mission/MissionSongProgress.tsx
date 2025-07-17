@@ -3,7 +3,7 @@ import type { MissionSongProgress as MissionSongProgressType } from '@/platform/
 import { useMissionStore } from '@/stores/missionStore';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
-import { FaPlay, FaMusic, FaCheck } from 'react-icons/fa';
+import { FaPlay, FaMusic, FaCheck, FaKey, FaTachometerAlt, FaStar, FaListUl } from 'react-icons/fa';
 
 interface Props {
   missionId: string;
@@ -25,8 +25,11 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
   const handlePlaySong = async (songId: string) => {
     try {
       console.log('ミッション曲をプレイ:', { songId, missionId });
-      // 曲をロードしてゲーム画面に移動
-      window.location.href = `/main#play-mission?song=${songId}&mission=${missionId}`;
+      // ミッションから曲をプレイする際のURL形式を修正
+      const params = new URLSearchParams();
+      params.set('song', songId);
+      params.set('mission', missionId);
+      window.location.hash = `#play-mission?${params.toString()}`;
     } catch (error) {
       console.error('曲の読み込みに失敗:', error);
     }
@@ -74,12 +77,6 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
                   {song.song?.artist && (
                     <div className="text-sm text-gray-400">{song.song.artist}</div>
                   )}
-                  {/* クリア条件の表示 */}
-                  <div className="text-xs text-gray-500 mt-1">
-                    クリア条件: ランク{song.min_rank || 'B'}以上 / {song.required_count || 1}回クリア
-                    {song.min_speed && song.min_speed !== 1.0 && ` / 速度${song.min_speed}倍以上`}
-                    {song.key_offset && song.key_offset !== 0 && ` / キー${song.key_offset > 0 ? '+' : ''}${song.key_offset}`}
-                  </div>
                 </div>
               </div>
               
@@ -95,6 +92,42 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
                 <FaPlay className="w-3 h-3" />
                 <span>{song.is_completed ? '再プレイ' : 'プレイ'}</span>
               </button>
+            </div>
+
+            {/* クリア条件の詳細表示 */}
+            <div className="mb-3 p-3 bg-slate-700/50 rounded-lg">
+              <div className="text-xs font-medium text-gray-300 mb-2">クリア条件</div>
+              <div className="grid grid-cols-1 gap-2 text-xs text-gray-400">
+                <div className="flex items-center space-x-2">
+                  <FaStar className="w-3 h-3 text-yellow-400" />
+                  <span>ランク{song.min_rank || 'B'}以上</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <FaListUl className="w-3 h-3 text-blue-400" />
+                  <span>{song.required_count || 1}回クリア</span>
+                </div>
+                {song.min_speed && song.min_speed !== 1.0 && (
+                  <div className="flex items-center space-x-2">
+                    <FaTachometerAlt className="w-3 h-3 text-green-400" />
+                    <span>速度{song.min_speed}倍以上</span>
+                  </div>
+                )}
+                {song.key_offset && song.key_offset !== 0 && (
+                  <div className="flex items-center space-x-2">
+                    <FaKey className="w-3 h-3 text-purple-400" />
+                    <span>キー{song.key_offset > 0 ? '+' : ''}{song.key_offset}</span>
+                  </div>
+                )}
+                {song.notation_setting && (
+                  <div className="flex items-center space-x-2">
+                    <FaMusic className="w-3 h-3 text-orange-400" />
+                    <span>
+                      楽譜: {song.notation_setting === 'notes_chords' ? 'ノート+コード' :
+                             song.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 進捗バー */}
