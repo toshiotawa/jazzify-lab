@@ -221,6 +221,8 @@ const GameScreen: React.FC = () => {
           const count = parseInt(params.get('count') || '1');
           const notation = params.get('notation') || 'both';
           
+          console.log('🎵 Mission play parameters:', { songId, missionId, key, speed, rank, count, notation });
+          
           if (songId) {
             try {
               // 曲データを取得
@@ -292,12 +294,22 @@ const GameScreen: React.FC = () => {
                 }
               }
               
+              // ミッション曲の設定を適用
+              await gameActions.updateSettings({
+                transpose: key,
+                playbackSpeed: speed,
+                // notation設定に基づいて表示設定を更新
+                showNotes: notation === 'notes_chords' || notation === 'both',
+                showChords: notation === 'chords_only' || notation === 'both'
+              });
+              
               // ミッションコンテキストを設定
               if (missionId) {
                 gameActions.setMissionContext(missionId, songId);
               }
               
               // 曲をロード
+              console.log('🎵 Loading mission song:', song.title);
               await gameActions.loadSong({
                 id: song.id,
                 title: song.title,
@@ -307,11 +319,7 @@ const GameScreen: React.FC = () => {
                 musicXmlFile: song.xml_url || null
               }, mapped);
               
-              // ミッション曲の設定を適用
-              gameActions.updateSettings({
-                transpose: key,
-                speed: speed
-              });
+              console.log('✅ Mission song loaded successfully, switching to practice tab');
               
               // 画面遷移
               gameActions.setCurrentTab('practice');
