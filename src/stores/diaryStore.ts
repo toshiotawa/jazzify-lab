@@ -63,6 +63,9 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     add: async (content: string) => {
       const result = await createDiary(content);
       await get().fetch();
+      // ミッションストアを同期
+      const { useMissionStore } = await import('@/stores/missionStore');
+      await useMissionStore.getState().fetchAll();
       return result;
     },
 

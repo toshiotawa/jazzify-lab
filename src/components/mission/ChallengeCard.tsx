@@ -14,11 +14,12 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
   const { claim, fetchSongProgress, songProgress } = useMissionStore();
   const [showSongProgress, setShowSongProgress] = useState(false);
   
-  // 曲進捗を取得
+  // 曲進捗を取得（日記ミッションの場合はスキップ）
   useEffect(() => {
     console.log('ChallengeCard useEffect:', { 
       missionId: mission.id, 
       songsCount: mission.songs?.length || 0,
+      diaryCount: mission.diary_count || 0,
       songs: mission.songs?.map(s => ({ id: s.song_id, title: s.songs?.title })),
       missionData: mission
     });
@@ -32,13 +33,22 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
   const allSongsCompleted = currentSongProgress.length > 0 && 
     currentSongProgress.every(song => song.is_completed);
   
-  // ミッション全体の進捗を曲数ベースで計算
-  const totalSongs = mission.songs?.length || 0;
-  const completedSongs = currentSongProgress.filter(song => song.is_completed).length;
-  const total = totalSongs;
-  const cleared = completedSongs;
+  // ミッション全体の進捗を計算（日記ミッション対応）
+  const totalDiary = mission.diary_count ?? 0;
+  const totalSongs = mission.songs?.length ?? 0;
+  const total = totalDiary || totalSongs;
+  
+  const clearedDiary = totalDiary
+    ? (progress?.clear_count ?? 0)      // RPC で更新済み
+    : 0;
+  const clearedSongs = currentSongProgress
+    .filter(s => s.is_completed).length;
+  
+  const cleared = totalDiary ? clearedDiary : clearedSongs;
   const completed = progress?.completed ?? false;
-  const progressPercentage = totalSongs > 0 ? Math.min((completedSongs / totalSongs) * 100, 100) : 0;
+  const progressPercentage = total > 0
+    ? Math.min((cleared / total) * 100, 100)
+    : 0;
   
   console.log('ChallengeCard render:', { 
     missionId: mission.id, 
@@ -140,6 +150,35 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
         </div>
       )}
 
+      {/* 日記ミッション表示 */}
+      {totalDiary > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">日記投稿</span>
+            <div className="flex items-center space-x-1">
+              <FaCalendarAlt className="w-3 h-3 text-green-400" />
+              <span className="text-xs text-gray-300">
+                {clearedDiary}/{totalDiary} 件
+              </span>
+            </div>
+          </div>
+          <div className="bg-slate-700/50 p-2 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <FaCalendarAlt className="w-3 h-3 text-green-400" />
+              <span className="text-sm font-medium text-gray-200">
+                日記を投稿しよう
+              </span>
+              {clearedDiary >= totalDiary && (
+                <FaCheck className="w-3 h-3 text-emerald-400" />
+              )}
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              毎日の練習記録を投稿してミッションをクリア
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 曲一覧（詳細表示） */}
       {mission.songs && mission.songs.length > 0 && (
         <div className="space-y-2">
@@ -170,7 +209,7 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
                         )}
                       </div>
                       <div className="text-xs text-gray-400">
-                        {songProgress?.clear_count || 0}/{s.required_count || 1}回
+                        {songProgress?.clear_count || 0}/{s.clears_required || 1}回
                       </div>
                     </div>
                   </div>
@@ -204,7 +243,7 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
             "text-xs font-bold",
             completed ? "text-emerald-400" : "text-gray-300"
           )}>
-            {cleared}/{total} 曲
+            {cleared}/{total} {totalDiary ? '件' : '曲'}
           </span>
         </div>
         
