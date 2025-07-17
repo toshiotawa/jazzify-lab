@@ -22,13 +22,19 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
     }
   }, [missionId, songProgress.length, fetchSongProgress]);
 
-  const handlePlaySong = async (songId: string) => {
+  const handlePlaySong = async (songId: string, songProgress: MissionSongProgressType) => {
     try {
-      console.log('ミッション曲をプレイ:', { songId, missionId });
-      // ミッションから曲をプレイする際のURL形式を修正
+      console.log('ミッション曲をプレイ:', { songId, missionId, songProgress });
+      // ミッションから曲をプレイする際の設定を含むURL形式
       const params = new URLSearchParams();
       params.set('song', songId);
       params.set('mission', missionId);
+      // ミッション曲の設定を追加
+      params.set('key', String(songProgress.key_offset || 0));
+      params.set('speed', String(songProgress.min_speed || 1.0));
+      params.set('rank', songProgress.min_rank || 'B');
+      params.set('count', String(songProgress.required_count || 1));
+      params.set('notation', songProgress.notation_setting || 'both');
       window.location.hash = `#play-mission?${params.toString()}`;
     } catch (error) {
       console.error('曲の読み込みに失敗:', error);
@@ -81,7 +87,7 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
               </div>
               
               <button
-                onClick={() => handlePlaySong(song.song_id)}
+                onClick={() => handlePlaySong(song.song_id, song)}
                 className={cn(
                   "btn btn-sm flex items-center space-x-2 transition-all duration-300",
                   song.is_completed
@@ -115,7 +121,7 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
                 {song.key_offset && song.key_offset !== 0 && (
                   <div className="flex items-center space-x-2">
                     <FaKey className="w-3 h-3 text-purple-400" />
-                    <span>キー{song.key_offset > 0 ? '+' : ''}{song.key_offset}</span>
+                    <span>キー{song.key_offset > 0 ? '+' : ''}{song.key_offset} ({song.key_offset > 0 ? '高く' : '低く'})</span>
                   </div>
                 )}
                 {song.notation_setting && (

@@ -92,7 +92,7 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
     }
     
     if (song.key_offset && song.key_offset !== 0) {
-      conditions.push(`キー${song.key_offset > 0 ? '+' : ''}${song.key_offset}`);
+      conditions.push(`キー${song.key_offset > 0 ? '+' : ''}${song.key_offset} (${song.key_offset > 0 ? '高く' : '低く'})`);
     }
     
     if (song.notation_setting) {
@@ -154,52 +154,24 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
           </div>
           
           {!showSongProgress && (
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-2">
               {mission.songs.slice(0, 3).map(s => {
                 const songProgress = currentSongProgress.find(sp => sp.song_id === s.song_id);
                 return (
-                  <div key={s.song_id} className="bg-slate-700/50 p-3 rounded-lg">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <FaMusic className="w-3 h-3 text-blue-400" />
-                      <span className="text-sm font-medium text-gray-200">
-                        {s.songs?.title || s.song_id}
-                      </span>
-                      {songProgress?.is_completed && (
-                        <FaCheck className="w-3 h-3 text-emerald-400" />
-                      )}
-                    </div>
-                    
-                    {/* クリア条件の詳細表示 */}
-                    <div className="text-xs text-gray-400 space-y-1">
+                  <div key={s.song_id} className="bg-slate-700/50 p-2 rounded-lg">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <FaStar className="w-2 h-2" />
-                        <span>ランク{s.min_rank || 'B'}以上</span>
+                        <FaMusic className="w-3 h-3 text-blue-400" />
+                        <span className="text-sm font-medium text-gray-200">
+                          {s.songs?.title || s.song_id}
+                        </span>
+                        {songProgress?.is_completed && (
+                          <FaCheck className="w-3 h-3 text-emerald-400" />
+                        )}
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <FaListUl className="w-2 h-2" />
-                        <span>{s.clears_required || 1}回クリア</span>
+                      <div className="text-xs text-gray-400">
+                        {songProgress?.clear_count || 0}/{s.required_count || 1}回
                       </div>
-                      {s.min_speed && s.min_speed !== 1.0 && (
-                        <div className="flex items-center space-x-2">
-                          <FaTachometerAlt className="w-2 h-2" />
-                          <span>速度{s.min_speed}倍以上</span>
-                        </div>
-                      )}
-                      {s.key_offset && s.key_offset !== 0 && (
-                        <div className="flex items-center space-x-2">
-                          <FaKey className="w-2 h-2" />
-                          <span>キー{s.key_offset > 0 ? '+' : ''}{s.key_offset}</span>
-                        </div>
-                      )}
-                      {s.notation_setting && (
-                        <div className="flex items-center space-x-2">
-                          <FaMusic className="w-2 h-2" />
-                          <span>
-                            楽譜: {s.notation_setting === 'notes_chords' ? 'ノート+コード' :
-                                   s.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
-                          </span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );

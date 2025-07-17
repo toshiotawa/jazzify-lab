@@ -214,6 +214,12 @@ const GameScreen: React.FC = () => {
           const params = new URLSearchParams(hash.split('?')[1] || '');
           const songId = params.get('song');
           const missionId = params.get('mission');
+          // ミッション曲の設定パラメータを取得
+          const key = parseInt(params.get('key') || '0');
+          const speed = parseFloat(params.get('speed') || '1.0');
+          const rank = params.get('rank') || 'B';
+          const count = parseInt(params.get('count') || '1');
+          const notation = params.get('notation') || 'both';
           
           if (songId) {
             try {
@@ -300,6 +306,12 @@ const GameScreen: React.FC = () => {
                 audioFile: song.audio_url || '',
                 musicXmlFile: song.xml_url || null
               }, mapped);
+              
+              // ミッション曲の設定を適用
+              gameActions.updateSettings({
+                transpose: key,
+                speed: speed
+              });
               
               // 画面遷移
               gameActions.setCurrentTab('practice');
