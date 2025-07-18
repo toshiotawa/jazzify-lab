@@ -77,6 +77,14 @@ const ResultModal: React.FC = () => {
             seasonMultiplier: profile.next_season_xp_multiplier ?? 1,
           });
 
+          // デバッグ用: ランクボーナスの確認
+          console.log('XP計算詳細:', {
+            membershipRank: profile.rank,
+            membershipMultiplier: detailed.multipliers.membership,
+            base: detailed.base,
+            total: detailed.total
+          });
+
           // 正しい基本XPを計算
           const baseXp = getBaseXpFromRank(score.rank);
 
@@ -558,6 +566,13 @@ const ResultModal: React.FC = () => {
                 <div className="flex justify-between">
                   <span>基本XP:</span>
                   <span>{xpInfo.detailed?.base || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ランクボーナス:</span>
+                  <span>{profile?.rank === 'free' ? 'フリー' : 
+                         profile?.rank === 'standard' ? 'スタンダード' : 
+                         profile?.rank === 'premium' ? 'プレミアム' : 
+                         profile?.rank === 'platinum' ? 'プラチナ' : 'フリー'} x{xpInfo.detailed?.multipliers?.membership || 1}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>レッスンボーナス:</span>
