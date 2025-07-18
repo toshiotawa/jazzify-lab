@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { Mission, UserMissionProgress, MissionSongProgress, fetchActiveMonthlyMissions, fetchUserMissionProgress, fetchMissionSongProgress, fetchMissionSongProgressAll, claimReward } from '@/platform/supabaseMissions';
 import { useToastStore } from '@/stores/toastStore';
+import { clearCacheByKey } from '@/platform/supabaseClient';
 
 interface State {
   monthly: Mission[];
@@ -25,6 +26,15 @@ export const useMissionStore = create<State & Actions>()(
 
     fetchAll: async () => {
       set(s=>{s.loading=true;});
+      
+      // ミッション進捗のキャッシュをクリア
+      const { data: { user } } = await import('@/platform/supabaseClient').then(m => m.getSupabaseClient().auth.getUser());
+      if (user) {
+        const userMissionProgressCacheKey = `user_mission_progress:${user.id}`;
+        clearCacheByKey(userMissionProgressCacheKey);
+        console.log('ミッションストア - 進捗キャッシュをクリア:', userMissionProgressCacheKey);
+      }
+      
       const [missions, progress] = await Promise.all([
         fetchActiveMonthlyMissions(),
         fetchUserMissionProgress(),
