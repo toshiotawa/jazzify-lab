@@ -1,7 +1,6 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { addXp } from '@/platform/supabaseXp';
 import { fetchActiveMonthlyMissions, incrementDiaryProgress } from '@/platform/supabaseMissions';
-import { clearCacheByKey } from '@/platform/supabaseClient';
 
 export interface Diary {
   id: string;
@@ -235,32 +234,20 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   // ミッション進捗更新（1日1回まで）
   let missionsUpdated = 0;
   try {
-    // 今日の日記投稿によるミッション進捗履歴をチェック
-    const { count: todayMissionProgressCount } = await supabase
+    // 今日の日記投稿によるXP付与履歴をチェック
+    const { count: todayDiaryXpCount } = await supabase
       .from('xp_history')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .eq('reason', 'diary_post')
-      .gte('created_at', today + 'T00:00:00')
-      .lte('created_at', today + 'T23:59:59');
-
-    console.log('日記投稿 - 今日のミッション進捗履歴数:', todayMissionProgressCount);
+      .gte('created_at', today + 'T00:00:00+09:00')
+      .lte('created_at', today + 'T23:59:59+09:00');
 
     // 今日まだ日記投稿でミッション進捗を増やしていない場合のみ進捗を増やす
-    if (!todayMissionProgressCount || todayMissionProgressCount === 0) {
+    if (!todayDiaryXpCount || todayDiaryXpCount === 0) {
       const missions = await fetchActiveMonthlyMissions();
-      console.log('日記投稿 - アクティブなミッション数:', missions.length);
-      
       for (const m of missions) {
         if (m.diary_count) {
-          console.log('日記投稿 - 日記ミッション処理中:', { 
-            missionId: m.id, 
-            title: m.title, 
-            diaryCount: m.diary_count,
-            startDate: m.start_date,
-            endDate: m.end_date
-          });
-          
           // 実際の日記数を再計算して進捗を更新
           const { count: actualDiaryCount } = await supabase
             .from('practice_diaries')
@@ -268,8 +255,6 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
             .eq('user_id', user.id)
             .gte('practice_date', m.start_date)
             .lte('practice_date', m.end_date);
-          
-          console.log('日記投稿 - 実際の日記数:', actualDiaryCount);
           
           // 進捗を実際の日記数に更新（完了フラグも設定）
           const { error: upsertError } = await supabase
@@ -281,21 +266,19 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
               completed: (actualDiaryCount || 0) >= m.diary_count
             });
           
-          if (upsertError) {
-            console.error('日記投稿 - ミッション進捗更新エラー:', upsertError);
-          } else {
-            console.log('日記投稿 - ミッション進捗更新成功:', {
-              missionId: m.id,
+          // 成功時のみカウントを増やす
+          if (!upsertError) {
+            missionsUpdated++;
+            console.log('ミッション進捗更新成功', { 
+              challengeId: m.id, 
               clearCount: actualDiaryCount || 0,
-              completed: (actualDiaryCount || 0) >= m.diary_count
+              completed: (actualDiaryCount || 0) >= m.diary_count 
             });
+          } else {
+            console.error('ミッション進捗更新エラー', upsertError);
           }
-          
-          missionsUpdated++;
         }
       }
-    } else {
-      console.log('日記投稿 - 今日は既にミッション進捗を更新済み');
     }
   } catch (e) {
     console.warn('ミッション進捗の更新でエラーが発生しました:', e);
@@ -305,21 +288,17 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   // 会員ランクに応じたXP倍率を適用
   const membershipMultiplier = membershipRank === 'premium' ? 1.5 : membershipRank === 'platinum' ? 2 : 1;
 
-  // 既に本日日記投稿でXP獲得済みか確認
-  const { count: xpTodayCount } = await supabase
-    .from('xp_history')
-    .select('*', { count: 'exact', head: true })
+  // 今日の日記投稿によるXP付与履歴をチェック（practice_diariesベース）
+  const { count: todayDiaryCount } = await supabase
+    .from('practice_diaries')
+    .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
-    .eq('reason', 'diary_post')
-    .gte('created_at', today + 'T00:00:00')
-    .lte('created_at', today + 'T23:59:59');
-
-  console.log('日記投稿 - 今日のXP獲得履歴数:', xpTodayCount);
+    .eq('practice_date', today);
 
   let xpResult: { gainedXp: number; totalXp: number; level: number } = { gainedXp:0, totalXp:0, level:currentLevel } as any;
 
-  if (!xpTodayCount || xpTodayCount === 0) {
-    console.log('日記投稿 - XP獲得処理開始');
+  // 今日の日記投稿が1件（今回の投稿）のみの場合のみXP付与
+  if (todayDiaryCount === 1) {
     xpResult = await addXp({
       songId: null,
       baseXp: 5000,
@@ -327,20 +306,13 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
       rankMultiplier: 1,
       transposeMultiplier: 1,
       membershipMultiplier,
-      reason: 'diary_post'
+      reason: 'diary_post', // 理由を明示的に指定
     });
-    console.log('日記投稿 - XP獲得完了:', { gainedXp: xpResult.gainedXp, totalXp: xpResult.totalXp, level: xpResult.level });
   } else {
-    console.log('日記投稿 - 今日は既にXP獲得済み');
     // XP 付与なし
     const { data: prof } = await supabase.from('profiles').select('xp, level').eq('id', user.id).single();
     xpResult = { gainedXp:0, totalXp: prof?.xp || 0, level: prof?.level || currentLevel } as any;
   }
-
-  // ミッション進捗のキャッシュをクリア
-  const userMissionProgressCacheKey = `user_mission_progress:${user.id}`;
-  clearCacheByKey(userMissionProgressCacheKey);
-  console.log('日記投稿 - ミッション進捗キャッシュをクリア:', userMissionProgressCacheKey);
 
   return {
     success: true,
@@ -551,9 +523,50 @@ export async function deleteDiary(diaryId: string): Promise<void> {
   } catch (e) {
     console.warn('ミッション進捗の調整でエラーが発生しました:', e);
   }
+}
 
-  // ミッション進捗のキャッシュをクリア
-  const userMissionProgressCacheKey = `user_mission_progress:${user.id}`;
-  clearCacheByKey(userMissionProgressCacheKey);
-  console.log('日記削除 - ミッション進捗キャッシュをクリア:', userMissionProgressCacheKey);
+// テスト用ヘルパー関数
+export async function getTodayDiaryCount(userId: string): Promise<number> {
+  const supabase = getSupabaseClient();
+  const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
+  
+  const { count } = await supabase
+    .from('practice_diaries')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('practice_date', today);
+    
+  return count || 0;
+}
+
+export async function getTodayXpHistoryCount(userId: string, reason?: string): Promise<number> {
+  const supabase = getSupabaseClient();
+  const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
+  
+  let query = supabase
+    .from('xp_history')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', today + 'T00:00:00+09:00')
+    .lte('created_at', today + 'T23:59:59+09:00');
+    
+  if (reason) {
+    query = query.eq('reason', reason);
+  }
+  
+  const { count } = await query;
+  return count || 0;
+}
+
+export async function getMissionProgress(userId: string, challengeId: string): Promise<{ clear_count: number; completed: boolean } | null> {
+  const supabase = getSupabaseClient();
+  
+  const { data } = await supabase
+    .from('user_challenge_progress')
+    .select('clear_count, completed')
+    .eq('user_id', userId)
+    .eq('challenge_id', challengeId)
+    .single();
+    
+  return data;
 }
