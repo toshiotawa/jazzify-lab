@@ -30,7 +30,12 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
     .filter(s => s.is_completed).length;
   
   const cleared = totalDiary ? clearedDiary : clearedSongs;
-  const completed = progress?.completed ?? false;
+  
+  // 進捗判定ロジックを修正
+  const isCompleted = cleared >= total && total > 0;
+  const isRewardClaimed = progress?.reward_claimed ?? false;
+  const completed = progress?.completed ?? isCompleted;
+  
   const progressPercentage = total > 0
     ? Math.min((cleared / total) * 100, 100)
     : 0;
@@ -43,6 +48,10 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
     progress: progress,
     reward_claimed: progress?.reward_claimed,
     completed: completed,
+    isCompleted: isCompleted,
+    isRewardClaimed: isRewardClaimed,
+    cleared: cleared,
+    total: total,
     songProgress: currentSongProgress.map(s => ({ id: s.song_id, title: s.song?.title, completed: s.is_completed }))
   });
   
@@ -288,31 +297,33 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
           {/* 達成状況 */}
           <div className={cn(
             "px-2 py-1 rounded-full text-xs font-medium",
-            completed 
+            isRewardClaimed
+              ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/30"
+              : isCompleted
               ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/30"
               : progressPercentage >= 80
               ? "bg-yellow-600/20 text-yellow-400 border border-yellow-500/30"
               : "bg-slate-600/20 text-slate-400 border border-slate-500/30"
           )}>
-            {completed ? '達成済み' : progressPercentage >= 80 ? 'もう少し' : '進行中'}
+            {isRewardClaimed ? '報酬受取済み' : isCompleted ? '達成済み' : progressPercentage >= 80 ? 'もう少し' : '進行中'}
           </div>
         </div>
       </div>
 
       {/* 報酬受取ボタン */}
       <button
-        disabled={progress?.reward_claimed || (!completed && !allSongsCompleted)}
+        disabled={isRewardClaimed || (!isCompleted && !allSongsCompleted)}
         onClick={() => claim(mission.id)}
         className={cn(
           "w-full btn btn-sm transition-all duration-300",
-          progress?.reward_claimed
-            ? "btn-success opacity-50"
-            : (completed || allSongsCompleted)
+          isRewardClaimed
+            ? "btn-success opacity-50 cursor-not-allowed"
+            : (isCompleted || allSongsCompleted)
             ? "btn-success hover:scale-105"
             : "btn-disabled opacity-50"
         )}
       >
-        {progress?.reward_claimed ? '報酬受取済み' : allSongsCompleted ? '報酬を受取る' : '条件未達成'}
+        {isRewardClaimed ? '報酬受取済み' : (isCompleted || allSongsCompleted) ? '報酬を受取る' : '条件未達成'}
       </button>
     </div>
   );

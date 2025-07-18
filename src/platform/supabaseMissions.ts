@@ -347,6 +347,69 @@ export async function claimReward(missionId: string) {
   if (!user) return;
   
   try {
+    // ミッション情報を取得
+    const { data: mission, error: missionError } = await supabase
+      .from('challenges')
+      .select('reward_multiplier, diary_count')
+      .eq('id', missionId)
+      .single();
+    
+    if (missionError) throw missionError;
+    
+    // ミッションの曲情報を取得
+    const { data: missionSongs, error: songsError } = await supabase
+      .from('challenge_tracks')
+      .select('song_id, clears_required')
+      .eq('challenge_id', missionId);
+    
+    if (songsError) throw songsError;
+    
+    // 実際の進捗を計算
+    let totalRequired = 0;
+    let totalCompleted = 0;
+    
+    // 日記ミッションの場合
+    if (mission.diary_count && mission.diary_count > 0) {
+      totalRequired = mission.diary_count;
+      // 日記の進捗を取得
+      const { data: diaryProgress, error: diaryError } = await supabase
+        .from('user_challenge_progress')
+        .select('clear_count')
+        .eq('user_id', user.id)
+        .eq('challenge_id', missionId)
+        .single();
+      
+      if (diaryError) throw diaryError;
+      totalCompleted = diaryProgress?.clear_count || 0;
+    } else {
+      // 曲ミッションの場合
+      totalRequired = missionSongs.length;
+      
+      // 各曲の進捗を確認
+      for (const song of missionSongs) {
+        const { data: songProgress } = await supabase
+          .from('user_song_progress')
+          .select('clear_count')
+          .eq('user_id', user.id)
+          .eq('song_id', song.song_id)
+          .single();
+        
+        const requiredCount = song.clears_required || 1;
+        const actualCount = songProgress?.clear_count || 0;
+        
+        if (actualCount >= requiredCount) {
+          totalCompleted++;
+        }
+      }
+    }
+    
+    // ミッションが完了しているかチェック
+    const isMissionCompleted = totalCompleted >= totalRequired && totalRequired > 0;
+    
+    if (!isMissionCompleted) {
+      throw new Error('ミッションが完了していません');
+    }
+    
     // 既に報酬を受け取っているかチェック
     const { data: existingProgress, error: progressError } = await supabase
       .from('user_challenge_progress')
@@ -373,11 +436,6 @@ export async function claimReward(missionId: string) {
         if (fallbackProgress?.completed) {
           throw new Error('このミッションの報酬は既に受け取っています');
         }
-        
-        // ミッションが完了していない場合はエラー
-        if (!fallbackProgress?.completed) {
-          throw new Error('ミッションが完了していません');
-        }
       } else {
         throw progressError;
       }
@@ -386,20 +444,7 @@ export async function claimReward(missionId: string) {
       if (existingProgress?.reward_claimed) {
         throw new Error('このミッションの報酬は既に受け取っています');
       }
-      
-      if (!existingProgress?.completed) {
-        throw new Error('ミッションが完了していません');
-      }
     }
-    
-    // ミッション情報を取得して報酬XPを取得
-    const { data: mission, error: missionError } = await supabase
-      .from('challenges')
-      .select('reward_multiplier')
-      .eq('id', missionId)
-      .single();
-    
-    if (missionError) throw missionError;
     
     // ① 報酬受取フラグを設定（reward_claimed列が存在する場合のみ）
     try {
