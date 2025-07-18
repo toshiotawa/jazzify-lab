@@ -110,6 +110,19 @@ export const useMissionStore = create<State & Actions>()(
         }
       } catch (error) {
         console.error('報酬の受け取りに失敗しました:', error);
+        
+        // エラーメッセージをトースト通知で表示
+        const { push } = useToastStore.getState();
+        const errorMessage = error instanceof Error ? error.message : '報酬の受け取りに失敗しました';
+        push(
+          errorMessage,
+          'error',
+          {
+            title: 'エラー',
+            duration: 5000
+          }
+        );
+        
         throw error;
       }
     }

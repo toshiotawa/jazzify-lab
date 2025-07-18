@@ -346,6 +346,26 @@ export async function claimReward(missionId: string) {
   const { data:{ user } } = await supabase.auth.getUser();
   if (!user) return;
   
+  // 既に報酬を受け取っているかチェック
+  const { data: existingProgress, error: progressError } = await supabase
+    .from('user_challenge_progress')
+    .select('reward_claimed, completed')
+    .eq('user_id', user.id)
+    .eq('challenge_id', missionId)
+    .single();
+  
+  if (progressError) throw progressError;
+  
+  // 報酬を受け取っていない場合はエラー
+  if (existingProgress?.reward_claimed) {
+    throw new Error('このミッションの報酬は既に受け取っています');
+  }
+  
+  // ミッションが完了していない場合はエラー
+  if (!existingProgress?.completed) {
+    throw new Error('ミッションが完了していません');
+  }
+  
   // ミッション情報を取得して報酬XPを取得
   const { data: mission, error: missionError } = await supabase
     .from('challenges')
@@ -356,10 +376,13 @@ export async function claimReward(missionId: string) {
   if (missionError) throw missionError;
   
   // ① 報酬受取フラグを設定
-  await supabase.from('user_challenge_progress')
+  const { error: updateError } = await supabase
+    .from('user_challenge_progress')
     .update({ reward_claimed: true })
     .eq('user_id', user.id)
     .eq('challenge_id', missionId);
+  
+  if (updateError) throw updateError;
 
   // ② ミッション固有のXP付与（正しいaddXp関数を使用）
   const rewardXP = mission?.reward_multiplier || 2000; // デフォルト2000XP
