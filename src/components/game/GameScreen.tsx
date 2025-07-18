@@ -585,19 +585,15 @@ const SongSelectionScreen: React.FC = () => {
           
           const { data: userStats } = await supabase
             .from('user_song_stats')
-            .select('song_id, clear_count, best_score, best_rank')
+            .select('song_id, clear_count, best_score, best_rank, b_rank_plus_count')
             .eq('user_id', user.id);
           
           if (userStats) {
             const statsMap: Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string}> = {};
             userStats.forEach(stat => {
-              // TODO: In the future, implement proper B-rank+ counting logic
-              // For now, use clear_count as placeholder for B-rank+ count
-              const bRankPlusCount = stat.clear_count; // This should be properly calculated based on actual B+ clears
-              
               statsMap[stat.song_id] = {
                 clear_count: stat.clear_count,
-                b_rank_plus_count: bRankPlusCount,
+                b_rank_plus_count: stat.b_rank_plus_count || 0,
                 best_score: stat.best_score,
                 best_rank: stat.best_rank
               };

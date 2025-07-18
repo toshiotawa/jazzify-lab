@@ -202,7 +202,7 @@ const ResultModal: React.FC = () => {
             }
           }
           
-          // 通常曲の場合、クリア回数統計を設定
+          // 通常曲の場合、クリア回数統計を設定と更新
           if (!lessonContext && !missionContext && currentSong) {
             try {
               const { getSupabaseClient } = await import('@/platform/supabaseClient');
@@ -210,18 +210,43 @@ const ResultModal: React.FC = () => {
               const { data: { user } } = await supabase.auth.getUser();
               
               if (user) {
-                const { data: progress } = await supabase
-                  .from('user_song_progress')
-                  .select('clear_count')
-                  .eq('user_id', user.id)
-                  .eq('song_id', currentSong.id)
-                  .single();
+                // B-rank以上かどうかを判定
+                const rankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
+                const currentRankOrder = rankOrder[score.rank as keyof typeof rankOrder];
+                const isBRankPlus = currentRankOrder >= 2; // B-rank以上 (B=2, A=3, S=4)
                 
-                const currentCount = progress?.clear_count || 0;
-                setClearStats({ current: currentCount, goal: 50 });
+                // クリア回数を更新（B-rank以上の場合のみ）
+                if (isBRankPlus) {
+                  const { data: updateResult } = await supabase.rpc('update_song_clear_progress', {
+                    _user_id: user.id,
+                    _song_id: currentSong.id,
+                    _rank: score.rank,
+                    _is_b_rank_plus: true
+                  });
+                  
+                  if (updateResult) {
+                    setClearStats({ 
+                      current: updateResult.b_rank_plus_count || 0, 
+                      goal: 50 
+                    });
+                  }
+                } else {
+                  // B-rank未満の場合は更新せずに現在の値を取得
+                  const { data: stats } = await supabase
+                    .from('user_song_stats')
+                    .select('b_rank_plus_count')
+                    .eq('user_id', user.id)
+                    .eq('song_id', currentSong.id)
+                    .single();
+                  
+                  setClearStats({ 
+                    current: stats?.b_rank_plus_count || 0, 
+                    goal: 50 
+                  });
+                }
               }
             } catch (error) {
-              console.error('通常曲のクリア回数取得に失敗:', error);
+              console.error('通常曲のクリア回数処理に失敗:', error);
             }
           }
         } catch (error) {
@@ -238,7 +263,7 @@ const ResultModal: React.FC = () => {
             // 最小限のXP情報を設定
             setXpInfo({
               gained: 0,
-              total: profile?.total_xp || 0,
+              total: profile?.xp || 0,
               level: profile?.level || 1,
               remainder: 0,
               next: 1000,
@@ -253,7 +278,7 @@ const ResultModal: React.FC = () => {
         if (!xpInfo) {
           setXpInfo({
             gained: 0,
-            total: profile?.total_xp || 0,
+            total: profile?.xp || 0,
             level: profile?.level || 1,
             remainder: 0,
             next: 1000,
