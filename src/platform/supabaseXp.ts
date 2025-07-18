@@ -40,6 +40,7 @@ interface AddXpParams {
   rankMultiplier: number;
   transposeMultiplier: number;
   membershipMultiplier: number;
+  missionMultiplier?: number;
 }
 
 export async function addXp(params: AddXpParams) {
@@ -57,8 +58,9 @@ export async function addXp(params: AddXpParams) {
     .single();
   const currentXp = profile?.xp ?? 0;
   const seasonMul = profile?.next_season_xp_multiplier ?? 1;
+  const missionMul = params.missionMultiplier ?? 1;
   const gained = Math.round(
-    params.baseXp * params.speedMultiplier * params.rankMultiplier * params.transposeMultiplier * params.membershipMultiplier * seasonMul,
+    params.baseXp * params.speedMultiplier * params.rankMultiplier * params.transposeMultiplier * params.membershipMultiplier * missionMul * seasonMul,
   );
   const newTotalXp = currentXp + gained;
   const levelInfo = calcLevel(newTotalXp);
@@ -73,6 +75,7 @@ export async function addXp(params: AddXpParams) {
     rank_multiplier: params.rankMultiplier,
     transpose_multiplier: params.transposeMultiplier,
     membership_multiplier: params.membershipMultiplier,
+    mission_multiplier: missionMul,
   });
   if (histErr) throw histErr;
 

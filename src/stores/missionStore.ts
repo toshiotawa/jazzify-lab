@@ -10,8 +10,8 @@ interface State {
 }
 interface Actions {
   fetchAll: () => Promise<void>;
-  fetchSongProgress: (missionId: string) => Promise<void>;
-  fetchSongProgressAll: (missionIds: string[]) => Promise<void>;
+  fetchSongProgress: (missionId: string, forceRefresh?: boolean) => Promise<void>;
+  fetchSongProgressAll: (missionIds: string[], forceRefresh?: boolean) => Promise<void>;
   claim: (id: string) => Promise<void>;
 }
 
@@ -39,11 +39,13 @@ export const useMissionStore = create<State & Actions>()(
       }
     },
 
-    fetchSongProgress: async (missionId: string) => {
-      // 既に進捗がある場合は再取得しない
-      const existingProgress = get().songProgress[missionId];
-      if (existingProgress && existingProgress.length > 0) {
-        return;
+    fetchSongProgress: async (missionId: string, forceRefresh = false) => {
+      // forceRefreshがfalseの場合、既に進捗がある場合は再取得しない
+      if (!forceRefresh) {
+        const existingProgress = get().songProgress[missionId];
+        if (existingProgress && existingProgress.length > 0) {
+          return;
+        }
       }
       
       try {
@@ -56,14 +58,18 @@ export const useMissionStore = create<State & Actions>()(
       }
     },
 
-    fetchSongProgressAll: async (missionIds: string[]) => {
+    fetchSongProgressAll: async (missionIds: string[], forceRefresh = false) => {
       try {
-        // 既に進捗があるミッションを除外
-        const existingProgress = get().songProgress;
-        const missionIdsToFetch = missionIds.filter(id => {
-          const progress = existingProgress[id];
-          return !progress || progress.length === 0;
-        });
+        let missionIdsToFetch = missionIds;
+        
+        // forceRefreshがfalseの場合、既に進捗があるミッションを除外
+        if (!forceRefresh) {
+          const existingProgress = get().songProgress;
+          missionIdsToFetch = missionIds.filter(id => {
+            const progress = existingProgress[id];
+            return !progress || progress.length === 0;
+          });
+        }
         
         if (missionIdsToFetch.length === 0) {
           return;

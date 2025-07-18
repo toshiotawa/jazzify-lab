@@ -5,6 +5,7 @@ import { addXp, calcLevel } from '@/platform/supabaseXp';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { updateMissionSongProgress, fetchMissionSongProgress } from '@/platform/supabaseMissions';
 import { useAuthStore } from '@/stores/authStore';
+import { useMissionStore } from '@/stores/missionStore';
 import { calculateXP, calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
 
@@ -20,6 +21,7 @@ const ResultModal: React.FC = () => {
   const { profile, fetchProfile } = useAuthStore();
   const lessonContext = useLessonContext();
   const missionContext = useGameSelector((s) => s.missionContext);
+  const { fetchSongProgress } = useMissionStore();
 
   const [xpInfo, setXpInfo] = useState<{
     gained: number;
@@ -62,6 +64,7 @@ const ResultModal: React.FC = () => {
           rankMultiplier: score.rank === 'S' ? 1 : score.rank === 'A' ? 0.8 : 0.5,
           transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
           membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
+          missionMultiplier: missionContext ? 2 : 1,
         });
 
         const levelDetail = calcLevel(res.totalXp);
@@ -162,6 +165,9 @@ const ResultModal: React.FC = () => {
                   min_speed: missionSong.min_speed || 1.0
                 }
               );
+              
+              // ミッション進捗キャッシュを強制更新
+              await fetchSongProgress(missionContext.missionId, true);
               
               // クリア回数統計を設定
               const songProgress = await fetchMissionSongProgress(missionContext.missionId);
@@ -469,6 +475,10 @@ const ResultModal: React.FC = () => {
                 <div className="flex justify-between">
                   <span>レッスンボーナス:</span>
                   <span>x{xpInfo.detailed?.multipliers?.lesson || 1}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ミッションボーナス:</span>
+                  <span>x{xpInfo.detailed?.multipliers?.mission || 1}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>速度ボーナス:</span>
