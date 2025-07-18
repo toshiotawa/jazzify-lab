@@ -346,67 +346,125 @@ export async function claimReward(missionId: string) {
   const { data:{ user } } = await supabase.auth.getUser();
   if (!user) return;
   
-  // 既に報酬を受け取っているかチェック
-  const { data: existingProgress, error: progressError } = await supabase
-    .from('user_challenge_progress')
-    .select('reward_claimed, completed')
-    .eq('user_id', user.id)
-    .eq('challenge_id', missionId)
-    .single();
-  
-  if (progressError) throw progressError;
-  
-  // 報酬を受け取っていない場合はエラー
-  if (existingProgress?.reward_claimed) {
-    throw new Error('このミッションの報酬は既に受け取っています');
-  }
-  
-  // ミッションが完了していない場合はエラー
-  if (!existingProgress?.completed) {
-    throw new Error('ミッションが完了していません');
-  }
-  
-  // ミッション情報を取得して報酬XPを取得
-  const { data: mission, error: missionError } = await supabase
-    .from('challenges')
-    .select('reward_multiplier')
-    .eq('id', missionId)
-    .single();
-  
-  if (missionError) throw missionError;
-  
-  // ① 報酬受取フラグを設定
-  const { error: updateError } = await supabase
-    .from('user_challenge_progress')
-    .update({ reward_claimed: true })
-    .eq('user_id', user.id)
-    .eq('challenge_id', missionId);
-  
-  if (updateError) throw updateError;
+  try {
+    // 既に報酬を受け取っているかチェック
+    const { data: existingProgress, error: progressError } = await supabase
+      .from('user_challenge_progress')
+      .select('reward_claimed, completed')
+      .eq('user_id', user.id)
+      .eq('challenge_id', missionId)
+      .single();
+    
+    if (progressError) {
+      // reward_claimed列が存在しない場合のエラー
+      if (progressError.code === '42703') {
+        console.warn('reward_claimed列が存在しません。マイグレーションが必要です。');
+        // 代替手段：completed列のみでチェック
+        const { data: fallbackProgress, error: fallbackError } = await supabase
+          .from('user_challenge_progress')
+          .select('completed')
+          .eq('user_id', user.id)
+          .eq('challenge_id', missionId)
+          .single();
+        
+        if (fallbackError) throw fallbackError;
+        
+        // completedがtrueの場合は既に報酬を受け取ったとみなす
+        if (fallbackProgress?.completed) {
+          throw new Error('このミッションの報酬は既に受け取っています');
+        }
+        
+        // ミッションが完了していない場合はエラー
+        if (!fallbackProgress?.completed) {
+          throw new Error('ミッションが完了していません');
+        }
+      } else {
+        throw progressError;
+      }
+    } else {
+      // reward_claimed列が存在する場合の通常処理
+      if (existingProgress?.reward_claimed) {
+        throw new Error('このミッションの報酬は既に受け取っています');
+      }
+      
+      if (!existingProgress?.completed) {
+        throw new Error('ミッションが完了していません');
+      }
+    }
+    
+    // ミッション情報を取得して報酬XPを取得
+    const { data: mission, error: missionError } = await supabase
+      .from('challenges')
+      .select('reward_multiplier')
+      .eq('id', missionId)
+      .single();
+    
+    if (missionError) throw missionError;
+    
+    // ① 報酬受取フラグを設定（reward_claimed列が存在する場合のみ）
+    try {
+      const { error: updateError } = await supabase
+        .from('user_challenge_progress')
+        .update({ reward_claimed: true })
+        .eq('user_id', user.id)
+        .eq('challenge_id', missionId);
+      
+      if (updateError) {
+        // reward_claimed列が存在しない場合はcompletedをtrueに設定
+        if (updateError.code === '42703') {
+          const { error: fallbackUpdateError } = await supabase
+            .from('user_challenge_progress')
+            .update({ completed: true })
+            .eq('user_id', user.id)
+            .eq('challenge_id', missionId);
+          
+          if (fallbackUpdateError) throw fallbackUpdateError;
+        } else {
+          throw updateError;
+        }
+      }
+    } catch (updateError: any) {
+      if (updateError.code === '42703') {
+        // reward_claimed列が存在しない場合はcompletedをtrueに設定
+        const { error: fallbackUpdateError } = await supabase
+          .from('user_challenge_progress')
+          .update({ completed: true })
+          .eq('user_id', user.id)
+          .eq('challenge_id', missionId);
+        
+        if (fallbackUpdateError) throw fallbackUpdateError;
+      } else {
+        throw updateError;
+      }
+    }
 
-  // ② ミッション固有のXP付与（正しいaddXp関数を使用）
-  const rewardXP = mission?.reward_multiplier || 2000; // デフォルト2000XP
-  
-  // addXp関数をインポートして使用
-  const { addXp } = await import('@/platform/supabaseXp');
-  
-  const xpResult = await addXp({
-    songId: null, // ミッション報酬なので曲IDはnull
-    baseXp: rewardXP, // 報酬XPを基本XPとして使用
-    speedMultiplier: 1, // ミッション報酬なので速度倍率は1
-    rankMultiplier: 1, // ミッション報酬なのでランク倍率は1
-    transposeMultiplier: 1, // ミッション報酬なので移調倍率は1
-    membershipMultiplier: 1, // ミッション報酬なので会員倍率は1
-    missionMultiplier: 1, // ミッション報酬なのでミッション倍率は1
-  });
-  
-  clearSupabaseCache();
-  
-  // XP獲得情報を返す
-  return {
-    gainedXp: xpResult.gainedXp,
-    totalXp: xpResult.totalXp,
-    level: xpResult.level,
-    levelUp: xpResult.level > (await supabase.from('profiles').select('level').eq('id', user.id).single()).data?.level
-  };
+    // ② ミッション固有のXP付与（正しいaddXp関数を使用）
+    const rewardXP = mission?.reward_multiplier || 2000; // デフォルト2000XP
+    
+    // addXp関数をインポートして使用
+    const { addXp } = await import('@/platform/supabaseXp');
+    
+    const xpResult = await addXp({
+      songId: null, // ミッション報酬なので曲IDはnull
+      baseXp: rewardXP, // 報酬XPを基本XPとして使用
+      speedMultiplier: 1, // ミッション報酬なので速度倍率は1
+      rankMultiplier: 1, // ミッション報酬なのでランク倍率は1
+      transposeMultiplier: 1, // ミッション報酬なので移調倍率は1
+      membershipMultiplier: 1, // ミッション報酬なので会員倍率は1
+      missionMultiplier: 1, // ミッション報酬なのでミッション倍率は1
+    });
+    
+    clearSupabaseCache();
+    
+    // XP獲得情報を返す
+    return {
+      gainedXp: xpResult.gainedXp,
+      totalXp: xpResult.totalXp,
+      level: xpResult.level,
+      levelUp: xpResult.level > (await supabase.from('profiles').select('level').eq('id', user.id).single()).data?.level
+    };
+  } catch (error) {
+    console.error('claimReward error:', error);
+    throw error;
+  }
 }
