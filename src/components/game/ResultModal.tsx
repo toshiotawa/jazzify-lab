@@ -45,185 +45,222 @@ const ResultModal: React.FC = () => {
       setXpProcessed(true);
       
       (async () => {
-        // ローカルで詳細計算
-        const detailed = calculateXPDetailed({
-          membershipRank: profile.rank,
-          scoreRank: score.rank as any,
-          playbackSpeed: settings.playbackSpeed,
-          transposed: settings.transpose !== 0,
-          lessonBonusMultiplier: lessonContext ? 2 : 1,
-          missionBonusMultiplier: missionContext ? 2 : 1,
-          challengeBonusMultiplier: 1, // TODO: challengeから
-          seasonMultiplier: profile.next_season_xp_multiplier ?? 1,
-        });
+        try {
+          // ローカルで詳細計算
+          const detailed = calculateXPDetailed({
+            membershipRank: profile.rank,
+            scoreRank: score.rank as any,
+            playbackSpeed: settings.playbackSpeed,
+            transposed: settings.transpose !== 0,
+            lessonBonusMultiplier: lessonContext ? 2 : 1,
+            missionBonusMultiplier: missionContext ? 2 : 1,
+            challengeBonusMultiplier: 1, // TODO: challengeから
+            seasonMultiplier: profile.next_season_xp_multiplier ?? 1,
+          });
 
-        const res = await addXp({
-          songId: currentSong.id,
-          baseXp: 1000, // サーバー側でも再計算するため placeholder
-          speedMultiplier: settings.playbackSpeed,
-          rankMultiplier: score.rank === 'S' ? 1 : score.rank === 'A' ? 0.8 : 0.5,
-          transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
-          membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
-          missionMultiplier: missionContext ? 2 : 1,
-        });
+          const res = await addXp({
+            songId: currentSong.id,
+            baseXp: 1000, // サーバー側でも再計算するため placeholder
+            speedMultiplier: settings.playbackSpeed,
+            rankMultiplier: score.rank === 'S' ? 1 : score.rank === 'A' ? 0.8 : 0.5,
+            transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
+            membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
+            missionMultiplier: missionContext ? 2 : 1,
+          });
 
-        const levelDetail = calcLevel(res.totalXp);
+          const levelDetail = calcLevel(res.totalXp);
 
-        setXpInfo({
-          gained: res.gainedXp ?? detailed.total,
-          total: res.totalXp,
-          level: res.level,
-          remainder: levelDetail.remainder,
-          next: levelDetail.nextLevelXp,
-          levelUp: res.level > profile.level,
-          detailed
-        });
+          setXpInfo({
+            gained: res.gainedXp ?? detailed.total,
+            total: res.totalXp,
+            level: res.level,
+            remainder: levelDetail.remainder,
+            next: levelDetail.nextLevelXp,
+            levelUp: res.level > profile.level,
+            detailed
+          });
 
-        await fetchProfile();
-        
-        // レッスンモードの場合、課題条件の成否を判定
-        if (lessonContext) {
-          // 課題条件を満たしているかチェック
-          let success = true;
+          await fetchProfile();
           
-          // ランク条件
-          if (lessonContext.clearConditions.rank) {
-            const requiredRankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
-            const currentRankOrder = requiredRankOrder[score.rank as keyof typeof requiredRankOrder];
-            const requiredOrder = requiredRankOrder[lessonContext.clearConditions.rank as keyof typeof requiredRankOrder];
-            if (currentRankOrder < requiredOrder) {
-              success = false;
-            }
-          }
-          
-          // 速度条件
-          if (lessonContext.clearConditions.speed && settings.playbackSpeed < lessonContext.clearConditions.speed) {
-            success = false;
-          }
-          
-          // キー条件
-          if (lessonContext.clearConditions.key !== undefined && settings.transpose !== lessonContext.clearConditions.key) {
-            success = false;
-          }
-          
-          setLessonRequirementSuccess(success);
-          
-          // 成功した場合、実習課題の進捗を更新
-          if (success && currentSong) {
-            try {
-              await updateLessonRequirementProgress(
-                lessonContext.lessonId,
-                currentSong.id,
-                score.rank,
-                lessonContext.clearConditions
-              );
-            } catch (error) {
-              console.error('実習課題の進捗更新に失敗:', error);
-            }
-          }
-        }
-        
-        // ミッションモードの場合、進捗を更新
-        if (missionContext && currentSong) {
-          try {
-            // ミッションの曲条件を取得（実際の条件を使用）
-            const missionSong = await fetchMissionSongConditions(missionContext.missionId, currentSong.id);
-            
+          // レッスンモードの場合、課題条件の成否を判定
+          if (lessonContext) {
             // 課題条件を満たしているかチェック
             let success = true;
             
             // ランク条件
-            if (missionSong.min_rank) {
+            if (lessonContext.clearConditions.rank) {
               const requiredRankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
               const currentRankOrder = requiredRankOrder[score.rank as keyof typeof requiredRankOrder];
-              const requiredOrder = requiredRankOrder[missionSong.min_rank as keyof typeof requiredRankOrder];
+              const requiredOrder = requiredRankOrder[lessonContext.clearConditions.rank as keyof typeof requiredRankOrder];
               if (currentRankOrder < requiredOrder) {
                 success = false;
               }
             }
             
             // 速度条件
-            if (missionSong.min_speed && settings.playbackSpeed < missionSong.min_speed) {
+            if (lessonContext.clearConditions.speed && settings.playbackSpeed < lessonContext.clearConditions.speed) {
               success = false;
             }
             
             // キー条件
-            if (missionSong.key_offset !== undefined && settings.transpose !== missionSong.key_offset) {
+            if (lessonContext.clearConditions.key !== undefined && settings.transpose !== lessonContext.clearConditions.key) {
               success = false;
             }
             
-            setMissionRequirementSuccess(success);
+            setLessonRequirementSuccess(success);
             
-            // 成功した場合、ミッション進捗を更新
-            if (success) {
-              await updateMissionSongProgress(
-                missionContext.missionId,
+            // 成功した場合、実習課題の進捗を更新
+            if (success && currentSong) {
+              try {
+                await updateLessonRequirementProgress(
+                  lessonContext.lessonId,
+                  currentSong.id,
+                  score.rank,
+                  lessonContext.clearConditions
+                );
+              } catch (error) {
+                console.error('実習課題の進捗更新に失敗:', error);
+              }
+            }
+          }
+          
+          // ミッションモードの場合、進捗を更新
+          if (missionContext && currentSong) {
+            try {
+              // ミッションの曲条件を取得（実際の条件を使用）
+              const missionSong = await fetchMissionSongConditions(missionContext.missionId, currentSong.id);
+              
+              // 課題条件を満たしているかチェック
+              let success = true;
+              
+              // ランク条件
+              if (missionSong.min_rank) {
+                const requiredRankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
+                const currentRankOrder = requiredRankOrder[score.rank as keyof typeof requiredRankOrder];
+                const requiredOrder = requiredRankOrder[missionSong.min_rank as keyof typeof requiredRankOrder];
+                if (currentRankOrder < requiredOrder) {
+                  success = false;
+                }
+              }
+              
+              // 速度条件
+              if (missionSong.min_speed && settings.playbackSpeed < missionSong.min_speed) {
+                success = false;
+              }
+              
+              // キー条件
+              if (missionSong.key_offset !== undefined && settings.transpose !== missionSong.key_offset) {
+                success = false;
+              }
+              
+              setMissionRequirementSuccess(success);
+              
+              // 成功した場合、ミッション進捗を更新
+              if (success) {
+                await updateMissionSongProgress(
+                  missionContext.missionId,
+                  currentSong.id,
+                  score.rank,
+                  {
+                    min_rank: missionSong.min_rank || 'B',
+                    min_speed: missionSong.min_speed || 1.0
+                  }
+                );
+                
+                // ミッション進捗キャッシュを強制更新
+                await fetchSongProgress(missionContext.missionId, true);
+                
+                // クリア回数統計を設定
+                const songProgress = await fetchMissionSongProgress(missionContext.missionId);
+                const newCount = songProgress.find((s: any) => s.song_id === currentSong.id)?.clear_count || 0;
+                setClearStats({ 
+                  current: newCount, 
+                  goal: missionSong.clears_required || 1 
+                });
+              }
+            } catch (error) {
+              console.error('ミッション進捗の更新に失敗:', error);
+            }
+          }
+          
+          // レッスンモードの場合、クリア回数統計を設定
+          if (lessonContext && currentSong) {
+            try {
+              const result = await updateLessonRequirementProgress(
+                lessonContext.lessonId,
                 currentSong.id,
                 score.rank,
-                {
-                  min_rank: missionSong.min_rank || 'B',
-                  min_speed: missionSong.min_speed || 1.0
-                }
+                lessonContext.clearConditions
               );
-              
-              // ミッション進捗キャッシュを強制更新
-              await fetchSongProgress(missionContext.missionId, true);
-              
-              // クリア回数統計を設定
-              const songProgress = await fetchMissionSongProgress(missionContext.missionId);
-              const newCount = songProgress.find((s: any) => s.song_id === currentSong.id)?.clear_count || 0;
+              const newCount = typeof result === 'object' && result !== null ? (result as any).clear_count || 0 : 0;
               setClearStats({ 
                 current: newCount, 
-                goal: missionSong.clears_required || 1 
+                goal: lessonContext.clearConditions.count || 1 
               });
+            } catch (error) {
+              console.error('レッスン進捗の更新に失敗:', error);
             }
-          } catch (error) {
-            console.error('ミッション進捗の更新に失敗:', error);
           }
-        }
-        
-        // レッスンモードの場合、クリア回数統計を設定
-        if (lessonContext && currentSong) {
-          try {
-            const result = await updateLessonRequirementProgress(
-              lessonContext.lessonId,
-              currentSong.id,
-              score.rank,
-              lessonContext.clearConditions
-            );
-            const newCount = typeof result === 'object' && result !== null ? (result as any).clear_count || 0 : 0;
-            setClearStats({ 
-              current: newCount, 
-              goal: lessonContext.clearConditions.count || 1 
-            });
-          } catch (error) {
-            console.error('レッスン進捗の更新に失敗:', error);
-          }
-        }
-        
-        // 通常曲の場合、クリア回数統計を設定
-        if (!lessonContext && !missionContext && currentSong) {
-          try {
-            const { getSupabaseClient } = await import('@/platform/supabaseClient');
-            const supabase = getSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            
-            if (user) {
-              const { data: progress } = await supabase
-                .from('user_song_progress')
-                .select('clear_count')
-                .eq('user_id', user.id)
-                .eq('song_id', currentSong.id)
-                .single();
+          
+          // 通常曲の場合、クリア回数統計を設定
+          if (!lessonContext && !missionContext && currentSong) {
+            try {
+              const { getSupabaseClient } = await import('@/platform/supabaseClient');
+              const supabase = getSupabaseClient();
+              const { data: { user } } = await supabase.auth.getUser();
               
-              const currentCount = progress?.clear_count || 0;
-              setClearStats({ current: currentCount, goal: 50 });
+              if (user) {
+                const { data: progress } = await supabase
+                  .from('user_song_progress')
+                  .select('clear_count')
+                  .eq('user_id', user.id)
+                  .eq('song_id', currentSong.id)
+                  .single();
+                
+                const currentCount = progress?.clear_count || 0;
+                setClearStats({ current: currentCount, goal: 50 });
+              }
+            } catch (error) {
+              console.error('通常曲のクリア回数取得に失敗:', error);
             }
-          } catch (error) {
-            console.error('通常曲のクリア回数取得に失敗:', error);
+          }
+        } catch (error) {
+          console.error('結果画面の処理でエラーが発生しました:', error);
+          
+          // エラーの詳細情報をログ出力
+          if (error instanceof Error) {
+            console.error('エラーメッセージ:', error.message);
+            console.error('エラースタック:', error.stack);
+          }
+          
+          // エラーが発生してもXP情報だけでも表示できるようにする
+          if (!xpInfo) {
+            // 最小限のXP情報を設定
+            setXpInfo({
+              gained: 0,
+              total: profile?.total_xp || 0,
+              level: profile?.level || 1,
+              remainder: 0,
+              next: 1000,
+              levelUp: false
+            });
           }
         }
-      })();
+      })().catch(error => {
+        console.error('ResultModal async処理でキャッチされなかったエラー:', error);
+        
+        // Promise rejectionを防ぐため、最小限の状態を設定
+        if (!xpInfo) {
+          setXpInfo({
+            gained: 0,
+            total: profile?.total_xp || 0,
+            level: profile?.level || 1,
+            remainder: 0,
+            next: 1000,
+            levelUp: false
+          });
+        }
+      });
     } else if (!resultModalOpen) {
       setXpInfo(null);
       setLessonRequirementSuccess(null);
