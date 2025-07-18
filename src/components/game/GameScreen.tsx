@@ -135,6 +135,9 @@ const GameScreen: React.FC = () => {
             }
           }
           
+          // 事前にミッションコンテキストをクリア
+          gameActions.clearMissionContext();
+
           // レッスンコンテキストを設定
           if (lessonId) {
             gameActions.setLessonContext(lessonId, {
@@ -326,6 +329,9 @@ const GameScreen: React.FC = () => {
             }
           }
           
+          // 事前にレッスンコンテキストをクリア
+          gameActions.clearLessonContext();
+
           // ミッションコンテキストを設定
           gameActions.setMissionContext(missionId, songId, {
             key: challengeSong.key_offset,

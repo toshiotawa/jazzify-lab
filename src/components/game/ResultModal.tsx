@@ -16,7 +16,14 @@ const ResultModal: React.FC = () => {
     settings: s.settings,
     resultModalOpen: s.resultModalOpen
   }));
-  const { closeResultModal, resetScore, seek, setCurrentTab } = useGameActions();
+  const {
+    closeResultModal,
+    resetScore,
+    seek,
+    setCurrentTab,
+    clearLessonContext,
+    clearMissionContext
+  } = useGameActions();
 
   const { profile, fetchProfile } = useAuthStore();
   const lessonContext = useLessonContext();
@@ -334,6 +341,9 @@ const ResultModal: React.FC = () => {
     resetScore();
     seek(0);
     closeResultModal();
+    // 曲選択に戻る際はレッスン・ミッションコンテキストをクリア
+    clearLessonContext();
+    clearMissionContext();
     setCurrentTab('songs');
     setXpProcessed(false);
   };
