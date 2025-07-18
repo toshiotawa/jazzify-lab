@@ -361,14 +361,21 @@ export async function claimReward(missionId: string) {
     .eq('user_id', user.id)
     .eq('challenge_id', missionId);
 
-  // ② ミッション固有のXP付与
+  // ② ミッション固有のXP付与（正しいaddXp関数を使用）
   const rewardXP = mission?.reward_multiplier || 2000; // デフォルト2000XP
-  const { error } = await supabase.rpc('add_xp', {
-    _user_id: user.id,
-    _gained_xp: rewardXP,
-    _reason: 'mission_clear'
+  
+  // addXp関数をインポートして使用
+  const { addXp } = await import('@/platform/supabaseXp');
+  
+  await addXp({
+    songId: null, // ミッション報酬なので曲IDはnull
+    baseXp: rewardXP, // 報酬XPを基本XPとして使用
+    speedMultiplier: 1, // ミッション報酬なので速度倍率は1
+    rankMultiplier: 1, // ミッション報酬なのでランク倍率は1
+    transposeMultiplier: 1, // ミッション報酬なので移調倍率は1
+    membershipMultiplier: 1, // ミッション報酬なので会員倍率は1
+    missionMultiplier: 1, // ミッション報酬なのでミッション倍率は1
   });
-  if (error) throw error;
   
   clearSupabaseCache();
 }

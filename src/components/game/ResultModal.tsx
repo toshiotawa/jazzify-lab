@@ -40,6 +40,18 @@ const ResultModal: React.FC = () => {
   // XP計算・加算（一度だけ実行）
   const [xpProcessed, setXpProcessed] = useState(false);
   
+  // 基本XPをランクから取得する関数を追加
+  const getBaseXpFromRank = (rank: string): number => {
+    switch (rank) {
+      case 'S': return 1000;
+      case 'A': return 800;
+      case 'B': return 600;
+      case 'C': return 400;
+      case 'D': return 200;
+      default: return 100;
+    }
+  };
+
   useEffect(() => {
     if (resultModalOpen && currentSong && profile && !xpProcessed) {
       setXpProcessed(true);
@@ -58,14 +70,17 @@ const ResultModal: React.FC = () => {
             seasonMultiplier: profile.next_season_xp_multiplier ?? 1,
           });
 
+          // 正しい基本XPを計算
+          const baseXp = getBaseXpFromRank(score.rank);
+
           const res = await addXp({
             songId: currentSong.id,
-            baseXp: 1000, // サーバー側でも再計算するため placeholder
+            baseXp: baseXp, // ランクに応じた正しい基本XP
             speedMultiplier: settings.playbackSpeed,
-            rankMultiplier: score.rank === 'S' ? 1 : score.rank === 'A' ? 0.8 : 0.5,
+            rankMultiplier: 1, // 新しい計算方式では基本XPに含まれているため1
             transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
             membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
-            missionMultiplier: missionContext ? 2 : 1,
+            missionMultiplier: (lessonContext || missionContext) ? 2 : 1, // レッスンまたはミッションの場合は2倍
           });
 
           const levelDetail = calcLevel(res.totalXp);
