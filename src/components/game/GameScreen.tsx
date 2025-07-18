@@ -575,7 +575,7 @@ const SongSelectionScreen: React.FC = () => {
   React.useEffect(() => {
     (async () => {
       try {
-        const allSongs = await fetchSongs();
+        const allSongs = await fetchSongs('general');
         setDbSongs(allSongs);
         
         // ユーザー統計を取得

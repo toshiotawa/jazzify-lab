@@ -34,7 +34,9 @@ create table public.songs (
   is_public boolean not null default true,
   created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  usage_type text not null default 'general',
+  constraint check_song_usage_type check (usage_type in ('general', 'lesson'))
 );
 
 alter table public.songs enable row level security;
@@ -78,10 +80,25 @@ create table public.lesson_songs (
   id uuid default gen_random_uuid() not null primary key,
   lesson_id uuid not null references public.lessons(id) on delete cascade,
   song_id uuid not null references public.songs(id) on delete cascade,
+  order_index integer not null default 0,
   clear_conditions jsonb,
   created_at timestamp with time zone default now() not null,
   constraint lesson_songs_lesson_id_song_id_key unique (lesson_id, song_id)
 );
+
+-- lesson_songs indexes
+create index if not exists idx_lesson_songs_lesson_id on public.lesson_songs(lesson_id);
+create index if not exists idx_lesson_songs_song_id on public.lesson_songs(song_id);
+
+-- lesson_songs RLS
+alter table public.lesson_songs enable row level security;
+
+create policy "Admin can manage lesson songs" on public.lesson_songs
+  for all using ( (select is_admin from public.profiles where auth.uid() = id) = true )
+  with check ( (select is_admin from public.profiles where auth.uid() = id) = true );
+
+create policy "Authenticated users can view lesson songs" on public.lesson_songs
+  for select using ( auth.role() = 'authenticated' );
 
 -- Lesson 動画 (Vimeo 埋め込み用)
 create table public.lesson_videos (
@@ -128,6 +145,7 @@ create table public.user_challenge_progress (
   challenge_id uuid references public.challenges(id) on delete cascade,
   clear_count integer not null default 0,
   completed boolean not null default false,
+  reward_claimed boolean not null default false,
   unique (user_id, challenge_id)
 );
 
@@ -142,6 +160,8 @@ create table public.xp_history (
   rank_multiplier numeric not null,
   transpose_multiplier numeric not null,
   membership_multiplier numeric not null,
+  mission_multiplier numeric not null default 1.0,
+  reason text not null default 'unknown',
   created_at timestamptz default now()
 );
 
