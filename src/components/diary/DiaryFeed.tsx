@@ -100,7 +100,19 @@ const DiaryFeed: React.FC = () => {
               </div>
             </div>
           ) : (
-            <p className="whitespace-pre-wrap text-gray-100 mb-3 text-sm leading-relaxed">{d.content}</p>
+            <>
+              <p className="whitespace-pre-wrap text-gray-100 mb-3 text-sm leading-relaxed">{d.content}</p>
+              {d.image_url && (
+                <div className="mb-3">
+                  <img
+                    src={d.image_url}
+                    alt="日記の画像"
+                    className="w-full max-w-lg mx-auto rounded-lg shadow-md"
+                    style={{ maxHeight: '400px', objectFit: 'contain' }}
+                  />
+                </div>
+              )}
+            </>
           )}
           {d.user_id === user?.id && (
             <div className="flex space-x-2 mb-2 text-xs">

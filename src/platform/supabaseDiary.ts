@@ -14,6 +14,7 @@ export interface Diary {
   avatar_url?: string;
   level: number;
   rank: string;
+  image_url?: string; // URL of the uploaded image for the diary entry
 }
 
 export interface DiaryComment {
@@ -89,6 +90,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
     avatar_url: diary.profiles?.avatar_url,
     level: diary.profiles?.level || 1,
     rank: diary.profiles?.rank || 'free',
+    image_url: diary.image_url,
   } as Diary));
 
   return diariesWithLikes;
@@ -102,6 +104,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
     created_at: string;
     likes: number;
     comment_count: number;
+    image_url?: string;
   }>;
   profile: {
     nickname: string;
@@ -118,7 +121,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
   // ユーザーの日記を取得
   const { data: diariesData, error: diariesError } = await supabase
     .from('practice_diaries')
-    .select('id, content, practice_date, created_at')
+    .select('id, content, practice_date, created_at, image_url')
     .eq('user_id', userId)
     .order('practice_date', { ascending: false });
 
@@ -178,13 +181,14 @@ export async function fetchUserDiaries(userId: string): Promise<{
   };
 }
 
-export async function createDiary(content: string): Promise<{
+export async function createDiary(content: string, imageUrl?: string): Promise<{
   success: boolean;
   xpGained: number;
   totalXp: number;
   level: number;
   levelUp: boolean;
   missionsUpdated: number;
+  diaryId: string;
 }> {
   const supabase = getSupabaseClient();
   const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
@@ -219,11 +223,12 @@ export async function createDiary(content: string): Promise<{
   }
 
   // 日記投稿
-  const { error } = await supabase.from('practice_diaries').insert({
+  const { data: diaryData, error } = await supabase.from('practice_diaries').insert({
     user_id: user.id,
     content,
     practice_date: today,
-  });
+    image_url: imageUrl,
+  }).select('id').single();
   if (error) throw new Error(`日記の保存に失敗しました: ${error.message}`);
 
   // ミッション進捗更新（1日1回まで）
@@ -243,7 +248,24 @@ export async function createDiary(content: string): Promise<{
       const missions = await fetchActiveMonthlyMissions();
       for (const m of missions) {
         if (m.diary_count) {
-          await incrementDiaryProgress(m.id);
+          // 実際の日記数を再計算して進捗を更新
+          const { count: actualDiaryCount } = await supabase
+            .from('practice_diaries')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .gte('practice_date', m.start_date)
+            .lte('practice_date', m.end_date);
+          
+          // 進捗を実際の日記数に更新（完了フラグも設定）
+          await supabase
+            .from('user_challenge_progress')
+            .upsert({
+              user_id: user.id,
+              challenge_id: m.id,
+              clear_count: actualDiaryCount || 0,
+              completed: (actualDiaryCount || 0) >= m.diary_count
+            });
+          
           missionsUpdated++;
         }
       }
@@ -289,6 +311,7 @@ export async function createDiary(content: string): Promise<{
     level: xpResult.level,
     levelUp: xpResult.level > currentLevel,
     missionsUpdated,
+    diaryId: diaryData.id,
   };
 }
 
@@ -328,14 +351,19 @@ export async function likeDiary(diaryId: string) {
   await supabase.from('diary_likes').insert({ user_id: user.id, diary_id: diaryId }).throwOnError();
 }
 
-export async function updateDiary(diaryId: string, content: string): Promise<void> {
+export async function updateDiary(diaryId: string, content: string, imageUrl?: string): Promise<void> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
 
+  const updateData: any = { content };
+  if (imageUrl !== undefined) {
+    updateData.image_url = imageUrl;
+  }
+
   const { error } = await supabase
     .from('practice_diaries')
-    .update({ content })
+    .update(updateData)
     .eq('id', diaryId)
     .eq('user_id', user.id);
     
@@ -439,10 +467,50 @@ export async function deleteDiary(diaryId: string): Promise<void> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
+  
+  // 削除対象の日記の日付を取得
+  const { data: diary } = await supabase
+    .from('practice_diaries')
+    .select('practice_date')
+    .eq('id', diaryId)
+    .eq('user_id', user.id)
+    .single();
+  
+  if (!diary) throw new Error('日記が見つかりません');
+  
+  // 日記を削除
   const { error } = await supabase
     .from('practice_diaries')
     .delete()
     .eq('id', diaryId)
     .eq('user_id', user.id);
   if (error) throw new Error(`日記の削除に失敗しました: ${error.message}`);
+  
+  // 削除された日記がミッション進捗に影響する場合は進捗を調整
+  try {
+    const missions = await fetchActiveMonthlyMissions();
+    for (const mission of missions) {
+      if (mission.diary_count) {
+        // 該当期間の日記数を再計算
+        const { count: actualDiaryCount } = await supabase
+          .from('practice_diaries')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .gte('practice_date', mission.start_date)
+          .lte('practice_date', mission.end_date);
+        
+        // 進捗を実際の日記数に更新
+        await supabase
+          .from('user_challenge_progress')
+          .upsert({
+            user_id: user.id,
+            challenge_id: mission.id,
+            clear_count: actualDiaryCount || 0,
+            completed: (actualDiaryCount || 0) >= mission.diary_count
+          });
+      }
+    }
+  } catch (e) {
+    console.warn('ミッション進捗の調整でエラーが発生しました:', e);
+  }
 }

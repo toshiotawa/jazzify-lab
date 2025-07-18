@@ -26,7 +26,15 @@
       "Bash(rg:*)",
       "Bash(grep:*)",
       "Bash(git rm:*)",
-      "Bash(timeout 30 npm run type-check)"
+      "Bash(timeout 30 npm run type-check)",
+      "Bash(npm run lint)",
+      "Bash(npm run type-check:*)",
+      "Bash(supabase db:*)",
+      "Bash(npx supabase db push:*)",
+      "Bash(find:*)",
+      "Bash(npx supabase:*)",
+      "Bash(psql:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

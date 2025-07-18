@@ -15,16 +15,17 @@ interface DiaryState {
 
 interface DiaryActions {
   fetch: () => Promise<void>;
-  add: (content: string) => Promise<{
+  add: (content: string, imageUrl?: string) => Promise<{
     success: boolean;
     xpGained: number;
     totalXp: number;
     level: number;
     levelUp: boolean;
     missionsUpdated: number;
+    diaryId: string;
   }>;
   like: (id: string) => Promise<void>;
-  update: (id: string, content: string) => Promise<void>;
+  update: (id: string, content: string, imageUrl?: string) => Promise<void>;
   fetchComments: (diaryId: string) => Promise<void>;
   addComment: (diaryId: string, content: string) => Promise<void>;
   deleteComment: (commentId: string, diaryId: string) => Promise<void>;
@@ -60,8 +61,8 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
       } finally { set(s=>{s.loading=false;}); }
     },
 
-    add: async (content: string) => {
-      const result = await createDiary(content);
+    add: async (content: string, imageUrl?: string) => {
+      const result = await createDiary(content, imageUrl);
       await get().fetch();
       // ミッションストアを同期
       const { useMissionStore } = await import('@/stores/missionStore');
@@ -77,8 +78,8 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
       });
     },
 
-    update: async (id: string, content: string) => {
-      await updateDiary(id, content);
+    update: async (id: string, content: string, imageUrl?: string) => {
+      await updateDiary(id, content, imageUrl);
       await get().fetch();
     },
 

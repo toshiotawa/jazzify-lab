@@ -27,6 +27,7 @@ export interface UserMissionProgress {
   challenge_id: string;
   clear_count: number;
   completed: boolean;
+  reward_claimed: boolean;
 }
 
 export interface MissionSongProgress {
@@ -322,14 +323,15 @@ export async function updateMissionSongProgress(
   const allCompleted = songProgress.every(song => song.is_completed);
   
   if (allCompleted) {
-    // ミッション完了としてマーク
+    // ミッション完了としてマーク（報酬はまだ未受取）
     const { error: missionError } = await supabase
       .from('user_challenge_progress')
       .upsert({
         user_id: user.id,
         challenge_id: missionId,
         clear_count: songProgress.length,
-        completed: true
+        completed: true,
+        reward_claimed: false  // 報酬は未受取のままにする
       });
     
     if (missionError) throw new Error('ミッション完了の更新に失敗しました');
@@ -353,9 +355,9 @@ export async function claimReward(missionId: string) {
   
   if (missionError) throw missionError;
   
-  // ① 完了フラグ
+  // ① 報酬受取フラグを設定
   await supabase.from('user_challenge_progress')
-    .update({ completed: true })
+    .update({ reward_claimed: true })
     .eq('user_id', user.id)
     .eq('challenge_id', missionId);
 

@@ -85,8 +85,13 @@ export const useMissionStore = create<State & Actions>()(
     },
 
     claim: async(id:string)=>{
-      await claimReward(id);
-      await get().fetchAll();
+      try {
+        await claimReward(id);
+        await get().fetchAll();
+      } catch (error) {
+        console.error('報酬の受け取りに失敗しました:', error);
+        throw error;
+      }
     }
   }))
 );

@@ -98,8 +98,33 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
         toast.success('日記を更新しました');
         onClose?.();
       } else {
+        // 最初に日記を作成（画像なし）
         const result = await add(content);
+        
+        // 日記作成後に画像をアップロード
+        if (selectedImage) {
+          try {
+            // バケットを作成（初回のみ）
+            await createDiaryImagesBucket();
+            
+            // 実際の日記IDを使用してアップロード
+            const imageUrl = await uploadDiaryImage(selectedImage, profile!.id, result.diaryId);
+            
+            // 日記レコードに画像URLを追加
+            await update(result.diaryId, content, imageUrl);
+            
+          } catch (uploadError) {
+            console.error('画像アップロードエラー:', uploadError);
+            toast.error('画像のアップロードに失敗しました（日記は投稿されました）');
+          }
+        }
+        
         setText('');
+        setSelectedImage(null);
+        if (imagePreview) {
+          URL.revokeObjectURL(imagePreview);
+        }
+        setImagePreview(null);
         
         // 詳細なフィードバック表示
         if (result.levelUp) {

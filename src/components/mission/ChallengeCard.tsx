@@ -297,16 +297,18 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
 
       {/* 報酬受取ボタン */}
       <button
-        disabled={!completed && !allSongsCompleted}
+        disabled={progress?.reward_claimed || (!completed && !allSongsCompleted)}
         onClick={() => claim(mission.id)}
         className={cn(
           "w-full btn btn-sm transition-all duration-300",
-          completed || allSongsCompleted
+          progress?.reward_claimed
+            ? "btn-success opacity-50"
+            : (completed || allSongsCompleted)
             ? "btn-success hover:scale-105"
             : "btn-disabled opacity-50"
         )}
       >
-        {completed ? '報酬受取済み' : allSongsCompleted ? '報酬を受取る' : '条件未達成'}
+        {progress?.reward_claimed ? '報酬受取済み' : allSongsCompleted ? '報酬を受取る' : '条件未達成'}
       </button>
     </div>
   );
