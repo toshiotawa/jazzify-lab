@@ -377,7 +377,7 @@ export async function claimReward(missionId: string) {
         .select('clear_count')
         .eq('user_id', user.id)
         .eq('challenge_id', missionId)
-        .single();
+        .maybeSingle();
       
       if (diaryError) throw diaryError;
       totalCompleted = diaryProgress?.clear_count || 0;
@@ -392,7 +392,7 @@ export async function claimReward(missionId: string) {
           .select('clear_count')
           .eq('user_id', user.id)
           .eq('song_id', song.song_id)
-          .single();
+          .maybeSingle();
         
         const requiredCount = song.clears_required || 1;
         const actualCount = songProgress?.clear_count || 0;
@@ -416,7 +416,7 @@ export async function claimReward(missionId: string) {
       .select('reward_claimed, completed')
       .eq('user_id', user.id)
       .eq('challenge_id', missionId)
-      .single();
+      .maybeSingle();
     
     if (progressError) {
       // reward_claimed列が存在しない場合のエラー
@@ -428,7 +428,7 @@ export async function claimReward(missionId: string) {
           .select('completed')
           .eq('user_id', user.id)
           .eq('challenge_id', missionId)
-          .single();
+          .maybeSingle();
         
         if (fallbackError) throw fallbackError;
         
@@ -448,24 +448,64 @@ export async function claimReward(missionId: string) {
     
     // ① 報酬受取フラグを設定（reward_claimed列が存在する場合のみ）
     try {
-      const { error: updateError } = await supabase
+      // まずレコードが存在するかチェック
+      const { data: existingRecord } = await supabase
         .from('user_challenge_progress')
-        .update({ reward_claimed: true })
+        .select('id')
         .eq('user_id', user.id)
-        .eq('challenge_id', missionId);
+        .eq('challenge_id', missionId)
+        .maybeSingle();
       
-      if (updateError) {
-        // reward_claimed列が存在しない場合はcompletedをtrueに設定
-        if (updateError.code === '42703') {
-          const { error: fallbackUpdateError } = await supabase
-            .from('user_challenge_progress')
-            .update({ completed: true })
-            .eq('user_id', user.id)
-            .eq('challenge_id', missionId);
-          
-          if (fallbackUpdateError) throw fallbackUpdateError;
-        } else {
-          throw updateError;
+      if (existingRecord) {
+        // レコードが存在する場合は更新
+        const { error: updateError } = await supabase
+          .from('user_challenge_progress')
+          .update({ reward_claimed: true })
+          .eq('user_id', user.id)
+          .eq('challenge_id', missionId);
+        
+        if (updateError) {
+          // reward_claimed列が存在しない場合はcompletedをtrueに設定
+          if (updateError.code === '42703') {
+            const { error: fallbackUpdateError } = await supabase
+              .from('user_challenge_progress')
+              .update({ completed: true })
+              .eq('user_id', user.id)
+              .eq('challenge_id', missionId);
+            
+            if (fallbackUpdateError) throw fallbackUpdateError;
+          } else {
+            throw updateError;
+          }
+        }
+      } else {
+        // レコードが存在しない場合は新規作成
+        const { error: insertError } = await supabase
+          .from('user_challenge_progress')
+          .insert({
+            user_id: user.id,
+            challenge_id: missionId,
+            clear_count: totalCompleted,
+            completed: true,
+            reward_claimed: true
+          });
+        
+        if (insertError) {
+          // reward_claimed列が存在しない場合はcompletedのみで作成
+          if (insertError.code === '42703') {
+            const { error: fallbackInsertError } = await supabase
+              .from('user_challenge_progress')
+              .insert({
+                user_id: user.id,
+                challenge_id: missionId,
+                clear_count: totalCompleted,
+                completed: true
+              });
+            
+            if (fallbackInsertError) throw fallbackInsertError;
+          } else {
+            throw insertError;
+          }
         }
       }
     } catch (updateError: any) {
@@ -502,11 +542,17 @@ export async function claimReward(missionId: string) {
     clearSupabaseCache();
     
     // XP獲得情報を返す
+    const { data: currentProfile } = await supabase
+      .from('profiles')
+      .select('level')
+      .eq('id', user.id)
+      .maybeSingle();
+    
     return {
       gainedXp: xpResult.gainedXp,
       totalXp: xpResult.totalXp,
       level: xpResult.level,
-      levelUp: xpResult.level > (await supabase.from('profiles').select('level').eq('id', user.id).single()).data?.level
+      levelUp: xpResult.level > (currentProfile?.level || 1)
     };
   } catch (error) {
     console.error('claimReward error:', error);
