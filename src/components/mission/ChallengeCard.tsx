@@ -35,10 +35,14 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
     ? Math.min((cleared / total) * 100, 100)
     : 0;
   
+  // デバッグログを追加
   console.log('ChallengeCard render:', { 
     missionId: mission.id, 
     currentSongProgressLength: currentSongProgress.length,
     allSongsCompleted,
+    progress: progress,
+    reward_claimed: progress?.reward_claimed,
+    completed: completed,
     songProgress: currentSongProgress.map(s => ({ id: s.song_id, title: s.song?.title, completed: s.is_completed }))
   });
   

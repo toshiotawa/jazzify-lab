@@ -367,7 +367,7 @@ export async function claimReward(missionId: string) {
   // addXp関数をインポートして使用
   const { addXp } = await import('@/platform/supabaseXp');
   
-  await addXp({
+  const xpResult = await addXp({
     songId: null, // ミッション報酬なので曲IDはnull
     baseXp: rewardXP, // 報酬XPを基本XPとして使用
     speedMultiplier: 1, // ミッション報酬なので速度倍率は1
@@ -378,4 +378,12 @@ export async function claimReward(missionId: string) {
   });
   
   clearSupabaseCache();
+  
+  // XP獲得情報を返す
+  return {
+    gainedXp: xpResult.gainedXp,
+    totalXp: xpResult.totalXp,
+    level: xpResult.level,
+    levelUp: xpResult.level > (await supabase.from('profiles').select('level').eq('id', user.id).single()).data?.level
+  };
 }
