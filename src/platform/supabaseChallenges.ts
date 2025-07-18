@@ -1,4 +1,4 @@
-import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearSupabaseCache, clearCacheByPattern } from '@/platform/supabaseClient';
 
 export type ChallengeType = 'weekly' | 'monthly';
 export type ChallengeCategory = 'diary' | 'song_clear';
@@ -189,7 +189,7 @@ export function subscribeChallenges(callback: () => void) {
   const supabase = getSupabaseClient();
   const channel = supabase.channel('realtime:challenges')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'challenges' }, () => {
-      clearSupabaseCache();
+      clearCacheByPattern('.*challenges.*');
       callback();
     })
     .subscribe();

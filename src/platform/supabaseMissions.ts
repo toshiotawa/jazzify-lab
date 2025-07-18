@@ -64,7 +64,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
     
     console.log('fetchActiveMonthlyMissions raw data:', result);
     return result;
-  }, 1000*30);
+  }, 1000 * 60 * 3); // 最適化: 3分キャッシュ（短いTTLで最新情報を確保）
   if (error) throw error;
   
   // データを正しくマッピング

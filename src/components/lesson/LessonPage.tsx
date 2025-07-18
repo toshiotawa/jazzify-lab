@@ -73,11 +73,16 @@ const LessonPage: React.FC = () => {
     }
   }, [selectedCourse?.id]);
 
-  // リアルタイム更新監視を追加
+  // リアルタイム更新監視を追加（最適化版）
   useEffect(() => {
+    // 最適化: レッスンページが開いている場合のみ監視
     if (!open || !selectedCourse) return;
 
-    // レッスンテーブルの変更を監視
+    // 最適化: 管理者またはレッスン編集権限がある場合のみ監視
+    const shouldMonitor = profile?.isAdmin || profile?.rank === 'premium' || profile?.rank === 'platinum';
+    if (!shouldMonitor) return;
+
+    // レッスンテーブルの変更を監視（最適化: キャッシュクリアを最小限に）
     const unsubscribeLessons = subscribeRealtime(
       'lesson-changes',
       'lessons',
@@ -88,10 +93,11 @@ const LessonPage: React.FC = () => {
         if (selectedCourse) {
           loadLessons(selectedCourse.id);
         }
-      }
+      },
+      { clearCache: false } // キャッシュクリアを無効化
     );
 
-    // lesson_songsテーブルの変更も監視
+    // lesson_songsテーブルの変更も監視（最適化: キャッシュクリアを最小限に）
     const unsubscribeLessonSongs = subscribeRealtime(
       'lesson-songs-changes',
       'lesson_songs',
@@ -101,14 +107,15 @@ const LessonPage: React.FC = () => {
         if (selectedCourse) {
           loadLessons(selectedCourse.id);
         }
-      }
+      },
+      { clearCache: false } // キャッシュクリアを無効化
     );
 
     return () => {
       unsubscribeLessons();
       unsubscribeLessonSongs();
     };
-  }, [open, selectedCourse]);
+  }, [open, selectedCourse, profile?.isAdmin, profile?.rank]);
 
   const loadData = async () => {
     setLoading(true);

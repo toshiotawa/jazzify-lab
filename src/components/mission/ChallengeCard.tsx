@@ -210,6 +210,10 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
                         {songProgress?.clear_count || 0}/{s.clears_required || 1}回
                       </div>
                     </div>
+                    {/* クリア条件の簡易表示 */}
+                    <div className="mt-1 text-xs text-gray-500">
+                      {getClearConditionText(s)}
+                    </div>
                   </div>
                 );
               })}

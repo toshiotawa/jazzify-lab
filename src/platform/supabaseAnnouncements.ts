@@ -62,7 +62,7 @@ export async function fetchActiveAnnouncements(): Promise<Announcement[]> {
       // .eq('is_active', true)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: false }),
-    1000 * 60 * 2 // 2分キャッシュ
+    1000 * 60 * 5 // 最適化: 5分キャッシュ（短いTTLで最新情報を確保）
   );
 
   if (error) throw new Error(`お知らせの取得に失敗しました: ${error.message}`);

@@ -3,6 +3,9 @@ import { immer } from 'zustand/middleware/immer';
 import { Diary, DiaryComment, fetchDiaries, createDiary, likeDiary, updateDiary, fetchComments, addComment, deleteComment } from '@/platform/supabaseDiary';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 
+// グローバルなRealtime初期化状態管理
+let globalRealtimeInitialized = false;
+
 interface DiaryState {
   diaries: Diary[];
   loading: boolean;
@@ -111,10 +114,12 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     },
 
     initRealtime: () => {
-      if (get().realtimeInitialized) return;
+      // グローバル状態もチェック
+      if (get().realtimeInitialized || globalRealtimeInitialized) return;
+      
       const supabase = getSupabaseClient();
 
-      // 日記新規投稿
+      // 日記新規投稿（最適化: キャッシュクリアを最小限に）
       supabase.channel('realtime-diaries')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async () => {
           // 最新データを取得
@@ -122,7 +127,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
         })
         .subscribe();
 
-      // コメント新規投稿
+      // コメント新規投稿（最適化: 特定の日記のコメントのみ更新）
       supabase.channel('realtime-diary-comments')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'diary_comments' }, async (payload) => {
           const diaryId = (payload.new as any).diary_id;
@@ -133,6 +138,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
         .subscribe();
 
       set(s => { s.realtimeInitialized = true; });
+      globalRealtimeInitialized = true;
     },
   }))
 );
