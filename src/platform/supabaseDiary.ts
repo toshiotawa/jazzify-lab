@@ -244,20 +244,8 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   // ────────── ミッション進捗更新 ──────────
   let missionsUpdated = 0;
   try {
-<<<<<<< HEAD
     // 今日まだ日記投稿でミッション進捗を増やしていない場合のみ進捗を増やす
     if (!todayDiaryXpCount) {
-=======
-    // 今日の日記投稿数をチェック（ミッション進捗は1日1回のみ）
-    const { count: todayDiaryCountForMission } = await supabase
-      .from('practice_diaries')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('practice_date', today);
-
-    // 本日初めての日記投稿の場合のみ進捗を増やす
-    if (todayDiaryCountForMission === 1) {
->>>>>>> c12eab3b8a32e0d463d9ec1e7c91cda360f25cb1
       const missions = await fetchActiveMonthlyMissions();
       for (const m of missions) {
         if (m.diary_count) {
