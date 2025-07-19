@@ -96,6 +96,7 @@ const ResultModal: React.FC = () => {
             transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
             membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
             missionMultiplier: (lessonContext || missionContext) ? 2 : 1, // レッスンまたはミッションの場合は2倍
+            reason: lessonContext ? 'lesson_clear' : missionContext ? 'mission_clear' : 'song_clear', // コンテキストに応じた理由を指定
           });
 
           const levelDetail = calcLevel(res.totalXp);

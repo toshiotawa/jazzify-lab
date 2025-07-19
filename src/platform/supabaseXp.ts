@@ -77,7 +77,7 @@ export async function addXp(params: AddXpParams) {
     transpose_multiplier: params.transposeMultiplier,
     membership_multiplier: params.membershipMultiplier,
     mission_multiplier: missionMul,
-    reason: params.reason || null,
+    reason: params.reason || 'unknown',
   });
   if (histErr) throw histErr;
 

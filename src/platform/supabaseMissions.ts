@@ -537,6 +537,7 @@ export async function claimReward(missionId: string) {
       transposeMultiplier: 1, // ミッション報酬なので移調倍率は1
       membershipMultiplier: 1, // ミッション報酬なので会員倍率は1
       missionMultiplier: 1, // ミッション報酬なのでミッション倍率は1
+      reason: 'mission_clear', // ミッション報酬の理由を明示的に指定
     });
     
     clearSupabaseCache();
