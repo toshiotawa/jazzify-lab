@@ -35,7 +35,8 @@
       "Bash(npx supabase:*)",
       "Bash(psql:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm run typecheck:*)"
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run:*)"
     ],
     "deny": []
   }

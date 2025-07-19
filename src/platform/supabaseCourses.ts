@@ -236,22 +236,25 @@ export function checkCoursePrerequisites(course: Course, completedCourseIds: str
 }
 
 /**
- * ユーザーがコースにアクセス可能かどうかを判定します（前提条件とランク制限を含む）
+ * ユーザーがコースにアクセス可能かどうかを判定します（前提条件とランク制限、管理者アンロックを含む）
  * @param {Course} course
  * @param {string} userRank
  * @param {string[]} completedCourseIds
- * @param {boolean} isManuallyUnlocked 管理者による手動解放フラグ
+ * @param {boolean} isUnlocked user_course_progressのis_unlockedフラグ
  * @returns {object} { canAccess: boolean, reason?: string }
  */
 export function canAccessCourse(
   course: Course, 
   userRank: string, 
   completedCourseIds: string[] = [],
-  isManuallyUnlocked: boolean = false
+  isUnlocked: boolean | null = null
 ): { canAccess: boolean; reason?: string } {
-  // 管理者による手動解放がある場合はアクセス可能
-  if (isManuallyUnlocked) {
+  // user_course_progressでアンロック状態が明示的に設定されている場合
+  if (isUnlocked === true) {
     return { canAccess: true };
+  }
+  if (isUnlocked === false) {
+    return { canAccess: false, reason: 'このコースは現在ロックされています。前提コースを完了すると自動で解放されます。' };
   }
 
   const rankOrder = { free: 0, standard: 1, premium: 2, platinum: 3 };
@@ -280,6 +283,96 @@ export function canAccessCourse(
   }
 
   return { canAccess: true };
+}
+
+/**
+ * ユーザーのコースアンロック状況を取得します
+ * @param {string} userId
+ * @returns {Promise<Record<string, boolean>>} コースIDをキーとするアンロック状況
+ */
+export async function fetchUserCourseUnlockStatus(userId: string): Promise<Record<string, boolean>> {
+  try {
+    const { data, error } = await getSupabaseClient()
+      .from('user_course_progress')
+      .select('course_id, is_unlocked')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error fetching user course unlock status:', error);
+      return {};
+    }
+
+    const unlockStatus: Record<string, boolean> = {};
+    data?.forEach((item) => {
+      unlockStatus[item.course_id] = item.is_unlocked;
+    });
+
+    return unlockStatus;
+  } catch (error) {
+    console.error('Error fetching user course unlock status:', error);
+    return {};
+  }
+}
+
+/**
+ * 管理者によるコースロック（RPC呼び出し）
+ * @param {string} userId
+ * @param {string} courseId
+ */
+export async function adminLockCourse(userId: string, courseId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .rpc('admin_lock_course', {
+      p_user_id: userId,
+      p_course_id: courseId
+    });
+
+  if (error) {
+    console.error('Error locking course:', error);
+    throw error;
+  }
+
+  // 関連キャッシュをクリア
+  clearCacheByPattern(/^courses/);
+}
+
+/**
+ * 管理者によるコースアンロック（RPC呼び出し）
+ * @param {string} userId
+ * @param {string} courseId
+ */
+export async function adminUnlockCourse(userId: string, courseId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .rpc('admin_unlock_course', {
+      p_user_id: userId,
+      p_course_id: courseId
+    });
+
+  if (error) {
+    console.error('Error unlocking course:', error);
+    throw error;
+  }
+
+  // 関連キャッシュをクリア
+  clearCacheByPattern(/^courses/);
+}
+
+/**
+ * 前提条件チェックおよび依存コースの自動アンロック（RPC呼び出し）
+ * @param {string} userId
+ */
+export async function unlockDependentCourses(userId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .rpc('unlock_dependent_courses', {
+      p_user_id: userId
+    });
+
+  if (error) {
+    console.error('Error unlocking dependent courses:', error);
+    throw error;
+  }
+
+  // 関連キャッシュをクリア
+  clearCacheByPattern(/^courses/);
 }
 
 export { clearCacheByPattern as clearSupabaseCache }; 

@@ -1,4 +1,5 @@
 import { getSupabaseClient, fetchWithCache, clearCacheByKey, invalidateCacheKey } from '@/platform/supabaseClient';
+import { unlockDependentCourses } from '@/platform/supabaseCourses';
 
 export interface LessonProgress {
   id: string;
@@ -104,6 +105,14 @@ export async function updateLessonProgress(
   // レッスン完了時にブロック完了をチェック
   if (completed) {
     await checkAndUnlockNextBlock(userId, courseId, lessonId);
+    
+    // レッスン完了時に前提条件チェックおよび依存コースのアンロック
+    try {
+      await unlockDependentCourses(userId);
+    } catch (error) {
+      console.error('Error unlocking dependent courses:', error);
+      // コース解放エラーはレッスン完了を妨げない
+    }
   }
 }
 

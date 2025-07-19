@@ -3,7 +3,8 @@ import { useToast } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/authStore';
 import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag, USERS_CACHE_KEY } from '@/platform/supabaseAdmin';
 import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, lockBlock, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
-import { fetchCoursesWithDetails, COURSES_CACHE_KEY } from '@/platform/supabaseCourses';
+import { fetchCoursesWithDetails, fetchUserCourseUnlockStatus, adminLockCourse, adminUnlockCourse, COURSES_CACHE_KEY } from '@/platform/supabaseCourses';
+import { getSupabaseClient } from '@/platform/supabaseClient';
 import { Course, Lesson } from '@/types';
 import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
@@ -22,6 +23,7 @@ const UserManager: React.FC = () => {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [userLessonProgress, setUserLessonProgress] = useState<LessonProgress[]>([]);
   const [showProgressModal, setShowProgressModal] = useState(false);
+  const [userCourseUnlockStatus, setUserCourseUnlockStatus] = useState<Record<string, boolean>>({});
 
   const load = async (forceRefresh = false) => {
     setLoading(true);
@@ -92,6 +94,16 @@ const UserManager: React.FC = () => {
   const openProgressModal = async (user: UserProfile) => {
     setSelectedUser(user);
     setShowProgressModal(true);
+    
+    // ユーザーのコースアンロック状況を取得
+    try {
+      const unlockStatus = await fetchUserCourseUnlockStatus(user.id);
+      setUserCourseUnlockStatus(unlockStatus);
+    } catch (error) {
+      console.error('Failed to load course unlock status:', error);
+      setUserCourseUnlockStatus({});
+    }
+    
     if (courses.length > 0) {
       setSelectedCourse(courses[0]);
       await loadUserProgress(user.id, courses[0].id);
@@ -224,6 +236,44 @@ const UserManager: React.FC = () => {
       await loadUserProgress(selectedUser.id, selectedCourse.id, true);
     }
   }, [selectedUser, selectedCourse, blockLessonsCache, toast]);
+
+  const handleToggleCourseUnlock = async (courseId: string, shouldUnlock: boolean) => {
+    if (!selectedUser) return;
+    
+    // 楽観的UI更新
+    setUserCourseUnlockStatus(prev => ({
+      ...prev,
+      [courseId]: shouldUnlock
+    }));
+    
+    try {
+      if (shouldUnlock) {
+        await adminUnlockCourse(selectedUser.id, courseId);
+      } else {
+        await adminLockCourse(selectedUser.id, courseId);
+      }
+      
+      // キャッシュクリアと状態更新
+      invalidateCacheKey(COURSES_CACHE_KEY());
+      if (selectedCourse) {
+        invalidateCacheKey(LESSON_PROGRESS_CACHE_KEY(selectedCourse.id, selectedUser.id));
+        await loadUserProgress(selectedUser.id, selectedCourse.id, true);
+      }
+      
+      // 最新の状態を再取得
+      const updatedStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
+      setUserCourseUnlockStatus(updatedStatus);
+      
+      toast.success(`コースを${shouldUnlock ? 'アンロック' : 'ロック'}しました`);
+    } catch (error) {
+      console.error('Course lock/unlock failed:', error);
+      toast.error('コースのロック/アンロックに失敗しました');
+      
+      // エラー時はロールバック
+      const currentStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
+      setUserCourseUnlockStatus(currentStatus);
+    }
+  };
 
   const handleClearCache = async () => {
     clearSupabaseCache();
@@ -397,6 +447,111 @@ const UserManager: React.FC = () => {
                 ))}
               </select>
             </div>
+
+            {/* コースアクセス制御 */}
+            {selectedCourse && (
+              <div className="mb-6 p-4 bg-slate-700 rounded-lg">
+                <h4 className="text-lg font-semibold text-white mb-3">コースアクセス制御</h4>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-slate-300">
+                      {selectedCourse.title} のアクセス状況:
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      {userCourseUnlockStatus[selectedCourse.id] === true ? (
+                        <div className="flex items-center space-x-1 text-green-400">
+                          <FaUnlock className="text-sm" />
+                          <span className="text-sm font-medium">管理者により解放済み</span>
+                        </div>
+                      ) : userCourseUnlockStatus[selectedCourse.id] === false ? (
+                        <div className="flex items-center space-x-1 text-red-400">
+                          <FaLock className="text-sm" />
+                          <span className="text-sm font-medium">管理者によりロック済み</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-1 text-slate-400">
+                          <FaCheck className="text-sm" />
+                          <span className="text-sm font-medium">通常の前提条件に従う</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    {userCourseUnlockStatus[selectedCourse.id] === false ? (
+                      <button
+                        className="btn btn-sm btn-success"
+                        onClick={() => handleToggleCourseUnlock(selectedCourse.id, true)}
+                      >
+                        <FaUnlock className="mr-1" />
+                        コース解放
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-sm btn-warning"
+                        onClick={() => handleToggleCourseUnlock(selectedCourse.id, false)}
+                      >
+                        <FaLock className="mr-1" />
+                        コースロック
+                      </button>
+                    )}
+                    
+                    {userCourseUnlockStatus[selectedCourse.id] !== undefined && (
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        onClick={async () => {
+                          // 管理者アンロック状態をクリアして前提条件に従うようにする
+                          setUserCourseUnlockStatus(prev => {
+                            const newStatus = { ...prev };
+                            delete newStatus[selectedCourse.id];
+                            return newStatus;
+                          });
+                          
+                          try {
+                            // DBからレコードを削除することで前提条件判定に戻す
+                            await getSupabaseClient()
+                              .from('user_course_progress')
+                              .delete()
+                              .eq('user_id', selectedUser.id)
+                              .eq('course_id', selectedCourse.id);
+                            
+                            // 最新の状態を再取得
+                            const updatedStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
+                            setUserCourseUnlockStatus(updatedStatus);
+                            
+                            toast.success('通常の前提条件に戻しました');
+                          } catch (error) {
+                            console.error('Failed to reset course unlock status:', error);
+                            toast.error('リセットに失敗しました');
+                            
+                            // エラー時はロールバック
+                            const currentStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
+                            setUserCourseUnlockStatus(currentStatus);
+                          }
+                        }}
+                        title="通常の前提条件に戻す"
+                      >
+                        前提条件に戻す
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* 前提条件情報 */}
+                {selectedCourse.prerequisites && selectedCourse.prerequisites.length > 0 && (
+                  <div className="mt-3 p-3 bg-slate-600 rounded text-sm">
+                    <span className="text-slate-300">前提条件:</span>
+                    <div className="mt-1">
+                      {selectedCourse.prerequisites.map((prereq, index) => (
+                        <span key={prereq.prerequisite_course_id} className="inline-block bg-slate-500 px-2 py-1 rounded mr-2 mb-1">
+                          {prereq.prerequisite_course.title}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 進捗概要 */}
             {selectedCourse && (

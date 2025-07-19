@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
-import { fetchCoursesWithDetails, fetchUserCompletedCourses, canAccessCourse } from '@/platform/supabaseCourses';
+import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress, unlockLesson, LessonProgress } from '@/platform/supabaseLessonProgress';
 import { subscribeRealtime } from '@/platform/supabaseClient';
@@ -10,6 +10,7 @@ import { useToast } from '@/stores/toastStore';
 import { 
   FaArrowLeft, 
   FaLock, 
+  FaUnlock,
   FaCheck, 
   FaPlay, 
   FaStar, 
@@ -32,6 +33,7 @@ const LessonPage: React.FC = () => {
   const [progress, setProgress] = useState<Record<string, LessonProgress>>({});
   const [lessonRequirementsProgress, setLessonRequirementsProgress] = useState<Record<string, LessonRequirementProgress[]>>({});
   const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
+  const [courseUnlockStatus, setCourseUnlockStatus] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
@@ -121,9 +123,10 @@ const LessonPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [coursesData, completedCourses] = await Promise.all([
+      const [coursesData, completedCourses, unlockStatus] = await Promise.all([
         fetchCoursesWithDetails(),
-        profile ? fetchUserCompletedCourses(profile.id) : Promise.resolve([])
+        profile ? fetchUserCompletedCourses(profile.id) : Promise.resolve([]),
+        profile ? fetchUserCourseUnlockStatus(profile.id) : Promise.resolve({})
       ]);
       
       // 並び順でソート
@@ -131,10 +134,12 @@ const LessonPage: React.FC = () => {
       // すべてのコースを表示（アクセス制限は表示側で処理）
       setCourses(sortedCourses);
       setCompletedCourseIds(completedCourses);
+      setCourseUnlockStatus(unlockStatus);
       
       // アクセス可能な最初のコースを選択
       const firstAccessibleCourse = sortedCourses.find(course => {
-        const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourses);
+        const courseUnlockFlag = unlockStatus[course.id] !== undefined ? unlockStatus[course.id] : null;
+        const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourses, courseUnlockFlag);
         return accessResult.canAccess;
       });
       if (firstAccessibleCourse) {
@@ -357,7 +362,8 @@ const LessonPage: React.FC = () => {
                   overscrollBehavior: 'contain'
                 }}>
                   {courses.map((course: Course) => {
-                    const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds);
+                    const courseUnlockFlag = courseUnlockStatus[course.id] !== undefined ? courseUnlockStatus[course.id] : null;
+                    const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, courseUnlockFlag);
                     const accessible = accessResult.canAccess;
                     return (
                       <div
@@ -380,7 +386,19 @@ const LessonPage: React.FC = () => {
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="font-medium truncate flex items-center gap-2">
                             {course.title}
-                            {!accessible && <FaLock className="text-xs text-gray-400" />}
+                            {courseUnlockFlag === true && (
+                              <span className="bg-emerald-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                                <FaUnlock className="text-xs" />
+                                管理者解放
+                              </span>
+                            )}
+                            {courseUnlockFlag === false && (
+                              <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                                <FaLock className="text-xs" />
+                                管理者ロック
+                              </span>
+                            )}
+                            {!accessible && courseUnlockFlag === null && <FaLock className="text-xs text-gray-400" />}
                           </h3>
                         </div>
 
@@ -405,11 +423,22 @@ const LessonPage: React.FC = () => {
                           </div>
                         )}
 
-                        {/* 前提条件未達成時の注意文言 */}
-                        {!accessible && accessResult.reason?.includes('前提コース') && (
-                          <div className="mb-2 p-2 bg-orange-900/30 border border-orange-600 rounded">
-                            <p className="text-xs text-orange-300">
-                              {accessResult.reason}
+                        {/* ロック状態の注意文言 */}
+                        {!accessible && (
+                          <div className={`mb-2 p-2 rounded border ${
+                            courseUnlockFlag === false 
+                              ? 'bg-red-900/30 border-red-600' 
+                              : 'bg-orange-900/30 border-orange-600'
+                          }`}>
+                            <p className={`text-xs ${
+                              courseUnlockFlag === false 
+                                ? 'text-red-300' 
+                                : 'text-orange-300'
+                            }`}>
+                              {courseUnlockFlag === false 
+                                ? '管理者によりロックされています。前提コースを完了すると自動で解放されます。'
+                                : accessResult.reason
+                              }
                             </p>
                           </div>
                         )}
