@@ -234,17 +234,15 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   // ミッション進捗更新（1日1回まで）
   let missionsUpdated = 0;
   try {
-    // 今日の日記投稿によるXP付与履歴をチェック
-    const { count: todayDiaryXpCount } = await supabase
-      .from('xp_history')
-      .select('*', { count: 'exact', head: true })
+    // 今日の日記投稿数をチェック（ミッション進捗は1日1回のみ）
+    const { count: todayDiaryCountForMission } = await supabase
+      .from('practice_diaries')
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .eq('reason', 'diary_post')
-      .gte('created_at', today + 'T00:00:00+09:00')
-      .lte('created_at', today + 'T23:59:59+09:00');
+      .eq('practice_date', today);
 
-    // 今日まだ日記投稿でミッション進捗を増やしていない場合のみ進捗を増やす
-    if (!todayDiaryXpCount || todayDiaryXpCount === 0) {
+    // 本日初めての日記投稿の場合のみ進捗を増やす
+    if (todayDiaryCountForMission === 1) {
       const missions = await fetchActiveMonthlyMissions();
       for (const m of missions) {
         if (m.diary_count) {
