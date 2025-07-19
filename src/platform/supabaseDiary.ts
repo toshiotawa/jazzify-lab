@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { addXp } from '@/platform/supabaseXp';
 import { fetchActiveMonthlyMissions, incrementDiaryProgress } from '@/platform/supabaseMissions';
+import { clearSupabaseCache } from '@/platform/supabaseClient';
 
 export interface Diary {
   id: string;
@@ -222,6 +223,15 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
     throw new Error('フリープランでは日記を投稿できません。スタンダードプラン以上にアップグレードしてください。');
   }
 
+  // ────────── ① すでに今日の日記 XP 履歴があるか確認 ──────────
+  const { count: todayDiaryXpCount } = await supabase
+    .from('xp_history')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('reason', 'diary_post')
+    .gte('created_at', `${today}T00:00:00+09:00`)
+    .lte('created_at', `${today}T23:59:59+09:00`);
+
   // 日記投稿
   const { data: diaryData, error } = await supabase.from('practice_diaries').insert({
     user_id: user.id,
@@ -231,20 +241,11 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   }).select('id').single();
   if (error) throw new Error(`日記の保存に失敗しました: ${error.message}`);
 
-  // ミッション進捗更新（1日1回まで）
+  // ────────── ミッション進捗更新 ──────────
   let missionsUpdated = 0;
   try {
-    // 今日の日記投稿によるXP付与履歴をチェック
-    const { count: todayDiaryXpCount } = await supabase
-      .from('xp_history')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('reason', 'diary_post')
-      .gte('created_at', today + 'T00:00:00+09:00')
-      .lte('created_at', today + 'T23:59:59+09:00');
-
     // 今日まだ日記投稿でミッション進捗を増やしていない場合のみ進捗を増やす
-    if (!todayDiaryXpCount || todayDiaryXpCount === 0) {
+    if (!todayDiaryXpCount) {
       const missions = await fetchActiveMonthlyMissions();
       for (const m of missions) {
         if (m.diary_count) {
@@ -288,17 +289,10 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   // 会員ランクに応じたXP倍率を適用
   const membershipMultiplier = membershipRank === 'premium' ? 1.5 : membershipRank === 'platinum' ? 2 : 1;
 
-  // 今日の日記投稿によるXP付与履歴をチェック（practice_diariesベース）
-  const { count: todayDiaryCount } = await supabase
-    .from('practice_diaries')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('practice_date', today);
-
   let xpResult: { gainedXp: number; totalXp: number; level: number } = { gainedXp:0, totalXp:0, level:currentLevel } as any;
 
-  // 今日の日記投稿が1件（今回の投稿）のみの場合のみXP付与
-  if (todayDiaryCount === 1) {
+  // ────────── XP 付与判定 ──────────
+  if (!todayDiaryXpCount) {
     xpResult = await addXp({
       songId: null,
       baseXp: 5000,
@@ -313,6 +307,9 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
     const { data: prof } = await supabase.from('profiles').select('xp, level').eq('id', user.id).single();
     xpResult = { gainedXp:0, totalXp: prof?.xp || 0, level: prof?.level || currentLevel } as any;
   }
+
+  // ────────── キャッシュをクリア ──────────
+  clearSupabaseCache();
 
   return {
     success: true,
@@ -523,6 +520,9 @@ export async function deleteDiary(diaryId: string): Promise<void> {
   } catch (e) {
     console.warn('ミッション進捗の調整でエラーが発生しました:', e);
   }
+  
+  // ────────── キャッシュをクリア ──────────
+  clearSupabaseCache();
 }
 
 // テスト用ヘルパー関数
