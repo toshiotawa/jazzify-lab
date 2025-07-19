@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useToast } from '@/stores/toastStore';
+import { useAuthStore } from '@/stores/authStore';
 import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag, USERS_CACHE_KEY } from '@/platform/supabaseAdmin';
 import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, lockBlock, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
 import { fetchCoursesWithDetails, COURSES_CACHE_KEY } from '@/platform/supabaseCourses';
@@ -15,6 +16,7 @@ const UserManager: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+  const { profile } = useAuthStore();
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -38,6 +40,12 @@ const UserManager: React.FC = () => {
   useEffect(()=>{load();},[]);
 
   const handleRankChange = async (id:string, rank:Rank)=>{
+    // 管理者でない場合、自分以外のユーザーを更新できない
+    if (!profile?.isAdmin && id !== profile?.id) {
+      toast.error('自分以外のユーザーのステータスを変更する権限がありません');
+      return;
+    }
+
     try {
       // 楽観的更新
       setUsers(prev => prev.map(u => u.id === id ? { ...u, rank } : u));
@@ -57,6 +65,12 @@ const UserManager: React.FC = () => {
   };
 
   const toggleAdmin = async(id:string, isAdmin:boolean)=>{
+    // 管理者でない場合、自分以外のユーザーを更新できない
+    if (!profile?.isAdmin && id !== profile?.id) {
+      toast.error('自分以外のユーザーのステータスを変更する権限がありません');
+      return;
+    }
+
     try {
       // 楽観的更新
       setUsers(prev => prev.map(u => u.id === id ? { ...u, is_admin: isAdmin } : u));
@@ -269,6 +283,18 @@ const UserManager: React.FC = () => {
           キャッシュクリア
         </button>
       </div>
+      
+      {/* 管理者でない場合の警告 */}
+      {!profile?.isAdmin && (
+        <div className="alert alert-warning mb-4">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <span>管理者権限がありません。自分のアカウントのみ編集可能です。</span>
+          </div>
+        </div>
+      )}
       {loading? <p>Loading...</p> : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[600px]">
@@ -292,18 +318,30 @@ const UserManager: React.FC = () => {
                     <span className="truncate block max-w-[150px]">{u.email}</span>
                   </td>
                   <td className="py-1 px-2">
-                    <select className="select select-xs w-20" value={u.rank} onChange={e=>handleRankChange(u.id, e.target.value as Rank)}>
+                    <select 
+                      className={`select select-xs w-20 ${!profile?.isAdmin && u.id !== profile?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      value={u.rank} 
+                      onChange={e=>handleRankChange(u.id, e.target.value as Rank)}
+                      disabled={!profile?.isAdmin && u.id !== profile?.id}
+                    >
                       {ranks.map(r=>(<option key={r} value={r}>{r}</option>))}
                     </select>
                   </td>
                   <td className="py-1 px-2">
-                    <input type="checkbox" className="checkbox checkbox-sm" checked={u.is_admin} onChange={e=>toggleAdmin(u.id, e.target.checked)} />
+                    <input 
+                      type="checkbox" 
+                      className={`checkbox checkbox-sm ${!profile?.isAdmin && u.id !== profile?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      checked={u.is_admin} 
+                      onChange={e=>toggleAdmin(u.id, e.target.checked)}
+                      disabled={!profile?.isAdmin && u.id !== profile?.id}
+                    />
                   </td>
                   <td className="py-1 px-2 text-right text-xs">Lv{u.level}</td>
                   <td className="py-1 px-2">
                     <button 
-                      className="btn btn-xs btn-primary"
+                      className={`btn btn-xs btn-primary ${!profile?.isAdmin && u.id !== profile?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                       onClick={() => openProgressModal(u)}
+                      disabled={!profile?.isAdmin && u.id !== profile?.id}
                     >
                       <FaEdit className="mr-1" />
                       進捗管理
