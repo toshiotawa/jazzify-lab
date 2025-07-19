@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
-import { fetchCoursesWithDetails } from '@/platform/supabaseCourses';
+import { fetchCoursesWithDetails, fetchUserCompletedCourses, canAccessCourse } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress, unlockLesson, LessonProgress } from '@/platform/supabaseLessonProgress';
 import { subscribeRealtime } from '@/platform/supabaseClient';
@@ -31,6 +31,7 @@ const LessonPage: React.FC = () => {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [progress, setProgress] = useState<Record<string, LessonProgress>>({});
   const [lessonRequirementsProgress, setLessonRequirementsProgress] = useState<Record<string, LessonRequirementProgress[]>>({});
+  const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
@@ -120,14 +121,22 @@ const LessonPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const coursesData = await fetchCoursesWithDetails();
+      const [coursesData, completedCourses] = await Promise.all([
+        fetchCoursesWithDetails(),
+        profile ? fetchUserCompletedCourses(profile.id) : Promise.resolve([])
+      ]);
+      
       // 並び順でソート
       const sortedCourses = coursesData.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
       // すべてのコースを表示（アクセス制限は表示側で処理）
       setCourses(sortedCourses);
+      setCompletedCourseIds(completedCourses);
       
       // アクセス可能な最初のコースを選択
-      const firstAccessibleCourse = sortedCourses.find(course => canAccessCourse(course, profile?.rank || 'free'));
+      const firstAccessibleCourse = sortedCourses.find(course => {
+        const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourses);
+        return accessResult.canAccess;
+      });
       if (firstAccessibleCourse) {
         setSelectedCourse(firstAccessibleCourse);
       }
@@ -229,26 +238,6 @@ const LessonPage: React.FC = () => {
     }
   };
 
-  const rankOrder = { free: 0, standard: 1, premium: 2, platinum: 3 };
-  const canAccessCourse = (course: Course, userRank: string): boolean => {
-    // premium_onlyフラグを優先的にチェック
-    if (course.premium_only !== undefined) {
-      // プレミアム限定コースの場合、プレミアムまたはプラチナのみアクセス可能
-      if (course.premium_only) {
-        return userRank === 'premium' || userRank === 'platinum';
-      }
-      // プレミアム限定でない場合は全員アクセス可能
-      return true;
-    }
-    
-    // min_rankが設定されている場合はそれをチェック
-    if (course.min_rank) {
-      return rankOrder[userRank as keyof typeof rankOrder] >= rankOrder[course.min_rank as keyof typeof rankOrder];
-    }
-    
-    // デフォルトでは全員アクセス可能
-    return true;
-  };
 
   const isLessonUnlocked = (lesson: Lesson, index: number): boolean => {
     // データベースのis_unlockedフィールドを確認
@@ -368,7 +357,8 @@ const LessonPage: React.FC = () => {
                   overscrollBehavior: 'contain'
                 }}>
                   {courses.map((course: Course) => {
-                    const accessible = canAccessCourse(course, profile?.rank || 'free');
+                    const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds);
+                    const accessible = accessResult.canAccess;
                     return (
                       <div
                         key={course.id}
@@ -383,8 +373,7 @@ const LessonPage: React.FC = () => {
                           if (accessible) {
                             setSelectedCourse(course);
                           } else {
-                            const requiredRank = course.premium_only ? 'プレミアム' : course.min_rank?.toUpperCase() || 'FREE';
-                            toast.warning(`このコースは${requiredRank}プラン以上でアクセス可能です`);
+                            toast.warning(accessResult.reason || 'このコースにはアクセスできません');
                           }
                         }}
                       >
@@ -394,27 +383,57 @@ const LessonPage: React.FC = () => {
                             {!accessible && <FaLock className="text-xs text-gray-400" />}
                           </h3>
                         </div>
+
+                        {/* 前提条件表示 */}
+                        {course.prerequisites && course.prerequisites.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-xs text-gray-400 mb-1">前提コース:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {course.prerequisites.map((prereq, index) => (
+                                <span
+                                  key={prereq.prerequisite_course_id}
+                                  className={`text-xs px-2 py-1 rounded ${
+                                    completedCourseIds.includes(prereq.prerequisite_course_id)
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-orange-600 text-white'
+                                  }`}
+                                >
+                                  {prereq.prerequisite_course.title}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 前提条件未達成時の注意文言 */}
+                        {!accessible && accessResult.reason?.includes('前提コース') && (
+                          <div className="mb-2 p-2 bg-orange-900/30 border border-orange-600 rounded">
+                            <p className="text-xs text-orange-300">
+                              {accessResult.reason}
+                            </p>
+                          </div>
+                        )}
                       
-                      {/* コース進捗バー */}
-                      <div className="mb-2">
-                        <div className="flex justify-between text-xs text-gray-400 mb-1">
-                          <span>進捗</span>
-                          <span>{getCourseCompletionRate(course)}%</span>
+                        {/* コース進捗バー */}
+                        <div className="mb-2">
+                          <div className="flex justify-between text-xs text-gray-400 mb-1">
+                            <span>進捗</span>
+                            <span>{getCourseCompletionRate(course)}%</span>
+                          </div>
+                          <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-emerald-500 transition-all duration-300"
+                              style={{ width: `${getCourseCompletionRate(course)}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-emerald-500 transition-all duration-300"
-                            style={{ width: `${getCourseCompletionRate(course)}%` }}
-                          />
-                        </div>
+                      
+                        {course.description && (
+                          <p className="text-xs text-gray-400 line-clamp-2">
+                            {course.description}
+                          </p>
+                        )}
                       </div>
-                      
-                      {course.description && (
-                        <p className="text-xs text-gray-400 line-clamp-2">
-                          {course.description}
-                        </p>
-                      )}
-                    </div>
                     );
                   })}
                 </div>

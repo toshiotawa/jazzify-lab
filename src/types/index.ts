@@ -657,6 +657,12 @@ export interface Course {
   order_index: number;
   premium_only?: boolean;
   min_rank?: 'free' | 'standard' | 'premium' | 'platinum';
+  prerequisites?: CoursePrerequisite[];
+}
+
+export interface CoursePrerequisite {
+  prerequisite_course_id: string;
+  prerequisite_course: Course;
 }
 
 export interface Profile {

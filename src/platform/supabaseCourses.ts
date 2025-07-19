@@ -1,5 +1,5 @@
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern, clearCacheByKey } from './supabaseClient';
-import { Course } from '@/types';
+import { Course, CoursePrerequisite } from '@/types';
 
 // コースキャッシュキー生成関数
 export const COURSES_CACHE_KEY = () => 'courses';
@@ -24,6 +24,13 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
           lesson_songs (
             *,
             songs (id, title, artist)
+          )
+        ),
+        prerequisites:course_prerequisites (
+          prerequisite_course_id,
+          prerequisite_course:courses!course_prerequisites_prerequisite_course_id_fkey (
+            id,
+            title
           )
         )
       `)
@@ -51,6 +58,13 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
             lesson_songs (
               *,
               songs (id, title, artist)
+            )
+          ),
+          prerequisites:course_prerequisites (
+            prerequisite_course_id,
+            prerequisite_course:courses!course_prerequisites_prerequisite_course_id_fkey (
+              id,
+              title
             )
           )
         `)
@@ -149,6 +163,91 @@ export async function deleteCourse(id: string): Promise<void> {
 
   // コース関連のキャッシュのみクリア
   clearCacheByPattern(/^courses/);
+}
+
+/**
+ * ユーザーのコース完了状況を取得します
+ * @param {string} userId
+ * @returns {Promise<string[]>} 完了したコースIDの配列
+ */
+export async function fetchUserCompletedCourses(userId: string): Promise<string[]> {
+  const { data, error } = await getSupabaseClient()
+    .from('user_course_progress')
+    .select('course_id')
+    .eq('user_id', userId)
+    .eq('is_completed', true);
+
+  if (error) {
+    console.error('Error fetching user completed courses:', error);
+    throw error;
+  }
+
+  return (data || []).map((item: any) => item.course_id);
+}
+
+/**
+ * コースの前提条件が満たされているかチェックします
+ * @param {Course} course
+ * @param {string[]} completedCourseIds ユーザーが完了したコースIDの配列
+ * @returns {boolean}
+ */
+export function checkCoursePrerequisites(course: Course, completedCourseIds: string[]): boolean {
+  // 前提条件がない場合は満たされている
+  if (!course.prerequisites || course.prerequisites.length === 0) {
+    return true;
+  }
+
+  // すべての前提条件が完了しているかチェック
+  return course.prerequisites.every(prereq => 
+    completedCourseIds.includes(prereq.prerequisite_course_id)
+  );
+}
+
+/**
+ * ユーザーがコースにアクセス可能かどうかを判定します（前提条件とランク制限を含む）
+ * @param {Course} course
+ * @param {string} userRank
+ * @param {string[]} completedCourseIds
+ * @param {boolean} isManuallyUnlocked 管理者による手動解放フラグ
+ * @returns {object} { canAccess: boolean, reason?: string }
+ */
+export function canAccessCourse(
+  course: Course, 
+  userRank: string, 
+  completedCourseIds: string[] = [],
+  isManuallyUnlocked: boolean = false
+): { canAccess: boolean; reason?: string } {
+  // 管理者による手動解放がある場合はアクセス可能
+  if (isManuallyUnlocked) {
+    return { canAccess: true };
+  }
+
+  const rankOrder = { free: 0, standard: 1, premium: 2, platinum: 3 };
+
+  // ランク制限をチェック
+  if (course.premium_only !== undefined) {
+    if (course.premium_only) {
+      const hasRankAccess = userRank === 'premium' || userRank === 'platinum';
+      if (!hasRankAccess) {
+        return { canAccess: false, reason: 'プレミアムプラン以上が必要です' };
+      }
+    }
+  } else if (course.min_rank) {
+    const hasRankAccess = rankOrder[userRank as keyof typeof rankOrder] >= rankOrder[course.min_rank as keyof typeof rankOrder];
+    if (!hasRankAccess) {
+      const requiredRank = course.min_rank.toUpperCase();
+      return { canAccess: false, reason: `${requiredRank}プラン以上が必要です` };
+    }
+  }
+
+  // 前提条件をチェック
+  const prerequisitesMet = checkCoursePrerequisites(course, completedCourseIds);
+  if (!prerequisitesMet) {
+    const prerequisiteNames = course.prerequisites?.map(p => p.prerequisite_course.title).join(', ') || '';
+    return { canAccess: false, reason: `前提コース（${prerequisiteNames}）を完了してください` };
+  }
+
+  return { canAccess: true };
 }
 
 export { clearCacheByPattern as clearSupabaseCache }; 
