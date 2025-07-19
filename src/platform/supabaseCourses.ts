@@ -26,7 +26,7 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
             songs (id, title, artist)
           )
         ),
-        prerequisites:course_prerequisites (
+        prerequisites:course_prerequisites!course_prerequisites_course_id_fkey (
           prerequisite_course_id,
           prerequisite_course:courses!course_prerequisites_prerequisite_course_id_fkey (
             id,
@@ -60,7 +60,7 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
               songs (id, title, artist)
             )
           ),
-          prerequisites:course_prerequisites (
+          prerequisites:course_prerequisites!course_prerequisites_course_id_fkey (
             prerequisite_course_id,
             prerequisite_course:courses!course_prerequisites_prerequisite_course_id_fkey (
               id,
@@ -167,22 +167,54 @@ export async function deleteCourse(id: string): Promise<void> {
 
 /**
  * ユーザーのコース完了状況を取得します
+ * レッスン進捗から各コースの完了状況を判定します
  * @param {string} userId
  * @returns {Promise<string[]>} 完了したコースIDの配列
  */
 export async function fetchUserCompletedCourses(userId: string): Promise<string[]> {
-  const { data, error } = await getSupabaseClient()
-    .from('user_course_progress')
-    .select('course_id')
-    .eq('user_id', userId)
-    .eq('is_completed', true);
+  try {
+    // 全コースとユーザーのレッスン進捗を取得
+    const [coursesData, progressData] = await Promise.all([
+      fetchCoursesWithDetails(),
+      getSupabaseClient()
+        .from('user_lesson_progress')
+        .select('course_id, lesson_id, completed')
+        .eq('user_id', userId)
+        .eq('completed', true)
+    ]);
 
-  if (error) {
+    if (progressData.error) {
+      console.error('Error fetching user lesson progress:', progressData.error);
+      return [];
+    }
+
+    const completedLessons = progressData.data || [];
+    const completedCourseIds: string[] = [];
+
+    // 各コースについて、すべてのレッスンが完了しているかチェック
+    for (const course of coursesData) {
+      if (!course.lessons || course.lessons.length === 0) continue;
+
+      const courseLessonIds = course.lessons.map(lesson => lesson.id);
+      const completedLessonIds = completedLessons
+        .filter(progress => progress.course_id === course.id)
+        .map(progress => progress.lesson_id);
+
+      // コース内のすべてのレッスンが完了している場合
+      const allLessonsCompleted = courseLessonIds.every(lessonId => 
+        completedLessonIds.includes(lessonId)
+      );
+
+      if (allLessonsCompleted && courseLessonIds.length > 0) {
+        completedCourseIds.push(course.id);
+      }
+    }
+
+    return completedCourseIds;
+  } catch (error) {
     console.error('Error fetching user completed courses:', error);
-    throw error;
+    return [];
   }
-
-  return (data || []).map((item: any) => item.course_id);
 }
 
 /**
