@@ -72,16 +72,16 @@ const LevelRanking: React.FC = () => {
           <p className="text-center text-gray-400">Loading...</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse min-w-full">
+            <table className="w-full text-sm border-collapse min-w-[800px] sm:min-w-full">
             <thead>
               <tr className="border-b border-slate-700 text-left">
-                <th className="py-2 px-2">#</th>
-                <th className="py-2 px-2">ユーザー</th>
-                <th className="py-2 px-2 whitespace-nowrap">称号</th>
-                <th className="py-2 px-2">Lv</th>
-                <th className="py-2 px-2">XP</th>
-                <th className="py-2 px-2">ランク</th>
-                <th className="py-2 px-2">Twitter</th>
+                <th className="py-2 px-2 min-w-[3rem]">#</th>
+                <th className="py-2 px-2 min-w-[12rem] sm:min-w-[10rem]">ユーザー</th>
+                <th className="py-2 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">称号</th>
+                <th className="py-2 px-2 min-w-[3rem]">Lv</th>
+                <th className="py-2 px-2 min-w-[6rem] sm:min-w-[5rem]">XP</th>
+                <th className="py-2 px-2 min-w-[5rem] sm:min-w-[4rem]">ランク</th>
+                <th className="py-2 px-2 min-w-[8rem] sm:min-w-[6rem]">Twitter</th>
               </tr>
             </thead>
             <tbody>
@@ -95,7 +95,7 @@ const LevelRanking: React.FC = () => {
                   <td className="py-1 px-2">
                     <button
                       onClick={()=>{window.location.hash=`#diary-user?id=${e.id}`;}}
-                      className={`flex items-center gap-2 hover:text-blue-400 transition-colors max-w-[12rem] ${
+                      className={`flex items-center gap-2 hover:text-blue-400 transition-colors w-full ${
                         isCurrentUser ? 'text-primary-400 font-bold' : ''
                       }`}
                     >
@@ -104,13 +104,13 @@ const LevelRanking: React.FC = () => {
                         alt="avatar"
                         className="w-6 h-6 rounded-full object-cover flex-shrink-0"
                       />
-                      <span className="truncate">{e.nickname}</span>
+                      <span className="truncate min-w-0 flex-1">{e.nickname}</span>
                     </button>
                   </td>
                   <td className="py-1 px-2 whitespace-nowrap">
                     <div className="flex items-center gap-1 text-yellow-400">
-                      <FaCrown className="text-xs" />
-                      <span className="text-xs">
+                      <FaCrown className="text-xs flex-shrink-0" />
+                      <span className="text-xs truncate">
                         {(e.selected_title as Title) || DEFAULT_TITLE}
                       </span>
                     </div>
@@ -124,7 +124,7 @@ const LevelRanking: React.FC = () => {
                         href={`https://twitter.com/${e.twitter_handle}`} 
                         target="_blank" 
                         rel="noopener noreferrer" 
-                        className="text-blue-400 hover:underline truncate block max-w-[8rem]"
+                        className="text-blue-400 hover:underline truncate block w-full"
                       >
                         {e.twitter_handle}
                       </a>

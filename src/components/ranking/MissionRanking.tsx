@@ -113,55 +113,57 @@ const MissionRanking: React.FC = () => {
             </div>
           ) : (
             <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-700 border-b border-slate-600">
-                    <th className="py-3 px-4 text-left font-medium">順位</th>
-                    <th className="py-3 px-4 text-left font-medium">ユーザー</th>
-                    <th className="py-3 px-4 text-left font-medium">クリア回数</th>
-                    <th className="py-3 px-4 text-left font-medium">レベル</th>
-                    <th className="py-3 px-4 text-left font-medium">ランク</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry, idx) => (
-                    <tr key={entry.user_id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center space-x-2">
-                          {getRankIcon(idx)}
-                          <span className="font-medium">{idx + 1}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center space-x-3">
-                          <img 
-                            src={entry.avatar_url || DEFAULT_AVATAR_URL} 
-                            className="w-8 h-8 rounded-full border-2 border-slate-600"
-                            alt="アバター"
-                          />
-                          <span className="font-medium">{entry.nickname}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="font-mono text-primary-400">{entry.clear_count}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-blue-400">Lv.{entry.level}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          entry.rank === 'platinum' ? 'bg-purple-600 text-white' :
-                          entry.rank === 'premium' ? 'bg-yellow-600 text-white' :
-                          entry.rank === 'standard' ? 'bg-blue-600 text-white' :
-                          'bg-gray-600 text-white'
-                        }`}>
-                          {entry.rank.toUpperCase()}
-                        </span>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[600px] sm:min-w-full">
+                  <thead>
+                    <tr className="bg-slate-700 border-b border-slate-600">
+                      <th className="py-3 px-4 text-left font-medium min-w-[4rem]">順位</th>
+                      <th className="py-3 px-4 text-left font-medium min-w-[12rem] sm:min-w-[10rem]">ユーザー</th>
+                      <th className="py-3 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">クリア回数</th>
+                      <th className="py-3 px-4 text-left font-medium min-w-[4rem]">レベル</th>
+                      <th className="py-3 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">ランク</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {entries.map((entry, idx) => (
+                      <tr key={entry.user_id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-2">
+                            {getRankIcon(idx)}
+                            <span className="font-medium">{idx + 1}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-3 min-w-0">
+                            <img 
+                              src={entry.avatar_url || DEFAULT_AVATAR_URL} 
+                              className="w-8 h-8 rounded-full border-2 border-slate-600 flex-shrink-0"
+                              alt="アバター"
+                            />
+                            <span className="font-medium truncate min-w-0 flex-1">{entry.nickname}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-mono text-primary-400">{entry.clear_count}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-blue-400">Lv.{entry.level}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            entry.rank === 'platinum' ? 'bg-purple-600 text-white' :
+                            entry.rank === 'premium' ? 'bg-yellow-600 text-white' :
+                            entry.rank === 'standard' ? 'bg-blue-600 text-white' :
+                            'bg-gray-600 text-white'
+                          }`}>
+                            {entry.rank.toUpperCase()}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
