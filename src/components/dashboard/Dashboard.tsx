@@ -22,6 +22,7 @@ import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
+import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
 
 /**
  * ダッシュボード画面
@@ -31,6 +32,7 @@ const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const { profile, isGuest } = useAuthStore();
   const { monthly: missions, fetchAll: loadMissions } = useMissionStore();
   const toast = useToast();
@@ -61,6 +63,17 @@ const Dashboard: React.FC = () => {
     } catch (missionError: any) {
       console.error('Mission loading error:', missionError);
       toast.error('ミッションの読み込みに失敗しました');
+    }
+
+    // ユーザー統計のロード（ゲスト以外、独立）
+    if (!isGuest && profile) {
+      try {
+        const stats = await fetchUserStats(profile.id);
+        setUserStats(stats);
+      } catch (statsError: any) {
+        console.error('User stats loading error:', statsError);
+        // 統計の読み込み失敗は致命的ではないので、エラーログのみ
+      }
     }
 
     // お知らせのロード（ゲスト以外、独立）
@@ -142,10 +155,18 @@ const Dashboard: React.FC = () => {
                   </div>
                   
                   <div className="flex items-center space-x-4 text-sm text-gray-400">
-                    <span>{profile.level}</span>
+                    <span>Lv.{profile.level}</span>
                     <span className="capitalize">{profile.rank}</span>
-                    <span>{profile.xp.toLocaleString()}</span>
+                    <span>累計経験値 {profile.xp.toLocaleString()}</span>
                   </div>
+                  
+                  {/* ミッション・レッスン統計 */}
+                  {userStats && (
+                    <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
+                      <span>ミッション完了数 {userStats.missionCompletedCount}</span>
+                      <span>レッスンクリア数 {userStats.lessonCompletedCount}</span>
+                    </div>
+                  )}
                   
                   {/* 経験値進捗 */}
                   <div className="mt-4">

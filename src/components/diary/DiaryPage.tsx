@@ -9,6 +9,7 @@ import { useToast } from '@/stores/toastStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
+import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
 
 interface UserDiary {
   id: string;
@@ -24,6 +25,7 @@ interface UserProfile {
   avatar_url?: string;
   level: number;
   rank: string;
+  xp?: number;
   bio?: string | null;
   twitter_handle?: string | null;
   selected_title?: string | null;
@@ -38,6 +40,7 @@ const DiaryPage: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [diaries, setDiaries] = useState<UserDiary[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user, isGuest } = useAuthStore();
@@ -80,9 +83,13 @@ const DiaryPage: React.FC = () => {
     setError(null);
     
     try {
-      const result = await fetchUserDiaries(targetUserId);
+      const [result, stats] = await Promise.all([
+        fetchUserDiaries(targetUserId),
+        fetchUserStats(targetUserId).catch(() => null) // 統計の取得失敗は致命的ではない
+      ]);
       setDiaries(result.diaries);
       setProfile(result.profile);
+      setUserStats(stats);
     } catch (e: any) {
       setError(e.message || 'データの読み込みに失敗しました');
     } finally {
@@ -203,6 +210,18 @@ const DiaryPage: React.FC = () => {
                       <div className="flex items-center space-x-3 text-sm text-gray-400">
                         <span>Lv.{profile.level}</span>
                         <span className="capitalize">{profile.rank}</span>
+                        <span>累計経験値 {profile.xp?.toLocaleString() || '0'}</span>
+                      </div>
+                      
+                      {/* ミッション・レッスン統計 */}
+                      {userStats && (
+                        <div className="flex items-center space-x-3 text-sm text-gray-400 mt-2">
+                          <span>ミッション完了数 {userStats.missionCompletedCount}</span>
+                          <span>レッスンクリア数 {userStats.lessonCompletedCount}</span>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center space-x-3 text-sm text-gray-400 mt-2">
                         <span>{diaries.length}件の日記</span>
                       </div>
                       {profile.twitter_handle ? (
