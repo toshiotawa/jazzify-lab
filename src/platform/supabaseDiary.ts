@@ -2,6 +2,7 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import { addXp } from '@/platform/supabaseXp';
 import { fetchActiveMonthlyMissions, incrementDiaryProgress } from '@/platform/supabaseMissions';
 import { clearSupabaseCache } from '@/platform/supabaseClient';
+import { clearUserStatsCache } from './supabaseUserStats';
 
 export interface Diary {
   id: string;
@@ -311,6 +312,7 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
 
   // ────────── キャッシュをクリア ──────────
   clearSupabaseCache();
+  clearUserStatsCache();
 
   return {
     success: true,
@@ -524,6 +526,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
   
   // ────────── キャッシュをクリア ──────────
   clearSupabaseCache();
+  clearUserStatsCache();
 }
 
 // テスト用ヘルパー関数

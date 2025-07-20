@@ -1,5 +1,7 @@
 import { getSupabaseClient, fetchWithCache, clearCacheByKey, invalidateCacheKey } from '@/platform/supabaseClient';
 import { unlockDependentCourses } from '@/platform/supabaseCourses';
+import { clearSupabaseCache } from './supabaseClient';
+import { clearUserStatsCache } from './supabaseUserStats';
 
 export interface LessonProgress {
   id: string;
@@ -113,6 +115,9 @@ export async function updateLessonProgress(
       console.error('Error unlocking dependent courses:', error);
       // コース解放エラーはレッスン完了を妨げない
     }
+    
+    // 統計キャッシュをクリア
+    clearUserStatsCache(userId);
   }
 }
 

@@ -1,4 +1,5 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platform/supabaseClient';
+import { clearUserStatsCache } from './supabaseUserStats';
 
 export interface MissionSong {
   song_id: string;
@@ -338,6 +339,8 @@ export async function updateMissionSongProgress(
   }
   
   clearSupabaseCache();
+  // 統計キャッシュをクリア
+  clearUserStatsCache();
   return true;
 }
 
@@ -541,6 +544,8 @@ export async function claimReward(missionId: string) {
     });
     
     clearSupabaseCache();
+    // 統計キャッシュをクリア
+    clearUserStatsCache();
     
     // XP獲得情報を返す
     const { data: currentProfile } = await supabase
