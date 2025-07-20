@@ -23,6 +23,7 @@ const RANK_LABEL: Record<string, string> = {
 const AccountPage: React.FC = () => {
   const { profile, logout } = useAuthStore();
   const [open, setOpen] = useState(window.location.hash === '#account');
+  const [activeTab, setActiveTab] = useState<'profile' | 'subscription'>('profile');
   const [bio, setBio] = useState(profile?.bio || '');
   const [saving, setSaving] = useState(false);
   const [twitterHandle, setTwitterHandle] = useState(profile?.twitter_handle?.replace(/^@/, '') || '');
@@ -70,8 +71,36 @@ const AccountPage: React.FC = () => {
       <div className="flex-1 w-full flex flex-col items-center overflow-auto p-6">
         <div className="w-full max-w-md space-y-6">
           <h2 className="text-xl font-bold text-center">アカウント</h2>
+          
+          {/* Tab Navigation */}
+          <div className="flex border-b border-slate-600">
+            <button
+              className={`flex-1 py-2 px-4 text-sm font-medium ${
+                activeTab === 'profile'
+                  ? 'border-b-2 border-primary-400 text-primary-400'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              onClick={() => setActiveTab('profile')}
+            >
+              プロフィール
+            </button>
+            <button
+              className={`flex-1 py-2 px-4 text-sm font-medium ${
+                activeTab === 'subscription'
+                  ? 'border-b-2 border-primary-400 text-primary-400'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              onClick={() => setActiveTab('subscription')}
+            >
+              アカウント
+            </button>
+          </div>
+
+          {/* Tab Content */}
           {profile ? (
             <div className="space-y-2">
+              {activeTab === 'profile' && (
+                <div className="space-y-2">
               <div className="flex justify-between">
                 <span>ニックネーム</span>
                 <span className="font-semibold">{profile.nickname}</span>
@@ -228,6 +257,85 @@ const AccountPage: React.FC = () => {
                   />
                 </div>
               </div>
+                </div>
+              )}
+
+              {activeTab === 'subscription' && (
+                <div className="space-y-4">
+                  {/* あなたのプラン */}
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold">あなたのプラン</h3>
+                    <div className="bg-slate-800 p-4 rounded-lg space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span>ご利用中のプラン</span>
+                        <span className="font-semibold text-primary-400">
+                          {RANK_LABEL[profile.rank]}
+                        </span>
+                      </div>
+                      
+                      {/* サブスクリプション状態表示 */}
+                      {profile.rank !== 'free' && (
+                        <div className="text-sm space-y-1">
+                          {profile.will_cancel && profile.cancel_date && (
+                            <div className="text-yellow-400">
+                              ⚠️ {new Date(profile.cancel_date).toLocaleDateString('ja-JP')}に解約予定
+                            </div>
+                          )}
+                          {profile.downgrade_to && profile.downgrade_date && (
+                            <div className="text-blue-400">
+                              📉 {new Date(profile.downgrade_date).toLocaleDateString('ja-JP')}に{RANK_LABEL[profile.downgrade_to]}プランにダウングレード予定
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* 管理ボタン */}
+                      {profile.rank !== 'free' && profile.stripe_customer_id ? (
+                        <button
+                          className="btn btn-sm btn-primary w-full mt-2"
+                          onClick={async () => {
+                            try {
+                              const response = await fetch('/.netlify/functions/createPortalSession', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${(await getSupabaseClient().auth.getSession()).data.session?.access_token}`,
+                                },
+                              });
+                              
+                              if (response.ok) {
+                                const { url } = await response.json();
+                                window.open(url, '_blank');
+                              } else {
+                                alert('サブスクリプション管理画面の表示に失敗しました');
+                              }
+                            } catch (error) {
+                              console.error('Portal session error:', error);
+                              alert('エラーが発生しました');
+                            }
+                          }}
+                        >
+                          プランを変更・解約する
+                        </button>
+                      ) : (
+                        <div className="text-center pt-2">
+                          <p className="text-sm text-gray-400 mb-2">
+                            プレミアム機能をご利用ください
+                          </p>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={() => {
+                              window.location.href = '/#pricing';
+                            }}
+                          >
+                            プランを選択
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-center text-sm">プロフィール情報が取得できませんでした。</p>

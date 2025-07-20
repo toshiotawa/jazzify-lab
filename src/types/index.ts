@@ -677,6 +677,16 @@ export interface Profile {
   email?: string; // text
   twitter_handle?: string;
   next_season_xp_multiplier?: number;
+  // Stripe subscription fields
+  stripe_customer_id?: string;
+  rank?: 'free' | 'standard' | 'premium' | 'platinum';
+  will_cancel?: boolean;
+  cancel_date?: string;
+  downgrade_to?: 'free' | 'standard' | 'premium' | 'platinum';
+  downgrade_date?: string;
+  level?: number;
+  xp?: number;
+  selected_title?: string;
 }
 
 export interface LessonProgress {

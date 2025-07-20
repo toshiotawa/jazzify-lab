@@ -20,6 +20,7 @@ import LevelRanking from '@/components/ranking/LevelRanking';
 import MissionRanking from '@/components/ranking/MissionRanking';
 import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
+import PricingTable from '@/components/subscription/PricingTable';
 
 /**
  * メインアプリケーションコンポーネント
@@ -220,6 +221,9 @@ const App: React.FC = () => {
       break;
     case '#information':
       MainContent = <InformationPage />;
+      break;
+    case '#pricing':
+      MainContent = <PricingTable />;
       break;
     case '#admin-songs':
     case '#admin-lessons':
