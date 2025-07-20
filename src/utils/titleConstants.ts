@@ -591,6 +591,13 @@ export const getTitleConditionText = (titleName: string): string => {
     return `レッスン${lessonTitle.threshold}個完了で獲得`;
   }
   
+  // レベル称号の条件をチェック
+  const titleIndex = getTitleIndex(titleName as typeof TITLES[number]);
+  if (titleIndex !== -1) {
+    const unlockLevel = getTitleUnlockLevel(titleIndex);
+    return `レベル${unlockLevel}で獲得`;
+  }
+  
   return '';
 };
 

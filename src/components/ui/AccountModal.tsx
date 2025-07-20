@@ -147,11 +147,14 @@ const AccountPage: React.FC = () => {
                   
                   {/* レベル称号カテゴリ */}
                   <optgroup label="レベル称号">
-                    {getAvailableTitles(profile.level).map((title) => (
-                      <option key={title} value={title}>
-                        {title}
-                      </option>
-                    ))}
+                    {getAvailableTitles(profile.level).map((title) => {
+                      const conditionText = getTitleConditionText(title);
+                      return (
+                        <option key={title} value={title}>
+                          {title} - {conditionText}
+                        </option>
+                      );
+                    })}
                   </optgroup>
                 </select>
                 {titleSaving && (
