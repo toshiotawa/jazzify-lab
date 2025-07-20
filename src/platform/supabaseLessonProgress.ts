@@ -172,8 +172,24 @@ export async function unlockBlock(courseId: string, blockNumber: number, targetU
     throw new Error('指定されたブロックにレッスンが存在しません');
   }
 
-  // 各レッスンを解放
   const now = new Date().toISOString();
+  const lessonIds = lessons.map(l => l.id);
+
+  // 既存のレコードは is_unlocked のみ更新（completed は保持）
+  const { error: updateError } = await supabase
+    .from('user_lesson_progress')
+    .update({ 
+      is_unlocked: true,
+      unlock_date: now,
+      updated_at: now
+    })
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .in('lesson_id', lessonIds);
+
+  if (updateError) throw new Error(`既存レッスンの解放に失敗しました: ${updateError.message}`);
+
+  // 新規レコードを挿入（existing recordがない場合のみ）
   const progressRecords = lessons.map(lesson => ({
     user_id: userId,
     lesson_id: lesson.id,
@@ -184,13 +200,14 @@ export async function unlockBlock(courseId: string, blockNumber: number, targetU
     updated_at: now,
   }));
 
-  const { error } = await supabase
+  const { error: insertError } = await supabase
     .from('user_lesson_progress')
     .upsert(progressRecords, {
-      onConflict: 'user_id,lesson_id'
+      onConflict: 'user_id,lesson_id',
+      ignoreDuplicates: true
     });
 
-  if (error) throw new Error(`ブロックの解放に失敗しました: ${error.message}`);
+  if (insertError) throw new Error(`新規レッスンの解放に失敗しました: ${insertError.message}`);
 }
 
 /**
