@@ -22,8 +22,6 @@ import {
   FaMusic,
   FaCheckCircle,
   FaClock,
-  FaForward,
-  FaExclamationTriangle,
   FaChevronLeft,
   FaChevronRight,
   FaHome
@@ -55,11 +53,11 @@ const LessonDetailPage: React.FC = () => {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
-  const [showSkipModal, setShowSkipModal] = useState(false);
+
   const { profile } = useAuthStore();
   const toast = useToast();
   const { fetchStats } = useUserStatsStore();
-  const [assignmentChecks, setAssignmentChecks] = useState<boolean[]>([]);
+
   const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const gameActions = useGameActions();
@@ -128,7 +126,7 @@ const LessonDetailPage: React.FC = () => {
         setCurrentVideoIndex(0);
       }
       
-      setAssignmentChecks(lessonData?.assignment_description ? Array(5).fill(false) : []);
+
       
       // ナビゲーション情報を取得
       if (lessonData?.course_id) {
@@ -186,33 +184,7 @@ const LessonDetailPage: React.FC = () => {
     }
   };
 
-  const handleSkip = async () => {
-    if (!lessonId || !lesson) return;
-    
-    try {
-      await updateLessonProgress(lessonId, lesson.course_id, true); // スキップとして完了扱い
-      
-      // キャッシュを無効化してデータの即座反映を確保
-      if (profile?.id) {
-        clearCacheByKey(LESSON_PROGRESS_CACHE_KEY(lesson.course_id, profile.id));
-      }
-      clearSupabaseCache(); // 全体キャッシュもクリア
-      
-      // ユーザー統計を更新
-      fetchStats().catch(console.error); // エラーは無視
-      
-      toast.success('レッスンをスキップしました');
-      setShowSkipModal(false);
-      window.location.hash = '#lessons';
-    } catch (e: any) {
-      toast.error('スキップ処理に失敗しました');
-      console.error('レッスンスキップエラー:', e);
-    }
-  };
 
-  const canSkipLesson = (): boolean => {
-    return profile?.rank === 'platinum';
-  };
 
   const handleClose = () => {
     // レッスンコンテキストをクリア
@@ -620,22 +592,11 @@ const LessonDetailPage: React.FC = () => {
               )}
             </div>
 
-            {/* 課題説明セクション（プラチナプラン） */}
+            {/* 課題説明セクション（全プラン共通） */}
             {lesson?.assignment_description && (
               <div className="bg-slate-800 rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-4">課題説明</h3>
-                <p className="text-gray-300 mb-4">{lesson.assignment_description}</p>
-                {profile?.rank === 'platinum' && assignmentChecks.map((checked, i) => (
-                  <label key={i} className="flex items-center space-x-2 mb-2">
-                    <input 
-                      type="checkbox" 
-                      checked={checked} 
-                      onChange={() => { /* TODO: save to Supabase */ }} 
-                      className="rounded text-blue-600"
-                    />
-                    <span>{i+1}日目</span>
-                  </label>
-                ))}
+                <p className="text-gray-300">{lesson.assignment_description}</p>
               </div>
             )}
 
@@ -662,59 +623,13 @@ const LessonDetailPage: React.FC = () => {
                   '動画視聴と実習課題を完了したら押してください'}
               </p>
               
-              {/* プラチナプラン限定：スキップボタン */}
-              {profile?.rank === 'platinum' && !lessonProgress?.completed && (
-                <button
-                  onClick={() => setShowSkipModal(true)}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-600 hover:bg-yellow-700 
-                    rounded-lg transition-colors font-medium mt-4"
-                  title="プラチナプラン限定: レッスンをスキップ"
-                >
-                  <FaForward className="w-5 h-5" />
-                  <span>レッスンをスキップ</span>
-                </button>
-              )}
+
             </div>
           </div>
         </div>
       )}
 
-      {/* スキップ確認モーダル */}
-      {showSkipModal && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70"
-          onClick={() => setShowSkipModal(false)}
-        >
-          <div className="bg-slate-800 rounded-lg p-6 max-w-md mx-4"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center space-x-3 mb-4">
-              <FaExclamationTriangle className="w-6 h-6 text-yellow-500" />
-              <h3 className="text-lg font-bold">レッスンスキップ確認</h3>
-            </div>
-            
-            <p className="text-gray-300 mb-6">
-              このレッスンをスキップしますか？<br />
-              スキップすると完了扱いとなり、次のレッスンに進むことができます。
-            </p>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setShowSkipModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={handleSkip}
-                className="flex-1 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg transition-colors
-                  font-medium"
-              >
-                スキップする
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>,
     document.body
   );
