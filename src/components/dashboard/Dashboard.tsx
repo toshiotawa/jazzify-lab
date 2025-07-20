@@ -70,18 +70,6 @@ const Dashboard: React.FC = () => {
         })
       );
 
-      // ユーザー統計のロード（ゲスト以外）
-      if (!isGuest && profile) {
-        promises.push(
-          fetchUserStats(profile.id).then(stats => {
-            setUserStats(stats);
-          }).catch((statsError: any) => {
-            console.error('User stats loading error:', statsError);
-            // 統計の読み込み失敗は致命的ではないので、エラーログのみ
-          })
-        );
-      }
-
       // お知らせのロード（ゲスト以外）
       if (!isGuest) {
         promises.push(
@@ -119,6 +107,18 @@ const Dashboard: React.FC = () => {
               title: 'お知らせエラー',
               duration: 5000,
             });
+          })
+        );
+      }
+
+      // ユーザー統計のロード（ゲスト以外）- 他のデータと完全に並行実行
+      if (!isGuest && profile) {
+        promises.push(
+          fetchUserStats(profile.id).then(stats => {
+            setUserStats(stats);
+          }).catch((statsError: any) => {
+            console.error('User stats loading error:', statsError);
+            // 統計の読み込み失敗は致命的ではないので、エラーログのみ
           })
         );
       }
