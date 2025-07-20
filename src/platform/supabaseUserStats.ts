@@ -17,14 +17,17 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
   const targetUserId = userId || user.id;
 
   try {
-    // ミッション完了数を取得
+    // ミッション完了数を取得（clear_countの合計を使用）
     const { data: missionData, error: missionError } = await supabase
       .from('user_challenge_progress')
-      .select('completed')
+      .select('clear_count')
       .eq('user_id', targetUserId)
       .eq('completed', true);
 
     if (missionError) throw new Error(`ミッション統計の取得に失敗しました: ${missionError.message}`);
+
+    // clear_countの合計を計算
+    const missionCompletedCount = (missionData ?? []).reduce((sum, record) => sum + (record.clear_count || 0), 0);
 
     // レッスン完了数を取得
     const { data: lessonData, error: lessonError } = await supabase
@@ -36,7 +39,7 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
     if (lessonError) throw new Error(`レッスン統計の取得に失敗しました: ${lessonError.message}`);
 
     return {
-      missionCompletedCount: missionData?.length || 0,
+      missionCompletedCount,
       lessonCompletedCount: lessonData?.length || 0,
     };
   } catch (error) {
