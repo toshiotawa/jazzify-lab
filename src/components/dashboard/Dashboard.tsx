@@ -142,9 +142,9 @@ const Dashboard: React.FC = () => {
                   </div>
                   
                   <div className="flex items-center space-x-4 text-sm text-gray-400">
-                    <span>Lv.{profile.level}</span>
+                    <span>{profile.level}</span>
                     <span className="capitalize">{profile.rank}</span>
-                    <span>{profile.xp.toLocaleString()} XP</span>
+                    <span>{profile.xp.toLocaleString()}</span>
                   </div>
                   
                   {/* 経験値進捗 */}
@@ -154,8 +154,8 @@ const Dashboard: React.FC = () => {
                       return (
                         <>
                           <div className="flex justify-between text-sm text-gray-400 mb-1">
-                            <span>{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()} XP</span>
-                            <span>次レベルまで: {(levelInfo.nextLevelXp - levelInfo.remainder).toLocaleString()} XP</span>
+                            <span>{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</span>
+                            <span>次レベルまで: {(levelInfo.nextLevelXp - levelInfo.remainder).toLocaleString()}</span>
                           </div>
                           <div className="bg-slate-700 h-2 rounded overflow-hidden">
                             <div 

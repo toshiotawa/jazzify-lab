@@ -49,7 +49,7 @@ const MypagePage: React.FC = () => {
               <span>{profile.level}</span>
             </div>
             <div>
-              <span className="text-gray-400 mr-2">累計XP:</span>
+              <span className="text-gray-400 mr-2">累計:</span>
               <span>{profile.xp}</span>
             </div>
           </div>

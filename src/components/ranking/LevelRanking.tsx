@@ -6,10 +6,13 @@ import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
 import { FaCrown } from 'react-icons/fa';
 
+type SortKey = 'level' | 'lessons' | 'missions';
+
 const LevelRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#ranking');
   const [entries, setEntries] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortKey, setSortKey] = useState<SortKey>('level');
   const { user, isGuest } = useAuthStore();
 
   useEffect(() => {
@@ -18,19 +21,38 @@ const LevelRanking: React.FC = () => {
     return () => window.removeEventListener('hashchange', handler);
   }, []);
 
+  // ソート関数
+  const sortEntries = (entries: RankingEntry[], key: SortKey): RankingEntry[] => {
+    return [...entries].sort((a, b) => {
+      switch (key) {
+        case 'level':
+          if (a.level !== b.level) return b.level - a.level;
+          return b.xp - a.xp; // レベルが同じ場合はXPで比較
+        case 'lessons':
+          if (a.lessons_cleared !== b.lessons_cleared) return b.lessons_cleared - a.lessons_cleared;
+          return b.level - a.level; // レッスン数が同じ場合はレベルで比較
+        case 'missions':
+          if (a.missions_completed !== b.missions_completed) return b.missions_completed - a.missions_completed;
+          return b.level - a.level; // ミッション数が同じ場合はレベルで比較
+        default:
+          return 0;
+      }
+    });
+  };
+
   useEffect(() => {
     if (open && user && !isGuest) {
       (async () => {
         setLoading(true);
         try {
           const data = await fetchLevelRanking();
-          setEntries(data);
+          setEntries(sortEntries(data, sortKey));
         } finally {
           setLoading(false);
         }
       })();
     }
-  }, [open, user, isGuest]);
+  }, [open, user, isGuest, sortKey]);
 
   if (!open) return null;
 
@@ -71,7 +93,42 @@ const LevelRanking: React.FC = () => {
         {loading ? (
           <p className="text-center text-gray-400">Loading...</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="space-y-4">
+            {/* ソート切り替えボタン */}
+            <div className="flex justify-center space-x-2">
+              <button
+                onClick={() => setSortKey('level')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  sortKey === 'level'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                }`}
+              >
+                Level
+              </button>
+              <button
+                onClick={() => setSortKey('lessons')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  sortKey === 'lessons'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                }`}
+              >
+                Lesson
+              </button>
+              <button
+                onClick={() => setSortKey('missions')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  sortKey === 'missions'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                }`}
+              >
+                Mission
+              </button>
+            </div>
+            
+            <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse min-w-[800px] sm:min-w-full">
             <thead>
               <tr className="border-b border-slate-700 text-left">
@@ -79,7 +136,8 @@ const LevelRanking: React.FC = () => {
                 <th className="py-2 px-2 min-w-[12rem] sm:min-w-[10rem]">ユーザー</th>
                 <th className="py-2 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">称号</th>
                 <th className="py-2 px-2 min-w-[3rem]">Lv</th>
-                <th className="py-2 px-2 min-w-[6rem] sm:min-w-[5rem]">XP</th>
+                <th className="py-2 px-2 min-w-[4rem]">レッスン</th>
+                <th className="py-2 px-2 min-w-[4rem]">ミッション</th>
                 <th className="py-2 px-2 min-w-[5rem] sm:min-w-[4rem]">ランク</th>
                 <th className="py-2 px-2 min-w-[8rem] sm:min-w-[6rem]">Twitter</th>
               </tr>
@@ -116,7 +174,8 @@ const LevelRanking: React.FC = () => {
                     </div>
                   </td>
                   <td className="py-1 px-2">{e.level}</td>
-                  <td className="py-1 px-2">{e.xp.toLocaleString()}</td>
+                  <td className="py-1 px-2">{e.lessons_cleared}</td>
+                  <td className="py-1 px-2">{e.missions_completed || 0}</td>
                   <td className="py-1 px-2 capitalize">{e.rank}</td>
                   <td className="py-1 px-2">
                     {e.twitter_handle ? (
@@ -135,6 +194,7 @@ const LevelRanking: React.FC = () => {
               })}
             </tbody>
           </table>
+            </div>
           </div>
         )}
       </div>
