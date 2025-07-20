@@ -5,6 +5,7 @@ import platform from '@/platform';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
+import { log } from '@/utils/logger';
 
 interface SheetMusicDisplayProps {
   className?: string;
@@ -43,7 +44,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     settings: s.settings, // 簡易表示設定を取得
   }));
   
-  const gameActions = useGameActions();
+  // const gameActions = useGameActions(); // 現在未使用
   
   // OSMDの初期化とレンダリング
   const loadAndRenderSheet = useCallback(async () => {
@@ -73,7 +74,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         chordsOnly: settings.sheetMusicChordsOnly
       });
       
-      console.log(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}`);
+      log.info(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}`);
       
       // OSMDインスタンスを毎回新規作成（移調時の確実な反映のため）
       const options: IOSMDOptions = {
@@ -115,19 +116,19 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         const svgWidth = svgElement.width.baseVal.value;
         const osmdWidth = boundingBox.width;
         scaleFactorRef.current = svgWidth / osmdWidth;
-        console.log(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (SVG: ${svgWidth}px, BBox: ${osmdWidth})`);
+        log.info(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (SVG: ${svgWidth}px, BBox: ${osmdWidth})`);
       } else {
-        console.warn('⚠️ Could not calculate OSMD scale factor, falling back to default 10.');
+        log.warn('⚠️ Could not calculate OSMD scale factor, falling back to default 10.');
         scaleFactorRef.current = 10;
       }
       
       // タイムマッピングを作成
       createTimeMapping();
       
-      console.log(`✅ OSMD initialized and rendered successfully - transpose reflected`);
+      log.info(`✅ OSMD initialized and rendered successfully - transpose reflected`);
       
     } catch (err) {
-      console.error('楽譜の読み込みまたはレンダリングエラー:', err);
+      log.error('楽譜の読み込みまたはレンダリングエラー:', err);
       setError(err instanceof Error ? err.message : '楽譜の処理中にエラーが発生しました');
     } finally {
       setIsLoading(false);
@@ -149,7 +150,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // 音符の時刻とX座標のマッピングを作成
   const createTimeMapping = useCallback(() => {
     if (!osmdRef.current || !notes || notes.length === 0) {
-      console.warn('タイムマッピング作成スキップ: OSMD未初期化またはノートデータなし');
+      log.warn('タイムマッピング作成スキップ: OSMD未初期化またはノートデータなし');
       return;
     }
 
@@ -157,14 +158,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     const graphicSheet = osmdRef.current.GraphicSheet;
     
     if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
-      console.warn('楽譜のグラフィック情報が取得できません');
+      log.warn('楽譜のグラフィック情報が取得できません');
       return;
     }
 
     let noteIndex = 0;
     let osmdPlayableNoteCount = 0;
     
-    console.log(`📊 OSMD Note Extraction Starting: ${notes.length} JSON notes to match`);
+    log.info(`📊 OSMD Note Extraction Starting: ${notes.length} JSON notes to match`);
     
     // 全ての音符を走査して演奏可能なノートのみを抽出
     const osmdPlayableNotes = [];
@@ -222,14 +223,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       }
     }
     
-    console.log(`📊 OSMD Note Extraction Summary:
+    log.info(`📊 OSMD Note Extraction Summary:
     OSMD playable notes: ${osmdPlayableNoteCount}
     JSON notes count: ${notes.length}
     Mapped notes: ${mapping.length}
     Match status: ${osmdPlayableNoteCount === notes.length ? '✅ Perfect match!' : '❌ Mismatch!'}`);
     
     if (osmdPlayableNoteCount !== notes.length) {
-      console.error(`ノート数の不一致: OSMD(${osmdPlayableNoteCount}) vs JSON(${notes.length}). プレイヘッドがずれる可能性があります。`);
+      log.error(`ノート数の不一致: OSMD(${osmdPlayableNoteCount}) vs JSON(${notes.length}). プレイヘッドがずれる可能性があります。`);
     }
     
     timeMappingRef.current = mapping; // refを更新
@@ -248,7 +249,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (isPlaying && scrollContainerRef.current) {
       // 再生開始時に即座にスクロール位置を0にリセット
       scrollContainerRef.current.scrollLeft = 0;
-      console.log('🎵 楽譜スクロールを開始位置にリセット');
+      log.info('🎵 楽譜スクロールを開始位置にリセット');
     }
   }, [isPlaying]);
 

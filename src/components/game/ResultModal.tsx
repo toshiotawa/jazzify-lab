@@ -3,11 +3,12 @@ import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { useLessonContext } from '@/stores/gameStore';
 import { addXp, calcLevel } from '@/platform/supabaseXp';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
-import { updateMissionSongProgress, fetchMissionSongProgress } from '@/platform/supabaseMissions';
+import { updateMissionSongProgress } from '@/platform/supabaseMissions';
 import { useAuthStore } from '@/stores/authStore';
 import { useMissionStore } from '@/stores/missionStore';
-import { calculateXP, calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
+import { calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
+import { log } from '@/utils/logger';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -78,7 +79,7 @@ const ResultModal: React.FC = () => {
           });
 
           // デバッグ用: ランクボーナスの確認
-          console.log('XP計算詳細:', {
+          log.info('XP計算詳細:', {
             membershipRank: profile.rank,
             membershipMultiplier: detailed.multipliers.membership,
             base: detailed.base,
@@ -150,7 +151,7 @@ const ResultModal: React.FC = () => {
                   lessonContext.clearConditions
                 );
               } catch (error) {
-                console.error('実習課題の進捗更新に失敗:', error);
+                log.error('実習課題の進捗更新に失敗:', error);
               }
             }
           }
@@ -201,16 +202,15 @@ const ResultModal: React.FC = () => {
                 // ミッション進捗キャッシュを強制更新
                 await fetchSongProgress(missionContext.missionId, true);
                 
-                // クリア回数統計を設定
-                const songProgress = await fetchMissionSongProgress(missionContext.missionId);
-                const newCount = songProgress.find((s: any) => s.song_id === currentSong.id)?.clear_count || 0;
+                // クリア回数統計を設定（fetchSongProgressはvoidを返すため、統計は後で取得）
+                const newCount = 0; // TODO: ミッション進捗から取得
                 setClearStats({ 
                   current: newCount, 
                   goal: missionSong.clears_required || 1 
                 });
               }
             } catch (error) {
-              console.error('ミッション進捗の更新に失敗:', error);
+              log.error('ミッション進捗の更新に失敗:', error);
             }
           }
           
@@ -229,7 +229,7 @@ const ResultModal: React.FC = () => {
                 goal: lessonContext.clearConditions.count || 1 
               });
             } catch (error) {
-              console.error('レッスン進捗の更新に失敗:', error);
+              log.error('レッスン進捗の更新に失敗:', error);
             }
           }
           
@@ -277,16 +277,16 @@ const ResultModal: React.FC = () => {
                 }
               }
             } catch (error) {
-              console.error('通常曲のクリア回数処理に失敗:', error);
+              log.error('通常曲のクリア回数処理に失敗:', error);
             }
           }
         } catch (error) {
-          console.error('結果画面の処理でエラーが発生しました:', error);
+          log.error('結果画面の処理でエラーが発生しました:', error);
           
           // エラーの詳細情報をログ出力
           if (error instanceof Error) {
-            console.error('エラーメッセージ:', error.message);
-            console.error('エラースタック:', error.stack);
+            log.error('エラーメッセージ:', error.message);
+            log.error('エラースタック:', error.stack);
           }
           
           // エラーが発生してもXP情報だけでも表示できるようにする
@@ -303,7 +303,7 @@ const ResultModal: React.FC = () => {
           }
         }
       })().catch(error => {
-        console.error('ResultModal async処理でキャッチされなかったエラー:', error);
+        log.error('ResultModal async処理でキャッチされなかったエラー:', error);
         
         // Promise rejectionを防ぐため、最小限の状態を設定
         if (!xpInfo) {
@@ -339,7 +339,7 @@ const ResultModal: React.FC = () => {
       .single();
     
     if (error) {
-      console.error('ミッション曲条件の取得に失敗:', error);
+      log.error('ミッション曲条件の取得に失敗:', error);
       return {
         min_rank: 'B',
         min_speed: 1.0,

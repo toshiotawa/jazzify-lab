@@ -15,7 +15,7 @@ const InformationPage: React.FC = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const { user, isGuest } = useAuthStore();
+  const { user } = useAuthStore();
   const toast = useToast();
 
   useEffect(() => {
@@ -29,25 +29,21 @@ const InformationPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (open && user && !isGuest) {
+    if (open && user) {
       loadAnnouncements();
     }
-  }, [open, user, isGuest]);
+  }, [open, user]);
 
   const loadAnnouncements = async () => {
     setLoading(true);
     try {
       const data = await fetchActiveAnnouncements();
       setAnnouncements(data);
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error('お知らせの読み込みに失敗しました');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleClose = () => {
-    window.location.href = '/main#dashboard';
   };
 
   const toggleExpanded = (id: string) => {
@@ -65,7 +61,7 @@ const InformationPage: React.FC = () => {
   if (!open) return null;
 
   // ゲストユーザーの場合
-  if (!user || isGuest) {
+  if (!user) {
     return (
       <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
         <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">
