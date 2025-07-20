@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown } from 'react-icons/fa';
+import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap } from 'react-icons/fa';
 import DiaryFeed from './DiaryFeed';
 import { useAuthStore } from '@/stores/authStore';
 import DiaryEditor from './DiaryEditor';
@@ -8,7 +8,7 @@ import { useDiaryStore } from '@/stores/diaryStore';
 import { useToast } from '@/stores/toastStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
+import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES } from '@/utils/titleConstants';
 import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
 
 interface UserDiary {
@@ -159,6 +159,39 @@ const DiaryPage: React.FC = () => {
     );
   }
 
+  // 称号の種類を判定する関数
+  const getTitleType = (title: string): 'level' | 'mission' | 'lesson' => {
+    // レベル称号の判定
+    if (TITLES.includes(title as any)) {
+      return 'level';
+    }
+    // ミッション称号の判定
+    if (MISSION_TITLES.some(mt => mt.name === title)) {
+      return 'mission';
+    }
+    // レッスン称号の判定
+    if (LESSON_TITLES.some(lt => lt.name === title)) {
+      return 'lesson';
+    }
+    // デフォルトはレベル称号
+    return 'level';
+  };
+
+  // 称号タイプに応じたアイコンを取得する関数
+  const getTitleIcon = (title: string) => {
+    const titleType = getTitleType(title);
+    switch (titleType) {
+      case 'level':
+        return <FaCrown className="text-yellow-400 text-sm" />;
+      case 'mission':
+        return <FaTrophy className="text-purple-400 text-sm" />;
+      case 'lesson':
+        return <FaGraduationCap className="text-blue-400 text-sm" />;
+      default:
+        return <FaCrown className="text-yellow-400 text-sm" />;
+    }
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
@@ -201,7 +234,7 @@ const DiaryPage: React.FC = () => {
                       
                       {/* 称号表示 */}
                       <div className="flex items-center space-x-2 mb-2">
-                        <FaCrown className="text-yellow-400 text-sm" />
+                        {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
                         <span className="text-yellow-400 font-medium text-sm">
                           {(profile.selected_title as Title) || DEFAULT_TITLE}
                         </span>

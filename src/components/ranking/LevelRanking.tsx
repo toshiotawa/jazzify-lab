@@ -3,8 +3,8 @@ import { fetchLevelRanking, RankingEntry } from '@/platform/supabaseRanking';
 import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
-import { FaCrown } from 'react-icons/fa';
+import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES } from '@/utils/titleConstants';
+import { FaCrown, FaStar, FaTrophy, FaGraduationCap } from 'react-icons/fa';
 
 type SortKey = 'level' | 'lessons' | 'missions';
 
@@ -85,6 +85,39 @@ const LevelRanking: React.FC = () => {
       </div>
     );
   }
+
+  // 称号の種類を判定する関数
+  const getTitleType = (title: string): 'level' | 'mission' | 'lesson' => {
+    // レベル称号の判定
+    if (TITLES.includes(title as any)) {
+      return 'level';
+    }
+    // ミッション称号の判定
+    if (MISSION_TITLES.some(mt => mt.name === title)) {
+      return 'mission';
+    }
+    // レッスン称号の判定
+    if (LESSON_TITLES.some(lt => lt.name === title)) {
+      return 'lesson';
+    }
+    // デフォルトはレベル称号
+    return 'level';
+  };
+
+  // 称号タイプに応じたアイコンを取得する関数
+  const getTitleIcon = (title: string) => {
+    const titleType = getTitleType(title);
+    switch (titleType) {
+      case 'level':
+        return <FaCrown className="text-xs flex-shrink-0 text-yellow-400" />;
+      case 'mission':
+        return <FaTrophy className="text-xs flex-shrink-0 text-purple-400" />;
+      case 'lesson':
+        return <FaGraduationCap className="text-xs flex-shrink-0 text-blue-400" />;
+      default:
+        return <FaCrown className="text-xs flex-shrink-0 text-yellow-400" />;
+    }
+  };
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
@@ -167,7 +200,7 @@ const LevelRanking: React.FC = () => {
                   </td>
                   <td className="py-1 px-2 whitespace-nowrap">
                     <div className="flex items-center gap-1 text-yellow-400">
-                      <FaCrown className="text-xs flex-shrink-0" />
+                      {getTitleIcon((e.selected_title as Title) || DEFAULT_TITLE)}
                       <span className="text-xs truncate">
                         {(e.selected_title as Title) || DEFAULT_TITLE}
                       </span>
