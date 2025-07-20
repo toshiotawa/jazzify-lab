@@ -258,7 +258,6 @@ const App: React.FC = () => {
         {user && !isGuest && (
           <>
             <ProfileWizard />
-            <AccountPage />
           </>
         )}
         
