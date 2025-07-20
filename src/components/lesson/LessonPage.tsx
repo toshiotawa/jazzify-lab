@@ -34,6 +34,7 @@ const LessonPage: React.FC = () => {
   const [lessonRequirementsProgress, setLessonRequirementsProgress] = useState<Record<string, LessonRequirementProgress[]>>({});
   const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
   const [courseUnlockStatus, setCourseUnlockStatus] = useState<Record<string, boolean>>({});
+  const [allCoursesProgress, setAllCoursesProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
@@ -136,6 +137,36 @@ const LessonPage: React.FC = () => {
       setCompletedCourseIds(completedCourses);
       setCourseUnlockStatus(unlockStatus);
       
+      // 全コースの進捗データを並行取得して完了率を計算
+      if (profile) {
+        try {
+          const courseProgressPromises = sortedCourses.map(async (course) => {
+            try {
+              const [courseProgressData, courseLessonsData] = await Promise.all([
+                fetchUserLessonProgress(course.id),
+                fetchLessonsByCourse(course.id)
+              ]);
+              
+              if (courseLessonsData.length === 0) return [course.id, 0];
+              
+              const completedCount = courseProgressData.filter(p => p.completed).length;
+              const completionRate = Math.round((completedCount / courseLessonsData.length) * 100);
+              
+              return [course.id, completionRate];
+            } catch (error) {
+              console.error(`Failed to load progress for course ${course.id}:`, error);
+              return [course.id, 0];
+            }
+          });
+
+          const courseProgressResults = await Promise.all(courseProgressPromises);
+          const progressMap = Object.fromEntries(courseProgressResults) as Record<string, number>;
+          setAllCoursesProgress(progressMap);
+        } catch (error) {
+          console.error('Error loading course progress data:', error);
+        }
+      }
+      
       // アクセス可能な最初のコースを選択
       const firstAccessibleCourse = sortedCourses.find(course => {
         const courseUnlockFlag = unlockStatus[course.id] !== undefined ? unlockStatus[course.id] : null;
@@ -237,6 +268,16 @@ const LessonPage: React.FC = () => {
       });
       
       setProgress(updatedProgressMap);
+      
+      // 選択中のコースの進捗率を再計算してallCoursesProgressを更新
+      if (lessonsData.length > 0) {
+        const completedCount = updatedProgressData.filter(p => p.completed).length;
+        const completionRate = Math.round((completedCount / lessonsData.length) * 100);
+        setAllCoursesProgress(prev => ({
+          ...prev,
+          [courseId]: completionRate
+        }));
+      }
     } catch (e: any) {
       toast.error('レッスンデータの読み込みに失敗しました');
       console.error('Error loading lessons:', e);
@@ -265,13 +306,20 @@ const LessonPage: React.FC = () => {
   };
 
   const getCourseCompletionRate = (course: Course): number => {
-    if (course.id !== selectedCourse?.id) return 0;
-    if (lessons.length === 0) return 0;
-
-    const totalLessons = lessons.length;
-    const completedLessons = lessons.filter(lesson => progress[lesson.id]?.completed).length;
-
-    return Math.round((completedLessons / totalLessons) * 100);
+    // 事前計算されたコース進捗データから取得
+    if (allCoursesProgress[course.id] !== undefined) {
+      return allCoursesProgress[course.id];
+    }
+    
+    // 選択中のコースで詳細データが利用可能な場合は計算
+    if (course.id === selectedCourse?.id && lessons.length > 0) {
+      const totalLessons = lessons.length;
+      const completedLessons = lessons.filter(lesson => progress[lesson.id]?.completed).length;
+      return Math.round((completedLessons / totalLessons) * 100);
+    }
+    
+    // デフォルトは0%
+    return 0;
   };
 
   const handleClose = () => {
