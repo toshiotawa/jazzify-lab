@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { Session, User } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/platform/supabaseClient';
+import { useUserStatsStore } from './userStatsStore';
 
 interface AuthState {
   user: User | null;
@@ -250,6 +251,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             state.profile = null;
           }
         });
+
+        // プロフィール取得成功後、ユーザー統計も並行で取得
+        if (data && !error) {
+          const { fetchStats } = useUserStatsStore.getState();
+          fetchStats(user.id).catch(console.error); // エラーは無視（統計は重要ではない）
+        }
       } catch (err) {
         console.error('Profile fetch error:', err);
         

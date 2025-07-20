@@ -11,6 +11,7 @@ import {
 import { clearSupabaseCache, clearCacheByKey } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
+import { useUserStatsStore } from '@/stores/userStatsStore';
 import { Lesson } from '@/types';
 import GameHeader from '@/components/ui/GameHeader';
 import { 
@@ -57,6 +58,7 @@ const LessonDetailPage: React.FC = () => {
   const [showSkipModal, setShowSkipModal] = useState(false);
   const { profile } = useAuthStore();
   const toast = useToast();
+  const { fetchStats } = useUserStatsStore();
   const [assignmentChecks, setAssignmentChecks] = useState<boolean[]>([]);
   const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -166,6 +168,9 @@ const LessonDetailPage: React.FC = () => {
       }
       clearSupabaseCache(); // 全体キャッシュもクリア
       
+      // ユーザー統計を更新
+      fetchStats().catch(console.error); // エラーは無視
+      
       toast.success('レッスンを完了しました！', {
         title: '🎉 完了',
         duration: 3000,
@@ -192,6 +197,9 @@ const LessonDetailPage: React.FC = () => {
         clearCacheByKey(LESSON_PROGRESS_CACHE_KEY(lesson.course_id, profile.id));
       }
       clearSupabaseCache(); // 全体キャッシュもクリア
+      
+      // ユーザー統計を更新
+      fetchStats().catch(console.error); // エラーは無視
       
       toast.success('レッスンをスキップしました');
       setShowSkipModal(false);

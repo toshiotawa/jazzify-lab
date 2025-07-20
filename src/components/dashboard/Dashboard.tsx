@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useMissionStore } from '@/stores/missionStore';
+import { useUserStatsStore } from '@/stores/userStatsStore';
 import { Announcement, fetchActiveAnnouncements } from '@/platform/supabaseAnnouncements';
 import { useToast } from '@/stores/toastStore';
 import { mdToHtml } from '@/utils/markdown';
@@ -23,7 +24,6 @@ import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES } from '@/utils/titleConstants';
-import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
 
 /**
  * ダッシュボード画面
@@ -33,9 +33,9 @@ const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const { profile, isGuest } = useAuthStore();
   const { monthly: missions, fetchAll: loadMissions } = useMissionStore();
+  const { stats: userStats, fetchStats, loading: statsLoading } = useUserStatsStore();
   const toast = useToast();
 
   useEffect(() => {
@@ -114,9 +114,7 @@ const Dashboard: React.FC = () => {
       // ユーザー統計のロード（ゲスト以外）- 他のデータと完全に並行実行
       if (!isGuest && profile) {
         promises.push(
-          fetchUserStats(profile.id).then(stats => {
-            setUserStats(stats);
-          }).catch((statsError: any) => {
+          fetchStats(profile.id).catch((statsError: any) => {
             console.error('User stats loading error:', statsError);
             // 統計の読み込み失敗は致命的ではないので、エラーログのみ
           })
@@ -206,12 +204,16 @@ const Dashboard: React.FC = () => {
                   </div>
                   
                   {/* ミッション・レッスン統計 */}
-                  {userStats && (
+                  {statsLoading ? (
+                    <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
+                      <span className="animate-pulse">統計を読み込み中...</span>
+                    </div>
+                  ) : userStats ? (
                     <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
                       <span>ミッション完了数 {userStats.missionCompletedCount}</span>
                       <span>レッスンクリア数 {userStats.lessonCompletedCount}</span>
                     </div>
-                  )}
+                  ) : null}
                   
                   {/* 経験値進捗 */}
                   <div className="mt-4">

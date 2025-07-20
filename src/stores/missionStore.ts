@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { Mission, UserMissionProgress, MissionSongProgress, fetchActiveMonthlyMissions, fetchUserMissionProgress, fetchMissionSongProgress, fetchMissionSongProgressAll, claimReward } from '@/platform/supabaseMissions';
 import { useToastStore } from '@/stores/toastStore';
+import { useUserStatsStore } from './userStatsStore';
 
 interface State {
   monthly: Mission[];
@@ -94,6 +95,10 @@ export const useMissionStore = create<State & Actions>()(
         console.log('fetchAll開始');
         await get().fetchAll();
         console.log('fetchAll完了');
+        
+        // ユーザー統計を更新
+        const { fetchStats } = useUserStatsStore.getState();
+        fetchStats().catch(console.error); // エラーは無視
         
         // トースト通知を表示
         const { push } = useToastStore.getState();
