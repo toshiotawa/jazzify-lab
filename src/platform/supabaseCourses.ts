@@ -288,9 +288,9 @@ export function canAccessCourse(
 /**
  * ユーザーのコースアンロック状況を取得します
  * @param {string} userId
- * @returns {Promise<Record<string, boolean>>} コースIDをキーとするアンロック状況
+ * @returns {Promise<Record<string, boolean | null>>} コースIDをキーとするアンロック状況
  */
-export async function fetchUserCourseUnlockStatus(userId: string): Promise<Record<string, boolean>> {
+export async function fetchUserCourseUnlockStatus(userId: string): Promise<Record<string, boolean | null>> {
   try {
     const { data, error } = await getSupabaseClient()
       .from('user_course_progress')
@@ -302,7 +302,7 @@ export async function fetchUserCourseUnlockStatus(userId: string): Promise<Recor
       return {};
     }
 
-    const unlockStatus: Record<string, boolean> = {};
+    const unlockStatus: Record<string, boolean | null> = {};
     data?.forEach((item) => {
       unlockStatus[item.course_id] = item.is_unlocked;
     });

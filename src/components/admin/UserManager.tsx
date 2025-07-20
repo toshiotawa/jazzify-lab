@@ -23,7 +23,7 @@ const UserManager: React.FC = () => {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [userLessonProgress, setUserLessonProgress] = useState<LessonProgress[]>([]);
   const [showProgressModal, setShowProgressModal] = useState(false);
-  const [userCourseUnlockStatus, setUserCourseUnlockStatus] = useState<Record<string, boolean>>({});
+  const [userCourseUnlockStatus, setUserCourseUnlockStatus] = useState<Record<string, boolean | null>>({});
 
   const load = async (forceRefresh = false) => {
     setLoading(true);

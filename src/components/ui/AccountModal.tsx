@@ -4,7 +4,9 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import { uploadAvatar } from '@/platform/supabaseStorage';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { getAvailableTitles, DEFAULT_TITLE, type Title } from '@/utils/titleConstants';
+import { getAvailableTitles, DEFAULT_TITLE, getTitleConditionText } from '@/utils/titleConstants';
+import type { Title } from '@/utils/titleConstants';
+import { getUserAchievementTitles, formatAchievementTitleDisplay } from '@/utils/achievementTitles';
 import { updateUserTitle } from '@/platform/supabaseTitles';
 import { compressProfileImage } from '@/utils/imageCompression';
 
@@ -27,6 +29,12 @@ const AccountPage: React.FC = () => {
   const [selectedTitle, setSelectedTitle] = useState<Title>((profile?.selected_title as Title) || DEFAULT_TITLE);
   const [titleSaving, setTitleSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [achievementTitles, setAchievementTitles] = useState<{
+    missionTitles: string[];
+    lessonTitles: string[];
+    missionCompletedCount: number;
+    lessonCompletedCount: number;
+  }>({ missionTitles: [], lessonTitles: [], missionCompletedCount: 0, lessonCompletedCount: 0 });
 
   // ハッシュ変更で開閉
   useEffect(() => {
@@ -39,6 +47,17 @@ const AccountPage: React.FC = () => {
 
   useEffect(()=>{ setBio(profile?.bio || ''); }, [profile]);
   useEffect(()=>{ setTwitterHandle(profile?.twitter_handle?.replace(/^@/, '') || ''); }, [profile]);
+  
+  // アチーブメント称号データを取得
+  useEffect(() => {
+    const loadAchievementTitles = async () => {
+      if (profile?.id) {
+        const titles = await getUserAchievementTitles(profile.id);
+        setAchievementTitles(titles);
+      }
+    };
+    loadAchievementTitles();
+  }, [profile?.id]);
 
   if (!open) return null;
 
@@ -98,11 +117,42 @@ const AccountPage: React.FC = () => {
                   }}
                   disabled={titleSaving}
                 >
-                  {getAvailableTitles(profile.level).map((title) => (
-                    <option key={title} value={title}>
-                      {title}
-                    </option>
-                  ))}
+                  {/* レッスンクリア称号カテゴリ */}
+                  {achievementTitles.lessonTitles.length > 0 && (
+                    <optgroup label="レッスンクリア称号">
+                      {achievementTitles.lessonTitles.map((title) => {
+                        const conditionText = getTitleConditionText(title);
+                        return (
+                          <option key={title} value={title}>
+                            {title} - {conditionText}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  )}
+                  
+                  {/* ミッションクリア称号カテゴリ */}
+                  {achievementTitles.missionTitles.length > 0 && (
+                    <optgroup label="ミッションクリア称号">
+                      {achievementTitles.missionTitles.map((title) => {
+                        const conditionText = getTitleConditionText(title);
+                        return (
+                          <option key={title} value={title}>
+                            {title} - {conditionText}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  )}
+                  
+                  {/* レベル称号カテゴリ */}
+                  <optgroup label="レベル称号">
+                    {getAvailableTitles(profile.level).map((title) => (
+                      <option key={title} value={title}>
+                        {title}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
                 {titleSaving && (
                   <div className="text-xs text-gray-400">称号を更新中...</div>

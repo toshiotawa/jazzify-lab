@@ -33,7 +33,7 @@ const LessonPage: React.FC = () => {
   const [progress, setProgress] = useState<Record<string, LessonProgress>>({});
   const [lessonRequirementsProgress, setLessonRequirementsProgress] = useState<Record<string, LessonRequirementProgress[]>>({});
   const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
-  const [courseUnlockStatus, setCourseUnlockStatus] = useState<Record<string, boolean>>({});
+  const [courseUnlockStatus, setCourseUnlockStatus] = useState<Record<string, boolean | null>>({});
   const [allCoursesProgress, setAllCoursesProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
@@ -127,7 +127,7 @@ const LessonPage: React.FC = () => {
       const [coursesData, completedCourses, unlockStatus] = await Promise.all([
         fetchCoursesWithDetails(),
         profile ? fetchUserCompletedCourses(profile.id) : Promise.resolve([]),
-        profile ? fetchUserCourseUnlockStatus(profile.id) : Promise.resolve({})
+        profile ? fetchUserCourseUnlockStatus(profile.id) : Promise.resolve({} as Record<string, boolean | null>)
       ]);
       
       // 並び順でソート

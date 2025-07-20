@@ -206,7 +206,299 @@ export const TITLES = [
   '最後の即興詩人',               // レベル1990
 ] as const;
 
-export type Title = typeof TITLES[number];
+export type MissionTitle = typeof MISSION_TITLES[number]['name'];
+export type LessonTitle = typeof LESSON_TITLES[number]['name'];
+export type AchievementTitle = MissionTitle | LessonTitle;
+export type Title = typeof TITLES[number] | MissionTitle | LessonTitle;
+
+/**
+ * ミッションクリア称号の定義（1+10n個完了ごとに獲得）
+ */
+export const MISSION_TITLES = [
+  { name: '記録者', threshold: 1 },
+  { name: '呼吸', threshold: 11 },
+  { name: '観測者', threshold: 21 },
+  { name: '探求', threshold: 31 },
+  { name: '求道', threshold: 41 },
+  { name: '職人', threshold: 51 },
+  { name: '吟遊詩', threshold: 61 },
+  { name: '黎明', threshold: 71 },
+  { name: '黄昏', threshold: 81 },
+  { name: '追憶', threshold: 91 },
+  { name: '共鳴', threshold: 101 },
+  { name: '波動', threshold: 111 },
+  { name: '囁き', threshold: 121 },
+  { name: '旋風', threshold: 131 },
+  { name: '閃光', threshold: 141 },
+  { name: '流星', threshold: 151 },
+  { name: '黒猫', threshold: 161 },
+  { name: '無頼', threshold: 171 },
+  { name: '亜流', threshold: 181 },
+  { name: '晴耕雨読', threshold: 191 },
+  { name: '読譜能力', threshold: 201 },
+  { name: '聴音能力', threshold: 211 },
+  { name: '拍子感覚', threshold: 221 },
+  { name: '音楽理論', threshold: 231 },
+  { name: '和声進行', threshold: 241 },
+  { name: '楽曲構造', threshold: 251 },
+  { name: '演奏技術', threshold: 261 },
+  { name: '表現技法', threshold: 271 },
+  { name: '即興演奏', threshold: 281 },
+  { name: '感情移入', threshold: 291 },
+  { name: '精神統一', threshold: 301 },
+  { name: '開拓者', threshold: 311 },
+  { name: '継承者', threshold: 321 },
+  { name: '指揮官', threshold: 331 },
+  { name: '錬金術', threshold: 341 },
+  { name: '魔術師', threshold: 351 },
+  { name: '本流', threshold: 361 },
+  { name: '異形', threshold: 371 },
+  { name: '憂愁', threshold: 381 },
+  { name: '彷徨', threshold: 391 },
+  { name: '寂寥', threshold: 401 },
+  { name: '咆哮', threshold: 411 },
+  { name: '蜃気楼', threshold: 421 },
+  { name: '銀盤', threshold: 431 },
+  { name: '鉄人', threshold: 441 },
+  { name: '影武者', threshold: 451 },
+  { name: '預言者', threshold: 461 },
+  { name: '奇才', threshold: 471 },
+  { name: '天才', threshold: 481 },
+  { name: '達観', threshold: 491 },
+  { name: '核心', threshold: 501 },
+  { name: '究極', threshold: 511 },
+  { name: '臨機応変', threshold: 521 },
+  { name: '付和雷同', threshold: 531 },
+  { name: '傍目八目', threshold: 541 },
+  { name: '自問自答', threshold: 551 },
+  { name: '暗中模索', threshold: 561 },
+  { name: '五里霧中', threshold: 571 },
+  { name: '隔靴掻痒', threshold: 581 },
+  { name: '孤軍奮闘', threshold: 591 },
+  { name: '臥薪嘗胆', threshold: 601 },
+  { name: '捲土重来', threshold: 611 },
+  { name: '質実剛健', threshold: 621 },
+  { name: '大胆不敵', threshold: 631 },
+  { name: '百花繚乱', threshold: 641 },
+  { name: '一刀両断', threshold: 651 },
+  { name: '竜頭蛇尾', threshold: 661 },
+  { name: '羊頭狗肉', threshold: 671 },
+  { name: '朝令暮改', threshold: 681 },
+  { name: '八方美人', threshold: 691 },
+  { name: '支離滅裂', threshold: 701 },
+  { name: '律動神官', threshold: 711 },
+  { name: '和声怪人', threshold: 721 },
+  { name: '旋律魔人', threshold: 731 },
+  { name: '黒猫探偵', threshold: 741 },
+  { name: '月下美人', threshold: 751 },
+  { name: '摩天楼上', threshold: 761 },
+  { name: '地下聖堂', threshold: 771 },
+  { name: '煉瓦倉庫', threshold: 781 },
+  { name: '無人劇場', threshold: 791 },
+  { name: '廃墟都市', threshold: 801 },
+  { name: '迷宮回廊', threshold: 811 },
+  { name: '紫煙遊戯', threshold: 821 },
+  { name: '珈琲哲学', threshold: 831 },
+  { name: '孤独讃歌', threshold: 841 },
+  { name: '憂鬱詩人', threshold: 851 },
+  { name: '刹那主義', threshold: 861 },
+  { name: '反骨精神', threshold: 871 },
+  { name: '独立独歩', threshold: 881 },
+  { name: '深謀遠慮', threshold: 891 },
+  { name: '独断専行', threshold: 901 },
+  { name: '傍若無人', threshold: 911 },
+  { name: '最終楽章', threshold: 921 },
+  { name: '演奏機械', threshold: 931 },
+  { name: '音響兵器', threshold: 941 },
+  { name: '未確認体', threshold: 951 },
+  { name: '観測不能', threshold: 961 },
+  { name: '解析不能', threshold: 971 },
+  { name: '模倣不能', threshold: 981 },
+  { name: '異次元論', threshold: 991 },
+  { name: '精神世界', threshold: 1001 },
+  { name: '意識改革', threshold: 1011 },
+  { name: '感情表現', threshold: 1021 },
+  { name: '衝動解放', threshold: 1031 },
+  { name: '破壊衝動', threshold: 1041 },
+  { name: '創造意欲', threshold: 1051 },
+  { name: '探求精神', threshold: 1061 },
+  { name: '自己矛盾', threshold: 1071 },
+  { name: '危機一髪', threshold: 1081 },
+  { name: '絶体絶命', threshold: 1091 },
+  { name: '起死回生', threshold: 1101 },
+  { name: '乾坤一擲', threshold: 1111 },
+  { name: '妖怪変化', threshold: 1121 },
+  { name: '悪鬼羅刹', threshold: 1131 },
+  { name: '魑魅魍魎', threshold: 1141 },
+  { name: '百鬼夜行', threshold: 1151 },
+  { name: '孤城落日', threshold: 1161 },
+  { name: '四面楚歌', threshold: 1171 },
+  { name: '内憂外患', threshold: 1181 },
+  { name: '孤影独奏', threshold: 1191 },
+  { name: '月下独酌', threshold: 1201 },
+  { name: '雨夜暗黒', threshold: 1211 },
+  { name: '雪月風花', threshold: 1221 },
+  { name: '夢幻泡影', threshold: 1231 },
+  { name: '理論武装', threshold: 1241 },
+  { name: '百戦錬磨', threshold: 1251 },
+  { name: '千変万化', threshold: 1261 },
+  { name: '疾風迅雷', threshold: 1271 },
+  { name: '電光石火', threshold: 1281 },
+  { name: '風林火山', threshold: 1291 },
+  { name: '神出鬼没', threshold: 1301 },
+  { name: '画竜点睛', threshold: 1311 },
+  { name: '記憶喪失', threshold: 1321 },
+  { name: '記憶改竄', threshold: 1331 },
+  { name: '感情欠落', threshold: 1341 },
+  { name: '論理破綻', threshold: 1351 },
+  { name: '思考実験', threshold: 1361 },
+  { name: '行動原理', threshold: 1371 },
+  { name: '価値基準', threshold: 1381 },
+  { name: '存在理由', threshold: 1391 },
+  { name: '最終問答', threshold: 1401 },
+  { name: '現実逃避', threshold: 1411 },
+  { name: '過去回帰', threshold: 1421 },
+  { name: '未来予測', threshold: 1431 },
+  { name: '刹那', threshold: 1441 },
+  { name: '混沌', threshold: 1451 },
+  { name: '秩序', threshold: 1461 },
+  { name: '破壊', threshold: 1471 },
+  { name: '創造', threshold: 1481 },
+  { name: '無心', threshold: 1491 },
+  { name: '異端', threshold: 1501 },
+  { name: '孤高', threshold: 1511 },
+  { name: '新星', threshold: 1521 },
+  { name: '巨星', threshold: 1531 },
+  { name: '伝説', threshold: 1541 },
+  { name: '修羅', threshold: 1551 },
+  { name: '鬼神', threshold: 1561 },
+  { name: '無形', threshold: 1571 },
+  { name: '残響', threshold: 1581 },
+  { name: '超絶技巧', threshold: 1591 },
+  { name: '時空旅人', threshold: 1601 },
+  { name: '永久機関', threshold: 1611 },
+  { name: '最終兵器', threshold: 1621 },
+  { name: '絶対零度', threshold: 1631 },
+  { name: '臨界突破', threshold: 1641 },
+  { name: '存在証明', threshold: 1651 },
+  { name: '虚無思想', threshold: 1661 },
+  { name: '無音空間', threshold: 1671 },
+  { name: '不可侵域', threshold: 1681 },
+  { name: '天衣無縫', threshold: 1691 },
+  { name: '一期一会', threshold: 1701 },
+  { name: '唯我独尊', threshold: 1711 },
+  { name: '唯一無二', threshold: 1721 },
+  { name: '古今無双', threshold: 1731 },
+  { name: '空前絶後', threshold: 1741 },
+  { name: '天上天下', threshold: 1751 },
+  { name: '因果応報', threshold: 1761 },
+  { name: '自業自得', threshold: 1771 },
+  { name: '煩悩具足', threshold: 1781 },
+  { name: '三千世界', threshold: 1791 },
+  { name: '無限地獄', threshold: 1801 },
+  { name: '諸行無常', threshold: 1811 },
+  { name: '色即是空', threshold: 1821 },
+  { name: '空即是色', threshold: 1831 },
+  { name: '森羅万象', threshold: 1841 },
+  { name: '自己表現', threshold: 1851 },
+  { name: '完全燃焼', threshold: 1861 },
+  { name: '輪廻', threshold: 1871 },
+  { name: '虚空', threshold: 1881 },
+  { name: '月読', threshold: 1891 },
+  { name: '神奏', threshold: 1901 },
+  { name: '夜帝', threshold: 1911 },
+  { name: '音聖', threshold: 1921 },
+] as const;
+
+/**
+ * レッスンクリア称号の定義（1+10n個完了ごとに獲得）
+ */
+export const LESSON_TITLES = [
+  { name: 'かぜのゆくえ', threshold: 1 },
+  { name: 'あめあがりのにおい', threshold: 11 },
+  { name: 'ちいさなためいき', threshold: 21 },
+  { name: 'なくしたかぎ', threshold: 31 },
+  { name: 'ひとりぼっちのわるつ', threshold: 41 },
+  { name: 'なみだのあじ', threshold: 51 },
+  { name: 'ぼくはここにいる', threshold: 61 },
+  { name: 'きみはどこにいる', threshold: 71 },
+  { name: 'いつかみたそら', threshold: 81 },
+  { name: 'わすれられたうた', threshold: 91 },
+  { name: 'すきまかぜのこもりうた', threshold: 101 },
+  { name: 'あさやけのこーひー', threshold: 111 },
+  { name: 'こどうのりずむ', threshold: 121 },
+  { name: 'あともうちょっと', threshold: 131 },
+  { name: 'まだまださきはながい', threshold: 141 },
+  { name: 'まよなかのてつがくしゃ', threshold: 151 },
+  { name: 'がらすだまのうちゅう', threshold: 161 },
+  { name: 'とどかないおもい', threshold: 171 },
+  { name: 'じかんのかくれんぼ', threshold: 181 },
+  { name: 'とけないまほう', threshold: 191 },
+  { name: 'ぜんとあく', threshold: 201 },
+  { name: 'はっぴーえんどがいいな', threshold: 211 },
+  { name: 'ばっどえんどもわるくない', threshold: 221 },
+  { name: 'むちのち', threshold: 231 },
+  { name: 'たいせつなきおく', threshold: 241 },
+  { name: 'かけがえのないもの', threshold: 251 },
+  { name: 'てんしのうたごえ', threshold: 261 },
+  { name: 'かみさまのきまぐれ', threshold: 271 },
+  { name: 'うんめいのいたずら', threshold: 281 },
+  { name: 'じかんがとまるまほう', threshold: 291 },
+  { name: 'せかいがかわるいちびょう', threshold: 301 },
+  { name: 'よるをわたるねこ', threshold: 311 },
+  { name: 'つきのうらがわ', threshold: 321 },
+  { name: 'ほしのささやき', threshold: 331 },
+  { name: 'はなはまたさく', threshold: 341 },
+  { name: 'こたえはかぜのなか', threshold: 351 },
+  { name: 'じごくのそこから', threshold: 361 },
+  { name: 'てんごくのかいだん', threshold: 371 },
+  { name: 'つくることとこわすこと', threshold: 381 },
+  { name: 'しんじることとうたがうこと', threshold: 391 },
+  { name: 'とまることとすすむこと', threshold: 401 },
+  { name: 'ひらくことととじること', threshold: 411 },
+  { name: 'つなぐことときること', threshold: 421 },
+  { name: 'みたすこととからになること', threshold: 431 },
+  { name: 'はじまりとおわり', threshold: 441 },
+  { name: 'であいとわかれ', threshold: 451 },
+  { name: 'へいわとあらそい', threshold: 461 },
+  { name: 'いかりとゆるし', threshold: 471 },
+  { name: 'よろこびとかなしみ', threshold: 481 },
+  { name: 'きぼうとぜつぼう', threshold: 491 },
+  { name: 'あいとぞうお', threshold: 501 },
+  { name: 'なみだをふいて', threshold: 511 },
+  { name: 'えがおになろう', threshold: 521 },
+  { name: 'おどりをどろう', threshold: 531 },
+  { name: 'うたをうたおう', threshold: 541 },
+  { name: 'そらをみあげて', threshold: 551 },
+  { name: 'てをとりあって', threshold: 561 },
+  { name: 'あしあとをのこして', threshold: 571 },
+  { name: 'みちをつくって', threshold: 581 },
+  { name: 'ときをきざんで', threshold: 591 },
+  { name: 'れきしをかえて', threshold: 601 },
+  { name: 'みらいへつなぐ', threshold: 611 },
+  { name: 'いのちはつづく', threshold: 621 },
+  { name: 'はかないいのち', threshold: 631 },
+  { name: 'とうといじかん', threshold: 641 },
+  { name: 'いっしゅんのえいえん', threshold: 651 },
+  { name: 'ゆめかうつつか', threshold: 661 },
+  { name: 'ぜろになる', threshold: 671 },
+  { name: 'すべてがはじまる', threshold: 681 },
+  { name: 'なにかがおこる', threshold: 691 },
+  { name: 'せかいはうつくしい', threshold: 701 },
+  { name: 'それでもいきる', threshold: 711 },
+  { name: 'はじまりのおと', threshold: 721 },
+  { name: 'ただそれだけのこと', threshold: 731 },
+  { name: 'ひとりじゃない', threshold: 741 },
+  { name: 'みんながいる', threshold: 751 },
+  { name: 'きみがいれば', threshold: 761 },
+  { name: 'ぼくがいるから', threshold: 771 },
+  { name: 'だいじょうぶ', threshold: 781 },
+  { name: 'しんぱいしないで', threshold: 791 },
+  { name: 'いつでもそばに', threshold: 801 },
+  { name: 'これからもずっと', threshold: 811 },
+  { name: 'やくそくだよ', threshold: 821 },
+  { name: 'ありがとう', threshold: 831 },
+] as const;
 
 /**
  * レベルから利用可能な称号のインデックスを取得
@@ -229,7 +521,7 @@ export const getAvailableTitleIndices = (level: number): number[] => {
  * @param level ユーザーのレベル
  * @returns 利用可能な称号の配列
  */
-export const getAvailableTitles = (level: number): Title[] => {
+export const getAvailableTitles = (level: number): (typeof TITLES[number])[] => {
   const indices = getAvailableTitleIndices(level);
   return indices.map(index => TITLES[index]);
 };
@@ -239,7 +531,7 @@ export const getAvailableTitles = (level: number): Title[] => {
  * @param title 称号名
  * @returns 称号のインデックス、見つからない場合は-1
  */
-export const getTitleIndex = (title: Title): number => {
+export const getTitleIndex = (title: typeof TITLES[number]): number => {
   return TITLES.indexOf(title);
 };
 
@@ -248,7 +540,7 @@ export const getTitleIndex = (title: Title): number => {
  * @param index 称号インデックス
  * @returns 称号名、無効なインデックスの場合はデフォルト称号
  */
-export const getTitleByIndex = (index: number): Title => {
+export const getTitleByIndex = (index: number): typeof TITLES[number] => {
   return TITLES[index] || TITLES[0];
 };
 
@@ -262,6 +554,47 @@ export const getTitleUnlockLevel = (titleIndex: number): number => {
 };
 
 /**
+ * ミッション完了数から利用可能なミッション称号を取得
+ * @param missionCount ユーザーのミッション完了数
+ * @returns 利用可能なミッション称号の配列
+ */
+export const getAvailableMissionTitles = (missionCount: number): MissionTitle[] => {
+  return MISSION_TITLES
+    .filter(title => missionCount >= title.threshold)
+    .map(title => title.name);
+};
+
+/**
+ * レッスン完了数から利用可能なレッスン称号を取得
+ * @param lessonCount ユーザーのレッスン完了数
+ * @returns 利用可能なレッスン称号の配列
+ */
+export const getAvailableLessonTitles = (lessonCount: number): LessonTitle[] => {
+  return LESSON_TITLES
+    .filter(title => lessonCount >= title.threshold)
+    .map(title => title.name);
+};
+
+/**
+ * 称号の取得条件テキストを生成
+ * @param titleName 称号名
+ * @returns 取得条件テキスト
+ */
+export const getTitleConditionText = (titleName: string): string => {
+  const missionTitle = MISSION_TITLES.find(t => t.name === titleName);
+  if (missionTitle) {
+    return `ミッション${missionTitle.threshold}個完了で獲得`;
+  }
+  
+  const lessonTitle = LESSON_TITLES.find(t => t.name === titleName);
+  if (lessonTitle) {
+    return `レッスン${lessonTitle.threshold}個完了で獲得`;
+  }
+  
+  return '';
+};
+
+/**
  * デフォルト称号
  */
-export const DEFAULT_TITLE: Title = TITLES[0]; 
+export const DEFAULT_TITLE: typeof TITLES[number] = TITLES[0]; 
