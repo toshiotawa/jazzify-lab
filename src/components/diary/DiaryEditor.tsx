@@ -257,7 +257,7 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
             {!isEdit && (
               <span className="text-emerald-400">
                 投稿すると +{getExpectedXp().toLocaleString()} XP
-                {profile?.rank !== 'free' && (
+                {profile?.rank && ['standard', 'premium', 'platinum'].includes(profile.rank) && (
                   <span className="ml-1 text-xs text-yellow-400">
                     ({profile?.rank} 倍率適用)
                   </span>

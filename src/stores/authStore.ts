@@ -19,11 +19,18 @@ interface AuthState {
     xp: number;
     isAdmin: boolean;
     id: string;
+    email?: string;
     avatar_url?: string | null;
     bio?: string | null;
     twitter_handle?: string | null;
     selected_title?: string | null;
     next_season_xp_multiplier?: number;
+    // Stripe subscription fields
+    stripe_customer_id?: string;
+    will_cancel?: boolean;
+    cancel_date?: string;
+    downgrade_to?: 'free' | 'standard' | 'premium' | 'platinum';
+    downgrade_date?: string;
   } | null;
 }
 

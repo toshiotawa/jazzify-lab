@@ -11,10 +11,10 @@ const ProfileWizard: React.FC = () => {
   if (hasProfile) return null;
 
   const handleSubmit = async () => {
-    if (!nickname) return toast('ニックネームを入力してください','error');
-    if (!agreed) return toast('利用規約に同意してください','error');
+    if (!nickname) return toast.error('ニックネームを入力してください');
+    if (!agreed) return toast.error('利用規約に同意してください');
     await createProfile(nickname, agreed);
-    toast('プロフィールを作成しました','success');
+    toast.success('プロフィールを作成しました');
   };
 
   return (
