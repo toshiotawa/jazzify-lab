@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap } from 'react-icons/fa';
+import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal } from 'react-icons/fa';
 import DiaryFeed from './DiaryFeed';
 import { useAuthStore } from '@/stores/authStore';
 import DiaryEditor from './DiaryEditor';
@@ -192,6 +192,21 @@ const DiaryPage: React.FC = () => {
     }
   };
 
+  // ランクに応じたアイコンを取得する関数
+  const getRankIcon = (rank: string) => {
+    switch (rank.toLowerCase()) {
+      case 'platinum':
+        return <FaCrown className="text-purple-400 text-lg" />;
+      case 'premium':
+        return <FaGem className="text-yellow-400 text-lg" />;
+      case 'standard':
+        return <FaStar className="text-blue-400 text-sm" />;
+      case 'free':
+      default:
+        return <FaMedal className="text-gray-400 text-sm" />;
+    }
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
@@ -242,7 +257,10 @@ const DiaryPage: React.FC = () => {
                       
                       <div className="flex items-center space-x-3 text-sm text-gray-400">
                         <span>Lv.{profile.level}</span>
-                        <span className="capitalize">{profile.rank}</span>
+                        <div className="flex items-center space-x-1">
+                          {getRankIcon(profile.rank)}
+                          <span className="capitalize">{profile.rank}</span>
+                        </div>
                         <span>累計経験値 {profile.xp?.toLocaleString() || '0'}</span>
                       </div>
                       
@@ -330,6 +348,10 @@ const DiaryPage: React.FC = () => {
                                 <img src={u.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
                                 <span className="truncate">{u.nickname}</span>
                                 <span className="text-yellow-400">Lv.{u.level}</span>
+                                <div className="flex items-center space-x-1">
+                                  {getRankIcon(u.rank)}
+                                  <span className="text-xs text-green-400">{u.rank}</span>
+                                </div>
                               </div>
                             ))}
                           </div>

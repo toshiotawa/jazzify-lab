@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDiaryStore } from '@/stores/diaryStore';
 import { useAuthStore } from '@/stores/authStore';
-import { FaHeart, FaTrash, FaEdit, FaChevronDown, FaTimes, FaSave } from 'react-icons/fa';
+import { FaHeart, FaTrash, FaEdit, FaChevronDown, FaTimes, FaSave, FaCrown, FaGem, FaStar, FaMedal } from 'react-icons/fa';
 import { useToast } from '@/stores/toastStore';
 import { DiaryComment } from '@/platform/supabaseDiary';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
@@ -22,6 +22,21 @@ const DiaryFeed: React.FC = () => {
   const [editingId, setEditingId] = useState<string|null>(null);
   const [editText, setEditText] = useState<string>('');
   const toast = useToast();
+
+  // ランクに応じたアイコンを取得する関数
+  const getRankIcon = (rank: string) => {
+    switch (rank.toLowerCase()) {
+      case 'platinum':
+        return <FaCrown className="text-purple-400 text-sm" />;
+      case 'premium':
+        return <FaGem className="text-yellow-400 text-sm" />;
+      case 'standard':
+        return <FaStar className="text-blue-400 text-xs" />;
+      case 'free':
+      default:
+        return <FaMedal className="text-gray-400 text-xs" />;
+    }
+  };
   // Initialize realtime channels when the feed mounts
   useEffect(() => { useDiaryStore.getState().initRealtime(); }, []);
   useEffect(() => { void fetchAll(); }, []);
@@ -76,7 +91,10 @@ const DiaryFeed: React.FC = () => {
               </button>
               <span className="text-gray-500 text-xs ml-0 sm:ml-2 block sm:inline">{d.practice_date}</span>
               <span className="text-xs ml-2 text-yellow-400">Lv.{d.level}</span>
-              <span className="text-xs ml-1 text-green-400">{d.rank}</span>
+              <div className="flex items-center space-x-1 ml-1">
+                {getRankIcon(d.rank)}
+                <span className="text-xs text-green-400">{d.rank}</span>
+              </div>
             </div>
           </div>
           {editingId===d.id ? (
@@ -179,6 +197,10 @@ const DiaryFeed: React.FC = () => {
                         className="font-semibold truncate hover:text-blue-400 transition-colors"
                       >{u.nickname}</button>
                       <span className="text-yellow-400">Lv.{u.level}</span>
+                      <div className="flex items-center space-x-1">
+                        {getRankIcon(u.rank)}
+                        <span className="text-xs text-green-400">{u.rank}</span>
+                      </div>
                     </div>
                   ))}
                   {likeUsers[d.id].length===0 && <p className="text-xs text-gray-400">まだいません</p>}

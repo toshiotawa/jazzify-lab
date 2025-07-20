@@ -16,7 +16,10 @@ import {
   FaBullseye,
   FaUser,
   FaCrown,
-  FaGraduationCap
+  FaGraduationCap,
+  FaGem,
+  FaStar,
+  FaMedal
 } from 'react-icons/fa';
 import { Mission } from '@/platform/supabaseMissions';
 import GameHeader from '@/components/ui/GameHeader';
@@ -167,6 +170,21 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // ランクに応じたアイコンを取得する関数
+  const getRankIcon = (rank: string) => {
+    switch (rank.toLowerCase()) {
+      case 'platinum':
+        return <FaCrown className="text-purple-400 text-lg" />;
+      case 'premium':
+        return <FaGem className="text-yellow-400 text-lg" />;
+      case 'standard':
+        return <FaStar className="text-blue-400 text-sm" />;
+      case 'free':
+      default:
+        return <FaMedal className="text-gray-400 text-sm" />;
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -199,7 +217,10 @@ const Dashboard: React.FC = () => {
                   
                   <div className="flex items-center space-x-4 text-sm text-gray-400">
                     <span>Lv.{profile.level}</span>
-                    <span className="capitalize">{profile.rank}</span>
+                    <div className="flex items-center space-x-1">
+                      {getRankIcon(profile.rank)}
+                      <span className="capitalize">{profile.rank}</span>
+                    </div>
                     <span>累計経験値 {profile.xp.toLocaleString()}</span>
                   </div>
                   

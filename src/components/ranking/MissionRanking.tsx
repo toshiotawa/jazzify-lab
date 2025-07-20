@@ -3,7 +3,7 @@ import { fetchMissionRanking, MissionRankingEntry } from '@/platform/supabaseRan
 import { useMissionStore } from '@/stores/missionStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { FaArrowLeft, FaTrophy, FaMedal } from 'react-icons/fa';
+import { FaArrowLeft, FaTrophy, FaMedal, FaCrown, FaGem, FaStar } from 'react-icons/fa';
 
 const MissionRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#mission-ranking');
@@ -54,6 +54,21 @@ const MissionRanking: React.FC = () => {
     if (index === 1) return <FaMedal className="text-gray-300" />;
     if (index === 2) return <FaMedal className="text-amber-600" />;
     return null;
+  };
+
+  // ユーザーランクに応じたアイコンを取得する関数
+  const getUserRankIcon = (rank: string) => {
+    switch (rank.toLowerCase()) {
+      case 'platinum':
+        return <FaCrown className="text-purple-400 text-sm" />;
+      case 'premium':
+        return <FaGem className="text-yellow-400 text-sm" />;
+      case 'standard':
+        return <FaStar className="text-blue-400 text-xs" />;
+      case 'free':
+      default:
+        return <FaMedal className="text-gray-400 text-xs" />;
+    }
   };
 
   return (
@@ -150,14 +165,17 @@ const MissionRanking: React.FC = () => {
                           <span className="text-blue-400">Lv.{entry.level}</span>
                         </td>
                         <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            entry.rank === 'platinum' ? 'bg-purple-600 text-white' :
-                            entry.rank === 'premium' ? 'bg-yellow-600 text-white' :
-                            entry.rank === 'standard' ? 'bg-blue-600 text-white' :
-                            'bg-gray-600 text-white'
-                          }`}>
-                            {entry.rank.toUpperCase()}
-                          </span>
+                          <div className="flex items-center space-x-1">
+                            {getUserRankIcon(entry.rank)}
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              entry.rank === 'platinum' ? 'bg-purple-600 text-white' :
+                              entry.rank === 'premium' ? 'bg-yellow-600 text-white' :
+                              entry.rank === 'standard' ? 'bg-blue-600 text-white' :
+                              'bg-gray-600 text-white'
+                            }`}>
+                              {entry.rank.toUpperCase()}
+                            </span>
+                          </div>
                         </td>
                       </tr>
                     ))}

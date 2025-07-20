@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES } from '@/utils/titleConstants';
-import { FaCrown, FaStar, FaTrophy, FaGraduationCap } from 'react-icons/fa';
+import { FaCrown, FaStar, FaTrophy, FaGraduationCap, FaGem, FaMedal } from 'react-icons/fa';
 
 type SortKey = 'level' | 'lessons' | 'missions';
 
@@ -119,6 +119,21 @@ const LevelRanking: React.FC = () => {
     }
   };
 
+  // ランクに応じたアイコンを取得する関数
+  const getRankIcon = (rank: string) => {
+    switch (rank.toLowerCase()) {
+      case 'platinum':
+        return <FaCrown className="text-purple-400 text-sm" />;
+      case 'premium':
+        return <FaGem className="text-yellow-400 text-sm" />;
+      case 'standard':
+        return <FaStar className="text-blue-400 text-xs" />;
+      case 'free':
+      default:
+        return <FaMedal className="text-gray-400 text-xs" />;
+    }
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
@@ -209,7 +224,12 @@ const LevelRanking: React.FC = () => {
                   <td className="py-1 px-2">{e.level}</td>
                   <td className="py-1 px-2">{e.lessons_cleared}</td>
                   <td className="py-1 px-2">{e.missions_completed || 0}</td>
-                  <td className="py-1 px-2 capitalize">{e.rank}</td>
+                  <td className="py-1 px-2">
+                    <div className="flex items-center space-x-1">
+                      {getRankIcon(e.rank)}
+                      <span className="capitalize text-xs">{e.rank}</span>
+                    </div>
+                  </td>
                   <td className="py-1 px-2">
                     {e.twitter_handle ? (
                       <a 
