@@ -6,7 +6,7 @@ import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { getAvailableTitles, DEFAULT_TITLE, getTitleConditionText } from '@/utils/titleConstants';
 import type { Title } from '@/utils/titleConstants';
-import { getUserAchievementTitles, formatAchievementTitleDisplay } from '@/utils/achievementTitles';
+import { getUserAchievementTitles } from '@/utils/achievementTitles';
 import { updateUserTitle } from '@/platform/supabaseTitles';
 import { compressProfileImage } from '@/utils/imageCompression';
 
@@ -21,7 +21,7 @@ const RANK_LABEL: Record<string, string> = {
  * #account ハッシュに合わせて表示されるアカウントページ (モーダル→ページ化)
  */
 const AccountPage: React.FC = () => {
-  const { profile, logout } = useAuthStore();
+  const { profile, logout, updateEmail } = useAuthStore();
   const [open, setOpen] = useState(window.location.hash === '#account');
   const [activeTab, setActiveTab] = useState<'profile' | 'subscription'>('profile');
   const [bio, setBio] = useState(profile?.bio || '');
@@ -30,6 +30,9 @@ const AccountPage: React.FC = () => {
   const [selectedTitle, setSelectedTitle] = useState<Title>((profile?.selected_title as Title) || DEFAULT_TITLE);
   const [titleSaving, setTitleSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailUpdating, setEmailUpdating] = useState(false);
+  const [emailMessage, setEmailMessage] = useState('');
   const [achievementTitles, setAchievementTitles] = useState<{
     missionTitles: string[];
     lessonTitles: string[];
@@ -106,6 +109,10 @@ const AccountPage: React.FC = () => {
                 <span className="font-semibold">{profile.nickname}</span>
               </div>
               <div className="flex justify-between">
+                <span>メールアドレス</span>
+                <span className="font-semibold text-sm">{profile.email}</span>
+              </div>
+              <div className="flex justify-between">
                 <span>会員ランク</span>
                 <span className="font-semibold text-primary-400">{RANK_LABEL[profile.rank]}</span>
               </div>
@@ -137,8 +144,8 @@ const AccountPage: React.FC = () => {
                          alert('称号の更新に失敗しました');
                          setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
                        }
-                     } catch (err: any) {
-                       alert('称号の更新に失敗しました: ' + err.message);
+                     } catch (err) {
+                       alert('称号の更新に失敗しました: ' + (err instanceof Error ? err.message : String(err)));
                        setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
                     } finally {
                       setTitleSaving(false);
@@ -205,8 +212,8 @@ const AccountPage: React.FC = () => {
                     const url = await uploadAvatar(compressedFile, profile.id || '');
                     await getSupabaseClient().from('profiles').update({ avatar_url: url }).eq('id', profile.id);
                     await useAuthStore.getState().fetchProfile();
-                  } catch (err:any){
-                    alert('アップロード失敗: '+err.message);
+                  } catch (err){
+                    alert('アップロード失敗: '+(err instanceof Error ? err.message : String(err)));
                   } finally {
                     setAvatarUploading(false);
                   }
@@ -237,8 +244,8 @@ const AccountPage: React.FC = () => {
                     try{
                       await getSupabaseClient().from('profiles').update({ bio, twitter_handle: twitterHandle ? `@${twitterHandle}` : null }).eq('id', profile.id);
                       await useAuthStore.getState().fetchProfile();
-                    }catch(err:any){
-                      alert('保存失敗: '+err.message);
+                    }catch(err){
+                      alert('保存失敗: '+(err instanceof Error ? err.message : String(err)));
                     }finally{ setSaving(false); }
                   }}
                 >保存</button>
@@ -255,6 +262,70 @@ const AccountPage: React.FC = () => {
                     maxLength={15}
                     placeholder="yourhandle"
                   />
+                </div>
+              </div>
+              
+              {/* メールアドレス変更 */}
+              <div className="space-y-1 border-t border-slate-600 pt-4 mt-4">
+                <label htmlFor="newEmail" className="text-sm font-medium">メールアドレス変更</label>
+                <div className="space-y-2">
+                  <input
+                    id="newEmail"
+                    type="email"
+                    className="w-full p-2 rounded bg-slate-700 text-sm"
+                    value={newEmail}
+                    onChange={e=>setNewEmail(e.target.value)}
+                    placeholder="新しいメールアドレス"
+                    disabled={emailUpdating}
+                  />
+                  <button
+                    className="btn btn-xs btn-primary"
+                    disabled={emailUpdating || !newEmail.trim() || newEmail.trim() === profile?.email}
+                    onClick={async ()=>{
+                      const email = newEmail.trim();
+                      
+                      // バリデーション
+                      if (!email) {
+                        setEmailMessage('メールアドレスを入力してください');
+                        return;
+                      }
+                      
+                      if (email === profile?.email) {
+                        setEmailMessage('現在のメールアドレスと同じです');
+                        return;
+                      }
+                      
+                      // 簡単なメール形式チェック
+                      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                      if (!emailRegex.test(email)) {
+                        setEmailMessage('有効なメールアドレスを入力してください');
+                        return;
+                      }
+                      
+                      setEmailUpdating(true);
+                      setEmailMessage('');
+                      try{
+                        const result = await updateEmail(email);
+                        setEmailMessage(result.message);
+                        if (result.success) {
+                          setNewEmail('');
+                        }
+                      }catch(err){
+                        setEmailMessage('メールアドレスの更新に失敗しました: ' + (err instanceof Error ? err.message : String(err)));
+                      }finally{ 
+                        setEmailUpdating(false); 
+                      }
+                    }}
+                  >
+                    {emailUpdating ? '送信中...' : '確認メール送信'}
+                  </button>
+                  {emailMessage && (
+                    <div className={`text-xs p-2 rounded ${
+                      emailMessage.includes('送信しました') ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'
+                    }`}>
+                      {emailMessage}
+                    </div>
+                  )}
                 </div>
               </div>
                 </div>

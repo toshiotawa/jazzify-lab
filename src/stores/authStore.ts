@@ -3,6 +3,7 @@ import { immer } from 'zustand/middleware/immer';
 import { Session, User } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { useUserStatsStore } from './userStatsStore';
+import { useToastStore } from './toastStore';
 
 interface AuthState {
   user: User | null;
@@ -41,6 +42,7 @@ interface AuthActions {
   enterGuestMode: () => void;
   fetchProfile: () => Promise<void>;
   createProfile: (nickname: string, agreed: boolean) => Promise<void>;
+  updateEmail: (newEmail: string) => Promise<{ success: boolean; message: string }>;
 }
 
 export const useAuthStore = create<AuthState & AuthActions>()(
@@ -125,7 +127,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       }
 
       // auth 状態変化監視
-      supabase.auth.onAuthStateChange((event, session) => {
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        const previousUser = get().user;
+        
         set(state => {
           state.session = session ?? null;
           state.user = session?.user ?? null;
@@ -138,6 +142,70 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           (event === 'TOKEN_REFRESHED'  && session?.user)
         ) {
           get().fetchProfile().catch(console.error);
+        }
+
+        // メールアドレス変更完了の検出とStripe同期
+        if (event === 'USER_UPDATED' && session?.user && previousUser) {
+          const oldEmail = previousUser.email;
+          const newEmail = session.user.email;
+          
+          if (oldEmail && newEmail && oldEmail !== newEmail) {
+            console.log('Email change detected, syncing with Stripe...', { oldEmail, newEmail });
+            
+            // Stripe Customer emailを同期
+            try {
+              const response = await fetch('/.netlify/functions/updateCustomerEmail', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ email: newEmail }),
+              });
+
+              if (response.ok) {
+                const result = await response.json();
+                console.log('Stripe email sync successful:', result);
+                
+                // プロフィール情報を再取得してUIに反映
+                await get().fetchProfile();
+                
+                // 成功トースト通知
+                useToastStore.getState().push(
+                  'メールアドレスが正常に更新されました',
+                  'success',
+                  { 
+                    duration: 5000,
+                    title: 'メールアドレス変更完了',
+                  }
+                );
+              } else {
+                console.error('Failed to sync email with Stripe:', await response.text());
+                
+                // エラートースト通知
+                useToastStore.getState().push(
+                  'メールアドレスの更新は完了しましたが、請求情報の同期でエラーが発生しました',
+                  'warning',
+                  { 
+                    duration: 7000,
+                    title: 'メールアドレス変更',
+                  }
+                );
+              }
+            } catch (error) {
+              console.error('Error syncing email with Stripe:', error);
+              
+              // ネットワークエラー等のトースト通知
+              useToastStore.getState().push(
+                'メールアドレスの更新は完了しましたが、請求情報の同期中にエラーが発生しました',
+                'warning',
+                { 
+                  duration: 7000,
+                  title: 'メールアドレス変更',
+                }
+              );
+            }
+          }
         }
         
         // 他のタブに認証状態変更を通知
@@ -234,7 +302,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier')
+          .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, email')
           .eq('id', user.id)
           .maybeSingle(); // singleの代わりにmaybeSingleを使用してNot Found エラーを防ぐ
         
@@ -249,11 +317,18 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               xp: data.xp,
               isAdmin: data.is_admin,
               id: user.id,
+              email: data.email || user.email,
               avatar_url: data.avatar_url,
               bio: data.bio,
               twitter_handle: data.twitter_handle,
+              selected_title: data.selected_title,
               next_season_xp_multiplier: data.next_season_xp_multiplier,
-            } as any;
+              stripe_customer_id: data.stripe_customer_id,
+              will_cancel: data.will_cancel,
+              cancel_date: data.cancel_date,
+              downgrade_to: data.downgrade_to,
+              downgrade_date: data.downgrade_date,
+            };
           } else {
             state.profile = null;
           }
@@ -349,12 +424,70 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           state.error = null;
         });
         
-      } catch (error: any) {
+      } catch (error) {
         console.error('Profile creation error:', error);
         set(state => { 
           state.loading = false;
-          state.error = error.message || 'プロフィールの作成に失敗しました';
+          state.error = (error instanceof Error ? error.message : String(error)) || 'プロフィールの作成に失敗しました';
         });
+      }
+    },
+
+    /**
+     * メールアドレス更新 (Supabase Auth)
+     */
+    updateEmail: async (newEmail: string) => {
+      const supabase = getSupabaseClient();
+      const { user } = get();
+      
+      if (!user) {
+        return { success: false, message: 'ログインが必要です' };
+      }
+
+      if (!newEmail || !newEmail.includes('@')) {
+        return { success: false, message: '有効なメールアドレスを入力してください' };
+      }
+
+      if (user.email === newEmail) {
+        return { success: false, message: '現在のメールアドレスと同じです' };
+      }
+
+      try {
+        set(state => {
+          state.loading = true;
+          state.error = null;
+        });
+
+        const { error } = await supabase.auth.updateUser({
+          email: newEmail
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        // 確認メール送信成功
+        set(state => {
+          state.loading = false;
+        });
+
+        return { 
+          success: true, 
+          message: `${newEmail} に確認メールを送信しました。メール内のリンクをクリックして変更を完了してください。` 
+        };
+
+      } catch (error) {
+        console.error('Email update error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'メールアドレスの更新に失敗しました';
+        set(state => {
+          state.loading = false;
+          state.error = errorMessage;
+        });
+        
+        return { 
+          success: false, 
+          message: errorMessage
+        };
       }
     },
   }))
