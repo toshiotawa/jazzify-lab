@@ -38,6 +38,24 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     );
   }
 
+  // エラーがある場合は表示
+  if (error) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-black/70 text-white">
+        <div className="max-w-md mx-auto p-6 bg-red-900/20 border border-red-500/30 rounded-lg">
+          <h2 className="text-xl font-bold text-red-400 mb-4">認証エラー</h2>
+          <p className="text-red-200 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-white"
+          >
+            再試行
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ログイン済みでプロフィールがある、またはゲストモード
   if (isGuest || (user && hasProfile)) {
     return <>{children}</>;

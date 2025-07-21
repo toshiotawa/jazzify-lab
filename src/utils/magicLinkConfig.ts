@@ -175,6 +175,7 @@ export function parseMagicLinkFromUrl(): {
   refreshToken?: string;
   type?: string;
   error?: string;
+  tokenHash?: string;
 } {
   if (typeof location === 'undefined') {
     return { hasMagicLink: false };
@@ -187,8 +188,9 @@ export function parseMagicLinkFromUrl(): {
   const refreshToken = urlParams.get('refresh_token') || hashParams.get('refresh_token');
   const type = urlParams.get('type') || hashParams.get('type');
   const error = urlParams.get('error') || hashParams.get('error');
+  const tokenHash = urlParams.get('token_hash') || hashParams.get('token_hash');
 
-  const hasMagicLink = !!(accessToken || refreshToken || type);
+  const hasMagicLink = !!(accessToken || refreshToken || type || tokenHash);
 
   console.group('🔍 URL マジックリンク解析');
   console.log('🔗 現在のURL:', location.href);
@@ -197,6 +199,7 @@ export function parseMagicLinkFromUrl(): {
   console.log('🎯 マジックリンク検出:', hasMagicLink);
   console.log('🔑 アクセストークン:', accessToken ? '存在します' : 'なし');
   console.log('🔄 リフレッシュトークン:', refreshToken ? '存在します' : 'なし');
+  console.log('🔐 トークンハッシュ:', tokenHash ? '存在します' : 'なし');
   console.log('📝 タイプ:', type);
   console.log('❌ エラー:', error);
   console.groupEnd();
@@ -207,6 +210,7 @@ export function parseMagicLinkFromUrl(): {
     refreshToken: refreshToken || undefined,
     type: type || undefined,
     error: error || undefined,
+    tokenHash: tokenHash || undefined,
   };
 }
 

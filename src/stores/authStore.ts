@@ -141,6 +141,43 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.loading = true;
       });
       
+      // マジックリンクが検出された場合、セッションを確立
+      if (magicLinkInfo.hasMagicLink && magicLinkInfo.tokenHash) {
+        console.log('🔐 マジックリンクトークンでセッション確立を試行');
+        try {
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash: magicLinkInfo.tokenHash,
+            type: 'email'
+          });
+          
+          if (error) {
+            console.error('❌ マジックリンク検証エラー:', error);
+            set(state => {
+              state.error = `認証エラー: ${error.message}`;
+            });
+          } else if (data.session) {
+            console.log('✅ マジックリンクセッション確立成功');
+            logMagicLinkSuccess(data.user?.email || 'unknown', data.session);
+            
+            // URLパラメータをクリア（セキュリティのため）
+            if (typeof window !== 'undefined' && window.history.replaceState) {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('token_hash');
+              url.searchParams.delete('type');
+              url.searchParams.delete('access_token');
+              url.searchParams.delete('refresh_token');
+              window.history.replaceState({}, '', url.toString());
+              console.log('🧹 URLパラメータをクリアしました');
+            }
+          }
+        } catch (error) {
+          console.error('❌ マジックリンク処理エラー:', error);
+          set(state => {
+            state.error = '認証処理中にエラーが発生しました';
+          });
+        }
+      }
+      
       const { data: { session } } = await supabase.auth.getSession();
       
       console.log('🔑 セッション取得結果:', {
@@ -227,6 +264,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set(state => {
           state.session = session ?? null;
           state.user = session?.user ?? null;
+          // エラーをクリア
+          if (session) {
+            state.error = null;
+          }
         });
         
         // ✅ 自タブでもプロフィールを取得する
