@@ -750,10 +750,6 @@ export class PIXINotesRendererInstance {
     this.container.sortableChildren = true;
     this.app.stage.addChild(this.container);
 
-    // 背景とガイドライン（最下層）
-    this.createNotesAreaBackground();
-    this.createVerticalGuidelines();
-
     // ノーツ専用コンテナ（ParticleContainer使用でパフォーマンス向上）
     this.whiteNotes = new PIXI.ParticleContainer(1000, {
       scale: true,
@@ -857,6 +853,10 @@ export class PIXINotesRendererInstance {
 
     // パーティクル効果の設定
     this.setupParticles();
+
+    // 背景とガイドライン（全コンテナ作成後に実行）
+    this.createNotesAreaBackground();
+    this.createVerticalGuidelines();
 
     log.debug('✅ PIXI.js コンテナセットアップ完了');
   }
@@ -1135,6 +1135,11 @@ export class PIXINotesRendererInstance {
   }
   
   private updateParticleEffects(deltaTime: number): void {
+    // null安全チェック
+    if (!this.effectsContainer || !this.effectsContainer.children) {
+      return;
+    }
+
     const childrenToRemove: PIXI.DisplayObject[] = [];
     const maxProcessPerFrame = 10; // 1フレームあたりの最大処理数
     let processed = 0;
@@ -2409,13 +2414,15 @@ export class PIXINotesRendererInstance {
       log.info(`🔧 Updated hitLineY: ${this.settings.hitLineY}`);
 
       // 既存のヒットラインを削除して再描画
-      this.hitLineContainer.removeChildren();
-      this.setupHitLine();
+      if (this.hitLineContainer) {
+        this.hitLineContainer.removeChildren();
+        this.setupHitLine();
+      }
 
       // ==== 背景／ガイドラインを再生成 ====
       try {
         // 背景 (container の先頭)
-        if (this.container.children.length > 0) {
+        if (this.container && this.container.children && this.container.children.length > 0) {
           this.container.removeChildAt(0);
         }
         
@@ -2489,9 +2496,11 @@ export class PIXINotesRendererInstance {
     // === transposingInstrument が変化した場合、音名表示を更新 ===
     if (newSettings.transposingInstrument !== undefined && newSettings.transposingInstrument !== prevTransposingInstrument) {
       // 鍵盤の音名表示を更新（鍵盤を再描画）
-      this.pianoContainer.removeChildren();
-      this.pianoSprites.clear();
-      this.setupPiano();
+      if (this.pianoContainer) {
+        this.pianoContainer.removeChildren();
+        this.pianoSprites.clear();
+        this.setupPiano();
+      }
 
       // 既存ノートのラベルを更新
       this.noteSprites.forEach((noteSprite) => {
@@ -2887,16 +2896,19 @@ export class PIXINotesRendererInstance {
     log.info(`🔧 Resize hitLineY: ${this.settings.hitLineY}`);
     
     // ピアノとヒットラインの再描画
-    this.pianoContainer.removeChildren();
-    this.pianoSprites.clear();
-    this.hitLineContainer.removeChildren();
-    
-    this.setupPiano();
-    this.setupHitLine();
+    if (this.pianoContainer) {
+      this.pianoContainer.removeChildren();
+      this.pianoSprites.clear();
+      this.setupPiano();
+    }
+    if (this.hitLineContainer) {
+      this.hitLineContainer.removeChildren();
+      this.setupHitLine();
+    }
 
     // ===== 背景とガイドラインを再生成 =====
     try {
-      if (this.container.children.length > 0) {
+      if (this.container && this.container.children && this.container.children.length > 0) {
         this.container.removeChildAt(0);
       }
       // ガイドラインクリーンアップは createNotesAreaBackground() で自動処理
