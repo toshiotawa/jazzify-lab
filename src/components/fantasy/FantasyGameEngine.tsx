@@ -106,11 +106,12 @@ const CHORD_DEFINITIONS: Record<string, ChordDefinition> = {
 // ===== 敵リスト定義 =====
 
 const ENEMY_LIST = [
-  { id: 'ghost', icon: 'ghost', name: 'ゴースト' },
-  { id: 'dragon', icon: 'dragon', name: 'ドラゴン' },
-  { id: 'skull', icon: 'skull', name: 'スケルトン' },
-  { id: 'fire', icon: 'fire', name: 'フレイムモンスター' },
-  { id: 'ice', icon: 'ice', name: 'アイスモンスター' }
+  { id: 'vampire', icon: 'vampire', name: 'ドラキュラ' },
+  { id: 'monster', icon: 'monster', name: '怪獣' },
+  { id: 'reaper', icon: 'reaper', name: '死神' },
+  { id: 'kraken', icon: 'kraken', name: 'クラーケン' },
+  { id: 'werewolf', icon: 'werewolf', name: '狼男' },
+  { id: 'demon', icon: 'demon', name: '魔王' }
 ];
 
 // ===== ヘルパー関数 =====

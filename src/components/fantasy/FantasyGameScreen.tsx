@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
+import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
 
@@ -31,6 +32,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
+  const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
@@ -51,9 +53,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleChordCorrect = useCallback((chord: ChordDefinition) => {
     devLog.debug('✅ 正解:', chord.displayName);
     
-    // エフェクトは削除済み（FontAwesome使用）
+    // ファンタジーPIXIエフェクトをトリガー
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.triggerAttackSuccess();
+    }
     
-  }, []);
+  }, [fantasyPixiInstance]);
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
     devLog.debug('🎵 まだ構成音が足りません:', { expected: expectedChord.displayName, input: inputNotes });
@@ -67,15 +72,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleEnemyAttack = useCallback(() => {
     devLog.debug('💥 敵の攻撃!');
     
-    // モンスター攻撃アニメーション
-    setIsMonsterAttacking(true);
-    setTimeout(() => setIsMonsterAttacking(false), 600);
+    // ファンタジーPIXIでモンスター攻撃エフェクト
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.updateMonsterAttacking(true);
+      setTimeout(() => {
+        if (fantasyPixiInstance) {
+          fantasyPixiInstance.updateMonsterAttacking(false);
+        }
+      }, 600);
+    }
     
     // ダメージ時の画面振動
     setDamageShake(true);
     setTimeout(() => setDamageShake(false), 500);
     
-  }, []);
+  }, [fantasyPixiInstance]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     devLog.debug('🏁 ゲーム終了:', { result, finalState });
@@ -149,6 +160,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       devLog.debug('🎮 PIXI.js ファンタジーモード準備完了');
     }
   }, [handleNoteInputBridge, gameAreaSize]);
+
+  // ファンタジーPIXIレンダラーの準備完了ハンドラー
+  const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
+    setFantasyPixiInstance(instance);
+    
+    // 現在の敵に基づいてモンスターを設定
+    instance.createMonsterSprite(currentEnemy.icon);
+    
+    devLog.debug('🎮 ファンタジーPIXI準備完了:', { monster: currentEnemy.icon });
+  }, [currentEnemy.icon]);
   
   // FontAwesome使用のため削除済み
   
@@ -180,6 +201,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
     return () => observer.disconnect();
   }, []);
+
+  // 敵が変更された時にモンスタースプライトを更新
+  useEffect(() => {
+    if (fantasyPixiInstance && currentEnemy) {
+      fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
+      devLog.debug('🔄 モンスタースプライト更新:', { monster: currentEnemy.icon });
+    }
+  }, [fantasyPixiInstance, currentEnemy]);
   
   // HPハート表示
   const renderHearts = useCallback(() => {
@@ -292,21 +321,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
         </div>
         
-        {/* モンスターとゲージ（PIXI削除、FontAwesome使用） */}
+        {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}
         <div className="mb-3 text-center relative">
-          {/* FontAwesome敵アイコン */}
-          <div className="flex justify-center mb-4">
-            <div className={cn(
-              "text-8xl transition-all duration-300 transform",
-              isMonsterAttacking ? "scale-125 text-red-500" : "text-white scale-100"
-            )}>
-              <i className={`fa-solid ${currentEnemy.icon === 'ghost' ? 'fa-ghost' : 
-                          currentEnemy.icon === 'dragon' ? 'fa-dragon' :
-                          currentEnemy.icon === 'skull' ? 'fa-skull' :
-                          currentEnemy.icon === 'fire' ? 'fa-fire' :
-                          currentEnemy.icon === 'ice' ? 'fa-snowflake' :
-                          'fa-ghost'}`}></i>
-            </div>
+          <div className="relative w-full h-64 bg-black bg-opacity-20 rounded-lg overflow-hidden">
+            <FantasyPIXIRenderer
+              width={800}
+              height={256}
+              monsterIcon={currentEnemy.icon}
+              isMonsterAttacking={isMonsterAttacking}
+              enemyGauge={gameState.enemyGauge}
+              onReady={handleFantasyPixiReady}
+              className="w-full h-full"
+            />
           </div>
           
           {/* 敵の名前 */}
