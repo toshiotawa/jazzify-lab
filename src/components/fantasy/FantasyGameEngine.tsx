@@ -244,13 +244,13 @@ export const useFantasyGameEngine = ({
     devLog.debug('✅ ファンタジーゲーム初期化完了:', newState);
   }, [stage, onGameStateChange]);
   
-  // 次の問題への移行
+  // 次の問題への移行（回答数ベース、ループ対応）
   const proceedToNextQuestion = useCallback(() => {
     setGameState(prevState => {
-      const nextQuestionIndex = prevState.currentQuestionIndex + 1;
-      const isLastQuestion = nextQuestionIndex >= prevState.totalQuestions;
+      const nextCorrectAnswers = prevState.correctAnswers;
+      const isComplete = nextCorrectAnswers >= prevState.totalQuestions; // 回答数でクリア判定
       
-      if (isLastQuestion) {
+      if (isComplete) {
         // ゲームクリア
         const finalState = {
           ...prevState,
@@ -262,14 +262,21 @@ export const useFantasyGameEngine = ({
         onGameComplete('clear', finalState);
         return finalState;
       } else {
-        // 次の問題
-        const nextChord = prevState.currentStage?.mode === 'single'
-          ? selectRandomChord(prevState.currentStage.allowedChords)
-          : getProgressionChord(prevState.currentStage?.chordProgression || [], nextQuestionIndex);
+        // 次の問題（ループ対応）
+        let nextChord;
+        if (prevState.currentStage?.mode === 'single') {
+          // ランダムモード：そのまま
+          nextChord = selectRandomChord(prevState.currentStage.allowedChords);
+        } else {
+          // コード進行モード：ループさせる
+          const progression = prevState.currentStage?.chordProgression || [];
+          const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+          nextChord = getProgressionChord(progression, nextIndex);
+        }
         
         const nextState = {
           ...prevState,
-          currentQuestionIndex: nextQuestionIndex,
+          currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
           currentChordTarget: nextChord,
           enemyGauge: 0 // ゲージリセット
         };
@@ -305,12 +312,11 @@ export const useFantasyGameEngine = ({
         onGameComplete('gameover', finalState);
         return finalState;
       } else {
-        // HP減少して次の問題へ
-        const nextQuestionIndex = prevState.currentQuestionIndex + 1;
-        const isLastQuestion = nextQuestionIndex >= prevState.totalQuestions;
+        // HP減少して次の問題へ（回答数ベース、ループ対応）
+        const isComplete = prevState.correctAnswers >= prevState.totalQuestions;
         
-        if (isLastQuestion) {
-          // 最後の問題でHP残りありなら一応クリア
+        if (isComplete) {
+          // 必要な回答数に到達済みでHP残りありならクリア
           const finalState = {
             ...prevState,
             playerHp: newHp,
@@ -322,14 +328,22 @@ export const useFantasyGameEngine = ({
           onGameComplete('clear', finalState);
           return finalState;
         } else {
-          const nextChord = prevState.currentStage?.mode === 'single'
-            ? selectRandomChord(prevState.currentStage.allowedChords)
-            : getProgressionChord(prevState.currentStage?.chordProgression || [], nextQuestionIndex);
+          // 次の問題（ループ対応）
+          let nextChord;
+          if (prevState.currentStage?.mode === 'single') {
+            // ランダムモード：そのまま
+            nextChord = selectRandomChord(prevState.currentStage.allowedChords);
+          } else {
+            // コード進行モード：ループさせる
+            const progression = prevState.currentStage?.chordProgression || [];
+            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+            nextChord = getProgressionChord(progression, nextIndex);
+          }
           
           const nextState = {
             ...prevState,
             playerHp: newHp,
-            currentQuestionIndex: nextQuestionIndex,
+            currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
             currentChordTarget: nextChord,
             enemyGauge: 0
           };
@@ -365,6 +379,13 @@ export const useFantasyGameEngine = ({
       }, 100); // 100ms間隔で更新
       setEnemyGaugeTimer(timer);
     }
+    
+    // クリーンアップ
+    return () => {
+      if (enemyGaugeTimer) {
+        clearInterval(enemyGaugeTimer);
+      }
+    };
   }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
   
   // 敵ゲージの更新

@@ -72,39 +72,55 @@ const FantasyMain: React.FC = () => {
         
         // ユーザー進捗を更新（クリア時のみ）
         if (result === 'clear') {
-          const { data: currentProgress, error: progressError } = await supabase
-            .from('fantasy_user_progress')
+          // 既にクリアしているかチェック
+          const { data: existingClear, error: clearCheckError } = await supabase
+            .from('fantasy_stage_clears')
             .select('*')
             .eq('user_id', profile.id)
+            .eq('stage_id', currentStage.id)
+            .eq('clear_type', 'clear')
             .single();
           
-          if (!progressError && currentProgress) {
-            // 次のステージをアンロック
-            const [currentRank, currentStageNum] = currentStage.stageNumber.split('-').map(Number);
-            const nextStageNumber = `${currentRank}-${currentStageNum + 1}`;
-            
-            // 10ステージクリアでランクアップ
-            const newClearedStages = currentProgress.total_cleared_stages + 1;
-            const newRank = getRankFromClearedStages(newClearedStages);
-            
-            const { error: updateError } = await supabase
+          const isFirstTimeClear = clearCheckError && clearCheckError.code === 'PGRST116'; // レコードが見つからない場合のみ初回クリア
+          
+          if (isFirstTimeClear) {
+            // 初回クリア時のみ進捗を更新
+            const { data: currentProgress, error: progressError } = await supabase
               .from('fantasy_user_progress')
-              .update({
-                current_stage_number: nextStageNumber,
-                wizard_rank: newRank,
-                total_cleared_stages: newClearedStages
-              })
-              .eq('user_id', profile.id);
+              .select('*')
+              .eq('user_id', profile.id)
+              .single();
             
-            if (updateError) {
-              console.error('ファンタジー進捗更新エラー:', updateError);
-            } else {
-              devLog.debug('✅ ファンタジー進捗更新完了:', {
-                nextStage: nextStageNumber,
-                rank: newRank,
-                totalCleared: newClearedStages
-              });
+            if (!progressError && currentProgress) {
+              // 次のステージをアンロック
+              const [currentRank, currentStageNum] = currentStage.stageNumber.split('-').map(Number);
+              const nextStageNumber = `${currentRank}-${currentStageNum + 1}`;
+              
+              // 10ステージクリアでランクアップ（初回クリア時のみカウントアップ）
+              const newClearedStages = currentProgress.total_cleared_stages + 1;
+              const newRank = getRankFromClearedStages(newClearedStages);
+              
+              const { error: updateError } = await supabase
+                .from('fantasy_user_progress')
+                .update({
+                  current_stage_number: nextStageNumber,
+                  wizard_rank: newRank,
+                  total_cleared_stages: newClearedStages
+                })
+                .eq('user_id', profile.id);
+              
+              if (updateError) {
+                console.error('ファンタジー進捗更新エラー:', updateError);
+              } else {
+                devLog.debug('✅ ファンタジー進捗更新完了（初回クリア）:', {
+                  nextStage: nextStageNumber,
+                  rank: newRank,
+                  totalCleared: newClearedStages
+                });
+              }
             }
+          } else {
+            devLog.debug('🔄 既にクリア済みのステージ - 進捗更新スキップ:', currentStage.stageNumber);
           }
         }
         
