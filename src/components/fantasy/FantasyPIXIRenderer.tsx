@@ -110,12 +110,12 @@ const MAGIC_TYPES: Record<string, MagicType> = {
 
 // ===== SVGモンスターマッピング =====
 const MONSTER_SVG_PATHS: Record<string, string> = {
-  'vampire': '/ドラキュラアイコン8.svg',
-  'monster': '/怪獣アイコン.svg',
-  'reaper': '/死神アイコン1.svg',
-  'kraken': '/海の怪物クラーケンのアイコン素材.svg',
-  'werewolf': '/狼男のイラスト4.svg',
-  'demon': '/魔王のアイコン素材.svg'
+  'vampire': './ドラキュラアイコン8.svg', // ./ を追加
+  'monster': './怪獣アイコン.svg',
+  'reaper': './死神アイコン1.svg',
+  'kraken': './海の怪物クラーケンのアイコン素材.svg',
+  'werewolf': './狼男のイラスト4.svg',
+  'demon': './魔王のアイコン素材.svg'
 };
 
 // ===== PIXI インスタンスクラス =====
@@ -518,7 +518,7 @@ export class FantasyPIXIInstance {
     
     // 新しい魔法名テキスト作成
     this.magicNameText = new PIXI.Text(magicName, {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Gothic16, Arial, sans-serif', // Gothic16を追加
       fontSize: 36,
       fontWeight: 'bold',
       fill: 0xFFFFFF,
@@ -536,7 +536,7 @@ export class FantasyPIXIInstance {
     
     // 2.5秒後に削除
     setTimeout(() => {
-      if (this.magicNameText) {
+      if (this.magicNameText && !this.isDestroyed) {
         this.effectContainer.removeChild(this.magicNameText);
         this.magicNameText = null;
       }
@@ -621,6 +621,11 @@ export class FantasyPIXIInstance {
     if (!this.monsterSprite || this.isDestroyed) return;
     
     try {
+      // nullチェックを追加
+      if (!this.monsterSprite || this.monsterSprite.destroyed) {
+        return;
+      }
+      
       // よろけ効果の適用
       this.monsterSprite.x = this.monsterState.x + this.monsterState.staggerOffset.x;
       this.monsterSprite.y = this.monsterState.y + this.monsterState.staggerOffset.y;

@@ -333,7 +333,14 @@ export const useFantasyGameEngine = ({
     }
     
     setGameState(prevState => {
-      const newHp = prevState.playerHp - 1;
+      const newHp = Math.max(0, prevState.playerHp - 1); // 確実に1減らす
+      
+      devLog.debug('💥 敵の攻撃！HP更新:', {
+        oldHp: prevState.playerHp,
+        newHp: newHp,
+        damage: 1
+      });
+      
       const isGameOver = newHp <= 0;
       
       if (isGameOver) {

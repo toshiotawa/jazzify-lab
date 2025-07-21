@@ -213,6 +213,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // HPハート表示
   const renderHearts = useCallback(() => {
     const hearts = [];
+    // gameState.playerHpが正しく更新されているか確認
+    console.log('現在のHP:', gameState.playerHp, '/', stage.maxHp);
+    
     for (let i = 0; i < stage.maxHp; i++) {
       hearts.push(
         <span key={i} className={cn(
@@ -367,20 +370,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div 
         ref={gameAreaRef}
         className="relative mx-2 mb-2 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0"
-        style={{ height: '120px' }} // ファンタジーモード用に高さを大幅縮小
+        style={{ height: '120px' }}
       >
-        <PIXINotesRenderer
-          activeNotes={[]} // ファンタジーモードでは通常のアクティブノーツは使用しない
-          width={gameAreaSize.width}
-          height={120} // ファンタジーモード用に高さを大幅縮小
-          currentTime={0} // ファンタジーモードでは時間進行なし
-          onReady={handlePixiReady}
-          className="w-full h-full"
-        />
+        <div 
+          className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
+          style={{ 
+            WebkitOverflowScrolling: 'touch',
+            scrollSnapType: 'x proximity',
+            scrollBehavior: 'smooth'
+          }}
+        >
+          <PIXINotesRenderer
+            activeNotes={[]}
+            width={Math.max(gameAreaSize.width, 1200)} // 最小幅を保証
+            height={120}
+            currentTime={0}
+            onReady={handlePixiReady}
+            className="min-w-full h-full"
+          />
+        </div>
         
         {/* 入力中のノーツ表示 */}
         {inputBuffer.length > 0 && (
-          <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg">
+          <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg pointer-events-none">
             <div className="text-sm">入力中: {inputBuffer.length}音</div>
             <div className="text-xs text-gray-300">
               {inputBuffer.map(note => {
@@ -390,13 +402,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             </div>
           </div>
         )}
-        
-
-        
-        {/* 横スクロールヒント */}
-        <div className="absolute top-2 right-2 text-white text-xs bg-black bg-opacity-50 px-2 py-1 rounded">
-          Shift+ホイールで横スクロール
-        </div>
       </div>
       
       {/* エフェクト表示は削除 - PIXI側で処理 */}
