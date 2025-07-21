@@ -809,10 +809,10 @@
   }
 }
 
-/* ファンタジーモード用ピクセルフォント */
+/* ファンタジーモード用ピクセルフォント - Press Start 2P */
 .fantasy-pixel-font {
-  font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
-  font-weight: bold;
+  font-family: 'Press Start 2P', 'Courier New', 'Monaco', 'Menlo', monospace;
+  font-weight: normal; /* Press Start 2Pは既に太字デザイン */
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
@@ -822,13 +822,13 @@
 }
 
 .fantasy-game-screen {
-  font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
-  font-weight: bold;
+  font-family: 'Press Start 2P', 'Courier New', 'Monaco', 'Menlo', monospace;
+  font-weight: normal;
 }
 
 .fantasy-game-screen * {
-  font-family: 'Courier New', 'Monaco', 'Menlo', monospace !important;
-  font-weight: bold !important;
+  font-family: 'Press Start 2P', 'Courier New', 'Monaco', 'Menlo', monospace !important;
+  font-weight: normal !important; /* Press Start 2Pは既に太字デザイン */
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;

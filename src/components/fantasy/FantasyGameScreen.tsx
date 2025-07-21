@@ -7,7 +7,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
-import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
 
@@ -32,7 +31,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
-  const [fantasyPixiRenderer, setFantasyPixiRenderer] = useState<FantasyPIXIInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
@@ -53,14 +51,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleChordCorrect = useCallback((chord: ChordDefinition) => {
     devLog.debug('✅ 正解:', chord.displayName);
     
-    // ファンタジーPIXI攻撃エフェクトをトリガー
-    if (fantasyPixiRenderer) {
-      fantasyPixiRenderer.triggerAttackSuccess();
-    }
+    // エフェクトは削除済み（FontAwesome使用）
     
-    // エフェクトは PIXI 側で処理するため、ここでは削除
-    
-  }, [fantasyPixiRenderer]);
+  }, []);
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
     devLog.debug('🎵 まだ構成音が足りません:', { expected: expectedChord.displayName, input: inputNotes });
@@ -157,11 +150,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [handleNoteInputBridge, gameAreaSize]);
   
-  // ファンタジーPIXIレンダラーの準備完了ハンドラー
-  const handleFantasyPixiReady = useCallback((renderer: FantasyPIXIInstance) => {
-    setFantasyPixiRenderer(renderer);
-    devLog.debug('🎮 ファンタジーPIXI準備完了');
-  }, []);
+  // FontAwesome使用のため削除済み
   
   // ゲームエリアのリサイズ対応
   useEffect(() => {
@@ -303,19 +292,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
         </div>
         
-        {/* モンスターとゲージ（PIXI描画） */}
+        {/* モンスターとゲージ（PIXI削除、FontAwesome使用） */}
         <div className="mb-3 text-center relative">
-          {/* PIXI描画モンスターエリア */}
-          <div className="flex justify-center mb-2">
-            <FantasyPIXIRenderer
-              width={400}
-              height={200}
-              monsterIcon={currentEnemy.icon}
-              isMonsterAttacking={isMonsterAttacking}
-              enemyGauge={gameState.enemyGauge}
-              onReady={handleFantasyPixiReady}
-              className="border border-gray-600 rounded-lg bg-black bg-opacity-20"
-            />
+          {/* FontAwesome敵アイコン */}
+          <div className="flex justify-center mb-4">
+            <div className={cn(
+              "text-8xl transition-all duration-300 transform",
+              isMonsterAttacking ? "scale-125 text-red-500" : "text-white scale-100"
+            )}>
+              <i className={`fa-solid ${currentEnemy.icon === 'ghost' ? 'fa-ghost' : 
+                          currentEnemy.icon === 'dragon' ? 'fa-dragon' :
+                          currentEnemy.icon === 'skull' ? 'fa-skull' :
+                          currentEnemy.icon === 'fire' ? 'fa-fire' :
+                          currentEnemy.icon === 'ice' ? 'fa-snowflake' :
+                          'fa-ghost'}`}></i>
+            </div>
+          </div>
+          
+          {/* 敵の名前 */}
+          <div className="text-white text-lg font-bold mb-2">
+            {currentEnemy.name}
           </div>
           
           {/* 敵の行動ゲージ */}
@@ -323,7 +319,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {renderEnemyGauge()}
           </div>
           
-          {/* HP表示（PIXIコンテナ下部に移動） */}
+          {/* HP表示 */}
           <div className="flex justify-center items-center space-x-1">
             <span className="text-white text-sm mr-2">HP:</span>
             {renderHearts()}
@@ -389,6 +385,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget.displayName}</div>
           <div>入力バッファ: [{inputBuffer.join(', ')}]</div>
+          
+          {/* ゲージ強制満タンテストボタン */}
+          <button
+            onClick={() => {
+              devLog.debug('⚡ ゲージ強制満タンテスト実行');
+              // ゲージを100にして敵攻撃をトリガー
+              handleEnemyAttack();
+            }}
+            className="mt-2 px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs"
+          >
+            敵攻撃テスト
+          </button>
         </div>
       )}
     </div>
