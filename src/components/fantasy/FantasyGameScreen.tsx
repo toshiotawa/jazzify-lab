@@ -240,11 +240,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
     
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center">
           <div className="text-6xl mb-6">🎮</div>
           <h2 className="text-3xl font-bold mb-4">{stage.name}</h2>
-          <p className="text-indigo-200 mb-8">{stage.description || 'ステージの説明'}</p>
+          <p className="text-gray-200 mb-8">{stage.description || 'ステージの説明'}</p>
           <button
             onClick={() => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
@@ -271,22 +271,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   return (
     <div className={cn(
-      "h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 relative overflow-hidden select-none flex flex-col",
+      "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen",
       damageShake && "animate-pulse"
     )}>
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-2 text-white flex-shrink-0">
         <div className="flex justify-between items-center">
-          {/* ステージ情報とスコア */}
+          {/* ステージ情報のみ */}
           <div className="flex items-center space-x-4">
             <div className="text-base font-bold">
               Stage {stage.stageNumber}
-            </div>
-            <div className="text-sm">
-              Score: {gameState.score}
-            </div>
-            <div className="text-sm">
-              敵: {gameState.enemiesDefeated + 1}/{gameState.totalEnemies}
             </div>
           </div>
           
@@ -327,11 +321,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* 敵の行動ゲージ */}
           <div className="flex justify-center mb-2">
             {renderEnemyGauge()}
-          </div>
-          
-          {/* 現在の敵情報と攻撃回数 */}
-          <div className="text-white text-sm mb-2">
-            {currentEnemy.name} - {gameState.currentEnemyHits}/5 Hit
           </div>
           
           {/* HP表示（PIXIコンテナ下部に移動） */}

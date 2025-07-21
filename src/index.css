@@ -807,4 +807,32 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ファンタジーモード用ピクセルフォント */
+.fantasy-pixel-font {
+  font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
+  font-weight: bold;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.fantasy-game-screen {
+  font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
+  font-weight: bold;
+}
+
+.fantasy-game-screen * {
+  font-family: 'Courier New', 'Monaco', 'Menlo', monospace !important;
+  font-weight: bold !important;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: grayscale;
 } 

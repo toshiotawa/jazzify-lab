@@ -91,22 +91,22 @@ const MAGIC_TYPES: Record<string, MagicType> = {
 
 // ===== モンスターアイコンマッピング =====
 const MONSTER_ICONS: Record<string, string> = {
-  'ghost': '👻',
-  'tree': '🌳',
-  'seedling': '🌱',
-  'droplet': '💧',
-  'sun': '☀️',
-  'rock': '🪨',
-  'sparkles': '✨',
-  'gem': '💎',
-  'wind_face': '🌬️',
-  'zap': '⚡',
-  'star2': '⭐',
-  'dragon': '🐉',
-  'skull': '💀',
-  'fire': '🔥',
-  'ice': '🧊',
-  'lightning': '⚡'
+  'ghost': '▢',        // シンプルな四角
+  'dragon': '△',       // 三角
+  'skull': '◈',        // ダイアモンド
+  'fire': '●',         // 円
+  'ice': '◆',          // ダイアモンド塗り
+  'tree': '♦',         // ダイアモンド
+  'seedling': '◇',     // 空のダイアモンド
+  'droplet': '○',      // 空の円
+  'sun': '☉',          // 太陽記号
+  'rock': '■',         // 四角塗り
+  'sparkles': '✦',     // スター
+  'gem': '◊',          // ダイアモンド記号
+  'wind_face': '◐',    // 半円
+  'zap': '⚡',         // 雷（これは残す）
+  'star2': '★',        // 星（これは残す）
+  'lightning': '◯'     // 大きな円
 };
 
 // ===== PIXI インスタンスクラス =====
@@ -155,10 +155,10 @@ export class FantasyPIXIInstance {
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
     
-    // モンスター状態初期化
+    // モンスター状態初期化（中央配置）
     this.monsterState = {
       x: width / 2,
-      y: height / 2 - 50,
+      y: height / 2,  // 中央に配置
       health: 5,
       maxHealth: 5,
       isAttacking: false,
@@ -470,11 +470,11 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // サイズ変更
+  // サイズ変更（中央配置）
   resize(width: number, height: number): void {
     this.app.renderer.resize(width, height);
     this.monsterState.x = width / 2;
-    this.monsterState.y = height / 2 - 50;
+    this.monsterState.y = height / 2;  // 中央に配置
     
     if (this.monsterSprite) {
       this.monsterSprite.x = this.monsterState.x;
@@ -558,5 +558,4 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   );
 };
 
-export default FantasyPIXIRenderer;
-export type { FantasyPIXIInstance }; 
+export default FantasyPIXIRenderer; 
