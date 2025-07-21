@@ -150,8 +150,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // ファンタジーモード用の設定を適用
       renderer.updateSettings({
         noteNameStyle: 'abc',
-        simpleDisplayMode: false,
-        pianoHeight: 100,
+        simpleDisplayMode: true, // シンプル表示モードを有効にしてノーツコンテナを非表示
+        pianoHeight: 120, // 鍵盤の高さを調整
         transpose: 0,
         transposingInstrument: 'concert_pitch',
         practiceGuide: 'off' // ファンタジーモードでは練習ガイドを無効
@@ -243,9 +243,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return (
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
         <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white mx-auto mb-4"></div>
-          <h2 className="text-2xl font-bold">ファンタジーモード準備中...</h2>
-          <p className="text-indigo-200 mt-2">{stage.name}</p>
+          <div className="text-6xl mb-6">{MONSTER_ICONS[stage.monsterIcon] || '👻'}</div>
+          <h2 className="text-3xl font-bold mb-4">{stage.name}</h2>
+          <p className="text-indigo-200 mb-8">{stage.description || 'ステージの説明'}</p>
+          <button
+            onClick={initializeGame}
+            className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
+          >
+            🎮 ゲーム開始！
+          </button>
         </div>
       </div>
     );
@@ -284,10 +290,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       {/* ===== メインゲームエリア ===== */}
       <div className="flex flex-col items-center px-4 pb-4 relative z-20">
-        {/* 弱点コード表示 */}
+        {/* コード表示（弱点文字を削除） */}
         <div className="mb-4 text-center">
-          <div className="text-white text-lg font-medium mb-1">弱点:</div>
-          <div className="text-yellow-300 text-4xl font-bold tracking-wider">
+          <div className="text-yellow-300 text-5xl font-bold tracking-wider drop-shadow-lg">
             {gameState.currentChordTarget.displayName}
           </div>
         </div>
@@ -336,12 +341,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* ===== ピアノ鍵盤エリア ===== */}
       <div 
         ref={gameAreaRef}
-        className="relative flex-1 min-h-32 bg-black bg-opacity-30 mx-4 rounded-lg overflow-hidden"
+        className="relative mx-4 mb-4 bg-black bg-opacity-20 rounded-lg overflow-hidden"
+        style={{ height: '200px' }} // 鍵盤エリアの高さを固定
       >
         <PIXINotesRenderer
           activeNotes={[]} // ファンタジーモードでは通常のアクティブノーツは使用しない
           width={gameAreaSize.width}
-          height={gameAreaSize.height}
+          height={200} // 高さを固定
           currentTime={0} // ファンタジーモードでは時間進行なし
           onReady={handlePixiReady}
           className="w-full h-full"

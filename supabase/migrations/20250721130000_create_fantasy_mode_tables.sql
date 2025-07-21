@@ -63,7 +63,7 @@ ALTER TABLE fantasy_stage_clears ENABLE ROW LEVEL SECURITY;
 CREATE POLICY fantasy_stages_read_policy ON fantasy_stages FOR SELECT USING (true);
 CREATE POLICY fantasy_stages_write_policy ON fantasy_stages FOR ALL USING (
     auth.uid() IN (
-        SELECT user_id FROM profiles WHERE role = 'admin'
+        SELECT id FROM profiles WHERE is_admin = true
     )
 );
 
@@ -71,7 +71,7 @@ CREATE POLICY fantasy_stages_write_policy ON fantasy_stages FOR ALL USING (
 CREATE POLICY fantasy_user_progress_policy ON fantasy_user_progress FOR ALL USING (
     auth.uid() = user_id OR
     auth.uid() IN (
-        SELECT user_id FROM profiles WHERE role = 'admin'
+        SELECT id FROM profiles WHERE is_admin = true
     )
 );
 
@@ -79,7 +79,7 @@ CREATE POLICY fantasy_user_progress_policy ON fantasy_user_progress FOR ALL USIN
 CREATE POLICY fantasy_stage_clears_policy ON fantasy_stage_clears FOR ALL USING (
     auth.uid() = user_id OR
     auth.uid() IN (
-        SELECT user_id FROM profiles WHERE role = 'admin'
+        SELECT id FROM profiles WHERE is_admin = true
     )
 );
 
