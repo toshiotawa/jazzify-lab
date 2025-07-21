@@ -54,20 +54,38 @@ const FantasyMain: React.FC = () => {
         const supabase = getSupabaseClient();
         
         // クリア記録を保存（既存記録がある場合は更新）
-        const { error: clearError } = await supabase
-          .from('fantasy_stage_clears')
-          .upsert({
-            user_id: profile.id,
-            stage_id: currentStage.id,
-            score: score,
-            clear_type: result,
-            remaining_hp: result === 'clear' ? Math.max(1, 5 - (totalQuestions - correctAnswers)) : 0,
-            total_questions: totalQuestions,
-            correct_answers: correctAnswers
-          });
-        
-        if (clearError) {
-          console.error('ファンタジークリア記録保存エラー:', clearError);
+        try {
+          const { error: clearError } = await supabase
+            .from('fantasy_stage_clears')
+            .upsert({
+              user_id: profile.id,
+              stage_id: currentStage.id,
+              score: score,
+              clear_type: result,
+              remaining_hp: result === 'clear' ? Math.max(1, 5 - (totalQuestions - correctAnswers)) : 0,
+              total_questions: totalQuestions,
+              correct_answers: correctAnswers
+            });
+          
+          if (clearError) {
+            console.error('ファンタジークリア記録保存エラー:', clearError);
+            devLog.debug('クリア記録保存失敗:', {
+              error: clearError,
+              data: {
+                user_id: profile.id,
+                stage_id: currentStage.id,
+                score: score,
+                clear_type: result,
+                remaining_hp: result === 'clear' ? Math.max(1, 5 - (totalQuestions - correctAnswers)) : 0,
+                total_questions: totalQuestions,
+                correct_answers: correctAnswers
+              }
+            });
+          } else {
+            devLog.debug('✅ ファンタジークリア記録保存完了');
+          }
+        } catch (clearSaveError) {
+          console.error('ファンタジークリア記録保存例外:', clearSaveError);
         }
         
         // ユーザー進捗を更新（クリア時のみ）
@@ -100,23 +118,36 @@ const FantasyMain: React.FC = () => {
               const newClearedStages = currentProgress.total_cleared_stages + 1;
               const newRank = getRankFromClearedStages(newClearedStages);
               
-              const { error: updateError } = await supabase
-                .from('fantasy_user_progress')
-                .update({
-                  current_stage_number: nextStageNumber,
-                  wizard_rank: newRank,
-                  total_cleared_stages: newClearedStages
-                })
-                .eq('user_id', profile.id);
-              
-              if (updateError) {
-                console.error('ファンタジー進捗更新エラー:', updateError);
-              } else {
-                devLog.debug('✅ ファンタジー進捗更新完了（初回クリア）:', {
-                  nextStage: nextStageNumber,
-                  rank: newRank,
-                  totalCleared: newClearedStages
-                });
+              try {
+                const { error: updateError } = await supabase
+                  .from('fantasy_user_progress')
+                  .update({
+                    current_stage_number: nextStageNumber,
+                    wizard_rank: newRank,
+                    total_cleared_stages: newClearedStages
+                  })
+                  .eq('user_id', profile.id);
+                
+                if (updateError) {
+                  console.error('ファンタジー進捗更新エラー:', updateError);
+                  devLog.debug('進捗更新失敗:', {
+                    error: updateError,
+                    data: {
+                      user_id: profile.id,
+                      nextStage: nextStageNumber,
+                      rank: newRank,
+                      totalCleared: newClearedStages
+                    }
+                  });
+                } else {
+                  devLog.debug('✅ ファンタジー進捗更新完了（初回クリア）:', {
+                    nextStage: nextStageNumber,
+                    rank: newRank,
+                    totalCleared: newClearedStages
+                  });
+                }
+              } catch (progressUpdateError) {
+                console.error('ファンタジー進捗更新例外:', progressUpdateError);
               }
             }
           } else {
@@ -124,33 +155,32 @@ const FantasyMain: React.FC = () => {
           }
         }
         
-        // 経験値付与（直接実装）
+        // 経験値付与（addXp関数を使用）
         const xpGain = result === 'clear' ? 1000 : 200;
         const reason = `ファンタジーモード${currentStage.stageNumber}${result === 'clear' ? 'クリア' : 'チャレンジ'}`;
         
-        // XP履歴に記録
-        const { error: xpError } = await supabase
-          .from('xp_history')
-          .insert({
-            user_id: profile.id,
-            xp_gained: xpGain,
+        try {
+          // addXp関数をインポートして使用
+          const { addXp } = await import('@/platform/supabaseXp');
+          
+          const xpResult = await addXp({
+            songId: null, // ファンタジーモードなので曲IDはnull
+            baseXp: xpGain,
+            speedMultiplier: 1,
+            rankMultiplier: 1,
+            transposeMultiplier: 1,
+            membershipMultiplier: 1,
             reason: reason
           });
-        
-        if (xpError) {
-          console.error('XP履歴記録エラー:', xpError);
-        }
-        
-        // プロフィールの総XPを更新
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ 
-            xp: supabase.rpc('increment', { x: xpGain }) 
-          })
-          .eq('id', profile.id);
-        
-        if (profileError) {
-          console.error('プロフィールXP更新エラー:', profileError);
+          
+          devLog.debug('✅ ファンタジーモードXP付与完了:', {
+            gained: xpResult.gainedXp,
+            total: xpResult.totalXp,
+            level: xpResult.level
+          });
+          
+        } catch (xpError) {
+          console.error('ファンタジーモードXP付与エラー:', xpError);
         }
       }
     } catch (error) {
