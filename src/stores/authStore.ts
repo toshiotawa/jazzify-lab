@@ -3,7 +3,6 @@ import { immer } from 'zustand/middleware/immer';
 import { Session, User } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { useUserStatsStore } from './userStatsStore';
-import { useToastStore } from './toastStore';
 
 interface AuthState {
   user: User | null;
@@ -13,6 +12,11 @@ interface AuthState {
   isGuest: boolean;
   guestId: string | null;
   hasProfile: boolean;
+  emailChangeStatus: {
+    type: 'success' | 'warning' | null;
+    message: string;
+    title: string;
+  } | null;
   profile: {
     nickname: string;
     rank: 'free' | 'standard' | 'premium' | 'platinum';
@@ -43,6 +47,7 @@ interface AuthActions {
   fetchProfile: () => Promise<void>;
   createProfile: (nickname: string, agreed: boolean) => Promise<void>;
   updateEmail: (newEmail: string) => Promise<{ success: boolean; message: string }>;
+  clearEmailChangeStatus: () => void;
 }
 
 export const useAuthStore = create<AuthState & AuthActions>()(
@@ -54,6 +59,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     isGuest: false,
     guestId: null,
     hasProfile: false,
+    emailChangeStatus: null,
     profile: null,
 
     /**
@@ -170,40 +176,37 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                 // プロフィール情報を再取得してUIに反映
                 await get().fetchProfile();
                 
-                // 成功トースト通知
-                useToastStore.getState().push(
-                  'メールアドレスが正常に更新されました',
-                  'success',
-                  { 
-                    duration: 5000,
-                    title: 'メールアドレス変更完了',
-                  }
-                );
+                // 成功状態をセット
+                set(state => {
+                  state.emailChangeStatus = {
+                    type: 'success',
+                    message: 'メールアドレスが正常に更新されました',
+                    title: 'メールアドレス変更完了'
+                  };
+                });
               } else {
                 console.error('Failed to sync email with Stripe:', await response.text());
                 
-                // エラートースト通知
-                useToastStore.getState().push(
-                  'メールアドレスの更新は完了しましたが、請求情報の同期でエラーが発生しました',
-                  'warning',
-                  { 
-                    duration: 7000,
-                    title: 'メールアドレス変更',
-                  }
-                );
+                // 警告状態をセット
+                set(state => {
+                  state.emailChangeStatus = {
+                    type: 'warning',
+                    message: 'メールアドレスの更新は完了しましたが、請求情報の同期でエラーが発生しました',
+                    title: 'メールアドレス変更'
+                  };
+                });
               }
             } catch (error) {
               console.error('Error syncing email with Stripe:', error);
               
-              // ネットワークエラー等のトースト通知
-              useToastStore.getState().push(
-                'メールアドレスの更新は完了しましたが、請求情報の同期中にエラーが発生しました',
-                'warning',
-                { 
-                  duration: 7000,
-                  title: 'メールアドレス変更',
-                }
-              );
+              // ネットワークエラー等の警告状態をセット
+              set(state => {
+                state.emailChangeStatus = {
+                  type: 'warning',
+                  message: 'メールアドレスの更新は完了しましたが、請求情報の同期中にエラーが発生しました',
+                  title: 'メールアドレス変更'
+                };
+              });
             }
           }
         }
@@ -489,6 +492,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           message: errorMessage
         };
       }
+    },
+
+    /**
+     * メールアドレス変更ステータスをクリア
+     */
+    clearEmailChangeStatus: () => {
+      set(state => {
+        state.emailChangeStatus = null;
+      });
     },
   }))
 ); 

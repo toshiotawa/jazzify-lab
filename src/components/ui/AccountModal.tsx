@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { useToastStore } from '@/stores/toastStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { uploadAvatar } from '@/platform/supabaseStorage';
 import GameHeader from '@/components/ui/GameHeader';
@@ -21,7 +22,8 @@ const RANK_LABEL: Record<string, string> = {
  * #account ハッシュに合わせて表示されるアカウントページ (モーダル→ページ化)
  */
 const AccountPage: React.FC = () => {
-  const { profile, logout, updateEmail } = useAuthStore();
+  const { profile, logout, updateEmail, emailChangeStatus, clearEmailChangeStatus } = useAuthStore();
+  const pushToast = useToastStore(state => state.push);
   const [open, setOpen] = useState(window.location.hash === '#account');
   const [activeTab, setActiveTab] = useState<'profile' | 'subscription'>('profile');
   const [bio, setBio] = useState(profile?.bio || '');
@@ -62,6 +64,21 @@ const AccountPage: React.FC = () => {
     };
     loadAchievementTitles();
   }, [profile?.id]);
+
+  // メールアドレス変更ステータスを監視してToast表示
+  useEffect(() => {
+    if (emailChangeStatus && emailChangeStatus.type) {
+      pushToast(
+        emailChangeStatus.message,
+        emailChangeStatus.type,
+        {
+          duration: emailChangeStatus.type === 'success' ? 5000 : 7000,
+          title: emailChangeStatus.title,
+        }
+      );
+      clearEmailChangeStatus();
+    }
+  }, [emailChangeStatus, pushToast, clearEmailChangeStatus]);
 
   if (!open) return null;
 
