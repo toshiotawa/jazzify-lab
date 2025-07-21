@@ -344,24 +344,21 @@ export const useFantasyGameEngine = ({
       currentStage: gameState.currentStage?.stageNumber
     });
     
-    if (gameState.isGameActive && !enemyGaugeTimer) {
+    // 既存のタイマーをクリア
+    if (enemyGaugeTimer) {
+      clearInterval(enemyGaugeTimer);
+      setEnemyGaugeTimer(null);
+    }
+    
+    // ゲームがアクティブな場合のみ新しいタイマーを開始
+    if (gameState.isGameActive && gameState.currentStage) {
       devLog.debug('⏰ 敵ゲージタイマー開始');
       const timer = setInterval(() => {
         updateEnemyGauge();
       }, 100); // 100ms間隔で更新
       setEnemyGaugeTimer(timer);
-      
-      return () => {
-        devLog.debug('⏰ 敵ゲージタイマー停止（クリーンアップ）');
-        clearInterval(timer);
-        setEnemyGaugeTimer(null);
-      };
-    } else if (!gameState.isGameActive && enemyGaugeTimer) {
-      devLog.debug('⏰ 敵ゲージタイマー停止（ゲーム非アクティブ）');
-      clearInterval(enemyGaugeTimer);
-      setEnemyGaugeTimer(null);
     }
-  }, [gameState.isGameActive]); // enemyGaugeTimerを依存配列から削除して無限ループを防ぐ
+  }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
   
   // 敵ゲージの更新
   const updateEnemyGauge = useCallback(() => {
@@ -384,9 +381,11 @@ export const useFantasyGameEngine = ({
       if (newGauge >= 100) {
         // ゲージ満タン -> 敵の攻撃
         devLog.debug('💥 敵ゲージ満タン！攻撃開始');
-        // 攻撃処理を呼び出し（同期的に実行）
-        handleEnemyAttack();
-        return prevState; // 攻撃処理でstateが更新されるため、ここでは変更しない
+        // 攻撃処理を非同期で実行し、ここではゲージをリセット
+        setTimeout(() => handleEnemyAttack(), 0);
+        const nextState = { ...prevState, enemyGauge: 0 }; // ゲージをリセット
+        onGameStateChange(nextState);
+        return nextState;
       } else {
         const nextState = { ...prevState, enemyGauge: newGauge };
         onGameStateChange(nextState);
@@ -526,17 +525,19 @@ export const useFantasyGameEngine = ({
     }
   }, [stage, initializeGame]);
   
-  // クリーンアップ
+  // コンポーネント破棄時のクリーンアップ
   useEffect(() => {
     return () => {
       if (enemyGaugeTimer) {
+        devLog.debug('⏰ 敵ゲージタイマー クリーンアップで停止');
         clearInterval(enemyGaugeTimer);
       }
       if (inputTimeout) {
+        devLog.debug('⏰ 入力タイムアウト クリーンアップで停止');
         clearTimeout(inputTimeout);
       }
     };
-  }, [enemyGaugeTimer, inputTimeout]);
+  }, []);
   
   return {
     gameState,

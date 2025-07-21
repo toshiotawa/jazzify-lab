@@ -56,11 +56,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 220 }); // デフォルトサイズを調整
+  const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
-    devLog.debug('🎮 ファンタジーゲーム状態更新:', state);
+    devLog.debug('🎮 ファンタジーゲーム状態更新:', {
+      currentQuestion: state.currentQuestionIndex + 1,
+      totalQuestions: state.totalQuestions,
+      playerHp: state.playerHp,
+      enemyGauge: state.enemyGauge.toFixed(1),
+      isGameActive: state.isGameActive,
+      currentChord: state.currentChordTarget?.displayName,
+      score: state.score,
+      correctAnswers: state.correctAnswers
+    });
   }, []);
   
   const handleChordCorrect = useCallback((chord: ChordDefinition) => {
@@ -149,14 +158,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       renderer.updateSettings({
         noteNameStyle: 'abc',
         simpleDisplayMode: true, // シンプル表示モードを有効
-        pianoHeight: 220, // コンテナ高さと同じに設定
-        noteHeight: 20,
-        noteWidth: Math.max(gameAreaSize.width / 52, 16), // コンテナ幅に合わせて動的調整（最小16px）
+        pianoHeight: 120, // ファンタジーモード用に大幅に縮小
+        noteHeight: 16, // 音符の高さも縮小
+        noteWidth: Math.max(gameAreaSize.width / 52, 12), // コンテナ幅に合わせて動的調整（最小12px）
         transpose: 0,
         transposingInstrument: 'concert_pitch',
         practiceGuide: 'off', // ファンタジーモードでは練習ガイドを無効
         showHitLine: false, // ヒットラインを非表示
-        viewportHeight: 220, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
+        viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
         timingAdjustment: 0,
         effects: {
           glow: true,
@@ -184,7 +193,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const rect = gameAreaRef.current.getBoundingClientRect();
       const newSize = {
         width: Math.max(rect.width || 1000, 800), // 最小幅800pxを確保
-        height: 220 // 固定高さ
+        height: 120 // ファンタジーモード用の固定高さ（大幅縮小）
       };
       setGameAreaSize(newSize);
       
@@ -283,15 +292,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   return (
     <div className={cn(
-      "min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 relative overflow-hidden select-none",
+      "h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 relative overflow-hidden select-none flex flex-col",
       damageShake && "animate-pulse"
     )}>
       {/* ===== ヘッダー ===== */}
-      <div className="relative z-30 p-4 text-white">
+      <div className="relative z-30 p-2 text-white flex-shrink-0">
         <div className="flex justify-between items-center">
           {/* ステージ情報とスコア */}
-          <div className="flex items-center space-x-6">
-            <div className="text-lg font-bold">
+          <div className="flex items-center space-x-4">
+            <div className="text-base font-bold">
               Stage {stage.stageNumber}
             </div>
             <div className="text-sm">
@@ -305,7 +314,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* 戻るボタン */}
           <button
             onClick={onBackToStageSelect}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
           >
             ステージ選択に戻る
           </button>
@@ -313,20 +322,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       </div>
       
       {/* ===== メインゲームエリア ===== */}
-      <div className="flex flex-col items-center px-4 pb-4 relative z-20">
-        {/* コード表示（弱点文字を削除） */}
-        <div className="mb-4 text-center">
-          <div className="text-yellow-300 text-5xl font-bold tracking-wider drop-shadow-lg">
+      <div className="flex-grow flex flex-col justify-center px-4 py-2 text-white text-center relative z-20">
+        {/* コード表示（サイズを縮小） */}
+        <div className="mb-2 text-center">
+          <div className="text-yellow-300 text-3xl font-bold tracking-wider drop-shadow-lg">
             {gameState.currentChordTarget.displayName}
           </div>
         </div>
         
-        {/* 楽譜表示エリアを削除 */}
-        
-        {/* モンスターとゲージ */}
-        <div className="mb-6 text-center relative">
+        {/* モンスターとゲージ（サイズを縮小） */}
+        <div className="mb-3 text-center relative">
           <div className={cn(
-            "text-8xl transition-all duration-300 mb-2",
+            "text-5xl transition-all duration-300 mb-1",
             isMonsterAttacking && "transform scale-125 text-red-500"
           )}>
             {MONSTER_ICONS[stage.monsterIcon] || '👻'}
@@ -339,17 +346,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           
           {/* 怒りマーク（攻撃時） */}
           {isMonsterAttacking && (
-            <div className="absolute top-0 right-0 text-red-500 text-3xl animate-bounce">
+            <div className="absolute top-0 right-0 text-red-500 text-2xl animate-bounce">
               💢
             </div>
           )}
         </div>
         
-        {/* NEXTコード表示（コード進行モード） */}
+        {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
         {stage.mode === 'progression' && getNextChord() && (
-          <div className="mb-4 text-right">
-            <div className="text-white text-sm">NEXT:</div>
-            <div className="text-blue-300 text-xl font-bold">
+          <div className="mb-2 text-right">
+            <div className="text-white text-xs">NEXT:</div>
+            <div className="text-blue-300 text-lg font-bold">
               {getNextChord()}
             </div>
           </div>
@@ -359,13 +366,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* ===== ピアノ鍵盤エリア ===== */}
       <div 
         ref={gameAreaRef}
-        className="relative mx-4 mb-4 bg-black bg-opacity-20 rounded-lg overflow-hidden"
-        style={{ height: '220px' }} // 鍵盤エリアの高さを増加
+        className="relative mx-2 mb-2 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0"
+        style={{ height: '120px' }} // ファンタジーモード用に高さを大幅縮小
       >
         <PIXINotesRenderer
           activeNotes={[]} // ファンタジーモードでは通常のアクティブノーツは使用しない
           width={gameAreaSize.width}
-          height={220} // 高さを増加
+          height={120} // ファンタジーモード用に高さを大幅縮小
           currentTime={0} // ファンタジーモードでは時間進行なし
           onReady={handlePixiReady}
           className="w-full h-full"

@@ -893,7 +893,8 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    const whiteKeyWidth = this.app.screen.width / totalWhiteKeys;
+    // 画面幅に合わせて白鍵幅を動的計算（最小12px確保）
+    const whiteKeyWidth = Math.max(this.app.screen.width / totalWhiteKeys, 12);
     
     // 白鍵コンテナと黒鍵コンテナを分離して Z-index を確実に制御
     const whiteKeysContainer = new PIXI.Container();
@@ -927,6 +928,17 @@ export class PIXINotesRendererInstance {
     // コンテナを順序付けて追加（白鍵が背面、黒鍵が前面）
     this.pianoContainer.addChild(whiteKeysContainer);
     this.pianoContainer.addChild(blackKeysContainer);
+    
+    // ピアノコンテナ全体のサイズを画面に合わせて設定
+    this.pianoContainer.width = this.app.screen.width;
+    this.pianoContainer.height = this.settings.pianoHeight;
+    
+    log.debug('🎹 ピアノコンテナサイズ設定:', {
+      width: this.pianoContainer.width,
+      height: this.pianoContainer.height,
+      screenWidth: this.app.screen.width,
+      settingsPianoHeight: this.settings.pianoHeight
+    });
     
     // ===== グリッサンド用ドラッグハンドラ =====
     // 安定性向上のためグリッサンド機能を無効化。
