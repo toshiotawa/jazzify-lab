@@ -282,6 +282,13 @@ export const useFantasyGameEngine = ({
   
   // 敵の攻撃処理
   const handleEnemyAttack = useCallback(() => {
+    // 攻撃時に入力バッファをリセット
+    setInputBuffer([]);
+    if (inputTimeout) {
+      clearTimeout(inputTimeout);
+      setInputTimeout(null);
+    }
+    
     setGameState(prevState => {
       const newHp = prevState.playerHp - 1;
       const isGameOver = newHp <= 0;
@@ -334,7 +341,7 @@ export const useFantasyGameEngine = ({
     });
     
     onEnemyAttack();
-  }, [onGameStateChange, onGameComplete, onEnemyAttack]);
+  }, [onGameStateChange, onGameComplete, onEnemyAttack, inputTimeout]);
   
   // ゲージタイマーの管理
   useEffect(() => {
@@ -472,8 +479,8 @@ export const useFantasyGameEngine = ({
       // 入力バッファをクリア
       setInputBuffer([]);
       
-      // 次の問題へ（少し遅延）
-      setTimeout(proceedToNextQuestion, 800);
+      // 次の問題へ（即座に切り替え）
+      setTimeout(proceedToNextQuestion, 200);
       
     } else {
       devLog.debug('🎵 まだ構成音が足りません', { 

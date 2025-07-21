@@ -160,7 +160,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         simpleDisplayMode: true, // シンプル表示モードを有効
         pianoHeight: 120, // ファンタジーモード用に大幅に縮小
         noteHeight: 16, // 音符の高さも縮小
-        noteWidth: Math.max(gameAreaSize.width / 52, 12), // コンテナ幅に合わせて動的調整（最小12px）
+        noteWidth: Math.max(gameAreaSize.width / 44, 18), // コンテナ幅をよりフル活用（44鍵に合わせ、最小18px）
         transpose: 0,
         transposingInstrument: 'concert_pitch',
         practiceGuide: 'off', // ファンタジーモードでは練習ガイドを無効
