@@ -21,6 +21,7 @@ import MissionRanking from '@/components/ranking/MissionRanking';
 import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import PricingTable from '@/components/subscription/PricingTable';
+import FantasyMain from '@/components/fantasy/FantasyMain';
 
 /**
  * メインアプリケーションコンポーネント
@@ -231,6 +232,9 @@ const App: React.FC = () => {
     case '#admin-users':
     case '#admin-announcements':
       MainContent = <AdminDashboard />;
+      break;
+    case '#fantasy':
+      MainContent = <FantasyMain />;
       break;
     case '#songs':
     case '#practice':

@@ -19,7 +19,8 @@ import {
   FaGraduationCap,
   FaGem,
   FaStar,
-  FaMedal
+  FaMedal,
+  FaMagic
 } from 'react-icons/fa';
 import { Mission } from '@/platform/supabaseMissions';
 import GameHeader from '@/components/ui/GameHeader';
@@ -362,6 +363,22 @@ const Dashboard: React.FC = () => {
                   </div>
                   <p className="text-sm text-gray-400">
                     ジャズ理論を学習
+                  </p>
+                </button>
+                
+                {/* ファンタジーモード */}
+                <button
+                  onClick={() => { window.location.hash = '#fantasy'; }}
+                  className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg p-6 border border-purple-600 hover:border-purple-400 transition-colors text-left relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 text-6xl opacity-20">🧙‍♂️</div>
+                  <div className="flex items-center space-x-3 mb-3 relative z-10">
+                    <FaMagic className="w-6 h-6 text-yellow-400" />
+                    <h3 className="text-lg font-semibold text-white">ファンタジーモード</h3>
+                    <span className="bg-yellow-400 text-black text-xs px-2 py-1 rounded-full font-bold">NEW</span>
+                  </div>
+                  <p className="text-sm text-purple-100 relative z-10">
+                    RPG風のコード練習ゲーム
                   </p>
                 </button>
               </div>
