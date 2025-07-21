@@ -266,11 +266,98 @@ Phase 1完了 - 基盤整備が完了しました。次はPhase 2でゲームエ
 ## 技術スタック
 
 - **Frontend**: React 18 + TypeScript + Vite
-- **スタイリング**: Tailwind CSS
+- **スタイリング**: Tailwind CSS + CSS Modules
 - **状態管理**: Zustand + Immer
 - **グラフィックス**: PIXI.js
-- **音源**: Tone.js + Web Audio API
-- **ピッチ検出**: WebAssembly (PYIN)
+- **音源**: Tone.js
+- **ピッチ検出**: Rust + WebAssembly (PYIN)
+- **デプロイ**: Netlify
+- **入力**: MIDI/Audio(PYIN)
+
+## 環境変数設定
+
+### 必須環境変数
+
+```bash
+# Supabase設定
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Magic Link設定（重要）
+VITE_SUPABASE_REDIRECT_URL=https://your-app-domain.com
+```
+
+### 環境変数設定例
+
+**開発環境**:
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_key_here
+VITE_SUPABASE_REDIRECT_URL=http://localhost:5173
+```
+
+**本番環境**:
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_key_here
+VITE_SUPABASE_REDIRECT_URL=https://your-jazz-game.netlify.app
+```
+
+### Magic Link設定について
+
+Magic Linkによるパスワードレスログインを正常に動作させるためには、以下の設定が必要です：
+
+1. **環境変数設定**: `VITE_SUPABASE_REDIRECT_URL`にアプリケーションのドメインを設定
+2. **Supabase Auth設定**: Supabaseダッシュボードの「Auth > Providers > Email」で以下を設定：
+   - Site URL: `https://your-app-domain.com`
+   - Additional redirect URLs: `https://your-app-domain.com/**`
+
+#### 設定例
+
+**開発環境**:
+```bash
+VITE_SUPABASE_REDIRECT_URL=http://localhost:5173
+```
+
+**本番環境**:
+```bash
+VITE_SUPABASE_REDIRECT_URL=https://your-jazz-game.netlify.app
+```
+
+#### トラブルシューティング
+
+Magic Linkが正常に動作しない場合：
+
+1. **環境変数の確認**: `VITE_SUPABASE_REDIRECT_URL`が正しく設定されているか確認
+2. **Supabase設定の確認**: Auth設定でSite URLとリダイレクトURLが一致しているか確認
+3. **ブラウザコンソールの確認**: リダイレクトURLが正しく設定されているかログで確認
+
+##### よくある問題と解決方法
+
+**問題1: Magic Linkをクリックしてもログインが完了しない**
+- **原因**: リダイレクトURLがSupabaseの設定と一致していない
+- **解決方法**: 
+  1. 環境変数`VITE_SUPABASE_REDIRECT_URL`を確認
+  2. SupabaseダッシュボードでSite URLとリダイレクトURLを一致させる
+
+**問題2: 開発環境でMagic Linkが動作しない**
+- **原因**: localhostの設定が不足している
+- **解決方法**: 
+  1. `VITE_SUPABASE_REDIRECT_URL=http://localhost:5173`を設定
+  2. Supabaseでlocalhostを許可されたリダイレクトURLに追加
+
+**問題3: 本番環境でMagic Linkが動作しない**
+- **原因**: HTTPSプロトコルが設定されていない
+- **解決方法**: 
+  1. `VITE_SUPABASE_REDIRECT_URL=https://your-domain.com`を設定
+  2. SupabaseでHTTPSのURLを設定
+
+##### デバッグ方法
+
+開発環境では、認証画面にデバッグ情報が表示されます：
+- 環境変数の設定状況
+- 使用されるリダイレクトURL
+- 現在のorigin
 
 ## 開発
 

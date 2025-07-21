@@ -3,6 +3,58 @@ import { immer } from 'zustand/middleware/immer';
 import { Session, User } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { useUserStatsStore } from './userStatsStore';
+import { logMagicLinkDebugInfo } from '@/utils/magicLinkConfig';
+
+/**
+ * 有効なリダイレクトURLを取得・検証する
+ * @returns 有効なリダイレクトURL、またはnull
+ */
+function getValidRedirectUrl(): string | null {
+  // 開発環境でデバッグ情報を出力
+  if (import.meta.env.DEV) {
+    logMagicLinkDebugInfo();
+  }
+
+  // 環境変数から取得を試行
+  const envRedirectUrl = import.meta.env.VITE_SUPABASE_REDIRECT_URL;
+  
+  console.log('🔍 Magic Link リダイレクトURL検証開始');
+  console.log('環境変数 VITE_SUPABASE_REDIRECT_URL:', envRedirectUrl);
+  
+  if (envRedirectUrl) {
+    try {
+      const url = new URL(envRedirectUrl);
+      console.log('解析されたURL:', {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port,
+        pathname: url.pathname
+      });
+      
+      // HTTPSまたはlocalhostの場合のみ許可
+      if (url.protocol === 'https:' || url.hostname === 'localhost') {
+        console.log('✅ 有効なリダイレクトURL:', envRedirectUrl);
+        return envRedirectUrl;
+      } else {
+        console.warn('❌ 無効なプロトコル:', url.protocol);
+      }
+    } catch (error) {
+      console.warn('❌ 無効なURL形式:', envRedirectUrl, error);
+    }
+  } else {
+    console.warn('⚠️ 環境変数 VITE_SUPABASE_REDIRECT_URL が設定されていません');
+  }
+
+  // フォールバック: 現在のorigin
+  if (typeof location !== 'undefined') {
+    const currentOrigin = location.origin;
+    console.log('🔄 フォールバック: 現在のoriginを使用:', currentOrigin);
+    return currentOrigin;
+  }
+
+  console.error('❌ リダイレクトURLを取得できませんでした');
+  return null;
+}
 
 interface AuthState {
   user: User | null;
@@ -41,7 +93,7 @@ interface AuthState {
 
 interface AuthActions {
   init: () => Promise<void>;
-  loginWithMagicLink: (email: string) => Promise<void>;
+  loginWithMagicLink: (email: string, mode?: 'signup' | 'login') => Promise<void>;
   logout: () => Promise<void>;
   enterGuestMode: () => void;
   fetchProfile: () => Promise<void>;
@@ -239,28 +291,44 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.loading = true;
         state.error = null;
       });
-      // Supabase へ Magic Link を送信 (redirect URL を明示)
-      const redirectUrl =
-        import.meta.env.VITE_SUPABASE_REDIRECT_URL ??
-        (typeof location !== 'undefined' ? location.origin : undefined);
 
-      const options: { shouldCreateUser: boolean; emailRedirectTo?: string } = {
-        shouldCreateUser: mode === 'signup',
-      };
-      if (redirectUrl) {
-        options.emailRedirectTo = redirectUrl;
-      }
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options,
-      });
-      set(state => {
-        state.loading = false;
-        if (error) {
-          state.error = error.message;
+      try {
+        // リダイレクトURLの検証と設定
+        const redirectUrl = getValidRedirectUrl();
+        
+        if (!redirectUrl) {
+          throw new Error('リダイレクトURLの設定が不正です。環境変数 VITE_SUPABASE_REDIRECT_URL を確認してください。');
         }
-      });
+
+        console.log('Magic Link redirect URL:', redirectUrl);
+
+        const options: { shouldCreateUser: boolean; emailRedirectTo?: string } = {
+          shouldCreateUser: mode === 'signup',
+          emailRedirectTo: redirectUrl,
+        };
+
+        // メールベースのMagic Link送信
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        set(state => {
+          state.loading = false;
+          state.error = null;
+        });
+
+      } catch (error) {
+        console.error('Magic Link error:', error);
+        set(state => {
+          state.loading = false;
+          state.error = error instanceof Error ? error.message : 'Magic Link送信に失敗しました';
+        });
+      }
     },
 
     /**
