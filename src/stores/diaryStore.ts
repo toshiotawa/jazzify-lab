@@ -14,6 +14,8 @@ interface DiaryState {
   comments: Record<string, DiaryComment[]>;
   realtimeInitialized: boolean;
   likeUsers: Record<string, import('@/platform/supabaseDiary').DiaryLikeUser[]>;
+  updating: Record<string, boolean>; // 個別の更新状態
+  deleting: Record<string, boolean>; // 個別の削除状態
 }
 
 interface DiaryActions {
@@ -46,6 +48,8 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     comments: {},
     realtimeInitialized: false,
     likeUsers: {},
+    updating: {},
+    deleting: {},
 
     fetch: async () => {
       set(s => { s.loading = true; s.error = null; });
@@ -82,8 +86,34 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     },
 
     update: async (id: string, content: string, imageUrl?: string) => {
-      await updateDiary(id, content, imageUrl);
-      await get().fetch();
+      set(s => { 
+        s.updating[id] = true; 
+        s.error = null; 
+      });
+      
+      try {
+        await updateDiary(id, content, imageUrl);
+        
+        // 楽観的更新
+        set(s => {
+          const diary = s.diaries.find(d => d.id === id);
+          if (diary) {
+            diary.content = content;
+            if (imageUrl !== undefined) {
+              diary.image_url = imageUrl;
+            }
+          }
+        });
+      } catch (error) {
+        set(s => { 
+          s.error = error instanceof Error ? error.message : '更新に失敗しました'; 
+        });
+        throw error;
+      } finally {
+        set(s => { 
+          s.updating[id] = false; 
+        });
+      }
     },
 
     fetchComments: async (diaryId: string) => {
@@ -102,9 +132,32 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     },
 
     deleteDiary: async (diaryId: string) => {
-      const { deleteDiary } = await import('@/platform/supabaseDiary');
-      await deleteDiary(diaryId);
-      await get().fetch();
+      set(s => { 
+        s.deleting[diaryId] = true; 
+        s.error = null; 
+      });
+      
+      try {
+        const { deleteDiary } = await import('@/platform/supabaseDiary');
+        await deleteDiary(diaryId);
+        
+        // 楽観的削除
+        set(s => {
+          s.diaries = s.diaries.filter(d => d.id !== diaryId);
+          // 関連するコメントも削除
+          delete s.comments[diaryId];
+          delete s.likeUsers[diaryId];
+        });
+      } catch (error) {
+        set(s => { 
+          s.error = error instanceof Error ? error.message : '削除に失敗しました'; 
+        });
+        throw error;
+      } finally {
+        set(s => { 
+          s.deleting[diaryId] = false; 
+        });
+      }
     },
 
     fetchLikeUsers: async (diaryId: string) => {

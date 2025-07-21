@@ -145,7 +145,13 @@ const DiaryFeed: React.FC = () => {
                 className="flex items-center text-red-400 hover:text-red-300"
                 onClick={async () => {
                   if(!confirm('この日記を削除しますか？')) return;
-                  try { await deleteDiary(d.id); } catch(e:any){ toast.error(e.message); }
+                  try { 
+                    await deleteDiary(d.id);
+                    toast.success('日記を削除しました');
+                  } catch(e:any){ 
+                    console.error('日記削除エラー:', e);
+                    toast.error(e.message || '日記の削除に失敗しました');
+                  }
                 }}
               ><FaTrash className="mr-1"/>削除</button>
             </div>

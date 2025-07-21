@@ -75,6 +75,42 @@ create table public.lessons (
   updated_at timestamptz default now()
 );
 
+-- コース前提条件テーブル
+create table public.course_prerequisites (
+  course_id uuid not null references public.courses(id) on delete cascade,
+  prerequisite_course_id uuid not null references public.courses(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (course_id, prerequisite_course_id)
+);
+
+-- ユーザーコース進捗テーブル
+create table public.user_course_progress (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  course_id uuid not null references public.courses(id) on delete cascade,
+  is_unlocked boolean not null default false,
+  locked_at timestamptz,
+  unlocked_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  primary key (user_id, course_id)
+);
+
+-- ユーザー楽曲プレイ進捗テーブル
+create table public.user_song_play_progress (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  song_id uuid not null references public.songs(id) on delete cascade,
+  context_type text not null check (context_type in ('mission', 'lesson', 'general')),
+  context_id uuid,
+  clear_count integer not null default 0,
+  best_rank text,
+  best_score integer,
+  last_cleared_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, song_id, context_type, context_id)
+);
+
 -- Lesson に紐づく曲
 create table public.lesson_songs (
   id uuid default gen_random_uuid() not null primary key,
@@ -149,6 +185,20 @@ create table public.user_challenge_progress (
   unique (user_id, challenge_id)
 );
 
+-- チャレンジ進捗テーブル（古い形式）
+create table public.challenge_progress (
+  id uuid not null default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  challenge_id uuid not null references public.challenges(id) on delete cascade,
+  completed_clears integer not null default 0,
+  is_completed boolean default false,
+  completed_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  primary key (id),
+  unique (user_id, challenge_id)
+);
+
 -- 経験値履歴 (ステージ終了毎)
 create table public.xp_history (
   id uuid primary key default gen_random_uuid(),
@@ -181,10 +231,12 @@ create table public.practice_diaries (
   unique (user_id, practice_date)
 );
 
--- RLS: practice_diaries (公開読み取り、本人のみ書き込み)
+-- RLS: practice_diaries (公開読み取り、本人のみ書き込み・編集・削除)
 alter table public.practice_diaries enable row level security;
 create policy "diary_select" on public.practice_diaries for select using ( true );
 create policy "diary_insert" on public.practice_diaries for insert with check ( auth.uid() = user_id );
+create policy "diary_update" on public.practice_diaries for update using ( auth.uid() = user_id );
+create policy "diary_delete" on public.practice_diaries for delete using ( auth.uid() = user_id );
 
 create table public.diary_likes (
   user_id uuid references public.profiles(id) on delete cascade,
@@ -353,7 +405,80 @@ create index if not exists announcements_active_idx
 create index if not exists announcements_created_by_idx
   on public.announcements (created_by); 
 
-  -- Database → Replication → Publication で追加
+-- ------------------------------------------------------------
+-- Additional Indexes and RLS for New Tables
+-- ------------------------------------------------------------
+
+-- course_prerequisites indexes
+create index if not exists idx_course_prerequisites_course_id on public.course_prerequisites(course_id);
+create index if not exists idx_course_prerequisites_prerequisite_id on public.course_prerequisites(prerequisite_course_id);
+
+-- user_course_progress indexes
+create index if not exists user_course_progress_user_idx on public.user_course_progress(user_id);
+create index if not exists user_course_progress_course_idx on public.user_course_progress(course_id);
+create index if not exists user_course_progress_unlocked_idx on public.user_course_progress(is_unlocked);
+
+-- user_song_play_progress indexes
+create index if not exists idx_user_song_play_progress_user_id on public.user_song_play_progress(user_id);
+create index if not exists idx_user_song_play_progress_song_id on public.user_song_play_progress(song_id);
+create index if not exists idx_user_song_play_progress_context on public.user_song_play_progress(context_type, context_id);
+create index if not exists idx_user_song_play_progress_user_context on public.user_song_play_progress(user_id, context_type, context_id);
+create index if not exists idx_user_song_play_progress_user_song on public.user_song_play_progress(user_id, song_id);
+
+-- challenge_progress indexes
+create index if not exists idx_challenge_progress_user_id on public.challenge_progress(user_id);
+create index if not exists idx_challenge_progress_challenge_id on public.challenge_progress(challenge_id);
+create index if not exists idx_challenge_progress_completed on public.challenge_progress(is_completed);
+
+-- RLS for new tables
+alter table public.course_prerequisites enable row level security;
+alter table public.user_course_progress enable row level security;
+alter table public.user_song_play_progress enable row level security;
+alter table public.challenge_progress enable row level security;
+
+-- course_prerequisites RLS policies
+create policy "Allow admin full access on course_prerequisites" on public.course_prerequisites
+  for all using ( (select is_admin from public.profiles where auth.uid() = id) )
+  with check ( (select is_admin from public.profiles where auth.uid() = id) );
+
+create policy "Allow authenticated users to read course_prerequisites" on public.course_prerequisites
+  for select using ( auth.role() = 'authenticated' );
+
+-- user_course_progress RLS policies
+create policy "course_progress_user_or_admin_select" on public.user_course_progress
+  for select using ( auth.uid() = user_id or (select is_admin from public.profiles where auth.uid() = id) );
+
+create policy "course_progress_user_or_admin_modify" on public.user_course_progress
+  for all using ( auth.uid() = user_id or (select is_admin from public.profiles where auth.uid() = id) )
+  with check ( auth.uid() = user_id or (select is_admin from public.profiles where auth.uid() = id) );
+
+-- user_song_play_progress RLS policies
+create policy "Users can read their own song play progress" on public.user_song_play_progress
+  for select using ( auth.uid() = user_id );
+
+create policy "Users can manage their own song play progress" on public.user_song_play_progress
+  for all using ( auth.uid() = user_id )
+  with check ( auth.uid() = user_id );
+
+create policy "Admin can read all song play progress" on public.user_song_play_progress
+  for select using ( (select is_admin from public.profiles where auth.uid() = id) );
+
+-- challenge_progress RLS policies
+create policy "Users can view their own challenge progress" on public.challenge_progress
+  for select using ( auth.uid() = user_id );
+
+create policy "Users can insert their own challenge progress" on public.challenge_progress
+  for insert with check ( auth.uid() = user_id );
+
+create policy "Users can update their own challenge progress" on public.challenge_progress
+  for update using ( auth.uid() = user_id )
+  with check ( auth.uid() = user_id );
+
+-- course_prerequisites constraint
+alter table public.course_prerequisites add constraint no_self_reference 
+  check (course_id != prerequisite_course_id);
+
+-- Database → Replication → Publication で追加
 alter publication supabase_realtime
   add table public.practice_diaries,
           public.diary_comments;

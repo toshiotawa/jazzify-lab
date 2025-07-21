@@ -38,7 +38,10 @@
       "Bash(npm run typecheck:*)",
       "Bash(npm run:*)",
       "Bash(node:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(npx:*)",
+      "Bash(git log:*)",
+      "Bash(supabase status:*)"
     ],
     "deny": []
   }

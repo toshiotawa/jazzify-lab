@@ -363,21 +363,48 @@ export async function likeDiary(diaryId: string) {
 
 export async function updateDiary(diaryId: string, content: string, imageUrl?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  
+  if (authError) {
+    console.error('認証エラー:', authError);
+    throw new Error('認証エラーが発生しました');
+  }
+  
+  if (!user) {
+    throw new Error('ログインが必要です');
+  }
 
-  const updateData: any = { content };
+  const updateData: any = { 
+    content,
+    updated_at: new Date().toISOString()
+  };
+  
   if (imageUrl !== undefined) {
     updateData.image_url = imageUrl;
   }
 
-  const { error } = await supabase
+  console.log('日記更新中:', { diaryId, userId: user.id, updateData });
+
+  const { data, error } = await supabase
     .from('practice_diaries')
     .update(updateData)
     .eq('id', diaryId)
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
+    .select();
     
-  if (error) throw new Error(`日記の更新に失敗しました: ${error.message}`);
+  if (error) {
+    console.error('日記更新エラー:', error);
+    if (error.code === 'PGRST301') {
+      throw new Error('更新権限がありません。この日記を編集できるのは作成者のみです。');
+    }
+    throw new Error(`日記の更新に失敗しました: ${error.message}`);
+  }
+  
+  if (!data || data.length === 0) {
+    throw new Error('日記が見つからないか、更新権限がありません');
+  }
+  
+  console.log('日記更新完了:', data[0]);
 }
 
 export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
@@ -475,26 +502,60 @@ export async function fetchDiaryLikes(diaryId: string, limit = 50): Promise<Diar
 
 export async function deleteDiary(diaryId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
   
-  // 削除対象の日記の日付を取得
-  const { data: diary } = await supabase
+  if (authError) {
+    console.error('認証エラー:', authError);
+    throw new Error('認証エラーが発生しました');
+  }
+  
+  if (!user) {
+    throw new Error('ログインが必要です');
+  }
+  
+  console.log('日記削除開始:', { diaryId, userId: user.id });
+  
+  // 削除対象の日記の存在確認と権限チェック
+  const { data: diary, error: fetchError } = await supabase
     .from('practice_diaries')
-    .select('practice_date')
+    .select('practice_date, user_id')
     .eq('id', diaryId)
-    .eq('user_id', user.id)
     .single();
   
-  if (!diary) throw new Error('日記が見つかりません');
+  if (fetchError) {
+    console.error('日記取得エラー:', fetchError);
+    throw new Error('日記の取得に失敗しました');
+  }
+  
+  if (!diary) {
+    throw new Error('日記が見つかりません');
+  }
+  
+  if (diary.user_id !== user.id) {
+    throw new Error('削除権限がありません。この日記を削除できるのは作成者のみです。');
+  }
   
   // 日記を削除
-  const { error } = await supabase
+  const { data: deletedData, error: deleteError } = await supabase
     .from('practice_diaries')
     .delete()
     .eq('id', diaryId)
-    .eq('user_id', user.id);
-  if (error) throw new Error(`日記の削除に失敗しました: ${error.message}`);
+    .eq('user_id', user.id)
+    .select();
+    
+  if (deleteError) {
+    console.error('日記削除エラー:', deleteError);
+    if (deleteError.code === 'PGRST301') {
+      throw new Error('削除権限がありません。この日記を削除できるのは作成者のみです。');
+    }
+    throw new Error(`日記の削除に失敗しました: ${deleteError.message}`);
+  }
+  
+  if (!deletedData || deletedData.length === 0) {
+    throw new Error('日記が見つからないか、削除権限がありません');
+  }
+  
+  console.log('日記削除完了:', deletedData[0]);
   
   // 削除された日記がミッション進捗に影響する場合は進捗を調整
   try {

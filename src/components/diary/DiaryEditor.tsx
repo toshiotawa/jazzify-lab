@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDiaryStore } from '@/stores/diaryStore';
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -21,10 +21,18 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const [hasImageChanged, setHasImageChanged] = useState(false);
   const toast = useToast();
   const { profile } = useAuthStore();
   const isEdit = !!diary;
   const disabled = (isEdit ? false : todayPosted) || submitting || text.trim().length === 0;
+
+  // 編集モードで既存の画像を初期表示
+  useEffect(() => {
+    if (isEdit && diary?.image_url) {
+      setImagePreview(diary.image_url);
+    }
+  }, [isEdit, diary?.image_url]);
 
   // 会員ランクに応じたXP計算
   const getExpectedXp = () => {
@@ -52,6 +60,7 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
       const compressedFile = new File([compressedBlob], file.name, { type: 'image/webp' });
       
       setSelectedImage(compressedFile);
+      setHasImageChanged(true);
       
       // プレビュー用のURLを生成
       const previewUrl = URL.createObjectURL(compressedBlob);
@@ -69,7 +78,9 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
   // 画像削除ハンドラー
   const handleImageRemove = () => {
     setSelectedImage(null);
-    if (imagePreview) {
+    setHasImageChanged(true);
+    if (imagePreview && !imagePreview.startsWith('http')) {
+      // Blob URLの場合のみrevokeする（既存画像URLは除く）
       URL.revokeObjectURL(imagePreview);
     }
     setImagePreview(null);
@@ -94,7 +105,28 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
     setSubmitting(true);
     try {
       if (isEdit) {
-        await update(diary.id, content);
+        let finalImageUrl = diary.image_url;
+        
+        // 画像が変更された場合の処理
+        if (hasImageChanged) {
+          if (selectedImage) {
+            // 新しい画像をアップロード
+            try {
+              await createDiaryImagesBucket();
+              finalImageUrl = await uploadDiaryImage(selectedImage, profile!.id, diary.id);
+            } catch (uploadError) {
+              console.error('画像アップロードエラー:', uploadError);
+              toast.error('画像のアップロードに失敗しました');
+              setSubmitting(false);
+              return;
+            }
+          } else {
+            // 画像が削除された場合
+            finalImageUrl = undefined;
+          }
+        }
+        
+        await update(diary.id, content, finalImageUrl);
         toast.success('日記を更新しました');
         onClose?.();
       } else {
