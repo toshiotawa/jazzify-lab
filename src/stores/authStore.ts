@@ -277,7 +277,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           (event === 'TOKEN_REFRESHED'  && session?.user)
         ) {
           console.log('✅ プロフィール取得開始');
-          get().fetchProfile().catch(console.error);
+          get().fetchProfile().catch(error => {
+            console.error('❌ プロフィール取得エラー:', error);
+          });
         }
 
         // メールアドレス変更完了の検出とStripe同期
@@ -485,7 +487,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     fetchProfile: async () => {
       const supabase = getSupabaseClient();
       const { user } = get();
-      if (!user) return;
+      if (!user) {
+        console.log('❌ fetchProfile: ユーザーが存在しません');
+        return;
+      }
+      
+      console.log('🔍 fetchProfile: プロフィール取得開始', { userId: user.id, userEmail: user.email });
       
       try {
         const { data, error } = await supabase
@@ -493,6 +500,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, email')
           .eq('id', user.id)
           .maybeSingle(); // singleの代わりにmaybeSingleを使用してNot Found エラーを防ぐ
+        
+        console.log('📊 fetchProfile: 取得結果', { data, error, hasData: !!data, hasError: !!error });
         
         set(state => {
           state.hasProfile = !!data && !error;
@@ -524,8 +533,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
         // プロフィール取得成功後、ユーザー統計も並行で取得
         if (data && !error) {
+          console.log('✅ fetchProfile: プロフィール取得成功', { nickname: data.nickname, rank: data.rank });
           const { fetchStats } = useUserStatsStore.getState();
           fetchStats(user.id).catch(console.error); // エラーは無視（統計は重要ではない）
+        } else if (error) {
+          console.log('❌ fetchProfile: プロフィール取得エラー', { error });
+        } else {
+          console.log('⚠️ fetchProfile: プロフィールが見つかりません（新規ユーザー）');
         }
       } catch (err) {
         console.error('Profile fetch error:', err);
@@ -533,6 +547,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         // ネットワークエラーや一時的なエラーの場合は hasProfile を変更しない
         const errorMessage = err instanceof Error ? err.message : String(err);
         if (errorMessage.includes('network') || errorMessage.includes('timeout') || errorMessage.includes('fetch')) {
+          console.log('🌐 fetchProfile: ネットワークエラー', { errorMessage });
           set(state => {
             state.error = '一時的なネットワークエラーです。しばらくしてから再試行してください。';
           });
@@ -540,6 +555,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
         
         // その他のエラーの場合のみ hasProfile を false にする
+        console.log('💥 fetchProfile: 致命的エラー', { errorMessage });
         set(state => {
           state.hasProfile = false;
           state.profile = null;
