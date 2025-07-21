@@ -4,6 +4,22 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { 
+  FaGhost,
+  FaTree, 
+  FaSeedling,
+  FaTint,
+  FaSun,
+  FaCube,
+  FaStar,
+  FaGem,
+  FaWind,
+  FaBolt,
+  FaDragon,
+  FaSkull,
+  FaFire,
+  FaSnowflake
+} from 'react-icons/fa';
 import { cn } from '@/utils/cn';
 
 interface FantasyMonsterProps {
@@ -16,24 +32,24 @@ interface FantasyMonsterProps {
   className?: string;
 }
 
-// モンスターアイコンマッピング
-const MONSTER_ICONS: Record<string, string> = {
-  'ghost': '👻',
-  'tree': '🌳',
-  'seedling': '🌱', 
-  'droplet': '💧',
-  'sun': '☀️',
-  'rock': '🪨',
-  'sparkles': '✨',
-  'gem': '💎',
-  'wind_face': '🌬️',
-  'zap': '⚡',
-  'star2': '⭐',
-  'dragon': '🐉',
-  'skull': '💀',
-  'fire': '🔥',
-  'ice': '🧊',
-  'lightning': '⚡'
+// モンスターアイコンマッピング（FontAwesome）
+const MONSTER_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  'ghost': FaGhost,
+  'tree': FaTree,
+  'seedling': FaSeedling, 
+  'droplet': FaTint,
+  'sun': FaSun,
+  'rock': FaCube,
+  'sparkles': FaStar,
+  'gem': FaGem,
+  'wind_face': FaWind,
+  'zap': FaBolt,
+  'star2': FaStar,
+  'dragon': FaDragon,
+  'skull': FaSkull,
+  'fire': FaFire,
+  'ice': FaSnowflake,
+  'lightning': FaBolt
 };
 
 // モンスターサイズ設定
@@ -86,7 +102,7 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   const [showRageEffect, setShowRageEffect] = useState(false);
   
   const sizeConfig = SIZE_CONFIGS[size];
-  const monsterEmoji = MONSTER_ICONS[monsterIcon] || '👻';
+  const MonsterIcon = MONSTER_ICONS[monsterIcon] || FaGhost;
   const traits = MONSTER_TRAITS[monsterIcon] || MONSTER_TRAITS['ghost'];
   
   // 攻撃時のエフェクト
@@ -168,24 +184,9 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
       {/* メインモンスター */}
       <div className="relative inline-block">
         {/* モンスター本体 */}
-        <div
+        <div 
           className={cn(
-            "transition-all duration-300 select-none",
-            sizeConfig.monster,
-            traits.color,
-            // 基本アニメーション
-            traits.specialEffect === 'float' && isFloating && "transform -translate-y-2",
-            traits.specialEffect === 'bounce' && "animate-bounce",
-            traits.specialEffect === 'pulse' && "animate-pulse",
-            traits.specialEffect === 'shake' && "animate-pulse",
-            traits.specialEffect === 'sparkle' && "animate-pulse",
-            traits.specialEffect === 'shine' && "animate-pulse",
-            traits.specialEffect === 'twinkle' && "animate-ping",
-            traits.specialEffect === 'sway' && "hover:animate-pulse",
-            // 攻撃時のエフェクト
-            isAttacking && "transform scale-125 text-red-500",
-            // グロー効果
-            !isAttacking && `drop-shadow-lg`,
+            "inline-block",
             // 攻撃時の追加エフェクト
             showRageEffect && "animate-bounce"
           )}
@@ -195,7 +196,26 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
               : `drop-shadow(0 0 10px ${traits.color.includes('purple') ? 'rgba(147, 51, 234, 0.5)' : 'rgba(255, 255, 255, 0.2)'})`
           }}
         >
-          {monsterEmoji}
+          <MonsterIcon
+            className={cn(
+              "transition-all duration-300 select-none",
+              sizeConfig.monster,
+              traits.color,
+              // 基本アニメーション
+              traits.specialEffect === 'float' && isFloating && "transform -translate-y-2",
+              traits.specialEffect === 'bounce' && "animate-bounce",
+              traits.specialEffect === 'pulse' && "animate-pulse",
+              traits.specialEffect === 'shake' && "animate-pulse",
+              traits.specialEffect === 'sparkle' && "animate-pulse",
+              traits.specialEffect === 'shine' && "animate-pulse",
+              traits.specialEffect === 'twinkle' && "animate-ping",
+              traits.specialEffect === 'sway' && "hover:animate-pulse",
+              // 攻撃時のエフェクト
+              isAttacking && "transform scale-125 text-red-500",
+              // グロー効果
+              !isAttacking && `drop-shadow-lg`
+            )}
+          />
         </div>
         
         {/* 怒りマーク（攻撃時） */}

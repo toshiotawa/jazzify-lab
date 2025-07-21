@@ -17,29 +17,7 @@ interface FantasyGameScreenProps {
   onBackToStageSelect: () => void;
 }
 
-// ===== モンスターアイコンマッピング =====
-const MONSTER_ICONS: Record<string, string> = {
-  'ghost': '👻',
-  'tree': '🌳',
-  'seedling': '🌱',
-  'droplet': '💧',
-  'sun': '☀️',
-  'rock': '🪨',
-  'sparkles': '✨',
-  'gem': '💎',
-  'wind_face': '🌬️',
-  'zap': '⚡',
-  'star2': '⭐'
-};
-
-// ===== マジックエフェクト処理 =====
-interface MagicEffect {
-  id: string;
-  type: 'magic_circle' | 'particles';
-  x: number;
-  y: number;
-  timestamp: number;
-}
+// 不要な定数とインターフェースを削除（PIXI側で処理）
 
 const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   stage,
@@ -49,8 +27,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const { handleNoteInput } = useGameStore();
   
   // エフェクト状態
-  const [magicEffects, setMagicEffects] = useState<MagicEffect[]>([]);
-  const [showCorrectEffect, setShowCorrectEffect] = useState(false);
   const [isMonsterAttacking, setIsMonsterAttacking] = useState(false);
   const [damageShake, setDamageShake] = useState(false);
   
@@ -82,27 +58,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       fantasyPixiRenderer.triggerAttackSuccess();
     }
     
-    // 魔法陣エフェクト表示（従来のCSS版も残す）
-    setShowCorrectEffect(true);
-    setTimeout(() => setShowCorrectEffect(false), 800);
+    // エフェクトは PIXI 側で処理するため、ここでは削除
     
-    // パーティクルエフェクト生成（従来版）
-    const effect: MagicEffect = {
-      id: `magic_${Date.now()}`,
-      type: 'magic_circle',
-      x: Math.random() * gameAreaSize.width,
-      y: Math.random() * (gameAreaSize.height * 0.6),
-      timestamp: Date.now()
-    };
-    
-    setMagicEffects(prev => [...prev, effect]);
-    
-    // エフェクトを3秒後に削除
-    setTimeout(() => {
-      setMagicEffects(prev => prev.filter(e => e.id !== effect.id));
-    }, 3000);
-    
-  }, [gameAreaSize, fantasyPixiRenderer]);
+  }, [fantasyPixiRenderer]);
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
     devLog.debug('🎵 まだ構成音が足りません:', { expected: expectedChord.displayName, input: inputNotes });
@@ -137,7 +95,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     inputBuffer,
     handleNoteInput: engineHandleNoteInput,
     initializeGame,
-    stopGame
+    stopGame,
+    getCurrentEnemy,
+    ENEMY_LIST
   } = useFantasyGameEngine({
     stage,
     onGameStateChange: handleGameStateChange,
@@ -146,6 +106,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack
   });
+  
+  // 現在の敵情報を取得
+  const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback((note: number) => {
@@ -279,7 +242,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return (
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
         <div className="text-white text-center">
-          <div className="text-6xl mb-6">{MONSTER_ICONS[stage.monsterIcon] || '👻'}</div>
+          <div className="text-6xl mb-6">🎮</div>
           <h2 className="text-3xl font-bold mb-4">{stage.name}</h2>
           <p className="text-indigo-200 mb-8">{stage.description || 'ステージの説明'}</p>
           <button
@@ -320,10 +283,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               Stage {stage.stageNumber}
             </div>
             <div className="text-sm">
-              Score: {gameState.score}/{gameState.totalQuestions * 1000}
+              Score: {gameState.score}
             </div>
-            <div className="flex items-center space-x-1">
-              {renderHearts()}
+            <div className="text-sm">
+              敵: {gameState.enemiesDefeated + 1}/{gameState.totalEnemies}
             </div>
           </div>
           
@@ -353,7 +316,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <FantasyPIXIRenderer
               width={400}
               height={200}
-              monsterIcon={stage.monsterIcon}
+              monsterIcon={currentEnemy.icon}
               isMonsterAttacking={isMonsterAttacking}
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
@@ -362,8 +325,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
           
           {/* 敵の行動ゲージ */}
-          <div className="flex justify-center">
+          <div className="flex justify-center mb-2">
             {renderEnemyGauge()}
+          </div>
+          
+          {/* 現在の敵情報と攻撃回数 */}
+          <div className="text-white text-sm mb-2">
+            {currentEnemy.name} - {gameState.currentEnemyHits}/5 Hit
+          </div>
+          
+          {/* HP表示（PIXIコンテナ下部に移動） */}
+          <div className="flex justify-center items-center space-x-1">
+            <span className="text-white text-sm mr-2">HP:</span>
+            {renderHearts()}
           </div>
         </div>
         
@@ -414,35 +388,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
       </div>
       
-      {/* ===== エフェクト表示 ===== */}
-      {/* 正解時の魔法陣エフェクト */}
-      {showCorrectEffect && (
-        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-40">
-          <div className="animate-spin text-9xl text-yellow-300">✨</div>
-          <div className="absolute text-3xl font-bold text-white animate-bounce">
-            SUCCESS!
-          </div>
-        </div>
-      )}
-      
-
-      
-      {/* パーティクルエフェクト */}
-      {magicEffects.map(effect => (
-        <div
-          key={effect.id}
-          className="absolute pointer-events-none z-30 animate-ping"
-          style={{
-            left: effect.x,
-            top: effect.y,
-            transform: 'translate(-50%, -50%)'
-          }}
-        >
-          {effect.type === 'magic_circle' && (
-            <div className="text-4xl text-blue-400">✨</div>
-          )}
-        </div>
-      ))}
+      {/* エフェクト表示は削除 - PIXI側で処理 */}
       
       {/* デバッグ情報（FPSモニター削除済み） */}
       {process.env.NODE_ENV === 'development' && (

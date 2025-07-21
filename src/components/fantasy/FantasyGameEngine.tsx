@@ -44,6 +44,11 @@ interface FantasyGameState {
   isGameActive: boolean;
   isGameOver: boolean;
   gameResult: 'clear' | 'gameover' | null;
+  // 複数敵システム用
+  currentEnemyIndex: number;
+  currentEnemyHits: number;
+  enemiesDefeated: number;
+  totalEnemies: number;
 }
 
 interface FantasyGameEngineProps {
@@ -97,6 +102,16 @@ const CHORD_DEFINITIONS: Record<string, ChordDefinition> = {
   'A7': { id: 'A7', displayName: 'A7', notes: [69, 73, 76, 79], quality: 'dominant7', root: 'A' },
   'D7': { id: 'D7', displayName: 'D7', notes: [62, 66, 69, 72], quality: 'dominant7', root: 'D' }
 };
+
+// ===== 敵リスト定義 =====
+
+const ENEMY_LIST = [
+  { id: 'ghost', icon: 'ghost', name: 'ゴースト' },
+  { id: 'dragon', icon: 'dragon', name: 'ドラゴン' },
+  { id: 'skull', icon: 'skull', name: 'スケルトン' },
+  { id: 'fire', icon: 'fire', name: 'フレイムモンスター' },
+  { id: 'ice', icon: 'ice', name: 'アイスモンスター' }
+];
 
 // ===== ヘルパー関数 =====
 
@@ -169,6 +184,16 @@ const getProgressionChord = (progression: string[], questionIndex: number): Chor
   return CHORD_DEFINITIONS[chordId] || null;
 };
 
+/**
+ * 現在の敵情報を取得
+ */
+const getCurrentEnemy = (enemyIndex: number) => {
+  if (enemyIndex >= 0 && enemyIndex < ENEMY_LIST.length) {
+    return ENEMY_LIST[enemyIndex];
+  }
+  return ENEMY_LIST[0]; // フォールバック
+};
+
 // ===== メインコンポーネント =====
 
 export const useFantasyGameEngine = ({
@@ -191,7 +216,12 @@ export const useFantasyGameEngine = ({
     correctAnswers: 0,
     isGameActive: false,
     isGameOver: false,
-    gameResult: null
+    gameResult: null,
+    // 複数敵システム用
+    currentEnemyIndex: 0,
+    currentEnemyHits: 0,
+    enemiesDefeated: 0,
+    totalEnemies: 5
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -234,7 +264,12 @@ export const useFantasyGameEngine = ({
       correctAnswers: 0,
       isGameActive: true,
       isGameOver: false,
-      gameResult: null
+      gameResult: null,
+      // 複数敵システム用
+      currentEnemyIndex: 0,
+      currentEnemyHits: 0,
+      enemiesDefeated: 0,
+      totalEnemies: 5
     };
     
     setGameState(newState);
@@ -487,12 +522,50 @@ export const useFantasyGameEngine = ({
       onChordCorrect(gameState.currentChordTarget);
       
       setGameState(prevState => {
-        const nextState = {
+        const newHits = prevState.currentEnemyHits + 1;
+        let nextState = {
           ...prevState,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 1000,
-          enemyGauge: 0 // ゲージをリセット
+          enemyGauge: 0, // ゲージをリセット
+          currentEnemyHits: newHits
         };
+        
+        // 敵を倒したか判定（5回攻撃で倒れる）
+        if (newHits >= 5) {
+          const newEnemiesDefeated = prevState.enemiesDefeated + 1;
+          const nextEnemyIndex = prevState.currentEnemyIndex + 1;
+          
+          // 全ての敵を倒したかチェック
+          if (newEnemiesDefeated >= prevState.totalEnemies) {
+            // ゲームクリア
+            nextState = {
+              ...nextState,
+              enemiesDefeated: newEnemiesDefeated,
+              isGameActive: false,
+              isGameOver: true,
+              gameResult: 'clear'
+            };
+            
+            devLog.debug('🎉 全ての敵を倒してゲームクリア!', { enemiesDefeated: newEnemiesDefeated });
+            setTimeout(() => onGameComplete('clear', nextState), 200);
+          } else {
+            // 次の敵に交代
+            nextState = {
+              ...nextState,
+              currentEnemyIndex: nextEnemyIndex,
+              currentEnemyHits: 0,
+              enemiesDefeated: newEnemiesDefeated
+            };
+            
+            devLog.debug('👹 敵を倒した！次の敵が出現:', { 
+              defeatedEnemies: newEnemiesDefeated,
+              nextEnemyIndex,
+              nextEnemy: ENEMY_LIST[nextEnemyIndex]?.name 
+            });
+          }
+        }
+        
         onGameStateChange(nextState);
         return nextState;
       });
@@ -578,9 +651,11 @@ export const useFantasyGameEngine = ({
     checkChordMatch,
     selectRandomChord,
     getProgressionChord,
-    CHORD_DEFINITIONS
+    getCurrentEnemy,
+    CHORD_DEFINITIONS,
+    ENEMY_LIST
   };
 };
 
 export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps };
-export { CHORD_DEFINITIONS };
+export { CHORD_DEFINITIONS, ENEMY_LIST, getCurrentEnemy };

@@ -67,21 +67,21 @@ interface MagicType {
 // ===== 魔法タイプ定義 =====
 const MAGIC_TYPES: Record<string, MagicType> = {
   fire: {
-    name: '炎系魔法',
+    name: 'ファイアー',
     color: 0xFF4500,
     particleColor: 0xFF6B35,
     effectTexture: '🔥',
     damageRange: [15, 30]
   },
   ice: {
-    name: '氷系魔法',
+    name: 'アイス',
     color: 0x87CEEB,
     particleColor: 0xB0E0E6,
     effectTexture: '❄️',
     damageRange: [12, 25]
   },
   lightning: {
-    name: '雷系魔法',
+    name: 'サンダー',
     color: 0xFFD700,
     particleColor: 0xFFF700,
     effectTexture: '⚡',
@@ -123,6 +123,7 @@ export class FantasyPIXIInstance {
   private particleData: Map<string, ParticleData> = new Map();
   private damageNumbers: Map<string, PIXI.Text> = new Map();
   private damageData: Map<string, DamageNumber> = new Map();
+  private magicNameText: PIXI.Text | null = null;
   
   private currentMagicType: string = 'fire';
   private enemyHitCount: number = 0;
@@ -202,6 +203,9 @@ export class FantasyPIXIInstance {
     const currentIndex = magicTypes.indexOf(this.currentMagicType);
     this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
     const magic = MAGIC_TYPES[this.currentMagicType];
+    
+    // 魔法名表示
+    this.showMagicName(magic.name);
     
     // 敵の色変化とよろけ
     this.monsterState.isHit = true;
@@ -288,6 +292,43 @@ export class FantasyPIXIInstance {
       maxLife: 2000,
       color
     });
+  }
+
+  // 魔法名表示
+  private showMagicName(magicName: string): void {
+    // 既存のテキストを削除
+    if (this.magicNameText) {
+      this.effectContainer.removeChild(this.magicNameText);
+      this.magicNameText = null;
+    }
+    
+    // 新しい魔法名テキスト作成
+    this.magicNameText = new PIXI.Text(magicName, {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 32,
+      fontWeight: 'bold',
+      fill: 0xFFFFFF,
+      stroke: 0x000000,
+      strokeThickness: 2,
+      align: 'center'
+    });
+    
+    // 位置設定（画面中央上部）
+    this.magicNameText.x = this.app.screen.width / 2;
+    this.magicNameText.y = 50;
+    this.magicNameText.anchor.set(0.5);
+    
+    this.effectContainer.addChild(this.magicNameText);
+    
+    // 2秒後に削除
+    setTimeout(() => {
+      if (this.magicNameText) {
+        this.effectContainer.removeChild(this.magicNameText);
+        this.magicNameText = null;
+      }
+    }, 2000);
+    
+    devLog.debug('✨ 魔法名表示:', { magicName });
   }
 
   // 魔法パーティクル作成
