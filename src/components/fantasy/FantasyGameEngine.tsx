@@ -384,9 +384,9 @@ export const useFantasyGameEngine = ({
       if (newGauge >= 100) {
         // ゲージ満タン -> 敵の攻撃
         devLog.debug('💥 敵ゲージ満タン！攻撃開始');
-        // 非同期で攻撃処理を呼び出し
-        Promise.resolve().then(() => handleEnemyAttack());
-        return { ...prevState, enemyGauge: 100 }; // ゲージを100に固定
+        // 攻撃処理を呼び出し（同期的に実行）
+        handleEnemyAttack();
+        return prevState; // 攻撃処理でstateが更新されるため、ここでは変更しない
       } else {
         const nextState = { ...prevState, enemyGauge: newGauge };
         onGameStateChange(nextState);
@@ -411,12 +411,12 @@ export const useFantasyGameEngine = ({
         clearTimeout(inputTimeout);
       }
       
-      // 自動判定タイマー（300msに短縮 - より応答性を向上）
+      // 自動判定タイマー（500msに延長 - 和音が完成するまで待機）
       const timeout = setTimeout(() => {
         devLog.debug('⏰ 自動判定タイマー発動');
         checkCurrentInput(newBuffer);
-        setInputBuffer([]);
-      }, 300);
+        // 正解の場合のみバッファをクリア（checkCurrentInput内で処理）
+      }, 500);
       
       setInputTimeout(timeout);
       
@@ -425,8 +425,12 @@ export const useFantasyGameEngine = ({
         devLog.debug('🎯 構成音数達成 - 即座に判定');
         setTimeout(() => {
           clearTimeout(timeout);
-          checkCurrentInput(newBuffer);
-          setInputBuffer([]);
+          const isCorrectImmediate = checkChordMatch(newBuffer, gameState.currentChordTarget!);
+          if (isCorrectImmediate) {
+            checkCurrentInput(newBuffer);
+            setInputBuffer([]);
+          }
+          // 不正解の場合は何もせず、音の積み重ねを継続
         }, 100);
       }
       
@@ -466,30 +470,34 @@ export const useFantasyGameEngine = ({
         return nextState;
       });
       
+      // 入力バッファをクリア
+      setInputBuffer([]);
+      
       // 次の問題へ（少し遅延）
       setTimeout(proceedToNextQuestion, 800);
       
     } else {
-      devLog.debug('❌ 不正解判定', { 
+      devLog.debug('🎵 まだ構成音が足りません', { 
         targetChord: gameState.currentChordTarget.displayName,
-        inputNotes: notes 
+        inputNotes: notes,
+        message: '音を追加してください'
       });
       
-      // 不正解
-      onChordIncorrect(gameState.currentChordTarget, notes);
+      // 不正解の概念を削除し、単純に何もしない（音の積み重ねを続行）
+      // onChordIncorrect(gameState.currentChordTarget, notes);
     }
   }, [gameState.currentChordTarget, onChordCorrect, onChordIncorrect, onGameStateChange, proceedToNextQuestion]);
   
-  // 手動で現在の入力を判定
-  const submitCurrentInput = useCallback(() => {
-    if (inputTimeout) {
-      clearTimeout(inputTimeout);
-      setInputTimeout(null);
-    }
-    
-    checkCurrentInput(inputBuffer);
-    setInputBuffer([]);
-  }, [inputTimeout, checkCurrentInput, inputBuffer]);
+  // 手動で現在の入力を判定（削除予定 - 自動判定のみ使用）
+  // const submitCurrentInput = useCallback(() => {
+  //   if (inputTimeout) {
+  //     clearTimeout(inputTimeout);
+  //     setInputTimeout(null);
+  //   }
+  //   
+  //   checkCurrentInput(inputBuffer);
+  //   setInputBuffer([]);
+  // }, [inputTimeout, checkCurrentInput, inputBuffer]);
   
   // ゲーム停止
   const stopGame = useCallback(() => {
@@ -534,7 +542,6 @@ export const useFantasyGameEngine = ({
     gameState,
     inputBuffer,
     handleNoteInput,
-    submitCurrentInput,
     initializeGame,
     stopGame,
     

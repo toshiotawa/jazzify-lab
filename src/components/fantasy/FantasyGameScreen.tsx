@@ -50,7 +50,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // エフェクト状態
   const [magicEffects, setMagicEffects] = useState<MagicEffect[]>([]);
   const [showCorrectEffect, setShowCorrectEffect] = useState(false);
-  const [showIncorrectEffect, setShowIncorrectEffect] = useState(false);
   const [isMonsterAttacking, setIsMonsterAttacking] = useState(false);
   const [damageShake, setDamageShake] = useState(false);
   
@@ -90,11 +89,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [gameAreaSize]);
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
-    devLog.debug('❌ 不正解:', { expected: expectedChord.displayName, input: inputNotes });
+    devLog.debug('🎵 まだ構成音が足りません:', { expected: expectedChord.displayName, input: inputNotes });
     
-    // 不正解エフェクト表示
-    setShowIncorrectEffect(true);
-    setTimeout(() => setShowIncorrectEffect(false), 500);
+    // 不正解エフェクトは削除（音の積み重ね方式のため）
+    // setShowIncorrectEffect(true);
+    // setTimeout(() => setShowIncorrectEffect(false), 500);
     
   }, []);
   
@@ -121,7 +120,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     gameState,
     inputBuffer,
     handleNoteInput: engineHandleNoteInput,
-    submitCurrentInput,
     initializeGame,
     stopGame
   } = useFantasyGameEngine({
@@ -153,7 +151,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         simpleDisplayMode: true, // シンプル表示モードを有効
         pianoHeight: 220, // コンテナ高さと同じに設定
         noteHeight: 20,
-        noteWidth: 32,
+        noteWidth: Math.max(gameAreaSize.width / 52, 16), // コンテナ幅に合わせて動的調整（最小16px）
         transpose: 0,
         transposingInstrument: 'concert_pitch',
         practiceGuide: 'off', // ファンタジーモードでは練習ガイドを無効
@@ -222,23 +220,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return hearts;
   }, [stage.maxHp, gameState.playerHp]);
   
-  // 敵のゲージ表示
+  // 敵のゲージ表示（1本のアニメーション付きバー）
   const renderEnemyGauge = useCallback(() => {
-    const filledBlocks = Math.floor(gameState.enemyGauge / 10);
-    const blocks = [];
-    
-    for (let i = 0; i < 10; i++) {
-      blocks.push(
-        <div key={i} className={cn(
-          "w-6 h-4 border border-gray-600 transition-all duration-100",
-          i < filledBlocks ? "bg-red-500" : "bg-gray-700"
-        )} />
-      );
-    }
-    
     return (
-      <div className="flex space-x-1 mt-2">
-        {blocks}
+      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
+        <div 
+          className="h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full transition-all duration-200 ease-out"
+          style={{ 
+            width: `${Math.min(gameState.enemyGauge, 100)}%`,
+            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(239, 68, 68, 0.6)' : 'none'
+          }}
+        />
       </div>
     );
   }, [gameState.enemyGauge]);
@@ -392,17 +384,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
         )}
         
-        {/* 手動判定ボタン */}
-        {inputBuffer.length > 0 && (
-          <div className="absolute bottom-4 right-4">
-            <button
-              onClick={submitCurrentInput}
-              className="px-6 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg text-lg shadow-lg transform hover:scale-105 transition-all"
-            >
-              魔法発動！
-            </button>
-          </div>
-        )}
+
         
         {/* 横スクロールヒント */}
         <div className="absolute top-2 right-2 text-white text-xs bg-black bg-opacity-50 px-2 py-1 rounded">
@@ -421,12 +403,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
       )}
       
-      {/* 不正解エフェクト */}
-      {showIncorrectEffect && (
-        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-40">
-          <div className="text-6xl text-red-500 animate-pulse">❌</div>
-        </div>
-      )}
+
       
       {/* パーティクルエフェクト */}
       {magicEffects.map(effect => (
