@@ -65,6 +65,8 @@ const FantasyMain: React.FC = () => {
               remaining_hp: result === 'clear' ? Math.max(1, 5 - (totalQuestions - correctAnswers)) : 0,
               total_questions: totalQuestions,
               correct_answers: correctAnswers
+            }, {
+              onConflict: 'user_id,stage_id'
             });
           
           if (clearError) {

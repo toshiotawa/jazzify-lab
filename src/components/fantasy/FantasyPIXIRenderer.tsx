@@ -238,110 +238,132 @@ export class FantasyPIXIInstance {
 
   // モンスタースプライト作成（SVGベース）
   async createMonsterSprite(icon: string): Promise<void> {
-    if (this.monsterSprite) {
-      this.monsterContainer.removeChild(this.monsterSprite);
-    }
-
-    // SVGテクスチャを取得
-    const texture = this.svgTextures.get(icon) || this.svgTextures.get('vampire');
+    if (this.isDestroyed) return;
     
-    if (texture) {
-      this.monsterSprite = new PIXI.Sprite(texture);
+    try {
+      if (this.monsterSprite) {
+        this.monsterContainer.removeChild(this.monsterSprite);
+        this.monsterSprite.destroy();
+        this.monsterSprite = null;
+      }
+
+      // SVGテクスチャを取得
+      const texture = this.svgTextures.get(icon) || this.svgTextures.get('vampire');
       
-      // サイズ調整（128x128固定）
-      this.monsterSprite.width = 128;
-      this.monsterSprite.height = 128;
-      this.monsterSprite.anchor.set(0.5);
-      this.monsterSprite.x = this.monsterState.x;
-      this.monsterSprite.y = this.monsterState.y;
-      this.monsterSprite.tint = this.monsterState.originalColor;
-      
-      // インタラクティブ設定
-      this.monsterSprite.interactive = true;
-      this.monsterSprite.cursor = 'pointer';
-      
-      this.monsterContainer.addChild(this.monsterSprite);
-      devLog.debug('✅ SVGモンスタースプライト作成完了:', { icon });
-    } else {
-      devLog.debug('⚠️ SVGテクスチャが見つかりません:', { icon });
+      if (texture) {
+        this.monsterSprite = new PIXI.Sprite(texture);
+        
+        // サイズ調整（128x128固定）
+        this.monsterSprite.width = 128;
+        this.monsterSprite.height = 128;
+        this.monsterSprite.anchor.set(0.5);
+        this.monsterSprite.x = this.monsterState.x;
+        this.monsterSprite.y = this.monsterState.y;
+        this.monsterSprite.tint = this.monsterState.originalColor;
+        
+        // インタラクティブ設定
+        this.monsterSprite.interactive = true;
+        this.monsterSprite.cursor = 'pointer';
+        
+        this.monsterContainer.addChild(this.monsterSprite);
+        devLog.debug('✅ SVGモンスタースプライト作成完了:', { icon });
+      } else {
+        devLog.debug('⚠️ SVGテクスチャが見つかりません:', { icon });
+        this.createFallbackMonster();
+      }
+    } catch (error) {
+      devLog.debug('❌ モンスタースプライト作成エラー:', error);
       this.createFallbackMonster();
     }
   }
 
   // フォールバック用モンスター作成
   private createFallbackMonster(): void {
-    const graphics = new PIXI.Graphics();
-    graphics.beginFill(0x666666);
-    graphics.drawCircle(0, 0, 64);
-    graphics.endFill();
+    if (this.isDestroyed) return;
     
-    // テキスト付きフォールバック
-    const fallbackContainer = new PIXI.Container();
-    fallbackContainer.addChild(graphics);
-    
-    const text = new PIXI.Text('👻', { fontSize: 48, fill: 0xFFFFFF });
-    text.anchor.set(0.5);
-    fallbackContainer.addChild(text);
-    
-    fallbackContainer.x = this.monsterState.x;
-    fallbackContainer.y = this.monsterState.y;
-    
-    this.monsterContainer.addChild(fallbackContainer);
+    try {
+      const graphics = new PIXI.Graphics();
+      graphics.beginFill(0x666666);
+      graphics.drawCircle(0, 0, 64);
+      graphics.endFill();
+      
+      // テキスト付きフォールバック
+      const fallbackContainer = new PIXI.Container();
+      fallbackContainer.addChild(graphics);
+      
+      const text = new PIXI.Text('👻', { fontSize: 48, fill: 0xFFFFFF });
+      text.anchor.set(0.5);
+      fallbackContainer.addChild(text);
+      
+      fallbackContainer.x = this.monsterState.x;
+      fallbackContainer.y = this.monsterState.y;
+      
+      this.monsterContainer.addChild(fallbackContainer);
+      
+      // フォールバックモンスターをメインスプライトとして設定
+      this.monsterSprite = fallbackContainer as any;
+    } catch (error) {
+      devLog.debug('❌ フォールバックモンスター作成エラー:', error);
+    }
   }
 
   // 攻撃成功エフェクト
   triggerAttackSuccess(): void {
-    if (!this.monsterSprite) return;
+    if (!this.monsterSprite || this.isDestroyed) return;
     
-    // 魔法タイプをローテーション
-    const magicTypes = Object.keys(MAGIC_TYPES);
-    const currentIndex = magicTypes.indexOf(this.currentMagicType);
-    this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
-    const magic = MAGIC_TYPES[this.currentMagicType];
-    
-    // 魔法名表示
-    this.showMagicName(magic.name);
-    
-    // 魔法陣エフェクト
-    this.createMagicCircle(this.monsterState.x, this.monsterState.y, 'success');
-    
-    // 敵の色変化とよろけ
-    this.monsterState.isHit = true;
-    this.monsterState.hitColor = magic.color;
-    this.monsterState.staggerOffset = {
-      x: (Math.random() - 0.5) * 30,
-      y: (Math.random() - 0.5) * 15
-    };
-    
-    // ダメージ数値生成
-    const damage = Math.floor(Math.random() * (magic.damageRange[1] - magic.damageRange[0] + 1)) + magic.damageRange[0];
-    this.createDamageNumber(damage, magic.color);
-    
-    // パーティクルエフェクト生成
-    this.createMagicParticles(magic);
-    this.createExplosionEffect(this.monsterState.x, this.monsterState.y);
-    
-    // 敵のヒットカウント増加
-    this.enemyHitCount++;
-    this.monsterState.health = Math.max(0, this.monsterState.maxHealth - this.enemyHitCount);
-    
-    // 画面震動エフェクト
-    this.createScreenShake(5, 200);
-    
-    // 5発で次のモンスターに交代
-    if (this.enemyHitCount >= 5) {
+    try {
+      // 魔法タイプをローテーション
+      const magicTypes = Object.keys(MAGIC_TYPES);
+      const currentIndex = magicTypes.indexOf(this.currentMagicType);
+      this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
+      const magic = MAGIC_TYPES[this.currentMagicType];
+      
+      // 魔法名表示
+      this.showMagicName(magic.name);
+      
+      // 魔法陣エフェクト
+      this.createMagicCircle(this.monsterState.x, this.monsterState.y, 'success');
+      
+      // 敵の色変化とよろけ
+      this.monsterState.isHit = true;
+      this.monsterState.hitColor = magic.color;
+      this.monsterState.staggerOffset = {
+        x: (Math.random() - 0.5) * 30,
+        y: (Math.random() - 0.5) * 15
+      };
+      
+      // ダメージ数値生成
+      const damage = Math.floor(Math.random() * (magic.damageRange[1] - magic.damageRange[0] + 1)) + magic.damageRange[0];
+      this.createDamageNumber(damage, magic.color);
+      
+      // パーティクルエフェクト生成
+      this.createMagicParticles(magic);
+      this.createExplosionEffect(this.monsterState.x, this.monsterState.y);
+      
+      // 敵のヒットカウント増加
+      this.enemyHitCount++;
+      this.monsterState.health = Math.max(0, this.monsterState.maxHealth - this.enemyHitCount);
+      
+      // 画面震動エフェクト
+      this.createScreenShake(5, 200);
+      
+      // 5発で次のモンスターに交代
+      if (this.enemyHitCount >= 5) {
+        setTimeout(() => {
+          this.switchToNextMonster();
+        }, 1500);
+      }
+      
+      // 色とよろけ効果をリセット
       setTimeout(() => {
-        this.switchToNextMonster();
-      }, 1500);
+        this.monsterState.isHit = false;
+        this.monsterState.staggerOffset = { x: 0, y: 0 };
+      }, 300);
+      
+      devLog.debug('⚔️ 攻撃成功:', { magic: magic.name, damage, hitCount: this.enemyHitCount });
+    } catch (error) {
+      devLog.debug('❌ 攻撃成功エフェクトエラー:', error);
     }
-    
-    // 色とよろけ効果をリセット
-    setTimeout(() => {
-      this.monsterState.isHit = false;
-      this.monsterState.staggerOffset = { x: 0, y: 0 };
-    }, 300);
-    
-    devLog.debug('⚔️ 攻撃成功:', { magic: magic.name, damage, hitCount: this.enemyHitCount });
   }
 
   // 魔法陣エフェクト作成
@@ -596,26 +618,30 @@ export class FantasyPIXIInstance {
 
   // モンスターアニメーション更新
   private updateMonsterAnimation(): void {
-    if (!this.monsterSprite) return;
+    if (!this.monsterSprite || this.isDestroyed) return;
     
-    // よろけ効果の適用
-    this.monsterSprite.x = this.monsterState.x + this.monsterState.staggerOffset.x;
-    this.monsterSprite.y = this.monsterState.y + this.monsterState.staggerOffset.y;
-    
-    // 色変化の適用
-    if (this.monsterState.isHit) {
-      this.monsterSprite.tint = this.monsterState.hitColor;
-    } else {
-      this.monsterSprite.tint = this.monsterState.originalColor;
-    }
-    
-    // よろけ効果の減衰
-    this.monsterState.staggerOffset.x *= 0.9;
-    this.monsterState.staggerOffset.y *= 0.9;
-    
-    // アイドル時の軽い浮遊効果
-    if (!this.monsterState.isAttacking && !this.monsterState.isHit) {
-      this.monsterSprite.y += Math.sin(Date.now() * 0.002) * 0.5;
+    try {
+      // よろけ効果の適用
+      this.monsterSprite.x = this.monsterState.x + this.monsterState.staggerOffset.x;
+      this.monsterSprite.y = this.monsterState.y + this.monsterState.staggerOffset.y;
+      
+      // 色変化の適用
+      if (this.monsterState.isHit) {
+        this.monsterSprite.tint = this.monsterState.hitColor;
+      } else {
+        this.monsterSprite.tint = this.monsterState.originalColor;
+      }
+      
+      // よろけ効果の減衰
+      this.monsterState.staggerOffset.x *= 0.9;
+      this.monsterState.staggerOffset.y *= 0.9;
+      
+      // アイドル時の軽い浮遊効果
+      if (!this.monsterState.isAttacking && !this.monsterState.isHit) {
+        this.monsterSprite.y += Math.sin(Date.now() * 0.002) * 0.5;
+      }
+    } catch (error) {
+      devLog.debug('⚠️ モンスターアニメーション更新エラー:', error);
     }
   }
 
