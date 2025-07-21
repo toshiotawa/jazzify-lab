@@ -142,34 +142,34 @@ export class PIXINotesRendererInstance {
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
   public readonly settings: RendererSettings = {
-    noteWidth: 0,          // ★ 後で決定
-    noteHeight: 8,
-    hitLineY: 0, // 計算で設定
-    pianoHeight: 80,  // 100から80に変更
-    noteSpeed: 1.0,
+    noteWidth: 28,
+    noteHeight: 20,
+    hitLineY: 0,
+    pianoHeight: 200, // viewportHeightと同じ値に設定
+    noteSpeed: 400,
     colors: {
-      visible: 0x3B82F6,       // blue-500（白鍵ノーツ）
-      visibleBlack: 0x8B5CF6,  // violet-500（黒鍵ノーツ）
-      hit: 0x10B981,           // emerald-500
-      missed: 0xEF4444,        // red-500
-      perfect: 0xF59E0B,       // amber-500
-      good: 0x8B5CF6,          // violet-500
-      whiteKey: 0xFFFFFF,      // white
-      blackKey: 0x000000,      // pure black
-      activeKey: 0xFBBF24,     // amber-400
+      visible: 0x4A90E2,
+      visibleBlack: 0x2C5282,
+      hit: 0x48BB78,
+      missed: 0xE53E3E,
+      perfect: 0xF6E05E,
+      good: 0x48BB78,
+      whiteKey: 0xFFFFFF,
+      blackKey: 0x2D2D2D,
+      activeKey: 0x4A90E2
     },
     effects: {
-      glow: false,             // グロー効果を完全無効化
-      particles: false,        // パーティクル効果を完全無効化
-      trails: false            // トレイル効果を完全無効化
+      glow: true,
+      particles: true,
+      trails: false
     },
-    noteNameStyle: 'abc',
+    noteNameStyle: 'off',
     simpleDisplayMode: false,
     transpose: 0,
     transposingInstrument: 'concert_pitch',
-    practiceGuide: 'key',
+    practiceGuide: 'off',
     showHitLine: true,
-    viewportHeight: 600,
+    viewportHeight: 200, // pianoHeightと同じ値に設定
     timingAdjustment: 0
   };
   
@@ -745,76 +745,120 @@ export class PIXINotesRendererInstance {
   }
   
   private setupContainers(): void {
-    // メインコンテナを生成
+    // メインコンテナ
     this.container = new PIXI.Container();
-    // メインコンテナもイベントを透過（スクロール可能に）
-    this.container.eventMode = 'passive';
+    this.container.sortableChildren = true;
     this.app.stage.addChild(this.container);
 
-    // Z順: 背面 → 前面
+    // 背景とガイドライン（最下層）
+    this.createNotesAreaBackground();
+    this.createVerticalGuidelines();
 
-    // 1. ピアノコンテナ（最背面）
-    this.pianoContainer = new PIXI.Container();
-    // ピアノキーはインタラクティブ
-    this.pianoContainer.eventMode = 'static';
-    this.container.addChild(this.pianoContainer);
-
-    // 2-a. 白鍵ノーツ専用コンテナ
-    this.whiteNotes = new PIXI.ParticleContainer(
-      3000, // 最大3000個の白鍵ノーツをサポート
-      { 
-        position: true, 
-        alpha: true,
-        uvs: true,   // 👈 複数テクスチャ対応に必須
-        tint: true
-      }
-    );
-    // ノーツエリアはイベント無効（スクロール許可）
-    (this.whiteNotes as any).eventMode = 'none';
+    // ノーツ専用コンテナ（ParticleContainer使用でパフォーマンス向上）
+    this.whiteNotes = new PIXI.ParticleContainer(1000, {
+      scale: true,
+      position: true,
+      rotation: false,
+      uvs: false,
+      alpha: true
+    });
+    this.whiteNotes.zIndex = 5;
     this.container.addChild(this.whiteNotes);
 
-    // 2-b. 黒鍵ノーツ専用コンテナ
-    this.blackNotes = new PIXI.ParticleContainer(
-      2000, // 最大2000個の黒鍵ノーツをサポート
-      { 
-        position: true, 
-        alpha: true,
-        uvs: true,   // 👈 複数テクスチャ対応に必須
-        tint: true
-      }
-    );
-    // ノーツエリアはイベント無効（スクロール許可）
-    (this.blackNotes as any).eventMode = 'none';
+    this.blackNotes = new PIXI.ParticleContainer(1000, {
+      scale: true,
+      position: true,
+      rotation: false,
+      uvs: false,
+      alpha: true
+    });
+    this.blackNotes.zIndex = 6;
     this.container.addChild(this.blackNotes);
 
-    // 3. ラベル専用コンテナ（普通のContainerに変更で安定性向上）
-    this.labelsContainer = new PIXI.Container() as any;
-    this.labelsContainer.eventMode = 'none'; // イベント透過
+    // ラベル専用コンテナ（通常のContainer）
+    this.labelsContainer = new PIXI.Container();
+    this.labelsContainer.zIndex = 7;
     this.container.addChild(this.labelsContainer);
 
-    // 4. ヒットラインコンテナ（ノーツ上、エフェクト下）
+    // エフェクト用コンテナ
+    this.effectsContainer = new PIXI.Container();
+    this.effectsContainer.zIndex = 8;
+    this.container.addChild(this.effectsContainer);
+
+    // ヒットライン用コンテナ
     this.hitLineContainer = new PIXI.Container();
-    this.hitLineContainer.eventMode = 'none'; // イベント透過
+    this.hitLineContainer.zIndex = 9;
     this.container.addChild(this.hitLineContainer);
 
-    // 5. エフェクトコンテナ（最前面）
-    this.effectsContainer = new PIXI.Container();
-    this.effectsContainer.name = 'EffectsContainer'; // デバッグ用
+    // ピアノコンテナ（最上層）- 横スクロール機能を追加
+    this.pianoContainer = new PIXI.Container();
+    this.pianoContainer.zIndex = 10;
+    this.pianoContainer.interactive = true;
+    this.pianoContainer.cursor = 'pointer';
     
-    // === エフェクトコンテナ全体でポインターイベントを無効化 ===
-    // ヒットエフェクトが表示されても下の鍵盤操作を阻害しないよう設定
-    (this.effectsContainer as any).eventMode = 'none';
-    this.effectsContainer.interactive = false;
+    // ピアノコンテナの横スクロール設定
+    this.pianoContainer.on('wheel', (e: PIXI.FederatedWheelEvent) => {
+      // Shiftキー押下時または横スクロールイベント時に横スクロール
+      if (e.deltaX !== 0 || e.shiftKey) {
+        e.preventDefault();
+        const deltaX = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+        this.pianoContainer.x = Math.max(
+          Math.min(this.pianoContainer.x - deltaX, 0),
+          -(this.pianoContainer.width - this.app.screen.width)
+        );
+      }
+    });
     
-    this.container.addChild(this.effectsContainer);
+    // ドラッグによる横スクロール
+    let isDragging = false;
+    let dragStartX = 0;
+    let containerStartX = 0;
     
-    log.info('📦 Container setup complete. Z-order:');
-    log.info('  0: Piano (background)');
-    log.info('  1: White Notes');
-    log.info('  2: Black Notes');
-    log.info('  3: Labels');
-    log.info('  4: Hit Line');
-    log.info('  5: Effects (foreground) - pointer events disabled');
+    this.pianoContainer.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
+      if (e.button === 1) { // 中ボタンでドラッグスクロール
+        isDragging = true;
+        dragStartX = e.globalX;
+        containerStartX = this.pianoContainer.x;
+        this.pianoContainer.cursor = 'grabbing';
+        e.stopPropagation();
+      }
+    });
+    
+    this.pianoContainer.on('pointerup', () => {
+      if (isDragging) {
+        isDragging = false;
+        this.pianoContainer.cursor = 'pointer';
+      }
+    });
+    
+    this.pianoContainer.on('pointermove', (e: PIXI.FederatedPointerEvent) => {
+      if (isDragging) {
+        const deltaX = e.globalX - dragStartX;
+        this.pianoContainer.x = Math.max(
+          Math.min(containerStartX + deltaX, 0),
+          -(this.pianoContainer.width - this.app.screen.width)
+        );
+        e.stopPropagation();
+      }
+    });
+    
+    this.container.addChild(this.pianoContainer);
+
+    // パーティクル用コンテナ
+    this.particles = new PIXI.Container();
+    this.particles.zIndex = 15;
+    this.container.addChild(this.particles);
+
+    // ヒットライン表示
+    this.setupHitLine();
+
+    // ピアノ鍵盤の設定
+    this.setupPiano();
+
+    // パーティクル効果の設定
+    this.setupParticles();
+
+    log.debug('✅ PIXI.js コンテナセットアップ完了');
   }
   
   private setupHitLine(): void {

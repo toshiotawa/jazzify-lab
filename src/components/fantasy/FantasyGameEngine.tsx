@@ -346,7 +346,9 @@ export const useFantasyGameEngine = ({
     
     if (gameState.isGameActive && !enemyGaugeTimer) {
       devLog.debug('⏰ 敵ゲージタイマー開始');
-      const timer = setInterval(updateEnemyGauge, 100);
+      const timer = setInterval(() => {
+        updateEnemyGauge();
+      }, 100); // 100ms間隔で更新
       setEnemyGaugeTimer(timer);
       
       return () => {
@@ -359,7 +361,7 @@ export const useFantasyGameEngine = ({
       clearInterval(enemyGaugeTimer);
       setEnemyGaugeTimer(null);
     }
-  }, [gameState.isGameActive, enemyGaugeTimer]);
+  }, [gameState.isGameActive]); // enemyGaugeTimerを依存配列から削除して無限ループを防ぐ
   
   // 敵ゲージの更新
   const updateEnemyGauge = useCallback(() => {
@@ -382,8 +384,9 @@ export const useFantasyGameEngine = ({
       if (newGauge >= 100) {
         // ゲージ満タン -> 敵の攻撃
         devLog.debug('💥 敵ゲージ満タン！攻撃開始');
-        setTimeout(handleEnemyAttack, 0);
-        return prevState; // handleEnemyAttackで状態更新
+        // 非同期で攻撃処理を呼び出し
+        Promise.resolve().then(() => handleEnemyAttack());
+        return { ...prevState, enemyGauge: 100 }; // ゲージを100に固定
       } else {
         const nextState = { ...prevState, enemyGauge: newGauge };
         onGameStateChange(nextState);
@@ -396,22 +399,36 @@ export const useFantasyGameEngine = ({
   const handleNoteInput = useCallback((note: number) => {
     if (!gameState.isGameActive || !gameState.currentChordTarget) return;
     
+    devLog.debug('🎵 ノート入力受信:', { note, currentChord: gameState.currentChordTarget.displayName });
+    
     // 入力バッファに追加
     setInputBuffer(prevBuffer => {
       const newBuffer = [...prevBuffer, note];
+      devLog.debug('🎵 入力バッファ更新:', { newBuffer, bufferSize: newBuffer.length });
       
       // 入力タイムアウトをリセット
       if (inputTimeout) {
         clearTimeout(inputTimeout);
       }
       
-      // 500ms後に自動判定
+      // 自動判定タイマー（300msに短縮 - より応答性を向上）
       const timeout = setTimeout(() => {
+        devLog.debug('⏰ 自動判定タイマー発動');
         checkCurrentInput(newBuffer);
         setInputBuffer([]);
-      }, 500);
+      }, 300);
       
       setInputTimeout(timeout);
+      
+      // 即座に判定も試行（構成音数が満たされた場合）
+      if (gameState.currentChordTarget && newBuffer.length >= gameState.currentChordTarget.notes.length) {
+        devLog.debug('🎯 構成音数達成 - 即座に判定');
+        setTimeout(() => {
+          clearTimeout(timeout);
+          checkCurrentInput(newBuffer);
+          setInputBuffer([]);
+        }, 100);
+      }
       
       return newBuffer;
     });
@@ -419,11 +436,22 @@ export const useFantasyGameEngine = ({
   
   // 現在の入力を判定
   const checkCurrentInput = useCallback((notes: number[]) => {
-    if (!gameState.currentChordTarget || notes.length === 0) return;
+    if (!gameState.currentChordTarget || notes.length === 0) {
+      devLog.debug('❌ 判定スキップ: コードなしまたは入力なし', { hasChord: !!gameState.currentChordTarget, inputCount: notes.length });
+      return;
+    }
+    
+    devLog.debug('🎯 コード判定実行中...', { 
+      targetChord: gameState.currentChordTarget.displayName,
+      inputNotes: notes,
+      inputCount: notes.length 
+    });
     
     const isCorrect = checkChordMatch(notes, gameState.currentChordTarget);
     
     if (isCorrect) {
+      devLog.debug('✅ 正解判定!', { chord: gameState.currentChordTarget.displayName });
+      
       // 正解
       onChordCorrect(gameState.currentChordTarget);
       
@@ -431,16 +459,22 @@ export const useFantasyGameEngine = ({
         const nextState = {
           ...prevState,
           correctAnswers: prevState.correctAnswers + 1,
-          score: prevState.score + 1000
+          score: prevState.score + 1000,
+          enemyGauge: 0 // ゲージをリセット
         };
         onGameStateChange(nextState);
         return nextState;
       });
       
-      // 次の問題へ
-      setTimeout(proceedToNextQuestion, 500);
+      // 次の問題へ（少し遅延）
+      setTimeout(proceedToNextQuestion, 800);
       
     } else {
+      devLog.debug('❌ 不正解判定', { 
+        targetChord: gameState.currentChordTarget.displayName,
+        inputNotes: notes 
+      });
+      
       // 不正解
       onChordIncorrect(gameState.currentChordTarget, notes);
     }

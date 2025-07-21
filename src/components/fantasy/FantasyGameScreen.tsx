@@ -57,7 +57,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
+  const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 220 }); // デフォルトサイズを調整
   
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
@@ -151,12 +151,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       renderer.updateSettings({
         noteNameStyle: 'abc',
         simpleDisplayMode: true, // シンプル表示モードを有効
-        pianoHeight: 180, // 鍵盤の高さを大幅に増加してノーツ下降部分を最小化
+        pianoHeight: 220, // コンテナ高さと同じに設定
+        noteHeight: 20,
+        noteWidth: 32,
         transpose: 0,
         transposingInstrument: 'concert_pitch',
         practiceGuide: 'off', // ファンタジーモードでは練習ガイドを無効
         showHitLine: false, // ヒットラインを非表示
-        viewportHeight: 200 // ビューポート高さを固定
+        viewportHeight: 220, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
+        timingAdjustment: 0,
+        effects: {
+          glow: true,
+          particles: true,
+          trails: false
+        }
       });
       
       // キーボードのクリックイベントを接続
@@ -177,10 +185,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       if (!gameAreaRef.current) return;
       const rect = gameAreaRef.current.getBoundingClientRect();
       const newSize = {
-        width: rect.width || 800,
-        height: rect.height || 600
+        width: Math.max(rect.width || 1000, 800), // 最小幅800pxを確保
+        height: 220 // 固定高さ
       };
       setGameAreaSize(newSize);
+      
+      devLog.debug('🎮 ゲームエリアサイズ更新:', newSize);
     };
 
     // 初回サイズ取得
@@ -358,12 +368,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div 
         ref={gameAreaRef}
         className="relative mx-4 mb-4 bg-black bg-opacity-20 rounded-lg overflow-hidden"
-        style={{ height: '200px' }} // 鍵盤エリアの高さを固定
+        style={{ height: '220px' }} // 鍵盤エリアの高さを増加
       >
         <PIXINotesRenderer
           activeNotes={[]} // ファンタジーモードでは通常のアクティブノーツは使用しない
           width={gameAreaSize.width}
-          height={200} // 高さを固定
+          height={220} // 高さを増加
           currentTime={0} // ファンタジーモードでは時間進行なし
           onReady={handlePixiReady}
           className="w-full h-full"
@@ -374,7 +384,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg">
             <div className="text-sm">入力中: {inputBuffer.length}音</div>
             <div className="text-xs text-gray-300">
-              {inputBuffer.map(note => note % 12).join(', ')}
+              {inputBuffer.map(note => {
+                const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                return noteNames[note % 12];
+              }).join(', ')}
             </div>
           </div>
         )}
@@ -390,6 +403,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             </button>
           </div>
         )}
+        
+        {/* 横スクロールヒント */}
+        <div className="absolute top-2 right-2 text-white text-xs bg-black bg-opacity-50 px-2 py-1 rounded">
+          Shift+ホイールで横スクロール
+        </div>
       </div>
       
       {/* ===== エフェクト表示 ===== */}
