@@ -301,6 +301,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
 
         console.log('Magic Link redirect URL:', redirectUrl);
+        console.log('Mode:', mode);
 
         const options: { shouldCreateUser: boolean; emailRedirectTo?: string } = {
           shouldCreateUser: mode === 'signup',
@@ -314,7 +315,25 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         });
 
         if (error) {
-          throw error;
+          // サインアップ無効エラーの特別処理
+          if (error.message.includes('Signups not allowed') || error.message.includes('signups not allowed')) {
+            console.warn('サインアップが無効です。ログインモードで再試行します。');
+            
+            // ログインモードで再試行
+            const { error: loginError } = await supabase.auth.signInWithOtp({
+              email,
+              options: {
+                shouldCreateUser: false,
+                emailRedirectTo: redirectUrl,
+              },
+            });
+
+            if (loginError) {
+              throw new Error(`ログインに失敗しました: ${loginError.message}`);
+            }
+          } else {
+            throw error;
+          }
         }
 
         set(state => {
@@ -324,9 +343,24 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       } catch (error) {
         console.error('Magic Link error:', error);
+        
+        let errorMessage = 'Magic Link送信に失敗しました';
+        
+        if (error instanceof Error) {
+          if (error.message.includes('Signups not allowed')) {
+            errorMessage = '現在サインアップが無効になっています。既存のアカウントでログインしてください。';
+          } else if (error.message.includes('Invalid email')) {
+            errorMessage = '無効なメールアドレスです。';
+          } else if (error.message.includes('rate limit')) {
+            errorMessage = '送信回数制限に達しました。しばらく待ってから再試行してください。';
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
         set(state => {
           state.loading = false;
-          state.error = error instanceof Error ? error.message : 'Magic Link送信に失敗しました';
+          state.error = errorMessage;
         });
       }
     },

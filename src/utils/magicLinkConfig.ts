@@ -113,4 +113,89 @@ export function logMagicLinkDebugInfo(): void {
   }
   
   console.groupEnd();
+}
+
+/**
+ * Supabase設定の確認結果を取得
+ */
+export async function checkSupabaseConfig(): Promise<{
+  signupEnabled: boolean;
+  emailSignupEnabled: boolean;
+  siteUrl: string;
+  redirectUrls: string[];
+}> {
+  try {
+    // Supabaseクライアントを取得
+    const { getSupabaseClient } = await import('@/platform/supabaseClient');
+    const supabase = getSupabaseClient();
+    
+    // 設定情報を取得（実際にはAPIで取得できないため、環境変数から推測）
+    const siteUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const redirectUrl = import.meta.env.VITE_SUPABASE_REDIRECT_URL || '';
+    
+    return {
+      signupEnabled: true, // デフォルトでは有効と仮定
+      emailSignupEnabled: true, // デフォルトでは有効と仮定
+      siteUrl,
+      redirectUrls: redirectUrl ? [redirectUrl] : [],
+    };
+  } catch (error) {
+    console.error('Supabase設定確認エラー:', error);
+    return {
+      signupEnabled: false,
+      emailSignupEnabled: false,
+      siteUrl: '',
+      redirectUrls: [],
+    };
+  }
+}
+
+/**
+ * 設定問題の診断と推奨事項を取得
+ */
+export function diagnoseMagicLinkIssues(): {
+  issues: string[];
+  recommendations: string[];
+  severity: 'low' | 'medium' | 'high';
+} {
+  const config = getMagicLinkConfig();
+  const issues: string[] = [];
+  const recommendations: string[] = [];
+  let severity: 'low' | 'medium' | 'high' = 'low';
+
+  // 環境変数の問題
+  if (!config.isConfigured) {
+    issues.push('環境変数 VITE_SUPABASE_REDIRECT_URL が設定されていません');
+    recommendations.push('VITE_SUPABASE_REDIRECT_URL を設定してください');
+    severity = 'high';
+  }
+
+  // URL形式の問題
+  if (config.isConfigured && !config.isValidUrl) {
+    issues.push('VITE_SUPABASE_REDIRECT_URL が無効なURL形式です');
+    recommendations.push('有効なURL形式で設定してください（例: https://example.com）');
+    severity = 'high';
+  }
+
+  // プロトコルの問題
+  if (config.isValidUrl) {
+    if (config.protocol !== 'https:' && config.hostname !== 'localhost') {
+      issues.push('HTTPSプロトコルまたはlocalhostが必要です');
+      recommendations.push('HTTPSまたはlocalhostを使用してください');
+      severity = 'medium';
+    }
+  }
+
+  // リダイレクトURLの不一致
+  if (config.isValidUrl && config.redirectUrl !== config.currentOrigin) {
+    issues.push('リダイレクトURLと現在のoriginが異なります');
+    recommendations.push('Supabase設定とリダイレクトURLを一致させてください');
+    severity = 'medium';
+  }
+
+  return {
+    issues,
+    recommendations,
+    severity,
+  };
 } 

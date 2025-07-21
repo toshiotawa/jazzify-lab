@@ -5,6 +5,7 @@ import { useToast, getValidationMessage, handleApiError } from '@/stores/toastSt
 const AuthLanding: React.FC = () => {
   const [email, setEmail] = useState('');
   const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [signupDisabled, setSignupDisabled] = useState(false);
   const { loginWithMagicLink, enterGuestMode, loading, error } = useAuthStore();
   const toast = useToast();
 
@@ -28,15 +29,29 @@ const AuthLanding: React.FC = () => {
 
     try {
       await loginWithMagicLink(email, mode);
-      toast.success(
-        `Magic Link を送信しました（${mode==='signup'?'会員登録':'ログイン'}）`,
-        {
-          title: 'メール送信完了',
-          duration: 5000,
-        }
-      );
+      
+      // 成功メッセージを表示
+      const successMessage = mode === 'signup' 
+        ? 'Magic Link を送信しました（会員登録）'
+        : 'Magic Link を送信しました（ログイン）';
+        
+      toast.success(successMessage, {
+        title: 'メール送信完了',
+        duration: 5000,
+      });
     } catch (err) {
-      toast.error(handleApiError(err, 'Magic Link送信'));
+      // エラーメッセージを適切に処理
+      const errorMessage = err instanceof Error ? err.message : 'Magic Link送信に失敗しました';
+      
+      if (errorMessage.includes('サインアップが無効')) {
+        setSignupDisabled(true);
+        toast.error('現在サインアップが無効になっています。既存のアカウントでログインしてください。', {
+          title: 'サインアップ無効',
+          duration: 8000,
+        });
+      } else {
+        toast.error(handleApiError(err, 'Magic Link送信'));
+      }
     }
   };
 
@@ -98,7 +113,7 @@ const AuthLanding: React.FC = () => {
             />
           </div>
           <div className="flex space-x-2">
-            <button className="btn btn-primary flex-1" disabled={loading} onClick={()=>{void handleSendLink('signup')}}>
+            <button className="btn btn-primary flex-1" disabled={loading || signupDisabled} onClick={()=>{void handleSendLink('signup')}}>
               会員登録
             </button>
             <button className="btn btn-outline flex-1" disabled={loading} onClick={()=>{void handleSendLink('login')}}>
@@ -106,6 +121,15 @@ const AuthLanding: React.FC = () => {
             </button>
           </div>
           {error && <p className="text-red-400 text-sm">{error}</p>}
+          {signupDisabled && (
+            <div className="bg-orange-900/30 border border-orange-500/50 rounded p-3 text-sm">
+              <div className="font-semibold text-orange-300 mb-1">⚠️ サインアップ無効</div>
+              <div className="text-orange-200 text-xs">
+                現在サインアップが無効になっています。<br />
+                既存のアカウントでログインしてください。
+              </div>
+            </div>
+          )}
           <div className="text-center text-xs text-gray-400">リンクを開くと自動でログインします</div>
           
           {/* トラブルシューティング情報 */}
