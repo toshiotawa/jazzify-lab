@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
+import { 
+  getMagicLinkConfig, 
+  validateMagicLinkConfig, 
+  diagnoseMagicLinkIssues,
+  parseMagicLinkFromUrl 
+} from '@/utils/magicLinkConfig';
 
 const AuthLanding: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -67,6 +73,12 @@ const AuthLanding: React.FC = () => {
   // リダイレクトURLの設定状況を確認
   const redirectUrl = import.meta.env.VITE_SUPABASE_REDIRECT_URL;
   const currentOrigin = typeof location !== 'undefined' ? location.origin : '';
+  
+  // マジックリンク設定の詳細情報を取得
+  const magicLinkConfig = getMagicLinkConfig();
+  const validation = validateMagicLinkConfig();
+  const diagnosis = diagnoseMagicLinkIssues();
+  const urlMagicLinkInfo = parseMagicLinkFromUrl();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white p-4">
@@ -77,22 +89,75 @@ const AuthLanding: React.FC = () => {
         {showDebugInfo && (
           <div className="bg-slate-700/60 p-4 rounded-lg text-xs space-y-2">
             <h3 className="font-bold text-yellow-400">🔧 デバッグ情報</h3>
-            <div>
-              <strong>環境変数 VITE_SUPABASE_REDIRECT_URL:</strong>
-              <span className={redirectUrl ? 'text-green-400' : 'text-red-400'}>
-                {redirectUrl || '未設定'}
-              </span>
+            
+            {/* 基本設定情報 */}
+            <div className="space-y-1">
+              <div>
+                <strong>環境変数 VITE_SUPABASE_REDIRECT_URL:</strong>
+                <span className={redirectUrl ? 'text-green-400' : 'text-red-400'}>
+                  {redirectUrl || '未設定'}
+                </span>
+              </div>
+              <div>
+                <strong>現在のorigin:</strong>
+                <span className="text-blue-400">{currentOrigin}</span>
+              </div>
+              <div>
+                <strong>使用されるリダイレクトURL:</strong>
+                <span className="text-purple-400">
+                  {redirectUrl || currentOrigin}
+                </span>
+              </div>
             </div>
-            <div>
-              <strong>現在のorigin:</strong>
-              <span className="text-blue-400">{currentOrigin}</span>
+            
+            {/* 設定検証結果 */}
+            <div className="space-y-1">
+              <div>
+                <strong>設定検証:</strong>
+                <span className={validation.isValid ? 'text-green-400' : 'text-red-400'}>
+                  {validation.isValid ? '✅ 正常' : '❌ 問題あり'}
+                </span>
+              </div>
+              {validation.issues.length > 0 && (
+                <div className="text-red-400">
+                  <strong>問題点:</strong>
+                  <ul className="list-disc list-inside ml-2">
+                    {validation.issues.map((issue, index) => (
+                      <li key={index}>{issue}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-            <div>
-              <strong>使用されるリダイレクトURL:</strong>
-              <span className="text-purple-400">
-                {redirectUrl || currentOrigin}
-              </span>
-            </div>
+            
+            {/* URLマジックリンク情報 */}
+            {urlMagicLinkInfo.hasMagicLink && (
+              <div className="space-y-1">
+                <div className="text-green-400 font-bold">🎯 URLにマジックリンク検出</div>
+                <div>
+                  <strong>アクセストークン:</strong>
+                  <span className={urlMagicLinkInfo.accessToken ? 'text-green-400' : 'text-red-400'}>
+                    {urlMagicLinkInfo.accessToken ? '存在' : 'なし'}
+                  </span>
+                </div>
+                <div>
+                  <strong>リフレッシュトークン:</strong>
+                  <span className={urlMagicLinkInfo.refreshToken ? 'text-green-400' : 'text-red-400'}>
+                    {urlMagicLinkInfo.refreshToken ? '存在' : 'なし'}
+                  </span>
+                </div>
+                <div>
+                  <strong>タイプ:</strong>
+                  <span className="text-blue-400">{urlMagicLinkInfo.type || 'なし'}</span>
+                </div>
+                {urlMagicLinkInfo.error && (
+                  <div className="text-red-400">
+                    <strong>エラー:</strong> {urlMagicLinkInfo.error}
+                  </div>
+                )}
+              </div>
+            )}
+            
             {!redirectUrl && (
               <div className="text-orange-400">
                 ⚠️ 環境変数が未設定のため、現在のoriginを使用します

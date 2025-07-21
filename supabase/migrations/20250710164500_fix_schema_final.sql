@@ -154,11 +154,8 @@ ADD COLUMN IF NOT EXISTS type public.challenge_type,
 ADD COLUMN IF NOT EXISTS reward_multiplier numeric NOT NULL DEFAULT 1.3,
 ADD COLUMN IF NOT EXISTS diary_count integer;
 
--- Update existing challenge_type text values to ENUM (if possible)
-UPDATE public.challenges 
-SET type = LOWER(challenge_type)::public.challenge_type
-WHERE type IS NULL AND challenge_type IS NOT NULL 
-  AND LOWER(challenge_type) IN ('weekly', 'monthly');
+-- Note: challenge_type column doesn't exist, so we skip the update
+-- The type column will be populated with default values as needed
 
 -- ============================================
 -- 4. Create missing function

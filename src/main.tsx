@@ -8,9 +8,13 @@ import AccountModal from '@/components/ui/AccountModal';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
+import { autoLogMagicLinkInfo } from '@/utils/magicLinkConfig';
 
 // ImmerでMap/Setを使用できるようにする
 enableMapSet();
+
+// 開発環境でマジックリンクログを自動出力
+autoLogMagicLinkInfo();
 
 // 本番環境でもデバッグ情報を表示する関数
 const showDebugInfo = (message: string, isError = false) => {

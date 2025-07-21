@@ -3,7 +3,13 @@ import { immer } from 'zustand/middleware/immer';
 import { Session, User } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { useUserStatsStore } from './userStatsStore';
-import { logMagicLinkDebugInfo } from '@/utils/magicLinkConfig';
+import { 
+  logMagicLinkDebugInfo, 
+  logMagicLinkLoginProcess, 
+  logMagicLinkError, 
+  logMagicLinkSuccess,
+  parseMagicLinkFromUrl
+} from '@/utils/magicLinkConfig';
 
 /**
  * 有効なリダイレクトURLを取得・検証する
@@ -119,10 +125,32 @@ export const useAuthStore = create<AuthState & AuthActions>()(
      */
     init: async () => {
       const supabase = getSupabaseClient();
+      
+      // URLからマジックリンク情報を解析
+      const magicLinkInfo = parseMagicLinkFromUrl();
+      
+      console.group('🔐 認証初期化開始');
+      console.log('🌐 現在のURL:', typeof location !== 'undefined' ? location.href : 'N/A');
+      console.log('🔍 マジックリンク検出:', magicLinkInfo.hasMagicLink);
+      if (magicLinkInfo.hasMagicLink) {
+        console.log('📋 マジックリンク詳細:', magicLinkInfo);
+      }
+      console.groupEnd();
+      
       set(state => {
         state.loading = true;
       });
+      
       const { data: { session } } = await supabase.auth.getSession();
+      
+      console.log('🔑 セッション取得結果:', {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        userEmail: session?.user?.email,
+        sessionCreated: session ? '存在します' : 'なし',
+        sessionExpires: session ? '存在します' : 'なし'
+      });
+      
       set(state => {
         state.session = session ?? null;
         state.user = session?.user ?? null;
@@ -188,6 +216,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       supabase.auth.onAuthStateChange(async (event, session) => {
         const previousUser = get().user;
         
+        console.group('🔄 認証状態変化');
+        console.log('📝 イベント:', event);
+        console.log('👤 前のユーザー:', previousUser?.id);
+        console.log('👤 新しいユーザー:', session?.user?.id);
+        console.log('📧 ユーザーメール:', session?.user?.email);
+        console.log('🔑 セッション存在:', !!session);
+        console.groupEnd();
+        
         set(state => {
           state.session = session ?? null;
           state.user = session?.user ?? null;
@@ -199,6 +235,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           (event === 'INITIAL_SESSION'  && session?.user) ||
           (event === 'TOKEN_REFRESHED'  && session?.user)
         ) {
+          console.log('✅ プロフィール取得開始');
           get().fetchProfile().catch(console.error);
         }
 
@@ -300,13 +337,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           throw new Error('リダイレクトURLの設定が不正です。環境変数 VITE_SUPABASE_REDIRECT_URL を確認してください。');
         }
 
-        console.log('Magic Link redirect URL:', redirectUrl);
-        console.log('Mode:', mode);
+        // 詳細ログ出力
+        logMagicLinkLoginProcess(email, mode, redirectUrl);
 
         const options: { shouldCreateUser: boolean; emailRedirectTo?: string } = {
           shouldCreateUser: mode === 'signup',
           emailRedirectTo: redirectUrl,
         };
+
+        console.log('🔐 Magic Link 送信オプション:', options);
 
         // メールベースのMagic Link送信
         const { error } = await supabase.auth.signInWithOtp({
@@ -317,7 +356,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         if (error) {
           // サインアップ無効エラーの特別処理
           if (error.message.includes('Signups not allowed') || error.message.includes('signups not allowed')) {
-            console.warn('サインアップが無効です。ログインモードで再試行します。');
+            console.warn('⚠️ サインアップが無効です。ログインモードで再試行します。');
             
             // ログインモードで再試行
             const { error: loginError } = await supabase.auth.signInWithOtp({
@@ -329,20 +368,23 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             });
 
             if (loginError) {
+              logMagicLinkError(loginError, 'ログインモード再試行失敗');
               throw new Error(`ログインに失敗しました: ${loginError.message}`);
             }
           } else {
+            logMagicLinkError(error, 'Magic Link送信失敗');
             throw error;
           }
         }
 
+        console.log('✅ Magic Link 送信成功');
         set(state => {
           state.loading = false;
           state.error = null;
         });
 
       } catch (error) {
-        console.error('Magic Link error:', error);
+        logMagicLinkError(error, 'Magic Link送信処理エラー');
         
         let errorMessage = 'Magic Link送信に失敗しました';
         

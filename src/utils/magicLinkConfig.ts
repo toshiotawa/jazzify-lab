@@ -94,7 +94,7 @@ export function validateMagicLinkConfig(): {
 }
 
 /**
- * デバッグ情報をコンソールに出力
+ * 詳細なデバッグ情報をコンソールに出力
  */
 export function logMagicLinkDebugInfo(): void {
   const config = getMagicLinkConfig();
@@ -113,6 +113,128 @@ export function logMagicLinkDebugInfo(): void {
   }
   
   console.groupEnd();
+}
+
+/**
+ * マジックリンクログイン処理の詳細ログ
+ */
+export function logMagicLinkLoginProcess(email: string, mode: 'signup' | 'login', redirectUrl: string): void {
+  console.group('🔐 Magic Link ログイン処理開始');
+  console.log('📧 メールアドレス:', email);
+  console.log('🎯 モード:', mode);
+  console.log('🔗 リダイレクトURL:', redirectUrl);
+  console.log('🌐 現在のorigin:', typeof location !== 'undefined' ? location.origin : 'N/A');
+  console.log('📱 User Agent:', navigator.userAgent);
+  console.log('🔒 HTTPS:', location.protocol === 'https:');
+  console.groupEnd();
+}
+
+/**
+ * マジックリンクエラーの詳細ログ
+ */
+export function logMagicLinkError(error: any, context: string): void {
+  console.group('❌ Magic Link エラー');
+  console.log('🔍 エラーコンテキスト:', context);
+  console.log('🚨 エラー詳細:', error);
+  
+  if (error instanceof Error) {
+    console.log('📝 エラーメッセージ:', error.message);
+    console.log('📚 エラースタック:', error.stack);
+  }
+  
+  // URLパラメータの確認
+  if (typeof location !== 'undefined') {
+    console.log('🔗 現在のURL:', location.href);
+    console.log('📋 URLパラメータ:', location.search);
+    console.log('🔍 ハッシュ:', location.hash);
+  }
+  
+  console.groupEnd();
+}
+
+/**
+ * マジックリンク成功の詳細ログ
+ */
+export function logMagicLinkSuccess(email: string, session: any): void {
+  console.group('✅ Magic Link ログイン成功');
+  console.log('📧 メールアドレス:', email);
+  console.log('👤 ユーザーID:', session?.user?.id);
+  console.log('📅 セッション作成時刻:', session?.created_at);
+  console.log('⏰ セッション有効期限:', session?.expires_at);
+  console.log('🔗 アクセストークン:', session?.access_token ? '存在します' : 'なし');
+  console.log('🔄 リフレッシュトークン:', session?.refresh_token ? '存在します' : 'なし');
+  console.groupEnd();
+}
+
+/**
+ * URLパラメータからマジックリンク情報を解析
+ */
+export function parseMagicLinkFromUrl(): {
+  hasMagicLink: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  type?: string;
+  error?: string;
+} {
+  if (typeof location === 'undefined') {
+    return { hasMagicLink: false };
+  }
+
+  const urlParams = new URLSearchParams(location.search);
+  const hashParams = new URLSearchParams(location.hash.substring(1));
+  
+  const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
+  const refreshToken = urlParams.get('refresh_token') || hashParams.get('refresh_token');
+  const type = urlParams.get('type') || hashParams.get('type');
+  const error = urlParams.get('error') || hashParams.get('error');
+
+  const hasMagicLink = !!(accessToken || refreshToken || type);
+
+  console.group('🔍 URL マジックリンク解析');
+  console.log('🔗 現在のURL:', location.href);
+  console.log('📋 URLパラメータ:', Object.fromEntries(urlParams.entries()));
+  console.log('🔍 ハッシュパラメータ:', Object.fromEntries(hashParams.entries()));
+  console.log('🎯 マジックリンク検出:', hasMagicLink);
+  console.log('🔑 アクセストークン:', accessToken ? '存在します' : 'なし');
+  console.log('🔄 リフレッシュトークン:', refreshToken ? '存在します' : 'なし');
+  console.log('📝 タイプ:', type);
+  console.log('❌ エラー:', error);
+  console.groupEnd();
+
+  return {
+    hasMagicLink,
+    accessToken: accessToken || undefined,
+    refreshToken: refreshToken || undefined,
+    type: type || undefined,
+    error: error || undefined,
+  };
+}
+
+/**
+ * 開発環境で自動的にログを出力
+ */
+export function autoLogMagicLinkInfo(): void {
+  if (import.meta.env.DEV) {
+    console.log('🚀 開発環境でマジックリンクログを有効化');
+    
+    // 設定情報を自動出力
+    logMagicLinkDebugInfo();
+    
+    // URLからマジックリンク情報を解析
+    const urlInfo = parseMagicLinkFromUrl();
+    if (urlInfo.hasMagicLink) {
+      console.log('🎯 ページ読み込み時にマジックリンクが検出されました');
+    }
+    
+    // ブラウザ情報を出力
+    console.group('🌐 ブラウザ情報');
+    console.log('User Agent:', navigator.userAgent);
+    console.log('プラットフォーム:', navigator.platform);
+    console.log('言語:', navigator.language);
+    console.log('Cookie有効:', navigator.cookieEnabled);
+    console.log('オンライン:', navigator.onLine);
+    console.groupEnd();
+  }
 }
 
 /**
