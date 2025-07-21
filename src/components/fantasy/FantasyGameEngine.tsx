@@ -105,24 +105,41 @@ const CHORD_DEFINITIONS: Record<string, ChordDefinition> = {
  * 構成音が全て押されていれば正解（順番・オクターブ不問、転回形も正解、余分な音があっても構成音が含まれていれば正解）
  */
 const checkChordMatch = (inputNotes: number[], targetChord: ChordDefinition): boolean => {
-  if (inputNotes.length === 0) return false;
+  if (inputNotes.length === 0) {
+    devLog.debug('❌ コード判定: 入力音なし');
+    return false;
+  }
   
   // 入力された音をノート番号のmod 12で正規化（オクターブ無視）
-  const inputNotesMod12 = inputNotes.map(note => note % 12);
-  const targetNotesMod12 = targetChord.notes.map(note => note % 12);
+  const inputNotesMod12 = [...new Set(inputNotes.map(note => note % 12))]; // 重複除去も追加
+  const targetNotesMod12 = [...new Set(targetChord.notes.map(note => note % 12))]; // 重複除去も追加
   
   // ターゲットコードの全ての音が入力に含まれているかチェック
   const hasAllTargetNotes = targetNotesMod12.every(targetNote => 
     inputNotesMod12.includes(targetNote)
   );
   
-  devLog.debug(`🎵 コード判定:`, {
-    input: inputNotes,
-    inputMod12: inputNotesMod12,
-    target: targetChord.displayName,
+  // より詳細なログ出力
+  devLog.debug(`🎵 コード判定詳細:`, {
+    targetChord: targetChord.displayName,
     targetNotes: targetChord.notes,
     targetMod12: targetNotesMod12,
-    hasAllTargetNotes
+    targetMod12Names: targetNotesMod12.map(note => {
+      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      return noteNames[note];
+    }),
+    inputNotes: inputNotes,
+    inputMod12: inputNotesMod12,
+    inputMod12Names: inputNotesMod12.map(note => {
+      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      return noteNames[note];
+    }),
+    hasAllTargetNotes,
+    matchDetails: targetNotesMod12.map(targetNote => ({
+      note: targetNote,
+      noteName: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][targetNote],
+      found: inputNotesMod12.includes(targetNote)
+    }))
   });
   
   return hasAllTargetNotes;
@@ -183,11 +200,28 @@ export const useFantasyGameEngine = ({
   
   // ゲーム初期化
   const initializeGame = useCallback(() => {
-    if (!stage) return;
+    devLog.debug('🎮 ゲーム初期化開始:', stage);
+    
+    if (!stage) {
+      devLog.debug('❌ ステージ情報がありません');
+      return;
+    }
     
     const firstChord = stage.mode === 'single' 
       ? selectRandomChord(stage.allowedChords)
       : getProgressionChord(stage.chordProgression || [], 0);
+    
+    devLog.debug('🎯 最初のコード選択:', {
+      mode: stage.mode,
+      allowedChords: stage.allowedChords,
+      chordProgression: stage.chordProgression,
+      selectedChord: firstChord
+    });
+    
+    if (!firstChord) {
+      devLog.debug('❌ 最初のコードを選択できませんでした');
+      return;
+    }
     
     const newState: FantasyGameState = {
       currentStage: stage,
@@ -207,7 +241,7 @@ export const useFantasyGameEngine = ({
     setInputBuffer([]);
     onGameStateChange(newState);
     
-    devLog.debug('🎮 ファンタジーゲーム初期化:', newState);
+    devLog.debug('✅ ファンタジーゲーム初期化完了:', newState);
   }, [stage, onGameStateChange]);
   
   // 次の問題への移行
@@ -302,17 +336,52 @@ export const useFantasyGameEngine = ({
     onEnemyAttack();
   }, [onGameStateChange, onGameComplete, onEnemyAttack]);
   
+  // ゲージタイマーの管理
+  useEffect(() => {
+    devLog.debug('🎮 ゲージタイマー状態チェック:', { 
+      isGameActive: gameState.isGameActive, 
+      hasTimer: !!enemyGaugeTimer,
+      currentStage: gameState.currentStage?.stageNumber
+    });
+    
+    if (gameState.isGameActive && !enemyGaugeTimer) {
+      devLog.debug('⏰ 敵ゲージタイマー開始');
+      const timer = setInterval(updateEnemyGauge, 100);
+      setEnemyGaugeTimer(timer);
+      
+      return () => {
+        devLog.debug('⏰ 敵ゲージタイマー停止（クリーンアップ）');
+        clearInterval(timer);
+        setEnemyGaugeTimer(null);
+      };
+    } else if (!gameState.isGameActive && enemyGaugeTimer) {
+      devLog.debug('⏰ 敵ゲージタイマー停止（ゲーム非アクティブ）');
+      clearInterval(enemyGaugeTimer);
+      setEnemyGaugeTimer(null);
+    }
+  }, [gameState.isGameActive, enemyGaugeTimer]);
+  
   // 敵ゲージの更新
   const updateEnemyGauge = useCallback(() => {
-    if (!gameState.isGameActive || !gameState.currentStage) return;
-    
-    const incrementRate = 100 / (gameState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
-    
     setGameState(prevState => {
+      if (!prevState.isGameActive || !prevState.currentStage) {
+        devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
+        return prevState;
+      }
+      
+      const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
       const newGauge = prevState.enemyGauge + incrementRate;
+      
+      devLog.debug('⚡ ゲージ更新:', { 
+        currentGauge: prevState.enemyGauge.toFixed(1), 
+        newGauge: newGauge.toFixed(1), 
+        incrementRate: incrementRate.toFixed(2),
+        enemyGaugeSeconds: prevState.currentStage.enemyGaugeSeconds
+      });
       
       if (newGauge >= 100) {
         // ゲージ満タン -> 敵の攻撃
+        devLog.debug('💥 敵ゲージ満タン！攻撃開始');
         setTimeout(handleEnemyAttack, 0);
         return prevState; // handleEnemyAttackで状態更新
       } else {
@@ -321,23 +390,7 @@ export const useFantasyGameEngine = ({
         return nextState;
       }
     });
-  }, [gameState.isGameActive, gameState.currentStage, handleEnemyAttack, onGameStateChange]);
-  
-  // ゲージタイマーの管理
-  useEffect(() => {
-    if (gameState.isGameActive && !enemyGaugeTimer) {
-      const timer = setInterval(updateEnemyGauge, 100);
-      setEnemyGaugeTimer(timer);
-      
-      return () => {
-        clearInterval(timer);
-        setEnemyGaugeTimer(null);
-      };
-    } else if (!gameState.isGameActive && enemyGaugeTimer) {
-      clearInterval(enemyGaugeTimer);
-      setEnemyGaugeTimer(null);
-    }
-  }, [gameState.isGameActive, enemyGaugeTimer, updateEnemyGauge]);
+  }, [handleEnemyAttack, onGameStateChange]);
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {

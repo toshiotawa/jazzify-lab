@@ -150,11 +150,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // ファンタジーモード用の設定を適用
       renderer.updateSettings({
         noteNameStyle: 'abc',
-        simpleDisplayMode: true, // シンプル表示モードを有効にしてノーツコンテナを非表示
-        pianoHeight: 120, // 鍵盤の高さを調整
+        simpleDisplayMode: true, // シンプル表示モードを有効
+        pianoHeight: 180, // 鍵盤の高さを大幅に増加してノーツ下降部分を最小化
         transpose: 0,
         transposingInstrument: 'concert_pitch',
-        practiceGuide: 'off' // ファンタジーモードでは練習ガイドを無効
+        practiceGuide: 'off', // ファンタジーモードでは練習ガイドを無効
+        showHitLine: false, // ヒットラインを非表示
+        viewportHeight: 200 // ビューポート高さを固定
       });
       
       // キーボードのクリックイベントを接続
@@ -239,7 +241,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return stage.chordProgression[nextIndex];
   }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
   
-  if (!gameState.currentChordTarget) {
+  // ゲーム開始前画面（スタートボタン表示条件を修正）
+  if (!gameState.isGameActive || !gameState.currentChordTarget) {
+    devLog.debug('🎮 ゲーム開始前画面表示:', { 
+      isGameActive: gameState.isGameActive,
+      hasCurrentChord: !!gameState.currentChordTarget,
+      stageName: stage.name
+    });
+    
     return (
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
         <div className="text-white text-center">
@@ -247,11 +256,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <h2 className="text-3xl font-bold mb-4">{stage.name}</h2>
           <p className="text-indigo-200 mb-8">{stage.description || 'ステージの説明'}</p>
           <button
-            onClick={initializeGame}
+            onClick={() => {
+              devLog.debug('🎮 ゲーム開始ボタンクリック');
+              initializeGame();
+            }}
             className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
           >
             🎮 ゲーム開始！
           </button>
+          
+          {/* デバッグ情報 */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 bg-black bg-opacity-50 text-white text-xs p-3 rounded">
+              <div>ゲーム状態: {gameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
+              <div>現在のコード: {gameState.currentChordTarget ? gameState.currentChordTarget.displayName : 'なし'}</div>
+              <div>許可コード数: {stage.allowedChords?.length || 0}</div>
+              <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -297,13 +319,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
         </div>
         
-        {/* 楽譜表示エリア（オプション） */}
-        {stage.showSheetMusic && (
-          <div className="mb-4 bg-white bg-opacity-90 rounded-lg p-4 min-h-24 flex items-center justify-center">
-            <div className="text-gray-600 text-sm">♪ 五線譜表示 ♪</div>
-            {/* 実際の楽譜表示はOpenSheetMusicDisplayコンポーネントで実装予定 */}
-          </div>
-        )}
+        {/* 楽譜表示エリアを削除 */}
         
         {/* モンスターとゲージ */}
         <div className="mb-6 text-center relative">
@@ -406,7 +422,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           }}
         >
           {effect.type === 'magic_circle' && (
-            <div className="text-4xl text-blue-400">🔮</div>
+            <div className="text-4xl text-blue-400">✨</div>
           )}
         </div>
       ))}
