@@ -196,7 +196,9 @@ const getCurrentEnemy = (enemyIndex: number) => {
   if (enemyIndex >= 0 && enemyIndex < ENEMY_LIST.length) {
     return ENEMY_LIST[enemyIndex];
   }
-  return ENEMY_LIST[0]; // フォールバック
+  // フォールバック：インデックスが範囲外の場合は配列の長さで余りを取る
+  const safeIndex = ((enemyIndex % ENEMY_LIST.length) + ENEMY_LIST.length) % ENEMY_LIST.length;
+  return ENEMY_LIST[safeIndex];
 };
 
 // ===== メインコンポーネント =====
@@ -226,7 +228,7 @@ export const useFantasyGameEngine = ({
     currentEnemyIndex: 0,
     currentEnemyHits: 0,
     enemiesDefeated: 0,
-    totalEnemies: 5,
+    totalEnemies: 1, // 初期値、実際の値はinitializeGameで設定
     // 敵のHP管理を追加
     currentEnemyHp: 5,
     maxEnemyHp: 5
@@ -277,7 +279,7 @@ export const useFantasyGameEngine = ({
       currentEnemyIndex: 0,
       currentEnemyHits: 0,
       enemiesDefeated: 0,
-      totalEnemies: 5,
+      totalEnemies: Math.ceil(stage.questionCount / 5), // 5問ごとに1体の敵
       // 敵のHP管理を追加
       currentEnemyHp: 5,
       maxEnemyHp: 5
