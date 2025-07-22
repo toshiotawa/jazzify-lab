@@ -60,7 +60,7 @@ const MONSTER_ICONS: Record<string, any> = {
   'ice': faSnowflake,
   'lightning': faBolt,
   // ファンタジーモード用の敵アイコンマッピング - 適切なアイコンに変更
-  'vampire': faUserSecret,
+  'vampire': faGhost,
   'monster': faSpider,
   'reaper': faSkull,
   'kraken': faFish,
@@ -109,12 +109,12 @@ const MONSTER_TRAITS: Record<string, { color: string; glowColor: string; special
   'ice': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
   'lightning': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
   // ファンタジーモード用の敵特性
-  'vampire': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'float' },
-  'monster': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'pulse' },
-  'reaper': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'float' },
-  'kraken': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'pulse' },
-  'werewolf': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'shake' },
-  'demon': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'pulse' }
+  'vampire': { color: 'text-white', glowColor: 'drop-shadow-lg', specialEffect: 'float' },
+  'monster': { color: 'text-purple-400', glowColor: 'drop-shadow-lg', specialEffect: 'pulse' },
+  'reaper': { color: 'text-gray-200', glowColor: 'drop-shadow-lg', specialEffect: 'float' },
+  'kraken': { color: 'text-blue-400', glowColor: 'drop-shadow-lg', specialEffect: 'pulse' },
+  'werewolf': { color: 'text-amber-400', glowColor: 'drop-shadow-lg', specialEffect: 'shake' },
+  'demon': { color: 'text-red-400', glowColor: 'drop-shadow-lg', specialEffect: 'pulse' }
 };
 
 const FantasyMonster: React.FC<FantasyMonsterProps> = ({
