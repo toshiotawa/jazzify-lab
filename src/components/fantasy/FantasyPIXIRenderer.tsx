@@ -384,27 +384,34 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // モンスタースプライトの属性を安全に更新
+  // モンスタースプライトのビジュアル状態を更新
   private updateMonsterSprite(): void {
-    // 追加の安全チェックを実装
     if (
       this.isDestroyed ||
       !this.monsterSprite ||
       this.monsterSprite.destroyed ||
       // transform が null になると PIXI 内部で x 代入時にエラーになるため
-      !(this.monsterSprite as any).transform
+      !(this.monsterSprite as any).transform ||
+      // GONE状態の場合も更新しない
+      this.monsterGameState.state === 'GONE'
     ) {
       return; // 破棄済みまたは異常状態の場合は更新しない
     }
     
-    // ビジュアル状態を適用
-    this.monsterSprite.x = this.monsterVisualState.x;
-    this.monsterSprite.y = this.monsterVisualState.y;
-    this.monsterSprite.scale.set(this.monsterVisualState.scale);
-    this.monsterSprite.rotation = this.monsterVisualState.rotation;
-    this.monsterSprite.tint = this.monsterVisualState.tint;
-    this.monsterSprite.alpha = this.monsterVisualState.alpha;
-    this.monsterSprite.visible = this.monsterVisualState.visible;
+    try {
+      // ビジュアル状態を適用
+      this.monsterSprite.x = this.monsterVisualState.x;
+      this.monsterSprite.y = this.monsterVisualState.y;
+      this.monsterSprite.scale.set(this.monsterVisualState.scale);
+      this.monsterSprite.rotation = this.monsterVisualState.rotation;
+      this.monsterSprite.tint = this.monsterVisualState.tint;
+      this.monsterSprite.alpha = this.monsterVisualState.alpha;
+      this.monsterSprite.visible = this.monsterVisualState.visible;
+    } catch (error) {
+      devLog.debug('⚠️ モンスタースプライト更新エラー:', error);
+      // エラーが発生した場合は、この後の更新を停止
+      this.monsterGameState.state = 'GONE';
+    }
   }
 
   // ▼▼▼ 攻撃成功エフェクトを修正 ▼▼▼
@@ -708,6 +715,15 @@ export class FantasyPIXIInstance {
         this.monsterVisualState.alpha = 0;
         this.monsterVisualState.visible = false;
         this.setMonsterState('GONE');
+        
+        // スプライトを安全に非表示化
+        if (this.monsterSprite && !this.monsterSprite.destroyed) {
+          this.monsterSprite.visible = false;
+          // 親コンテナから削除（必要に応じて）
+          if (this.monsterSprite.parent) {
+            this.monsterSprite.parent.removeChild(this.monsterSprite);
+          }
+        }
       } else {
         requestAnimationFrame(fadeOut);
       }
@@ -794,6 +810,11 @@ export class FantasyPIXIInstance {
     if (this.isDestroyed) return;
     
     try {
+      // GONE状態の場合は何もしない
+      if (this.monsterGameState.state === 'GONE') {
+        return;
+      }
+
       // 状態に基づいたアニメーション処理
       switch (this.monsterGameState.state) {
         case 'IDLE':
@@ -822,17 +843,13 @@ export class FantasyPIXIInstance {
         case 'FADING_OUT':
           // 消滅中の処理（startMonsterFadeOutで処理される）
           break;
-          
-        case 'GONE':
-          // 完全消滅状態（何もしない）
-          break;
       }
       
       // よろけ効果の減衰
       this.monsterGameState.staggerOffset.x *= 0.9;
       this.monsterGameState.staggerOffset.y *= 0.9;
       
-      // モンスタースプライトを更新
+      // モンスタースプライトを更新（GONE状態でない場合のみ）
       this.updateMonsterSprite();
       
     } catch (error) {
