@@ -12,6 +12,7 @@ interface ChordDefinition {
   id: string;           // "CM7"
   displayName: string;  // "CM7"
   notes: number[];      // [60, 64, 67, 71]
+  noteNames?: string[]; // ["ド", "ミ", "ソ", "シ"] - 音名の配列を追加
   quality: string;      // "M7"
   root: string;        // "C"
 }
@@ -53,6 +54,8 @@ interface FantasyGameState {
   // 敵のHP管理を追加
   currentEnemyHp: number;
   maxEnemyHp: number;
+  // 正解した音の追跡
+  correctNotes: Set<number>;  // 正解したMIDIノート番号のセット（mod 12で正規化）
 }
 
 interface FantasyGameEngineProps {
@@ -107,6 +110,11 @@ const CHORD_DEFINITIONS: Record<string, ChordDefinition> = {
   'D7': { id: 'D7', displayName: 'D7', notes: [62, 66, 69, 72], quality: 'dominant7', root: 'D' }
 };
 
+// CHORD_DEFINITIONSに音名を追加
+Object.values(CHORD_DEFINITIONS).forEach(chord => {
+  chord.noteNames = chord.notes.map(note => getMidiNoteName(note));
+});
+
 // ===== 敵リスト定義 =====
 
 const ENEMY_LIST = [
@@ -119,6 +127,15 @@ const ENEMY_LIST = [
 ];
 
 // ===== ヘルパー関数 =====
+
+/**
+ * MIDIノート番号から音名を取得
+ */
+const getMidiNoteName = (midiNote: number): string => {
+  const noteNames = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
+  const noteIndex = midiNote % 12;
+  return noteNames[noteIndex];
+};
 
 /**
  * コード判定関数
@@ -229,7 +246,9 @@ export const useFantasyGameEngine = ({
     totalEnemies: 5,
     // 敵のHP管理を追加
     currentEnemyHp: 5,
-    maxEnemyHp: 5
+    maxEnemyHp: 5,
+    // 正解した音の追跡
+    correctNotes: new Set<number>()
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -280,7 +299,9 @@ export const useFantasyGameEngine = ({
       totalEnemies: 5,
       // 敵のHP管理を追加
       currentEnemyHp: 5,
-      maxEnemyHp: 5
+      maxEnemyHp: 5,
+      // 正解した音の追跡
+      correctNotes: new Set<number>()
     };
     
     setGameState(newState);
@@ -324,7 +345,8 @@ export const useFantasyGameEngine = ({
           ...prevState,
           currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
           currentChordTarget: nextChord,
-          enemyGauge: 0 // ゲージリセット
+          enemyGauge: 0, // ゲージリセット
+          correctNotes: new Set<number>() // 正解した音をクリア
         };
         
         onGameStateChange(nextState);
@@ -411,10 +433,16 @@ export const useFantasyGameEngine = ({
           
           const nextState = {
             ...prevState,
-            playerHp: newHp,
             currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
             currentChordTarget: nextChord,
-            enemyGauge: 0
+            playerHp: newHp,
+            enemyGauge: 0, // ゲージリセット
+            // 敵を倒したので次の敵へ
+            currentEnemyIndex: prevState.currentEnemyIndex + 1,
+            currentEnemyHits: 0,
+            enemiesDefeated: prevState.enemiesDefeated + 1,
+            currentEnemyHp: prevState.maxEnemyHp, // HPをリセット
+            correctNotes: new Set<number>() // 正解した音をクリア
           };
           
           onGameStateChange(nextState);
@@ -496,6 +524,22 @@ export const useFantasyGameEngine = ({
     if (!gameState.isGameActive || !gameState.currentChordTarget) return;
     
     devLog.debug('🎵 ノート入力受信:', { note, currentChord: gameState.currentChordTarget.displayName });
+    
+    // 入力された音が正解の構成音かチェック（mod 12で正規化）
+    const noteMod12 = note % 12;
+    const targetNotesMod12 = gameState.currentChordTarget.notes.map(n => n % 12);
+    
+    if (targetNotesMod12.includes(noteMod12) && !gameState.correctNotes.has(noteMod12)) {
+      // 正解の音を新たに押した場合
+      setGameState(prev => {
+        const newCorrectNotes = new Set(prev.correctNotes);
+        newCorrectNotes.add(noteMod12);
+        const newState = { ...prev, correctNotes: newCorrectNotes };
+        onGameStateChange(newState);
+        return newState;
+      });
+      devLog.debug('✓ 正解の音:', { note: getMidiNoteName(note), noteMod12 });
+    }
     
     // 入力バッファに追加
     setInputBuffer(prevBuffer => {
