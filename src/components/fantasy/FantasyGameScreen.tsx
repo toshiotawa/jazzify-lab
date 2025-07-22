@@ -10,6 +10,8 @@ import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesR
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
+import { playNote, stopNote, initializeAudioSystem } from '@/utils/MidiController';
+import FantasySettingsModal from './FantasySettingsModal';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -29,6 +31,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // エフェクト状態
   const [isMonsterAttacking, setIsMonsterAttacking] = useState(false);
   const [damageShake, setDamageShake] = useState(false);
+  
+  // 設定モーダル状態
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -115,7 +120,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
   
   // MIDI/音声入力のハンドリング
-  const handleNoteInputBridge = useCallback((note: number) => {
+  const handleNoteInputBridge = useCallback(async (note: number) => {
+    // 音声システムの初期化（初回のみ）
+    try {
+      await initializeAudioSystem();
+      await playNote(note, 127);
+    } catch (error) {
+      devLog.debug('🎹 音声再生エラー:', error);
+    }
+    
     // 通常のゲームストアの入力処理
     handleNoteInput(note);
     
@@ -140,7 +153,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         noteWidth: dynamicNoteWidth, // コンテナ幅に基づく動的計算
         transpose: 0,
         transposingInstrument: 'concert_pitch',
-        practiceGuide: 'off', // ファンタジーモードでは練習ガイドを無効
+        practiceGuide: stage.showGuide ? 'key' : 'off', // ガイド表示設定に基づく
         showHitLine: false, // ヒットラインを非表示
         viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
         timingAdjustment: 0,
@@ -210,7 +223,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, currentEnemy]);
   
-  // HPハート表示
+  // HPハート表示（モノクロ）
   const renderHearts = useCallback(() => {
     const hearts = [];
     // gameState.playerHpが正しく更新されているか確認
@@ -220,9 +233,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       hearts.push(
         <span key={i} className={cn(
           "text-2xl transition-all duration-200",
-          i < gameState.playerHp ? "text-red-500" : "text-gray-400"
+          i < gameState.playerHp ? "text-gray-800" : "text-gray-300"
         )}>
-          ❤️
+          ♡
         </span>
       );
     }
@@ -296,14 +309,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       damageShake && "animate-pulse"
     )}>
       {/* ===== ヘッダー ===== */}
-      <div className="relative z-30 p-2 text-white flex-shrink-0">
+      <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="flex justify-between items-center">
           {/* ステージ情報と敵の数 */}
           <div className="flex items-center space-x-4">
-            <div className="text-base font-bold">
+            <div className="text-sm font-bold">
               Stage {stage.stageNumber}
             </div>
-            <div className="text-sm text-gray-300">
+            <div className="text-xs text-gray-300">
               敵の数: {Math.ceil(stage.questionCount / 5)}
             </div>
           </div>
@@ -311,28 +324,36 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* 戻るボタン */}
           <button
             onClick={onBackToStageSelect}
-            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
           >
             ステージ選択に戻る
+          </button>
+          
+          {/* 設定ボタン */}
+          <button
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors ml-2"
+          >
+            ⚙️ 設定
           </button>
         </div>
       </div>
       
       {/* ===== メインゲームエリア ===== */}
-      <div className="flex-grow flex flex-col justify-center px-4 py-2 text-white text-center relative z-20">
+      <div className="flex-grow flex flex-col justify-center px-2 py-1 text-white text-center relative z-20" style={{ minHeight: '200px' }}>
         {/* コード表示（サイズを縮小） */}
-        <div className="mb-2 text-center">
-          <div className="text-yellow-300 text-3xl font-bold tracking-wider drop-shadow-lg">
+        <div className="mb-1 text-center">
+          <div className="text-yellow-300 text-2xl font-bold tracking-wider drop-shadow-lg">
             {gameState.currentChordTarget.displayName}
           </div>
         </div>
         
         {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}
-        <div className="mb-3 text-center relative">
-          <div className="relative w-full h-64 bg-black bg-opacity-20 rounded-lg overflow-hidden">
+        <div className="mb-2 text-center relative">
+          <div className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden" style={{ height: 'min(200px, 30vh)' }}>
             <FantasyPIXIRenderer
               width={800}
-              height={256}
+              height={200}
               monsterIcon={currentEnemy.icon}
               isMonsterAttacking={isMonsterAttacking}
               enemyGauge={gameState.enemyGauge}
@@ -342,27 +363,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
           
           {/* 敵の名前 */}
-          <div className="text-white text-lg font-bold mb-2">
+          <div className="text-white text-base font-bold mb-1">
             {currentEnemy.name}
           </div>
           
           {/* 敵の行動ゲージ */}
-          <div className="flex justify-center mb-2">
+          <div className="flex justify-center mb-1">
             {renderEnemyGauge()}
           </div>
           
           {/* HP表示 */}
           <div className="flex justify-center items-center space-x-1">
-            <span className="text-white text-sm mr-2">HP:</span>
+            <span className="text-white text-xs mr-1">HP:</span>
             {renderHearts()}
+          </div>
+          
+          {/* 敵のHP表示 */}
+          <div className="flex justify-center items-center space-x-1 mt-1">
+            <span className="text-white text-xs mr-1">敵HP:</span>
+            {Array.from({ length: 5 }, (_, i) => (
+              <span key={i} className="text-lg text-gray-400">♡</span>
+            ))}
           </div>
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
         {stage.mode === 'progression' && getNextChord() && (
-          <div className="mb-2 text-right">
+          <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
-            <div className="text-blue-300 text-lg font-bold">
+            <div className="text-blue-300 text-sm font-bold">
               {getNextChord()}
             </div>
           </div>
@@ -372,8 +401,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* ===== ピアノ鍵盤エリア ===== */}
       <div 
         ref={gameAreaRef}
-        className="relative mx-2 mb-2 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0"
-        style={{ height: '120px' }}
+        className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0"
+        style={{ height: 'min(120px, 15vh)' }}
       >
         <div 
           className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
@@ -385,7 +414,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         >
           <PIXINotesRenderer
             activeNotes={[]}
-            width={Math.max(gameAreaSize.width, 1200)} // 最小幅を保証
+            width={Math.max(gameAreaSize.width, 1200)} // 横幅いっぱいに設定
             height={120}
             currentTime={0}
             onReady={handlePixiReady}
@@ -433,6 +462,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </button>
         </div>
       )}
+      
+      {/* 設定モーダル */}
+      <FantasySettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        onSettingsChange={(settings) => {
+          devLog.debug('⚙️ ファンタジー設定変更:', settings);
+        }}
+      />
     </div>
   );
 };

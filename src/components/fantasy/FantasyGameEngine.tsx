@@ -28,6 +28,7 @@ interface FantasyStage {
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
+  showGuide: boolean; // ガイド表示設定を追加
   monsterIcon: string;
   bgmUrl?: string;
 }
@@ -581,8 +582,8 @@ export const useFantasyGameEngine = ({
       // 入力バッファをクリア
       setInputBuffer([]);
       
-      // 次の問題へ（即座に切り替え）
-      setTimeout(proceedToNextQuestion, 200);
+      // 次の問題へ（敵切り替えの遅延を追加）
+      setTimeout(proceedToNextQuestion, 500);
       
     } else {
       devLog.debug('🎵 まだ構成音が足りません', { 

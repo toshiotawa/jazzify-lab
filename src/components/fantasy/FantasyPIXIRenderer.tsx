@@ -170,16 +170,16 @@ export class FantasyPIXIInstance {
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
     
-    // モンスター状態初期化（中央配置）
+    // モンスター状態初期化（画面真ん中に配置）
     this.monsterState = {
       x: width / 2,
-      y: height / 2,
+      y: height / 2 - 20, // 少し上に配置
       health: 5,
       maxHealth: 5,
       isAttacking: false,
       isHit: false,
       hitColor: 0xFF6B6B,
-      originalColor: 0xFFFFFF,
+      originalColor: 0x666666, // モノクロ色合い
       staggerOffset: { x: 0, y: 0 },
       scale: 1.0,
       rotation: 0
@@ -267,7 +267,7 @@ export class FantasyPIXIInstance {
         this.monsterSprite.anchor.set(0.5);
         this.monsterSprite.x = this.monsterState.x;
         this.monsterSprite.y = this.monsterState.y;
-        this.monsterSprite.tint = this.monsterState.originalColor;
+        this.monsterSprite.tint = 0x666666; // モノクロ色合いを強制設定
         
         // インタラクティブ設定
         this.monsterSprite.interactive = true;
