@@ -626,11 +626,15 @@ export class FantasyPIXIInstance {
 
   // モンスターアニメーション更新
   private updateMonsterAnimation(): void {
-    if (!this.monsterSprite || this.isDestroyed) return;
+    // nullチェックを強化
+    if (!this.monsterSprite || this.isDestroyed || this.monsterSprite.destroyed) {
+      return;
+    }
     
     try {
-      // nullチェックを追加
-      if (!this.monsterSprite || this.monsterSprite.destroyed) {
+      // 追加のnullチェック - プロパティアクセス前に確認
+      if (!this.monsterSprite || typeof this.monsterSprite.x === 'undefined') {
+        devLog.debug('⚠️ モンスタースプライトが無効な状態です');
         return;
       }
       
@@ -655,6 +659,8 @@ export class FantasyPIXIInstance {
       }
     } catch (error) {
       devLog.debug('⚠️ モンスターアニメーション更新エラー:', error);
+      // エラー時はmonsterSpriteをnullにして以降の処理をスキップ
+      this.monsterSprite = null;
     }
   }
 

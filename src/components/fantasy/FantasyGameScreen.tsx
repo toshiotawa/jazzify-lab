@@ -408,17 +408,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {renderEnemyGauge()}
           </div>
           
-          {/* HP表示（プレイヤーと敵を入れ替え） */}
-          <div className="flex justify-center items-center space-x-6 mt-1">
-            {/* 敵のHP表示 */}
-            <div className="flex items-center space-x-1">
-              <span className="text-white text-xs mr-1">敵HP:</span>
+          {/* HP表示（縦並び、相手が上、自分が下） */}
+          <div className="flex flex-col items-center space-y-2 mt-1">
+            {/* 敵のHP表示（上） */}
+            <div className="flex items-center">
               {renderHearts(gameState.currentEnemyHp, gameState.maxEnemyHp, false)}
             </div>
             
-            {/* プレイヤーのHP表示 */}
-            <div className="flex items-center space-x-1">
-              <span className="text-white text-xs mr-1">プレイヤーHP:</span>
+            {/* プレイヤーのHP表示（下） */}
+            <div className="flex items-center">
               {renderHearts(gameState.playerHp, stage.maxHp, true)}
             </div>
           </div>
@@ -441,26 +439,67 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
         style={{ height: 'min(120px, 15vh)' }}
       >
-        <div 
-          className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
-          style={{ 
-            WebkitOverflowScrolling: 'touch',
-            scrollSnapType: 'x proximity',
-            scrollBehavior: 'smooth',
-            width: '100%',
-            touchAction: 'pan-x', // 横スクロールのみを許可
-            overscrollBehavior: 'contain' // スクロールの境界を制限
-          }}
-        >
-          <PIXINotesRenderer
-            activeNotes={[]}
-            width={Math.max(window.innerWidth * 2, 1200)} // 十分な幅を確保してスクロール可能にする
-            height={120}
-            currentTime={0}
-            onReady={handlePixiReady}
-            className="w-full h-full"
-          />
-        </div>
+        {(() => {
+          // スクロール判定ロジック（GameEngine.tsxと同様）
+          const VISIBLE_WHITE_KEYS = 14; // モバイル表示時の可視白鍵数
+          const TOTAL_WHITE_KEYS = 52; // 88鍵中の白鍵数
+          const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
+          const adjustedThreshold = 1100; // PC判定のしきい値
+          
+          let pixiWidth: number;
+          let needsScroll: boolean;
+          
+          if (gameAreaWidth >= adjustedThreshold) {
+            // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
+            pixiWidth = gameAreaWidth;
+            needsScroll = false;
+          } else {
+            // モバイル等、画面が狭い → 横スクロール表示
+            const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
+            pixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
+            needsScroll = true;
+          }
+          
+          if (needsScroll) {
+            // スクロールが必要な場合
+            return (
+              <div 
+                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
+                style={{ 
+                  WebkitOverflowScrolling: 'touch',
+                  scrollSnapType: 'x proximity',
+                  scrollBehavior: 'smooth',
+                  width: '100%',
+                  touchAction: 'pan-x', // 横スクロールのみを許可
+                  overscrollBehavior: 'contain' // スクロールの境界を制限
+                }}
+              >
+                <PIXINotesRenderer
+                  activeNotes={[]}
+                  width={pixiWidth}
+                  height={120}
+                  currentTime={0}
+                  onReady={handlePixiReady}
+                  className="w-full h-full"
+                />
+              </div>
+            );
+          } else {
+            // スクロールが不要な場合（全画面表示）
+            return (
+              <div className="absolute inset-0 overflow-hidden">
+                <PIXINotesRenderer
+                  activeNotes={[]}
+                  width={pixiWidth}
+                  height={120}
+                  currentTime={0}
+                  onReady={handlePixiReady}
+                  className="w-full h-full"
+                />
+              </div>
+            );
+          }
+        })()}
         
         {/* 入力中のノーツ表示 */}
         {inputBuffer.length > 0 && (
