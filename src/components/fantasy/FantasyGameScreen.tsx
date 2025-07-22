@@ -239,6 +239,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     devLog.debug('🎮 ファンタジーPIXI準備完了:', { monster: currentEnemy?.icon });
   }, [currentEnemy]);
   
+  // モンスター撃破時のコールバック（状態機械対応）
+  const handleMonsterDefeated = useCallback(() => {
+    devLog.debug('💀 モンスター撃破通知を受信');
+    // 状態機械により、モンスターが完全に消滅したことを確認
+    // 次のモンスターの生成は、gameStateの変更により自動的にトリガーされる
+  }, []);
+  
   // FontAwesome使用のため削除済み
   
   // ゲームエリアのリサイズ対応
@@ -270,28 +277,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // 敵が変更された時にモンスタースプライトを更新
+  // 敵が変更された時にモンスタースプライトを更新（状態機械対応）
   useEffect(() => {
     if (fantasyPixiInstance && currentEnemy) {
-      // 敵が倒された後の場合は、少し遅延を入れて新しいモンスターを生成
-      // これにより、前の敵のフェードアウトが完了してから新しい敵が出現する
-      const isEnemyDefeated = gameState.currentEnemyHits === 0 && gameState.currentEnemyIndex > 0;
-      const delay = isEnemyDefeated ? 1000 : 0; // 1秒の遅延
-      
-      const timeoutId = setTimeout(() => {
-        if (fantasyPixiInstance && currentEnemy) {
-          fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
-          devLog.debug('🔄 モンスタースプライト更新:', { 
-            monster: currentEnemy.icon,
-            enemyIndex: gameState.currentEnemyIndex,
-            delay: delay
-          });
-        }
-      }, delay);
-      
-      return () => clearTimeout(timeoutId);
+      // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
+      // 遅延処理は不要になった（状態機械が適切なタイミングを制御）
+      fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
+      devLog.debug('🔄 モンスタースプライト更新要求:', { 
+        monster: currentEnemy.icon,
+        enemyIndex: gameState.currentEnemyIndex
+      });
     }
-  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex, gameState.currentEnemyHits]);
+  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
   
   // 設定変更時にPIXIレンダラーを更新
   useEffect(() => {
@@ -473,6 +470,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               isMonsterAttacking={isMonsterAttacking}
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
+              onMonsterDefeated={handleMonsterDefeated}
               className="w-full h-full"
             />
           </div>
