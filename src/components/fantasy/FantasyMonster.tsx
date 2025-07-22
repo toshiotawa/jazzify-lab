@@ -4,22 +4,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { 
-  FaGhost,
-  FaTree, 
-  FaSeedling,
-  FaTint,
-  FaSun,
-  FaCube,
-  FaStar,
-  FaGem,
-  FaWind,
-  FaBolt,
-  FaDragon,
-  FaSkull,
-  FaFire,
-  FaSnowflake
-} from 'react-icons/fa';
 import { cn } from '@/utils/cn';
 
 interface FantasyMonsterProps {
@@ -32,61 +16,66 @@ interface FantasyMonsterProps {
   className?: string;
 }
 
-// モンスターアイコンマッピング（FontAwesome）
-const MONSTER_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  'ghost': FaGhost,
-  'tree': FaTree,
-  'seedling': FaSeedling, 
-  'droplet': FaTint,
-  'sun': FaSun,
-  'rock': FaCube,
-  'sparkles': FaStar,
-  'gem': FaGem,
-  'wind_face': FaWind,
-  'zap': FaBolt,
-  'star2': FaStar,
-  'dragon': FaDragon,
-  'skull': FaSkull,
-  'fire': FaFire,
-  'ice': FaSnowflake,
-  'lightning': FaBolt
+// モンスターアイコンマッピング（絵文字版）
+const MONSTER_ICONS: Record<string, string> = {
+  'ghost': '👻',
+  'tree': '🌳',
+  'seedling': '🌱', 
+  'droplet': '💧',
+  'sun': '☀️',
+  'rock': '🪨',
+  'sparkles': '✨',
+  'gem': '💎',
+  'wind_face': '🌬️',
+  'zap': '⚡',
+  'star2': '⭐',
+  'dragon': '🐉',
+  'skull': '💀',
+  'fire': '🔥',
+  'ice': '❄️',
+  'lightning': '⚡'
 };
 
 // モンスターサイズ設定
 const SIZE_CONFIGS = {
   small: {
-    monster: 'text-4xl',
+    monster: '',
     gauge: 'h-2',
     gaugeBg: 'h-2',
     container: 'p-2'
   },
   medium: {
-    monster: 'text-6xl',
+    monster: '',
     gauge: 'h-3',
     gaugeBg: 'h-3',
     container: 'p-4'
   },
   large: {
-    monster: 'text-8xl',
+    monster: '',
     gauge: 'h-4',
     gaugeBg: 'h-4',
     container: 'p-6'
   }
 };
 
-// モンスター特性（アイコンごとの特殊効果）
-const MONSTER_TRAITS: Record<string, { color: string; glowColor: string; specialEffect?: string }> = {
-  'ghost': { color: 'text-purple-300', glowColor: 'shadow-purple-500', specialEffect: 'float' },
-  'tree': { color: 'text-green-400', glowColor: 'shadow-green-500', specialEffect: 'sway' },
-  'seedling': { color: 'text-green-300', glowColor: 'shadow-green-400' },
-  'droplet': { color: 'text-blue-400', glowColor: 'shadow-blue-500', specialEffect: 'bounce' },
-  'sun': { color: 'text-yellow-400', glowColor: 'shadow-yellow-500', specialEffect: 'pulse' },
-  'rock': { color: 'text-gray-400', glowColor: 'shadow-gray-500' },
-  'sparkles': { color: 'text-yellow-300', glowColor: 'shadow-yellow-400', specialEffect: 'sparkle' },
-  'gem': { color: 'text-pink-400', glowColor: 'shadow-pink-500', specialEffect: 'shine' },
-  'wind_face': { color: 'text-cyan-300', glowColor: 'shadow-cyan-500', specialEffect: 'float' },
-  'zap': { color: 'text-yellow-500', glowColor: 'shadow-yellow-600', specialEffect: 'shake' },
-  'star2': { color: 'text-yellow-200', glowColor: 'shadow-yellow-300', specialEffect: 'twinkle' }
+// モンスター特性（絵文字アイコンごとの特殊効果）
+const MONSTER_TRAITS: Record<string, { glowColor: string; specialEffect?: string }> = {
+  'ghost': { glowColor: 'shadow-purple-500', specialEffect: 'float' },
+  'tree': { glowColor: 'shadow-green-500', specialEffect: 'sway' },
+  'seedling': { glowColor: 'shadow-green-400' },
+  'droplet': { glowColor: 'shadow-blue-500', specialEffect: 'bounce' },
+  'sun': { glowColor: 'shadow-yellow-500', specialEffect: 'pulse' },
+  'rock': { glowColor: 'shadow-gray-500' },
+  'sparkles': { glowColor: 'shadow-yellow-400', specialEffect: 'sparkle' },
+  'gem': { glowColor: 'shadow-pink-500', specialEffect: 'shine' },
+  'wind_face': { glowColor: 'shadow-cyan-500', specialEffect: 'float' },
+  'zap': { glowColor: 'shadow-yellow-600', specialEffect: 'shake' },
+  'star2': { glowColor: 'shadow-yellow-300', specialEffect: 'twinkle' },
+  'dragon': { glowColor: 'shadow-red-500', specialEffect: 'pulse' },
+  'skull': { glowColor: 'shadow-gray-600', specialEffect: 'shake' },
+  'fire': { glowColor: 'shadow-orange-500', specialEffect: 'pulse' },
+  'ice': { glowColor: 'shadow-blue-300', specialEffect: 'sparkle' },
+  'lightning': { glowColor: 'shadow-yellow-600', specialEffect: 'shake' }
 };
 
 const FantasyMonster: React.FC<FantasyMonsterProps> = ({
@@ -102,7 +91,7 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   const [showRageEffect, setShowRageEffect] = useState(false);
   
   const sizeConfig = SIZE_CONFIGS[size];
-  const MonsterIcon = MONSTER_ICONS[monsterIcon] || FaGhost;
+  const monsterEmoji = MONSTER_ICONS[monsterIcon] || MONSTER_ICONS['ghost'];
   const traits = MONSTER_TRAITS[monsterIcon] || MONSTER_TRAITS['ghost'];
   
   // 攻撃時のエフェクト
@@ -193,14 +182,13 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
           style={{
             filter: isAttacking 
               ? 'drop-shadow(0 0 20px rgba(239, 68, 68, 0.8))' 
-              : `drop-shadow(0 0 10px ${traits.color.includes('purple') ? 'rgba(147, 51, 234, 0.5)' : 'rgba(255, 255, 255, 0.2)'})`
+              : 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.3))'
           }}
         >
-          <MonsterIcon
+          <span
             className={cn(
-              "transition-all duration-300 select-none",
+              "transition-all duration-300 select-none inline-block",
               sizeConfig.monster,
-              traits.color,
               // 基本アニメーション
               traits.specialEffect === 'float' && isFloating && "transform -translate-y-2",
               traits.specialEffect === 'bounce' && "animate-bounce",
@@ -211,11 +199,14 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
               traits.specialEffect === 'twinkle' && "animate-ping",
               traits.specialEffect === 'sway' && "hover:animate-pulse",
               // 攻撃時のエフェクト
-              isAttacking && "transform scale-125 text-red-500",
-              // グロー効果
-              !isAttacking && `drop-shadow-lg`
+              isAttacking && "transform scale-125"
             )}
-          />
+            style={{
+              fontSize: size === 'large' ? '4rem' : size === 'medium' ? '3rem' : '2rem',
+            }}
+          >
+            {monsterEmoji}
+          </span>
         </div>
         
         {/* 怒りマーク（攻撃時） */}
