@@ -894,7 +894,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
+  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice, settings.practiceGuide, settings.selectedAudioDevice]);
   
   // キーボード入力処理（テスト用）
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
