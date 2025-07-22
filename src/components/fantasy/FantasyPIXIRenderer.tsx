@@ -108,14 +108,14 @@ const MAGIC_TYPES: Record<string, MagicType> = {
   }
 };
 
-// ===== 絵文字モンスターマッピング（モノクロ） =====
+// ===== モンスターシンボルマッピング（フラットデザイン） =====
 const MONSTER_EMOJI: Record<string, string> = {
-  'vampire': '🧛',
-  'monster': '👹',
-  'reaper': '💀',
-  'kraken': '🐙',
-  'werewolf': '🐺',
-  'demon': '👿'
+  'vampire': '⚰', // 棺桶（バンパイア）
+  'monster': '◈', // ダイヤ形（モンスター）
+  'reaper': '☠', // 骸骨マーク（死神）
+  'kraken': '◉', // 大きな円（クラーケン）
+  'werewolf': '▲', // 三角形（狼男）
+  'demon': '♦'  // ダイヤモンド（魔王）
 };
 
 // ===== PIXI インスタンスクラス =====

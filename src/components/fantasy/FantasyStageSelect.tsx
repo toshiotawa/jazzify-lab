@@ -16,7 +16,12 @@ import {
   faGem,
   faWind,
   faBolt,
-  faSkull
+  faSkull,
+  faUserSecret,
+  faSpider,
+  faFish,
+  faDog,
+  faKhanda
 } from '@fortawesome/free-solid-svg-icons';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
@@ -82,13 +87,13 @@ const MONSTER_ICONS: Record<string, any> = {
   'wind_face': faWind,
   'zap': faBolt,
   'star2': faStar,
-  // ファンタジーモード用の敵アイコンマッピング
-  'vampire': faGhost,
-  'monster': faGhost,
+  // ファンタジーモード用の敵アイコンマッピング - 適切なアイコンに変更
+  'vampire': faUserSecret,
+  'monster': faSpider,
   'reaper': faSkull,
-  'kraken': faGhost,
-  'werewolf': faGhost,
-  'demon': faGhost
+  'kraken': faFish,
+  'werewolf': faDog,
+  'demon': faKhanda
 };
 
 // ===== ランク背景色 =====
