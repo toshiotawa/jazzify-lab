@@ -565,11 +565,29 @@ export default class Piano {
         const windowObj = platform.getWindow();
         const pianoContainer = platform.getElementById('piano-container');
         if (pianoContainer) {
+            // ピアノコンテナの幅を画面幅の100％に設定
+            pianoContainer.style.width = '100%';
+            pianoContainer.style.maxWidth = '100vw';
+            
             if (windowObj.innerWidth <= 768) {
                 pianoContainer.style.height = '120px';
             } else {
                 pianoContainer.style.height = '150px';
             }
+        }
+        
+        // ピアノコンテンツの幅も100％に設定
+        const pianoContent = platform.getElementById('piano-content-wrapper');
+        if (pianoContent) {
+            pianoContent.style.width = '100%';
+            pianoContent.style.maxWidth = '100vw';
+        }
+        
+        // ピアノ本体の幅も100％に設定
+        const pianoElement = platform.getElementById('piano');
+        if (pianoElement) {
+            pianoElement.style.width = '100%';
+            pianoElement.style.maxWidth = '100vw';
         }
     }
 

@@ -143,7 +143,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (renderer) {
       // ファンタジーモード用の設定を適用（動的幅計算）
       const totalKeys = 52; // 白鍵の数（C1〜C5）
-      const dynamicNoteWidth = Math.max(gameAreaSize.width / totalKeys, 16); // 動的計算、最小16px
+      const dynamicNoteWidth = Math.max(window.innerWidth / totalKeys, 16); // 画面幅に基づく動的計算、最小16px
       
       renderer.updateSettings({
         noteNameStyle: 'abc',
@@ -194,7 +194,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       if (!gameAreaRef.current) return;
       const rect = gameAreaRef.current.getBoundingClientRect();
       const newSize = {
-        width: Math.max(rect.width || 1000, 800), // 最小幅800pxを確保
+        width: Math.max(rect.width || window.innerWidth, window.innerWidth), // 画面幅を基準に設定
         height: 120 // ファンタジーモード用の固定高さ（大幅縮小）
       };
       setGameAreaSize(newSize);
@@ -349,10 +349,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         
         {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}
-        <div className="mb-2 text-center relative">
+        <div className="mb-2 text-center relative w-full">
           <div className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden" style={{ height: 'min(200px, 30vh)' }}>
             <FantasyPIXIRenderer
-              width={800}
+              width={window.innerWidth}
               height={200}
               monsterIcon={currentEnemy.icon}
               isMonsterAttacking={isMonsterAttacking}
@@ -401,7 +401,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* ===== ピアノ鍵盤エリア ===== */}
       <div 
         ref={gameAreaRef}
-        className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0"
+        className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
         style={{ height: 'min(120px, 15vh)' }}
       >
         <div 
@@ -409,12 +409,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           style={{ 
             WebkitOverflowScrolling: 'touch',
             scrollSnapType: 'x proximity',
-            scrollBehavior: 'smooth'
+            scrollBehavior: 'smooth',
+            width: '100%'
           }}
         >
           <PIXINotesRenderer
             activeNotes={[]}
-            width={Math.max(gameAreaSize.width, 1200)} // 横幅いっぱいに設定
+            width={window.innerWidth}
             height={120}
             currentTime={0}
             onReady={handlePixiReady}
