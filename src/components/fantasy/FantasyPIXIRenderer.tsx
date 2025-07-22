@@ -660,7 +660,10 @@ export class FantasyPIXIInstance {
 
   // モンスターアニメーション更新（安全バージョン）
   private updateMonsterAnimation(): void {
-    if (this.isDestroyed || !this.monsterVisualState.visible) return;
+    // ★【重要修正】 モンスターが存在しない、または破棄済みなら何もせず処理を抜ける
+    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed || !this.monsterVisualState.visible) {
+      return;
+    }
     
     try {
       // よろけ効果の適用（ビジュアル状態を更新）

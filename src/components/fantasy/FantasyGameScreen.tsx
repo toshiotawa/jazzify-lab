@@ -305,7 +305,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 現在のコードターゲットのノートをハイライト
   useEffect(() => {
-    if (pixiRenderer && showGuide && gameState.currentChordTarget) {
+    // ガイドがOFFなら全てのハイライトをクリア
+    if (!pixiRenderer || !showGuide) {
+      if (pixiRenderer) {
+        for (let note = 0; note < 128; note++) {
+          pixiRenderer.highlightKey(note, false);
+        }
+      }
+      return; // 処理を終了
+    }
+    
+    // ガイドがONなら、現在のコードに基づいてハイライトを再描画する
+    if (gameState.currentChordTarget) {
       // 全てのキーのハイライトを一度クリア
       for (let note = 0; note < 128; note++) {
         pixiRenderer.highlightKey(note, false);
@@ -328,11 +339,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         notes: gameState.currentChordTarget.notes,
         showGuide
       });
-    } else if (pixiRenderer && !showGuide) {
-      // ガイドがOFFの場合は全てのハイライトをクリア
-      for (let note = 0; note < 128; note++) {
-        pixiRenderer.highlightKey(note, false);
-      }
     }
   }, [pixiRenderer, showGuide, gameState.currentChordTarget]);
   
@@ -627,7 +633,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onClose={() => setIsSettingsModalOpen(false)}
         onSettingsChange={(settings) => {
           devLog.debug('⚙️ ファンタジー設定変更:', settings);
-          setShowGuide(settings.showGuide);
+          setShowGuide(settings.showGuide); // ★ ここでローカルのstateのみ変更（ゲームエンジンには影響を与えない）
         }}
       />
     </div>
