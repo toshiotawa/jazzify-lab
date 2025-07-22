@@ -561,9 +561,16 @@ export const useFantasyGameEngine = ({
       // 正解
       onChordCorrect(gameState.currentChordTarget);
       
+      let wasMonsterDefeated = false; // ★追加：この一撃でモンスターを倒したかどうかのフラグ
+      
       setGameState(prevState => {
         const newHits = prevState.currentEnemyHits + 1;
         const newEnemyHp = Math.max(0, prevState.currentEnemyHp - 1); // 敵のHPを1減らす
+        
+        // モンスターを倒したか判定（HPが0になったら倒れる）
+        if (newEnemyHp <= 0 && !prevState.isWaitingForNextMonster) {
+          wasMonsterDefeated = true; // ★フラグを立てる
+        }
         
         let nextState = {
           ...prevState,
@@ -577,17 +584,13 @@ export const useFantasyGameEngine = ({
         devLog.debug('⚔️ 敵にダメージ:', {
           oldHp: prevState.currentEnemyHp,
           newHp: newEnemyHp,
-          hits: newHits
+          hits: newHits,
+          wasMonsterDefeated
         });
         
-        // 敵を倒したか判定（HPが0になったら倒れる）
-        if (newEnemyHp <= 0) {
-          devLog.debug('💀 敵撃破！ 次のモンスターへの進行待機状態へ移行します。');
-          // すぐに敵を交代せず、「待機状態」にするだけ
-          nextState = {
-            ...nextState,
-            isWaitingForNextMonster: true,
-          };
+        if (wasMonsterDefeated) {
+          devLog.debug('💀 敵撃破！アニメーション完了待機へ。');
+          nextState.isWaitingForNextMonster = true; // ★待機状態に移行
         }
         
         onGameStateChange(nextState);
@@ -597,8 +600,13 @@ export const useFantasyGameEngine = ({
       // 入力バッファをクリア
       setInputBuffer([]);
       
-      // 次の問題へ（待機時間を 0 に変更）
-      setTimeout(proceedToNextQuestion, 0);
+      // ★★★ 最重要修正点 ★★★
+      // モンスターを倒していなければ、次の問題へ進む
+      if (!wasMonsterDefeated) {
+        setTimeout(proceedToNextQuestion, 100); // 少し間を置いて次の問題へ
+      }
+      // モンスターを倒した場合は、ここでは何もしない！
+      // proceedToNextEnemyが呼ばれるのを待つ。
       
     } else {
       devLog.debug('🎵 まだ構成音が足りません', { 
@@ -614,7 +622,7 @@ export const useFantasyGameEngine = ({
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
-    devLog.debug('ENGINE: 進行要求を受信。次の敵に切り替えます。');
+    devLog.debug('ENGINE: 進行要求を受信。次の敵と問題を用意します。');
     setGameState(prevState => {
       if (!prevState.isWaitingForNextMonster) return prevState;
 
@@ -635,7 +643,7 @@ export const useFantasyGameEngine = ({
 
       // 次の敵に交代
       const nextEnemyIndex = prevState.currentEnemyIndex + 1;
-      const nextState = {
+      let nextState = {
         ...prevState,
         currentEnemyIndex: nextEnemyIndex,
         currentEnemyHits: 0,
@@ -643,6 +651,30 @@ export const useFantasyGameEngine = ({
         currentEnemyHp: prevState.maxEnemyHp, // HPをリセット
         isWaitingForNextMonster: false,      // 待機状態を解除
       };
+
+      // ★追加：次の問題もここで準備する
+      let nextChord;
+      if (prevState.currentStage?.mode === 'single') {
+        nextChord = selectRandomChord(prevState.currentStage.allowedChords);
+      } else {
+        const progression = prevState.currentStage?.chordProgression || [];
+        const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+        nextChord = getProgressionChord(progression, nextIndex);
+      }
+
+      nextState = {
+        ...nextState,
+        currentQuestionIndex: prevState.currentQuestionIndex + 1,
+        currentChordTarget: nextChord,
+        enemyGauge: 0,
+      };
+
+      devLog.debug('🔄 次の戦闘準備完了:', {
+        nextEnemyIndex,
+        nextEnemy: ENEMY_LIST[nextEnemyIndex]?.name,
+        nextChord: nextChord?.displayName,
+        newEnemyHp: prevState.maxEnemyHp
+      });
 
       onGameStateChange(nextState);
       return nextState;
