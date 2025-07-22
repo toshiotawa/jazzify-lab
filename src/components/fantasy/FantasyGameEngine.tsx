@@ -55,6 +55,7 @@ interface FantasyGameState {
   maxEnemyHp: number;
   // 正解した音を追跡
   correctNotes: number[];
+gForNextMonster: boolean;
 }
 
 interface FantasyGameEngineProps {
@@ -257,6 +258,7 @@ export const useFantasyGameEngine = ({
     currentEnemyHp: 5,
     maxEnemyHp: 5,
     correctNotes: []
+
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -309,6 +311,7 @@ export const useFantasyGameEngine = ({
       currentEnemyHp: 5,
       maxEnemyHp: 5,
       correctNotes: []
+
     };
     
     setGameState(newState);
@@ -595,82 +598,36 @@ export const useFantasyGameEngine = ({
     if (isCorrect) {
       devLog.debug('✅ 正解判定!', { chord: gameState.currentChordTarget.displayName });
       
-      // 正解
       onChordCorrect(gameState.currentChordTarget);
       
+      // ▼▼▼ 修正点1: 同期的な撃破判定 ▼▼▼
+      // setGameState の外で、現在の gameState を使って同期的に撃破判定を行う
+      const willBeDefeated = (gameState.currentEnemyHp - 1) <= 0;
+
       setGameState(prevState => {
-        const newHits = prevState.currentEnemyHits + 1;
-        const newEnemyHp = Math.max(0, prevState.currentEnemyHp - 1); // 敵のHPを1減らす
-        
-        let nextState = {
+        const newEnemyHp = Math.max(0, prevState.currentEnemyHp - 1);
+        return {
           ...prevState,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 1000,
-          enemyGauge: 0, // ゲージをリセット
-          currentEnemyHits: newHits,
-          currentEnemyHp: newEnemyHp
+          enemyGauge: 0,
+          currentEnemyHits: prevState.currentEnemyHits + 1,
+          currentEnemyHp: newEnemyHp,
+          // 同期的に判定した結果を使い、待機状態に移行するか決める
+          isWaitingForNextMonster: willBeDefeated,
         };
-        
-        devLog.debug('⚔️ 敵にダメージ:', {
-          oldHp: prevState.currentEnemyHp,
-          newHp: newEnemyHp,
-          hits: newHits
-        });
-        
-        // 敵を倒したか判定（HPが0になったら倒れる）
-        if (newEnemyHp <= 0) {
-          const newEnemiesDefeated = prevState.enemiesDefeated + 1;
-          const nextEnemyIndex = prevState.currentEnemyIndex + 1;
-          
-          // 全ての敵を倒したかチェック
-          if (newEnemiesDefeated >= prevState.totalEnemies) {
-            // ゲームクリア
-            nextState = {
-              ...nextState,
-              enemiesDefeated: newEnemiesDefeated,
-              isGameActive: false,
-              isGameOver: true,
-              gameResult: 'clear'
-            };
-            
-            devLog.debug('🎉 全ての敵を倒してゲームクリア!', { enemiesDefeated: newEnemiesDefeated });
-            
-            // ゲーム完了コールバックを安全に呼び出し
-            setTimeout(() => {
-              try {
-                onGameComplete('clear', nextState);
-              } catch (error) {
-                devLog.debug('❌ ゲーム完了コールバックエラー:', error);
-              }
-            }, 200);
-          } else {
-            // 次の敵に交代
-            nextState = {
-              ...nextState,
-              currentEnemyIndex: nextEnemyIndex,
-              currentEnemyHits: 0,
-              enemiesDefeated: newEnemiesDefeated,
-              currentEnemyHp: prevState.maxEnemyHp, // 新しい敵のHPをフル回復
-            };
-            
-            devLog.debug('👹 敵を倒した！次の敵が出現:', { 
-              defeatedEnemies: newEnemiesDefeated,
-              nextEnemyIndex,
-              nextEnemy: ENEMY_LIST[nextEnemyIndex]?.name,
-              newEnemyHp: prevState.maxEnemyHp
-            });
-          }
-        }
-        
-        onGameStateChange(nextState);
-        return nextState;
       });
       
-      // 入力バッファをクリア
       setInputBuffer([]);
       
-      // 次の問題へ（待機時間を 0 に変更）
-      setTimeout(proceedToNextQuestion, 0);
+      // ▼▼▼ 修正点2: 判定結果に基づく処理分岐 ▼▼▼
+      // 同期的に行った判定結果に基づいて、次のアクションを決定する
+      if (!willBeDefeated) {
+        // モンスターを倒していなければ、次の問題へ進む
+        setTimeout(proceedToNextQuestion, 100);
+      }
+      // モンスターを倒した場合は、ここでは何もしない。
+      // アニメーション完了後に proceedToNextEnemy が呼ばれるのを待つ。
       
     } else {
       devLog.debug('🎵 まだ構成音が足りません', { 
@@ -684,16 +641,66 @@ export const useFantasyGameEngine = ({
     }
   }, [gameState.currentChordTarget, onChordCorrect, onChordIncorrect, onGameStateChange, proceedToNextQuestion]);
   
-  // 手動で現在の入力を判定（削除予定 - 自動判定のみ使用）
-  // const submitCurrentInput = useCallback(() => {
-  //   if (inputTimeout) {
-  //     clearTimeout(inputTimeout);
-  //     setInputTimeout(null);
-  //   }
-  //   
-  //   checkCurrentInput(inputBuffer);
-  //   setInputBuffer([]);
-  // }, [inputTimeout, checkCurrentInput, inputBuffer]);
+  // 次の敵へ進むための新しい関数
+  const proceedToNextEnemy = useCallback(() => {
+    devLog.debug('ENGINE: 進行要求を受信。次の敵と問題を用意します。');
+    setGameState(prevState => {
+      if (!prevState.isWaitingForNextMonster) return prevState;
+
+      const newEnemiesDefeated = prevState.enemiesDefeated + 1;
+
+      // ゲームクリア判定
+      if (newEnemiesDefeated >= prevState.totalEnemies) {
+        const finalState = {
+          ...prevState,
+          isGameActive: false,
+          isGameOver: true,
+          gameResult: 'clear' as const,
+          isWaitingForNextMonster: false,
+        };
+        onGameComplete('clear', finalState);
+        return finalState;
+      }
+
+      // 次の敵に交代
+      const nextEnemyIndex = prevState.currentEnemyIndex + 1;
+      let nextState = {
+        ...prevState,
+        currentEnemyIndex: nextEnemyIndex,
+        currentEnemyHits: 0,
+        enemiesDefeated: newEnemiesDefeated,
+        currentEnemyHp: prevState.maxEnemyHp, // HPをリセット
+        isWaitingForNextMonster: false,      // 待機状態を解除
+      };
+
+      // ★追加：次の問題もここで準備する
+      let nextChord;
+      if (prevState.currentStage?.mode === 'single') {
+        nextChord = selectRandomChord(prevState.currentStage.allowedChords);
+      } else {
+        const progression = prevState.currentStage?.chordProgression || [];
+        const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+        nextChord = getProgressionChord(progression, nextIndex);
+      }
+
+      nextState = {
+        ...nextState,
+        currentQuestionIndex: prevState.currentQuestionIndex + 1,
+        currentChordTarget: nextChord,
+        enemyGauge: 0,
+      };
+
+      devLog.debug('🔄 次の戦闘準備完了:', {
+        nextEnemyIndex,
+        nextEnemy: ENEMY_LIST[nextEnemyIndex]?.name,
+        nextChord: nextChord?.displayName,
+        newEnemyHp: prevState.maxEnemyHp
+      });
+
+      onGameStateChange(nextState);
+      return nextState;
+    });
+  }, [onGameStateChange, onGameComplete]);
   
   // ゲーム停止
   const stopGame = useCallback(() => {
@@ -744,6 +751,7 @@ export const useFantasyGameEngine = ({
     handleNoteInput,
     initializeGame,
     stopGame,
+    proceedToNextEnemy,
     
     // ヘルパー関数もエクスポート
     checkChordMatch,

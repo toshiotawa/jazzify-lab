@@ -66,9 +66,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleChordCorrect = useCallback((chord: ChordDefinition) => {
     devLog.debug('✅ 正解:', chord.displayName);
     
-    // ファンタジーPIXIエフェクトをトリガー
+    // ファンタジーPIXIエフェクトをトリガー（コード名を渡す）
     if (fantasyPixiInstance) {
-      fantasyPixiInstance.triggerAttackSuccess();
+      fantasyPixiInstance.triggerAttackSuccess(chord.displayName);
     }
     
   }, [fantasyPixiInstance]);
@@ -120,6 +120,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     initializeGame,
     stopGame,
     getCurrentEnemy,
+    proceedToNextEnemy,
     ENEMY_LIST
   } = useFantasyGameEngine({
     stage: memoizedStage, // メモ化したstageを渡す
@@ -214,11 +215,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           glow: true,
           particles: true,
           trails: false
-        },
-        // スクロール設定を追加
-        keyboardRange: {
-          startNote: 36, // C2
-          endNote: 84   // C6 (48音域)
         }
       });
       
@@ -249,6 +245,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     devLog.debug('🎮 ファンタジーPIXI準備完了:', { monster: currentEnemy?.icon });
   }, [currentEnemy]);
+  
+  // モンスター撃破時のコールバック（状態機械対応）
+  const handleMonsterDefeated = useCallback(() => {
+    devLog.debug('SCREEN: PIXIからモンスター消滅完了通知を受信しました。');
+    // アニメーションが終わったので、エンジンに次の敵へ進むよう命令する
+    proceedToNextEnemy();
+  }, [proceedToNextEnemy]);
   
   // FontAwesome使用のため削除済み
   
@@ -281,28 +284,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // 敵が変更された時にモンスタースプライトを更新
+  // 敵が変更された時にモンスタースプライトを更新（状態機械対応）
   useEffect(() => {
     if (fantasyPixiInstance && currentEnemy) {
-      // 敵が倒された後の場合は、少し遅延を入れて新しいモンスターを生成
-      // これにより、前の敵のフェードアウトが完了してから新しい敵が出現する
-      const isEnemyDefeated = gameState.currentEnemyHits === 0 && gameState.currentEnemyIndex > 0;
-      const delay = isEnemyDefeated ? 1000 : 0; // 1秒の遅延
-      
-      const timeoutId = setTimeout(() => {
-        if (fantasyPixiInstance && currentEnemy) {
-          fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
-          devLog.debug('🔄 モンスタースプライト更新:', { 
-            monster: currentEnemy.icon,
-            enemyIndex: gameState.currentEnemyIndex,
-            delay: delay
-          });
-        }
-      }, delay);
-      
-      return () => clearTimeout(timeoutId);
+      // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
+      // 遅延処理は不要になった（状態機械が適切なタイミングを制御）
+      fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
+      devLog.debug('🔄 モンスタースプライト更新要求:', { 
+        monster: currentEnemy.icon,
+        enemyIndex: gameState.currentEnemyIndex
+      });
     }
-  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex, gameState.currentEnemyHits]);
+  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -471,6 +464,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               isMonsterAttacking={isMonsterAttacking}
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
+              onMonsterDefeated={handleMonsterDefeated}
               className="w-full h-full"
             />
           </div>
