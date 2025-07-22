@@ -13,6 +13,7 @@ interface FantasySettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSettingsChange?: (settings: FantasySettings) => void;
+  initialSettings?: Partial<FantasySettings>;
 }
 
 interface FantasySettings {
@@ -24,13 +25,21 @@ interface FantasySettings {
 const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   isOpen,
   onClose,
-  onSettingsChange
+  onSettingsChange,
+  initialSettings
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: null,
     volume: 0.8,
-    showGuide: false
+    showGuide: false,
+    ...initialSettings
   });
+  
+  useEffect(() => {
+    if (initialSettings) {
+      setSettings(prev => ({ ...prev, ...initialSettings }));
+    }
+  }, [initialSettings]);
   
   const [midiController, setMidiController] = useState<MIDIController | null>(null);
   const [isConnected, setIsConnected] = useState(false);

@@ -35,6 +35,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
+  // ★ 設定状態を追加
+  const [fantasySettings, setFantasySettings] = useState({
+    midiDeviceId: null as string | null,
+    volume: 0.8,
+    showGuide: false
+  });
+  
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
@@ -153,7 +160,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         noteWidth: dynamicNoteWidth, // コンテナ幅に基づく動的計算
         transpose: 0,
         transposingInstrument: 'concert_pitch',
-        practiceGuide: stage.showGuide ? 'key' : 'off', // ガイド表示設定に基づく
+        practiceGuide: fantasySettings.showGuide ? 'key' : 'off', // ★ 設定状態に基づく
         showHitLine: false, // ヒットラインを非表示
         viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
         timingAdjustment: 0,
@@ -170,9 +177,69 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         (note: number) => { /* キー離す処理は必要に応じて */ }
       );
       
+      // ★ 設定がONで現在のコードがある場合、初期ハイライト
+      if (fantasySettings.showGuide && gameState.currentChordTarget) {
+        const chordNotes = gameState.currentChordTarget.notes;
+        chordNotes.forEach(note => {
+          renderer.highlightKey(note, true);
+        });
+        devLog.debug('🎯 初期ハイライト設定:', {
+          chord: gameState.currentChordTarget.displayName,
+          notes: chordNotes
+        });
+      }
+      
       devLog.debug('🎮 PIXI.js ファンタジーモード準備完了');
     }
-  }, [handleNoteInputBridge, gameAreaSize]);
+  }, [handleNoteInputBridge, gameAreaSize, fantasySettings.showGuide, gameState.currentChordTarget]); // ★ 依存関係に設定を追加
+
+  // ★ 設定変更ハンドラーを追加
+  const handleSettingsChange = useCallback((newSettings: typeof fantasySettings) => {
+    setFantasySettings(newSettings);
+    
+    // PIXIレンダラーの設定をリアルタイムで更新
+    if (pixiRenderer) {
+      pixiRenderer.updateSettings({
+        practiceGuide: newSettings.showGuide ? 'key' : 'off'
+      });
+      
+      // ★ ガイド表示ONの場合、現在のコードの構成音をハイライト
+      if (newSettings.showGuide && gameState.currentChordTarget) {
+        const chordNotes = gameState.currentChordTarget.notes;
+        chordNotes.forEach(note => {
+          pixiRenderer.highlightKey(note, true);
+        });
+      } else {
+        // ガイド表示OFFの場合、全てのハイライトを解除
+        for (let note = 21; note <= 108; note++) {
+          pixiRenderer.highlightKey(note, false);
+        }
+      }
+      
+      devLog.debug('🎮 ファンタジー設定更新:', { showGuide: newSettings.showGuide });
+    }
+  }, [pixiRenderer, gameState.currentChordTarget]);
+
+  // ★ 現在のコードが変更された時のハイライト更新
+  useEffect(() => {
+    if (pixiRenderer && fantasySettings.showGuide && gameState.currentChordTarget) {
+      // 全てのハイライトを一旦クリア
+      for (let note = 21; note <= 108; note++) {
+        pixiRenderer.highlightKey(note, false);
+      }
+      
+      // 現在のコードの構成音をハイライト
+      const chordNotes = gameState.currentChordTarget.notes;
+      chordNotes.forEach(note => {
+        pixiRenderer.highlightKey(note, true);
+      });
+      
+      devLog.debug('🎯 コード構成音ハイライト更新:', {
+        chord: gameState.currentChordTarget.displayName,
+        notes: chordNotes
+      });
+    }
+  }, [pixiRenderer, fantasySettings.showGuide, gameState.currentChordTarget]);
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
@@ -467,9 +534,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <FantasySettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        onSettingsChange={(settings) => {
-          devLog.debug('⚙️ ファンタジー設定変更:', settings);
-        }}
+        onSettingsChange={handleSettingsChange}
+        initialSettings={fantasySettings}
       />
     </div>
   );
