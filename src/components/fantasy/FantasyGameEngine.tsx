@@ -33,6 +33,17 @@ interface FantasyStage {
   bgmUrl?: string;
 }
 
+// 敵情報の型定義を追加
+interface EnemyInfo {
+  id: string;
+  icon: string;
+  name: string;
+  hp: number;
+  maxHp: number;
+  isActive: boolean;
+  fadeState: 'visible' | 'fadeOut' | 'fadeIn' | 'hidden';
+}
+
 interface FantasyGameState {
   currentStage: FantasyStage | null;
   currentQuestionIndex: number;
@@ -45,14 +56,16 @@ interface FantasyGameState {
   isGameActive: boolean;
   isGameOver: boolean;
   gameResult: 'clear' | 'gameover' | null;
-  // 複数敵システム用
-  currentEnemyIndex: number;
-  currentEnemyHits: number;
+  
+  // 二重バッファリング敵管理システム
+  currentEnemy: EnemyInfo;
+  nextEnemy: EnemyInfo | null;
   enemiesDefeated: number;
   totalEnemies: number;
-  // 敵のHP管理を追加
-  currentEnemyHp: number;
-  maxEnemyHp: number;
+  
+  // 敵切り替え状態管理
+  isEnemySwitching: boolean;
+  enemySwitchProgress: number; // 0-100: フェード進行度
 }
 
 interface FantasyGameEngineProps {
@@ -190,13 +203,80 @@ const getProgressionChord = (progression: string[], questionIndex: number): Chor
 };
 
 /**
- * 現在の敵情報を取得
+ * 敵情報を作成
  */
-const getCurrentEnemy = (enemyIndex: number) => {
-  if (enemyIndex >= 0 && enemyIndex < ENEMY_LIST.length) {
-    return ENEMY_LIST[enemyIndex];
+const createEnemyInfo = (enemyTemplate: typeof ENEMY_LIST[0], hp: number = 5): EnemyInfo => {
+  return {
+    id: enemyTemplate.id,
+    icon: enemyTemplate.icon,
+    name: enemyTemplate.name,
+    hp: hp,
+    maxHp: hp,
+    isActive: true,
+    fadeState: 'visible'
+  };
+};
+
+/**
+ * 次の敵を取得（事前準備用）
+ */
+const getNextEnemyTemplate = (currentIndex: number): typeof ENEMY_LIST[0] | null => {
+  const nextIndex = currentIndex + 1;
+  if (nextIndex < ENEMY_LIST.length) {
+    return ENEMY_LIST[nextIndex];
   }
-  return ENEMY_LIST[0]; // フォールバック
+  return null;
+};
+
+/**
+ * 敵切り替えアニメーションを管理
+ */
+const processEnemySwitching = (currentState: FantasyGameState): FantasyGameState => {
+  if (!currentState.isEnemySwitching || !currentState.nextEnemy) {
+    return currentState;
+  }
+
+  const newProgress = Math.min(currentState.enemySwitchProgress + 5, 100);
+  
+  if (newProgress >= 100) {
+    // 切り替え完了
+    return {
+      ...currentState,
+      currentEnemy: {
+        ...currentState.nextEnemy,
+        fadeState: 'visible',
+        isActive: true
+      },
+      nextEnemy: null,
+      isEnemySwitching: false,
+      enemySwitchProgress: 0
+    };
+  }
+
+  // 切り替え進行中
+  let currentEnemyFadeState: EnemyInfo['fadeState'] = 'fadeOut';
+  let nextEnemyFadeState: EnemyInfo['fadeState'] = 'fadeIn';
+
+  if (newProgress < 50) {
+    currentEnemyFadeState = 'fadeOut';
+    nextEnemyFadeState = 'hidden';
+  } else {
+    currentEnemyFadeState = 'hidden';
+    nextEnemyFadeState = 'fadeIn';
+  }
+
+  return {
+    ...currentState,
+    currentEnemy: {
+      ...currentState.currentEnemy,
+      fadeState: currentEnemyFadeState
+    },
+    nextEnemy: {
+      ...currentState.nextEnemy,
+      fadeState: nextEnemyFadeState
+    },
+    enemySwitchProgress: newProgress
+  };
 };
 
 // ===== メインコンポーネント =====
@@ -222,14 +302,14 @@ export const useFantasyGameEngine = ({
     isGameActive: false,
     isGameOver: false,
     gameResult: null,
-    // 複数敵システム用
-    currentEnemyIndex: 0,
-    currentEnemyHits: 0,
+    // 二重バッファリング敵管理システム
+    currentEnemy: { id: '', icon: '', name: '', hp: 0, maxHp: 0, isActive: false, fadeState: 'hidden' },
+    nextEnemy: null,
     enemiesDefeated: 0,
     totalEnemies: 5,
-    // 敵のHP管理を追加
-    currentEnemyHp: 5,
-    maxEnemyHp: 5
+    // 敵切り替え状態管理
+    isEnemySwitching: false,
+    enemySwitchProgress: 0
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -260,6 +340,13 @@ export const useFantasyGameEngine = ({
       devLog.debug('❌ 最初のコードを選択できませんでした');
       return;
     }
+
+    // 最初の敵と次の敵を事前準備
+    const firstEnemyTemplate = ENEMY_LIST[0];
+    const secondEnemyTemplate = getNextEnemyTemplate(0);
+    
+    const currentEnemy = createEnemyInfo(firstEnemyTemplate, 5);
+    const nextEnemy = secondEnemyTemplate ? createEnemyInfo(secondEnemyTemplate, 5) : null;
     
     const newState: FantasyGameState = {
       currentStage: stage,
@@ -273,21 +360,25 @@ export const useFantasyGameEngine = ({
       isGameActive: true,
       isGameOver: false,
       gameResult: null,
-      // 複数敵システム用
-      currentEnemyIndex: 0,
-      currentEnemyHits: 0,
+      // 二重バッファリング敵管理システム
+      currentEnemy,
+      nextEnemy,
       enemiesDefeated: 0,
       totalEnemies: 5,
-      // 敵のHP管理を追加
-      currentEnemyHp: 5,
-      maxEnemyHp: 5
+      // 敵切り替え状態管理
+      isEnemySwitching: false,
+      enemySwitchProgress: 0
     };
     
     setGameState(newState);
     setInputBuffer([]);
     onGameStateChange(newState);
     
-    devLog.debug('✅ ファンタジーゲーム初期化完了:', newState);
+    devLog.debug('✅ ファンタジーゲーム初期化完了:', {
+      ...newState,
+      currentEnemyName: currentEnemy.name,
+      nextEnemyName: nextEnemy?.name || 'なし'
+    });
   }, [stage, onGameStateChange]);
   
   // 次の問題への移行（回答数ベース、ループ対応）
@@ -464,6 +555,13 @@ export const useFantasyGameEngine = ({
         devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
         return prevState;
       }
+
+      // 敵切り替えアニメーション処理
+      if (prevState.isEnemySwitching) {
+        const switchedState = processEnemySwitching(prevState);
+        onGameStateChange(switchedState);
+        return switchedState;
+      }
       
       const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
       const newGauge = prevState.enemyGauge + incrementRate;
@@ -556,20 +654,22 @@ export const useFantasyGameEngine = ({
       onChordCorrect(gameState.currentChordTarget);
       
       setGameState(prevState => {
-        const newHits = prevState.currentEnemyHits + 1;
-        const newEnemyHp = Math.max(0, prevState.currentEnemyHp - 1); // 敵のHPを1減らす
+        const newHits = prevState.correctAnswers + 1;
+        const newEnemyHp = Math.max(0, prevState.currentEnemy.hp - 1); // 敵のHPを1減らす
         
         let nextState = {
           ...prevState,
-          correctAnswers: prevState.correctAnswers + 1,
+          correctAnswers: newHits,
           score: prevState.score + 1000,
           enemyGauge: 0, // ゲージをリセット
-          currentEnemyHits: newHits,
-          currentEnemyHp: newEnemyHp
+          currentEnemy: {
+            ...prevState.currentEnemy,
+            hp: newEnemyHp
+          }
         };
         
         devLog.debug('⚔️ 敵にダメージ:', {
-          oldHp: prevState.currentEnemyHp,
+          oldHp: prevState.currentEnemy.hp,
           newHp: newEnemyHp,
           hits: newHits
         });
@@ -577,7 +677,6 @@ export const useFantasyGameEngine = ({
         // 敵を倒したか判定（HPが0になったら倒れる）
         if (newEnemyHp <= 0) {
           const newEnemiesDefeated = prevState.enemiesDefeated + 1;
-          const nextEnemyIndex = prevState.currentEnemyIndex + 1;
           
           // 全ての敵を倒したかチェック
           if (newEnemiesDefeated >= prevState.totalEnemies) {
@@ -601,20 +700,52 @@ export const useFantasyGameEngine = ({
               }
             }, 200);
           } else {
-            // 次の敵に交代
-            nextState = {
-              ...nextState,
-              currentEnemyIndex: nextEnemyIndex,
-              currentEnemyHits: 0,
-              enemiesDefeated: newEnemiesDefeated,
-              currentEnemyHp: prevState.maxEnemyHp, // 新しい敵のHPをフル回復
-            };
+            // 次の敵に切り替え開始
+            if (prevState.nextEnemy) {
+              nextState = {
+                ...nextState,
+                enemiesDefeated: newEnemiesDefeated,
+                currentEnemy: {
+                  ...prevState.currentEnemy,
+                  hp: 0,
+                  isActive: false,
+                  fadeState: 'fadeOut'
+                },
+                nextEnemy: {
+                  ...prevState.nextEnemy,
+                  fadeState: 'hidden'
+                },
+                isEnemySwitching: true,
+                enemySwitchProgress: 0
+              };
+              
+              // さらに次の敵を事前準備
+              const futureEnemyTemplate = getNextEnemyTemplate(newEnemiesDefeated);
+              if (futureEnemyTemplate) {
+                const futureEnemy = createEnemyInfo(futureEnemyTemplate, 5);
+                // 次の次の敵も準備しておく（必要に応じて）
+              }
+            } else {
+              // nextEnemyがない場合の安全処理
+              const nextEnemyTemplate = getNextEnemyTemplate(newEnemiesDefeated - 1);
+              if (nextEnemyTemplate) {
+                const newNextEnemy = createEnemyInfo(nextEnemyTemplate, 5);
+                nextState = {
+                  ...nextState,
+                  enemiesDefeated: newEnemiesDefeated,
+                  currentEnemy: newNextEnemy,
+                  nextEnemy: null,
+                  isEnemySwitching: false,
+                  enemySwitchProgress: 0
+                };
+              }
+            }
             
-            devLog.debug('👹 敵を倒した！次の敵が出現:', { 
+            devLog.debug('👹 敵を倒した！次の敵への切り替え開始:', { 
               defeatedEnemies: newEnemiesDefeated,
-              nextEnemyIndex,
-              nextEnemy: ENEMY_LIST[nextEnemyIndex]?.name,
-              newEnemyHp: prevState.maxEnemyHp
+              currentEnemyName: nextState.currentEnemy.name,
+              nextEnemyName: nextState.nextEnemy?.name || 'なし',
+              isSwitching: nextState.isEnemySwitching
             });
           }
         }
@@ -640,17 +771,6 @@ export const useFantasyGameEngine = ({
       // onChordIncorrect(gameState.currentChordTarget, notes);
     }
   }, [gameState.currentChordTarget, onChordCorrect, onChordIncorrect, onGameStateChange, proceedToNextQuestion]);
-  
-  // 手動で現在の入力を判定（削除予定 - 自動判定のみ使用）
-  // const submitCurrentInput = useCallback(() => {
-  //   if (inputTimeout) {
-  //     clearTimeout(inputTimeout);
-  //     setInputTimeout(null);
-  //   }
-  //   
-  //   checkCurrentInput(inputBuffer);
-  //   setInputBuffer([]);
-  // }, [inputTimeout, checkCurrentInput, inputBuffer]);
   
   // ゲーム停止
   const stopGame = useCallback(() => {
@@ -704,11 +824,13 @@ export const useFantasyGameEngine = ({
     checkChordMatch,
     selectRandomChord,
     getProgressionChord,
-    getCurrentEnemy,
+    createEnemyInfo,
+    getNextEnemyTemplate,
+    processEnemySwitching,
     CHORD_DEFINITIONS,
     ENEMY_LIST
   };
 };
 
-export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps };
-export { CHORD_DEFINITIONS, ENEMY_LIST, getCurrentEnemy };
+export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, EnemyInfo };
+export { CHORD_DEFINITIONS, ENEMY_LIST, createEnemyInfo, getNextEnemyTemplate };

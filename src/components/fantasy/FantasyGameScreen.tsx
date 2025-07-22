@@ -105,7 +105,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     handleNoteInput: engineHandleNoteInput,
     initializeGame,
     stopGame,
-    getCurrentEnemy,
     ENEMY_LIST
   } = useFantasyGameEngine({
     stage,
@@ -116,8 +115,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onEnemyAttack: handleEnemyAttack
   });
   
-  // 現在の敵情報を取得
-  const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
+  // 現在の敵情報を直接ゲーム状態から取得
+  const currentEnemy = gameState.currentEnemy;
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number) => {
@@ -263,26 +262,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   // 敵が変更された時にモンスタースプライトを更新
   useEffect(() => {
-    if (fantasyPixiInstance && currentEnemy) {
-      // 敵が倒された後の場合は、少し遅延を入れて新しいモンスターを生成
-      // これにより、前の敵のフェードアウトが完了してから新しい敵が出現する
-      const isEnemyDefeated = gameState.currentEnemyHits === 0 && gameState.currentEnemyIndex > 0;
-      const delay = isEnemyDefeated ? 1000 : 0; // 1秒の遅延
-      
-      const timeoutId = setTimeout(() => {
-        if (fantasyPixiInstance && currentEnemy) {
-          fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
-          devLog.debug('🔄 モンスタースプライト更新:', { 
-            monster: currentEnemy.icon,
-            enemyIndex: gameState.currentEnemyIndex,
-            delay: delay
-          });
-        }
-      }, delay);
-      
-      return () => clearTimeout(timeoutId);
+    if (fantasyPixiInstance && currentEnemy && currentEnemy.isActive) {
+      // フェード状態に基づいて表示を制御
+      if (currentEnemy.fadeState === 'visible') {
+        fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
+        devLog.debug('🔄 モンスタースプライト更新:', { 
+          monster: currentEnemy.icon,
+          enemyName: currentEnemy.name,
+          fadeState: currentEnemy.fadeState
+        });
+      } else if (currentEnemy.fadeState === 'fadeOut') {
+        // フェードアウト処理（必要に応じて実装）
+        fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
+        devLog.debug('🌫️ モンスターフェードアウト:', { 
+          monster: currentEnemy.icon,
+          enemyName: currentEnemy.name
+        });
+      }
     }
-  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex, gameState.currentEnemyHits]);
+  }, [fantasyPixiInstance, currentEnemy]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
@@ -439,7 +437,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div className="flex flex-col items-center space-y-2 mt-1">
             {/* 敵のHP表示（上） */}
             <div className="flex items-center">
-              {renderHearts(gameState.currentEnemyHp, gameState.maxEnemyHp, false)}
+              {renderHearts(gameState.currentEnemy.hp, gameState.currentEnemy.maxHp, false)}
             </div>
             
             {/* プレイヤーのHP表示（下） */}
