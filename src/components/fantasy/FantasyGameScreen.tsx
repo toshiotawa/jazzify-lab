@@ -120,6 +120,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     initializeGame,
     stopGame,
     getCurrentEnemy,
+    proceedToNextEnemy,
     ENEMY_LIST
   } = useFantasyGameEngine({
     stage: memoizedStage, // メモ化したstageを渡す
@@ -241,10 +242,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // モンスター撃破時のコールバック（状態機械対応）
   const handleMonsterDefeated = useCallback(() => {
-    devLog.debug('💀 モンスター撃破通知を受信');
-    // 状態機械により、モンスターが完全に消滅したことを確認
-    // 次のモンスターの生成は、gameStateの変更により自動的にトリガーされる
-  }, []);
+    devLog.debug('SCREEN: PIXIからモンスター消滅完了通知を受信しました。');
+    // アニメーションが終わったので、エンジンに次の敵へ進むよう命令する
+    proceedToNextEnemy();
+  }, [proceedToNextEnemy]);
   
   // FontAwesome使用のため削除済み
   

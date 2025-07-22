@@ -1036,7 +1036,8 @@ export class FantasyPIXIInstance {
       previousState: this.monsterGameState.state,
       newState: newState,
       health: this.monsterGameState.health,
-      hitCount: this.monsterGameState.hitCount
+      hitCount: this.monsterGameState.hitCount,
+      isDestroyed: this.isDestroyed
     });
     
     this.monsterGameState.state = newState;
@@ -1046,7 +1047,10 @@ export class FantasyPIXIInstance {
       devLog.debug('💀 モンスター消滅アニメーション開始');
       this.startMonsterFadeOut();
     } else if (newState === 'GONE') {
-      devLog.debug('💀 モンスター完全消滅、親コンポーネントに通知');
+      devLog.debug('💀 モンスター完全消滅、親コンポーネントに通知', {
+        hasCallback: !!this.onDefeated,
+        isDestroyed: this.isDestroyed
+      });
       // 親コンポーネントに通知
       this.onDefeated?.();
     }

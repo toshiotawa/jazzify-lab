@@ -53,6 +53,8 @@ interface FantasyGameState {
   // 敵のHP管理を追加
   currentEnemyHp: number;
   maxEnemyHp: number;
+  // 状態機械対応：次のモンスターを待っている状態かを示すフラグ
+  isWaitingForNextMonster: boolean;
 }
 
 interface FantasyGameEngineProps {
@@ -229,7 +231,9 @@ export const useFantasyGameEngine = ({
     totalEnemies: 5,
     // 敵のHP管理を追加
     currentEnemyHp: 5,
-    maxEnemyHp: 5
+    maxEnemyHp: 5,
+    // 状態機械対応：次のモンスターを待っている状態かを示すフラグ
+    isWaitingForNextMonster: false
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -280,7 +284,9 @@ export const useFantasyGameEngine = ({
       totalEnemies: 5,
       // 敵のHP管理を追加
       currentEnemyHp: 5,
-      maxEnemyHp: 5
+      maxEnemyHp: 5,
+      // 状態機械対応：次のモンスターを待っている状態かを示すフラグ
+      isWaitingForNextMonster: false
     };
     
     setGameState(newState);
@@ -576,47 +582,12 @@ export const useFantasyGameEngine = ({
         
         // 敵を倒したか判定（HPが0になったら倒れる）
         if (newEnemyHp <= 0) {
-          const newEnemiesDefeated = prevState.enemiesDefeated + 1;
-          const nextEnemyIndex = prevState.currentEnemyIndex + 1;
-          
-          // 全ての敵を倒したかチェック
-          if (newEnemiesDefeated >= prevState.totalEnemies) {
-            // ゲームクリア
-            nextState = {
-              ...nextState,
-              enemiesDefeated: newEnemiesDefeated,
-              isGameActive: false,
-              isGameOver: true,
-              gameResult: 'clear'
-            };
-            
-            devLog.debug('🎉 全ての敵を倒してゲームクリア!', { enemiesDefeated: newEnemiesDefeated });
-            
-            // ゲーム完了コールバックを安全に呼び出し
-            setTimeout(() => {
-              try {
-                onGameComplete('clear', nextState);
-              } catch (error) {
-                devLog.debug('❌ ゲーム完了コールバックエラー:', error);
-              }
-            }, 200);
-          } else {
-            // 次の敵に交代
-            nextState = {
-              ...nextState,
-              currentEnemyIndex: nextEnemyIndex,
-              currentEnemyHits: 0,
-              enemiesDefeated: newEnemiesDefeated,
-              currentEnemyHp: prevState.maxEnemyHp, // 新しい敵のHPをフル回復
-            };
-            
-            devLog.debug('👹 敵を倒した！次の敵が出現:', { 
-              defeatedEnemies: newEnemiesDefeated,
-              nextEnemyIndex,
-              nextEnemy: ENEMY_LIST[nextEnemyIndex]?.name,
-              newEnemyHp: prevState.maxEnemyHp
-            });
-          }
+          devLog.debug('💀 敵撃破！ 次のモンスターへの進行待機状態へ移行します。');
+          // すぐに敵を交代せず、「待機状態」にするだけ
+          nextState = {
+            ...nextState,
+            isWaitingForNextMonster: true,
+          };
         }
         
         onGameStateChange(nextState);
@@ -641,16 +612,42 @@ export const useFantasyGameEngine = ({
     }
   }, [gameState.currentChordTarget, onChordCorrect, onChordIncorrect, onGameStateChange, proceedToNextQuestion]);
   
-  // 手動で現在の入力を判定（削除予定 - 自動判定のみ使用）
-  // const submitCurrentInput = useCallback(() => {
-  //   if (inputTimeout) {
-  //     clearTimeout(inputTimeout);
-  //     setInputTimeout(null);
-  //   }
-  //   
-  //   checkCurrentInput(inputBuffer);
-  //   setInputBuffer([]);
-  // }, [inputTimeout, checkCurrentInput, inputBuffer]);
+  // 次の敵へ進むための新しい関数
+  const proceedToNextEnemy = useCallback(() => {
+    devLog.debug('ENGINE: 進行要求を受信。次の敵に切り替えます。');
+    setGameState(prevState => {
+      if (!prevState.isWaitingForNextMonster) return prevState;
+
+      const newEnemiesDefeated = prevState.enemiesDefeated + 1;
+
+      // ゲームクリア判定
+      if (newEnemiesDefeated >= prevState.totalEnemies) {
+        const finalState = {
+          ...prevState,
+          isGameActive: false,
+          isGameOver: true,
+          gameResult: 'clear' as const,
+          isWaitingForNextMonster: false,
+        };
+        onGameComplete('clear', finalState);
+        return finalState;
+      }
+
+      // 次の敵に交代
+      const nextEnemyIndex = prevState.currentEnemyIndex + 1;
+      const nextState = {
+        ...prevState,
+        currentEnemyIndex: nextEnemyIndex,
+        currentEnemyHits: 0,
+        enemiesDefeated: newEnemiesDefeated,
+        currentEnemyHp: prevState.maxEnemyHp, // HPをリセット
+        isWaitingForNextMonster: false,      // 待機状態を解除
+      };
+
+      onGameStateChange(nextState);
+      return nextState;
+    });
+  }, [onGameStateChange, onGameComplete]);
   
   // ゲーム停止
   const stopGame = useCallback(() => {
@@ -699,6 +696,7 @@ export const useFantasyGameEngine = ({
     handleNoteInput,
     initializeGame,
     stopGame,
+    proceedToNextEnemy,
     
     // ヘルパー関数もエクスポート
     checkChordMatch,
