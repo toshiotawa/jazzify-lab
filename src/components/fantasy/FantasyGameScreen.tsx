@@ -143,8 +143,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (renderer) {
       // ファンタジーモード用の設定を適用
       const screenWidth = window.innerWidth;
-      const totalKeys = 52; // 白鍵の数（C1〜C5）
-      const dynamicNoteWidth = Math.max(screenWidth / totalKeys, 16); // 画面幅に基づく動的計算、最小16px
+      
+      // Piano.tsと同じ白鍵幅計算方法を使用
+      const minNote = 21; // A0
+      const maxNote = 108; // C8
+      let totalWhiteKeys = 0;
+      
+      // 黒鍵判定関数
+      const isBlackKey = (midiNote: number): boolean => {
+        const noteInOctave = midiNote % 12;
+        return [1, 3, 6, 8, 10].includes(noteInOctave);
+      };
+      
+      // 白鍵の総数を計算
+      for (let note = minNote; note <= maxNote; note++) {
+        if (!isBlackKey(note)) {
+          totalWhiteKeys++;
+        }
+      }
+      
+      // 画面幅に基づいて白鍵幅を計算
+      const whiteKeyWidth = screenWidth / totalWhiteKeys;
+      const dynamicNoteWidth = Math.max(whiteKeyWidth - 2, 16); // 最小16px
       
       renderer.updateSettings({
         noteNameStyle: 'abc',
@@ -178,7 +198,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       devLog.debug('🎮 PIXI.js ファンタジーモード準備完了:', {
         screenWidth,
-        noteWidth: dynamicNoteWidth,
+        totalWhiteKeys,
+        whiteKeyWidth: whiteKeyWidth.toFixed(2),
+        noteWidth: dynamicNoteWidth.toFixed(2),
         showGuide: stage.showGuide
       });
     }
@@ -235,7 +257,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, currentEnemy]);
   
-  // HPハート表示（モノクロ）
+  // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
     const hearts = [];
     // HP表示のデバッグログを追加
@@ -246,7 +268,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         <span key={i} className={cn(
           "text-2xl transition-all duration-300",
           i < hp 
-            ? (isPlayer ? "text-red-500" : "text-gray-800") // プレイヤーは赤、敵は黒
+            ? "text-red-500" // プレイヤーも敵も赤いハート
             : "text-gray-300" // 空のハートは薄いグレー
         )}>
           {i < hp ? "♡" : "×"}

@@ -362,7 +362,15 @@ export const useFantasyGameEngine = ({
           gameResult: 'gameover' as const
         };
         
-        onGameComplete('gameover', finalState);
+        // ゲームオーバーコールバックを安全に呼び出し
+        setTimeout(() => {
+          try {
+            onGameComplete('gameover', finalState);
+          } catch (error) {
+            devLog.debug('❌ ゲームオーバーコールバックエラー:', error);
+          }
+        }, 100);
+        
         return finalState;
       } else {
         // HP減少して次の問題へ（回答数ベース、ループ対応）
@@ -378,7 +386,15 @@ export const useFantasyGameEngine = ({
             gameResult: 'clear' as const
           };
           
-          onGameComplete('clear', finalState);
+          // クリアコールバックを安全に呼び出し
+          setTimeout(() => {
+            try {
+              onGameComplete('clear', finalState);
+            } catch (error) {
+              devLog.debug('❌ クリアコールバックエラー:', error);
+            }
+          }, 100);
+          
           return finalState;
         } else {
           // 次の問題（ループ対応）
@@ -575,7 +591,15 @@ export const useFantasyGameEngine = ({
             };
             
             devLog.debug('🎉 全ての敵を倒してゲームクリア!', { enemiesDefeated: newEnemiesDefeated });
-            setTimeout(() => onGameComplete('clear', nextState), 200);
+            
+            // ゲーム完了コールバックを安全に呼び出し
+            setTimeout(() => {
+              try {
+                onGameComplete('clear', nextState);
+              } catch (error) {
+                devLog.debug('❌ ゲーム完了コールバックエラー:', error);
+              }
+            }, 200);
           } else {
             // 次の敵に交代
             nextState = {
