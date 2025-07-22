@@ -658,30 +658,52 @@ export class FantasyPIXIInstance {
     animate();
   }
 
-  // モンスターアニメーション更新（安全バージョン）
+  // ▼▼▼ モンスターアニメーション更新（安全バージョン）を修正 ▼▼▼
   private updateMonsterAnimation(): void {
-    if (this.isDestroyed || !this.monsterVisualState.visible) return;
+    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed) {
+      return;
+    }
     
+    // モンスターが表示されていない場合は早期リターン（ただしフェードアウト処理は除く）
+    if (!this.monsterVisualState.visible && !this.monsterGameState.isFadingOut) {
+        return;
+    }
+
     try {
+      // フェードアウト処理をここで一元管理
+      if (this.monsterGameState.isFadingOut) {
+        if (this.monsterVisualState.alpha > 0) {
+          this.monsterVisualState.alpha -= 0.05;
+        } else {
+          this.monsterVisualState.alpha = 0;
+          this.monsterVisualState.visible = false;
+          this.monsterGameState.isFadingOut = false; // フェードアウトアニメーション完了
+          devLog.debug('👻 モンスター消滅完了、次のモンスターの登場を待機');
+        }
+        this.updateMonsterSprite();
+        return; // フェードアウト中は他のアニメーションをスキップ
+      }
+
+      // 新しいモンスターを待っている間（遷移中）は他のアニメーションを停止
+      if (this.monsterGameState.isTransitioning) {
+          return;
+      }
+      
       // よろけ効果の適用（ビジュアル状態を更新）
       this.monsterVisualState.x = (this.app.screen.width / 2) + this.monsterGameState.staggerOffset.x;
       this.monsterVisualState.y = (this.app.screen.height / 2 - 20) + this.monsterGameState.staggerOffset.y;
       
-      // 色変化の適用
       this.monsterVisualState.tint = this.monsterGameState.isHit 
         ? this.monsterGameState.hitColor 
         : this.monsterGameState.originalColor;
       
-      // アイドル時の軽い浮遊効果
       if (!this.monsterGameState.isAttacking && !this.monsterGameState.isHit) {
         this.monsterVisualState.y += Math.sin(Date.now() * 0.002) * 0.5;
       }
       
-      // よろけ効果の減衰
       this.monsterGameState.staggerOffset.x *= 0.9;
       this.monsterGameState.staggerOffset.y *= 0.9;
       
-      // モンスタースプライトを更新
       this.updateMonsterSprite();
       
     } catch (error) {
