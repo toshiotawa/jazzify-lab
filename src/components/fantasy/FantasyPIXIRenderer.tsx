@@ -522,6 +522,12 @@ export class FantasyPIXIInstance {
       return;
     }
 
+    // 安全チェック: app.stageが破棄されていないか確認
+    if (this.isDestroyed || !this.app || !this.app.stage || !(this.app.stage as any).transform) {
+      this.shakeTimer = 0;
+      return;
+    }
+
     // デルタタイム（1フレームあたりの時間）に基づいてタイマーを減算
     // app.ticker.deltaMS を使うとより正確になりますが、今回は簡易的に16msで進めます
     this.shakeTimer -= 16; 
@@ -684,6 +690,24 @@ export class FantasyPIXIInstance {
     if (this.isDestroyed || !this.monsterVisualState.visible) return;
     
     try {
+      // ▼▼▼ フェードアウト処理を追加 ▼▼▼
+      if (this.monsterGameState.isFadingOut) {
+        this.monsterVisualState.alpha -= 0.05;
+        this.monsterVisualState.scale *= 0.95;
+        this.monsterVisualState.rotation += 0.1;
+        
+        if (this.monsterVisualState.alpha <= 0) {
+          this.monsterVisualState.alpha = 0;
+          this.monsterVisualState.visible = false;
+          this.monsterGameState.isFadingOut = false;
+          
+          // 爆発エフェクトを作成
+          this.createExplosionEffect(this.monsterVisualState.x, this.monsterVisualState.y);
+          
+          devLog.debug('✅ モンスター消滅完了');
+        }
+      }
+      
       // よろけ効果の適用（ビジュアル状態を更新）
       this.monsterVisualState.x = (this.app.screen.width / 2) + this.monsterGameState.staggerOffset.x;
       this.monsterVisualState.y = (this.app.screen.height / 2 - 20) + this.monsterGameState.staggerOffset.y;
@@ -694,7 +718,7 @@ export class FantasyPIXIInstance {
         : this.monsterGameState.originalColor;
       
       // アイドル時の軽い浮遊効果
-      if (!this.monsterGameState.isAttacking && !this.monsterGameState.isHit) {
+      if (!this.monsterGameState.isAttacking && !this.monsterGameState.isHit && !this.monsterGameState.isFadingOut) {
         this.monsterVisualState.y += Math.sin(Date.now() * 0.002) * 0.5;
       }
       
