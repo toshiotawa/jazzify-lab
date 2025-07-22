@@ -17,6 +17,7 @@ interface FantasyPIXIRendererProps {
   isMonsterAttacking: boolean;
   enemyGauge: number;
   onReady?: (instance: FantasyPIXIInstance) => void;
+  onHealthChange?: (hp: number, max: number) => void;
   className?: string;
 }
 
@@ -136,6 +137,8 @@ export class FantasyPIXIInstance {
   private damageNumbers: Map<string, PIXI.Text> = new Map();
   private damageData: Map<string, DamageNumber> = new Map();
   private magicNameText: PIXI.Text | null = null;
+
+  private onHealthChange?: (hp: number, max: number) => void;
   
   private currentMagicType: string = 'fire';
   private enemyHitCount: number = 0;
@@ -267,7 +270,9 @@ export class FantasyPIXIInstance {
         this.monsterSprite.anchor.set(0.5);
         this.monsterSprite.x = this.monsterState.x;
         this.monsterSprite.y = this.monsterState.y;
-        this.monsterSprite.tint = 0x666666; // モノクロ色合いを強制設定
+        const grayFilter = new PIXI.filters.ColorMatrixFilter();
+        grayFilter.desaturate();
+        this.monsterSprite.filters = [grayFilter];
         
         // インタラクティブ設定
         this.monsterSprite.interactive = true;
@@ -351,6 +356,9 @@ export class FantasyPIXIInstance {
       // 敵のヒットカウント増加
       this.enemyHitCount++;
       this.monsterState.health = Math.max(0, this.monsterState.maxHealth - this.enemyHitCount);
+      if (this.onHealthChange) {
+        this.onHealthChange(this.monsterState.health, this.monsterState.maxHealth);
+      }
       
       // 画面震動エフェクト
       this.createScreenShake(5, 200);
@@ -474,6 +482,9 @@ export class FantasyPIXIInstance {
         // 新しいモンスター生成
         this.enemyHitCount = 0;
         this.monsterState.health = this.monsterState.maxHealth;
+        if (this.onHealthChange) {
+          this.onHealthChange(this.monsterState.health, this.monsterState.maxHealth);
+        }
         this.monsterSprite.alpha = 1;
         
         // ランダムな新しいモンスターを選択
@@ -766,6 +777,14 @@ export class FantasyPIXIInstance {
     return this.app.view as HTMLCanvasElement;
   }
 
+  setHealthChangeCallback(cb: (hp: number, max: number) => void): void {
+    this.onHealthChange = cb;
+  }
+
+  getMonsterHealth(): { hp: number; max: number } {
+    return { hp: this.monsterState.health, max: this.monsterState.maxHealth };
+  }
+
   // 破棄
   destroy(): void {
     this.isDestroyed = true;
@@ -792,6 +811,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   isMonsterAttacking,
   enemyGauge,
   onReady,
+  onHealthChange,
   className
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -803,14 +823,17 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
 
     const instance = new FantasyPIXIInstance(width, height);
     containerRef.current.appendChild(instance.getCanvas());
-    
+    if (onHealthChange) {
+      instance.setHealthChangeCallback(onHealthChange);
+    }
+
     setPixiInstance(instance);
     onReady?.(instance);
 
     return () => {
       instance.destroy();
     };
-  }, [width, height, onReady]);
+  }, [width, height, onReady, onHealthChange]);
 
   // モンスターアイコン変更
   useEffect(() => {

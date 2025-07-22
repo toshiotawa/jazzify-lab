@@ -40,6 +40,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
+  const [enemyHp, setEnemyHp] = useState({ hp: 5, max: 5 });
   
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
@@ -167,7 +168,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // キーボードのクリックイベントを接続
       renderer.setKeyCallbacks(
         (note: number) => handleNoteInputBridge(note),
-        (note: number) => { /* キー離す処理は必要に応じて */ }
+        (note: number) => stopNote(note)
       );
       
       devLog.debug('🎮 PIXI.js ファンタジーモード準備完了');
@@ -177,10 +178,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     setFantasyPixiInstance(instance);
-    
+
     // 現在の敵に基づいてモンスターを設定
     instance.createMonsterSprite(currentEnemy.icon);
-    
+    setEnemyHp({ hp: instance.getMonsterHealth().hp, max: instance.getMonsterHealth().max });
+
     devLog.debug('🎮 ファンタジーPIXI準備完了:', { monster: currentEnemy.icon });
   }, [currentEnemy.icon]);
   
@@ -352,12 +354,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         <div className="mb-2 text-center relative">
           <div className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden" style={{ height: 'min(200px, 30vh)' }}>
             <FantasyPIXIRenderer
-              width={800}
+              width={gameAreaSize.width}
               height={200}
               monsterIcon={currentEnemy.icon}
               isMonsterAttacking={isMonsterAttacking}
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
+              onHealthChange={(hp, max) => setEnemyHp({ hp, max })}
               className="w-full h-full"
             />
           </div>
@@ -381,8 +384,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* 敵のHP表示 */}
           <div className="flex justify-center items-center space-x-1 mt-1">
             <span className="text-white text-xs mr-1">敵HP:</span>
-            {Array.from({ length: 5 }, (_, i) => (
-              <span key={i} className="text-lg text-gray-400">♡</span>
+            {Array.from({ length: enemyHp.max }, (_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  'text-lg transition-colors',
+                  i < enemyHp.hp ? 'text-red-500' : 'text-gray-400'
+                )}
+              >
+                ♡
+              </span>
             ))}
           </div>
         </div>
@@ -414,7 +425,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         >
           <PIXINotesRenderer
             activeNotes={[]}
-            width={Math.max(gameAreaSize.width, 1200)} // 横幅いっぱいに設定
+            width={gameAreaSize.width}
             height={120}
             currentTime={0}
             onReady={handlePixiReady}
