@@ -500,23 +500,27 @@ export class FantasyPIXIInstance {
   // 次のモンスターに交代
   private switchToNextMonster(): void {
     if (!this.monsterSprite) return;
-    
-    // フェードアウトエフェクト
+
+    const oldSprite = this.monsterSprite;           // 参照を固定
+    const keys = Object.keys(MONSTER_EMOJI);
+    const nextKey = keys[Math.floor(Math.random() * keys.length)];
+
     const fadeOut = () => {
-      if (this.monsterSprite && this.monsterSprite.alpha > 0) {
-        this.monsterSprite.alpha -= 0.05;
+      if (oldSprite.alpha > 0) {
+        oldSprite.alpha -= 0.05;
         requestAnimationFrame(fadeOut);
-      } else if (this.monsterSprite) {
-        // 新しいモンスター生成
-        this.enemyHitCount = 0;
-        this.monsterState.health = this.monsterState.maxHealth;
-        this.monsterSprite.alpha = 1;
-        
-        // ランダムな新しいモンスターを選択
-        const monsterKeys = Object.keys(MONSTER_EMOJI);
-        const randomKey = monsterKeys[Math.floor(Math.random() * monsterKeys.length)];
-        this.createMonsterSprite(randomKey);
+        return;
       }
+
+      // フェード終了 ― ここで初めて破棄
+      this.monsterContainer.removeChild(oldSprite);
+      oldSprite.destroy(true);                       // children/texture も破棄
+      this.monsterSprite = null;
+
+      // 新モンスター生成
+      this.enemyHitCount = 0;
+      this.monsterState.health = this.monsterState.maxHealth;
+      this.createMonsterSprite(nextKey);
     };
     fadeOut();
     
@@ -713,7 +717,11 @@ export class FantasyPIXIInstance {
   private updateMagicCircles(): void {
     for (const [id, circleData] of this.magicCircleData.entries()) {
       const graphics = this.magicCircles.get(id);
-      if (!graphics) continue;
+      if (!graphics || graphics.destroyed || !graphics.transform) {
+        this.magicCircles.delete(id);
+        this.magicCircleData.delete(id);
+        continue;
+      }
       
       const progress = 1 - (circleData.life / circleData.maxLife);
       circleData.radius = 120 * Math.sin(progress * Math.PI);
@@ -742,7 +750,11 @@ export class FantasyPIXIInstance {
   private updateParticles(): void {
     for (const [id, particleData] of this.particleData.entries()) {
       const particle = this.particles.get(id);
-      if (!particle) continue;
+      if (!particle || particle.destroyed || !particle.transform) {
+        this.particles.delete(id);
+        this.particleData.delete(id);
+        continue;
+      }
       
       // 位置更新
       particleData.x += particleData.vx;
@@ -777,7 +789,11 @@ export class FantasyPIXIInstance {
   private updateDamageNumbers(): void {
     for (const [id, damageData] of this.damageData.entries()) {
       const damageText = this.damageNumbers.get(id);
-      if (!damageText) continue;
+      if (!damageText || damageText.destroyed || !damageText.transform) {
+        this.damageNumbers.delete(id);
+        this.damageData.delete(id);
+        continue;
+      }
       
       // 上昇アニメーション
       damageData.y -= 1.5;
@@ -813,7 +829,7 @@ export class FantasyPIXIInstance {
       this.monsterState.x = width / 2;
       this.monsterState.y = height / 2;
       
-      if (this.monsterSprite && !this.monsterSprite.destroyed) {
+      if (this.monsterSprite && !this.monsterSprite.destroyed && this.monsterSprite.transform) {
         this.monsterSprite.x = this.monsterState.x;
         this.monsterSprite.y = this.monsterState.y;
       }
@@ -847,7 +863,7 @@ export class FantasyPIXIInstance {
     this.emojiTextures.clear();
     
     // PIXIアプリケーションの破棄
-    if (this.app && !this.app.destroyed) {
+    if (this.app) {
       try {
         this.app.destroy(true, { children: true });
       } catch (error) {
