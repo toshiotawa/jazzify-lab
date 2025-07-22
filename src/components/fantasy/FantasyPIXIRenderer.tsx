@@ -110,12 +110,12 @@ const MAGIC_TYPES: Record<string, MagicType> = {
 
 // ===== モンスターシンボルマッピング（フラットデザイン） =====
 const MONSTER_EMOJI: Record<string, string> = {
-  'vampire': '👻', // ゴースト（バンパイア）
-  'monster': '◈', // ダイヤ形（モンスター）
-  'reaper': '☠', // 骸骨マーク（死神）
-  'kraken': '◉', // 大きな円（クラーケン）
-  'werewolf': '▲', // 三角形（狼男）
-  'demon': '♦'  // ダイヤモンド（魔王）
+  'vampire': '☠', // 頭蓋骨（バンパイア）
+  'monster': '🕷', // 蜘蛛（モンスター）
+  'reaper': '🎩', // シルクハット（死神）
+  'kraken': '👁', // 目玉（クラーケン）
+  'werewolf': '🐦', // 鳥（人狼）
+  'demon': '🔥'  // 火（悪魔）
 };
 
 // ===== PIXI インスタンスクラス =====
@@ -179,7 +179,7 @@ export class FantasyPIXIInstance {
       isAttacking: false,
       isHit: false,
       hitColor: 0xFF6B6B,
-      originalColor: 0x666666, // モノクロ色合い
+      originalColor: 0xFFFFFF, // 明るい色合い
       staggerOffset: { x: 0, y: 0 },
       scale: 1.0,
       rotation: 0
@@ -233,7 +233,7 @@ export class FantasyPIXIInstance {
   // フォールバック用テクスチャ作成
   private createFallbackTextures(): void {
     const graphics = new PIXI.Graphics();
-    graphics.beginFill(0x666666);
+    graphics.beginFill(0xDDDDDD);
     graphics.drawCircle(0, 0, 50);
     graphics.endFill();
     
@@ -276,7 +276,7 @@ export class FantasyPIXIInstance {
         this.monsterSprite.anchor.set(0.5);
         this.monsterSprite.x = this.monsterState.x;
         this.monsterSprite.y = this.monsterState.y;
-        this.monsterSprite.tint = 0x666666; // モノクロ色合いを強制設定
+        this.monsterSprite.tint = 0xFFFFFF; // 明るい色合いに変更
         
         // インタラクティブ設定
         this.monsterSprite.interactive = true;
@@ -316,7 +316,7 @@ export class FantasyPIXIInstance {
 
       // グラフィックスからテクスチャを生成
       const graphics = new PIXI.Graphics();
-      graphics.beginFill(0x666666);
+      graphics.beginFill(0xDDDDDD);
       graphics.drawCircle(64, 64, 64);
       graphics.endFill();
       
@@ -337,7 +337,7 @@ export class FantasyPIXIInstance {
       this.monsterSprite.anchor.set(0.5);
       this.monsterSprite.x = this.monsterState.x;
       this.monsterSprite.y = this.monsterState.y;
-      this.monsterSprite.tint = 0x666666;
+      this.monsterSprite.tint = 0xFFFFFF;
       
       // インタラクティブ設定
       this.monsterSprite.interactive = true;
