@@ -439,13 +439,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div className="text-yellow-300 text-2xl font-bold tracking-wider drop-shadow-lg">
             {gameState.currentChordTarget.displayName}
           </div>
-          {/* 音名表示（ヒントがONの場合） */}
-          {showGuide && gameState.currentChordTarget && (
+          {/* 音名表示（ヒントがONの場合は全表示、OFFでも正解した音は表示） */}
+          {gameState.currentChordTarget && (
             <div className="mt-1 text-lg font-medium">
               {gameState.currentChordTarget.notes.map((note, index) => {
                 const noteMod12 = note % 12;
                 const noteName = getNoteNameFromMidi(note);
                 const isCorrect = gameState.correctNotes.includes(noteMod12);
+                // showGuideがtrueなら全て表示、falseなら正解した音のみ表示
+                if (!showGuide && !isCorrect) {
+                  return null;
+                }
                 return (
                   <span key={index} className={`mx-1 ${isCorrect ? 'text-green-400' : 'text-gray-300'}`}>
                     {noteName}

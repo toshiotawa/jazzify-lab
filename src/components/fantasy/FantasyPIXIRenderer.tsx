@@ -393,10 +393,17 @@ export class FantasyPIXIInstance {
       
       this.monsterGameState.isHit = true;
       this.monsterGameState.hitColor = magic.color;
-      this.monsterGameState.staggerOffset = {
-        x: (Math.random() - 0.5) * 30,
-        y: (Math.random() - 0.5) * 15
-      };
+      
+      // 5発目の場合はよろめきエフェクトを無効化
+      if (this.monsterGameState.hitCount < 4) {
+        this.monsterGameState.staggerOffset = {
+          x: (Math.random() - 0.5) * 30,
+          y: (Math.random() - 0.5) * 15
+        };
+      } else {
+        // 5発目はよろめかない
+        this.monsterGameState.staggerOffset = { x: 0, y: 0 };
+      }
       
       const damage = Math.floor(Math.random() * (magic.damageRange[1] - magic.damageRange[0] + 1)) + magic.damageRange[0];
       this.createDamageNumber(damage, magic.color);
@@ -407,7 +414,12 @@ export class FantasyPIXIInstance {
       this.monsterGameState.hitCount++;
       this.monsterGameState.health = Math.max(0, this.monsterGameState.maxHealth - this.monsterGameState.hitCount);
       
-      this.createScreenShake(5, 200);
+      // 5発目の場合は画面揺れも軽減
+      if (this.monsterGameState.hitCount < 5) {
+        this.createScreenShake(5, 200);
+      } else {
+        this.createScreenShake(2, 100);
+      }
       
       // 5発で敵を倒す処理をフラグ管理に変更
       if (this.monsterGameState.hitCount >= 5) {
@@ -417,10 +429,16 @@ export class FantasyPIXIInstance {
         // ここにあった requestAnimationFrame を使った fadeOut 関数は完全に削除します
       }
       
-      setTimeout(() => {
+      // 5発目でない場合のみ、よろめきリセットのタイマーを設定
+      if (this.monsterGameState.hitCount < 5) {
+        setTimeout(() => {
+          this.monsterGameState.isHit = false;
+          this.monsterGameState.staggerOffset = { x: 0, y: 0 };
+        }, 300);
+      } else {
+        // 5発目は即座にリセット
         this.monsterGameState.isHit = false;
-        this.monsterGameState.staggerOffset = { x: 0, y: 0 };
-      }, 300);
+      }
       
       devLog.debug('⚔️ 攻撃成功:', { 
         magic: magic.name, 
@@ -663,23 +681,37 @@ export class FantasyPIXIInstance {
     if (this.isDestroyed || !this.monsterVisualState.visible) return;
     
     try {
-      // よろけ効果の適用（ビジュアル状態を更新）
-      this.monsterVisualState.x = (this.app.screen.width / 2) + this.monsterGameState.staggerOffset.x;
-      this.monsterVisualState.y = (this.app.screen.height / 2 - 20) + this.monsterGameState.staggerOffset.y;
+      // フェードアウト中は位置を固定
+      if (!this.monsterGameState.isFadingOut) {
+        // よろけ効果の適用（ビジュアル状態を更新）
+        this.monsterVisualState.x = (this.app.screen.width / 2) + this.monsterGameState.staggerOffset.x;
+        this.monsterVisualState.y = (this.app.screen.height / 2 - 20) + this.monsterGameState.staggerOffset.y;
+      }
       
       // 色変化の適用
       this.monsterVisualState.tint = this.monsterGameState.isHit 
         ? this.monsterGameState.hitColor 
         : this.monsterGameState.originalColor;
       
-      // アイドル時の軽い浮遊効果
-      if (!this.monsterGameState.isAttacking && !this.monsterGameState.isHit) {
+      // アイドル時の軽い浮遊効果（フェードアウト中は無効）
+      if (!this.monsterGameState.isAttacking && !this.monsterGameState.isHit && !this.monsterGameState.isFadingOut) {
         this.monsterVisualState.y += Math.sin(Date.now() * 0.002) * 0.5;
       }
       
-      // よろけ効果の減衰
-      this.monsterGameState.staggerOffset.x *= 0.9;
-      this.monsterGameState.staggerOffset.y *= 0.9;
+      // よろけ効果の減衰（フェードアウト中は無効）
+      if (!this.monsterGameState.isFadingOut) {
+        this.monsterGameState.staggerOffset.x *= 0.9;
+        this.monsterGameState.staggerOffset.y *= 0.9;
+      }
+      
+      // フェードアウト処理
+      if (this.monsterGameState.isFadingOut) {
+        this.monsterVisualState.alpha -= 0.05;
+        if (this.monsterVisualState.alpha <= 0) {
+          this.monsterVisualState.alpha = 0;
+          this.monsterVisualState.visible = false;
+        }
+      }
       
       // モンスタースプライトを更新
       this.updateMonsterSprite();
