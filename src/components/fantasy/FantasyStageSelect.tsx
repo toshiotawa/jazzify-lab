@@ -360,7 +360,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const totalCleared = userProgress ? userProgress.totalClearedStages : 0;
   
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto">
       {/* ヘッダー */}
       <div className="relative z-10 p-6 text-white">
         <div className="flex justify-between items-center">

@@ -212,8 +212,8 @@ const FantasyMain: React.FC = () => {
   // プレミアムプラン未加入の場合
   if (isGuest || !isPremiumOrHigher) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
-        <div className="text-white text-center max-w-md">
+      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center overflow-y-auto">
+        <div className="text-white text-center max-w-md p-4">
           <div className="text-6xl mb-6">🧙‍♂️</div>
           <h2 className="text-3xl font-bold mb-4">ファンタジーモード</h2>
           
@@ -268,8 +268,8 @@ const FantasyMain: React.FC = () => {
   // ゲーム結果画面
   if (showResult && gameResult) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
-        <div className="text-white text-center max-w-md">
+      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center overflow-y-auto">
+        <div className="text-white text-center max-w-md p-4">
           {/* 結果アイコン */}
           <div className="text-8xl mb-6">
             {gameResult.result === 'clear' ? '🏆' : '💀'}

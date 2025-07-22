@@ -15,7 +15,7 @@ import {
   MdLoop,
   MdReplay
 } from 'react-icons/md';
-import FPSMonitor from '@/components/ui/FPSMonitor';
+
 
 /**
  * ゲームコントロールバーコンポーネント
@@ -401,7 +401,7 @@ const ControlBar: React.FC = () => {
         
         {/* 右側: FPSモニター、設定、楽譜表示、シークバー切り替えボタン */}
         <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
-          <FPSMonitor minimal={true} className="flex-shrink-0" />
+
           
           {/* 設定ボタン */}
           <button
