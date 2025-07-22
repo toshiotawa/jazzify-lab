@@ -20,7 +20,14 @@ import {
   faSkull,
   faFire,
   faSnowflake,
-  faKhanda
+  faKhanda,
+  faUserSecret,
+  faSpider,
+  faFish,
+  faDog,
+  faBiohazard,
+  faBug,
+  faPaw
 } from '@fortawesome/free-solid-svg-icons';
 import { cn } from '@/utils/cn';
 
@@ -52,13 +59,13 @@ const MONSTER_ICONS: Record<string, any> = {
   'fire': faFire,
   'ice': faSnowflake,
   'lightning': faBolt,
-  // ファンタジーモード用の敵アイコンマッピング
-  'vampire': faGhost,
-  'monster': faGhost,
+  // ファンタジーモード用の敵アイコンマッピング - 適切なアイコンに変更
+  'vampire': faUserSecret,
+  'monster': faSpider,
   'reaper': faSkull,
-  'kraken': faGhost,
-  'werewolf': faGhost,
-  'demon': faGhost
+  'kraken': faFish,
+  'werewolf': faDog,
+  'demon': faKhanda
 };
 
 // モンスターサイズ設定
