@@ -108,14 +108,14 @@ const MAGIC_TYPES: Record<string, MagicType> = {
   }
 };
 
-// ===== SVGモンスターマッピング =====
-const MONSTER_SVG_PATHS: Record<string, string> = {
-  'vampire': './ドラキュラアイコン8.svg', // ./ を追加
-  'monster': './怪獣アイコン.svg',
-  'reaper': './死神アイコン1.svg',
-  'kraken': './海の怪物クラーケンのアイコン素材.svg',
-  'werewolf': './狼男のイラスト4.svg',
-  'demon': './魔王のアイコン素材.svg'
+// ===== 絵文字モンスターマッピング（モノクロ） =====
+const MONSTER_EMOJI: Record<string, string> = {
+  'vampire': '🧛',
+  'monster': '👹',
+  'reaper': '💀',
+  'kraken': '🐙',
+  'werewolf': '🐺',
+  'demon': '👿'
 };
 
 // ===== PIXI インスタンスクラス =====
@@ -139,7 +139,7 @@ export class FantasyPIXIInstance {
   
   private currentMagicType: string = 'fire';
   private enemyHitCount: number = 0;
-  private svgTextures: Map<string, PIXI.Texture> = new Map();
+  private emojiTextures: Map<string, PIXI.Texture> = new Map();
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
@@ -185,8 +185,8 @@ export class FantasyPIXIInstance {
       rotation: 0
     };
     
-    // SVGテクスチャの事前読み込み
-    this.loadSVGTextures();
+    // 絵文字テクスチャの事前読み込み
+    this.loadEmojiTextures();
     
     // アニメーションループ開始
     this.startAnimationLoop();
@@ -194,29 +194,37 @@ export class FantasyPIXIInstance {
     devLog.debug('✅ ファンタジーPIXI初期化完了（SVGサポート付き）');
   }
 
-  // SVGテクスチャの読み込み
-  private async loadSVGTextures(): Promise<void> {
+  // 絵文字テクスチャの読み込み
+  private async loadEmojiTextures(): Promise<void> {
     try {
-      for (const [monsterKey, svgPath] of Object.entries(MONSTER_SVG_PATHS)) {
-        // SVGをHTMLImageElementとして読み込み
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
+      for (const [monsterKey, emoji] of Object.entries(MONSTER_EMOJI)) {
+        // 絵文字をCanvasに描画してテクスチャを作成
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) continue;
         
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = svgPath;
-        });
+        canvas.width = 128;
+        canvas.height = 128;
+        
+        // 背景を透明に
+        ctx.clearRect(0, 0, 128, 128);
+        
+        // 絵文字を中央に描画（モノクロ色合い）
+        ctx.font = '80px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#666666'; // モノクロ色合い
+        ctx.fillText(emoji, 64, 64);
         
         // PIXIテクスチャに変換
-        const baseTexture = new PIXI.BaseTexture(img);
+        const baseTexture = new PIXI.BaseTexture(canvas);
         const texture = new PIXI.Texture(baseTexture);
         
-        this.svgTextures.set(monsterKey, texture);
-        devLog.debug(`✅ SVGテクスチャ読み込み完了: ${monsterKey}`);
+        this.emojiTextures.set(monsterKey, texture);
+        devLog.debug(`✅ 絵文字テクスチャ作成完了: ${monsterKey} (${emoji})`);
       }
     } catch (error) {
-      devLog.debug('❌ SVGテクスチャ読み込みエラー:', error);
+      devLog.debug('❌ 絵文字テクスチャ作成エラー:', error);
       // フォールバック用の空テクスチャを作成
       this.createFallbackTextures();
     }
@@ -231,8 +239,8 @@ export class FantasyPIXIInstance {
     
     const fallbackTexture = this.app.renderer.generateTexture(graphics);
     
-    Object.keys(MONSTER_SVG_PATHS).forEach(key => {
-      this.svgTextures.set(key, fallbackTexture);
+    Object.keys(MONSTER_EMOJI).forEach(key => {
+      this.emojiTextures.set(key, fallbackTexture);
     });
   }
 
@@ -247,8 +255,8 @@ export class FantasyPIXIInstance {
         this.monsterSprite = null;
       }
 
-      // SVGテクスチャを取得
-      const texture = this.svgTextures.get(icon) || this.svgTextures.get('vampire');
+      // 絵文字テクスチャを取得
+      const texture = this.emojiTextures.get(icon) || this.emojiTextures.get('vampire');
       
       if (texture) {
         this.monsterSprite = new PIXI.Sprite(texture);
@@ -360,7 +368,7 @@ export class FantasyPIXIInstance {
         this.monsterState.staggerOffset = { x: 0, y: 0 };
       }, 300);
       
-      devLog.debug('⚔️ 攻撃成功:', { magic: magic.name, damage, hitCount: this.enemyHitCount });
+      devLog.debug('⚔️ 攻撃成功:', { magic: magic.name, damage, hitCount: this.enemyHitCount, enemyHp: this.monsterState.health });
     } catch (error) {
       devLog.debug('❌ 攻撃成功エフェクトエラー:', error);
     }
@@ -469,7 +477,7 @@ export class FantasyPIXIInstance {
         this.monsterSprite.alpha = 1;
         
         // ランダムな新しいモンスターを選択
-        const monsterKeys = Object.keys(MONSTER_SVG_PATHS);
+        const monsterKeys = Object.keys(MONSTER_EMOJI);
         const randomKey = monsterKeys[Math.floor(Math.random() * monsterKeys.length)];
         this.createMonsterSprite(randomKey);
       }
@@ -767,8 +775,8 @@ export class FantasyPIXIInstance {
     }
     
     // テクスチャクリーンアップ
-    this.svgTextures.forEach(texture => texture.destroy(true));
-    this.svgTextures.clear();
+    this.emojiTextures.forEach((texture: PIXI.Texture) => texture.destroy(true));
+    this.emojiTextures.clear();
     
     this.app.destroy(true, { children: true });
     devLog.debug('🗑️ FantasyPIXI破棄完了');

@@ -298,10 +298,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-2 text-white flex-shrink-0">
         <div className="flex justify-between items-center">
-          {/* ステージ情報のみ */}
+          {/* ステージ情報と敵の数 */}
           <div className="flex items-center space-x-4">
             <div className="text-base font-bold">
               Stage {stage.stageNumber}
+            </div>
+            <div className="text-sm text-gray-300">
+              敵の数: {Math.ceil(stage.questionCount / 5)}
             </div>
           </div>
           
@@ -386,7 +389,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             height={120}
             currentTime={0}
             onReady={handlePixiReady}
-            className="min-w-full h-full"
+            className="w-full h-full"
           />
         </div>
         
