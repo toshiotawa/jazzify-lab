@@ -329,8 +329,8 @@ export class FantasyPIXIInstance {
       // 魔法名表示
       this.showMagicName(magic.name);
       
-      // 魔法陣エフェクト
-      this.createMagicCircle(this.monsterState.x, this.monsterState.y, 'success');
+      // 魔法陣エフェクト - 削除
+      // this.createMagicCircle(this.monsterState.x, this.monsterState.y, 'success');
       
       // 敵の色変化とよろけ
       this.monsterState.isHit = true;
@@ -596,8 +596,8 @@ export class FantasyPIXIInstance {
       this.monsterSprite.tint = 0xFF6B6B;
       this.monsterSprite.scale.set(1.3);
       
-      // 攻撃エフェクト
-      this.createMagicCircle(this.monsterState.x, this.monsterState.y, 'failure');
+      // 攻撃エフェクト - 魔法陣削除
+      // this.createMagicCircle(this.monsterState.x, this.monsterState.y, 'failure');
       
       setTimeout(() => {
         if (this.monsterSprite) {
