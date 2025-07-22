@@ -29,11 +29,16 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: null,
     volume: 0.8,
-    showGuide: false
+    showGuide: true // デフォルトでハイライトON
   });
   
   const [midiController, setMidiController] = useState<MIDIController | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+
+  // 初期設定を親に通知
+  useEffect(() => {
+    onSettingsChange?.(settings);
+  }, []); // 初回のみ実行
 
   // MIDIコントローラーの初期化
   useEffect(() => {

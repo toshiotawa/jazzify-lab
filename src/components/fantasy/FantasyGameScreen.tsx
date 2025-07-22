@@ -19,6 +19,13 @@ interface FantasyGameScreenProps {
   onBackToStageSelect: () => void;
 }
 
+// ファンタジーモード設定の型定義
+interface FantasySettings {
+  midiDeviceId: string | null;
+  volume: number;
+  showGuide: boolean;
+}
+
 // 不要な定数とインターフェースを削除（PIXI側で処理）
 
 const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
@@ -32,8 +39,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [isMonsterAttacking, setIsMonsterAttacking] = useState(false);
   const [damageShake, setDamageShake] = useState(false);
   
-  // 設定モーダル状態
+  // 設定モーダル状態と設定値
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [fantasySettings, setFantasySettings] = useState<FantasySettings>({
+    midiDeviceId: null,
+    volume: 0.8,
+    showGuide: true // デフォルトでハイライトON
+  });
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -41,6 +53,30 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
+  // 🎹 鍵盤ハイライト更新関数
+  const updateKeyboardHighlight = useCallback((currentChord: ChordDefinition | null) => {
+    if (!pixiRenderer) return;
+
+    // まず全ての鍵盤のハイライトをクリア
+    for (let note = 21; note <= 108; note++) {
+      pixiRenderer.highlightKey(note, false);
+    }
+
+    // ガイド表示がONかつ現在のコードがある場合のみハイライト
+    if (fantasySettings.showGuide && currentChord) {
+      devLog.debug('🎹 鍵盤ハイライト更新:', {
+        chord: currentChord.displayName,
+        notes: currentChord.notes,
+        showGuide: fantasySettings.showGuide
+      });
+
+      // 現在のコードの構成音をハイライト
+      currentChord.notes.forEach(note => {
+        pixiRenderer.highlightKey(note, true);
+      });
+    }
+  }, [pixiRenderer, fantasySettings.showGuide]);
+
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
     devLog.debug('🎮 ファンタジーゲーム状態更新:', {
@@ -53,7 +89,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       score: state.score,
       correctAnswers: state.correctAnswers
     });
-  }, []);
+
+    // 🎹 鍵盤ハイライト更新
+    updateKeyboardHighlight(state.currentChordTarget);
+  }, [updateKeyboardHighlight]);
+
+  // 設定変更ハンドラー
+  const handleFantasySettingsChange = useCallback((newSettings: FantasySettings) => {
+    devLog.debug('⚙️ ファンタジー設定変更:', newSettings);
+    const prevShowGuide = fantasySettings.showGuide;
+    setFantasySettings(newSettings);
+    
+    // 鍵盤ハイライト設定が変更された場合、即座に反映
+    if (newSettings.showGuide !== prevShowGuide) {
+      // setStateの更新は非同期なので、新しい設定値を直接使用
+      if (!pixiRenderer) return;
+      
+      // まず全ての鍵盤のハイライトをクリア
+      for (let note = 21; note <= 108; note++) {
+        pixiRenderer.highlightKey(note, false);
+      }
+      
+      // 新しい設定でハイライト更新
+      if (newSettings.showGuide && gameState.currentChordTarget) {
+        gameState.currentChordTarget.notes.forEach(note => {
+          pixiRenderer.highlightKey(note, true);
+        });
+      }
+    }
+  }, [fantasySettings.showGuide, pixiRenderer, gameState.currentChordTarget]);
   
   const handleChordCorrect = useCallback((chord: ChordDefinition) => {
     devLog.debug('✅ 正解:', chord.displayName);
@@ -170,9 +234,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         (note: number) => { /* キー離す処理は必要に応じて */ }
       );
       
+      // 🎹 初期ハイライト設定を適用
+      setTimeout(() => {
+        updateKeyboardHighlight(gameState.currentChordTarget);
+      }, 100); // PIXIレンダラーの初期化完了を待つ
+      
       devLog.debug('🎮 PIXI.js ファンタジーモード準備完了');
     }
-  }, [handleNoteInputBridge, gameAreaSize]);
+  }, [handleNoteInputBridge, gameAreaSize, updateKeyboardHighlight, gameState.currentChordTarget]);
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
@@ -222,6 +291,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       devLog.debug('🔄 モンスタースプライト更新:', { monster: currentEnemy.icon });
     }
   }, [fantasyPixiInstance, currentEnemy]);
+
+  // 🎹 ゲーム状態変更時にハイライト更新
+  useEffect(() => {
+    updateKeyboardHighlight(gameState.currentChordTarget);
+  }, [gameState.currentChordTarget, updateKeyboardHighlight]);
+
+  // 🎹 設定変更時にハイライト更新
+  useEffect(() => {
+    updateKeyboardHighlight(gameState.currentChordTarget);
+  }, [fantasySettings.showGuide, updateKeyboardHighlight, gameState.currentChordTarget]);
   
   // HPハート表示（モノクロ）
   const renderHearts = useCallback(() => {
@@ -467,9 +546,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <FantasySettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        onSettingsChange={(settings) => {
-          devLog.debug('⚙️ ファンタジー設定変更:', settings);
-        }}
+        onSettingsChange={handleFantasySettingsChange}
       />
     </div>
   );
