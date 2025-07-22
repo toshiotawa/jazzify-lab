@@ -50,6 +50,9 @@ interface FantasyGameState {
   currentEnemyHits: number;
   enemiesDefeated: number;
   totalEnemies: number;
+  // 敵のHP管理を追加
+  currentEnemyHp: number;
+  maxEnemyHp: number;
 }
 
 interface FantasyGameEngineProps {
@@ -223,7 +226,10 @@ export const useFantasyGameEngine = ({
     currentEnemyIndex: 0,
     currentEnemyHits: 0,
     enemiesDefeated: 0,
-    totalEnemies: 5
+    totalEnemies: 5,
+    // 敵のHP管理を追加
+    currentEnemyHp: 5,
+    maxEnemyHp: 5
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -271,7 +277,10 @@ export const useFantasyGameEngine = ({
       currentEnemyIndex: 0,
       currentEnemyHits: 0,
       enemiesDefeated: 0,
-      totalEnemies: 5
+      totalEnemies: 5,
+      // 敵のHP管理を追加
+      currentEnemyHp: 5,
+      maxEnemyHp: 5
     };
     
     setGameState(newState);
@@ -532,16 +541,25 @@ export const useFantasyGameEngine = ({
       
       setGameState(prevState => {
         const newHits = prevState.currentEnemyHits + 1;
+        const newEnemyHp = Math.max(0, prevState.currentEnemyHp - 1); // 敵のHPを1減らす
+        
         let nextState = {
           ...prevState,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 1000,
           enemyGauge: 0, // ゲージをリセット
-          currentEnemyHits: newHits
+          currentEnemyHits: newHits,
+          currentEnemyHp: newEnemyHp
         };
         
-        // 敵を倒したか判定（5回攻撃で倒れる）
-        if (newHits >= 5) {
+        devLog.debug('⚔️ 敵にダメージ:', {
+          oldHp: prevState.currentEnemyHp,
+          newHp: newEnemyHp,
+          hits: newHits
+        });
+        
+        // 敵を倒したか判定（HPが0になったら倒れる）
+        if (newEnemyHp <= 0) {
           const newEnemiesDefeated = prevState.enemiesDefeated + 1;
           const nextEnemyIndex = prevState.currentEnemyIndex + 1;
           
@@ -564,13 +582,15 @@ export const useFantasyGameEngine = ({
               ...nextState,
               currentEnemyIndex: nextEnemyIndex,
               currentEnemyHits: 0,
-              enemiesDefeated: newEnemiesDefeated
+              enemiesDefeated: newEnemiesDefeated,
+              currentEnemyHp: prevState.maxEnemyHp, // 新しい敵のHPをフル回復
             };
             
             devLog.debug('👹 敵を倒した！次の敵が出現:', { 
               defeatedEnemies: newEnemiesDefeated,
               nextEnemyIndex,
-              nextEnemy: ENEMY_LIST[nextEnemyIndex]?.name 
+              nextEnemy: ENEMY_LIST[nextEnemyIndex]?.name,
+              newEnemyHp: prevState.maxEnemyHp
             });
           }
         }
