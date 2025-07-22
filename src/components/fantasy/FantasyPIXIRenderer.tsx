@@ -665,7 +665,12 @@ export class FantasyPIXIInstance {
     // ローカル参照を取得して、更新途中に this.monsterSprite が破棄されても
     // 例外にならないようにする
     const sprite = this.monsterSprite;
-    if (!sprite || this.isDestroyed || sprite.destroyed) {
+    if (
+      !sprite || 
+      this.isDestroyed || 
+      sprite.destroyed ||
+      !sprite.transform  // transform が生きているかまでチェック
+    ) {
       return;
     }
 
