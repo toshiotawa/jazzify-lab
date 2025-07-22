@@ -35,6 +35,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
+  // 設定状態を管理（初期値はstageから取得）
+  const [showGuide, setShowGuide] = useState(stage.showGuide);
+  
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
@@ -186,7 +189,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         noteWidth: dynamicNoteWidth,
         transpose: 0,
         transposingInstrument: 'concert_pitch',
-        practiceGuide: stage.showGuide ? 'key' : 'off', // ガイド表示設定に基づく
+        practiceGuide: showGuide ? 'key' : 'off', // ガイド表示設定に基づく
         showHitLine: false, // ヒットラインを非表示
         viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
         timingAdjustment: 0,
@@ -213,10 +216,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         totalWhiteKeys,
         whiteKeyWidth: whiteKeyWidth.toFixed(2),
         noteWidth: dynamicNoteWidth.toFixed(2),
-        showGuide: stage.showGuide
+        showGuide: showGuide
       });
     }
-  }, [handleNoteInputBridge, stage.showGuide]);
+  }, [handleNoteInputBridge, showGuide]);
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
@@ -575,6 +578,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onClose={() => setIsSettingsModalOpen(false)}
         onSettingsChange={(settings) => {
           devLog.debug('⚙️ ファンタジー設定変更:', settings);
+          setShowGuide(settings.showGuide);
         }}
       />
     </div>
