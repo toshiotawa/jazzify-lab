@@ -626,16 +626,27 @@ export class FantasyPIXIInstance {
 
   // モンスターアニメーション更新
   private updateMonsterAnimation(): void {
+    // 破棄済みチェック
+    if (this.isDestroyed) {
+      return;
+    }
+    
     // ローカル参照を取得して、更新途中に this.monsterSprite が破棄されても
     // 例外にならないようにする
     const sprite = this.monsterSprite;
-    if (!sprite || this.isDestroyed || sprite.destroyed) {
+    if (!sprite || sprite.destroyed) {
+      return;
+    }
+    
+    // monsterStateの存在チェック
+    if (!this.monsterState) {
+      devLog.debug('⚠️ モンスターステートが未初期化です');
       return;
     }
 
     try {
       // プロパティ存在チェック
-      if (typeof sprite.x === 'undefined') {
+      if (typeof sprite.x === 'undefined' || typeof sprite.y === 'undefined') {
         devLog.debug('⚠️ モンスタースプライトが無効な状態です (prop undefined)');
         return;
       }
@@ -789,6 +800,30 @@ export class FantasyPIXIInstance {
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
+    }
+    
+    // モンスタースプライトの明示的な破棄
+    if (this.monsterSprite) {
+      try {
+        if (!this.monsterSprite.destroyed) {
+          this.monsterSprite.destroy();
+        }
+      } catch (error) {
+        devLog.debug('⚠️ モンスタースプライト破棄エラー:', error);
+      }
+      this.monsterSprite = null;
+    }
+    
+    // 魔法名テキストの破棄
+    if (this.magicNameText) {
+      try {
+        if (!this.magicNameText.destroyed) {
+          this.magicNameText.destroy();
+        }
+      } catch (error) {
+        devLog.debug('⚠️ 魔法名テキスト破棄エラー:', error);
+      }
+      this.magicNameText = null;
     }
     
     // テクスチャクリーンアップ
