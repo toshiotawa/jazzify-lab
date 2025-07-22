@@ -282,15 +282,19 @@ export class FantasyPIXIInstance {
       
       if (texture) {
         // 既存のスプライトのテクスチャを更新（スプライト自体は破棄しない）
-        this.monsterSprite.texture = texture;
+        if (this.monsterSprite && texture) {
+          this.monsterSprite.texture = texture;
+        }
         
-        // ビジュアル状態をリセット
+        // ビジュアル状態をリセット（safe defaults）
         this.monsterVisualState = {
-          ...this.monsterVisualState,
-          alpha: 1.0,
-          visible: true,
+          x: this.app.screen.width / 2,
+          y: this.app.screen.height / 2 - 20,
+          scale: 1.0,
+          rotation: 0,
           tint: 0xFFFFFF,
-          scale: 1.0
+          alpha: 1.0,
+          visible: true
         };
         
         // ゲーム状態もリセット
@@ -333,15 +337,19 @@ export class FantasyPIXIInstance {
       graphics.destroy();
       
       // 既存のスプライトのテクスチャを更新
-      this.monsterSprite.texture = texture;
+      if (this.monsterSprite && texture) {
+        this.monsterSprite.texture = texture;
+      }
       
-      // ビジュアル状態をリセット
+      // ビジュアル状態をリセット（safe defaults）
       this.monsterVisualState = {
-        ...this.monsterVisualState,
-        alpha: 1.0,
-        visible: true,
+        x: this.app.screen.width / 2,
+        y: this.app.screen.height / 2 - 20,
+        scale: 1.0,
+        rotation: 0,
         tint: 0xFFFFFF,
-        scale: 1.0
+        alpha: 1.0,
+        visible: true
       };
       
       // スプライトの属性を更新
@@ -355,16 +363,25 @@ export class FantasyPIXIInstance {
 
   // モンスタースプライトの属性を安全に更新
   private updateMonsterSprite(): void {
-    if (this.isDestroyed || !this.monsterSprite) return;
+    if (this.isDestroyed || !this.monsterSprite || !this.monsterVisualState) return;
     
-    // ビジュアル状態を適用（絶対にnullにならない）
-    this.monsterSprite.x = this.monsterVisualState.x;
-    this.monsterSprite.y = this.monsterVisualState.y;
-    this.monsterSprite.scale.set(this.monsterVisualState.scale);
-    this.monsterSprite.rotation = this.monsterVisualState.rotation;
-    this.monsterSprite.tint = this.monsterVisualState.tint;
-    this.monsterSprite.alpha = this.monsterVisualState.alpha;
-    this.monsterSprite.visible = this.monsterVisualState.visible;
+    // ビジュアル状態の値を安全にチェック
+    const safeX = typeof this.monsterVisualState.x === 'number' ? this.monsterVisualState.x : this.app.screen.width / 2;
+    const safeY = typeof this.monsterVisualState.y === 'number' ? this.monsterVisualState.y : this.app.screen.height / 2;
+    const safeScale = typeof this.monsterVisualState.scale === 'number' ? this.monsterVisualState.scale : 1.0;
+    const safeRotation = typeof this.monsterVisualState.rotation === 'number' ? this.monsterVisualState.rotation : 0;
+    const safeTint = typeof this.monsterVisualState.tint === 'number' ? this.monsterVisualState.tint : 0xFFFFFF;
+    const safeAlpha = typeof this.monsterVisualState.alpha === 'number' ? this.monsterVisualState.alpha : 1.0;
+    const safeVisible = typeof this.monsterVisualState.visible === 'boolean' ? this.monsterVisualState.visible : true;
+    
+    // ビジュアル状態を適用（安全な値のみ使用）
+    this.monsterSprite.x = safeX;
+    this.monsterSprite.y = safeY;
+    this.monsterSprite.scale.set(safeScale);
+    this.monsterSprite.rotation = safeRotation;
+    this.monsterSprite.tint = safeTint;
+    this.monsterSprite.alpha = safeAlpha;
+    this.monsterSprite.visible = safeVisible;
   }
 
   // 攻撃成功エフェクト
