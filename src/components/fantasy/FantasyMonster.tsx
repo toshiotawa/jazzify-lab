@@ -27,7 +27,10 @@ import {
   faDog,
   faBiohazard,
   faBug,
-  faPaw
+  faPaw,
+  faHatWizard,
+  faCrow,
+  faEye
 } from '@fortawesome/free-solid-svg-icons';
 import { cn } from '@/utils/cn';
 
@@ -59,13 +62,13 @@ const MONSTER_ICONS: Record<string, any> = {
   'fire': faFire,
   'ice': faSnowflake,
   'lightning': faBolt,
-  // ファンタジーモード用の敵アイコンマッピング - 適切なアイコンに変更
-  'vampire': faGhost,
-  'monster': faSpider,
-  'reaper': faSkull,
-  'kraken': faFish,
-  'werewolf': faDog,
-  'demon': faKhanda
+  // ファンタジーモード用の敵アイコンマッピング - より適切なアイコンに変更
+  'vampire': faSkull, // バンパイア：頭蓋骨で威圧感を演出
+  'monster': faSpider, // モンスター：蜘蛛のまま
+  'reaper': faHatWizard, // 死神：魔法使いの帽子で神秘的に
+  'kraken': faEye, // クラーケン：目玉で不気味さを演出
+  'werewolf': faCrow, // 人狼：カラスで野生感を演出
+  'demon': faFire // 悪魔：炎で地獄感を演出
 };
 
 // モンスターサイズ設定
@@ -90,31 +93,31 @@ const SIZE_CONFIGS = {
   }
 };
 
-// モンスター特性（アイコンごとの特殊効果）- 単色設定
+// モンスター特性（アイコンごとの特殊効果）- 明るい色に変更
 const MONSTER_TRAITS: Record<string, { color: string; glowColor: string; specialEffect?: string }> = {
-  'ghost': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'float' },
-  'tree': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'sway' },
-  'seedling': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
-  'droplet': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'bounce' },
-  'sun': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'pulse' },
-  'rock': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
-  'sparkles': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'sparkle' },
-  'gem': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'shine' },
-  'wind_face': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'float' },
-  'zap': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'shake' },
-  'star2': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'twinkle' },
-  'dragon': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
-  'skull': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
-  'fire': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
-  'ice': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
-  'lightning': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
-  // ファンタジーモード用の敵特性
-  'vampire': { color: 'text-white', glowColor: 'drop-shadow-lg', specialEffect: 'float' },
-  'monster': { color: 'text-purple-400', glowColor: 'drop-shadow-lg', specialEffect: 'pulse' },
-  'reaper': { color: 'text-gray-200', glowColor: 'drop-shadow-lg', specialEffect: 'float' },
-  'kraken': { color: 'text-blue-400', glowColor: 'drop-shadow-lg', specialEffect: 'pulse' },
-  'werewolf': { color: 'text-amber-400', glowColor: 'drop-shadow-lg', specialEffect: 'shake' },
-  'demon': { color: 'text-red-400', glowColor: 'drop-shadow-lg', specialEffect: 'pulse' }
+  'ghost': { color: 'text-blue-200', glowColor: 'drop-shadow-md', specialEffect: 'float' },
+  'tree': { color: 'text-green-400', glowColor: 'drop-shadow-md', specialEffect: 'sway' },
+  'seedling': { color: 'text-green-300', glowColor: 'drop-shadow-md' },
+  'droplet': { color: 'text-blue-400', glowColor: 'drop-shadow-md', specialEffect: 'bounce' },
+  'sun': { color: 'text-yellow-400', glowColor: 'drop-shadow-md', specialEffect: 'pulse' },
+  'rock': { color: 'text-stone-400', glowColor: 'drop-shadow-md' },
+  'sparkles': { color: 'text-yellow-300', glowColor: 'drop-shadow-md', specialEffect: 'sparkle' },
+  'gem': { color: 'text-cyan-400', glowColor: 'drop-shadow-md', specialEffect: 'shine' },
+  'wind_face': { color: 'text-sky-300', glowColor: 'drop-shadow-md', specialEffect: 'float' },
+  'zap': { color: 'text-yellow-400', glowColor: 'drop-shadow-md', specialEffect: 'shake' },
+  'star2': { color: 'text-yellow-300', glowColor: 'drop-shadow-md', specialEffect: 'twinkle' },
+  'dragon': { color: 'text-red-500', glowColor: 'drop-shadow-md' },
+  'skull': { color: 'text-red-400', glowColor: 'drop-shadow-md' },
+  'fire': { color: 'text-orange-400', glowColor: 'drop-shadow-md' },
+  'ice': { color: 'text-cyan-300', glowColor: 'drop-shadow-md' },
+  'lightning': { color: 'text-yellow-400', glowColor: 'drop-shadow-md' },
+  // ファンタジーモード用の敵特性 - 明るく見やすい色に変更
+  'vampire': { color: 'text-red-300', glowColor: 'drop-shadow-lg', specialEffect: 'float' },
+  'monster': { color: 'text-purple-300', glowColor: 'drop-shadow-lg', specialEffect: 'pulse' },
+  'reaper': { color: 'text-cyan-300', glowColor: 'drop-shadow-lg', specialEffect: 'float' },
+  'kraken': { color: 'text-blue-300', glowColor: 'drop-shadow-lg', specialEffect: 'pulse' },
+  'werewolf': { color: 'text-amber-300', glowColor: 'drop-shadow-lg', specialEffect: 'shake' },
+  'demon': { color: 'text-orange-300', glowColor: 'drop-shadow-lg', specialEffect: 'pulse' }
 };
 
 const FantasyMonster: React.FC<FantasyMonsterProps> = ({
