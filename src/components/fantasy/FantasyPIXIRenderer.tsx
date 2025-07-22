@@ -274,7 +274,7 @@ export class FantasyPIXIInstance {
 
   // モンスタースプライト作成（SVGベース）
   async createMonsterSprite(icon: string): Promise<void> {
-    if (this.isDestroyed) return;
+    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed) return;
     
     try {
       // 絵文字テクスチャを取得
@@ -376,15 +376,30 @@ export class FantasyPIXIInstance {
     
     // ビジュアル状態を適用（安全な値のみ使用）
     try {
-      this.monsterSprite.x = safeX;
-      this.monsterSprite.y = safeY;
-      this.monsterSprite.scale.set(safeScale);
-      this.monsterSprite.rotation = safeRotation;
-      this.monsterSprite.tint = safeTint;
-      this.monsterSprite.alpha = safeAlpha;
-      this.monsterSprite.visible = safeVisible;
+      // 各プロパティを個別にチェックして設定
+      if (this.monsterSprite && !this.monsterSprite.destroyed) {
+        this.monsterSprite.x = safeX;
+        this.monsterSprite.y = safeY;
+        
+        if (this.monsterSprite.scale && typeof this.monsterSprite.scale.set === 'function') {
+          this.monsterSprite.scale.set(safeScale);
+        }
+        
+        this.monsterSprite.rotation = safeRotation;
+        this.monsterSprite.tint = safeTint;
+        this.monsterSprite.alpha = safeAlpha;
+        this.monsterSprite.visible = safeVisible;
+      }
     } catch (error) {
       devLog.debug('⚠️ モンスタースプライト更新エラー:', error);
+      // エラー時はスプライトの状態をリセット
+      if (this.monsterSprite && !this.monsterSprite.destroyed) {
+        try {
+          this.monsterSprite.visible = false;
+        } catch (e) {
+          // 最終的な安全措置
+        }
+      }
     }
   }
 
@@ -690,7 +705,7 @@ export class FantasyPIXIInstance {
 
   // モンスターアニメーション更新（安全バージョン）
   private updateMonsterAnimation(): void {
-    if (this.isDestroyed || !this.monsterSprite || !this.monsterVisualState) return;
+    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed || !this.monsterVisualState) return;
     
     try {
       // よろけ効果の適用（ビジュアル状態を更新）
