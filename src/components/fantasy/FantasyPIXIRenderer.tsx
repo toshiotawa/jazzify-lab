@@ -154,6 +154,23 @@ export class FantasyPIXIInstance {
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
+  
+  // 画面揺れ関連のプロパティ
+  private screenShakeState: {
+    isActive: boolean;
+    intensity: number;
+    duration: number;
+    elapsed: number;
+    originalX: number;
+    originalY: number;
+  } = {
+    isActive: false,
+    intensity: 0,
+    duration: 0,
+    elapsed: 0,
+    originalX: 0,
+    originalY: 0
+  };
 
   constructor(width: number, height: number) {
     // PIXI アプリケーション初期化
@@ -498,28 +515,41 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // 画面震動エフェクト
+  // 画面震動エフェクト（setTimeout を使わない安全な実装）
   private createScreenShake(intensity: number, duration: number): void {
-    let shakeTime = 0;
-    const originalX = this.app.stage.x;
-    const originalY = this.app.stage.y;
+    if (this.isDestroyed) return;
     
-    const shake = () => {
-      if (shakeTime >= duration) {
-        this.app.stage.x = originalX;
-        this.app.stage.y = originalY;
-        return;
-      }
-      
-      const shakeIntensity = intensity * (1 - shakeTime / duration);
-      this.app.stage.x = originalX + (Math.random() - 0.5) * shakeIntensity;
-      this.app.stage.y = originalY + (Math.random() - 0.5) * shakeIntensity;
-      
-      shakeTime += 16;
-      setTimeout(shake, 16);
+    this.screenShakeState = {
+      isActive: true,
+      intensity,
+      duration,
+      elapsed: 0,
+      originalX: this.app.stage.x,
+      originalY: this.app.stage.y
     };
+  }
+
+  // 画面揺れの更新（アニメーションループから呼び出し）
+  private updateScreenShake(): void {
+    if (this.isDestroyed || !this.screenShakeState.isActive) return;
     
-    shake();
+    this.screenShakeState.elapsed += 16; // 約60FPSで16ms刻み
+    
+    if (this.screenShakeState.elapsed >= this.screenShakeState.duration) {
+      // 揺れ終了：元の位置に戻す
+      this.app.stage.x = this.screenShakeState.originalX;
+      this.app.stage.y = this.screenShakeState.originalY;
+      this.screenShakeState.isActive = false;
+      return;
+    }
+    
+    // 揺れの強度を時間経過とともに減衰
+    const progress = this.screenShakeState.elapsed / this.screenShakeState.duration;
+    const currentIntensity = this.screenShakeState.intensity * (1 - progress);
+    
+    // ランダムなオフセットを適用
+    this.app.stage.x = this.screenShakeState.originalX + (Math.random() - 0.5) * currentIntensity;
+    this.app.stage.y = this.screenShakeState.originalY + (Math.random() - 0.5) * currentIntensity;
   }
 
   // ダメージ数値作成
@@ -651,6 +681,7 @@ export class FantasyPIXIInstance {
       this.updateParticles();
       this.updateMagicCircles();
       this.updateDamageNumbers();
+      this.updateScreenShake(); // 画面揺れの更新を追加
       
       this.animationFrameId = requestAnimationFrame(animate);
     };
