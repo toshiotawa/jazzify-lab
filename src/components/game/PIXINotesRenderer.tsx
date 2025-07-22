@@ -1,6 +1,8 @@
 /**
  * Phase 3: PIXI.js ノーツレンダリングシステム
  * 高性能なノーツ降下アニメーション - ParticleContainer + テクスチャ最適化版
+ * 
+ * 🚀 改良版: "Cannot set properties of null" を根本的に防ぐ設計
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -9,6 +11,200 @@ import type { ActiveNote } from '@/types';
 import { performanceMonitor } from '@/utils/performanceOptimizer';
 import { log, perfLog } from '@/utils/logger';
 import { cn } from '@/utils/cn';
+
+// ===== 破棄管理システム =====
+/**
+ * 1. 破棄を1か所に集約 - "Dispose Manager"
+ * バラバラのdestroy()呼び出しは漏れや二重実行が起こりがちなので一元管理する
+ */
+class DisposeManager {
+  private disposables: (() => void)[] = [];
+  private isDisposed: boolean = false;
+
+  add(fn: () => void): void {
+    if (this.isDisposed) {
+      log.warn('⚠️ DisposeManager already disposed, ignoring new disposable');
+      return;
+    }
+    this.disposables.push(fn);
+  }
+
+  flush(): void {
+    if (this.isDisposed) return;
+    
+    log.debug(`🗑️ Disposing ${this.disposables.length} resources`);
+    for (const fn of this.disposables) {
+      try {
+        fn();
+      } catch (error) {
+        log.error('⚠️ Dispose error:', error);
+      }
+    }
+    this.disposables.length = 0;
+    this.isDisposed = true;
+  }
+
+  get disposed(): boolean {
+    return this.isDisposed;
+  }
+}
+
+// ===== アップデータシステム =====
+/**
+ * 2. "更新ループ ⇔ オブジェクト" の結び付けを外せる構造
+ * 各オブジェクトの更新処理を独立したクラスに分離し、
+ * Tickerに登録/解除することで破棄されたオブジェクトを触らない仕組みを作る
+ */
+
+/**
+ * ノートスプライト用アップデータ
+ */
+class NoteUpdater {
+  private isActive: boolean = true;
+
+  constructor(
+    private noteSprite: NoteSprite,
+    private settings: RendererSettings,
+    private disposeManager: DisposeManager
+  ) {
+    // 破棄処理を自動登録
+    disposeManager.add(() => this.dispose());
+  }
+
+  update = (delta: number): void => {
+    // ★ホットスポット: ここだけで破棄チェック
+    if (!this.isActive || this.noteSprite.sprite.destroyed) {
+      return;
+    }
+
+    try {
+      // 安全にスプライト更新
+      const sprite = this.noteSprite.sprite;
+      const noteData = this.noteSprite.noteData;
+      
+      // 位置更新（例）
+      if (sprite.parent && !sprite.destroyed) {
+        sprite.y += this.settings.noteSpeed * delta * 0.016; // 60FPS基準
+        
+        // 画面外判定
+        if (sprite.y > this.settings.viewportHeight + 100) {
+          this.dispose();
+        }
+      }
+    } catch (error) {
+      log.warn('⚠️ NoteUpdater error, disposing:', error);
+      this.dispose();
+    }
+  };
+
+  dispose(): void {
+    this.isActive = false;
+  }
+
+  get active(): boolean {
+    return this.isActive;
+  }
+}
+
+/**
+ * エフェクト用アップデータ
+ */
+class EffectUpdater {
+  private isActive: boolean = true;
+  private elapsed: number = 0;
+
+  constructor(
+    private effectContainer: PIXI.Container,
+    private duration: number,
+    private disposeManager: DisposeManager
+  ) {
+    disposeManager.add(() => this.dispose());
+  }
+
+  update = (delta: number): void => {
+    if (!this.isActive || this.effectContainer.destroyed) {
+      return;
+    }
+
+    try {
+      this.elapsed += delta * 16; // deltaTimeをミリ秒に変換
+      
+      if (this.elapsed >= this.duration) {
+        this.dispose();
+        return;
+      }
+
+      // エフェクト更新処理
+      const progress = this.elapsed / this.duration;
+      this.effectContainer.alpha = 1 - progress;
+      
+    } catch (error) {
+      log.warn('⚠️ EffectUpdater error, disposing:', error);
+      this.dispose();
+    }
+  };
+
+  dispose(): void {
+    this.isActive = false;
+    if (this.effectContainer && !this.effectContainer.destroyed) {
+      this.effectContainer.visible = false; // 即座に非表示
+    }
+  }
+
+  get active(): boolean {
+    return this.isActive;
+  }
+}
+
+/**
+ * オブジェクトプール - 高頻度生成オブジェクトの再利用
+ */
+class SpritePool<T extends PIXI.DisplayObject> {
+  private pool: T[] = [];
+  private createFn: () => T;
+
+  constructor(createFn: () => T, initialSize: number = 10) {
+    this.createFn = createFn;
+    
+    // 初期プール作成
+    for (let i = 0; i < initialSize; i++) {
+      const obj = createFn();
+      obj.visible = false;
+      this.pool.push(obj);
+    }
+  }
+
+  get(): T {
+    if (this.pool.length > 0) {
+      const obj = this.pool.pop()!;
+      obj.visible = true;
+      obj.alpha = 1;
+      return obj;
+    }
+    return this.createFn();
+  }
+
+  release(obj: T): void {
+    if (obj.destroyed) return;
+    
+    // リセット（destroy しない）
+    obj.visible = false;
+    obj.alpha = 1;
+    if (obj.parent) {
+      obj.parent.removeChild(obj);
+    }
+    this.pool.push(obj);
+  }
+
+  dispose(): void {
+    this.pool.forEach(obj => {
+      if (!obj.destroyed) {
+        obj.destroy({ children: true, texture: false, baseTexture: false });
+      }
+    });
+    this.pool.length = 0;
+  }
+}
 
 // ===== ノート状態判定ヘルパー =====
 // Renderer 側では "good" / "perfect" / "hit" をすべて "当たり" とみなす
@@ -124,7 +320,15 @@ export class PIXINotesRendererInstance {
   private fpsCounter = 0;
   private lastFpsTime = 0;
   
-
+  // ===== 新しい設計: 破棄管理＆アップデータシステム =====
+  private disposeManager: DisposeManager = new DisposeManager();
+  private noteUpdaters: Map<string, NoteUpdater> = new Map();
+  private effectUpdaters: Set<EffectUpdater> = new Set();
+  private particlePool: SpritePool<PIXI.Graphics> | null = null;
+  
+  // Ticker関数への参照（削除用）
+  private mainUpdateFunction?: (delta: number) => void;
+  private effectUpdateFunction?: (delta: number) => void;
   
   // リアルタイムアニメーション用
   // リアルタイムアニメーション用（将来の拡張用）
@@ -251,26 +455,8 @@ export class PIXINotesRendererInstance {
       log.error('❌ PIXI setup failed:', error);
     }
     
-    // ★ エフェクト更新＋パフォーマンス監視をTickerに統合
-    this.effectsElapsed = 0;
-    PIXI.Ticker.shared.add((tickerDelta) => {
-      // パフォーマンス監視開始
-      if (this.performanceEnabled) {
-        performanceMonitor.startFrame();
-      }
-      
-      // パーティクルなど低頻度エフェクト
-      this.effectsElapsed += PIXI.Ticker.shared.deltaMS;
-      if (this.effectsElapsed >= 33) { // ≒ 30 FPS
-        this.updateParticleEffects(this.effectsElapsed / 1000);
-        this.effectsElapsed = 0;
-      }
-      
-      // パフォーマンス監視終了
-      if (this.performanceEnabled) {
-        performanceMonitor.endFrame();
-      }
-    });
+    // ===== 新設計: Ticker管理を一元化 =====
+    this.setupTickerSystem();
     
     // グローバルpointerupイベントで保険を掛ける（音が伸び続けるバグの最終防止）
     this.app.stage.on('globalpointerup', () => {
@@ -289,6 +475,85 @@ export class PIXINotesRendererInstance {
 
 
   
+  /**
+   * ===== 新設計: Tickerシステムのセットアップ =====
+   * 1. 更新ループとオブジェクトの結び付きを外せる構造
+   * 2. 破棄時に適切にTicker関数を削除
+   */
+  private setupTickerSystem(): void {
+    // メイン更新関数（ノートUpdater管理）
+    this.mainUpdateFunction = (delta: number) => {
+      if (this.isDestroyed || this.disposeManager.disposed) return;
+      
+      // パフォーマンス監視開始
+      if (this.performanceEnabled) {
+        performanceMonitor.startFrame();
+      }
+
+      // 全ノートUpdaterを更新
+      for (const [noteId, updater] of this.noteUpdaters) {
+        if (!updater.active) {
+          this.noteUpdaters.delete(noteId);
+          continue;
+        }
+        updater.update(delta);
+      }
+
+      // パフォーマンス監視終了
+      if (this.performanceEnabled) {
+        performanceMonitor.endFrame();
+      }
+    };
+
+    // エフェクト更新関数（低頻度実行）
+    this.effectUpdateFunction = (delta: number) => {
+      if (this.isDestroyed || this.disposeManager.disposed) return;
+
+      this.effectsElapsed += PIXI.Ticker.shared.deltaMS;
+      if (this.effectsElapsed >= 33) { // ≒ 30 FPS
+        // エフェクトUpdaterを更新
+        for (const updater of this.effectUpdaters) {
+          if (!updater.active) {
+            this.effectUpdaters.delete(updater);
+            continue;
+          }
+          updater.update(this.effectsElapsed / 1000);
+        }
+
+        this.updateParticleEffects(this.effectsElapsed / 1000);
+        this.effectsElapsed = 0;
+      }
+    };
+
+    // Tickerに登録
+    PIXI.Ticker.shared.add(this.mainUpdateFunction);
+    PIXI.Ticker.shared.add(this.effectUpdateFunction);
+
+    // 破棄時にTicker関数を削除するよう登録
+    this.disposeManager.add(() => {
+      if (this.mainUpdateFunction) {
+        PIXI.Ticker.shared.remove(this.mainUpdateFunction);
+        this.mainUpdateFunction = undefined;
+      }
+      if (this.effectUpdateFunction) {
+        PIXI.Ticker.shared.remove(this.effectUpdateFunction);
+        this.effectUpdateFunction = undefined;
+      }
+    });
+
+    // パーティクルプールを初期化
+    this.particlePool = new SpritePool<PIXI.Graphics>(
+      () => new PIXI.Graphics(),
+      20 // 初期サイズ
+    );
+    this.disposeManager.add(() => {
+      this.particlePool?.dispose();
+      this.particlePool = null;
+    });
+
+    log.debug('✅ Ticker system setup completed');
+  }
+
   /**
    * 🎯 統合フレーム制御でPIXIアプリケーションを開始
    */
@@ -2051,6 +2316,11 @@ export class PIXINotesRendererInstance {
     };
     
     this.noteSprites.set(note.id, noteSprite);
+    
+    // ===== 新設計: NoteUpdaterを作成してTicker管理 =====
+    const noteUpdater = new NoteUpdater(noteSprite, this.settings, this.disposeManager);
+    this.noteUpdaters.set(note.id, noteUpdater);
+    
     return noteSprite;
   }
   
