@@ -489,6 +489,10 @@ export class FantasyPIXIInstance {
 
   // ダメージ数値作成
   private createDamageNumber(damage: number, color: number): void {
+    if (this.isDestroyed || !this.app) {
+      return;
+    }
+    
     const id = `damage_${Date.now()}_${Math.random()}`;
     
     const damageText = new PIXI.Text(damage.toString(), {
@@ -500,8 +504,13 @@ export class FantasyPIXIInstance {
     });
     
     damageText.anchor.set(0.5);
-    damageText.x = this.monsterState.x + (Math.random() - 0.5) * 60;
-    damageText.y = this.monsterState.y - 80;
+    
+    // monsterStateが存在しない場合は画面中央を使用
+    const posX = this.monsterState?.x ?? this.app.screen.width / 2;
+    const posY = this.monsterState?.y ?? this.app.screen.height / 2;
+    
+    damageText.x = posX + (Math.random() - 0.5) * 60;
+    damageText.y = posY - 80;
     
     this.uiContainer.addChild(damageText);
     this.damageNumbers.set(id, damageText);
@@ -555,6 +564,14 @@ export class FantasyPIXIInstance {
 
   // 魔法パーティクル作成
   private createMagicParticles(magic: MagicType): void {
+    if (this.isDestroyed || !this.app) {
+      return;
+    }
+    
+    // monsterStateが存在しない場合は画面中央を使用
+    const posX = this.monsterState?.x ?? this.app.screen.width / 2;
+    const posY = this.monsterState?.y ?? this.app.screen.height / 2;
+    
     for (let i = 0; i < magic.particleCount; i++) {
       const id = `particle_${Date.now()}_${i}`;
       const angle = (Math.PI * 2 * i) / magic.particleCount + Math.random() * 0.5;
@@ -567,8 +584,8 @@ export class FantasyPIXIInstance {
       particle.drawCircle(0, 0, size);
       particle.endFill();
       
-      particle.x = this.monsterState.x;
-      particle.y = this.monsterState.y;
+      particle.x = posX;
+      particle.y = posY;
       
       this.particleContainer.addChild(particle);
       this.particles.set(id, particle);
