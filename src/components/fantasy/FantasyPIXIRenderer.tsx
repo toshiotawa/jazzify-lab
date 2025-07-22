@@ -149,6 +149,12 @@ export class FantasyPIXIInstance {
   private damageData: Map<string, DamageNumber> = new Map();
   private magicNameText: PIXI.Text | null = null;
   
+  // ▼▼▼ 以下4つのプロパティを追加 ▼▼▼
+  private shakeIntensity = 0;
+  private shakeDuration = 0;
+  private shakeTimer = 0;
+  private originalStagePosition = { x: 0, y: 0 };
+
   private currentMagicType: string = 'fire';
   private emojiTextures: Map<string, PIXI.Texture> = new Map();
   
@@ -498,28 +504,40 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // 画面震動エフェクト
+  // ▼▼▼ 画面震動エフェクトを修正 ▼▼▼
   private createScreenShake(intensity: number, duration: number): void {
-    let shakeTime = 0;
-    const originalX = this.app.stage.x;
-    const originalY = this.app.stage.y;
-    
-    const shake = () => {
-      if (shakeTime >= duration) {
-        this.app.stage.x = originalX;
-        this.app.stage.y = originalY;
-        return;
-      }
+    // 既に揺れている場合は重ねない
+    if (this.shakeTimer > 0) return;
+
+    this.shakeIntensity = intensity;
+    this.shakeDuration = duration;
+    this.shakeTimer = duration;
+    // 揺れ始める前のステージの初期位置を保存
+    this.originalStagePosition = { x: this.app.stage.x, y: this.app.stage.y };
+  }
+
+  // ▼▼▼ 画面震動の更新処理を新設 ▼▼▼
+  private updateScreenShake(): void {
+    if (this.shakeTimer <= 0) {
+      return;
+    }
+
+    // デルタタイム（1フレームあたりの時間）に基づいてタイマーを減算
+    // app.ticker.deltaMS を使うとより正確になりますが、今回は簡易的に16msで進めます
+    this.shakeTimer -= 16; 
+
+    if (this.shakeTimer <= 0) {
+      // 揺れが終わったらステージを元の位置に戻す
+      this.app.stage.x = this.originalStagePosition.x;
+      this.app.stage.y = this.originalStagePosition.y;
+    } else {
+      // 揺れている最中
+      const progress = this.shakeTimer / this.shakeDuration;
+      const currentIntensity = this.shakeIntensity * progress;
       
-      const shakeIntensity = intensity * (1 - shakeTime / duration);
-      this.app.stage.x = originalX + (Math.random() - 0.5) * shakeIntensity;
-      this.app.stage.y = originalY + (Math.random() - 0.5) * shakeIntensity;
-      
-      shakeTime += 16;
-      setTimeout(shake, 16);
-    };
-    
-    shake();
+      this.app.stage.x = this.originalStagePosition.x + (Math.random() - 0.5) * currentIntensity;
+      this.app.stage.y = this.originalStagePosition.y + (Math.random() - 0.5) * currentIntensity;
+    }
   }
 
   // ダメージ数値作成
@@ -642,11 +660,14 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // アニメーションループ
+  // ▼▼▼ アニメーションループを修正 ▼▼▼
   private startAnimationLoop(): void {
     const animate = () => {
       if (this.isDestroyed) return;
       
+      // ▼▼▼ この呼び出しを追加 ▼▼▼
+      this.updateScreenShake();
+
       this.updateMonsterAnimation();
       this.updateParticles();
       this.updateMagicCircles();
