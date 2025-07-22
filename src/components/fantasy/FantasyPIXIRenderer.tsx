@@ -687,52 +687,18 @@ export class FantasyPIXIInstance {
         this.monsterVisualState.visible = false;
         this.monsterGameState.isFadingOut = false;
         
-        // 1秒後に次の敵を生成
-        setTimeout(() => {
-          if (!this.isDestroyed) {
-            this.resetMonsterState();
-          }
-        }, 1000);
+        // ▼▼▼ 修正点: 1秒後の状態リセット処理を削除 ▼▼▼
+        // この処理が競合状態の原因でした。
+        // 新しいモンスターの生成は、親コンポーネントからの
+        // `monsterIcon` propsの変更によってトリガーされるべきです。
       }
     };
     
     fadeOut();
   }
 
-  // モンスター状態のリセット
-  private resetMonsterState(): void {
-    if (this.isDestroyed) return;
-    
-    // ビジュアル状態をリセット
-    this.monsterVisualState = {
-      x: this.app.screen.width / 2,
-      y: this.app.screen.height / 2 - 20,
-      scale: 1.0,
-      rotation: 0,
-      tint: 0xFFFFFF,
-      alpha: 1.0,
-      visible: true
-    };
-    
-    // ゲーム状態をリセット
-    this.monsterGameState = {
-      health: 5,
-      maxHealth: 5,
-      isAttacking: false,
-      isHit: false,
-      hitColor: 0xFFFFFF,
-      originalColor: 0xFFFFFF,
-      staggerOffset: { x: 0, y: 0 },
-      hitCount: 0,
-      isFadingOut: false,
-      isTransitioning: false
-    };
-    
-    // スプライトを更新
-    this.updateMonsterSprite();
-    
-    devLog.debug('🔄 モンスター状態リセット完了');
-  }
+  // ▼▼▼ 修正点: 不要になったため関数ごと削除 ▼▼▼
+  // private resetMonsterState(): void { ... }
 
   // 魔法パーティクル作成
   private createMagicParticles(magic: MagicType): void {
