@@ -751,13 +751,25 @@ export class FantasyPIXIInstance {
 
   // サイズ変更（中央配置）
   resize(width: number, height: number): void {
-    this.app.renderer.resize(width, height);
-    this.monsterState.x = width / 2;
-    this.monsterState.y = height / 2;
+    // nullチェックを追加してエラーを防ぐ
+    if (!this.app || !this.app.renderer || this.isDestroyed) {
+      devLog.debug('⚠️ PIXIリサイズスキップ: アプリまたはレンダラーがnull');
+      return;
+    }
     
-    if (this.monsterSprite) {
-      this.monsterSprite.x = this.monsterState.x;
-      this.monsterSprite.y = this.monsterState.y;
+    try {
+      this.app.renderer.resize(width, height);
+      this.monsterState.x = width / 2;
+      this.monsterState.y = height / 2;
+      
+      if (this.monsterSprite && !this.monsterSprite.destroyed) {
+        this.monsterSprite.x = this.monsterState.x;
+        this.monsterSprite.y = this.monsterState.y;
+      }
+      
+      devLog.debug('✅ ファンタジーPIXIリサイズ完了:', { width, height });
+    } catch (error) {
+      devLog.debug('❌ ファンタジーPIXIリサイズエラー:', error);
     }
   }
 
@@ -772,13 +784,26 @@ export class FantasyPIXIInstance {
     
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
     }
     
     // テクスチャクリーンアップ
-    this.emojiTextures.forEach((texture: PIXI.Texture) => texture.destroy(true));
+    this.emojiTextures.forEach((texture: PIXI.Texture) => {
+      if (texture && !texture.destroyed) {
+        texture.destroy(true);
+      }
+    });
     this.emojiTextures.clear();
     
-    this.app.destroy(true, { children: true });
+    // PIXIアプリケーションの破棄
+    if (this.app && !this.app.destroyed) {
+      try {
+        this.app.destroy(true, { children: true });
+      } catch (error) {
+        devLog.debug('⚠️ PIXI破棄エラー:', error);
+      }
+    }
+    
     devLog.debug('🗑️ FantasyPIXI破棄完了');
   }
 }

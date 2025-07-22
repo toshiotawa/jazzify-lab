@@ -141,16 +141,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setPixiRenderer(renderer);
     
     if (renderer) {
-      // ファンタジーモード用の設定を適用（動的幅計算）
+      // ファンタジーモード用の設定を適用
+      const screenWidth = window.innerWidth;
       const totalKeys = 52; // 白鍵の数（C1〜C5）
-      const dynamicNoteWidth = Math.max(window.innerWidth / totalKeys, 16); // 画面幅に基づく動的計算、最小16px
+      const dynamicNoteWidth = Math.max(screenWidth / totalKeys, 16); // 画面幅に基づく動的計算、最小16px
       
       renderer.updateSettings({
         noteNameStyle: 'abc',
         simpleDisplayMode: true, // シンプル表示モードを有効
         pianoHeight: 120, // ファンタジーモード用に大幅に縮小
         noteHeight: 16, // 音符の高さも縮小
-        noteWidth: dynamicNoteWidth, // コンテナ幅に基づく動的計算
+        noteWidth: dynamicNoteWidth,
         transpose: 0,
         transposingInstrument: 'concert_pitch',
         practiceGuide: stage.showGuide ? 'key' : 'off', // ガイド表示設定に基づく
@@ -161,6 +162,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           glow: true,
           particles: true,
           trails: false
+        },
+        // スクロール設定を追加
+        keyboardRange: {
+          startNote: 36, // C2
+          endNote: 84   // C6 (48音域)
         }
       });
       
@@ -170,19 +176,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         (note: number) => { /* キー離す処理は必要に応じて */ }
       );
       
-      devLog.debug('🎮 PIXI.js ファンタジーモード準備完了');
+      devLog.debug('🎮 PIXI.js ファンタジーモード準備完了:', {
+        screenWidth,
+        noteWidth: dynamicNoteWidth,
+        showGuide: stage.showGuide
+      });
     }
-  }, [handleNoteInputBridge, gameAreaSize]);
+  }, [handleNoteInputBridge, stage.showGuide]);
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     setFantasyPixiInstance(instance);
     
     // 現在の敵に基づいてモンスターを設定
-    instance.createMonsterSprite(currentEnemy.icon);
+    if (currentEnemy) {
+      instance.createMonsterSprite(currentEnemy.icon);
+    }
     
-    devLog.debug('🎮 ファンタジーPIXI準備完了:', { monster: currentEnemy.icon });
-  }, [currentEnemy.icon]);
+    devLog.debug('🎮 ファンタジーPIXI準備完了:', { monster: currentEnemy?.icon });
+  }, [currentEnemy]);
   
   // FontAwesome使用のため削除済み
   
@@ -224,23 +236,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [fantasyPixiInstance, currentEnemy]);
   
   // HPハート表示（モノクロ）
-  const renderHearts = useCallback(() => {
+  const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
     const hearts = [];
-    // gameState.playerHpが正しく更新されているか確認
-    console.log('現在のHP:', gameState.playerHp, '/', stage.maxHp);
+    // HP表示のデバッグログを追加
+    devLog.debug(`💖 ${isPlayer ? 'プレイヤー' : '敵'}HP表示:`, { current: hp, max: maxHp });
     
-    for (let i = 0; i < stage.maxHp; i++) {
+    for (let i = 0; i < maxHp; i++) {
       hearts.push(
         <span key={i} className={cn(
-          "text-2xl transition-all duration-200",
-          i < gameState.playerHp ? "text-gray-800" : "text-gray-300"
+          "text-2xl transition-all duration-300",
+          i < hp 
+            ? (isPlayer ? "text-red-500" : "text-gray-800") // プレイヤーは赤、敵は黒
+            : "text-gray-300" // 空のハートは薄いグレー
         )}>
-          ♡
+          {i < hp ? "♡" : "×"}
         </span>
       );
     }
     return hearts;
-  }, [stage.maxHp, gameState.playerHp]);
+  }, []);
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
@@ -372,18 +386,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {renderEnemyGauge()}
           </div>
           
-          {/* HP表示 */}
-          <div className="flex justify-center items-center space-x-1">
-            <span className="text-white text-xs mr-1">HP:</span>
-            {renderHearts()}
-          </div>
-          
-          {/* 敵のHP表示 */}
-          <div className="flex justify-center items-center space-x-1 mt-1">
-            <span className="text-white text-xs mr-1">敵HP:</span>
-            {Array.from({ length: 5 }, (_, i) => (
-              <span key={i} className="text-lg text-gray-400">♡</span>
-            ))}
+          {/* HP表示（プレイヤーと敵を入れ替え） */}
+          <div className="flex justify-center items-center space-x-6 mt-1">
+            {/* 敵のHP表示 */}
+            <div className="flex items-center space-x-1">
+              <span className="text-white text-xs mr-1">敵HP:</span>
+              {renderHearts(gameState.currentEnemyHp, gameState.maxEnemyHp, false)}
+            </div>
+            
+            {/* プレイヤーのHP表示 */}
+            <div className="flex items-center space-x-1">
+              <span className="text-white text-xs mr-1">プレイヤーHP:</span>
+              {renderHearts(gameState.playerHp, stage.maxHp, true)}
+            </div>
           </div>
         </div>
         
@@ -410,12 +425,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             WebkitOverflowScrolling: 'touch',
             scrollSnapType: 'x proximity',
             scrollBehavior: 'smooth',
-            width: '100%'
+            width: '100%',
+            touchAction: 'pan-x', // 横スクロールのみを許可
+            overscrollBehavior: 'contain' // スクロールの境界を制限
           }}
         >
           <PIXINotesRenderer
             activeNotes={[]}
-            width={window.innerWidth}
+            width={Math.max(window.innerWidth * 2, 1200)} // 十分な幅を確保してスクロール可能にする
             height={120}
             currentTime={0}
             onReady={handlePixiReady}
