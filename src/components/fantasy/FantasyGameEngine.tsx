@@ -626,8 +626,8 @@ export const useFantasyGameEngine = ({
       // 入力バッファをクリア
       setInputBuffer([]);
       
-      // 次の問題へ（敵切り替えの遅延を追加）
-      setTimeout(proceedToNextQuestion, 500);
+      // 次の問題へ（待機時間を 0 に変更）
+      setTimeout(proceedToNextQuestion, 0);
       
     } else {
       devLog.debug('🎵 まだ構成音が足りません', { 

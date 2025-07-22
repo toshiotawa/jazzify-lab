@@ -526,7 +526,7 @@ export class FantasyPIXIInstance {
     
     // 新しい魔法名テキスト作成
     this.magicNameText = new PIXI.Text(magicName, {
-      fontFamily: 'Gothic16, Arial, sans-serif', // Gothic16を追加
+      fontFamily: 'DotGothic16, "DotGothic16", Gothic16, Arial, sans-serif', // Pixel style font
       fontSize: 36,
       fontWeight: 'bold',
       fill: 0xFFFFFF,
@@ -626,40 +626,38 @@ export class FantasyPIXIInstance {
 
   // モンスターアニメーション更新
   private updateMonsterAnimation(): void {
-    // nullチェックを強化
-    if (!this.monsterSprite || this.isDestroyed || this.monsterSprite.destroyed) {
+    // ローカル参照を取得して、更新途中に this.monsterSprite が破棄されても
+    // 例外にならないようにする
+    const sprite = this.monsterSprite;
+    if (!sprite || this.isDestroyed || sprite.destroyed) {
       return;
     }
-    
+
     try {
-      // 追加のnullチェック - プロパティアクセス前に確認
-      if (!this.monsterSprite || typeof this.monsterSprite.x === 'undefined') {
-        devLog.debug('⚠️ モンスタースプライトが無効な状態です');
+      // プロパティ存在チェック
+      if (typeof sprite.x === 'undefined') {
+        devLog.debug('⚠️ モンスタースプライトが無効な状態です (prop undefined)');
         return;
       }
-      
+
       // よろけ効果の適用
-      this.monsterSprite.x = this.monsterState.x + this.monsterState.staggerOffset.x;
-      this.monsterSprite.y = this.monsterState.y + this.monsterState.staggerOffset.y;
-      
+      sprite.x = this.monsterState.x + this.monsterState.staggerOffset.x;
+      sprite.y = this.monsterState.y + this.monsterState.staggerOffset.y;
+
       // 色変化の適用
-      if (this.monsterState.isHit) {
-        this.monsterSprite.tint = this.monsterState.hitColor;
-      } else {
-        this.monsterSprite.tint = this.monsterState.originalColor;
-      }
-      
+      sprite.tint = this.monsterState.isHit ? this.monsterState.hitColor : this.monsterState.originalColor;
+
       // よろけ効果の減衰
       this.monsterState.staggerOffset.x *= 0.9;
       this.monsterState.staggerOffset.y *= 0.9;
-      
+
       // アイドル時の軽い浮遊効果
       if (!this.monsterState.isAttacking && !this.monsterState.isHit) {
-        this.monsterSprite.y += Math.sin(Date.now() * 0.002) * 0.5;
+        sprite.y += Math.sin(Date.now() * 0.002) * 0.5;
       }
     } catch (error) {
       devLog.debug('⚠️ モンスターアニメーション更新エラー:', error);
-      // エラー時はmonsterSpriteをnullにして以降の処理をスキップ
+      // エラー時は次フレーム以降の更新を防止
       this.monsterSprite = null;
     }
   }
