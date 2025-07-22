@@ -227,6 +227,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [handleNoteInputBridge, showGuide]);
 
+  // ★ PIXIレンダラーが準備完了し、showGuideの設定も読み込まれたら初期設定を適用
+  useEffect(() => {
+    if (pixiRenderer && showGuide !== undefined) {
+      const practiceGuideValue = showGuide ? 'key' : 'off';
+      
+      pixiRenderer.updateSettings({
+        practiceGuide: practiceGuideValue,
+      });
+      
+      devLog.debug(`✅ 初期ガイド設定を適用: ${practiceGuideValue}`);
+    }
+  }, [pixiRenderer, showGuide]);
+
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     setFantasyPixiInstance(instance);
