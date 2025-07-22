@@ -40,6 +40,8 @@ interface MonsterGameState {
   originalColor: number;
   staggerOffset: { x: number; y: number };
   hitCount: number;
+  isFadingOut: boolean;
+  isTransitioning: boolean;
 }
 
 interface ParticleData {
@@ -199,7 +201,9 @@ export class FantasyPIXIInstance {
       hitColor: 0xFF6B6B,
       originalColor: 0xFFFFFF,
       staggerOffset: { x: 0, y: 0 },
-      hitCount: 0
+      hitCount: 0,
+      isFadingOut: false,     // 追加
+      isTransitioning: false, // 追加
     };
     
     // デフォルトのモンスタースプライトを作成（初期は透明な正方形）
@@ -272,19 +276,16 @@ export class FantasyPIXIInstance {
     });
   }
 
-  // モンスタースプライト作成（SVGベース）
+  // ▼▼▼ モンスタースプライト作成（SVGベース）を修正 ▼▼▼
   async createMonsterSprite(icon: string): Promise<void> {
     if (this.isDestroyed) return;
     
     try {
-      // 絵文字テクスチャを取得
       const texture = this.emojiTextures.get(icon) || this.emojiTextures.get('vampire');
       
       if (texture) {
-        // 既存のスプライトのテクスチャを更新（スプライト自体は破棄しない）
         this.monsterSprite.texture = texture;
         
-        // ビジュアル状態をリセット
         this.monsterVisualState = {
           ...this.monsterVisualState,
           alpha: 1.0,
@@ -296,8 +297,9 @@ export class FantasyPIXIInstance {
         // ゲーム状態もリセット
         this.monsterGameState.hitCount = 0;
         this.monsterGameState.health = this.monsterGameState.maxHealth;
+        this.monsterGameState.isFadingOut = false;     // リセット
+        this.monsterGameState.isTransitioning = false; // 遷移完了
         
-        // スプライトの属性を更新
         this.updateMonsterSprite();
         
         devLog.debug('✅ SVGモンスタースプライト更新完了:', { icon });
@@ -376,9 +378,9 @@ export class FantasyPIXIInstance {
     this.monsterSprite.visible = this.monsterVisualState.visible;
   }
 
-  // 攻撃成功エフェクト
+  // ▼▼▼ 攻撃成功エフェクトを修正 ▼▼▼
   triggerAttackSuccess(): void {
-    if (this.isDestroyed) return;
+    if (this.isDestroyed || this.monsterGameState.isTransitioning) return;
     
     try {
       // 魔法タイプをローテーション
@@ -387,10 +389,8 @@ export class FantasyPIXIInstance {
       this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
       const magic = MAGIC_TYPES[this.currentMagicType];
       
-      // 魔法名表示
       this.showMagicName(magic.name);
       
-      // 敵の色変化とよろけ
       this.monsterGameState.isHit = true;
       this.monsterGameState.hitColor = magic.color;
       this.monsterGameState.staggerOffset = {
@@ -398,43 +398,25 @@ export class FantasyPIXIInstance {
         y: (Math.random() - 0.5) * 15
       };
       
-      // ダメージ数値生成
       const damage = Math.floor(Math.random() * (magic.damageRange[1] - magic.damageRange[0] + 1)) + magic.damageRange[0];
       this.createDamageNumber(damage, magic.color);
       
-      // パーティクルエフェクト生成
       this.createMagicParticles(magic);
       this.createExplosionEffect(this.monsterVisualState.x, this.monsterVisualState.y);
       
-      // 敵のヒットカウント増加
       this.monsterGameState.hitCount++;
       this.monsterGameState.health = Math.max(0, this.monsterGameState.maxHealth - this.monsterGameState.hitCount);
       
-      // 画面震動エフェクト
       this.createScreenShake(5, 200);
       
-      // 5発で敵を倒す
+      // 5発で敵を倒す処理をフラグ管理に変更
       if (this.monsterGameState.hitCount >= 5) {
-        devLog.debug('💀 敵を倒した！外部からの新モンスター設定を待機中...');
-        
-        // フェードアウトエフェクト（ビジュアル状態のみ変更）
-        const fadeOut = () => {
-          if (this.isDestroyed) return;
-          
-          if (this.monsterVisualState.alpha > 0) {
-            this.monsterVisualState.alpha -= 0.05;
-            this.updateMonsterSprite();
-            requestAnimationFrame(fadeOut);
-          } else {
-            // 完全に透明になったら非表示にする
-            this.monsterVisualState.visible = false;
-            this.updateMonsterSprite();
-          }
-        };
-        fadeOut();
+        devLog.debug('💀 敵を倒した！消滅アニメーション開始...');
+        this.monsterGameState.isFadingOut = true;
+        this.monsterGameState.isTransitioning = true;
+        // ここにあった requestAnimationFrame を使った fadeOut 関数は完全に削除します
       }
       
-      // 色とよろけ効果をリセット
       setTimeout(() => {
         this.monsterGameState.isHit = false;
         this.monsterGameState.staggerOffset = { x: 0, y: 0 };
