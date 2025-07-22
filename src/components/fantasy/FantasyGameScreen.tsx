@@ -111,7 +111,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     getCurrentEnemy,
     ENEMY_LIST
   } = useFantasyGameEngine({
-    stage,
+    stage: {
+      ...stage,
+      showGuide
+    },
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
@@ -286,6 +289,49 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return () => clearTimeout(timeoutId);
     }
   }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex, gameState.currentEnemyHits]);
+  
+  // 設定変更時にPIXIレンダラーを更新
+  useEffect(() => {
+    if (pixiRenderer) {
+      pixiRenderer.updateSettings({
+        practiceGuide: showGuide ? 'key' : 'off'
+      });
+      devLog.debug('🎮 PIXIレンダラー設定更新:', { showGuide });
+    }
+  }, [pixiRenderer, showGuide]);
+  
+  // 現在のコードターゲットのノートをハイライト
+  useEffect(() => {
+    if (pixiRenderer && showGuide && gameState.currentChordTarget) {
+      // 全てのキーのハイライトを一度クリア
+      for (let note = 0; note < 128; note++) {
+        pixiRenderer.highlightKey(note, false);
+      }
+      
+      // 現在のコードのノートをハイライト
+      gameState.currentChordTarget.notes.forEach(note => {
+        // オクターブ違いの音もハイライト（ピッチクラスで判定）
+        const pitchClass = note % 12;
+        for (let octave = 0; octave < 11; octave++) {
+          const midiNote = octave * 12 + pitchClass;
+          if (midiNote < 128) {
+            pixiRenderer.highlightKey(midiNote, true);
+          }
+        }
+      });
+      
+      devLog.debug('🎹 コードノートハイライト:', { 
+        chord: gameState.currentChordTarget.displayName,
+        notes: gameState.currentChordTarget.notes,
+        showGuide
+      });
+    } else if (pixiRenderer && !showGuide) {
+      // ガイドがOFFの場合は全てのハイライトをクリア
+      for (let note = 0; note < 128; note++) {
+        pixiRenderer.highlightKey(note, false);
+      }
+    }
+  }, [pixiRenderer, showGuide, gameState.currentChordTarget]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
