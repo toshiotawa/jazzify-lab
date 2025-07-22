@@ -464,10 +464,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {gameState.currentChordTarget.displayName}
           </div>
           {/* 音名表示（ヒントがONの場合） */}
-          {showGuide && gameState.currentChordTarget.noteNames && (
+          {showGuide && gameState.currentChordTarget?.noteNames && gameState.currentChordTarget?.notes && (
             <div className="mt-2 flex justify-center items-center gap-3">
               {gameState.currentChordTarget.noteNames.map((noteName, index) => {
-                const noteMod12 = gameState.currentChordTarget.notes[index] % 12;
+                const noteValue = gameState.currentChordTarget?.notes?.[index];
+                if (noteValue === undefined) return null;
+                const noteMod12 = noteValue % 12;
                 const isCorrect = gameState.correctNotes.has(noteMod12);
                 return (
                   <div key={index} className="flex items-center gap-1">
