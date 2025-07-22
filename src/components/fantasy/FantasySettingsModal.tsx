@@ -141,11 +141,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                 className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm font-medium text-white">
-                ガイド表示（鍵盤ハイライト）
+                音名ヒント表示
               </span>
             </label>
             <p className="text-xs text-gray-400 mt-1">
-              出題コードの鍵盤がハイライト表示されます
+              コード名の下に構成音の音名（ド、ミ、ソなど）が表示されます
             </p>
           </div>
         </div>

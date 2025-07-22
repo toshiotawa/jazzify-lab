@@ -200,7 +200,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         noteWidth: dynamicNoteWidth,
         transpose: 0,
         transposingInstrument: 'concert_pitch',
-        practiceGuide: showGuide ? 'key' : 'off', // ガイド表示設定に基づく
+        practiceGuide: 'off', // 鍵盤ハイライトは常にOFF
         showHitLine: false, // ヒットラインを非表示
         viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
         timingAdjustment: 0,
@@ -297,13 +297,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (pixiRenderer) {
       pixiRenderer.updateSettings({
-        practiceGuide: showGuide ? 'key' : 'off'
+        practiceGuide: 'off' // 鍵盤ハイライトは常にOFF
       });
       devLog.debug('🎮 PIXIレンダラー設定更新:', { showGuide });
     }
   }, [pixiRenderer, showGuide]);
   
-  // 現在のコードターゲットのノートをハイライト
+  // 現在のコードターゲットのノートをハイライト（無効化）
+  /*
   useEffect(() => {
     if (pixiRenderer && showGuide && gameState.currentChordTarget) {
       // 全てのキーのハイライトを一度クリア
@@ -335,6 +336,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
     }
   }, [pixiRenderer, showGuide, gameState.currentChordTarget]);
+  */
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
@@ -461,6 +463,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div className="text-yellow-300 text-2xl font-bold tracking-wider drop-shadow-lg">
             {gameState.currentChordTarget.displayName}
           </div>
+          {/* 音名表示（ヒントがONの場合） */}
+          {showGuide && gameState.currentChordTarget.noteNames && (
+            <div className="mt-2 flex justify-center items-center gap-3">
+              {gameState.currentChordTarget.noteNames.map((noteName, index) => {
+                const noteMod12 = gameState.currentChordTarget.notes[index] % 12;
+                const isCorrect = gameState.correctNotes.has(noteMod12);
+                return (
+                  <div key={index} className="flex items-center gap-1">
+                    <span className={`text-lg ${isCorrect ? 'text-green-400' : 'text-gray-300'}`}>
+                      {noteName}
+                    </span>
+                    {isCorrect && (
+                      <span className="text-green-400 text-lg">✓</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
         
         {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}
