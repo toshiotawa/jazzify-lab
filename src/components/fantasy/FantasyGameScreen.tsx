@@ -3,7 +3,7 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from '@/utils/cn';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
@@ -37,6 +37,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 設定状態を管理（初期値はstageから取得）
   const [showGuide, setShowGuide] = useState(stage.showGuide);
+  
+  // stage.showGuide の変更をコンポーネントの状態に同期させる
+  useEffect(() => {
+    setShowGuide(stage.showGuide);
+  }, [stage.showGuide]);
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -101,6 +106,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onGameComplete(result, finalState.score, finalState.correctAnswers, finalState.totalQuestions);
   }, [onGameComplete]);
   
+  // useMemoを使って、stageオブジェクトをメモ化（安定化）させる
+  const memoizedStage = useMemo(() => ({
+    ...stage,
+    showGuide,
+  }), [stage, showGuide]);
+  
   // ゲームエンジンの初期化
   const {
     gameState,
@@ -111,10 +122,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     getCurrentEnemy,
     ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: {
-      ...stage,
-      showGuide
-    },
+    stage: memoizedStage, // メモ化したstageを渡す
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
