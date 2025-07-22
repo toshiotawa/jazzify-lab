@@ -363,7 +363,7 @@ export class FantasyPIXIInstance {
 
   // モンスタースプライトの属性を安全に更新
   private updateMonsterSprite(): void {
-    if (this.isDestroyed || !this.monsterSprite || !this.monsterVisualState) return;
+    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed || !this.monsterVisualState) return;
     
     // ビジュアル状態の値を安全にチェック
     const safeX = typeof this.monsterVisualState.x === 'number' ? this.monsterVisualState.x : this.app.screen.width / 2;
@@ -375,13 +375,17 @@ export class FantasyPIXIInstance {
     const safeVisible = typeof this.monsterVisualState.visible === 'boolean' ? this.monsterVisualState.visible : true;
     
     // ビジュアル状態を適用（安全な値のみ使用）
-    this.monsterSprite.x = safeX;
-    this.monsterSprite.y = safeY;
-    this.monsterSprite.scale.set(safeScale);
-    this.monsterSprite.rotation = safeRotation;
-    this.monsterSprite.tint = safeTint;
-    this.monsterSprite.alpha = safeAlpha;
-    this.monsterSprite.visible = safeVisible;
+    try {
+      this.monsterSprite.x = safeX;
+      this.monsterSprite.y = safeY;
+      this.monsterSprite.scale.set(safeScale);
+      this.monsterSprite.rotation = safeRotation;
+      this.monsterSprite.tint = safeTint;
+      this.monsterSprite.alpha = safeAlpha;
+      this.monsterSprite.visible = safeVisible;
+    } catch (error) {
+      devLog.debug('⚠️ モンスタースプライト更新エラー:', error);
+    }
   }
 
   // 攻撃成功エフェクト
@@ -686,7 +690,7 @@ export class FantasyPIXIInstance {
 
   // モンスターアニメーション更新（安全バージョン）
   private updateMonsterAnimation(): void {
-    if (this.isDestroyed || !this.monsterVisualState.visible) return;
+    if (this.isDestroyed || !this.monsterSprite || !this.monsterVisualState) return;
     
     try {
       // よろけ効果の適用（ビジュアル状態を更新）
