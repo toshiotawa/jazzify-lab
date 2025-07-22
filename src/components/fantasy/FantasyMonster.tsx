@@ -4,22 +4,23 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  FaGhost,
-  FaTree, 
-  FaSeedling,
-  FaTint,
-  FaSun,
-  FaCube,
-  FaStar,
-  FaGem,
-  FaWind,
-  FaBolt,
-  FaDragon,
-  FaSkull,
-  FaFire,
-  FaSnowflake
-} from 'react-icons/fa';
+  faGhost,
+  faTree, 
+  faSeedling,
+  faTint,
+  faSun,
+  faCube,
+  faStar,
+  faGem,
+  faWind,
+  faBolt,
+  faDragon,
+  faSkull,
+  faFire,
+  faSnowflake
+} from '@fortawesome/free-solid-svg-icons';
 import { cn } from '@/utils/cn';
 
 interface FantasyMonsterProps {
@@ -33,23 +34,23 @@ interface FantasyMonsterProps {
 }
 
 // モンスターアイコンマッピング（FontAwesome）
-const MONSTER_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  'ghost': FaGhost,
-  'tree': FaTree,
-  'seedling': FaSeedling, 
-  'droplet': FaTint,
-  'sun': FaSun,
-  'rock': FaCube,
-  'sparkles': FaStar,
-  'gem': FaGem,
-  'wind_face': FaWind,
-  'zap': FaBolt,
-  'star2': FaStar,
-  'dragon': FaDragon,
-  'skull': FaSkull,
-  'fire': FaFire,
-  'ice': FaSnowflake,
-  'lightning': FaBolt
+const MONSTER_ICONS: Record<string, any> = {
+  'ghost': faGhost,
+  'tree': faTree,
+  'seedling': faSeedling, 
+  'droplet': faTint,
+  'sun': faSun,
+  'rock': faCube,
+  'sparkles': faStar,
+  'gem': faGem,
+  'wind_face': faWind,
+  'zap': faBolt,
+  'star2': faStar,
+  'dragon': faDragon,
+  'skull': faSkull,
+  'fire': faFire,
+  'ice': faSnowflake,
+  'lightning': faBolt
 };
 
 // モンスターサイズ設定
@@ -74,19 +75,24 @@ const SIZE_CONFIGS = {
   }
 };
 
-// モンスター特性（アイコンごとの特殊効果）
+// モンスター特性（アイコンごとの特殊効果）- 単色設定
 const MONSTER_TRAITS: Record<string, { color: string; glowColor: string; specialEffect?: string }> = {
-  'ghost': { color: 'text-purple-300', glowColor: 'shadow-purple-500', specialEffect: 'float' },
-  'tree': { color: 'text-green-400', glowColor: 'shadow-green-500', specialEffect: 'sway' },
-  'seedling': { color: 'text-green-300', glowColor: 'shadow-green-400' },
-  'droplet': { color: 'text-blue-400', glowColor: 'shadow-blue-500', specialEffect: 'bounce' },
-  'sun': { color: 'text-yellow-400', glowColor: 'shadow-yellow-500', specialEffect: 'pulse' },
-  'rock': { color: 'text-gray-400', glowColor: 'shadow-gray-500' },
-  'sparkles': { color: 'text-yellow-300', glowColor: 'shadow-yellow-400', specialEffect: 'sparkle' },
-  'gem': { color: 'text-pink-400', glowColor: 'shadow-pink-500', specialEffect: 'shine' },
-  'wind_face': { color: 'text-cyan-300', glowColor: 'shadow-cyan-500', specialEffect: 'float' },
-  'zap': { color: 'text-yellow-500', glowColor: 'shadow-yellow-600', specialEffect: 'shake' },
-  'star2': { color: 'text-yellow-200', glowColor: 'shadow-yellow-300', specialEffect: 'twinkle' }
+  'ghost': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'float' },
+  'tree': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'sway' },
+  'seedling': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
+  'droplet': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'bounce' },
+  'sun': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'pulse' },
+  'rock': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
+  'sparkles': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'sparkle' },
+  'gem': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'shine' },
+  'wind_face': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'float' },
+  'zap': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'shake' },
+  'star2': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'twinkle' },
+  'dragon': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
+  'skull': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
+  'fire': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
+  'ice': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
+  'lightning': { color: 'text-gray-300', glowColor: 'drop-shadow-md' }
 };
 
 const FantasyMonster: React.FC<FantasyMonsterProps> = ({
@@ -102,7 +108,7 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   const [showRageEffect, setShowRageEffect] = useState(false);
   
   const sizeConfig = SIZE_CONFIGS[size];
-  const MonsterIcon = MONSTER_ICONS[monsterIcon] || FaGhost;
+  const iconDef = MONSTER_ICONS[monsterIcon] || faGhost;
   const traits = MONSTER_TRAITS[monsterIcon] || MONSTER_TRAITS['ghost'];
   
   // 攻撃時のエフェクト
@@ -193,10 +199,11 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
           style={{
             filter: isAttacking 
               ? 'drop-shadow(0 0 20px rgba(239, 68, 68, 0.8))' 
-              : `drop-shadow(0 0 10px ${traits.color.includes('purple') ? 'rgba(147, 51, 234, 0.5)' : 'rgba(255, 255, 255, 0.2)'})`
+              : 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.2))'
           }}
         >
-          <MonsterIcon
+          <FontAwesomeIcon
+            icon={iconDef}
             className={cn(
               "transition-all duration-300 select-none",
               sizeConfig.monster,
@@ -213,7 +220,7 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
               // 攻撃時のエフェクト
               isAttacking && "transform scale-125 text-red-500",
               // グロー効果
-              !isAttacking && `drop-shadow-lg`
+              !isAttacking && traits.glowColor
             )}
           />
         </div>
