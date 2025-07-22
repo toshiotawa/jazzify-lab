@@ -4,6 +4,25 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { 
+  faGhost,
+  faTree, 
+  faSeedling,
+  faTint,
+  faSun,
+  faCube,
+  faStar,
+  faGem,
+  faWind,
+  faBolt,
+  faSpider,
+  faSkull,
+  faEye,
+  faBug,
+  faMask,
+  faHatWizard
+} from '@fortawesome/free-solid-svg-icons';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
 import { devLog } from '@/utils/logger';
@@ -56,18 +75,25 @@ const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[
 };
 
 // ===== モンスターアイコンマッピング =====
-const MONSTER_ICONS: Record<string, string> = {
-  'ghost': '👻',
-  'tree': '🌳',
-  'seedling': '🌱',
-  'droplet': '💧',
-  'sun': '☀️',
-  'rock': '🪨',
-  'sparkles': '✨',
-  'gem': '💎',
-  'wind_face': '🌬️',
-  'zap': '⚡',
-  'star2': '⭐'
+const MONSTER_ICONS: Record<string, any> = {
+  'ghost': faGhost,
+  'tree': faTree,
+  'seedling': faSeedling,
+  'droplet': faTint,
+  'sun': faSun,
+  'rock': faCube,
+  'sparkles': faStar,
+  'gem': faGem,
+  'wind_face': faWind,
+  'zap': faBolt,
+  'star2': faStar,
+  // ファンタジーモード用の敵アイコンマッピング
+  'vampire': faEye,
+  'monster': faBug,
+  'reaper': faSkull,
+  'kraken': faSpider,
+  'werewolf': faMask,
+  'demon': faHatWizard
 };
 
 // ===== ランク背景色 =====
@@ -281,7 +307,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         
         {/* モンスターアイコン */}
         <div className="text-4xl text-center mb-2">
-          {unlocked ? MONSTER_ICONS[stage.monsterIcon] || '👻' : '🔒'}
+          {unlocked ? (
+            <FontAwesomeIcon 
+              icon={MONSTER_ICONS[stage.monsterIcon] || faGhost} 
+              className="text-gray-300 drop-shadow-md"
+            />
+          ) : (
+            <span>🔒</span>
+          )}
         </div>
         
         {/* ステージ名 */}
