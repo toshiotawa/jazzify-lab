@@ -4,7 +4,7 @@ import GameScreen from '@/components/game/GameScreen';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { cn } from '@/utils/cn';
-import FPSMonitor from '@/components/ui/FPSMonitor';
+
 import ToastContainer from '@/components/ui/ToastContainer';
 import AuthLanding from '@/components/auth/AuthLanding';
 import { useAuthStore } from '@/stores/authStore';
@@ -278,7 +278,7 @@ const App: React.FC = () => {
           <DebugInfo />
         )}
         
-        <FPSMonitor />
+
         <ToastContainer />
       </div>
     </ErrorBoundary>
