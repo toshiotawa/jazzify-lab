@@ -110,7 +110,7 @@ const MAGIC_TYPES: Record<string, MagicType> = {
 
 // ===== モンスターシンボルマッピング（フラットデザイン） =====
 const MONSTER_EMOJI: Record<string, string> = {
-  'vampire': '⚰', // 棺桶（バンパイア）
+  'vampire': '👻', // ゴースト（バンパイア）
   'monster': '◈', // ダイヤ形（モンスター）
   'reaper': '☠', // 骸骨マーク（死神）
   'kraken': '◉', // 大きな円（クラーケン）
