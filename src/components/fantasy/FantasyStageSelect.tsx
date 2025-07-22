@@ -318,7 +318,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   // ローディング画面
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white mx-auto mb-4"></div>
           <h2 className="text-2xl font-bold">ファンタジーモード読み込み中...</h2>
@@ -330,7 +330,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   // エラー画面
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center max-w-md">
           <div className="text-6xl mb-4">😵</div>
           <h2 className="text-2xl font-bold mb-4">エラーが発生しました</h2>
@@ -360,7 +360,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const totalCleared = userProgress ? userProgress.totalClearedStages : 0;
   
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto fantasy-game-screen">
       {/* ヘッダー */}
       <div className="relative z-10 p-6 text-white">
         <div className="flex justify-between items-center">

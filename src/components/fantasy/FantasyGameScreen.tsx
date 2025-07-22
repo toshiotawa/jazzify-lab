@@ -121,6 +121,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number) => {
+    // キーボードハイライト & ヒットエフェクト
+    if (pixiRenderer) {
+      pixiRenderer.highlightKey(note, true);
+      pixiRenderer.triggerKeyPressEffect(note);
+      // 少し遅れてハイライトを解除
+      setTimeout(() => {
+        if (pixiRenderer) {
+          pixiRenderer.highlightKey(note, false);
+        }
+      }, 150);
+    }
+
     // 音声システムの初期化（初回のみ）
     try {
       await initializeAudioSystem();
@@ -134,7 +146,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // ファンタジーゲームエンジンにも送信
     engineHandleNoteInput(note);
-  }, [handleNoteInput, engineHandleNoteInput]);
+  }, [handleNoteInput, engineHandleNoteInput, pixiRenderer]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
