@@ -162,8 +162,8 @@ export class FantasyPIXIInstance {
   // 状態機械用コールバック
   private onDefeated?: () => void;
 
-  constructor(width: number, height: number, onDefeated?: () => void) {
-    this.onDefeated = onDefeated;
+  constructor(width: number, height: number, onMonsterDefeated?: () => void) {
+    this.onDefeated = onMonsterDefeated;
     
     // PIXI アプリケーション初期化
     this.app = new PIXI.Application({
@@ -1063,8 +1063,14 @@ export class FantasyPIXIInstance {
 
       // 親コンポーネントに通知
       // isDestroyedフラグをチェックして、インスタンス破棄後のコールバック呼び出しを防ぐ
-      if (!this.isDestroyed) {
-        this.onDefeated?.();
+      if (!this.isDestroyed && this.onDefeated) {
+        devLog.debug('🔔 onDefeatedコールバックを呼び出します');
+        this.onDefeated();
+      } else {
+        devLog.debug('⚠️ onDefeatedコールバックがありません', {
+          isDestroyed: this.isDestroyed,
+          hasCallback: !!this.onDefeated
+        });
       }
     }
   }

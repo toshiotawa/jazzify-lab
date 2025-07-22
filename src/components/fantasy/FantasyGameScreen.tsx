@@ -430,7 +430,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               Stage {stage.stageNumber}
             </div>
             <div className="text-xs text-gray-300">
-              敵の数: {Math.ceil(stage.questionCount / 5)}
+              敵の数: {gameState.totalEnemies}
             </div>
           </div>
           
@@ -605,6 +605,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget.displayName}</div>
           <div>入力バッファ: [{inputBuffer.join(', ')}]</div>
+          <div className="text-yellow-300">敵: {gameState.currentEnemyIndex + 1}/{gameState.totalEnemies}</div>
+          <div className="text-green-300">敵HP: {gameState.currentEnemyHp}/{gameState.maxEnemyHp}</div>
+          <div className="text-orange-300">倒した敵: {gameState.enemiesDefeated}</div>
+          <div className="text-purple-300">待機中: {gameState.isWaitingForNextMonster ? 'はい' : 'いいえ'}</div>
           
           {/* ゲージ強制満タンテストボタン */}
           <button
