@@ -38,10 +38,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 設定状態を管理（初期値はstageから取得）
   const [showGuide, setShowGuide] = useState(stage.showGuide);
   
+  // 押された音を追跡する状態
+  const [playedNotes, setPlayedNotes] = useState<Set<number>>(new Set());
+  
   // stage.showGuide の変更をコンポーネントの状態に同期させる
   useEffect(() => {
     setShowGuide(stage.showGuide);
   }, [stage.showGuide]);
+  
+  // コードが変わったら押された音をリセット
+  useEffect(() => {
+    setPlayedNotes(new Set());
+  }, [gameState.currentChordTarget?.id]);
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -70,6 +78,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (fantasyPixiInstance) {
       fantasyPixiInstance.triggerAttackSuccess(chord.displayName);
     }
+    
+    // 押された音をリセット
+    setTimeout(() => {
+      setPlayedNotes(new Set());
+    }, 300); // 少し遅延させて最後の音のチェックマークを見えるようにする
     
   }, [fantasyPixiInstance]);
   
@@ -135,8 +148,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number) => {
-    // キーボードハイライト & ヒットエフェクト
-    if (pixiRenderer) {
+    // 現在のコードの構成音に含まれる場合、playedNotesに追加
+    if (gameState.currentChordTarget && gameState.currentChordTarget.notes.includes(note)) {
+      setPlayedNotes(prev => new Set([...prev, note]));
+    }
+    
+    // キーボードハイライト & ヒットエフェクト（showGuideがfalseの場合は実行しない）
+    if (pixiRenderer && showGuide) {
       pixiRenderer.highlightKey(note, true);
       pixiRenderer.triggerKeyPressEffect(note);
       // 少し遅れてハイライトを解除
@@ -145,6 +163,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           pixiRenderer.highlightKey(note, false);
         }
       }, 150);
+    } else if (pixiRenderer) {
+      // ヒントがOFFでもヒットエフェクトだけは表示
+      pixiRenderer.triggerKeyPressEffect(note);
     }
 
     // 音声システムの初期化（初回のみ）
@@ -160,7 +181,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // ファンタジーゲームエンジンにも送信
     engineHandleNoteInput(note);
-  }, [handleNoteInput, engineHandleNoteInput, pixiRenderer]);
+  }, [handleNoteInput, engineHandleNoteInput, pixiRenderer, showGuide, gameState.currentChordTarget]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -461,6 +482,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div className="text-yellow-300 text-2xl font-bold tracking-wider drop-shadow-lg">
             {gameState.currentChordTarget.displayName}
           </div>
+          {/* 音名表示 (ヒントがONの場合またはShow_Guideがtrueの場合) */}
+          {(showGuide || settings.practiceGuide !== 'off') && (
+            <div className="text-white text-lg mt-1">
+              {gameState.currentChordTarget.noteNames.map((noteName, index) => (
+                <span key={index} className="mx-1">
+                  {noteName}
+                  {/* 正解した音にチェックマーク */}
+                  {playedNotes.has(gameState.currentChordTarget.notes[index]) && (
+                    <span className="text-green-400 ml-0.5">✓</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         
         {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}

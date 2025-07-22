@@ -1884,8 +1884,8 @@ const SettingsPanel: React.FC = () => {
                   className="select select-bordered w-full max-w-xs bg-gray-800 text-white"
                 >
                   <option value="off">OFF</option>
-                  <option value="key_auto">鍵盤ハイライト + オートプレイ</option>
-                  <option value="key">鍵盤ハイライトのみ</option>
+                  <option value="key_auto">音名ヒント + オートプレイ</option>
+                  <option value="key">音名ヒントのみ</option>
                 </select>
                 <div className="text-xs text-gray-400 mt-1">
                   ノーツが判定ラインを通過する際の表示ガイド（練習モード専用）

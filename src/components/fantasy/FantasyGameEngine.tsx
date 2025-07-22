@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { devLog } from '@/utils/logger';
+import { getMidiNoteName } from '@/utils/chordUtils';
 
 // ===== 型定義 =====
 
@@ -12,6 +13,7 @@ interface ChordDefinition {
   id: string;           // "CM7"
   displayName: string;  // "CM7"
   notes: number[];      // [60, 64, 67, 71]
+  noteNames: string[];  // ["ド", "ミ", "ソ", "シ"]
   quality: string;      // "M7"
   root: string;        // "C"
 }
@@ -66,45 +68,126 @@ interface FantasyGameEngineProps {
 
 // ===== コード定義データ =====
 
+// ヘルパー関数：MIDIノート配列から音名配列を生成
+const createNoteNames = (notes: number[]): string[] => {
+  return notes.map(note => getMidiNoteName(note));
+};
+
+// ヘルパー関数：コード定義を作成
+const createChord = (id: string, displayName: string, notes: number[], quality: string, root: string): ChordDefinition => {
+  return {
+    id,
+    displayName,
+    notes,
+    noteNames: createNoteNames(notes),
+    quality,
+    root
+  };
+};
+
 const CHORD_DEFINITIONS: Record<string, ChordDefinition> = {
   // メジャートライアド
-  'C': { id: 'C', displayName: 'C', notes: [60, 64, 67], quality: 'major', root: 'C' },
-  'F': { id: 'F', displayName: 'F', notes: [65, 69, 72], quality: 'major', root: 'F' },
-  'G': { id: 'G', displayName: 'G', notes: [67, 71, 74], quality: 'major', root: 'G' },
+  'C': createChord('C', 'C', [60, 64, 67], 'major', 'C'),
+  'F': createChord('F', 'F', [65, 69, 72], 'major', 'F'),
+  'G': createChord('G', 'G', [67, 71, 74], 'major', 'G'),
   
   // マイナートライアド
-  'Am': { id: 'Am', displayName: 'Am', notes: [57, 60, 64], quality: 'minor', root: 'A' },
-  'Dm': { id: 'Dm', displayName: 'Dm', notes: [62, 65, 69], quality: 'minor', root: 'D' },
-  'Em': { id: 'Em', displayName: 'Em', notes: [64, 67, 71], quality: 'minor', root: 'E' },
+  'Am': createChord('Am', 'Am', [57, 60, 64], 'minor', 'A'),
+  'Dm': createChord('Dm', 'Dm', [62, 65, 69], 'minor', 'D'),
+  'Em': createChord('Em', 'Em', [64, 67, 71], 'minor', 'E'),
   
   // ドミナント7th
-  'G7': { id: 'G7', displayName: 'G7', notes: [67, 71, 74, 77], quality: 'dominant7', root: 'G' },
-  'C7': { id: 'C7', displayName: 'C7', notes: [60, 64, 67, 70], quality: 'dominant7', root: 'C' },
-  'F7': { id: 'F7', displayName: 'F7', notes: [65, 69, 72, 75], quality: 'dominant7', root: 'F' },
+  'G7': createChord('G7', 'G7', [67, 71, 74, 77], 'dominant7', 'G'),
+  'C7': createChord('C7', 'C7', [60, 64, 67, 70], 'dominant7', 'C'),
+  'F7': createChord('F7', 'F7', [65, 69, 72, 75], 'dominant7', 'F'),
   
   // マイナー7th
-  'Am7': { id: 'Am7', displayName: 'Am7', notes: [57, 60, 64, 67], quality: 'minor7', root: 'A' },
-  'Dm7': { id: 'Dm7', displayName: 'Dm7', notes: [62, 65, 69, 72], quality: 'minor7', root: 'D' },
-  'Em7': { id: 'Em7', displayName: 'Em7', notes: [64, 67, 71, 74], quality: 'minor7', root: 'E' },
+  'Am7': createChord('Am7', 'Am7', [57, 60, 64, 67], 'minor7', 'A'),
+  'Dm7': createChord('Dm7', 'Dm7', [62, 65, 69, 72], 'minor7', 'D'),
+  'Em7': createChord('Em7', 'Em7', [64, 67, 71, 74], 'minor7', 'E'),
   
   // メジャー7th
-  'CM7': { id: 'CM7', displayName: 'CM7', notes: [60, 64, 67, 71], quality: 'major7', root: 'C' },
-  'FM7': { id: 'FM7', displayName: 'FM7', notes: [65, 69, 72, 76], quality: 'major7', root: 'F' },
-  'GM7': { id: 'GM7', displayName: 'GM7', notes: [67, 71, 74, 78], quality: 'major7', root: 'G' },
+  'CM7': createChord('CM7', 'CM7', [60, 64, 67, 71], 'major7', 'C'),
+  'FM7': createChord('FM7', 'FM7', [65, 69, 72, 76], 'major7', 'F'),
+  'GM7': createChord('GM7', 'GM7', [67, 71, 74, 78], 'major7', 'G'),
   
   // テンション系
-  'C6': { id: 'C6', displayName: 'C6', notes: [60, 64, 67, 69], quality: 'major6', root: 'C' },
-  'Cm6': { id: 'Cm6', displayName: 'Cm6', notes: [60, 63, 67, 69], quality: 'minor6', root: 'C' },
-  'C9': { id: 'C9', displayName: 'C9', notes: [60, 64, 67, 70, 74], quality: 'dominant9', root: 'C' },
-  'Cm9': { id: 'Cm9', displayName: 'Cm9', notes: [60, 63, 67, 70, 74], quality: 'minor9', root: 'C' },
-  'C11': { id: 'C11', displayName: 'C11', notes: [60, 64, 67, 70, 74, 77], quality: 'dominant11', root: 'C' },
-  'C13': { id: 'C13', displayName: 'C13', notes: [60, 64, 67, 70, 74, 81], quality: 'dominant13', root: 'C' },
+  'C6': createChord('C6', 'C6', [60, 64, 67, 69], 'major6', 'C'),
+  'Cm6': createChord('Cm6', 'Cm6', [60, 63, 67, 69], 'minor6', 'C'),
+  'C9': createChord('C9', 'C9', [60, 64, 67, 70, 74], 'dominant9', 'C'),
+  'Cm9': createChord('Cm9', 'Cm9', [60, 63, 67, 70, 74], 'minor9', 'C'),
+  'C11': createChord('C11', 'C11', [60, 64, 67, 70, 74, 77], 'dominant11', 'C'),
+  'C13': createChord('C13', 'C13', [60, 64, 67, 70, 74, 81], 'dominant13', 'C'),
   
   // 追加のドミナント7th
-  'B7': { id: 'B7', displayName: 'B7', notes: [71, 75, 78, 81], quality: 'dominant7', root: 'B' },
-  'E7': { id: 'E7', displayName: 'E7', notes: [64, 68, 71, 74], quality: 'dominant7', root: 'E' },
-  'A7': { id: 'A7', displayName: 'A7', notes: [69, 73, 76, 79], quality: 'dominant7', root: 'A' },
-  'D7': { id: 'D7', displayName: 'D7', notes: [62, 66, 69, 72], quality: 'dominant7', root: 'D' }
+  'B7': createChord('B7', 'B7', [71, 75, 78, 81], 'dominant7', 'B'),
+  'E7': createChord('E7', 'E7', [64, 68, 71, 74], 'dominant7', 'E'),
+  'A7': createChord('A7', 'A7', [69, 73, 76, 79], 'dominant7', 'A'),
+  'D7': createChord('D7', 'D7', [62, 66, 69, 72], 'dominant7', 'D'),
+  
+  // === 黒鍵ルートのコード (シャープ系) ===
+  // C#メジャー系
+  'C#': createChord('C#', 'C#', [61, 65, 68], 'major', 'C#'),
+  'C#m': createChord('C#m', 'C#m', [61, 64, 68], 'minor', 'C#'),
+  'C#7': createChord('C#7', 'C#7', [61, 65, 68, 71], 'dominant7', 'C#'),
+  'C#m7': createChord('C#m7', 'C#m7', [61, 64, 68, 71], 'minor7', 'C#'),
+  'C#M7': createChord('C#M7', 'C#M7', [61, 65, 68, 72], 'major7', 'C#'),
+  
+  // D#メジャー系  
+  'D#': createChord('D#', 'D#', [63, 67, 70], 'major', 'D#'),
+  'D#m': createChord('D#m', 'D#m', [63, 66, 70], 'minor', 'D#'),
+  'D#7': createChord('D#7', 'D#7', [63, 67, 70, 73], 'dominant7', 'D#'),
+  'D#m7': createChord('D#m7', 'D#m7', [63, 66, 70, 73], 'minor7', 'D#'),
+  
+  // F#メジャー系
+  'F#': createChord('F#', 'F#', [66, 70, 73], 'major', 'F#'),
+  'F#m': createChord('F#m', 'F#m', [66, 69, 73], 'minor', 'F#'),
+  'F#7': createChord('F#7', 'F#7', [66, 70, 73, 76], 'dominant7', 'F#'),
+  'F#m7': createChord('F#m7', 'F#m7', [66, 69, 73, 76], 'minor7', 'F#'),
+  'F#M7': createChord('F#M7', 'F#M7', [66, 70, 73, 77], 'major7', 'F#'),
+  
+  // G#メジャー系
+  'G#': createChord('G#', 'G#', [68, 72, 75], 'major', 'G#'),
+  'G#m': createChord('G#m', 'G#m', [68, 71, 75], 'minor', 'G#'),
+  'G#7': createChord('G#7', 'G#7', [68, 72, 75, 78], 'dominant7', 'G#'),
+  'G#m7': createChord('G#m7', 'G#m7', [68, 71, 75, 78], 'minor7', 'G#'),
+  
+  // A#メジャー系
+  'A#': createChord('A#', 'A#', [70, 74, 77], 'major', 'A#'),
+  'A#m': createChord('A#m', 'A#m', [70, 73, 77], 'minor', 'A#'),
+  'A#7': createChord('A#7', 'A#7', [70, 74, 77, 80], 'dominant7', 'A#'),
+  'A#m7': createChord('A#m7', 'A#m7', [70, 73, 77, 80], 'minor7', 'A#'),
+  
+  // === 黒鍵ルートのコード (フラット系) ===
+  // Dbメジャー系
+  'Db': createChord('Db', 'Db', [61, 65, 68], 'major', 'Db'),
+  'Dbm': createChord('Dbm', 'Dbm', [61, 64, 68], 'minor', 'Db'),
+  'Db7': createChord('Db7', 'Db7', [61, 65, 68, 71], 'dominant7', 'Db'),
+  'DbM7': createChord('DbM7', 'DbM7', [61, 65, 68, 72], 'major7', 'Db'),
+  
+  // Ebメジャー系
+  'Eb': createChord('Eb', 'Eb', [63, 67, 70], 'major', 'Eb'),
+  'Ebm': createChord('Ebm', 'Ebm', [63, 66, 70], 'minor', 'Eb'),
+  'Eb7': createChord('Eb7', 'Eb7', [63, 67, 70, 73], 'dominant7', 'Eb'),
+  'EbM7': createChord('EbM7', 'EbM7', [63, 67, 70, 74], 'major7', 'Eb'),
+  
+  // Gbメジャー系
+  'Gb': createChord('Gb', 'Gb', [66, 70, 73], 'major', 'Gb'),
+  'Gbm': createChord('Gbm', 'Gbm', [66, 69, 73], 'minor', 'Gb'),
+  'Gb7': createChord('Gb7', 'Gb7', [66, 70, 73, 76], 'dominant7', 'Gb'),
+  'GbM7': createChord('GbM7', 'GbM7', [66, 70, 73, 77], 'major7', 'Gb'),
+  
+  // Abメジャー系
+  'Ab': createChord('Ab', 'Ab', [68, 72, 75], 'major', 'Ab'),
+  'Abm': createChord('Abm', 'Abm', [68, 71, 75], 'minor', 'Ab'),
+  'Ab7': createChord('Ab7', 'Ab7', [68, 72, 75, 78], 'dominant7', 'Ab'),
+  'AbM7': createChord('AbM7', 'AbM7', [68, 72, 75, 79], 'major7', 'Ab'),
+  
+  // Bbメジャー系
+  'Bb': createChord('Bb', 'Bb', [70, 74, 77], 'major', 'Bb'),
+  'Bbm': createChord('Bbm', 'Bbm', [70, 73, 77], 'minor', 'Bb'),
+  'Bb7': createChord('Bb7', 'Bb7', [70, 74, 77, 80], 'dominant7', 'Bb'),
+  'BbM7': createChord('BbM7', 'BbM7', [70, 74, 77, 81], 'major7', 'Bb')
 };
 
 // ===== 敵リスト定義 =====
