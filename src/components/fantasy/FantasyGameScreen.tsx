@@ -264,10 +264,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 敵が変更された時にモンスタースプライトを更新
   useEffect(() => {
     if (fantasyPixiInstance && currentEnemy) {
-      fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
-      devLog.debug('🔄 モンスタースプライト更新:', { monster: currentEnemy.icon });
+      // 敵が倒された後の場合は、少し遅延を入れて新しいモンスターを生成
+      // これにより、前の敵のフェードアウトが完了してから新しい敵が出現する
+      const isEnemyDefeated = gameState.currentEnemyHits === 0 && gameState.currentEnemyIndex > 0;
+      const delay = isEnemyDefeated ? 1000 : 0; // 1秒の遅延
+      
+      const timeoutId = setTimeout(() => {
+        if (fantasyPixiInstance && currentEnemy) {
+          fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
+          devLog.debug('🔄 モンスタースプライト更新:', { 
+            monster: currentEnemy.icon,
+            enemyIndex: gameState.currentEnemyIndex,
+            delay: delay
+          });
+        }
+      }, delay);
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [fantasyPixiInstance, currentEnemy]);
+  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex, gameState.currentEnemyHits]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {

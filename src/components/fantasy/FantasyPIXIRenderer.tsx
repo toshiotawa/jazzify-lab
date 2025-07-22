@@ -252,16 +252,19 @@ export class FantasyPIXIInstance {
       // 既存のスプライトを安全に破棄
       if (this.monsterSprite) {
         try {
-          if (this.monsterSprite.parent) {
-            this.monsterSprite.parent.removeChild(this.monsterSprite);
+          // モンスタースプライトの参照を一時的にnullにして、アニメーションループが参照しないようにする
+          const spriteToDestroy = this.monsterSprite;
+          this.monsterSprite = null;
+          
+          if (spriteToDestroy.parent) {
+            spriteToDestroy.parent.removeChild(spriteToDestroy);
           }
-          if (!this.monsterSprite.destroyed) {
-            this.monsterSprite.destroy();
+          if (!spriteToDestroy.destroyed) {
+            spriteToDestroy.destroy();
           }
         } catch (error) {
           devLog.debug('⚠️ 既存モンスタースプライトの破棄エラー:', error);
         }
-        this.monsterSprite = null;
       }
 
       // 絵文字テクスチャを取得
@@ -302,16 +305,19 @@ export class FantasyPIXIInstance {
       // 既存のスプライトを安全に破棄
       if (this.monsterSprite) {
         try {
-          if (this.monsterSprite.parent) {
-            this.monsterSprite.parent.removeChild(this.monsterSprite);
+          // モンスタースプライトの参照を一時的にnullにして、アニメーションループが参照しないようにする
+          const spriteToDestroy = this.monsterSprite;
+          this.monsterSprite = null;
+          
+          if (spriteToDestroy.parent) {
+            spriteToDestroy.parent.removeChild(spriteToDestroy);
           }
-          if (!this.monsterSprite.destroyed) {
-            this.monsterSprite.destroy();
+          if (!spriteToDestroy.destroyed) {
+            spriteToDestroy.destroy();
           }
         } catch (error) {
           devLog.debug('⚠️ 既存モンスタースプライトの破棄エラー:', error);
         }
-        this.monsterSprite = null;
       }
 
       // グラフィックスからテクスチャを生成
@@ -391,11 +397,27 @@ export class FantasyPIXIInstance {
       // 画面震動エフェクト
       this.createScreenShake(5, 200);
       
-      // 5発で次のモンスターに交代
+      // 5発で敵を倒す（ただし、switchToNextMonsterは呼ばない）
+      // 新しいモンスターの生成は外部（FantasyGameScreen）から制御される
       if (this.enemyHitCount >= 5) {
-        setTimeout(() => {
-          this.switchToNextMonster();
-        }, 1500);
+        devLog.debug('💀 敵を倒した！外部からの新モンスター設定を待機中...');
+        // ヒットカウントをリセット（外部から新しいモンスターが設定された時のため）
+        this.enemyHitCount = 0;
+        this.monsterState.health = this.monsterState.maxHealth;
+        
+        // 倒れるエフェクトのみ実行
+        if (this.monsterSprite && !this.monsterSprite.destroyed) {
+          // フェードアウトエフェクト
+          const fadeOut = () => {
+            if (this.isDestroyed) return;
+            
+            if (this.monsterSprite && !this.monsterSprite.destroyed && this.monsterSprite.alpha > 0) {
+              this.monsterSprite.alpha -= 0.05;
+              requestAnimationFrame(fadeOut);
+            }
+          };
+          fadeOut();
+        }
       }
       
       // 色とよろけ効果をリセット
@@ -495,32 +517,6 @@ export class FantasyPIXIInstance {
     };
     
     shake();
-  }
-
-  // 次のモンスターに交代
-  private switchToNextMonster(): void {
-    if (!this.monsterSprite) return;
-    
-    // フェードアウトエフェクト
-    const fadeOut = () => {
-      if (this.monsterSprite && this.monsterSprite.alpha > 0) {
-        this.monsterSprite.alpha -= 0.05;
-        requestAnimationFrame(fadeOut);
-      } else if (this.monsterSprite) {
-        // 新しいモンスター生成
-        this.enemyHitCount = 0;
-        this.monsterState.health = this.monsterState.maxHealth;
-        this.monsterSprite.alpha = 1;
-        
-        // ランダムな新しいモンスターを選択
-        const monsterKeys = Object.keys(MONSTER_EMOJI);
-        const randomKey = monsterKeys[Math.floor(Math.random() * monsterKeys.length)];
-        this.createMonsterSprite(randomKey);
-      }
-    };
-    fadeOut();
-    
-    devLog.debug('🔄 次のモンスターに交代');
   }
 
   // ダメージ数値作成
@@ -628,7 +624,10 @@ export class FantasyPIXIInstance {
   updateMonsterAttacking(isAttacking: boolean): void {
     this.monsterState.isAttacking = isAttacking;
     
-    if (this.monsterSprite && isAttacking) {
+    // モンスタースプライトがnullの場合は早期リターン
+    if (!this.monsterSprite || this.monsterSprite.destroyed) return;
+    
+    if (isAttacking) {
       this.monsterSprite.tint = 0xFF6B6B;
       this.monsterSprite.scale.set(1.3);
       
@@ -636,7 +635,7 @@ export class FantasyPIXIInstance {
       // this.createMagicCircle(this.monsterState.x, this.monsterState.y, 'failure');
       
       setTimeout(() => {
-        if (this.monsterSprite) {
+        if (this.monsterSprite && !this.monsterSprite.destroyed) {
           this.monsterSprite.tint = 0xFFFFFF;
           this.monsterSprite.scale.set(1.0);
         }
@@ -662,15 +661,15 @@ export class FantasyPIXIInstance {
 
   // モンスターアニメーション更新
   private updateMonsterAnimation(): void {
+    // this.monsterSpriteがnullの場合は早期リターン
+    if (!this.monsterSprite || this.isDestroyed) {
+      return;
+    }
+    
     // ローカル参照を取得して、更新途中に this.monsterSprite が破棄されても
     // 例外にならないようにする
     const sprite = this.monsterSprite;
-    if (
-      !sprite || 
-      this.isDestroyed || 
-      sprite.destroyed ||
-      !sprite.transform  // transform が生きているかまでチェック
-    ) {
+    if (!sprite || sprite.destroyed || !sprite.transform) {
       return;
     }
 
@@ -813,7 +812,8 @@ export class FantasyPIXIInstance {
       this.monsterState.x = width / 2;
       this.monsterState.y = height / 2;
       
-      if (this.monsterSprite && !this.monsterSprite.destroyed) {
+      // モンスタースプライトの位置更新時もnullチェックを強化
+      if (this.monsterSprite && !this.monsterSprite.destroyed && this.monsterSprite.transform) {
         this.monsterSprite.x = this.monsterState.x;
         this.monsterSprite.y = this.monsterState.y;
       }
@@ -836,6 +836,23 @@ export class FantasyPIXIInstance {
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
+    }
+    
+    // モンスタースプライトを安全に破棄
+    if (this.monsterSprite) {
+      try {
+        const spriteToDestroy = this.monsterSprite;
+        this.monsterSprite = null;
+        
+        if (spriteToDestroy.parent) {
+          spriteToDestroy.parent.removeChild(spriteToDestroy);
+        }
+        if (!spriteToDestroy.destroyed) {
+          spriteToDestroy.destroy();
+        }
+      } catch (error) {
+        devLog.debug('⚠️ モンスタースプライト破棄エラー:', error);
+      }
     }
     
     // テクスチャクリーンアップ
