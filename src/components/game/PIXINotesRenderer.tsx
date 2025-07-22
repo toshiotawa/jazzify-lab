@@ -1552,11 +1552,17 @@ export class PIXINotesRendererInstance {
       
       // ホバー効果を追加
       key.on('pointerover', () => {
-        key.tint = 0xF3F4F6; // light gray hover
+        // ハイライトされていない場合のみホバー効果を適用
+        if (!this.isKeyHighlighted(midiNote)) {
+          key.tint = 0xF3F4F6; // light gray hover
+        }
       });
       
       key.on('pointerout', () => {
-        key.tint = 0xFFFFFF; // white
+        // ハイライトされていない場合のみ元の色に戻す
+        if (!this.isKeyHighlighted(midiNote)) {
+          key.tint = 0xFFFFFF; // white
+        }
       });
     }
     
