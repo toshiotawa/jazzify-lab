@@ -249,9 +249,18 @@ export class FantasyPIXIInstance {
     if (this.isDestroyed) return;
     
     try {
+      // 既存のスプライトを安全に破棄
       if (this.monsterSprite) {
-        this.monsterContainer.removeChild(this.monsterSprite);
-        this.monsterSprite.destroy();
+        try {
+          if (this.monsterSprite.parent) {
+            this.monsterSprite.parent.removeChild(this.monsterSprite);
+          }
+          if (!this.monsterSprite.destroyed) {
+            this.monsterSprite.destroy();
+          }
+        } catch (error) {
+          devLog.debug('⚠️ 既存モンスタースプライトの破棄エラー:', error);
+        }
         this.monsterSprite = null;
       }
 
@@ -290,26 +299,53 @@ export class FantasyPIXIInstance {
     if (this.isDestroyed) return;
     
     try {
+      // 既存のスプライトを安全に破棄
+      if (this.monsterSprite) {
+        try {
+          if (this.monsterSprite.parent) {
+            this.monsterSprite.parent.removeChild(this.monsterSprite);
+          }
+          if (!this.monsterSprite.destroyed) {
+            this.monsterSprite.destroy();
+          }
+        } catch (error) {
+          devLog.debug('⚠️ 既存モンスタースプライトの破棄エラー:', error);
+        }
+        this.monsterSprite = null;
+      }
+
+      // グラフィックスからテクスチャを生成
       const graphics = new PIXI.Graphics();
       graphics.beginFill(0x666666);
-      graphics.drawCircle(0, 0, 64);
+      graphics.drawCircle(64, 64, 64);
       graphics.endFill();
       
-      // テキスト付きフォールバック
-      const fallbackContainer = new PIXI.Container();
-      fallbackContainer.addChild(graphics);
-      
+      // 絵文字テキスト
       const text = new PIXI.Text('👻', { fontSize: 48, fill: 0xFFFFFF });
       text.anchor.set(0.5);
-      fallbackContainer.addChild(text);
+      text.position.set(64, 64);
+      graphics.addChild(text);
       
-      fallbackContainer.x = this.monsterState.x;
-      fallbackContainer.y = this.monsterState.y;
+      // グラフィックスからテクスチャを作成
+      const texture = this.app.renderer.generateTexture(graphics);
+      graphics.destroy();
       
-      this.monsterContainer.addChild(fallbackContainer);
+      // テクスチャからスプライトを作成
+      this.monsterSprite = new PIXI.Sprite(texture);
+      this.monsterSprite.width = 128;
+      this.monsterSprite.height = 128;
+      this.monsterSprite.anchor.set(0.5);
+      this.monsterSprite.x = this.monsterState.x;
+      this.monsterSprite.y = this.monsterState.y;
+      this.monsterSprite.tint = 0x666666;
       
-      // フォールバックモンスターをメインスプライトとして設定
-      this.monsterSprite = fallbackContainer as any;
+      // インタラクティブ設定
+      this.monsterSprite.interactive = true;
+      this.monsterSprite.cursor = 'pointer';
+      
+      this.monsterContainer.addChild(this.monsterSprite);
+      
+      devLog.debug('✅ フォールバックモンスター作成完了');
     } catch (error) {
       devLog.debug('❌ フォールバックモンスター作成エラー:', error);
     }
@@ -635,8 +671,14 @@ export class FantasyPIXIInstance {
 
     try {
       // プロパティ存在チェック
-      if (typeof sprite.x === 'undefined') {
+      if (typeof sprite.x === 'undefined' || typeof sprite.y === 'undefined') {
         devLog.debug('⚠️ モンスタースプライトが無効な状態です (prop undefined)');
+        return;
+      }
+
+      // スプライトがまだ有効か再確認
+      if (!sprite.parent || sprite.destroyed) {
+        devLog.debug('⚠️ モンスタースプライトが破棄されています');
         return;
       }
 
@@ -657,8 +699,8 @@ export class FantasyPIXIInstance {
       }
     } catch (error) {
       devLog.debug('⚠️ モンスターアニメーション更新エラー:', error);
-      // エラー時は次フレーム以降の更新を防止
-      this.monsterSprite = null;
+      // エラー時でもmonsterSpriteをnullにしない（アニメーションループが継続するため）
+      // 代わりに次のフレームでnullチェックされる
     }
   }
 
