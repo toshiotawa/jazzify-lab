@@ -405,7 +405,7 @@ export class FantasyPIXIInstance {
 
   // 攻撃成功エフェクト
   triggerAttackSuccess(): void {
-    if (this.isDestroyed) return;
+    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed) return;
     
     try {
       // 魔法タイプをローテーション
@@ -670,6 +670,8 @@ export class FantasyPIXIInstance {
 
   // モンスター攻撃状態更新
   updateMonsterAttacking(isAttacking: boolean): void {
+    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed) return;
+    
     this.monsterGameState.isAttacking = isAttacking;
     
     if (isAttacking) {
@@ -678,7 +680,7 @@ export class FantasyPIXIInstance {
       this.updateMonsterSprite();
       
       setTimeout(() => {
-        if (!this.isDestroyed) {
+        if (!this.isDestroyed && this.monsterVisualState) {
           this.monsterVisualState.tint = 0xFFFFFF;
           this.monsterVisualState.scale = 1.0;
           this.updateMonsterSprite();
@@ -913,7 +915,7 @@ export class FantasyPIXIInstance {
     this.emojiTextures.clear();
     
     // PIXIアプリケーションの破棄
-    if (this.app && !this.app.destroyed) {
+    if (this.app) {
       try {
         this.app.destroy(true, { children: true });
       } catch (error) {
@@ -956,7 +958,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
 
   // モンスターアイコン変更
   useEffect(() => {
-    if (pixiInstance) {
+    if (pixiInstance && monsterIcon) {
       pixiInstance.createMonsterSprite(monsterIcon);
     }
   }, [pixiInstance, monsterIcon]);

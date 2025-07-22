@@ -195,11 +195,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           particles: true,
           trails: false
         },
-        // スクロール設定を追加
-        keyboardRange: {
-          startNote: 36, // C2
-          endNote: 84   // C6 (48音域)
-        }
+        // 音域設定は PIXINotesRenderer 内部で処理される
       });
       
       // キーボードのクリックイベントを接続

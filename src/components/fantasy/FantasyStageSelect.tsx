@@ -203,6 +203,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
+        showGuide: stage.show_guide !== false, // デフォルトはtrueとする
         monsterIcon: stage.monster_icon || 'ghost',
         bgmUrl: stage.bgm_url
       }));
