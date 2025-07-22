@@ -53,6 +53,8 @@ interface FantasyGameState {
   // 敵のHP管理を追加
   currentEnemyHp: number;
   maxEnemyHp: number;
+  // 正解した音を追跡
+  correctNotes: number[];
 }
 
 interface FantasyGameEngineProps {
@@ -126,30 +128,27 @@ const ENEMY_LIST = [
  */
 const checkChordMatch = (inputNotes: number[], targetChord: ChordDefinition): boolean => {
   if (inputNotes.length === 0) {
-    devLog.debug('❌ コード判定: 入力音なし');
+    devLog.debug('❌ 入力なし - 不正解');
     return false;
   }
   
-  // 入力された音をノート番号のmod 12で正規化（オクターブ無視）
+  // 重複を除去し、mod 12で正規化（オクターブ無視）
   const inputNotesMod12 = [...new Set(inputNotes.map(note => note % 12))]; // 重複除去も追加
   const targetNotesMod12 = [...new Set(targetChord.notes.map(note => note % 12))]; // 重複除去も追加
   
-  // ターゲットコードの全ての音が入力に含まれているかチェック
+  // 転回形も考慮：すべての構成音が含まれているかチェック
   const hasAllTargetNotes = targetNotesMod12.every(targetNote => 
     inputNotesMod12.includes(targetNote)
   );
   
-  // より詳細なログ出力
-  devLog.debug(`🎵 コード判定詳細:`, {
+  devLog.debug('🎯 コード判定詳細:', { 
     targetChord: targetChord.displayName,
-    targetNotes: targetChord.notes,
-    targetMod12: targetNotesMod12,
     targetMod12Names: targetNotesMod12.map(note => {
       const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
       return noteNames[note];
     }),
     inputNotes: inputNotes,
-    inputMod12: inputNotesMod12,
+    inputNotesMod12: inputNotesMod12,
     inputMod12Names: inputNotesMod12.map(note => {
       const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
       return noteNames[note];
@@ -157,7 +156,6 @@ const checkChordMatch = (inputNotes: number[], targetChord: ChordDefinition): bo
     hasAllTargetNotes,
     matchDetails: targetNotesMod12.map(targetNote => ({
       note: targetNote,
-      noteName: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][targetNote],
       found: inputNotesMod12.includes(targetNote)
     }))
   });
@@ -166,15 +164,43 @@ const checkChordMatch = (inputNotes: number[], targetChord: ChordDefinition): bo
 };
 
 /**
+ * 部分的なコードマッチ判定（正解した音を返す）
+ */
+const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): number[] => {
+  if (inputNotes.length === 0) {
+    return [];
+  }
+  
+  // 重複を除去し、mod 12で正規化（オクターブ無視）
+  const inputNotesMod12 = [...new Set(inputNotes.map(note => note % 12))];
+  const targetNotesMod12 = [...new Set(targetChord.notes.map(note => note % 12))];
+  
+  // 正解した音を見つける
+  const correctNotes = inputNotesMod12.filter(note => targetNotesMod12.includes(note));
+  
+  return correctNotes;
+};
+
+/**
  * ランダムコード選択（allowedChordsから）
  */
-const selectRandomChord = (allowedChords: string[]): ChordDefinition | null => {
+const selectRandomChord = (allowedChords: string[], previousChordId?: string): ChordDefinition | null => {
   const availableChords = allowedChords
     .map(chordId => CHORD_DEFINITIONS[chordId])
     .filter(Boolean);
     
   if (availableChords.length === 0) return null;
   
+  // 前回のコードと異なるコードを選択
+  if (previousChordId && availableChords.length > 1) {
+    const filteredChords = availableChords.filter(chord => chord.id !== previousChordId);
+    if (filteredChords.length > 0) {
+      const randomIndex = Math.floor(Math.random() * filteredChords.length);
+      return filteredChords[randomIndex];
+    }
+  }
+  
+  // フィルター後に選択肢がない場合は通常のランダム選択
   const randomIndex = Math.floor(Math.random() * availableChords.length);
   return availableChords[randomIndex];
 };
@@ -229,7 +255,8 @@ export const useFantasyGameEngine = ({
     totalEnemies: 5,
     // 敵のHP管理を追加
     currentEnemyHp: 5,
-    maxEnemyHp: 5
+    maxEnemyHp: 5,
+    correctNotes: []
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -280,7 +307,8 @@ export const useFantasyGameEngine = ({
       totalEnemies: 5,
       // 敵のHP管理を追加
       currentEnemyHp: 5,
-      maxEnemyHp: 5
+      maxEnemyHp: 5,
+      correctNotes: []
     };
     
     setGameState(newState);
@@ -311,8 +339,9 @@ export const useFantasyGameEngine = ({
         // 次の問題（ループ対応）
         let nextChord;
         if (prevState.currentStage?.mode === 'single') {
-          // ランダムモード：そのまま
-          nextChord = selectRandomChord(prevState.currentStage.allowedChords);
+          // ランダムモード：前回と異なるコードを選択
+          const previousChordId = prevState.currentChordTarget?.id;
+          nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId);
         } else {
           // コード進行モード：ループさせる
           const progression = prevState.currentStage?.chordProgression || [];
@@ -324,7 +353,8 @@ export const useFantasyGameEngine = ({
           ...prevState,
           currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
           currentChordTarget: nextChord,
-          enemyGauge: 0 // ゲージリセット
+          enemyGauge: 0, // ゲージリセット
+          correctNotes: [] // 新しいコードでリセット
         };
         
         onGameStateChange(nextState);
@@ -400,8 +430,9 @@ export const useFantasyGameEngine = ({
           // 次の問題（ループ対応）
           let nextChord;
           if (prevState.currentStage?.mode === 'single') {
-            // ランダムモード：そのまま
-            nextChord = selectRandomChord(prevState.currentStage.allowedChords);
+            // ランダムモード：前回と異なるコードを選択
+            const previousChordId = prevState.currentChordTarget?.id;
+            nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId);
           } else {
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
@@ -414,7 +445,8 @@ export const useFantasyGameEngine = ({
             playerHp: newHp,
             currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
             currentChordTarget: nextChord,
-            enemyGauge: 0
+            enemyGauge: 0,
+            correctNotes: [] // 新しいコードでリセット
           };
           
           onGameStateChange(nextState);
@@ -502,6 +534,17 @@ export const useFantasyGameEngine = ({
       const newBuffer = [...prevBuffer, note];
       devLog.debug('🎵 入力バッファ更新:', { newBuffer, bufferSize: newBuffer.length });
       
+      // 正解した音を更新
+      const correctNotes = getCorrectNotes(newBuffer, gameState.currentChordTarget!);
+      setGameState(prevState => ({
+        ...prevState,
+        correctNotes: correctNotes
+      }));
+      onGameStateChange({
+        ...gameState,
+        correctNotes: correctNotes
+      });
+      
       // 入力タイムアウトをリセット
       if (inputTimeout) {
         clearTimeout(inputTimeout);
@@ -532,7 +575,7 @@ export const useFantasyGameEngine = ({
       
       return newBuffer;
     });
-  }, [gameState.isGameActive, gameState.currentChordTarget, inputTimeout]);
+  }, [gameState.isGameActive, gameState.currentChordTarget, inputTimeout, onGameStateChange]);
   
   // 現在の入力を判定
   const checkCurrentInput = useCallback((notes: number[]) => {
@@ -692,6 +735,8 @@ export const useFantasyGameEngine = ({
       }
     };
   }, []);
+  
+
   
   return {
     gameState,
