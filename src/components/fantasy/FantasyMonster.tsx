@@ -19,7 +19,13 @@ import {
   faDragon,
   faSkull,
   faFire,
-  faSnowflake
+  faSnowflake,
+  faSpider,
+  faKhanda,
+  faMask,
+  faEye,
+  faHatWizard,
+  faBug
 } from '@fortawesome/free-solid-svg-icons';
 import { cn } from '@/utils/cn';
 
@@ -50,7 +56,14 @@ const MONSTER_ICONS: Record<string, any> = {
   'skull': faSkull,
   'fire': faFire,
   'ice': faSnowflake,
-  'lightning': faBolt
+  'lightning': faBolt,
+  // ファンタジーモード用の敵アイコンマッピング
+  'vampire': faEye,
+  'monster': faBug,
+  'reaper': faSkull,
+  'kraken': faSpider,
+  'werewolf': faMask,
+  'demon': faHatWizard
 };
 
 // モンスターサイズ設定
@@ -92,7 +105,14 @@ const MONSTER_TRAITS: Record<string, { color: string; glowColor: string; special
   'skull': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
   'fire': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
   'ice': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
-  'lightning': { color: 'text-gray-300', glowColor: 'drop-shadow-md' }
+  'lightning': { color: 'text-gray-300', glowColor: 'drop-shadow-md' },
+  // ファンタジーモード用の敵特性
+  'vampire': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'float' },
+  'monster': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'pulse' },
+  'reaper': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'float' },
+  'kraken': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'pulse' },
+  'werewolf': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'shake' },
+  'demon': { color: 'text-gray-300', glowColor: 'drop-shadow-md', specialEffect: 'pulse' }
 };
 
 const FantasyMonster: React.FC<FantasyMonsterProps> = ({
