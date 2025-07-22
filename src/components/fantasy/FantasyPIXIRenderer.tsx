@@ -355,9 +355,18 @@ export class FantasyPIXIInstance {
 
   // モンスタースプライトの属性を安全に更新
   private updateMonsterSprite(): void {
-    if (this.isDestroyed || !this.monsterSprite) return;
+    // 追加の安全チェックを実装
+    if (
+      this.isDestroyed ||
+      !this.monsterSprite ||
+      this.monsterSprite.destroyed ||
+      // transform が null になると PIXI 内部で x 代入時にエラーになるため
+      !(this.monsterSprite as any).transform
+    ) {
+      return; // 破棄済みまたは異常状態の場合は更新しない
+    }
     
-    // ビジュアル状態を適用（絶対にnullにならない）
+    // ビジュアル状態を適用
     this.monsterSprite.x = this.monsterVisualState.x;
     this.monsterSprite.y = this.monsterVisualState.y;
     this.monsterSprite.scale.set(this.monsterVisualState.scale);
