@@ -66,9 +66,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleChordCorrect = useCallback((chord: ChordDefinition) => {
     devLog.debug('✅ 正解:', chord.displayName);
     
-    // ファンタジーPIXIエフェクトをトリガー
+    // ファンタジーPIXIエフェクトをトリガー（コード名を渡す）
     if (fantasyPixiInstance) {
-      fantasyPixiInstance.triggerAttackSuccess();
+      fantasyPixiInstance.triggerAttackSuccess(chord.displayName);
     }
     
   }, [fantasyPixiInstance]);
@@ -208,11 +208,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           glow: true,
           particles: true,
           trails: false
-        },
-        // スクロール設定を追加
-        keyboardRange: {
-          startNote: 36, // C2
-          endNote: 84   // C6 (48音域)
         }
       });
       
