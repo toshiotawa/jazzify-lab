@@ -23,6 +23,11 @@ const FantasyMain: React.FC = () => {
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
   
+  // ▼▼▼ 追加 ▼▼▼
+  // ゲームコンポーネントを強制的に再マウントさせるためのキー
+  const [gameKey, setGameKey] = useState(0); 
+  // ▲▲▲ ここまで ▲▲▲
+  
   // プレミアムプラン以上の確認
   const isPremiumOrHigher = profile && ['premium', 'platinum'].includes(profile.rank);
   
@@ -32,6 +37,9 @@ const FantasyMain: React.FC = () => {
     setCurrentStage(stage);
     setGameResult(null);
     setShowResult(false);
+    // ▼▼▼ 追加 ▼▼▼
+    setGameKey(prevKey => prevKey + 1); // ステージ選択時にキーを更新
+    // ▲▲▲ ここまで ▲▲▲
   }, []);
   
   // ゲーム完了ハンドラ
@@ -315,7 +323,12 @@ const FantasyMain: React.FC = () => {
             )}
             
             <button
-              onClick={() => setShowResult(false)}
+              // ▼▼▼ 修正 ▼▼▼
+              onClick={() => {
+                setShowResult(false);
+                setGameKey(prevKey => prevKey + 1); // キーを更新してゲームをリセット
+              }}
+              // ▲▲▲ ここまで ▲▲▲
               className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
             >
               再挑戦
@@ -337,6 +350,9 @@ const FantasyMain: React.FC = () => {
   if (currentStage) {
     return (
       <FantasyGameScreen
+        // ▼▼▼ 追加 ▼▼▼
+        key={gameKey} // keyプロパティを渡す
+        // ▲▲▲ ここまで ▲▲▲
         stage={currentStage}
         onGameComplete={handleGameComplete}
         onBackToStageSelect={handleBackToStageSelect}

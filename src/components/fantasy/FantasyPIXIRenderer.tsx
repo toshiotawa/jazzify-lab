@@ -1053,8 +1053,19 @@ export class FantasyPIXIInstance {
         hasCallback: !!this.onDefeated,
         isDestroyed: this.isDestroyed
       });
+
+      // ▼▼▼ 追加 ▼▼▼
+      // 完全に消えたら、スプライトを安全に非表示にする
+      if (this.monsterSprite && !this.monsterSprite.destroyed) {
+        this.monsterSprite.visible = false;
+      }
+      // ▲▲▲ ここまで ▲▲▲
+
       // 親コンポーネントに通知
-      this.onDefeated?.();
+      // isDestroyedフラグをチェックして、インスタンス破棄後のコールバック呼び出しを防ぐ
+      if (!this.isDestroyed) {
+        this.onDefeated?.();
+      }
     }
   }
 }
