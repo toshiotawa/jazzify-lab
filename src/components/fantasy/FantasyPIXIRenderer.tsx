@@ -265,8 +265,13 @@ export class FantasyPIXIInstance {
         this.monsterSprite.width = 128;
         this.monsterSprite.height = 128;
         this.monsterSprite.anchor.set(0.5);
-        this.monsterSprite.x = this.monsterState.x;
-        this.monsterSprite.y = this.monsterState.y;
+        
+        // monsterStateが存在しない場合は画面中央を使用
+        const posX = this.monsterState?.x ?? this.app.screen.width / 2;
+        const posY = this.monsterState?.y ?? this.app.screen.height / 2;
+        
+        this.monsterSprite.x = posX;
+        this.monsterSprite.y = posY;
         this.monsterSprite.tint = 0x666666; // モノクロ色合いを強制設定
         
         // インタラクティブ設定
@@ -303,8 +308,12 @@ export class FantasyPIXIInstance {
       text.anchor.set(0.5);
       fallbackContainer.addChild(text);
       
-      fallbackContainer.x = this.monsterState.x;
-      fallbackContainer.y = this.monsterState.y;
+      // monsterStateが存在しない場合は画面中央を使用
+      const posX = this.monsterState?.x ?? this.app.screen.width / 2;
+      const posY = this.monsterState?.y ?? this.app.screen.height / 2;
+      
+      fallbackContainer.x = posX;
+      fallbackContainer.y = posY;
       
       this.monsterContainer.addChild(fallbackContainer);
       
@@ -315,9 +324,9 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // 攻撃成功エフェクト
-  triggerAttackSuccess(): void {
-    if (!this.monsterSprite || this.isDestroyed) return;
+  // 魔法攻撃アニメーション
+  attackWithMagic(): void {
+    if (!this.monsterSprite || this.isDestroyed || !this.monsterState) return;
     
     try {
       // 魔法タイプをローテーション
@@ -346,7 +355,11 @@ export class FantasyPIXIInstance {
       
       // パーティクルエフェクト生成
       this.createMagicParticles(magic);
-      this.createExplosionEffect(this.monsterState.x, this.monsterState.y);
+      
+      // 爆発エフェクト生成（座標の安全な取得）
+      const posX = this.monsterState?.x ?? (this.app?.screen.width ?? 400) / 2;
+      const posY = this.monsterState?.y ?? (this.app?.screen.height ?? 300) / 2;
+      this.createExplosionEffect(posX, posY);
       
       // 敵のヒットカウント増加
       this.enemyHitCount++;
@@ -628,12 +641,18 @@ export class FantasyPIXIInstance {
   // アニメーションループ
   private startAnimationLoop(): void {
     const animate = () => {
-      if (this.isDestroyed) return;
+      if (this.isDestroyed || !this.app) return;
       
-      this.updateMonsterAnimation();
-      this.updateParticles();
-      this.updateMagicCircles();
-      this.updateDamageNumbers();
+      try {
+        if (!this.isDestroyed) this.updateMonsterAnimation();
+        if (!this.isDestroyed) this.updateParticles();
+        if (!this.isDestroyed) this.updateMagicCircles();
+        if (!this.isDestroyed) this.updateDamageNumbers();
+      } catch (error) {
+        devLog.debug('⚠️ アニメーションループエラー:', error);
+        // エラーが発生した場合はループを停止
+        return;
+      }
       
       this.animationFrameId = requestAnimationFrame(animate);
     };
