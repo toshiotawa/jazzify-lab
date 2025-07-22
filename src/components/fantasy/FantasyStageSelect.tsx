@@ -88,7 +88,7 @@ const MONSTER_ICONS: Record<string, any> = {
   'zap': faBolt,
   'star2': faStar,
   // ファンタジーモード用の敵アイコンマッピング - 適切なアイコンに変更
-  'vampire': faUserSecret,
+  'vampire': faGhost,
   'monster': faSpider,
   'reaper': faSkull,
   'kraken': faFish,
