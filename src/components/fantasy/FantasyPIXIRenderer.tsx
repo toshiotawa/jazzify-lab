@@ -211,7 +211,9 @@ export class FantasyPIXIInstance {
       originalColor: 0xFFFFFF,
       staggerOffset: { x: 0, y: 0 },
       hitCount: 0,
-      state: 'IDLE' as MonsterState
+      // ▼▼▼ 修正点 ▼▼▼
+      // 初期状態を「存在しない(GONE)」にして、最初のモンスターが生成できるようにする
+      state: 'GONE' as MonsterState
     };
     
     // デフォルトのモンスタースプライトを作成（初期は透明な正方形）

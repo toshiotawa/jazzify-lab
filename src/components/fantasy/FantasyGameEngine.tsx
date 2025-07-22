@@ -558,55 +558,36 @@ export const useFantasyGameEngine = ({
     if (isCorrect) {
       devLog.debug('✅ 正解判定!', { chord: gameState.currentChordTarget.displayName });
       
-      // 正解
       onChordCorrect(gameState.currentChordTarget);
       
-      let wasMonsterDefeated = false; // ★追加：この一撃でモンスターを倒したかどうかのフラグ
-      
+      // ▼▼▼ 修正点1: 同期的な撃破判定 ▼▼▼
+      // setGameState の外で、現在の gameState を使って同期的に撃破判定を行う
+      const willBeDefeated = (gameState.currentEnemyHp - 1) <= 0;
+
       setGameState(prevState => {
-        const newHits = prevState.currentEnemyHits + 1;
-        const newEnemyHp = Math.max(0, prevState.currentEnemyHp - 1); // 敵のHPを1減らす
-        
-        // モンスターを倒したか判定（HPが0になったら倒れる）
-        if (newEnemyHp <= 0 && !prevState.isWaitingForNextMonster) {
-          wasMonsterDefeated = true; // ★フラグを立てる
-        }
-        
-        let nextState = {
+        const newEnemyHp = Math.max(0, prevState.currentEnemyHp - 1);
+        return {
           ...prevState,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 1000,
-          enemyGauge: 0, // ゲージをリセット
-          currentEnemyHits: newHits,
-          currentEnemyHp: newEnemyHp
+          enemyGauge: 0,
+          currentEnemyHits: prevState.currentEnemyHits + 1,
+          currentEnemyHp: newEnemyHp,
+          // 同期的に判定した結果を使い、待機状態に移行するか決める
+          isWaitingForNextMonster: willBeDefeated,
         };
-        
-        devLog.debug('⚔️ 敵にダメージ:', {
-          oldHp: prevState.currentEnemyHp,
-          newHp: newEnemyHp,
-          hits: newHits,
-          wasMonsterDefeated
-        });
-        
-        if (wasMonsterDefeated) {
-          devLog.debug('💀 敵撃破！アニメーション完了待機へ。');
-          nextState.isWaitingForNextMonster = true; // ★待機状態に移行
-        }
-        
-        onGameStateChange(nextState);
-        return nextState;
       });
       
-      // 入力バッファをクリア
       setInputBuffer([]);
       
-      // ★★★ 最重要修正点 ★★★
-      // モンスターを倒していなければ、次の問題へ進む
-      if (!wasMonsterDefeated) {
-        setTimeout(proceedToNextQuestion, 100); // 少し間を置いて次の問題へ
+      // ▼▼▼ 修正点2: 判定結果に基づく処理分岐 ▼▼▼
+      // 同期的に行った判定結果に基づいて、次のアクションを決定する
+      if (!willBeDefeated) {
+        // モンスターを倒していなければ、次の問題へ進む
+        setTimeout(proceedToNextQuestion, 100);
       }
-      // モンスターを倒した場合は、ここでは何もしない！
-      // proceedToNextEnemyが呼ばれるのを待つ。
+      // モンスターを倒した場合は、ここでは何もしない。
+      // アニメーション完了後に proceedToNextEnemy が呼ばれるのを待つ。
       
     } else {
       devLog.debug('🎵 まだ構成音が足りません', { 
