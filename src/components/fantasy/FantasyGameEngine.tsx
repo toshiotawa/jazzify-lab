@@ -16,43 +16,68 @@ interface ChordDefinition {
   root: string;        // "C"
 }
 
-interface FantasyStage {
-  id: string;
-  stageNumber: string;
+export interface FantasyStage {
+  id: number;
   name: string;
-  description: string;
-  maxHp: number;
-  questionCount: number;
-  enemyGaugeSeconds: number;
-  mode: 'single' | 'progression';
-  allowedChords: string[];
-  chordProgression?: string[];
-  showSheetMusic: boolean;
-  showGuide: boolean; // ガイド表示設定を追加
-  monsterIcon: string;
-  bgmUrl?: string;
+  bgmPath: string;
+  backgroundImage: string;
+  monsterIcon: string;  // 単一の敵アイコン
+  enemyName: string;    // 敵の名前
+  targetChord?: ChordDefinition;
+  chordProgressions: ChordProgression[];
+  enemyHitPoints: number;
+  practiceOnly?: boolean;
+  showTimer: boolean;
+  showScore: boolean;
+  timeLimit: number;
+  scoreGoal: number;
+  guideDisplay: 'always' | 'practice' | 'never';
 }
 
 interface FantasyGameState {
+  // 基本ゲーム状態
   currentStage: FantasyStage | null;
-  currentQuestionIndex: number;
-  currentChordTarget: ChordDefinition | null;
-  playerHp: number;
-  enemyGauge: number;
-  score: number;
-  totalQuestions: number;
-  correctAnswers: number;
-  isGameActive: boolean;
+  currentQuestion: number;
+  timeLeft: number;
+  isPaused: boolean;
   isGameOver: boolean;
-  gameResult: 'clear' | 'gameover' | null;
-  // 複数敵システム用
-  currentEnemyIndex: number;
+  hasCleared: boolean;
+  showResult: boolean;
+  
+  // 音楽進行
+  currentChord: ChordDefinition | null;
+  currentChordIndex: number;
+  currentProgressionIndex: number;
+  currentMeasure: number;
+  currentBeat: number;
+  nextChordTiming: number | null;
+  chordHistory: ChordEvent[];
+  
+  // スコア
+  score: number;
+  correctCount: number;
+  incorrectCount: number;
+  correctAnswers: number;  // 正解数と倒した敵数を統合
+  
+  // 敵の状態
   currentEnemyHits: number;
-  enemiesDefeated: number;
-  totalEnemies: number;
-  // 敵のHP管理を追加
-  currentEnemyHp: number;
-  maxEnemyHp: number;
+  enemyGauge: number;
+  
+  // 音符入力状態
+  currentNotes: number[];
+  lastInputTime: number;
+  lastCorrectTime: number | null;
+  
+  // UI状態
+  messages: GameMessage[];
+  showCorrectAnimation: boolean;
+  showIncorrectAnimation: boolean;
+  correctAnimationChord: string;
+  gameResult: 'clear' | 'timeUp' | 'gameOver' | null;
+  finalScore: number;
+  
+  // サウンド状態
+  isBgmPlaying: boolean;
 }
 
 interface FantasyGameEngineProps {
@@ -212,24 +237,35 @@ export const useFantasyGameEngine = ({
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
-    currentQuestionIndex: 0,
-    currentChordTarget: null,
-    playerHp: 5,
-    enemyGauge: 0,
-    score: 0,
-    totalQuestions: 0,
-    correctAnswers: 0,
-    isGameActive: false,
+    currentQuestion: 0,
+    timeLeft: 0,
+    isPaused: false,
     isGameOver: false,
-    gameResult: null,
-    // 複数敵システム用
-    currentEnemyIndex: 0,
+    hasCleared: false,
+    showResult: false,
+    currentChord: null,
+    currentChordIndex: 0,
+    currentProgressionIndex: 0,
+    currentMeasure: 0,
+    currentBeat: 0,
+    nextChordTiming: null,
+    chordHistory: [],
+    score: 0,
+    correctCount: 0,
+    incorrectCount: 0,
+    correctAnswers: 0,
     currentEnemyHits: 0,
-    enemiesDefeated: 0,
-    totalEnemies: 5,
-    // 敵のHP管理を追加
-    currentEnemyHp: 5,
-    maxEnemyHp: 5
+    enemyGauge: 0,
+    currentNotes: [],
+    lastInputTime: 0,
+    lastCorrectTime: null,
+    messages: [],
+    showCorrectAnimation: false,
+    showIncorrectAnimation: false,
+    correctAnimationChord: '',
+    gameResult: null,
+    finalScore: 0,
+    isBgmPlaying: false
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -263,24 +299,35 @@ export const useFantasyGameEngine = ({
     
     const newState: FantasyGameState = {
       currentStage: stage,
-      currentQuestionIndex: 0,
-      currentChordTarget: firstChord,
-      playerHp: stage.maxHp,
-      enemyGauge: 0,
-      score: 0,
-      totalQuestions: stage.questionCount,
-      correctAnswers: 0,
-      isGameActive: true,
+      currentQuestion: 0,
+      timeLeft: stage.timeLimit,
+      isPaused: false,
       isGameOver: false,
-      gameResult: null,
-      // 複数敵システム用
-      currentEnemyIndex: 0,
+      hasCleared: false,
+      showResult: false,
+      currentChord: firstChord,
+      currentChordIndex: 0,
+      currentProgressionIndex: 0,
+      currentMeasure: 0,
+      currentBeat: 0,
+      nextChordTiming: null,
+      chordHistory: [],
+      score: 0,
+      correctCount: 0,
+      incorrectCount: 0,
+      correctAnswers: 0,
       currentEnemyHits: 0,
-      enemiesDefeated: 0,
-      totalEnemies: 5,
-      // 敵のHP管理を追加
-      currentEnemyHp: 5,
-      maxEnemyHp: 5
+      enemyGauge: 0,
+      currentNotes: [],
+      lastInputTime: 0,
+      lastCorrectTime: null,
+      messages: [],
+      showCorrectAnimation: false,
+      showIncorrectAnimation: false,
+      correctAnimationChord: '',
+      gameResult: null,
+      finalScore: 0,
+      isBgmPlaying: true
     };
     
     setGameState(newState);
@@ -576,15 +623,14 @@ export const useFantasyGameEngine = ({
         
         // 敵を倒したか判定（HPが0になったら倒れる）
         if (newEnemyHp <= 0) {
-          const newEnemiesDefeated = prevState.enemiesDefeated + 1;
-          const nextEnemyIndex = prevState.currentEnemyIndex + 1;
+          const newEnemiesDefeated = prevState.correctAnswers;
           
           // 全ての敵を倒したかチェック
           if (newEnemiesDefeated >= prevState.totalEnemies) {
             // ゲームクリア
             nextState = {
               ...nextState,
-              enemiesDefeated: newEnemiesDefeated,
+              correctAnswers: newEnemiesDefeated,
               isGameActive: false,
               isGameOver: true,
               gameResult: 'clear'
@@ -604,16 +650,15 @@ export const useFantasyGameEngine = ({
             // 次の敵に交代
             nextState = {
               ...nextState,
-              currentEnemyIndex: nextEnemyIndex,
               currentEnemyHits: 0,
-              enemiesDefeated: newEnemiesDefeated,
+              correctAnswers: newEnemiesDefeated,
               currentEnemyHp: prevState.maxEnemyHp, // 新しい敵のHPをフル回復
             };
             
             devLog.debug('👹 敵を倒した！次の敵が出現:', { 
               defeatedEnemies: newEnemiesDefeated,
-              nextEnemyIndex,
-              nextEnemy: ENEMY_LIST[nextEnemyIndex]?.name,
+              nextEnemyIndex: newEnemiesDefeated,
+              nextEnemy: ENEMY_LIST[newEnemiesDefeated]?.name,
               newEnemyHp: prevState.maxEnemyHp
             });
           }
