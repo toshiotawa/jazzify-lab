@@ -1163,19 +1163,19 @@ export class FantasyPIXIInstance {
       
       try {
         // 上昇アニメーション
-        damageData.life -= 20; // 60FPS想定
+        damageNumberData.life -= 20; // 60FPS想定
         
         // スプライト更新（nullチェック強化）
         if (damageText.transform && !damageText.destroyed) {
           // y座標は動かさず、アルファで消す
-          damageText.alpha = damageData.life / damageData.maxLife;
+          damageText.alpha = damageNumberData.life / damageNumberData.maxLife;
           
           // 少しだけ拡大しながら消える
           damageText.scale.set(1 + (1 - damageText.alpha) * 0.2);
         }
         
         // 削除判定
-        if (damageData.life <= 0) {
+        if (damageNumberData.life <= 0) {
           try {
             if (damageText.parent) {
               damageText.parent.removeChild(damageText);
@@ -1310,16 +1310,16 @@ export class FantasyPIXIInstance {
       });
       this.emojiTextures.clear();
       
-      this.svgTextures.forEach((texture: PIXI.Texture) => {
+      this.imageTextures.forEach((texture: PIXI.Texture) => {
         try {
           if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
             texture.destroy(true);
           }
         } catch (error) {
-          devLog.debug('⚠️ SVGテクスチャ削除エラー:', error);
+          devLog.debug('⚠️ 画像テクスチャ削除エラー:', error);
         }
       });
-      this.svgTextures.clear();
+      this.imageTextures.clear();
     } catch (error) {
       devLog.debug('⚠️ テクスチャクリーンアップエラー:', error);
     }
