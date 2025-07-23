@@ -12,6 +12,10 @@ declare global {
       };
     };
     webkitAudioContext?: typeof AudioContext;
+    performanceMonitor?: {
+      getFPS(): number;
+      stopMonitoring(): void;
+    };
   }
   
   interface Navigator {

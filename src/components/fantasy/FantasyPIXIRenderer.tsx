@@ -325,10 +325,10 @@ export class FantasyPIXIInstance {
   private async loadImageTextures(): Promise<void> {
     try {
       for (const magic of Object.values(MAGIC_TYPES)) {
-        // public/data/... のようなパスを想定
-        const texture = await PIXI.Assets.load(`data/${magic.svg}`);
+        // Correct path: Load from the root, as files are in public/
+        const texture = await PIXI.Assets.load(`/${magic.svg}`);
         this.imageTextures.set(magic.svg, texture);
-        devLog.debug(`✅ 画像テクスチャ読み込み: data/${magic.svg}`);
+        devLog.debug(`✅ 画像テクスチャ読み込み: /${magic.svg}`);
       }
       devLog.debug('✅ 全画像テクスチャ読み込み完了');
     } catch (error) {
