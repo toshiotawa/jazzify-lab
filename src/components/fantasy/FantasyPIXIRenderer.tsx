@@ -73,6 +73,13 @@ interface DamageNumber {
   color: number;
 }
 
+interface DamageNumberData {
+  text: PIXI.Text;
+  startTime: number;
+  startY: number;
+  velocity: number;
+}
+
 interface MagicType {
   name: string; // 通常魔法名
   color: number; // 通常魔法の色
@@ -145,6 +152,8 @@ export class FantasyPIXIInstance {
   private effectContainer: PIXI.Container;
   private uiContainer: PIXI.Container;
   private backgroundContainer: PIXI.Container;
+  private onDefeated?: () => void;
+  private onMonsterDefeated?: () => void;
   
   // モンスタースプライトは常に存在する（表示/非表示で制御）
   private monsterSprite: PIXI.Sprite;
@@ -155,7 +164,7 @@ export class FantasyPIXIInstance {
   private magicCircles: Map<string, PIXI.Graphics> = new Map();
   private magicCircleData: Map<string, MagicCircle> = new Map();
   private damageNumbers: Map<string, PIXI.Text> = new Map();
-  private damageData: Map<string, DamageNumber> = new Map();
+  private damageData: Map<string, DamageNumberData> = new Map();
   private magicNameText: PIXI.Text | null = null;
   private chordNameText: PIXI.Text | null = null;
   private angerMark: PIXI.Text | null = null;
@@ -349,11 +358,11 @@ export class FantasyPIXIInstance {
       // 絵文字テクスチャを取得
       const texture = this.emojiTextures.get(icon);
       
-      if (texture) {
+      if (texture && !texture.destroyed && texture.width && texture.height) {
         this.monsterSprite.texture = texture;
         devLog.debug('✅ 絵文字テクスチャ適用:', { icon });
       } else {
-        devLog.debug('⚠️ 絵文字テクスチャが見つからない、フォールバック作成:', { icon });
+        devLog.debug('⚠️ 絵文字テクスチャが見つからないか無効、フォールバック作成:', { icon });
         this.createFallbackMonster();
       }
       
@@ -431,19 +440,29 @@ export class FantasyPIXIInstance {
       !this.monsterSprite ||
       this.monsterSprite.destroyed ||
       // transform が null になると PIXI 内部で x 代入時にエラーになるため
-      !(this.monsterSprite as any).transform
+      !(this.monsterSprite as any).transform ||
+      !this.monsterSprite.texture ||
+      this.monsterSprite.texture.destroyed
     ) {
       return; // 破棄済みまたは異常状態の場合は更新しない
     }
     
-    // ビジュアル状態を適用
-    this.monsterSprite.x = this.monsterVisualState.x;
-    this.monsterSprite.y = this.monsterVisualState.y;
-    this.monsterSprite.scale.set(this.monsterVisualState.scale);
-    this.monsterSprite.rotation = this.monsterVisualState.rotation;
-    this.monsterSprite.tint = this.monsterVisualState.tint;
-    this.monsterSprite.alpha = this.monsterVisualState.alpha;
-    this.monsterSprite.visible = this.monsterVisualState.visible;
+    try {
+      // ビジュアル状態を適用
+      this.monsterSprite.x = this.monsterVisualState.x;
+      this.monsterSprite.y = this.monsterVisualState.y;
+      this.monsterSprite.scale.set(this.monsterVisualState.scale);
+      this.monsterSprite.rotation = this.monsterVisualState.rotation;
+      this.monsterSprite.tint = this.monsterVisualState.tint;
+      this.monsterSprite.alpha = this.monsterVisualState.alpha;
+      this.monsterSprite.visible = this.monsterVisualState.visible;
+    } catch (error) {
+      devLog.debug('⚠️ モンスタースプライト更新エラー:', error);
+      // エラーが発生した場合はスプライトを非表示にして安全性を確保
+      if (this.monsterSprite && !this.monsterSprite.destroyed) {
+        this.monsterSprite.visible = false;
+      }
+    }
   }
 
   // ▼▼▼ 攻撃成功エフェクトを修正 ▼▼▼
@@ -523,37 +542,83 @@ export class FantasyPIXIInstance {
 
   // SVG魔法エフェクト作成
   private createSvgMagicEffect(svgPath: string, color: number, isSpecial: boolean): void {
+    if (this.isDestroyed) return;
+    
     const texture = this.svgTextures.get(svgPath);
-    if (!texture) {
-      devLog.debug(`⚠️ SVGテクスチャが見つかりません: ${svgPath}`);
+    if (!texture || texture.destroyed) {
+      devLog.debug(`⚠️ SVGテクスチャが見つからないか破棄済み: ${svgPath}`);
       return;
     }
 
     const count = isSpecial ? 3 : 1;
     for (let i = 0; i < count; i++) {
-      const magicSprite = new PIXI.Sprite(texture);
-      magicSprite.anchor.set(0.5);
-      magicSprite.x = this.monsterVisualState.x + (Math.random() - 0.5) * (isSpecial ? 100 : 0);
-      magicSprite.y = this.monsterVisualState.y + (Math.random() - 0.5) * (isSpecial ? 50 : 0);
-      magicSprite.tint = color;
-      magicSprite.alpha = 0;
-      magicSprite.scale.set(0.1);
-      this.effectContainer.addChild(magicSprite);
-
-      // アニメーション
-      let life = 1000;
-      const animate = () => {
-        if (life > 0 && !magicSprite.destroyed) {
-          life -= 16;
-          magicSprite.alpha = Math.sin((1 - life / 1000) * Math.PI);
-          magicSprite.scale.set(magicSprite.scale.x + 0.05);
-          requestAnimationFrame(animate);
-        } else if (!magicSprite.destroyed) {
-          this.effectContainer.removeChild(magicSprite);
-          magicSprite.destroy();
+      try {
+        const magicSprite = new PIXI.Sprite(texture);
+        
+        // 基本的な安全チェック
+        if (!magicSprite || !magicSprite.anchor) {
+          devLog.debug('⚠️ 魔法スプライト作成失敗');
+          continue;
         }
-      };
-      setTimeout(animate, i * 100); // SPアタック時は少しずらして表示
+        
+        magicSprite.anchor.set(0.5);
+        magicSprite.x = this.monsterVisualState.x + (Math.random() - 0.5) * (isSpecial ? 100 : 0);
+        magicSprite.y = this.monsterVisualState.y + (Math.random() - 0.5) * (isSpecial ? 50 : 0);
+        magicSprite.tint = color;
+        magicSprite.alpha = 0;
+        magicSprite.scale.set(0.1);
+        
+        // コンテナに追加する前にコンテナの状態を確認
+        if (!this.effectContainer || this.effectContainer.destroyed) {
+          magicSprite.destroy();
+          return;
+        }
+        
+        this.effectContainer.addChild(magicSprite);
+
+        // アニメーション
+        let life = 1000;
+        const animate = () => {
+          if (this.isDestroyed || !magicSprite || magicSprite.destroyed) {
+            return;
+          }
+          
+          if (life > 0) {
+            try {
+              life -= 16;
+              if (!magicSprite.destroyed && (magicSprite as any).transform) {
+                magicSprite.alpha = Math.sin((1 - life / 1000) * Math.PI);
+                magicSprite.scale.set(magicSprite.scale.x + 0.05);
+              }
+              requestAnimationFrame(animate);
+            } catch (error) {
+              devLog.debug('⚠️ 魔法エフェクトアニメーションエラー:', error);
+              // エラー時は安全にスプライトを削除
+              if (magicSprite && !magicSprite.destroyed) {
+                if (magicSprite.parent) {
+                  magicSprite.parent.removeChild(magicSprite);
+                }
+                magicSprite.destroy();
+              }
+            }
+          } else {
+            // アニメーション終了時の安全な削除
+            try {
+              if (!magicSprite.destroyed) {
+                if (magicSprite.parent) {
+                  magicSprite.parent.removeChild(magicSprite);
+                }
+                magicSprite.destroy();
+              }
+            } catch (error) {
+              devLog.debug('⚠️ 魔法エフェクト削除エラー:', error);
+            }
+          }
+        };
+        setTimeout(animate, i * 100); // SPアタック時は少しずらして表示
+      } catch (error) {
+        devLog.debug('⚠️ SVG魔法エフェクト作成エラー:', error);
+      }
     }
   }
 
@@ -954,7 +1019,12 @@ export class FantasyPIXIInstance {
     
     for (const [id, circleData] of this.magicCircleData.entries()) {
       const graphics = this.magicCircles.get(id);
-      if (!graphics || graphics.destroyed) continue;
+      if (!graphics || graphics.destroyed) {
+        // 削除されたグラフィックスの参照をクリーンアップ
+        this.magicCircles.delete(id);
+        this.magicCircleData.delete(id);
+        continue;
+      }
       
       try {
         const progress = 1 - (circleData.life / circleData.maxLife);
@@ -964,27 +1034,47 @@ export class FantasyPIXIInstance {
         circleData.life -= 16;
         
         // 魔法陣を描画（nullチェック強化）
-        if (graphics.transform && !graphics.destroyed) {
+        if (graphics.transform && !graphics.destroyed && graphics.clear) {
           graphics.clear();
-          graphics.lineStyle(4, circleData.color, circleData.alpha);
-          graphics.drawCircle(0, 0, circleData.radius);
-          graphics.lineStyle(2, circleData.color, circleData.alpha * 0.6);
-          graphics.drawCircle(0, 0, circleData.radius * 0.7);
-          graphics.rotation = circleData.rotation;
+          if (graphics.lineStyle && graphics.drawCircle) {
+            graphics.lineStyle(4, circleData.color, circleData.alpha);
+            graphics.drawCircle(0, 0, circleData.radius);
+            graphics.lineStyle(2, circleData.color, circleData.alpha * 0.6);
+            graphics.drawCircle(0, 0, circleData.radius * 0.7);
+            graphics.rotation = circleData.rotation;
+          }
         }
         
         // 削除判定
         if (circleData.life <= 0) {
-          if (graphics.parent) {
-            this.effectContainer.removeChild(graphics);
+          try {
+            if (graphics.parent) {
+              graphics.parent.removeChild(graphics);
+            }
+            if (typeof graphics.destroy === 'function') {
+              graphics.destroy();
+            }
+          } catch (destroyError) {
+            devLog.debug('⚠️ 魔法陣削除エラー:', destroyError);
           }
-          graphics.destroy();
           this.magicCircles.delete(id);
           this.magicCircleData.delete(id);
         }
       } catch (error) {
         // エラー時は安全にグラフィックスを削除
         devLog.debug('⚠️ 魔法陣更新エラー:', error);
+        try {
+          if (graphics && !graphics.destroyed) {
+            if (graphics.parent) {
+              graphics.parent.removeChild(graphics);
+            }
+            if (typeof graphics.destroy === 'function') {
+              graphics.destroy();
+            }
+          }
+        } catch (cleanupError) {
+          devLog.debug('⚠️ 魔法陣クリーンアップエラー:', cleanupError);
+        }
         this.magicCircles.delete(id);
         this.magicCircleData.delete(id);
       }
@@ -997,7 +1087,12 @@ export class FantasyPIXIInstance {
     
     for (const [id, particleData] of this.particleData.entries()) {
       const particle = this.particles.get(id);
-      if (!particle || particle.destroyed) continue;
+      if (!particle || particle.destroyed) {
+        // 削除されたパーティクルの参照をクリーンアップ
+        this.particles.delete(id);
+        this.particleData.delete(id);
+        continue;
+      }
       
       try {
         // 位置更新
@@ -1016,7 +1111,7 @@ export class FantasyPIXIInstance {
           particle.alpha = particleData.alpha;
           
           // サイズ変化（爆発系）
-          if (particleData.type === 'explosion') {
+          if (particleData.type === 'explosion' && particle.scale && particle.scale.set) {
             const scale = 1 + (1 - particleData.alpha) * 0.5;
             particle.scale.set(scale);
           }
@@ -1024,16 +1119,34 @@ export class FantasyPIXIInstance {
         
         // 削除判定
         if (particleData.life <= 0) {
-          if (particle.parent) {
-            this.particleContainer.removeChild(particle);
+          try {
+            if (particle.parent) {
+              particle.parent.removeChild(particle);
+            }
+            if (typeof particle.destroy === 'function') {
+              particle.destroy();
+            }
+          } catch (destroyError) {
+            devLog.debug('⚠️ パーティクル削除エラー:', destroyError);
           }
-          particle.destroy();
           this.particles.delete(id);
           this.particleData.delete(id);
         }
       } catch (error) {
         // エラー時は安全にパーティクルを削除
         devLog.debug('⚠️ パーティクル更新エラー:', error);
+        try {
+          if (particle && !particle.destroyed) {
+            if (particle.parent) {
+              particle.parent.removeChild(particle);
+            }
+            if (typeof particle.destroy === 'function') {
+              particle.destroy();
+            }
+          }
+        } catch (cleanupError) {
+          devLog.debug('⚠️ パーティクルクリーンアップエラー:', cleanupError);
+        }
         this.particles.delete(id);
         this.particleData.delete(id);
       }
@@ -1044,37 +1157,64 @@ export class FantasyPIXIInstance {
   private updateDamageNumbers(): void {
     if (this.isDestroyed) return;
     
-    for (const [id, damageData] of this.damageData.entries()) {
+    for (const [id, damageNumberData] of this.damageData.entries()) {
       const damageText = this.damageNumbers.get(id);
-      if (!damageText || damageText.destroyed) continue;
+      if (!damageText || damageText.destroyed) {
+        // 削除されたテキストの参照をクリーンアップ
+        this.damageNumbers.delete(id);
+        this.damageData.delete(id);
+        continue;
+      }
       
       try {
         // 上昇アニメーション
-        damageData.y -= 1.5;
-        damageData.life -= 16; // 60FPS想定
+        const elapsed = Date.now() - damageNumberData.startTime;
+        const maxLife = 2000; // 2秒間表示
+        const life = maxLife - elapsed;
         
-        // スプライト更新（nullチェック強化）
-        if (damageText.transform && !damageText.destroyed) {
-          damageText.y = damageData.y;
-          damageText.alpha = damageData.life / damageData.maxLife;
-          
-          // サイズ変化
-          const scale = 1 + (1 - damageText.alpha) * 0.3;
+        // 位置を上に移動
+        damageText.y = damageNumberData.startY + damageNumberData.velocity * (elapsed / 16);
+        
+        // アルファ値を時間とともに減少
+        const alpha = Math.max(0, life / maxLife);
+        damageText.alpha = alpha;
+        
+        // サイズ変化
+        if (damageText.scale && damageText.scale.set) {
+          const scale = 1 + (1 - alpha) * 0.3;
           damageText.scale.set(scale);
         }
         
         // 削除判定
-        if (damageData.life <= 0) {
-          if (damageText.parent) {
-            this.uiContainer.removeChild(damageText);
+        if (life <= 0) {
+          try {
+            if (damageText.parent) {
+              damageText.parent.removeChild(damageText);
+            }
+            if (typeof damageText.destroy === 'function') {
+              damageText.destroy();
+            }
+          } catch (destroyError) {
+            devLog.debug('⚠️ ダメージ数値削除エラー:', destroyError);
           }
-          damageText.destroy();
           this.damageNumbers.delete(id);
           this.damageData.delete(id);
         }
       } catch (error) {
         // エラー時は安全にテキストを削除
         devLog.debug('⚠️ ダメージ数値更新エラー:', error);
+        try {
+          if (damageText && !damageText.destroyed) {
+            if (damageText.parent) {
+              damageText.parent.removeChild(damageText);
+            }
+            if (typeof damageText.destroy === 'function') {
+              damageText.destroy();
+            }
+          }
+        } catch (cleanupError) {
+          devLog.debug('⚠️ ダメージ数値クリーンアップエラー:', cleanupError);
+        }
         this.damageNumbers.delete(id);
         this.damageData.delete(id);
       }
@@ -1118,20 +1258,82 @@ export class FantasyPIXIInstance {
       this.animationFrameId = null;
     }
     
-    // テクスチャクリーンアップ
-    this.emojiTextures.forEach((texture: PIXI.Texture) => {
-      if (texture && !texture.destroyed) {
-        texture.destroy(true);
-      }
-    });
-    this.emojiTextures.clear();
+    // パーティクルとエフェクトの安全な削除
+    try {
+      this.particles.forEach((particle, id) => {
+        try {
+          if (particle && typeof particle.destroy === 'function' && !particle.destroyed) {
+            if (particle.parent) {
+              particle.parent.removeChild(particle);
+            }
+            particle.destroy();
+          }
+        } catch (error) {
+          devLog.debug(`⚠️ パーティクル削除エラー ${id}:`, error);
+        }
+      });
+      this.particles.clear();
+      this.particleData.clear();
+      
+      this.magicCircles.forEach((circle, id) => {
+        try {
+          if (circle && typeof circle.destroy === 'function' && !circle.destroyed) {
+            if (circle.parent) {
+              circle.parent.removeChild(circle);
+            }
+            circle.destroy();
+          }
+        } catch (error) {
+          devLog.debug(`⚠️ 魔法陣削除エラー ${id}:`, error);
+        }
+      });
+      this.magicCircles.clear();
+      this.magicCircleData.clear();
+      
+      this.damageNumbers.forEach((text, id) => {
+        try {
+          if (text && typeof text.destroy === 'function' && !text.destroyed) {
+            if (text.parent) {
+              text.parent.removeChild(text);
+            }
+            text.destroy();
+          }
+        } catch (error) {
+          devLog.debug(`⚠️ ダメージ数値削除エラー ${id}:`, error);
+        }
+      });
+      this.damageNumbers.clear();
+      this.damageData.clear();
+    } catch (error) {
+      devLog.debug('⚠️ エフェクト削除エラー:', error);
+    }
     
-    this.svgTextures.forEach((texture: PIXI.Texture) => {
-      if (texture && !texture.destroyed) {
-        texture.destroy(true);
-      }
-    });
-    this.svgTextures.clear();
+    // テクスチャクリーンアップ
+    try {
+      this.emojiTextures.forEach((texture: PIXI.Texture) => {
+        try {
+          if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
+            texture.destroy(true);
+          }
+        } catch (error) {
+          devLog.debug('⚠️ 絵文字テクスチャ削除エラー:', error);
+        }
+      });
+      this.emojiTextures.clear();
+      
+      this.svgTextures.forEach((texture: PIXI.Texture) => {
+        try {
+          if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
+            texture.destroy(true);
+          }
+        } catch (error) {
+          devLog.debug('⚠️ SVGテクスチャ削除エラー:', error);
+        }
+      });
+      this.svgTextures.clear();
+    } catch (error) {
+      devLog.debug('⚠️ テクスチャクリーンアップエラー:', error);
+    }
     
     // PIXIアプリケーションの破棄
     if (this.app) {
