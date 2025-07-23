@@ -196,16 +196,15 @@ const selectRandomChord = (allowedChords: string[], previousChordId?: string): C
     
   if (availableChords.length === 0) return null;
   
-  // 前回のコードと異なるコードを選択
+  // 前回のコードと異なるコードが選択肢にあれば、それを除外する
   if (previousChordId && availableChords.length > 1) {
-    const filteredChords = availableChords.filter(chord => chord.id !== previousChordId);
+    const filteredChords = availableChords.filter(c => c.id !== previousChordId);
+    // 除外した結果、選択肢が残っている場合のみ、絞り込んだリストを使用する
     if (filteredChords.length > 0) {
-      const randomIndex = Math.floor(Math.random() * filteredChords.length);
-      return filteredChords[randomIndex];
+      availableChords = filteredChords;
     }
   }
   
-  // フィルター後に選択肢がない場合は通常のランダム選択
   const randomIndex = Math.floor(Math.random() * availableChords.length);
   return availableChords[randomIndex];
 };
@@ -276,7 +275,7 @@ export const useFantasyGameEngine = ({
 
     // 最初のコードを取得
     const firstChord = stage.mode === 'single' 
-      ? selectRandomChord(stage.allowedChords)
+                  ? selectRandomChord(stage.allowedChords, previousChordId)
       : getProgressionChord(stage.chordProgression || [], 0);
     if (!firstChord) {
       devLog.debug('❌ 最初のコードが見つかりません');
@@ -692,7 +691,7 @@ export const useFantasyGameEngine = ({
       // ★追加：次の問題もここで準備する
       let nextChord;
       if (prevState.currentStage?.mode === 'single') {
-        nextChord = selectRandomChord(prevState.currentStage.allowedChords);
+        nextChord = selectRandomChord(prevState.currentStage.allowedChords, prevState.currentChordTarget?.id);
       } else {
         const progression = prevState.currentStage?.chordProgression || [];
         const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
