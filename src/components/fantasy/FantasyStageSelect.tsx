@@ -190,8 +190,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         throw new Error(`クリア記録の読み込みに失敗: ${clearsError.message}`);
       }
       
-      // データの変換とセット
-      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+      // データ型変換（Supabase形式 → FantasyStage形式）
+      const convertedStages: FantasyStage[] = stagesData.map(stage => ({
         id: stage.id,
         stageNumber: stage.stage_number,
         name: stage.name,
@@ -203,12 +203,19 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
         mode: stage.mode as 'single' | 'progression',
-        allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
-        chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+        allowedChords: stage.allowed_chords as string[],
+        chordProgression: stage.chord_progression as string[] | undefined,
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
-        monsterIcon: stage.monster_icon,
-        bgmUrl: stage.bgm_url
+        monsterIcon: stage.monster_icon || 'ghost',
+        bgmUrl: stage.bgm_url || undefined,
+        // 新しいプロパティを追加
+        simultaneousMonsters: stage.simultaneous_monsters || 1,
+        hasBoss: stage.has_boss || false,
+        hasHealer: stage.has_healer || false,
+        playerMaxHp: stage.player_max_hp || 100,
+        enemyMinDamage: stage.enemy_min_damage || 5,
+        enemyMaxDamage: stage.enemy_max_damage || 15
       }));
       
       const convertedProgress: FantasyUserProgress = {

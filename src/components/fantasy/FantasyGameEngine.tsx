@@ -31,44 +31,72 @@ interface FantasyStage {
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
-  showGuide: boolean; // ガイド表示設定を追加
+  showGuide: boolean;
   monsterIcon: string;
   bgmUrl?: string;
+  // 新しいプロパティ
+  simultaneousMonsters: number; // 同時出現モンスター数 (1-3)
+  hasBoss: boolean;            // ボスステージかどうか
+  hasHealer: boolean;          // ヒーラーが含まれるか
+  playerMaxHp: number;         // プレイヤーの最大HP
+  enemyMinDamage: number;      // 敵の最小ダメージ
+  enemyMaxDamage: number;      // 敵の最大ダメージ
 }
+
+// モンスターの個別状態
+interface MonsterState {
+  id: string;                  // 一意のID
+  position: number;            // 表示位置 (0, 1, 2)
+  hp: number;                  // 現在のHP
+  maxHp: number;              // 最大HP
+  attackGauge: number;        // 攻撃ゲージ (0-100)
+  chordDefinition: ChordDefinition; // このモンスターのコード
+  correctNotes: number[];     // 正解した音のリスト
+  isHealer: boolean;          // ヒーラーかどうか
+  isBoss: boolean;            // ボスかどうか
+  shields: number;            // 防御シールドの数 (0-5)
+  statusEffect?: {            // 状態異常
+    type: 'burn' | 'freeze' | 'paralysis';
+    remainingTime: number;    // 残り時間（秒）
+  };
+}
+
+// プレイヤーの攻撃タイプ
+type AttackType = 'fire' | 'ice' | 'thunder' | 'normal' | 'protect' | 'hyper_heal' | 'aegis_protection';
 
 interface FantasyGameState {
   currentStage: FantasyStage | null;
   currentQuestionIndex: number;
-  currentChordTarget: ChordDefinition | null;
   playerHp: number;
-  enemyGauge: number;
+  playerMaxHp: number;
   score: number;
   totalQuestions: number;
   correctAnswers: number;
   isGameActive: boolean;
   isGameOver: boolean;
   gameResult: 'clear' | 'gameover' | null;
-  // 複数敵システム用
-  currentEnemyIndex: number;
-  currentEnemyHits: number;
   enemiesDefeated: number;
   totalEnemies: number;
-  // 敵のHP管理を追加
-  currentEnemyHp: number;
-  maxEnemyHp: number;
-  // 正解した音と待機状態を追跡
-  correctNotes: number[];
+  playerSp: number; // SPゲージ (0-5)
+  playerShields: number; // プレイヤーのシールド数 (0-5)
+  // 複数モンスター管理
+  activeMonsters: MonsterState[];
+  monsterQueue: ChordDefinition[]; // 待機中のモンスター
   isWaitingForNextMonster: boolean;
-  playerSp: number; // SPゲージ (0-3)
+  inputBuffer: number[]; // 入力中の音符バッファ
 }
 
 interface FantasyGameEngineProps {
   stage: FantasyStage | null;
   onGameStateChange: (state: FantasyGameState) => void;
-  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean) => void;
+  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, attackType: AttackType) => void;
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
-  onEnemyAttack: () => void;
+  onEnemyAttack: (damage: number, enemyId: string) => void;
+  onPlayerHeal?: (amount: number) => void;
+  onStatusEffect?: (monsterId: string, effect: 'burn' | 'freeze' | 'paralysis') => void;
+  onMonsterHeal?: (monsterId: string, amount: number) => void;
+  onMissTouch?: () => void; // ミスタッチ時のコールバック
 }
 
 // ===== コード定義データ =====
@@ -88,6 +116,10 @@ const CHORD_DEFINITIONS: Record<string, ChordDefinition> = {
   'G7': { id: 'G7', displayName: 'G7', notes: [67, 71, 74, 77], quality: 'dominant7', root: 'G' },
   'C7': { id: 'C7', displayName: 'C7', notes: [60, 64, 67, 70], quality: 'dominant7', root: 'C' },
   'F7': { id: 'F7', displayName: 'F7', notes: [65, 69, 72, 75], quality: 'dominant7', root: 'F' },
+  'B7': { id: 'B7', displayName: 'B7', notes: [71, 75, 78, 81], quality: 'dominant7', root: 'B' },
+  'E7': { id: 'E7', displayName: 'E7', notes: [64, 68, 71, 74], quality: 'dominant7', root: 'E' },
+  'A7': { id: 'A7', displayName: 'A7', notes: [69, 73, 76, 79], quality: 'dominant7', root: 'A' },
+  'D7': { id: 'D7', displayName: 'D7', notes: [62, 66, 69, 72], quality: 'dominant7', root: 'D' },
   
   // マイナー7th
   'Am7': { id: 'Am7', displayName: 'Am7', notes: [57, 60, 64, 67], quality: 'minor7', root: 'A' },
@@ -99,19 +131,17 @@ const CHORD_DEFINITIONS: Record<string, ChordDefinition> = {
   'FM7': { id: 'FM7', displayName: 'FM7', notes: [65, 69, 72, 76], quality: 'major7', root: 'F' },
   'GM7': { id: 'GM7', displayName: 'GM7', notes: [67, 71, 74, 78], quality: 'major7', root: 'G' },
   
-  // テンション系
-  'C6': { id: 'C6', displayName: 'C6', notes: [60, 64, 67, 69], quality: 'major6', root: 'C' },
-  'Cm6': { id: 'Cm6', displayName: 'Cm6', notes: [60, 63, 67, 69], quality: 'minor6', root: 'C' },
-  'C9': { id: 'C9', displayName: 'C9', notes: [60, 64, 67, 70, 74], quality: 'dominant9', root: 'C' },
-  'Cm9': { id: 'Cm9', displayName: 'Cm9', notes: [60, 63, 67, 70, 74], quality: 'minor9', root: 'C' },
-  'C11': { id: 'C11', displayName: 'C11', notes: [60, 64, 67, 70, 74, 77], quality: 'dominant11', root: 'C' },
-  'C13': { id: 'C13', displayName: 'C13', notes: [60, 64, 67, 70, 74, 81], quality: 'dominant13', root: 'C' },
+  // 6thコード
+  'C6': { id: 'C6', displayName: 'C6', notes: [60, 64, 67, 69], quality: '6', root: 'C' },
+  'Cm6': { id: 'Cm6', displayName: 'Cm6', notes: [60, 63, 67, 69], quality: 'm6', root: 'C' },
   
-  // 追加のドミナント7th
-  'B7': { id: 'B7', displayName: 'B7', notes: [71, 75, 78, 81], quality: 'dominant7', root: 'B' },
-  'E7': { id: 'E7', displayName: 'E7', notes: [64, 68, 71, 74], quality: 'dominant7', root: 'E' },
-  'A7': { id: 'A7', displayName: 'A7', notes: [69, 73, 76, 79], quality: 'dominant7', root: 'A' },
-  'D7': { id: 'D7', displayName: 'D7', notes: [62, 66, 69, 72], quality: 'dominant7', root: 'D' }
+  // 9thコード
+  'C9': { id: 'C9', displayName: 'C9', notes: [60, 64, 67, 70, 74], quality: '9', root: 'C' },
+  'Cm9': { id: 'Cm9', displayName: 'Cm9', notes: [60, 63, 67, 70, 74], quality: 'm9', root: 'C' },
+  
+  // 11th, 13thコード
+  'C11': { id: 'C11', displayName: 'C11', notes: [60, 64, 67, 70, 74, 77], quality: '11', root: 'C' },
+  'C13': { id: 'C13', displayName: 'C13', notes: [60, 64, 67, 70, 74, 77, 81], quality: '13', root: 'C' }
 };
 
 // ===== 敵リスト定義 =====
@@ -125,81 +155,30 @@ const ENEMY_LIST = [
   { id: 'demon', icon: 'demon', name: '魔王' }
 ];
 
-// ===== ヘルパー関数 =====
+// ===== ユーティリティ関数 =====
 
 /**
- * コード判定関数
- * 構成音が全て押されていれば正解（順番・オクターブ不問、転回形も正解、余分な音があっても構成音が含まれていれば正解）
- */
-const checkChordMatch = (inputNotes: number[], targetChord: ChordDefinition): boolean => {
-  if (inputNotes.length === 0) {
-    devLog.debug('❌ 入力なし - 不正解');
-    return false;
-  }
-  
-  // 重複を除去し、mod 12で正規化（オクターブ無視）
-  const inputNotesMod12 = [...new Set(inputNotes.map(note => note % 12))]; // 重複除去も追加
-  const targetNotesMod12 = [...new Set(targetChord.notes.map(note => note % 12))]; // 重複除去も追加
-  
-  // 転回形も考慮：すべての構成音が含まれているかチェック
-  const hasAllTargetNotes = targetNotesMod12.every(targetNote => 
-    inputNotesMod12.includes(targetNote)
-  );
-  
-  devLog.debug('🎯 コード判定詳細:', { 
-    targetChord: targetChord.displayName,
-    targetMod12Names: targetNotesMod12.map(note => {
-      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      return noteNames[note];
-    }),
-    inputNotes: inputNotes,
-    inputNotesMod12: inputNotesMod12,
-    inputMod12Names: inputNotesMod12.map(note => {
-      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      return noteNames[note];
-    }),
-    hasAllTargetNotes,
-    matchDetails: targetNotesMod12.map(targetNote => ({
-      note: targetNote,
-      found: inputNotesMod12.includes(targetNote)
-    }))
-  });
-  
-  return hasAllTargetNotes;
-};
-
-/**
- * 部分的なコードマッチ判定（正解した音を返す）
- */
-const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): number[] => {
-  if (inputNotes.length === 0) {
-    return [];
-  }
-  
-  // 重複を除去し、mod 12で正規化（オクターブ無視）
-  const inputNotesMod12 = [...new Set(inputNotes.map(note => note % 12))];
-  const targetNotesMod12 = [...new Set(targetChord.notes.map(note => note % 12))];
-  
-  // 正解した音を見つける
-  const correctNotes = inputNotesMod12.filter(note => targetNotesMod12.includes(note));
-  
-  return correctNotes;
-};
-
-/**
- * ランダムコード選択（allowedChordsから）
+ * ランダムコード選択（前回と異なるコードを優先）
  */
 const selectRandomChord = (allowedChords: string[], previousChordId?: string): ChordDefinition | null => {
-  let availableChords = allowedChords
-    .map(chordId => CHORD_DEFINITIONS[chordId])
-    .filter(Boolean);
-    
+  if (allowedChords.length === 0) return null;
+  
+  // "All"の場合は全てのコード定義から選択
+  let availableChordIds = allowedChords;
+  if (allowedChords.length === 1 && allowedChords[0] === 'All') {
+    availableChordIds = Object.keys(CHORD_DEFINITIONS);
+  }
+  
+  // 許可されたコード定義を取得
+  let availableChords = availableChordIds
+    .map(id => CHORD_DEFINITIONS[id])
+    .filter(chord => chord != null);
+  
   if (availableChords.length === 0) return null;
   
-  // 前回のコードと異なるコードが選択肢にあれば、それを除外する
+  // 前回と異なるコードを優先的に選択
   if (previousChordId && availableChords.length > 1) {
     const filteredChords = availableChords.filter(c => c.id !== previousChordId);
-    // 除外した結果、選択肢が残っている場合のみ、絞り込んだリストを使用する
     if (filteredChords.length > 0) {
       availableChords = filteredChords;
     }
@@ -220,13 +199,35 @@ const getProgressionChord = (progression: string[], questionIndex: number): Chor
 };
 
 /**
- * 現在の敵情報を取得
+ * モンスターIDを生成
  */
-const getCurrentEnemy = (enemyIndex: number) => {
-  if (enemyIndex >= 0 && enemyIndex < ENEMY_LIST.length) {
-    return ENEMY_LIST[enemyIndex];
+const generateMonsterId = (): string => {
+  return `monster_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
+/**
+ * 攻撃タイプをランダムに選択
+ */
+const selectRandomAttackType = (): AttackType => {
+  const normalAttacks: AttackType[] = ['fire', 'ice', 'thunder', 'normal', 'protect'];
+  const spAttacks: AttackType[] = ['hyper_heal', 'aegis_protection'];
+  
+  // 通常攻撃とSP攻撃の選択は別の場所で行うため、ここでは通常攻撃のみ
+  return normalAttacks[Math.floor(Math.random() * normalAttacks.length)];
+};
+
+/**
+ * ダメージ計算（状態異常を考慮）
+ */
+const calculateDamage = (baseDamage: number, attackType: AttackType, statusEffect?: MonsterState['statusEffect']): number => {
+  let damage = baseDamage;
+  
+  // 炎属性で「やけど」状態の場合、ダメージ30%アップ
+  if (attackType === 'fire' && statusEffect?.type === 'burn') {
+    damage = Math.floor(damage * 1.3);
   }
-  return ENEMY_LIST[0]; // フォールバック
+  
+  return damage;
 };
 
 // ===== メインコンポーネント =====
@@ -237,79 +238,112 @@ export const useFantasyGameEngine = ({
   onChordCorrect,
   onChordIncorrect,
   onGameComplete,
-  onEnemyAttack
+  onEnemyAttack,
+  onPlayerHeal,
+  onStatusEffect,
+  onMonsterHeal,
+  onMissTouch
 }: FantasyGameEngineProps) => {
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
-    currentChordTarget: CHORD_DEFINITIONS['CM7'], // デフォルト値を設定
     playerHp: 5,
-    enemyGauge: 0,
+    playerMaxHp: 5,
     score: 0,
     totalQuestions: 0,
     correctAnswers: 0,
     isGameActive: false,
     isGameOver: false,
     gameResult: null,
-    // 複数敵システム用
-    currentEnemyIndex: 0,
-    currentEnemyHits: 0,
     enemiesDefeated: 0,
-    totalEnemies: 5,
-    // 敵のHP管理を追加
-    currentEnemyHp: 5,
-    maxEnemyHp: 5,
-    correctNotes: [],
-    playerSp: 0, // SPゲージ初期化
-    isWaitingForNextMonster: false
+    totalEnemies: 0,
+    playerSp: 0,
+    playerShields: 0,
+    activeMonsters: [],
+    monsterQueue: [],
+    isWaitingForNextMonster: false,
+    inputBuffer: []
   });
   
-  const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+  const [enemyGaugeTimers, setEnemyGaugeTimers] = useState<Map<string, NodeJS.Timeout>>(new Map());
+  const [statusEffectTimers, setStatusEffectTimers] = useState<Map<string, NodeJS.Timeout>>(new Map());
   const [inputBuffer, setInputBuffer] = useState<number[]>([]);
   const [inputTimeout, setInputTimeout] = useState<NodeJS.Timeout | null>(null);
+  
+  // モンスターをスポーンする
+  const spawnMonsters = useCallback((stage: FantasyStage, count: number, existingMonsters: MonsterState[] = []): MonsterState[] => {
+    const monsters: MonsterState[] = [];
+    const usedPositions = existingMonsters.map(m => m.position);
+    
+    for (let i = 0; i < count; i++) {
+      // 使用可能な位置を探す
+      const availablePositions = [0, 1, 2].filter(p => !usedPositions.includes(p));
+      if (availablePositions.length === 0) break;
+      
+      const position = availablePositions[0];
+      usedPositions.push(position);
+      
+      // コードを選択
+      const chord = stage.mode === 'single'
+        ? selectRandomChord(stage.allowedChords)
+        : getProgressionChord(stage.chordProgression || [], gameState.currentQuestionIndex + i);
+      
+      if (!chord) continue;
+      
+      // ボスかヒーラーかを決定
+      const isBoss = stage.hasBoss && i === 0; // 最初のモンスターをボスに
+      const isHealer = stage.hasHealer && !isBoss && i === 1; // 2番目をヒーラーに
+      
+      const monster: MonsterState = {
+        id: generateMonsterId(),
+        position,
+        hp: isBoss ? stage.enemyHp * 2 : stage.enemyHp, // ボスはHP2倍
+        maxHp: isBoss ? stage.enemyHp * 2 : stage.enemyHp,
+        attackGauge: 0,
+        chordDefinition: chord,
+        correctNotes: [],
+        isHealer,
+        isBoss,
+        shields: 0
+      };
+      
+      monsters.push(monster);
+    }
+    
+    return monsters;
+  }, [gameState.currentQuestionIndex]);
   
   // ゲーム初期化
   const initializeGame = useCallback((stage: FantasyStage) => {
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
 
-    // 最初のコードを取得
-    const firstChord = stage.mode === 'single' 
-                  ? selectRandomChord(stage.allowedChords)
-      : getProgressionChord(stage.chordProgression || [], 0);
-    if (!firstChord) {
-      devLog.debug('❌ 最初のコードが見つかりません');
-      return;
-    }
-
-    // 新しいステージ定義から値を取得
+    // 初期モンスターをスポーン
+    const initialMonsters = spawnMonsters(stage, Math.min(stage.simultaneousMonsters, stage.enemyCount));
+    
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
-    const totalQuestions = totalEnemies * enemyHp;
+    const totalQuestions = totalEnemies; // モンスター数がクエスチョン数
 
     const newState: FantasyGameState = {
       currentStage: stage,
       currentQuestionIndex: 0,
-      currentChordTarget: firstChord,
-      playerHp: stage.maxHp,
-      enemyGauge: 0,
+      playerHp: stage.playerMaxHp,
+      playerMaxHp: stage.playerMaxHp,
       score: 0,
       totalQuestions: totalQuestions,
       correctAnswers: 0,
       isGameActive: true,
       isGameOver: false,
       gameResult: null,
-      // 複数敵システム用
-      currentEnemyIndex: 0,
-      currentEnemyHits: 0,
       enemiesDefeated: 0,
       totalEnemies: totalEnemies,
-      // 敵のHP管理を追加
-      currentEnemyHp: enemyHp,
-      maxEnemyHp: enemyHp,
-      correctNotes: [],
-      playerSp: 0, // SPゲージ初期化
-      isWaitingForNextMonster: false
+      playerSp: 0,
+      playerShields: 0,
+      activeMonsters: initialMonsters,
+      monsterQueue: [],
+      isWaitingForNextMonster: false,
+      inputBuffer: []
     };
 
     setGameState(newState);
@@ -319,58 +353,12 @@ export const useFantasyGameEngine = ({
       stage: stage.name,
       totalEnemies,
       enemyHp,
-      totalQuestions
+      initialMonsters: initialMonsters.length
     });
-  }, [onGameStateChange]);
-  
-  // 次の問題への移行（回答数ベース、ループ対応）
-  const proceedToNextQuestion = useCallback(() => {
-    setGameState(prevState => {
-      const nextCorrectAnswers = prevState.correctAnswers;
-      const isComplete = nextCorrectAnswers >= prevState.totalQuestions; // 回答数でクリア判定
-      
-      if (isComplete) {
-        // ゲームクリア
-        const finalState = {
-          ...prevState,
-          isGameActive: false,
-          isGameOver: true,
-          gameResult: 'clear' as const
-        };
-        
-        onGameComplete('clear', finalState);
-        return finalState;
-      } else {
-        // 次の問題（ループ対応）
-        let nextChord;
-        if (prevState.currentStage?.mode === 'single') {
-          // ランダムモード：前回と異なるコードを選択
-          const previousChordId = prevState.currentChordTarget?.id;
-          nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId);
-        } else {
-          // コード進行モード：ループさせる
-          const progression = prevState.currentStage?.chordProgression || [];
-          const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-          nextChord = getProgressionChord(progression, nextIndex);
-        }
-        
-        const nextState = {
-          ...prevState,
-          currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
-          currentChordTarget: nextChord,
-          enemyGauge: 0, // ゲージリセット
-          correctNotes: [] // 新しいコードでリセット
-        };
-        
-        onGameStateChange(nextState);
-        return nextState;
-      }
-    });
-  }, [onGameStateChange, onGameComplete]);
+  }, [spawnMonsters, onGameStateChange]);
   
   // 敵の攻撃処理
-  const handleEnemyAttack = useCallback(() => {
-    // 攻撃時に入力バッファをリセット
+  const handleEnemyAttack = useCallback((monsterId: string) => {
     setInputBuffer([]);
     if (inputTimeout) {
       clearTimeout(inputTimeout);
@@ -378,406 +366,508 @@ export const useFantasyGameEngine = ({
     }
     
     setGameState(prevState => {
-      const newHp = Math.max(0, prevState.playerHp - 1); // 確実に1減らす
+      const monster = prevState.activeMonsters.find(m => m.id === monsterId);
+      if (!monster) return prevState;
       
-      devLog.debug('💥 敵の攻撃！HP更新:', {
-        oldHp: prevState.playerHp,
-        newHp: newHp,
-        damage: 1
+      // ダメージ計算
+      const minDamage = prevState.currentStage?.enemyMinDamage || 5;
+      const maxDamage = prevState.currentStage?.enemyMaxDamage || 15;
+      let damage = Math.floor(Math.random() * (maxDamage - minDamage + 1)) + minDamage;
+      
+      // ボスは2倍ダメージ
+      if (monster.isBoss) {
+        damage *= 2;
+      }
+      
+      // 麻痺状態なら半分ダメージ
+      if (monster.statusEffect?.type === 'paralysis') {
+        damage = Math.floor(damage / 2);
+      }
+      
+      // プレイヤーのシールドチェック
+      let actualDamage = damage;
+      let newShields = prevState.playerShields;
+      if (prevState.playerShields > 0) {
+        actualDamage = 0;
+        newShields = prevState.playerShields - 1;
+      }
+      
+      const newHp = Math.max(0, prevState.playerHp - actualDamage);
+      
+      devLog.debug('💥 敵の攻撃！', {
+        monsterId,
+        damage,
+        actualDamage,
+        shields: prevState.playerShields,
+        newHp
       });
+      
+      // コールバック
+      onEnemyAttack(actualDamage, monsterId);
       
       const isGameOver = newHp <= 0;
       
       if (isGameOver) {
+        // タイマーをクリア
+        enemyGaugeTimers.forEach(timer => clearTimeout(timer));
+        setEnemyGaugeTimers(new Map());
+        
         const finalState = {
           ...prevState,
           playerHp: 0,
+          playerShields: newShields,
+          inputBuffer: [], // バッファクリア
           isGameActive: false,
           isGameOver: true,
-          gameResult: 'gameover' as const
+          gameResult: 'gameover' as const,
+          activeMonsters: prevState.activeMonsters.map(m =>
+            m.id === monsterId ? { ...m, attackGauge: 0 } : m
+          )
         };
         
-        // ゲームオーバーコールバックを安全に呼び出し
         setTimeout(() => {
-          try {
-            onGameComplete('gameover', finalState);
-          } catch (error) {
-            devLog.debug('❌ ゲームオーバーコールバックエラー:', error);
-          }
+          onGameComplete('gameover', finalState);
         }, 100);
         
         return finalState;
       } else {
-        // HP減少して次の問題へ（回答数ベース、ループ対応）
-        const isComplete = prevState.correctAnswers >= prevState.totalQuestions;
+        // 攻撃後はゲージリセット
+        return {
+          ...prevState,
+          playerHp: newHp,
+          playerShields: newShields,
+          inputBuffer: [], // バッファクリア
+          activeMonsters: prevState.activeMonsters.map(m =>
+            m.id === monsterId ? { ...m, attackGauge: 0 } : m
+          )
+        };
+      }
+    });
+  }, [onEnemyAttack, onGameComplete, enemyGaugeTimers, inputTimeout]);
+  
+  // モンスターのヒール処理
+  const handleMonsterHeal = useCallback((healerId: string) => {
+    setGameState(prevState => {
+      const healer = prevState.activeMonsters.find(m => m.id === healerId);
+      if (!healer || !healer.isHealer) return prevState;
+      
+      // 最もHPが少ないモンスターを探す
+      let targetMonster = prevState.activeMonsters[0];
+      let lowestHpRatio = 1;
+      
+      prevState.activeMonsters.forEach(monster => {
+        const hpRatio = monster.hp / monster.maxHp;
+        if (hpRatio < lowestHpRatio) {
+          lowestHpRatio = hpRatio;
+          targetMonster = monster;
+        }
+      });
+      
+      if (!targetMonster || targetMonster.hp >= targetMonster.maxHp) {
+        // ヒール不要
+        return {
+          ...prevState,
+          activeMonsters: prevState.activeMonsters.map(m =>
+            m.id === healerId ? { ...m, attackGauge: 0 } : m
+          )
+        };
+      }
+      
+      // HP1/4回復
+      const healAmount = Math.floor(targetMonster.maxHp / 4);
+      const newHp = Math.min(targetMonster.maxHp, targetMonster.hp + healAmount);
+      
+      devLog.debug('💚 モンスターヒール！', {
+        healerId,
+        targetId: targetMonster.id,
+        healAmount,
+        newHp
+      });
+      
+      onMonsterHeal?.(targetMonster.id, healAmount);
+      
+      return {
+        ...prevState,
+        activeMonsters: prevState.activeMonsters.map(m => {
+          if (m.id === targetMonster.id) {
+            return { ...m, hp: newHp };
+          } else if (m.id === healerId) {
+            return { ...m, attackGauge: 0 };
+          }
+          return m;
+        })
+      };
+    });
+  }, [onMonsterHeal]);
+  
+  // モンスター撃破処理
+  const handleMonsterDefeat = useCallback((monster: MonsterState, allMonsters: MonsterState[]) => {
+    const isSpecialAttack = gameState.playerSp >= 5;
+    const attackType = isSpecialAttack ? 'hyper_heal' : selectRandomAttackType();
+    
+    // ダメージ計算
+    let damageDealt = 1; // デフォルト
+    if (attackType === 'protect') {
+      // プロテクトの場合はシールド追加
+      setGameState(prev => ({
+        ...prev,
+        playerShields: Math.min(5, prev.playerShields + 1),
+        inputBuffer: [] // バッファクリア
+      }));
+      damageDealt = 0;
+    } else {
+      damageDealt = calculateDamage(1, attackType, monster.statusEffect);
+    }
+    
+    // モンスターのシールドチェック
+    let actualDamage = damageDealt;
+    let newShields = monster.shields;
+    if (monster.shields > 0 && damageDealt > 0) {
+      actualDamage = 0;
+      newShields = monster.shields - 1;
+    }
+    
+    const newHp = Math.max(0, monster.hp - actualDamage);
+    const defeated = newHp <= 0;
+    
+    // 状態異常付与（30%の確率）
+    let newStatusEffect = monster.statusEffect;
+    if (Math.random() < 0.3 && !monster.statusEffect) {
+      if (attackType === 'fire') {
+        newStatusEffect = { type: 'burn', remainingTime: 10 };
+        onStatusEffect?.(monster.id, 'burn');
+      } else if (attackType === 'ice') {
+        newStatusEffect = { type: 'freeze', remainingTime: 10 };
+        onStatusEffect?.(monster.id, 'freeze');
+      } else if (attackType === 'thunder') {
+        newStatusEffect = { type: 'paralysis', remainingTime: 10 };
+        onStatusEffect?.(monster.id, 'paralysis');
+      }
+    }
+    
+    // SP攻撃の処理
+    if (isSpecialAttack) {
+      if (attackType === 'hyper_heal') {
+        // 最大HPの50%回復
+        const healAmount = Math.floor(gameState.playerMaxHp / 2);
+        const newPlayerHp = Math.min(gameState.playerMaxHp, gameState.playerHp + healAmount);
+        setGameState(prev => ({ ...prev, playerHp: newPlayerHp, inputBuffer: [] }));
+        onPlayerHeal?.(healAmount);
+      } else if (attackType === 'aegis_protection') {
+        // シールド3つ追加
+        setGameState(prev => ({
+          ...prev,
+          playerShields: Math.min(5, prev.playerShields + 3),
+          inputBuffer: []
+        }));
+      }
+      
+      // 全モンスターの攻撃ゲージリセット＆ダメージ
+      setGameState(prevState => ({
+        ...prevState,
+        playerSp: 0,
+        inputBuffer: [],
+        activeMonsters: prevState.activeMonsters.map(m => ({
+          ...m,
+          attackGauge: 0,
+          hp: Math.max(0, m.hp - 1) // 全体1ダメージ
+        })).filter(m => m.hp > 0),
+        correctAnswers: prevState.correctAnswers + 1,
+        enemiesDefeated: prevState.enemiesDefeated + prevState.activeMonsters.filter(m => m.hp - 1 <= 0).length,
+        score: prevState.score + 100 * prevState.activeMonsters.filter(m => m.hp - 1 <= 0).length
+      }));
+    } else {
+      // 通常攻撃
+      setGameState(prevState => {
+        const updatedMonsters = allMonsters.map(m => {
+          if (m.id === monster.id) {
+            return {
+              ...m,
+              hp: newHp,
+              shields: newShields,
+              correctNotes: [],
+              statusEffect: newStatusEffect
+            };
+          }
+          return m;
+        }).filter(m => m.hp > 0);
+        
+        // 新しいモンスターをスポーンする必要があるか
+        const remainingCount = prevState.totalEnemies - prevState.enemiesDefeated - (defeated ? 1 : 0);
+        const needSpawn = updatedMonsters.length < Math.min(prevState.currentStage!.simultaneousMonsters, remainingCount);
+        
+        if (needSpawn && remainingCount > 0) {
+          const spawnCount = Math.min(
+            prevState.currentStage!.simultaneousMonsters - updatedMonsters.length,
+            remainingCount
+          );
+          const newMonsters = spawnMonsters(prevState.currentStage!, spawnCount, updatedMonsters);
+          updatedMonsters.push(...newMonsters);
+        }
+        
+        // ゲームクリアチェック
+        const newEnemiesDefeated = prevState.enemiesDefeated + (defeated ? 1 : 0);
+        const isComplete = newEnemiesDefeated >= prevState.totalEnemies;
         
         if (isComplete) {
-          // 必要な回答数に到達済みでHP残りありならクリア
+          // タイマーをクリア
+          enemyGaugeTimers.forEach(timer => clearTimeout(timer));
+          setEnemyGaugeTimers(new Map());
+          
           const finalState = {
             ...prevState,
-            playerHp: newHp,
+            activeMonsters: updatedMonsters,
+            correctAnswers: prevState.correctAnswers + 1,
+            enemiesDefeated: newEnemiesDefeated,
+            score: prevState.score + (defeated ? 100 : 10),
+            playerSp: Math.min(5, prevState.playerSp + 1),
+            inputBuffer: [],
             isGameActive: false,
             isGameOver: true,
             gameResult: 'clear' as const
           };
           
-          // クリアコールバックを安全に呼び出し
           setTimeout(() => {
-            try {
-              onGameComplete('clear', finalState);
-            } catch (error) {
-              devLog.debug('❌ クリアコールバックエラー:', error);
-            }
+            onGameComplete('clear', finalState);
           }, 100);
           
           return finalState;
-        } else {
-          // 次の問題（ループ対応）
-          let nextChord;
-          if (prevState.currentStage?.mode === 'single') {
-            // ランダムモード：前回と異なるコードを選択
-            const previousChordId = prevState.currentChordTarget?.id;
-            nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId);
-          } else {
-            // コード進行モード：ループさせる
-            const progression = prevState.currentStage?.chordProgression || [];
-            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex);
-          }
-          
-          const nextState = {
-            ...prevState,
-            playerHp: newHp,
-            currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
-            currentChordTarget: nextChord,
-            enemyGauge: 0,
-            correctNotes: [] // 新しいコードでリセット
-          };
-          
-          onGameStateChange(nextState);
-          return nextState;
         }
-      }
-    });
-    
-    onEnemyAttack();
-  }, [onGameStateChange, onGameComplete, onEnemyAttack, inputTimeout]);
-  
-  // ゲージタイマーの管理
-  useEffect(() => {
-    devLog.debug('🎮 ゲージタイマー状態チェック:', { 
-      isGameActive: gameState.isGameActive, 
-      hasTimer: !!enemyGaugeTimer,
-      currentStage: gameState.currentStage?.stageNumber
-    });
-    
-    // 既存のタイマーをクリア
-    if (enemyGaugeTimer) {
-      clearInterval(enemyGaugeTimer);
-      setEnemyGaugeTimer(null);
-    }
-    
-    // ゲームがアクティブな場合のみ新しいタイマーを開始
-    if (gameState.isGameActive && gameState.currentStage) {
-      devLog.debug('⏰ 敵ゲージタイマー開始');
-      const timer = setInterval(() => {
-        updateEnemyGauge();
-      }, 100); // 100ms間隔で更新
-      setEnemyGaugeTimer(timer);
-    }
-    
-    // クリーンアップ
-    return () => {
-      if (enemyGaugeTimer) {
-        clearInterval(enemyGaugeTimer);
-      }
-    };
-  }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
-  
-  // 敵ゲージの更新
-  const updateEnemyGauge = useCallback(() => {
-    setGameState(prevState => {
-      if (!prevState.isGameActive || !prevState.currentStage) {
-        devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
-        return prevState;
-      }
-      
-      const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
-      const newGauge = prevState.enemyGauge + incrementRate;
-      
-      devLog.debug('⚡ ゲージ更新:', { 
-        currentGauge: prevState.enemyGauge.toFixed(1), 
-        newGauge: newGauge.toFixed(1), 
-        incrementRate: incrementRate.toFixed(2),
-        enemyGaugeSeconds: prevState.currentStage.enemyGaugeSeconds
+        
+        return {
+          ...prevState,
+          activeMonsters: updatedMonsters,
+          correctAnswers: prevState.correctAnswers + 1,
+          enemiesDefeated: newEnemiesDefeated,
+          score: prevState.score + (defeated ? 100 : 10),
+          playerSp: Math.min(5, prevState.playerSp + 1),
+          inputBuffer: []
+        };
       });
-      
-      if (newGauge >= 100) {
-        // ゲージ満タン -> 敵の攻撃
-        devLog.debug('💥 敵ゲージ満タン！攻撃開始');
-        // 攻撃処理を非同期で実行し、ここではゲージをリセット
-        setTimeout(() => handleEnemyAttack(), 0);
-        const nextState = { ...prevState, enemyGauge: 0 }; // ゲージをリセット
-        onGameStateChange(nextState);
-        return nextState;
-      } else {
-        const nextState = { ...prevState, enemyGauge: newGauge };
-        onGameStateChange(nextState);
-        return nextState;
-      }
-    });
-  }, [handleEnemyAttack, onGameStateChange]);
+    }
+    
+    // コールバック
+    onChordCorrect(monster.chordDefinition, isSpecialAttack, damageDealt, defeated, attackType);
+  }, [gameState, spawnMonsters, onChordCorrect, onPlayerHeal, onStatusEffect, onGameComplete, enemyGaugeTimers]);
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
-    if (!gameState.isGameActive || !gameState.currentChordTarget) return;
+    if (!gameState.isGameActive || gameState.isWaitingForNextMonster) return;
     
-    devLog.debug('🎵 ノート入力受信:', { note, currentChord: gameState.currentChordTarget.displayName });
+    devLog.debug('🎹 ノート入力:', { note });
     
-    // 入力バッファに追加
-    setInputBuffer(prevBuffer => {
-      const newBuffer = [...prevBuffer, note];
-      devLog.debug('🎵 入力バッファ更新:', { newBuffer, bufferSize: newBuffer.length });
+    // 入力タイムアウトをリセット
+    if (inputTimeout) {
+      clearTimeout(inputTimeout);
+    }
+    
+    const newBuffer = [...gameState.inputBuffer, note];
+    
+    // 各モンスターのコードと照合
+    let matchFound = false;
+    let missTouch = false;
+    const updatedMonsters = gameState.activeMonsters.map(monster => {
+      const targetNotes = monster.chordDefinition.notes;
       
-      // 正解した音を更新
-      const correctNotes = getCorrectNotes(newBuffer, gameState.currentChordTarget!);
+      // この音がこのモンスターのコードに含まれるか
+      if (targetNotes.includes(note)) {
+        matchFound = true;
+        
+        // まだ演奏していない音なら追加
+        if (!monster.correctNotes.includes(note)) {
+          const newCorrectNotes = [...monster.correctNotes, note];
+          
+          // 全ての音を演奏したか
+          if (newCorrectNotes.length === targetNotes.length) {
+            // 攻撃処理は後で行う
+            return { ...monster, correctNotes: newCorrectNotes, toAttack: true };
+          }
+          
+          return { ...monster, correctNotes: newCorrectNotes };
+        }
+      }
+      
+      return monster;
+    });
+    
+    // どのモンスターのコードにも含まれない音 = ミスタッチ
+    if (!matchFound) {
+      missTouch = true;
+      devLog.debug('❌ ミスタッチ！');
+      
+      // ミスタッチ処理
+      onMissTouch?.();
+      
+      // 全モンスターの攻撃ゲージを2秒分進める
       setGameState(prevState => ({
         ...prevState,
-        correctNotes: correctNotes
+        playerSp: 0, // SPゲージリセット
+        inputBuffer: [], // バッファクリア
+        activeMonsters: prevState.activeMonsters.map(monster => ({
+          ...monster,
+          attackGauge: Math.min(100, monster.attackGauge + 20) // 2秒分 = 20%
+        }))
       }));
-      onGameStateChange({
-        ...gameState,
-        correctNotes: correctNotes
-      });
       
-      // 入力タイムアウトをリセット
-      if (inputTimeout) {
-        clearTimeout(inputTimeout);
-      }
-      
-      // 自動判定タイマー（500msに延長 - 和音が完成するまで待機）
-      const timeout = setTimeout(() => {
-        devLog.debug('⏰ 自動判定タイマー発動');
-        checkCurrentInput(newBuffer);
-        // 正解の場合のみバッファをクリア（checkCurrentInput内で処理）
-      }, 500);
-      
-      setInputTimeout(timeout);
-      
-      // 即座に判定も試行（構成音数が満たされた場合）
-      if (gameState.currentChordTarget && newBuffer.length >= gameState.currentChordTarget.notes.length) {
-        devLog.debug('🎯 構成音数達成 - 即座に判定');
-        setTimeout(() => {
-          clearTimeout(timeout);
-          const isCorrectImmediate = checkChordMatch(newBuffer, gameState.currentChordTarget!);
-          if (isCorrectImmediate) {
-            checkCurrentInput(newBuffer);
-            setInputBuffer([]);
-          }
-          // 不正解の場合は何もせず、音の積み重ねを継続
-        }, 100);
-      }
-      
-      return newBuffer;
-    });
-  }, [gameState.isGameActive, gameState.currentChordTarget, inputTimeout, onGameStateChange]);
-  
-  // 現在の入力を判定
-  const checkCurrentInput = useCallback((notes: number[]) => {
-    if (!gameState.currentChordTarget || notes.length === 0) {
-      devLog.debug('❌ 判定スキップ: コードなしまたは入力なし', { hasChord: !!gameState.currentChordTarget, inputCount: notes.length });
       return;
     }
     
-    devLog.debug('🎯 コード判定実行中...', { 
-      targetChord: gameState.currentChordTarget.displayName,
-      inputNotes: notes,
-      inputCount: notes.length 
-    });
-    
-    const isCorrect = checkChordMatch(notes, gameState.currentChordTarget);
-    
-    if (isCorrect) {
-      devLog.debug('✅ 正解判定!', { chord: gameState.currentChordTarget.displayName });
-      
-      const currentStage = gameState.currentStage;
-      if (!currentStage) return;
-
-      // SPが3溜まっている状態で攻撃するとスペシャルアタック
-      const isSpecialAttack = gameState.playerSp >= 3;
-
-      // ダメージ計算
-      const baseDamage = Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage;
-      const damageDealt = baseDamage * (isSpecialAttack ? 2 : 1);
-
-      // ★ 修正点: 撃破判定の結果を onChordCorrect で渡す
-      const willBeDefeated = (gameState.currentEnemyHp - damageDealt) <= 0;
-      onChordCorrect(gameState.currentChordTarget, isSpecialAttack, damageDealt, willBeDefeated);
-
-      // setGameState の外で、現在の gameState を使って同期的に撃破判定を行う
-      // const willBeDefeated = (gameState.currentEnemyHp - damageDealt) <= 0;
-
-      setGameState(prevState => {
-        // SPアタックならSPを0に、そうでなければ+1（上限は3）
-        const newPlayerSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 3);
-        const newEnemyHp = Math.max(0, prevState.currentEnemyHp - damageDealt);
-        return {
-          ...prevState,
-          correctAnswers: prevState.correctAnswers + 1,
-          score: prevState.score + 1000,
-          enemyGauge: 0,
-          currentEnemyHits: prevState.currentEnemyHits + 1,
-          currentEnemyHp: newEnemyHp,
-          playerSp: newPlayerSp,
-          // 同期的に判定した結果を使い、待機状態に移行するか決める
-          isWaitingForNextMonster: willBeDefeated,
-        };
+    // 攻撃処理
+    const attackingMonsters = updatedMonsters.filter(m => (m as any).toAttack);
+    if (attackingMonsters.length > 0) {
+      attackingMonsters.forEach(monster => {
+        handleMonsterDefeat(monster, updatedMonsters);
       });
-      
-      setInputBuffer([]);
-      
-      // 判定結果に基づく処理分岐
-      // 同期的に行った判定結果に基づいて、次のアクションを決定する
-      if (!willBeDefeated) {
-        // モンスターを倒していなければ、次の問題へ進む
-        setTimeout(proceedToNextQuestion, 100);
-      }
-      // モンスターを倒した場合は、ここでは何もしない。
-      // アニメーション完了後に proceedToNextEnemy が呼ばれるのを待つ。
-      
     } else {
-      devLog.debug('🎵 まだ構成音が足りません', { 
-        targetChord: gameState.currentChordTarget.displayName,
-        inputNotes: notes,
-        message: '音を追加してください'
-      });
-      
-      // 不正解の概念を削除し、単純に何もしない（音の積み重ねを続行）
-      // onChordIncorrect(gameState.currentChordTarget, notes);
-    }
-  }, [gameState.currentChordTarget, onChordCorrect, onChordIncorrect, onGameStateChange, proceedToNextQuestion]);
-  
-  // 次の敵へ進むための新しい関数
-  const proceedToNextEnemy = useCallback(() => {
-    devLog.debug('ENGINE: 進行要求を受信。次の敵と問題を用意します。');
-    setGameState(prevState => {
-      if (!prevState.isWaitingForNextMonster) return prevState;
-
-      const newEnemiesDefeated = prevState.enemiesDefeated + 1;
-
-      // ゲームクリア判定
-      if (newEnemiesDefeated >= prevState.totalEnemies) {
-        const finalState = {
-          ...prevState,
-          isGameActive: false,
-          isGameOver: true,
-          gameResult: 'clear' as const,
-          isWaitingForNextMonster: false,
-        };
-        onGameComplete('clear', finalState);
-        return finalState;
-      }
-
-      // 次の敵に交代
-      const nextEnemyIndex = prevState.currentEnemyIndex + 1;
-      let nextState = {
+      setGameState(prevState => ({
         ...prevState,
-        currentEnemyIndex: nextEnemyIndex,
-        currentEnemyHits: 0,
-        enemiesDefeated: newEnemiesDefeated,
-        currentEnemyHp: prevState.maxEnemyHp, // HPをリセット
-        isWaitingForNextMonster: false,      // 待機状態を解除
-      };
-
-      // ★追加：次の問題もここで準備する
-      let nextChord;
-      if (prevState.currentStage?.mode === 'single') {
-        nextChord = selectRandomChord(prevState.currentStage.allowedChords, prevState.currentChordTarget?.id);
-      } else {
-        const progression = prevState.currentStage?.chordProgression || [];
-        const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-        nextChord = getProgressionChord(progression, nextIndex);
-      }
-
-      nextState = {
-        ...nextState,
-        currentQuestionIndex: prevState.currentQuestionIndex + 1,
-        currentChordTarget: nextChord,
-        enemyGauge: 0,
-      };
-
-      devLog.debug('🔄 次の戦闘準備完了:', {
-        nextEnemyIndex,
-        nextEnemy: ENEMY_LIST[nextEnemyIndex]?.name,
-        nextChord: nextChord?.displayName,
-        newEnemyHp: prevState.maxEnemyHp
-      });
-
-      onGameStateChange(nextState);
-      return nextState;
-    });
-  }, [onGameStateChange, onGameComplete]);
-  
-  // ゲーム停止
-  const stopGame = useCallback(() => {
-    setGameState(prevState => ({
-      ...prevState,
-      isGameActive: false
-    }));
-    
-    if (enemyGaugeTimer) {
-      clearInterval(enemyGaugeTimer);
-      setEnemyGaugeTimer(null);
+        activeMonsters: updatedMonsters,
+        inputBuffer: newBuffer
+      }));
+      
+      // 入力タイムアウトを設定（1秒後にバッファクリア）
+      const timeout = setTimeout(() => {
+        setGameState(prevState => ({
+          ...prevState,
+          inputBuffer: []
+        }));
+      }, 1000);
+      setInputTimeout(timeout);
     }
-    
-    if (inputTimeout) {
-      clearTimeout(inputTimeout);
-      setInputTimeout(null);
-    }
-    
-    setInputBuffer([]);
-  }, [enemyGaugeTimer, inputTimeout]);
+  }, [gameState, inputTimeout, onMissTouch, handleMonsterDefeat]);
   
-  // ステージ変更時の初期化
+  // 敵の攻撃ゲージ更新
   useEffect(() => {
-    if (stage) {
+    if (!gameState.isGameActive) return;
+    
+    const timers = new Map<string, NodeJS.Timeout>();
+    
+    gameState.activeMonsters.forEach(monster => {
+      const updateGauge = () => {
+        setGameState(prevState => {
+          const currentMonster = prevState.activeMonsters.find(m => m.id === monster.id);
+          if (!currentMonster) return prevState;
+          
+          // ゲージ増加速度を計算
+          let gaugeIncrement = 100 / (prevState.currentStage?.enemyGaugeSeconds || 5);
+          
+          // 氷結状態なら半分の速度
+          if (currentMonster.statusEffect?.type === 'freeze') {
+            gaugeIncrement /= 2;
+          }
+          
+          const newGauge = Math.min(100, currentMonster.attackGauge + gaugeIncrement);
+          
+          // 100%に達したら攻撃
+          if (newGauge >= 100) {
+            // ヒーラーの場合は回復行動（50%の確率）
+            if (currentMonster.isHealer && Math.random() < 0.5) {
+              handleMonsterHeal(monster.id);
+            } 
+            // 通常モンスターの防御行動（20%の確率）
+            else if (!currentMonster.isHealer && Math.random() < 0.2) {
+              // 防御行動：シールドを追加
+              setGameState(prev => ({
+                ...prev,
+                activeMonsters: prev.activeMonsters.map(m =>
+                  m.id === monster.id 
+                    ? { ...m, attackGauge: 0, shields: Math.min(5, m.shields + 1) }
+                    : m
+                )
+              }));
+              devLog.debug('🛡️ モンスター防御！', { monsterId: monster.id });
+            } else {
+              // 通常攻撃
+              handleEnemyAttack(monster.id);
+            }
+            return prevState; // ゲージは各ハンドラー内でリセットされるため
+          }
+          
+          return {
+            ...prevState,
+            activeMonsters: prevState.activeMonsters.map(m =>
+              m.id === monster.id ? { ...m, attackGauge: newGauge } : m
+            )
+          };
+        });
+      };
+      
+      const timer = setInterval(updateGauge, 100);
+      timers.set(monster.id, timer);
+    });
+    
+    setEnemyGaugeTimers(timers);
+    
+    return () => {
+      timers.forEach(timer => clearInterval(timer));
+    };
+  }, [gameState.activeMonsters.length, gameState.isGameActive, gameState.currentStage, handleEnemyAttack, handleMonsterHeal]);
+  
+  // 状態異常タイマー
+  useEffect(() => {
+    const timers = new Map<string, NodeJS.Timeout>();
+    
+    gameState.activeMonsters.forEach(monster => {
+      if (monster.statusEffect) {
+        const timer = setInterval(() => {
+          setGameState(prevState => {
+            const currentMonster = prevState.activeMonsters.find(m => m.id === monster.id);
+            if (!currentMonster || !currentMonster.statusEffect) return prevState;
+            
+            const newRemainingTime = currentMonster.statusEffect.remainingTime - 0.1;
+            
+            if (newRemainingTime <= 0) {
+              // 状態異常解除
+              return {
+                ...prevState,
+                activeMonsters: prevState.activeMonsters.map(m =>
+                  m.id === monster.id ? { ...m, statusEffect: undefined } : m
+                )
+              };
+            }
+            
+            return {
+              ...prevState,
+              activeMonsters: prevState.activeMonsters.map(m =>
+                m.id === monster.id
+                  ? { ...m, statusEffect: { ...currentMonster.statusEffect!, remainingTime: newRemainingTime } }
+                  : m
+              )
+            };
+          });
+        }, 100);
+        
+        timers.set(monster.id, timer);
+      }
+    });
+    
+    setStatusEffectTimers(timers);
+    
+    return () => {
+      timers.forEach(timer => clearInterval(timer));
+    };
+  }, [gameState.activeMonsters.map(m => m.statusEffect).join(',')]);
+  
+  // ゲーム開始
+  useEffect(() => {
+    if (stage && !gameState.isGameActive) {
       initializeGame(stage);
     }
-  }, [stage, initializeGame]);
+  }, [stage, gameState.isGameActive, initializeGame]);
   
-  // コンポーネント破棄時のクリーンアップ
+  // 状態変更通知
   useEffect(() => {
-    return () => {
-      if (enemyGaugeTimer) {
-        devLog.debug('⏰ 敵ゲージタイマー クリーンアップで停止');
-        clearInterval(enemyGaugeTimer);
-      }
-      if (inputTimeout) {
-        devLog.debug('⏰ 入力タイムアウト クリーンアップで停止');
-        clearTimeout(inputTimeout);
-      }
-    };
-  }, []);
-  
-
+    onGameStateChange(gameState);
+  }, [gameState, onGameStateChange]);
   
   return {
     gameState,
-    inputBuffer,
     handleNoteInput,
-    initializeGame,
-    stopGame,
-    proceedToNextEnemy,
-    
-    // ヘルパー関数もエクスポート
-    checkChordMatch,
-    selectRandomChord,
-    getProgressionChord,
-    getCurrentEnemy,
-    CHORD_DEFINITIONS,
-    ENEMY_LIST
+    initializeGame
   };
 };
 
-export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps };
-export { CHORD_DEFINITIONS, ENEMY_LIST, getCurrentEnemy };
+// ===== エクスポート =====
+
+export type { ChordDefinition, FantasyStage, FantasyGameState, MonsterState, AttackType };
+export { CHORD_DEFINITIONS };
