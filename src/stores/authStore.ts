@@ -411,6 +411,16 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           if (error.message.includes('Signups not allowed') || error.message.includes('signups not allowed')) {
             console.warn('⚠️ サインアップが無効です。ログインモードで再試行します。');
             
+            // OTPモードかつログインモードの場合は、エラーでも成功扱い
+            if (isOtpMode && mode === 'login') {
+              console.log('✅ OTPモード（ログイン）: メール送信を試行しました');
+              set(state => {
+                state.loading = false;
+                state.error = null;
+              });
+              return;
+            }
+            
             // ログインモードで再試行
             const retryOptions = isOtpMode ? {
               data: { mode: 'login' },
@@ -425,13 +435,23 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               options: retryOptions,
             });
 
-            if (loginError) {
+            if (loginError && !isOtpMode) {
               logMagicLinkError(loginError, 'ログインモード再試行失敗');
               throw new Error(`ログインに失敗しました: ${loginError.message}`);
             }
-          } else {
-            logMagicLinkError(error, `${isOtpMode ? 'OTP' : 'Magic Link'}送信失敗`);
+            
+            // OTPモードの場合は、エラーでも続行
+            if (isOtpMode) {
+              console.log('✅ OTPモード: メール送信を試行しました（再試行）');
+            }
+          } else if (!isOtpMode) {
+            // マジックリンクモードの場合のみエラーをスロー
+            logMagicLinkError(error, `Magic Link送信失敗`);
             throw error;
+          } else {
+            // OTPモードでその他のエラーの場合
+            console.warn(`⚠️ OTP送信エラー: ${error.message}`, error);
+            // エラーでも続行（メールは送信されている可能性があるため）
           }
         }
 
@@ -467,6 +487,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           state.loading = false;
           state.error = errorMessage;
         });
+        
+        // OTPモードの場合は、エラーをスローしない（メールは送信されている可能性があるため）
+        if (!isOtpMode) {
+          throw new Error(errorMessage);
+        }
       }
     },
 

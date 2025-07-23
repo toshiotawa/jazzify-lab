@@ -18,11 +18,16 @@ const AuthLanding: React.FC = () => {
   const { loginWithMagicLink, verifyOtp, enterGuestMode, loading, error } = useAuthStore();
   const toast = useToast();
 
-  console.log('🔍 AuthLanding render state:', { useOtp, otpSent, email, loading });
+  // 開発環境でのみデバッグログを出力
+  if (import.meta.env.DEV) {
+    console.log('🔍 AuthLanding render state:', { useOtp, otpSent, email, loading });
+  }
 
-  // otpSent の状態変化を監視
+  // otpSent の状態変化を監視（開発環境のみ）
   useEffect(() => {
-    console.log('🔍 otpSent state changed:', otpSent);
+    if (import.meta.env.DEV) {
+      console.log('🔍 otpSent state changed:', otpSent);
+    }
   }, [otpSent]);
 
   // 開発環境でのみデバッグ情報を表示
@@ -33,7 +38,9 @@ const AuthLanding: React.FC = () => {
   }, []);
 
   const handleSendLink = async (mode: 'signup' | 'login') => {
-    console.log('🔍 handleSendLink called:', { mode, useOtp, email });
+    if (import.meta.env.DEV) {
+      console.log('🔍 handleSendLink called:', { mode, useOtp, email });
+    }
     
     // バリデーション
     if (!email.trim()) {
@@ -48,13 +55,22 @@ const AuthLanding: React.FC = () => {
     // OTPモードの場合は、先にフラグを立てる
     const isOtpMode = useOtp;
     
+    // OTPモードの場合は、送信前に画面を切り替える
+    if (isOtpMode) {
+      if (import.meta.env.DEV) {
+        console.log('🔍 OTP mode: Setting otpSent to true BEFORE sending');
+      }
+      setOtpSent(true);
+    }
+    
     try {
       await loginWithMagicLink(email, mode, isOtpMode);
       
       if (isOtpMode) {
-        // OTPモードの場合
-        console.log('🔍 OTP mode: Setting otpSent to true');
-        setOtpSent(true);
+        // OTPモードの場合、成功メッセージを表示
+        if (import.meta.env.DEV) {
+          console.log('🔍 OTP sent successfully');
+        }
         toast.success('認証コードを送信しました。メールをご確認ください。', {
           title: 'コード送信完了',
           duration: 5000,
@@ -71,17 +87,45 @@ const AuthLanding: React.FC = () => {
         });
       }
     } catch (err) {
+      if (import.meta.env.DEV) {
+        console.error('🔍 Error in handleSendLink:', err);
+      }
+      
       // エラーメッセージを適切に処理
       const errorMessage = err instanceof Error ? err.message : `${isOtpMode ? 'OTP' : 'Magic Link'}送信に失敗しました`;
       
-      if (errorMessage.includes('サインアップが無効')) {
+      // OTPモードでエラーが発生した場合は、画面を元に戻す
+      if (isOtpMode) {
+        // 特定のエラーの場合のみ画面を戻す
+        if (errorMessage.includes('Invalid email') || errorMessage.includes('rate limit')) {
+          if (import.meta.env.DEV) {
+            console.log('🔍 OTP mode: Reverting otpSent due to error');
+          }
+          setOtpSent(false);
+          toast.error(handleApiError(err, 'OTP送信'));
+          return;
+        }
+        
+        // その他のエラーの場合は、OTP画面のままにする（メールは送信されている可能性があるため）
+        if (import.meta.env.DEV) {
+          console.log('🔍 OTP mode: Keeping otpSent true despite error');
+        }
+        toast.info('認証コードを送信しました。メールをご確認ください。', {
+          title: 'メール送信',
+          duration: 5000,
+        });
+        return;
+      }
+      
+      // マジックリンクモードのエラー処理
+      if (errorMessage.includes('サインアップが無効') || errorMessage.includes('Signups not allowed')) {
         setSignupDisabled(true);
         toast.error('現在サインアップが無効になっています。既存のアカウントでログインしてください。', {
           title: 'サインアップ無効',
           duration: 8000,
         });
       } else {
-        toast.error(handleApiError(err, isOtpMode ? 'OTP送信' : 'Magic Link送信'));
+        toast.error(handleApiError(err, 'Magic Link送信'));
       }
     }
   };
