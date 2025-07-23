@@ -100,6 +100,7 @@ interface AuthState {
 interface AuthActions {
   init: () => Promise<void>;
   loginWithMagicLink: (email: string, mode?: 'signup' | 'login') => Promise<void>;
+  verifyOtp: (email: string, token: string) => Promise<void>;
   logout: () => Promise<void>;
   enterGuestMode: () => void;
   fetchProfile: () => Promise<void>;
@@ -447,6 +448,61 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           state.loading = false;
           state.error = errorMessage;
         });
+      }
+    },
+
+    /**
+     * OTP検証
+     */
+    verifyOtp: async (email: string, token: string) => {
+      const supabase = getSupabaseClient();
+      set(state => {
+        state.loading = true;
+        state.error = null;
+      });
+
+      try {
+        const { data, error } = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: 'email',
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data.session) {
+          set(state => {
+            state.user = data.session.user;
+            state.loading = false;
+            state.error = null;
+          });
+          
+          // プロファイルを取得
+          await get().fetchProfile();
+        }
+
+      } catch (error) {
+        console.error('OTP検証エラー:', error);
+        let errorMessage = 'OTP検証に失敗しました';
+        
+        if (error instanceof Error) {
+          if (error.message.includes('Token has expired')) {
+            errorMessage = 'OTPコードの有効期限が切れています。再度送信してください。';
+          } else if (error.message.includes('Invalid')) {
+            errorMessage = '無効なOTPコードです。';
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
+        set(state => {
+          state.loading = false;
+          state.error = errorMessage;
+        });
+        
+        throw new Error(errorMessage);
       }
     },
 
