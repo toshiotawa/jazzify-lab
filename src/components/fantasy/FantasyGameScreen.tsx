@@ -106,13 +106,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onGameComplete(result, finalState.score, finalState.correctAnswers, finalState.totalQuestions);
   }, [onGameComplete]);
   
-  // useMemoを使って、stageオブジェクトをメモ化（安定化）させる
-  const memoizedStage = useMemo(() => ({
-    ...stage,
-    showGuide,
-  }), [stage, showGuide]);
-  
-  // ゲームエンジンの初期化
+  // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
+  // これでガイドをON/OFFしてもゲームはリセットされなくなる
   const {
     gameState,
     inputBuffer,
@@ -123,7 +118,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     proceedToNextEnemy,
     ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: memoizedStage, // メモ化したstageを渡す
+    stage: stage, // UI状態の`showGuide`を含めない！ propsのstageを直接渡す
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
