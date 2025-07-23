@@ -208,7 +208,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
-        bgmUrl: stage.bgm_url
+        bgmUrl: stage.bgm_url,
+        // 新規追加フィールド
+        simultaneousMonsters: stage.simultaneous_monsters || 1,
+        hasBoss: stage.has_boss || false,
+        hasHealer: stage.has_healer || false,
+        playerMaxHp: stage.player_max_hp || stage.max_hp,
+        enemyMinDamage: stage.enemy_min_damage || stage.min_damage,
+        enemyMaxDamage: stage.enemy_max_damage || stage.max_damage
       }));
       
       const convertedProgress: FantasyUserProgress = {
