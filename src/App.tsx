@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LandingPage from '@/components/LandingPage';
 import AuthLanding from '@/components/auth/AuthLanding';
+import AuthCallback from '@/components/auth/AuthCallback';
 import { useAuthStore } from '@/stores/authStore';
 import ToastContainer from '@/components/ui/ToastContainer';
 
@@ -33,6 +34,7 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth" element={<AuthLanding />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/main" element={<LegacyApp />} />
           <Route path="/*" element={<LegacyApp />} />
         </Routes>
