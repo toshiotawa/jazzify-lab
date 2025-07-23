@@ -37,7 +37,7 @@ const AuthLanding: React.FC = () => {
     }
 
     try {
-      await loginWithMagicLink(email, mode);
+      await loginWithMagicLink(email, mode, useOtp);
       
       if (useOtp) {
         // OTPモードの場合
