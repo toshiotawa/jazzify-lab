@@ -23,9 +23,9 @@ const App: React.FC = () => {
         <Routes>
           {/* ========== 公開ルート (AuthGateの外) ========== */}
           <Route path="/" element={<LandingPage />} />
-          <Route path="/auth" element={<AuthLanding />} />
+          <Route path="/login" element={<AuthLanding />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/auth/verify-otp" element={<VerifyOtpPage />} />
+          <Route path="/login/verify-otp" element={<VerifyOtpPage />} />
 
           {/* ========== 保護ルート (AuthGateの内側) ========== */}
           {/* '/*' を使い、上記以外のすべてのパスを保護対象にする */}

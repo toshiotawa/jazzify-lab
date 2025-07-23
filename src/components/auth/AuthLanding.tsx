@@ -45,7 +45,7 @@ const AuthLanding: React.FC = () => {
           title: 'コード送信完了',
           duration: 5000,
         });
-        navigate(`/auth/verify-otp?email=${encodeURIComponent(email)}`);
+        navigate(`/login/verify-otp?email=${encodeURIComponent(email)}`);
       } else {
         // マジックリンクモードの場合
         const successMessage = mode === 'signup' 

@@ -21,7 +21,7 @@ const VerifyOtpPage: React.FC = () => {
     } else {
       // emailがなければログイン画面に戻す
       toast.error('不正なアクセスです。再度操作をお試しください。');
-      navigate('/auth');
+      navigate('/login');
     }
   }, [location.search, navigate, toast]);
 
@@ -81,7 +81,7 @@ const VerifyOtpPage: React.FC = () => {
         </button>
         <button
           className="btn btn-ghost btn-sm w-full"
-          onClick={() => navigate('/auth')}
+          onClick={() => navigate('/login')}
         >
           戻る
         </button>

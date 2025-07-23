@@ -46,7 +46,7 @@ const AuthCallback: React.FC = () => {
           duration: 5000,
         });
         // エラー時はログインページにリダイレクト
-        window.location.href = '/auth';
+        window.location.href = '/login';
       }
     };
 
