@@ -21,6 +21,7 @@ interface FantasyPIXIRendererProps {
   enemyGauge: number;
   onReady?: (instance: FantasyPIXIInstance) => void;
   onMonsterDefeated?: () => void; // 状態機械用コールバック
+  onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
   className?: string;
 }
 
@@ -152,6 +153,7 @@ export class FantasyPIXIInstance {
   private backgroundContainer: PIXI.Container;
   private onDefeated?: () => void;
   private onMonsterDefeated?: () => void;
+  private onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
   
   // モンスタースプライトは常に存在する（表示/非表示で制御）
   private monsterSprite: PIXI.Sprite;
@@ -163,7 +165,6 @@ export class FantasyPIXIInstance {
   private magicCircleData: Map<string, MagicCircle> = new Map();
   private damageNumbers: Map<string, PIXI.Text> = new Map();
   private damageData: Map<string, DamageNumberData> = new Map();
-  private magicNameText: PIXI.Text | null = null;
   private chordNameText: PIXI.Text | null = null;
   private angerMark: PIXI.Text | null = null;
   
@@ -191,9 +192,15 @@ export class FantasyPIXIInstance {
     originalY: 0
   };
 
+  // 状態機械
+  private monsterStateMachine = new MonsterStateMachine();
 
-  constructor(width: number, height: number, onDefeated?: () => void) {
-    this.onDefeated = onDefeated;
+
+  constructor(width: number, height: number, onMonsterDefeated?: () => void, onShowMagicName?: (magicName: string, isSpecial: boolean) => void) {
+    // コールバックの保存
+    this.onDefeated = onMonsterDefeated;
+    this.onMonsterDefeated = onMonsterDefeated; // 状態機械用コールバック
+    this.onShowMagicName = onShowMagicName; // 魔法名表示コールバック
     
     // PIXI アプリケーション初期化
     this.app = new PIXI.Application({
@@ -482,7 +489,11 @@ export class FantasyPIXIInstance {
       // 魔法名表示
       const magicName = isSpecial ? magic.tier2Name : magic.name;
       const magicColor = isSpecial ? magic.tier2Color : magic.color;
-      this.showMagicName(magicName, magicColor); // 修正済みの関数
+      
+      // HTMLでの表示のためコールバックを呼び出す
+      if (this.onShowMagicName) {
+        this.onShowMagicName(magicName, isSpecial);
+      }
 
       this.monsterGameState.isHit = true;
       this.monsterGameState.hitColor = magicColor;
@@ -813,42 +824,7 @@ export class FantasyPIXIInstance {
     });
   }
 
-  // 魔法名表示
-  private showMagicName(magicName: string, color: number): void {
-    // 既存のテキストを削除
-    if (this.magicNameText) {
-      this.effectContainer.removeChild(this.magicNameText);
-      this.magicNameText = null;
-    }
-    
-    // 新しい魔法名テキスト作成
-    this.magicNameText = new PIXI.Text(magicName, {
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 18, // 文字を小さく
-      fontWeight: 'bold',
-      fill: color, // 魔法タイプの色を使用
-      stroke: 0x000000,
-      strokeThickness: 3,
-      align: 'center'
-    });
-    
-    // 位置設定（画面中央上部）
-    this.magicNameText.x = this.app.screen.width / 2;
-    this.magicNameText.y = 100; // 少し下に
-    this.magicNameText.anchor.set(0.5);
-    
-    this.effectContainer.addChild(this.magicNameText);
-    
-    // 0.5秒後にフェードアウト開始
-    setTimeout(() => {
-      if (this.magicNameText && !this.isDestroyed) {
-        this.effectContainer.removeChild(this.magicNameText);
-        this.magicNameText = null;
-      }
-    }, 500); // 表示時間を0.5秒に
-    
-    devLog.debug('✨ 魔法名表示:', { magicName, color });
-  }
+
 
   // コード名とチェックマーク表示
   private showChordWithCheckmark(chordName: string): void {
@@ -1466,6 +1442,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   enemyGauge,
   onReady,
   onMonsterDefeated,
+  onShowMagicName,
   className
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1475,7 +1452,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const instance = new FantasyPIXIInstance(width, height, onMonsterDefeated);
+    const instance = new FantasyPIXIInstance(width, height, onMonsterDefeated, onShowMagicName);
     containerRef.current.appendChild(instance.getCanvas());
     
     setPixiInstance(instance);
@@ -1484,7 +1461,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
     return () => {
       instance.destroy();
     };
-  }, [width, height, onReady, onMonsterDefeated]);
+  }, [width, height, onReady, onMonsterDefeated, onShowMagicName]);
 
   // モンスターアイコン変更（状態機械による安全な生成）
   useEffect(() => {

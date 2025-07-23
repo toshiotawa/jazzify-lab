@@ -38,6 +38,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 設定状態を管理（初期値はstageから取得）
   const [showGuide, setShowGuide] = useState(stage.showGuide);
   
+  // 魔法名表示状態
+  const [magicName, setMagicName] = useState<{ name: string; isSpecial: boolean } | null>(null);
+  
   // stage.showGuide の変更をコンポーネントの状態に同期させる
   useEffect(() => {
     setShowGuide(stage.showGuide);
@@ -233,15 +236,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
+    devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
     setFantasyPixiInstance(instance);
-    
-    // 現在の敵に基づいてモンスターを設定
-    if (currentEnemy) {
-      instance.createMonsterSprite(currentEnemy.icon);
-    }
-    
-    devLog.debug('🎮 ファンタジーPIXI準備完了:', { monster: currentEnemy?.icon });
-  }, [currentEnemy]);
+  }, []);
+  
+  // 魔法名表示ハンドラー
+  const handleShowMagicName = useCallback((name: string, isSpecial: boolean) => {
+    setMagicName({ name, isSpecial });
+    // 1秒後に自動的に非表示
+    setTimeout(() => {
+      setMagicName(null);
+    }, 1000);
+  }, []);
   
   // モンスター撃破時のコールバック（状態機械対応）
   const handleMonsterDefeated = useCallback(() => {
@@ -453,14 +459,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
           {/* 音名表示（ヒントがONの場合は全表示、OFFでも正解した音は表示） */}
           {gameState.currentChordTarget && (
-            <div className="mt-1 text-lg font-medium">
+            <div className="mt-1 text-lg font-medium h-7">
               {gameState.currentChordTarget.notes.map((note, index) => {
                 const noteMod12 = note % 12;
                 const noteName = getNoteNameFromMidi(note);
                 const isCorrect = gameState.correctNotes.includes(noteMod12);
                 // showGuideがtrueなら全て表示、falseなら正解した音のみ表示
                 if (!showGuide && !isCorrect) {
-                  return null;
+                  return (
+                    <span key={index} className="mx-1 opacity-0">
+                      {noteName}
+                      {' ✓'}
+                    </span>
+                  );
                 }
                 return (
                   <span key={index} className={`mx-1 ${isCorrect ? 'text-green-400' : 'text-gray-300'}`}>
@@ -476,6 +487,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}
         <div className="mb-2 text-center relative w-full">
           <div className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden" style={{ height: 'min(200px, 30vh)' }}>
+            {/* 魔法名表示 */}
+            {magicName && (
+              <div className="absolute top-4 left-0 right-0 z-20 pointer-events-none">
+                <div className={`text-2xl font-bold font-dotgothic16 ${
+                  magicName.isSpecial ? 'text-yellow-300' : 'text-white'
+                } drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]`}>
+                  {magicName.name}
+                </div>
+              </div>
+            )}
             <FantasyPIXIRenderer
               width={window.innerWidth}
               height={200}
@@ -484,6 +505,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
+              onShowMagicName={handleShowMagicName}
               className="w-full h-full"
             />
           </div>

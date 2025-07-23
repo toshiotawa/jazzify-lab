@@ -276,15 +276,10 @@ const FantasyMain: React.FC = () => {
   // ゲーム結果画面
   if (showResult && gameResult) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center overflow-y-auto">
-        <div className="text-white text-center max-w-md p-4">
-          {/* 結果アイコン */}
-          <div className="text-8xl mb-6">
-            {gameResult.result === 'clear' ? '🏆' : '😵'}
-          </div>
-          
+      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
+        <div className="text-white text-center max-w-md w-full">
           {/* 結果タイトル */}
-          <h2 className="text-3xl font-bold mb-4 font-dotgothic16">
+          <h2 className="text-3xl font-bold mb-6 font-dotgothic16">
             {gameResult.result === 'clear' ? 'ステージクリア！' : 'ゲームオーバー'}
           </h2>
           
@@ -304,7 +299,7 @@ const FantasyMain: React.FC = () => {
             </div>
             
             {/* 経験値獲得 */}
-            <div className="mt-4 pt-4 border-t border-gray-600">
+            <div className="mt-4 pt-4 border-t border-gray-600 font-dotgothic16">
               <div className="text-blue-300">
                 経験値 +{gameResult.result === 'clear' ? 1000 : 200} XP
               </div>
@@ -316,7 +311,7 @@ const FantasyMain: React.FC = () => {
             {gameResult.result === 'clear' && (
               <button
                 onClick={handleBackToStageSelect}
-                className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
+                className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-dotgothic16"
               >
                 次のステージへ
               </button>
@@ -329,14 +324,14 @@ const FantasyMain: React.FC = () => {
                 setGameKey(prevKey => prevKey + 1); // キーを更新してゲームをリセット
               }}
               // ▲▲▲ ここまで ▲▲▲
-              className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
+              className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors font-dotgothic16"
             >
               再挑戦
             </button>
             
             <button
               onClick={handleBackToStageSelect}
-              className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
+              className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-dotgothic16"
             >
               ステージ選択に戻る
             </button>
