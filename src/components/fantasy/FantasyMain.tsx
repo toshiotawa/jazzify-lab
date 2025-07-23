@@ -280,17 +280,17 @@ const FantasyMain: React.FC = () => {
         <div className="text-white text-center max-w-md p-4">
           {/* 結果アイコン */}
           <div className="text-8xl mb-6">
-            {gameResult.result === 'clear' ? '🏆' : '💀'}
+            {gameResult.result === 'clear' ? '🏆' : '😵'}
           </div>
           
           {/* 結果タイトル */}
-          <h2 className="text-3xl font-bold mb-4">
+          <h2 className="text-3xl font-bold mb-4 font-dotgothic16">
             {gameResult.result === 'clear' ? 'ステージクリア！' : 'ゲームオーバー'}
           </h2>
           
           {/* スコア表示 */}
           <div className="bg-black bg-opacity-30 rounded-lg p-6 mb-6">
-            <div className="space-y-2 text-lg">
+            <div className="space-y-2 text-lg font-dotgothic16">
               <div>スコア: <span className="text-yellow-300 font-bold">{gameResult.score.toLocaleString()}</span></div>
               <div>正解数: <span className="text-green-300 font-bold">{gameResult.correctAnswers}</span> / {gameResult.totalQuestions}</div>
               <div>

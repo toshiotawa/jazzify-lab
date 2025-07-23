@@ -242,8 +242,8 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
               traits.specialEffect === 'shine' && "animate-pulse",
               traits.specialEffect === 'twinkle' && "animate-ping",
               traits.specialEffect === 'sway' && "hover:animate-pulse",
-              // 攻撃時のエフェクト
-              isAttacking && "transform scale-125 text-red-500",
+              // 攻撃時のエフェクト - スケールを1.5倍に増強
+              isAttacking && "transform scale-150 text-red-500",
               // グロー効果
               !isAttacking && traits.glowColor
             )}
@@ -252,7 +252,7 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
         
         {/* 怒りマーク（攻撃時） */}
         {showRageEffect && (
-          <div className="absolute -top-4 -right-4 text-red-500 text-2xl animate-bounce z-10">
+          <div className="absolute -top-8 -right-8 text-red-500 text-4xl animate-bounce z-10">
             💢
           </div>
         )}

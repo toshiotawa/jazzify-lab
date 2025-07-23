@@ -26,7 +26,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   onGameComplete,
   onBackToStageSelect
 }) => {
-  const { handleNoteInput } = useGameStore();
+  // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
   // エフェクト状態
   const [isMonsterAttacking, setIsMonsterAttacking] = useState(false);
@@ -85,6 +85,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   const handleEnemyAttack = useCallback(() => {
     devLog.debug('💥 敵の攻撃!');
+    
+    // モンスター攻撃状態を設定
+    setIsMonsterAttacking(true);
+    setTimeout(() => setIsMonsterAttacking(false), 600);
     
     // ファンタジーPIXIでモンスター攻撃エフェクト
     if (fantasyPixiInstance) {
@@ -158,12 +162,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       devLog.debug('🎹 音声再生エラー:', error);
     }
     
-    // 通常のゲームストアの入力処理
-    handleNoteInput(note);
-    
-    // ファンタジーゲームエンジンにも送信
+    // ファンタジーゲームエンジンにのみ送信（重複を防ぐため）
     engineHandleNoteInput(note);
-  }, [handleNoteInput, engineHandleNoteInput, pixiRenderer]);
+  }, [engineHandleNoteInput, pixiRenderer]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
