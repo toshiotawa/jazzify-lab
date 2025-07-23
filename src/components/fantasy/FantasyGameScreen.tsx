@@ -444,10 +444,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   // ゲーム開始前画面（スタートボタン表示条件を修正）
-  if (!gameState.isGameActive || !gameState.currentChordTarget) {
+  if (!gameState.isGameActive) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
-      hasCurrentChord: !!gameState.currentChordTarget,
+      activeMonsters: gameState.activeMonsters?.length || 0,
       stageName: stage.name
     });
     
@@ -471,7 +471,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 bg-black bg-opacity-50 text-white text-xs p-3 rounded">
               <div>ゲーム状態: {gameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
-              <div>現在のコード: {gameState.currentChordTarget ? gameState.currentChordTarget.displayName : 'なし'}</div>
+              <div>アクティブモンスター数: {gameState.activeMonsters?.length || 0}</div>
               <div>許可コード数: {stage.allowedChords?.length || 0}</div>
               <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>
             </div>
