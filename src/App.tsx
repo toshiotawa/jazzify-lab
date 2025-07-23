@@ -1,28 +1,16 @@
 import React, { Suspense } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import LandingPage from '@/components/LandingPage';
 import AuthLanding from '@/components/auth/AuthLanding';
 import AuthCallback from '@/components/auth/AuthCallback';
 import VerifyOtpPage from '@/components/auth/VerifyOtpPage';
-import { useAuthStore } from '@/stores/authStore';
+import AuthGate from '@/components/auth/AuthGate';
 import ToastContainer from '@/components/ui/ToastContainer';
 
 // LegacyApp はバンドルサイズが大きいため遅延読み込みする
 const LegacyApp = React.lazy(() => import('./LegacyApp'));
 
 const App: React.FC = () => {
-  const { user, isGuest } = useAuthStore();
-  const location = useLocation();
-
-  // 認証済みユーザーが / にアクセスした場合、/main#dashboard にリダイレクト
-  if ((user || isGuest) && location.pathname === '/') {
-    return <Navigate to="/main#dashboard" replace />;
-  }
-
-  if ((user || isGuest) && location.pathname === '/auth') {
-    return <Navigate to="/main" replace />;
-  }
-
   return (
     <>
       <Suspense
@@ -33,12 +21,22 @@ const App: React.FC = () => {
         }
       >
         <Routes>
+          {/* ========== 公開ルート (AuthGateの外) ========== */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth" element={<AuthLanding />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/verify-otp" element={<VerifyOtpPage />} />
-          <Route path="/main" element={<LegacyApp />} />
-          <Route path="/*" element={<LegacyApp />} />
+
+          {/* ========== 保護ルート (AuthGateの内側) ========== */}
+          {/* '/*' を使い、上記以外のすべてのパスを保護対象にする */}
+          <Route
+            path="/*"
+            element={
+              <AuthGate>
+                <LegacyApp />
+              </AuthGate>
+            }
+          />
         </Routes>
       </Suspense>
       <ToastContainer />

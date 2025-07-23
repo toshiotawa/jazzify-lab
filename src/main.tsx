@@ -3,9 +3,6 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { enableMapSet } from 'immer';
-import AuthGate from '@/components/auth/AuthGate';
-import AccountModal from '@/components/ui/AccountModal';
-import AdminDashboard from '@/components/admin/AdminDashboard';
 import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { autoLogMagicLinkInfo } from '@/utils/magicLinkConfig';
@@ -129,11 +126,7 @@ const initializeApp = async () => {
       <React.StrictMode>
         <HelmetProvider>
           <BrowserRouter>
-            <AuthGate>
-              <App />
-              <AccountModal />
-              <AdminDashboard />
-            </AuthGate>
+            <App />
           </BrowserRouter>
         </HelmetProvider>
       </React.StrictMode>
