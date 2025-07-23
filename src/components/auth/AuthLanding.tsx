@@ -18,6 +18,13 @@ const AuthLanding: React.FC = () => {
   const { loginWithMagicLink, verifyOtp, enterGuestMode, loading, error } = useAuthStore();
   const toast = useToast();
 
+  console.log('🔍 AuthLanding render state:', { useOtp, otpSent, email, loading });
+
+  // otpSent の状態変化を監視
+  useEffect(() => {
+    console.log('🔍 otpSent state changed:', otpSent);
+  }, [otpSent]);
+
   // 開発環境でのみデバッグ情報を表示
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -26,6 +33,8 @@ const AuthLanding: React.FC = () => {
   }, []);
 
   const handleSendLink = async (mode: 'signup' | 'login') => {
+    console.log('🔍 handleSendLink called:', { mode, useOtp, email });
+    
     // バリデーション
     if (!email.trim()) {
       return toast.error(getValidationMessage('メールアドレス', 'required'));
@@ -36,11 +45,15 @@ const AuthLanding: React.FC = () => {
       return toast.error(getValidationMessage('メールアドレス', 'email'));
     }
 
+    // OTPモードの場合は、先にフラグを立てる
+    const isOtpMode = useOtp;
+    
     try {
-      await loginWithMagicLink(email, mode);
+      await loginWithMagicLink(email, mode, isOtpMode);
       
-      if (useOtp) {
+      if (isOtpMode) {
         // OTPモードの場合
+        console.log('🔍 OTP mode: Setting otpSent to true');
         setOtpSent(true);
         toast.success('認証コードを送信しました。メールをご確認ください。', {
           title: 'コード送信完了',
@@ -59,7 +72,7 @@ const AuthLanding: React.FC = () => {
       }
     } catch (err) {
       // エラーメッセージを適切に処理
-      const errorMessage = err instanceof Error ? err.message : 'Magic Link送信に失敗しました';
+      const errorMessage = err instanceof Error ? err.message : `${isOtpMode ? 'OTP' : 'Magic Link'}送信に失敗しました`;
       
       if (errorMessage.includes('サインアップが無効')) {
         setSignupDisabled(true);
@@ -68,7 +81,7 @@ const AuthLanding: React.FC = () => {
           duration: 8000,
         });
       } else {
-        toast.error(handleApiError(err, 'Magic Link送信'));
+        toast.error(handleApiError(err, isOtpMode ? 'OTP送信' : 'Magic Link送信'));
       }
     }
   };
@@ -248,6 +261,16 @@ const AuthLanding: React.FC = () => {
                 <p>{email} に6桁の認証コードを送信しました</p>
                 <p className="text-xs text-gray-400 mt-1">メールが届かない場合は迷惑メールフォルダをご確認ください</p>
               </div>
+              
+              {/* 一時的な注意書き */}
+              <div className="bg-yellow-900/30 border border-yellow-500/50 rounded p-3 mb-4 text-sm">
+                <div className="font-semibold text-yellow-300 mb-1">⚠️ 重要なお知らせ</div>
+                <div className="text-yellow-200 text-xs">
+                  現在、システムの設定により、認証コードの代わりにマジックリンクがメールで送信される場合があります。<br />
+                  メール内のリンクをクリックしてログインしてください。
+                </div>
+              </div>
+              
               <div>
                 <label className="block text-sm mb-1">認証コード（6桁）</label>
                 <input
