@@ -52,11 +52,11 @@ CREATE TABLE IF NOT EXISTS fantasy_stage_clears (
 );
 
 -- インデックス作成
-CREATE INDEX fantasy_stages_stage_number_idx ON fantasy_stages(stage_number);
-CREATE INDEX fantasy_user_progress_user_id_idx ON fantasy_user_progress(user_id);
-CREATE INDEX fantasy_stage_clears_user_id_idx ON fantasy_stage_clears(user_id);
-CREATE INDEX fantasy_stage_clears_stage_id_idx ON fantasy_stage_clears(stage_id);
-CREATE INDEX fantasy_stage_clears_cleared_at_idx ON fantasy_stage_clears(cleared_at);
+CREATE INDEX IF NOT EXISTS fantasy_stages_stage_number_idx ON fantasy_stages(stage_number);
+CREATE INDEX IF NOT EXISTS fantasy_user_progress_user_id_idx ON fantasy_user_progress(user_id);
+CREATE INDEX IF NOT EXISTS fantasy_stage_clears_user_id_idx ON fantasy_stage_clears(user_id);
+CREATE INDEX IF NOT EXISTS fantasy_stage_clears_stage_id_idx ON fantasy_stage_clears(stage_id);
+CREATE INDEX IF NOT EXISTS fantasy_stage_clears_cleared_at_idx ON fantasy_stage_clears(cleared_at);
 
 -- RLS (Row Level Security) ポリシー設定
 ALTER TABLE fantasy_stages ENABLE ROW LEVEL SECURITY;
@@ -64,15 +64,15 @@ ALTER TABLE fantasy_user_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fantasy_stage_clears ENABLE ROW LEVEL SECURITY;
 
 -- fantasy_stages: 全ユーザーが読み取り可能、管理者のみ書き込み可能
-CREATE POLICY fantasy_stages_read_policy ON fantasy_stages FOR SELECT USING (true);
-CREATE POLICY fantasy_stages_write_policy ON fantasy_stages FOR ALL USING (
+CREATE POLICY IF NOT EXISTS fantasy_stages_read_policy ON fantasy_stages FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS fantasy_stages_write_policy ON fantasy_stages FOR ALL USING (
     auth.uid() IN (
         SELECT id FROM profiles WHERE is_admin = true
     )
 );
 
 -- fantasy_user_progress: ユーザーは自分のレコードのみアクセス可能
-CREATE POLICY fantasy_user_progress_policy ON fantasy_user_progress FOR ALL USING (
+CREATE POLICY IF NOT EXISTS fantasy_user_progress_policy ON fantasy_user_progress FOR ALL USING (
     auth.uid() = user_id OR
     auth.uid() IN (
         SELECT id FROM profiles WHERE is_admin = true
@@ -80,7 +80,7 @@ CREATE POLICY fantasy_user_progress_policy ON fantasy_user_progress FOR ALL USIN
 );
 
 -- fantasy_stage_clears: ユーザーは自分のレコードのみアクセス可能
-CREATE POLICY fantasy_stage_clears_policy ON fantasy_stage_clears FOR ALL USING (
+CREATE POLICY IF NOT EXISTS fantasy_stage_clears_policy ON fantasy_stage_clears FOR ALL USING (
     auth.uid() = user_id OR
     auth.uid() IN (
         SELECT id FROM profiles WHERE is_admin = true
@@ -110,12 +110,12 @@ END;
 $$ language 'plpgsql';
 
 -- トリガー設定
-CREATE TRIGGER fantasy_stages_updated_at_trigger
+CREATE TRIGGER IF NOT EXISTS fantasy_stages_updated_at_trigger
     BEFORE UPDATE ON fantasy_stages
     FOR EACH ROW
     EXECUTE FUNCTION update_fantasy_updated_at();
 
-CREATE TRIGGER fantasy_user_progress_updated_at_trigger
+CREATE TRIGGER IF NOT EXISTS fantasy_user_progress_updated_at_trigger
     BEFORE UPDATE ON fantasy_user_progress
     FOR EACH ROW
     EXECUTE FUNCTION update_fantasy_updated_at();
