@@ -290,6 +290,10 @@ export const useFantasyGameEngine = ({
       return;
     }
     
+    // モンスター1体あたりの問題数（HP）
+    const QUESTIONS_PER_ENEMY = 5;
+    const totalEnemies = Math.ceil(stage.questionCount / QUESTIONS_PER_ENEMY);
+    
     const newState: FantasyGameState = {
       currentStage: stage,
       currentQuestionIndex: 0,
@@ -306,10 +310,10 @@ export const useFantasyGameEngine = ({
       currentEnemyIndex: 0,
       currentEnemyHits: 0,
       enemiesDefeated: 0,
-      totalEnemies: 5,
+      totalEnemies: totalEnemies,
       // 敵のHP管理を追加
-      currentEnemyHp: 5,
-      maxEnemyHp: 5,
+      currentEnemyHp: QUESTIONS_PER_ENEMY,
+      maxEnemyHp: QUESTIONS_PER_ENEMY,
       correctNotes: []
 
     };
