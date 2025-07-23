@@ -393,7 +393,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <button
             onClick={() => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
-              initializeGame();
+              initializeGame(stage);
             }}
             className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
           >
