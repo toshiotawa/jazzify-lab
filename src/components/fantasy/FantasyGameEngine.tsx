@@ -190,7 +190,7 @@ const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): nu
  * ランダムコード選択（allowedChordsから）
  */
 const selectRandomChord = (allowedChords: string[], previousChordId?: string): ChordDefinition | null => {
-  const availableChords = allowedChords
+  let availableChords = allowedChords
     .map(chordId => CHORD_DEFINITIONS[chordId])
     .filter(Boolean);
     
