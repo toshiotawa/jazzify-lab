@@ -2,6 +2,13 @@
 -- 作成日: 2025-01-21
 -- 説明: ファンタジーモードのステージ、ユーザー進捗、クリア記録を管理するテーブル
 
+-- 既存テーブルに新しいカラムを追加（既存テーブルが存在する場合）
+ALTER TABLE fantasy_stages ADD COLUMN IF NOT EXISTS enemy_count INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE fantasy_stages ADD COLUMN IF NOT EXISTS enemy_hp INTEGER NOT NULL DEFAULT 5;
+ALTER TABLE fantasy_stages ADD COLUMN IF NOT EXISTS min_damage INTEGER NOT NULL DEFAULT 10;
+ALTER TABLE fantasy_stages ADD COLUMN IF NOT EXISTS max_damage INTEGER NOT NULL DEFAULT 20;
+ALTER TABLE fantasy_stages ADD COLUMN IF NOT EXISTS show_guide BOOLEAN NOT NULL DEFAULT false;
+
 -- ファンタジーステージマスタテーブル
 CREATE TABLE IF NOT EXISTS fantasy_stages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
