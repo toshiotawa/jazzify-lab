@@ -228,7 +228,7 @@ export const useFantasyGameEngine = ({
     currentEnemyIndex: 0,
     currentEnemyHits: 0,
     enemiesDefeated: 0,
-    totalEnemies: 5,
+    totalEnemies: 0,
     // 敵のHP管理を追加
     currentEnemyHp: 5,
     maxEnemyHp: 5,
@@ -265,6 +265,9 @@ export const useFantasyGameEngine = ({
       return;
     }
     
+    // 敵の数を計算（5問で1体）
+    const totalEnemies = Math.ceil(stage.questionCount / 5);
+    
     const newState: FantasyGameState = {
       currentStage: stage,
       currentQuestionIndex: 0,
@@ -281,7 +284,7 @@ export const useFantasyGameEngine = ({
       currentEnemyIndex: 0,
       currentEnemyHits: 0,
       enemiesDefeated: 0,
-      totalEnemies: 5,
+      totalEnemies: totalEnemies,  // 計算した値を使用
       // 敵のHP管理を追加
       currentEnemyHp: 5,
       maxEnemyHp: 5,
@@ -299,8 +302,9 @@ export const useFantasyGameEngine = ({
   // 次の問題への移行（回答数ベース、ループ対応）
   const proceedToNextQuestion = useCallback(() => {
     setGameState(prevState => {
-      const nextCorrectAnswers = prevState.correctAnswers;
-      const isComplete = nextCorrectAnswers >= prevState.totalQuestions; // 回答数でクリア判定
+      // 累計の質問インデックスをカウントアップ
+      const totalQuestionsAnswered = prevState.currentQuestionIndex + 1;
+      const isComplete = totalQuestionsAnswered >= prevState.totalQuestions;
       
       if (isComplete) {
         // ゲームクリア
@@ -322,13 +326,13 @@ export const useFantasyGameEngine = ({
         } else {
           // コード進行モード：ループさせる
           const progression = prevState.currentStage?.chordProgression || [];
-          const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+          const nextIndex = (totalQuestionsAnswered) % progression.length;
           nextChord = getProgressionChord(progression, nextIndex);
         }
         
         const nextState = {
           ...prevState,
-          currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
+          currentQuestionIndex: totalQuestionsAnswered,
           currentChordTarget: nextChord,
           enemyGauge: 0 // ゲージリセット
         };
@@ -624,6 +628,20 @@ export const useFantasyGameEngine = ({
 
       // 次の敵に交代
       const nextEnemyIndex = prevState.currentEnemyIndex + 1;
+      
+      // 敵が存在しない場合もゲームクリア
+      if (nextEnemyIndex >= ENEMY_LIST.length) {
+        const finalState = {
+          ...prevState,
+          isGameActive: false,
+          isGameOver: true,
+          gameResult: 'clear' as const,
+          isWaitingForNextMonster: false,
+        };
+        onGameComplete('clear', finalState);
+        return finalState;
+      }
+      
       let nextState = {
         ...prevState,
         currentEnemyIndex: nextEnemyIndex,
@@ -633,22 +651,36 @@ export const useFantasyGameEngine = ({
         isWaitingForNextMonster: false,      // 待機状態を解除
       };
 
-      // ★追加：次の問題もここで準備する
-      let nextChord;
-      if (prevState.currentStage?.mode === 'single') {
-        nextChord = selectRandomChord(prevState.currentStage.allowedChords);
-      } else {
-        const progression = prevState.currentStage?.chordProgression || [];
-        const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-        nextChord = getProgressionChord(progression, nextIndex);
-      }
+      // ★追加：次の問題もここで準備する（ただし、全質問数に達していない場合のみ）
+      const nextQuestionIndex = prevState.currentQuestionIndex + 1;
+      if (nextQuestionIndex < prevState.totalQuestions) {
+        let nextChord;
+        if (prevState.currentStage?.mode === 'single') {
+          nextChord = selectRandomChord(prevState.currentStage.allowedChords);
+        } else {
+          const progression = prevState.currentStage?.chordProgression || [];
+          const nextIndex = nextQuestionIndex % progression.length;
+          nextChord = getProgressionChord(progression, nextIndex);
+        }
 
-      nextState = {
-        ...nextState,
-        currentQuestionIndex: prevState.currentQuestionIndex + 1,
-        currentChordTarget: nextChord,
-        enemyGauge: 0,
-      };
+        nextState = {
+          ...nextState,
+          currentQuestionIndex: nextQuestionIndex,
+          currentChordTarget: nextChord,
+          enemyGauge: 0,
+        };
+      } else {
+        // 全質問数に達している場合はゲームクリア
+        const finalState = {
+          ...prevState,
+          isGameActive: false,
+          isGameOver: true,
+          gameResult: 'clear' as const,
+          isWaitingForNextMonster: false,
+        };
+        onGameComplete('clear', finalState);
+        return finalState;
+      }
 
       devLog.debug('🔄 次の戦闘準備完了:', {
         nextEnemyIndex,

@@ -397,14 +397,25 @@ export class FantasyPIXIInstance {
       return; // 破棄済みまたは異常状態の場合は更新しない
     }
     
-    // ビジュアル状態を適用
-    this.monsterSprite.x = this.monsterVisualState.x;
-    this.monsterSprite.y = this.monsterVisualState.y;
-    this.monsterSprite.scale.set(this.monsterVisualState.scale);
-    this.monsterSprite.rotation = this.monsterVisualState.rotation;
-    this.monsterSprite.tint = this.monsterVisualState.tint;
-    this.monsterSprite.alpha = this.monsterVisualState.alpha;
-    this.monsterSprite.visible = this.monsterVisualState.visible;
+    // 追加: monsterSpriteがnullでないことを再確認
+    if (!this.monsterSprite) {
+      devLog.debug('⚠️ モンスタースプライトがnullのため更新をスキップ');
+      return;
+    }
+    
+    try {
+      // ビジュアル状態を適用
+      this.monsterSprite.x = this.monsterVisualState.x;
+      this.monsterSprite.y = this.monsterVisualState.y;
+      this.monsterSprite.scale.set(this.monsterVisualState.scale);
+      this.monsterSprite.rotation = this.monsterVisualState.rotation;
+      this.monsterSprite.tint = this.monsterVisualState.tint;
+      this.monsterSprite.alpha = this.monsterVisualState.alpha;
+      this.monsterSprite.visible = this.monsterVisualState.visible;
+    } catch (error) {
+      devLog.debug('❌ モンスタースプライト更新エラー:', error);
+      // エラーが発生した場合は何もしない
+    }
   }
 
   // ▼▼▼ 攻撃成功エフェクトを修正 ▼▼▼
