@@ -66,9 +66,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleChordCorrect = useCallback((chord: ChordDefinition) => {
     devLog.debug('✅ 正解:', chord.displayName);
     
-    // ファンタジーPIXIエフェクトをトリガー
+    // ファンタジーPIXIエフェクトをトリガー（コード名を渡す）
     if (fantasyPixiInstance) {
-      fantasyPixiInstance.triggerAttackSuccess();
+      fantasyPixiInstance.triggerAttackSuccess(chord.displayName);
     }
     
   }, [fantasyPixiInstance]);
@@ -115,6 +115,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     initializeGame,
     stopGame,
     getCurrentEnemy,
+    proceedToNextEnemy,
     ENEMY_LIST
   } = useFantasyGameEngine({
     stage: stage, // UI状態の`showGuide`を含めない！ propsのstageを直接渡す
@@ -127,6 +128,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
+  
+  // MIDI番号から音名を取得する関数
+  const getNoteNameFromMidi = (midiNote: number): string => {
+    const noteNames = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
+    return noteNames[midiNote % 12];
+  };
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number) => {
@@ -203,11 +210,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           glow: true,
           particles: true,
           trails: false
-        },
-        // スクロール設定を追加
-        keyboardRange: {
-          startNote: 36, // C2
-          endNote: 84   // C6 (48音域)
         }
       });
       
@@ -238,6 +240,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     devLog.debug('🎮 ファンタジーPIXI準備完了:', { monster: currentEnemy?.icon });
   }, [currentEnemy]);
+  
+  // モンスター撃破時のコールバック（状態機械対応）
+  const handleMonsterDefeated = useCallback(() => {
+    devLog.debug('SCREEN: PIXIからモンスター消滅完了通知を受信しました。');
+    // アニメーションが終わったので、エンジンに次の敵へ進むよう命令する
+    proceedToNextEnemy();
+  }, [proceedToNextEnemy]);
   
   // FontAwesome使用のため削除済み
   
@@ -270,71 +279,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // 敵が変更された時にモンスタースプライトを更新
+  // 敵が変更された時にモンスタースプライトを更新（状態機械対応）
   useEffect(() => {
     if (fantasyPixiInstance && currentEnemy) {
-      // 敵が倒された後の場合は、少し遅延を入れて新しいモンスターを生成
-      // これにより、前の敵のフェードアウトが完了してから新しい敵が出現する
-      const isEnemyDefeated = gameState.currentEnemyHits === 0 && gameState.currentEnemyIndex > 0;
-      const delay = isEnemyDefeated ? 1000 : 0; // 1秒の遅延
-      
-      const timeoutId = setTimeout(() => {
-        if (fantasyPixiInstance && currentEnemy) {
-          fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
-          devLog.debug('🔄 モンスタースプライト更新:', { 
-            monster: currentEnemy.icon,
-            enemyIndex: gameState.currentEnemyIndex,
-            delay: delay
-          });
-        }
-      }, delay);
-      
-      return () => clearTimeout(timeoutId);
+      // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
+      // 遅延処理は不要になった（状態機械が適切なタイミングを制御）
+      fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
+      devLog.debug('🔄 モンスタースプライト更新要求:', { 
+        monster: currentEnemy.icon,
+        enemyIndex: gameState.currentEnemyIndex
+      });
     }
-  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex, gameState.currentEnemyHits]);
+  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
   
-  // 設定変更時にPIXIレンダラーを更新
+  // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
     if (pixiRenderer) {
       pixiRenderer.updateSettings({
-        practiceGuide: showGuide ? 'key' : 'off'
+        practiceGuide: 'off' // 常にOFFにして鍵盤ハイライトを無効化
       });
-      devLog.debug('🎮 PIXIレンダラー設定更新:', { showGuide });
+      devLog.debug('🎮 PIXIレンダラー設定更新: 鍵盤ハイライト無効化');
     }
-  }, [pixiRenderer, showGuide]);
-  
-  // 現在のコードターゲットのノートをハイライト
-  useEffect(() => {
-    if (pixiRenderer && showGuide && gameState.currentChordTarget) {
-      // 全てのキーのハイライトを一度クリア
-      for (let note = 0; note < 128; note++) {
-        pixiRenderer.highlightKey(note, false);
-      }
-      
-      // 現在のコードのノートをハイライト
-      gameState.currentChordTarget.notes.forEach(note => {
-        // オクターブ違いの音もハイライト（ピッチクラスで判定）
-        const pitchClass = note % 12;
-        for (let octave = 0; octave < 11; octave++) {
-          const midiNote = octave * 12 + pitchClass;
-          if (midiNote < 128) {
-            pixiRenderer.highlightKey(midiNote, true);
-          }
-        }
-      });
-      
-      devLog.debug('🎹 コードノートハイライト:', { 
-        chord: gameState.currentChordTarget.displayName,
-        notes: gameState.currentChordTarget.notes,
-        showGuide
-      });
-    } else if (pixiRenderer && !showGuide) {
-      // ガイドがOFFの場合は全てのハイライトをクリア
-      for (let note = 0; note < 128; note++) {
-        pixiRenderer.highlightKey(note, false);
-      }
-    }
-  }, [pixiRenderer, showGuide, gameState.currentChordTarget]);
+  }, [pixiRenderer]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
@@ -461,6 +427,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div className="text-yellow-300 text-2xl font-bold tracking-wider drop-shadow-lg">
             {gameState.currentChordTarget.displayName}
           </div>
+          {/* 音名表示（ヒントがONの場合は全表示、OFFでも正解した音は表示） */}
+          {gameState.currentChordTarget && (
+            <div className="mt-1 text-lg font-medium">
+              {gameState.currentChordTarget.notes.map((note, index) => {
+                const noteMod12 = note % 12;
+                const noteName = getNoteNameFromMidi(note);
+                const isCorrect = gameState.correctNotes.includes(noteMod12);
+                // showGuideがtrueなら全て表示、falseなら正解した音のみ表示
+                if (!showGuide && !isCorrect) {
+                  return null;
+                }
+                return (
+                  <span key={index} className={`mx-1 ${isCorrect ? 'text-green-400' : 'text-gray-300'}`}>
+                    {noteName}
+                    {isCorrect && ' ✓'}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
         
         {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}
@@ -473,6 +459,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               isMonsterAttacking={isMonsterAttacking}
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
+              onMonsterDefeated={handleMonsterDefeated}
               className="w-full h-full"
             />
           </div>
