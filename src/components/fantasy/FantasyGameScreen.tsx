@@ -286,16 +286,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   // 敵が変更された時にモンスタースプライトを更新（状態機械対応）
   useEffect(() => {
-    if (fantasyPixiInstance && currentEnemy) {
+    // ▼▼▼ 修正: ゲームがアクティブな時のみモンスターを生成するガードを追加 ▼▼▼
+    if (fantasyPixiInstance && currentEnemy && gameState.isGameActive) {
       // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
       // 遅延処理は不要になった（状態機械が適切なタイミングを制御）
       fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
       devLog.debug('🔄 モンスタースプライト更新要求:', { 
         monster: currentEnemy.icon,
-        enemyIndex: gameState.currentEnemyIndex
+        enemyIndex: gameState.currentEnemyIndex,
+        isGameActive: gameState.isGameActive, // デバッグ情報追加
       });
     }
-  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
+    // ▼▼▼ 修正: 依存配列に gameState.isGameActive を追加 ▼▼▼
+  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex, gameState.isGameActive]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
