@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import { 
@@ -15,7 +14,6 @@ const AuthLanding: React.FC = () => {
   const [signupDisabled, setSignupDisabled] = useState(false);
   const { loginWithMagicLink, enterGuestMode, loading, error } = useAuthStore();
   const toast = useToast();
-  const navigate = useNavigate();
 
   // 開発環境でのみデバッグ情報を表示
   useEffect(() => {
@@ -38,20 +36,15 @@ const AuthLanding: React.FC = () => {
     try {
       await loginWithMagicLink(email, mode);
       
-      // 成功メッセージを準備
+      // 成功メッセージを表示
       const successMessage = mode === 'signup' 
         ? 'Magic Link を送信しました（会員登録）'
         : 'Magic Link を送信しました（ログイン）';
-      
-      // セッションストレージに成功メッセージを保存
-      sessionStorage.setItem('magicLinkSent', JSON.stringify({
-        message: successMessage,
+        
+      toast.success(successMessage, {
         title: 'メール送信完了',
-        timestamp: Date.now()
-      }));
-      
-      // トップページにリダイレクト
-      navigate('/');
+        duration: 5000,
+      });
     } catch (err) {
       // エラーメッセージを適切に処理
       const errorMessage = err instanceof Error ? err.message : 'Magic Link送信に失敗しました';

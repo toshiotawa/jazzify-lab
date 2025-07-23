@@ -1,34 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
-import { useToast } from '@/stores/toastStore';
 
-const LandingPage: React.FC = () => {
-  const toast = useToast();
-
-  useEffect(() => {
-    // セッションストレージからマジックリンク送信メッセージをチェック
-    const magicLinkData = sessionStorage.getItem('magicLinkSent');
-    if (magicLinkData) {
-      try {
-        const { message, title, timestamp } = JSON.parse(magicLinkData);
-        // 5分以内のメッセージのみ表示
-        if (Date.now() - timestamp < 300000) {
-          toast.success(message, {
-            title,
-            duration: 5000,
-          });
-        }
-      } catch (e) {
-        console.error('マジックリンク通知の処理に失敗しました:', e);
-      } finally {
-        // 一度表示したら削除
-        sessionStorage.removeItem('magicLinkSent');
-      }
-    }
-  }, [toast]);
-
-  return (
+const LandingPage: React.FC = () => (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white p-4 space-y-6 text-center">
       <Helmet>
         <title>Jazz Learning Game</title>
@@ -41,7 +15,6 @@ const LandingPage: React.FC = () => {
         <Link to="/auth?guest=1" className="btn btn-secondary">ゲストプレイ</Link>
       </div>
     </div>
-  );
-};
+);
 
 export default LandingPage;
