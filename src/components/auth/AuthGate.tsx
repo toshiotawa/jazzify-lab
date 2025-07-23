@@ -10,7 +10,7 @@ interface AuthGateProps {
 /**
  * ログインが必要な領域をラップするゲート。
  * - ローディング中はスピナー
- * - 未ログインなら Magic Link 入力 UI
+ * - 未ログインなら OTP 入力 UI
  * - ゲストプレイボタンも提供
  */
 export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {

@@ -283,7 +283,7 @@ Phase 1完了 - 基盤整備が完了しました。次はPhase 2でゲームエ
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# Magic Link設定（重要）
+# OTP認証設定（重要）
 VITE_SUPABASE_REDIRECT_URL=https://your-app-domain.com
 ```
 
@@ -303,9 +303,9 @@ VITE_SUPABASE_ANON_KEY=your_anon_key_here
 VITE_SUPABASE_REDIRECT_URL=https://your-jazz-game.netlify.app
 ```
 
-### Magic Link設定について
+### OTP認証設定について
 
-Magic Linkによるパスワードレスログインを正常に動作させるためには、以下の設定が必要です：
+OTP（ワンタイムパスワード）による認証を正常に動作させるためには、以下の設定が必要です：
 
 1. **環境変数設定**: `VITE_SUPABASE_REDIRECT_URL`にアプリケーションのドメインを設定
 2. **Supabase Auth設定**: Supabaseダッシュボードの「Auth > Providers > Email」で以下を設定：
@@ -326,31 +326,31 @@ VITE_SUPABASE_REDIRECT_URL=https://your-jazz-game.netlify.app
 
 #### トラブルシューティング
 
-Magic Linkが正常に動作しない場合：
+OTP認証が正常に動作しない場合：
 
-1. **環境変数の確認**: `VITE_SUPABASE_REDIRECT_URL`が正しく設定されているか確認
-2. **Supabase設定の確認**: Auth設定でSite URLとリダイレクトURLが一致しているか確認
-3. **ブラウザコンソールの確認**: リダイレクトURLが正しく設定されているかログで確認
+1. **メール設定の確認**: Supabaseのメール送信設定が正しく設定されているか確認
+2. **スパムフォルダの確認**: 認証コードがスパムフォルダに入っていないか確認
+3. **ブラウザコンソールの確認**: エラーメッセージをログで確認
 
 ##### よくある問題と解決方法
 
-**問題1: Magic Linkをクリックしてもログインが完了しない**
-- **原因**: リダイレクトURLがSupabaseの設定と一致していない
+**問題1: 認証コードが届かない**
+- **原因**: メール送信設定が正しくない、またはスパムフォルダに入っている
 - **解決方法**: 
-  1. 環境変数`VITE_SUPABASE_REDIRECT_URL`を確認
-  2. SupabaseダッシュボードでSite URLとリダイレクトURLを一致させる
+  1. スパムフォルダを確認
+  2. Supabaseダッシュボードでメール送信ログを確認
 
-**問題2: 開発環境でMagic Linkが動作しない**
-- **原因**: localhostの設定が不足している
+**問題2: 認証コードが無効と表示される**
+- **原因**: コードの有効期限が切れている（通常10分）
 - **解決方法**: 
-  1. `VITE_SUPABASE_REDIRECT_URL=http://localhost:5173`を設定
-  2. Supabaseでlocalhostを許可されたリダイレクトURLに追加
+  1. 新しいコードを再送信する
+  2. 受信後すぐに入力する
 
-**問題3: 本番環境でMagic Linkが動作しない**
-- **原因**: HTTPSプロトコルが設定されていない
+**問題3: 送信回数制限エラーが出る**
+- **原因**: 短時間に複数回送信を試みている
 - **解決方法**: 
-  1. `VITE_SUPABASE_REDIRECT_URL=https://your-domain.com`を設定
-  2. SupabaseでHTTPSのURLを設定
+  1. 5分程度待ってから再試行する
+  2. Supabaseの送信制限設定を確認
 
 ##### デバッグ方法
 
