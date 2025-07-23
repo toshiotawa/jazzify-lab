@@ -63,12 +63,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
   }, []);
   
-  const handleChordCorrect = useCallback((chord: ChordDefinition) => {
-    devLog.debug('✅ 正解:', chord.displayName);
+  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean) => {
+    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial });
     
     // ファンタジーPIXIエフェクトをトリガー（コード名を渡す）
     if (fantasyPixiInstance) {
-      fantasyPixiInstance.triggerAttackSuccess(chord.displayName);
+      fantasyPixiInstance.triggerAttackSuccess(chord.displayName, isSpecial);
     }
     
   }, [fantasyPixiInstance]);
@@ -346,6 +346,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return stage.chordProgression[nextIndex];
   }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
   
+  // SPゲージ表示
+  const renderSpGauge = useCallback((sp: number) => {
+    const spBlocks = [];
+    for (let i = 0; i < 3; i++) {
+      spBlocks.push(
+        <div
+          key={i}
+          className={cn(
+            "w-12 h-3 rounded transition-all duration-300",
+            i < sp ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.7)]' : 'bg-gray-600'
+          )}
+        />
+      );
+    }
+    return (
+      <div className="flex items-center space-x-2">
+        <span className="text-sm font-bold text-yellow-300">SP</span>
+        {spBlocks}
+      </div>
+    );
+  }, []);
+  
   // ゲーム開始前画面（スタートボタン表示条件を修正）
   if (!gameState.isGameActive || !gameState.currentChordTarget) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
@@ -398,7 +420,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               Stage {stage.stageNumber}
             </div>
             <div className="text-xs text-gray-300">
-              敵の数: {Math.ceil(stage.questionCount / 5)}
+              敵の数: {stage.enemyCount}
             </div>
           </div>
           
@@ -475,15 +497,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
           
           {/* HP表示（縦並び、相手が上、自分が下） */}
-          <div className="flex flex-col items-center space-y-2 mt-1">
-            {/* 敵のHP表示（上） */}
-            <div className="flex items-center">
-              {renderHearts(gameState.currentEnemyHp, gameState.maxEnemyHp, false)}
+          <div className="flex flex-col items-center space-y-1 mt-1">
+            {/* 敵のHPゲージ（上） */}
+            <div className="w-48 h-5 bg-gray-700 border-2 border-gray-600 rounded-full overflow-hidden relative">
+              <div
+                className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
+                style={{ width: `${(gameState.currentEnemyHp / gameState.maxEnemyHp) * 100}%` }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+                {gameState.currentEnemyHp} / {gameState.maxEnemyHp}
+              </div>
             </div>
-            
-            {/* プレイヤーのHP表示（下） */}
+
+            {/* プレイヤーのHP表示とSPゲージ（下） */}
             <div className="flex items-center">
-              {renderHearts(gameState.playerHp, stage.maxHp, true)}
+              <div className="flex items-center space-x-1">{renderHearts(gameState.playerHp, stage.maxHp, true)}</div>
+              <div className="ml-4">{renderSpGauge(gameState.playerSp)}</div>
             </div>
           </div>
         </div>
@@ -592,6 +621,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>スコア: {gameState.score}</div>
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget.displayName}</div>
+          <div>SP: {gameState.playerSp}</div>
           <div>入力バッファ: [{inputBuffer.join(', ')}]</div>
           
           {/* ゲージ強制満タンテストボタン */}

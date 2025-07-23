@@ -197,14 +197,15 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         name: stage.name,
         description: stage.description || '',
         maxHp: stage.max_hp,
-        questionCount: stage.question_count,
         enemyGaugeSeconds: stage.enemy_gauge_seconds,
+        enemyCount: stage.enemy_count,
+        enemyHp: stage.enemy_hp,
         mode: stage.mode as 'single' | 'progression',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
-        showGuide: stage.show_guide || false,
-        monsterIcon: stage.monster_icon || 'ghost',
+        showGuide: stage.show_guide,
+        monsterIcon: stage.monster_icon,
         bgmUrl: stage.bgm_url
       }));
       
@@ -333,7 +334,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         {/* ステージ情報 */}
         {unlocked && (
           <div className="text-xs text-gray-300 text-center space-y-1">
-            <div>HP: {stage.maxHp} / 問題: {stage.questionCount}</div>
+            <div>HP: {stage.maxHp} / 敵: {stage.enemyCount} (HP:{stage.enemyHp})</div>
             <div className="text-yellow-300">
               {stage.mode === 'single' ? '単一コード' : 'コード進行'}
             </div>
@@ -345,7 +346,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           <div className="mt-2 pt-2 border-t border-gray-600">
             <div className="text-xs text-gray-300 text-center">
               <div>スコア: {clearInfo.score}</div>
-              <div>正解率: {Math.round((clearInfo.correctAnswers / clearInfo.totalQuestions) * 100)}%</div>
+              {clearInfo.totalQuestions > 0 && <div>正解率: {Math.round((clearInfo.correctAnswers / clearInfo.totalQuestions) * 100)}%</div>}
             </div>
           </div>
         )}

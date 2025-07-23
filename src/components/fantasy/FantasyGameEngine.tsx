@@ -22,8 +22,9 @@ interface FantasyStage {
   name: string;
   description: string;
   maxHp: number;
-  questionCount: number;
   enemyGaugeSeconds: number;
+  enemyCount: number;
+  enemyHp: number;
   mode: 'single' | 'progression';
   allowedChords: string[];
   chordProgression?: string[];
@@ -36,7 +37,7 @@ interface FantasyStage {
 interface FantasyGameState {
   currentStage: FantasyStage | null;
   currentQuestionIndex: number;
-  currentChordTarget: ChordDefinition | null;
+  currentChordTarget: ChordDefinition;
   playerHp: number;
   enemyGauge: number;
   score: number;
@@ -53,15 +54,16 @@ interface FantasyGameState {
   // 敵のHP管理を追加
   currentEnemyHp: number;
   maxEnemyHp: number;
-  // 正解した音を追跡
+  // 正解した音と待機状態を追跡
   correctNotes: number[];
-gForNextMonster: boolean;
+  isWaitingForNextMonster: boolean;
+  playerSp: number; // SPゲージ (0-3)
 }
 
 interface FantasyGameEngineProps {
   stage: FantasyStage | null;
   onGameStateChange: (state: FantasyGameState) => void;
-  onChordCorrect: (chord: ChordDefinition) => void;
+  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean) => void;
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: () => void;
@@ -240,7 +242,7 @@ export const useFantasyGameEngine = ({
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
-    currentChordTarget: null,
+    currentChordTarget: CHORD_DEFINITIONS['CM7'], // デフォルト値を設定
     playerHp: 5,
     enemyGauge: 0,
     score: 0,
@@ -257,8 +259,9 @@ export const useFantasyGameEngine = ({
     // 敵のHP管理を追加
     currentEnemyHp: 5,
     maxEnemyHp: 5,
-    correctNotes: []
-
+    correctNotes: [],
+    playerSp: 0, // SPゲージ初期化
+    isWaitingForNextMonster: false
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -266,34 +269,23 @@ export const useFantasyGameEngine = ({
   const [inputTimeout, setInputTimeout] = useState<NodeJS.Timeout | null>(null);
   
   // ゲーム初期化
-  const initializeGame = useCallback(() => {
-    devLog.debug('🎮 ゲーム初期化開始:', stage);
-    
-    if (!stage) {
-      devLog.debug('❌ ステージ情報がありません');
-      return;
-    }
-    
+  const initializeGame = useCallback((stage: FantasyStage) => {
+    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+
+    // 最初のコードを取得
     const firstChord = stage.mode === 'single' 
       ? selectRandomChord(stage.allowedChords)
       : getProgressionChord(stage.chordProgression || [], 0);
-    
-    devLog.debug('🎯 最初のコード選択:', {
-      mode: stage.mode,
-      allowedChords: stage.allowedChords,
-      chordProgression: stage.chordProgression,
-      selectedChord: firstChord
-    });
-    
     if (!firstChord) {
-      devLog.debug('❌ 最初のコードを選択できませんでした');
+      devLog.debug('❌ 最初のコードが見つかりません');
       return;
     }
-    
-    // モンスター1体あたりの問題数（HP）
-    const QUESTIONS_PER_ENEMY = 5;
-    const totalEnemies = Math.ceil(stage.questionCount / QUESTIONS_PER_ENEMY);
-    
+
+    // 新しいステージ定義から値を取得
+    const totalEnemies = stage.enemyCount;
+    const enemyHp = stage.enemyHp;
+    const totalQuestions = totalEnemies * enemyHp;
+
     const newState: FantasyGameState = {
       currentStage: stage,
       currentQuestionIndex: 0,
@@ -301,7 +293,7 @@ export const useFantasyGameEngine = ({
       playerHp: stage.maxHp,
       enemyGauge: 0,
       score: 0,
-      totalQuestions: stage.questionCount,
+      totalQuestions: totalQuestions,
       correctAnswers: 0,
       isGameActive: true,
       isGameOver: false,
@@ -312,18 +304,23 @@ export const useFantasyGameEngine = ({
       enemiesDefeated: 0,
       totalEnemies: totalEnemies,
       // 敵のHP管理を追加
-      currentEnemyHp: QUESTIONS_PER_ENEMY,
-      maxEnemyHp: QUESTIONS_PER_ENEMY,
-      correctNotes: []
-
+      currentEnemyHp: enemyHp,
+      maxEnemyHp: enemyHp,
+      correctNotes: [],
+      playerSp: 0, // SPゲージ初期化
+      isWaitingForNextMonster: false
     };
-    
+
     setGameState(newState);
-    setInputBuffer([]);
     onGameStateChange(newState);
-    
-    devLog.debug('✅ ファンタジーゲーム初期化完了:', newState);
-  }, [stage, onGameStateChange]);
+
+    devLog.debug('✅ ゲーム初期化完了:', {
+      stage: stage.name,
+      totalEnemies,
+      enemyHp,
+      totalQuestions
+    });
+  }, [onGameStateChange]);
   
   // 次の問題への移行（回答数ベース、ループ対応）
   const proceedToNextQuestion = useCallback(() => {
@@ -602,21 +599,25 @@ export const useFantasyGameEngine = ({
     if (isCorrect) {
       devLog.debug('✅ 正解判定!', { chord: gameState.currentChordTarget.displayName });
       
-      onChordCorrect(gameState.currentChordTarget);
-      
+      // SPが3溜まっている状態で攻撃するとスペシャルアタック
+      const isSpecialAttack = gameState.playerSp >= 3;
+      onChordCorrect(gameState.currentChordTarget, isSpecialAttack);
+
       // ▼▼▼ 修正点1: 同期的な撃破判定 ▼▼▼
       // setGameState の外で、現在の gameState を使って同期的に撃破判定を行う
       const willBeDefeated = (gameState.currentEnemyHp - 1) <= 0;
 
       setGameState(prevState => {
+        // SPアタックならSPを0に、そうでなければ+1（上限は3）
+        const newPlayerSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 3);
         const newEnemyHp = Math.max(0, prevState.currentEnemyHp - 1);
         return {
           ...prevState,
-          correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 1000,
           enemyGauge: 0,
           currentEnemyHits: prevState.currentEnemyHits + 1,
           currentEnemyHp: newEnemyHp,
+          playerSp: newPlayerSp,
           // 同期的に判定した結果を使い、待機状態に移行するか決める
           isWaitingForNextMonster: willBeDefeated,
         };
@@ -729,7 +730,7 @@ export const useFantasyGameEngine = ({
   // ステージ変更時の初期化
   useEffect(() => {
     if (stage) {
-      initializeGame();
+      initializeGame(stage);
     }
   }, [stage, initializeGame]);
   
