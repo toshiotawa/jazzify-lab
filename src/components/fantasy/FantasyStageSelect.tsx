@@ -200,6 +200,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyGaugeSeconds: stage.enemy_gauge_seconds,
         enemyCount: stage.enemy_count,
         enemyHp: stage.enemy_hp,
+        minDamage: stage.min_damage,
+        maxDamage: stage.max_damage,
         mode: stage.mode as 'single' | 'progression',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,

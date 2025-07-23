@@ -25,6 +25,8 @@ interface FantasyStage {
   enemyGaugeSeconds: number;
   enemyCount: number;
   enemyHp: number;
+  minDamage: number;
+  maxDamage: number;
   mode: 'single' | 'progression';
   allowedChords: string[];
   chordProgression?: string[];
@@ -63,7 +65,7 @@ interface FantasyGameState {
 interface FantasyGameEngineProps {
   stage: FantasyStage | null;
   onGameStateChange: (state: FantasyGameState) => void;
-  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean) => void;
+  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number) => void;
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: () => void;
@@ -599,20 +601,29 @@ export const useFantasyGameEngine = ({
     if (isCorrect) {
       devLog.debug('✅ 正解判定!', { chord: gameState.currentChordTarget.displayName });
       
+      const stage = gameState.currentStage;
+      if (!stage) return;
+
       // SPが3溜まっている状態で攻撃するとスペシャルアタック
       const isSpecialAttack = gameState.playerSp >= 3;
-      onChordCorrect(gameState.currentChordTarget, isSpecialAttack);
+
+      // ダメージ計算
+      const baseDamage = Math.floor(Math.random() * (stage.maxDamage - stage.minDamage + 1)) + stage.minDamage;
+      const damageDealt = baseDamage * (isSpecialAttack ? 2 : 1);
+
+      onChordCorrect(gameState.currentChordTarget, isSpecialAttack, damageDealt);
 
       // ▼▼▼ 修正点1: 同期的な撃破判定 ▼▼▼
       // setGameState の外で、現在の gameState を使って同期的に撃破判定を行う
-      const willBeDefeated = (gameState.currentEnemyHp - 1) <= 0;
+      const willBeDefeated = (gameState.currentEnemyHp - damageDealt) <= 0;
 
       setGameState(prevState => {
         // SPアタックならSPを0に、そうでなければ+1（上限は3）
         const newPlayerSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 3);
-        const newEnemyHp = Math.max(0, prevState.currentEnemyHp - 1);
+        const newEnemyHp = Math.max(0, prevState.currentEnemyHp - damageDealt);
         return {
           ...prevState,
+          correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 1000,
           enemyGauge: 0,
           currentEnemyHits: prevState.currentEnemyHits + 1,

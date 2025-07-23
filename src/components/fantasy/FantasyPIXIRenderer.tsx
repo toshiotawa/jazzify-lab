@@ -447,7 +447,7 @@ export class FantasyPIXIInstance {
   }
 
   // ▼▼▼ 攻撃成功エフェクトを修正 ▼▼▼
-  triggerAttackSuccess(chordName?: string, isSpecial: boolean = false): void {
+  triggerAttackSuccess(chordName: string | undefined, isSpecial: boolean, damageDealt: number): void {
     // 状態ガード: 消滅中または完全消滅中は何もしない
     if (this.isDestroyed || this.monsterGameState.state === 'FADING_OUT' || this.monsterGameState.state === 'GONE') {
       return;
@@ -479,16 +479,13 @@ export class FantasyPIXIInstance {
         this.monsterGameState.staggerOffset = { x: 0, y: 0 };
       }
 
-      // ダメージ計算（SPアタックは2倍）
-      const baseDamage = 1;
-      const damage = baseDamage * (isSpecial ? 2 : 1);
-      this.createDamageNumber(damage, magicColor);
+      // ダメージ数値を表示（エンジンから渡された値を使用）
+      this.createDamageNumber(damageDealt, magicColor);
 
       this.createSvgMagicEffect(magic.svg, magicColor, isSpecial);
       this.createMagicParticles(magic, isSpecial);
 
       this.monsterGameState.hitCount++;
-      this.monsterGameState.health = Math.max(0, this.monsterGameState.maxHealth - this.monsterGameState.hitCount);
 
       // 敵のHPが0になった場合の処理
       if (this.monsterGameState.health <= 0) {
@@ -513,7 +510,7 @@ export class FantasyPIXIInstance {
 
       devLog.debug('⚔️ 攻撃成功:', { 
         magic: magic.name, 
-        isSpecial,
+        damage: damageDealt,
         hitCount: this.monsterGameState.hitCount, 
         enemyHp: this.monsterGameState.health
 

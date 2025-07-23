@@ -3,18 +3,22 @@
 -- 説明: ファンタジーモードのステージ、ユーザー進捗、クリア記録を管理するテーブル
 
 -- ファンタジーステージマスタテーブル
-CREATE TABLE fantasy_stages (
+CREATE TABLE IF NOT EXISTS fantasy_stages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    stage_number TEXT NOT NULL UNIQUE, -- "1-1", "1-2", "2-1" 形式
+    stage_number TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
     max_hp INTEGER NOT NULL DEFAULT 5,
-    question_count INTEGER NOT NULL DEFAULT 10,
+    enemy_count INTEGER NOT NULL DEFAULT 1,
+    enemy_hp INTEGER NOT NULL DEFAULT 5,
+    min_damage INTEGER NOT NULL DEFAULT 10,
+    max_damage INTEGER NOT NULL DEFAULT 20,
     enemy_gauge_seconds FLOAT NOT NULL DEFAULT 5.0,
     mode TEXT NOT NULL DEFAULT 'single' CHECK (mode IN ('single', 'progression')),
     allowed_chords JSONB NOT NULL DEFAULT '[]'::jsonb,
     chord_progression JSONB DEFAULT '[]'::jsonb,
-    show_sheet_music BOOLEAN NOT NULL DEFAULT true,
+    show_sheet_music BOOLEAN NOT NULL DEFAULT false,
+    show_guide BOOLEAN NOT NULL DEFAULT false,
     monster_icon TEXT DEFAULT 'ghost',
     bgm_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -22,7 +26,7 @@ CREATE TABLE fantasy_stages (
 );
 
 -- ユーザーファンタジー進捗テーブル
-CREATE TABLE fantasy_user_progress (
+CREATE TABLE IF NOT EXISTS fantasy_user_progress (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     current_stage_number TEXT NOT NULL DEFAULT '1-1',
@@ -34,7 +38,7 @@ CREATE TABLE fantasy_user_progress (
 );
 
 -- ファンタジーステージクリア記録テーブル
-CREATE TABLE fantasy_stage_clears (
+CREATE TABLE IF NOT EXISTS fantasy_stage_clears (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     stage_id UUID NOT NULL REFERENCES fantasy_stages(id) ON DELETE CASCADE,
@@ -84,17 +88,17 @@ CREATE POLICY fantasy_stage_clears_policy ON fantasy_stage_clears FOR ALL USING 
 );
 
 -- 初期データ: サンプルステージの作成
-INSERT INTO fantasy_stages (stage_number, name, description, max_hp, question_count, enemy_gauge_seconds, mode, allowed_chords, monster_icon) VALUES
-('1-1', 'はじまりの森', '基本的なメジャーコードに挑戦！', 5, 5, 6.0, 'single', '["C", "F", "G", "Am"]'::jsonb, 'tree'),
-('1-2', '緑の草原', 'マイナーコードも加わります', 5, 6, 5.5, 'single', '["C", "F", "G", "Am", "Dm", "Em"]'::jsonb, 'seedling'),
-('1-3', 'やさしい小川', 'セブンスコードの登場', 5, 7, 5.0, 'single', '["C", "F", "G", "Am", "Dm", "Em", "G7"]'::jsonb, 'droplet'),
-('1-4', '陽だまりの丘', 'コード進行に挑戦', 4, 8, 5.0, 'progression', '["C", "Am", "F", "G"]'::jsonb, 'sun'),
-('1-5', '静寂の洞窟', 'より多くのコードで練習', 4, 10, 4.5, 'single', '["C", "F", "G", "Am", "Dm", "Em", "G7", "C7", "F7"]'::jsonb, 'rock'),
-('2-1', '魔法の森', '7thコードをマスターしよう', 4, 8, 4.0, 'single', '["C7", "F7", "G7", "Am7", "Dm7", "Em7"]'::jsonb, 'sparkles'),
-('2-2', '水晶の谷', 'メジャー7thの美しい響き', 4, 9, 4.0, 'single', '["CM7", "FM7", "GM7", "Am7"]'::jsonb, 'gem'),
-('2-3', '風の台地', 'コード進行 ii-V-I', 3, 10, 3.8, 'progression', '["Dm7", "G7", "CM7"]'::jsonb, 'wind_face'),
-('2-4', '雷鳴の峠', 'ドミナント7thの緊張感', 3, 10, 3.5, 'single', '["G7", "C7", "F7", "B7", "E7", "A7", "D7"]'::jsonb, 'zap'),
-('2-5', '星空の頂', 'テンション系コードに挑戦', 3, 12, 3.5, 'single', '["C6", "Cm6", "C9", "Cm9", "C11", "C13"]'::jsonb, 'star2');
+INSERT INTO fantasy_stages (stage_number, name, description, max_hp, enemy_count, enemy_hp, min_damage, max_damage, enemy_gauge_seconds, mode, allowed_chords, monster_icon) VALUES
+('1-1', 'はじまりの森', '基本的なメジャーコードに挑戦！', 5, 1, 5, 1, 1, 6.0, 'single', '["C", "F", "G", "Am"]'::jsonb, 'tree'),
+('1-2', '緑の草原', 'マイナーコードも加わります', 5, 2, 3, 1, 1, 5.5, 'single', '["C", "F", "G", "Am", "Dm", "Em"]'::jsonb, 'seedling'),
+('1-3', 'やさしい小川', 'セブンスコードの登場', 5, 2, 4, 1, 1, 5.0, 'single', '["C", "F", "G", "Am", "Dm", "Em", "G7"]'::jsonb, 'droplet'),
+('1-4', '陽だまりの丘', 'コード進行に挑戦', 4, 2, 4, 1, 1, 5.0, 'progression', '["C", "Am", "F", "G"]'::jsonb, 'sun'),
+('1-5', '静寂の洞窟', 'より多くのコードで練習', 4, 2, 5, 1, 1, 4.5, 'single', '["C", "F", "G", "Am", "Dm", "Em", "G7", "C7", "F7"]'::jsonb, 'rock'),
+('2-1', '魔法の森', '7thコードをマスターしよう', 4, 2, 4, 1, 1, 4.0, 'single', '["C7", "F7", "G7", "Am7", "Dm7", "Em7"]'::jsonb, 'sparkles'),
+('2-2', '水晶の谷', 'メジャー7thの美しい響き', 4, 3, 3, 1, 1, 4.0, 'single', '["CM7", "FM7", "GM7", "Am7"]'::jsonb, 'gem'),
+('2-3', '風の台地', 'コード進行 ii-V-I', 3, 2, 5, 1, 1, 3.8, 'progression', '["Dm7", "G7", "CM7"]'::jsonb, 'wind_face'),
+('2-4', '雷鳴の峠', 'ドミナント7thの緊張感', 3, 2, 5, 1, 1, 3.5, 'single', '["G7", "C7", "F7", "B7", "E7", "A7", "D7"]'::jsonb, 'zap'),
+('2-5', '星空の頂', 'テンション系コードに挑戦', 3, 3, 4, 1, 1, 3.5, 'single', '["C6", "Cm6", "C9", "Cm9", "C11", "C13"]'::jsonb, 'star2');
 
 -- 更新日時の自動更新トリガー関数
 CREATE OR REPLACE FUNCTION update_fantasy_updated_at()
