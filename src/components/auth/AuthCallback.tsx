@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 
@@ -8,7 +7,6 @@ import { useToast } from '@/stores/toastStore';
  * URLのhashパラメータから認証情報を取得し、セッションを確立する
  */
 const AuthCallback: React.FC = () => {
-  const navigate = useNavigate();
   const { init } = useAuthStore();
   const toast = useToast();
   const [processing, setProcessing] = useState(true);
@@ -27,7 +25,7 @@ const AuthCallback: React.FC = () => {
             title: '認証エラー',
             duration: 5000,
           });
-          navigate('/');
+          window.location.href = '/auth';
           return;
         }
 
@@ -39,22 +37,21 @@ const AuthCallback: React.FC = () => {
           duration: 3000,
         });
 
-        // ホーム画面にリダイレクト
-        navigate('/');
+        // 状態を確実に反映させるために、ハードリフレッシュを伴う画面遷移を行う
+        window.location.href = '/main#dashboard';
       } catch (err) {
         console.error('コールバック処理エラー:', err);
         toast.error('認証処理中にエラーが発生しました', {
           title: 'エラー',
           duration: 5000,
         });
-        navigate('/');
-      } finally {
-        setProcessing(false);
+        // エラー時はログインページにリダイレクト
+        window.location.href = '/auth';
       }
     };
 
     void handleCallback();
-  }, [init, navigate, toast]);
+  }, [init, toast]);
 
   if (processing) {
     return (

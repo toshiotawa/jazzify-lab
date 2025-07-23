@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import { 
@@ -9,13 +10,12 @@ import {
 } from '@/utils/magicLinkConfig';
 
 const AuthLanding: React.FC = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [signupDisabled, setSignupDisabled] = useState(false);
   const [useOtp, setUseOtp] = useState(false); // OTPモードの切り替え
-  const [otpCode, setOtpCode] = useState(''); // OTPコード
-  const [otpSent, setOtpSent] = useState(false); // OTP送信済みフラグ
-  const { loginWithMagicLink, verifyOtp, enterGuestMode, loading, error } = useAuthStore();
+  const { loginWithMagicLink, enterGuestMode, loading, error } = useAuthStore();
   const toast = useToast();
 
   // 開発環境でのみデバッグ情報を表示
@@ -40,12 +40,12 @@ const AuthLanding: React.FC = () => {
       await loginWithMagicLink(email, mode, useOtp);
       
       if (useOtp) {
-        // OTPモードの場合
-        setOtpSent(true);
+        // OTPモードの場合、新しいページにリダイレクト
         toast.success('認証コードを送信しました。メールをご確認ください。', {
           title: 'コード送信完了',
           duration: 5000,
         });
+        navigate(`/auth/verify-otp?email=${encodeURIComponent(email)}`);
       } else {
         // マジックリンクモードの場合
         const successMessage = mode === 'signup' 
@@ -73,25 +73,7 @@ const AuthLanding: React.FC = () => {
     }
   };
 
-  const handleVerifyOtp = async () => {
-    if (!otpCode.trim()) {
-      return toast.error('認証コードを入力してください');
-    }
-    
-    if (otpCode.length !== 6) {
-      return toast.error('認証コードは6桁で入力してください');
-    }
 
-    try {
-      await verifyOtp(email, otpCode);
-      toast.success('ログインに成功しました', {
-        title: 'ログイン完了',
-        duration: 3000,
-      });
-    } catch (err) {
-      toast.error(handleApiError(err, 'OTP検証'));
-    }
-  };
 
   const handleGuest = () => {
     enterGuestMode();
@@ -210,8 +192,6 @@ const AuthLanding: React.FC = () => {
                   checked={useOtp} 
                   onChange={(e) => {
                     setUseOtp(e.target.checked);
-                    setOtpSent(false);
-                    setOtpCode('');
                   }} 
                 />
                 <div className="swap-on">📱</div>
@@ -221,67 +201,24 @@ const AuthLanding: React.FC = () => {
             </div>
           </div>
 
-          {!otpSent ? (
-            <>
-              <div>
-                <label className="block text-sm mb-1">メールアドレスでログイン / 登録</label>
-                <input
-                  type="email"
-                  className="input input-bordered w-full"
-                  value={email}
-                  onChange={e=>setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                />
-              </div>
-              <div className="flex space-x-2">
-                <button className="btn btn-primary flex-1" disabled={loading || signupDisabled} onClick={()=>{void handleSendLink('signup')}}>
-                  会員登録
-                </button>
-                <button className="btn btn-outline flex-1" disabled={loading} onClick={()=>{void handleSendLink('login')}}>
-                  ログイン
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-center text-sm text-gray-300 mb-4">
-                <p>{email} に6桁の認証コードを送信しました</p>
-                <p className="text-xs text-gray-400 mt-1">メールが届かない場合は迷惑メールフォルダをご確認ください</p>
-              </div>
-              <div>
-                <label className="block text-sm mb-1">認証コード（6桁）</label>
-                <input
-                  type="text"
-                  className="input input-bordered w-full text-center text-2xl tracking-widest"
-                  value={otpCode}
-                  onChange={e => {
-                    const value = e.target.value.replace(/[^0-9]/g, '');
-                    if (value.length <= 6) {
-                      setOtpCode(value);
-                    }
-                  }}
-                  placeholder="000000"
-                  maxLength={6}
-                />
-              </div>
-              <button 
-                className="btn btn-primary w-full" 
-                disabled={loading || otpCode.length !== 6} 
-                onClick={()=>{void handleVerifyOtp()}}
-              >
-                認証する
-              </button>
-              <button 
-                className="btn btn-ghost btn-sm w-full" 
-                onClick={() => {
-                  setOtpSent(false);
-                  setOtpCode('');
-                }}
-              >
-                戻る
-              </button>
-            </>
-          )}
+          <div>
+            <label className="block text-sm mb-1">メールアドレスでログイン / 登録</label>
+            <input
+              type="email"
+              className="input input-bordered w-full"
+              value={email}
+              onChange={e=>setEmail(e.target.value)}
+              placeholder="you@example.com"
+            />
+          </div>
+          <div className="flex space-x-2">
+            <button className="btn btn-primary flex-1" disabled={loading || signupDisabled} onClick={()=>{void handleSendLink('signup')}}>
+              {useOtp ? '認証コードで登録' : 'マジックリンクで登録'}
+            </button>
+            <button className="btn btn-outline flex-1" disabled={loading} onClick={()=>{void handleSendLink('login')}}>
+              {useOtp ? '認証コードでログイン' : 'マジックリンクでログイン'}
+            </button>
+          </div>
           {error && <p className="text-red-400 text-sm">{error}</p>}
           {signupDisabled && (
             <div className="bg-orange-900/30 border border-orange-500/50 rounded p-3 text-sm">
