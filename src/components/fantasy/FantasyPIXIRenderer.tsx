@@ -36,8 +36,6 @@ interface MonsterVisualState {
 }
 
 interface MonsterGameState {
-  health: number;
-  maxHealth: number;
   isAttacking: boolean;
   isHit: boolean;
   hitColor: number;
@@ -235,8 +233,6 @@ export class FantasyPIXIInstance {
     
     // モンスターのゲーム状態初期化
     this.monsterGameState = {
-      health: 5,
-      maxHealth: 5,
       isAttacking: false,
       isHit: false,
       hitColor: 0xFF6B6B,
@@ -378,8 +374,6 @@ export class FantasyPIXIInstance {
       };
       
       // ゲーム状態をリセット
-      // ★ HPはステージから受け取るため、ここではリセットしない
-      // this.monsterGameState.health = this.monsterGameState.maxHealth;
       this.monsterGameState.hitCount = 0;
       this.monsterGameState.state = 'IDLE';
       
@@ -469,7 +463,7 @@ export class FantasyPIXIInstance {
   }
 
   // ▼▼▼ 攻撃成功エフェクトを修正 ▼▼▼
-  triggerAttackSuccess(chordName: string | undefined, isSpecial: boolean, damageDealt: number): void {
+  triggerAttackSuccess(chordName: string | undefined, isSpecial: boolean, damageDealt: number, defeated: boolean): void { // ★ 4番目の引数 defeated を受け取る
     // 状態ガード: 消滅中または完全消滅中は何もしない
     if (this.isDestroyed || this.monsterGameState.state === 'FADING_OUT' || this.monsterGameState.state === 'GONE') {
       return;
@@ -510,16 +504,16 @@ export class FantasyPIXIInstance {
       // 状態を更新
       this.monsterGameState.hitCount++;
 
-      // 敵のHPが0になった場合の処理
-      if (this.monsterGameState.health <= 0) {
+      // ★ 修正点: 内部のHP判定を削除し、引数の defeated を使う
+      if (defeated) {
         this.setMonsterState('FADING_OUT');
       }
 
       devLog.debug('⚔️ 攻撃成功:', { 
         magic: magic.name, 
         damage: damageDealt,
+        defeated: defeated, // ログにも追加
         hitCount: this.monsterGameState.hitCount, 
-        enemyHp: this.monsterGameState.health,
         state: this.monsterGameState.state
       });
 
@@ -1373,12 +1367,6 @@ export class FantasyPIXIInstance {
         this.onDefeated?.();
       } 
     }
-  }
-
-  // GameScreenからHPを受け取るメソッドを追加
-  public setHp(hp: number, maxHp: number) {
-    this.monsterGameState.health = hp;
-    this.monsterGameState.maxHealth = maxHp;
   }
 }
 

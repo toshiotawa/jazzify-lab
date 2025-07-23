@@ -65,7 +65,7 @@ interface FantasyGameState {
 interface FantasyGameEngineProps {
   stage: FantasyStage | null;
   onGameStateChange: (state: FantasyGameState) => void;
-  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number) => void;
+  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean) => void;
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: () => void;
@@ -610,11 +610,12 @@ export const useFantasyGameEngine = ({
       const baseDamage = Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage;
       const damageDealt = baseDamage * (isSpecialAttack ? 2 : 1);
 
-      onChordCorrect(gameState.currentChordTarget, isSpecialAttack, damageDealt);
-
-      // ▼▼▼ 修正点1: 同期的な撃破判定 ▼▼▼
-      // setGameState の外で、現在の gameState を使って同期的に撃破判定を行う
+      // ★ 修正点: 撃破判定の結果を onChordCorrect で渡す
       const willBeDefeated = (gameState.currentEnemyHp - damageDealt) <= 0;
+      onChordCorrect(gameState.currentChordTarget, isSpecialAttack, damageDealt, willBeDefeated);
+
+      // setGameState の外で、現在の gameState を使って同期的に撃破判定を行う
+      // const willBeDefeated = (gameState.currentEnemyHp - damageDealt) <= 0;
 
       setGameState(prevState => {
         // SPアタックならSPを0に、そうでなければ+1（上限は3）
@@ -635,7 +636,7 @@ export const useFantasyGameEngine = ({
       
       setInputBuffer([]);
       
-      // ▼▼▼ 修正点2: 判定結果に基づく処理分岐 ▼▼▼
+      // 判定結果に基づく処理分岐
       // 同期的に行った判定結果に基づいて、次のアクションを決定する
       if (!willBeDefeated) {
         // モンスターを倒していなければ、次の問題へ進む

@@ -63,12 +63,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
   }, []);
   
-  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number) => {
-    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt });
+  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean) => { // ★ 4番目の引数 defeated を受け取る
+    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated });
     
     // ファンタジーPIXIエフェクトをトリガー（コード名を渡す）
     if (fantasyPixiInstance) {
-      fantasyPixiInstance.triggerAttackSuccess(chord.displayName, isSpecial, damageDealt);
+      // ★ fantasyPixiInstance.triggerAttackSuccess に defeated を渡す
+      fantasyPixiInstance.triggerAttackSuccess(chord.displayName, isSpecial, damageDealt, defeated);
     }
     
   }, [fantasyPixiInstance]);
