@@ -64,15 +64,18 @@ ALTER TABLE fantasy_user_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fantasy_stage_clears ENABLE ROW LEVEL SECURITY;
 
 -- fantasy_stages: 全ユーザーが読み取り可能、管理者のみ書き込み可能
-CREATE POLICY IF NOT EXISTS fantasy_stages_read_policy ON fantasy_stages FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS fantasy_stages_write_policy ON fantasy_stages FOR ALL USING (
+DROP POLICY IF EXISTS fantasy_stages_read_policy ON fantasy_stages;
+CREATE POLICY fantasy_stages_read_policy ON fantasy_stages FOR SELECT USING (true);
+DROP POLICY IF EXISTS fantasy_stages_write_policy ON fantasy_stages;
+CREATE POLICY fantasy_stages_write_policy ON fantasy_stages FOR ALL USING (
     auth.uid() IN (
         SELECT id FROM profiles WHERE is_admin = true
     )
 );
 
 -- fantasy_user_progress: ユーザーは自分のレコードのみアクセス可能
-CREATE POLICY IF NOT EXISTS fantasy_user_progress_policy ON fantasy_user_progress FOR ALL USING (
+DROP POLICY IF EXISTS fantasy_user_progress_policy ON fantasy_user_progress;
+CREATE POLICY fantasy_user_progress_policy ON fantasy_user_progress FOR ALL USING (
     auth.uid() = user_id OR
     auth.uid() IN (
         SELECT id FROM profiles WHERE is_admin = true
@@ -80,7 +83,8 @@ CREATE POLICY IF NOT EXISTS fantasy_user_progress_policy ON fantasy_user_progres
 );
 
 -- fantasy_stage_clears: ユーザーは自分のレコードのみアクセス可能
-CREATE POLICY IF NOT EXISTS fantasy_stage_clears_policy ON fantasy_stage_clears FOR ALL USING (
+DROP POLICY IF EXISTS fantasy_stage_clears_policy ON fantasy_stage_clears;
+CREATE POLICY fantasy_stage_clears_policy ON fantasy_stage_clears FOR ALL USING (
     auth.uid() = user_id OR
     auth.uid() IN (
         SELECT id FROM profiles WHERE is_admin = true
