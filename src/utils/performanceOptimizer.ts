@@ -565,7 +565,6 @@ declare global {
   interface Window {
     unifiedFrameController: UnifiedFrameController;
     renderOptimizer: RenderOptimizer;
-    performanceMonitor: PerformanceMonitor;
     performanceDebugger: PerformanceDebugger;
   }
 }

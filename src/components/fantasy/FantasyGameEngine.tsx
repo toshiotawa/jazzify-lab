@@ -39,7 +39,7 @@ interface FantasyStage {
 interface FantasyGameState {
   currentStage: FantasyStage | null;
   currentQuestionIndex: number;
-  currentChordTarget: ChordDefinition;
+  currentChordTarget: ChordDefinition | null;
   playerHp: number;
   enemyGauge: number;
   score: number;

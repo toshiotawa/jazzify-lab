@@ -77,6 +77,8 @@ interface DamageNumberData {
   startTime: number;
   startY: number;
   velocity: number;
+  life: number;
+  maxLife: number;
 }
 
 interface MagicType {
@@ -192,8 +194,7 @@ export class FantasyPIXIInstance {
     originalY: 0
   };
 
-  // 状態機械
-  private monsterStateMachine = new MonsterStateMachine();
+
 
 
   constructor(width: number, height: number, onMonsterDefeated?: () => void, onShowMagicName?: (magicName: string, isSpecial: boolean) => void) {
@@ -1399,7 +1400,6 @@ export class FantasyPIXIInstance {
     devLog.debug(`👾 Monster state changed: ${this.monsterGameState.state} -> ${newState}`, {
       previousState: this.monsterGameState.state,
       newState: newState,
-      health: this.monsterGameState.health,
       hitCount: this.monsterGameState.hitCount,
       isDestroyed: this.isDestroyed
     });
