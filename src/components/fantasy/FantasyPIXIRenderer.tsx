@@ -13,6 +13,22 @@ import { devLog } from '@/utils/logger';
 // 状態機械の型定義
 type MonsterState = 'IDLE' | 'HITTING' | 'DEFEATED' | 'FADING_OUT' | 'GONE';
 
+// モンスター個体情報（GameEngineから）
+interface MonsterInstance {
+  id: string;
+  index: number;
+  hp: number;
+  maxHp: number;
+  attackGauge: number;
+  statusAilment: { type: 'burn' | 'freeze' | 'paralysis'; duration: number; startTime: number } | null;
+  defenseShields: number;
+  isHealer: boolean;
+  isBoss: boolean;
+  position: 'A' | 'B' | 'C';
+  icon: string;
+  name: string;
+}
+
 interface FantasyPIXIRendererProps {
   width: number;
   height: number;
@@ -46,6 +62,14 @@ interface MonsterGameState {
   state: MonsterState; // 状態機械の状態
   isFadingOut: boolean;
   fadeOutStartTime: number;
+}
+
+// モンスター管理データ
+interface ManagedMonster {
+  instance: MonsterInstance;
+  sprite: PIXI.Sprite;
+  visualState: MonsterVisualState;
+  gameState: MonsterGameState;
 }
 
 interface ParticleData {
@@ -142,7 +166,11 @@ const MONSTER_EMOJI: Record<string, string> = {
   'reaper': '🎩', // シルクハット（死神）
   'kraken': '👁', // 目玉（クラーケン）
   'werewolf': '🐦', // 鳥（人狼）
-  'demon': '🔥'  // 火（悪魔）
+  'demon': '🔥',  // 火（悪魔）
+  'healer': '✨', // きらめき（ヒーラー）
+  'dragon': '🔥', // 火（ドラゴン）
+  'ice_queen': '❄️', // 雪の結晶（氷の女王）
+  'thunder_bird': '⚡' // 稲妻（雷鳥）
 };
 
 // ===== PIXI インスタンスクラス =====
@@ -157,10 +185,10 @@ export class FantasyPIXIInstance {
   private onMonsterDefeated?: () => void;
   private onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
   
-  // モンスタースプライトは常に存在する（表示/非表示で制御）
-  private monsterSprite: PIXI.Sprite;
-  private monsterVisualState: MonsterVisualState;
-  private monsterGameState: MonsterGameState;
+  // 複数モンスター管理
+  private monsters: Map<string, ManagedMonster> = new Map();
+  
+  // エフェクト管理（既存）
   private particles: Map<string, PIXI.Graphics> = new Map();
   private particleData: Map<string, ParticleData> = new Map();
   private magicCircles: Map<string, PIXI.Graphics> = new Map();
@@ -193,9 +221,6 @@ export class FantasyPIXIInstance {
     originalX: 0,
     originalY: 0
   };
-
-
-
 
   constructor(width: number, height: number, onMonsterDefeated?: () => void, onShowMagicName?: (magicName: string, isSpecial: boolean) => void) {
     // コールバックの保存
@@ -231,43 +256,6 @@ export class FantasyPIXIInstance {
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
     
-    // モンスターのビジュアル状態初期化（画面真ん中に配置）
-    this.monsterVisualState = {
-      x: width / 2,
-      y: height / 2 - 20,
-      scale: 1.0,
-      rotation: 0,
-      tint: 0xFFFFFF,
-      alpha: 1.0,
-      visible: false // 初期状態では非表示
-    };
-    
-    // モンスターのゲーム状態初期化
-    this.monsterGameState = {
-      isAttacking: false,
-      isHit: false,
-      hitColor: 0xFF6B6B,
-      originalColor: 0xFFFFFF,
-      staggerOffset: { x: 0, y: 0 },
-      hitCount: 0,
-      // ▼▼▼ 修正点 ▼▼▼
-      // 初期状態を「存在しない(GONE)」にして、最初のモンスターが生成できるようにする
-      state: 'GONE' as MonsterState,
-      isFadingOut: false,
-      fadeOutStartTime: 0
-    };
-    
-    // デフォルトのモンスタースプライトを作成（初期は透明な正方形）
-    const defaultTexture = PIXI.Texture.WHITE;
-    this.monsterSprite = new PIXI.Sprite(defaultTexture);
-    this.monsterSprite.width = 128;
-    this.monsterSprite.height = 128;
-    this.monsterSprite.anchor.set(0.5);
-    this.monsterSprite.visible = false; // 初期は非表示
-    this.monsterSprite.interactive = true;
-    this.monsterSprite.cursor = 'pointer';
-    this.monsterContainer.addChild(this.monsterSprite);
-    
     // 絵文字テクスチャの事前読み込み
     this.loadEmojiTextures();
     this.loadImageTextures(); // メソッド名変更
@@ -275,7 +263,7 @@ export class FantasyPIXIInstance {
     // アニメーションループ開始
     this.startAnimationLoop();
     
-    devLog.debug('✅ ファンタジーPIXI初期化完了（状態機械対応）');
+    devLog.debug('✅ ファンタジーPIXI初期化完了（マルチモンスター対応）');
   }
 
   // 絵文字テクスチャの読み込み
@@ -343,198 +331,220 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // ▼▼▼ モンスタースプライト作成（SVGベース）を修正 ▼▼▼
-  async createMonsterSprite(icon: string): Promise<void> {
-    // 状態ガード: 前のモンスターが完全に消えるまで生成しない
-    if (this.monsterGameState.state !== 'GONE' && this.monsterGameState.state !== undefined) {
-      // undefinedは初回生成時のみ許容
-      devLog.debug('⚠️ モンスター生成スキップ: 前のモンスターがまだ存在中', {
-        currentState: this.monsterGameState.state
+  // モンスタースプライトの更新（マルチモンスター対応）
+  async updateMonsterSprite(monsterInstance: MonsterInstance): Promise<void> {
+    if (this.isDestroyed) return;
+    
+    try {
+      devLog.debug('👾 モンスタースプライト更新:', { 
+        id: monsterInstance.id,
+        position: monsterInstance.position,
+        hp: monsterInstance.hp 
       });
-      return; 
-    }
-    
-    if (this.isDestroyed) return;
-    
-    try {
-      devLog.debug('👾 モンスタースプライト作成開始:', { icon });
       
-      // 既存のテクスチャをクリア
-      if (this.monsterSprite.texture && this.monsterSprite.texture !== PIXI.Texture.WHITE) {
-        this.monsterSprite.texture.destroy(true);
-      }
+      // 既存のモンスターがあるかチェック
+      let managedMonster = this.monsters.get(monsterInstance.id);
       
-      // 絵文字テクスチャを取得
-      const texture = this.emojiTextures.get(icon);
-      
-      if (texture && !texture.destroyed && texture.width && texture.height) {
-        this.monsterSprite.texture = texture;
-        devLog.debug('✅ 絵文字テクスチャ適用:', { icon });
+      if (!managedMonster) {
+        // 新規作成
+        const texture = this.emojiTextures.get(monsterInstance.icon) || PIXI.Texture.WHITE;
+        const sprite = new PIXI.Sprite(texture);
+        sprite.width = 64;
+        sprite.height = 64;
+        sprite.anchor.set(0.5);
+        sprite.interactive = true;
+        sprite.cursor = 'pointer';
+        
+        // 位置を設定（A, B, C列に応じて）
+        const xPositions = {
+          'A': this.app.screen.width * 0.25,
+          'B': this.app.screen.width * 0.5,
+          'C': this.app.screen.width * 0.75
+        };
+        
+        const visualState: MonsterVisualState = {
+          x: xPositions[monsterInstance.position],
+          y: this.app.screen.height / 2,
+          scale: monsterInstance.isBoss ? 1.5 : 1.0,
+          rotation: 0,
+          tint: 0xFFFFFF,
+          alpha: 1.0,
+          visible: true
+        };
+        
+        const gameState: MonsterGameState = {
+          isAttacking: false,
+          isHit: false,
+          hitColor: 0xFF6B6B,
+          originalColor: 0xFFFFFF,
+          staggerOffset: { x: 0, y: 0 },
+          hitCount: 0,
+          state: 'IDLE',
+          isFadingOut: false,
+          fadeOutStartTime: 0
+        };
+        
+        sprite.x = visualState.x;
+        sprite.y = visualState.y;
+        sprite.scale.set(visualState.scale);
+        
+        managedMonster = {
+          instance: monsterInstance,
+          sprite,
+          visualState,
+          gameState
+        };
+        
+        this.monsters.set(monsterInstance.id, managedMonster);
+        this.monsterContainer.addChild(sprite);
+        
+        devLog.debug('✅ 新規モンスター作成:', monsterInstance.id);
       } else {
-        devLog.debug('⚠️ 絵文字テクスチャが見つからないか無効、フォールバック作成:', { icon });
-        this.createFallbackMonster();
+        // 既存のモンスターの情報を更新
+        managedMonster.instance = monsterInstance;
+        
+        // HPが0になったら撃破処理
+        if (monsterInstance.hp <= 0 && managedMonster.gameState.state === 'IDLE') {
+          this.triggerMonsterDefeat(monsterInstance.id);
+        }
       }
       
-      // ビジュアル状態をリセット
-      this.monsterVisualState = {
-        ...this.monsterVisualState,
-        alpha: 1.0,
-        visible: true,
-        tint: 0xFFFFFF,
-        scale: 1.0
-      };
+      // 状態異常のエフェクト適用
+      if (monsterInstance.statusAilment) {
+        switch (monsterInstance.statusAilment.type) {
+          case 'burn':
+            managedMonster.visualState.tint = 0xFF6666;
+            break;
+          case 'freeze':
+            managedMonster.visualState.tint = 0x6666FF;
+            break;
+          case 'paralysis':
+            managedMonster.visualState.tint = 0xFFFF66;
+            break;
+        }
+      } else {
+        managedMonster.visualState.tint = 0xFFFFFF;
+      }
       
-      // ゲーム状態をリセット
-      this.monsterGameState.hitCount = 0;
-      this.monsterGameState.state = 'IDLE';
-      
-      this.updateMonsterSprite();
-      
-      devLog.debug('✅ モンスタースプライト作成完了:', { icon });
+      this.updateMonsterVisual(managedMonster);
       
     } catch (error) {
-      devLog.debug('❌ モンスタースプライト作成エラー:', error);
-      this.createFallbackMonster();
+      devLog.debug('❌ モンスタースプライト更新エラー:', error);
     }
   }
 
-  // フォールバック用モンスター作成
+  // モンスターのビジュアル更新
+  private updateMonsterVisual(managedMonster: ManagedMonster): void {
+    const { sprite, visualState } = managedMonster;
+    
+    sprite.x = visualState.x;
+    sprite.y = visualState.y;
+    sprite.scale.set(visualState.scale);
+    sprite.rotation = visualState.rotation;
+    sprite.tint = visualState.tint;
+    sprite.alpha = visualState.alpha;
+    sprite.visible = visualState.visible;
+  }
+  
+  // モンスタースプライト作成（旧メソッド、互換性のため残す）
+  async createMonsterSprite(icon: string): Promise<void> {
+    // 新しいシステムでは使用しない
+    devLog.debug('⚠️ createMonsterSprite呼び出し（旧メソッド）');
+  }
+
+  // フォールバックモンスター作成
   private createFallbackMonster(): void {
-    if (this.isDestroyed) return;
-    
-    try {
-      // グラフィックスからテクスチャを生成
-      const graphics = new PIXI.Graphics();
-      graphics.beginFill(0xDDDDDD);
-      graphics.drawCircle(64, 64, 64);
-      graphics.endFill();
-      
-      // 絵文字テキスト
-      const text = new PIXI.Text('👻', { fontSize: 48, fill: 0xFFFFFF });
-      text.anchor.set(0.5);
-      text.position.set(64, 64);
-      graphics.addChild(text);
-      
-      // グラフィックスからテクスチャを作成
-      const texture = this.app.renderer.generateTexture(graphics);
-      graphics.destroy();
-      
-      // 既存のスプライトのテクスチャを更新
-      this.monsterSprite.texture = texture;
-      
-      // ビジュアル状態をリセット
-      this.monsterVisualState = {
-        ...this.monsterVisualState,
-        alpha: 1.0,
-        visible: true,
-        tint: 0xFFFFFF,
-        scale: 1.0
-      };
-      
-      // スプライトの属性を更新
-      this.updateMonsterSprite();
-      
-      devLog.debug('✅ フォールバックモンスター作成完了');
-    } catch (error) {
-      devLog.debug('❌ フォールバックモンスター作成エラー:', error);
-    }
+    // 新しいシステムでは不要
   }
 
-  // モンスタースプライトの属性を安全に更新
+  // モンスタースプライトの更新（旧メソッド）
   private updateMonsterSprite(): void {
-    // 追加の安全チェックを実装
-    if (
-      this.isDestroyed ||
-      !this.monsterSprite ||
-      this.monsterSprite.destroyed ||
-      // transform が null になると PIXI 内部で x 代入時にエラーになるため
-      !(this.monsterSprite as any).transform ||
-      !this.monsterSprite.texture ||
-      this.monsterSprite.texture.destroyed
-    ) {
-      return; // 破棄済みまたは異常状態の場合は更新しない
-    }
-    
-    try {
-      // ビジュアル状態を適用
-      this.monsterSprite.x = this.monsterVisualState.x;
-      this.monsterSprite.y = this.monsterVisualState.y;
-      this.monsterSprite.scale.set(this.monsterVisualState.scale);
-      this.monsterSprite.rotation = this.monsterVisualState.rotation;
-      this.monsterSprite.tint = this.monsterVisualState.tint;
-      this.monsterSprite.alpha = this.monsterVisualState.alpha;
-      this.monsterSprite.visible = this.monsterVisualState.visible;
-    } catch (error) {
-      devLog.debug('⚠️ モンスタースプライト更新エラー:', error);
-      // エラーが発生した場合はスプライトを非表示にして安全性を確保
-      if (this.monsterSprite && !this.monsterSprite.destroyed) {
-        this.monsterSprite.visible = false;
-      }
-    }
+    // 新しいシステムでは使用しない
   }
 
   // ▼▼▼ 攻撃成功エフェクトを修正 ▼▼▼
-  triggerAttackSuccess(chordName: string | undefined, isSpecial: boolean, damageDealt: number, defeated: boolean): void { // ★ 4番目の引数 defeated を受け取る
-    // 状態ガード: 消滅中または完全消滅中は何もしない
-    if (this.isDestroyed || this.monsterGameState.state === 'FADING_OUT' || this.monsterGameState.state === 'GONE') {
-      return;
+  triggerAttackSuccess(chordName: string, isSpecial: boolean = false, damage: number = 0, hasDefeated: boolean = false): void {
+    if (this.isDestroyed) return;
+    
+    devLog.debug('⚡ 攻撃成功エフェクト:', { 
+      chord: chordName, 
+      special: isSpecial,
+      damage,
+      hasDefeated,
+      monstersCount: this.monsters.size
+    });
+    
+    // 魔法タイプに基づいてエフェクトを生成
+    const magicType = isSpecial ? 'lightning' : this.currentMagicType;
+    const magic = MAGIC_TYPES[magicType] || MAGIC_TYPES.fire;
+    
+    // すべてのモンスターに対してエフェクトを適用
+    this.monsters.forEach(managedMonster => {
+      if (managedMonster.instance.hp > 0) {
+        // ヒットエフェクト
+        managedMonster.gameState.isHit = true;
+        managedMonster.gameState.hitCount++;
+        
+        // ダメージ数値表示
+        if (damage > 0) {
+          this.showDamageNumber(
+            managedMonster.visualState.x,
+            managedMonster.visualState.y - 50,
+            damage,
+            isSpecial ? 0xFFD700 : 0xFF4444
+          );
+        }
+        
+        // パーティクルエフェクト
+        this.createMagicEffect(
+          managedMonster.visualState.x,
+          managedMonster.visualState.y,
+          magic.particleColor,
+          isSpecial ? magic.particleCount * 2 : magic.particleCount,
+          magicType as any
+        );
+        
+        // ヒット後の処理
+        setTimeout(() => {
+          managedMonster.gameState.isHit = false;
+        }, 300);
+      }
+    });
+    
+    // 画面揺れ（SPアタックの場合は強め）
+    if (isSpecial) {
+      this.screenShake(15, 500);
+    } else {
+      this.screenShake(5, 200);
     }
+    
+    // コード名表示
+    this.showChordName(chordName, isSpecial);
+  }
 
-    try {
-      // 魔法タイプをローテーション
-      const magicTypes = Object.keys(MAGIC_TYPES);
-      const currentIndex = magicTypes.indexOf(this.currentMagicType);
-      this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
-      const magic = MAGIC_TYPES[this.currentMagicType];
-
-      // 魔法名表示
-      const magicName = isSpecial ? magic.tier2Name : magic.name;
-      const magicColor = isSpecial ? magic.tier2Color : magic.color;
+  // 攻撃失敗エフェクト
+  triggerAttackFailure(): void {
+    if (this.isDestroyed) return;
+    
+    devLog.debug('❌ 攻撃失敗エフェクト');
+    
+    // すべてのモンスターに怒りマーク表示
+    this.monsters.forEach(managedMonster => {
+      // 怒りマーク表示
+      const angerMark = new PIXI.Text('💢', { fontSize: 32 });
+      angerMark.anchor.set(0.5);
+      angerMark.x = managedMonster.visualState.x + 40;
+      angerMark.y = managedMonster.visualState.y - 40;
+      this.uiContainer.addChild(angerMark);
       
-      // HTMLでの表示のためコールバックを呼び出す
-      if (this.onShowMagicName) {
-        this.onShowMagicName(magicName, isSpecial);
-      }
-
-      this.monsterGameState.isHit = true;
-      this.monsterGameState.hitColor = magicColor;
-
-      // 5発目の場合はよろめきエフェクトを無効化
-      if (this.monsterGameState.hitCount < 4) {
-        this.monsterGameState.staggerOffset = {
-          x: (Math.random() - 0.5) * 30,
-          y: (Math.random() - 0.5) * 15
-        };
-      } else {
-        // 5発目はよろめかない
-        this.monsterGameState.staggerOffset = { x: 0, y: 0 };
-      }
-
-      // ダメージ数値を表示（エンジンから渡された値を使用）
-      this.createDamageNumber(damageDealt, magicColor);
-
-      this.createImageMagicEffect(magic.svg, magicColor, isSpecial);
-      this.createMagicParticles(magic, isSpecial);
-
-      // 状態を更新
-      this.monsterGameState.hitCount++;
-
-      // ★ 修正点: 内部のHP判定を削除し、引数の defeated を使う
-      if (defeated) {
-        this.setMonsterState('FADING_OUT');
-      }
-
-      devLog.debug('⚔️ 攻撃成功:', { 
-        magic: magic.name, 
-        damage: damageDealt,
-        defeated: defeated, // ログにも追加
-        hitCount: this.monsterGameState.hitCount, 
-        state: this.monsterGameState.state
-      });
-
-    } catch (error) {
-      devLog.debug('❌ 攻撃成功エフェクトエラー:', error);
-    }
+      setTimeout(() => {
+        this.uiContainer.removeChild(angerMark);
+        angerMark.destroy();
+      }, 1000);
+    });
+    
+    // 画面揺れ
+    this.screenShake(3, 200);
   }
 
   // PNG画像魔法エフェクト作成
@@ -825,8 +835,6 @@ export class FantasyPIXIInstance {
     });
   }
 
-
-
   // コード名とチェックマーク表示
   private showChordWithCheckmark(chordName: string): void {
     // 既存のコードテキストを削除
@@ -963,38 +971,118 @@ export class FantasyPIXIInstance {
 
   // モンスター攻撃状態更新
   updateMonsterAttacking(isAttacking: boolean): void {
-    // 状態ガード
-    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed) return;
-
-    this.monsterGameState.isAttacking = isAttacking;
-
-    if (isAttacking) {
-      this.monsterVisualState.tint = 0xFF6B6B;
-      this.monsterVisualState.scale = 1.2; // 少し大きくなる
-      this.updateMonsterSprite();
-
-      // 怒りマーク表示
-      if (!this.angerMark) {
-        this.angerMark = new PIXI.Text('💢', { fontSize: 48 });
-        this.angerMark.anchor.set(0.5);
-        this.uiContainer.addChild(this.angerMark);
-      } 
-      this.angerMark.x = this.monsterVisualState.x + 60; // 右に表示
-      this.angerMark.y = this.monsterVisualState.y - 60;
-      this.angerMark.visible = true;
-
-      setTimeout(() => {
-        if (!this.isDestroyed) {
-          this.monsterVisualState.tint = 0xFFFFFF;
-          this.monsterVisualState.scale = 1.0; // 元の大きさに戻る
-          this.updateMonsterSprite();
-          if (this.angerMark) {
-            this.angerMark.visible = false;
-          }
-        }
-      }, 600);
-    }
+    this.monsters.forEach(managedMonster => {
+      managedMonster.gameState.isAttacking = isAttacking;
+      
+      if (isAttacking) {
+        // 攻撃エフェクト
+        this.animateStagger(managedMonster);
+        this.screenShake(8, 300);
+      }
+    });
   }
+
+  // 特定のモンスターの攻撃
+  triggerMonsterAttack(monsterId: string): void {
+    const managedMonster = this.monsters.get(monsterId);
+    if (!managedMonster) return;
+    
+    managedMonster.gameState.isAttacking = true;
+    this.animateStagger(managedMonster);
+    
+    setTimeout(() => {
+      managedMonster.gameState.isAttacking = false;
+    }, 600);
+  }
+
+  // モンスター撃破処理
+  private triggerMonsterDefeat(monsterId: string): void {
+    const managedMonster = this.monsters.get(monsterId);
+    if (!managedMonster || managedMonster.gameState.state !== 'IDLE') return;
+    
+    managedMonster.gameState.state = 'DEFEATED';
+    managedMonster.gameState.isFadingOut = true;
+    managedMonster.gameState.fadeOutStartTime = Date.now();
+    
+    // 撃破エフェクト
+    this.createExplosionEffect(
+      managedMonster.visualState.x,
+      managedMonster.visualState.y,
+      30
+    );
+    
+    // フェードアウト
+    setTimeout(() => {
+      this.monsterContainer.removeChild(managedMonster.sprite);
+      this.monsters.delete(monsterId);
+      devLog.debug('👾 モンスター削除完了:', monsterId);
+    }, 1000);
+  }
+
+  // よろめきアニメーション（個別モンスター対応）
+  private animateStagger(managedMonster: ManagedMonster): void {
+    const staggerIntensity = 5;
+    const duration = 200;
+    const startTime = Date.now();
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > duration) {
+        managedMonster.gameState.staggerOffset = { x: 0, y: 0 };
+        return;
+      }
+      
+      const progress = elapsed / duration;
+      const intensity = staggerIntensity * (1 - progress);
+      
+      managedMonster.gameState.staggerOffset = {
+        x: (Math.random() - 0.5) * intensity,
+        y: (Math.random() - 0.5) * intensity
+      };
+      
+      requestAnimationFrame(animate);
+    };
+    
+    animate();
+  }
+
+  // アニメーションループ
+  private animateFrame = (currentTime: number): void => {
+    if (this.isDestroyed) return;
+    
+    // モンスターアニメーション
+    this.monsters.forEach(managedMonster => {
+      // よろめき効果
+      if (managedMonster.gameState.isAttacking || managedMonster.gameState.isHit) {
+        managedMonster.sprite.x = managedMonster.visualState.x + managedMonster.gameState.staggerOffset.x;
+        managedMonster.sprite.y = managedMonster.visualState.y + managedMonster.gameState.staggerOffset.y;
+      } else {
+        managedMonster.sprite.x = managedMonster.visualState.x;
+        managedMonster.sprite.y = managedMonster.visualState.y;
+      }
+      
+      // フェードアウト処理
+      if (managedMonster.gameState.isFadingOut) {
+        const elapsed = currentTime - managedMonster.gameState.fadeOutStartTime;
+        const fadeProgress = Math.min(elapsed / 1000, 1);
+        managedMonster.sprite.alpha = 1 - fadeProgress;
+      }
+      
+      // ボスのアニメーション（拡大縮小）
+      if (managedMonster.instance.isBoss) {
+        const scale = managedMonster.visualState.scale + Math.sin(currentTime * 0.002) * 0.05;
+        managedMonster.sprite.scale.set(scale);
+      }
+    });
+    
+    // 既存のアニメーション処理
+    this.updateParticles();
+    this.updateMagicCircles();
+    this.updateDamageNumbers();
+    this.updateScreenShake();
+    
+    this.animationFrameId = requestAnimationFrame(this.animateFrame);
+  };
 
   // アニメーションループ
   private startAnimationLoop(): void {
@@ -1126,145 +1214,69 @@ export class FantasyPIXIInstance {
 
   // パーティクル更新
   private updateParticles(): void {
-    if (this.isDestroyed) return;
+    const toRemove: string[] = [];
     
-    for (const [id, particleData] of this.particleData.entries()) {
-      const particle = this.particles.get(id);
-      if (!particle || particle.destroyed) {
-        // 削除されたパーティクルの参照をクリーンアップ
-        this.particles.delete(id);
-        this.particleData.delete(id);
-        continue;
+    this.particleData.forEach((data, id) => {
+      data.life -= 16;
+      
+      if (data.life <= 0) {
+        toRemove.push(id);
+        return;
       }
       
-      try {
-        // 位置更新
-        particleData.x += particleData.vx;
-        particleData.y += particleData.vy;
-        particleData.vy += 0.12; // 重力効果
-        
-        // ライフ減少
-        particleData.life -= 16; // 60FPS想定
-        particleData.alpha = particleData.life / particleData.maxLife;
-        
-        // スプライト更新（nullチェック強化）
-        if (particle.transform && !particle.destroyed) {
-          particle.x = particleData.x;
-          particle.y = particleData.y;
-          particle.alpha = particleData.alpha;
-          
-          // サイズ変化（爆発系）
-          if (particleData.type === 'explosion' && particle.scale && particle.scale.set) {
-            const scale = 1 + (1 - particleData.alpha) * 0.5;
-            particle.scale.set(scale);
-          }
-        }
-        
-        // 削除判定
-        if (particleData.life <= 0) {
-          try {
-            if (particle.parent) {
-              particle.parent.removeChild(particle);
-            }
-            if (typeof particle.destroy === 'function') {
-              particle.destroy();
-            }
-          } catch (destroyError) {
-            devLog.debug('⚠️ パーティクル削除エラー:', destroyError);
-          }
-          this.particles.delete(id);
-          this.particleData.delete(id);
-        }
-      } catch (error) {
-        // エラー時は安全にパーティクルを削除
-        devLog.debug('⚠️ パーティクル更新エラー:', error);
-        try {
-          if (particle && !particle.destroyed) {
-            if (particle.parent) {
-              particle.parent.removeChild(particle);
-            }
-            if (typeof particle.destroy === 'function') {
-              particle.destroy();
-            }
-          }
-        } catch (cleanupError) {
-          devLog.debug('⚠️ パーティクルクリーンアップエラー:', cleanupError);
-        }
-        this.particles.delete(id);
-        this.particleData.delete(id);
+      data.x += data.vx;
+      data.y += data.vy;
+      
+      if (data.type === 'explosion') {
+        data.vy += 0.3;
       }
-    }
+      
+      const particle = this.particles.get(id);
+      if (particle) {
+        particle.x = data.x;
+        particle.y = data.y;
+        particle.alpha = data.life / data.maxLife;
+      }
+    });
+    
+    toRemove.forEach(id => {
+      const particle = this.particles.get(id);
+      if (particle) {
+        this.particleContainer.removeChild(particle);
+        particle.destroy();
+      }
+      this.particles.delete(id);
+      this.particleData.delete(id);
+    });
   }
 
   // ダメージ数値更新
   private updateDamageNumbers(): void {
-    if (this.isDestroyed) return;
+    const toRemove: string[] = [];
     
-    for (const [id, damageNumberData] of this.damageData.entries()) {
-      const damageText = this.damageNumbers.get(id);
-      if (!damageText || damageText.destroyed) {
-        // 削除されたテキストの参照をクリーンアップ
-        this.damageNumbers.delete(id);
-        this.damageData.delete(id);
-        continue;
+    this.damageData.forEach((data, id) => {
+      data.life -= 16;
+      
+      if (data.life <= 0) {
+        toRemove.push(id);
+        return;
       }
       
-      try {
-        // 上昇アニメーション
-        const elapsedTime = 1500 - damageNumberData.life;
-        damageNumberData.life -= 16; // 60FPS想定
-        
-        // スプライト更新（nullチェック強化）
-        if (damageText.transform && !damageText.destroyed) {
-          // ゆっくり上に移動
-          damageText.y = damageNumberData.startY + damageNumberData.velocity * (elapsedTime / 16);
-          
-          // フェードアウト（最初の500msは不透明、その後フェードアウト）
-          if (elapsedTime < 500) {
-            damageText.alpha = 1;
-          } else {
-            damageText.alpha = (damageNumberData.life - 0) / (damageNumberData.maxLife - 500);
-          }
-          
-          // 少しだけ拡大
-          const scaleProgress = Math.min(elapsedTime / 1000, 1);
-          damageText.scale.set(1 + scaleProgress * 0.3);
-        }
-        
-        // 削除判定
-        if (damageNumberData.life <= 0) {
-          try {
-            if (damageText.parent) {
-              damageText.parent.removeChild(damageText);
-            }
-            if (typeof damageText.destroy === 'function') {
-              damageText.destroy();
-            }
-          } catch (destroyError) {
-            devLog.debug('⚠️ ダメージ数値削除エラー:', destroyError);
-          }
-          this.damageNumbers.delete(id);
-          this.damageData.delete(id);
-        }
-      } catch (error) {
-        // エラー時は安全にテキストを削除
-        devLog.debug('⚠️ ダメージ数値更新エラー:', error);
-        try {
-          if (damageText && !damageText.destroyed) {
-            if (damageText.parent) {
-              damageText.parent.removeChild(damageText);
-            }
-            if (typeof damageText.destroy === 'function') {
-              damageText.destroy();
-            }
-          }
-        } catch (cleanupError) {
-          devLog.debug('⚠️ ダメージ数値クリーンアップエラー:', cleanupError);
-        }
-        this.damageNumbers.delete(id);
-        this.damageData.delete(id);
+      const progress = 1 - (data.life / data.maxLife);
+      data.text.y = data.startY - progress * 50;
+      data.text.alpha = data.life / data.maxLife;
+      data.text.scale.set(1 + progress * 0.5);
+    });
+    
+    toRemove.forEach(id => {
+      const text = this.damageNumbers.get(id);
+      if (text) {
+        this.uiContainer.removeChild(text);
+        text.destroy();
       }
-    }
+      this.damageNumbers.delete(id);
+      this.damageData.delete(id);
+    });
   }
 
   // サイズ変更（中央配置）
@@ -1297,100 +1309,56 @@ export class FantasyPIXIInstance {
 
   // 破棄
   destroy(): void {
+    devLog.debug('🧹 FantasyPIXI破棄開始');
     this.isDestroyed = true;
     
+    // アニメーションループ停止
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
     
-    // パーティクルとエフェクトの安全な削除
-    try {
-      this.particles.forEach((particle, id) => {
-        try {
-          if (particle && typeof particle.destroy === 'function' && !particle.destroyed) {
-            if (particle.parent) {
-              particle.parent.removeChild(particle);
-            }
-            particle.destroy();
-          }
-        } catch (error) {
-          devLog.debug(`⚠️ パーティクル削除エラー ${id}:`, error);
-        }
-      });
-      this.particles.clear();
-      this.particleData.clear();
-      
-      this.magicCircles.forEach((circle, id) => {
-        try {
-          if (circle && typeof circle.destroy === 'function' && !circle.destroyed) {
-            if (circle.parent) {
-              circle.parent.removeChild(circle);
-            }
-            circle.destroy();
-          }
-        } catch (error) {
-          devLog.debug(`⚠️ 魔法陣削除エラー ${id}:`, error);
-        }
-      });
-      this.magicCircles.clear();
-      this.magicCircleData.clear();
-      
-      this.damageNumbers.forEach((text, id) => {
-        try {
-          if (text && typeof text.destroy === 'function' && !text.destroyed) {
-            if (text.parent) {
-              text.parent.removeChild(text);
-            }
-            text.destroy();
-          }
-        } catch (error) {
-          devLog.debug(`⚠️ ダメージ数値削除エラー ${id}:`, error);
-        }
-      });
-      this.damageNumbers.clear();
-      this.damageData.clear();
-    } catch (error) {
-      devLog.debug('⚠️ エフェクト削除エラー:', error);
+    // モンスターのクリーンアップ
+    this.monsters.forEach(managedMonster => {
+      this.monsterContainer.removeChild(managedMonster.sprite);
+      managedMonster.sprite.destroy();
+    });
+    this.monsters.clear();
+    
+    // 既存のクリーンアップ処理
+    this.particles.forEach(particle => particle.destroy());
+    this.particles.clear();
+    this.particleData.clear();
+    
+    this.magicCircles.forEach(circle => circle.destroy());
+    this.magicCircles.clear();
+    this.magicCircleData.clear();
+    
+    this.damageNumbers.forEach(text => text.destroy());
+    this.damageNumbers.clear();
+    this.damageData.clear();
+    
+    if (this.chordNameText) {
+      this.chordNameText.destroy();
+      this.chordNameText = null;
     }
     
-    // テクスチャクリーンアップ
-    try {
-      this.emojiTextures.forEach((texture: PIXI.Texture) => {
-        try {
-          if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
-            texture.destroy(true);
-          }
-        } catch (error) {
-          devLog.debug('⚠️ 絵文字テクスチャ削除エラー:', error);
-        }
-      });
-      this.emojiTextures.clear();
-      
-      this.imageTextures.forEach((texture: PIXI.Texture) => {
-        try {
-          if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
-            texture.destroy(true);
-          }
-        } catch (error) {
-          devLog.debug('⚠️ 画像テクスチャ削除エラー:', error);
-        }
-      });
-      this.imageTextures.clear();
-    } catch (error) {
-      devLog.debug('⚠️ テクスチャクリーンアップエラー:', error);
+    if (this.angerMark) {
+      this.angerMark.destroy();
+      this.angerMark = null;
     }
+    
+    // テクスチャの破棄
+    this.emojiTextures.forEach(texture => texture.destroy());
+    this.emojiTextures.clear();
+    
+    this.imageTextures.forEach(texture => texture.destroy());
+    this.imageTextures.clear();
     
     // PIXIアプリケーションの破棄
-    if (this.app) {
-      try {
-        this.app.destroy(true, { children: true });
-      } catch (error) {
-        devLog.debug('⚠️ PIXI破棄エラー:', error);
-      }
-    }
+    this.app.destroy(true, { children: true, texture: true, baseTexture: true });
     
-    devLog.debug('🗑️ FantasyPIXI破棄完了');
+    devLog.debug('✅ FantasyPIXI破棄完了');
   }
 
   // 状態機械: モンスターの状態を安全に遷移させる

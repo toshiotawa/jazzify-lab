@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from '@/utils/cn';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterInstance, AttackMagicType, PlayerMagicType } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import { useGameStore } from '@/stores/gameStore';
@@ -19,18 +19,29 @@ interface FantasyGameScreenProps {
   onBackToStageSelect: () => void;
 }
 
-// 不要な定数とインターフェースを削除（PIXI側で処理）
+// 状態異常の色定義
+const STATUS_AILMENT_COLORS = {
+  burn: 'text-red-500',
+  freeze: 'text-blue-400',
+  paralysis: 'text-yellow-400'
+};
+
+// 状態異常の表示名
+const STATUS_AILMENT_NAMES = {
+  burn: 'やけど',
+  freeze: 'こおり',
+  paralysis: 'まひ'
+};
 
 const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   stage,
   onGameComplete,
   onBackToStageSelect
 }) => {
-  // useGameStoreの使用を削除（ファンタジーモードでは不要）
-  
   // エフェクト状態
-  const [isMonsterAttacking, setIsMonsterAttacking] = useState(false);
+  const [isMonsterAttacking, setIsMonsterAttacking] = useState<string | null>(null);
   const [damageShake, setDamageShake] = useState(false);
+  const [missEffect, setMissEffect] = useState(false);
   
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -40,6 +51,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ name: string; isSpecial: boolean } | null>(null);
+  
+  // エフェクト表示状態
+  const [damageNumbers, setDamageNumbers] = useState<{ [monsterId: string]: { damage: number; timestamp: number } }>({});
+  const [healNumbers, setHealNumbers] = useState<{ [monsterId: string]: { heal: number; timestamp: number } }>({});
   
   // stage.showGuide の変更をコンポーネントの状態に同期させる
   useEffect(() => {
@@ -58,43 +73,93 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       currentQuestion: state.currentQuestionIndex + 1,
       totalQuestions: state.totalQuestions,
       playerHp: state.playerHp,
-      enemyGauge: state.enemyGauge.toFixed(1),
+      playerMaxHp: state.playerMaxHp,
       isGameActive: state.isGameActive,
       currentChord: state.currentChordTarget?.displayName,
       score: state.score,
-      correctAnswers: state.correctAnswers
+      correctAnswers: state.correctAnswers,
+      monstersAlive: state.monsters.filter(m => m.hp > 0).length,
+      playerSp: state.playerSp
     });
   }, []);
   
-  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean) => { // ★ 4番目の引数 defeated を受け取る
-    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated });
+  const handleChordCorrect = useCallback((
+    chord: ChordDefinition, 
+    isSpecial: boolean, 
+    damageDealt: number, 
+    defeatedMonsterIds: string[],
+    magicType: AttackMagicType | PlayerMagicType
+  ) => {
+    devLog.debug('✅ 正解:', { 
+      name: chord.displayName, 
+      special: isSpecial, 
+      damage: damageDealt, 
+      defeatedCount: defeatedMonsterIds.length,
+      magicType 
+    });
+    
+    // 魔法名を表示
+    let displayName = '';
+    if (magicType === 'fire') {
+      displayName = isSpecial ? 'インフェルノ' : 'フレア';
+    } else if (magicType === 'ice') {
+      displayName = isSpecial ? 'ブリザード' : 'フロスト';
+    } else if (magicType === 'lightning') {
+      displayName = isSpecial ? 'サンダー・ストライク' : 'スパーク';
+    } else if (magicType === 'protect') {
+      displayName = 'プロテクト';
+    } else if (magicType === 'hyper_heal') {
+      displayName = 'ハイパーヒール';
+    } else if (magicType === 'aegis_protection') {
+      displayName = 'イージスプロテクション';
+    }
+    
+    if (displayName) {
+      setMagicName({ name: displayName, isSpecial });
+      setTimeout(() => setMagicName(null), 1500);
+    }
     
     // ファンタジーPIXIエフェクトをトリガー（コード名を渡す）
     if (fantasyPixiInstance) {
-      // ★ fantasyPixiInstance.triggerAttackSuccess に defeated を渡す
-      fantasyPixiInstance.triggerAttackSuccess(chord.displayName, isSpecial, damageDealt, defeated);
+      fantasyPixiInstance.triggerAttackSuccess(chord.displayName, isSpecial, damageDealt, defeatedMonsterIds.length > 0);
     }
     
   }, [fantasyPixiInstance]);
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
     devLog.debug('🎵 まだ構成音が足りません:', { expected: expectedChord.displayName, input: inputNotes });
-    
-    // 不正解エフェクトは削除（音の積み重ね方式のため）
-    // setShowIncorrectEffect(true);
-    // setTimeout(() => setShowIncorrectEffect(false), 500);
-    
   }, []);
   
-  const handleEnemyAttack = useCallback(() => {
-    devLog.debug('💥 敵の攻撃!');
+  const handleEnemyAttack = useCallback((monsterId: string, damage: number, attackType: 'normal' | 'heal' | 'defense') => {
+    devLog.debug('💥 敵の行動!', { monsterId, damage, attackType });
     
-    // モンスター攻撃状態を設定
-    setIsMonsterAttacking(true);
-    setTimeout(() => setIsMonsterAttacking(false), 600);
+    if (attackType === 'normal' && damage > 0) {
+      // モンスター攻撃状態を設定
+      setIsMonsterAttacking(monsterId);
+      setTimeout(() => setIsMonsterAttacking(null), 600);
+      
+      // ダメージ時の画面振動
+      setDamageShake(true);
+      setTimeout(() => setDamageShake(false), 500);
+    } else if (attackType === 'heal') {
+      // ヒール数値表示
+      setHealNumbers(prev => ({
+        ...prev,
+        [monsterId]: { heal: damage, timestamp: Date.now() }
+      }));
+      
+      // 3秒後に削除
+      setTimeout(() => {
+        setHealNumbers(prev => {
+          const newNumbers = { ...prev };
+          delete newNumbers[monsterId];
+          return newNumbers;
+        });
+      }, 3000);
+    }
     
     // ファンタジーPIXIでモンスター攻撃エフェクト
-    if (fantasyPixiInstance) {
+    if (fantasyPixiInstance && attackType === 'normal') {
       fantasyPixiInstance.updateMonsterAttacking(true);
       setTimeout(() => {
         if (fantasyPixiInstance) {
@@ -103,39 +168,56 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }, 600);
     }
     
-    // ダメージ時の画面振動
-    setDamageShake(true);
-    setTimeout(() => setDamageShake(false), 500);
-    
   }, [fantasyPixiInstance]);
+  
+  const handleMissTouch = useCallback(() => {
+    devLog.debug('❌ ミスタッチ!');
+    
+    // ミスエフェクト
+    setMissEffect(true);
+    setTimeout(() => setMissEffect(false), 500);
+    
+    // 画面振動
+    setDamageShake(true);
+    setTimeout(() => setDamageShake(false), 300);
+  }, []);
+  
+  const handleStatusAilmentApplied = useCallback((monsterId: string, ailment: any) => {
+    devLog.debug('🔥 状態異常付与:', { monsterId, ailment });
+  }, []);
+  
+  const handlePlayerShieldAdded = useCallback((shieldCount: number) => {
+    devLog.debug('🛡️ シールド追加:', { shieldCount });
+  }, []);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     devLog.debug('🏁 ゲーム終了:', { result, finalState });
     onGameComplete(result, finalState.score, finalState.correctAnswers, finalState.totalQuestions);
   }, [onGameComplete]);
   
-  // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
-  // これでガイドをON/OFFしてもゲームはリセットされなくなる
+  // ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   const {
     gameState,
     inputBuffer,
     handleNoteInput: engineHandleNoteInput,
     initializeGame,
     stopGame,
-    getCurrentEnemy,
-    proceedToNextEnemy,
+    playerShields,
     ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: stage, // UI状態の`showGuide`を含めない！ propsのstageを直接渡す
+    stage: stage,
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
-    onEnemyAttack: handleEnemyAttack
+    onEnemyAttack: handleEnemyAttack,
+    onMissTouch: handleMissTouch,
+    onStatusAilmentApplied: handleStatusAilmentApplied,
+    onPlayerShieldAdded: handlePlayerShieldAdded
   });
   
   // 現在の敵情報を取得
-  const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
+  const currentEnemy = gameState.monsters.find(m => m.hp > 0);
   
   // MIDI番号から音名を取得する関数
   const getNoteNameFromMidi = (midiNote: number): string => {
@@ -252,9 +334,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // モンスター撃破時のコールバック（状態機械対応）
   const handleMonsterDefeated = useCallback(() => {
     devLog.debug('SCREEN: PIXIからモンスター消滅完了通知を受信しました。');
-    // アニメーションが終わったので、エンジンに次の敵へ進むよう命令する
-    proceedToNextEnemy();
-  }, [proceedToNextEnemy]);
+    // 新しいマルチモンスターシステムでは不要
+  }, []);
   
   // FontAwesome使用のため削除済み
   
@@ -287,18 +368,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // 敵が変更された時にモンスタースプライトを更新（状態機械対応）
+  // 敵が変更された時にモンスタースプライトを更新（マルチモンスター対応）
   useEffect(() => {
-    if (fantasyPixiInstance && currentEnemy) {
-      // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
-      // 遅延処理は不要になった（状態機械が適切なタイミングを制御）
-      fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
+    if (fantasyPixiInstance && gameState.monsters.length > 0) {
+      // 各モンスターのスプライト更新
+      gameState.monsters.forEach(monster => {
+        if (monster.hp > 0) {
+          fantasyPixiInstance.updateMonsterSprite(monster);
+        }
+      });
+      
       devLog.debug('🔄 モンスタースプライト更新要求:', { 
-        monster: currentEnemy.icon,
-        enemyIndex: gameState.currentEnemyIndex
+        monstersCount: gameState.monsters.length,
+        aliveMonsters: gameState.monsters.filter(m => m.hp > 0).length
       });
     }
-  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
+  }, [fantasyPixiInstance, gameState.monsters]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -310,41 +395,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [pixiRenderer]);
   
-  // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
-  const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
-    const hearts = [];
-    // HP表示のデバッグログを追加
-    devLog.debug(`💖 ${isPlayer ? 'プレイヤー' : '敵'}HP表示:`, { current: hp, max: maxHp });
-    
-    for (let i = 0; i < maxHp; i++) {
-      hearts.push(
-        <span key={i} className={cn(
-          "text-2xl transition-all duration-300",
-          i < hp 
-            ? "text-red-500" // プレイヤーも敵も赤いハート
-            : "text-gray-300" // 空のハートは薄いグレー
-        )}>
-          {i < hp ? "♡" : "×"}
-        </span>
-      );
-    }
-    return hearts;
-  }, []);
+  // HPハート表示（削除）
   
   // 敵のゲージ表示（黄色系）
-  const renderEnemyGauge = useCallback(() => {
+  const renderEnemyGauge = useCallback((monster: MonsterInstance) => {
     return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
+      <div className="w-32 h-4 bg-gray-700 border border-gray-600 rounded-full overflow-hidden">
         <div 
           className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
           style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+            width: `${Math.min(monster.attackGauge, 100)}%`,
+            boxShadow: monster.attackGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
           }}
         />
       </div>
     );
-  }, [gameState.enemyGauge]);
+  }, []);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -354,15 +420,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return stage.chordProgression[nextIndex];
   }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
   
-  // SPゲージ表示
+  // SPゲージ表示（5段階に拡張）
   const renderSpGauge = useCallback((sp: number) => {
     const spBlocks = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       spBlocks.push(
         <div
           key={i}
           className={cn(
-            "w-12 h-3 rounded transition-all duration-300",
+            "w-10 h-3 rounded transition-all duration-300",
             i < sp ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.7)]' : 'bg-gray-600'
           )}
         />
@@ -375,6 +441,104 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       </div>
     );
   }, []);
+  
+  // シールド表示
+  const renderShields = useCallback((shields: number) => {
+    const shieldIcons = [];
+    for (let i = 0; i < shields; i++) {
+      shieldIcons.push(
+        <span key={i} className="text-2xl">🛡️</span>
+      );
+    }
+    return shieldIcons;
+  }, []);
+  
+  // モンスター情報表示
+  const renderMonsterInfo = useCallback((monster: MonsterInstance) => {
+    return (
+      <div key={monster.id} className="text-center">
+        <div className="text-xs text-gray-300 mb-1">{monster.position}列</div>
+        
+        {/* モンスターアイコン（絵文字または特殊表示） */}
+        <div className="text-4xl mb-1">
+          {monster.icon === 'vampire' && '☠'}
+          {monster.icon === 'monster' && '🕷'}
+          {monster.icon === 'reaper' && '🎩'}
+          {monster.icon === 'kraken' && '👁'}
+          {monster.icon === 'werewolf' && '🐦'}
+          {monster.icon === 'demon' && '🔥'}
+          {monster.icon === 'sparkles' && '✨'}
+          {monster.icon === 'fire' && '🔥'}
+          {monster.icon === 'snowflake' && '❄️'}
+          {monster.icon === 'zap' && '⚡'}
+        </div>
+        
+        {/* モンスター名 */}
+        <div className={cn(
+          "text-sm font-bold mb-1",
+          monster.isBoss && "text-red-400",
+          monster.isHealer && "text-green-400"
+        )}>
+          {monster.name}
+          {monster.isBoss && " (BOSS)"}
+        </div>
+        
+        {/* 状態異常表示 */}
+        {monster.statusAilment && (
+          <div className={cn(
+            "text-xs font-bold mb-1",
+            STATUS_AILMENT_COLORS[monster.statusAilment.type]
+          )}>
+            {STATUS_AILMENT_NAMES[monster.statusAilment.type]} ({monster.statusAilment.duration}秒)
+          </div>
+        )}
+        
+        {/* シールド表示 */}
+        {monster.defenseShields > 0 && (
+          <div className="mb-1">
+            {Array.from({ length: monster.defenseShields }).map((_, i) => (
+              <span key={i} className="text-sm">🛡️</span>
+            ))}
+          </div>
+        )}
+        
+        {/* HPゲージ */}
+        <div className="w-32 h-5 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1">
+          <div
+            className={cn(
+              "h-full transition-all duration-300",
+              monster.isBoss ? "bg-gradient-to-r from-red-600 to-red-800" : "bg-gradient-to-r from-red-500 to-red-700"
+            )}
+            style={{ width: `${(monster.hp / monster.maxHp) * 100}%` }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+            {monster.hp} / {monster.maxHp}
+          </div>
+        </div>
+        
+        {/* 攻撃ゲージ */}
+        {renderEnemyGauge(monster)}
+        
+        {/* ダメージ数値表示 */}
+        {damageNumbers[monster.id] && (
+          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 pointer-events-none animate-bounce">
+            <span className="text-2xl font-bold text-red-500">
+              -{damageNumbers[monster.id].damage}
+            </span>
+          </div>
+        )}
+        
+        {/* ヒール数値表示 */}
+        {healNumbers[monster.id] && (
+          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 pointer-events-none animate-bounce">
+            <span className="text-2xl font-bold text-green-500">
+              +{healNumbers[monster.id].heal}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }, [renderEnemyGauge, damageNumbers, healNumbers]);
   
   // ゲーム開始前画面（スタートボタン表示条件を修正）
   if (!gameState.isGameActive || !gameState.currentChordTarget) {
@@ -417,7 +581,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   return (
     <div className={cn(
       "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen",
-      damageShake && "animate-pulse"
+      damageShake && "animate-pulse",
+      missEffect && "bg-red-900"
     )}>
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
@@ -428,7 +593,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               Stage {stage.stageNumber}
             </div>
             <div className="text-xs text-gray-300">
-              敵の数: {stage.enemyCount}
+              敵の数: {gameState.totalEnemies} / 倒した数: {gameState.enemiesDefeated}
             </div>
           </div>
           
@@ -451,7 +616,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       </div>
       
       {/* ===== メインゲームエリア ===== */}
-      <div className="flex-grow flex flex-col justify-center px-2 py-1 text-white text-center relative z-20" style={{ minHeight: '200px' }}>
+      <div className="flex-grow flex flex-col justify-center px-2 py-1 text-white text-center relative z-20" style={{ minHeight: '300px' }}>
         {/* コード表示（サイズを縮小） */}
         <div className="mb-1 text-center">
           <div className="text-yellow-300 text-2xl font-bold tracking-wider drop-shadow-lg">
@@ -484,9 +649,36 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           )}
         </div>
         
-        {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}
+        {/* プレイヤー情報（上部） */}
+        <div className="mb-2 flex justify-center items-center space-x-4">
+          {/* プレイヤーHPゲージ */}
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-bold">HP</span>
+            <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full overflow-hidden relative">
+              <div
+                className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-all duration-300"
+                style={{ width: `${(gameState.playerHp / gameState.playerMaxHp) * 100}%` }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white">
+                {gameState.playerHp} / {gameState.playerMaxHp}
+              </div>
+            </div>
+          </div>
+          
+          {/* シールド表示 */}
+          {playerShields > 0 && (
+            <div className="flex">
+              {renderShields(playerShields)}
+            </div>
+          )}
+          
+          {/* SPゲージ */}
+          <div>{renderSpGauge(gameState.playerSp)}</div>
+        </div>
+        
+        {/* モンスター表示エリア（マルチモンスター対応） */}
         <div className="mb-2 text-center relative w-full">
-          <div className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden" style={{ height: 'min(200px, 30vh)' }}>
+          <div className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden" style={{ minHeight: '250px' }}>
             {/* 魔法名表示 */}
             {magicName && (
               <div className="absolute top-4 left-0 right-0 z-20 pointer-events-none">
@@ -497,46 +689,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 </div>
               </div>
             )}
-            <FantasyPIXIRenderer
-              width={window.innerWidth}
-              height={200}
-              monsterIcon={currentEnemy.icon}
-              isMonsterAttacking={isMonsterAttacking}
-              enemyGauge={gameState.enemyGauge}
-              onReady={handleFantasyPixiReady}
-              onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
-              className="w-full h-full"
-            />
-          </div>
-          
-          {/* 敵の名前 */}
-          <div className="text-white text-base font-bold mb-1">
-            {currentEnemy.name}
-          </div>
-          
-          {/* 敵の行動ゲージ */}
-          <div className="flex justify-center mb-1">
-            {renderEnemyGauge()}
-          </div>
-          
-          {/* HP表示（縦並び、相手が上、自分が下） */}
-          <div className="flex flex-col items-center space-y-1 mt-1">
-            {/* 敵のHPゲージ（上） */}
-            <div className="w-48 h-5 bg-gray-700 border-2 border-gray-600 rounded-full overflow-hidden relative">
-              <div
-                className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
-                style={{ width: `${(gameState.currentEnemyHp / gameState.maxEnemyHp) * 100}%` }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-                {gameState.currentEnemyHp} / {gameState.maxEnemyHp}
-              </div>
+            
+            {/* モンスター配置（横並び） */}
+            <div className="flex justify-center items-center h-full space-x-8 px-4">
+              {gameState.monsters.filter(m => m.hp > 0).map(monster => (
+                <div key={monster.id} className="relative">
+                  {renderMonsterInfo(monster)}
+                </div>
+              ))}
             </div>
-
-            {/* プレイヤーのHP表示とSPゲージ（下） */}
-            <div className="flex items-center">
-              <div className="flex items-center space-x-1">{renderHearts(gameState.playerHp, stage.maxHp, true)}</div>
-              <div className="ml-4">{renderSpGauge(gameState.playerSp)}</div>
+            
+            {/* ファンタジーPIXIレンダラー（エフェクト用） */}
+            <div className="absolute inset-0 pointer-events-none">
+              <FantasyPIXIRenderer
+                width={window.innerWidth}
+                height={250}
+                monsterIcon={gameState.monsters[0]?.icon || 'vampire'}
+                isMonsterAttacking={!!isMonsterAttacking}
+                enemyGauge={0}
+                onReady={handleFantasyPixiReady}
+                onMonsterDefeated={handleMonsterDefeated}
+                onShowMagicName={handleShowMagicName}
+                className="w-full h-full"
+              />
             </div>
           </div>
         </div>
@@ -634,31 +809,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         )}
       </div>
       
-      {/* エフェクト表示は削除 - PIXI側で処理 */}
-      
       {/* デバッグ情報（FPSモニター削除済み） */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs p-2 rounded z-40">
+        <div className="fixed bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs p-2 rounded z-40 max-w-xs">
           <div>Q: {gameState.currentQuestionIndex + 1}/{gameState.totalQuestions}</div>
-          <div>HP: {gameState.playerHp}/{stage.maxHp}</div>
-          <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>
+          <div>HP: {gameState.playerHp}/{gameState.playerMaxHp}</div>
+          <div>モンスター数: {gameState.monsters.filter(m => m.hp > 0).length}</div>
           <div>スコア: {gameState.score}</div>
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget.displayName}</div>
-          <div>SP: {gameState.playerSp}</div>
+          <div>SP: {gameState.playerSp}/5</div>
+          <div>シールド: {playerShields}</div>
           <div>入力バッファ: [{inputBuffer.join(', ')}]</div>
           
-          {/* ゲージ強制満タンテストボタン */}
-          <button
-            onClick={() => {
-              devLog.debug('⚡ ゲージ強制満タンテスト実行');
-              // ゲージを100にして敵攻撃をトリガー
-              handleEnemyAttack();
-            }}
-            className="mt-2 px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs"
-          >
-            敵攻撃テスト
-          </button>
+          {/* モンスター情報 */}
+          <div className="mt-2">
+            {gameState.monsters.map((m, i) => (
+              <div key={m.id} className="text-xs">
+                {m.position}: {m.name} HP:{m.hp}/{m.maxHp} G:{m.attackGauge.toFixed(0)}%
+              </div>
+            ))}
+          </div>
         </div>
       )}
       
