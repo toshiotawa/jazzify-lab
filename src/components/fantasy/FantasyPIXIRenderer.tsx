@@ -109,7 +109,7 @@ const MAGIC_TYPES: Record<string, MagicType> = {
     name: 'フレア',
     color: 0xFF8C00, // オレンジ
     particleColor: 0xFF6B35,
-    svg: '/fire.svg',
+    svg: 'fire.png', // .png に変更
     tier2Name: 'インフェルノ',
     tier2Color: 0xDC143C, // クリムゾン
     particleCount: 20,
@@ -118,7 +118,7 @@ const MAGIC_TYPES: Record<string, MagicType> = {
     name: 'フロスト',
     color: 0x00BFFF, // ディープスカイブルー
     particleColor: 0xB0E0E6,
-    svg: '/ice.svg',
+    svg: 'ice.png', // .png に変更
     tier2Name: 'ブリザード',
     tier2Color: 0x4169E1, // ロイヤルブルー
     particleCount: 25,
@@ -127,7 +127,7 @@ const MAGIC_TYPES: Record<string, MagicType> = {
     name: 'スパーク',
     color: 0xFFD700, // ゴールド
     particleColor: 0xFFF700,
-    svg: '/thunder.svg',
+    svg: 'thunder.png', // .png に変更
     tier2Name: 'サンダー・ストライク',
     tier2Color: 0xFFF8DC, // オフホワイト
     particleCount: 15,
@@ -171,7 +171,7 @@ export class FantasyPIXIInstance {
   
   private currentMagicType: string = 'fire';
   private emojiTextures: Map<string, PIXI.Texture> = new Map();
-  private svgTextures: Map<string, PIXI.Texture> = new Map();
+  private imageTextures: Map<string, PIXI.Texture> = new Map(); // pngテクスチャ用に変更
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
@@ -263,7 +263,7 @@ export class FantasyPIXIInstance {
     
     // 絵文字テクスチャの事前読み込み
     this.loadEmojiTextures();
-    this.loadSvgTextures();
+    this.loadImageTextures(); // メソッド名変更
     
     // アニメーションループ開始
     this.startAnimationLoop();
@@ -321,16 +321,18 @@ export class FantasyPIXIInstance {
     });
   }
 
-  // SVGテクスチャの読み込み
-  private async loadSvgTextures(): Promise<void> {
+  // PNG画像テクスチャの読み込み
+  private async loadImageTextures(): Promise<void> {
     try {
       for (const magic of Object.values(MAGIC_TYPES)) {
-        const texture = await PIXI.Assets.load(magic.svg);
-        this.svgTextures.set(magic.svg, texture);
+        // public/data/... のようなパスを想定
+        const texture = await PIXI.Assets.load(`data/${magic.svg}`);
+        this.imageTextures.set(magic.svg, texture);
+        devLog.debug(`✅ 画像テクスチャ読み込み: data/${magic.svg}`);
       }
-      devLog.debug('✅ SVGテクスチャ読み込み完了');
+      devLog.debug('✅ 全画像テクスチャ読み込み完了');
     } catch (error) {
-      devLog.debug('❌ SVGテクスチャ読み込みエラー:', error);
+      devLog.debug('❌ 画像テクスチャ読み込みエラー:', error);
     }
   }
 
@@ -376,9 +378,10 @@ export class FantasyPIXIInstance {
       };
       
       // ゲーム状態をリセット
+      // ★ HPはステージから受け取るため、ここではリセットしない
+      // this.monsterGameState.health = this.monsterGameState.maxHealth;
       this.monsterGameState.hitCount = 0;
-      this.monsterGameState.health = this.monsterGameState.maxHealth;
-      this.setMonsterState('IDLE');
+      this.monsterGameState.state = 'IDLE';
       
       this.updateMonsterSprite();
       
@@ -482,7 +485,7 @@ export class FantasyPIXIInstance {
       // 魔法名表示
       const magicName = isSpecial ? magic.tier2Name : magic.name;
       const magicColor = isSpecial ? magic.tier2Color : magic.color;
-      this.showMagicName(magicName, magicColor);
+      this.showMagicName(magicName, magicColor); // 修正済みの関数
 
       this.monsterGameState.isHit = true;
       this.monsterGameState.hitColor = magicColor;
@@ -501,38 +504,23 @@ export class FantasyPIXIInstance {
       // ダメージ数値を表示（エンジンから渡された値を使用）
       this.createDamageNumber(damageDealt, magicColor);
 
-      this.createSvgMagicEffect(magic.svg, magicColor, isSpecial);
+      this.createImageMagicEffect(magic.svg, magicColor, isSpecial);
       this.createMagicParticles(magic, isSpecial);
 
+      // 状態を更新
       this.monsterGameState.hitCount++;
 
       // 敵のHPが0になった場合の処理
       if (this.monsterGameState.health <= 0) {
-        this.monsterGameState.state = 'FADING_OUT';
-        this.monsterGameState.isFadingOut = true;
-        this.monsterGameState.fadeOutStartTime = Date.now();
-
-        // フェードアウトアニメーション開始
-        setTimeout(() => {
-          if (!this.isDestroyed) {
-            this.monsterGameState.state = 'GONE';
-            this.monsterGameState.isFadingOut = false;
-            this.monsterVisualState.visible = false;
-
-            // モンスター撃破コールバック
-            if (this.onMonsterDefeated) {
-              this.onMonsterDefeated();
-            }
-          }
-        }, 1000);
+        this.setMonsterState('FADING_OUT');
       }
 
       devLog.debug('⚔️ 攻撃成功:', { 
         magic: magic.name, 
         damage: damageDealt,
         hitCount: this.monsterGameState.hitCount, 
-        enemyHp: this.monsterGameState.health
-
+        enemyHp: this.monsterGameState.health,
+        state: this.monsterGameState.state
       });
 
     } catch (error) {
@@ -540,13 +528,17 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // SVG魔法エフェクト作成
-  private createSvgMagicEffect(svgPath: string, color: number, isSpecial: boolean): void {
-    if (this.isDestroyed) return;
-    
-    const texture = this.svgTextures.get(svgPath);
-    if (!texture || texture.destroyed) {
-      devLog.debug(`⚠️ SVGテクスチャが見つからないか破棄済み: ${svgPath}`);
+  // PNG画像魔法エフェクト作成
+  private createImageMagicEffect(imagePath: string, color: number, isSpecial: boolean): void {
+    // 状態ガード：モンスターが存在しない場合は何もしない
+    if (!this.monsterSprite || !this.monsterSprite.visible) {
+      devLog.debug(`⚠️ 魔法エフェクト生成スキップ: モンスター非表示`);
+      return;
+    }
+
+    const texture = this.imageTextures.get(imagePath);
+    if (!texture) {
+      devLog.debug(`⚠️ 画像テクスチャが見つかりません: ${imagePath}`);
       return;
     }
 
@@ -760,8 +752,8 @@ export class FantasyPIXIInstance {
     
     // 新しい魔法名テキスト作成
     this.magicNameText = new PIXI.Text(magicName, {
-      fontFamily: 'DotGothic16, "DotGothic16", Gothic16, Arial, sans-serif', // Pixel style font
-      fontSize: 24, // 文字を小さく
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 18, // 文字を小さく
       fontWeight: 'bold',
       fill: color, // 魔法タイプの色を使用
       stroke: 0x000000,
@@ -771,18 +763,18 @@ export class FantasyPIXIInstance {
     
     // 位置設定（画面中央上部）
     this.magicNameText.x = this.app.screen.width / 2;
-    this.magicNameText.y = 80; // 少し下に
+    this.magicNameText.y = 100; // 少し下に
     this.magicNameText.anchor.set(0.5);
     
     this.effectContainer.addChild(this.magicNameText);
     
-    // 1秒後に削除（表示時間を短く）
+    // 0.5秒後にフェードアウト開始
     setTimeout(() => {
       if (this.magicNameText && !this.isDestroyed) {
         this.effectContainer.removeChild(this.magicNameText);
         this.magicNameText = null;
       }
-    }, 1000);
+    }, 500); // 表示時間を0.5秒に
     
     devLog.debug('✨ 魔法名表示:', { magicName, color });
   }
@@ -923,11 +915,14 @@ export class FantasyPIXIInstance {
 
   // モンスター攻撃状態更新
   updateMonsterAttacking(isAttacking: boolean): void {
+    // 状態ガード
+    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed) return;
+
     this.monsterGameState.isAttacking = isAttacking;
 
     if (isAttacking) {
       this.monsterVisualState.tint = 0xFF6B6B;
-      this.monsterVisualState.scale = 1.3;
+      this.monsterVisualState.scale = 1.2; // 少し大きくなる
       this.updateMonsterSprite();
 
       // 怒りマーク表示
@@ -935,15 +930,15 @@ export class FantasyPIXIInstance {
         this.angerMark = new PIXI.Text('💢', { fontSize: 48 });
         this.angerMark.anchor.set(0.5);
         this.uiContainer.addChild(this.angerMark);
-      }
-      this.angerMark.x = this.monsterVisualState.x + 80;
+      } 
+      this.angerMark.x = this.monsterVisualState.x + 60; // 右に表示
       this.angerMark.y = this.monsterVisualState.y - 60;
       this.angerMark.visible = true;
-      
+
       setTimeout(() => {
         if (!this.isDestroyed) {
           this.monsterVisualState.tint = 0xFFFFFF;
-          this.monsterVisualState.scale = 1.0;
+          this.monsterVisualState.scale = 1.0; // 元の大きさに戻る
           this.updateMonsterSprite();
           if (this.angerMark) {
             this.angerMark.visible = false;
@@ -988,8 +983,8 @@ export class FantasyPIXIInstance {
         : this.monsterGameState.originalColor;
       
       // アイドル時の軽い浮遊効果
-      if (this.monsterGameState.state === 'IDLE') {
-        this.monsterVisualState.y += Math.sin(Date.now() * 0.002) * 0.8;
+      if (this.monsterGameState.state === 'IDLE' && !this.monsterGameState.isAttacking) {
+        this.monsterVisualState.y = (this.app.screen.height / 2 - 20) + Math.sin(Date.now() * 0.002) * 8;
       }
       
       // よろけ効果の減衰
@@ -1168,25 +1163,19 @@ export class FantasyPIXIInstance {
       
       try {
         // 上昇アニメーション
-        const elapsed = Date.now() - damageNumberData.startTime;
-        const maxLife = 2000; // 2秒間表示
-        const life = maxLife - elapsed;
+        damageData.life -= 20; // 60FPS想定
         
-        // 位置を上に移動
-        damageText.y = damageNumberData.startY + damageNumberData.velocity * (elapsed / 16);
-        
-        // アルファ値を時間とともに減少
-        const alpha = Math.max(0, life / maxLife);
-        damageText.alpha = alpha;
-        
-        // サイズ変化
-        if (damageText.scale && damageText.scale.set) {
-          const scale = 1 + (1 - alpha) * 0.3;
-          damageText.scale.set(scale);
+        // スプライト更新（nullチェック強化）
+        if (damageText.transform && !damageText.destroyed) {
+          // y座標は動かさず、アルファで消す
+          damageText.alpha = damageData.life / damageData.maxLife;
+          
+          // 少しだけ拡大しながら消える
+          damageText.scale.set(1 + (1 - damageText.alpha) * 0.2);
         }
         
         // 削除判定
-        if (life <= 0) {
+        if (damageData.life <= 0) {
           try {
             if (damageText.parent) {
               damageText.parent.removeChild(damageText);
@@ -1382,8 +1371,14 @@ export class FantasyPIXIInstance {
       // isDestroyedフラグをチェックして、インスタンス破棄後のコールバック呼び出しを防ぐ
       if (!this.isDestroyed) {
         this.onDefeated?.();
-      }
+      } 
     }
+  }
+
+  // GameScreenからHPを受け取るメソッドを追加
+  public setHp(hp: number, maxHp: number) {
+    this.monsterGameState.health = hp;
+    this.monsterGameState.maxHealth = maxHp;
   }
 }
 
