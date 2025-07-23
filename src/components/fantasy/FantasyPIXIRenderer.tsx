@@ -213,6 +213,9 @@ export class FantasyPIXIInstance {
     this.effectContainer = new PIXI.Container();
     this.uiContainer = new PIXI.Container();
     
+    // ソート可能にする
+    this.uiContainer.sortableChildren = true;
+    
     // z-indexの設定（背景→モンスター→パーティクル→エフェクト→UI）
     this.app.stage.addChild(this.backgroundContainer);
     this.app.stage.addChild(this.monsterContainer);
@@ -548,11 +551,16 @@ export class FantasyPIXIInstance {
         }
         
         magicSprite.anchor.set(0.5);
-        magicSprite.x = this.monsterVisualState.x + (Math.random() - 0.5) * (isSpecial ? 100 : 0);
-        magicSprite.y = this.monsterVisualState.y + (Math.random() - 0.5) * (isSpecial ? 50 : 0);
+        
+        // 画面の下から敵に向かって飛ぶように初期位置を設定
+        const startX = this.app.screen.width / 2 + (Math.random() - 0.5) * 200;
+        const startY = this.app.screen.height - 100;
+        magicSprite.x = startX;
+        magicSprite.y = startY;
+        
         magicSprite.tint = color;
-        magicSprite.alpha = 0;
-        magicSprite.scale.set(0.1);
+        magicSprite.alpha = 0.8;
+        magicSprite.scale.set(0.3); // 初期サイズを小さく
         
         // コンテナに追加する前にコンテナの状態を確認
         if (!this.effectContainer || this.effectContainer.destroyed) {
@@ -562,8 +570,13 @@ export class FantasyPIXIInstance {
         
         this.effectContainer.addChild(magicSprite);
 
-        // アニメーション
-        let life = 1000;
+        // アニメーション - 敵に向かって飛ぶ
+        let life = 800; // アニメーション時間を短く
+        const targetX = this.monsterVisualState.x + (isSpecial ? (Math.random() - 0.5) * 80 : 0);
+        const targetY = this.monsterVisualState.y + (isSpecial ? (Math.random() - 0.5) * 40 : 0);
+        const startX = magicSprite.x;
+        const startY = magicSprite.y;
+        
         const animate = () => {
           if (this.isDestroyed || !magicSprite || magicSprite.destroyed) {
             return;
@@ -572,9 +585,25 @@ export class FantasyPIXIInstance {
           if (life > 0) {
             try {
               life -= 16;
+              const progress = 1 - (life / 800);
+              
               if (!magicSprite.destroyed && (magicSprite as any).transform) {
-                magicSprite.alpha = Math.sin((1 - life / 1000) * Math.PI);
-                magicSprite.scale.set(magicSprite.scale.x + 0.05);
+                // 放物線を描いて敵に向かう
+                const easeProgress = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+                magicSprite.x = startX + (targetX - startX) * easeProgress;
+                
+                // Y座標は放物線
+                const arcHeight = -100; // 弧の高さ
+                const baseY = startY + (targetY - startY) * easeProgress;
+                const arc = arcHeight * 4 * progress * (1 - progress);
+                magicSprite.y = baseY + arc;
+                
+                // サイズと透明度の調整
+                magicSprite.scale.set(0.3 + progress * 0.2); // 最大0.5まで
+                magicSprite.alpha = 0.8 * (1 - progress * 0.3); // 徐々に薄く
+                
+                // 回転アニメーション
+                magicSprite.rotation += 0.2;
               }
               requestAnimationFrame(animate);
             } catch (error) {
@@ -591,6 +620,9 @@ export class FantasyPIXIInstance {
             // アニメーション終了時の安全な削除
             try {
               if (!magicSprite.destroyed) {
+                // ヒットエフェクトを作成
+                this.createHitParticles(targetX, targetY, color);
+                
                 if (magicSprite.parent) {
                   magicSprite.parent.removeChild(magicSprite);
                 }
@@ -631,6 +663,45 @@ export class FantasyPIXIInstance {
       color,
       type
     });
+  }
+
+  // ヒットパーティクル作成（魔法が敵に当たった時のエフェクト）
+  private createHitParticles(x: number, y: number, color: number): void {
+    if (this.isDestroyed) return;
+    
+    const particleCount = 15;
+    
+    for (let i = 0; i < particleCount; i++) {
+      const id = `hit_${Date.now()}_${i}`;
+      const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
+      const speed = 2 + Math.random() * 3;
+      
+      const particle = new PIXI.Graphics();
+      const size = 2 + Math.random() * 4;
+      
+      particle.beginFill(color);
+      particle.drawCircle(0, 0, size);
+      particle.endFill();
+      particle.x = x;
+      particle.y = y;
+      
+      this.effectContainer.addChild(particle);
+      this.particles.set(id, particle);
+      
+      this.particleData.set(id, {
+        id,
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 500,
+        maxLife: 500,
+        size,
+        color,
+        alpha: 1,
+        type: 'sparkle'
+      });
+    }
   }
 
   // 爆発エフェクト作成
@@ -715,16 +786,21 @@ export class FantasyPIXIInstance {
     const id = `damage_${Date.now()}_${Math.random()}`;
     
     const damageText = new PIXI.Text(damage.toString(), {
-      fontSize: 28,
+      fontSize: 36, // 少し大きくして見やすく
       fill: 0xFFFFFF, // ダメージ数値は白で統一
       fontWeight: 'bold',
       stroke: 0x000000,
-      strokeThickness: 3
+      strokeThickness: 4, // 縁取りを太く
+      dropShadow: true,
+      dropShadowBlur: 4,
+      dropShadowDistance: 2
     });
     
     damageText.anchor.set(0.5);
-    damageText.x = this.monsterVisualState.x + (Math.random() - 0.5) * 60;
-    damageText.y = this.monsterVisualState.y; // モンスターの位置に表示
+    // モンスターの少し上に表示し、左右のランダム幅を狭める
+    damageText.x = this.monsterVisualState.x + (Math.random() - 0.5) * 30;
+    damageText.y = this.monsterVisualState.y - 50; // モンスターの上に表示
+    damageText.zIndex = 1000; // 最前面に表示
     
     this.uiContainer.addChild(damageText);
     this.damageNumbers.set(id, damageText);
@@ -732,7 +808,9 @@ export class FantasyPIXIInstance {
       text: damageText,
       startTime: Date.now(),
       startY: damageText.y,
-      velocity: -3 - Math.random() * 2
+      velocity: -2 - Math.random() * 1, // ゆっくり上昇
+      life: 1500, // 表示時間を延長
+      maxLife: 1500
     });
   }
 
@@ -1157,15 +1235,24 @@ export class FantasyPIXIInstance {
       
       try {
         // 上昇アニメーション
-        damageNumberData.life -= 20; // 60FPS想定
+        const elapsedTime = 1500 - damageNumberData.life;
+        damageNumberData.life -= 16; // 60FPS想定
         
         // スプライト更新（nullチェック強化）
         if (damageText.transform && !damageText.destroyed) {
-          // y座標は動かさず、アルファで消す
-          damageText.alpha = damageNumberData.life / damageNumberData.maxLife;
+          // ゆっくり上に移動
+          damageText.y = damageNumberData.startY + damageNumberData.velocity * (elapsedTime / 16);
           
-          // 少しだけ拡大しながら消える
-          damageText.scale.set(1 + (1 - damageText.alpha) * 0.2);
+          // フェードアウト（最初の500msは不透明、その後フェードアウト）
+          if (elapsedTime < 500) {
+            damageText.alpha = 1;
+          } else {
+            damageText.alpha = (damageNumberData.life - 0) / (damageNumberData.maxLife - 500);
+          }
+          
+          // 少しだけ拡大
+          const scaleProgress = Math.min(elapsedTime / 1000, 1);
+          damageText.scale.set(1 + scaleProgress * 0.3);
         }
         
         // 削除判定
