@@ -114,12 +114,14 @@ END;
 $$ language 'plpgsql';
 
 -- トリガー設定
-CREATE TRIGGER IF NOT EXISTS fantasy_stages_updated_at_trigger
+DROP TRIGGER IF EXISTS fantasy_stages_updated_at_trigger ON fantasy_stages;
+CREATE TRIGGER fantasy_stages_updated_at_trigger
     BEFORE UPDATE ON fantasy_stages
     FOR EACH ROW
     EXECUTE FUNCTION update_fantasy_updated_at();
 
-CREATE TRIGGER IF NOT EXISTS fantasy_user_progress_updated_at_trigger
+DROP TRIGGER IF EXISTS fantasy_user_progress_updated_at_trigger ON fantasy_user_progress;
+CREATE TRIGGER fantasy_user_progress_updated_at_trigger
     BEFORE UPDATE ON fantasy_user_progress
     FOR EACH ROW
     EXECUTE FUNCTION update_fantasy_updated_at();
