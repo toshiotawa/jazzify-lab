@@ -1535,20 +1535,8 @@ export class PIXINotesRendererInstance {
       });
       
       // タッチデバイス対応
-      key.on('touchstart', (event) => {
-        event.stopPropagation();
-        this.handleKeyPress(midiNote);
-      });
-      
-      key.on('touchend', (event) => {
-        event.stopPropagation();
-        this.handleKeyRelease(midiNote);
-      });
-      
-      key.on('touchcancel', (event: PIXI.FederatedPointerEvent) => {
-        event.stopPropagation();
-        this.handleKeyRelease(midiNote);
-      });
+      // pointerイベントがタッチとマウスの両方を処理するため、touchイベントは不要
+      // （touchイベントとpointerイベントの両方が発火して2重になるのを防ぐ）
       
       // ホバー効果を追加
       key.on('pointerover', () => {
@@ -1648,20 +1636,8 @@ export class PIXINotesRendererInstance {
       });
       
       // タッチデバイス対応
-      key.on('touchstart', (event) => {
-        event.stopPropagation();
-        this.handleKeyPress(midiNote);
-      });
-      
-      key.on('touchend', (event) => {
-        event.stopPropagation();
-        this.handleKeyRelease(midiNote);
-      });
-      
-      key.on('touchcancel', (event: PIXI.FederatedPointerEvent) => {
-        event.stopPropagation();
-        this.handleKeyRelease(midiNote);
-      });
+      // pointerイベントがタッチとマウスの両方を処理するため、touchイベントは不要
+      // （touchイベントとpointerイベントの両方が発火して2重になるのを防ぐ）
       
       // ホバー効果を追加（黒鍵専用、tintではなく軽微な視覚効果のみ）
       key.on('pointerover', () => {
