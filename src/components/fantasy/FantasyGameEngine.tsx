@@ -600,14 +600,14 @@ export const useFantasyGameEngine = ({
     if (isCorrect) {
       devLog.debug('✅ 正解判定!', { chord: gameState.currentChordTarget.displayName });
       
-      const stage = gameState.currentStage;
-      if (!stage) return;
+      const currentStage = gameState.currentStage;
+      if (!currentStage) return;
 
       // SPが3溜まっている状態で攻撃するとスペシャルアタック
       const isSpecialAttack = gameState.playerSp >= 3;
 
       // ダメージ計算
-      const baseDamage = Math.floor(Math.random() * (stage.maxDamage - stage.minDamage + 1)) + stage.minDamage;
+      const baseDamage = Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage;
       const damageDealt = baseDamage * (isSpecialAttack ? 2 : 1);
 
       onChordCorrect(gameState.currentChordTarget, isSpecialAttack, damageDealt);
