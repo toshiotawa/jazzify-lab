@@ -275,7 +275,7 @@ export const useFantasyGameEngine = ({
 
     // 最初のコードを取得
     const firstChord = stage.mode === 'single' 
-                  ? selectRandomChord(stage.allowedChords, previousChordId)
+                  ? selectRandomChord(stage.allowedChords)
       : getProgressionChord(stage.chordProgression || [], 0);
     if (!firstChord) {
       devLog.debug('❌ 最初のコードが見つかりません');
