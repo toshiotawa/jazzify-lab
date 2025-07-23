@@ -109,7 +109,8 @@ INSERT INTO fantasy_stages (stage_number, name, description, max_hp, enemy_count
 ('2-2', '水晶の谷', 'メジャー7thの美しい響き', 4, 3, 3, 1, 1, 4.0, 'single', '["CM7", "FM7", "GM7", "Am7"]'::jsonb, 'gem'),
 ('2-3', '風の台地', 'コード進行 ii-V-I', 3, 2, 5, 1, 1, 3.8, 'progression', '["Dm7", "G7", "CM7"]'::jsonb, 'wind_face'),
 ('2-4', '雷鳴の峠', 'ドミナント7thの緊張感', 3, 2, 5, 1, 1, 3.5, 'single', '["G7", "C7", "F7", "B7", "E7", "A7", "D7"]'::jsonb, 'zap'),
-('2-5', '星空の頂', 'テンション系コードに挑戦', 3, 3, 4, 1, 1, 3.5, 'single', '["C6", "Cm6", "C9", "Cm9", "C11", "C13"]'::jsonb, 'star2');
+('2-5', '星空の頂', 'テンション系コードに挑戦', 3, 3, 4, 1, 1, 3.5, 'single', '["C6", "Cm6", "C9", "Cm9", "C11", "C13"]'::jsonb, 'star2')
+ON CONFLICT (stage_number) DO NOTHING;
 
 -- 更新日時の自動更新トリガー関数
 CREATE OR REPLACE FUNCTION update_fantasy_updated_at()
