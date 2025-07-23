@@ -437,6 +437,10 @@ export class FantasyPIXIInstance {
           x: (Math.random() - 0.5) * 30,
           y: (Math.random() - 0.5) * 15
         };
+      } else {
+        // 5発目はよろめかない
+        this.monsterGameState.staggerOffset = { x: 0, y: 0 };
+
       }
       
       const damage = Math.floor(Math.random() * (magic.damageRange[1] - magic.damageRange[0] + 1)) + magic.damageRange[0];
@@ -448,7 +452,12 @@ export class FantasyPIXIInstance {
       this.monsterGameState.hitCount++;
       this.monsterGameState.health = Math.max(0, this.monsterGameState.maxHealth - this.monsterGameState.hitCount);
       
-      this.createScreenShake(5, 200);
+      // 5発目の場合は画面揺れも軽減
+      if (this.monsterGameState.hitCount < 5) {
+        this.createScreenShake(5, 200);
+      } else {
+        this.createScreenShake(2, 100);
+      }
       
       // 状態遷移: HPが0になったら撃破状態に
       if (this.monsterGameState.health <= 0) {
@@ -458,11 +467,23 @@ export class FantasyPIXIInstance {
         this.setMonsterState('HITTING');
       }
       
-      devLog.debug('✨ 攻撃成功:', {
-        damage,
-        remainingHealth: this.monsterGameState.health,
-        hitCount: this.monsterGameState.hitCount,
-        magicType: this.currentMagicType
+      // 5発目でない場合のみ、よろめきリセットのタイマーを設定
+      if (this.monsterGameState.hitCount < 5) {
+        setTimeout(() => {
+          this.monsterGameState.isHit = false;
+          this.monsterGameState.staggerOffset = { x: 0, y: 0 };
+        }, 300);
+      } else {
+        // 5発目は即座にリセット
+        this.monsterGameState.isHit = false;
+      }
+      
+      devLog.debug('⚔️ 攻撃成功:', { 
+        magic: magic.name, 
+        damage, 
+        hitCount: this.monsterGameState.hitCount, 
+        enemyHp: this.monsterGameState.health 
+
       });
       
     } catch (error) {
@@ -794,43 +815,38 @@ export class FantasyPIXIInstance {
     if (this.isDestroyed) return;
     
     try {
-      // 状態に基づいたアニメーション処理
-      switch (this.monsterGameState.state) {
-        case 'IDLE':
-          // アイドル時の軽い浮遊効果
-          if (!this.monsterGameState.isAttacking && !this.monsterGameState.isHit) {
-            this.monsterVisualState.y += Math.sin(Date.now() * 0.002) * 0.5;
-          }
-          break;
-          
-        case 'HITTING':
-          // 被弾時のエフェクト
-          this.monsterVisualState.tint = this.monsterGameState.hitColor;
-          // 3秒後にIDLEに戻る
-          setTimeout(() => {
-            if (!this.isDestroyed && this.monsterGameState.state === 'HITTING') {
-              this.monsterGameState.isHit = false;
-              this.setMonsterState('IDLE');
-            }
-          }, 300);
-          break;
-          
-        case 'DEFEATED':
-          // 撃破時の処理（FADING_OUTに遷移するため、ここでは何もしない）
-          break;
-          
-        case 'FADING_OUT':
-          // 消滅中の処理（startMonsterFadeOutで処理される）
-          break;
-          
-        case 'GONE':
-          // 完全消滅状態（何もしない）
-          break;
+      // フェードアウト中は位置を固定
+      if (!this.monsterGameState.isFadingOut) {
+        // よろけ効果の適用（ビジュアル状態を更新）
+        this.monsterVisualState.x = (this.app.screen.width / 2) + this.monsterGameState.staggerOffset.x;
+        this.monsterVisualState.y = (this.app.screen.height / 2 - 20) + this.monsterGameState.staggerOffset.y;
       }
       
-      // よろけ効果の減衰
-      this.monsterGameState.staggerOffset.x *= 0.9;
-      this.monsterGameState.staggerOffset.y *= 0.9;
+      // 色変化の適用
+      this.monsterVisualState.tint = this.monsterGameState.isHit 
+        ? this.monsterGameState.hitColor 
+        : this.monsterGameState.originalColor;
+      
+      // アイドル時の軽い浮遊効果（フェードアウト中は無効）
+      if (!this.monsterGameState.isAttacking && !this.monsterGameState.isHit && !this.monsterGameState.isFadingOut) {
+        this.monsterVisualState.y += Math.sin(Date.now() * 0.002) * 0.5;
+
+      }
+      
+      // よろけ効果の減衰（フェードアウト中は無効）
+      if (!this.monsterGameState.isFadingOut) {
+        this.monsterGameState.staggerOffset.x *= 0.9;
+        this.monsterGameState.staggerOffset.y *= 0.9;
+      }
+      
+      // フェードアウト処理
+      if (this.monsterGameState.isFadingOut) {
+        this.monsterVisualState.alpha -= 0.05;
+        if (this.monsterVisualState.alpha <= 0) {
+          this.monsterVisualState.alpha = 0;
+          this.monsterVisualState.visible = false;
+        }
+      }
       
       // モンスタースプライトを更新
       this.updateMonsterSprite();
