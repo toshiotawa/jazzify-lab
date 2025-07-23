@@ -574,8 +574,7 @@ export class FantasyPIXIInstance {
         let life = 800; // アニメーション時間を短く
         const targetX = this.monsterVisualState.x + (isSpecial ? (Math.random() - 0.5) * 80 : 0);
         const targetY = this.monsterVisualState.y + (isSpecial ? (Math.random() - 0.5) * 40 : 0);
-        const startX = magicSprite.x;
-        const startY = magicSprite.y;
+        // startXとstartYは既に上で宣言されているため、ここでは削除
         
         const animate = () => {
           if (this.isDestroyed || !magicSprite || magicSprite.destroyed) {
