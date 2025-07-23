@@ -5,13 +5,14 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from '@/utils/cn';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, AttackType } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
 import { playNote, stopNote, initializeAudioSystem } from '@/utils/MidiController';
 import FantasySettingsModal from './FantasySettingsModal';
+import FantasyMonster from './FantasyMonster'; // 追加: FantasyMonsterコンポーネントをインポート
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -19,18 +20,16 @@ interface FantasyGameScreenProps {
   onBackToStageSelect: () => void;
 }
 
-// 不要な定数とインターフェースを削除（PIXI側で処理）
-
 const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   stage,
   onGameComplete,
   onBackToStageSelect
 }) => {
-  // useGameStoreの使用を削除（ファンタジーモードでは不要）
-  
   // エフェクト状態
-  const [isMonsterAttacking, setIsMonsterAttacking] = useState(false);
   const [damageShake, setDamageShake] = useState(false);
+  const [healEffect, setHealEffect] = useState(false);
+  const [shieldEffect, setShieldEffect] = useState(false);
+  const [missTouchEffect, setMissTouchEffect] = useState(false);
   
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -39,7 +38,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [showGuide, setShowGuide] = useState(stage.showGuide);
   
   // 魔法名表示状態
-  const [magicName, setMagicName] = useState<{ name: string; isSpecial: boolean } | null>(null);
+  const [magicName, setMagicName] = useState<{ name: string; isSpecial: boolean; isSelf?: boolean } | null>(null);
+  
+  // ダメージ表示
+  const [damageNumbers, setDamageNumbers] = useState<{ id: string; damage: number; x: number; y: number; isHeal?: boolean }[]>([]);
   
   // stage.showGuide の変更をコンポーネントの状態に同期させる
   useEffect(() => {
@@ -50,92 +52,152 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
+  const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 });
   
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
     devLog.debug('🎮 ファンタジーゲーム状態更新:', {
-      currentQuestion: state.currentQuestionIndex + 1,
-      totalQuestions: state.totalQuestions,
       playerHp: state.playerHp,
-      enemyGauge: state.enemyGauge.toFixed(1),
+      playerMaxHp: state.playerMaxHp,
+      playerSp: state.playerSp,
+      playerShields: state.playerShields,
+      activeMonsters: state.activeMonsters.length,
+      enemiesDefeated: state.enemiesDefeated,
+      totalEnemies: state.totalEnemies,
       isGameActive: state.isGameActive,
-      currentChord: state.currentChordTarget?.displayName,
-      score: state.score,
-      correctAnswers: state.correctAnswers
+      score: state.score
     });
   }, []);
   
-  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean) => { // ★ 4番目の引数 defeated を受け取る
-    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated });
+  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, attackType: AttackType) => {
+    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated, attackType });
     
-    // ファンタジーPIXIエフェクトをトリガー（コード名を渡す）
-    if (fantasyPixiInstance) {
-      // ★ fantasyPixiInstance.triggerAttackSuccess に defeated を渡す
-      fantasyPixiInstance.triggerAttackSuccess(chord.displayName, isSpecial, damageDealt, defeated);
+    // 魔法名表示
+    let magicNameText = '';
+    if (attackType === 'fire') magicNameText = 'ファイア';
+    else if (attackType === 'ice') magicNameText = 'ブリザード';
+    else if (attackType === 'thunder') magicNameText = 'サンダー';
+    else if (attackType === 'protect') magicNameText = 'プロテクト';
+    else if (attackType === 'hyper_heal') magicNameText = 'ハイパーヒール';
+    else if (attackType === 'aegis_protection') magicNameText = 'イージスプロテクション';
+    else magicNameText = 'アタック';
+    
+    const isSelfMagic = ['protect', 'hyper_heal', 'aegis_protection'].includes(attackType);
+    
+    setMagicName({ name: magicNameText, isSpecial, isSelf: isSelfMagic });
+    setTimeout(() => setMagicName(null), 2000);
+    
+    // エフェクト
+    if (attackType === 'protect' || attackType === 'aegis_protection') {
+      setShieldEffect(true);
+      setTimeout(() => setShieldEffect(false), 1000);
+    } else if (attackType === 'hyper_heal') {
+      setHealEffect(true);
+      setTimeout(() => setHealEffect(false), 1000);
     }
     
+    // ファンタジーPIXIエフェクトをトリガー
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.triggerAttackSuccess(chord.displayName, isSpecial, damageDealt, defeated);
+    }
   }, [fantasyPixiInstance]);
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
     devLog.debug('🎵 まだ構成音が足りません:', { expected: expectedChord.displayName, input: inputNotes });
-    
-    // 不正解エフェクトは削除（音の積み重ね方式のため）
-    // setShowIncorrectEffect(true);
-    // setTimeout(() => setShowIncorrectEffect(false), 500);
-    
   }, []);
   
-  const handleEnemyAttack = useCallback(() => {
-    devLog.debug('💥 敵の攻撃!');
+  const handleEnemyAttack = useCallback((damage: number, enemyId: string) => {
+    devLog.debug('💥 敵の攻撃!', { damage, enemyId });
     
-    // モンスター攻撃状態を設定
-    setIsMonsterAttacking(true);
-    setTimeout(() => setIsMonsterAttacking(false), 600);
+    // ダメージエフェクト
+    if (damage > 0) {
+      setDamageShake(true);
+      setTimeout(() => setDamageShake(false), 600);
+      
+      // ダメージ数値表示
+      const id = `damage_${Date.now()}`;
+      setDamageNumbers(prev => [...prev, { id, damage, x: 500, y: 400 }]);
+      setTimeout(() => {
+        setDamageNumbers(prev => prev.filter(d => d.id !== id));
+      }, 1000);
+    }
     
     // ファンタジーPIXIでモンスター攻撃エフェクト
     if (fantasyPixiInstance) {
-      fantasyPixiInstance.updateMonsterAttacking(true);
-      setTimeout(() => {
-        if (fantasyPixiInstance) {
-          fantasyPixiInstance.updateMonsterAttacking(false);
-        }
-      }, 600);
+      const monster = fantasyPixiInstance.getMonsterById?.(enemyId);
+      if (monster) {
+        fantasyPixiInstance.updateMonsterAttacking(true);
+        setTimeout(() => {
+          if (fantasyPixiInstance) {
+            fantasyPixiInstance.updateMonsterAttacking(false);
+          }
+        }, 600);
+      }
     }
-    
-    // ダメージ時の画面振動
-    setDamageShake(true);
-    setTimeout(() => setDamageShake(false), 500);
-    
   }, [fantasyPixiInstance]);
   
-  const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
-    devLog.debug('🏁 ゲーム終了:', { result, finalState });
-    onGameComplete(result, finalState.score, finalState.correctAnswers, finalState.totalQuestions);
+  const handlePlayerHeal = useCallback((amount: number) => {
+    devLog.debug('💚 プレイヤー回復!', { amount });
+    
+    // 回復数値表示
+    const id = `heal_${Date.now()}`;
+    setDamageNumbers(prev => [...prev, { id, damage: amount, x: 500, y: 400, isHeal: true }]);
+    setTimeout(() => {
+      setDamageNumbers(prev => prev.filter(d => d.id !== id));
+    }, 1000);
+  }, []);
+  
+  const handleStatusEffect = useCallback((monsterId: string, effect: 'burn' | 'freeze' | 'paralysis') => {
+    devLog.debug('🔥 状態異常付与!', { monsterId, effect });
+    
+    // PIXIで状態異常エフェクトを表示
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.setMonsterStatusEffect?.(monsterId, effect);
+    }
+  }, [fantasyPixiInstance]);
+  
+  const handleMonsterHeal = useCallback((monsterId: string, amount: number) => {
+    devLog.debug('💚 モンスター回復!', { monsterId, amount });
+    
+    // TODO: モンスターの回復エフェクト
+  }, []);
+  
+  const handleMissTouch = useCallback(() => {
+    devLog.debug('❌ ミスタッチ！');
+    
+    setMissTouchEffect(true);
+    setTimeout(() => setMissTouchEffect(false), 500);
+    
+    // PIXIでミスタッチエフェクト
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.triggerMissTouch?.();
+    }
+  }, [fantasyPixiInstance]);
+  
+  const handleGameComplete = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
+    devLog.debug('🎮 ゲーム終了:', { result, score: finalState.score });
+    
+    setTimeout(() => {
+      onGameComplete(result, finalState.score, finalState.correctAnswers, finalState.totalQuestions);
+    }, result === 'clear' ? 1500 : 1000);
   }, [onGameComplete]);
   
-  // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
-  // これでガイドをON/OFFしてもゲームはリセットされなくなる
-  const {
-    gameState,
-    inputBuffer,
-    handleNoteInput: engineHandleNoteInput,
-    initializeGame,
-    stopGame,
-    getCurrentEnemy,
-    proceedToNextEnemy,
-    ENEMY_LIST
-  } = useFantasyGameEngine({
-    stage: stage, // UI状態の`showGuide`を含めない！ propsのstageを直接渡す
+  // ゲームエンジン初期化
+  const { gameState, handleNoteInput, initializeGame } = useFantasyGameEngine({
+    stage,
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
-    onGameComplete: handleGameCompleteCallback,
-    onEnemyAttack: handleEnemyAttack
+    onGameComplete: handleGameComplete,
+    onEnemyAttack: handleEnemyAttack,
+    onPlayerHeal: handlePlayerHeal,
+    onStatusEffect: handleStatusEffect,
+    onMonsterHeal: handleMonsterHeal,
+    onMissTouch: handleMissTouch
   });
   
   // 現在の敵情報を取得
-  const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
+  const currentEnemy = gameState.activeMonsters[0]; // 仮に最初のモンスターを表示
   
   // MIDI番号から音名を取得する関数
   const getNoteNameFromMidi = (midiNote: number): string => {
@@ -166,8 +228,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     
     // ファンタジーゲームエンジンにのみ送信（重複を防ぐため）
-    engineHandleNoteInput(note);
-  }, [engineHandleNoteInput, pixiRenderer]);
+    handleNoteInput(note);
+  }, [handleNoteInput, pixiRenderer]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -253,8 +315,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleMonsterDefeated = useCallback(() => {
     devLog.debug('SCREEN: PIXIからモンスター消滅完了通知を受信しました。');
     // アニメーションが終わったので、エンジンに次の敵へ進むよう命令する
-    proceedToNextEnemy();
-  }, [proceedToNextEnemy]);
+    // ここでは、ゲームエンジンの proceedToNextEnemy は削除されたため、
+    // モンスターが消滅したことをエンジンに伝える必要がある。
+    // 仮に、ゲームエンジンの状態を更新するか、エンジンに新しい敵を生成させる。
+    // 現在の実装では、ゲームエンジンは stage と onGameComplete を受け取るため、
+    // モンスターの消滅はエンジンの内部で処理される。
+    // このコールバックは、PIXI側でモンスターが消滅したことをエンジンに伝えるために残す。
+  }, []);
   
   // FontAwesome使用のため削除済み
   
@@ -415,262 +482,307 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }
   
   return (
-    <div className={cn(
-      "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen",
-      damageShake && "animate-pulse"
-    )}>
-      {/* ===== ヘッダー ===== */}
-      <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
-        <div className="flex justify-between items-center">
-          {/* ステージ情報と敵の数 */}
-          <div className="flex items-center space-x-4">
-            <div className="text-sm font-bold">
-              Stage {stage.stageNumber}
-            </div>
-            <div className="text-xs text-gray-300">
-              敵の数: {stage.enemyCount}
-            </div>
-          </div>
-          
-          {/* 戻るボタン */}
-          <button
-            onClick={onBackToStageSelect}
-            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
-          >
-            ステージ選択に戻る
-          </button>
-          
-          {/* 設定ボタン */}
+    <div className="min-h-screen bg-gray-900 flex flex-col">
+      {/* ヘッダー */}
+      <div className="bg-gray-800 text-white p-4 flex justify-between items-center">
+        <div>
+          <h1 className="text-xl font-bold">{stage.name}</h1>
+          <p className="text-sm text-gray-300">{stage.description}</p>
+        </div>
+        <div className="flex gap-4">
           <button
             onClick={() => setIsSettingsModalOpen(true)}
-            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors ml-2"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
           >
-            ⚙️ 設定
+            <span>⚙️</span>
+            設定
+          </button>
+          <button
+            onClick={onBackToStageSelect}
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+          >
+            ステージ選択へ
           </button>
         </div>
       </div>
       
-      {/* ===== メインゲームエリア ===== */}
-      <div className="flex-grow flex flex-col justify-center px-2 py-1 text-white text-center relative z-20" style={{ minHeight: '200px' }}>
-        {/* コード表示（サイズを縮小） */}
-        <div className="mb-1 text-center">
-          <div className="text-yellow-300 text-2xl font-bold tracking-wider drop-shadow-lg">
-            {gameState.currentChordTarget.displayName}
-          </div>
-          {/* 音名表示（ヒントがONの場合は全表示、OFFでも正解した音は表示） */}
-          {gameState.currentChordTarget && (
-            <div className="mt-1 text-lg font-medium h-7">
-              {gameState.currentChordTarget.notes.map((note, index) => {
-                const noteMod12 = note % 12;
-                const noteName = getNoteNameFromMidi(note);
-                const isCorrect = gameState.correctNotes.includes(noteMod12);
-                // showGuideがtrueなら全て表示、falseなら正解した音のみ表示
-                if (!showGuide && !isCorrect) {
-                  return (
-                    <span key={index} className="mx-1 opacity-0">
-                      {noteName}
-                      {' ✓'}
-                    </span>
-                  );
-                }
-                return (
-                  <span key={index} className={`mx-1 ${isCorrect ? 'text-green-400' : 'text-gray-300'}`}>
-                    {noteName}
-                    {isCorrect && ' ✓'}
-                  </span>
-                );
-              })}
+      {/* ゲーム画面 */}
+      <div className={cn(
+        "flex-1 p-4 transition-all duration-300",
+        damageShake && "animate-shake",
+        missTouchEffect && "bg-red-900"
+      )}>
+        <div className="max-w-7xl mx-auto flex gap-4 h-full">
+          {/* 左側: プレイヤー情報 */}
+          <div className="w-64 bg-gray-800 rounded-lg p-4">
+            <h2 className="text-white text-lg font-bold mb-4">プレイヤー</h2>
+            
+            {/* HP */}
+            <div className="mb-4">
+              <div className="flex justify-between text-sm text-gray-300 mb-1">
+                <span>HP</span>
+                <span>{gameState.playerHp}/{gameState.playerMaxHp}</span>
+              </div>
+              <div className="bg-gray-700 rounded-full h-6 overflow-hidden">
+                <div 
+                  className="bg-green-500 h-full transition-all duration-300"
+                  style={{ width: `${(gameState.playerHp / gameState.playerMaxHp) * 100}%` }}
+                />
+              </div>
             </div>
-          )}
-        </div>
-        
-        {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}
-        <div className="mb-2 text-center relative w-full">
-          <div className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden" style={{ height: 'min(200px, 30vh)' }}>
-            {/* 魔法名表示 */}
-            {magicName && (
-              <div className="absolute top-4 left-0 right-0 z-20 pointer-events-none">
-                <div className={`text-2xl font-bold font-dotgothic16 ${
-                  magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                } drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]`}>
-                  {magicName.name}
+            
+            {/* SP */}
+            <div className="mb-4">
+              <div className="flex justify-between text-sm text-gray-300 mb-1">
+                <span>SP</span>
+                <span>{gameState.playerSp}/5</span>
+              </div>
+              <div className="flex gap-1">
+                {[...Array(5)].map((_, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex-1 h-4 rounded transition-all duration-300",
+                      i < gameState.playerSp ? "bg-blue-500" : "bg-gray-700"
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
+            
+            {/* シールド */}
+            {gameState.playerShields > 0 && (
+              <div className="mb-4">
+                <div className="text-sm text-gray-300 mb-1">シールド</div>
+                <div className="flex gap-1">
+                  {[...Array(gameState.playerShields)].map((_, i) => (
+                    <div key={i} className="text-2xl">🛡️</div>
+                  ))}
                 </div>
               </div>
             )}
-            <FantasyPIXIRenderer
-              width={window.innerWidth}
-              height={200}
-              monsterIcon={currentEnemy.icon}
-              isMonsterAttacking={isMonsterAttacking}
-              enemyGauge={gameState.enemyGauge}
-              onReady={handleFantasyPixiReady}
-              onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
-              className="w-full h-full"
-            />
-          </div>
-          
-          {/* 敵の名前 */}
-          <div className="text-white text-base font-bold mb-1">
-            {currentEnemy.name}
-          </div>
-          
-          {/* 敵の行動ゲージ */}
-          <div className="flex justify-center mb-1">
-            {renderEnemyGauge()}
-          </div>
-          
-          {/* HP表示（縦並び、相手が上、自分が下） */}
-          <div className="flex flex-col items-center space-y-1 mt-1">
-            {/* 敵のHPゲージ（上） */}
-            <div className="w-48 h-5 bg-gray-700 border-2 border-gray-600 rounded-full overflow-hidden relative">
-              <div
-                className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
-                style={{ width: `${(gameState.currentEnemyHp / gameState.maxEnemyHp) * 100}%` }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-                {gameState.currentEnemyHp} / {gameState.maxEnemyHp}
+            
+            {/* スコア */}
+            <div className="mt-6 pt-4 border-t border-gray-700">
+              <div className="text-sm text-gray-300">
+                <div>スコア: {gameState.score}</div>
+                <div>撃破数: {gameState.enemiesDefeated}/{gameState.totalEnemies}</div>
               </div>
             </div>
-
-            {/* プレイヤーのHP表示とSPゲージ（下） */}
-            <div className="flex items-center">
-              <div className="flex items-center space-x-1">{renderHearts(gameState.playerHp, stage.maxHp, true)}</div>
-              <div className="ml-4">{renderSpGauge(gameState.playerSp)}</div>
+            
+            {/* 魔法名表示（自分への魔法） */}
+            {magicName && magicName.isSelf && (
+              <div className={cn(
+                "mt-4 text-center text-xl font-bold animate-fadeIn",
+                magicName.isSpecial ? "text-yellow-400" : "text-white"
+              )}>
+                {magicName.name}
+              </div>
+            )}
+          </div>
+          
+          {/* 中央: ゲームエリア */}
+          <div className="flex-1 bg-gray-800 rounded-lg relative overflow-hidden">
+            <div className="h-full relative" ref={gameAreaRef}>
+              {/* モンスター表示エリア */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="grid grid-cols-3 gap-8 max-w-4xl w-full">
+                  {[0, 1, 2].map(position => {
+                    const monster = gameState.activeMonsters.find(m => m.position === position);
+                    if (!monster) {
+                      return <div key={position} className="w-full" />;
+                    }
+                    
+                    return (
+                      <div key={monster.id} className="text-center">
+                        {/* モンスターアイコン（FantasyMonsterコンポーネントを使用） */}
+                        <FantasyMonster
+                          monsterIcon={stage.monsterIcon}
+                          isAttacking={false}
+                          hp={monster.hp}
+                          maxHp={monster.maxHp}
+                          enemyGauge={monster.attackGauge}
+                          size="medium"
+                          className={cn(
+                            "transition-all duration-300",
+                            monster.isBoss && "scale-150",
+                            monster.isHealer && "text-green-400"
+                          )}
+                        />
+                        
+                        {/* コード名 */}
+                        <div className="mt-2 text-white text-lg font-bold">
+                          {monster.chordDefinition.displayName}
+                        </div>
+                        
+                        {/* 正解した音 */}
+                        {monster.correctNotes.length > 0 && (
+                          <div className="mt-1 text-green-400 text-sm">
+                            ✓ {monster.correctNotes.length}/{monster.chordDefinition.notes.length}
+                          </div>
+                        )}
+                        
+                        {/* 状態異常 */}
+                        {monster.statusEffect && (
+                          <div className={cn(
+                            "mt-1 text-sm font-bold",
+                            monster.statusEffect.type === 'burn' && "text-orange-400",
+                            monster.statusEffect.type === 'freeze' && "text-cyan-400",
+                            monster.statusEffect.type === 'paralysis' && "text-yellow-400"
+                          )}>
+                            {monster.statusEffect.type === 'burn' && "やけど"}
+                            {monster.statusEffect.type === 'freeze' && "こおり"}
+                            {monster.statusEffect.type === 'paralysis' && "まひ"}
+                            ({Math.ceil(monster.statusEffect.remainingTime)}s)
+                          </div>
+                        )}
+                        
+                        {/* シールド */}
+                        {monster.shields > 0 && (
+                          <div className="mt-1 flex justify-center gap-1">
+                            {[...Array(monster.shields)].map((_, i) => (
+                              <div key={i} className="text-lg">🛡️</div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* ヒーラー/ボス表示 */}
+                        {(monster.isHealer || monster.isBoss) && (
+                          <div className="mt-1 text-xs text-gray-400">
+                            {monster.isHealer && "ヒーラー"}
+                            {monster.isBoss && "ボス"}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* 魔法名表示（敵への魔法） */}
+              {magicName && !magicName.isSelf && (
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                  <div className={cn(
+                    "text-4xl font-bold animate-fadeIn",
+                    magicName.isSpecial ? "text-yellow-400" : "text-white"
+                  )}>
+                    {magicName.name}
+                  </div>
+                </div>
+              )}
+              
+              {/* ダメージ数値 */}
+              {damageNumbers.map(dmg => (
+                <div
+                  key={dmg.id}
+                  className={cn(
+                    "absolute text-3xl font-bold animate-damageFloat pointer-events-none",
+                    dmg.isHeal ? "text-green-400" : "text-red-400"
+                  )}
+                  style={{ left: dmg.x, top: dmg.y }}
+                >
+                  {dmg.isHeal ? "+" : "-"}{dmg.damage}
+                </div>
+              ))}
+              
+              {/* エフェクト表示 */}
+              {healEffect && (
+                <div className="absolute inset-0 bg-green-400 opacity-20 animate-pulse pointer-events-none" />
+              )}
+              {shieldEffect && (
+                <div className="absolute inset-0 bg-blue-400 opacity-20 animate-pulse pointer-events-none" />
+              )}
+              
+              {/* ピアノロール表示エリア（ガイド表示時のみ） */}
+              {showGuide && (
+                <div className="absolute bottom-0 left-0 right-0 h-32 bg-gray-900 bg-opacity-50">
+                  <PIXINotesRenderer
+                    ref={setPixiRenderer}
+                    onReady={handlePixiReady}
+                    width={gameAreaSize.width}
+                    height={120}
+                    className="w-full h-full"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* 右側: ステージ情報 */}
+          <div className="w-64 bg-gray-800 rounded-lg p-4">
+            <h2 className="text-white text-lg font-bold mb-4">ステージ情報</h2>
+            
+            <div className="text-sm text-gray-300 space-y-2">
+              <div className="flex justify-between">
+                <span>Stage</span>
+                <span>{stage.stageNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>残り敵数</span>
+                <span>{gameState.totalEnemies - gameState.enemiesDefeated}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>同時出現数</span>
+                <span>{stage.simultaneousMonsters}</span>
+              </div>
+              {stage.hasBoss && (
+                <div className="text-red-400 font-bold">ボスステージ</div>
+              )}
+              {stage.hasHealer && (
+                <div className="text-green-400">ヒーラー出現</div>
+              )}
+            </div>
+            
+            {/* 使用可能コード */}
+            <div className="mt-6 pt-4 border-t border-gray-700">
+              <h3 className="text-white text-sm font-bold mb-2">使用可能コード</h3>
+              <div className="flex flex-wrap gap-2">
+                {stage.allowedChords.map(chordId => (
+                  <div key={chordId} className="bg-gray-700 text-gray-300 px-2 py-1 rounded text-xs">
+                    {chordId}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-        
-        {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
-          <div className="mb-1 text-right">
-            <div className="text-white text-xs">NEXT:</div>
-            <div className="text-blue-300 text-sm font-bold">
-              {getNextChord()}
-            </div>
-          </div>
-        )}
       </div>
-      
-      {/* ===== ピアノ鍵盤エリア ===== */}
-      <div 
-        ref={gameAreaRef}
-        className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
-        style={{ height: 'min(120px, 15vh)' }}
-      >
-        {(() => {
-          // スクロール判定ロジック（GameEngine.tsxと同様）
-          const VISIBLE_WHITE_KEYS = 14; // モバイル表示時の可視白鍵数
-          const TOTAL_WHITE_KEYS = 52; // 88鍵中の白鍵数
-          const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
-          const adjustedThreshold = 1100; // PC判定のしきい値
-          
-          let pixiWidth: number;
-          let needsScroll: boolean;
-          
-          if (gameAreaWidth >= adjustedThreshold) {
-            // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
-            pixiWidth = gameAreaWidth;
-            needsScroll = false;
-          } else {
-            // モバイル等、画面が狭い → 横スクロール表示
-            const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
-            pixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
-            needsScroll = true;
-          }
-          
-          if (needsScroll) {
-            // スクロールが必要な場合
-            return (
-              <div 
-                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
-                style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                  scrollSnapType: 'x proximity',
-                  scrollBehavior: 'smooth',
-                  width: '100%',
-                  touchAction: 'pan-x', // 横スクロールのみを許可
-                  overscrollBehavior: 'contain' // スクロールの境界を制限
-                }}
-              >
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120}
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          } else {
-            // スクロールが不要な場合（全画面表示）
-            return (
-              <div className="absolute inset-0 overflow-hidden">
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120}
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          }
-        })()}
-        
-        {/* 入力中のノーツ表示 */}
-        {inputBuffer.length > 0 && (
-          <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg pointer-events-none">
-            <div className="text-sm">入力中: {inputBuffer.length}音</div>
-            <div className="text-xs text-gray-300">
-              {inputBuffer.map(note => {
-                const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-                return noteNames[note % 12];
-              }).join(', ')}
-            </div>
-          </div>
-        )}
-      </div>
-      
-      {/* エフェクト表示は削除 - PIXI側で処理 */}
-      
-      {/* デバッグ情報（FPSモニター削除済み） */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs p-2 rounded z-40">
-          <div>Q: {gameState.currentQuestionIndex + 1}/{gameState.totalQuestions}</div>
-          <div>HP: {gameState.playerHp}/{stage.maxHp}</div>
-          <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>
-          <div>スコア: {gameState.score}</div>
-          <div>正解数: {gameState.correctAnswers}</div>
-          <div>現在のコード: {gameState.currentChordTarget.displayName}</div>
-          <div>SP: {gameState.playerSp}</div>
-          <div>入力バッファ: [{inputBuffer.join(', ')}]</div>
-          
-          {/* ゲージ強制満タンテストボタン */}
-          <button
-            onClick={() => {
-              devLog.debug('⚡ ゲージ強制満タンテスト実行');
-              // ゲージを100にして敵攻撃をトリガー
-              handleEnemyAttack();
-            }}
-            className="mt-2 px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs"
-          >
-            敵攻撃テスト
-          </button>
-        </div>
-      )}
       
       {/* 設定モーダル */}
-      <FantasySettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        onSettingsChange={(settings) => {
-          devLog.debug('⚙️ ファンタジー設定変更:', settings);
-          setShowGuide(settings.showGuide);
-        }}
-      />
+      {isSettingsModalOpen && (
+        <FantasySettingsModal
+          onClose={() => setIsSettingsModalOpen(false)}
+          onToggleGuide={() => {
+            setShowGuide(prev => !prev);
+            devLog.debug('⚙️ ガイド表示切替:', { showGuide: !showGuide });
+          }}
+          showGuide={showGuide}
+        />
+      )}
+      
+      {/* デバッグ情報（開発環境のみ） */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 right-4 bg-black bg-opacity-80 text-white p-4 rounded-lg text-xs max-w-md">
+          <div className="font-bold mb-2">デバッグ情報</div>
+          <div>アクティブモンスター数: {gameState.activeMonsters.length}</div>
+          <div>プレイヤーHP: {gameState.playerHp}/{gameState.playerMaxHp}</div>
+          <div>SP: {gameState.playerSp}/5</div>
+          <div>シールド: {gameState.playerShields}</div>
+          <div>スコア: {gameState.score}</div>
+          {gameState.activeMonsters.map(monster => (
+            <div key={monster.id} className="mt-2 border-t border-gray-700 pt-2">
+              <div>ID: {monster.id.substr(-6)}</div>
+              <div>コード: {monster.chordDefinition.displayName}</div>
+              <div>HP: {monster.hp}/{monster.maxHp}</div>
+              <div>ゲージ: {monster.attackGauge.toFixed(1)}%</div>
+              <div>正解音: {monster.correctNotes.length}/{monster.chordDefinition.notes.length}</div>
+              {monster.statusEffect && (
+                <div>状態異常: {monster.statusEffect.type} ({monster.statusEffect.remainingTime.toFixed(1)}s)</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
