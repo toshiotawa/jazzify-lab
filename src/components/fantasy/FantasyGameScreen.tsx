@@ -61,7 +61,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const controller = new MIDIController({
         onNoteOn: (note: number, velocity?: number) => {
           devLog.debug('🎹 MIDI Note On:', { note, velocity });
-          // Refを通じて最新のhandleNoteInputBridgeを呼び出す
           if (handleNoteInputRef.current) {
             handleNoteInputRef.current(note);
           }
@@ -83,14 +82,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       controller.initialize().then(() => {
         devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
         
-        // 保存されているデバイスIDがあれば自動接続
+        // 保存されているデバイスIDがあれば状態を更新する。
+        // 接続処理は下のuseEffectに任せる。
         const savedDeviceId = localStorage.getItem('fantasyMidiDeviceId');
         if (savedDeviceId) {
           setMidiDeviceId(savedDeviceId);
-          const success = controller.connectDevice(savedDeviceId);
-          if (success) {
-            devLog.debug('✅ 保存されたMIDIデバイスに自動接続成功:', savedDeviceId);
-          }
         }
       }).catch(error => {
         devLog.debug('❌ MIDI初期化エラー:', error);
@@ -108,22 +104,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDIデバイス接続管理
   useEffect(() => {
-    if (midiControllerRef.current && midiDeviceId) {
-      const success = midiControllerRef.current.connectDevice(midiDeviceId);
-      if (success) {
-        devLog.debug('✅ MIDIデバイス接続成功:', midiDeviceId);
-        localStorage.setItem('fantasyMidiDeviceId', midiDeviceId);
+    const connect = async () => {
+      if (midiControllerRef.current && midiDeviceId) {
+        const success = await midiControllerRef.current.connectDevice(midiDeviceId);
+        if (success) {
+          devLog.debug('✅ MIDIデバイス接続成功:', midiDeviceId);
+          localStorage.setItem('fantasyMidiDeviceId', midiDeviceId);
+        }
+      } else if (midiControllerRef.current && !midiDeviceId) {
+        midiControllerRef.current.disconnect();
+        localStorage.removeItem('fantasyMidiDeviceId');
       }
-    } else if (midiControllerRef.current && !midiDeviceId) {
-      midiControllerRef.current.disconnect();
-      localStorage.removeItem('fantasyMidiDeviceId');
-    }
+    };
+    connect();
   }, [midiDeviceId]);
 
   // ステージ変更時にMIDI接続を確認・復元
   useEffect(() => {
     const restoreMidiConnection = async () => {
-      if (midiControllerRef.current && midiDeviceId) {
+      if (midiControllerRef.current && midiControllerRef.current.getCurrentDeviceId()) {
         const isRestored = await midiControllerRef.current.checkAndRestoreConnection();
         if (isRestored) {
           devLog.debug('✅ ステージ変更後のMIDI接続を復元しました');
@@ -131,10 +130,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
     };
 
-    // 少し遅延を入れて確実に復元
+    // コンポーネントが表示されたときに接続復元を試みる
     const timer = setTimeout(restoreMidiConnection, 100);
     return () => clearTimeout(timer);
-  }, [stage, midiDeviceId]); // stageが変更されたときに実行
+  }, [stage]); // stageが変更されたときに実行
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);

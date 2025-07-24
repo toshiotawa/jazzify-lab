@@ -336,7 +336,10 @@ export class MIDIController {
     return devices;
   }
 
-  public connectDevice(deviceId: string): boolean {
+  public async connectDevice(deviceId: string): Promise<boolean> {
+    // 初期化が完了するまで待機してレースコンディションを防ぐ
+    await this.initialize();
+
     if (!this.midiAccess) {
       console.warn('⚠️ MIDI access not available');
       return false;

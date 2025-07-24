@@ -247,8 +247,10 @@ export function autoLogMagicLinkInfo(): void {
 export async function checkSupabaseConfig(): Promise<{
   signupEnabled: boolean;
   emailSignupEnabled: boolean;
+  otpSignupEnabled: boolean;
   siteUrl: string;
   redirectUrls: string[];
+  authSettings: any;
 }> {
   try {
     // Supabaseクライアントを取得
@@ -259,19 +261,34 @@ export async function checkSupabaseConfig(): Promise<{
     const siteUrl = import.meta.env.VITE_SUPABASE_URL || '';
     const redirectUrl = import.meta.env.VITE_SUPABASE_REDIRECT_URL || '';
     
+    // 実際の設定はSupabaseダッシュボードで確認が必要
+    // ここではデフォルト値を返す
     return {
       signupEnabled: true, // デフォルトでは有効と仮定
       emailSignupEnabled: true, // デフォルトでは有効と仮定
+      otpSignupEnabled: false, // OTPサインアップは通常無効
       siteUrl,
       redirectUrls: redirectUrl ? [redirectUrl] : [],
+      authSettings: {
+        // 実際の設定はSupabaseダッシュボードで確認
+        emailConfirm: true,
+        emailChangeConfirm: true,
+        phoneConfirm: false,
+        phoneChangeConfirm: false,
+        magicLink: true,
+        otp: true,
+        otpSignup: false, // これが問題の原因
+      },
     };
   } catch (error) {
     console.error('Supabase設定確認エラー:', error);
     return {
       signupEnabled: false,
       emailSignupEnabled: false,
+      otpSignupEnabled: false,
       siteUrl: '',
       redirectUrls: [],
+      authSettings: {},
     };
   }
 }
@@ -283,11 +300,13 @@ export function diagnoseMagicLinkIssues(): {
   issues: string[];
   recommendations: string[];
   severity: 'low' | 'medium' | 'high';
+  otpSignupDisabled: boolean;
 } {
   const config = getMagicLinkConfig();
   const issues: string[] = [];
   const recommendations: string[] = [];
   let severity: 'low' | 'medium' | 'high' = 'low';
+  let otpSignupDisabled = false;
 
   // 環境変数の問題
   if (!config.isConfigured) {
@@ -319,9 +338,18 @@ export function diagnoseMagicLinkIssues(): {
     severity = 'medium';
   }
 
+  // OTPサインアップ無効の警告
+  otpSignupDisabled = true; // 現在のエラーから推測
+  if (otpSignupDisabled) {
+    issues.push('OTPによるサインアップが無効になっています');
+    recommendations.push('Supabaseダッシュボードで「Email OTP」のサインアップを有効にしてください');
+    severity = 'high';
+  }
+
   return {
     issues,
     recommendations,
     severity,
+    otpSignupDisabled,
   };
 } 

@@ -884,7 +884,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       
       // 既に接続済みのデバイスがある場合、接続状態を確認して再設定
       if (midiControllerRef.current.isConnected() && settings.selectedMidiDevice) {
-        midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
+        midiControllerRef.current.connectDevice(settings.selectedMidiDevice).catch((error: unknown) => {
+          log.warn('⚠️ MIDIデバイス再接続エラー:', error);
+        });
       }
       
       log.info('✅ MIDIController ↔ PIXIレンダラー連携完了');
@@ -903,7 +905,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       
       // 既に接続済みのデバイスがある場合、接続状態を確認して再設定
       if (audioControllerRef.current.isConnected() && settings.selectedAudioDevice) {
-        audioControllerRef.current.connectDevice(settings.selectedAudioDevice);
+        audioControllerRef.current.connectDevice(settings.selectedAudioDevice).catch((error: unknown) => {
+          log.warn('⚠️ 音声デバイス再接続エラー:', error);
+        });
       }
       
       log.info('✅ AudioController ↔ PIXIレンダラー連携完了');
