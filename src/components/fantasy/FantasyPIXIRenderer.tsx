@@ -169,6 +169,27 @@ export class FantasyPIXIInstance {
   private onMonsterDefeated?: () => void;
   private onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
   
+  /** ────────────────────────────────────
+   *  safe‑default で初期化しておく
+   * ─────────────────────────────────── */
+  private monsterGameState: MonsterGameState = {
+    isAttacking: false,
+    isHit: false,
+    hitColor: 0xffffff,
+    originalColor: 0xffffff,
+    staggerOffset: { x: 0, y: 0 },
+    hitCount: 0,
+    state: 'IDLE',
+    isFadingOut: false,
+    fadeOutStartTime: 0
+  };
+  
+  /* 既存のフィールドはこのまま */
+  private monsterSprite: PIXI.Sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+  private monsterVisualState: MonsterVisualState = {
+    x: 0, y: 0, scale: 1, rotation: 0, tint: 0xffffff, alpha: 1, visible: false
+  };
+  
   // マルチモンスター対応
   private monsterSprites: Map<string, MonsterSpriteData> = new Map();
   private particles: Map<string, PIXI.Graphics> = new Map();
@@ -262,18 +283,27 @@ export class FantasyPIXIInstance {
     try {
       // ▼▼▼ 変更点 ▼▼▼
       // 複数のモンスター画像をロードする
-      const monsterIcons = ['vampire', 'monster', 'reaper', 'kraken', 'werewolf', 'demon'];
+      const monsterIcons = ['devil', 'dragon', 'mao', 'mummy', 'shinigami', 'slime_green', 'slime_red', 'zombie', 'skeleton', 'grey', 'pumpkin', 'alien', 'bat1', 'bat2', 'ghost'];
       const iconMap: Record<string, string> = {
-        'vampire': 'ドラキュラアイコン8.svg',
-        'monster': '怪獣アイコン.svg',
-        'reaper': '死神アイコン1.svg',
-        'kraken': '海の怪物クラーケンのアイコン素材.svg',
-        'werewolf': '狼男のイラスト4.svg',
-        'demon': '魔王のアイコン素材.svg'
+        devil:        'character_monster_devil_purple.png',
+        dragon:       'character_monster_dragon_01_red.png',
+        mao:          'character_monster_mao_01.png',
+        mummy:        'character_monster_mummy_red.png',
+        shinigami:    'character_monster_shinigami_01.png',
+        slime_green:  'character_monster_slime_green.png',
+        slime_red:    'character_monster_slime_red.png',
+        zombie:       'character_monster_zombie_brown.png',
+        skeleton:     'gaikotsu_01.png',
+        grey:         'grey_green.png',
+        pumpkin:      'jackolantern_01_orange.png',
+        alien:        'kaseijin_green.png',
+        bat1:         'komori_01.png',
+        bat2:         'komori_02.png',
+        ghost:        'yurei_halloween_orange.png'
       };
 
       for (const icon of monsterIcons) {
-        const path = `/${iconMap[icon]}`;
+        const path = `/data/${iconMap[icon]}`;
         try {
           const texture = await PIXI.Assets.load(path);
           this.imageTextures.set(icon, texture);
@@ -492,9 +522,9 @@ export class FantasyPIXIInstance {
     // ▼▼▼ 変更点 ▼▼▼
     // UI側の `translateX(-50%)` と同様の効果を得るため、中央の座標を返す
     switch (position) {
-      case 'A': return w * 0.25;
+      case 'A': return w * 0.35;
       case 'B': return w * 0.50;
-      case 'C': return w * 0.75;
+      case 'C': return w * 0.65;
     }
     // ▲▲▲ ここまで ▲▲▲
   }
@@ -722,10 +752,8 @@ export class FantasyPIXIInstance {
         magicSprite.anchor.set(0.5);
         
         // 画面の下から指定位置に向かって飛ぶ
-        const startX = targetX + (Math.random() - 0.5) * 200;
-        const startY = this.app.screen.height - 100;
-        magicSprite.x = startX;
-        magicSprite.y = startY;
+        magicSprite.x = targetX;
+        magicSprite.y = targetY;
         
         magicSprite.tint = color;
         magicSprite.alpha = 0.8;
@@ -739,7 +767,7 @@ export class FantasyPIXIInstance {
         this.effectContainer.addChild(magicSprite);
 
         // アニメーション
-        let life = 800;
+        let life = 400;               // 半分の時間でフェード
         const finalTargetX = targetX + (isSpecial ? (Math.random() - 0.5) * 80 : 0);
         const finalTargetY = targetY + (isSpecial ? (Math.random() - 0.5) * 40 : 0);
         
@@ -750,11 +778,9 @@ export class FantasyPIXIInstance {
           
           if (life > 0) {
             try {
-              const progress = 1 - (life / 800);
-              magicSprite.x = startX + (finalTargetX - startX) * progress;
-              magicSprite.y = startY + (finalTargetY - startY) * progress * progress;
-              magicSprite.scale.set(0.3 + progress * 0.4);
-              magicSprite.rotation += 0.2;
+              const progress = 1 - (life / 400);
+              // 位置は固定なので移動させない
+              magicSprite.alpha = 0.8 * (1 - progress);
               life -= 16;
               requestAnimationFrame(animate);
             } catch (error) {
@@ -1062,7 +1088,7 @@ export class FantasyPIXIInstance {
       text: damageText,
       startTime: Date.now(),
       startY: damageText.y,
-      velocity: -2 - Math.random() * 1,
+      velocity: 0,
       life: 1500,
       maxLife: 1500
     });
@@ -1095,7 +1121,7 @@ export class FantasyPIXIInstance {
       text: damageText,
       startTime: Date.now(),
       startY: damageText.y,
-      velocity: -2 - Math.random() * 1, // ゆっくり上昇
+      velocity: 0, // ゆっくり上昇
       life: 1500, // 表示時間を延長
       maxLife: 1500
     });
@@ -1537,8 +1563,8 @@ export class FantasyPIXIInstance {
         
         // スプライト更新（nullチェック強化）
         if (damageText.transform && !damageText.destroyed) {
-          // ゆっくり上に移動
-          damageText.y = damageNumberData.startY + damageNumberData.velocity * (elapsedTime / 16);
+          // 位置は固定
+          damageText.y = damageNumberData.startY;
           
           // フェードアウト（最初の500msは不透明、その後フェードアウト）
           if (elapsedTime < 500) {
@@ -1547,9 +1573,8 @@ export class FantasyPIXIInstance {
             damageText.alpha = (damageNumberData.life - 0) / (damageNumberData.maxLife - 500);
           }
           
-          // 少しだけ拡大
-          const scaleProgress = Math.min(elapsedTime / 1000, 1);
-          damageText.scale.set(1 + scaleProgress * 0.3);
+          // スケール固定
+          damageText.scale.set(1);
         }
         
         // 削除判定
@@ -1729,13 +1754,12 @@ export class FantasyPIXIInstance {
         isDestroyed: this.isDestroyed
       });
 
-      // ▼▼▼ 追加 ▼▼▼
-      // 完全に消えたら、スプライトを安全に非表示にする
-      if (this.monsterSprite && !this.monsterSprite.destroyed) {
-        this.monsterSprite.visible = false;
-      }
-      // ▲▲▲ ここまで ▲▲▲
-
+      // 親コンポーネント通知の直前で片付け
+      this.monsterSprite.visible = false;
+      // 二度アクセスしない様に null‑out
+      (this.monsterSprite as any) = null;
+      (this.monsterGameState as any) = null;
+      
       // 親コンポーネントに通知
       // isDestroyedフラグをチェックして、インスタンス破棄後のコールバック呼び出しを防ぐ
       if (!this.isDestroyed) {
@@ -1743,6 +1767,10 @@ export class FantasyPIXIInstance {
       } 
     }
   }
+  
+  /** これ１行で「壊れていたら return true」 */
+  private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
+    !s || (s as any).destroyed || !(s as any).transform;
 }
 
 // ===== Reactコンポーネント =====

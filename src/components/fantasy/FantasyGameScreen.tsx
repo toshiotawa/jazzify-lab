@@ -391,10 +391,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 魔法名表示ハンドラー
   const handleShowMagicName = useCallback((name: string, isSpecial: boolean) => {
     setMagicName({ name, isSpecial });
-    // 1秒後に自動的に非表示
+    // 500ms後に自動的に非表示
     setTimeout(() => {
       setMagicName(null);
-    }, 1000);
+    }, 500);
   }, []);
   
   // モンスター撃破時のコールバック（状態機械対応）
@@ -478,6 +478,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     return hearts;
   }, []);
+  
+  const renderPlayerHpBar = (hp: number, maxHp: number) => (
+    <div className="w-40 h-4 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
+      <div
+        className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-all duration-300"
+        style={{ width: `${(hp / maxHp) * 100}%` }}
+      />
+      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+        {hp}/{maxHp}
+      </div>
+    </div>
+  );
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
@@ -613,16 +625,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
             style={{ height: 'min(200px, 30vh)' }}
           >
-            {/* 魔法名表示 */}
-            {magicName && (
-              <div className="absolute top-4 left-0 right-0 z-20 pointer-events-none">
-                <div className={`text-2xl font-bold font-dotgothic16 ${
-                  magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                } drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]`}>
-                  {magicName.name}
-                </div>
-              </div>
-            )}
+            {/* 魔法名表示 - モンスターカード内に移動 */}
             <FantasyPIXIRenderer
               width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
               height={200}
@@ -665,7 +668,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       }}
                     >
                       {/* コードネーム */}
-                      <div className="text-yellow-300 text-lg font-bold text-center mb-1 truncate w-full"> {/* w-fullを追加 */}
+                      <div className="text-yellow-300 text-xl font-bold text-center mb-1 truncate w-full"> {/* w-fullを追加 */}
                         {monster.chordTarget.displayName}
                       </div>
                       
@@ -690,6 +693,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           );
                         })}
                       </div>
+                      
+                      {/* 魔法名表示 */}
+                      {magicName && (
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                          <div className={`text-xl font-bold font-dotgothic16 ${
+                            magicName.isSpecial ? 'text-yellow-300' : 'text-white'
+                          } drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]`}>
+                            {magicName.name}
+                          </div>
+                        </div>
+                      )}
                       
                       {/* 行動ゲージ */}
                       <div className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1">
@@ -742,10 +756,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             )}
             
             {/* プレイヤーのHP表示とSPゲージ */}
-            <div className="flex items-center justify-center mt-2">
-              <div className="flex items-center space-x-1">{renderHearts(gameState.playerHp, stage.maxHp, true)}</div>
-              <div className="ml-4">{renderSpGauge(gameState.playerSp)}</div>
-            </div>
           </div>
         </div>
         
@@ -758,6 +768,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             </div>
           </div>
         )}
+      </div>
+      
+      {/* HP・SPゲージを固定配置 */}
+      <div className="absolute left-2 bottom-[140px] z-30">
+        {renderPlayerHpBar(gameState.playerHp, stage.maxHp)}
+      </div>
+      <div className="absolute right-2 bottom-[140px] z-30">
+        {renderSpGauge(gameState.playerSp)}
       </div>
       
       {/* ===== ピアノ鍵盤エリア ===== */}
