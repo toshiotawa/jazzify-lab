@@ -705,148 +705,130 @@ export const useFantasyGameEngine = ({
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
 
       const noteMod12 = note % 12;
-      let completedMonster: MonsterState | null = null;
+      const completedMonsters: MonsterState[] = [];
+      let hasAnyNoteChanged = false;
 
-      // 1. 新しいノートで各モンスターの正解音を更新し、完成したモンスターを探す
-      //    ★ prevState を参照して計算する
-      const monstersWithNewNotes = prevState.activeMonsters.map(monster => {
-        if (completedMonster) return monster; // 既に一体完成していたら残りは更新しない
-
+      // 1. 今回の入力でどのモンスターが影響を受けるか判定し、新しい状態を作る
+      const monstersAfterInput = prevState.activeMonsters.map(monster => {
         const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
-        const isNoteInChord = targetNotes.includes(noteMod12);
-        const alreadyCorrect = monster.correctNotes.includes(noteMod12);
-
-        if (isNoteInChord && !alreadyCorrect) {
-          const newCorrectNotes = [...monster.correctNotes, noteMod12];
-          const isComplete = newCorrectNotes.length === targetNotes.length;
-
-          devLog.debug('🎵 音判定:', {
-            monster: monster.name,
-            chord: monster.chordTarget.displayName,
-            inputNote: noteMod12,
-            correctNotes: newCorrectNotes,
-            targetNotes: targetNotes,
-            isComplete: isComplete
-          });
-
-          if (isComplete) {
-            completedMonster = { ...monster, correctNotes: newCorrectNotes };
-          }
-          return { ...monster, correctNotes: newCorrectNotes };
+        
+        // 既に完成しているモンスターや、入力音と関係ないモンスターはスキップ
+        if (!targetNotes.includes(noteMod12) || monster.correctNotes.includes(noteMod12)) {
+            return monster;
         }
-        return monster; // 音が関係ない場合はそのまま
+        
+        hasAnyNoteChanged = true;
+        const newCorrectNotes = [...monster.correctNotes, noteMod12];
+        const updatedMonster = { ...monster, correctNotes: newCorrectNotes };
+
+        // コードが完成したかチェック
+        if (newCorrectNotes.length === targetNotes.length) {
+            completedMonsters.push(updatedMonster);
+        }
+        
+        return updatedMonster;
       });
+      
+      // どのモンスターにもヒットしなかった場合
+      if (!hasAnyNoteChanged) {
+        return prevState;
+      }
 
-      // 2. 判定結果に応じた処理
-      if (completedMonster) {
-        // --- コードが完成した場合：攻撃処理 ---
-        const completedMonsterTyped = completedMonster as MonsterState;
-        devLog.debug('🎯 コードが完成しました！', {
-          monster: completedMonsterTyped.name,
-          chord: completedMonsterTyped.chordTarget.displayName,
-          monsterId: completedMonsterTyped.id
+      // 2. コードが完成した場合の処理
+      if (completedMonsters.length > 0) {
+        devLog.debug(`🎯 ${completedMonsters.length}体のコードが完成しました！`, { ids: completedMonsters.map(m => m.id) });
+
+        // ★ 攻撃処理後の状態を計算する
+        let stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
+        
+        const isSpecialAttack = stateAfterAttack.playerSp >= 5;
+        
+        // 攻撃処理ループ
+        completedMonsters.forEach(completed => {
+          const monsterToUpdate = stateAfterAttack.activeMonsters.find(m => m.id === completed.id);
+          if (!monsterToUpdate) return;
+
+          const currentStage = stateAfterAttack.currentStage!;
+          const damageDealt = (Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage) * (isSpecialAttack ? 2 : 1);
+          const willBeDefeated = (monsterToUpdate.currentHp - damageDealt) <= 0;
+          
+          onChordCorrect(completed.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completed.id);
+          monsterToUpdate.currentHp -= damageDealt;
         });
 
-        // ★ prevState を基に次の状態を構築する
-        const currentStage = prevState.currentStage!;
-        const isSpecialAttack = prevState.playerSp >= 5;
-        const damageDealt = (Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage) * (isSpecialAttack ? 2 : 1);
-        const willBeDefeated = (completedMonsterTyped.currentHp - damageDealt) <= 0;
+        // プレイヤーの状態更新
+        stateAfterAttack.playerSp = isSpecialAttack ? 0 : Math.min(stateAfterAttack.playerSp + completedMonsters.length, 5);
+        stateAfterAttack.score += 1000 * completedMonsters.length;
+        stateAfterAttack.correctAnswers += completedMonsters.length;
+        
+        // 倒されたモンスターを特定
+        const defeatedMonstersThisTurn = stateAfterAttack.activeMonsters.filter(m => m.currentHp <= 0);
+        stateAfterAttack.enemiesDefeated += defeatedMonstersThisTurn.length;
 
-        onChordCorrect(completedMonsterTyped.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completedMonsterTyped.id);
-
-        const newHp = Math.max(0, completedMonsterTyped.currentHp - damageDealt);
-        let monstersAfterDamage = monstersWithNewNotes.map(m => {
-          if (m.id !== completedMonsterTyped.id) return m;        // 他の敵はそのまま
-
-          if (newHp > 0) {
-            // ── まだ生きている：次のコードを即座に割り当て ──
+        // 生き残ったモンスターのリストを作成
+        let remainingMonsters = stateAfterAttack.activeMonsters.filter(m => m.currentHp > 0);
+        
+        // 生き残ったモンスターのうち、今回攻撃したモンスターは問題をリセット
+        remainingMonsters = remainingMonsters.map(monster => {
+          if (completedMonsters.some(cm => cm.id === monster.id)) {
             const nextChord = selectRandomChord(
-              prevState.currentStage!.allowedChords,
-              m.chordTarget.id                 // 直前コード排除
+              stateAfterAttack.currentStage!.allowedChords,
+              monster.chordTarget.id
             );
-            return {
-              ...m,
-              currentHp: newHp,
-              chordTarget: nextChord!,
-              correctNotes: [],                // 正解マークをリセット
-              gauge: 0                         // 行動ゲージもリセット（任意）
-            };
+            return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
           }
-
-          // HP が 0 なら従来どおり「倒された」扱い
-          return { ...m, currentHp: newHp };
+          return monster;
         });
 
-        const remainingMonsters = monstersAfterDamage.filter(m => m.currentHp > 0);
-        const defeatedCount = monstersWithNewNotes.length - remainingMonsters.length;
-        const totalDefeatedNow = prevState.enemiesDefeated + defeatedCount;
+        // モンスターの補充
+        let newMonsterQueue = [...stateAfterAttack.monsterQueue];
+        const slotsToFill = stateAfterAttack.simultaneousMonsterCount - remainingMonsters.length;
+        const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
 
-        if (totalDefeatedNow >= prevState.totalEnemies) {
-          const finalState = { ...prevState, isGameActive: false, isGameOver: true, gameResult: 'clear' as const, enemiesDefeated: totalDefeatedNow, activeMonsters: [] };
-          onGameComplete('clear', finalState);
-          return finalState;
+        if (monstersToAddCount > 0) {
+          const availablePositions = ['A', 'B', 'C'].filter(pos => !remainingMonsters.some(m => m.position === pos));
+          const lastUsedChordId = completedMonsters.length > 0 ? completedMonsters[0].chordTarget.id : undefined;
+
+          for (let i = 0; i < monstersToAddCount; i++) {
+            const monsterIndex = newMonsterQueue.shift()!;
+            const position = availablePositions[i] || 'B';
+            const newMonster = createMonsterFromQueue(
+              monsterIndex,
+              position as 'A' | 'B' | 'C',
+              stateAfterAttack.maxEnemyHp,
+              stateAfterAttack.currentStage!.allowedChords,
+              lastUsedChordId // 直前のコードを避ける
+            );
+            remainingMonsters.push(newMonster);
+          }
         }
-
-        let newMonsterQueue = [...prevState.monsterQueue];
-        let newActiveMonsters = [...remainingMonsters];
-        const usedChordIds = newActiveMonsters.map(m => m.chordTarget.id);
         
-        // ★★★ 修正点: 補充すべきモンスターの数を、空きスロット数とキューの残数に基づいて正確に計算します ★★★
-        const availableSlots = prevState.simultaneousMonsterCount - newActiveMonsters.length;
-        const monstersToAdd = Math.min(defeatedCount, availableSlots, newMonsterQueue.length);
-
-        const availablePositions = ['A', 'B', 'C'].filter(pos => !newActiveMonsters.some(m => m.position === pos));
+        // 最終的なモンスターリストとキューを更新
+        stateAfterAttack.activeMonsters = remainingMonsters;
+        stateAfterAttack.monsterQueue = newMonsterQueue;
         
-        // 修正されたループ条件でモンスターを補充
-        for (let i = 0; i < monstersToAdd; i++) {
-          const monsterIndex = newMonsterQueue.shift()!;
-          const position = availablePositions[i] || 'B'; // 空いている位置に配置
-          const previousChordId = completedMonsterTyped.chordTarget.id;
-          const newMonster = createMonsterFromQueue(
-            monsterIndex,
-            position as 'A' | 'B' | 'C',
-            prevState.maxEnemyHp,
-            prevState.currentStage!.allowedChords,
-            previousChordId
-          );
-          newActiveMonsters.push(newMonster);
-          usedChordIds.push(newMonster.chordTarget.id);
+        // 互換性のためのレガシーな状態も更新
+        stateAfterAttack.correctNotes = [];
+        stateAfterAttack.enemyGauge = 0;
+
+        // ゲームクリア判定
+        if (stateAfterAttack.enemiesDefeated >= stateAfterAttack.totalEnemies) {
+            const finalState = { ...stateAfterAttack, isGameActive: false, isGameOver: true, gameResult: 'clear' as const, activeMonsters: [] };
+            onGameComplete('clear', finalState);
+            return finalState;
         }
-
-        newActiveMonsters = newActiveMonsters.map(m => ({
-          ...m,
-          correctNotes: [],
-          gauge: m.id === completedMonsterTyped.id ? 0 : m.gauge,
-        }));
-
-        const nextState = {
-          ...prevState,
-          activeMonsters: newActiveMonsters,
-          monsterQueue: newMonsterQueue,
-          enemiesDefeated: totalDefeatedNow,
-          playerSp: isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5),
-          score: prevState.score + (1000 * defeatedCount),
-          correctNotes: [],
-          enemyGauge: 0,
-        };
-        onGameStateChange(nextState); // 外部への通知
-        return nextState;
+        
+        onGameStateChange(stateAfterAttack);
+        return stateAfterAttack;
 
       } else {
-        // --- コード未完成の場合：✓マークのみ更新 ---
-        const hasChanged = monstersWithNewNotes.some((m, i) => m.correctNotes.length !== prevState.activeMonsters[i].correctNotes.length);
-        if (hasChanged) {
-          const newState = { ...prevState, activeMonsters: monstersWithNewNotes };
-          onGameStateChange(newState); // 外部への通知
-          return newState;
-        }
+        // 3. 部分一致のみの場合は、ノートの状態だけ更新
+        const newState = { ...prevState, activeMonsters: monstersAfterInput };
+        onGameStateChange(newState);
+        return newState;
       }
-      
-      // 何も変更がなければ、元の状態を返す
-      return prevState;
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange]); // ★ 依存配列から gameState を削除
+  }, [onChordCorrect, onGameComplete, onGameStateChange]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
