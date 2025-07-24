@@ -824,8 +824,12 @@ export class FantasyPIXIInstance {
         const finalTargetY = targetY + (isSpecial ? (Math.random() - 0.5) * 40 : 0);
         
         const animate = () => {
-          if (this.isDestroyed || !magicSprite || magicSprite.destroyed) {
-            return;
+          /* ✨ 追加 ✨ : 破棄済み Sprite が残らないよう必ず removeChild */
+          if (this.isDestroyed || !magicSprite) return;
+
+          if (magicSprite.destroyed) {
+            if (magicSprite.parent) magicSprite.parent.removeChild(magicSprite);
+            return;      // ← ここで終了して OK
           }
           
           if (life > 0) {
@@ -911,8 +915,12 @@ export class FantasyPIXIInstance {
         // startXとstartYは既に上で宣言されているため、ここでは削除
         
         const animate = () => {
-          if (this.isDestroyed || !magicSprite || magicSprite.destroyed) {
-            return;
+          /* ✨ 追加 ✨ : 破棄済み Sprite が残らないよう必ず removeChild */
+          if (this.isDestroyed || !magicSprite) return;
+
+          if (magicSprite.destroyed) {
+            if (magicSprite.parent) magicSprite.parent.removeChild(magicSprite);
+            return;      // ← ここで終了して OK
           }
           
           if (life > 0) {
@@ -1829,6 +1837,14 @@ export class FantasyPIXIInstance {
       devLog.debug('💀 モンスター完全消滅、親コンポーネントに通知', {
         hasCallback: !!this.onDefeated,
         isDestroyed: this.isDestroyed
+      });
+
+      /* ✨ 追加 ✨ : モンスターが去ったらエフェクトを全部掃除 */
+      this.effectContainer.children.forEach(child => {
+        if (child.parent) child.parent.removeChild(child);
+        if (!child.destroyed && typeof (child as any).destroy === 'function') {
+          (child as any).destroy();
+        }
       });
 
       // 親コンポーネント通知の直前で片付け
