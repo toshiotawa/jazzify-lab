@@ -190,7 +190,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         throw new Error(`クリア記録の読み込みに失敗: ${clearsError.message}`);
       }
       
-      // データの変換とセット
+      //// データの変換とセット
       const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
         id: stage.id,
         stageNumber: stage.stage_number,
