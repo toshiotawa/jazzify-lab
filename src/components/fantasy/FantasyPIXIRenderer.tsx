@@ -290,6 +290,9 @@ export class FantasyPIXIInstance {
     // this.loadEmojiTextures(); // ★ 削除
     this.loadMonsterTextures(); // ★★★ 新しいメソッドを呼ぶ ★★★
     
+    // ★★★ 修正点(1): 魔法エフェクトのテクスチャ読み込みを追加 ★★★
+    this.loadImageTextures(); // この行を追加して魔法画像をロードします
+    
     // アニメーションループ開始
     this.startAnimationLoop();
     
@@ -327,12 +330,12 @@ export class FantasyPIXIInstance {
     this.imageTextures.set('default_monster', fallbackTexture);
   }
 
-  // PNG画像テクスチャの読み込み
+  // ★★★ 修正点(2): 画像読み込みパスを `public` ディレクトリ基準に修正 ★★★
   private async loadImageTextures(): Promise<void> {
     try {
       for (const magic of Object.values(MAGIC_TYPES)) {
-        // Vite の public 配下にあるので `new URL` で解決
-        const texture = await PIXI.Assets.load(new URL(`../../data/${magic.svg}`, import.meta.url).href);
+        // publicディレクトリのルートからのパスでロードします
+        const texture = await PIXI.Assets.load(`/${magic.svg}`);
         this.imageTextures.set(magic.svg, texture);
         devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
       }
@@ -557,8 +560,12 @@ export class FantasyPIXIInstance {
       }
       
       const sprite = new PIXI.Sprite(texture);
-      sprite.width = 100; // サイズ調整
-      sprite.height = 100;
+
+      // ★★★ 修正点(3): モンスター画像のサイズをレスポンシブ化 ★★★
+      // 動的にサイズを決定
+      const spriteSize = this.app.renderer.height * 0.7; // 描画エリアの高さの70%
+      sprite.width = spriteSize;
+      sprite.height = spriteSize;
       sprite.anchor.set(0.5);
       
       return sprite;

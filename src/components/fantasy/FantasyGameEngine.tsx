@@ -791,11 +791,17 @@ export const useFantasyGameEngine = ({
         let newMonsterQueue = [...prevState.monsterQueue];
         let newActiveMonsters = [...remainingMonsters];
         const usedChordIds = newActiveMonsters.map(m => m.chordTarget.id);
+        
+        // ★★★ 修正点: 補充すべきモンスターの数を、空きスロット数とキューの残数に基づいて正確に計算します ★★★
+        const availableSlots = prevState.simultaneousMonsterCount - newActiveMonsters.length;
+        const monstersToAdd = Math.min(defeatedCount, availableSlots, newMonsterQueue.length);
+
         const availablePositions = ['A', 'B', 'C'].filter(pos => !newActiveMonsters.some(m => m.position === pos));
         
-        for (let i = 0; i < defeatedCount && newMonsterQueue.length > 0; i++) {
+        // 修正されたループ条件でモンスターを補充
+        for (let i = 0; i < monstersToAdd; i++) {
           const monsterIndex = newMonsterQueue.shift()!;
-          const position = availablePositions[i] || 'B';
+          const position = availablePositions[i] || 'B'; // 空いている位置に配置
           const previousChordId = completedMonsterTyped.chordTarget.id;
           const newMonster = createMonsterFromQueue(
             monsterIndex,
