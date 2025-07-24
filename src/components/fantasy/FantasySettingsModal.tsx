@@ -13,6 +13,9 @@ interface FantasySettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSettingsChange?: (settings: FantasySettings) => void;
+  midiDeviceId?: string | null;
+  onMidiDeviceChange?: (deviceId: string | null) => void;
+  isMidiConnected?: boolean;
 }
 
 interface FantasySettings {
@@ -24,46 +27,21 @@ interface FantasySettings {
 const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   isOpen,
   onClose,
-  onSettingsChange
+  onSettingsChange,
+  midiDeviceId = null,
+  onMidiDeviceChange,
+  isMidiConnected = false
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
-    midiDeviceId: null,
+    midiDeviceId: midiDeviceId,
     volume: 0.8,
     showGuide: false
   });
   
-  const [midiController, setMidiController] = useState<MIDIController | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-
-  // MIDIコントローラーの初期化
+  // propsのmidiDeviceIdが変更されたらsettingsも更新
   useEffect(() => {
-    if (isOpen) {
-      const controller = new MIDIController({
-        onNoteOn: (note: number, velocity?: number) => {
-          devLog.debug('🎹 MIDI Note On:', { note, velocity });
-        },
-        onNoteOff: (note: number) => {
-          devLog.debug('🎹 MIDI Note Off:', { note });
-        }
-      });
-
-      controller.setConnectionChangeCallback((connected: boolean) => {
-        setIsConnected(connected);
-        devLog.debug('🎹 MIDI接続状態変更:', { connected });
-      });
-
-      setMidiController(controller);
-
-      // 初期化
-      controller.initialize().catch(error => {
-        devLog.debug('❌ MIDI初期化エラー:', error);
-      });
-
-      return () => {
-        controller.destroy();
-      };
-    }
-  }, [isOpen]);
+    setSettings(prev => ({ ...prev, midiDeviceId: midiDeviceId }));
+  }, [midiDeviceId]);
 
   // 設定変更ハンドラー
   const handleSettingChange = (key: keyof FantasySettings, value: any) => {
@@ -74,14 +52,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
 
   // MIDIデバイス変更ハンドラー
   const handleMidiDeviceChange = (deviceId: string | null) => {
-    if (midiController) {
-      if (deviceId) {
-        midiController.connectDevice(deviceId);
-      } else {
-        midiController.disconnect();
-      }
-    }
     handleSettingChange('midiDeviceId', deviceId);
+    onMidiDeviceChange?.(deviceId);
   };
 
   if (!isOpen) return null;
@@ -111,7 +83,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               className="w-full"
             />
             <div className="mt-1 text-xs text-gray-400">
-              {isConnected ? '✅ 接続済み' : '❌ 未接続'}
+              {isMidiConnected ? '✅ 接続済み' : '❌ 未接続'}
             </div>
           </div>
 
