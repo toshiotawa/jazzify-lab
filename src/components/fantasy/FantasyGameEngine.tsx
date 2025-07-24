@@ -793,10 +793,8 @@ export const useFantasyGameEngine = ({
             if (newHp > 0) {
               let nextChord;
               if (currentStage.mode === 'single') {
-                // ランダムモード：前回と異なるコードを選択
                 nextChord = selectRandomChord(currentStage.allowedChords, monster.chordTarget.id);
               } else {
-                // コード進行モード：ループさせる
                 const progression = currentStage.chordProgression || [];
                 const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
                 nextChord = getProgressionChord(progression, nextIndex);
@@ -805,28 +803,43 @@ export const useFantasyGameEngine = ({
               return {
                 ...monster,
                 currentHp: newHp,
-                gauge: 0, // 攻撃されたモンスターのゲージはリセット
-                correctNotes: [], // 正解したのでリセット
-                chordTarget: nextChord || monster.chordTarget // 新しいコードを割り当て
+                gauge: 0, 
+                correctNotes: [], 
+                chordTarget: nextChord || monster.chordTarget
               };
             }
             
             return {
               ...monster,
               currentHp: newHp,
-              gauge: 0, // 攻撃されたモンスターのゲージはリセット
-              correctNotes: [] // 正解したのでリセット
+              gauge: 0,
+              correctNotes: []
             };
           }
-          return {
-            ...monster,
-            correctNotes: [] // 他のモンスターの正解音もリセット
-          };
+          // ★★★ 修正点: 正解しなかったモンスターはそのままの状態を返す ★★★
+          return monster;
         });
         
         // 倒されたモンスターを除外
         const remainingMonsters = updatedMonsters.filter(m => m.currentHp > 0);
         const defeatedCount = updatedMonsters.length - remainingMonsters.length;
+        
+        // ★★★ 修正点: ゲームクリア判定をここで行う ★★★
+        const newEnemiesDefeated = prevState.enemiesDefeated + defeatedCount;
+        if (newEnemiesDefeated >= prevState.totalEnemies) {
+          const finalState = {
+            ...prevState,
+            isGameActive: false,
+            isGameOver: true,
+            gameResult: 'clear' as const,
+            activeMonsters: [], // 全て倒したので空にする
+            enemiesDefeated: newEnemiesDefeated,
+            score: prevState.score + (1000 * correctMonsters.length),
+            playerSp: newPlayerSp,
+          };
+          onGameComplete('clear', finalState);
+          return finalState;
+        }
         
         // 新しいモンスターを補充
         let newMonsters: MonsterState[] = [...remainingMonsters];
@@ -865,7 +878,7 @@ export const useFantasyGameEngine = ({
           score: prevState.score + (1000 * correctMonsters.length),
           playerSp: newPlayerSp,
           activeMonsters: newMonsters,
-          enemiesDefeated: prevState.enemiesDefeated + defeatedCount,
+          enemiesDefeated: newEnemiesDefeated,
           // 互換性維持
           currentEnemyHp: firstMonster ? firstMonster.currentHp : 0,
           enemyGauge: 0,

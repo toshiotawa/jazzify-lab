@@ -398,7 +398,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const rect = gameAreaRef.current.getBoundingClientRect();
       const newSize = {
         width: Math.max(rect.width || window.innerWidth, window.innerWidth), // 画面幅を基準に設定
-        height: 120 // ファンタジーモード用の固定高さ（大幅縮小）
+        height: 120 // ★★★ 高さを120pxに固定 ★★★
       };
       setGameAreaSize(newSize);
       
@@ -583,74 +583,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       {/* ===== メインゲームエリア ===== */}
       <div className="flex-grow flex flex-col justify-center px-2 py-1 text-white text-center relative z-20" style={{ minHeight: '200px' }}>
-        {/* マルチモンスター表示 */}
-        <div className="mb-1 text-center">
-          {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
-            <div className="flex justify-center items-start gap-2">
-              {/* 各モンスターのコード表示 */}
-              {gameState.activeMonsters.map((monster) => (
-                <div key={monster.id} className="flex-1 max-w-[150px]">
-                  <div className="text-yellow-300 text-lg font-bold tracking-wider drop-shadow-lg">
-                    {monster.chordTarget.displayName}
-                  </div>
-                  {/* 音名表示（ヒントがONの場合は全表示、OFFでも正解した音は表示） */}
-                  <div className="mt-1 text-sm font-medium h-6">
-                    {monster.chordTarget.notes.map((note, index) => {
-                      const noteMod12 = note % 12;
-                      const noteName = getNoteNameFromMidi(note);
-                      const isCorrect = monster.correctNotes.includes(noteMod12);
-                      // showGuideがtrueなら全て表示、falseなら正解した音のみ表示
-                      if (!showGuide && !isCorrect) {
-                        return (
-                          <span key={index} className="mx-0.5 opacity-0 text-xs">
-                            {noteName}
-                            {' ✓'}
-                          </span>
-                        );
-                      }
-                      return (
-                        <span key={index} className={`mx-0.5 text-xs ${isCorrect ? 'text-green-400' : 'text-gray-300'}`}>
-                          {noteName}
-                          {isCorrect && ' ✓'}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            // 互換性のための旧表示（モンスターがいない場合）
-            <div>
-              <div className="text-yellow-300 text-2xl font-bold tracking-wider drop-shadow-lg">
-                {gameState.currentChordTarget?.displayName}
-              </div>
-              {gameState.currentChordTarget && (
-                <div className="mt-1 text-lg font-medium h-7">
-                  {gameState.currentChordTarget.notes.map((note, index) => {
-                    const noteMod12 = note % 12;
-                    const noteName = getNoteNameFromMidi(note);
-                    const isCorrect = gameState.correctNotes.includes(noteMod12);
-                    if (!showGuide && !isCorrect) {
-                      return (
-                        <span key={index} className="mx-1 opacity-0">
-                          {noteName}
-                          {' ✓'}
-                        </span>
-                      );
-                    }
-                    return (
-                      <span key={index} className={`mx-1 ${isCorrect ? 'text-green-400' : 'text-gray-300'}`}>
-                        {noteName}
-                        {isCorrect && ' ✓'}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+        {/* ★★★ このエリアは削除します ★★★ */}
+        {/* <div className="mb-1 text-center">
+          ... (古いヒント表示エリア) ...
         </div>
+        */}
         
         {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}
         <div className="mb-2 text-center relative w-full">
@@ -682,12 +619,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* マルチモンスター情報表示 */}
           <div className="mt-2">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
-              <div className="relative w-full" style={{ height: '100px' }}>
+              <div className="relative w-full" style={{ height: '120px' }}> {/* 高さを少し増やす */}
                 {/* 各モンスターの情報を絶対位置で配置 */}
                 {gameState.activeMonsters.map((monster) => {
-                  // モンスターの位置に合わせて配置を計算
                   const getLeftPosition = (position: 'A' | 'B' | 'C') => {
-                    const spacing = 25; // 25%間隔（画面の1/4, 2/4, 3/4の位置）
+                    const spacing = 25;
                     switch (position) {
                       case 'A': return `${spacing}%`;
                       case 'B': return `${spacing * 2}%`;
@@ -702,12 +638,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       className="absolute transform -translate-x-1/2"
                       style={{ 
                         left: getLeftPosition(monster.position),
-                        width: '140px'
+                        width: '30%', // ★★★ 固定幅からパーセンテージに変更 ★★★
+                        maxWidth: '150px' // ★★★ 最大幅を設定してPCでの広がりすぎを防ぐ ★★★
                       }}
                     >
                       {/* コードネーム */}
-                      <div className="text-yellow-300 text-lg font-bold text-center mb-1">
+                      <div className="text-yellow-300 text-lg font-bold text-center mb-1 truncate">
                         {monster.chordTarget.displayName}
+                      </div>
+                      
+                      {/* ★★★ ここにヒント表示を追加 ★★★ */}
+                      <div className="mt-1 text-sm font-medium h-6 text-center">
+                        {monster.chordTarget.notes.map((note, index) => {
+                          const noteMod12 = note % 12;
+                          const noteName = getNoteNameFromMidi(note);
+                          const isCorrect = monster.correctNotes.includes(noteMod12);
+                          if (!showGuide && !isCorrect) {
+                            return (
+                              <span key={index} className="mx-0.5 opacity-0 text-xs">
+                                ?
+                              </span>
+                            );
+                          }
+                          return (
+                            <span key={index} className={`mx-0.5 text-xs ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
+                              {noteName}
+                              {isCorrect && '✓'}
+                            </span>
+                          );
+                        })}
                       </div>
                       
                       {/* 行動ゲージ */}
@@ -783,7 +742,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div 
         ref={gameAreaRef}
         className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
-        style={{ height: 'min(120px, 15vh)' }}
+        style={{ height: '120px' }} // ★★★ 高さを120pxに固定 ★★★
       >
         {(() => {
           // スクロール判定ロジック（GameEngine.tsxと同様）
@@ -823,7 +782,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <PIXINotesRenderer
                   activeNotes={[]}
                   width={pixiWidth}
-                  height={120}
+                  height={120} // ★★★ 高さを120に固定 ★★★
                   currentTime={0}
                   onReady={handlePixiReady}
                   className="w-full h-full"
@@ -837,7 +796,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <PIXINotesRenderer
                   activeNotes={[]}
                   width={pixiWidth}
-                  height={120}
+                  height={120} // ★★★ 高さを120に固定 ★★★
                   currentTime={0}
                   onReady={handlePixiReady}
                   className="w-full h-full"

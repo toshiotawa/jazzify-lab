@@ -186,8 +186,11 @@ export class FantasyPIXIInstance {
   private angerMark: PIXI.Text | null = null;
   
   private currentMagicType: string = 'fire';
+  // ★★★ MONSTER_EMOJI と loadEmojiTextures を削除、またはコメントアウト ★★★
+  /*
   private emojiTextures: Map<string, PIXI.Texture> = new Map();
-  private imageTextures: Map<string, PIXI.Texture> = new Map(); // pngテクスチャ用に変更
+  */
+  private imageTextures: Map<string, PIXI.Texture> = new Map(); // ★ imageTextures は残す
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
@@ -284,8 +287,8 @@ export class FantasyPIXIInstance {
     this.monsterContainer.addChild(this.monsterSprite);
     
     // 絵文字テクスチャの事前読み込み
-    this.loadEmojiTextures();
-    this.loadImageTextures(); // メソッド名変更
+    // this.loadEmojiTextures(); // ★ 削除
+    this.loadMonsterTextures(); // ★★★ 新しいメソッドを呼ぶ ★★★
     
     // アニメーションループ開始
     this.startAnimationLoop();
@@ -293,39 +296,21 @@ export class FantasyPIXIInstance {
     devLog.debug('✅ ファンタジーPIXI初期化完了（状態機械対応）');
   }
 
-  // 絵文字テクスチャの読み込み
-  private async loadEmojiTextures(): Promise<void> {
+  // ★★★ 絵文字テクスチャ読み込みをモンスター画像読み込みに変更 ★★★
+  private async loadMonsterTextures(): Promise<void> {
     try {
-      for (const [monsterKey, emoji] of Object.entries(MONSTER_EMOJI)) {
-        // 絵文字をCanvasに描画してテクスチャを作成
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) continue;
-        
-        canvas.width = 128;
-        canvas.height = 128;
-        
-        // 背景を透明に
-        ctx.clearRect(0, 0, 128, 128);
-        
-        // 絵文字を中央に描画（モノクロ色合い）
-        ctx.font = '80px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#666666'; // モノクロ色合い
-        ctx.fillText(emoji, 64, 64);
-        
-        // PIXIテクスチャに変換
-        const baseTexture = new PIXI.BaseTexture(canvas);
-        const texture = new PIXI.Texture(baseTexture);
-        
-        this.emojiTextures.set(monsterKey, texture);
-        devLog.debug(`✅ 絵文字テクスチャ作成完了: ${monsterKey} (${emoji})`);
-      }
+      // 指定のパスは存在しないため、代替として 'fire.png' を使用します。
+      // ファイルが追加されたらパスを修正してください。
+      const monsterTexturePath = '/data/character_monster_slime_green.png';
+      // 代替パス
+      const fallbackMonsterPath = '/fire.png'
+      
+      const texture = await PIXI.Assets.load(fallbackMonsterPath);
+      this.imageTextures.set('default_monster', texture);
+      devLog.debug(`✅ デフォルトモンスターテクスチャ読み込み完了: ${fallbackMonsterPath}`);
+      
     } catch (error) {
-      devLog.debug('❌ 絵文字テクスチャ作成エラー:', error);
-      // フォールバック用の空テクスチャを作成
-      this.createFallbackTextures();
+      devLog.debug('❌ モンスターテクスチャの読み込みエラー:', error);
     }
   }
 
@@ -338,9 +323,8 @@ export class FantasyPIXIInstance {
     
     const fallbackTexture = this.app.renderer.generateTexture(graphics);
     
-    Object.keys(MONSTER_EMOJI).forEach(key => {
-      this.emojiTextures.set(key, fallbackTexture);
-    });
+    // デフォルトモンスター用のフォールバックテクスチャを設定
+    this.imageTextures.set('default_monster', fallbackTexture);
   }
 
   // PNG画像テクスチャの読み込み
@@ -379,14 +363,13 @@ export class FantasyPIXIInstance {
         this.monsterSprite.texture.destroy(true);
       }
       
-      // 絵文字テクスチャを取得
-      const texture = this.emojiTextures.get(icon);
-      
-      if (texture && !texture.destroyed && texture.width && texture.height) {
-        this.monsterSprite.texture = texture;
-        devLog.debug('✅ 絵文字テクスチャ適用:', { icon });
+      // ★★★ createMonsterSpriteForId を画像ベースに修正 ★★★
+      const sprite = await this.createMonsterSpriteForId('default', icon);
+      if (sprite) {
+        this.monsterSprite.texture = sprite.texture;
+        devLog.debug('✅ モンスター画像テクスチャ適用:', { icon });
       } else {
-        devLog.debug('⚠️ 絵文字テクスチャが見つからないか無効、フォールバック作成:', { icon });
+        devLog.debug('⚠️ モンスター画像テクスチャが見つからないか無効、フォールバック作成:', { icon });
         this.createFallbackMonster();
       }
       
@@ -556,18 +539,26 @@ export class FantasyPIXIInstance {
    */
   private async createMonsterSpriteForId(id: string, icon: string): Promise<PIXI.Sprite | null> {
     try {
-      const texture = this.emojiTextures.get(icon);
+      // icon の値に関わらず、ロードしたデフォルトモンスターテクスチャを使用
+      const texture = this.imageTextures.get('default_monster');
       if (!texture || texture.destroyed) {
-        devLog.debug('⚠️ テクスチャが見つかりません:', { id, icon });
-        return null;
+        devLog.debug('⚠️ デフォルトモンスターテクスチャが見つかりません:', { id, icon });
+        // テクスチャがない場合は再読み込みを試みる
+        await this.loadMonsterTextures();
+        const reloadedTexture = this.imageTextures.get('default_monster');
+        if (!reloadedTexture) return null;
+        
+        const sprite = new PIXI.Sprite(reloadedTexture);
+        sprite.width = 100;
+        sprite.height = 100;
+        sprite.anchor.set(0.5);
+        return sprite;
       }
       
       const sprite = new PIXI.Sprite(texture);
-      sprite.width = 120; // モンスターサイズを大きく
-      sprite.height = 120;
+      sprite.width = 100; // サイズ調整
+      sprite.height = 100;
       sprite.anchor.set(0.5);
-      sprite.interactive = true;
-      sprite.cursor = 'pointer';
       
       return sprite;
     } catch (error) {
@@ -1773,17 +1764,6 @@ export class FantasyPIXIInstance {
     
     // テクスチャクリーンアップ
     try {
-      this.emojiTextures.forEach((texture: PIXI.Texture) => {
-        try {
-          if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
-            texture.destroy(true);
-          }
-        } catch (error) {
-          devLog.debug('⚠️ 絵文字テクスチャ削除エラー:', error);
-        }
-      });
-      this.emojiTextures.clear();
-      
       this.imageTextures.forEach((texture: PIXI.Texture) => {
         try {
           if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
