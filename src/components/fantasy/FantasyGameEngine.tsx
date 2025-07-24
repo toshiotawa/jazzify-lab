@@ -153,11 +153,10 @@ const createMonsterFromQueue = (
   position: 'A' | 'B' | 'C',
   enemyHp: number,
   allowedChords: string[],
-  usedChordIds: string[],
   previousChordId?: string
 ): MonsterState => {
   const enemy = ENEMY_LIST[monsterIndex % ENEMY_LIST.length];
-  const chord = selectUniqueRandomChord(allowedChords, usedChordIds, previousChordId);
+  const chord = selectUniqueRandomChord(allowedChords, previousChordId);
   
   return {
     id: `${enemy.id}_${Date.now()}_${position}`,
@@ -190,39 +189,22 @@ const assignPositions = (count: number): ('A' | 'B' | 'C')[] => {
  * 修正版：ユーザーの要望に基づき、直前のコードを避けることを最優先とする
  */
 const selectUniqueRandomChord = (
-  allowedChords: string[], 
-  usedChordIds: string[],
+  allowedChords: string[],
   previousChordId?: string
 ): ChordDefinition | null => {
-  const allPossibleChords = allowedChords
-    .map(chordId => CHORD_DEFINITIONS[chordId])
+  // まずは単純に全候補
+  let availableChords = allowedChords
+    .map(id => CHORD_DEFINITIONS[id])
     .filter(Boolean);
-    
-  if (allPossibleChords.length === 0) return null;
-  
-  // 優先度1: 直前に正解したコードを避ける
-  const candidatesAvoidingPrevious = allPossibleChords.filter(c => c.id !== previousChordId);
-  
-  if (candidatesAvoidingPrevious.length > 0) {
-    // 優先度2: 直前のコードを避けたリストの中から、他の敵が使っていないコードを探す
-    const idealCandidates = candidatesAvoidingPrevious.filter(c => !usedChordIds.includes(c.id));
-    
-    if (idealCandidates.length > 0) {
-      // 最善のケース: 直前でもなく、他でも使われていないコードを選択
-      const randomIndex = Math.floor(Math.random() * idealCandidates.length);
-      return idealCandidates[randomIndex];
-    } else {
-      // フォールバック: 直前のコード以外のコードは全て他の敵が使用中。
-      // この場合、他の敵のコードと重複しても良いので、直前のコードを避けたリストから選択する。
-      const randomIndex = Math.floor(Math.random() * candidatesAvoidingPrevious.length);
-      return candidatesAvoidingPrevious[randomIndex];
-    }
-  } else {
-    // 最終手段: 利用可能なコードが直前のコードしかない場合（例: ステージの許可コードが1つのみ）。
-    // この場合に限り、同じコードを返却する。
-    const randomIndex = Math.floor(Math.random() * allPossibleChords.length);
-    return allPossibleChords[randomIndex];
+
+  // ---- 同じ列の直前コードだけは除外 ----
+  if (previousChordId && availableChords.length > 1) {
+    const tmp = availableChords.filter(c => c.id !== previousChordId);
+    if (tmp.length) availableChords = tmp;
   }
+
+  const i = Math.floor(Math.random() * availableChords.length);
+  return availableChords[i] ?? null;
 };
 
 /**
@@ -421,7 +403,6 @@ export const useFantasyGameEngine = ({
         positions[i],
         enemyHp,
         stage.allowedChords,
-        usedChordIds,
         lastChordId // 直前のコードIDを渡して重複を避ける
       );
       activeMonsters.push(monster);
@@ -798,7 +779,6 @@ export const useFantasyGameEngine = ({
             position as 'A' | 'B' | 'C',
             prevState.maxEnemyHp,
             prevState.currentStage!.allowedChords,
-            usedChordIds,
             previousChordId
           );
           newActiveMonsters.push(newMonster);
