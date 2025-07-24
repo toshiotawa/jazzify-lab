@@ -83,7 +83,10 @@ interface FantasyGameState {
 interface FantasyGameEngineProps {
   stage: FantasyStage | null;
   onGameStateChange: (state: FantasyGameState) => void;
-  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId?: string) => void;
+  // ▼▼▼ 変更点 ▼▼▼
+  // monsterId を追加
+  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => void;
+  // ▲▲▲ ここまで ▲▲▲
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: () => void;

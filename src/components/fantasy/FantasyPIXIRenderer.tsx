@@ -169,11 +169,6 @@ export class FantasyPIXIInstance {
   private onMonsterDefeated?: () => void;
   private onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
   
-  // モンスタースプライトは常に存在する（表示/非表示で制御）
-  private monsterSprite: PIXI.Sprite; // 互換性のため残す
-  private monsterVisualState: MonsterVisualState; // 互換性のため残す
-  private monsterGameState: MonsterGameState; // 互換性のため残す
-  
   // マルチモンスター対応
   private monsterSprites: Map<string, MonsterSpriteData> = new Map();
   private particles: Map<string, PIXI.Graphics> = new Map();
@@ -249,43 +244,6 @@ export class FantasyPIXIInstance {
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
     
-    // モンスターのビジュアル状態初期化（画面真ん中に配置）
-    this.monsterVisualState = {
-      x: width / 2,
-      y: height / 2 - 20,
-      scale: 1.0,
-      rotation: 0,
-      tint: 0xFFFFFF,
-      alpha: 1.0,
-      visible: false // 初期状態では非表示
-    };
-    
-    // モンスターのゲーム状態初期化
-    this.monsterGameState = {
-      isAttacking: false,
-      isHit: false,
-      hitColor: 0xFF6B6B,
-      originalColor: 0xFFFFFF,
-      staggerOffset: { x: 0, y: 0 },
-      hitCount: 0,
-      // ▼▼▼ 修正点 ▼▼▼
-      // 初期状態を「存在しない(GONE)」にして、最初のモンスターが生成できるようにする
-      state: 'GONE' as MonsterState,
-      isFadingOut: false,
-      fadeOutStartTime: 0
-    };
-    
-    // デフォルトのモンスタースプライトを作成（初期は透明な正方形）
-    const defaultTexture = PIXI.Texture.WHITE;
-    this.monsterSprite = new PIXI.Sprite(defaultTexture);
-    this.monsterSprite.width = 128;
-    this.monsterSprite.height = 128;
-    this.monsterSprite.anchor.set(0.5);
-    this.monsterSprite.visible = false; // 初期は非表示
-    this.monsterSprite.interactive = true;
-    this.monsterSprite.cursor = 'pointer';
-    this.monsterContainer.addChild(this.monsterSprite);
-    
     // 絵文字テクスチャの事前読み込み
     // this.loadEmojiTextures(); // ★ 削除
     this.loadMonsterTextures(); // ★★★ 新しいメソッドを呼ぶ ★★★
@@ -302,16 +260,29 @@ export class FantasyPIXIInstance {
   // ★★★ 絵文字テクスチャ読み込みをモンスター画像読み込みに変更 ★★★
   private async loadMonsterTextures(): Promise<void> {
     try {
-      // 指定のパスは存在しないため、代替として 'fire.png' を使用します。
-      // ファイルが追加されたらパスを修正してください。
-      const monsterTexturePath = '/data/character_monster_slime_green.png';
-      // 代替パス
-      const fallbackMonsterPath = '/fire.png'
-      
-      const texture = await PIXI.Assets.load(fallbackMonsterPath);
-      this.imageTextures.set('default_monster', texture);
-      devLog.debug(`✅ デフォルトモンスターテクスチャ読み込み完了: ${fallbackMonsterPath}`);
-      
+      // ▼▼▼ 変更点 ▼▼▼
+      // 複数のモンスター画像をロードする
+      const monsterIcons = ['vampire', 'monster', 'reaper', 'kraken', 'werewolf', 'demon'];
+      const iconMap: Record<string, string> = {
+        'vampire': 'ドラキュラアイコン8.svg',
+        'monster': '怪獣アイコン.svg',
+        'reaper': '死神アイコン1.svg',
+        'kraken': '海の怪物クラーケンのアイコン素材.svg',
+        'werewolf': '狼男のイラスト4.svg',
+        'demon': '魔王のアイコン素材.svg'
+      };
+
+      for (const icon of monsterIcons) {
+        const path = `/${iconMap[icon]}`;
+        try {
+          const texture = await PIXI.Assets.load(path);
+          this.imageTextures.set(icon, texture);
+          devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${path}`);
+        } catch (e) {
+          devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${path}`, e);
+        }
+      }
+      // ▲▲▲ ここまで ▲▲▲
     } catch (error) {
       devLog.debug('❌ モンスターテクスチャの読み込みエラー:', error);
     }
@@ -401,21 +372,16 @@ export class FantasyPIXIInstance {
   async updateActiveMonsters(monsters: GameMonsterState[]): Promise<void> {
     if (this.isDestroyed) return;
 
-    // ---------- 変更開始 ----------
-    // 旧・単体用スプライトが残っていたら非表示にする
-    this.monsterSprite.visible = false;
-    this.monsterGameState.state = 'GONE';
-    // ---------- 変更終了 ----------
-
     devLog.debug('👾 アクティブモンスター更新:', { count: monsters.length });
     
-    // 現在のモンスターIDを取得
     const currentIds = new Set(monsters.map(m => m.id));
     
-    // 削除されたモンスターを非表示にする
+    // 削除されたモンスターをクリーンアップ
     for (const [id, monsterData] of this.monsterSprites) {
       if (!currentIds.has(id)) {
-        monsterData.sprite.destroy({ children:false, texture:false, baseTexture:false });
+        if (monsterData.sprite && !monsterData.sprite.destroyed) {
+            monsterData.sprite.destroy();
+        }
         this.monsterSprites.delete(id);
       }
     }
@@ -429,11 +395,12 @@ export class FantasyPIXIInstance {
         const sprite = await this.createMonsterSpriteForId(monster.id, monster.icon);
         if (!sprite) continue;
         
-        const scale = monsters.length === 1 ? 1 : 0.8;
         const visualState: MonsterVisualState = {
           x: this.getPositionX(monster.position),
           y: this.app.renderer.height / 2 - 50, // 修正: -20 から -50 に変更して少し上に配置
           scale,
+
+
           rotation: 0,
           tint: 0xFFFFFF,
           alpha: 1.0,
@@ -470,26 +437,20 @@ export class FantasyPIXIInstance {
         monsterData.visualState.x = this.getPositionX(monster.position);
       }
       
-      // スプライトの状態を更新
       this.updateMonsterSpriteData(monsterData);
     }
   }
   
-  /**
-   * 位置に基づいてX座標を計算
-   */
   private getPositionX(position: 'A' | 'B' | 'C'): number {
-    const w = this.app.screen.width;        // CSS ピクセルと一致する幅
-
-    // ---------- 変更開始 ----------
-    // 0.25 / 0.50 / 0.75 は "中心" の座標。
-    // UI 側は translateX(-50%) で中央寄せしているので同じ値で OK。
+    const w = this.app.screen.width;
+    // ▼▼▼ 変更点 ▼▼▼
+    // UI側の `translateX(-50%)` と同様の効果を得るため、中央の座標を返す
     switch (position) {
       case 'A': return w * 0.25;
       case 'B': return w * 0.50;
       case 'C': return w * 0.75;
     }
-    // ---------- 変更終了 ----------
+    // ▲▲▲ ここまで ▲▲▲
   }
   
   /**
@@ -497,20 +458,13 @@ export class FantasyPIXIInstance {
    */
   private async createMonsterSpriteForId(id: string, icon: string): Promise<PIXI.Sprite | null> {
     try {
-      // icon の値に関わらず、ロードしたデフォルトモンスターテクスチャを使用
-      const texture = this.imageTextures.get('default_monster');
+      // ▼▼▼ 変更点 ▼▼▼
+      // iconに基づいてテクスチャを動的に選択
+      const texture = this.imageTextures.get(icon);
+      // ▲▲▲ ここまで ▲▲▲
       if (!texture || texture.destroyed) {
-        devLog.debug('⚠️ デフォルトモンスターテクスチャが見つかりません:', { id, icon });
-        // テクスチャがない場合は再読み込みを試みる
-        await this.loadMonsterTextures();
-        const reloadedTexture = this.imageTextures.get('default_monster');
-        if (!reloadedTexture) return null;
-        
-        const sprite = new PIXI.Sprite(reloadedTexture);
-        sprite.width = 100;
-        sprite.height = 100;
-        sprite.anchor.set(0.5);
-        return sprite;
+        devLog.debug('⚠️ モンスターテクスチャが見つかりません:', { id, icon });
+        return null;
       }
       
       const sprite = new PIXI.Sprite(texture);
@@ -518,9 +472,11 @@ export class FantasyPIXIInstance {
       // ★★★ 修正点(3): モンスター画像のサイズをレスポンシブ化 ★★★
       // 動的にサイズを決定
       const spriteSize = this.app.renderer.height * 0.15; // 修正: 0.7 から 0.15 に変更（高さの15%）
+
       sprite.width = spriteSize;
       sprite.height = spriteSize;
       sprite.anchor.set(0.5);
+      // ▲▲▲ ここまで ▲▲▲
       
       return sprite;
     } catch (error) {
@@ -630,6 +586,7 @@ export class FantasyPIXIInstance {
     setTimeout(() => {
       if (!this.isDestroyed) {
         gameState.isHit = false;
+
       }
     }, 300);
     
@@ -1398,34 +1355,36 @@ export class FantasyPIXIInstance {
           this.monsterVisualState.x = (this.app.screen.width / 2) + this.monsterGameState.staggerOffset.x;
           this.monsterVisualState.y = (this.app.screen.height / 2 - 50) + this.monsterGameState.staggerOffset.y; // 修正: -20 から -50 に変更
         }
+
         
-        // 色変化の適用
-        this.monsterVisualState.tint = this.monsterGameState.isHit 
-          ? this.monsterGameState.hitColor 
-          : this.monsterGameState.originalColor;
+        // よろけ効果の減衰
+        gameState.staggerOffset.x *= 0.9;
+        gameState.staggerOffset.y *= 0.9;
         
         // アイドル時の軽い浮遊効果
         if (this.monsterGameState.state === 'IDLE' && !this.monsterGameState.isAttacking) {
           this.monsterVisualState.y = (this.app.screen.height / 2 - 50) + Math.sin(Date.now() * 0.002) * 8; // 修正: -20 から -50 に変更
+
         }
         
-        // よろけ効果の減衰
-        this.monsterGameState.staggerOffset.x *= 0.9;
-        this.monsterGameState.staggerOffset.y *= 0.9;
-        
         // フェードアウト処理
-        if (this.monsterGameState.isFadingOut) {
-          this.monsterVisualState.alpha -= 0.05;
-          if (this.monsterVisualState.alpha <= 0) {
-            this.monsterVisualState.alpha = 0;
-            this.monsterVisualState.visible = false;
+        if (gameState.isFadingOut) {
+          visualState.alpha -= 0.05;
+          if (visualState.alpha <= 0) {
+            visualState.alpha = 0;
+            visualState.visible = false;
+            gameState.state = 'GONE';
+            
+            if (sprite && !sprite.destroyed) {
+              sprite.destroy();
+            }
+            this.monsterSprites.delete(id);
           }
         }
         
-        // モンスタースプライトを更新
-        this.updateMonsterSprite();
+        this.updateMonsterSpriteData(monsterData);
       }
-      
+      // ▲▲▲ ここまで ▲▲▲
     } catch (error) {
       devLog.debug('⚠️ モンスターアニメーション更新エラー:', error);
     }
@@ -1644,15 +1603,9 @@ export class FantasyPIXIInstance {
 
   // サイズ変更（中央配置）
   resize(width: number, height: number): void {
-    if (!this.app || !this.app.renderer || this.isDestroyed) {
-      devLog.debug('⚠️ PIXIリサイズスキップ: アプリまたはレンダラーがnull');
-      return;
-    }
+    if (!this.app || !this.app.renderer || this.isDestroyed) return;
     
-    // transform が NULL のスプライトは skip
-    if (this.monsterSprite.destroyed || !(this.monsterSprite as any).transform) {
-      return;
-    }
+    this.app.renderer.resize(width, height);
     
     try {
       this.app.renderer.resize(width, height);
@@ -1670,11 +1623,19 @@ export class FantasyPIXIInstance {
       
       // スプライトを更新
       this.updateMonsterSprite();
+
       
-      devLog.debug('✅ ファンタジーPIXIリサイズ完了:', { width, height });
-    } catch (error) {
-      devLog.debug('❌ ファンタジーPIXIリサイズエラー:', error);
+      // ▼▼▼ 変更点 ▼▼▼
+      // サイズも再計算
+      const spriteSize = height * 0.7;
+      monsterData.sprite.width = spriteSize;
+      monsterData.sprite.height = spriteSize;
+      // ▲▲▲ ここまで ▲▲▲
+
+      this.updateMonsterSpriteData(monsterData);
     }
+    
+    devLog.debug('✅ ファンタジーPIXIリサイズ完了:', { width, height });
   }
 
   // Canvas要素取得
@@ -1690,6 +1651,10 @@ export class FantasyPIXIInstance {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
+    
+    // マルチモンスターのクリーンアップ
+    this.monsterSprites.forEach(data => data.sprite.destroy());
+    this.monsterSprites.clear();
     
     // パーティクルとエフェクトの安全な削除
     try {
