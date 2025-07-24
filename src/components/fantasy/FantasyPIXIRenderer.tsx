@@ -187,6 +187,35 @@ export class FantasyPIXIInstance {
   */
   private imageTextures: Map<string, PIXI.Texture> = new Map(); // ★ imageTextures は残す
   
+  // ★ 追加（他の private フィールドと並べて宣言）
+  private monsterGameState: MonsterGameState = {
+    isAttacking: false,
+    isHit: false,
+    hitColor: 0xffffff,
+    originalColor: 0xffffff,
+    staggerOffset: { x: 0, y: 0 },
+    hitCount: 0,
+    state: 'GONE',          // ← デフォルトは "存在しない"
+    isFadingOut: false,
+    fadeOutStartTime: 0
+  };
+
+  private monsterVisualState: MonsterVisualState = {
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotation: 0,
+    tint: 0xffffff,
+    alpha: 1,
+    visible: false            // まだ表示させない
+  };
+
+  private monsterSprite: PIXI.Sprite = (() => {
+    const s = new PIXI.Sprite(PIXI.Texture.WHITE);  // ダミー
+    s.anchor.set(0.5);
+    return s;
+  })();
+  
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
   
@@ -251,6 +280,9 @@ export class FantasyPIXIInstance {
     // ★★★ 修正点(1): 魔法エフェクトのテクスチャ読み込みを追加 ★★★
     this.loadImageTextures(); // この行を追加して魔法画像をロードします
     
+    // ★ 追加: モンスタースプライトをコンテナに追加
+    this.monsterContainer.addChild(this.monsterSprite);
+    
     // アニメーションループ開始
     this.startAnimationLoop();
     
@@ -263,23 +295,27 @@ export class FantasyPIXIInstance {
       // ▼▼▼ 変更点 ▼▼▼
       // 複数のモンスター画像をロードする
       const monsterIcons = ['vampire', 'monster', 'reaper', 'kraken', 'werewolf', 'demon'];
+      
+      // SVGファイルを直接読み込む
       const iconMap: Record<string, string> = {
-        'vampire': 'ドラキュラアイコン8.svg',
-        'monster': '怪獣アイコン.svg',
-        'reaper': '死神アイコン1.svg',
-        'kraken': '海の怪物クラーケンのアイコン素材.svg',
-        'werewolf': '狼男のイラスト4.svg',
-        'demon': '魔王のアイコン素材.svg'
+        'vampire': '/data/ドラキュラアイコン8.svg',
+        'monster': '/data/怪獣アイコン.svg',
+        'reaper': '/data/死神アイコン1.svg',
+        'kraken': '/data/海の怪物クラーケンのアイコン素材.svg',
+        'werewolf': '/data/狼男のイラスト4.svg',
+        'demon': '/data/魔王のアイコン素材.svg'
       };
 
       for (const icon of monsterIcons) {
-        const path = `/${iconMap[icon]}`;
+        const path = iconMap[icon];
         try {
           const texture = await PIXI.Assets.load(path);
           this.imageTextures.set(icon, texture);
           devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${path}`);
         } catch (e) {
           devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${path}`, e);
+          // フォールバック用のテクスチャを作成
+          this.createFallbackTextures();
         }
       }
       // ▲▲▲ ここまで ▲▲▲
@@ -290,15 +326,29 @@ export class FantasyPIXIInstance {
 
   // フォールバック用テクスチャ作成
   private createFallbackTextures(): void {
-    const graphics = new PIXI.Graphics();
-    graphics.beginFill(0xDDDDDD);
-    graphics.drawCircle(0, 0, 50);
-    graphics.endFill();
-    
-    const fallbackTexture = this.app.renderer.generateTexture(graphics);
-    
-    // デフォルトモンスター用のフォールバックテクスチャを設定
-    this.imageTextures.set('default_monster', fallbackTexture);
+    try {
+      const graphics = new PIXI.Graphics();
+      graphics.beginFill(0xDDDDDD);
+      graphics.drawCircle(0, 0, 50);
+      graphics.endFill();
+      
+      const fallbackTexture = this.app.renderer.generateTexture(graphics);
+      
+      // デフォルトモンスター用のフォールバックテクスチャを設定
+      this.imageTextures.set('default_monster', fallbackTexture);
+      
+      // 各モンスタータイプ用のフォールバックテクスチャも作成
+      const monsterIcons = ['vampire', 'monster', 'reaper', 'kraken', 'werewolf', 'demon'];
+      monsterIcons.forEach(icon => {
+        if (!this.imageTextures.has(icon)) {
+          this.imageTextures.set(icon, fallbackTexture);
+        }
+      });
+      
+      devLog.debug('✅ フォールバックテクスチャ作成完了');
+    } catch (error) {
+      devLog.debug('❌ フォールバックテクスチャ作成エラー:', error);
+    }
   }
 
   // ★★★ 修正点(2): 画像読み込みパスを `public` ディレクトリ基準に修正 ★★★
@@ -306,7 +356,7 @@ export class FantasyPIXIInstance {
     try {
       for (const magic of Object.values(MAGIC_TYPES)) {
         // publicディレクトリのルートからのパスでロードします
-        const texture = await PIXI.Assets.load(`/${magic.svg}`);
+        const texture = await PIXI.Assets.load(`/data/${magic.svg}`);
         this.imageTextures.set(magic.svg, texture);
         devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
       }
@@ -349,11 +399,13 @@ export class FantasyPIXIInstance {
       
       // ビジュアル状態をリセット
       this.monsterVisualState = {
-        ...this.monsterVisualState,
-        alpha: 1.0,
-        visible: true,
+        x: this.app.renderer.width * 0.5,
+        y: this.app.renderer.height * 0.5,
+        scale: 1.0,
+        rotation: 0,
         tint: 0xFFFFFF,
-        scale: 1.0
+        alpha: 1.0,
+        visible: true
       };
       
       // ゲーム状態をリセット
@@ -396,11 +448,13 @@ export class FantasyPIXIInstance {
       
       // ビジュアル状態をリセット
       this.monsterVisualState = {
-        ...this.monsterVisualState,
-        alpha: 1.0,
-        visible: true,
+        x: this.app.renderer.width * 0.5,
+        y: this.app.renderer.height * 0.5,
+        scale: 1.0,
+        rotation: 0,
         tint: 0xFFFFFF,
-        scale: 1.0
+        alpha: 1.0,
+        visible: true
       };
       
       // スプライトの属性を更新
@@ -506,12 +560,25 @@ export class FantasyPIXIInstance {
     try {
       // ▼▼▼ 変更点 ▼▼▼
       // iconに基づいてテクスチャを動的に選択
-      const texture = this.imageTextures.get(icon);
-      // ▲▲▲ ここまで ▲▲▲
+      let texture = this.imageTextures.get(icon);
+      
+      // テクスチャが見つからない場合はフォールバックを使用
       if (!texture || texture.destroyed) {
-        devLog.debug('⚠️ モンスターテクスチャが見つかりません:', { id, icon });
+        devLog.debug('⚠️ モンスターテクスチャが見つかりません、フォールバックを使用:', { id, icon });
+        texture = this.imageTextures.get('default_monster');
+        
+        // フォールバックもない場合は作成
+        if (!texture || texture.destroyed) {
+          this.createFallbackTextures();
+          texture = this.imageTextures.get('default_monster');
+        }
+      }
+      
+      if (!texture || texture.destroyed) {
+        devLog.debug('❌ フォールバックテクスチャも作成できません:', { id, icon });
         return null;
       }
+      // ▲▲▲ ここまで ▲▲▲
       
       const sprite = new PIXI.Sprite(texture);
 
@@ -1683,7 +1750,7 @@ export class FantasyPIXIInstance {
     try {
       this.imageTextures.forEach((texture: PIXI.Texture) => {
         try {
-          if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
+          if (texture && !texture.destroyed) {
             texture.destroy(true);
           }
         } catch (error) {

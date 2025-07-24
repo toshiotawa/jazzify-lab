@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SVG to PNG Converter</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .file-input { margin: 10px 0; }
+        .convert-btn { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .convert-btn:hover { background: #0056b3; }
+        .result { margin: 10px 0; }
+        canvas { border: 1px solid #ccc; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>SVG to PNG Converter</h1>
+    
+    <div class="file-input">
+        <label for="svgFile">Select SVG file:</label>
+        <input type="file" id="svgFile" accept=".svg">
+    </div>
+    
+    <button class="convert-btn" onclick="convertSvgToPng()">Convert to PNG</button>
+    
+    <div class="result" id="result"></div>
+    <canvas id="canvas" style="display: none;"></canvas>
+    
+    <script>
+        function convertSvgToPng() {
+            const fileInput = document.getElementById('svgFile');
+            const resultDiv = document.getElementById('result');
+            const canvas = document.getElementById('canvas');
+            
+            if (!fileInput.files[0]) {
+                resultDiv.innerHTML = '<p style="color: red;">Please select an SVG file.</p>';
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const svgContent = e.target.result;
+                
+                // Create an image element
+                const img = new Image();
+                img.onload = function() {
+                    // Set canvas size
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    
+                    // Draw SVG to canvas
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Convert to PNG
+                    canvas.toBlob(function(blob) {
+                        // Create download link
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = file.name.replace('.svg', '.png');
+                        a.click();
+                        
+                        URL.revokeObjectURL(url);
+                        resultDiv.innerHTML = '<p style="color: green;">✅ PNG file downloaded successfully!</p>';
+                    }, 'image/png');
+                };
+                
+                // Create data URL from SVG
+                const svgBlob = new Blob([svgContent], {type: 'image/svg+xml'});
+                const url = URL.createObjectURL(svgBlob);
+                img.src = url;
+            };
+            
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html> 
