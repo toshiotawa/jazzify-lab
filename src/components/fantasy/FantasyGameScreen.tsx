@@ -5,14 +5,13 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from '@/utils/cn';
+import { devLog } from '@/utils/logger';
+import { playNote, stopNote, initializeAudioSystem, MIDIController } from '@/utils/MidiController';
+import { useGameStore } from '@/stores/gameStore';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
-import { useGameStore } from '@/stores/gameStore';
-import { devLog } from '@/utils/logger';
-import { playNote, stopNote, initializeAudioSystem } from '@/utils/MidiController';
 import FantasySettingsModal from './FantasySettingsModal';
-import { MIDIController } from '@/utils/MidiController';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -54,7 +53,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDI入力処理用のRef（コールバックを保持）
   const handleNoteInputRef = useRef<(note: number) => void>();
-  handleNoteInputRef.current = handleNoteInputBridge;
   
   // MIDIControllerの初期化と管理
   useEffect(() => {
@@ -89,11 +87,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const savedDeviceId = localStorage.getItem('fantasyMidiDeviceId');
         if (savedDeviceId) {
           setMidiDeviceId(savedDeviceId);
-          controller.connectDevice(savedDeviceId).then((success) => {
-            if (success) {
-              devLog.debug('✅ 保存されたMIDIデバイスに自動接続成功:', savedDeviceId);
-            }
-          });
+          const success = controller.connectDevice(savedDeviceId);
+          if (success) {
+            devLog.debug('✅ 保存されたMIDIデバイスに自動接続成功:', savedDeviceId);
+          }
         }
       }).catch(error => {
         devLog.debug('❌ MIDI初期化エラー:', error);
@@ -112,12 +109,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // MIDIデバイス接続管理
   useEffect(() => {
     if (midiControllerRef.current && midiDeviceId) {
-      midiControllerRef.current.connectDevice(midiDeviceId).then((success) => {
-        if (success) {
-          devLog.debug('✅ MIDIデバイス接続成功:', midiDeviceId);
-          localStorage.setItem('fantasyMidiDeviceId', midiDeviceId);
-        }
-      });
+      const success = midiControllerRef.current.connectDevice(midiDeviceId);
+      if (success) {
+        devLog.debug('✅ MIDIデバイス接続成功:', midiDeviceId);
+        localStorage.setItem('fantasyMidiDeviceId', midiDeviceId);
+      }
     } else if (midiControllerRef.current && !midiDeviceId) {
       midiControllerRef.current.disconnect();
       localStorage.removeItem('fantasyMidiDeviceId');
@@ -251,6 +247,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // ファンタジーゲームエンジンにのみ送信（重複を防ぐため）
     engineHandleNoteInput(note);
   }, [engineHandleNoteInput, pixiRenderer]);
+  
+  // handleNoteInputBridgeが定義された後にRefを更新
+  useEffect(() => {
+    handleNoteInputRef.current = handleNoteInputBridge;
+  }, [handleNoteInputBridge]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
