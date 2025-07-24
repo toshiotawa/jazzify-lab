@@ -185,37 +185,44 @@ const assignPositions = (count: number): ('A' | 'B' | 'C')[] => {
 /**
  * 既に使用されているコードを除外してランダムにコードを選択
  */
+/**
+ * 既に使用されているコードを除外してランダムにコードを選択
+ * 修正版：ユーザーの要望に基づき、直前のコードを避けることを最優先とする
+ */
 const selectUniqueRandomChord = (
   allowedChords: string[], 
   usedChordIds: string[],
   previousChordId?: string
 ): ChordDefinition | null => {
-  let availableChords = allowedChords
+  const allPossibleChords = allowedChords
     .map(chordId => CHORD_DEFINITIONS[chordId])
     .filter(Boolean);
     
-  if (availableChords.length === 0) return null;
+  if (allPossibleChords.length === 0) return null;
   
-  // 既に使用されているコードを除外
-  if (usedChordIds.length > 0) {
-    const filteredChords = availableChords.filter(c => !usedChordIds.includes(c.id));
-    // 除外した結果、選択肢が残っている場合のみ、絞り込んだリストを使用する
-    if (filteredChords.length > 0) {
-      availableChords = filteredChords;
+  // 優先度1: 直前に正解したコードを避ける
+  const candidatesAvoidingPrevious = allPossibleChords.filter(c => c.id !== previousChordId);
+  
+  if (candidatesAvoidingPrevious.length > 0) {
+    // 優先度2: 直前のコードを避けたリストの中から、他の敵が使っていないコードを探す
+    const idealCandidates = candidatesAvoidingPrevious.filter(c => !usedChordIds.includes(c.id));
+    
+    if (idealCandidates.length > 0) {
+      // 最善のケース: 直前でもなく、他でも使われていないコードを選択
+      const randomIndex = Math.floor(Math.random() * idealCandidates.length);
+      return idealCandidates[randomIndex];
+    } else {
+      // フォールバック: 直前のコード以外のコードは全て他の敵が使用中。
+      // この場合、他の敵のコードと重複しても良いので、直前のコードを避けたリストから選択する。
+      const randomIndex = Math.floor(Math.random() * candidatesAvoidingPrevious.length);
+      return candidatesAvoidingPrevious[randomIndex];
     }
+  } else {
+    // 最終手段: 利用可能なコードが直前のコードしかない場合（例: ステージの許可コードが1つのみ）。
+    // この場合に限り、同じコードを返却する。
+    const randomIndex = Math.floor(Math.random() * allPossibleChords.length);
+    return allPossibleChords[randomIndex];
   }
-  
-  // 前回のコードと異なるコードが選択肢にあれば、それを除外する
-  if (previousChordId && availableChords.length > 1) {
-    const filteredChords = availableChords.filter(c => c.id !== previousChordId);
-    // 除外した結果、選択肢が残っている場合のみ、絞り込んだリストを使用する
-    if (filteredChords.length > 0) {
-      availableChords = filteredChords;
-    }
-  }
-  
-  const randomIndex = Math.floor(Math.random() * availableChords.length);
-  return availableChords[randomIndex];
 };
 
 /**
