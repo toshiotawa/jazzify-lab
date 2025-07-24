@@ -575,14 +575,21 @@ export class FantasyPIXIInstance {
       const sprite = new PIXI.Sprite(texture);
 
       // ▼▼▼ 修正箇所 ▼▼▼
-      // 描画領域の高さに基づいて動的にサイズを決定
-      // コンテナの高さの約70%をモンスターの高さとし、上限を160pxに設定します。
-      const FRAME_HEIGHT = this.app.renderer.height;
+      // 幅と高さに基づいてサイズを決定
+      const FRAME_WIDTH = this.app.screen.width;
+      const FRAME_HEIGHT = this.app.screen.height;
+
+      // モンスターUIカードの幅は全体の約18%
+      const cardWidth = FRAME_WIDTH * 0.18;
+      // ユーザーの提案に基づき、その半分を最大幅とする
+      const maxWidth = cardWidth / 2;
+      // 高さはコンテナの70% or 160px の小さい方
       const maxHeight = Math.min(FRAME_HEIGHT * 0.7, 160);
 
-      // 高さを設定し、アスペクト比を維持して幅をスケーリングする
-      sprite.height = maxHeight;
-      sprite.scale.x = sprite.scale.y;
+      // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
+      const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
+      sprite.scale.set(scale);
+      
       sprite.anchor.set(0.5);
       // ▲▲▲ ここまで ▲▲▲
       
@@ -1655,12 +1662,17 @@ export class FantasyPIXIInstance {
         monsterData.visualState.x = this.getPositionX(monsterData.position);
         monsterData.visualState.y = height / 2;
         // ▼▼▼ 修正箇所 ▼▼▼
-        // リサイズ時にもモンスターのサイズを再計算
+        const sprite = monsterData.sprite;
+
+        // UIカードの幅
+        const cardWidth = width * 0.18;
+        // ユーザーの提案に基づき、その半分を最大幅とする
+        const maxWidth = cardWidth / 2;
         const maxHeight = Math.min(height * 0.7, 160);
 
-        // 高さを設定し、アスペクト比を維持して幅をスケーリングする
-        monsterData.sprite.height = maxHeight;
-        monsterData.sprite.scale.x = monsterData.sprite.scale.y;
+        // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
+        const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
+        sprite.scale.set(scale);
         // ▲▲▲ ここまで ▲▲▲
         this.updateMonsterSpriteData(monsterData);
       }
