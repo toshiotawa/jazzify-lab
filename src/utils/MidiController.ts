@@ -401,6 +401,38 @@ export class MIDIController {
     return this.currentDeviceId;
   }
 
+  /**
+   * 現在選択されているデバイスとの接続状態を確認し、必要に応じて再接続する
+   * @returns 接続が成功したかどうか
+   */
+  public async checkAndRestoreConnection(): Promise<boolean> {
+    if (!this.currentDeviceId) {
+      return false;
+    }
+
+    // 現在のデバイスが実際に接続されているか確認
+    if (!this.midiAccess) {
+      console.warn('⚠️ MIDI access not available');
+      return false;
+    }
+
+    const input = this.midiAccess.inputs.get(this.currentDeviceId);
+    if (!input || input.state !== 'connected') {
+      console.log('🔄 Device disconnected, attempting to reconnect...');
+      return this.connectDevice(this.currentDeviceId);
+    }
+
+    // 既に接続されているが、メッセージハンドラが設定されていない場合
+    if (!input.onmidimessage) {
+      console.log('🔧 Restoring message handler for connected device');
+      input.onmidimessage = this.handleMIDIMessage;
+      this.isEnabled = true;
+      this.notifyConnectionChange(true);
+    }
+
+    return true;
+  }
+
   public getCurrentDeviceName(): string | null {
     if (!this.currentDeviceId || !this.midiAccess) return null;
     

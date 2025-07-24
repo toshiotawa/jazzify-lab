@@ -168,6 +168,22 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
   className = ''
 }) => {
   const { devices, isRefreshing, error, refreshDevices } = useMidiDevices();
+  const [forceReconnect, setForceReconnect] = useState(false);
+
+  // デバイス選択時の処理を改善
+  const handleDeviceChange = (newDeviceId: string | null) => {
+    // 同じデバイスを選択した場合は一度切断してから再接続
+    if (newDeviceId && newDeviceId === value) {
+      console.log('🔄 同じデバイスが選択されました。再接続を試みます...');
+      // 一度nullを設定してから再度設定することで再接続を強制
+      onChange(null);
+      setTimeout(() => {
+        onChange(newDeviceId);
+      }, 100);
+    } else {
+      onChange(newDeviceId);
+    }
+  };
 
   return (
     <div className={`space-y-3 ${className}`}>
@@ -179,7 +195,7 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
         <div className="flex gap-2">
           <select
             value={value || ''}
-            onChange={(e) => onChange(e.target.value || null)}
+            onChange={(e) => handleDeviceChange(e.target.value || null)}
             className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-blue-600"
             disabled={isRefreshing}
           >
