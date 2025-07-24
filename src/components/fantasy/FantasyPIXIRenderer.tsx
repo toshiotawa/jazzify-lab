@@ -448,7 +448,13 @@ export class FantasyPIXIInstance {
    */
   async updateActiveMonsters(monsters: GameMonsterState[]): Promise<void> {
     if (this.isDestroyed) return;
-    
+
+    // ---------- 変更開始 ----------
+    // 旧・単体用スプライトが残っていたら非表示にする
+    this.monsterSprite.visible = false;
+    this.monsterGameState.state = 'GONE';
+    // ---------- 変更終了 ----------
+
     devLog.debug('👾 アクティブモンスター更新:', { count: monsters.length });
     
     // 現在のモンスターIDを取得
@@ -527,15 +533,17 @@ export class FantasyPIXIInstance {
    * 位置に基づいてX座標を計算
    */
   private getPositionX(position: 'A' | 'B' | 'C'): number {
-    const width = this.app.renderer.width;
-    //   |---25%---|---25%---|---25%---|   と等分し真ん中に配置
-    // UI 側 (`FantasyGameScreen.getLeftPosition`) と合わせるため +0%/+25%/+50%
+    const w = this.app.renderer.width;
+
+    // ---------- 変更開始 ----------
+    // 0.25 / 0.50 / 0.75 は "中心" の座標。
+    // UI 側は translateX(-50%) で中央寄せしているので同じ値で OK。
     switch (position) {
-      case 'A': return width * 0.25;
-      case 'B': return width * 0.50;
-      case 'C': return width * 0.75;
-      default:  return width * 0.50;
+      case 'A': return w * 0.25;
+      case 'B': return w * 0.50;
+      case 'C': return w * 0.75;
     }
+    // ---------- 変更終了 ----------
   }
   
   /**

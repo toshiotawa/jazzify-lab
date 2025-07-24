@@ -632,12 +632,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   return (
                     <div 
                       key={monster.id}
-                      className="absolute transform -translate-x-1/2 flex flex-col items-center" // flexレイアウトを追加
+                      className="absolute transform -translate-x-1/2 flex flex-col items-center"
                       style={{ 
                         left: getLeftPosition(monster.position),
-                        // ★★★ 修正点: widthを調整して重なりを防止 ★★★
-                        width: '28%',   // 少し狭くする
-                        maxWidth: '140px' // 最大幅も少し狭くする
+                        // ---------- 変更開始 ----------
+                        width: '160px',     // 固定幅
+                        maxWidth: '160px',
+                        // ---------- 変更終了 ----------
                       }}
                     >
                       {/* コードネーム */}
