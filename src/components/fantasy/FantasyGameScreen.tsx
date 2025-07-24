@@ -12,6 +12,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { getMonsterPositionPercentage, getMonsterElementStyle, getMonsterContainerStyle } from '@/utils/monsterPositioning';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -621,25 +622,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div className="relative w-full max-w-[90vw] mx-auto" style={{ height: 'min(120px,22vw)' }}>
                 {/* 各モンスターの情報を絶対位置で配置 */}
                 {gameState.activeMonsters.map((monster) => {
-                  const getLeftPosition = (position: 'A' | 'B' | 'C') => {
-                    switch (position) {
-                      case 'A': return '25%';
-                      case 'B': return '50%';
-                      case 'C': return '75%';
-                    }
-                  };
-                  
                   return (
                     <div 
                       key={monster.id}
                       className="absolute transform -translate-x-1/2 flex flex-col items-center"
-                      style={{ 
-                        left: getLeftPosition(monster.position),
-                        // ---------- 変更開始 ----------
-                        width: '160px',     // 固定幅
-                        maxWidth: '160px',
-                        // ---------- 変更終了 ----------
-                      }}
+                      style={getMonsterElementStyle(monster.position, gameState.activeMonsters.length)}
                     >
                       {/* コードネーム */}
                       <div className="text-yellow-300 text-lg font-bold text-center mb-1 truncate w-full"> {/* w-fullを追加 */}

@@ -7,7 +7,8 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
-import { MonsterState as GameMonsterState } from './FantasyGameEngine';
+import { MonsterState as GameMonsterState, ChordDefinition } from './FantasyGameEngine';
+import { getMonsterPositionX, getAdjustedPosition } from '@/utils/monsterPositioning';
 
 // ===== 型定義 =====
 
@@ -485,7 +486,7 @@ export class FantasyPIXIInstance {
         
         const scale = monsters.length === 1 ? 1 : 0.8;
         const visualState: MonsterVisualState = {
-          x: this.getPositionX(monster.position),
+          x: this.getPositionX(monster.position, monsters.length),
           y: this.app.renderer.height / 2 - 20,
           scale,
           rotation: 0,
@@ -521,7 +522,7 @@ export class FantasyPIXIInstance {
       // 位置を更新
       if (monsterData.position !== monster.position) {
         monsterData.position = monster.position;
-        monsterData.visualState.x = this.getPositionX(monster.position);
+        monsterData.visualState.x = this.getPositionX(monster.position, monsters.length);
       }
       
       // スプライトの状態を更新
@@ -532,18 +533,11 @@ export class FantasyPIXIInstance {
   /**
    * 位置に基づいてX座標を計算
    */
-  private getPositionX(position: 'A' | 'B' | 'C'): number {
+  private getPositionX(position: 'A' | 'B' | 'C', totalMonsterCount: number): number {
     const w = this.app.renderer.width;
-
-    // ---------- 変更開始 ----------
-    // 0.25 / 0.50 / 0.75 は "中心" の座標。
-    // UI 側は translateX(-50%) で中央寄せしているので同じ値で OK。
-    switch (position) {
-      case 'A': return w * 0.25;
-      case 'B': return w * 0.50;
-      case 'C': return w * 0.75;
-    }
-    // ---------- 変更終了 ----------
+    const adjustedPosition = getAdjustedPosition(totalMonsterCount, position);
+    
+    return getMonsterPositionX(adjustedPosition, w);
   }
   
   /**
@@ -1700,8 +1694,9 @@ export class FantasyPIXIInstance {
       this.app.renderer.resize(width, height);
       
       // マルチモンスターの位置を更新
+      const totalMonsterCount = this.monsterSprites.size;
       for (const [id, monsterData] of this.monsterSprites) {
-        monsterData.visualState.x = this.getPositionX(monsterData.position);
+        monsterData.visualState.x = this.getPositionX(monsterData.position, totalMonsterCount);
         monsterData.visualState.y = height / 2 - 20;
         this.updateMonsterSpriteData(monsterData);
       }
@@ -1845,10 +1840,10 @@ export class FantasyPIXIInstance {
       // isDestroyedフラグをチェックして、インスタンス破棄後のコールバック呼び出しを防ぐ
       if (!this.isDestroyed) {
         this.onDefeated?.();
-      } 
+              } 
+      }
     }
   }
-}
 
 // ===== Reactコンポーネント =====
 
