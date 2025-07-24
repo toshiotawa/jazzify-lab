@@ -467,34 +467,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     for (let i = 0; i < maxHp; i++) {
       hearts.push(
         <span key={i} className={cn(
-          "text-2xl transition-all duration-300",
+          "text-2xl transition-all duration-300 drop-shadow-sm",
           i < hp 
             ? "text-red-500" // プレイヤーも敵も赤いハート
-            : "text-gray-300" // 空のハートは薄いグレー
+            : "text-gray-400" // 空のハートは薄いグレー
         )}>
-          {i < hp ? "♡" : "×"}
+          {i < hp ? "♥" : "♡"}
         </span>
       );
     }
     return hearts;
   }, []);
-  
-  const renderHearts = (hp: number, maxHp: number) => (
-    <div className="flex space-x-0.5">
-      {Array.from({length: maxHp}).map((_, i) => (
-        <span 
-          key={i}
-          className={
-            i < hp
-            ? "text-red-500 drop-shadow-sm text-2xl"
-            : "text-gray-600 text-2xl"
-          }
-        >
-          ♥
-        </span>
-      ))}
-    </div>
-  );
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
@@ -778,7 +761,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* HP・SPゲージを固定配置 */}
       <div className="absolute left-2 bottom-2 z-50
                   pointer-events-none bg-black/40 rounded px-2 py-1">
-        {renderHearts(gameState.playerHp, stage.maxHp)}
+        <div className="flex space-x-0.5">
+          {renderHearts(gameState.playerHp, stage.maxHp)}
+        </div>
       </div>
       <div className="absolute right-2 bottom-2 z-50
                   pointer-events-none bg-black/40 rounded px-2 py-1">
