@@ -15,6 +15,7 @@ interface FantasySettingsModalProps {
   midiDeviceId?: string | null;
   onMidiDeviceChange?: (deviceId: string | null) => void;
   isMidiConnected?: boolean;
+  volume?: number; // 音量設定をpropsで受け取る
 }
 
 interface FantasySettings {
@@ -29,11 +30,12 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   onSettingsChange,
   midiDeviceId = null,
   onMidiDeviceChange,
-  isMidiConnected = false
+  isMidiConnected = false,
+  volume = 0.8 // デフォルト80%音量
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
-    volume: 0.8,
+    volume: volume, // propsから受け取った音量を使用
     showGuide: false
   });
   
@@ -41,6 +43,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   useEffect(() => {
     setSettings(prev => ({ ...prev, midiDeviceId: midiDeviceId }));
   }, [midiDeviceId]);
+  
+  // propsのvolumeが変更されたらsettingsも更新
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, volume: volume }));
+  }, [volume]);
 
   // 設定変更ハンドラー
   const handleSettingChange = (key: keyof FantasySettings, value: any) => {

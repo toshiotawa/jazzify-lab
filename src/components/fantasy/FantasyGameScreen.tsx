@@ -83,7 +83,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       controller.initialize().then(() => {
         devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
         
-        // ★★★ 修正箇所 ★★★
+        // ★★★ デフォルト音量設定を追加 ★★★
+        // ファンタジーモード開始時にデフォルト音量（80%）を設定
+        import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
+          updateGlobalVolume(0.8); // デフォルト80%音量
+          devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+        }).catch(error => {
+          console.error('MidiController import failed:', error);
+        });
+        
         // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
         // 接続処理は下のuseEffectに任せる。
       }).catch(error => {
@@ -888,10 +896,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onSettingsChange={(settings) => {
           devLog.debug('⚙️ ファンタジー設定変更:', settings);
           setShowGuide(settings.showGuide);
+          
+          // ★★★ 音量更新処理を追加 ★★★
+          // 音量設定が変更されたら、グローバル音量を更新
+          if (settings.volume !== undefined) {
+            // gameStoreの音量設定も更新
+            updateSettings({ midiVolume: settings.volume });
+            
+            // グローバル音量を更新
+            import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
+              updateGlobalVolume(settings.volume);
+              devLog.debug(`🎵 ファンタジーモードの音量を更新: ${settings.volume}`);
+            }).catch(error => {
+              console.error('MidiController import failed:', error);
+            });
+          }
         }}
-        // ★★★ 修正箇所 ★★★
         // gameStoreの値を渡す
         midiDeviceId={settings.selectedMidiDevice}
+        volume={settings.midiVolume} // gameStoreのMIDI音量を渡す
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
