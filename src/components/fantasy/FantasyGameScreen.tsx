@@ -184,21 +184,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
   }, []);
   
-  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId?: string) => { // マルチモンスター対応
+  // ▼▼▼ 変更点 ▼▼▼
+  // monsterId を受け取り、新しいPIXIメソッドを呼び出す
+  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
     devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
     
-    // ファンタジーPIXIエフェクトをトリガー（コード名を渡す）
     if (fantasyPixiInstance) {
-      if (monsterId) {
-        // マルチモンスター用の攻撃メソッドを呼ぶ
-        fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
-      } else {
-        // 互換性のため従来のメソッドも残す
-        fantasyPixiInstance.triggerAttackSuccess(chord.displayName, isSpecial, damageDealt, defeated);
-      }
+      fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
     }
-    
   }, [fantasyPixiInstance]);
+  // ▲▲▲ ここまで ▲▲▲
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
     devLog.debug('🎵 まだ構成音が足りません:', { expected: expectedChord.displayName, input: inputNotes });
