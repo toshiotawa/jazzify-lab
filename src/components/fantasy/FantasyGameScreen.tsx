@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from '@/utils/cn';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import { useGameStore } from '@/stores/gameStore';
@@ -66,13 +66,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
   }, []);
   
-  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean) => { // ★ 4番目の引数 defeated を受け取る
-    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated });
+  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId?: string) => { // マルチモンスター対応
+    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
     
     // ファンタジーPIXIエフェクトをトリガー（コード名を渡す）
     if (fantasyPixiInstance) {
-      // ★ fantasyPixiInstance.triggerAttackSuccess に defeated を渡す
-      fantasyPixiInstance.triggerAttackSuccess(chord.displayName, isSpecial, damageDealt, defeated);
+      if (monsterId) {
+        // マルチモンスター用の攻撃メソッドを呼ぶ
+        fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
+      } else {
+        // 互換性のため従来のメソッドも残す
+        fantasyPixiInstance.triggerAttackSuccess(chord.displayName, isSpecial, damageDealt, defeated);
+      }
     }
     
   }, [fantasyPixiInstance]);
@@ -452,34 +457,71 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       {/* ===== メインゲームエリア ===== */}
       <div className="flex-grow flex flex-col justify-center px-2 py-1 text-white text-center relative z-20" style={{ minHeight: '200px' }}>
-        {/* コード表示（サイズを縮小） */}
+        {/* マルチモンスター表示 */}
         <div className="mb-1 text-center">
-          <div className="text-yellow-300 text-2xl font-bold tracking-wider drop-shadow-lg">
-            {gameState.currentChordTarget.displayName}
-          </div>
-          {/* 音名表示（ヒントがONの場合は全表示、OFFでも正解した音は表示） */}
-          {gameState.currentChordTarget && (
-            <div className="mt-1 text-lg font-medium h-7">
-              {gameState.currentChordTarget.notes.map((note, index) => {
-                const noteMod12 = note % 12;
-                const noteName = getNoteNameFromMidi(note);
-                const isCorrect = gameState.correctNotes.includes(noteMod12);
-                // showGuideがtrueなら全て表示、falseなら正解した音のみ表示
-                if (!showGuide && !isCorrect) {
-                  return (
-                    <span key={index} className="mx-1 opacity-0">
-                      {noteName}
-                      {' ✓'}
-                    </span>
-                  );
-                }
-                return (
-                  <span key={index} className={`mx-1 ${isCorrect ? 'text-green-400' : 'text-gray-300'}`}>
-                    {noteName}
-                    {isCorrect && ' ✓'}
-                  </span>
-                );
-              })}
+          {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
+            <div className="flex justify-center items-start gap-2">
+              {/* 各モンスターのコード表示 */}
+              {gameState.activeMonsters.map((monster) => (
+                <div key={monster.id} className="flex-1 max-w-[150px]">
+                  <div className="text-yellow-300 text-lg font-bold tracking-wider drop-shadow-lg">
+                    {monster.chordTarget.displayName}
+                  </div>
+                  {/* 音名表示（ヒントがONの場合は全表示、OFFでも正解した音は表示） */}
+                  <div className="mt-1 text-sm font-medium h-6">
+                    {monster.chordTarget.notes.map((note, index) => {
+                      const noteMod12 = note % 12;
+                      const noteName = getNoteNameFromMidi(note);
+                      const isCorrect = monster.correctNotes.includes(noteMod12);
+                      // showGuideがtrueなら全て表示、falseなら正解した音のみ表示
+                      if (!showGuide && !isCorrect) {
+                        return (
+                          <span key={index} className="mx-0.5 opacity-0 text-xs">
+                            {noteName}
+                            {' ✓'}
+                          </span>
+                        );
+                      }
+                      return (
+                        <span key={index} className={`mx-0.5 text-xs ${isCorrect ? 'text-green-400' : 'text-gray-300'}`}>
+                          {noteName}
+                          {isCorrect && ' ✓'}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            // 互換性のための旧表示（モンスターがいない場合）
+            <div>
+              <div className="text-yellow-300 text-2xl font-bold tracking-wider drop-shadow-lg">
+                {gameState.currentChordTarget?.displayName}
+              </div>
+              {gameState.currentChordTarget && (
+                <div className="mt-1 text-lg font-medium h-7">
+                  {gameState.currentChordTarget.notes.map((note, index) => {
+                    const noteMod12 = note % 12;
+                    const noteName = getNoteNameFromMidi(note);
+                    const isCorrect = gameState.correctNotes.includes(noteMod12);
+                    if (!showGuide && !isCorrect) {
+                      return (
+                        <span key={index} className="mx-1 opacity-0">
+                          {noteName}
+                          {' ✓'}
+                        </span>
+                      );
+                    }
+                    return (
+                      <span key={index} className={`mx-1 ${isCorrect ? 'text-green-400' : 'text-gray-300'}`}>
+                        {noteName}
+                        {isCorrect && ' ✓'}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -507,34 +549,67 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               onMonsterDefeated={handleMonsterDefeated}
               onShowMagicName={handleShowMagicName}
               className="w-full h-full"
+              activeMonsters={gameState.activeMonsters}
             />
           </div>
           
-          {/* 敵の名前 */}
-          <div className="text-white text-base font-bold mb-1">
-            {currentEnemy.name}
-          </div>
-          
-          {/* 敵の行動ゲージ */}
-          <div className="flex justify-center mb-1">
-            {renderEnemyGauge()}
-          </div>
-          
-          {/* HP表示（縦並び、相手が上、自分が下） */}
-          <div className="flex flex-col items-center space-y-1 mt-1">
-            {/* 敵のHPゲージ（上） */}
-            <div className="w-48 h-5 bg-gray-700 border-2 border-gray-600 rounded-full overflow-hidden relative">
-              <div
-                className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
-                style={{ width: `${(gameState.currentEnemyHp / gameState.maxEnemyHp) * 100}%` }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-                {gameState.currentEnemyHp} / {gameState.maxEnemyHp}
+          {/* マルチモンスター情報表示 */}
+          <div className="mt-2">
+            {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
+              <div className="flex justify-center items-start gap-2">
+                {gameState.activeMonsters.map((monster) => (
+                  <div key={monster.id} className="flex-1 max-w-[120px]">
+                    {/* モンスター名 */}
+                    <div className="text-white text-xs font-bold">
+                      {monster.name}
+                    </div>
+                    
+                    {/* 行動ゲージ */}
+                    <div className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mt-1">
+                      <div
+                        className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                        style={{ width: `${monster.gauge}%` }}
+                      />
+                    </div>
+                    
+                    {/* HPゲージ */}
+                    <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mt-1">
+                      <div
+                        className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
+                        style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+                        {monster.currentHp}/{monster.maxHp}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-
-            {/* プレイヤーのHP表示とSPゲージ（下） */}
-            <div className="flex items-center">
+            ) : (
+              // 互換性のための旧表示
+              <>
+                <div className="text-white text-base font-bold mb-1">
+                  {currentEnemy.name}
+                </div>
+                <div className="flex justify-center mb-1">
+                  {renderEnemyGauge()}
+                </div>
+                <div className="flex flex-col items-center space-y-1 mt-1">
+                  <div className="w-48 h-5 bg-gray-700 border-2 border-gray-600 rounded-full overflow-hidden relative">
+                    <div
+                      className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
+                      style={{ width: `${(gameState.currentEnemyHp / gameState.maxEnemyHp) * 100}%` }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+                      {gameState.currentEnemyHp} / {gameState.maxEnemyHp}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {/* プレイヤーのHP表示とSPゲージ */}
+            <div className="flex items-center justify-center mt-2">
               <div className="flex items-center space-x-1">{renderHearts(gameState.playerHp, stage.maxHp, true)}</div>
               <div className="ml-4">{renderSpGauge(gameState.playerSp)}</div>
             </div>

@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
+import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 
 // ===== 型定義 =====
 
@@ -23,6 +24,7 @@ interface FantasyPIXIRendererProps {
   onMonsterDefeated?: () => void; // 状態機械用コールバック
   onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
   className?: string;
+  activeMonsters?: GameMonsterState[]; // マルチモンスター対応
 }
 
 // モンスターのビジュアル状態を不変に管理
@@ -146,6 +148,14 @@ const MONSTER_EMOJI: Record<string, string> = {
 };
 
 // ===== PIXI インスタンスクラス =====
+interface MonsterSpriteData {
+  id: string;
+  sprite: PIXI.Sprite;
+  visualState: MonsterVisualState;
+  gameState: MonsterGameState;
+  position: 'A' | 'B' | 'C';
+}
+
 export class FantasyPIXIInstance {
   private app: PIXI.Application;
   private monsterContainer: PIXI.Container;
@@ -158,9 +168,12 @@ export class FantasyPIXIInstance {
   private onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
   
   // モンスタースプライトは常に存在する（表示/非表示で制御）
-  private monsterSprite: PIXI.Sprite;
-  private monsterVisualState: MonsterVisualState;
-  private monsterGameState: MonsterGameState;
+  private monsterSprite: PIXI.Sprite; // 互換性のため残す
+  private monsterVisualState: MonsterVisualState; // 互換性のため残す
+  private monsterGameState: MonsterGameState; // 互換性のため残す
+  
+  // マルチモンスター対応
+  private monsterSprites: Map<string, MonsterSpriteData> = new Map();
   private particles: Map<string, PIXI.Graphics> = new Map();
   private particleData: Map<string, ParticleData> = new Map();
   private magicCircles: Map<string, PIXI.Graphics> = new Map();
@@ -440,6 +453,135 @@ export class FantasyPIXIInstance {
     }
   }
 
+  // ===== マルチモンスター対応メソッド =====
+  
+  /**
+   * アクティブなモンスター配列に基づいてスプライトを更新
+   */
+  async updateActiveMonsters(monsters: GameMonsterState[]): Promise<void> {
+    if (this.isDestroyed) return;
+    
+    devLog.debug('👾 アクティブモンスター更新:', { count: monsters.length });
+    
+    // 現在のモンスターIDを取得
+    const currentIds = new Set(monsters.map(m => m.id));
+    
+    // 削除されたモンスターを非表示にする
+    for (const [id, monsterData] of this.monsterSprites) {
+      if (!currentIds.has(id)) {
+        monsterData.sprite.visible = false;
+        this.monsterSprites.delete(id);
+      }
+    }
+    
+    // 各モンスターのスプライトを作成または更新
+    for (const monster of monsters) {
+      let monsterData = this.monsterSprites.get(monster.id);
+      
+      if (!monsterData) {
+        // 新しいモンスターのスプライトを作成
+        const sprite = await this.createMonsterSpriteForId(monster.id, monster.icon);
+        if (!sprite) continue;
+        
+        const visualState: MonsterVisualState = {
+          x: this.getPositionX(monster.position),
+          y: this.app.renderer.height / 2 - 20,
+          scale: 0.8, // 複数表示時は少し小さく
+          rotation: 0,
+          tint: 0xFFFFFF,
+          alpha: 1.0,
+          visible: true
+        };
+        
+        const gameState: MonsterGameState = {
+          isAttacking: false,
+          isHit: false,
+          hitColor: 0xFF6B6B,
+          originalColor: 0xFFFFFF,
+          staggerOffset: { x: 0, y: 0 },
+          hitCount: 0,
+          state: 'IDLE',
+          isFadingOut: false,
+          fadeOutStartTime: 0
+        };
+        
+        monsterData = {
+          id: monster.id,
+          sprite,
+          visualState,
+          gameState,
+          position: monster.position
+        };
+        
+        this.monsterSprites.set(monster.id, monsterData);
+        this.monsterContainer.addChild(sprite);
+      }
+      
+      // 位置を更新
+      if (monsterData.position !== monster.position) {
+        monsterData.position = monster.position;
+        monsterData.visualState.x = this.getPositionX(monster.position);
+      }
+      
+      // スプライトの状態を更新
+      this.updateMonsterSpriteData(monsterData);
+    }
+  }
+  
+  /**
+   * 位置に基づいてX座標を計算
+   */
+  private getPositionX(position: 'A' | 'B' | 'C'): number {
+    const width = this.app.renderer.width;
+    switch (position) {
+      case 'A': return width * 0.25;
+      case 'B': return width * 0.5;
+      case 'C': return width * 0.75;
+      default: return width * 0.5;
+    }
+  }
+  
+  /**
+   * 特定のIDのモンスタースプライトを作成
+   */
+  private async createMonsterSpriteForId(id: string, icon: string): Promise<PIXI.Sprite | null> {
+    try {
+      const texture = this.emojiTextures.get(icon);
+      if (!texture || texture.destroyed) {
+        devLog.debug('⚠️ テクスチャが見つかりません:', { id, icon });
+        return null;
+      }
+      
+      const sprite = new PIXI.Sprite(texture);
+      sprite.width = 96; // 複数表示時は少し小さく
+      sprite.height = 96;
+      sprite.anchor.set(0.5);
+      sprite.interactive = true;
+      sprite.cursor = 'pointer';
+      
+      return sprite;
+    } catch (error) {
+      devLog.debug('❌ モンスタースプライト作成エラー:', { id, error });
+      return null;
+    }
+  }
+  
+  /**
+   * 個別のモンスタースプライトを更新
+   */
+  private updateMonsterSpriteData(monsterData: MonsterSpriteData): void {
+    const { sprite, visualState, gameState } = monsterData;
+    
+    sprite.x = visualState.x + gameState.staggerOffset.x;
+    sprite.y = visualState.y + gameState.staggerOffset.y;
+    sprite.scale.x = visualState.scale;
+    sprite.scale.y = visualState.scale;
+    sprite.rotation = visualState.rotation;
+    sprite.tint = gameState.isHit ? gameState.hitColor : visualState.tint;
+    sprite.alpha = visualState.alpha;
+    sprite.visible = visualState.visible && gameState.state !== 'GONE';
+  }
+
   // モンスタースプライトの属性を安全に更新
   private updateMonsterSprite(): void {
     // 追加の安全チェックを実装
@@ -470,6 +612,67 @@ export class FantasyPIXIInstance {
       if (this.monsterSprite && !this.monsterSprite.destroyed) {
         this.monsterSprite.visible = false;
       }
+    }
+  }
+
+  // マルチモンスター用攻撃成功エフェクト
+  triggerAttackSuccessOnMonster(monsterId: string, chordName: string | undefined, isSpecial: boolean, damageDealt: number, defeated: boolean): void {
+    const monsterData = this.monsterSprites.get(monsterId);
+    if (!monsterData || this.isDestroyed) return;
+    
+    try {
+      // 魔法タイプをローテーション
+      const magicTypes = Object.keys(MAGIC_TYPES);
+      const currentIndex = magicTypes.indexOf(this.currentMagicType);
+      this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
+      const magic = MAGIC_TYPES[this.currentMagicType];
+
+      // 魔法名表示
+      const magicName = isSpecial ? magic.tier2Name : magic.name;
+      const magicColor = isSpecial ? magic.tier2Color : magic.color;
+      
+      // HTMLでの表示のためコールバックを呼び出す
+      if (this.onShowMagicName) {
+        this.onShowMagicName(magicName, isSpecial);
+      }
+
+      monsterData.gameState.isHit = true;
+      monsterData.gameState.hitColor = magicColor;
+
+      // よろめきエフェクト
+      if (monsterData.gameState.hitCount < 4) {
+        monsterData.gameState.staggerOffset = {
+          x: (Math.random() - 0.5) * 20,
+          y: (Math.random() - 0.5) * 10
+        };
+      } else {
+        monsterData.gameState.staggerOffset = { x: 0, y: 0 };
+      }
+
+      // ダメージ数値を表示（モンスターの位置に）
+      this.createDamageNumberAt(damageDealt, magicColor, monsterData.visualState.x, monsterData.visualState.y - 50);
+
+      // エフェクトをモンスターの位置に作成
+      this.createImageMagicEffectAt(magic.svg, magicColor, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
+      this.createMagicParticlesAt(magic, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
+
+      // 状態を更新
+      monsterData.gameState.hitCount++;
+
+      if (defeated) {
+        monsterData.gameState.state = 'FADING_OUT';
+        monsterData.gameState.isFadingOut = true;
+      }
+
+      // ヒット状態を解除
+      setTimeout(() => {
+        if (monsterData.gameState) {
+          monsterData.gameState.isHit = false;
+        }
+      }, 300);
+
+    } catch (error) {
+      devLog.debug('❌ 攻撃成功エフェクトエラー:', error);
     }
   }
 
@@ -534,6 +737,86 @@ export class FantasyPIXIInstance {
 
     } catch (error) {
       devLog.debug('❌ 攻撃成功エフェクトエラー:', error);
+    }
+  }
+
+  // 指定位置にPNG画像魔法エフェクトを作成
+  private createImageMagicEffectAt(imagePath: string, color: number, isSpecial: boolean, targetX: number, targetY: number): void {
+    const texture = this.imageTextures.get(imagePath);
+    if (!texture) {
+      devLog.debug(`⚠️ 画像テクスチャが見つかりません: ${imagePath}`);
+      return;
+    }
+
+    const count = isSpecial ? 3 : 1;
+    for (let i = 0; i < count; i++) {
+      try {
+        const magicSprite = new PIXI.Sprite(texture);
+        
+        if (!magicSprite || !magicSprite.anchor) {
+          devLog.debug('⚠️ 魔法スプライト作成失敗');
+          continue;
+        }
+        
+        magicSprite.anchor.set(0.5);
+        
+        // 画面の下から指定位置に向かって飛ぶ
+        const startX = targetX + (Math.random() - 0.5) * 200;
+        const startY = this.app.screen.height - 100;
+        magicSprite.x = startX;
+        magicSprite.y = startY;
+        
+        magicSprite.tint = color;
+        magicSprite.alpha = 0.8;
+        magicSprite.scale.set(0.3);
+        
+        if (!this.effectContainer || this.effectContainer.destroyed) {
+          magicSprite.destroy();
+          return;
+        }
+        
+        this.effectContainer.addChild(magicSprite);
+
+        // アニメーション
+        let life = 800;
+        const finalTargetX = targetX + (isSpecial ? (Math.random() - 0.5) * 80 : 0);
+        const finalTargetY = targetY + (isSpecial ? (Math.random() - 0.5) * 40 : 0);
+        
+        const animate = () => {
+          if (this.isDestroyed || !magicSprite || magicSprite.destroyed) {
+            return;
+          }
+          
+          if (life > 0) {
+            try {
+              const progress = 1 - (life / 800);
+              magicSprite.x = startX + (finalTargetX - startX) * progress;
+              magicSprite.y = startY + (finalTargetY - startY) * progress * progress;
+              magicSprite.scale.set(0.3 + progress * 0.4);
+              magicSprite.rotation += 0.2;
+              life -= 16;
+              requestAnimationFrame(animate);
+            } catch (error) {
+              devLog.debug('⚠️ 魔法エフェクトアニメーションエラー:', error);
+            }
+          } else {
+            try {
+              this.effectContainer.removeChild(magicSprite);
+              magicSprite.destroy();
+            } catch (error) {
+              devLog.debug('⚠️ 魔法スプライト削除エラー:', error);
+            }
+          }
+        };
+        
+        if (isSpecial) {
+          setTimeout(animate, i * 100);
+        } else {
+          animate();
+        }
+      } catch (error) {
+        devLog.debug('❌ 魔法エフェクト作成エラー:', error);
+      }
     }
   }
 
@@ -792,6 +1075,38 @@ export class FantasyPIXIInstance {
     this.app.stage.y = this.screenShakeState.originalY + (Math.random() - 0.5) * currentIntensity;
   }
 
+  // 指定位置にダメージ数値を作成
+  private createDamageNumberAt(damage: number, color: number, x: number, y: number): void {
+    const id = `damage_${Date.now()}_${Math.random()}`;
+    
+    const damageText = new PIXI.Text(damage.toString(), {
+      fontSize: 36,
+      fill: 0xFFFFFF,
+      fontWeight: 'bold',
+      stroke: 0x000000,
+      strokeThickness: 4,
+      dropShadow: true,
+      dropShadowBlur: 4,
+      dropShadowDistance: 2
+    });
+    
+    damageText.anchor.set(0.5);
+    damageText.x = x + (Math.random() - 0.5) * 30;
+    damageText.y = y;
+    damageText.zIndex = 1000;
+    
+    this.uiContainer.addChild(damageText);
+    this.damageNumbers.set(id, damageText);
+    this.damageData.set(id, {
+      text: damageText,
+      startTime: Date.now(),
+      startY: damageText.y,
+      velocity: -2 - Math.random() * 1,
+      life: 1500,
+      maxLife: 1500
+    });
+  }
+
   // ダメージ数値表示
   private createDamageNumber(damage: number, color: number): void {
     const id = `damage_${Date.now()}_${Math.random()}`;
@@ -921,6 +1236,42 @@ export class FantasyPIXIInstance {
   // ▼▼▼ 修正点: 不要になったため関数ごと削除 ▼▼▼
   // private resetMonsterState(): void { ... }
 
+  // 指定位置に魔法パーティクルを作成
+  private createMagicParticlesAt(magic: MagicType, isSpecial: boolean, centerX: number, centerY: number): void {
+    const particleCount = isSpecial ? 30 : 15;
+    const color = isSpecial ? magic.tier2Color : magic.color;
+    
+    for (let i = 0; i < particleCount; i++) {
+      const id = `particle_${Date.now()}_${i}`;
+      const particle = new PIXI.Graphics();
+      particle.beginFill(color, 0.8);
+      particle.drawCircle(0, 0, Math.random() * 4 + 2);
+      particle.endFill();
+      
+      particle.x = centerX;
+      particle.y = centerY;
+      
+      this.particleContainer.addChild(particle);
+      this.particles.set(id, particle);
+      
+      const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
+      const speed = isSpecial ? 8 + Math.random() * 6 : 4 + Math.random() * 3;
+      
+      this.particleData.set(id, {
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        decay: isSpecial ? 0.96 : 0.94,
+        gravity: 0.3
+      });
+    }
+    
+    // 画面揺れエフェクト（SPアタック時のみ）
+    if (isSpecial) {
+      this.startScreenShake(10, 500);
+    }
+  }
+
   // 魔法パーティクル作成
   private createMagicParticles(magic: MagicType, isSpecial: boolean): void {
     const particleCount = magic.particleCount * (isSpecial ? 3 : 1);
@@ -1018,38 +1369,70 @@ export class FantasyPIXIInstance {
     if (this.isDestroyed) return;
     
     try {
-      // フェードアウト中は位置を固定
-      if (!this.monsterGameState.isFadingOut) {
-        // よろけ効果の適用（ビジュアル状態を更新）
-        this.monsterVisualState.x = (this.app.screen.width / 2) + this.monsterGameState.staggerOffset.x;
-        this.monsterVisualState.y = (this.app.screen.height / 2 - 20) + this.monsterGameState.staggerOffset.y;
-      }
-      
-      // 色変化の適用
-      this.monsterVisualState.tint = this.monsterGameState.isHit 
-        ? this.monsterGameState.hitColor 
-        : this.monsterGameState.originalColor;
-      
-      // アイドル時の軽い浮遊効果
-      if (this.monsterGameState.state === 'IDLE' && !this.monsterGameState.isAttacking) {
-        this.monsterVisualState.y = (this.app.screen.height / 2 - 20) + Math.sin(Date.now() * 0.002) * 8;
-      }
-      
-      // よろけ効果の減衰
-      this.monsterGameState.staggerOffset.x *= 0.9;
-      this.monsterGameState.staggerOffset.y *= 0.9;
-      
-      // フェードアウト処理
-      if (this.monsterGameState.isFadingOut) {
-        this.monsterVisualState.alpha -= 0.05;
-        if (this.monsterVisualState.alpha <= 0) {
-          this.monsterVisualState.alpha = 0;
-          this.monsterVisualState.visible = false;
+      // マルチモンスター対応
+      if (this.monsterSprites.size > 0) {
+        // 各モンスターのアニメーションを更新
+        for (const [id, monsterData] of this.monsterSprites) {
+          const { visualState, gameState } = monsterData;
+          
+          // よろけ効果の減衰
+          gameState.staggerOffset.x *= 0.9;
+          gameState.staggerOffset.y *= 0.9;
+          
+          // アイドル時の軽い浮遊効果
+          if (gameState.state === 'IDLE' && !gameState.isAttacking) {
+            const baseY = this.app.screen.height / 2 - 20;
+            visualState.y = baseY + Math.sin(Date.now() * 0.002 + id.charCodeAt(0)) * 6;
+          }
+          
+          // フェードアウト処理
+          if (gameState.isFadingOut) {
+            visualState.alpha -= 0.05;
+            if (visualState.alpha <= 0) {
+              visualState.alpha = 0;
+              visualState.visible = false;
+              gameState.state = 'GONE';
+            }
+          }
+          
+          // スプライトを更新
+          this.updateMonsterSpriteData(monsterData);
         }
+      } else {
+        // 互換性のため従来の単体モンスター処理
+        // フェードアウト中は位置を固定
+        if (!this.monsterGameState.isFadingOut) {
+          // よろけ効果の適用（ビジュアル状態を更新）
+          this.monsterVisualState.x = (this.app.screen.width / 2) + this.monsterGameState.staggerOffset.x;
+          this.monsterVisualState.y = (this.app.screen.height / 2 - 20) + this.monsterGameState.staggerOffset.y;
+        }
+        
+        // 色変化の適用
+        this.monsterVisualState.tint = this.monsterGameState.isHit 
+          ? this.monsterGameState.hitColor 
+          : this.monsterGameState.originalColor;
+        
+        // アイドル時の軽い浮遊効果
+        if (this.monsterGameState.state === 'IDLE' && !this.monsterGameState.isAttacking) {
+          this.monsterVisualState.y = (this.app.screen.height / 2 - 20) + Math.sin(Date.now() * 0.002) * 8;
+        }
+        
+        // よろけ効果の減衰
+        this.monsterGameState.staggerOffset.x *= 0.9;
+        this.monsterGameState.staggerOffset.y *= 0.9;
+        
+        // フェードアウト処理
+        if (this.monsterGameState.isFadingOut) {
+          this.monsterVisualState.alpha -= 0.05;
+          if (this.monsterVisualState.alpha <= 0) {
+            this.monsterVisualState.alpha = 0;
+            this.monsterVisualState.visible = false;
+          }
+        }
+        
+        // モンスタースプライトを更新
+        this.updateMonsterSprite();
       }
-      
-      // モンスタースプライトを更新
-      this.updateMonsterSprite();
       
     } catch (error) {
       devLog.debug('⚠️ モンスターアニメーション更新エラー:', error);
@@ -1443,7 +1826,8 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   onReady,
   onMonsterDefeated,
   onShowMagicName,
-  className
+  className,
+  activeMonsters
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pixiInstance, setPixiInstance] = useState<FantasyPIXIInstance | null>(null);
@@ -1466,10 +1850,16 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   // モンスターアイコン変更（状態機械による安全な生成）
   useEffect(() => {
     if (pixiInstance) {
-      // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
-      pixiInstance.createMonsterSprite(monsterIcon);
+      // マルチモンスター対応がある場合はそちらを優先
+      if (activeMonsters && activeMonsters.length > 0) {
+        pixiInstance.updateActiveMonsters(activeMonsters);
+      } else {
+        // 互換性のため従来の単体モンスター表示
+        // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
+        pixiInstance.createMonsterSprite(monsterIcon);
+      }
     }
-  }, [pixiInstance, monsterIcon]);
+  }, [pixiInstance, monsterIcon, activeMonsters]);
 
   // 攻撃状態更新
   useEffect(() => {
