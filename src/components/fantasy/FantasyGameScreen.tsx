@@ -31,6 +31,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // エフェクト状態
   const [isMonsterAttacking, setIsMonsterAttacking] = useState(false);
   const [damageShake, setDamageShake] = useState(false);
+  const [overlay, setOverlay] = useState<null | { text:string }>(null); // ★★★ add
   
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -228,8 +229,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [fantasyPixiInstance]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
-    devLog.debug('🏁 ゲーム終了:', { result, finalState });
-    onGameComplete(result, finalState.score, finalState.correctAnswers, finalState.totalQuestions);
+    const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
+    setOverlay({ text });                 // ★★★ add
+    setTimeout(() => {
+      setOverlay(null);                   // オーバーレイを消す
+      onGameComplete(
+        result,
+        finalState.score,
+        finalState.correctAnswers,
+        finalState.totalQuestions
+      );
+    }, 2000);                             // 2 秒待ってから結果画面へ
   }, [onGameComplete]);
   
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
@@ -243,7 +253,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     proceedToNextEnemy,
     ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: stage, // UI状態の`showGuide`を含めない！ propsのstageを直接渡す
+    stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
@@ -460,6 +470,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
+    if (maxHp >= 6) {
+      return (
+        <span className="text-2xl text-red-500 font-bold">
+          ♥×{hp}
+        </span>
+      );                                    // ★★★ add
+    }
+    
     const hearts = [];
     // HP表示のデバッグログを追加
     devLog.debug(`💖 ${isPlayer ? 'プレイヤー' : '敵'}HP表示:`, { current: hp, max: maxHp });
@@ -564,8 +582,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   return (
     <div className={cn(
-      "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen",
-      damageShake && "animate-pulse"
+      "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen"
     )}>
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
@@ -901,6 +918,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
       />
+      
+      {/* オーバーレイ表示 */}           {/* ★★★ add */}
+      {overlay && (
+        <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none">
+          <span className="font-dotgothic16 text-6xl text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
+            {overlay.text}
+          </span>
+        </div>
+      )}
     </div>
   );
 };

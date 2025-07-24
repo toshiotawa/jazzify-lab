@@ -925,11 +925,11 @@ export const useFantasyGameEngine = ({
   }, [enemyGaugeTimer]);
   
   // ステージ変更時の初期化
-  useEffect(() => {
-    if (stage) {
-      initializeGame(stage);
-    }
-  }, [stage, initializeGame]);
+  // useEffect(() => {
+  //   if (stage) {
+  //     initializeGame(stage);
+  //   }
+  // }, [stage, initializeGame]);
   
   // コンポーネント破棄時のクリーンアップ
   useEffect(() => {

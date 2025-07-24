@@ -252,7 +252,7 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
         
         {/* 怒りマーク（攻撃時） */}
         {showRageEffect && (
-          <div className="absolute -top-8 -right-8 text-red-500 text-4xl animate-bounce z-10">
+          <div className="absolute -top-6 right-0 translate-x-full text-red-500 text-4xl z-20 animate-bounce">
             💢
           </div>
         )}

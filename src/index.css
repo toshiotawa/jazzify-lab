@@ -210,6 +210,10 @@
     height: 0 !important;
   }
   
+  /* DotGothic16 Font */
+  @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
+  .font-dotgothic16 { font-family: 'DotGothic16', sans-serif; }
+  
   /* 楽譜エリア: 再生中はスクロールバーを非表示 */
   .overflow-hidden.custom-sheet-scrollbar::-webkit-scrollbar {
     display: none;
