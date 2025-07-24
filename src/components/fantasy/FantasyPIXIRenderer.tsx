@@ -576,10 +576,11 @@ export class FantasyPIXIInstance {
 
       // ▼▼▼ 変更点 ▼▼▼
       // 描画領域の高さに基づいて動的にサイズを決定
+      // コンテナの高さの約70%をモンスターのサイズとし、上限を160pxに設定します。
       const FRAME_HEIGHT = this.app.renderer.height;
-      const spriteSize = Math.min(FRAME_HEIGHT * 0.55, 160); // 160pxを上限
+      const spriteSize = Math.min(FRAME_HEIGHT * 0.7, 160); 
       sprite.width = spriteSize;
-      sprite.height = spriteSize;
+      sprite.height = spriteSize; // 正方形を維持
       sprite.anchor.set(0.5);
       // ▲▲▲ ここまで ▲▲▲
       
@@ -1652,8 +1653,8 @@ export class FantasyPIXIInstance {
         monsterData.visualState.x = this.getPositionX(monsterData.position);
         monsterData.visualState.y = height / 2;
         // ▼▼▼ 変更点 ▼▼▼
-        // サイズも再計算
-        const spriteSize = height * 0.7;
+        // リサイズ時にもモンスターのサイズを再計算
+        const spriteSize = Math.min(height * 0.7, 160);
         monsterData.sprite.width = spriteSize;
         monsterData.sprite.height = spriteSize;
         // ▲▲▲ ここまで ▲▲▲
@@ -1732,6 +1733,12 @@ export class FantasyPIXIInstance {
     } catch (error) {
       devLog.debug('⚠️ エフェクト削除エラー:', error);
     }
+    
+    // ▼▼▼ 追加 ▼▼▼
+    // バンドルされたアセットをアンロード
+    PIXI.Assets.unloadBundle('monsterTextures').catch(e => devLog.debug("monsterTextures unload error", e));
+    PIXI.Assets.unloadBundle('magicTextures').catch(e => devLog.debug("magicTextures unload error", e));
+    // ▲▲▲ ここまで ▲▲▲
     
     // テクスチャクリーンアップ
     try {

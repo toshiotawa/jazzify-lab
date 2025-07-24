@@ -685,9 +685,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       {/* 魔法名表示 */}
                       {magicName && magicName.monsterId === monster.id && (
                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                          <div className={`text-xl font-bold font-dotgothic16 ${
+                          {/* ▼▼▼ 変更点 ▼▼▼ */}
+                          <div className={`font-bold font-dotgothic16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
                             magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                          } drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]`}>
+                          }`}>
+                          {/* ▲▲▲ ここまで ▲▲▲ */}
                             {magicName.name}
                           </div>
                         </div>
