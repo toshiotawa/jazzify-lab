@@ -73,7 +73,7 @@ interface FantasyGameState {
   // 正解した音と待機状態を追跡
   correctNotes: number[]; // 廃止予定（互換性のため残す）
   isWaitingForNextMonster: boolean;
-  playerSp: number; // SPゲージ (0-3)
+  playerSp: number; // SPゲージ (0-5)
   // マルチモンスター対応
   activeMonsters: MonsterState[]; // 現在アクティブなモンスター配列
   monsterQueue: number[]; // 残りのモンスターインデックスのキュー
@@ -153,10 +153,11 @@ const createMonsterFromQueue = (
   position: 'A' | 'B' | 'C',
   enemyHp: number,
   allowedChords: string[],
+  usedChordIds: string[],
   previousChordId?: string
 ): MonsterState => {
   const enemy = ENEMY_LIST[monsterIndex % ENEMY_LIST.length];
-  const chord = selectRandomChord(allowedChords, previousChordId);
+  const chord = selectUniqueRandomChord(allowedChords, usedChordIds, previousChordId);
   
   return {
     id: `${enemy.id}_${Date.now()}_${position}`,
@@ -179,6 +180,42 @@ const assignPositions = (count: number): ('A' | 'B' | 'C')[] => {
   if (count === 1) return ['B']; // 1体の場合は中央
   if (count === 2) return ['A', 'C']; // 2体の場合は左右
   return ['A', 'B', 'C']; // 3体の場合は全列
+};
+
+/**
+ * 既に使用されているコードを除外してランダムにコードを選択
+ */
+const selectUniqueRandomChord = (
+  allowedChords: string[], 
+  usedChordIds: string[],
+  previousChordId?: string
+): ChordDefinition | null => {
+  let availableChords = allowedChords
+    .map(chordId => CHORD_DEFINITIONS[chordId])
+    .filter(Boolean);
+    
+  if (availableChords.length === 0) return null;
+  
+  // 既に使用されているコードを除外
+  if (usedChordIds.length > 0) {
+    const filteredChords = availableChords.filter(c => !usedChordIds.includes(c.id));
+    // 除外した結果、選択肢が残っている場合のみ、絞り込んだリストを使用する
+    if (filteredChords.length > 0) {
+      availableChords = filteredChords;
+    }
+  }
+  
+  // 前回のコードと異なるコードが選択肢にあれば、それを除外する
+  if (previousChordId && availableChords.length > 1) {
+    const filteredChords = availableChords.filter(c => c.id !== previousChordId);
+    // 除外した結果、選択肢が残っている場合のみ、絞り込んだリストを使用する
+    if (filteredChords.length > 0) {
+      availableChords = filteredChords;
+    }
+  }
+  
+  const randomIndex = Math.floor(Math.random() * availableChords.length);
+  return availableChords[randomIndex];
 };
 
 /**
@@ -358,6 +395,7 @@ export const useFantasyGameEngine = ({
     const initialMonsterCount = Math.min(simultaneousCount, totalEnemies);
     const positions = assignPositions(initialMonsterCount);
     const activeMonsters: MonsterState[] = [];
+    const usedChordIds: string[] = [];
     
     for (let i = 0; i < initialMonsterCount; i++) {
       const monsterIndex = monsterQueue.shift()!;
@@ -365,9 +403,11 @@ export const useFantasyGameEngine = ({
         monsterIndex,
         positions[i],
         enemyHp,
-        stage.allowedChords
+        stage.allowedChords,
+        usedChordIds
       );
       activeMonsters.push(monster);
+      usedChordIds.push(monster.chordTarget.id);
     }
 
     // 互換性のため最初のモンスターの情報を設定
@@ -517,6 +557,7 @@ export const useFantasyGameEngine = ({
           const finalState = {
             ...prevState,
             playerHp: newHp,
+            playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
             isGameActive: false,
             isGameOver: true,
             gameResult: 'clear' as const
@@ -549,6 +590,7 @@ export const useFantasyGameEngine = ({
           const nextState = {
             ...prevState,
             playerHp: newHp,
+            playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
             currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
             currentChordTarget: nextChord,
             enemyGauge: 0,
@@ -650,6 +692,8 @@ export const useFantasyGameEngine = ({
   const handleNoteInput = useCallback((note: number) => {
     if (!gameState.isGameActive || gameState.isWaitingForNextMonster) return;
 
+    devLog.debug('🎹 ノート入力受信:', { note, noteMod12: note % 12 });
+
     const noteMod12 = note % 12;
     let completedMonster: MonsterState | null = null;
 
@@ -665,6 +709,15 @@ export const useFantasyGameEngine = ({
         const newCorrectNotes = [...monster.correctNotes, noteMod12];
         const isComplete = newCorrectNotes.length === targetNotes.length;
 
+        devLog.debug('🎵 音判定:', {
+          monster: monster.name,
+          chord: monster.chordTarget.displayName,
+          inputNote: noteMod12,
+          correctNotes: newCorrectNotes,
+          targetNotes: targetNotes,
+          isComplete: isComplete
+        });
+
         if (isComplete) {
           completedMonster = { ...monster, correctNotes: newCorrectNotes };
         }
@@ -676,6 +729,11 @@ export const useFantasyGameEngine = ({
     // 2. 判定結果に応じた処理
     if (completedMonster) {
       // --- コードが完成した場合：攻撃処理 ---
+      devLog.debug('🎯 コードが完成しました！', { 
+        monster: completedMonster.name, 
+        chord: completedMonster.chordTarget.displayName,
+        monsterId: completedMonster.id
+      });
       
       // ★★★ 修正点1: 二重実行を防ぐため、setGameStateのupdater関数内で処理をアトミックにする ★★★
       setGameState(prevState => {
@@ -683,11 +741,12 @@ export const useFantasyGameEngine = ({
         const monsterToUpdate = prevState.activeMonsters.find(m => m.id === completedMonster!.id);
         // モンスターが存在しない、またはHPが既に更新されている場合は処理をスキップ
         if (!monsterToUpdate || monsterToUpdate.currentHp !== completedMonster!.currentHp) {
+          devLog.debug('⚠️ モンスター状態が既に更新済み、処理をスキップ');
           return prevState;
         }
 
         const currentStage = prevState.currentStage!;
-        const isSpecialAttack = prevState.playerSp >= 3;
+        const isSpecialAttack = prevState.playerSp >= 5;
         const damageDealt = (Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage) * (isSpecialAttack ? 2 : 1);
         const willBeDefeated = (monsterToUpdate.currentHp - damageDealt) <= 0;
 
@@ -712,6 +771,9 @@ export const useFantasyGameEngine = ({
         let newMonsterQueue = [...prevState.monsterQueue];
         let newActiveMonsters = [...remainingMonsters];
         const availablePositions = ['A', 'B', 'C'].filter(pos => !newActiveMonsters.some(m => m.position === pos));
+        
+        // 現在使用中のコードIDを収集
+        const usedChordIds = newActiveMonsters.map(m => m.chordTarget.id);
 
         for (let i = 0; i < defeatedCount && newMonsterQueue.length > 0; i++) {
           const monsterIndex = newMonsterQueue.shift()!;
@@ -724,9 +786,11 @@ export const useFantasyGameEngine = ({
             position as 'A' | 'B' | 'C', 
             prevState.maxEnemyHp, 
             prevState.currentStage!.allowedChords,
+            usedChordIds,
             previousChordId // 倒したモンスターのコードIDを渡す
           );
           newActiveMonsters.push(newMonster);
+          usedChordIds.push(newMonster.chordTarget.id);
         }
 
         // ★★★ 修正点3: 攻撃成功後、全モンスターの✓をリセットし、攻撃対象のモンスターのみゲージをリセット ★★★
@@ -741,7 +805,7 @@ export const useFantasyGameEngine = ({
           activeMonsters: newActiveMonsters,
           monsterQueue: newMonsterQueue,
           enemiesDefeated: totalDefeatedNow,
-          playerSp: isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 3),
+          playerSp: isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5),
           score: prevState.score + (1000 * defeatedCount),
           correctNotes: [], // 互換性維持
           enemyGauge: 0, // 互換性維持

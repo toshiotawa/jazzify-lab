@@ -487,12 +487,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // SPゲージ表示
   const renderSpGauge = useCallback((sp: number) => {
     const spBlocks = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       spBlocks.push(
         <div
           key={i}
           className={cn(
-            "w-12 h-3 rounded transition-all duration-300",
+            "w-10 h-3 rounded transition-all duration-300",
             i < sp ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.7)]' : 'bg-gray-600'
           )}
         />
