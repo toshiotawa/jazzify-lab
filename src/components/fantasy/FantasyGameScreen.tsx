@@ -47,6 +47,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const midiControllerRef = useRef<MIDIController | null>(null);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   
+  // ★★★ 追加: モンスターエリアの幅管理 ★★★
+  const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
+  const monsterAreaRef = useRef<HTMLDivElement>(null);
+  
+  // ★★★ 追加: モンスターエリアのサイズ監視 ★★★
+  useEffect(() => {
+    const update = () => {
+      if (monsterAreaRef.current) {
+        setMonsterAreaWidth(monsterAreaRef.current.clientWidth);
+      }
+    };
+    update(); // 初期化時
+    const ro = new ResizeObserver(update); // 動的リサイズ
+    if (monsterAreaRef.current) {
+      ro.observe(monsterAreaRef.current);
+    }
+    window.addEventListener('resize', update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+  
   // stage.showGuide の変更をコンポーネントの状態に同期させる
   useEffect(() => {
     setShowGuide(stage.showGuide);
@@ -588,9 +611,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         */}
         
-        {/* ファンタジーPIXIレンダラー（モンスターとエフェクト） */}
+        {/* ===== モンスター＋エフェクト描画エリア ===== */}
         <div className="mb-2 text-center relative w-full">
-          <div className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden" style={{ height: 'min(200px, 30vh)' }}>
+          <div
+            ref={monsterAreaRef}
+            className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
+            style={{ height: 'min(200px, 30vh)' }}
+          >
             {/* 魔法名表示 */}
             {magicName && (
               <div className="absolute top-4 left-0 right-0 z-20 pointer-events-none">
@@ -602,7 +629,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               </div>
             )}
             <FantasyPIXIRenderer
-              width={window.innerWidth}
+              width={monsterAreaWidth}
               height={200}
               monsterIcon={currentEnemy.icon}
               isMonsterAttacking={isMonsterAttacking}
@@ -615,10 +642,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             />
           </div>
           
-          {/* マルチモンスター情報表示 */}
+          {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
-              <div className="relative w-full max-w-[90vw] mx-auto" style={{ height: 'min(120px,22vw)' }}>
+              <div className="relative w-full mx-auto" style={{ height: 'min(120px,22vw)' }}>
                 {/* 各モンスターの情報を絶対位置で配置 */}
                 {gameState.activeMonsters.map((monster) => {
                   const getLeftPosition = (position: 'A' | 'B' | 'C') => {
@@ -629,16 +656,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                     }
                   };
                   
+                  // スプライトと同じ幅に合わせる
+                  const cardWidth = 0.7 * 200; // 200 = Renderer height
+                  
                   return (
                     <div 
                       key={monster.id}
-                      className="absolute transform -translate-x-1/2 flex flex-col items-center"
+                      className="absolute -translate-x-1/2 flex flex-col items-center"
                       style={{ 
                         left: getLeftPosition(monster.position),
-                        // ---------- 変更開始 ----------
-                        width: '160px',     // 固定幅
-                        maxWidth: '160px',
-                        // ---------- 変更終了 ----------
+                        width: cardWidth,
+                        maxWidth: cardWidth
                       }}
                     >
                       {/* コードネーム */}
