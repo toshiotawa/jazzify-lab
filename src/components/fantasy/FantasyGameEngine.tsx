@@ -396,18 +396,23 @@ export const useFantasyGameEngine = ({
     // ▼▼▼ 修正点2: コードの重複を避けるロジックを追加 ▼▼▼
     let lastChordId: string | undefined = undefined; // 直前のコードIDを記録する変数を追加
 
+    // 既に同時出現数が 1 の場合に後続モンスターが "フェードアウト待ち" の間に
+    // 追加生成されないよう、queue だけ作って最初の 1 体だけ生成する。
     for (let i = 0; i < initialMonsterCount; i++) {
       const monsterIndex = monsterQueue.shift()!;
-      const monster = createMonsterFromQueue(
-        monsterIndex,
-        positions[i],
-        enemyHp,
-        stage.allowedChords,
-        lastChordId // 直前のコードIDを渡して重複を避ける
-      );
-      activeMonsters.push(monster);
-      usedChordIds.push(monster.chordTarget.id);
-      lastChordId = monster.chordTarget.id; // 生成したモンスターのコードIDを更新
+      // simultaneousMonsterCount === 1 のとき、0 番目のみ即生成。
+      if (i === 0 || simultaneousCount > 1) {
+        const monster = createMonsterFromQueue(
+          monsterIndex,
+          positions[i],
+          enemyHp,
+          stage.allowedChords,
+          lastChordId
+        );
+        activeMonsters.push(monster);
+        usedChordIds.push(monster.chordTarget.id);
+        lastChordId = monster.chordTarget.id;
+      }
     }
 
     // 互換性のため最初のモンスターの情報を設定

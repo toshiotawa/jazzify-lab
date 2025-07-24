@@ -618,16 +618,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* マルチモンスター情報表示 */}
           <div className="mt-2">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
-              <div className="relative w-full" style={{ height: '120px' }}> {/* 高さを少し増やす */}
+              <div className="relative w-full max-w-[90vw] mx-auto" style={{ height: 'min(120px,22vw)' }}>
                 {/* 各モンスターの情報を絶対位置で配置 */}
                 {gameState.activeMonsters.map((monster) => {
                   const getLeftPosition = (position: 'A' | 'B' | 'C') => {
-                    const spacing = 25;
                     switch (position) {
-                      case 'A': return `${spacing}%`;
-                      case 'B': return `${spacing * 2}%`;
-                      case 'C': return `${spacing * 3}%`;
-                      default: return '50%';
+                      case 'A': return '25%';
+                      case 'B': return '50%';
+                      case 'C': return '75%';
                     }
                   };
                   

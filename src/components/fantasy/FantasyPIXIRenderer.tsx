@@ -114,7 +114,7 @@ const MAGIC_TYPES: Record<string, MagicType> = {
     name: 'フレア',
     color: 0xFF8C00, // オレンジ
     particleColor: 0xFF6B35,
-    svg: 'fire.png', // .png に変更
+    svg: 'fire.png',
     tier2Name: 'インフェルノ',
     tier2Color: 0xDC143C, // クリムゾン
     particleCount: 20,
@@ -123,7 +123,7 @@ const MAGIC_TYPES: Record<string, MagicType> = {
     name: 'フロスト',
     color: 0x00BFFF, // ディープスカイブルー
     particleColor: 0xB0E0E6,
-    svg: 'ice.png', // .png に変更
+    svg: 'ice.png',
     tier2Name: 'ブリザード',
     tier2Color: 0x4169E1, // ロイヤルブルー
     particleCount: 25,
@@ -132,7 +132,7 @@ const MAGIC_TYPES: Record<string, MagicType> = {
     name: 'スパーク',
     color: 0xFFD700, // ゴールド
     particleColor: 0xFFF700,
-    svg: 'thunder.png', // .png に変更
+    svg: 'thunder.png',
     tier2Name: 'サンダー・ストライク',
     tier2Color: 0xFFF8DC, // オフホワイト
     particleCount: 15,
@@ -331,10 +331,10 @@ export class FantasyPIXIInstance {
   private async loadImageTextures(): Promise<void> {
     try {
       for (const magic of Object.values(MAGIC_TYPES)) {
-        // Load from public directory (directly from root)
-        const texture = await PIXI.Assets.load(`/${magic.svg}`);
+        // Vite の public 配下にあるので `new URL` で解決
+        const texture = await PIXI.Assets.load(new URL(`../../data/${magic.svg}`, import.meta.url).href);
         this.imageTextures.set(magic.svg, texture);
-        devLog.debug(`✅ 画像テクスチャ読み込み: /${magic.svg}`);
+        devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
       }
       devLog.debug('✅ 全画像テクスチャ読み込み完了');
     } catch (error) {
@@ -474,10 +474,11 @@ export class FantasyPIXIInstance {
         const sprite = await this.createMonsterSpriteForId(monster.id, monster.icon);
         if (!sprite) continue;
         
+        const scale = monsters.length === 1 ? 1 : 0.8;
         const visualState: MonsterVisualState = {
           x: this.getPositionX(monster.position),
           y: this.app.renderer.height / 2 - 20,
-          scale: 0.8, // 複数表示時は少し小さく
+          scale,
           rotation: 0,
           tint: 0xFFFFFF,
           alpha: 1.0,
@@ -524,13 +525,13 @@ export class FantasyPIXIInstance {
    */
   private getPositionX(position: 'A' | 'B' | 'C'): number {
     const width = this.app.renderer.width;
-    // 画面幅から均等に計算（3列で均等配置）
-    const spacing = width / 4;
+    //   |---25%---|---25%---|---25%---|   と等分し真ん中に配置
+    // UI 側 (`FantasyGameScreen.getLeftPosition`) と合わせるため +0%/+25%/+50%
     switch (position) {
-      case 'A': return spacing;       // 左列: 1/4の位置
-      case 'B': return spacing * 2;   // 中央列: 2/4の位置
-      case 'C': return spacing * 3;   // 右列: 3/4の位置
-      default: return width * 0.5;
+      case 'A': return width * 0.25;
+      case 'B': return width * 0.50;
+      case 'C': return width * 0.75;
+      default:  return width * 0.50;
     }
   }
   
@@ -637,8 +638,8 @@ export class FantasyPIXIInstance {
         this.onShowMagicName(magicName, isSpecial);
       }
 
-      monsterData.gameState.isHit = true;
-      monsterData.gameState.hitColor = magicColor;
+      // 色変更要求なしになったのでティントは触らない
+      monsterData.gameState.isHit = false;
 
       // よろめきエフェクト
       if (monsterData.gameState.hitCount < 4) {
@@ -1672,6 +1673,11 @@ export class FantasyPIXIInstance {
   resize(width: number, height: number): void {
     if (!this.app || !this.app.renderer || this.isDestroyed) {
       devLog.debug('⚠️ PIXIリサイズスキップ: アプリまたはレンダラーがnull');
+      return;
+    }
+    
+    // transform が NULL のスプライトは skip
+    if (this.monsterSprite.destroyed || !(this.monsterSprite as any).transform) {
       return;
     }
     
