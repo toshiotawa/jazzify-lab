@@ -605,6 +605,22 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     connectMidiDevice();
   }, [settings.selectedMidiDevice, pixiRenderer]); // pixiRendererを依存配列に追加
 
+  // 楽曲変更時にMIDI接続を確認・復元
+  useEffect(() => {
+    const restoreMidiConnection = async () => {
+      if (midiControllerRef.current && settings.selectedMidiDevice && pixiRenderer) {
+        const isRestored = await midiControllerRef.current.checkAndRestoreConnection();
+        if (isRestored) {
+          log.info('✅ 楽曲変更後のMIDI接続を復元しました');
+        }
+      }
+    };
+
+    // 少し遅延を入れて確実に復元
+    const timer = setTimeout(restoreMidiConnection, 200);
+    return () => clearTimeout(timer);
+  }, [currentSong, settings.selectedMidiDevice, pixiRenderer]); // currentSongが変更されたときに実行
+
   // 音声デバイス選択変更監視
   useEffect(() => {
     const connectAudioDevice = async () => {

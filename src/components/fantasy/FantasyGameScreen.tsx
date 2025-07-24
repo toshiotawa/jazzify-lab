@@ -119,6 +119,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       localStorage.removeItem('fantasyMidiDeviceId');
     }
   }, [midiDeviceId]);
+
+  // ステージ変更時にMIDI接続を確認・復元
+  useEffect(() => {
+    const restoreMidiConnection = async () => {
+      if (midiControllerRef.current && midiDeviceId) {
+        const isRestored = await midiControllerRef.current.checkAndRestoreConnection();
+        if (isRestored) {
+          devLog.debug('✅ ステージ変更後のMIDI接続を復元しました');
+        }
+      }
+    };
+
+    // 少し遅延を入れて確実に復元
+    const timer = setTimeout(restoreMidiConnection, 100);
+    return () => clearTimeout(timer);
+  }, [stage, midiDeviceId]); // stageが変更されたときに実行
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
