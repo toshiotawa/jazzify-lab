@@ -629,7 +629,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               </div>
             )}
             <FantasyPIXIRenderer
-              width={monsterAreaWidth}
+              width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
               height={200}
               monsterIcon={currentEnemy.icon}
               isMonsterAttacking={isMonsterAttacking}

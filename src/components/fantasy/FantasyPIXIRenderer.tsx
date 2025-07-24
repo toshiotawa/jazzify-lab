@@ -463,13 +463,7 @@ export class FantasyPIXIInstance {
     // 削除されたモンスターを非表示にする
     for (const [id, monsterData] of this.monsterSprites) {
       if (!currentIds.has(id)) {
-        // スプライトを適切に破棄
-        if (monsterData.sprite && !monsterData.sprite.destroyed) {
-          if (monsterData.sprite.parent) {
-            monsterData.sprite.parent.removeChild(monsterData.sprite);
-          }
-          monsterData.sprite.destroy();
-        }
+        monsterData.sprite.destroy({ children:false, texture:false, baseTexture:false });
         this.monsterSprites.delete(id);
       }
     }
@@ -533,7 +527,7 @@ export class FantasyPIXIInstance {
    * 位置に基づいてX座標を計算
    */
   private getPositionX(position: 'A' | 'B' | 'C'): number {
-    const w = this.app.renderer.width;
+    const w = this.app.screen.width;        // CSS ピクセルと一致する幅
 
     // ---------- 変更開始 ----------
     // 0.25 / 0.50 / 0.75 は "中心" の座標。
