@@ -303,24 +303,25 @@ export class FantasyPIXIInstance {
         ghost:        'yurei_halloween_orange.svg'
       };
 
+      // プリロード用のアセット定義
+      const monsterAssets: Record<string, string> = {};
       for (const icon of monsterIcons) {
-        // SVG → PNG の順で試行
-        const svgPath = `/data/${iconMap[icon]}`;
-        const pngPath = svgPath.replace(/\.svg$/, '.png');
+        const path = `${import.meta.env.BASE_URL}data/${iconMap[icon]}`;
+        monsterAssets[icon] = path;
+      }
 
-        let texture: PIXI.Texture;
-        try {
-          texture = await PIXI.Assets.load(svgPath);
+      // バンドルとして一括ロード
+      await PIXI.Assets.addBundle('monsterTextures', monsterAssets);
+      await PIXI.Assets.loadBundle('monsterTextures');
+
+      // ロードされたテクスチャを保存
+      for (const icon of monsterIcons) {
+        const texture = PIXI.Assets.get(icon);
+        if (texture) {
           this.imageTextures.set(icon, texture);
-          devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${svgPath}`);
-        } catch {
-          try {
-            texture = await PIXI.Assets.load(pngPath);
-            this.imageTextures.set(icon, texture);
-            devLog.debug(`✅ モンスターテクスチャ読み込み完了 (PNG fallback): ${pngPath}`);
-          } catch (e) {
-            devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${svgPath} & ${pngPath}`, e);
-          }
+          devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${icon}`);
+        } else {
+          devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${icon}`);
         }
       }
       // ▲▲▲ ここまで ▲▲▲
@@ -345,11 +346,24 @@ export class FantasyPIXIInstance {
   // ★★★ 修正点(2): 画像読み込みパスを `public` ディレクトリ基準に修正 ★★★
   private async loadImageTextures(): Promise<void> {
     try {
-      for (const magic of Object.values(MAGIC_TYPES)) {
-        // publicディレクトリのルートからのパスでロードします
-        const texture = await PIXI.Assets.load(`/${magic.svg}`);
-        this.imageTextures.set(magic.svg, texture);
-        devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
+      // 魔法テクスチャのアセット定義
+      const magicAssets: Record<string, string> = {};
+      for (const [key, magic] of Object.entries(MAGIC_TYPES)) {
+        const path = `${import.meta.env.BASE_URL}${magic.svg}`;
+        magicAssets[key] = path;
+      }
+
+      // バンドルとして一括ロード
+      await PIXI.Assets.addBundle('magicTextures', magicAssets);
+      await PIXI.Assets.loadBundle('magicTextures');
+
+      // ロードされたテクスチャを保存
+      for (const [key, magic] of Object.entries(MAGIC_TYPES)) {
+        const texture = PIXI.Assets.get(key);
+        if (texture) {
+          this.imageTextures.set(magic.svg, texture);
+          devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
+        }
       }
       devLog.debug('✅ 全画像テクスチャ読み込み完了');
     } catch (error) {
@@ -549,7 +563,7 @@ export class FantasyPIXIInstance {
       
       // テクスチャが見つからない場合はフォールバックを使用
       if (!texture || texture.destroyed) {
-        devLog.debug('⚠️ モンスターテクスチャが見つかりません、フォールバックを使用:', { id, icon });
+        // devLog.debug('⚠️ モンスターテクスチャが見つかりません、フォールバックを使用:', { id, icon });
         texture = this.imageTextures.get('default_monster');
         if (!texture || texture.destroyed) {
           devLog.debug('❌ フォールバックテクスチャも見つかりません');
@@ -562,7 +576,8 @@ export class FantasyPIXIInstance {
 
       // ▼▼▼ 変更点 ▼▼▼
       // 描画領域の高さに基づいて動的にサイズを決定
-      const spriteSize = this.app.renderer.height * 0.7;
+      const FRAME_HEIGHT = this.app.renderer.height;
+      const spriteSize = Math.min(FRAME_HEIGHT * 0.55, 160); // 160pxを上限
       sprite.width = spriteSize;
       sprite.height = spriteSize;
       sprite.anchor.set(0.5);

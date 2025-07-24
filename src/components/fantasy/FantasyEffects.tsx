@@ -146,9 +146,9 @@ const EFFECT_CONFIGS = {
   },
   magicText: {
     duration: 500,
-    fontSize: 18,
+    fontSize: 14,
     strokeColor: '#000000',
-    strokeThickness: 3
+    strokeThickness: 2
   },
   damageText: {
     duration: 1000,
@@ -585,9 +585,10 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
           style={{
             left: text.x - 50,
             top: text.y,
-            width: 100,
+            width: 'auto',
+            whiteSpace: 'nowrap',
             color: text.color,
-            opacity: text.alpha,
+            opacity: text.alpha * 0.75,
             fontSize: EFFECT_CONFIGS.magicText.fontSize,
             textShadow: `${EFFECT_CONFIGS.magicText.strokeThickness}px ${EFFECT_CONFIGS.magicText.strokeThickness}px ${EFFECT_CONFIGS.magicText.strokeColor}`
           }}
