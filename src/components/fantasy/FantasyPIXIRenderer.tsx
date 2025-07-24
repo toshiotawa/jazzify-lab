@@ -187,7 +187,7 @@ export class FantasyPIXIInstance {
   /* 既存のフィールドはこのまま */
   private monsterSprite: PIXI.Sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
   private monsterVisualState: MonsterVisualState = {
-    x: 0, y: 0, scale: 1, rotation: 0, tint: 0xffffff, alpha: 1, visible: false
+    x: 0, y: 0, scale: 0.3, rotation: 0, tint: 0xffffff, alpha: 1, visible: false  // scale を 1 から 0.3 に変更
   };
   
   // マルチモンスター対応
@@ -408,7 +408,7 @@ export class FantasyPIXIInstance {
         alpha: 1.0,
         visible: true,
         tint: 0xFFFFFF,
-        scale: 1.0
+        scale: 0.3  // 1.0 から 0.3 に変更
       };
       
       // ゲーム状態をリセット
@@ -455,7 +455,7 @@ export class FantasyPIXIInstance {
         alpha: 1.0,
         visible: true,
         tint: 0xFFFFFF,
-        scale: 1.0
+        scale: 0.3  // 1.0 から 0.3 に変更
       };
       
       // スプライトの属性を更新
@@ -501,7 +501,7 @@ export class FantasyPIXIInstance {
         const visualState: MonsterVisualState = {
           x: this.getPositionX(monster.position),
           y: 100, // Y座標を100pxに固定（200px高さの中央）
-          scale: 1.0,
+          scale: 0.3,  // 1.0 から 0.3 に変更
           rotation: 0,
           tint: 0xFFFFFF,
           alpha: 1.0,
@@ -575,8 +575,6 @@ export class FantasyPIXIInstance {
       const sprite = new PIXI.Sprite(texture);
 
       // ▼▼▼ 修正箇所 ▼▼▼
-      // 幅と高さに基づいてサイズを決定
-      // ▼▼▼ 修正箇所 ▼▼▼
       // 実際のモンスター表示エリアのサイズに基づいてサイズを決定
       const CONTAINER_WIDTH = this.app.screen.width;
       const CONTAINER_HEIGHT = 200; // FantasyGameScreen.tsxで定義されている固定高さ
@@ -584,19 +582,19 @@ export class FantasyPIXIInstance {
       // 3体同時表示を想定して、1体あたりの利用可能幅を計算
       // 各モンスターは画面の25%, 50%, 75%の位置に配置される
       // そのため、利用可能な幅は画面幅の約25%（モンスター間のマージンを考慮）
-      const availableWidth = CONTAINER_WIDTH * 0.22; // 22%でマージンを確保
+      const availableWidth = CONTAINER_WIDTH * 0.20; // 20%でマージンを確保
       
       // モンスターの最大サイズを定義
-      // 幅: 利用可能幅の70%（隣接モンスターとの重なりを防ぐ）
-      const maxWidth = availableWidth * 0.7;
-      // 高さ: コンテナ高さの60%（UIカードとの重なりを防ぐ）
-      const maxHeight = CONTAINER_HEIGHT * 0.6;
+      // 幅: 利用可能幅の80%（十分なマージンを確保）
+      const maxWidth = availableWidth * 0.8;
+      // 高さ: コンテナ高さの50%（上下のマージンを確保）
+      const maxHeight = CONTAINER_HEIGHT * 0.5;
 
       // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
       const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
       
       // 最大スケールを制限（小さすぎる画像が拡大されすぎないように）
-      const finalScale = Math.min(scale, 1.5);
+      const finalScale = Math.min(scale, 0.5);  // 0.8 から 0.5 に変更
       sprite.scale.set(finalScale);
       
       sprite.anchor.set(0.5);
@@ -1376,7 +1374,7 @@ export class FantasyPIXIInstance {
 
     if (isAttacking) {
       this.monsterVisualState.tint = 0xFF6B6B;
-      this.monsterVisualState.scale = 1.2; // 少し大きくなる
+      this.monsterVisualState.scale = 0.35; // 少し大きくなる（0.3 から 0.35 に）
       this.updateMonsterSprite();
 
       // 怒りマーク表示
@@ -1392,7 +1390,7 @@ export class FantasyPIXIInstance {
       setTimeout(() => {
         if (!this.isDestroyed) {
           this.monsterVisualState.tint = 0xFFFFFF;
-          this.monsterVisualState.scale = 1.0; // 元の大きさに戻る
+          this.monsterVisualState.scale = 0.3; // 元の大きさに戻る（0.3 に）
           this.updateMonsterSprite();
           if (this.angerMark) {
             this.angerMark.visible = false;
@@ -1691,19 +1689,19 @@ export class FantasyPIXIInstance {
         // 3体同時表示を想定して、1体あたりの利用可能幅を計算
         // 各モンスターは画面の25%, 50%, 75%の位置に配置される
         // そのため、利用可能な幅は画面幅の約25%（モンスター間のマージンを考慮）
-        const availableWidth = CONTAINER_WIDTH * 0.22; // 22%でマージンを確保
+        const availableWidth = CONTAINER_WIDTH * 0.20; // 20%でマージンを確保
         
         // モンスターの最大サイズを定義
-        // 幅: 利用可能幅の70%（隣接モンスターとの重なりを防ぐ）
-        const maxWidth = availableWidth * 0.7;
-        // 高さ: コンテナ高さの60%（UIカードとの重なりを防ぐ）
-        const maxHeight = CONTAINER_HEIGHT * 0.6;
+        // 幅: 利用可能幅の80%（十分なマージンを確保）
+        const maxWidth = availableWidth * 0.8;
+        // 高さ: コンテナ高さの50%（上下のマージンを確保）
+        const maxHeight = CONTAINER_HEIGHT * 0.5;
 
         // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
         const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
         
         // 最大スケールを制限（小さすぎる画像が拡大されすぎないように）
-        const finalScale = Math.min(scale, 1.5);
+        const finalScale = Math.min(scale, 0.5);  // 0.8 から 0.5 に変更
         sprite.scale.set(finalScale);
         // ▲▲▲ ここまで ▲▲▲
         this.updateMonsterSpriteData(monsterData);

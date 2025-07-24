@@ -74,22 +74,22 @@ const MONSTER_ICONS: Record<string, any> = {
 // モンスターサイズ設定
 const SIZE_CONFIGS = {
   small: {
-    monster: 'text-4xl',
+    monster: 'text-2xl',  // text-4xl から text-2xl に変更
     gauge: 'h-2',
     gaugeBg: 'h-2',
-    container: 'p-2'
+    container: 'p-1'      // p-2 から p-1 に変更
   },
   medium: {
-    monster: 'text-6xl',
-    gauge: 'h-3',
-    gaugeBg: 'h-3',
-    container: 'p-4'
+    monster: 'text-3xl',  // text-6xl から text-3xl に変更
+    gauge: 'h-2',         // h-3 から h-2 に変更
+    gaugeBg: 'h-2',       // h-3 から h-2 に変更
+    container: 'p-2'      // p-4 から p-2 に変更
   },
   large: {
-    monster: 'text-8xl',
-    gauge: 'h-4',
-    gaugeBg: 'h-4',
-    container: 'p-6'
+    monster: 'text-4xl',  // text-8xl から text-4xl に変更
+    gauge: 'h-3',         // h-4 から h-3 に変更
+    gaugeBg: 'h-3',       // h-4 から h-3 に変更
+    container: 'p-3'      // p-6 から p-3 に変更
   }
 };
 
@@ -126,7 +126,7 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   hp,
   maxHp,
   enemyGauge,
-  size = 'large',
+  size = 'medium',  // 'large' から 'medium' に変更
   className
 }) => {
   const [isFloating, setIsFloating] = useState(false);
