@@ -526,6 +526,7 @@ export interface MidiControllerOptions {
   onNoteOn: (note: number, velocity?: number) => void;
   onNoteOff: (note: number) => void;
   onConnectionChange?: (connected: boolean) => void;
+  playMidiSound?: boolean; // 音声再生の有効/無効（デフォルト: true）
 }
 
 // ===== 音声入力・ピッチ検出関連 =====

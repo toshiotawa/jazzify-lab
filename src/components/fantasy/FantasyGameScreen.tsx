@@ -69,7 +69,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onNoteOff: (note: number) => {
           devLog.debug('🎹 MIDI Note Off:', { note });
           stopNote(note);
-        }
+        },
+        playMidiSound: false // ファンタジーモードでは音声重複を防ぐため無効化
       });
       
       controller.setConnectionChangeCallback((connected: boolean) => {
@@ -321,7 +322,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         (note: number) => stopNote(note) // マウスリリース時に音を止める
       );
       
-      // ★★★ 修正箇所 ★★★
       // MIDIControllerにキーハイライト機能を設定
       if (midiControllerRef.current) {
         midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
@@ -331,15 +331,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             renderer.triggerKeyPressEffect(note);
           }
         });
-        
-        // PIXIレンダラーの準備ができたので、選択中のMIDIデバイスがあれば強制的に再接続し、
-        // 設定されたばかりのキーハイライト用コールバックを有効化する。
-        if (settings.selectedMidiDevice) {
-          devLog.debug(`🔧 Fantasy PIXI is ready, re-linking MIDI device (${settings.selectedMidiDevice}) to activate highlight callback.`);
-          midiControllerRef.current.connectDevice(settings.selectedMidiDevice).catch((error: unknown) => {
-            devLog.debug('⚠️ ファンタジーモードMIDIデバイス再接続エラー (on PIXI ready):', error);
-          });
-        }
         
         devLog.debug('✅ ファンタジーモードMIDIController ↔ PIXIレンダラー連携完了');
       }
@@ -352,7 +343,40 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         showGuide: showGuide
       });
     }
-  }, [handleNoteInputBridge, showGuide, settings.selectedMidiDevice]);
+  }, [handleNoteInputBridge, showGuide]);
+
+  // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
+  useEffect(() => {
+    const linkMidiAndPixi = async () => {
+      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
+      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
+        
+        // 1. 鍵盤ハイライト用のコールバックを設定
+        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+          pixiRenderer.highlightKey(note, active);
+          if (active) {
+            pixiRenderer.triggerKeyPressEffect(note);
+          }
+        });
+        
+        // 2. デバイスに再接続して、設定したコールバックを有効化
+        devLog.debug(`🔧 Fantasy: Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
+        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
+        if (success) {
+          devLog.debug('✅ Fantasy: MIDI device successfully linked to renderer.');
+        } else {
+          devLog.debug('⚠️ Fantasy: Failed to link MIDI device to renderer.');
+        }
+      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
+        // デバイス選択が解除された場合は切断
+        midiControllerRef.current.disconnect();
+        devLog.debug('🔌 Fantasy: MIDIデバイス切断');
+      }
+    };
+
+    linkMidiAndPixi();
+    
+  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {

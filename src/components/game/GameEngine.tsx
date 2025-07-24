@@ -512,7 +512,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             },
             onConnectionChange: (connected: boolean) => {
               log.info(`🎹 MIDI接続状態変更: ${connected ? '接続' : '切断'}`);
-            }
+            },
+            playMidiSound: true // 通常曲モードでは音声再生を有効
           });
           
           await midiControllerRef.current.initialize();
@@ -578,22 +579,27 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     };
   }, [handleNoteInput, settings.inputMode]);
 
-  // MIDIデバイス選択変更監視（タイミングを調整）
+  // MIDIとPIXIの連携を管理する専用のuseEffect
   useEffect(() => {
-    const connectMidiDevice = async () => {
-      if (midiControllerRef.current && settings.selectedMidiDevice) {
-        log.info(`🎹 MIDIデバイス接続試行: ${settings.selectedMidiDevice}`);
+    const linkMidiAndPixi = async () => {
+      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
+      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
         
-        // PIXIレンダラーが準備完了していない場合は接続を延期
-        if (!pixiRenderer) {
-          return;
-        }
+        // 1. 鍵盤ハイライト用のコールバックを設定
+        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+          pixiRenderer.highlightKey(note, active);
+          if (active) {
+            pixiRenderer.triggerKeyPressEffect(note);
+          }
+        });
         
+        // 2. デバイスに再接続して、設定したコールバックを有効化
+        log.info(`🔧 Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
         const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
         if (success) {
-          log.info('✅ MIDIデバイス接続成功');
+          log.info('✅ MIDI device successfully linked to renderer.');
         } else {
-          log.warn('⚠️ MIDIデバイス接続失敗');
+          log.warn('⚠️ Failed to link MIDI device to renderer.');
         }
       } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
         // デバイス選択が解除された場合は切断
@@ -601,9 +607,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         log.info('🔌 MIDIデバイス切断');
       }
     };
+
+    linkMidiAndPixi();
     
-    connectMidiDevice();
-  }, [settings.selectedMidiDevice, pixiRenderer]); // pixiRendererを依存配列に追加
+  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
 
   // 楽曲変更時にMIDI接続を確認・復元
   useEffect(() => {
@@ -881,17 +888,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           renderer.triggerKeyPressEffect(note);
         }
       });
-      
-      // ★★★ 修正箇所 ★★★
-      // 既存の `if (midiControllerRef.current.isConnected() ...)` のロジックを置き換え
-      // PIXIレンダラーの準備ができたので、選択中のMIDIデバイスがあれば強制的に再接続し、
-      // 設定されたばかりのキーハイライト用コールバックを有効化する。
-      if (settings.selectedMidiDevice) {
-        log.info(`🔧 PIXI is ready, re-linking MIDI device (${settings.selectedMidiDevice}) to activate highlight callback.`);
-        midiControllerRef.current.connectDevice(settings.selectedMidiDevice).catch((error: unknown) => {
-          log.warn('⚠️ MIDIデバイス再接続エラー (on PIXI ready):', error);
-        });
-      }
       
       log.info('✅ MIDIController ↔ PIXIレンダラー連携完了');
     }

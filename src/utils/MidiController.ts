@@ -202,11 +202,15 @@ export class MIDIController {
   
   // MIDI入力の有効/無効状態（初期値をtrueに変更）
   private isEnabled = true; // ★ デフォルトでMIDI入力を有効にする
+  
+  // 音声再生制御フラグ
+  private readonly playMidiSound: boolean;
 
-  constructor(options: MidiControllerOptions) {
+  constructor(options: MidiControllerOptions & { playMidiSound?: boolean }) {
     this.onNoteOn = options.onNoteOn;
     this.onNoteOff = options.onNoteOff;
     this.onConnectionChange = options.onConnectionChange || null;
+    this.playMidiSound = options.playMidiSound ?? true; // デフォルトは音を鳴らす
 
     console.log('🎹 MIDI Controller initialized (using global audio system)');
   }
@@ -272,8 +276,10 @@ export class MIDIController {
 
   private async handleNoteOn(note: number, velocity: number): Promise<void> {
     try {
-      // 共通音声システムを使用
-      await playNote(note, velocity);
+      // playMidiSoundフラグがtrueの場合のみ共通の音声再生を実行
+      if (this.playMidiSound) {
+        await playNote(note, velocity);
+      }
       
       // アクティブノーツに追加
       this.activeNotes.add(note);
