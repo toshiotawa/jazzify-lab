@@ -138,12 +138,21 @@ const CHORD_DEFINITIONS: Record<string, ChordDefinition> = {
 // ===== 敵リスト定義 =====
 
 const ENEMY_LIST = [
-  { id: 'vampire', icon: 'vampire', name: 'ドラキュラ' },
-  { id: 'monster', icon: 'monster', name: '怪獣' },
-  { id: 'reaper', icon: 'reaper', name: '死神' },
-  { id: 'kraken', icon: 'kraken', name: 'クラーケン' },
-  { id: 'werewolf', icon: 'werewolf', name: '狼男' },
-  { id: 'demon', icon: 'demon', name: '魔王' }
+  { id: 'devil', icon: 'devil', name: '悪魔' },
+  { id: 'dragon', icon: 'dragon', name: 'レッドドラゴン' },
+  { id: 'mao', icon: 'mao', name: '魔王' },
+  { id: 'mummy', icon: 'mummy', name: 'ミイラ' },
+  { id: 'shinigami', icon: 'shinigami', name: '死神' },
+  { id: 'slime_green', icon: 'slime_green', name: 'グリーンスライム' },
+  { id: 'slime_red', icon: 'slime_red', name: 'レッドスライム' },
+  { id: 'zombie', icon: 'zombie', name: 'ゾンビ' },
+  { id: 'skeleton', icon: 'skeleton', name: 'スケルトン' },
+  { id: 'grey', icon: 'grey', name: 'グレイ' },
+  { id: 'pumpkin', icon: 'pumpkin', name: 'パンプキン' },
+  { id: 'alien', icon: 'alien', name: '火星人' },
+  { id: 'bat1', icon: 'bat1', name: 'コウモリ' },
+  { id: 'bat2', icon: 'bat2', name: 'バット' },
+  { id: 'ghost', icon: 'ghost', name: 'ゴースト' }
 ];
 
 // ===== ヘルパー関数 =====
@@ -158,7 +167,9 @@ const createMonsterFromQueue = (
   allowedChords: string[],
   previousChordId?: string
 ): MonsterState => {
-  const enemy = ENEMY_LIST[monsterIndex % ENEMY_LIST.length];
+  // 完全にランダムにモンスターを選択
+  const randomIndex = Math.floor(Math.random() * ENEMY_LIST.length);
+  const enemy = ENEMY_LIST[randomIndex];
   const chord = selectUniqueRandomChord(allowedChords, previousChordId);
   
   return {

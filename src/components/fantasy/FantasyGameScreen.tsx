@@ -479,15 +479,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return hearts;
   }, []);
   
-  const renderPlayerHpBar = (hp: number, maxHp: number) => (
-    <div className="w-40 h-4 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
-      <div
-        className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-all duration-300"
-        style={{ width: `${(hp / maxHp) * 100}%` }}
-      />
-      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-        {hp}/{maxHp}
-      </div>
+  const renderHearts = (hp: number, maxHp: number) => (
+    <div className="flex space-x-0.5">
+      {Array.from({length: maxHp}).map((_, i) => (
+        <span 
+          key={i}
+          className={
+            i < hp
+            ? "text-red-500 drop-shadow-sm text-2xl"
+            : "text-gray-600 text-2xl"
+          }
+        >
+          ♥
+        </span>
+      ))}
     </div>
   );
   
@@ -771,10 +776,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       </div>
       
       {/* HP・SPゲージを固定配置 */}
-      <div className="absolute left-2 bottom-[140px] z-30">
-        {renderPlayerHpBar(gameState.playerHp, stage.maxHp)}
+      <div className="absolute left-2 bottom-2 z-50
+                  pointer-events-none bg-black/40 rounded px-2 py-1">
+        {renderHearts(gameState.playerHp, stage.maxHp)}
       </div>
-      <div className="absolute right-2 bottom-[140px] z-30">
+      <div className="absolute right-2 bottom-2 z-50
+                  pointer-events-none bg-black/40 rounded px-2 py-1">
         {renderSpGauge(gameState.playerSp)}
       </div>
       
