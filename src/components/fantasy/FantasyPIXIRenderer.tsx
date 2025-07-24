@@ -1194,33 +1194,30 @@ export class FantasyPIXIInstance {
 
 
 
-  // モンスター攻撃状態更新
-  updateMonsterAttacking(isAttacking: boolean): void {
-    // 状態ガード
-    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed) return;
+  /** monsterId=null なら旧単体用 */
+  updateMonsterAttacking(monsterId: string | null = null, isAttacking = false): void {
+    if (this.isDestroyed) return;
+    const target = monsterId ? this.monsterSprites.get(monsterId) : undefined;
+    const spriteData = target ?? { sprite: this.monsterSprite, gameState: this.monsterGameState, visualState: this.monsterVisualState };
+    if (!spriteData) return;
 
-    this.monsterGameState.isAttacking = isAttacking;
-
+    spriteData.gameState.isAttacking = isAttacking;
     if (isAttacking) {
-      this.monsterVisualState.tint = 0xFF6B6B;
-      this.monsterVisualState.scale = 0.35; // 少し大きくなる（0.3 から 0.35 に）
-      this.updateMonsterSprite();
-
+      spriteData.visualState.scale = spriteData.visualState.scale * 1.5; // 一瞬大きく
+      
       // 怒りマーク表示
       if (!this.angerMark) {
         this.angerMark = new PIXI.Text('💢', { fontSize: 48 });
         this.angerMark.anchor.set(0.5);
         this.uiContainer.addChild(this.angerMark);
-      } 
-      this.angerMark.x = this.monsterVisualState.x + 60; // 右に表示
-      this.angerMark.y = this.monsterVisualState.y - 60;
+      }
+      this.angerMark.x = spriteData.visualState.x + spriteData.sprite.width * .6;
+      this.angerMark.y = spriteData.visualState.y - 60;
       this.angerMark.visible = true;
 
       setTimeout(() => {
         if (!this.isDestroyed) {
-          this.monsterVisualState.tint = 0xFFFFFF;
-          this.monsterVisualState.scale = 0.3; // 元の大きさに戻る（0.3 に）
-          this.updateMonsterSprite();
+          spriteData.visualState.scale = spriteData.visualState.scale / 1.5; // 元の大きさに戻る
           if (this.angerMark) {
             this.angerMark.visible = false;
           }
@@ -1656,7 +1653,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   // 攻撃状態更新
   useEffect(() => {
     if (pixiInstance) {
-      pixiInstance.updateMonsterAttacking(isMonsterAttacking);
+              pixiInstance.updateMonsterAttacking(null, isMonsterAttacking);
     }
   }, [pixiInstance, isMonsterAttacking]);
 
