@@ -469,7 +469,13 @@ export class FantasyPIXIInstance {
     // 削除されたモンスターを非表示にする
     for (const [id, monsterData] of this.monsterSprites) {
       if (!currentIds.has(id)) {
-        monsterData.sprite.visible = false;
+        // スプライトを適切に破棄
+        if (monsterData.sprite && !monsterData.sprite.destroyed) {
+          if (monsterData.sprite.parent) {
+            monsterData.sprite.parent.removeChild(monsterData.sprite);
+          }
+          monsterData.sprite.destroy();
+        }
         this.monsterSprites.delete(id);
       }
     }
@@ -533,10 +539,12 @@ export class FantasyPIXIInstance {
    */
   private getPositionX(position: 'A' | 'B' | 'C'): number {
     const width = this.app.renderer.width;
+    // 画面幅から均等に計算（3列で均等配置）
+    const spacing = width / 4;
     switch (position) {
-      case 'A': return width * 0.25;
-      case 'B': return width * 0.5;
-      case 'C': return width * 0.75;
+      case 'A': return spacing;       // 左列: 1/4の位置
+      case 'B': return spacing * 2;   // 中央列: 2/4の位置
+      case 'C': return spacing * 3;   // 右列: 3/4の位置
       default: return width * 0.5;
     }
   }
@@ -553,8 +561,8 @@ export class FantasyPIXIInstance {
       }
       
       const sprite = new PIXI.Sprite(texture);
-      sprite.width = 96; // 複数表示時は少し小さく
-      sprite.height = 96;
+      sprite.width = 120; // モンスターサイズを大きく
+      sprite.height = 120;
       sprite.anchor.set(0.5);
       sprite.interactive = true;
       sprite.cursor = 'pointer';
@@ -1392,14 +1400,23 @@ export class FantasyPIXIInstance {
               visualState.alpha = 0;
               visualState.visible = false;
               gameState.state = 'GONE';
+              
+              // GONEになったモンスターのスプライトを削除
+              if (monsterData.sprite && !monsterData.sprite.destroyed) {
+                if (monsterData.sprite.parent) {
+                  monsterData.sprite.parent.removeChild(monsterData.sprite);
+                }
+                monsterData.sprite.destroy();
+              }
+              this.monsterSprites.delete(id);
             }
           }
           
-          // スプライトを更新
+          // スプライトの状態を更新
           this.updateMonsterSpriteData(monsterData);
         }
       } else {
-        // 互換性のため従来の単体モンスター処理
+        // 互換性のための単体モンスター処理
         // フェードアウト中は位置を固定
         if (!this.monsterGameState.isFadingOut) {
           // よろけ効果の適用（ビジュアル状態を更新）
@@ -1660,7 +1677,14 @@ export class FantasyPIXIInstance {
     try {
       this.app.renderer.resize(width, height);
       
-      // ビジュアル状態の基準位置を更新
+      // マルチモンスターの位置を更新
+      for (const [id, monsterData] of this.monsterSprites) {
+        monsterData.visualState.x = this.getPositionX(monsterData.position);
+        monsterData.visualState.y = height / 2 - 20;
+        this.updateMonsterSpriteData(monsterData);
+      }
+      
+      // 互換性のための単体モンスター位置更新
       this.monsterVisualState.x = width / 2;
       this.monsterVisualState.y = height / 2 - 20;
       
