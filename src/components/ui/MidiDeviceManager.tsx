@@ -299,6 +299,4 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
       </div>
     </div>
   );
-};
-
-export default MidiDeviceSelector; 
+}; 

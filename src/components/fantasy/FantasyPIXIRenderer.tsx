@@ -62,6 +62,8 @@ interface ParticleData {
   color: number;
   alpha: number;
   type: 'fire' | 'ice' | 'lightning' | 'magic' | 'damage' | 'explosion' | 'sparkle';
+  decay?: number;
+  gravity?: number;
 }
 
 interface DamageNumber {
@@ -1266,9 +1268,17 @@ export class FantasyPIXIInstance {
       const speed = isSpecial ? 8 + Math.random() * 6 : 4 + Math.random() * 3;
       
       this.particleData.set(id, {
+        id,
+        x: centerX,
+        y: centerY,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         life: 1,
+        maxLife: 1,
+        size: isSpecial ? 3 : 2,
+        color: 0xFFFF00,
+        alpha: 1,
+        type: 'explosion' as const,
         decay: isSpecial ? 0.96 : 0.94,
         gravity: 0.3
       });
@@ -1276,7 +1286,7 @@ export class FantasyPIXIInstance {
     
     // 画面揺れエフェクト（SPアタック時のみ）
     if (isSpecial) {
-      this.startScreenShake(10, 500);
+      this.createScreenShake(10, 500);
     }
   }
 

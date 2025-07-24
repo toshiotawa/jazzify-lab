@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { MidiDeviceSelector } from '../ui/MidiDeviceManager';
-import { MIDIController } from '@/utils/MidiController';
 import { devLog } from '@/utils/logger';
 
 interface FantasySettingsModalProps {

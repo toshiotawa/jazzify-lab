@@ -829,7 +829,7 @@ export const useFantasyGameEngine = ({
         const defeatedCount = updatedMonsters.length - remainingMonsters.length;
         
         // 新しいモンスターを補充
-        let newMonsters = [...remainingMonsters];
+        let newMonsters: MonsterState[] = [...remainingMonsters];
         const availablePositions = ['A', 'B', 'C'].filter(pos => 
           !remainingMonsters.some(m => m.position === pos)
         );
