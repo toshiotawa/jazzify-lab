@@ -8,19 +8,6 @@ import { cn } from '@/utils/cn';
 
 // ===== 型定義 =====
 
-interface EffectParticle {
-  id: string;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  maxLife: number;
-  size: number;
-  color: string;
-  type: 'magic' | 'hit' | 'damage' | 'heal';
-}
-
 interface MagicCircle {
   id: string;
   x: number;
@@ -76,7 +63,6 @@ interface FantasyEffectsProps {
 
 interface FantasyEffectsRef {
   triggerMagicCircle: (x: number, y: number, type: 'success' | 'failure') => string;
-  triggerParticles: (x: number, y: number, count: number, type: 'magic' | 'hit' | 'damage' | 'heal') => string[];
   triggerScreenShake: (intensity: number, duration: number) => void;
   triggerMonsterAnimation: (x: number, y: number, type: 'idle' | 'attack' | 'damage') => string;
   triggerMagicText: (x: number, y: number, text: string, color?: string) => string;
@@ -99,32 +85,6 @@ const EFFECT_CONFIGS = {
       glowColor: '#FF4757',
       duration: 1000,
       maxRadius: 80
-    }
-  },
-  particles: {
-    magic: {
-      color: '#9C88FF',
-      count: 15,
-      speed: 2,
-      life: 1500
-    },
-    hit: {
-      color: '#FFD700',
-      count: 20,
-      speed: 3,
-      life: 1200
-    },
-    damage: {
-      color: '#FF6B6B',
-      count: 10,
-      speed: 4,
-      life: 800
-    },
-    heal: {
-      color: '#51CF66',
-      count: 12,
-      speed: 2,
-      life: 1800
     }
   },
   monsterAnimation: {
@@ -168,7 +128,6 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
 }, ref) => {
   // 状態管理
   const [magicCircles, setMagicCircles] = useState<MagicCircle[]>([]);
-  const [particles, setParticles] = useState<EffectParticle[]>([]);
   const [monsterAnimations, setMonsterAnimations] = useState<MonsterAnimation[]>([]);
   const [magicTexts, setMagicTexts] = useState<MagicText[]>([]);
   const [damageTexts, setDamageTexts] = useState<DamageText[]>([]);
@@ -204,43 +163,6 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
     
     return id;
   }, [onEffectComplete]);
-  
-  // パーティクルエフェクトの生成
-  const triggerParticles = useCallback((
-    x: number, 
-    y: number, 
-    count: number, 
-    type: 'magic' | 'hit' | 'damage' | 'heal'
-  ): string[] => {
-    const config = EFFECT_CONFIGS.particles[type];
-    const newParticles: EffectParticle[] = [];
-    const ids: string[] = [];
-    
-    for (let i = 0; i < count; i++) {
-      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
-      const speed = config.speed + Math.random() * 2;
-      const id = `particle_${Date.now()}_${i}`;
-      
-      newParticles.push({
-        id,
-        x: x + Math.random() * 20 - 10,
-        y: y + Math.random() * 20 - 10,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: config.life,
-        maxLife: config.life,
-        size: 4 + Math.random() * 6,
-        color: config.color,
-        type
-      });
-      
-      ids.push(id);
-    }
-    
-    setParticles(prev => [...prev, ...newParticles]);
-    
-    return ids;
-  }, []);
   
   // モンスターアニメーションの生成
   const triggerMonsterAnimation = useCallback((
@@ -349,7 +271,6 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
   // 全エフェクトのクリア
   const clearAllEffects = useCallback(() => {
     setMagicCircles([]);
-    setParticles([]);
     setMonsterAnimations([]);
     setMagicTexts([]);
     setDamageTexts([]);
@@ -360,7 +281,6 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
   // ref公開
   React.useImperativeHandle(ref, () => ({
     triggerMagicCircle,
-    triggerParticles,
     triggerScreenShake,
     triggerMonsterAnimation,
     triggerMagicText,
@@ -389,19 +309,6 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
           };
         })
         .filter(circle => circle.life > 0);
-    });
-    
-    // パーティクルの更新
-    setParticles(prev => {
-      return prev
-        .map(particle => ({
-          ...particle,
-          x: particle.x + particle.vx * (deltaTime / 16),
-          y: particle.y + particle.vy * (deltaTime / 16),
-          vy: particle.vy + 0.1 * (deltaTime / 16), // 重力効果
-          life: particle.life - deltaTime
-        }))
-        .filter(particle => particle.life > 0);
     });
     
     // モンスターアニメーションの更新
@@ -540,23 +447,6 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
         );
       })}
       
-      {/* パーティクルエフェクト */}
-      {particles.map(particle => (
-        <div
-          key={particle.id}
-          className="absolute rounded-full"
-          style={{
-            left: particle.x - particle.size / 2,
-            top: particle.y - particle.size / 2,
-            width: particle.size,
-            height: particle.size,
-            backgroundColor: particle.color,
-            opacity: particle.life / particle.maxLife,
-            boxShadow: `0 0 ${particle.size * 2}px ${particle.color}`
-          }}
-        />
-      ))}
-      
       {/* モンスターアニメーション */}
       {monsterAnimations.map(animation => (
         <div
@@ -620,7 +510,6 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
       {process.env.NODE_ENV === 'development' && (
         <div className="absolute top-4 right-4 bg-black bg-opacity-50 text-white text-xs p-2 rounded">
           <div>魔法陣: {magicCircles.length}</div>
-          <div>パーティクル: {particles.length}</div>
           <div>モンスター: {monsterAnimations.length}</div>
           <div>魔法テキスト: {magicTexts.length}</div>
           <div>ダメージ: {damageTexts.length}</div>

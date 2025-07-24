@@ -315,7 +315,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         timingAdjustment: 0,
         effects: {
           glow: true,
-          particles: true,
+          particles: false,
           trails: false
         }
       });

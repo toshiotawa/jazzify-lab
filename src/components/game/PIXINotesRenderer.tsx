@@ -156,56 +156,6 @@ class EffectUpdater {
   }
 }
 
-/**
- * オブジェクトプール - 高頻度生成オブジェクトの再利用
- */
-class SpritePool<T extends PIXI.DisplayObject> {
-  private pool: T[] = [];
-  private createFn: () => T;
-
-  constructor(createFn: () => T, initialSize: number = 10) {
-    this.createFn = createFn;
-    
-    // 初期プール作成
-    for (let i = 0; i < initialSize; i++) {
-      const obj = createFn();
-      obj.visible = false;
-      this.pool.push(obj);
-    }
-  }
-
-  get(): T {
-    if (this.pool.length > 0) {
-      const obj = this.pool.pop()!;
-      obj.visible = true;
-      obj.alpha = 1;
-      return obj;
-    }
-    return this.createFn();
-  }
-
-  release(obj: T): void {
-    if (obj.destroyed) return;
-    
-    // リセット（destroy しない）
-    obj.visible = false;
-    obj.alpha = 1;
-    if (obj.parent) {
-      obj.parent.removeChild(obj);
-    }
-    this.pool.push(obj);
-  }
-
-  dispose(): void {
-    this.pool.forEach(obj => {
-      if (!obj.destroyed) {
-        obj.destroy({ children: true, texture: false, baseTexture: false });
-      }
-    });
-    this.pool.length = 0;
-  }
-}
-
 // ===== ノート状態判定ヘルパー =====
 // Renderer 側では "good" / "perfect" / "hit" をすべて "当たり" とみなす
 const isHitState = (state: ActiveNote['state']) =>
@@ -296,7 +246,7 @@ export class PIXINotesRendererInstance {
   private pianoContainer!: PIXI.Container;
   
   private noteSprites: Map<string, NoteSprite> = new Map();
-  private particles!: PIXI.Container;
+
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
   private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
   
@@ -324,7 +274,7 @@ export class PIXINotesRendererInstance {
   private disposeManager: DisposeManager = new DisposeManager();
   private noteUpdaters: Map<string, NoteUpdater> = new Map();
   private effectUpdaters: Set<EffectUpdater> = new Set();
-  private particlePool: SpritePool<PIXI.Graphics> | null = null;
+
   
   // Ticker関数への参照（削除用）
   private mainUpdateFunction?: (delta: number) => void;
@@ -362,11 +312,11 @@ export class PIXINotesRendererInstance {
       blackKey: 0x2D2D2D,
       activeKey: 0x4A90E2
     },
-    effects: {
-      glow: true,
-      particles: true,
-      trails: false
-    },
+            effects: {
+          glow: true,
+          particles: false,
+          trails: false
+        },
     noteNameStyle: 'off',
     simpleDisplayMode: false,
     transpose: 0,
@@ -449,7 +399,6 @@ export class PIXINotesRendererInstance {
       this.createNotesAreaBackground();
       this.setupPiano();
       this.setupHitLine();
-      this.setupParticles();
       log.debug('✅ PIXI setup sequence completed');
     } catch (error) {
       log.error('❌ PIXI setup failed:', error);
@@ -520,7 +469,7 @@ export class PIXINotesRendererInstance {
           updater.update(this.effectsElapsed / 1000);
         }
 
-        this.updateParticleEffects(this.effectsElapsed / 1000);
+  
         this.effectsElapsed = 0;
       }
     };
@@ -541,15 +490,7 @@ export class PIXINotesRendererInstance {
       }
     });
 
-    // パーティクルプールを初期化
-    this.particlePool = new SpritePool<PIXI.Graphics>(
-      () => new PIXI.Graphics(),
-      20 // 初期サイズ
-    );
-    this.disposeManager.add(() => {
-      this.particlePool?.dispose();
-      this.particlePool = null;
-    });
+
 
     log.debug('✅ Ticker system setup completed');
   }
@@ -1116,8 +1057,7 @@ export class PIXINotesRendererInstance {
     // ピアノ鍵盤の設定
     this.setupPiano();
 
-    // パーティクル効果の設定
-    this.setupParticles();
+
 
     // 背景とガイドライン（全コンテナ作成後に実行）
     this.createNotesAreaBackground();
@@ -1401,58 +1341,13 @@ export class PIXINotesRendererInstance {
     this.pianoContainer.addChild(background);
   }
   
-  private setupParticles(): void {
-    // 通常のコンテナを使用（PIXI.Graphicsとの互換性のため）
-    this.particles = new PIXI.Container();
-    this.effectsContainer.addChild(this.particles);
-  }
+
   
   private setupLightweightEffectsTicker(): void {
     // 統合済みのため空実装（エフェクト更新はPIXIのTickerに統合済み）
   }
   
-  private updateParticleEffects(deltaTime: number): void {
-    // null安全チェック
-    if (!this.effectsContainer || !this.effectsContainer.children) {
-      return;
-    }
 
-    const childrenToRemove: PIXI.DisplayObject[] = [];
-    const maxProcessPerFrame = 10; // 1フレームあたりの最大処理数
-    let processed = 0;
-    
-    for (const child of this.effectsContainer.children) {
-      if (processed >= maxProcessPerFrame) break;
-      
-      // 🎯 Hitエフェクトコンテナを保護（名前で厳密にチェック）
-      // ログは削除してパフォーマンス向上
-      if ((child as any).name === 'HitEffect') {
-        continue;
-      }
-      
-      if (child.alpha > 0) {
-        child.alpha -= deltaTime * 2; // フェードアウト
-        if (child.alpha <= 0) {
-          childrenToRemove.push(child);
-        }
-      }
-      processed++;
-    }
-    
-    // 安全に削除（バッチ処理）
-    for (const child of childrenToRemove) {
-      try {
-        if (child.parent) {
-          child.parent.removeChild(child);
-        }
-        if (!child.destroyed) {
-          child.destroy({ children: true, texture: false, baseTexture: false });
-        }
-      } catch (error) {
-        log.warn('⚠️ Particle cleanup error:', error);
-      }
-    }
-  }
   
   private createWhiteKey(x: number, width: number, midiNote?: number): PIXI.Graphics {
     const key = new PIXI.Graphics();
