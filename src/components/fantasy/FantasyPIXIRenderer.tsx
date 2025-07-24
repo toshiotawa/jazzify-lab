@@ -50,22 +50,6 @@ interface MonsterGameState {
   fadeOutStartTime: number;
 }
 
-interface ParticleData {
-  id: string;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  maxLife: number;
-  size: number;
-  color: number;
-  alpha: number;
-  type: 'fire' | 'ice' | 'lightning' | 'magic' | 'damage' | 'explosion' | 'sparkle';
-  decay?: number;
-  gravity?: number;
-}
-
 interface DamageNumber {
   id: string;
   x: number;
@@ -161,7 +145,7 @@ interface MonsterSpriteData {
 export class FantasyPIXIInstance {
   private app: PIXI.Application;
   private monsterContainer: PIXI.Container;
-  private particleContainer: PIXI.Container;
+
   private effectContainer: PIXI.Container;
   private uiContainer: PIXI.Container;
   private backgroundContainer: PIXI.Container;
@@ -192,8 +176,7 @@ export class FantasyPIXIInstance {
   
   // マルチモンスター対応
   private monsterSprites: Map<string, MonsterSpriteData> = new Map();
-  private particles: Map<string, PIXI.Graphics> = new Map();
-  private particleData: Map<string, ParticleData> = new Map();
+
   private magicCircles: Map<string, PIXI.Graphics> = new Map();
   private magicCircleData: Map<string, MagicCircle> = new Map();
   private damageNumbers: Map<string, PIXI.Text> = new Map();
@@ -251,7 +234,7 @@ export class FantasyPIXIInstance {
     // コンテナ初期化
     this.backgroundContainer = new PIXI.Container();
     this.monsterContainer = new PIXI.Container();
-    this.particleContainer = new PIXI.Container();
+
     this.effectContainer = new PIXI.Container();
     this.uiContainer = new PIXI.Container();
     
@@ -261,7 +244,7 @@ export class FantasyPIXIInstance {
     // z-indexの設定（背景→モンスター→パーティクル→エフェクト→UI）
     this.app.stage.addChild(this.backgroundContainer);
     this.app.stage.addChild(this.monsterContainer);
-    this.app.stage.addChild(this.particleContainer);
+
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
     
@@ -694,7 +677,6 @@ export class FantasyPIXIInstance {
 
       // エフェクトをモンスターの位置に作成
       this.createImageMagicEffectAt(magic.svg, magicColor, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
-      this.createMagicParticlesAt(magic, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
 
       // 状態を更新
       monsterData.gameState.hitCount++;
@@ -702,7 +684,7 @@ export class FantasyPIXIInstance {
       if (defeated) {
         monsterData.gameState.state = 'FADING_OUT';
         monsterData.gameState.isFadingOut = true;
-        this.createExplosionEffect(monsterData.visualState.x, monsterData.visualState.y);
+
       }
 
       // ヒット状態を解除
@@ -758,7 +740,6 @@ export class FantasyPIXIInstance {
       this.createDamageNumber(damageDealt, magicColor);
 
       this.createImageMagicEffect(magic.svg, magicColor, isSpecial);
-      this.createMagicParticles(magic, isSpecial);
 
       // 状態を更新
       this.monsterGameState.hitCount++;
@@ -959,9 +940,6 @@ export class FantasyPIXIInstance {
             // アニメーション終了時の安全な削除
             try {
               if (!magicSprite.destroyed) {
-                // ヒットエフェクトを作成
-                this.createHitParticles(targetX, targetY, color);
-                
                 if (magicSprite.parent) {
                   magicSprite.parent.removeChild(magicSprite);
                 }
@@ -1005,83 +983,9 @@ export class FantasyPIXIInstance {
   }
 
   // ヒットパーティクル作成（魔法が敵に当たった時のエフェクト）
-  private createHitParticles(x: number, y: number, color: number): void {
-    if (this.isDestroyed) return;
-    
-    const particleCount = 15;
-    
-    for (let i = 0; i < particleCount; i++) {
-      const id = `hit_${Date.now()}_${i}`;
-      const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
-      const speed = 2 + Math.random() * 3;
-      
-      const particle = new PIXI.Graphics();
-      const size = 2 + Math.random() * 4;
-      
-      particle.beginFill(color);
-      particle.drawCircle(0, 0, size);
-      particle.endFill();
-      particle.x = x;
-      particle.y = y;
-      
-      this.effectContainer.addChild(particle);
-      this.particles.set(id, particle);
-      
-      this.particleData.set(id, {
-        id,
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 500,
-        maxLife: 500,
-        size,
-        color,
-        alpha: 1,
-        type: 'sparkle'
-      });
-    }
-  }
 
-  // 爆発エフェクト作成
-  private createExplosionEffect(x: number, y: number): void {
-    if (this.isDestroyed) return;
-    
-    const particleCount = 30;
-    
-    for (let i = 0; i < particleCount; i++) {
-      const id = `explosion_${Date.now()}_${i}`;
-      const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
-      const speed = 3 + Math.random() * 5;
-      
-      const particle = new PIXI.Graphics();
-      const size = 2 + Math.random() * 6;
-      const color = [0xFF6B35, 0xFFD700, 0xFF4757][Math.floor(Math.random() * 3)];
-      
-      particle.beginFill(color);
-      particle.drawCircle(0, 0, size);
-      particle.endFill();
-      
-      particle.x = x + (Math.random() - 0.5) * 20;
-      particle.y = y + (Math.random() - 0.5) * 20;
-      
-      this.particleContainer.addChild(particle);
-      this.particles.set(id, particle);
-      this.particleData.set(id, {
-        id,
-        x: particle.x,
-        y: particle.y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 1000,
-        maxLife: 1000,
-        size,
-        color,
-        alpha: 1,
-        type: 'explosion'
-      });
-    }
-  }
+
+
 
   // 画面震動エフェクト（setTimeout を使わない安全な実装）
   private createScreenShake(intensity: number, duration: number): void {
@@ -1281,89 +1185,14 @@ export class FantasyPIXIInstance {
   // ▼▼▼ 修正点: 不要になったため関数ごと削除 ▼▼▼
   // private resetMonsterState(): void { ... }
 
-  // 指定位置に魔法パーティクルを作成
-  private createMagicParticlesAt(magic: MagicType, isSpecial: boolean, centerX: number, centerY: number): void {
-    const particleCount = isSpecial ? 30 : 15;
-    const color = isSpecial ? magic.tier2Color : magic.color;
-    
-    for (let i = 0; i < particleCount; i++) {
-      const id = `particle_${Date.now()}_${i}`;
-      const particle = new PIXI.Graphics();
-      particle.beginFill(color, 0.8);
-      particle.drawCircle(0, 0, Math.random() * 4 + 2);
-      particle.endFill();
-      
-      particle.x = centerX;
-      particle.y = centerY;
-      
-      this.particleContainer.addChild(particle);
-      this.particles.set(id, particle);
-      
-      const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
-      const speed = isSpecial ? 8 + Math.random() * 6 : 4 + Math.random() * 3;
-      
-      this.particleData.set(id, {
-        id,
-        x: centerX,
-        y: centerY,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 1,
-        maxLife: 1,
-        size: isSpecial ? 3 : 2,
-        color: 0xFFFF00,
-        alpha: 1,
-        type: 'explosion' as const,
-        decay: isSpecial ? 0.96 : 0.94,
-        gravity: 0.3
-      });
-    }
-    
-    // 画面揺れエフェクト（SPアタック時のみ）
+  // 画面揺れエフェクト（SPアタック時のみ）
+  private triggerSpecialEffects(isSpecial: boolean): void {
     if (isSpecial) {
       this.createScreenShake(10, 500);
     }
   }
 
-  // 魔法パーティクル作成
-  private createMagicParticles(magic: MagicType, isSpecial: boolean): void {
-    const particleCount = magic.particleCount * (isSpecial ? 3 : 1);
 
-    for (let i = 0; i < particleCount; i++) {
-      const id = `particle_${Date.now()}_${i}`;
-      const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
-      const speed = 2 + Math.random() * 4;
-      
-      const particle = new PIXI.Graphics();
-      const size = (3 + Math.random() * 5) * (isSpecial ? 1.5 : 1);
-      
-      particle.beginFill(magic.particleColor);
-      particle.drawCircle(0, 0, size);
-      particle.endFill();
-      
-      particle.x = this.monsterVisualState.x;
-      particle.y = this.monsterVisualState.y;
-      
-      this.effectContainer.addChild(particle);
-      
-      // パーティクルアニメーション
-      let life = 1000;
-      const animate = () => {
-        if (life > 0 && !particle.destroyed) {
-          life -= 16;
-          particle.x += Math.cos(angle) * speed;
-          particle.y += Math.sin(angle) * speed;
-          particle.alpha = life / 1000;
-          particle.scale.set(particle.scale.x * 0.98);
-          requestAnimationFrame(animate);
-        } else if (!particle.destroyed) {
-          this.effectContainer.removeChild(particle);
-          particle.destroy();
-        }
-      };
-      animate();
-    }
-  }
 
   // モンスター攻撃状態更新
   updateMonsterAttacking(isAttacking: boolean): void {
@@ -1406,7 +1235,6 @@ export class FantasyPIXIInstance {
       if (this.isDestroyed) return;
       
       this.updateMonsterAnimation();
-      this.updateParticles();
       this.updateMagicCircles();
       this.updateDamageNumbers();
       this.updateScreenShake(); // 画面揺れの更新を追加
@@ -1529,77 +1357,7 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // パーティクル更新
-  private updateParticles(): void {
-    if (this.isDestroyed) return;
-    
-    for (const [id, particleData] of this.particleData.entries()) {
-      const particle = this.particles.get(id);
-      if (!particle || particle.destroyed) {
-        // 削除されたパーティクルの参照をクリーンアップ
-        this.particles.delete(id);
-        this.particleData.delete(id);
-        continue;
-      }
-      
-      try {
-        // 位置更新
-        particleData.x += particleData.vx;
-        particleData.y += particleData.vy;
-        particleData.vy += 0.12; // 重力効果
-        
-        // ライフ減少
-        particleData.life -= 16; // 60FPS想定
-        particleData.alpha = particleData.life / particleData.maxLife;
-        
-        // スプライト更新（nullチェック強化）
-        if (particle.transform && !particle.destroyed) {
-          particle.x = particleData.x;
-          particle.y = particleData.y;
-          particle.alpha = particleData.alpha;
-          
-          // サイズ変化（爆発系）
-          if (particleData.type === 'explosion' && particle.scale && particle.scale.set) {
-            const scale = 1 + (1 - particleData.alpha) * 0.5;
-            particle.scale.set(scale);
-          }
-        }
-        
-        // 削除判定
-        if (particleData.life <= 0) {
-          try {
-            if (particle.parent) {
-              particle.parent.removeChild(particle);
-            }
-            if (typeof particle.destroy === 'function') {
-              particle.destroy();
-            }
-          } catch (destroyError) {
-            devLog.debug('⚠️ パーティクル削除エラー:', destroyError);
-          }
-          this.particles.delete(id);
-          this.particleData.delete(id);
-        }
-      } catch (error) {
-        // エラー時は安全にパーティクルを削除
-        devLog.debug('⚠️ パーティクル更新エラー:', error);
-        try {
-          if (particle && !particle.destroyed) {
-            if (particle.parent) {
-              particle.parent.removeChild(particle);
-            }
-            if (typeof particle.destroy === 'function') {
-              particle.destroy();
-            }
-          }
-        } catch (cleanupError) {
-          devLog.debug('⚠️ パーティクルクリーンアップエラー:', cleanupError);
-        }
-        this.particles.delete(id);
-        this.particleData.delete(id);
-      }
-    }
-  }
+
 
   // ダメージ数値更新
   private updateDamageNumbers(): void {
@@ -1730,23 +1488,8 @@ export class FantasyPIXIInstance {
     this.monsterSprites.forEach(data => data.sprite.destroy());
     this.monsterSprites.clear();
     
-    // パーティクルとエフェクトの安全な削除
+    // エフェクトの安全な削除
     try {
-      this.particles.forEach((particle, id) => {
-        try {
-          if (particle && typeof particle.destroy === 'function' && !particle.destroyed) {
-            if (particle.parent) {
-              particle.parent.removeChild(particle);
-            }
-            particle.destroy();
-          }
-        } catch (error) {
-          devLog.debug(`⚠️ パーティクル削除エラー ${id}:`, error);
-        }
-      });
-      this.particles.clear();
-      this.particleData.clear();
-      
       this.magicCircles.forEach((circle, id) => {
         try {
           if (circle && typeof circle.destroy === 'function' && !circle.destroyed) {
