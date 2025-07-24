@@ -39,7 +39,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [showGuide, setShowGuide] = useState(stage.showGuide);
   
   // 魔法名表示状態
-  const [magicName, setMagicName] = useState<{ name: string; isSpecial: boolean } | null>(null);
+  const [magicName, setMagicName] = useState<{ name: string; isSpecial: boolean; monsterId: string } | null>(null);
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -389,12 +389,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   // 魔法名表示ハンドラー
-  const handleShowMagicName = useCallback((name: string, isSpecial: boolean) => {
-    setMagicName({ name, isSpecial });
-    // 1秒後に自動的に非表示
+  const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
+    setMagicName({ name, isSpecial, monsterId });
+    // ★ 修正点: 0.5秒で消す
     setTimeout(() => {
       setMagicName(null);
-    }, 1000);
+    }, 500);
   }, []);
   
   // モンスター撃破時のコールバック（状態機械対応）
@@ -613,16 +613,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
             style={{ height: 'min(200px, 30vh)' }}
           >
-            {/* 魔法名表示 */}
-            {magicName && (
-              <div className="absolute top-4 left-0 right-0 z-20 pointer-events-none">
-                <div className={`text-2xl font-bold font-dotgothic16 ${
-                  magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                } drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]`}>
-                  {magicName.name}
-                </div>
-              </div>
-            )}
+
             <FantasyPIXIRenderer
               width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
               height={200}
@@ -644,11 +635,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 {/* 各モンスターの情報を絶対位置で配置 */}
                 {gameState.activeMonsters.map((monster) => {
                   const getLeftPosition = (position: 'A' | 'B' | 'C') => {
-                    switch (position) {
-                      case 'A': return '25%';
-                      case 'B': return '50%';
-                      case 'C': return '75%';
+                    const count = gameState.activeMonsters.length;
+                    // ★ 修正点: モンスターの数に応じて間隔を調整
+                    if (count === 2) {
+                      switch (position) {
+                        case 'A': return '35%'; // 35%の位置
+                        case 'C': return '65%'; // 65%の位置
+                        default: return '50%';
+                      }
                     }
+                    if (count === 3) {
+                      switch (position) {
+                        case 'A': return '30%'; // 30%の位置
+                        case 'B': return '50%'; // 50%の位置
+                        case 'C': return '70%'; // 70%の位置
+                      }
+                    }
+                    return '50%'; // デフォルトは中央
                   };
                   
                   // スプライトと同じ幅に合わせる
@@ -665,7 +668,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       }}
                     >
                       {/* コードネーム */}
-                      <div className="text-yellow-300 text-lg font-bold text-center mb-1 truncate w-full"> {/* w-fullを追加 */}
+                      <div className="text-yellow-300 text-xl font-bold text-center mb-1 truncate w-full"> {/* text-lg -> text-xl */}
                         {monster.chordTarget.displayName}
                       </div>
                       
@@ -700,20 +703,33 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       </div>
                       
                       {/* モンスター名 */}
-                      <div className="text-white text-xs font-bold text-center mb-1">
+                      <div className="text-white text-sm font-bold text-center mb-1">
                         {monster.name}
                       </div>
                       
-                      {/* HPゲージ */}
-                      <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
-                        <div
-                          className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
-                          style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
-                          {monster.currentHp}/{monster.maxHp}
+                      {/* ★ 修正: HPゲージと数値を分離 */}
+                      <div className="w-full flex flex-col items-center">
+                        {/* HPゲージ */}
+                        <div className="w-full h-4 bg-gray-800 border-2 border-gray-600 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
+                            style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
+                          />
+                        </div>
+                        {/* HP数値 (バーの外) */}
+                        <div className="mt-1 text-sm font-bold text-white">
+                          HP: {monster.currentHp} / {monster.maxHp}
                         </div>
                       </div>
+                      
+                      {/* ★ 修正点: 魔法名表示 */}
+                      {magicName && magicName.monsterId === monster.id && (
+                        <div className="absolute -bottom-7 w-full text-center pointer-events-none">
+                          <span className="px-2 py-1 text-sm font-bold text-white bg-black bg-opacity-60 rounded animate-fade-out">
+                            {magicName.name}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
