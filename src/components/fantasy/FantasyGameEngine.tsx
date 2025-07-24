@@ -751,9 +751,27 @@ export const useFantasyGameEngine = ({
         onChordCorrect(completedMonsterTyped.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completedMonsterTyped.id);
 
         const newHp = Math.max(0, completedMonsterTyped.currentHp - damageDealt);
-        let monstersAfterDamage = monstersWithNewNotes.map(m =>
-          m.id === completedMonsterTyped.id ? { ...m, currentHp: newHp } : m
-        );
+        let monstersAfterDamage = monstersWithNewNotes.map(m => {
+          if (m.id !== completedMonsterTyped.id) return m;        // 他の敵はそのまま
+
+          if (newHp > 0) {
+            // ── まだ生きている：次のコードを即座に割り当て ──
+            const nextChord = selectRandomChord(
+              prevState.currentStage!.allowedChords,
+              m.chordTarget.id                 // 直前コード排除
+            );
+            return {
+              ...m,
+              currentHp: newHp,
+              chordTarget: nextChord!,
+              correctNotes: [],                // 正解マークをリセット
+              gauge: 0                         // 行動ゲージもリセット（任意）
+            };
+          }
+
+          // HP が 0 なら従来どおり「倒された」扱い
+          return { ...m, currentHp: newHp };
+        });
 
         const remainingMonsters = monstersAfterDamage.filter(m => m.currentHp > 0);
         const defeatedCount = monstersWithNewNotes.length - remainingMonsters.length;
