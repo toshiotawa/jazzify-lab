@@ -239,7 +239,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 音声システムの初期化（初回のみ）
     try {
       await initializeAudioSystem();
-      await playNote(note, 127);
+      await playNote(note, 100); // 通常プレイ時と同じ音量に統一
     } catch (error) {
       devLog.debug('🎹 音声再生エラー:', error);
     }
@@ -305,7 +305,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // キーボードのクリックイベントを接続
       renderer.setKeyCallbacks(
         (note: number) => handleNoteInputBridge(note),
-        (note: number) => { /* キー離す処理は必要に応じて */ }
+        (note: number) => stopNote(note) // マウスリリース時に音を止める
       );
       
       devLog.debug('🎮 PIXI.js ファンタジーモード準備完了:', {
