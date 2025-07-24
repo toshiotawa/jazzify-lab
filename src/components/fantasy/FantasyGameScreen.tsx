@@ -218,7 +218,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
   const {
     gameState,
-    inputBuffer,
     handleNoteInput: engineHandleNoteInput,
     initializeGame,
     stopGame,
@@ -807,17 +806,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         })()}
         
         {/* 入力中のノーツ表示 */}
-        {inputBuffer.length > 0 && (
-          <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg pointer-events-none">
-            <div className="text-sm">入力中: {inputBuffer.length}音</div>
-            <div className="text-xs text-gray-300">
-              {inputBuffer.map(note => {
-                const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-                return noteNames[note % 12];
-              }).join(', ')}
-            </div>
-          </div>
-        )}
+        
       </div>
       
       {/* エフェクト表示は削除 - PIXI側で処理 */}
@@ -832,7 +821,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget.displayName}</div>
           <div>SP: {gameState.playerSp}</div>
-          <div>入力バッファ: [{inputBuffer.join(', ')}]</div>
           
           {/* ゲージ強制満タンテストボタン */}
           <button
