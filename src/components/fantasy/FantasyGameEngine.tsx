@@ -676,16 +676,23 @@ export const useFantasyGameEngine = ({
     // 2. 判定結果に応じた処理
     if (completedMonster) {
       // --- コードが完成した場合：攻撃処理 ---
-      const currentStage = gameState.currentStage!;
-      const isSpecialAttack = gameState.playerSp >= 3;
-      const damageDealt = (Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage) * (isSpecialAttack ? 2 : 1);
-      const willBeDefeated = (completedMonster.currentHp - damageDealt) <= 0;
-
-      onChordCorrect(completedMonster.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completedMonster.id);
-
+      
+      // ★★★ 修正点1: 二重実行を防ぐため、setGameStateのupdater関数内で処理をアトミックにする ★★★
       setGameState(prevState => {
+        // updater関数内で二重実行を防止するチェック
         const monsterToUpdate = prevState.activeMonsters.find(m => m.id === completedMonster!.id);
-        if (!monsterToUpdate) return prevState;
+        // モンスターが存在しない、またはHPが既に更新されている場合は処理をスキップ
+        if (!monsterToUpdate || monsterToUpdate.currentHp !== completedMonster!.currentHp) {
+          return prevState;
+        }
+
+        const currentStage = prevState.currentStage!;
+        const isSpecialAttack = prevState.playerSp >= 3;
+        const damageDealt = (Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage) * (isSpecialAttack ? 2 : 1);
+        const willBeDefeated = (monsterToUpdate.currentHp - damageDealt) <= 0;
+
+        // エフェクト用のコールバックをここで呼び出す
+        onChordCorrect(completedMonster!.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completedMonster!.id);
 
         const newHp = Math.max(0, monsterToUpdate.currentHp - damageDealt);
         let monstersAfterDamage = prevState.activeMonsters.map(m =>
@@ -709,12 +716,25 @@ export const useFantasyGameEngine = ({
         for (let i = 0; i < defeatedCount && newMonsterQueue.length > 0; i++) {
           const monsterIndex = newMonsterQueue.shift()!;
           const position = availablePositions[i] || 'B';
-          const newMonster = createMonsterFromQueue(monsterIndex, position as 'A' | 'B' | 'C', prevState.maxEnemyHp, prevState.currentStage!.allowedChords);
+          
+          // ★★★ 修正点2: 倒されたモンスターのコードIDを取得して、次のコード選択時に利用する ★★★
+          const previousChordId = completedMonster?.chordTarget.id;
+          const newMonster = createMonsterFromQueue(
+            monsterIndex, 
+            position as 'A' | 'B' | 'C', 
+            prevState.maxEnemyHp, 
+            prevState.currentStage!.allowedChords,
+            previousChordId // 倒したモンスターのコードIDを渡す
+          );
           newActiveMonsters.push(newMonster);
         }
 
-        // 攻撃成功後、全モンスターの✓とゲージをリセット
-        newActiveMonsters = newActiveMonsters.map(m => ({ ...m, correctNotes: [], gauge: 0 }));
+        // ★★★ 修正点3: 攻撃成功後、全モンスターの✓をリセットし、攻撃対象のモンスターのみゲージをリセット ★★★
+        newActiveMonsters = newActiveMonsters.map(m => ({
+          ...m,
+          correctNotes: [], // 全員の✓（入力状態）はリセット
+          gauge: m.id === completedMonster!.id ? 0 : m.gauge, // 攻撃対象のゲージのみ0にリセット
+        }));
 
         return {
           ...prevState,
