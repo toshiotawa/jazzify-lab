@@ -89,7 +89,7 @@ interface FantasyGameEngineProps {
   // ▲▲▲ ここまで ▲▲▲
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
-  onEnemyAttack: () => void;
+  onEnemyAttack: (monsterId: string) => void;
 }
 
 // ===== コード定義データ =====
@@ -529,7 +529,7 @@ export const useFantasyGameEngine = ({
   }, [onGameStateChange, onGameComplete]);
   
   // 敵の攻撃処理
-  const handleEnemyAttack = useCallback(() => {
+  const handleEnemyAttack = useCallback((attackingMonsterId: string) => {
     // 攻撃時に入力バッファをリセット
     // setInputBuffer([]); // 削除
     // if (inputTimeout) { // 削除
@@ -622,7 +622,7 @@ export const useFantasyGameEngine = ({
       }
     });
     
-    onEnemyAttack();
+    onEnemyAttack(attackingMonsterId);
   }, [onGameStateChange, onGameComplete, onEnemyAttack]); // inputTimeout 削除
   
   // ゲージタイマーの管理
@@ -684,7 +684,7 @@ export const useFantasyGameEngine = ({
         );
         
         // 攻撃処理を非同期で実行
-        setTimeout(() => handleEnemyAttack(), 0);
+        setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
         
         const nextState = { 
           ...prevState, 

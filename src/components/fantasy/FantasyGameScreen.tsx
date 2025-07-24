@@ -31,6 +31,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // エフェクト状態
   const [isMonsterAttacking, setIsMonsterAttacking] = useState(false);
   const [damageShake, setDamageShake] = useState(false);
+  const [phaseMsg, setPhaseMsg] = useState<null | 'clear' | 'gameover'>(null);
   
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -204,7 +205,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
   }, []);
   
-  const handleEnemyAttack = useCallback(() => {
+  const handleEnemyAttack = useCallback((monsterId: string) => {
     devLog.debug('💥 敵の攻撃!');
     
     // モンスター攻撃状態を設定
@@ -213,10 +214,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // ファンタジーPIXIでモンスター攻撃エフェクト
     if (fantasyPixiInstance) {
-      fantasyPixiInstance.updateMonsterAttacking(true);
+      fantasyPixiInstance.updateMonsterAttacking(monsterId, true);
       setTimeout(() => {
         if (fantasyPixiInstance) {
-          fantasyPixiInstance.updateMonsterAttacking(false);
+          fantasyPixiInstance.updateMonsterAttacking(monsterId, false);
         }
       }, 600);
     }
@@ -228,8 +229,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [fantasyPixiInstance]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
-    devLog.debug('🏁 ゲーム終了:', { result, finalState });
-    onGameComplete(result, finalState.score, finalState.correctAnswers, finalState.totalQuestions);
+    // まず Stage-Clear / Game-Over の文字を２秒だけ出してから元の onGameComplete を呼ぶ
+    setPhaseMsg(result);          // DotGothic16 で表示
+    setTimeout(() => {
+      setPhaseMsg(null);
+      onGameComplete(result, finalState.score, finalState.correctAnswers, finalState.totalQuestions);
+    }, 2_000);
   }, [onGameComplete]);
   
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
@@ -460,6 +465,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
+    if (hp >= 6) {
+      return (
+        <span className="text-2xl text-red-500 font-dotgothic16">
+          ♥ x{hp}
+        </span>
+      );
+    }
     const hearts = [];
     // HP表示のデバッグログを追加
     devLog.debug(`💖 ${isPlayer ? 'プレイヤー' : '敵'}HP表示:`, { current: hp, max: maxHp });
@@ -565,7 +577,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   return (
     <div className={cn(
       "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen",
-      damageShake && "animate-pulse"
+      /* no dark-pulse  */
     )}>
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
@@ -862,7 +874,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             onClick={() => {
               devLog.debug('⚡ ゲージ強制満タンテスト実行');
               // ゲージを100にして敵攻撃をトリガー
-              handleEnemyAttack();
+              handleEnemyAttack('test-monster');
             }}
             className="mt-2 px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs"
           >
@@ -901,6 +913,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
       />
+      
+      {/* ★★★ overlay ★★★ */}
+      {phaseMsg && (
+        <div className="absolute inset-0 z-[999] flex items-center justify-center bg-black/20">
+          <span className="font-dotgothic16 text-[64px] drop-shadow-[0_2px_4px_rgba(0,0,0,.8)]">
+            {phaseMsg === 'clear' ? 'Stage Clear' : 'Game Over'}
+          </span>
+        </div>
+      )}
     </div>
   );
 };
