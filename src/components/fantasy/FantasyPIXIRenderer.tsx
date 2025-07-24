@@ -574,13 +574,15 @@ export class FantasyPIXIInstance {
       
       const sprite = new PIXI.Sprite(texture);
 
-      // ▼▼▼ 変更点 ▼▼▼
+      // ▼▼▼ 修正箇所 ▼▼▼
       // 描画領域の高さに基づいて動的にサイズを決定
-      // コンテナの高さの約70%をモンスターのサイズとし、上限を160pxに設定します。
+      // コンテナの高さの約70%をモンスターの高さとし、上限を160pxに設定します。
       const FRAME_HEIGHT = this.app.renderer.height;
-      const spriteSize = Math.min(FRAME_HEIGHT * 0.7, 160); 
-      sprite.width = spriteSize;
-      sprite.height = spriteSize; // 正方形を維持
+      const maxHeight = Math.min(FRAME_HEIGHT * 0.7, 160);
+
+      // 高さを設定し、アスペクト比を維持して幅をスケーリングする
+      sprite.height = maxHeight;
+      sprite.scale.x = sprite.scale.y;
       sprite.anchor.set(0.5);
       // ▲▲▲ ここまで ▲▲▲
       
@@ -1652,11 +1654,13 @@ export class FantasyPIXIInstance {
       for (const [id, monsterData] of this.monsterSprites) {
         monsterData.visualState.x = this.getPositionX(monsterData.position);
         monsterData.visualState.y = height / 2;
-        // ▼▼▼ 変更点 ▼▼▼
+        // ▼▼▼ 修正箇所 ▼▼▼
         // リサイズ時にもモンスターのサイズを再計算
-        const spriteSize = Math.min(height * 0.7, 160);
-        monsterData.sprite.width = spriteSize;
-        monsterData.sprite.height = spriteSize;
+        const maxHeight = Math.min(height * 0.7, 160);
+
+        // 高さを設定し、アスペクト比を維持して幅をスケーリングする
+        monsterData.sprite.height = maxHeight;
+        monsterData.sprite.scale.x = monsterData.sprite.scale.y;
         // ▲▲▲ ここまで ▲▲▲
         this.updateMonsterSpriteData(monsterData);
       }
