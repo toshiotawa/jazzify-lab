@@ -733,14 +733,20 @@ export const useFantasyGameEngine = ({
     let isAnyCorrect = false;
     let isMistake = true; // 全てのモンスターに対して不正解かどうか
     
-    // まず、入力がいずれかのモンスターのコードに部分一致しているかチェック
-    for (const monster of gameState.activeMonsters) {
-      const partialMatch = isPartialMatch(notes, monster.chordTarget);
-      if (partialMatch) {
-        isMistake = false; // 部分一致があればミスではない
-        break;
-      }
+    // ▼▼▼ 修正: ミスタッチ判定ロジック ▼▼▼
+    // 全ての有効なターゲット音を一つのセットにまとめる
+    const allAllowedNotesMod12 = new Set<number>();
+    gameState.activeMonsters.forEach(monster => {
+      monster.chordTarget.notes.forEach(note => allAllowedNotesMod12.add(note % 12));
+    });
+
+    const inputNotesMod12 = [...new Set(notes.map(note => note % 12))];
+
+    // 入力された音が「全て」許容される音で構成されていれば、ミスタッチではない
+    if (inputNotesMod12.every(inputNote => allAllowedNotesMod12.has(inputNote))) {
+      isMistake = false;
     }
+    // ▲▲▲ 修正ここまで ▲▲▲
     
     // 完全一致をチェック
     const correctMonsters: MonsterState[] = [];
@@ -764,15 +770,20 @@ export const useFantasyGameEngine = ({
       // 各正解モンスターに対して処理
       const isSpecialAttack = gameState.playerSp >= 3;
       
+      // ▼▼▼ 修正: ダメージ計算を一度にまとめる ▼▼▼
+      const damageResults = new Map<string, { damageDealt: number; willBeDefeated: boolean }>();
       correctMonsters.forEach(monster => {
-        // ダメージ計算
         const baseDamage = Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage;
         const damageDealt = baseDamage * (isSpecialAttack ? 2 : 1);
-
-        // 撃破判定
         const willBeDefeated = (monster.currentHp - damageDealt) <= 0;
-        // モンスターごとのコールバック（ID付き）
-        onChordCorrect(monster.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, monster.id);
+        damageResults.set(monster.id, { damageDealt, willBeDefeated });
+      });
+      // ▲▲▲ 修正ここまで ▲▲▲
+      
+      // UI更新のためのコールバック呼び出し
+      damageResults.forEach((result, monsterId) => {
+        const monster = correctMonsters.find(m => m.id === monsterId)!;
+        onChordCorrect(monster.chordTarget, isSpecialAttack, result.damageDealt, result.willBeDefeated, monster.id);
       });
 
       setGameState(prevState => {
@@ -783,18 +794,19 @@ export const useFantasyGameEngine = ({
         
         // モンスターの状態を更新
         const updatedMonsters = prevState.activeMonsters.map(monster => {
-          const wasCorrect = correctMonsters.find(m => m.id === monster.id);
-          if (wasCorrect) {
-            const baseDamage = Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage;
-            const damageDealt = baseDamage * (isSpecialAttack ? 2 : 1);
+          const damageResult = damageResults.get(monster.id);
+          if (damageResult) { // 正解したモンスターの場合
+            const { damageDealt } = damageResult;
             const newHp = Math.max(0, monster.currentHp - damageDealt);
             
             // 倒されていない場合は新しいコードを割り当て
             if (newHp > 0) {
               let nextChord;
               if (currentStage.mode === 'single') {
+                // ランダムモード：前回と異なるコードを選択
                 nextChord = selectRandomChord(currentStage.allowedChords, monster.chordTarget.id);
               } else {
+                // コード進行モード：ループさせる
                 const progression = currentStage.chordProgression || [];
                 const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
                 nextChord = getProgressionChord(progression, nextIndex);
@@ -803,43 +815,28 @@ export const useFantasyGameEngine = ({
               return {
                 ...monster,
                 currentHp: newHp,
-                gauge: 0, 
-                correctNotes: [], 
-                chordTarget: nextChord || monster.chordTarget
+                gauge: 0, // 攻撃されたモンスターのゲージはリセット
+                correctNotes: [], // 正解したのでリセット
+                chordTarget: nextChord || monster.chordTarget // 新しいコードを割り当て
               };
             }
             
             return {
               ...monster,
               currentHp: newHp,
-              gauge: 0,
-              correctNotes: []
+              gauge: 0, // 攻撃されたモンスターのゲージはリセット
+              correctNotes: [] // 正解したのでリセット
             };
           }
-          // ★★★ 修正点: 正解しなかったモンスターはそのままの状態を返す ★★★
-          return monster;
+          return {
+            ...monster,
+            correctNotes: [] // 他のモンスターの正解音もリセット
+          };
         });
         
         // 倒されたモンスターを除外
         const remainingMonsters = updatedMonsters.filter(m => m.currentHp > 0);
         const defeatedCount = updatedMonsters.length - remainingMonsters.length;
-        
-        // ★★★ 修正点: ゲームクリア判定をここで行う ★★★
-        const newEnemiesDefeated = prevState.enemiesDefeated + defeatedCount;
-        if (newEnemiesDefeated >= prevState.totalEnemies) {
-          const finalState = {
-            ...prevState,
-            isGameActive: false,
-            isGameOver: true,
-            gameResult: 'clear' as const,
-            activeMonsters: [], // 全て倒したので空にする
-            enemiesDefeated: newEnemiesDefeated,
-            score: prevState.score + (1000 * correctMonsters.length),
-            playerSp: newPlayerSp,
-          };
-          onGameComplete('clear', finalState);
-          return finalState;
-        }
         
         // 新しいモンスターを補充
         let newMonsters: MonsterState[] = [...remainingMonsters];
@@ -878,7 +875,7 @@ export const useFantasyGameEngine = ({
           score: prevState.score + (1000 * correctMonsters.length),
           playerSp: newPlayerSp,
           activeMonsters: newMonsters,
-          enemiesDefeated: newEnemiesDefeated,
+          enemiesDefeated: prevState.enemiesDefeated + defeatedCount,
           // 互換性維持
           currentEnemyHp: firstMonster ? firstMonster.currentHp : 0,
           enemyGauge: 0,
