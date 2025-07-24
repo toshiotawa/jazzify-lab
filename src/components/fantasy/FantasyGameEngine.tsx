@@ -785,9 +785,20 @@ export const useFantasyGameEngine = ({
         const slotsToFill = stateAfterAttack.simultaneousMonsterCount - remainingMonsters.length;
         const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
 
+        devLog.debug('🔄 モンスター補充処理:', {
+          remainingCount: remainingMonsters.length,
+          simultaneousCount: stateAfterAttack.simultaneousMonsterCount,
+          slotsToFill,
+          queueLength: newMonsterQueue.length,
+          monstersToAddCount,
+          remainingPositions: remainingMonsters.map(m => ({ id: m.id, position: m.position }))
+        });
+
         if (monstersToAddCount > 0) {
           const availablePositions = ['A', 'B', 'C'].filter(pos => !remainingMonsters.some(m => m.position === pos));
           const lastUsedChordId = completedMonsters.length > 0 ? completedMonsters[0].chordTarget.id : undefined;
+
+          devLog.debug('📍 利用可能な位置:', { availablePositions });
 
           for (let i = 0; i < monstersToAddCount; i++) {
             const monsterIndex = newMonsterQueue.shift()!;
@@ -799,6 +810,11 @@ export const useFantasyGameEngine = ({
               stateAfterAttack.currentStage!.allowedChords,
               lastUsedChordId // 直前のコードを避ける
             );
+            devLog.debug('➕ 新規モンスター追加:', { 
+              id: newMonster.id, 
+              position: newMonster.position,
+              name: newMonster.name 
+            });
             remainingMonsters.push(newMonster);
           }
         }

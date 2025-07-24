@@ -453,22 +453,54 @@ export class FantasyPIXIInstance {
     // 旧・単体用スプライトが残っていたら非表示にする
     this.monsterSprite.visible = false;
     this.monsterGameState.state = 'GONE';
+    
+    // モンスターコンテナ内の孤立したスプライトをクリーンアップ
+    const validSpriteSet = new Set(Array.from(this.monsterSprites.values()).map(data => data.sprite));
+    for (let i = this.monsterContainer.children.length - 1; i >= 0; i--) {
+      const child = this.monsterContainer.children[i];
+      if (child !== this.monsterSprite && !validSpriteSet.has(child as PIXI.Sprite)) {
+        devLog.debug('🧹 孤立したスプライトを削除');
+        this.monsterContainer.removeChild(child);
+        if ('destroy' in child) {
+          (child as any).destroy({ children: true });
+        }
+      }
+    }
     // ---------- 変更終了 ----------
 
-    devLog.debug('👾 アクティブモンスター更新:', { count: monsters.length });
+    devLog.debug('👾 アクティブモンスター更新:', { 
+      count: monsters.length,
+      monsters: monsters.map(m => ({ id: m.id, position: m.position, hp: m.currentHp }))
+    });
     
     // 現在のモンスターIDを取得
     const currentIds = new Set(monsters.map(m => m.id));
     
+    // 現在管理しているスプライトの状態をログ出力
+    devLog.debug('📊 現在のスプライト状態:', {
+      spriteCount: this.monsterSprites.size,
+      sprites: Array.from(this.monsterSprites.entries()).map(([id, data]) => ({
+        id,
+        position: data.position,
+        visible: data.sprite.visible,
+        destroyed: data.sprite.destroyed
+      }))
+    });
+    
     // 削除されたモンスターを非表示にする
     for (const [id, monsterData] of this.monsterSprites) {
       if (!currentIds.has(id)) {
+        devLog.debug('🗑️ モンスター削除:', { id, position: monsterData.position });
         // スプライトを適切に破棄
         if (monsterData.sprite && !monsterData.sprite.destroyed) {
+          // まず非表示にする
+          monsterData.sprite.visible = false;
+          // 親から削除
           if (monsterData.sprite.parent) {
             monsterData.sprite.parent.removeChild(monsterData.sprite);
           }
-          monsterData.sprite.destroy();
+          // 子要素も含めて完全に破棄
+          monsterData.sprite.destroy({ children: true });
         }
         this.monsterSprites.delete(id);
       }
@@ -479,6 +511,7 @@ export class FantasyPIXIInstance {
       let monsterData = this.monsterSprites.get(monster.id);
       
       if (!monsterData) {
+        devLog.debug('✨ 新規モンスター作成:', { id: monster.id, position: monster.position });
         // 新しいモンスターのスプライトを作成
         const sprite = await this.createMonsterSpriteForId(monster.id, monster.icon);
         if (!sprite) continue;
@@ -520,6 +553,12 @@ export class FantasyPIXIInstance {
       
       // 位置を更新
       if (monsterData.position !== monster.position) {
+        devLog.debug('📍 モンスター位置更新:', { 
+          id: monster.id, 
+          oldPosition: monsterData.position, 
+          newPosition: monster.position,
+          newX: this.getPositionX(monster.position)
+        });
         monsterData.position = monster.position;
         monsterData.visualState.x = this.getPositionX(monster.position);
       }
@@ -575,6 +614,13 @@ export class FantasyPIXIInstance {
       sprite.width = spriteSize;
       sprite.height = spriteSize;
       sprite.anchor.set(0.5);
+      
+      devLog.debug('🎨 モンスタースプライト作成完了:', {
+        id,
+        icon,
+        size: spriteSize,
+        rendererHeight: this.app.renderer.height
+      });
       
       return sprite;
     } catch (error) {
@@ -1731,6 +1777,26 @@ export class FantasyPIXIInstance {
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
+    }
+    
+    // モンスタースプライトの安全な削除
+    try {
+      this.monsterSprites.forEach((monsterData, id) => {
+        try {
+          if (monsterData.sprite && !monsterData.sprite.destroyed) {
+            monsterData.sprite.visible = false;
+            if (monsterData.sprite.parent) {
+              monsterData.sprite.parent.removeChild(monsterData.sprite);
+            }
+            monsterData.sprite.destroy({ children: true });
+          }
+        } catch (error) {
+          devLog.debug(`⚠️ モンスタースプライト削除エラー ${id}:`, error);
+        }
+      });
+      this.monsterSprites.clear();
+    } catch (error) {
+      devLog.debug('⚠️ モンスタースプライトクリーンアップエラー:', error);
     }
     
     // パーティクルとエフェクトの安全な削除
