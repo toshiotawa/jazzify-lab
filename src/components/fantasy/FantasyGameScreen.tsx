@@ -556,34 +556,60 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* マルチモンスター情報表示 */}
           <div className="mt-2">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
-              <div className="flex justify-center items-start gap-2">
-                {gameState.activeMonsters.map((monster) => (
-                  <div key={monster.id} className="flex-1 max-w-[120px]">
-                    {/* モンスター名 */}
-                    <div className="text-white text-xs font-bold">
-                      {monster.name}
-                    </div>
-                    
-                    {/* 行動ゲージ */}
-                    <div className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mt-1">
-                      <div
-                        className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                        style={{ width: `${monster.gauge}%` }}
-                      />
-                    </div>
-                    
-                    {/* HPゲージ */}
-                    <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mt-1">
-                      <div
-                        className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
-                        style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
-                        {monster.currentHp}/{monster.maxHp}
+              <div className="relative w-full" style={{ height: '100px' }}>
+                {/* 各モンスターの情報を絶対位置で配置 */}
+                {gameState.activeMonsters.map((monster) => {
+                  // モンスターの位置に合わせて配置を計算
+                  const getLeftPosition = (position: 'A' | 'B' | 'C') => {
+                    const spacing = 25; // 25%間隔（画面の1/4, 2/4, 3/4の位置）
+                    switch (position) {
+                      case 'A': return `${spacing}%`;
+                      case 'B': return `${spacing * 2}%`;
+                      case 'C': return `${spacing * 3}%`;
+                      default: return '50%';
+                    }
+                  };
+                  
+                  return (
+                    <div 
+                      key={monster.id} 
+                      className="absolute transform -translate-x-1/2"
+                      style={{ 
+                        left: getLeftPosition(monster.position),
+                        width: '140px'
+                      }}
+                    >
+                      {/* コードネーム */}
+                      <div className="text-yellow-300 text-lg font-bold text-center mb-1">
+                        {monster.chordTarget.displayName}
+                      </div>
+                      
+                      {/* 行動ゲージ */}
+                      <div className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1">
+                        <div
+                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                          style={{ width: `${monster.gauge}%` }}
+                        />
+                      </div>
+                      
+                      {/* モンスター名 */}
+                      <div className="text-white text-xs font-bold text-center mb-1">
+                        {monster.name}
+                      </div>
+                      
+                      {/* HPゲージ */}
+                      <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
+                        <div
+                          className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
+                          style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+                          {monster.currentHp}/{monster.maxHp}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               // 互換性のための旧表示

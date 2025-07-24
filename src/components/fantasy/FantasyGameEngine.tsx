@@ -789,6 +789,28 @@ export const useFantasyGameEngine = ({
             const damageDealt = baseDamage * (isSpecialAttack ? 2 : 1);
             const newHp = Math.max(0, monster.currentHp - damageDealt);
             
+            // 倒されていない場合は新しいコードを割り当て
+            if (newHp > 0) {
+              let nextChord;
+              if (currentStage.mode === 'single') {
+                // ランダムモード：前回と異なるコードを選択
+                nextChord = selectRandomChord(currentStage.allowedChords, monster.chordTarget.id);
+              } else {
+                // コード進行モード：ループさせる
+                const progression = currentStage.chordProgression || [];
+                const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+                nextChord = getProgressionChord(progression, nextIndex);
+              }
+              
+              return {
+                ...monster,
+                currentHp: newHp,
+                gauge: 0, // 攻撃されたモンスターのゲージはリセット
+                correctNotes: [], // 正解したのでリセット
+                chordTarget: nextChord || monster.chordTarget // 新しいコードを割り当て
+              };
+            }
+            
             return {
               ...monster,
               currentHp: newHp,
@@ -859,10 +881,8 @@ export const useFantasyGameEngine = ({
         if (gameState.enemiesDefeated + correctMonsters.filter(m => m.currentHp <= 0).length >= gameState.totalEnemies) {
           // ゲームクリア処理
           onGameComplete('clear', gameState);
-        } else {
-          // 次の問題へ
-          proceedToNextQuestion();
         }
+        // 次の問題への移行は削除（個別に処理するため）
       }, 100);
       
     } else if (isMistake) {
