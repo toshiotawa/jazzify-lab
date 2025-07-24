@@ -282,7 +282,7 @@ export class FantasyPIXIInstance {
   private async loadMonsterTextures(): Promise<void> {
     try {
       // ▼▼▼ 変更点 ▼▼▼
-      // 複数のモンスター画像をロードする
+      // 複数のモンスター画像をロードする（ENEMY_LISTと完全に一致させる）
       const monsterIcons = ['devil', 'dragon', 'mao', 'mummy', 'shinigami', 'slime_green', 'slime_red', 'zombie', 'skeleton', 'grey', 'pumpkin', 'alien', 'bat1', 'bat2', 'ghost'];
       const iconMap: Record<string, string> = {
         devil:        'character_monster_devil_purple.png',
@@ -536,12 +536,18 @@ export class FantasyPIXIInstance {
     try {
       // ▼▼▼ 変更点 ▼▼▼
       // iconに基づいてテクスチャを動的に選択
-      const texture = this.imageTextures.get(icon);
-      // ▲▲▲ ここまで ▲▲▲
+      let texture = this.imageTextures.get(icon);
+      
+      // テクスチャが見つからない場合はフォールバックを使用
       if (!texture || texture.destroyed) {
-        devLog.debug('⚠️ モンスターテクスチャが見つかりません:', { id, icon });
-        return null;
+        devLog.debug('⚠️ モンスターテクスチャが見つかりません、フォールバックを使用:', { id, icon });
+        texture = this.imageTextures.get('default_monster');
+        if (!texture || texture.destroyed) {
+          devLog.debug('❌ フォールバックテクスチャも見つかりません');
+          return null;
+        }
       }
+      // ▲▲▲ ここまで ▲▲▲
       
       const sprite = new PIXI.Sprite(texture);
 
