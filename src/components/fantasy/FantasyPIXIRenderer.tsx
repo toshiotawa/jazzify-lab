@@ -500,7 +500,7 @@ export class FantasyPIXIInstance {
         
         const visualState: MonsterVisualState = {
           x: this.getPositionX(monster.position),
-          y: this.app.renderer.height / 2, // Y座標を中央に
+          y: 100, // Y座標を100pxに固定（200px高さの中央）
           scale: 1.0,
           rotation: 0,
           tint: 0xFFFFFF,
@@ -576,19 +576,31 @@ export class FantasyPIXIInstance {
 
       // ▼▼▼ 修正箇所 ▼▼▼
       // 幅と高さに基づいてサイズを決定
-      const FRAME_WIDTH = this.app.screen.width;
-      const FRAME_HEIGHT = this.app.screen.height;
+      // ▼▼▼ 修正箇所 ▼▼▼
+      // 実際のモンスター表示エリアのサイズに基づいてサイズを決定
+      const CONTAINER_WIDTH = this.app.screen.width;
+      const CONTAINER_HEIGHT = 200; // FantasyGameScreen.tsxで定義されている固定高さ
 
-      // モンスターUIカードの幅は全体の約18%
-      const cardWidth = FRAME_WIDTH * 0.18;
-      // ユーザーの提案に基づき、その半分を最大幅とする
-      const maxWidth = cardWidth / 2;
-      // 高さはコンテナの70% or 160px の小さい方
-      const maxHeight = Math.min(FRAME_HEIGHT * 0.7, 160);
+      // 3体同時表示を想定して、1体あたりの利用可能幅を計算
+      // 各モンスターは画面の25%, 50%, 75%の位置に配置される
+      // そのため、利用可能な幅は画面幅の約25%（モンスター間のマージンを考慮）
+      const availableWidth = CONTAINER_WIDTH * 0.22; // 22%でマージンを確保
+      
+      // モンスターの最大サイズを定義
+      // 幅: 利用可能幅の70%（隣接モンスターとの重なりを防ぐ）
+      const maxWidth = availableWidth * 0.7;
+      // 高さ: コンテナ高さの60%（UIカードとの重なりを防ぐ）
+      const maxHeight = CONTAINER_HEIGHT * 0.6;
 
       // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
       const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
-      sprite.scale.set(scale);
+      
+      // 最大スケールを制限（小さすぎる画像が拡大されすぎないように）
+      const finalScale = Math.min(scale, 1.5);
+      sprite.scale.set(finalScale);
+      
+      sprite.anchor.set(0.5);
+      // ▲▲▲ ここまで ▲▲▲
       
       sprite.anchor.set(0.5);
       // ▲▲▲ ここまで ▲▲▲
@@ -1660,19 +1672,31 @@ export class FantasyPIXIInstance {
       this.app.renderer.resize(width, height);
       for (const [id, monsterData] of this.monsterSprites) {
         monsterData.visualState.x = this.getPositionX(monsterData.position);
-        monsterData.visualState.y = height / 2;
+        monsterData.visualState.y = 100; // Y座標を100pxに固定（200px高さの中央）
         // ▼▼▼ 修正箇所 ▼▼▼
         const sprite = monsterData.sprite;
 
-        // UIカードの幅
-        const cardWidth = width * 0.18;
-        // ユーザーの提案に基づき、その半分を最大幅とする
-        const maxWidth = cardWidth / 2;
-        const maxHeight = Math.min(height * 0.7, 160);
+        // 実際のモンスター表示エリアのサイズに基づいてサイズを決定
+        const CONTAINER_WIDTH = width;
+        const CONTAINER_HEIGHT = 200; // FantasyGameScreen.tsxで定義されている固定高さ
+
+        // 3体同時表示を想定して、1体あたりの利用可能幅を計算
+        // 各モンスターは画面の25%, 50%, 75%の位置に配置される
+        // そのため、利用可能な幅は画面幅の約25%（モンスター間のマージンを考慮）
+        const availableWidth = CONTAINER_WIDTH * 0.22; // 22%でマージンを確保
+        
+        // モンスターの最大サイズを定義
+        // 幅: 利用可能幅の70%（隣接モンスターとの重なりを防ぐ）
+        const maxWidth = availableWidth * 0.7;
+        // 高さ: コンテナ高さの60%（UIカードとの重なりを防ぐ）
+        const maxHeight = CONTAINER_HEIGHT * 0.6;
 
         // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
         const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
-        sprite.scale.set(scale);
+        
+        // 最大スケールを制限（小さすぎる画像が拡大されすぎないように）
+        const finalScale = Math.min(scale, 1.5);
+        sprite.scale.set(finalScale);
         // ▲▲▲ ここまで ▲▲▲
         this.updateMonsterSpriteData(monsterData);
       }
