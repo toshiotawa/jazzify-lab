@@ -643,7 +643,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   };
                   
                   // スプライトと同じ幅に合わせる
-                  const cardWidth = 0.7 * 200; // 200 = Renderer height
+                  const cardWidth = monsterAreaWidth * 0.18; // 18%程度がちょうど良い
                   
                   return (
                     <div 
