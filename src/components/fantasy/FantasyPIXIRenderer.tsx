@@ -22,7 +22,7 @@ interface FantasyPIXIRendererProps {
   enemyGauge: number;
   onReady?: (instance: FantasyPIXIInstance) => void;
   onMonsterDefeated?: () => void; // 状態機械用コールバック
-  onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
+  onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
   className?: string;
   activeMonsters?: GameMonsterState[]; // マルチモンスター対応
 }
@@ -167,7 +167,7 @@ export class FantasyPIXIInstance {
   private backgroundContainer: PIXI.Container;
   private onDefeated?: () => void;
   private onMonsterDefeated?: () => void;
-  private onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
+  private onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
   
   // マルチモンスター対応
   private monsterSprites: Map<string, MonsterSpriteData> = new Map();
@@ -210,7 +210,7 @@ export class FantasyPIXIInstance {
 
 
 
-  constructor(width: number, height: number, onMonsterDefeated?: () => void, onShowMagicName?: (magicName: string, isSpecial: boolean) => void) {
+  constructor(width: number, height: number, onMonsterDefeated?: () => void, onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void) {
     // コールバックの保存
     this.onDefeated = onMonsterDefeated;
     this.onMonsterDefeated = onMonsterDefeated; // 状態機械用コールバック
@@ -422,6 +422,11 @@ export class FantasyPIXIInstance {
 
     devLog.debug('👾 アクティブモンスター更新:', { count: monsters.length });
     
+    // 修正: 古い単体モンスタースプライトを確実に非表示にする
+    if (this.monsterSprite && !this.monsterSprite.destroyed) {
+      this.monsterSprite.visible = false;
+    }
+    
     const currentIds = new Set(monsters.map(m => m.id));
     
     // 削除されたモンスターをクリーンアップ
@@ -444,7 +449,7 @@ export class FantasyPIXIInstance {
         if (!sprite) continue;
         
         const visualState: MonsterVisualState = {
-          x: this.getPositionX(monster.position),
+          x: this.getPositionX(monster.position, monsters.length),
           y: this.app.renderer.height / 2, // Y座標を中央に
           scale: 1.0,
           rotation: 0,
@@ -460,7 +465,7 @@ export class FantasyPIXIInstance {
           originalColor: 0xFFFFFF,
           staggerOffset: { x: 0, y: 0 },
           hitCount: 0,
-          state: 'IDLE',
+          state: 'GONE', // 修正: 初期状態をGONEに設定
           isFadingOut: false,
           fadeOutStartTime: 0
         };
@@ -480,23 +485,33 @@ export class FantasyPIXIInstance {
       // 位置を更新
       if (monsterData.position !== monster.position) {
         monsterData.position = monster.position;
-        monsterData.visualState.x = this.getPositionX(monster.position);
+        monsterData.visualState.x = this.getPositionX(monster.position, monsters.length);
       }
       
       this.updateMonsterSpriteData(monsterData);
     }
   }
   
-  private getPositionX(position: 'A' | 'B' | 'C'): number {
+  private getPositionX(position: 'A' | 'B' | 'C', count: number): number {
     const w = this.app.screen.width;
-    // ▼▼▼ 変更点 ▼▼▼
-    // UI側の `translateX(-50%)` と同様の効果を得るため、中央の座標を返す
-    switch (position) {
-      case 'A': return w * 0.25;
-      case 'B': return w * 0.50;
-      case 'C': return w * 0.75;
+    
+    // ★ 修正点: モンスターの数に応じて間隔を調整
+    if (count === 2) {
+      switch (position) {
+        case 'A': return w * 0.35; // 35%の位置
+        case 'C': return w * 0.65; // 65%の位置
+        default: return w * 0.5;
+      }
     }
-    // ▲▲▲ ここまで ▲▲▲
+    if (count === 3) {
+      switch (position) {
+        case 'A': return w * 0.30; // 30%の位置
+        case 'B': return w * 0.50; // 50%の位置
+        case 'C': return w * 0.70; // 70%の位置
+      }
+    }
+    
+    return w * 0.5; // デフォルトは中央
   }
   
   /**
@@ -535,6 +550,9 @@ export class FantasyPIXIInstance {
    */
   private updateMonsterSpriteData(monsterData: MonsterSpriteData): void {
     const { sprite, visualState, gameState } = monsterData;
+    
+    // 修正: スプライトが破棄されていないことを確認
+    if (!sprite || sprite.destroyed) return;
     
     sprite.x = visualState.x + gameState.staggerOffset.x;
     sprite.y = visualState.y + gameState.staggerOffset.y;
@@ -597,7 +615,7 @@ export class FantasyPIXIInstance {
       
       // HTMLでの表示のためコールバックを呼び出す
       if (this.onShowMagicName) {
-        this.onShowMagicName(magicName, isSpecial);
+        this.onShowMagicName(magicName, isSpecial, monsterId);
       }
 
       monsterData.gameState.isHit = true;
@@ -657,7 +675,7 @@ export class FantasyPIXIInstance {
       
       // HTMLでの表示のためコールバックを呼び出す
       if (this.onShowMagicName) {
-        this.onShowMagicName(magicName, isSpecial);
+        this.onShowMagicName(magicName, isSpecial, 'default');
       }
 
       this.monsterGameState.isHit = true;
@@ -709,75 +727,70 @@ export class FantasyPIXIInstance {
       return;
     }
 
-    const count = isSpecial ? 3 : 1;
-    for (let i = 0; i < count; i++) {
-      try {
-        const magicSprite = new PIXI.Sprite(texture);
-        
-        if (!magicSprite || !magicSprite.anchor) {
-          devLog.debug('⚠️ 魔法スプライト作成失敗');
-          continue;
-        }
-        
-        magicSprite.anchor.set(0.5);
-        
-        // 画面の下から指定位置に向かって飛ぶ
-        const startX = targetX + (Math.random() - 0.5) * 200;
-        const startY = this.app.screen.height - 100;
-        magicSprite.x = startX;
-        magicSprite.y = startY;
-        
-        magicSprite.tint = color;
-        magicSprite.alpha = 0.8;
-        magicSprite.scale.set(0.3);
-        
-        if (!this.effectContainer || this.effectContainer.destroyed) {
-          magicSprite.destroy();
-          return;
-        }
-        
-        this.effectContainer.addChild(magicSprite);
+    const magicSprite = new PIXI.Sprite(texture);
+    magicSprite.anchor.set(0.5);
+    
+    // ★ 修正点: 敵に貼り付け、移動・回転をなくす
+    magicSprite.x = targetX;
+    magicSprite.y = targetY;
+    magicSprite.tint = color;
+    magicSprite.alpha = 1.0;
+    const initialScale = isSpecial ? 0.5 : 0.4; // ★ 修正点: サイズを縮小
+    magicSprite.scale.set(initialScale);
+    magicSprite.rotation = 0; // 回転しない
 
-        // アニメーション
-        let life = 800;
-        const finalTargetX = targetX + (isSpecial ? (Math.random() - 0.5) * 80 : 0);
-        const finalTargetY = targetY + (isSpecial ? (Math.random() - 0.5) * 40 : 0);
+    this.effectContainer.addChild(magicSprite);
+
+    // アニメーション (その場でフェードアウト)
+    let life = 600; // 0.6秒で消滅
+    const maxLife = 600;
+
+    const animate = () => {
+      if (this.isDestroyed || magicSprite.destroyed) return;
+      
+      if (life > 0) {
+        life -= 16;
+        const progress = 1 - (life / maxLife);
         
-        const animate = () => {
-          if (this.isDestroyed || !magicSprite || magicSprite.destroyed) {
-            return;
-          }
-          
-          if (life > 0) {
-            try {
-              const progress = 1 - (life / 800);
-              magicSprite.x = startX + (finalTargetX - startX) * progress;
-              magicSprite.y = startY + (finalTargetY - startY) * progress * progress;
-              magicSprite.scale.set(0.3 + progress * 0.4);
-              magicSprite.rotation += 0.2;
-              life -= 16;
-              requestAnimationFrame(animate);
-            } catch (error) {
-              devLog.debug('⚠️ 魔法エフェクトアニメーションエラー:', error);
-            }
-          } else {
-            try {
-              this.effectContainer.removeChild(magicSprite);
-              magicSprite.destroy();
-            } catch (error) {
-              devLog.debug('⚠️ 魔法スプライト削除エラー:', error);
-            }
-          }
-        };
+        magicSprite.alpha = 1 - progress; // フェードアウト
+        magicSprite.scale.set(initialScale * (1 + progress * 0.3)); // 少しだけ拡大
         
-        if (isSpecial) {
-          setTimeout(animate, i * 100);
-        } else {
-          animate();
+        requestAnimationFrame(animate);
+      } else {
+        if (magicSprite.parent) {
+          magicSprite.parent.removeChild(magicSprite);
         }
-      } catch (error) {
-        devLog.debug('❌ 魔法エフェクト作成エラー:', error);
+        magicSprite.destroy();
       }
+    };
+    animate();
+  }
+
+  // ★ 追加: 魔法属性に合わせたパーティクル
+  private createMagicParticlesAt(magic: MagicType, isSpecial: boolean, centerX: number, centerY: number): void {
+    const particleCount = isSpecial ? magic.particleCount * 2 : magic.particleCount;
+    const colors = [magic.particleColor, magic.color];
+    
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
+      const speed = 2 + Math.random() * 3;
+      const size = isSpecial ? 4 + Math.random() * 6 : 3 + Math.random() * 4;
+      
+      this.particles.push({
+        id: `magic-particle-${Date.now()}-${i}`,
+        x: centerX,
+        y: centerY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 30 + Math.random() * 20,
+        maxLife: 50,
+        size: size,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        alpha: 0.8,
+        type: 'sparkle',
+        decay: 0.02,
+        gravity: 0.1
+      });
     }
   }
 
@@ -1199,45 +1212,29 @@ export class FantasyPIXIInstance {
 
   // 指定位置に魔法パーティクルを作成
   private createMagicParticlesAt(magic: MagicType, isSpecial: boolean, centerX: number, centerY: number): void {
-    const particleCount = isSpecial ? 30 : 15;
-    const color = isSpecial ? magic.tier2Color : magic.color;
+    const particleCount = isSpecial ? magic.particleCount * 2 : magic.particleCount;
+    const colors = [magic.particleColor, magic.color];
     
     for (let i = 0; i < particleCount; i++) {
-      const id = `particle_${Date.now()}_${i}`;
-      const particle = new PIXI.Graphics();
-      particle.beginFill(color, 0.8);
-      particle.drawCircle(0, 0, Math.random() * 4 + 2);
-      particle.endFill();
-      
-      particle.x = centerX;
-      particle.y = centerY;
-      
-      this.particleContainer.addChild(particle);
-      this.particles.set(id, particle);
-      
       const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
-      const speed = isSpecial ? 8 + Math.random() * 6 : 4 + Math.random() * 3;
+      const speed = 2 + Math.random() * 3;
+      const size = isSpecial ? 4 + Math.random() * 6 : 3 + Math.random() * 4;
       
-      this.particleData.set(id, {
-        id,
+      this.particles.push({
+        id: `magic-particle-${Date.now()}-${i}`,
         x: centerX,
         y: centerY,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        life: 1,
-        maxLife: 1,
-        size: isSpecial ? 3 : 2,
-        color: 0xFFFF00,
-        alpha: 1,
-        type: 'explosion' as const,
-        decay: isSpecial ? 0.96 : 0.94,
-        gravity: 0.3
+        life: 30 + Math.random() * 20,
+        maxLife: 50,
+        size: size,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        alpha: 0.8,
+        type: 'sparkle',
+        decay: 0.02,
+        gravity: 0.1
       });
-    }
-    
-    // 画面揺れエフェクト（SPアタック時のみ）
-    if (isSpecial) {
-      this.createScreenShake(10, 500);
     }
   }
 
@@ -1531,25 +1528,20 @@ export class FantasyPIXIInstance {
       }
       
       try {
-        // 上昇アニメーション
-        const elapsedTime = 1500 - damageNumberData.life;
+        const elapsedTime = damageNumberData.maxLife - damageNumberData.life;
         damageNumberData.life -= 16; // 60FPS想定
         
         // スプライト更新（nullチェック強化）
         if (damageText.transform && !damageText.destroyed) {
-          // ゆっくり上に移動
-          damageText.y = damageNumberData.startY + damageNumberData.velocity * (elapsedTime / 16);
+          // ★ 修正点: 上昇アニメーションを削除
+          // damageText.y = damageNumberData.startY + damageNumberData.velocity * (elapsedTime / 16);
           
-          // フェードアウト（最初の500msは不透明、その後フェードアウト）
-          if (elapsedTime < 500) {
-            damageText.alpha = 1;
-          } else {
-            damageText.alpha = (damageNumberData.life - 0) / (damageNumberData.maxLife - 500);
-          }
+          // フェードアウト
+          damageText.alpha = damageNumberData.life / damageNumberData.maxLife;
           
-          // 少しだけ拡大
-          const scaleProgress = Math.min(elapsedTime / 1000, 1);
-          damageText.scale.set(1 + scaleProgress * 0.3);
+          // スケールアニメーション
+          const scaleProgress = Math.min(elapsedTime / 300, 1);
+          damageText.scale.set(1 + scaleProgress * 0.2);
         }
         
         // 削除判定
@@ -1594,8 +1586,9 @@ export class FantasyPIXIInstance {
     
     this.app.renderer.resize(width, height);
     
+    const monsterCount = this.monsterSprites.size;
     for (const [id, monsterData] of this.monsterSprites) {
-      monsterData.visualState.x = this.getPositionX(monsterData.position);
+      monsterData.visualState.x = this.getPositionX(monsterData.position, monsterCount);
       monsterData.visualState.y = height / 2;
       
       // ▼▼▼ 変更点 ▼▼▼
