@@ -12,6 +12,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
 import { playNote, stopNote, initializeAudioSystem } from '@/utils/MidiController';
 import FantasySettingsModal from './FantasySettingsModal';
+import { MIDIController } from '@/utils/MidiController';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -41,10 +42,87 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ name: string; isSpecial: boolean } | null>(null);
   
+  // MIDI接続状態を管理
+  const [midiDeviceId, setMidiDeviceId] = useState<string | null>(null);
+  const midiControllerRef = useRef<MIDIController | null>(null);
+  const [isMidiConnected, setIsMidiConnected] = useState(false);
+  
   // stage.showGuide の変更をコンポーネントの状態に同期させる
   useEffect(() => {
     setShowGuide(stage.showGuide);
   }, [stage.showGuide]);
+  
+  // MIDI入力処理用のRef（コールバックを保持）
+  const handleNoteInputRef = useRef<(note: number) => void>();
+  handleNoteInputRef.current = handleNoteInputBridge;
+  
+  // MIDIControllerの初期化と管理
+  useEffect(() => {
+    // MIDIControllerのインスタンスを作成（一度だけ）
+    if (!midiControllerRef.current) {
+      const controller = new MIDIController({
+        onNoteOn: (note: number, velocity?: number) => {
+          devLog.debug('🎹 MIDI Note On:', { note, velocity });
+          // Refを通じて最新のhandleNoteInputBridgeを呼び出す
+          if (handleNoteInputRef.current) {
+            handleNoteInputRef.current(note);
+          }
+        },
+        onNoteOff: (note: number) => {
+          devLog.debug('🎹 MIDI Note Off:', { note });
+          stopNote(note);
+        }
+      });
+      
+      controller.setConnectionChangeCallback((connected: boolean) => {
+        setIsMidiConnected(connected);
+        devLog.debug('🎹 MIDI接続状態変更:', { connected });
+      });
+      
+      midiControllerRef.current = controller;
+      
+      // 初期化
+      controller.initialize().then(() => {
+        devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
+        
+        // 保存されているデバイスIDがあれば自動接続
+        const savedDeviceId = localStorage.getItem('fantasyMidiDeviceId');
+        if (savedDeviceId) {
+          setMidiDeviceId(savedDeviceId);
+          controller.connectDevice(savedDeviceId).then((success) => {
+            if (success) {
+              devLog.debug('✅ 保存されたMIDIデバイスに自動接続成功:', savedDeviceId);
+            }
+          });
+        }
+      }).catch(error => {
+        devLog.debug('❌ MIDI初期化エラー:', error);
+      });
+    }
+    
+    // クリーンアップ
+    return () => {
+      if (midiControllerRef.current) {
+        midiControllerRef.current.destroy();
+        midiControllerRef.current = null;
+      }
+    };
+  }, []); // 空の依存配列で一度だけ実行
+  
+  // MIDIデバイス接続管理
+  useEffect(() => {
+    if (midiControllerRef.current && midiDeviceId) {
+      midiControllerRef.current.connectDevice(midiDeviceId).then((success) => {
+        if (success) {
+          devLog.debug('✅ MIDIデバイス接続成功:', midiDeviceId);
+          localStorage.setItem('fantasyMidiDeviceId', midiDeviceId);
+        }
+      });
+    } else if (midiControllerRef.current && !midiDeviceId) {
+      midiControllerRef.current.disconnect();
+      localStorage.removeItem('fantasyMidiDeviceId');
+    }
+  }, [midiDeviceId]);
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -771,6 +849,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           devLog.debug('⚙️ ファンタジー設定変更:', settings);
           setShowGuide(settings.showGuide);
         }}
+        midiDeviceId={midiDeviceId}
+        onMidiDeviceChange={setMidiDeviceId}
+        isMidiConnected={isMidiConnected}
       />
     </div>
   );
