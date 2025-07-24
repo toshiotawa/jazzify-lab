@@ -10,13 +10,17 @@
     "build:prod": "vite build --mode production",
     "build:perf": "vite build --mode production --logLevel warn",
     "build:fast": "vite build --mode production",
+    "build:ultra-fast": "vite build --mode production --logLevel error --force",
+    "build:dev": "vite build --config vite.config.dev.ts",
+    "build:dev-fast": "vite build --config vite.config.dev.ts --logLevel error",
     "build:check": "tsc && vite build",
     "build:analyze": "vite build --mode production",
     "preview": "vite preview",
     "preview:prod": "vite build --mode production && vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist node_modules/.vite"
+    "clean": "rm -rf dist node_modules/.vite",
+    "clean:all": "rm -rf dist node_modules/.vite node_modules && npm install"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.7.2",

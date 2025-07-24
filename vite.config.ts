@@ -42,6 +42,11 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
       cssMinify: 'esbuild',
       reportCompressedSize: false, // ビルド時間短縮
+      // ビルド時間短縮のための追加設定
+      write: true,
+      outDir: 'dist',
+      assetsDir: 'assets',
+      // 並列処理の最適化
       rollupOptions: {
         output: {
           manualChunks: {
@@ -49,7 +54,10 @@ export default defineConfig(({ mode }) => {
             'pixi': ['pixi.js'],
             'audio': ['tone'],
             'icons': ['react-icons'],
-            'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer']
+            'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer'],
+            'supabase': ['@supabase/supabase-js'],
+            'stripe': ['@stripe/stripe-js'],
+            'music': ['opensheetmusicdisplay', 'tonal']
           },
           chunkFileNames: 'assets/[name]-[hash].js',
           entryFileNames: 'assets/[name]-[hash].js',
@@ -59,7 +67,10 @@ export default defineConfig(({ mode }) => {
           preset: 'recommended',
           // console関数を不要コードとして削除
           // manualPureFunctions: ['console.log', 'console.info', 'console.debug', 'console.warn', 'console.error'],  // console.logを残すためコメントアウト
-        }
+        },
+        // 並列処理の最適化
+        maxParallelFileOps: 3,
+        cache: true
       },
       commonjsOptions: {
         transformMixedEsModules: true
@@ -80,13 +91,24 @@ export default defineConfig(({ mode }) => {
         'clsx',
         'tailwind-merge',
         'zustand',
-        'immer'
+        'immer',
+        '@supabase/supabase-js',
+        '@stripe/stripe-js',
+        'opensheetmusicdisplay',
+        'tonal',
+        'pixi.js',
+        'tone'
       ],
       exclude: ['@/wasm'],
       esbuildOptions: {
         target: 'es2020'
-      }
+      },
+      // 依存関係の最適化
+      force: false
     },
-    cacheDir: 'node_modules/.vite'
+    cacheDir: 'node_modules/.vite',
+    // ビルド時間短縮のための追加設定
+    logLevel: 'warn',
+    clearScreen: false
   };
 }) 
