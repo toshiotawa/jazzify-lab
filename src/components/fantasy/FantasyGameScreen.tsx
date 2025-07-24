@@ -39,7 +39,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [showGuide, setShowGuide] = useState(stage.showGuide);
   
   // 魔法名表示状態
-  const [magicName, setMagicName] = useState<{ name: string; isSpecial: boolean } | null>(null);
+  const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -389,8 +389,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   // 魔法名表示ハンドラー
-  const handleShowMagicName = useCallback((name: string, isSpecial: boolean) => {
-    setMagicName({ name, isSpecial });
+  const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
+    setMagicName({ monsterId, name, isSpecial });
     // 500ms後に自動的に非表示
     setTimeout(() => {
       setMagicName(null);
@@ -683,7 +683,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       </div>
                       
                       {/* 魔法名表示 */}
-                      {magicName && (
+                      {magicName && magicName.monsterId === monster.id && (
                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
                           <div className={`text-xl font-bold font-dotgothic16 ${
                             magicName.isSpecial ? 'text-yellow-300' : 'text-white'

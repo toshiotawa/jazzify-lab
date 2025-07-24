@@ -22,7 +22,7 @@ interface FantasyPIXIRendererProps {
   enemyGauge: number;
   onReady?: (instance: FantasyPIXIInstance) => void;
   onMonsterDefeated?: () => void; // 状態機械用コールバック
-  onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
+  onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
   className?: string;
   activeMonsters?: GameMonsterState[]; // マルチモンスター対応
 }
@@ -167,7 +167,7 @@ export class FantasyPIXIInstance {
   private backgroundContainer: PIXI.Container;
   private onDefeated?: () => void;
   private onMonsterDefeated?: () => void;
-  private onShowMagicName?: (magicName: string, isSpecial: boolean) => void; // 魔法名表示コールバック
+  private onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
   
   /** ────────────────────────────────────
    *  safe‑default で初期化しておく
@@ -231,7 +231,7 @@ export class FantasyPIXIInstance {
 
 
 
-  constructor(width: number, height: number, onMonsterDefeated?: () => void, onShowMagicName?: (magicName: string, isSpecial: boolean) => void) {
+  constructor(width: number, height: number, onMonsterDefeated?: () => void, onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void) {
     // コールバックの保存
     this.onDefeated = onMonsterDefeated;
     this.onMonsterDefeated = onMonsterDefeated; // 状態機械用コールバック
@@ -284,32 +284,43 @@ export class FantasyPIXIInstance {
       // ▼▼▼ 変更点 ▼▼▼
       // 複数のモンスター画像をロードする（ENEMY_LISTと完全に一致させる）
       const monsterIcons = ['devil', 'dragon', 'mao', 'mummy', 'shinigami', 'slime_green', 'slime_red', 'zombie', 'skeleton', 'grey', 'pumpkin', 'alien', 'bat1', 'bat2', 'ghost'];
+      /** まず .svg を読みに行き，失敗したら .png にフォールバックします */
       const iconMap: Record<string, string> = {
-        devil:        'character_monster_devil_purple.png',
-        dragon:       'character_monster_dragon_01_red.png',
-        mao:          'character_monster_mao_01.png',
-        mummy:        'character_monster_mummy_red.png',
-        shinigami:    'character_monster_shinigami_01.png',
-        slime_green:  'character_monster_slime_green.png',
-        slime_red:    'character_monster_slime_red.png',
-        zombie:       'character_monster_zombie_brown.png',
-        skeleton:     'gaikotsu_01.png',
-        grey:         'grey_green.png',
-        pumpkin:      'jackolantern_01_orange.png',
-        alien:        'kaseijin_green.png',
-        bat1:         'komori_01.png',
-        bat2:         'komori_02.png',
-        ghost:        'yurei_halloween_orange.png'
+        devil:        'character_monster_devil_purple.svg',
+        dragon:       'character_monster_dragon_01_red.svg',
+        mao:          'character_monster_mao_01.svg',
+        mummy:        'character_monster_mummy_red.svg',
+        shinigami:    'character_monster_shinigami_01.svg',
+        slime_green:  'character_monster_slime_green.svg',
+        slime_red:    'character_monster_slime_red.svg',
+        zombie:       'character_monster_zombie_brown.svg',
+        skeleton:     'gaikotsu_01.svg',
+        grey:         'grey_green.svg',
+        pumpkin:      'jackolantern_01_orange.svg',
+        alien:        'kaseijin_green.svg',
+        bat1:         'komori_01.svg',
+        bat2:         'komori_02.svg',
+        ghost:        'yurei_halloween_orange.svg'
       };
 
       for (const icon of monsterIcons) {
-        const path = `/data/${iconMap[icon]}`;
+        // SVG → PNG の順で試行
+        const svgPath = `/data/${iconMap[icon]}`;
+        const pngPath = svgPath.replace(/\.svg$/, '.png');
+
+        let texture: PIXI.Texture;
         try {
-          const texture = await PIXI.Assets.load(path);
+          texture = await PIXI.Assets.load(svgPath);
           this.imageTextures.set(icon, texture);
-          devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${path}`);
-        } catch (e) {
-          devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${path}`, e);
+          devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${svgPath}`);
+        } catch {
+          try {
+            texture = await PIXI.Assets.load(pngPath);
+            this.imageTextures.set(icon, texture);
+            devLog.debug(`✅ モンスターテクスチャ読み込み完了 (PNG fallback): ${pngPath}`);
+          } catch (e) {
+            devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${svgPath} & ${pngPath}`, e);
+          }
         }
       }
       // ▲▲▲ ここまで ▲▲▲
@@ -517,16 +528,14 @@ export class FantasyPIXIInstance {
     }
   }
   
+  /** UI 側（25 %|50 %|75 %）に完全同期させる */
   private getPositionX(position: 'A' | 'B' | 'C'): number {
     const w = this.app.screen.width;
-    // ▼▼▼ 変更点 ▼▼▼
-    // UI側の `translateX(-50%)` と同様の効果を得るため、中央の座標を返す
     switch (position) {
-      case 'A': return w * 0.35;
+      case 'A': return w * 0.25;
       case 'B': return w * 0.50;
-      case 'C': return w * 0.65;
+      case 'C': return w * 0.75;
     }
-    // ▲▲▲ ここまで ▲▲▲
   }
   
   /**
@@ -633,7 +642,7 @@ export class FantasyPIXIInstance {
       
       // HTMLでの表示のためコールバックを呼び出す
       if (this.onShowMagicName) {
-        this.onShowMagicName(magicName, isSpecial);
+        this.onShowMagicName(magicName, isSpecial, monsterId);
       }
 
       monsterData.gameState.isHit = true;
@@ -693,7 +702,7 @@ export class FantasyPIXIInstance {
       
       // HTMLでの表示のためコールバックを呼び出す
       if (this.onShowMagicName) {
-        this.onShowMagicName(magicName, isSpecial);
+        this.onShowMagicName(magicName, isSpecial, 'default');
       }
 
       this.monsterGameState.isHit = true;
