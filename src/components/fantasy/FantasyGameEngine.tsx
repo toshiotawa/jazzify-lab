@@ -388,8 +388,15 @@ export const useFantasyGameEngine = ({
     const totalQuestions = totalEnemies * enemyHp;
     const simultaneousCount = stage.simultaneousMonsterCount || 1;
 
+    // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
     // モンスターキューを作成（0からtotalEnemies-1までのインデックス）
-    const monsterQueue = Array.from({ length: totalEnemies }, (_, i) => i);
+    const monsterIndices = Array.from({ length: totalEnemies }, (_, i) => i);
+    // Fisher-Yates shuffle
+    for (let i = monsterIndices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [monsterIndices[i], monsterIndices[j]] = [monsterIndices[j], monsterIndices[i]];
+    }
+    const monsterQueue = monsterIndices;
     
     // 初期モンスターを配置
     const initialMonsterCount = Math.min(simultaneousCount, totalEnemies);
@@ -397,6 +404,9 @@ export const useFantasyGameEngine = ({
     const activeMonsters: MonsterState[] = [];
     const usedChordIds: string[] = [];
     
+    // ▼▼▼ 修正点2: コードの重複を避けるロジックを追加 ▼▼▼
+    let lastChordId: string | undefined = undefined; // 直前のコードIDを記録する変数を追加
+
     for (let i = 0; i < initialMonsterCount; i++) {
       const monsterIndex = monsterQueue.shift()!;
       const monster = createMonsterFromQueue(
@@ -404,10 +414,12 @@ export const useFantasyGameEngine = ({
         positions[i],
         enemyHp,
         stage.allowedChords,
-        usedChordIds
+        usedChordIds,
+        lastChordId // 直前のコードIDを渡して重複を避ける
       );
       activeMonsters.push(monster);
       usedChordIds.push(monster.chordTarget.id);
+      lastChordId = monster.chordTarget.id; // 生成したモンスターのコードIDを更新
     }
 
     // 互換性のため最初のモンスターの情報を設定
