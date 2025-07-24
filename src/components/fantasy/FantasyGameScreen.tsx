@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
-import { playNote, stopNote, initializeAudioSystem, MIDIController } from '@/utils/MidiController';
+import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
@@ -68,9 +68,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         },
         onNoteOff: (note: number) => {
           devLog.debug('🎹 MIDI Note Off:', { note });
-          stopNote(note);
         },
-        playMidiSound: false // ファンタジーモードでは音声重複を防ぐため無効化
+        playMidiSound: true // 通常プレイと同様に共通音声システムを有効化
       });
       
       controller.setConnectionChangeCallback((connected: boolean) => {
@@ -238,29 +237,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number) => {
-    // キーボードハイライト & ヒットエフェクト
-    if (pixiRenderer) {
-      pixiRenderer.highlightKey(note, true);
-      pixiRenderer.triggerKeyPressEffect(note);
-      // 少し遅れてハイライトを解除
-      setTimeout(() => {
-        if (pixiRenderer) {
-          pixiRenderer.highlightKey(note, false);
-        }
-      }, 150);
-    }
-
-    // 音声システムの初期化（初回のみ）
-    try {
-      await initializeAudioSystem();
-      await playNote(note, 100); // 通常プレイ時と同じ音量に統一
-    } catch (error) {
-      devLog.debug('🎹 音声再生エラー:', error);
-    }
-    
-    // ファンタジーゲームエンジンにのみ送信（重複を防ぐため）
+    // ファンタジーゲームエンジンにのみ送信（音声はMidiControllerが処理）
     engineHandleNoteInput(note);
-  }, [engineHandleNoteInput, pixiRenderer]);
+  }, [engineHandleNoteInput]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
@@ -319,21 +298,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // キーボードのクリックイベントを接続
       renderer.setKeyCallbacks(
         (note: number) => handleNoteInputBridge(note),
-        (note: number) => stopNote(note) // マウスリリース時に音を止める
+        (note: number) => {} // マウスリリース時の処理はMidiControllerが担当
       );
       
-      // MIDIControllerにキーハイライト機能を設定
-      if (midiControllerRef.current) {
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          renderer.highlightKey(note, active);
-          // アクティブ(ノートオン)時に即時エフェクトを発火
-          if (active) {
-            renderer.triggerKeyPressEffect(note);
-          }
-        });
-        
-        devLog.debug('✅ ファンタジーモードMIDIController ↔ PIXIレンダラー連携完了');
-      }
+              // MIDIControllerにキーハイライト機能を設定（通常プレイと同様の処理）
+        if (midiControllerRef.current) {
+          midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+            renderer.highlightKey(note, active);
+            // アクティブ(ノートオン)時に即時エフェクトを発火
+            if (active) {
+              renderer.triggerKeyPressEffect(note);
+            }
+          });
+          
+          devLog.debug('✅ ファンタジーモードMIDIController ↔ PIXIレンダラー連携完了');
+        }
       
       devLog.debug('🎮 PIXI.js ファンタジーモード準備完了:', {
         screenWidth,
