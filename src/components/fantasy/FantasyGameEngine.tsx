@@ -682,20 +682,12 @@ export const useFantasyGameEngine = ({
         correctNotes: updatedMonsters[0]?.correctNotes || []
       });
       
-      // 入力タイムアウトをリセット
+      // 既存のタイマーがあればクリア
       if (inputTimeout) {
         clearTimeout(inputTimeout);
       }
       
-      // 自動判定タイマー（500msに延長 - 和音が完成するまで待機）
-      const timeout = setTimeout(() => {
-        devLog.debug('⏰ 自動判定タイマー発動');
-        checkCurrentInput(newBuffer);
-      }, 500);
-      
-      setInputTimeout(timeout);
-      
-      // 即座に判定も試行（いずれかのモンスターのコードが完成した場合）
+      // 即座にコード完成判定
       const completedMonster = updatedMonsters.find(monster => 
         newBuffer.length >= monster.chordTarget.notes.length &&
         checkChordMatch(newBuffer, monster.chordTarget)
@@ -703,14 +695,21 @@ export const useFantasyGameEngine = ({
       
       if (completedMonster) {
         devLog.debug('🎯 コード完成 - 即座に判定', { monster: completedMonster.name });
-        setTimeout(() => {
-          clearTimeout(timeout);
-          checkCurrentInput(newBuffer);
-          setInputBuffer([]);
-        }, 100);
+        // 即座に判定実行（タイマーなし）
+        checkCurrentInput(newBuffer);
+        setInputTimeout(null); // タイマーIDをリセット
+        return []; // バッファをクリアして処理を終了
       }
       
-      return newBuffer;
+      // コードが未完成の場合のみ、新しい自動判定タイマーをセット
+      const timeout = setTimeout(() => {
+        devLog.debug('⏰ 自動判定タイマー発動');
+        checkCurrentInput(newBuffer);
+        setInputBuffer([]); // 判定後にバッファをクリア
+      }, 500);
+      
+      setInputTimeout(timeout);
+      return newBuffer; // 新しいノートを追加したバッファを返す
     });
   }, [gameState.isGameActive, gameState.activeMonsters, inputTimeout, onGameStateChange]);
   
@@ -837,15 +836,39 @@ export const useFantasyGameEngine = ({
         // 倒されたモンスターを除外
         const remainingMonsters = updatedMonsters.filter(m => m.currentHp > 0);
         const defeatedCount = updatedMonsters.length - remainingMonsters.length;
+        const totalDefeatedNow = prevState.enemiesDefeated + defeatedCount;
         
-        // 新しいモンスターを補充
+        // ★ 1. クリア判定を状態更新と同時に行う
+        if (totalDefeatedNow >= prevState.totalEnemies) {
+          const finalState = {
+            ...prevState,
+            correctAnswers: prevState.correctAnswers + correctMonsters.length,
+            score: prevState.score + (1000 * correctMonsters.length),
+            playerSp: newPlayerSp,
+            activeMonsters: [], // 全モンスターを消去
+            enemiesDefeated: totalDefeatedNow,
+            isGameActive: false,
+            isGameOver: true,
+            gameResult: 'clear' as const,
+            // 互換性維持
+            currentEnemyHp: 0,
+            enemyGauge: 0,
+            correctNotes: [],
+            isWaitingForNextMonster: false
+          };
+          onGameComplete('clear', finalState); // ゲーム完了コールバックを呼び出し
+          return finalState;
+        }
+        
+        // ★ 2. monsterQueueをイミュータブルに更新
+        const nextMonsterQueue = [...prevState.monsterQueue]; // キューをコピー
         let newMonsters: MonsterState[] = [...remainingMonsters];
         const availablePositions = ['A', 'B', 'C'].filter(pos => 
           !remainingMonsters.some(m => m.position === pos)
         );
         
-        for (let i = 0; i < defeatedCount && prevState.monsterQueue.length > 0; i++) {
-          const monsterIndex = prevState.monsterQueue[0];
+        for (let i = 0; i < defeatedCount && nextMonsterQueue.length > 0; i++) {
+          const monsterIndex = nextMonsterQueue.shift()!; // コピーを変更
           const position = availablePositions[i] || 'B';
           const newMonster = createMonsterFromQueue(
             monsterIndex,
@@ -854,11 +877,10 @@ export const useFantasyGameEngine = ({
             prevState.currentStage!.allowedChords
           );
           newMonsters.push(newMonster);
-          prevState.monsterQueue.shift();
         }
         
         // 位置を再調整（モンスター数に応じて）
-        if (newMonsters.length < prevState.simultaneousMonsterCount && prevState.monsterQueue.length === 0) {
+        if (newMonsters.length < prevState.simultaneousMonsterCount && nextMonsterQueue.length === 0) {
           const positions = assignPositions(newMonsters.length);
           newMonsters = newMonsters.map((m, i) => ({
             ...m,
@@ -875,7 +897,8 @@ export const useFantasyGameEngine = ({
           score: prevState.score + (1000 * correctMonsters.length),
           playerSp: newPlayerSp,
           activeMonsters: newMonsters,
-          enemiesDefeated: prevState.enemiesDefeated + defeatedCount,
+          monsterQueue: nextMonsterQueue, // 更新したキューをstateにセット
+          enemiesDefeated: totalDefeatedNow,
           // 互換性維持
           currentEnemyHp: firstMonster ? firstMonster.currentHp : 0,
           enemyGauge: 0,
@@ -886,15 +909,7 @@ export const useFantasyGameEngine = ({
       
       setInputBuffer([]);
       
-      // 全モンスター撃破チェック
-      setTimeout(() => {
-        if (gameState.enemiesDefeated + correctMonsters.filter(m => m.currentHp <= 0).length >= gameState.totalEnemies) {
-          // ゲームクリア処理
-          onGameComplete('clear', gameState);
-        }
-        // 次の問題への移行は削除（個別に処理するため）
-      }, 100);
-      
+      // 全モンスター撃破チェックは削除（上記で即座に処理済み）
     } else if (isMistake) {
       // ミスタッチ（どのモンスターのコードにも該当しない音）
       devLog.debug('❌ ミスタッチ!', { inputNotes: notes });
