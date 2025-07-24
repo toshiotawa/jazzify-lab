@@ -1591,24 +1591,23 @@ export class FantasyPIXIInstance {
   // サイズ変更（中央配置）
   resize(width: number, height: number): void {
     if (!this.app || !this.app.renderer || this.isDestroyed) return;
-    
-    this.app.renderer.resize(width, height);
-    
-    for (const [id, monsterData] of this.monsterSprites) {
-      monsterData.visualState.x = this.getPositionX(monsterData.position);
-      monsterData.visualState.y = height / 2;
-      
-      // ▼▼▼ 変更点 ▼▼▼
-      // サイズも再計算
-      const spriteSize = height * 0.7;
-      monsterData.sprite.width = spriteSize;
-      monsterData.sprite.height = spriteSize;
-      // ▲▲▲ ここまで ▲▲▲
-
-      this.updateMonsterSpriteData(monsterData);
+    try {
+      this.app.renderer.resize(width, height);
+      for (const [id, monsterData] of this.monsterSprites) {
+        monsterData.visualState.x = this.getPositionX(monsterData.position);
+        monsterData.visualState.y = height / 2;
+        // ▼▼▼ 変更点 ▼▼▼
+        // サイズも再計算
+        const spriteSize = height * 0.7;
+        monsterData.sprite.width = spriteSize;
+        monsterData.sprite.height = spriteSize;
+        // ▲▲▲ ここまで ▲▲▲
+        this.updateMonsterSpriteData(monsterData);
+      }
+      devLog.debug('✅ ファンタジーPIXIリサイズ完了:', { width, height });
+    } catch (error) {
+      devLog.debug('⚠️ リサイズエラー:', error);
     }
-    
-    devLog.debug('✅ ファンタジーPIXIリサイズ完了:', { width, height });
   }
 
   // Canvas要素取得
