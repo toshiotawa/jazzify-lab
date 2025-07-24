@@ -41,8 +41,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ name: string; isSpecial: boolean } | null>(null);
   
-  // MIDI接続状態を管理
-  const [midiDeviceId, setMidiDeviceId] = useState<string | null>(null);
+  // ★★★ 修正箇所 ★★★
+  // ローカルのuseStateからgameStoreに切り替え
+  const { settings, updateSettings } = useGameStore();
   const midiControllerRef = useRef<MIDIController | null>(null);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   
@@ -82,12 +83,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       controller.initialize().then(() => {
         devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
         
-        // 保存されているデバイスIDがあれば状態を更新する。
+        // ★★★ 修正箇所 ★★★
+        // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
         // 接続処理は下のuseEffectに任せる。
-        const savedDeviceId = localStorage.getItem('fantasyMidiDeviceId');
-        if (savedDeviceId) {
-          setMidiDeviceId(savedDeviceId);
-        }
       }).catch(error => {
         devLog.debug('❌ MIDI初期化エラー:', error);
       });
@@ -102,22 +100,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []); // 空の依存配列で一度だけ実行
   
-  // MIDIデバイス接続管理
+  // ★★★ 修正箇所 ★★★
+  // gameStoreのデバイスIDを監視して接続/切断
   useEffect(() => {
     const connect = async () => {
-      if (midiControllerRef.current && midiDeviceId) {
-        const success = await midiControllerRef.current.connectDevice(midiDeviceId);
+      const deviceId = settings.selectedMidiDevice;
+      if (midiControllerRef.current && deviceId) {
+        const success = await midiControllerRef.current.connectDevice(deviceId);
         if (success) {
-          devLog.debug('✅ MIDIデバイス接続成功:', midiDeviceId);
-          localStorage.setItem('fantasyMidiDeviceId', midiDeviceId);
+          devLog.debug('✅ MIDIデバイス接続成功:', deviceId);
         }
-      } else if (midiControllerRef.current && !midiDeviceId) {
+      } else if (midiControllerRef.current && !deviceId) {
         midiControllerRef.current.disconnect();
-        localStorage.removeItem('fantasyMidiDeviceId');
       }
     };
     connect();
-  }, [midiDeviceId]);
+  }, [settings.selectedMidiDevice]);
 
   // ステージ変更時にMIDI接続を確認・復元
   useEffect(() => {
@@ -323,6 +321,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         (note: number) => stopNote(note) // マウスリリース時に音を止める
       );
       
+      // ★★★ 修正箇所 ★★★
+      // MIDIControllerにキーハイライト機能を設定
+      if (midiControllerRef.current) {
+        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+          renderer.highlightKey(note, active);
+          // アクティブ(ノートオン)時に即時エフェクトを発火
+          if (active) {
+            renderer.triggerKeyPressEffect(note);
+          }
+        });
+        
+        // PIXIレンダラーの準備ができたので、選択中のMIDIデバイスがあれば強制的に再接続し、
+        // 設定されたばかりのキーハイライト用コールバックを有効化する。
+        if (settings.selectedMidiDevice) {
+          devLog.debug(`🔧 Fantasy PIXI is ready, re-linking MIDI device (${settings.selectedMidiDevice}) to activate highlight callback.`);
+          midiControllerRef.current.connectDevice(settings.selectedMidiDevice).catch((error: unknown) => {
+            devLog.debug('⚠️ ファンタジーモードMIDIデバイス再接続エラー (on PIXI ready):', error);
+          });
+        }
+        
+        devLog.debug('✅ ファンタジーモードMIDIController ↔ PIXIレンダラー連携完了');
+      }
+      
       devLog.debug('🎮 PIXI.js ファンタジーモード準備完了:', {
         screenWidth,
         totalWhiteKeys,
@@ -331,7 +352,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         showGuide: showGuide
       });
     }
-  }, [handleNoteInputBridge, showGuide]);
+  }, [handleNoteInputBridge, showGuide, settings.selectedMidiDevice]);
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
@@ -865,8 +886,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           devLog.debug('⚙️ ファンタジー設定変更:', settings);
           setShowGuide(settings.showGuide);
         }}
-        midiDeviceId={midiDeviceId}
-        onMidiDeviceChange={setMidiDeviceId}
+        // ★★★ 修正箇所 ★★★
+        // gameStoreの値を渡す
+        midiDeviceId={settings.selectedMidiDevice}
+        // gameStoreを更新するコールバックを渡す
+        onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
       />
     </div>

@@ -882,10 +882,14 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
       });
       
-      // 既に接続済みのデバイスがある場合、接続状態を確認して再設定
-      if (midiControllerRef.current.isConnected() && settings.selectedMidiDevice) {
+      // ★★★ 修正箇所 ★★★
+      // 既存の `if (midiControllerRef.current.isConnected() ...)` のロジックを置き換え
+      // PIXIレンダラーの準備ができたので、選択中のMIDIデバイスがあれば強制的に再接続し、
+      // 設定されたばかりのキーハイライト用コールバックを有効化する。
+      if (settings.selectedMidiDevice) {
+        log.info(`🔧 PIXI is ready, re-linking MIDI device (${settings.selectedMidiDevice}) to activate highlight callback.`);
         midiControllerRef.current.connectDevice(settings.selectedMidiDevice).catch((error: unknown) => {
-          log.warn('⚠️ MIDIデバイス再接続エラー:', error);
+          log.warn('⚠️ MIDIデバイス再接続エラー (on PIXI ready):', error);
         });
       }
       
