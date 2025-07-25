@@ -1629,7 +1629,13 @@ export class FantasyPIXIInstance {
   // マルチモンスター用攻撃エフェクト
   updateMonsterAttackingById(monsterId: string, isAttacking: boolean): void {
     const monsterData = this.monsterSprites.get(monsterId);
-    if (!monsterData || this.isDestroyed) return;
+    if (!monsterData) {
+      // スプライトがまだ無ければ1フレーム後に再試行
+      requestAnimationFrame(() => this.updateMonsterAttackingById(monsterId, isAttacking));
+      return;
+    }
+    
+    if (this.isDestroyed) return;
 
     console.log(`🎯 updateMonsterAttackingById called: monsterId=${monsterId}, isAttacking=${isAttacking}`);
 
