@@ -15,6 +15,7 @@ import FantasySettingsModal from './FantasySettingsModal';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
+  autoStart?: boolean;        // ★ 追加
   onGameComplete: (result: 'clear' | 'gameover', score: number, correctAnswers: number, totalQuestions: number) => void;
   onBackToStageSelect: () => void;
 }
@@ -23,6 +24,7 @@ interface FantasyGameScreenProps {
 
 const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   stage,
+  autoStart = false, // ★ 追加
   onGameComplete,
   onBackToStageSelect
 }) => {
@@ -216,12 +218,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (fantasyPixiInstance) {
       if (attackingMonsterId) {
         // マルチモンスター対応：特定のモンスターにエフェクトを適用
-        fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, true);
+        // ★ 50ms 程度ディレイをあける
         setTimeout(() => {
-          if (fantasyPixiInstance) {
-            fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, false);
-          }
-        }, 600);
+          fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, true);
+          setTimeout(() => fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, false), 600);
+        }, 50);
       } else {
         // 互換性のため：従来の単体モンスターエフェクト
         fantasyPixiInstance.updateMonsterAttacking(true);
@@ -553,6 +554,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
   }, []);
   
+  // ★ マウント時 autoStart なら即開始
+  useEffect(() => {
+    if (autoStart) {
+      initializeGame(stage);
+    }
+  }, [autoStart, initializeGame, stage]);
+
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
@@ -753,28 +761,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   );
                 })}
               </div>
-            ) : (
-              // 互換性のための旧表示
-              <>
-                <div className="text-white text-base font-bold mb-1">
-                  {currentEnemy.name}
-                </div>
-                <div className="flex justify-center mb-1">
-                  {renderEnemyGauge()}
-                </div>
-                <div className="flex flex-col items-center space-y-1 mt-1">
-                  <div className="w-48 h-5 bg-gray-700 border-2 border-gray-600 rounded-full overflow-hidden relative">
-                    <div
-                      className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
-                      style={{ width: `${(gameState.currentEnemyHp / gameState.maxEnemyHp) * 100}%` }}
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-                      {gameState.currentEnemyHp} / {gameState.maxEnemyHp}
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
+            ) : null}
             
             {/* プレイヤーのHP表示とSPゲージ */}
           </div>

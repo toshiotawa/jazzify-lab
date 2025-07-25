@@ -140,6 +140,9 @@ interface MonsterSpriteData {
   visualState: MonsterVisualState;
   gameState: MonsterGameState;
   position: 'A' | 'B' | 'C';
+  ui?: {
+    anger?: PIXI.Text;
+  };
 }
 
 export class FantasyPIXIInstance {
@@ -1619,14 +1622,20 @@ export class FantasyPIXIInstance {
       
       // 攻撃エフェクト
       monsterData.visualState.tint = 0xFF6B6B;
-      monsterData.visualState.scale = originalScale * 1.2; // 20%大きくする
+      monsterData.visualState.scale = originalScale * 1.5; // ★ 1.2 → 1.5 に変更
       
-      // 怒りマーク表示
-      const angerMark = new PIXI.Text('💢', { fontSize: 48 });
-      angerMark.anchor.set(0.5);
-      angerMark.x = monsterData.visualState.x + 60;
-      angerMark.y = monsterData.visualState.y - 60;
-      this.uiContainer.addChild(angerMark);
+      // 怒りマーク表示（一度だけ生成・再利用）
+      if (!monsterData.ui?.anger) {
+        const anger = new PIXI.Text('💢', { fontSize: 48 });
+        anger.anchor.set(0.5);
+        monsterData.ui = { ...monsterData.ui, anger };
+        this.uiContainer.addChild(anger);
+      }
+      if (monsterData.ui?.anger) {
+        monsterData.ui.anger.visible = true;
+        monsterData.ui.anger.x = monsterData.visualState.x + monsterData.sprite.width * 0.6; // ★ sprite幅で右端計算
+        monsterData.ui.anger.y = monsterData.visualState.y - monsterData.sprite.height * 0.6;
+      }
       
       this.updateMonsterSpriteData(monsterData);
 
@@ -1637,9 +1646,8 @@ export class FantasyPIXIInstance {
           monsterData.visualState.scale = originalScale;
           this.updateMonsterSpriteData(monsterData);
           
-          if (angerMark && !angerMark.destroyed) {
-            this.uiContainer.removeChild(angerMark);
-            angerMark.destroy();
+          if (monsterData.ui?.anger) {
+            monsterData.ui.anger.visible = false;
           }
         }
       }, 600);

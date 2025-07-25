@@ -26,6 +26,8 @@ const FantasyMain: React.FC = () => {
   // ▼▼▼ 追加 ▼▼▼
   // ゲームコンポーネントを強制的に再マウントさせるためのキー
   const [gameKey, setGameKey] = useState(0); 
+  // 再挑戦時の自動開始フラグ
+  const [pendingAutoStart, setPendingAutoStart] = useState(false);
   // ▲▲▲ ここまで ▲▲▲
   
   // プレミアムプラン以上の確認
@@ -49,6 +51,8 @@ const FantasyMain: React.FC = () => {
     correctAnswers: number, 
     totalQuestions: number
   ) => {
+    // pendingAutoStart をリセット
+    setPendingAutoStart(false);
     devLog.debug('🎮 ファンタジーモード: ゲーム完了', { result, score, correctAnswers, totalQuestions });
     
     const gameResult: GameResult = { result, score, correctAnswers, totalQuestions };
@@ -203,7 +207,29 @@ const FantasyMain: React.FC = () => {
     setCurrentStage(null);
     setGameResult(null);
     setShowResult(false);
+    setPendingAutoStart(false); // pendingAutoStart もリセット
   }, []);
+  
+  // ★ 追加: 次のステージに待機画面で遷移
+  const gotoNextStageWaiting = useCallback(() => {
+    if (!currentStage) return;
+    const [rank, num] = currentStage.stageNumber.split('-').map(Number);
+    const nextStageNumber = `${rank}-${num + 1}`;
+
+    // 次のステージの情報を作成（データベースから取得する代わりに現在のステージをベースに作成）
+    const nextStage: FantasyStage = {
+      ...currentStage,
+      id: `next-${nextStageNumber}`,
+      stageNumber: nextStageNumber,
+      name: `ステージ ${nextStageNumber}`,
+      description: `次のステージ ${nextStageNumber}`
+    };
+
+    setGameResult(null);
+    setShowResult(false);
+    setCurrentStage(nextStage);   // ← 待機画面
+    setGameKey(k => k + 1);  // 強制リマウント
+  }, [currentStage]);
   
   // メニューに戻る
   const handleBackToMenu = useCallback(() => {
@@ -310,7 +336,7 @@ const FantasyMain: React.FC = () => {
           <div className="space-y-4">
             {gameResult.result === 'clear' && (
               <button
-                onClick={handleBackToStageSelect}
+                onClick={gotoNextStageWaiting}
                 className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-dotgothic16"
               >
                 次のステージへ
@@ -321,7 +347,8 @@ const FantasyMain: React.FC = () => {
               // ▼▼▼ 修正 ▼▼▼
               onClick={() => {
                 setShowResult(false);
-                setGameKey(prevKey => prevKey + 1); // キーを更新してゲームをリセット
+                setGameKey(prevKey => prevKey + 1);
+                setPendingAutoStart(true);   // ★ useState を 1 つ用意
               }}
               // ▲▲▲ ここまで ▲▲▲
               className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors font-dotgothic16"
@@ -349,6 +376,7 @@ const FantasyMain: React.FC = () => {
         key={gameKey} // keyプロパティを渡す
         // ▲▲▲ ここまで ▲▲▲
         stage={currentStage}
+        autoStart={pendingAutoStart}   // ★
         onGameComplete={handleGameComplete}
         onBackToStageSelect={handleBackToStageSelect}
       />
