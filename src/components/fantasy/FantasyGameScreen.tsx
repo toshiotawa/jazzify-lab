@@ -208,6 +208,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
+    console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
     // モンスター攻撃状態を設定
@@ -216,8 +217,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // ファンタジーPIXIでモンスター攻撃エフェクト
     if (fantasyPixiInstance) {
+      console.log('🎮 fantasyPixiInstance exists, activeMonsters:', gameState.activeMonsters);
       if (attackingMonsterId) {
         // マルチモンスター対応：特定のモンスターにエフェクトを適用
+        console.log('🎯 Calling updateMonsterAttackingById with:', attackingMonsterId);
         // ★ 50ms 程度ディレイをあける
         setTimeout(() => {
           fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, true);
@@ -225,6 +228,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }, 50);
       } else {
         // 互換性のため：従来の単体モンスターエフェクト
+        console.log('⚠️ No attackingMonsterId, using legacy updateMonsterAttacking');
         fantasyPixiInstance.updateMonsterAttacking(true);
         setTimeout(() => {
           if (fantasyPixiInstance) {
@@ -232,6 +236,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           }
         }, 600);
       }
+    } else {
+      console.log('❌ fantasyPixiInstance is null');
     }
     
     // ダメージ時の画面振動

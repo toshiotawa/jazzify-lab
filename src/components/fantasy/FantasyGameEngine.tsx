@@ -686,6 +686,7 @@ export const useFantasyGameEngine = ({
       const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
       
       if (attackingMonster) {
+        console.log('🎲 Found attacking monster:', attackingMonster);
         devLog.debug('💥 モンスターゲージ満タン！攻撃開始', { monster: attackingMonster.name });
         
         // 攻撃したモンスターのゲージをリセット
@@ -694,6 +695,7 @@ export const useFantasyGameEngine = ({
         );
         
         // 攻撃処理を非同期で実行
+        console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
         setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
         
         const nextState = { 
