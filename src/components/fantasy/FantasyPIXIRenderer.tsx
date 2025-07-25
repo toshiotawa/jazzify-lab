@@ -141,6 +141,7 @@ interface MonsterSpriteData {
   gauge: number; // 追加：ゲージ値を保持
   angerMark?: PIXI.Text; // 追加：怒りマーク
   outline?: PIXI.Graphics; // 追加：赤い輪郭
+  isEnraged: boolean; // 追加：怒り状態フラグ
 }
 
 export class FantasyPIXIInstance {
@@ -512,7 +513,8 @@ export class FantasyPIXIInstance {
           visualState,
           gameState,
           position: monster.position,
-          gauge: monster.gauge // 追加
+          gauge: monster.gauge, // 追加
+          isEnraged: false // 追加
         };
         
         this.monsterSprites.set(monster.id, monsterData);
@@ -521,6 +523,12 @@ export class FantasyPIXIInstance {
       
       // ゲージ値を更新
       monsterData.gauge = monster.gauge;
+      
+      // 怒り状態の判定（閾値を超えた瞬間だけ）
+      if (!monsterData.isEnraged && monsterData.gauge >= 100) {
+        monsterData.isEnraged = true;
+        this.createAngerVisuals(monsterData);
+      }
       
       // 位置を更新
       monsterData.visualState.x = this.getPositionX(i, sortedMonsters.length);
@@ -619,6 +627,62 @@ export class FantasyPIXIInstance {
     sprite.tint = gameState.isHit ? gameState.hitColor : visualState.tint;
     sprite.alpha = visualState.alpha;
     sprite.visible = visualState.visible && gameState.state !== 'GONE';
+  }
+
+  /**
+   * 怒り演出を作成
+   */
+  private createAngerVisuals(monsterData: MonsterSpriteData): void {
+    const { sprite, visualState } = monsterData;
+    
+    // スケールを大きくする
+    visualState.scale = 0.35; // 通常の0.3から拡大
+    
+    // 赤い輪郭を追加
+    const outline = new PIXI.Graphics();
+    outline.lineStyle(4, 0xFF0000, 0.9);
+    outline.drawCircle(0, 0, sprite.width * 0.9);
+    sprite.addChild(outline);
+    monsterData.outline = outline;
+    
+    // 怒りマークを追加
+    const angerMark = new PIXI.Text('💢', {
+      fontSize: 32,
+      fill: 0xFF0000
+    });
+    angerMark.anchor.set(0.5);
+    angerMark.position.set(sprite.width * 0.4, -sprite.height * 0.4);
+    sprite.addChild(angerMark);
+    monsterData.angerMark = angerMark;
+    
+    // 赤い色味を追加
+    sprite.tint = 0xFFCCCC;
+  }
+
+  /**
+   * 怒り状態をリセット
+   */
+  resetEnrage(monsterId: string): void {
+    const monsterData = this.monsterSprites.get(monsterId);
+    if (!monsterData) return;
+    
+    monsterData.isEnraged = false;
+    
+    // ビジュアルを元に戻す
+    if (monsterData.outline) {
+      monsterData.sprite.removeChild(monsterData.outline);
+      monsterData.outline.destroy();
+      monsterData.outline = undefined;
+    }
+    
+    if (monsterData.angerMark) {
+      monsterData.sprite.removeChild(monsterData.angerMark);
+      monsterData.angerMark.destroy();
+      monsterData.angerMark = undefined;
+    }
+    
+    monsterData.sprite.tint = 0xFFFFFF;
+    monsterData.visualState.scale = 0.30; // 標準サイズへ戻す
   }
 
   // モンスタースプライトの属性を安全に更新
@@ -1234,55 +1298,14 @@ export class FantasyPIXIInstance {
       for (const [id, monsterData] of this.monsterSprites) {
         const { visualState, gameState, sprite } = monsterData;
         
-        // ゲージMAX時の怒りエフェクト
-        if (monsterData.gauge >= 100) {
-          // スケールを大きくする
-          visualState.scale = 0.35; // 通常の0.3から拡大
-          
-          // 赤い輪郭を追加（まだない場合）
-          if (!monsterData.outline) {
-            const outline = new PIXI.Graphics();
-            outline.lineStyle(4, 0xFF0000, 0.8);
-            outline.drawCircle(0, 0, 80);
-            sprite.addChild(outline);
-            monsterData.outline = outline;
-          }
-          
-          // 怒りマークを追加（まだない場合）
-          if (!monsterData.angerMark) {
-            const angerMark = new PIXI.Text('💢', {
-              fontSize: 32,
-              fill: 0xFF0000
-            });
-            angerMark.anchor.set(0.5);
-            angerMark.position.set(60, -60); // 右上に配置
-            sprite.addChild(angerMark);
-            monsterData.angerMark = angerMark;
-          }
-          
-          // 赤い色味を追加
-          sprite.tint = 0xFFCCCC;
-          
+        // 怒り状態のパルスアニメーション（状態が確定している場合のみ）
+        if (monsterData.isEnraged) {
           // パルスアニメーション（怒りの脈動）
           const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
           sprite.scale.set(visualState.scale * pulse);
-          
         } else {
-          // ゲージがMAXでない場合は通常状態に戻す
-          visualState.scale = 0.3;
-          sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
-          
-          // 怒りエフェクトを削除
-          if (monsterData.outline) {
-            sprite.removeChild(monsterData.outline);
-            monsterData.outline.destroy();
-            monsterData.outline = undefined;
-          }
-          if (monsterData.angerMark) {
-            sprite.removeChild(monsterData.angerMark);
-            monsterData.angerMark.destroy();
-            monsterData.angerMark = undefined;
-          }
+          // 通常状態ではスケールをそのまま適用
+          sprite.scale.set(visualState.scale);
         }
         
         // よろけ効果の減衰

@@ -252,6 +252,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setDamageShake(true);
     setTimeout(() => setDamageShake(false), 500);
     
+    // 怒り状態をリセット
+    if (fantasyPixiInstance && attackingMonsterId) {
+      fantasyPixiInstance.resetEnrage(attackingMonsterId);
+    }
+    
   }, [fantasyPixiInstance]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
