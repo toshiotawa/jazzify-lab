@@ -173,7 +173,7 @@ export class FantasyPIXIInstance {
   /* 既存のフィールドはこのまま */
   private monsterSprite: PIXI.Sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
   private monsterVisualState: MonsterVisualState = {
-    x: 0, y: 0, scale: 0.3, rotation: 0, tint: 0xffffff, alpha: 1, visible: false  // scale を 1 から 0.3 に変更
+    x: 0, y: 0, scale: 0.2, rotation: 0, tint: 0xffffff, alpha: 1, visible: false  // scale を 0.3 から 0.2 に変更（より小さく）
   };
   
   // マルチモンスター対応
@@ -404,7 +404,7 @@ export class FantasyPIXIInstance {
         alpha: 1.0,
         visible: true,
         tint: 0xFFFFFF,
-        scale: 0.3  // 1.0 から 0.3 に変更
+        scale: 0.2  // 0.3 から 0.2 に変更（より小さく）
       };
       
       // ゲーム状態をリセット
@@ -451,7 +451,7 @@ export class FantasyPIXIInstance {
         alpha: 1.0,
         visible: true,
         tint: 0xFFFFFF,
-        scale: 0.3  // 1.0 から 0.3 に変更
+        scale: 0.2  // 0.3 から 0.2 に変更（より小さく）
       };
       
       // スプライトの属性を更新
@@ -501,7 +501,7 @@ export class FantasyPIXIInstance {
         const visualState: MonsterVisualState = {
           x: this.getPositionX(i, sortedMonsters.length),
           y: 100, // Y座標を100pxに固定（200px高さの中央）
-          scale: 0.3,  // 1.0 から 0.3 に変更
+          scale: 0.2,  // 0.3 から 0.2 に変更（より小さく）
           rotation: 0,
           tint: 0xFFFFFF,
           alpha: 1.0,
@@ -1257,11 +1257,11 @@ export class FantasyPIXIInstance {
         const enragedTable = useEnemyStore.getState().enraged;
         
         // 怒りマークの相対位置（スプライト中心基準）
-        const ANGER_OFFSET = { x: 45, y: -45 }; // 右上に少しずらす
+        const ANGER_OFFSET = { x: 50, y: -50 }; // 右上に少しずらす（大きくなったので位置も調整）
         
         if (enragedTable[id]) {
           // ---- 怒り演出 ----
-          visualState.scale = 0.35; // 巨大化
+          visualState.scale = 0.25; // 巨大化（0.2→0.25）
           sprite.tint = 0xFFCCCC;
           
           // 怒りマークを追加（まだない場合）
@@ -1270,8 +1270,8 @@ export class FantasyPIXIInstance {
             if (angerTexture) {
               const angerMark = new PIXI.Sprite(angerTexture);
               angerMark.anchor.set(0.5);
-              angerMark.width = 48;  // サイズ調整
-              angerMark.height = 48;
+              angerMark.width = 72;  // サイズ調整（もっと大きく）
+              angerMark.height = 72;
               angerMark.position.set(
                 ANGER_OFFSET.x,
                 ANGER_OFFSET.y
@@ -1282,7 +1282,7 @@ export class FantasyPIXIInstance {
               // テクスチャが無い場合は絵文字でフォールバック
               const angerMark = new PIXI.Text('💢', {
                 fontFamily: 'DotGothic16',
-                fontSize: 36,
+                fontSize: 54,  // もっと大きく
                 fill: 0xFF0000,
                 stroke: 0x000000,
                 strokeThickness: 4,
@@ -1308,7 +1308,7 @@ export class FantasyPIXIInstance {
           
         } else {
           // ---- 通常状態 ----
-          visualState.scale = 0.3;
+          visualState.scale = 0.2;  // 0.3から0.2に縮小
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
           
           // 怒りエフェクトを削除
