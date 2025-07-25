@@ -191,6 +191,9 @@ export class FantasyPIXIInstance {
   */
   private imageTextures: Map<string, PIXI.Texture> = new Map(); // ★ imageTextures は残す
   
+  private hammerTexture: PIXI.Texture | null = null;
+  private angerMarkTexture: PIXI.Texture | null = null;
+  
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
   
@@ -335,6 +338,9 @@ export class FantasyPIXIInstance {
         const path = `${import.meta.env.BASE_URL}${magic.svg}`;
         magicAssets[key] = path;
       }
+      
+      // ハンマーテクスチャを追加
+      magicAssets['hammer'] = `${import.meta.env.BASE_URL}data/hammer.svg`;
 
       // バンドルとして一括ロード
       await PIXI.Assets.addBundle('magicTextures', magicAssets);
@@ -348,6 +354,29 @@ export class FantasyPIXIInstance {
           devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
         }
       }
+      
+      // ハンマーテクスチャを保存
+      const hammerTexture = PIXI.Assets.get('hammer');
+      if (hammerTexture) {
+        this.hammerTexture = hammerTexture;
+        devLog.debug('✅ ハンマーテクスチャ読み込み完了');
+      }
+      
+      // 怒りマークのテクスチャを作成
+      const graphics = new PIXI.Graphics();
+      graphics.beginFill(0xFF0000);
+      graphics.moveTo(0, -10);
+      graphics.lineTo(-8, 5);
+      graphics.lineTo(-3, 3);
+      graphics.lineTo(0, 10);
+      graphics.lineTo(3, 3);
+      graphics.lineTo(8, 5);
+      graphics.closePath();
+      graphics.endFill();
+      
+      this.angerMarkTexture = this.app.renderer.generateTexture(graphics);
+      graphics.destroy();
+      
       devLog.debug('✅ 全画像テクスチャ読み込み完了');
     } catch (error) {
       devLog.debug('❌ 画像テクスチャ読み込みエラー:', error);
@@ -996,7 +1025,240 @@ export class FantasyPIXIInstance {
 
   // ヒットパーティクル作成（魔法が敵に当たった時のエフェクト）
 
-
+  // ハンマー攻撃エフェクト
+  triggerHammerAttack(monsterId: string, targetX: number, targetY: number): void {
+    const monsterData = this.monsterSprites.get(monsterId);
+    if (!monsterData || !this.hammerTexture) return;
+    
+    // 1. 怒りマークを表示
+    this.showAngerMark(monsterData);
+    
+    // 2. モンスターを一瞬大きくする（確実に）
+    this.scaleMonster(monsterData);
+    
+    // 3. ハンマーを飛ばす
+    setTimeout(() => {
+      this.fireHammer(monsterData, targetX, targetY);
+    }, 300); // 怒りマークとスケールの後に発射
+  }
+  
+  // 怒りマークを表示
+  private showAngerMark(monsterData: MonsterSpriteData): void {
+    if (!this.angerMarkTexture) return;
+    
+    const angerMark = new PIXI.Sprite(this.angerMarkTexture);
+    angerMark.anchor.set(0.5, 1);
+    angerMark.position.set(
+      monsterData.visualState.x + 30,  // モンスターの右上
+      monsterData.visualState.y - monsterData.sprite.height / 2 - 10
+    );
+    angerMark.scale.set(0);
+    
+    this.effectContainer.addChild(angerMark);
+    
+    // アニメーション
+    let scaleProgress = 0;
+    let floatProgress = 0;
+    const startY = angerMark.y;
+    
+    const animate = () => {
+      if (this.isDestroyed || !angerMark || angerMark.destroyed) return;
+      
+      // スケールアニメーション（Back.Out）
+      if (scaleProgress < 1) {
+        scaleProgress += 0.05;
+        const t = Math.min(scaleProgress, 1);
+        const scale = 1.5 * (1 + (t - 1) * (t - 1) * ((1.70158 + 1) * (t - 1) + 1.70158));
+        angerMark.scale.set(scale);
+      }
+      
+      // 上下の揺れ
+      floatProgress += 0.1;
+      angerMark.y = startY + Math.sin(floatProgress) * 5;
+      
+      if (scaleProgress < 1 || floatProgress < 3) {
+        requestAnimationFrame(animate);
+      } else {
+        // フェードアウト
+        let fadeProgress = 0;
+        const fadeOut = () => {
+          if (this.isDestroyed || !angerMark || angerMark.destroyed) return;
+          
+          fadeProgress += 0.05;
+          angerMark.scale.set(1.5 * (1 - fadeProgress));
+          
+          if (fadeProgress < 1) {
+            requestAnimationFrame(fadeOut);
+          } else {
+            if (angerMark.parent) {
+              angerMark.parent.removeChild(angerMark);
+            }
+            angerMark.destroy();
+          }
+        };
+        fadeOut();
+      }
+    };
+    
+    animate();
+  }
+  
+  // モンスターを拡大
+  private scaleMonster(monsterData: MonsterSpriteData): void {
+    const originalScale = { x: monsterData.visualState.scale, y: monsterData.visualState.scale };
+    let progress = 0;
+    let direction = 1;
+    
+    const animate = () => {
+      if (this.isDestroyed || !monsterData.sprite || monsterData.sprite.destroyed) return;
+      
+      progress += 0.05 * direction;
+      
+      if (progress >= 1) {
+        progress = 1;
+        direction = -1;
+      } else if (progress <= 0 && direction === -1) {
+        // アニメーション終了
+        monsterData.visualState.scale = originalScale.x;
+        monsterData.sprite.scale.set(originalScale.x);
+        return;
+      }
+      
+      // Elastic.Out のイージング
+      const t = progress;
+      const scale = originalScale.x * (1 + 0.3 * (Math.sin(-13 * (t + 1) * Math.PI / 2) * Math.pow(2, -10 * t) + 1));
+      
+      monsterData.visualState.scale = scale;
+      monsterData.sprite.scale.set(scale);
+      
+      requestAnimationFrame(animate);
+    };
+    
+    animate();
+  }
+  
+  // ハンマーを飛ばす
+  private fireHammer(monsterData: MonsterSpriteData, targetX: number, targetY: number): void {
+    if (!this.hammerTexture) return;
+    
+    const hammer = new PIXI.Sprite(this.hammerTexture);
+    hammer.anchor.set(0.5);
+    hammer.scale.set(0.5); // サイズ調整
+    
+    // モンスターの位置から開始
+    const startX = monsterData.visualState.x;
+    const startY = monsterData.visualState.y;
+    
+    // スクリーン座標をPIXI座標に変換
+    const pixiTargetX = (targetX / window.innerWidth) * this.app.screen.width;
+    const pixiTargetY = (targetY / window.innerHeight) * this.app.screen.height;
+    
+    hammer.position.set(startX, startY);
+    this.effectContainer.addChild(hammer);
+    
+    // トレイルエフェクト
+    this.createHammerTrail(hammer, startX, startY, pixiTargetX, pixiTargetY);
+    
+    // 一直線に飛ばすアニメーション（高速）
+    const duration = 200; // 0.2秒で到達
+    let progress = 0;
+    const startTime = Date.now();
+    
+    const animate = () => {
+      if (this.isDestroyed || !hammer || hammer.destroyed) return;
+      
+      const elapsed = Date.now() - startTime;
+      progress = Math.min(elapsed / duration, 1);
+      
+      // 線形補間で位置を更新
+      hammer.x = startX + (pixiTargetX - startX) * progress;
+      hammer.y = startY + (pixiTargetY - startY) * progress;
+      
+      // 回転
+      hammer.rotation += 0.5;
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        // インパクトエフェクト
+        this.createImpactEffect(hammer.x, hammer.y);
+        
+        if (hammer.parent) {
+          hammer.parent.removeChild(hammer);
+        }
+        hammer.destroy();
+      }
+    };
+    
+    animate();
+  }
+  
+  // インパクトエフェクト
+  private createImpactEffect(x: number, y: number): void {
+    const impact = new PIXI.Graphics();
+    impact.beginFill(0xFFFFFF, 0.8);
+    impact.drawCircle(0, 0, 20);
+    impact.endFill();
+    impact.position.set(x, y);
+    impact.scale.set(0);
+    
+    this.effectContainer.addChild(impact);
+    
+    let progress = 0;
+    const animate = () => {
+      if (this.isDestroyed || !impact || impact.destroyed) return;
+      
+      progress += 0.05;
+      const scale = 2 * progress;
+      impact.scale.set(scale);
+      impact.alpha = 0.8 * (1 - progress);
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        if (impact.parent) {
+          impact.parent.removeChild(impact);
+        }
+        impact.destroy();
+      }
+    };
+    
+    animate();
+  }
+  
+  // ハンマーの軌跡エフェクト
+  private createHammerTrail(hammer: PIXI.Sprite, startX: number, startY: number, endX: number, endY: number): void {
+    const trail = new PIXI.Graphics();
+    trail.alpha = 0.5;
+    
+    this.effectContainer.addChild(trail);
+    
+    let progress = 0;
+    const trailUpdate = () => {
+      if (this.isDestroyed || !trail || trail.destroyed) return;
+      
+      if (progress < 1) {
+        progress += 0.05;
+        
+        trail.clear();
+        trail.lineStyle(3, 0xFFAA00, 1 - progress);
+        trail.moveTo(startX, startY);
+        
+        const currentX = startX + (endX - startX) * progress;
+        const currentY = startY + (endY - startY) * progress;
+        trail.lineTo(currentX, currentY);
+        
+        requestAnimationFrame(trailUpdate);
+      } else {
+        if (trail.parent) {
+          trail.parent.removeChild(trail);
+        }
+        trail.destroy();
+      }
+    };
+    
+    trailUpdate();
+  }
 
 
   // 画面震動エフェクト（setTimeout を使わない安全な実装）
