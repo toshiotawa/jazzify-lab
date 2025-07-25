@@ -555,8 +555,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div className="min-h-screen bg-black flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center">
           <div className="text-6xl mb-6">🎮</div>
-          <h2 className="text-3xl font-bold mb-4">{stage.name}</h2>
-          <p className="text-gray-200 mb-8">{stage.description || 'ステージの説明'}</p>
+          <h2 className="text-3xl font-bold mb-4">
+            {stage?.name ?? 'タイトル取得失敗'}
+          </h2>
+          <p className="text-gray-200 mb-8">
+            {stage?.description ?? '説明テキストを取得できませんでした'}
+          </p>
           <button
             onClick={() => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
