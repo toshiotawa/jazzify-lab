@@ -31,9 +31,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
   // エフェクト状態
-
   const [damageShake, setDamageShake] = useState(false);
   const [overlay, setOverlay] = useState<null | { text:string }>(null); // ★★★ add
+  const [heartFlash, setHeartFlash] = useState(false); // ハートフラッシュ効果
   
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -214,45 +214,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // ★★★ 花火エフェクトを追加 ★★★
-    if (attackingMonsterId) {
-      const el = gaugeRefs.current.get(attackingMonsterId);
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        // ゲージ右端の画面座標（0‑1 の割合）を confetti に渡す
-        const origin = {
-          x: (rect.right) / window.innerWidth,
-          y: (rect.top + rect.height / 2) / window.innerHeight
-        };
-        try {
-          const confetti = (await import('canvas-confetti')).default;
-          confetti({
-            particleCount: 18,
-            spread: 60,
-            startVelocity: 25,
-            ticks: 60,
-            origin
-          });
-        } catch (e) {
-          console.error('confetti load error', e);
-          // フォールバックで 🎆 を一瞬表示
-          const tmp = document.createElement('div');
-          tmp.textContent = '🎆';
-          Object.assign(tmp.style, {
-            position:'fixed', left:`${rect.right}px`, top:`${rect.top}px`,
-            transform:'translate(-50%,-50%)', fontSize:'24px', pointerEvents:'none'
-          });
-          document.body.appendChild(tmp);
-          setTimeout(()=>tmp.remove(),600);
-        }
-      }
-    }
+    // confetti削除 - 何もしない
     
     // ダメージ時の画面振動
     setDamageShake(true);
     setTimeout(() => setDamageShake(false), 500);
     
-  }, [fantasyPixiInstance]);
+    // ハートフラッシュ効果
+    setHeartFlash(true);
+    setTimeout(() => setHeartFlash(false), 150);
+    
+  }, []);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
@@ -498,7 +470,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
     if (maxHp >= 6) {
       return (
-        <span className="text-2xl text-red-500 font-bold">
+        <span className={cn(
+          "text-2xl text-red-500 font-bold transition-all duration-300",
+          heartFlash && isPlayer ? "animate-pulse brightness-150" : ""
+        )}>
           ♥×{hp}
         </span>
       );                                    // ★★★ add
@@ -514,14 +489,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           "text-2xl transition-all duration-300 drop-shadow-sm",
           i < hp 
             ? "text-red-500" // プレイヤーも敵も赤いハート
-            : "text-gray-400" // 空のハートは薄いグレー
+            : "text-gray-400", // 空のハートは薄いグレー
+          heartFlash && isPlayer && i < hp ? "animate-pulse brightness-150" : ""
         )}>
           {i < hp ? "♥" : "♡"}
         </span>
       );
     }
     return hearts;
-  }, []);
+  }, [heartFlash]);
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
