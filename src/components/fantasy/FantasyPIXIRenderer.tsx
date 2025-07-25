@@ -46,6 +46,8 @@ interface MonsterGameState {
   state: MonsterState; // 状態機械の状態
   isFadingOut: boolean;
   fadeOutStartTime: number;
+  isChargingAttack: boolean; // 攻撃ゲージが満タンの状態
+  attackChargeStartTime: number; // 攻撃チャージ開始時刻
 }
 
 interface DamageNumber {
@@ -162,7 +164,9 @@ export class FantasyPIXIInstance {
     hitCount: 0,
     state: 'IDLE',
     isFadingOut: false,
-    fadeOutStartTime: 0
+    fadeOutStartTime: 0,
+    isChargingAttack: false,
+    attackChargeStartTime: 0
   };
   
   /* 既存のフィールドはこのまま */
@@ -500,7 +504,9 @@ export class FantasyPIXIInstance {
           hitCount: 0,
           state: 'IDLE',
           isFadingOut: false,
-          fadeOutStartTime: 0
+          fadeOutStartTime: 0,
+          isChargingAttack: false,
+          attackChargeStartTime: 0
         };
         
         monsterData = {
@@ -605,11 +611,22 @@ export class FantasyPIXIInstance {
     sprite.x = visualState.x + gameState.staggerOffset.x;
     sprite.y = visualState.y + gameState.staggerOffset.y;
     
-    sprite.scale.x = visualState.scale;
-    sprite.scale.y = visualState.scale;
+    // チャージ中は1.1倍に拡大
+    const targetScale = gameState.isChargingAttack ? visualState.scale * 1.1 : visualState.scale;
+    sprite.scale.x = targetScale;
+    sprite.scale.y = targetScale;
     
     sprite.rotation = visualState.rotation;
-    sprite.tint = gameState.isHit ? gameState.hitColor : visualState.tint;
+    
+    // チャージ中は赤いティント、ヒット中はヒットカラー、それ以外は通常
+    if (gameState.isChargingAttack) {
+      sprite.tint = 0xFF0000; // 赤
+    } else if (gameState.isHit) {
+      sprite.tint = gameState.hitColor;
+    } else {
+      sprite.tint = visualState.tint;
+    }
+    
     sprite.alpha = visualState.alpha;
     sprite.visible = visualState.visible && gameState.state !== 'GONE';
   }
@@ -644,6 +661,52 @@ export class FantasyPIXIInstance {
       if (this.monsterSprite && !this.monsterSprite.destroyed) {
         this.monsterSprite.visible = false;
       }
+    }
+  }
+
+  // モンスターの攻撃チャージ状態を設定
+  triggerMonsterChargingAttack(monsterId: string, isCharging: boolean): void {
+    const monsterData = this.monsterSprites.get(monsterId);
+    if (!monsterData || this.isDestroyed) return;
+    
+    monsterData.gameState.isChargingAttack = isCharging;
+    monsterData.gameState.attackChargeStartTime = isCharging ? Date.now() : 0;
+    
+    if (isCharging) {
+      // 怒りマーク（😡）を右側に表示
+      const angerMark = new PIXI.Text('😡', {
+        fontSize: 48,
+        fontFamily: 'Arial',
+      });
+      angerMark.anchor.set(0.5);
+      angerMark.x = monsterData.sprite.width * 0.4; // スプライトの右側
+      angerMark.y = -monsterData.sprite.height * 0.2;
+      angerMark.name = 'angerMark'; // 識別用の名前を付ける
+      monsterData.sprite.addChild(angerMark);
+      
+      // 赤い輪郭を追加
+      const outline = new PIXI.Graphics();
+      outline.lineStyle(4, 0xFF0000, 0.8);
+      const bounds = monsterData.sprite.getLocalBounds();
+      outline.drawRoundedRect(
+        bounds.x - 10,
+        bounds.y - 10,
+        bounds.width + 20,
+        bounds.height + 20,
+        10
+      );
+      outline.name = 'outline';
+      monsterData.sprite.addChild(outline);
+      
+      // 0.5秒後に削除
+      setTimeout(() => {
+        if (angerMark.parent) {
+          angerMark.destroy();
+        }
+        if (outline.parent) {
+          outline.destroy();
+        }
+      }, 500);
     }
   }
 
@@ -1236,6 +1299,12 @@ export class FantasyPIXIInstance {
           // IDをシードにして各モンスターの動きを非同期にする
           const baseY = this.app.screen.height / 2;
           visualState.y = baseY + Math.sin(Date.now() * 0.002 + id.charCodeAt(0)) * 6;
+        }
+        
+        // チャージ状態が一定時間経過したら自動でリセット
+        if (gameState.isChargingAttack && Date.now() - gameState.attackChargeStartTime > 1000) {
+          gameState.isChargingAttack = false;
+          gameState.attackChargeStartTime = 0;
         }
         
 
