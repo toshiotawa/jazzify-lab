@@ -138,6 +138,9 @@ interface MonsterSpriteData {
   visualState: MonsterVisualState;
   gameState: MonsterGameState;
   position: 'A' | 'B' | 'C';
+  gauge: number; // 追加：ゲージ値を保持
+  angerMark?: PIXI.Text; // 追加：怒りマーク
+  outline?: PIXI.Graphics; // 追加：赤い輪郭
 }
 
 export class FantasyPIXIInstance {
@@ -508,12 +511,16 @@ export class FantasyPIXIInstance {
           sprite,
           visualState,
           gameState,
-          position: monster.position
+          position: monster.position,
+          gauge: monster.gauge // 追加
         };
         
         this.monsterSprites.set(monster.id, monsterData);
         this.monsterContainer.addChild(sprite);
       }
+      
+      // ゲージ値を更新
+      monsterData.gauge = monster.gauge;
       
       // 位置を更新
       monsterData.visualState.x = this.getPositionX(i, sortedMonsters.length);
@@ -1227,6 +1234,57 @@ export class FantasyPIXIInstance {
       for (const [id, monsterData] of this.monsterSprites) {
         const { visualState, gameState, sprite } = monsterData;
         
+        // ゲージMAX時の怒りエフェクト
+        if (monsterData.gauge >= 100) {
+          // スケールを大きくする
+          visualState.scale = 0.35; // 通常の0.3から拡大
+          
+          // 赤い輪郭を追加（まだない場合）
+          if (!monsterData.outline) {
+            const outline = new PIXI.Graphics();
+            outline.lineStyle(4, 0xFF0000, 0.8);
+            outline.drawCircle(0, 0, 80);
+            sprite.addChild(outline);
+            monsterData.outline = outline;
+          }
+          
+          // 怒りマークを追加（まだない場合）
+          if (!monsterData.angerMark) {
+            const angerMark = new PIXI.Text('💢', {
+              fontSize: 32,
+              fill: 0xFF0000
+            });
+            angerMark.anchor.set(0.5);
+            angerMark.position.set(60, -60); // 右上に配置
+            sprite.addChild(angerMark);
+            monsterData.angerMark = angerMark;
+          }
+          
+          // 赤い色味を追加
+          sprite.tint = 0xFFCCCC;
+          
+          // パルスアニメーション（怒りの脈動）
+          const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
+          sprite.scale.set(visualState.scale * pulse);
+          
+        } else {
+          // ゲージがMAXでない場合は通常状態に戻す
+          visualState.scale = 0.3;
+          sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
+          
+          // 怒りエフェクトを削除
+          if (monsterData.outline) {
+            sprite.removeChild(monsterData.outline);
+            monsterData.outline.destroy();
+            monsterData.outline = undefined;
+          }
+          if (monsterData.angerMark) {
+            sprite.removeChild(monsterData.angerMark);
+            monsterData.angerMark.destroy();
+            monsterData.angerMark = undefined;
+          }
+        }
+        
         // よろけ効果の減衰
         gameState.staggerOffset.x *= 0.9;
         gameState.staggerOffset.y *= 0.9;
@@ -1463,8 +1521,12 @@ export class FantasyPIXIInstance {
       this.animationFrameId = null;
     }
     
-    // マルチモンスターのクリーンアップ
-    this.monsterSprites.forEach(data => data.sprite.destroy());
+    // マルチモンスターのクリーンアップ時に怒りエフェクトも削除
+    this.monsterSprites.forEach(data => {
+      if (data.outline) data.outline.destroy();
+      if (data.angerMark) data.angerMark.destroy();
+      data.sprite.destroy();
+    });
     this.monsterSprites.clear();
     
     // エフェクトの安全な削除
