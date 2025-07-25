@@ -211,13 +211,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-
-    
-
-    
     // ダメージ時の画面振動
     setDamageShake(true);
     setTimeout(() => setDamageShake(false), 500);
+
+    // ★ ここを追加
+    if (attackingMonsterId && fantasyPixiInstance) {
+      fantasyPixiInstance.triggerMonsterAttack(attackingMonsterId);
+    }
     
   }, [fantasyPixiInstance]);
   

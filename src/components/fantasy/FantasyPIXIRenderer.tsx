@@ -138,6 +138,8 @@ interface MonsterSpriteData {
   visualState: MonsterVisualState;
   gameState: MonsterGameState;
   position: 'A' | 'B' | 'C';
+  attackGlow?: PIXI.Graphics;   // 赤フチ用
+  angerMark?: PIXI.Text;        // 💢マーク
 }
 
 export class FantasyPIXIInstance {
@@ -697,6 +699,68 @@ export class FantasyPIXIInstance {
     }
   }
 
+  /** 攻撃開始アニメーション */
+  public triggerMonsterAttack(monsterId: string) {
+    const data = this.monsterSprites.get(monsterId);
+    if (!data) return;
+
+    // ── 1. 赤いフチ ─────────────────────
+    if (!data.attackGlow) {
+      const g = new PIXI.Graphics()
+        .lineStyle(6, 0xFF3333)
+        .drawCircle(0, 0, data.sprite.width * 0.55);
+      g.alpha = 0;                                      // 後でフェード
+      g.pivot.set(0); g.position.copyFrom(data.sprite);
+      this.effectContainer.addChild(g);
+      data.attackGlow = g;
+    }
+
+    // ── 2. 怒りマーク (右上) ─────────────
+    if (!data.angerMark) {
+      const t = new PIXI.Text('💢', { fontSize: 38 });
+      t.anchor.set(0, 1);                               // 右上揃え
+      t.x = data.sprite.x + data.sprite.width * 0.6;
+      t.y = data.sprite.y - data.sprite.height * 0.6;
+      t.alpha = 0;
+      this.uiContainer.addChild(t);
+      data.angerMark = t;
+    }
+
+    // ── 3. 半月形ショックウェーブ ────────
+    this.spawnShockwave(data.sprite.x, data.sprite.y);
+
+    // ── 4. その場で１フレームごとの更新を開始 ──
+    data.gameState.state = 'HITTING';
+  }
+
+  private spawnShockwave(sx: number, sy: number) {
+    const g = new PIXI.Graphics();
+    g.lineStyle(4, 0xffffff);
+    g.arc(0, 0, 60, Math.PI * 0.1, Math.PI * 0.9);      // 半月
+    g.position.set(sx, sy);
+    g.alpha = 0.8;
+    this.effectContainer.addChild(g);
+
+    // プレイヤーハート(左下)へ 200 ms で移動
+    const tx = 50;
+    const ty = this.app.screen.height - 40;
+
+    const total = 12;                                   // 約200 ms
+    let frame = 0;
+    const step = () => {
+      if (frame++ >= total) {
+        g.destroy();                                    // 命中で消滅
+        return;
+      }
+      const t = frame / total;
+      g.x = sx + (tx - sx) * t;
+      g.y = sy + (ty - sy) * t;
+      g.alpha = 0.8 * (1 - t);
+      requestAnimationFrame(step);
+    };
+    step();
+  }
+
   // ▼▼▼ 攻撃成功エフェクトを修正 ▼▼▼
   triggerAttackSuccess(chordName: string | undefined, isSpecial: boolean, damageDealt: number, defeated: boolean): void { // ★ 4番目の引数 defeated を受け取る
     // 状態ガード: 消滅中または完全消滅中は何もしない
@@ -1245,6 +1309,28 @@ export class FantasyPIXIInstance {
               sprite.destroy();
             }
             this.monsterSprites.delete(id);
+          }
+        }
+        
+        // HITTING → IDLE への復帰
+        if (gameState.state === 'HITTING') {
+          const glow = monsterData.attackGlow;
+          const mark = monsterData.angerMark;
+          if (glow) glow.alpha = Math.min(glow.alpha + 0.15, 1);
+          if (mark) mark.alpha = Math.min(mark.alpha + 0.15, 1);
+
+          // 0.4 秒後フェード
+          if (gameState.hitCount === 0) {
+            gameState.hitCount = Date.now();
+          } else if (Date.now() - gameState.hitCount > 400) {
+            if (glow) glow.alpha *= 0.85;
+            if (mark) mark.alpha *= 0.85;
+            if (glow && glow.alpha < 0.05) { glow.destroy(); monsterData.attackGlow = undefined; }
+            if (mark && mark.alpha < 0.05) { mark.destroy(); monsterData.angerMark = undefined; }
+            if (!monsterData.attackGlow && !monsterData.angerMark) {
+              gameState.state = 'IDLE';
+              gameState.hitCount = 0;
+            }
           }
         }
         
