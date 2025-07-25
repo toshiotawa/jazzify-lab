@@ -81,8 +81,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setShowGuide(stage.showGuide);
   }, [stage.showGuide]);
   
-  // MIDI入力処理用のRef（コールバックを保持）
+  // ノート入力のハンドリング用ref
   const handleNoteInputRef = useRef<(note: number) => void>();
+  
+  // 再生中のノートを追跡
+  const activeNotesRef = useRef<Set<number>>(new Set());
   
   // MIDIControllerの初期化と管理
   useEffect(() => {
@@ -275,10 +278,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number) => {
+    // 既に再生中の場合はスキップ
+    if (activeNotesRef.current.has(note)) {
+      devLog.debug('🎵 Note already playing, skipping:', note);
+      return;
+    }
+    
     // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
     try {
       const { playNote } = await import('@/utils/MidiController');
       await playNote(note, 80); // velocity 80で再生
+      activeNotesRef.current.add(note);
       devLog.debug('🎵 Played note via click:', note);
     } catch (error) {
       console.error('Failed to play note:', error);
@@ -350,9 +360,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           devLog.debug('🎹 Fantasy mode key press:', note);
           handleNoteInputBridge(note);
         },
-        (note: number) => {
+        async (note: number) => {
           devLog.debug('🎹 Fantasy mode key release:', note);
-        } // マウスリリース時の処理はMidiControllerが担当
+          // マウスリリース時に音を止める
+          try {
+            const { stopNote } = await import('@/utils/MidiController');
+            stopNote(note);
+            activeNotesRef.current.delete(note);
+            devLog.debug('🎵 Stopped note via release:', note);
+          } catch (error) {
+            console.error('Failed to stop note:', error);
+          }
+        }
       );
       devLog.debug('✅ Key callbacks set successfully');
       
