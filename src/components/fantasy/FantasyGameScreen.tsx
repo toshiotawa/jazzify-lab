@@ -114,9 +114,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         
         // ★★★ デフォルト音量設定を追加 ★★★
         // ファンタジーモード開始時にデフォルト音量（80%）を設定
-        import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
-          updateGlobalVolume(0.8); // デフォルト80%音量
-          devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+        import('@/utils/MidiController').then(({ updateGlobalVolume, initializeAudioSystem }) => {
+          // 音声システムを初期化
+          initializeAudioSystem().then(() => {
+            updateGlobalVolume(0.8); // デフォルト80%音量
+            devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+          }).catch(error => {
+            console.error('Audio system initialization failed:', error);
+          });
         }).catch(error => {
           console.error('MidiController import failed:', error);
         });
@@ -270,7 +275,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number) => {
-    // ファンタジーゲームエンジンにのみ送信（音声はMidiControllerが処理）
+    // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
+    try {
+      const { playNote } = await import('@/utils/MidiController');
+      await playNote(note, 80); // velocity 80で再生
+      devLog.debug('🎵 Played note via click:', note);
+    } catch (error) {
+      console.error('Failed to play note:', error);
+    }
+    
+    // ファンタジーゲームエンジンにのみ送信
     engineHandleNoteInput(note);
   }, [engineHandleNoteInput]);
   
