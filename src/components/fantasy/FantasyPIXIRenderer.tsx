@@ -139,8 +139,7 @@ interface MonsterSpriteData {
   gameState: MonsterGameState;
   position: 'A' | 'B' | 'C';
   gauge: number; // 追加：ゲージ値を保持
-  angerMark?: PIXI.Text; // 追加：怒りマーク
-  outline?: PIXI.Graphics; // 追加：赤い輪郭
+  angerMark?: PIXI.Sprite; // 追加：怒りマーク（SVGベース）
 }
 
 export class FantasyPIXIInstance {
@@ -293,6 +292,9 @@ export class FantasyPIXIInstance {
         monsterAssets[icon] = path;
       }
 
+      // 怒りアイコンも追加
+      monsterAssets['anger'] = `${import.meta.env.BASE_URL}data/anger.svg`;
+
       // バンドルとして一括ロード
       await PIXI.Assets.addBundle('monsterTextures', monsterAssets);
       await PIXI.Assets.loadBundle('monsterTextures');
@@ -306,6 +308,13 @@ export class FantasyPIXIInstance {
         } else {
           devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${icon}`);
         }
+      }
+      
+      // 怒りアイコンのテクスチャも保存
+      const angerTexture = PIXI.Assets.get('anger');
+      if (angerTexture) {
+        this.imageTextures.set('anger', angerTexture);
+        devLog.debug(`✅ 怒りアイコンテクスチャ読み込み完了`);
       }
       // ▲▲▲ ここまで ▲▲▲
     } catch (error) {
@@ -1239,25 +1248,17 @@ export class FantasyPIXIInstance {
           // スケールを大きくする
           visualState.scale = 0.35; // 通常の0.3から拡大
           
-          // 赤い輪郭を追加（まだない場合）
-          if (!monsterData.outline) {
-            const outline = new PIXI.Graphics();
-            outline.lineStyle(4, 0xFF0000, 0.8);
-            outline.drawCircle(0, 0, 80);
-            sprite.addChild(outline);
-            monsterData.outline = outline;
-          }
-          
           // 怒りマークを追加（まだない場合）
           if (!monsterData.angerMark) {
-            const angerMark = new PIXI.Text('💢', {
-              fontSize: 32,
-              fill: 0xFF0000
-            });
-            angerMark.anchor.set(0.5);
-            angerMark.position.set(60, -60); // 右上に配置
-            sprite.addChild(angerMark);
-            monsterData.angerMark = angerMark;
+            const angerTexture = this.imageTextures.get('anger');
+            if (angerTexture) {
+              const angerMark = new PIXI.Sprite(angerTexture);
+              angerMark.anchor.set(0.5);
+              angerMark.position.set(60, -60); // 右上に配置
+              angerMark.scale.set(0.3); // サイズ調整
+              sprite.addChild(angerMark);
+              monsterData.angerMark = angerMark;
+            }
           }
           
           // 赤い色味を追加
@@ -1273,11 +1274,6 @@ export class FantasyPIXIInstance {
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
           
           // 怒りエフェクトを削除
-          if (monsterData.outline) {
-            sprite.removeChild(monsterData.outline);
-            monsterData.outline.destroy();
-            monsterData.outline = undefined;
-          }
           if (monsterData.angerMark) {
             sprite.removeChild(monsterData.angerMark);
             monsterData.angerMark.destroy();
@@ -1523,7 +1519,6 @@ export class FantasyPIXIInstance {
     
     // マルチモンスターのクリーンアップ時に怒りエフェクトも削除
     this.monsterSprites.forEach(data => {
-      if (data.outline) data.outline.destroy();
       if (data.angerMark) data.angerMark.destroy();
       data.sprite.destroy();
     });
