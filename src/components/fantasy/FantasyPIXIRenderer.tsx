@@ -1650,14 +1650,23 @@ export class FantasyPIXIInstance {
       // 攻撃エフェクト
       monsterData.visualState.tint = 0xFF6B6B;
       // スプライトのscaleを直接変更（visualStateのscaleではなく）
-      monsterData.sprite.scale.set(monsterData.gameState.originalScale * 1.5);
+      const BIG_SCALE = 2.2; // より大きく拡大（0.3 → 0.66相当）
+      monsterData.sprite.scale.set(monsterData.gameState.originalScale * BIG_SCALE);
       
       // 怒りマーク表示（一度だけ生成・再利用）
       if (!monsterData.ui?.anger) {
-        const anger = new PIXI.Text('💢', { fontSize: 48 });
+        // 絵文字が表示されない環境用のフォールバック
+        const angerText = '💢';  // 絵文字が表示されない場合は '!!' を使用することも可能
+        const anger = new PIXI.Text(angerText, { 
+          fontSize: 56,  // サイズも少し大きく
+          fontFamily: 'Arial, "Noto Color Emoji", sans-serif',  // 絵文字フォントを含める
+          fill: 0xFF0000  // 赤色のフォールバック
+        });
         anger.anchor.set(0.5);
+        anger.zIndex = 9999;  // 最前面に表示
         monsterData.ui = { ...monsterData.ui, anger };
         this.uiContainer.addChild(anger);
+        this.uiContainer.sortChildren();  // zIndexを反映
       }
       if (monsterData.ui?.anger) {
         monsterData.ui.anger.visible = true;
@@ -1666,10 +1675,24 @@ export class FantasyPIXIInstance {
         const scaledHeight = monsterData.sprite.texture.height * monsterData.sprite.scale.y;
         monsterData.ui.anger.x = monsterData.sprite.x + scaledWidth * 0.4;
         monsterData.ui.anger.y = monsterData.sprite.y - scaledHeight * 0.4;
+        
+        // フェードイン効果
+        monsterData.ui.anger.alpha = 0;
+        const fadeInInterval = setInterval(() => {
+          if (monsterData.ui?.anger) {
+            monsterData.ui.anger.alpha += 0.1;
+            if (monsterData.ui.anger.alpha >= 1) {
+              clearInterval(fadeInInterval);
+            }
+          }
+        }, 30);
       }
       
       // スプライトの色を即座に適用
       monsterData.sprite.tint = monsterData.visualState.tint;
+
+      // 画面を軽く震わせる（オプション）
+      this.createScreenShake(8, 400);
 
       // エフェクトを戻す
       setTimeout(() => {
