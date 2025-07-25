@@ -685,6 +685,14 @@ export class FantasyPIXIInstance {
       this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
       const magic = MAGIC_TYPES[this.currentMagicType];
 
+      // 魔法効果音を再生
+      try {
+        const { FantasySoundManager } = require('@/utils/FantasySoundManager');
+        FantasySoundManager.playMagic(this.currentMagicType as 'fire' | 'ice' | 'thunder');
+      } catch (error) {
+        console.error('Failed to play magic sound:', error);
+      }
+
       // 魔法名表示
       const magicName = isSpecial ? magic.tier2Name : magic.name;
       const magicColor = isSpecial ? magic.tier2Color : magic.color;
@@ -743,6 +751,14 @@ export class FantasyPIXIInstance {
       const currentIndex = magicTypes.indexOf(this.currentMagicType);
       this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
       const magic = MAGIC_TYPES[this.currentMagicType];
+
+      // 魔法効果音を再生
+      try {
+        const { FantasySoundManager } = require('@/utils/FantasySoundManager');
+        FantasySoundManager.playMagic(this.currentMagicType as 'fire' | 'ice' | 'thunder');
+      } catch (error) {
+        console.error('Failed to play magic sound:', error);
+      }
 
       // 魔法名表示
       const magicName = isSpecial ? magic.tier2Name : magic.name;

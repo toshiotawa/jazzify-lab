@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { MidiDeviceSelector } from '../ui/MidiDeviceManager';
 import { devLog } from '@/utils/logger';
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
 
 interface FantasySettingsModalProps {
   isOpen: boolean;
@@ -15,12 +16,14 @@ interface FantasySettingsModalProps {
   midiDeviceId?: string | null;
   onMidiDeviceChange?: (deviceId: string | null) => void;
   isMidiConnected?: boolean;
-  volume?: number; // 音量設定をpropsで受け取る
+  volume?: number; // ピアノ音量設定をpropsで受け取る
+  soundEffectVolume?: number; // 効果音音量設定をpropsで受け取る
 }
 
 interface FantasySettings {
   midiDeviceId: string | null;
-  volume: number;
+  volume: number; // ピアノ音量
+  soundEffectVolume: number; // 効果音音量
   showGuide: boolean;
 }
 
@@ -31,11 +34,13 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   midiDeviceId = null,
   onMidiDeviceChange,
   isMidiConnected = false,
-  volume = 0.8 // デフォルト80%音量
+  volume = 0.8, // デフォルト80%音量
+  soundEffectVolume = 0.8 // デフォルト80%効果音音量
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
-    volume: volume, // propsから受け取った音量を使用
+    volume: volume, // propsから受け取ったピアノ音量を使用
+    soundEffectVolume: soundEffectVolume, // propsから受け取った効果音音量を使用
     showGuide: false
   });
   
@@ -49,6 +54,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     setSettings(prev => ({ ...prev, volume: volume }));
   }, [volume]);
 
+  // propsのsoundEffectVolumeが変更されたらsettingsも更新
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, soundEffectVolume: soundEffectVolume }));
+  }, [soundEffectVolume]);
+
   // 設定変更ハンドラー
   const handleSettingChange = (key: keyof FantasySettings, value: any) => {
     const newSettings = { ...settings, [key]: value };
@@ -60,6 +70,13 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   const handleMidiDeviceChange = (deviceId: string | null) => {
     handleSettingChange('midiDeviceId', deviceId);
     onMidiDeviceChange?.(deviceId);
+  };
+
+  // 効果音音量変更ハンドラー
+  const handleSoundEffectVolumeChange = (value: number) => {
+    handleSettingChange('soundEffectVolume', value);
+    // FantasySoundManagerの音量も即座に更新
+    FantasySoundManager.setVolume(value);
   };
 
   if (!isOpen) return null;
@@ -93,10 +110,10 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             </div>
           </div>
 
-          {/* 音量設定 */}
+          {/* ピアノ音量設定 */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              音量: {Math.round(settings.volume * 100)}%
+              ピアノ音量: {Math.round(settings.volume * 100)}%
             </label>
             <input
               type="range"
@@ -107,6 +124,25 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               onChange={(e) => handleSettingChange('volume', parseFloat(e.target.value))}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
+          </div>
+
+          {/* 効果音音量設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              効果音音量: {Math.round(settings.soundEffectVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={settings.soundEffectVolume}
+              onChange={(e) => handleSoundEffectVolumeChange(parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              魔法や敵の攻撃音の音量を調整できます
+            </p>
           </div>
 
           {/* ガイド表示設定 */}

@@ -122,6 +122,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           initializeAudioSystem().then(() => {
             updateGlobalVolume(0.8); // デフォルト80%音量
             devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+            
+            // FantasySoundManagerの初期化
+            import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
+              FantasySoundManager.init(settings.soundEffectVolume || 0.8).then(() => {
+                devLog.debug('🔊 ファンタジーモード効果音初期化完了');
+              }).catch(error => {
+                console.error('Failed to initialize FantasySoundManager:', error);
+              });
+            }).catch(error => {
+              console.error('Failed to import FantasySoundManager:', error);
+            });
           }).catch(error => {
             console.error('Audio system initialization failed:', error);
           });
@@ -221,6 +232,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
+    
+    // 敵の攻撃音を再生
+    try {
+      const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
+      FantasySoundManager.playEnemyAttack();
+    } catch (error) {
+      console.error('Failed to play enemy attack sound:', error);
+    }
     
     // confetti削除 - 何もしない
     
@@ -926,7 +945,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           setShowGuide(settings.showGuide);
           
           // ★★★ 音量更新処理を追加 ★★★
-          // 音量設定が変更されたら、グローバル音量を更新
+          // ピアノ音量設定が変更されたら、グローバル音量を更新
           if (settings.volume !== undefined) {
             // gameStoreの音量設定も更新
             updateSettings({ midiVolume: settings.volume });
@@ -934,15 +953,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             // グローバル音量を更新
             import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
               updateGlobalVolume(settings.volume);
-              devLog.debug(`🎵 ファンタジーモードの音量を更新: ${settings.volume}`);
+              devLog.debug(`🎵 ファンタジーモードのピアノ音量を更新: ${settings.volume}`);
             }).catch(error => {
               console.error('MidiController import failed:', error);
+            });
+          }
+          
+          // 効果音音量設定が変更されたら、gameStoreを更新
+          if (settings.soundEffectVolume !== undefined) {
+            updateSettings({ soundEffectVolume: settings.soundEffectVolume });
+            devLog.debug(`🔊 ファンタジーモードの効果音音量を更新: ${settings.soundEffectVolume}`);
+            
+            // FantasySoundManagerの音量も即座に更新
+            import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
+              FantasySoundManager.setVolume(settings.soundEffectVolume);
+            }).catch(error => {
+              console.error('Failed to update FantasySoundManager volume:', error);
             });
           }
         }}
         // gameStoreの値を渡す
         midiDeviceId={settings.selectedMidiDevice}
         volume={settings.midiVolume} // gameStoreのMIDI音量を渡す
+        soundEffectVolume={settings.soundEffectVolume} // gameStoreの効果音音量を渡す
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
