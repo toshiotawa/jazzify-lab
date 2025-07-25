@@ -214,38 +214,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // ★★★ 花火エフェクトを追加 ★★★
-    if (attackingMonsterId) {
-      const el = gaugeRefs.current.get(attackingMonsterId);
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        // ゲージ右端の画面座標（0‑1 の割合）を confetti に渡す
-        const origin = {
-          x: (rect.right) / window.innerWidth,
-          y: (rect.top + rect.height / 2) / window.innerHeight
-        };
-        try {
-          const confetti = (await import('canvas-confetti')).default;
-          confetti({
-            particleCount: 18,
-            spread: 60,
-            startVelocity: 25,
-            ticks: 60,
-            origin
-          });
-        } catch (e) {
-          console.error('confetti load error', e);
-          // フォールバックで 🎆 を一瞬表示
-          const tmp = document.createElement('div');
-          tmp.textContent = '🎆';
-          Object.assign(tmp.style, {
-            position:'fixed', left:`${rect.right}px`, top:`${rect.top}px`,
-            transform:'translate(-50%,-50%)', fontSize:'24px', pointerEvents:'none'
-          });
-          document.body.appendChild(tmp);
-          setTimeout(()=>tmp.remove(),600);
-        }
+    // ★★★ 花火エフェクトを削除し、ハンマーエフェクトに置き換え ★★★
+    if (attackingMonsterId && fantasyPixiInstance) {
+      // プレイヤーHPの位置を取得
+      const hpElement = document.querySelector('.player-hp-display');
+      let targetX = window.innerWidth * 0.1;  // デフォルト値
+      let targetY = window.innerHeight * 0.9;
+      
+      if (hpElement) {
+        const rect = hpElement.getBoundingClientRect();
+        targetX = rect.left + rect.width / 2;
+        targetY = rect.top + rect.height / 2;
       }
+      
+      // ハンマーエフェクトをトリガー
+      fantasyPixiInstance.triggerHammerAttack(attackingMonsterId, targetX, targetY);
     }
     
     // ダメージ時の画面振動
@@ -791,7 +774,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       {/* HP・SPゲージを固定配置 */}
       <div className="absolute left-2 bottom-2 z-50
-                  pointer-events-none bg-black/40 rounded px-2 py-1">
+                  pointer-events-none bg-black/40 rounded px-2 py-1
+                  player-hp-display">
         <div className="flex space-x-0.5">
           {renderHearts(gameState.playerHp, stage.maxHp)}
         </div>
