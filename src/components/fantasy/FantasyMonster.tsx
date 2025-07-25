@@ -36,7 +36,6 @@ import { cn } from '@/utils/cn';
 
 interface FantasyMonsterProps {
   monsterIcon: string;
-  isAttacking: boolean;
   hp?: number;
   maxHp?: number;
   enemyGauge: number;
@@ -122,7 +121,6 @@ const MONSTER_TRAITS: Record<string, { color: string; glowColor: string; special
 
 const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   monsterIcon,
-  isAttacking,
   hp,
   maxHp,
   enemyGauge,
@@ -130,23 +128,13 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   className
 }) => {
   const [isFloating, setIsFloating] = useState(false);
-  const [showRageEffect, setShowRageEffect] = useState(false);
+
   
   const sizeConfig = SIZE_CONFIGS[size];
   const iconDef = MONSTER_ICONS[monsterIcon] || faGhost;
   const traits = MONSTER_TRAITS[monsterIcon] || MONSTER_TRAITS['ghost'];
   
-  // 攻撃時のエフェクト
-  useEffect(() => {
-    if (isAttacking) {
-      setShowRageEffect(true);
-      const timer = setTimeout(() => {
-        setShowRageEffect(false);
-      }, 600);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isAttacking]);
+
   
   // フローティングアニメーション（一部モンスターのアイドル状態）
   useEffect(() => {
@@ -219,12 +207,10 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
           className={cn(
             "inline-block",
             // 攻撃時の追加エフェクト
-            showRageEffect && "animate-bounce"
+
           )}
           style={{
-            filter: isAttacking 
-              ? 'drop-shadow(0 0 20px rgba(239, 68, 68, 0.8))' 
-              : 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.2))'
+            filter: 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.2))'
           }}
         >
           <FontAwesomeIcon
@@ -242,20 +228,14 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
               traits.specialEffect === 'shine' && "animate-pulse",
               traits.specialEffect === 'twinkle' && "animate-ping",
               traits.specialEffect === 'sway' && "hover:animate-pulse",
-              // 攻撃時のエフェクト - スケールを1.5倍に増強
-              isAttacking && "transform scale-150 text-red-500",
+
               // グロー効果
-              !isAttacking && traits.glowColor
+              traits.glowColor
             )}
           />
         </div>
         
-        {/* 怒りマーク（攻撃時） */}
-        {showRageEffect && (
-          <div className="absolute -top-6 right-0 translate-x-full text-red-500 text-4xl z-20 animate-bounce">
-            💢
-          </div>
-        )}
+
         
         {/* 特殊エフェクトオーバーレイ */}
         {traits.specialEffect === 'sparkle' && (

@@ -31,7 +31,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
   // エフェクト状態
-  const [isMonsterAttacking, setIsMonsterAttacking] = useState(false);
+
   const [damageShake, setDamageShake] = useState(false);
   const [overlay, setOverlay] = useState<null | { text:string }>(null); // ★★★ add
   
@@ -211,34 +211,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // モンスター攻撃状態を設定
-    setIsMonsterAttacking(true);
-    setTimeout(() => setIsMonsterAttacking(false), 600);
+
     
-    // ファンタジーPIXIでモンスター攻撃エフェクト
-    if (fantasyPixiInstance) {
-      console.log('🎮 fantasyPixiInstance exists, activeMonsters:', gameState.activeMonsters);
-      if (attackingMonsterId) {
-        // マルチモンスター対応：特定のモンスターにエフェクトを適用
-        console.log('🎯 Calling updateMonsterAttackingById with:', attackingMonsterId);
-        // ★ 100ms 程度ディレイをあける（スプライト生成を待つ）
-        setTimeout(() => {
-          fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, true);
-          setTimeout(() => fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, false), 600);
-        }, 100);
-      } else {
-        // 互換性のため：従来の単体モンスターエフェクト
-        console.log('⚠️ No attackingMonsterId, using legacy updateMonsterAttacking');
-        fantasyPixiInstance.updateMonsterAttacking(true);
-        setTimeout(() => {
-          if (fantasyPixiInstance) {
-            fantasyPixiInstance.updateMonsterAttacking(false);
-          }
-        }, 600);
-      }
-    } else {
-      console.log('❌ fantasyPixiInstance is null');
-    }
+
     
     // ダメージ時の画面振動
     setDamageShake(true);
@@ -663,7 +638,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
               height={200}
               monsterIcon={currentEnemy.icon}
-              isMonsterAttacking={isMonsterAttacking}
+    
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
