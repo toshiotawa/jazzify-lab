@@ -3,7 +3,7 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
@@ -49,6 +49,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const { settings, updateSettings } = useGameStore();
   const midiControllerRef = useRef<MIDIController | null>(null);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
+  
+  // ★★★ 追加: ゲージDOM要素を保持するマップ ★★★
+  const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
@@ -207,14 +210,44 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
   }, []);
   
-  const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
+  const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
+    // ゲージMAX時の花火エフェクト
+    if (attackingMonsterId) {
+      const el = gaugeRefs.current.get(attackingMonsterId);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        // ゲージ右端の画面座標（0-1の割合）をconfettiに渡す
+        const origin = {
+          x: (rect.right) / window.innerWidth,
+          y: (rect.top + rect.height / 2) / window.innerHeight
+        };
+        try {
+          const confetti = (await import('canvas-confetti')).default;
+          confetti({
+            particleCount: 18,
+            spread: 60,
+            startVelocity: 25,
+            ticks: 60,
+            origin
+          });
+        } catch (e) {
+          console.error('confetti load error', e);
+          // フォールバックで 🎆 を一瞬表示
+          const tmp = document.createElement('div');
+          tmp.textContent = '🎆';
+          Object.assign(tmp.style, {
+            position:'fixed', left:`${rect.right}px`, top:`${rect.top}px`,
+            transform:'translate(-50%,-50%)', fontSize:'24px', pointerEvents:'none'
+          });
+          document.body.appendChild(tmp);
+          setTimeout(()=>tmp.remove(),600);
+        }
+      }
+    }
 
-    
-
-    
     // ダメージ時の画面振動
     setDamageShake(true);
     setTimeout(() => setDamageShake(false), 500);
@@ -658,12 +691,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div className="relative w-full mx-auto" style={{ height: 'min(120px,22vw)' }}>
                 {/* 各モンスターの情報を絶対位置で配置 */}
                 {gameState.activeMonsters.map((monster) => {
-                  const getLeftPosition = (position: 'A' | 'B' | 'C') => {
-                    switch (position) {
-                      case 'A': return '25%';
-                      case 'B': return '50%';
-                      case 'C': return '75%';
+                  const getLeftPosition = (position: 'A' | 'B' | 'C', count: number) => {
+                    if (count === 1) return '50%';
+                    if (count === 2) {
+                      return position === 'A' ? '33%' : '67%';      // 中央寄せ
                     }
+                    // 3体
+                    return position === 'A' ? '20%' : position === 'B' ? '50%' : '80%';
                   };
                   
                   // スプライトと同じ幅に合わせる
@@ -674,7 +708,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       key={monster.id}
                       className="absolute -translate-x-1/2 flex flex-col items-center"
                       style={{ 
-                        left: getLeftPosition(monster.position),
+                        left: getLeftPosition(monster.position, gameState.activeMonsters.length),
                         width: cardWidth,
                         maxWidth: cardWidth
                       }}
@@ -720,7 +754,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       )}
                       
                       {/* 行動ゲージ */}
-                      <div className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1">
+                      <div 
+                        ref={el => {
+                          if (el) gaugeRefs.current.set(monster.id, el);
+                        }}
+                        className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
+                      >
                         <div
                           className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
                           style={{ width: `${monster.gauge}%` }}

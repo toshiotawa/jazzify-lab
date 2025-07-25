@@ -479,7 +479,7 @@ export class FantasyPIXIInstance {
         if (!sprite) continue;
         
         const visualState: MonsterVisualState = {
-          x: this.getPositionX(monster.position),
+          x: this.getPositionX(monster.position, monsters.length),
           y: 100, // Y座標を100pxに固定（200px高さの中央）
           scale: 0.3,  // 1.0 から 0.3 に変更
           rotation: 0,
@@ -514,21 +514,18 @@ export class FantasyPIXIInstance {
       // 位置を更新
       if (monsterData.position !== monster.position) {
         monsterData.position = monster.position;
-        monsterData.visualState.x = this.getPositionX(monster.position);
+        monsterData.visualState.x = this.getPositionX(monster.position, monsters.length);
       }
       
       this.updateMonsterSpriteData(monsterData);
     }
   }
   
-  /** UI 側（25 %|50 %|75 %）に完全同期させる */
-  private getPositionX(position: 'A' | 'B' | 'C'): number {
+  private getPositionX(position: 'A' | 'B' | 'C', count: number): number {
     const w = this.app.screen.width;
-    switch (position) {
-      case 'A': return w * 0.25;
-      case 'B': return w * 0.50;
-      case 'C': return w * 0.75;
-    }
+    if (count === 1) { return w * 0.5; }
+    if (count === 2) { return position === 'A' ? w * 0.33 : w * 0.67; }
+    return position === 'A' ? w * 0.20 : position === 'B' ? w * 0.50 : w * 0.80;
   }
   
   /**
@@ -1402,7 +1399,7 @@ export class FantasyPIXIInstance {
     try {
       this.app.renderer.resize(width, height);
       for (const [id, monsterData] of this.monsterSprites) {
-        monsterData.visualState.x = this.getPositionX(monsterData.position);
+        monsterData.visualState.x = this.getPositionX(monsterData.position, this.monsterSprites.size);
         monsterData.visualState.y = 100; // Y座標を100pxに固定（200px高さの中央）
         // ▼▼▼ 修正箇所 ▼▼▼
         const sprite = monsterData.sprite;
