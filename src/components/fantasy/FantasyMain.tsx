@@ -10,6 +10,9 @@ import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { devLog } from '@/utils/logger';
 
+// 1コース当たりのステージ数定数
+const COURSE_LENGTH = 10;
+
 interface GameResult {
   result: 'clear' | 'gameover';
   score: number;
@@ -133,7 +136,9 @@ const FantasyMain: React.FC = () => {
           if (!progressError && currentProgress) {
             // 次のステージをアンロック
             const [currentRank, currentStageNum] = currentStage.stageNumber.split('-').map(Number);
-            const nextStageNumber = `${currentRank}-${currentStageNum + 1}`;
+            const nextStage = currentStageNum >= COURSE_LENGTH ? 1 : currentStageNum + 1;
+            const nextRank = currentStageNum >= COURSE_LENGTH ? currentRank + 1 : currentRank;
+            const nextStageNumber = `${nextRank}-${nextStage}`;
             
             // 10ステージクリアでランクアップ（初回クリア時のみカウントアップ）
             const newClearedStages = currentProgress.total_cleared_stages + 1;
@@ -220,10 +225,12 @@ const FantasyMain: React.FC = () => {
   const gotoNextStageWaiting = useCallback(() => {
     if (!currentStage) return;
     const [rank, num] = currentStage.stageNumber.split('-').map(Number);
-    const nextStageNumber = `${rank}-${num + 1}`;
+    const nextStageNum = num >= COURSE_LENGTH ? 1 : num + 1;
+    const nextRank = num >= COURSE_LENGTH ? rank + 1 : rank;
+    const nextStageNumber = `${nextRank}-${nextStageNum}`;
 
     // 次のステージの情報を作成（データベースから取得する代わりに現在のステージをベースに作成）
-    const nextStage: FantasyStage = {
+    const nextStageData: FantasyStage = {
       ...currentStage,
       id: `next-${nextStageNumber}`,
       stageNumber: nextStageNumber,
@@ -233,7 +240,7 @@ const FantasyMain: React.FC = () => {
 
     setGameResult(null);
     setShowResult(false);
-    setCurrentStage(nextStage);   // ← 待機画面
+    setCurrentStage(nextStageData);   // ← 待機画面
     setGameKey(k => k + 1);  // 強制リマウント
   }, [currentStage]);
   
