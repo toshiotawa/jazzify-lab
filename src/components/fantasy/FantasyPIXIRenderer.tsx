@@ -18,7 +18,6 @@ interface FantasyPIXIRendererProps {
   width: number;
   height: number;
   monsterIcon: string;
-  isMonsterAttacking: boolean;
   enemyGauge: number;
   onReady?: (instance: FantasyPIXIInstance) => void;
   onMonsterDefeated?: () => void; // 状態機械用コールバック
@@ -39,13 +38,11 @@ interface MonsterVisualState {
 }
 
 interface MonsterGameState {
-  isAttacking: boolean;
   isHit: boolean;
   hitColor: number;
   originalColor: number;
   staggerOffset: { x: number; y: number };
   hitCount: number;
-  originalScale?: number;
   state: MonsterState; // 状態機械の状態
   isFadingOut: boolean;
   fadeOutStartTime: number;
@@ -141,9 +138,6 @@ interface MonsterSpriteData {
   visualState: MonsterVisualState;
   gameState: MonsterGameState;
   position: 'A' | 'B' | 'C';
-  ui?: {
-    anger?: PIXI.Text;
-  };
 }
 
 export class FantasyPIXIInstance {
@@ -161,7 +155,6 @@ export class FantasyPIXIInstance {
    *  safe‑default で初期化しておく
    * ─────────────────────────────────── */
   private monsterGameState: MonsterGameState = {
-    isAttacking: false,
     isHit: false,
     hitColor: 0xffffff,
     originalColor: 0xffffff,
@@ -186,7 +179,7 @@ export class FantasyPIXIInstance {
   private damageNumbers: Map<string, PIXI.Text> = new Map();
   private damageData: Map<string, DamageNumberData> = new Map();
   private chordNameText: PIXI.Text | null = null;
-  private angerMark: PIXI.Text | null = null;
+
   
   private currentMagicType: string = 'fire';
   // ★★★ MONSTER_EMOJI と loadEmojiTextures を削除、またはコメントアウト ★★★
@@ -496,7 +489,6 @@ export class FantasyPIXIInstance {
         };
         
         const gameState: MonsterGameState = {
-          isAttacking: false,
           isHit: false,
           hitColor: 0xFF6B6B,
           originalColor: 0xFFFFFF,
@@ -606,11 +598,8 @@ export class FantasyPIXIInstance {
     sprite.x = visualState.x + gameState.staggerOffset.x;
     sprite.y = visualState.y + gameState.staggerOffset.y;
     
-    // 攻撃中はスケールを直接設定しているので、visualStateからの更新をスキップ
-    if (!gameState.isAttacking) {
-      sprite.scale.x = visualState.scale;
-      sprite.scale.y = visualState.scale;
-    }
+    sprite.scale.x = visualState.scale;
+    sprite.scale.y = visualState.scale;
     
     sprite.rotation = visualState.rotation;
     sprite.tint = gameState.isHit ? gameState.hitColor : visualState.tint;
@@ -1203,40 +1192,7 @@ export class FantasyPIXIInstance {
 
 
 
-  // モンスター攻撃状態更新
-  updateMonsterAttacking(isAttacking: boolean): void {
-    // 状態ガード
-    if (this.isDestroyed || !this.monsterSprite || this.monsterSprite.destroyed) return;
 
-    this.monsterGameState.isAttacking = isAttacking;
-
-    if (isAttacking) {
-      this.monsterVisualState.tint = 0xFF6B6B;
-      this.monsterVisualState.scale = 0.35; // 少し大きくなる（0.3 から 0.35 に）
-      this.updateMonsterSprite();
-
-      // 怒りマーク表示
-      if (!this.angerMark) {
-        this.angerMark = new PIXI.Text('💢', { fontSize: 48 });
-        this.angerMark.anchor.set(0.5);
-        this.uiContainer.addChild(this.angerMark);
-      } 
-      this.angerMark.x = this.monsterVisualState.x + 60; // 右に表示
-      this.angerMark.y = this.monsterVisualState.y - 60;
-      this.angerMark.visible = true;
-
-      setTimeout(() => {
-        if (!this.isDestroyed) {
-          this.monsterVisualState.tint = 0xFFFFFF;
-          this.monsterVisualState.scale = 0.3; // 元の大きさに戻る（0.3 に）
-          this.updateMonsterSprite();
-          if (this.angerMark) {
-            this.angerMark.visible = false;
-          }
-        }
-      }, 600);
-    }
-  }
 
   // アニメーションループ
   private startAnimationLoop(): void {
@@ -1268,23 +1224,14 @@ export class FantasyPIXIInstance {
         gameState.staggerOffset.x *= 0.9;
         gameState.staggerOffset.y *= 0.9;
         
-        // アイドル時の軽い浮遊効果（上下動）- 攻撃中は無効
-        if (gameState.state === 'IDLE' && !gameState.isAttacking) {
+        // アイドル時の軽い浮遊効果（上下動）
+        if (gameState.state === 'IDLE') {
           // IDをシードにして各モンスターの動きを非同期にする
           const baseY = this.app.screen.height / 2;
           visualState.y = baseY + Math.sin(Date.now() * 0.002 + id.charCodeAt(0)) * 6;
-        } else if (gameState.isAttacking) {
-          // 攻撃中は位置を固定（上下動を止める）
-          visualState.y = this.app.screen.height / 2;
         }
         
-        // 怒りマークの位置を更新（モンスターに追従）
-        if (monsterData.ui?.anger && monsterData.ui.anger.visible) {
-          const scaledWidth = sprite.texture.width * sprite.scale.x;
-          const scaledHeight = sprite.texture.height * sprite.scale.y;
-          monsterData.ui.anger.x = sprite.x + scaledWidth * 0.4;
-          monsterData.ui.anger.y = sprite.y - scaledHeight * 0.4;
-        }
+
         
         // フェードアウト処理
         if (gameState.isFadingOut) {
@@ -1626,82 +1573,7 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
-  // マルチモンスター用攻撃エフェクト
-  updateMonsterAttackingById(
-    monsterId: string,
-    isAttacking: boolean,
-    retry = 0
-  ): void {
-    console.log('🔥 attack effect fired for', monsterId);
-    
-    const monsterData = this.monsterSprites.get(monsterId);
-    if (!monsterData) {
-      if (retry < 30) {                       // 最大 30 フレーム待つ
-        requestAnimationFrame(() =>
-          this.updateMonsterAttackingById(monsterId, isAttacking, retry + 1));
-      }
-      return;
-    }
-    
-    if (this.isDestroyed) return;
 
-    console.log(`🎯 updateMonsterAttackingById called: monsterId=${monsterId}, isAttacking=${isAttacking}`);
-
-    // 元のスケールを保存（初回のみ）
-    if (!monsterData.gameState.originalScale) {
-      monsterData.gameState.originalScale = monsterData.visualState.scale;
-    }
-
-    monsterData.gameState.isAttacking = isAttacking;
-
-    if (isAttacking) {
-      // 攻撃エフェクト
-      monsterData.visualState.tint = 0xFF6B6B;
-      // スプライトのscaleを直接変更（visualStateのscaleではなく）
-      monsterData.sprite.scale.set(monsterData.gameState.originalScale * 2.0);
-      
-      // 怒りマーク表示（一度だけ生成・再利用）
-      if (!monsterData.ui?.anger) {
-        const anger = new PIXI.Text('💢', {
-          fontSize: 48,
-          fill: 0xFF0000,
-          stroke: 0x000000,
-          strokeThickness: 4
-        });
-        anger.anchor.set(0.5);
-        anger.zIndex = 2000;             // ダメージ数値(1000)より手前
-        monsterData.ui = { ...monsterData.ui, anger };
-        this.uiContainer.addChild(anger);
-      }
-      if (monsterData.ui?.anger) {
-        monsterData.ui.anger.visible = true;
-        // スプライトの実際のサイズとスケールを考慮した位置計算
-        const scaledWidth = monsterData.sprite.texture.width * monsterData.sprite.scale.x;
-        const scaledHeight = monsterData.sprite.texture.height * monsterData.sprite.scale.y;
-        monsterData.ui.anger.x = monsterData.sprite.x + scaledWidth * 0.4;
-        monsterData.ui.anger.y = monsterData.sprite.y - scaledHeight * 0.4;
-      }
-      
-      // スプライトの色を即座に適用
-      monsterData.sprite.tint = monsterData.visualState.tint;
-
-      // エフェクトを戻す
-      setTimeout(() => {
-        if (!this.isDestroyed && this.monsterSprites.has(monsterId)) {
-          monsterData.visualState.tint = 0xFFFFFF;
-          monsterData.sprite.scale.set(monsterData.gameState.originalScale);
-          monsterData.sprite.tint = monsterData.visualState.tint;
-          
-          if (monsterData.ui?.anger) {
-            monsterData.ui.anger.visible = false;
-          }
-          
-          // 攻撃状態をリセット
-          monsterData.gameState.isAttacking = false;
-        }
-      }, 600);
-    }
-  }
 }
 
 // ===== Reactコンポーネント =====
@@ -1710,7 +1582,6 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   width,
   height,
   monsterIcon,
-  isMonsterAttacking,
   enemyGauge,
   onReady,
   onMonsterDefeated,
@@ -1750,12 +1621,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
     }
   }, [pixiInstance, monsterIcon, activeMonsters]);
 
-  // 攻撃状態更新
-  useEffect(() => {
-    if (pixiInstance) {
-      pixiInstance.updateMonsterAttacking(isMonsterAttacking);
-    }
-  }, [pixiInstance, isMonsterAttacking]);
+
 
   // サイズ変更
   useEffect(() => {
