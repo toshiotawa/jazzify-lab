@@ -81,8 +81,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setShowGuide(stage.showGuide);
   }, [stage.showGuide]);
   
-  // MIDI入力処理用のRef（コールバックを保持）
+  // ノート入力のハンドリング用ref
   const handleNoteInputRef = useRef<(note: number) => void>();
+  
+  // 再生中のノートを追跡
+  const activeNotesRef = useRef<Set<number>>(new Set());
   
   // MIDIControllerの初期化と管理
   useEffect(() => {
@@ -114,9 +117,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         
         // ★★★ デフォルト音量設定を追加 ★★★
         // ファンタジーモード開始時にデフォルト音量（80%）を設定
-        import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
-          updateGlobalVolume(0.8); // デフォルト80%音量
-          devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+        import('@/utils/MidiController').then(({ updateGlobalVolume, initializeAudioSystem }) => {
+          // 音声システムを初期化
+          initializeAudioSystem().then(() => {
+            updateGlobalVolume(0.8); // デフォルト80%音量
+            devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+          }).catch(error => {
+            console.error('Audio system initialization failed:', error);
+          });
         }).catch(error => {
           console.error('MidiController import failed:', error);
         });
@@ -270,7 +278,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number) => {
-    // ファンタジーゲームエンジンにのみ送信（音声はMidiControllerが処理）
+    // 既に再生中の場合はスキップ
+    if (activeNotesRef.current.has(note)) {
+      devLog.debug('🎵 Note already playing, skipping:', note);
+      return;
+    }
+    
+    // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
+    try {
+      const { playNote } = await import('@/utils/MidiController');
+      await playNote(note, 80); // velocity 80で再生
+      activeNotesRef.current.add(note);
+      devLog.debug('🎵 Played note via click:', note);
+    } catch (error) {
+      console.error('Failed to play note:', error);
+    }
+    
+    // ファンタジーゲームエンジンにのみ送信
     engineHandleNoteInput(note);
   }, [engineHandleNoteInput]);
   
@@ -281,6 +305,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
+    devLog.debug('🎮 handlePixiReady called', { hasRenderer: !!renderer });
     setPixiRenderer(renderer);
     
     if (renderer) {
@@ -329,10 +354,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       });
       
       // キーボードのクリックイベントを接続
+      devLog.debug('🎹 Setting key callbacks for Fantasy mode...');
       renderer.setKeyCallbacks(
-        (note: number) => handleNoteInputBridge(note),
-        (note: number) => {} // マウスリリース時の処理はMidiControllerが担当
+        (note: number) => {
+          devLog.debug('🎹 Fantasy mode key press:', note);
+          handleNoteInputBridge(note);
+        },
+        async (note: number) => {
+          devLog.debug('🎹 Fantasy mode key release:', note);
+          // マウスリリース時に音を止める
+          try {
+            const { stopNote } = await import('@/utils/MidiController');
+            stopNote(note);
+            activeNotesRef.current.delete(note);
+            devLog.debug('🎵 Stopped note via release:', note);
+          } catch (error) {
+            console.error('Failed to stop note:', error);
+          }
+        }
       );
+      devLog.debug('✅ Key callbacks set successfully');
       
               // MIDIControllerにキーハイライト機能を設定（通常プレイと同様の処理）
         if (midiControllerRef.current) {
