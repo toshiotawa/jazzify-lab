@@ -12,6 +12,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { useFantasySoundManager } from './FantasySoundManager';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -49,6 +50,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const { settings, updateSettings } = useGameStore();
   const midiControllerRef = useRef<MIDIController | null>(null);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
+  
+  // 効果音マネージャーの初期化
+  const soundManager = useFantasySoundManager({
+    volume: settings.soundEffectVolume || 0.8
+  });
   
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
@@ -224,6 +230,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // confetti削除 - 何もしない
     
+    // 敵攻撃効果音を再生
+    soundManager.playEnemyAttackSound();
+    
     // ダメージ時の画面振動
     setDamageShake(true);
     setTimeout(() => setDamageShake(false), 500);
@@ -232,7 +241,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setHeartFlash(true);
     setTimeout(() => setHeartFlash(false), 150);
     
-  }, []);
+  }, [soundManager]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
@@ -440,11 +449,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 魔法名表示ハンドラー
   const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
     setMagicName({ monsterId, name, isSpecial });
+    
+    // 魔法効果音を再生
+    soundManager.playMagicSound(name);
+    
     // 500ms後に自動的に非表示
     setTimeout(() => {
       setMagicName(null);
     }, 500);
-  }, []);
+  }, [soundManager]);
   
   // モンスター撃破時のコールバック（状態機械対応）
   const handleMonsterDefeated = useCallback(() => {
@@ -939,10 +952,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               console.error('MidiController import failed:', error);
             });
           }
+          
+          // 効果音音量が変更されたら更新
+          if (settings.soundEffectVolume !== undefined) {
+            updateSettings({ soundEffectVolume: settings.soundEffectVolume });
+            soundManager.setVolume(settings.soundEffectVolume);
+            devLog.debug(`🔊 効果音音量を更新: ${settings.soundEffectVolume}`);
+          }
         }}
         // gameStoreの値を渡す
         midiDeviceId={settings.selectedMidiDevice}
         volume={settings.midiVolume} // gameStoreのMIDI音量を渡す
+        soundEffectVolume={settings.soundEffectVolume} // 効果音音量を渡す
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
