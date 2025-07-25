@@ -469,8 +469,12 @@ export class FantasyPIXIInstance {
       }
     }
     
+    // ★★★ 修正点: ソートしてから位置を計算 ★★★
+    const sortedMonsters = [...monsters].sort((a, b) => a.position.localeCompare(b.position));
+
     // 各モンスターのスプライトを作成または更新
-    for (const monster of monsters) {
+    for (let i = 0; i < sortedMonsters.length; i++) {
+      const monster = sortedMonsters[i];
       let monsterData = this.monsterSprites.get(monster.id);
       
       if (!monsterData) {
@@ -479,7 +483,7 @@ export class FantasyPIXIInstance {
         if (!sprite) continue;
         
         const visualState: MonsterVisualState = {
-          x: this.getPositionX(monster.position),
+          x: this.getPositionX(i, sortedMonsters.length),
           y: 100, // Y座標を100pxに固定（200px高さの中央）
           scale: 0.3,  // 1.0 から 0.3 に変更
           rotation: 0,
@@ -512,23 +516,26 @@ export class FantasyPIXIInstance {
       }
       
       // 位置を更新
-      if (monsterData.position !== monster.position) {
-        monsterData.position = monster.position;
-        monsterData.visualState.x = this.getPositionX(monster.position);
-      }
+      monsterData.visualState.x = this.getPositionX(i, sortedMonsters.length);
       
       this.updateMonsterSpriteData(monsterData);
     }
   }
   
-  /** UI 側（25 %|50 %|75 %）に完全同期させる */
-  private getPositionX(position: 'A' | 'B' | 'C'): number {
+  /** UI 側とほぼ同じレイアウトになるよう、スロット幅を基準に中央配置 */
+  private getPositionX(positionIndex: number, totalMonsters: number): number {
     const w = this.app.screen.width;
-    switch (position) {
-      case 'A': return w * 0.25;
-      case 'B': return w * 0.50;
-      case 'C': return w * 0.75;
-    }
+    // 1体あたりのスロット幅を画面幅の約30%と仮定 (UI側のスタイルと合わせる)
+    const monsterSlotWidth = Math.min(w * 0.30, 220); 
+
+    // 全モンスターが表示される領域の合計幅
+    const totalGroupWidth = monsterSlotWidth * totalMonsters;
+    // モンスター群の開始X座標（画面中央に配置するため）
+    const groupStartX = (w - totalGroupWidth) / 2;
+
+    // このモンスターの中心X座標を計算
+    const monsterX = groupStartX + (monsterSlotWidth * positionIndex) + (monsterSlotWidth / 2);
+    return monsterX;
   }
   
   /**
@@ -1401,8 +1408,13 @@ export class FantasyPIXIInstance {
     if (!this.app || !this.app.renderer || this.isDestroyed) return;
     try {
       this.app.renderer.resize(width, height);
-      for (const [id, monsterData] of this.monsterSprites) {
-        monsterData.visualState.x = this.getPositionX(monsterData.position);
+      // positionでソートしてインデックスを計算
+      const sortedEntries = Array.from(this.monsterSprites.entries())
+        .sort(([,a], [,b]) => a.position.localeCompare(b.position));
+      
+      for (let i = 0; i < sortedEntries.length; i++) {
+        const [id, monsterData] = sortedEntries[i];
+        monsterData.visualState.x = this.getPositionX(i, sortedEntries.length);
         monsterData.visualState.y = 100; // Y座標を100pxに固定（200px高さの中央）
         // ▼▼▼ 修正箇所 ▼▼▼
         const sprite = monsterData.sprite;
