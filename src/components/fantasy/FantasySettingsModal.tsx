@@ -22,6 +22,7 @@ interface FantasySettings {
   midiDeviceId: string | null;
   volume: number;
   showGuide: boolean;
+  effectVolume: number; // 効果音音量
 }
 
 const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
@@ -36,7 +37,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
     volume: volume, // propsから受け取った音量を使用
-    showGuide: false
+    showGuide: false,
+    effectVolume: 0.8 // デフォルト80%の効果音音量
   });
   
   // propsのmidiDeviceIdが変更されたらsettingsも更新
@@ -105,6 +107,22 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               step="0.1"
               value={settings.volume}
               onChange={(e) => handleSettingChange('volume', parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+          </div>
+
+          {/* 効果音音量設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              効果音音量: {Math.round(settings.effectVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={settings.effectVolume}
+              onChange={(e) => handleSettingChange('effectVolume', parseFloat(e.target.value))}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
           </div>
