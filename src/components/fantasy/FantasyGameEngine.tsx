@@ -92,6 +92,18 @@ interface FantasyGameEngineProps {
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: (attackingMonsterId?: string) => void;
+  fantasyPixiInstance?: any; // PIXIインスタンスへの参照
+}
+
+// 戻り値の型定義
+interface FantasyGameEngineReturn {
+  gameState: FantasyGameState;
+  handleNoteInput: (note: number, isPress: boolean) => void;
+  initializeGame: (stage: FantasyStage) => void;
+  stopGame: () => void;
+  proceedToNextEnemy: () => void;
+  calculateDamage: (baseValue: number, isSpecial: boolean) => number;
+  ENEMY_LIST: typeof ENEMY_LIST;
 }
 
 // ===== コード定義データ =====
@@ -343,14 +355,15 @@ const getCurrentEnemy = (enemyIndex: number) => {
 
 // ===== メインコンポーネント =====
 
-export const useFantasyGameEngine = ({
+export function useFantasyGameEngine({
   stage,
   onGameStateChange,
   onChordCorrect,
   onChordIncorrect,
   onGameComplete,
-  onEnemyAttack
-}: FantasyGameEngineProps) => {
+  onEnemyAttack,
+  fantasyPixiInstance
+}: FantasyGameEngineProps): FantasyGameEngineReturn {
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -689,23 +702,33 @@ export const useFantasyGameEngine = ({
         console.log('🎲 Found attacking monster:', attackingMonster);
         devLog.debug('💥 モンスターゲージ満タン！攻撃開始', { monster: attackingMonster.name });
         
-        // 攻撃したモンスターのゲージをリセット
-        const resetMonsters = updatedMonsters.map(m => 
-          m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
-        );
+        // チャージエフェクトを発火
+        if (fantasyPixiInstance && fantasyPixiInstance.triggerMonsterChargingEffect) {
+          fantasyPixiInstance.triggerMonsterChargingEffect(attackingMonster.id);
+        }
         
-        // 攻撃処理を非同期で実行
-        console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
-        setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
+        // 攻撃したモンスターのゲージをリセット（1秒後）
+        setTimeout(() => {
+          setGameState(prev => ({
+            ...prev,
+            activeMonsters: prev.activeMonsters.map(m => 
+              m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
+            )
+          }));
+          
+          // チャージエフェクトを終了
+          if (fantasyPixiInstance && fantasyPixiInstance.endMonsterChargingEffect) {
+            fantasyPixiInstance.endMonsterChargingEffect(attackingMonster.id);
+          }
+          
+          // 攻撃処理を実行
+          handleEnemyAttack(attackingMonster.id);
+        }, 1000); // 1秒間チャージエフェクトを表示
         
-        const nextState = { 
-          ...prevState, 
-          activeMonsters: resetMonsters,
-          // 互換性のため
-          enemyGauge: 0 
+        return {
+          ...prevState,
+          activeMonsters: updatedMonsters
         };
-        onGameStateChange(nextState);
-        return nextState;
       } else {
         const nextState = { 
           ...prevState, 

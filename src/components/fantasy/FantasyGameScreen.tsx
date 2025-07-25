@@ -284,7 +284,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
-    onEnemyAttack: handleEnemyAttack
+    onEnemyAttack: handleEnemyAttack,
+    fantasyPixiInstance
   });
   
   // 現在の敵情報を取得
@@ -731,12 +732,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       {magicName && magicName.monsterId === monster.id && (
                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
                           {/* ▼▼▼ 変更点 ▼▼▼ */}
-                          <div className={`font-bold font-dotgothic16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
-                            magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                          }`}>
-                          {/* ▲▲▲ ここまで ▲▲▲ */}
-                            {magicName.name}
+                          {magicName.name && (
+                            <div className={`font-bold font-dotgothic16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
+                              magicName.isSpecial ? 'text-yellow-300' : 'text-white'
+                            }`}>
+                              {magicName.name}
+                            </div>
+                          )}
+                          {/* 花火エフェクト（名前が空の場合はチャージエフェクト） */}
+                          <div className="fireworks-css">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
                           </div>
+                          {/* ▲▲▲ ここまで ▲▲▲ */}
                         </div>
                       )}
                       

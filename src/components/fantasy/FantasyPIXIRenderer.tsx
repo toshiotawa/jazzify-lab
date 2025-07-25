@@ -46,6 +46,10 @@ interface MonsterGameState {
   state: MonsterState; // 状態機械の状態
   isFadingOut: boolean;
   fadeOutStartTime: number;
+  // 攻撃準備状態用のプロパティ
+  isCharging?: boolean; // 攻撃ゲージが満タンになった状態
+  chargingStartTime?: number; // チャージ開始時刻
+  angerMark?: PIXI.Text; // 怒りマーク
 }
 
 interface DamageNumber {
@@ -609,7 +613,19 @@ export class FantasyPIXIInstance {
     sprite.scale.y = visualState.scale;
     
     sprite.rotation = visualState.rotation;
-    sprite.tint = gameState.isHit ? gameState.hitColor : visualState.tint;
+    
+    // ティントの適用（優先度: isHit > isCharging > 通常）
+    if (gameState.isHit) {
+      sprite.tint = gameState.hitColor;
+    } else if (gameState.isCharging) {
+      // チャージ中は赤いティントをパルス効果で適用
+      const elapsed = Date.now() - (gameState.chargingStartTime || 0);
+      const redIntensity = 0.7 + Math.sin(elapsed * 0.005) * 0.3; // 0.4 ~ 1.0の間でパルス
+      sprite.tint = PIXI.utils.rgb2hex([1, 1 - redIntensity, 1 - redIntensity]); // 赤み
+    } else {
+      sprite.tint = visualState.tint;
+    }
+    
     sprite.alpha = visualState.alpha;
     sprite.visible = visualState.visible && gameState.state !== 'GONE';
   }
@@ -1238,6 +1254,20 @@ export class FantasyPIXIInstance {
           visualState.y = baseY + Math.sin(Date.now() * 0.002 + id.charCodeAt(0)) * 6;
         }
         
+        // チャージ状態のアニメーション
+        if (gameState.isCharging) {
+          const elapsed = Date.now() - (gameState.chargingStartTime || 0);
+          const pulseFactor = 1 + Math.sin(elapsed * 0.01) * 0.1; // 0.9 ~ 1.1の間でパルス
+          visualState.scale = 0.3 * pulseFactor; // 基本スケール0.3に対してパルス効果
+          
+          // 怒りマークの揺れ
+          if (gameState.angerMark && !gameState.angerMark.destroyed) {
+            gameState.angerMark.rotation = Math.sin(elapsed * 0.015) * 0.2;
+          }
+        } else {
+          // チャージ状態でない場合は基本スケールに戻す
+          visualState.scale += (0.3 - visualState.scale) * 0.15;
+        }
 
         
         // フェードアウト処理
@@ -1585,6 +1615,65 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  // モンスターの攻撃準備エフェクト
+  triggerMonsterChargingEffect(monsterId: string): void {
+    const monsterData = this.monsterSprites.get(monsterId);
+    if (!monsterData || this.isDestroyed) return;
+    
+    try {
+      const { sprite, gameState, visualState } = monsterData;
+      
+      // チャージ状態を設定
+      gameState.isCharging = true;
+      gameState.chargingStartTime = Date.now();
+      
+      // 怒りマークを作成
+      if (!gameState.angerMark) {
+        const angerMark = new PIXI.Text('😡', { 
+          fontSize: 48,
+          fontFamily: 'Arial'
+        });
+        angerMark.anchor.set(0.5);
+        angerMark.x = sprite.width * 0.7; // スプライトの右側に配置
+        angerMark.y = -sprite.height * 0.3;
+        sprite.addChild(angerMark);
+        gameState.angerMark = angerMark;
+      }
+      
+      // 花火エフェクトをHTML側で発火（CSSアニメーション）
+      if (this.onShowMagicName) {
+        this.onShowMagicName('', false, monsterId); // 空の魔法名で花火のみ発火
+      }
+      
+      devLog.debug('⚡ モンスターチャージエフェクト開始', { monsterId });
+    } catch (error) {
+      devLog.debug('⚠️ チャージエフェクトエラー:', error);
+    }
+  }
+  
+  // モンスターの攻撃準備エフェクトを終了
+  endMonsterChargingEffect(monsterId: string): void {
+    const monsterData = this.monsterSprites.get(monsterId);
+    if (!monsterData) return;
+    
+    try {
+      const { gameState } = monsterData;
+      
+      // チャージ状態を解除
+      gameState.isCharging = false;
+      gameState.chargingStartTime = undefined;
+      
+      // 怒りマークを削除
+      if (gameState.angerMark && !gameState.angerMark.destroyed) {
+        gameState.angerMark.destroy();
+        gameState.angerMark = undefined;
+      }
+      
+      devLog.debug('⚡ モンスターチャージエフェクト終了', { monsterId });
+    } catch (error) {
+      devLog.debug('⚠️ チャージエフェクト終了エラー:', error);
+    }
+  }
 
 }
 
