@@ -216,26 +216,68 @@ const FantasyMain: React.FC = () => {
     setPendingAutoStart(false); // pendingAutoStart もリセット
   }, []);
   
-  // ★ 追加: 次のステージに待機画面で遷移
-  const gotoNextStageWaiting = useCallback(() => {
+  // ステージ番号計算用のヘルパー関数
+  const COURSE_LENGTH = 5; // テスト用：5、本番用：10に変更
+
+  const getNextStageNumber = useCallback((current: string): string => {
+    const [rank, num] = current.split('-').map(Number);
+    const nextNum = num >= COURSE_LENGTH ? 1 : num + 1;
+    const nextRank = num >= COURSE_LENGTH ? rank + 1 : rank;
+    return `${nextRank}-${nextNum}`;
+  }, []);
+
+  // ★ 追加: 次のステージに待機画面で遷移（データベースから実データを取得）
+  const gotoNextStageWaiting = useCallback(async () => {
     if (!currentStage) return;
-    const [rank, num] = currentStage.stageNumber.split('-').map(Number);
-    const nextStageNumber = `${rank}-${num + 1}`;
+    
+    const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
 
-    // 次のステージの情報を作成（データベースから取得する代わりに現在のステージをベースに作成）
-    const nextStage: FantasyStage = {
-      ...currentStage,
-      id: `next-${nextStageNumber}`,
-      stageNumber: nextStageNumber,
-      name: `ステージ ${nextStageNumber}`,
-      description: `次のステージ ${nextStageNumber}`
-    };
+    try {
+      // DBから実データを読み直す
+      const { getSupabaseClient } = await import('@/platform/supabaseClient');
+      const supabase = getSupabaseClient();
+      const { data: nextStageData, error } = await supabase
+        .from('fantasy_stages')
+        .select('*')
+        .eq('stage_number', nextStageNumber)
+        .single();
 
-    setGameResult(null);
-    setShowResult(false);
-    setCurrentStage(nextStage);   // ← 待機画面
-    setGameKey(k => k + 1);  // 強制リマウント
-  }, [currentStage]);
+      if (error || !nextStageData) {
+        alert(`ステージ ${nextStageNumber} が見つかりません`);
+        devLog.debug('次のステージが見つかりません:', { nextStageNumber, error });
+        return;
+      }
+
+      // データ変換（既存のFantasyStage形式に合わせる）
+      const converted: FantasyStage = {
+        id: nextStageData.id,
+        stageNumber: nextStageData.stage_number,
+        name: nextStageData.name || `ステージ ${nextStageData.stage_number}`,
+        description: nextStageData.description || `ステージ ${nextStageData.stage_number}の説明`,
+        mode: nextStageData.mode as 'random' | 'progression',
+        allowedChords: nextStageData.allowed_chords || [],
+        chordProgression: nextStageData.chord_progression || null,
+        enemyGaugeSeconds: nextStageData.enemy_gauge_seconds || 10,
+        maxHp: nextStageData.max_hp || 3,
+        enemyCount: nextStageData.enemy_count || 3,
+        showGuide: nextStageData.show_guide || false
+      };
+
+      setGameResult(null);
+      setShowResult(false);
+      setCurrentStage(converted);   // ← 実データで待機画面
+      setGameKey(k => k + 1);  // 強制リマウント
+      
+      devLog.debug('次のステージに進行:', { 
+        from: currentStage.stageNumber, 
+        to: nextStageNumber,
+        stageName: converted.name
+      });
+    } catch (error) {
+      console.error('次のステージ取得エラー:', error);
+      alert('次のステージの読み込みに失敗しました');
+    }
+  }, [currentStage, getNextStageNumber]);
   
   // メニューに戻る
   const handleBackToMenu = useCallback(() => {
@@ -312,6 +354,7 @@ const FantasyMain: React.FC = () => {
         <div className="text-white text-center max-w-md w-full">
           {/* 結果タイトル */}
           <h2 className="text-3xl font-bold mb-6 font-dotgothic16">
+            {currentStage?.stageNumber}&nbsp;
             {gameResult.result === 'clear' ? 'ステージクリア！' : 'ゲームオーバー'}
           </h2>
           
