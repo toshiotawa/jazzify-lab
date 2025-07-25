@@ -12,6 +12,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { FantasySoundManager as FSM } from './FantasySoundManager';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -129,6 +130,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           console.error('MidiController import failed:', error);
         });
         
+        // FantasySoundManagerの初期化
+        FSM.init(settings.fantasySeVolume || 0.8).then(() => {
+          devLog.debug('🎵 FantasySoundManager初期化完了: 音量', settings.fantasySeVolume || 0.8);
+        }).catch(error => {
+          console.error('FantasySoundManager initialization failed:', error);
+        });
+        
         // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
         // 接続処理は下のuseEffectに任せる。
       }).catch(error => {
@@ -206,7 +214,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (fantasyPixiInstance) {
       fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
     }
-  }, [fantasyPixiInstance]);
+    
+    // 魔法効果音を再生（魔法タイプによって音を変える）
+    const magicType = gameState?.activeMonsters?.find(m => m.id === monsterId)?.magicType;
+    if (magicType) {
+      FSM.playMagic(magicType);
+    }
+  }, [fantasyPixiInstance, gameState]);
   // ▲▲▲ ここまで ▲▲▲
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
@@ -221,6 +235,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
+    
+    // 敵の攻撃効果音を再生
+    FSM.playEnemyAttack();
     
     // confetti削除 - 何もしない
     
@@ -926,26 +943,32 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           setShowGuide(settings.showGuide);
           
           // ★★★ 音量更新処理を追加 ★★★
-          // 音量設定が変更されたら、グローバル音量を更新
-          if (settings.volume !== undefined) {
+          // BGM音量が変更されたら、グローバル音量を更新
+          if (settings.bgmVolume !== undefined) {
             // gameStoreの音量設定も更新
-            updateSettings({ midiVolume: settings.volume });
+            updateSettings({ midiVolume: settings.bgmVolume });
             
             // グローバル音量を更新
             import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
-              updateGlobalVolume(settings.volume);
-              devLog.debug(`🎵 ファンタジーモードの音量を更新: ${settings.volume}`);
+              updateGlobalVolume(settings.bgmVolume);
+              devLog.debug(`🎵 ファンタジーモードのBGM音量を更新: ${settings.bgmVolume}`);
             }).catch(error => {
               console.error('MidiController import failed:', error);
             });
           }
+          
+          // 効果音音量が変更されたら、gameStoreを更新
+          if (settings.seVolume !== undefined) {
+            updateSettings({ fantasySeVolume: settings.seVolume });
+            devLog.debug(`🎵 ファンタジーモードの効果音音量を更新: ${settings.seVolume}`);
+          }
         }}
         // gameStoreの値を渡す
         midiDeviceId={settings.selectedMidiDevice}
-        volume={settings.midiVolume} // gameStoreのMIDI音量を渡す
-        // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
+        bgmVolume={settings.midiVolume}
+        seVolume={settings.fantasySeVolume}
       />
       
       {/* オーバーレイ表示 */}           {/* ★★★ add */}
