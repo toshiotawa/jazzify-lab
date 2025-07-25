@@ -298,7 +298,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number) => {
-    // ファンタジーゲームエンジンにのみ送信（音声はMidiControllerが処理）
+    // 鍵盤クリック時にも音声を再生（MIDIControllerのplayNoteを使用）
+    if (midiControllerRef.current && (midiControllerRef.current as any).playMidiSound) {
+      try {
+        const { playNote } = await import('@/utils/MidiController');
+        await playNote(note, 100); // velocity 100で再生
+        devLog.debug('🎵 鍵盤クリック音再生:', { note });
+      } catch (error) {
+        console.error('Failed to play note:', error);
+      }
+    }
+    
+    // ファンタジーゲームエンジンに入力を送信
     engineHandleNoteInput(note);
   }, [engineHandleNoteInput]);
   
@@ -359,7 +370,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // キーボードのクリックイベントを接続
       renderer.setKeyCallbacks(
         (note: number) => handleNoteInputBridge(note),
-        (note: number) => {} // マウスリリース時の処理はMidiControllerが担当
+        async (note: number) => {
+          // マウスリリース時に音を止める
+          try {
+            const { stopNote } = await import('@/utils/MidiController');
+            stopNote(note);
+            devLog.debug('🎵 鍵盤リリース音停止:', { note });
+          } catch (error) {
+            console.error('Failed to stop note:', error);
+          }
+        }
       );
       
               // MIDIControllerにキーハイライト機能を設定（通常プレイと同様の処理）
