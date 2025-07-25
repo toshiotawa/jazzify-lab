@@ -219,10 +219,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // PIXIのチャージエフェクトを開始
       if (fantasyPixiInstance) {
         fantasyPixiInstance.triggerMonsterChargingAttack(attackingMonsterId, true);
-        // 攻撃後にチャージ状態を解除
-        setTimeout(() => {
-          fantasyPixiInstance.triggerMonsterChargingAttack(attackingMonsterId, false);
-        }, 1000);
+        // チャージ状態の解除はupdateMonsterAnimationで自動的に行われる
       }
       
       const el = gaugeRefs.current.get(attackingMonsterId);
