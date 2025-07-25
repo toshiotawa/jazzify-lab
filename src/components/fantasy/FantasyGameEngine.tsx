@@ -89,7 +89,7 @@ interface FantasyGameEngineProps {
   onGameStateChange: (state: FantasyGameState) => void;
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を追加
-  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => void;
+  onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string, magicType?: 'fire' | 'ice' | 'thunder') => void;
   // ▲▲▲ ここまで ▲▲▲
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
@@ -790,7 +790,7 @@ export const useFantasyGameEngine = ({
           const damageDealt = (Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage) * (isSpecialAttack ? 2 : 1);
           const willBeDefeated = (monsterToUpdate.currentHp - damageDealt) <= 0;
           
-          onChordCorrect(completed.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completed.id);
+          onChordCorrect(completed.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completed.id, completed.magicType);
           monsterToUpdate.currentHp -= damageDealt;
         });
 

@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { MidiDeviceSelector } from '../ui/MidiDeviceManager';
 import { devLog } from '@/utils/logger';
-import { FantasySoundManager as FSM } from './FantasySoundManager';
+// import { FantasySoundManager as FSM } from './FantasySoundManager';
 
 interface FantasySettingsModalProps {
   isOpen: boolean;
@@ -62,7 +62,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     
     // 効果音音量が変更された場合は即座に反映
     if (key === 'seVolume') {
-      FSM.setVolume(value);
+      // FSM.setVolume(value); // 一時的にコメントアウト
     }
   };
 

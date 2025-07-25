@@ -50,13 +50,8 @@ export class FantasySoundManager {
 
   // ─────────────────────────────────────────────
   // fields
-  private readonly audioMap: Record<string, LoadedAudio> = {
-    enemy_attack: { base: new Audio(), ready: false },
-    fire:          { base: new Audio(), ready: false },
-    ice:           { base: new Audio(), ready: false },
-    thunder:       { base: new Audio(), ready: false }
-  };
-
+  private audioMap: Record<string, LoadedAudio> = {};
+  
   /** マスターボリューム (0‑1) */
   private _volume = 0.8;
   /** 初期化済みフラグ */
@@ -65,14 +60,47 @@ export class FantasySoundManager {
   // ─────────────────────────────────────────────
   // public static wrappers – 使いやすいように static 経由のエイリアスを用意
   public static async init(defaultVolume = 0.8) { return this.instance._init(defaultVolume); }
-  public static playMagic(type: MagicSeType) { return this.instance._playMagic(type); }
-  public static playEnemyAttack() { return this.instance._playSe('enemy_attack'); }
-  public static setVolume(v: number) { return this.instance._setVolume(v); }
-  public static getVolume() { return this.instance._volume; }
+  public static playMagic(type: MagicSeType) { 
+    try {
+      return this.instance._playMagic(type);
+    } catch (error) {
+      console.warn('[FantasySoundManager] playMagic failed:', error);
+    }
+  }
+  public static playEnemyAttack() { 
+    try {
+      return this.instance._playSe('enemy_attack');
+    } catch (error) {
+      console.warn('[FantasySoundManager] playEnemyAttack failed:', error);
+    }
+  }
+  public static setVolume(v: number) { 
+    try {
+      return this.instance._setVolume(v);
+    } catch (error) {
+      console.warn('[FantasySoundManager] setVolume failed:', error);
+    }
+  }
+  public static getVolume() { 
+    try {
+      return this.instance._volume;
+    } catch (error) {
+      console.warn('[FantasySoundManager] getVolume failed:', error);
+      return 0.8;
+    }
+  }
 
   // ─────────────────────────────────────────────
   // private constructor – outsider cannot new
-  private constructor () {/* nop */}
+  private constructor () {
+    // audioMapを初期化
+    this.audioMap = {
+      enemy_attack: { base: new Audio(), ready: false },
+      fire:          { base: new Audio(), ready: false },
+      ice:           { base: new Audio(), ready: false },
+      thunder:       { base: new Audio(), ready: false }
+    };
+  }
 
   // ─────────────────────────────────────────────
   // private helpers
@@ -133,6 +161,12 @@ export class FantasySoundManager {
   }
 
   private _playSe(key: keyof typeof this.audioMap) {
+    // 安全性チェック
+    if (!this.audioMap || !this.audioMap[key]) {
+      console.warn(`[FantasySoundManager] Audio not found: ${key}`);
+      return;
+    }
+    
     const entry = this.audioMap[key];
     if (!entry) return;
 

@@ -12,7 +12,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
-import { FantasySoundManager as FSM } from './FantasySoundManager';
+// import { FantasySoundManager as FSM } from './FantasySoundManager';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -131,11 +131,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         });
         
         // FantasySoundManagerの初期化
-        FSM.init(settings.fantasySeVolume || 0.8).then(() => {
-          devLog.debug('🎵 FantasySoundManager初期化完了: 音量', settings.fantasySeVolume || 0.8);
-        }).catch(error => {
-          console.error('FantasySoundManager initialization failed:', error);
-        });
+        // FSM.init(settings.fantasySeVolume || 0.8).then(() => {
+        //   devLog.debug('🎵 FantasySoundManager初期化完了: 音量', settings.fantasySeVolume || 0.8);
+        // }).catch(error => {
+        //   console.error('FantasySoundManager initialization failed:', error);
+        // });
         
         // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
         // 接続処理は下のuseEffectに任せる。
@@ -208,19 +208,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を受け取り、新しいPIXIメソッドを呼び出す
-  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
-    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
+  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string, magicType?: 'fire' | 'ice' | 'thunder') => {
+    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId, magicType });
     
     if (fantasyPixiInstance) {
       fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
     }
     
-    // 魔法効果音を再生（魔法タイプによって音を変える）
-    const magicType = gameState?.activeMonsters?.find(m => m.id === monsterId)?.magicType;
+    // 魔法効果音を再生
     if (magicType) {
-      FSM.playMagic(magicType);
+      // FSM.playMagic(magicType); // 一時的にコメントアウト
+    } else {
+      // 魔法タイプが指定されていない場合はランダムに選択
+      const magicTypes: ('fire' | 'ice' | 'thunder')[] = ['fire', 'ice', 'thunder'];
+      const randomType = magicTypes[Math.floor(Math.random() * magicTypes.length)];
+      // FSM.playMagic(randomType); // 一時的にコメントアウト
     }
-  }, [fantasyPixiInstance, gameState]);
+  }, [fantasyPixiInstance]);
   // ▲▲▲ ここまで ▲▲▲
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
@@ -237,7 +241,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
     // 敵の攻撃効果音を再生
-    FSM.playEnemyAttack();
+    // FSM.playEnemyAttack(); // 一時的にコメントアウト
     
     // confetti削除 - 何もしない
     
@@ -765,222 +769,4 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       {magicName && magicName.monsterId === monster.id && (
                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
                           {/* ▼▼▼ 変更点 ▼▼▼ */}
-                          <div className={`font-bold font-dotgothic16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
-                            magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                          }`}>
-                          {/* ▲▲▲ ここまで ▲▲▲ */}
-                            {magicName.name}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* 行動ゲージ */}
-                      <div 
-                        ref={el => {
-                          if (el) gaugeRefs.current.set(monster.id, el);
-                        }}
-                        className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
-                      >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
-                        />
-                      </div>
-                      
-                      {/* モンスター名 */}
-                      <div className="text-white text-xs font-bold text-center mb-1">
-                        {monster.name}
-                      </div>
-                      
-                      {/* HPゲージ */}
-                      <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
-                        <div
-                          className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
-                          style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
-                          {monster.currentHp}/{monster.maxHp}
-                        </div>
-                      </div>
-                    </div>
-                    );
-                  })}
-              </div>
-            ) : null}
-            
-            {/* プレイヤーのHP表示とSPゲージ */}
-          </div>
-        </div>
-        
-        {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
-          <div className="mb-1 text-right">
-            <div className="text-white text-xs">NEXT:</div>
-            <div className="text-blue-300 text-sm font-bold">
-              {getNextChord()}
-            </div>
-          </div>
-        )}
-      </div>
-      
-      {/* HP・SPゲージを固定配置 */}
-      <div className="absolute left-2 bottom-2 z-50
-                  pointer-events-none bg-black/40 rounded px-2 py-1">
-        <div className="flex space-x-0.5">
-          {renderHearts(gameState.playerHp, stage.maxHp)}
-        </div>
-      </div>
-      <div className="absolute right-2 bottom-2 z-50
-                  pointer-events-none bg-black/40 rounded px-2 py-1">
-        {renderSpGauge(gameState.playerSp)}
-      </div>
-      
-      {/* ===== ピアノ鍵盤エリア ===== */}
-      <div 
-        ref={gameAreaRef}
-        className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
-        style={{ height: '120px' }} // ★★★ 高さを120pxに固定 ★★★
-      >
-        {(() => {
-          // スクロール判定ロジック（GameEngine.tsxと同様）
-          const VISIBLE_WHITE_KEYS = 14; // モバイル表示時の可視白鍵数
-          const TOTAL_WHITE_KEYS = 52; // 88鍵中の白鍵数
-          const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
-          const adjustedThreshold = 1100; // PC判定のしきい値
-          
-          let pixiWidth: number;
-          let needsScroll: boolean;
-          
-          if (gameAreaWidth >= adjustedThreshold) {
-            // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
-            pixiWidth = gameAreaWidth;
-            needsScroll = false;
-          } else {
-            // モバイル等、画面が狭い → 横スクロール表示
-            const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
-            pixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
-            needsScroll = true;
-          }
-          
-          if (needsScroll) {
-            // スクロールが必要な場合
-            return (
-              <div 
-                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
-                style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                  scrollSnapType: 'x proximity',
-                  scrollBehavior: 'smooth',
-                  width: '100%',
-                  touchAction: 'pan-x', // 横スクロールのみを許可
-                  overscrollBehavior: 'contain' // スクロールの境界を制限
-                }}
-              >
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          } else {
-            // スクロールが不要な場合（全画面表示）
-            return (
-              <div className="absolute inset-0 overflow-hidden">
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          }
-        })()}
-        
-        {/* 入力中のノーツ表示 */}
-        
-      </div>
-      
-      {/* エフェクト表示は削除 - PIXI側で処理 */}
-      
-      {/* デバッグ情報（FPSモニター削除済み） */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs p-2 rounded z-40">
-          <div>Q: {gameState.currentQuestionIndex + 1}/{gameState.totalQuestions}</div>
-          <div>HP: {gameState.playerHp}/{stage.maxHp}</div>
-          <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>
-          <div>スコア: {gameState.score}</div>
-          <div>正解数: {gameState.correctAnswers}</div>
-          <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
-          <div>SP: {gameState.playerSp}</div>
-          
-          {/* ゲージ強制満タンテストボタン */}
-          <button
-            onClick={() => {
-              devLog.debug('⚡ ゲージ強制満タンテスト実行');
-              // ゲージを100にして敵攻撃をトリガー
-              handleEnemyAttack();
-            }}
-            className="mt-2 px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs"
-          >
-            敵攻撃テスト
-          </button>
-        </div>
-      )}
-      
-      {/* 設定モーダル */}
-      <FantasySettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        onSettingsChange={(settings) => {
-          devLog.debug('⚙️ ファンタジー設定変更:', settings);
-          setShowGuide(settings.showGuide);
-          
-          // ★★★ 音量更新処理を追加 ★★★
-          // BGM音量が変更されたら、グローバル音量を更新
-          if (settings.bgmVolume !== undefined) {
-            // gameStoreの音量設定も更新
-            updateSettings({ midiVolume: settings.bgmVolume });
-            
-            // グローバル音量を更新
-            import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
-              updateGlobalVolume(settings.bgmVolume);
-              devLog.debug(`🎵 ファンタジーモードのBGM音量を更新: ${settings.bgmVolume}`);
-            }).catch(error => {
-              console.error('MidiController import failed:', error);
-            });
-          }
-          
-          // 効果音音量が変更されたら、gameStoreを更新
-          if (settings.seVolume !== undefined) {
-            updateSettings({ fantasySeVolume: settings.seVolume });
-            devLog.debug(`🎵 ファンタジーモードの効果音音量を更新: ${settings.seVolume}`);
-          }
-        }}
-        // gameStoreの値を渡す
-        midiDeviceId={settings.selectedMidiDevice}
-        onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
-        isMidiConnected={isMidiConnected}
-        bgmVolume={settings.midiVolume}
-        seVolume={settings.fantasySeVolume}
-      />
-      
-      {/* オーバーレイ表示 */}           {/* ★★★ add */}
-      {overlay && (
-        <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none">
-          <span className="font-dotgothic16 text-6xl text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
-            {overlay.text}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default FantasyGameScreen;
+                          <div className={`
