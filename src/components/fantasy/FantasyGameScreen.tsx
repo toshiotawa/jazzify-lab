@@ -221,11 +221,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       if (attackingMonsterId) {
         // マルチモンスター対応：特定のモンスターにエフェクトを適用
         console.log('🎯 Calling updateMonsterAttackingById with:', attackingMonsterId);
-        // ★ 50ms 程度ディレイをあける
+        // ★ 100ms 程度ディレイをあける（スプライト生成を待つ）
         setTimeout(() => {
           fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, true);
           setTimeout(() => fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, false), 600);
-        }, 50);
+        }, 100);
       } else {
         // 互換性のため：従来の単体モンスターエフェクト
         console.log('⚠️ No attackingMonsterId, using legacy updateMonsterAttacking');

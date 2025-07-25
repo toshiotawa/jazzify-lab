@@ -1627,11 +1627,19 @@ export class FantasyPIXIInstance {
     !s || (s as any).destroyed || !(s as any).transform;
 
   // マルチモンスター用攻撃エフェクト
-  updateMonsterAttackingById(monsterId: string, isAttacking: boolean): void {
+  updateMonsterAttackingById(
+    monsterId: string,
+    isAttacking: boolean,
+    retry = 0
+  ): void {
+    console.log('🔥 attack effect fired for', monsterId);
+    
     const monsterData = this.monsterSprites.get(monsterId);
     if (!monsterData) {
-      // スプライトがまだ無ければ1フレーム後に再試行
-      requestAnimationFrame(() => this.updateMonsterAttackingById(monsterId, isAttacking));
+      if (retry < 30) {                       // 最大 30 フレーム待つ
+        requestAnimationFrame(() =>
+          this.updateMonsterAttackingById(monsterId, isAttacking, retry + 1));
+      }
       return;
     }
     
@@ -1650,12 +1658,18 @@ export class FantasyPIXIInstance {
       // 攻撃エフェクト
       monsterData.visualState.tint = 0xFF6B6B;
       // スプライトのscaleを直接変更（visualStateのscaleではなく）
-      monsterData.sprite.scale.set(monsterData.gameState.originalScale * 1.5);
+      monsterData.sprite.scale.set(monsterData.gameState.originalScale * 2.0);
       
       // 怒りマーク表示（一度だけ生成・再利用）
       if (!monsterData.ui?.anger) {
-        const anger = new PIXI.Text('💢', { fontSize: 48 });
+        const anger = new PIXI.Text('💢', {
+          fontSize: 48,
+          fill: 0xFF0000,
+          stroke: 0x000000,
+          strokeThickness: 4
+        });
         anger.anchor.set(0.5);
+        anger.zIndex = 2000;             // ダメージ数値(1000)より手前
         monsterData.ui = { ...monsterData.ui, anger };
         this.uiContainer.addChild(anger);
       }
