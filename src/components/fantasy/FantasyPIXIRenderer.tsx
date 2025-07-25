@@ -93,6 +93,19 @@ interface MagicCircle {
   type: 'success' | 'failure';
 }
 
+interface ShockwaveEffect {
+  id: string;
+  startX: number;
+  startY: number;
+  targetX: number;
+  targetY: number;
+  currentX: number;
+  currentY: number;
+  progress: number;
+  color: number;
+  graphic: PIXI.Graphics;
+}
+
 // ===== 魔法タイプ定義 =====
 const MAGIC_TYPES: Record<string, MagicType> = {
   fire: { // フレア -> インフェルノ
@@ -143,6 +156,7 @@ interface MonsterSpriteData {
   position: 'A' | 'B' | 'C';
   ui?: {
     anger?: PIXI.Text;
+    outline?: PIXI.Graphics;
   };
 }
 
@@ -187,6 +201,7 @@ export class FantasyPIXIInstance {
   private damageData: Map<string, DamageNumberData> = new Map();
   private chordNameText: PIXI.Text | null = null;
   private angerMark: PIXI.Text | null = null;
+  private shockwaveEffects: Map<string, ShockwaveEffect> = new Map();
   
   private currentMagicType: string = 'fire';
   // ★★★ MONSTER_EMOJI と loadEmojiTextures を削除、またはコメントアウト ★★★
@@ -244,6 +259,7 @@ export class FantasyPIXIInstance {
     
     // ソート可能にする
     this.uiContainer.sortableChildren = true;
+    this.effectContainer.sortableChildren = true;
     
     // z-indexの設定（背景→モンスター→パーティクル→エフェクト→UI）
     this.app.stage.addChild(this.backgroundContainer);
@@ -1246,6 +1262,7 @@ export class FantasyPIXIInstance {
       this.updateMonsterAnimation();
       this.updateMagicCircles();
       this.updateDamageNumbers();
+      this.updateShockwaves(); // 衝撃波の更新
       this.updateScreenShake(); // 画面揺れの更新を追加
       
       this.animationFrameId = requestAnimationFrame(animate);
@@ -1538,6 +1555,21 @@ export class FantasyPIXIInstance {
       });
       this.damageNumbers.clear();
       this.damageData.clear();
+      
+      // 衝撃波エフェクトのクリーンアップ
+      this.shockwaveEffects.forEach((shockwave, id) => {
+        try {
+          if (shockwave.graphic && !shockwave.graphic.destroyed) {
+            if (shockwave.graphic.parent) {
+              shockwave.graphic.parent.removeChild(shockwave.graphic);
+            }
+            shockwave.graphic.destroy();
+          }
+        } catch (error) {
+          devLog.debug(`⚠️ 衝撃波削除エラー ${id}:`, error);
+        }
+      });
+      this.shockwaveEffects.clear();
     } catch (error) {
       devLog.debug('⚠️ エフェクト削除エラー:', error);
     }
@@ -1625,6 +1657,100 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  // 衝撃波をHPバーに向けて生成
+  private createShockwaveToHP(startX: number, startY: number, color: number): void {
+    if (this.isDestroyed) return;
+    
+    const id = `shockwave_${Date.now()}_${Math.random()}`;
+    
+    // HPバーの位置（左下）を計算
+    // FantasyGameScreenでは left-2 bottom-2 に配置されている
+    const targetX = 50; // 左端から少し内側
+    const targetY = this.app.view.height - 50; // 下端から少し上
+    
+    // 衝撃波のグラフィック作成
+    const graphic = new PIXI.Graphics();
+    graphic.zIndex = 2000; // 高い優先度で表示
+    this.effectContainer.addChild(graphic);
+    
+    const shockwave: ShockwaveEffect = {
+      id,
+      startX,
+      startY,
+      targetX,
+      targetY,
+      currentX: startX,
+      currentY: startY,
+      progress: 0,
+      color,
+      graphic
+    };
+    
+    this.shockwaveEffects.set(id, shockwave);
+  }
+
+  // 衝撃波の更新
+  private updateShockwaves(): void {
+    if (this.isDestroyed) return;
+    
+    for (const [id, shockwave] of this.shockwaveEffects.entries()) {
+      // 進行度を更新（0.3秒で到達）
+      shockwave.progress += 0.016 / 0.3; // 60FPS想定、0.3秒で完了
+      
+      if (shockwave.progress >= 1) {
+        // エフェクト終了
+        if (shockwave.graphic.parent) {
+          shockwave.graphic.parent.removeChild(shockwave.graphic);
+        }
+        shockwave.graphic.destroy();
+        this.shockwaveEffects.delete(id);
+        continue;
+      }
+      
+      // イージング（加速して減速）
+      const easeProgress = shockwave.progress < 0.5
+        ? 2 * shockwave.progress * shockwave.progress
+        : 1 - Math.pow(-2 * shockwave.progress + 2, 2) / 2;
+      
+      // 現在位置を計算
+      shockwave.currentX = shockwave.startX + (shockwave.targetX - shockwave.startX) * easeProgress;
+      shockwave.currentY = shockwave.startY + (shockwave.targetY - shockwave.startY) * easeProgress;
+      
+      // グラフィックを更新
+      const graphic = shockwave.graphic;
+      graphic.clear();
+      
+      // 波紋のサイズと透明度
+      const maxRadius = 30;
+      const currentRadius = maxRadius * (1 - shockwave.progress);
+      const alpha = 0.8 * (1 - shockwave.progress);
+      
+      // 内側の光る円
+      graphic.beginFill(shockwave.color, alpha * 0.5);
+      graphic.drawCircle(shockwave.currentX, shockwave.currentY, currentRadius * 0.5);
+      graphic.endFill();
+      
+      // 外側のリング
+      graphic.lineStyle(3, shockwave.color, alpha);
+      graphic.drawCircle(shockwave.currentX, shockwave.currentY, currentRadius);
+      
+      // トレイル効果（軌跡）
+      if (shockwave.progress > 0.1) {
+        const trailLength = 5;
+        for (let i = 1; i <= trailLength; i++) {
+          const trailProgress = Math.max(0, easeProgress - (i * 0.05));
+          const trailX = shockwave.startX + (shockwave.targetX - shockwave.startX) * trailProgress;
+          const trailY = shockwave.startY + (shockwave.targetY - shockwave.startY) * trailProgress;
+          const trailAlpha = alpha * (1 - i / trailLength) * 0.3;
+          
+          graphic.beginFill(shockwave.color, trailAlpha);
+          graphic.drawCircle(trailX, trailY, 5);
+          graphic.endFill();
+        }
+      }
+    }
+  }
+
   // マルチモンスター用攻撃エフェクト
   updateMonsterAttackingById(monsterId: string, isAttacking: boolean): void {
     const monsterData = this.monsterSprites.get(monsterId);
@@ -1644,6 +1770,34 @@ export class FantasyPIXIInstance {
       monsterData.visualState.tint = 0xFF6B6B;
       // スプライトのscaleを直接変更（visualStateのscaleではなく）
       monsterData.sprite.scale.set(monsterData.gameState.originalScale * 1.8); // 150%→180%に拡大
+      
+      // 赤いアウトライン表示（一度だけ生成・再利用）
+      if (!monsterData.ui?.outline) {
+        const outline = new PIXI.Graphics();
+        outline.zIndex = monsterData.sprite.zIndex - 1; // スプライトの後ろに配置
+        monsterData.ui = { ...monsterData.ui, outline };
+        this.monsterContainer.addChild(outline);
+      }
+      
+      if (monsterData.ui?.outline) {
+        const outline = monsterData.ui.outline;
+        outline.clear();
+        outline.lineStyle(6, 0xFF0000, 1); // 赤い太い線
+        outline.beginFill(0xFF0000, 0.2); // 薄い赤で塗りつぶし
+        
+        // スプライトのバウンディングボックスを取得
+        const bounds = monsterData.sprite.getBounds();
+        const padding = 10;
+        outline.drawRoundedRect(
+          bounds.x - padding,
+          bounds.y - padding,
+          bounds.width + padding * 2,
+          bounds.height + padding * 2,
+          15
+        );
+        outline.endFill();
+        outline.visible = true;
+      }
       
       // 怒りマーク表示（一度だけ生成・再利用）
       if (!monsterData.ui?.anger) {
@@ -1665,6 +1819,9 @@ export class FantasyPIXIInstance {
       
       // スプライトの色を即座に適用
       monsterData.sprite.tint = monsterData.visualState.tint;
+      
+      // 衝撃波エフェクトを生成（敵からプレイヤーHPへ）
+      this.createShockwaveToHP(monsterData.sprite.x, monsterData.sprite.y, 0xFF0000);
 
       // エフェクトを戻す
       setTimeout(() => {
@@ -1675,6 +1832,10 @@ export class FantasyPIXIInstance {
           
           if (monsterData.ui?.anger) {
             monsterData.ui.anger.visible = false;
+          }
+          
+          if (monsterData.ui?.outline) {
+            monsterData.ui.outline.visible = false;
           }
           
           // 攻撃状態をリセット
