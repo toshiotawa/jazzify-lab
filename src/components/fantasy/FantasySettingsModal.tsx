@@ -16,12 +16,14 @@ interface FantasySettingsModalProps {
   onMidiDeviceChange?: (deviceId: string | null) => void;
   isMidiConnected?: boolean;
   volume?: number; // 音量設定をpropsで受け取る
+  sfxVolume?: number; // 効果音音量設定をpropsで受け取る
 }
 
 interface FantasySettings {
   midiDeviceId: string | null;
   volume: number;
   showGuide: boolean;
+  sfxVolume: number; // 追加: 効果音音量
 }
 
 const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
@@ -31,12 +33,14 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   midiDeviceId = null,
   onMidiDeviceChange,
   isMidiConnected = false,
-  volume = 0.8 // デフォルト80%音量
+  volume = 0.8, // デフォルト80%音量
+  sfxVolume = 0.8 // デフォルト80%効果音音量
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
     volume: volume, // propsから受け取った音量を使用
-    showGuide: false
+    showGuide: false,
+    sfxVolume: sfxVolume // propsから受け取った効果音音量を使用
   });
   
   // propsのmidiDeviceIdが変更されたらsettingsも更新
@@ -48,6 +52,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   useEffect(() => {
     setSettings(prev => ({ ...prev, volume: volume }));
   }, [volume]);
+
+  // propsのsfxVolumeが変更されたらsettingsも更新
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, sfxVolume: sfxVolume }));
+  }, [sfxVolume]);
 
   // 設定変更ハンドラー
   const handleSettingChange = (key: keyof FantasySettings, value: any) => {
@@ -105,6 +114,22 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               step="0.1"
               value={settings.volume}
               onChange={(e) => handleSettingChange('volume', parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+          </div>
+
+          {/* 効果音音量設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              効果音音量: {Math.round(settings.sfxVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={settings.sfxVolume}
+              onChange={(e) => handleSettingChange('sfxVolume', parseFloat(e.target.value))}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
           </div>
