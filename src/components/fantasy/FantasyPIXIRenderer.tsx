@@ -1039,9 +1039,9 @@ export class FantasyPIXIInstance {
     
     const damageText = new PIXI.Text(damage.toString(), {
       fontSize: 36,
-      fill: 0xFFFFFF,
+      fill: color, // 魔法タイプの色を使用
       fontWeight: 'bold',
-      stroke: 0x000000,
+      stroke: 0xFFFFFF, // 白い縁取りに変更
       strokeThickness: 4,
       dropShadow: true,
       dropShadowBlur: 4,
@@ -1049,7 +1049,7 @@ export class FantasyPIXIInstance {
     });
     
     damageText.anchor.set(0.5);
-    damageText.x = x + (Math.random() - 0.5) * 30;
+    damageText.x = x + (Math.random() - 0.5) * 40; // -20〜+20pxのランダムオフセット
     damageText.y = y;
     damageText.zIndex = 1000;
     
@@ -1060,8 +1060,8 @@ export class FantasyPIXIInstance {
       startTime: Date.now(),
       startY: damageText.y,
       velocity: 0,
-      life: 1500,
-      maxLife: 1500
+      life: 1000, // 1秒に変更
+      maxLife: 1000
     });
   }
 
@@ -1393,21 +1393,20 @@ export class FantasyPIXIInstance {
       }
       
       try {
-        // 上昇アニメーション
-        const elapsedTime = 1500 - damageNumberData.life;
+        // 落下アニメーション
+        const elapsedTime = damageNumberData.maxLife - damageNumberData.life;
         damageNumberData.life -= 16; // 60FPS想定
         
         // スプライト更新（nullチェック強化）
         if (damageText.transform && !damageText.destroyed) {
-          // 位置は固定
-          damageText.y = damageNumberData.startY;
+          // ゆっくり下降
+          damageText.y = damageNumberData.startY + (elapsedTime * 0.05); // 50px/s の速度で落下
           
-          // フェードアウト（最初の500msは不透明、その後フェードアウト）
-          if (elapsedTime < 500) {
-            damageText.alpha = 1;
-          } else {
-            damageText.alpha = (damageNumberData.life - 0) / (damageNumberData.maxLife - 500);
-          }
+          // 横揺れ効果
+          damageText.x = damageText.x + Math.sin(elapsedTime * 0.02) * 0.5;
+          
+          // フェードアウト
+          damageText.alpha = damageNumberData.life / damageNumberData.maxLife;
           
           // スケール固定
           damageText.scale.set(1);
@@ -1644,14 +1643,16 @@ export class FantasyPIXIInstance {
       // 攻撃エフェクト
       monsterData.visualState.tint = 0xFF6B6B;
       // スプライトのscaleを直接変更（visualStateのscaleではなく）
-      monsterData.sprite.scale.set(monsterData.gameState.originalScale * 1.5);
+      monsterData.sprite.scale.set(monsterData.gameState.originalScale * 1.8); // 150%→180%に拡大
       
       // 怒りマーク表示（一度だけ生成・再利用）
       if (!monsterData.ui?.anger) {
         const anger = new PIXI.Text('💢', { fontSize: 48 });
         anger.anchor.set(0.5);
+        anger.zIndex = 9999; // 最前面に表示
         monsterData.ui = { ...monsterData.ui, anger };
         this.uiContainer.addChild(anger);
+        this.uiContainer.sortableChildren = true;
       }
       if (monsterData.ui?.anger) {
         monsterData.ui.anger.visible = true;
@@ -1679,7 +1680,7 @@ export class FantasyPIXIInstance {
           // 攻撃状態をリセット
           monsterData.gameState.isAttacking = false;
         }
-      }, 600);
+      }, 750); // 600ms→750msに延長
     }
   }
 }

@@ -66,7 +66,7 @@ interface FantasyEffectsRef {
   triggerScreenShake: (intensity: number, duration: number) => void;
   triggerMonsterAnimation: (x: number, y: number, type: 'idle' | 'attack' | 'damage') => string;
   triggerMagicText: (x: number, y: number, text: string, color?: string) => string;
-  triggerDamageText: (x: number, y: number, damage: number, isCritical?: boolean) => string;
+  triggerDamageText: (x: number, y: number, damage: number, isCritical?: boolean, color?: string) => string;
   clearAllEffects: () => void;
 }
 
@@ -111,7 +111,7 @@ const EFFECT_CONFIGS = {
     strokeThickness: 2
   },
   damageText: {
-    duration: 1000,
+    duration: 1000, // 1秒
     fontSize: 28,
     strokeColor: '#ffffff',
     strokeThickness: 4
@@ -231,17 +231,18 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
     x: number, 
     y: number, 
     damage: number, 
-    isCritical: boolean = false
+    isCritical: boolean = false,
+    color?: string // 魔法タイプの色を追加
   ): string => {
     const id = `damage_text_${Date.now()}_${Math.random()}`;
     const config = EFFECT_CONFIGS.damageText;
     
     const newText: DamageText = {
       id,
-      x,
+      x: x + (Math.random() - 0.5) * 40, // -20〜+20pxのランダムオフセット
       y,
       value: damage,
-      color: isCritical ? '#FF0000' : '#FF6B6B',
+      color: color || (isCritical ? '#FF0000' : '#FF6B6B'), // 色指定がある場合はそれを使用
       alpha: 1,
       life: config.duration,
       maxLife: config.duration
@@ -366,8 +367,8 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
           ...text,
           life: text.life - deltaTime,
           alpha: text.life / text.maxLife,
-          y: text.y - deltaTime * 0.08, // 上に移動
-          x: text.x + Math.sin(text.life * 0.01) * 2 // 左右に揺れる
+          y: text.y + deltaTime * 0.05, // ゆっくり下降
+          x: text.x + Math.sin((text.maxLife - text.life) * 0.02) * 10 // 毎回少し揺らす
         }))
         .filter(text => text.life > 0);
     });
