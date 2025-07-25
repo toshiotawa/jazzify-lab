@@ -12,6 +12,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { preloadAllSFX, playSFX, getRandomMagicSFX, SFX_PATHS } from '@/utils/audio';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -40,6 +41,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 設定状態を管理（初期値はstageから取得）
   const [showGuide, setShowGuide] = useState(stage.showGuide);
+  const [sfxVolume, setSfxVolume] = useState(0.8); // 効果音音量状態を追加
   
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
@@ -80,6 +82,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     setShowGuide(stage.showGuide);
   }, [stage.showGuide]);
+  
+  // 効果音のプリロード
+  useEffect(() => {
+    preloadAllSFX().then(() => {
+      devLog.debug('✅ ファンタジーモード効果音プリロード完了');
+    }).catch(error => {
+      console.error('効果音プリロードエラー:', error);
+    });
+  }, []);
   
   // MIDI入力処理用のRef（コールバックを保持）
   const handleNoteInputRef = useRef<(note: number) => void>();
@@ -195,10 +206,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
     devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
     
+    // 魔法効果音を再生
+    const magicSFX = getRandomMagicSFX();
+    playSFX(magicSFX, sfxVolume);
+    
     if (fantasyPixiInstance) {
       fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
     }
-  }, [fantasyPixiInstance]);
+  }, [fantasyPixiInstance, sfxVolume]);
   // ▲▲▲ ここまで ▲▲▲
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
@@ -213,6 +228,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
+    
+    // 敵の攻撃効果音を再生
+    playSFX(SFX_PATHS.ENEMY_ATTACK, sfxVolume);
     
     // ★★★ 花火エフェクトを追加 ★★★
     if (attackingMonsterId) {
@@ -252,7 +270,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setDamageShake(true);
     setTimeout(() => setDamageShake(false), 500);
     
-  }, [fantasyPixiInstance]);
+  }, [fantasyPixiInstance, sfxVolume]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
@@ -908,6 +926,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           devLog.debug('⚙️ ファンタジー設定変更:', settings);
           setShowGuide(settings.showGuide);
           
+          // 効果音音量の更新
+          if (settings.sfxVolume !== undefined) {
+            setSfxVolume(settings.sfxVolume);
+          }
+          
           // ★★★ 音量更新処理を追加 ★★★
           // 音量設定が変更されたら、グローバル音量を更新
           if (settings.volume !== undefined) {
@@ -926,6 +949,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // gameStoreの値を渡す
         midiDeviceId={settings.selectedMidiDevice}
         volume={settings.midiVolume} // gameStoreのMIDI音量を渡す
+        sfxVolume={sfxVolume} // 効果音音量を渡す
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
