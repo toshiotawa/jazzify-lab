@@ -140,8 +140,9 @@ interface MonsterSpriteData {
   gameState: MonsterGameState;
   position: 'A' | 'B' | 'C';
   gauge: number; // 追加：ゲージ値を保持
-  angerMark?: PIXI.Sprite; // 追加：怒りマーク（SVGスプライト）
+  angerMark?: PIXI.Sprite | PIXI.Text; // 追加：怒りマーク（SVGスプライトまたはテキスト）
   outline?: PIXI.Graphics; // 追加：赤い輪郭
+  lastAttackTime?: number; // 追加：最後に攻撃した時刻
 }
 
 export class FantasyPIXIInstance {
@@ -172,7 +173,7 @@ export class FantasyPIXIInstance {
   /* 既存のフィールドはこのまま */
   private monsterSprite: PIXI.Sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
   private monsterVisualState: MonsterVisualState = {
-    x: 0, y: 0, scale: 0.3, rotation: 0, tint: 0xffffff, alpha: 1, visible: false  // scale を 1 から 0.3 に変更
+    x: 0, y: 0, scale: 0.2, rotation: 0, tint: 0xffffff, alpha: 1, visible: false  // scale を 0.3 から 0.2 に変更（より小さく）
   };
   
   // マルチモンスター対応
@@ -403,7 +404,7 @@ export class FantasyPIXIInstance {
         alpha: 1.0,
         visible: true,
         tint: 0xFFFFFF,
-        scale: 0.3  // 1.0 から 0.3 に変更
+        scale: 0.2  // 0.3 から 0.2 に変更（より小さく）
       };
       
       // ゲーム状態をリセット
@@ -450,7 +451,7 @@ export class FantasyPIXIInstance {
         alpha: 1.0,
         visible: true,
         tint: 0xFFFFFF,
-        scale: 0.3  // 1.0 から 0.3 に変更
+        scale: 0.2  // 0.3 から 0.2 に変更（より小さく）
       };
       
       // スプライトの属性を更新
@@ -500,7 +501,7 @@ export class FantasyPIXIInstance {
         const visualState: MonsterVisualState = {
           x: this.getPositionX(i, sortedMonsters.length),
           y: 100, // Y座標を100pxに固定（200px高さの中央）
-          scale: 0.3,  // 1.0 から 0.3 に変更
+          scale: 0.2,  // 0.3 から 0.2 に変更（より小さく）
           rotation: 0,
           tint: 0xFFFFFF,
           alpha: 1.0,
@@ -532,7 +533,13 @@ export class FantasyPIXIInstance {
       }
       
       // ゲージ値を更新
+      const prevGauge = monsterData.gauge;
       monsterData.gauge = monster.gauge;
+      
+      // ゲージが100から0になった場合は攻撃したと判定
+      if (prevGauge >= 100 && monster.gauge === 0) {
+        monsterData.lastAttackTime = Date.now();
+      }
       
       // 位置を更新
       monsterData.visualState.x = this.getPositionX(i, sortedMonsters.length);
@@ -1249,19 +1256,13 @@ export class FantasyPIXIInstance {
         // ストアから怒り状態を取得
         const enragedTable = useEnemyStore.getState().enraged;
         
+        // 怒りマークの相対位置（スプライト中心基準）
+        const ANGER_OFFSET = { x: 80, y: -80 }; // さらに右上へ（アイコンに重ならないように）
+        
         if (enragedTable[id]) {
           // ---- 怒り演出 ----
-          visualState.scale = 0.35; // 巨大化
+          visualState.scale = 0.25; // 巨大化（0.2→0.25）
           sprite.tint = 0xFFCCCC;
-          
-          // 赤い輪郭を追加（まだない場合）
-          if (!monsterData.outline) {
-            const outline = new PIXI.Graphics();
-            outline.lineStyle(4, 0xFF0000, 0.8);
-            outline.drawCircle(0, 0, 80);
-            sprite.addChild(outline);
-            monsterData.outline = outline;
-          }
           
           // 怒りマークを追加（まだない場合）
           if (!monsterData.angerMark) {
@@ -1269,10 +1270,28 @@ export class FantasyPIXIInstance {
             if (angerTexture) {
               const angerMark = new PIXI.Sprite(angerTexture);
               angerMark.anchor.set(0.5);
-              angerMark.width = 48;  // サイズ調整
-              angerMark.height = 48;
-              angerMark.x = sprite.width * 0.6;   // 右側
-              angerMark.y = -sprite.height * 0.4; // 少し上
+              angerMark.width = 72;  // サイズ調整（もっと大きく）
+              angerMark.height = 72;
+              angerMark.position.set(
+                ANGER_OFFSET.x,
+                ANGER_OFFSET.y
+              );
+              sprite.addChild(angerMark);
+              monsterData.angerMark = angerMark;
+            } else {
+              // テクスチャが無い場合は絵文字でフォールバック
+              const angerMark = new PIXI.Text('💢', {
+                fontFamily: 'DotGothic16',
+                fontSize: 54,  // もっと大きく
+                fill: 0xFF0000,
+                stroke: 0x000000,
+                strokeThickness: 4,
+              });
+              angerMark.anchor.set(0.5);
+              angerMark.position.set(
+                ANGER_OFFSET.x,
+                ANGER_OFFSET.y
+              );
               sprite.addChild(angerMark);
               monsterData.angerMark = angerMark;
             }
@@ -1282,17 +1301,17 @@ export class FantasyPIXIInstance {
           const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
           sprite.scale.set(visualState.scale * pulse);
           
+          // 攻撃直後のモンスター赤フラッシュ
+          if (monsterData.lastAttackTime && Date.now() - monsterData.lastAttackTime < 150) {
+            sprite.tint = 0xFF4444; // 真紅
+          }
+          
         } else {
           // ---- 通常状態 ----
-          visualState.scale = 0.3;
+          visualState.scale = 0.2;  // 0.3から0.2に縮小
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
           
           // 怒りエフェクトを削除
-          if (monsterData.outline) {
-            sprite.removeChild(monsterData.outline);
-            monsterData.outline.destroy();
-            monsterData.outline = undefined;
-          }
           if (monsterData.angerMark) {
             sprite.removeChild(monsterData.angerMark);
             monsterData.angerMark.destroy();
