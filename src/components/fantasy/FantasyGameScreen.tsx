@@ -48,6 +48,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ローカルのuseStateからgameStoreに切り替え
   const { settings, updateSettings } = useGameStore();
   const midiControllerRef = useRef<MIDIController | null>(null);
+  const playerHpRef = useRef<HTMLDivElement>(null);  // ★ 追加
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
@@ -214,37 +215,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // ★★★ 花火エフェクトを追加 ★★★
-    if (attackingMonsterId) {
-      const el = gaugeRefs.current.get(attackingMonsterId);
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        // ゲージ右端の画面座標（0‑1 の割合）を confetti に渡す
-        const origin = {
-          x: (rect.right) / window.innerWidth,
-          y: (rect.top + rect.height / 2) / window.innerHeight
-        };
-        try {
-          const confetti = (await import('canvas-confetti')).default;
-          confetti({
-            particleCount: 18,
-            spread: 60,
-            startVelocity: 25,
-            ticks: 60,
-            origin
-          });
-        } catch (e) {
-          console.error('confetti load error', e);
-          // フォールバックで 🎆 を一瞬表示
-          const tmp = document.createElement('div');
-          tmp.textContent = '🎆';
-          Object.assign(tmp.style, {
-            position:'fixed', left:`${rect.right}px`, top:`${rect.top}px`,
-            transform:'translate(-50%,-50%)', fontSize:'24px', pointerEvents:'none'
-          });
-          document.body.appendChild(tmp);
-          setTimeout(()=>tmp.remove(),600);
-        }
+    // ★★★ ハンマーエフェクトを追加 ★★★
+    if (attackingMonsterId && playerHpRef.current) {
+      const startEl = gaugeRefs.current.get(attackingMonsterId);
+      const endEl = playerHpRef.current;
+      if (startEl) {
+        const s = startEl.getBoundingClientRect();
+        const e = endEl.getBoundingClientRect();
+
+        const hammer = document.createElement('img');
+        hammer.src = `${import.meta.env.BASE_URL}data/hammer.svg`;
+        Object.assign(hammer.style, {
+          position: 'fixed',
+          left: `${s.right}px`,
+          top: `${s.top + s.height / 2}px`,
+          width: '48px',
+          pointerEvents: 'none',
+          transform: 'translate(-50%,-50%) rotate(0deg)',
+          transition: 'left .35s linear, top .35s linear, transform .35s linear'
+        });
+        document.body.appendChild(hammer);
+
+        // 1フレーム後にゴール座標＋回転 2周分をセット
+        requestAnimationFrame(() => {
+          hammer.style.left = `${e.left + e.width / 2}px`;
+          hammer.style.top = `${e.top + e.height / 2}px`;
+          hammer.style.transform = 'translate(-50%,-50%) rotate(720deg)';
+        });
+
+        hammer.addEventListener('transitionend', () => hammer.remove(), { once: true });
       }
     }
     
@@ -790,7 +789,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       </div>
       
       {/* HP・SPゲージを固定配置 */}
-      <div className="absolute left-2 bottom-2 z-50
+      <div ref={playerHpRef} className="absolute left-2 bottom-2 z-50
                   pointer-events-none bg-black/40 rounded px-2 py-1">
         <div className="flex space-x-0.5">
           {renderHearts(gameState.playerHp, stage.maxHp)}
