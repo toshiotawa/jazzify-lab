@@ -840,3 +840,116 @@
   -webkit-font-smoothing: none;
   -moz-osx-font-smoothing: grayscale;
 } 
+
+/* 花火エフェクト */
+.fireworks-css {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.fireworks-css::before,
+.fireworks-css::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ffeb3b;
+  animation: fireworks 1s ease-out forwards;
+}
+
+.fireworks-css::before {
+  animation-delay: 0.1s;
+}
+
+.fireworks-css::after {
+  animation-delay: 0.2s;
+  background: #ff5722;
+}
+
+@keyframes fireworks {
+  0% {
+    transform: translate(0, 0) scale(0);
+    opacity: 1;
+  }
+  20% {
+    transform: translate(0, -20px) scale(1);
+  }
+  100% {
+    transform: translate(0, -100px) scale(0);
+    opacity: 0;
+  }
+}
+
+/* 複数の花火パーティクル */
+.fireworks-css span {
+  position: absolute;
+  display: block;
+  width: 4px;
+  height: 4px;
+  background: #fff;
+  border-radius: 50%;
+  animation: particle 1s ease-out forwards;
+}
+
+.fireworks-css span:nth-child(1) { 
+  left: 50%; top: 50%;
+  animation-delay: 0s;
+  background: #ff5722;
+}
+.fireworks-css span:nth-child(2) { 
+  left: 50%; top: 50%;
+  animation-delay: 0.1s;
+  background: #ffeb3b;
+}
+.fireworks-css span:nth-child(3) { 
+  left: 50%; top: 50%;
+  animation-delay: 0.2s;
+  background: #4caf50;
+}
+.fireworks-css span:nth-child(4) { 
+  left: 50%; top: 50%;
+  animation-delay: 0.3s;
+  background: #2196f3;
+}
+
+@keyframes particle {
+  0% {
+    transform: translate(0, 0) scale(0);
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.fireworks-css span:nth-child(1) {
+  animation-name: particle1;
+}
+.fireworks-css span:nth-child(2) {
+  animation-name: particle2;
+}
+.fireworks-css span:nth-child(3) {
+  animation-name: particle3;
+}
+.fireworks-css span:nth-child(4) {
+  animation-name: particle4;
+}
+
+@keyframes particle1 {
+  100% { transform: translate(-50px, -50px) scale(0); }
+}
+@keyframes particle2 {
+  100% { transform: translate(50px, -50px) scale(0); }
+}
+@keyframes particle3 {
+  100% { transform: translate(-50px, 50px) scale(0); }
+}
+@keyframes particle4 {
+  100% { transform: translate(50px, 50px) scale(0); }
+} 
