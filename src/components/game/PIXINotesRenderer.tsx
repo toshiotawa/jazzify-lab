@@ -2883,6 +2883,10 @@ export class PIXINotesRendererInstance {
    * ピアノキー入力コールバックの設定
    */
   setKeyCallbacks(onKeyPress: (note: number) => void, onKeyRelease: (note: number) => void): void {
+    log.info('🎹 setKeyCallbacks called', {
+      hasOnKeyPress: !!onKeyPress,
+      hasOnKeyRelease: !!onKeyRelease
+    });
     this.onKeyPress = onKeyPress;
     this.onKeyRelease = onKeyRelease;
   }
@@ -2891,6 +2895,12 @@ export class PIXINotesRendererInstance {
    * 内部キープレスハンドラー
    */
   private handleKeyPress(midiNote: number): void {
+    log.info('🎹 handleKeyPress called', { 
+      midiNote, 
+      hasOnKeyPress: !!this.onKeyPress,
+      destroyed: this.destroyed
+    });
+    
     // アクティブキープレス状態に追加
     this.activeKeyPresses.add(midiNote);
 

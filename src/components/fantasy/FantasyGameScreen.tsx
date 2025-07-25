@@ -281,6 +281,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
+    devLog.debug('🎮 handlePixiReady called', { hasRenderer: !!renderer });
     setPixiRenderer(renderer);
     
     if (renderer) {
@@ -329,10 +330,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       });
       
       // キーボードのクリックイベントを接続
+      devLog.debug('🎹 Setting key callbacks for Fantasy mode...');
       renderer.setKeyCallbacks(
-        (note: number) => handleNoteInputBridge(note),
-        (note: number) => {} // マウスリリース時の処理はMidiControllerが担当
+        (note: number) => {
+          devLog.debug('🎹 Fantasy mode key press:', note);
+          handleNoteInputBridge(note);
+        },
+        (note: number) => {
+          devLog.debug('🎹 Fantasy mode key release:', note);
+        } // マウスリリース時の処理はMidiControllerが担当
       );
+      devLog.debug('✅ Key callbacks set successfully');
       
               // MIDIControllerにキーハイライト機能を設定（通常プレイと同様の処理）
         if (midiControllerRef.current) {
