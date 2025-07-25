@@ -208,18 +208,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
-    console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
-    
 
-    
-
+    if (fantasyPixiInstance && attackingMonsterId) {
+      // PIXIインスタンスにエフェクト発生を指示
+      fantasyPixiInstance.triggerEnemyAttackEffect(attackingMonsterId);
+    } else {
+      devLog.debug('⚠️ PIXI instance or monsterId is not available for enemy attack effect.', {
+        hasPixi: !!fantasyPixiInstance,
+        monsterId: attackingMonsterId
+      });
+    }
     
     // ダメージ時の画面振動
     setDamageShake(true);
     setTimeout(() => setDamageShake(false), 500);
-    
-  }, [fantasyPixiInstance]);
+  }, [fantasyPixiInstance]); // 依存配列にfantasyPixiInstanceを追加
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
@@ -655,30 +659,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
-              <div className="relative w-full mx-auto" style={{ height: 'min(120px,22vw)' }}>
-                {/* 各モンスターの情報を絶対位置で配置 */}
-                {gameState.activeMonsters.map((monster) => {
-                  const getLeftPosition = (position: 'A' | 'B' | 'C') => {
-                    switch (position) {
-                      case 'A': return '25%';
-                      case 'B': return '50%';
-                      case 'C': return '75%';
-                    }
-                  };
-                  
-                  // スプライトと同じ幅に合わせる
-                  const cardWidth = monsterAreaWidth * 0.18; // 18%程度がちょうど良い
-                  
-                  return (
-                    <div 
-                      key={monster.id}
-                      className="absolute -translate-x-1/2 flex flex-col items-center"
-                      style={{ 
-                        left: getLeftPosition(monster.position),
-                        width: cardWidth,
-                        maxWidth: cardWidth
-                      }}
-                    >
+              // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
+              <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
+                {gameState.activeMonsters
+                  .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C'順でソート
+                  .map((monster) => {
+                    return (
+                      <div 
+                        key={monster.id}
+                        // ★★★ 修正点: flexアイテムとして定義、幅を設定 ★★★
+                        className="flex-shrink-0 flex flex-col items-center"
+                        style={{ width: '30%', maxWidth: '220px' }} // 幅を固定し、最大幅も設定
+                      >
                       {/* コードネーム */}
                       <div className="text-yellow-300 text-xl font-bold text-center mb-1 truncate w-full"> {/* w-fullを追加 */}
                         {monster.chordTarget.displayName}
@@ -742,9 +734,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           {monster.currentHp}/{monster.maxHp}
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                                          </div>
+                    );
+                  })}
               </div>
             ) : null}
             

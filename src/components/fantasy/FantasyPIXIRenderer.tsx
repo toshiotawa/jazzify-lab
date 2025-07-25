@@ -67,6 +67,14 @@ interface DamageNumberData {
   maxLife: number;
 }
 
+interface FireworkParticle {
+  sprite: PIXI.Sprite;
+  vx: number;
+  vy: number;
+  life: number;
+  gravity: number;
+}
+
 interface MagicType {
   name: string; // 通常魔法名
   color: number; // 通常魔法の色
@@ -173,6 +181,7 @@ export class FantasyPIXIInstance {
   
   // マルチモンスター対応
   private monsterSprites: Map<string, MonsterSpriteData> = new Map();
+  private fireworks: FireworkParticle[] = []; // 花火パーティクル配列を追加
 
   private magicCircles: Map<string, PIXI.Graphics> = new Map();
   private magicCircleData: Map<string, MagicCircle> = new Map();
@@ -450,6 +459,51 @@ export class FantasyPIXIInstance {
   // ===== マルチモンスター対応メソッド =====
   
   /**
+   * 敵の攻撃エフェクトをトリガー
+   */
+  public triggerEnemyAttackEffect(monsterId: string): void {
+    if (this.isDestroyed) return;
+    const monsterData = this.monsterSprites.get(monsterId);
+    if (!monsterData) {
+      devLog.debug(`[triggerEnemyAttackEffect] Monster with id ${monsterId} not found.`);
+      return;
+    }
+
+    const { x, y } = monsterData.visualState;
+    // ゲージはモンスターの下にある想定で、Y座標をスプライトより少し下に設定
+    const startY = y + 80;
+
+    const particleCount = 30;
+    const colors = [0xff4d4d, 0xffa64d, 0xffff4d]; // 赤、オレンジ、黄の花火
+
+    for (let i = 0; i < particleCount; i++) {
+      const particleGraphics = new PIXI.Graphics();
+      particleGraphics.beginFill(colors[i % colors.length]);
+      particleGraphics.drawCircle(0, 0, Math.random() * 2.5 + 1); // 1-3.5pxの円
+      particleGraphics.endFill();
+      const texture = this.app.renderer.generateTexture(particleGraphics);
+      const sprite = new PIXI.Sprite(texture);
+      sprite.x = x;
+      sprite.y = startY;
+      this.effectContainer.addChild(sprite);
+
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 5 + 2;
+
+      const particle: FireworkParticle = {
+        sprite,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: Math.random() * 60 + 30, // 30-90フレーム生存
+        gravity: 0.08,
+      };
+      this.fireworks.push(particle);
+    }
+    // 画面を少し揺らす
+    this.createScreenShake(5, 300);
+  }
+
+  /**
    * アクティブなモンスター配列に基づいてスプライトを更新
    */
   async updateActiveMonsters(monsters: GameMonsterState[]): Promise<void> {
@@ -469,8 +523,12 @@ export class FantasyPIXIInstance {
       }
     }
     
+    // ★★★ 修正点: ソートしてから位置を計算 ★★★
+    const sortedMonsters = [...monsters].sort((a, b) => a.position.localeCompare(b.position));
+
     // 各モンスターのスプライトを作成または更新
-    for (const monster of monsters) {
+    for (let i = 0; i < sortedMonsters.length; i++) {
+      const monster = sortedMonsters[i];
       let monsterData = this.monsterSprites.get(monster.id);
       
       if (!monsterData) {
@@ -479,7 +537,7 @@ export class FantasyPIXIInstance {
         if (!sprite) continue;
         
         const visualState: MonsterVisualState = {
-          x: this.getPositionX(monster.position),
+          x: this.getPositionX(i, sortedMonsters.length),
           y: 100, // Y座標を100pxに固定（200px高さの中央）
           scale: 0.3,  // 1.0 から 0.3 に変更
           rotation: 0,
@@ -512,17 +570,30 @@ export class FantasyPIXIInstance {
       }
       
       // 位置を更新
-      if (monsterData.position !== monster.position) {
-        monsterData.position = monster.position;
-        monsterData.visualState.x = this.getPositionX(monster.position);
-      }
+      monsterData.visualState.x = this.getPositionX(i, sortedMonsters.length);
       
       this.updateMonsterSpriteData(monsterData);
     }
   }
   
-  /** UI 側（25 %|50 %|75 %）に完全同期させる */
-  private getPositionX(position: 'A' | 'B' | 'C'): number {
+  /** UI 側とほぼ同じレイアウトになるよう、スロット幅を基準に中央配置 */
+  private getPositionX(positionIndex: number, totalMonsters: number): number {
+    const w = this.app.screen.width;
+    // 1体あたりのスロット幅を画面幅の約30%と仮定 (UI側のスタイルと合わせる)
+    const monsterSlotWidth = Math.min(w * 0.30, 220); 
+
+    // 全モンスターが表示される領域の合計幅
+    const totalGroupWidth = monsterSlotWidth * totalMonsters;
+    // モンスター群の開始X座標（画面中央に配置するため）
+    const groupStartX = (w - totalGroupWidth) / 2;
+
+    // このモンスターの中心X座標を計算
+    const monsterX = groupStartX + (monsterSlotWidth * positionIndex) + (monsterSlotWidth / 2);
+    return monsterX;
+  }
+  
+  /** UI 側（25 %|50 %|75 %）に完全同期させる（旧バージョン） */
+  private getPositionXOld(position: 'A' | 'B' | 'C'): number {
     const w = this.app.screen.width;
     switch (position) {
       case 'A': return w * 0.25;
@@ -1022,6 +1093,27 @@ export class FantasyPIXIInstance {
     this.app.stage.y = this.screenShakeState.originalY + (Math.random() - 0.5) * currentIntensity;
   }
 
+  // 花火パーティクルの更新処理
+  private updateFireworks(): void {
+    if (this.isDestroyed) return;
+    for (let i = this.fireworks.length - 1; i >= 0; i--) {
+      const p = this.fireworks[i];
+      p.sprite.x += p.vx;
+      p.sprite.y += p.vy;
+      p.vy += p.gravity; // 重力で少し下に落ちる
+      p.sprite.alpha = p.life / 60; // ライフに応じてフェードアウト
+      p.life--;
+
+      if (p.life <= 0) {
+        if (p.sprite.parent) {
+          p.sprite.parent.removeChild(p.sprite);
+        }
+        p.sprite.destroy();
+        this.fireworks.splice(i, 1);
+      }
+    }
+  }
+
   // 指定位置にダメージ数値を作成
   private createDamageNumberAt(damage: number, color: number, x: number, y: number): void {
     const id = `damage_${Date.now()}_${Math.random()}`;
@@ -1203,6 +1295,7 @@ export class FantasyPIXIInstance {
       this.updateMagicCircles();
       this.updateDamageNumbers();
       this.updateScreenShake(); // 画面揺れの更新を追加
+      this.updateFireworks(); // ★ 花火の更新処理を追加
       
       this.animationFrameId = requestAnimationFrame(animate);
     };
@@ -1401,8 +1494,15 @@ export class FantasyPIXIInstance {
     if (!this.app || !this.app.renderer || this.isDestroyed) return;
     try {
       this.app.renderer.resize(width, height);
-      for (const [id, monsterData] of this.monsterSprites) {
-        monsterData.visualState.x = this.getPositionX(monsterData.position);
+      
+      // モンスターの位置を再計算
+      const sortedMonsters = Array.from(this.monsterSprites.values()).sort((a, b) => 
+        a.position.localeCompare(b.position)
+      );
+      
+      for (let i = 0; i < sortedMonsters.length; i++) {
+        const monsterData = sortedMonsters[i];
+        monsterData.visualState.x = this.getPositionX(i, sortedMonsters.length);
         monsterData.visualState.y = 100; // Y座標を100pxに固定（200px高さの中央）
         // ▼▼▼ 修正箇所 ▼▼▼
         const sprite = monsterData.sprite;
@@ -1454,6 +1554,13 @@ export class FantasyPIXIInstance {
     // マルチモンスターのクリーンアップ
     this.monsterSprites.forEach(data => data.sprite.destroy());
     this.monsterSprites.clear();
+    
+    // 花火パーティクルのクリーンアップ
+    this.fireworks.forEach(p => {
+      if (p.sprite.parent) p.sprite.parent.removeChild(p.sprite);
+      p.sprite.destroy();
+    });
+    this.fireworks = [];
     
     // エフェクトの安全な削除
     try {
