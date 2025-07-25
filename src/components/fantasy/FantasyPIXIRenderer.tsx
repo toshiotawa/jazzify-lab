@@ -1605,6 +1605,46 @@ export class FantasyPIXIInstance {
   /** これ１行で「壊れていたら return true」 */
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
+
+  // マルチモンスター用攻撃エフェクト
+  updateMonsterAttackingById(monsterId: string, isAttacking: boolean): void {
+    const monsterData = this.monsterSprites.get(monsterId);
+    if (!monsterData || this.isDestroyed) return;
+
+    monsterData.gameState.isAttacking = isAttacking;
+
+    if (isAttacking) {
+      // 元のスケールを保存
+      const originalScale = monsterData.visualState.scale;
+      
+      // 攻撃エフェクト
+      monsterData.visualState.tint = 0xFF6B6B;
+      monsterData.visualState.scale = originalScale * 1.2; // 20%大きくする
+      
+      // 怒りマーク表示
+      const angerMark = new PIXI.Text('💢', { fontSize: 48 });
+      angerMark.anchor.set(0.5);
+      angerMark.x = monsterData.visualState.x + 60;
+      angerMark.y = monsterData.visualState.y - 60;
+      this.uiContainer.addChild(angerMark);
+      
+      this.updateMonsterSpriteData(monsterData);
+
+      // エフェクトを戻す
+      setTimeout(() => {
+        if (!this.isDestroyed && this.monsterSprites.has(monsterId)) {
+          monsterData.visualState.tint = 0xFFFFFF;
+          monsterData.visualState.scale = originalScale;
+          this.updateMonsterSpriteData(monsterData);
+          
+          if (angerMark && !angerMark.destroyed) {
+            this.uiContainer.removeChild(angerMark);
+            angerMark.destroy();
+          }
+        }
+      }, 600);
+    }
+  }
 }
 
 // ===== Reactコンポーネント =====

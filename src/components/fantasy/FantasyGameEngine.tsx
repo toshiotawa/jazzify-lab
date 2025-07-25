@@ -78,6 +78,8 @@ interface FantasyGameState {
   activeMonsters: MonsterState[]; // 現在アクティブなモンスター配列
   monsterQueue: number[]; // 残りのモンスターインデックスのキュー
   simultaneousMonsterCount: number; // 同時表示数
+  // ゲーム完了処理中フラグ
+  isCompleting: boolean;
 }
 
 interface FantasyGameEngineProps {
@@ -89,7 +91,7 @@ interface FantasyGameEngineProps {
   // ▲▲▲ ここまで ▲▲▲
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
-  onEnemyAttack: () => void;
+  onEnemyAttack: (attackingMonsterId?: string) => void;
 }
 
 // ===== コード定義データ =====
@@ -376,7 +378,9 @@ export const useFantasyGameEngine = ({
     // マルチモンスター対応
     activeMonsters: [],
     monsterQueue: [],
-    simultaneousMonsterCount: 1
+    simultaneousMonsterCount: 1,
+    // ゲーム完了処理中フラグ
+    isCompleting: false
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -459,7 +463,9 @@ export const useFantasyGameEngine = ({
       // マルチモンスター対応
       activeMonsters,
       monsterQueue,
-      simultaneousMonsterCount: simultaneousCount
+      simultaneousMonsterCount: simultaneousCount,
+      // ゲーム完了処理中フラグ
+      isCompleting: false
     };
 
     setGameState(newState);
@@ -486,7 +492,8 @@ export const useFantasyGameEngine = ({
           ...prevState,
           isGameActive: false,
           isGameOver: true,
-          gameResult: 'clear' as const
+          gameResult: 'clear' as const,
+          isCompleting: true // 追加
         };
         
         onGameComplete('clear', finalState);
@@ -529,7 +536,7 @@ export const useFantasyGameEngine = ({
   }, [onGameStateChange, onGameComplete]);
   
   // 敵の攻撃処理
-  const handleEnemyAttack = useCallback(() => {
+  const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
     // 攻撃時に入力バッファをリセット
     // setInputBuffer([]); // 削除
     // if (inputTimeout) { // 削除
@@ -543,7 +550,8 @@ export const useFantasyGameEngine = ({
       devLog.debug('💥 敵の攻撃！HP更新:', {
         oldHp: prevState.playerHp,
         newHp: newHp,
-        damage: 1
+        damage: 1,
+        attackingMonsterId
       });
       
       const isGameOver = newHp <= 0;
@@ -554,7 +562,8 @@ export const useFantasyGameEngine = ({
           playerHp: 0,
           isGameActive: false,
           isGameOver: true,
-          gameResult: 'gameover' as const
+          gameResult: 'gameover' as const,
+          isCompleting: true // 追加
         };
         
         // ゲームオーバーコールバックを安全に呼び出し
@@ -579,7 +588,8 @@ export const useFantasyGameEngine = ({
             playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
             isGameActive: false,
             isGameOver: true,
-            gameResult: 'clear' as const
+            gameResult: 'clear' as const,
+            isCompleting: true // 追加
           };
           
           // クリアコールバックを安全に呼び出し
@@ -622,8 +632,8 @@ export const useFantasyGameEngine = ({
       }
     });
     
-    onEnemyAttack();
-  }, [onGameStateChange, onGameComplete, onEnemyAttack]); // inputTimeout 削除
+    onEnemyAttack(attackingMonsterId);
+  }, [onGameStateChange, onGameComplete, onEnemyAttack]);
   
   // ゲージタイマーの管理
   useEffect(() => {
@@ -684,7 +694,7 @@ export const useFantasyGameEngine = ({
         );
         
         // 攻撃処理を非同期で実行
-        setTimeout(() => handleEnemyAttack(), 0);
+        setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
         
         const nextState = { 
           ...prevState, 

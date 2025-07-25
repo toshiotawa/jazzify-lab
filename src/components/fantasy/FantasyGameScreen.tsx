@@ -205,8 +205,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
   }, []);
   
-  const handleEnemyAttack = useCallback(() => {
-    devLog.debug('💥 敵の攻撃!');
+  const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
+    devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
     // モンスター攻撃状態を設定
     setIsMonsterAttacking(true);
@@ -214,12 +214,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // ファンタジーPIXIでモンスター攻撃エフェクト
     if (fantasyPixiInstance) {
-      fantasyPixiInstance.updateMonsterAttacking(true);
-      setTimeout(() => {
-        if (fantasyPixiInstance) {
-          fantasyPixiInstance.updateMonsterAttacking(false);
-        }
-      }, 600);
+      if (attackingMonsterId) {
+        // マルチモンスター対応：特定のモンスターにエフェクトを適用
+        fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, true);
+        setTimeout(() => {
+          if (fantasyPixiInstance) {
+            fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, false);
+          }
+        }, 600);
+      } else {
+        // 互換性のため：従来の単体モンスターエフェクト
+        fantasyPixiInstance.updateMonsterAttacking(true);
+        setTimeout(() => {
+          if (fantasyPixiInstance) {
+            fantasyPixiInstance.updateMonsterAttacking(false);
+          }
+        }, 600);
+      }
     }
     
     // ダメージ時の画面振動
@@ -542,12 +553,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
   }, []);
   
-  // ゲーム開始前画面（スタートボタン表示条件を修正）
-  if (!gameState.isGameActive || !gameState.currentChordTarget) {
+  // ゲーム開始前画面（オーバーレイ表示中は表示しない）
+  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
-      stageName: stage.name
+      stageName: stage.name,
+      hasOverlay: !!overlay
     });
     
     return (
@@ -570,9 +582,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 bg-black bg-opacity-50 text-white text-xs p-3 rounded">
               <div>ゲーム状態: {gameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
-              <div>現在のコード: {gameState.currentChordTarget ? gameState.currentChordTarget.displayName : 'なし'}</div>
+              <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
               <div>許可コード数: {stage.allowedChords?.length || 0}</div>
               <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>
+              <div>オーバーレイ: {overlay ? '表示中' : 'なし'}</div>
+              <div>完了処理中: {gameState.isCompleting ? 'はい' : 'いいえ'}</div>
             </div>
           )}
         </div>
@@ -871,7 +885,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>
           <div>スコア: {gameState.score}</div>
           <div>正解数: {gameState.correctAnswers}</div>
-          <div>現在のコード: {gameState.currentChordTarget.displayName}</div>
+          <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
           <div>SP: {gameState.playerSp}</div>
           
           {/* ゲージ強制満タンテストボタン */}
