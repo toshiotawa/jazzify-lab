@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { devLog } from '@/utils/logger';
+import { useEnemyStore } from '@/stores/enemyStore';
 
 // ===== 型定義 =====
 
@@ -688,6 +689,11 @@ export const useFantasyGameEngine = ({
       if (attackingMonster) {
         console.log('🎲 Found attacking monster:', attackingMonster);
         devLog.debug('💥 モンスターゲージ満タン！攻撃開始', { monster: attackingMonster.name });
+        
+        // 怒り状態をストアに通知
+        const { setEnrage } = useEnemyStore.getState();
+        setEnrage(attackingMonster.id, true);
+        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
         
         // 攻撃したモンスターのゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 

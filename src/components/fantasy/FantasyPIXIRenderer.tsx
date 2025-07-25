@@ -8,6 +8,7 @@ import * as PIXI from 'pixi.js';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
+import { useEnemyStore } from '@/stores/enemyStore';
 
 // ===== 型定義 =====
 
@@ -139,7 +140,7 @@ interface MonsterSpriteData {
   gameState: MonsterGameState;
   position: 'A' | 'B' | 'C';
   gauge: number; // 追加：ゲージ値を保持
-  angerMark?: PIXI.Text; // 追加：怒りマーク
+  angerMark?: PIXI.Sprite; // 追加：怒りマーク（SVGスプライト）
   outline?: PIXI.Graphics; // 追加：赤い輪郭
 }
 
@@ -335,6 +336,9 @@ export class FantasyPIXIInstance {
         const path = `${import.meta.env.BASE_URL}${magic.svg}`;
         magicAssets[key] = path;
       }
+      
+      // 怒りマークSVGを追加
+      magicAssets['angerMark'] = `${import.meta.env.BASE_URL}data/anger.svg`;
 
       // バンドルとして一括ロード
       await PIXI.Assets.addBundle('magicTextures', magicAssets);
@@ -348,6 +352,14 @@ export class FantasyPIXIInstance {
           devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
         }
       }
+      
+      // 怒りマークテクスチャを保存
+      const angerTexture = PIXI.Assets.get('angerMark');
+      if (angerTexture) {
+        this.imageTextures.set('angerMark', angerTexture);
+        devLog.debug('✅ 怒りマークテクスチャ読み込み: anger.svg');
+      }
+      
       devLog.debug('✅ 全画像テクスチャ読み込み完了');
     } catch (error) {
       devLog.debug('❌ 画像テクスチャ読み込みエラー:', error);
@@ -1234,10 +1246,13 @@ export class FantasyPIXIInstance {
       for (const [id, monsterData] of this.monsterSprites) {
         const { visualState, gameState, sprite } = monsterData;
         
-        // ゲージMAX時の怒りエフェクト
-        if (monsterData.gauge >= 100) {
-          // スケールを大きくする
-          visualState.scale = 0.35; // 通常の0.3から拡大
+        // ストアから怒り状態を取得
+        const enragedTable = useEnemyStore.getState().enraged;
+        
+        if (enragedTable[id]) {
+          // ---- 怒り演出 ----
+          visualState.scale = 0.35; // 巨大化
+          sprite.tint = 0xFFCCCC;
           
           // 赤い輪郭を追加（まだない場合）
           if (!monsterData.outline) {
@@ -1250,25 +1265,25 @@ export class FantasyPIXIInstance {
           
           // 怒りマークを追加（まだない場合）
           if (!monsterData.angerMark) {
-            const angerMark = new PIXI.Text('💢', {
-              fontSize: 32,
-              fill: 0xFF0000
-            });
-            angerMark.anchor.set(0.5);
-            angerMark.position.set(60, -60); // 右上に配置
-            sprite.addChild(angerMark);
-            monsterData.angerMark = angerMark;
+            const angerTexture = this.imageTextures.get('angerMark');
+            if (angerTexture) {
+              const angerMark = new PIXI.Sprite(angerTexture);
+              angerMark.anchor.set(0.5);
+              angerMark.width = 48;  // サイズ調整
+              angerMark.height = 48;
+              angerMark.x = sprite.width * 0.6;   // 右側
+              angerMark.y = -sprite.height * 0.4; // 少し上
+              sprite.addChild(angerMark);
+              monsterData.angerMark = angerMark;
+            }
           }
-          
-          // 赤い色味を追加
-          sprite.tint = 0xFFCCCC;
           
           // パルスアニメーション（怒りの脈動）
           const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
           sprite.scale.set(visualState.scale * pulse);
           
         } else {
-          // ゲージがMAXでない場合は通常状態に戻す
+          // ---- 通常状態 ----
           visualState.scale = 0.3;
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
           
