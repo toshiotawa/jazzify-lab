@@ -12,6 +12,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { fantasySoundManager } from '@/utils/FantasySoundManager';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -40,6 +41,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 設定状態を管理（初期値はstageから取得）
   const [showGuide, setShowGuide] = useState(stage.showGuide);
+  const [effectVolume, setEffectVolume] = useState(0.8); // 効果音音量
   
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
@@ -145,6 +147,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []); // 空の依存配列で一度だけ実行
   
+  // 効果音システムの初期化
+  useEffect(() => {
+    fantasySoundManager.initialize().then(() => {
+      devLog.debug('🎵 ファンタジーモード効果音初期化完了');
+      fantasySoundManager.setVolume(effectVolume);
+    });
+    
+    return () => {
+      fantasySoundManager.destroy();
+    };
+  }, []);
+  
+  // 効果音音量の更新
+  useEffect(() => {
+    fantasySoundManager.setVolume(effectVolume);
+    devLog.debug('🎵 効果音音量更新:', effectVolume);
+  }, [effectVolume]);
+  
   // ★★★ 修正箇所 ★★★
   // gameStoreのデバイスIDを監視して接続/切断
   useEffect(() => {
@@ -222,7 +242,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // confetti削除 - 何もしない
+    // 敵の攻撃効果音を再生
+    fantasySoundManager.playEnemyAttack();
     
     // ダメージ時の画面振動
     setDamageShake(true);
@@ -440,6 +461,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 魔法名表示ハンドラー
   const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
     setMagicName({ monsterId, name, isSpecial });
+    
+    // 魔法効果音を再生
+    fantasySoundManager.playMagicSound(name, isSpecial);
+    
     // 500ms後に自動的に非表示
     setTimeout(() => {
       setMagicName(null);
@@ -924,6 +949,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onSettingsChange={(settings) => {
           devLog.debug('⚙️ ファンタジー設定変更:', settings);
           setShowGuide(settings.showGuide);
+          
+          // 効果音音量の更新
+          if (settings.effectVolume !== undefined) {
+            setEffectVolume(settings.effectVolume);
+          }
           
           // ★★★ 音量更新処理を追加 ★★★
           // 音量設定が変更されたら、グローバル音量を更新
