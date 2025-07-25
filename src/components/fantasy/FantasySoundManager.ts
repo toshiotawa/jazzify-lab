@@ -86,8 +86,7 @@ export class FantasySoundManager {
     this._volume = defaultVolume;
 
     // 事前ロード – ユーザー操作後の初回呼び出しが推奨（Autoplay 制限対策）
-    const baseUrl = import.meta.env.BASE_URL || '/';
-    const path = (file: string) => `${baseUrl}sounds/${file}`;
+    const path = (file: string) => `/sounds/${file}`;
 
     const load = (key: keyof typeof this.audioMap, file: string) => new Promise<void>((res, rej) => {
       const a = this.audioMap[key].base;

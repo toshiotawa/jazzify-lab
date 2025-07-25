@@ -99,6 +99,7 @@ const defaultSettings: GameSettings = {
   masterVolume: 0.8,
   musicVolume: 0.7,
   midiVolume: 0.8,
+  fantasySeVolume: 0.8,  // ファンタジーモード効果音音量
   
   // ゲーム設定
   notesSpeed: 1.0,
@@ -309,8 +310,13 @@ const validateSettings = (settings: Partial<GameSettings>): { valid: boolean; er
   }
   
   if (normalized.midiVolume < 0 || normalized.midiVolume > 1) {
-    errors.push('MIDI音量は0-1の範囲で設定してください');
+    errors.push('無効なMIDI音量: 0-1の範囲で設定してください');
     normalized.midiVolume = Math.max(0, Math.min(1, normalized.midiVolume));
+  }
+  
+  if (normalized.fantasySeVolume < 0 || normalized.fantasySeVolume > 1) {
+    errors.push('無効な効果音音量: 0-1の範囲で設定してください');
+    normalized.fantasySeVolume = Math.max(0, Math.min(1, normalized.fantasySeVolume));
   }
   
   // 速度設定の検証

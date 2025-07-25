@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { MidiDeviceSelector } from '../ui/MidiDeviceManager';
 import { devLog } from '@/utils/logger';
+import { FantasySoundManager as FSM } from './FantasySoundManager';
 
 interface FantasySettingsModalProps {
   isOpen: boolean;
@@ -15,12 +16,14 @@ interface FantasySettingsModalProps {
   midiDeviceId?: string | null;
   onMidiDeviceChange?: (deviceId: string | null) => void;
   isMidiConnected?: boolean;
-  volume?: number; // 音量設定をpropsで受け取る
+  bgmVolume?: number; // BGM音量をpropsで受け取る
+  seVolume?: number;  // 効果音音量をpropsで受け取る
 }
 
 interface FantasySettings {
   midiDeviceId: string | null;
-  volume: number;
+  bgmVolume: number;
+  seVolume: number;
   showGuide: boolean;
 }
 
@@ -31,11 +34,13 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   midiDeviceId = null,
   onMidiDeviceChange,
   isMidiConnected = false,
-  volume = 0.8 // デフォルト80%音量
+  bgmVolume = 0.8, // デフォルト80%音量
+  seVolume = 0.8   // デフォルト80%音量
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
-    volume: volume, // propsから受け取った音量を使用
+    bgmVolume: bgmVolume, // propsから受け取った音量を使用
+    seVolume: seVolume,   // propsから受け取った音量を使用
     showGuide: false
   });
   
@@ -44,16 +49,21 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     setSettings(prev => ({ ...prev, midiDeviceId: midiDeviceId }));
   }, [midiDeviceId]);
   
-  // propsのvolumeが変更されたらsettingsも更新
+  // propsの音量が変更されたらsettingsも更新
   useEffect(() => {
-    setSettings(prev => ({ ...prev, volume: volume }));
-  }, [volume]);
+    setSettings(prev => ({ ...prev, bgmVolume: bgmVolume, seVolume: seVolume }));
+  }, [bgmVolume, seVolume]);
 
   // 設定変更ハンドラー
   const handleSettingChange = (key: keyof FantasySettings, value: any) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     onSettingsChange?.(newSettings);
+    
+    // 効果音音量が変更された場合は即座に反映
+    if (key === 'seVolume') {
+      FSM.setVolume(value);
+    }
   };
 
   // MIDIデバイス変更ハンドラー
@@ -93,18 +103,34 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             </div>
           </div>
 
-          {/* 音量設定 */}
+          {/* BGM音量設定 */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              音量: {Math.round(settings.volume * 100)}%
+              BGM音量: {Math.round(settings.bgmVolume * 100)}%
             </label>
             <input
               type="range"
               min="0"
               max="1"
               step="0.1"
-              value={settings.volume}
-              onChange={(e) => handleSettingChange('volume', parseFloat(e.target.value))}
+              value={settings.bgmVolume}
+              onChange={(e) => handleSettingChange('bgmVolume', parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+          </div>
+
+          {/* 効果音音量設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              効果音音量: {Math.round(settings.seVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={settings.seVolume}
+              onChange={(e) => handleSettingChange('seVolume', parseFloat(e.target.value))}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
           </div>

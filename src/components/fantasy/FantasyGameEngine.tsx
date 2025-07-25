@@ -49,6 +49,7 @@ interface MonsterState {
   correctNotes: number[]; // このモンスター用の正解済み音
   icon: string;
   name: string;
+  magicType?: 'fire' | 'ice' | 'thunder'; // 魔法タイプを追加
 }
 
 interface FantasyGameState {
@@ -175,6 +176,10 @@ const createMonsterFromQueue = (
   const enemy = ENEMY_LIST[randomIndex];
   const chord = selectUniqueRandomChord(allowedChords, previousChordId);
   
+  // 魔法タイプをランダムに選択
+  const magicTypes: ('fire' | 'ice' | 'thunder')[] = ['fire', 'ice', 'thunder'];
+  const magicType = magicTypes[Math.floor(Math.random() * magicTypes.length)];
+  
   return {
     id: `${enemy.id}_${Date.now()}_${position}`,
     index: monsterIndex,
@@ -185,7 +190,8 @@ const createMonsterFromQueue = (
     chordTarget: chord!,
     correctNotes: [],
     icon: enemy.icon,
-    name: enemy.name
+    name: enemy.name,
+    magicType
   };
 };
 
