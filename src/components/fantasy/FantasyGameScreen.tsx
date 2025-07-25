@@ -216,6 +216,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // ★★★ 花火エフェクトを追加 ★★★
     if (attackingMonsterId) {
+      // PIXIのチャージエフェクトを開始
+      if (fantasyPixiInstance) {
+        fantasyPixiInstance.triggerMonsterChargingAttack(attackingMonsterId, true);
+        // チャージ状態の解除はupdateMonsterAnimationで自動的に行われる
+      }
+      
       const el = gaugeRefs.current.get(attackingMonsterId);
       if (el) {
         const rect = el.getBoundingClientRect();
