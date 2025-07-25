@@ -224,7 +224,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // ★ 50ms 程度ディレイをあける
         setTimeout(() => {
           fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, true);
-          setTimeout(() => fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, false), 600);
+setTimeout(() => fantasyPixiInstance.updateMonsterAttackingById(attackingMonsterId, false), 750);
         }, 50);
       } else {
         // 互換性のため：従来の単体モンスターエフェクト
