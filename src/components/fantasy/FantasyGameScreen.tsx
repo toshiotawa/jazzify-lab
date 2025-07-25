@@ -13,6 +13,25 @@ import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesR
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 
+// 音声ファイルの定義
+const SOUND_EFFECTS = {
+  fire: '/data/fire.mp3',
+  ice: '/data/ice.mp3',
+  thunder: '/data/thunder.mp3',
+  enemyAttack: '/data/enemy_attack.mp3'
+} as const;
+
+// 音声再生関数
+const playSound = async (soundPath: string, volume: number = 0.8) => {
+  try {
+    const audio = new Audio(soundPath);
+    audio.volume = volume;
+    await audio.play();
+  } catch (error) {
+    console.error('音声再生エラー:', error);
+  }
+};
+
 interface FantasyGameScreenProps {
   stage: FantasyStage;
   autoStart?: boolean;        // ★ 追加
@@ -195,10 +214,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
     devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
     
+    // 魔法攻撃の音声を再生
+    const magicSounds = [SOUND_EFFECTS.fire, SOUND_EFFECTS.ice, SOUND_EFFECTS.thunder];
+    const randomSound = magicSounds[Math.floor(Math.random() * magicSounds.length)];
+    playSound(randomSound, settings.midiVolume);
+    
     if (fantasyPixiInstance) {
       fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
     }
-  }, [fantasyPixiInstance]);
+  }, [fantasyPixiInstance, settings.midiVolume]);
   // ▲▲▲ ここまで ▲▲▲
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
@@ -213,6 +237,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
+    
+    // 敵の攻撃音を再生
+    playSound(SOUND_EFFECTS.enemyAttack, settings.midiVolume);
     
     // ★★★ 花火エフェクトを追加 ★★★
     if (attackingMonsterId) {
@@ -252,7 +279,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setDamageShake(true);
     setTimeout(() => setDamageShake(false), 500);
     
-  }, [fantasyPixiInstance]);
+  }, [fantasyPixiInstance, settings.midiVolume]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
@@ -908,16 +935,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           devLog.debug('⚙️ ファンタジー設定変更:', settings);
           setShowGuide(settings.showGuide);
           
-          // ★★★ 音量更新処理を追加 ★★★
-          // 音量設定が変更されたら、グローバル音量を更新
-          if (settings.volume !== undefined) {
-            // gameStoreの音量設定も更新
-            updateSettings({ midiVolume: settings.volume });
+                      // ★★★ 音量更新処理を追加 ★★★
+            // 音量設定が変更されたら、グローバル音量を更新
+            if (settings.volume !== undefined) {
+                          // gameStoreの音量設定も更新
+              updateSettings({ midiVolume: settings.volume });
             
-            // グローバル音量を更新
-            import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
-              updateGlobalVolume(settings.volume);
-              devLog.debug(`🎵 ファンタジーモードの音量を更新: ${settings.volume}`);
+                          // グローバル音量を更新
+              import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
+                updateGlobalVolume(settings.volume);
+                devLog.debug(`🎵 ファンタジーモードの音量を更新: ${settings.volume}`);
             }).catch(error => {
               console.error('MidiController import failed:', error);
             });
