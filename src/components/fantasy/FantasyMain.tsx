@@ -10,6 +10,17 @@ import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { devLog } from '@/utils/logger';
 
+// 1コース当たりのステージ数定数
+const COURSE_LENGTH = 10;
+
+// 次のステージ番号を算出する共通関数
+function getNextStageNumber(current: string): string {
+  const [rank, num] = current.split('-').map(Number);
+  const nextNum = num >= COURSE_LENGTH ? 1 : num + 1;
+  const nextRank = num >= COURSE_LENGTH ? rank + 1 : rank;
+  return `${nextRank}-${nextNum}`;
+}
+
 interface GameResult {
   result: 'clear' | 'gameover';
   score: number;
@@ -132,8 +143,7 @@ const FantasyMain: React.FC = () => {
           
           if (!progressError && currentProgress) {
             // 次のステージをアンロック
-            const [currentRank, currentStageNum] = currentStage.stageNumber.split('-').map(Number);
-            const nextStageNumber = `${currentRank}-${currentStageNum + 1}`;
+            const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
             
             // 10ステージクリアでランクアップ（初回クリア時のみカウントアップ）
             const newClearedStages = currentProgress.total_cleared_stages + 1;
@@ -217,24 +227,59 @@ const FantasyMain: React.FC = () => {
   }, []);
   
   // ★ 追加: 次のステージに待機画面で遷移
-  const gotoNextStageWaiting = useCallback(() => {
+  const gotoNextStageWaiting = useCallback(async () => {
     if (!currentStage) return;
-    const [rank, num] = currentStage.stageNumber.split('-').map(Number);
-    const nextStageNumber = `${rank}-${num + 1}`;
+    
+    const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
 
-    // 次のステージの情報を作成（データベースから取得する代わりに現在のステージをベースに作成）
-    const nextStage: FantasyStage = {
-      ...currentStage,
-      id: `next-${nextStageNumber}`,
-      stageNumber: nextStageNumber,
-      name: `ステージ ${nextStageNumber}`,
-      description: `次のステージ ${nextStageNumber}`
-    };
+    try {
+      // DB から実データを読み直す
+      const { getSupabaseClient } = await import('@/platform/supabaseClient');
+      const supabase = getSupabaseClient();
+      const { data: nextStageData, error } = await supabase
+        .from('fantasy_stages')
+        .select('*')
+        .eq('stage_number', nextStageNumber)
+        .single();
+      
+      if (error || !nextStageData) {
+        alert(`ステージ ${nextStageNumber} が見つかりません`);
+        devLog.debug('次のステージが見つからない:', { nextStageNumber, error });
+        return;
+      }
 
-    setGameResult(null);
-    setShowResult(false);
-    setCurrentStage(nextStage);   // ← 待機画面
-    setGameKey(k => k + 1);  // 強制リマウント
+      // データベースの形式から FantasyStage 形式に変換
+      const convertedStage: FantasyStage = {
+        id: nextStageData.id,
+        stageNumber: nextStageData.stage_number,
+        name: nextStageData.name,
+        description: nextStageData.description || '',
+        maxHp: nextStageData.max_hp,
+        enemyGaugeSeconds: nextStageData.enemy_gauge_seconds,
+        enemyCount: nextStageData.enemy_count,
+        enemyHp: nextStageData.enemy_hp,
+        minDamage: nextStageData.min_damage,
+        maxDamage: nextStageData.max_damage,
+        mode: nextStageData.mode as 'single' | 'progression',
+        allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
+        chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
+        showSheetMusic: nextStageData.show_sheet_music,
+        showGuide: nextStageData.show_guide,
+        monsterIcon: nextStageData.monster_icon,
+        bgmUrl: nextStageData.bgm_url,
+        simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1
+      };
+
+      setGameResult(null);
+      setShowResult(false);
+      setCurrentStage(convertedStage);   // ← 実データで待機画面
+      setGameKey(k => k + 1);  // 強制リマウント
+      
+      devLog.debug('✅ 次のステージに遷移:', convertedStage);
+    } catch (err) {
+      console.error('次のステージ読み込みエラー:', err);
+      alert('次のステージの読み込みに失敗しました');
+    }
   }, [currentStage]);
   
   // メニューに戻る
@@ -312,6 +357,7 @@ const FantasyMain: React.FC = () => {
         <div className="text-white text-center max-w-md w-full">
           {/* 結果タイトル */}
           <h2 className="text-3xl font-bold mb-6 font-dotgothic16">
+            {currentStage?.stageNumber}&nbsp;
             {gameResult.result === 'clear' ? 'ステージクリア！' : 'ゲームオーバー'}
           </h2>
           
