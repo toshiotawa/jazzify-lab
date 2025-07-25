@@ -45,6 +45,7 @@ interface MonsterGameState {
   originalColor: number;
   staggerOffset: { x: number; y: number };
   hitCount: number;
+  originalScale?: number;
   state: MonsterState; // 状態機械の状態
   isFadingOut: boolean;
   fadeOutStartTime: number;
@@ -604,8 +605,13 @@ export class FantasyPIXIInstance {
     
     sprite.x = visualState.x + gameState.staggerOffset.x;
     sprite.y = visualState.y + gameState.staggerOffset.y;
-    sprite.scale.x = visualState.scale;
-    sprite.scale.y = visualState.scale;
+    
+    // 攻撃中はスケールを直接設定しているので、visualStateからの更新をスキップ
+    if (!gameState.isAttacking) {
+      sprite.scale.x = visualState.scale;
+      sprite.scale.y = visualState.scale;
+    }
+    
     sprite.rotation = visualState.rotation;
     sprite.tint = gameState.isHit ? gameState.hitColor : visualState.tint;
     sprite.alpha = visualState.alpha;
@@ -1262,11 +1268,22 @@ export class FantasyPIXIInstance {
         gameState.staggerOffset.x *= 0.9;
         gameState.staggerOffset.y *= 0.9;
         
-        // アイドル時の軽い浮遊効果（上下動）
+        // アイドル時の軽い浮遊効果（上下動）- 攻撃中は無効
         if (gameState.state === 'IDLE' && !gameState.isAttacking) {
           // IDをシードにして各モンスターの動きを非同期にする
           const baseY = this.app.screen.height / 2;
           visualState.y = baseY + Math.sin(Date.now() * 0.002 + id.charCodeAt(0)) * 6;
+        } else if (gameState.isAttacking) {
+          // 攻撃中は位置を固定（上下動を止める）
+          visualState.y = this.app.screen.height / 2;
+        }
+        
+        // 怒りマークの位置を更新（モンスターに追従）
+        if (monsterData.ui?.anger && monsterData.ui.anger.visible) {
+          const scaledWidth = sprite.texture.width * sprite.scale.x;
+          const scaledHeight = sprite.texture.height * sprite.scale.y;
+          monsterData.ui.anger.x = sprite.x + scaledWidth * 0.4;
+          monsterData.ui.anger.y = sprite.y - scaledHeight * 0.4;
         }
         
         // フェードアウト処理
@@ -1614,15 +1631,20 @@ export class FantasyPIXIInstance {
     const monsterData = this.monsterSprites.get(monsterId);
     if (!monsterData || this.isDestroyed) return;
 
+    console.log(`🎯 updateMonsterAttackingById called: monsterId=${monsterId}, isAttacking=${isAttacking}`);
+
+    // 元のスケールを保存（初回のみ）
+    if (!monsterData.gameState.originalScale) {
+      monsterData.gameState.originalScale = monsterData.visualState.scale;
+    }
+
     monsterData.gameState.isAttacking = isAttacking;
 
     if (isAttacking) {
-      // 元のスケールを保存
-      const originalScale = monsterData.visualState.scale;
-      
       // 攻撃エフェクト
       monsterData.visualState.tint = 0xFF6B6B;
-      monsterData.visualState.scale = originalScale * 1.5; // ★ 1.2 → 1.5 に変更
+      // スプライトのscaleを直接変更（visualStateのscaleではなく）
+      monsterData.sprite.scale.set(monsterData.gameState.originalScale * 1.5);
       
       // 怒りマーク表示（一度だけ生成・再利用）
       if (!monsterData.ui?.anger) {
@@ -1633,22 +1655,29 @@ export class FantasyPIXIInstance {
       }
       if (monsterData.ui?.anger) {
         monsterData.ui.anger.visible = true;
-        monsterData.ui.anger.x = monsterData.visualState.x + monsterData.sprite.width * 0.6; // ★ sprite幅で右端計算
-        monsterData.ui.anger.y = monsterData.visualState.y - monsterData.sprite.height * 0.6;
+        // スプライトの実際のサイズとスケールを考慮した位置計算
+        const scaledWidth = monsterData.sprite.texture.width * monsterData.sprite.scale.x;
+        const scaledHeight = monsterData.sprite.texture.height * monsterData.sprite.scale.y;
+        monsterData.ui.anger.x = monsterData.sprite.x + scaledWidth * 0.4;
+        monsterData.ui.anger.y = monsterData.sprite.y - scaledHeight * 0.4;
       }
       
-      this.updateMonsterSpriteData(monsterData);
+      // スプライトの色を即座に適用
+      monsterData.sprite.tint = monsterData.visualState.tint;
 
       // エフェクトを戻す
       setTimeout(() => {
         if (!this.isDestroyed && this.monsterSprites.has(monsterId)) {
           monsterData.visualState.tint = 0xFFFFFF;
-          monsterData.visualState.scale = originalScale;
-          this.updateMonsterSpriteData(monsterData);
+          monsterData.sprite.scale.set(monsterData.gameState.originalScale);
+          monsterData.sprite.tint = monsterData.visualState.tint;
           
           if (monsterData.ui?.anger) {
             monsterData.ui.anger.visible = false;
           }
+          
+          // 攻撃状態をリセット
+          monsterData.gameState.isAttacking = false;
         }
       }, 600);
     }
