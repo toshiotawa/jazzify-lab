@@ -1257,7 +1257,7 @@ export class FantasyPIXIInstance {
         const enragedTable = useEnemyStore.getState().enraged;
         
         // 怒りマークの相対位置（スプライト中心基準）
-        const ANGER_OFFSET = { x: 50, y: -50 }; // 右上に少しずらす（大きくなったので位置も調整）
+        const ANGER_OFFSET = { x: 80, y: -80 }; // さらに右上へ（アイコンに重ならないように）
         
         if (enragedTable[id]) {
           // ---- 怒り演出 ----
