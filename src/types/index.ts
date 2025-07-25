@@ -131,6 +131,7 @@ export interface GameSettings {
   masterVolume: number;        // 0-1
   musicVolume: number;         // 0-1
   midiVolume: number;          // 0-1
+  soundEffectVolume: number;   // 0-1 - 効果音音量
   
   // ゲーム設定
   notesSpeed: number;          // 0.5-3.0

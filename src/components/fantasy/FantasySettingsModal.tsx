@@ -16,12 +16,14 @@ interface FantasySettingsModalProps {
   onMidiDeviceChange?: (deviceId: string | null) => void;
   isMidiConnected?: boolean;
   volume?: number; // 音量設定をpropsで受け取る
+  soundEffectVolume?: number; // 効果音音量設定を追加
 }
 
 interface FantasySettings {
   midiDeviceId: string | null;
   volume: number;
   showGuide: boolean;
+  soundEffectVolume: number; // 効果音音量を追加
 }
 
 const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
@@ -31,12 +33,14 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   midiDeviceId = null,
   onMidiDeviceChange,
   isMidiConnected = false,
-  volume = 0.8 // デフォルト80%音量
+  volume = 0.8, // デフォルト80%音量
+  soundEffectVolume = 0.8 // デフォルト80%効果音音量
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
     volume: volume, // propsから受け取った音量を使用
-    showGuide: false
+    showGuide: false,
+    soundEffectVolume: soundEffectVolume // propsから受け取った効果音音量を使用
   });
   
   // propsのmidiDeviceIdが変更されたらsettingsも更新
@@ -48,6 +52,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   useEffect(() => {
     setSettings(prev => ({ ...prev, volume: volume }));
   }, [volume]);
+  
+  // propsのsoundEffectVolumeが変更されたらsettingsも更新
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, soundEffectVolume: soundEffectVolume }));
+  }, [soundEffectVolume]);
 
   // 設定変更ハンドラー
   const handleSettingChange = (key: keyof FantasySettings, value: any) => {
@@ -107,6 +116,25 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               onChange={(e) => handleSettingChange('volume', parseFloat(e.target.value))}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
+          </div>
+
+          {/* 効果音音量設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              効果音音量: {Math.round(settings.soundEffectVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={settings.soundEffectVolume}
+              onChange={(e) => handleSettingChange('soundEffectVolume', parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              魔法効果音と敵の攻撃音の音量を調整します
+            </p>
           </div>
 
           {/* ガイド表示設定 */}
