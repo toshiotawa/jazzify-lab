@@ -23,6 +23,7 @@ interface FantasyPIXIRendererProps {
   enemyGauge: number;
   onReady?: (instance: FantasyPIXIInstance) => void;
   onMonsterDefeated?: () => void; // 状態機械用コールバック
+  onMonsterDefeatAnimationComplete?: (monsterId: string) => void; // 倒れアニメーション完了コールバック
   className?: string;
   activeMonsters?: GameMonsterState[]; // マルチモンスター対応
 }
@@ -137,7 +138,7 @@ const MONSTER_EMOJI: Record<string, string> = {
   'demon': '🔥'  // 火（悪魔）
 };
 
-// ===== PIXI インスタンスクラス =====
+  // ===== PIXI インスタンスクラス =====
 interface MonsterSpriteData {
   id: string;
   sprite: PIXI.Sprite;
@@ -148,6 +149,8 @@ interface MonsterSpriteData {
   angerMark?: PIXI.Sprite | PIXI.Text; // 追加：怒りマーク（SVGスプライトまたはテキスト）
   outline?: PIXI.Graphics; // 追加：赤い輪郭
   lastAttackTime?: number; // 追加：最後に攻撃した時刻
+  isDefeated?: boolean; // 追加：倒されたフラグ
+  onDefeatAnimationComplete?: () => void; // 追加：倒れアニメーション完了時のコールバック
 }
 
 export class FantasyPIXIInstance {
@@ -159,6 +162,7 @@ export class FantasyPIXIInstance {
   private backgroundContainer: PIXI.Container;
   private onDefeated?: () => void;
   private onMonsterDefeated?: () => void;
+  private onMonsterDefeatAnimationComplete?: (monsterId: string) => void;
   
   /** ────────────────────────────────────
    *  safe‑default で初期化しておく
@@ -217,10 +221,11 @@ export class FantasyPIXIInstance {
 
 
 
-  constructor(width: number, height: number, onMonsterDefeated?: () => void) {
+  constructor(width: number, height: number, onMonsterDefeated?: () => void, onMonsterDefeatAnimationComplete?: (monsterId: string) => void) {
     // コールバックの保存
     this.onDefeated = onMonsterDefeated;
     this.onMonsterDefeated = onMonsterDefeated; // 状態機械用コールバック
+    this.onMonsterDefeatAnimationComplete = onMonsterDefeatAnimationComplete;
     
     // PIXI アプリケーション初期化
     this.app = new PIXI.Application({
@@ -452,9 +457,10 @@ export class FantasyPIXIInstance {
     
     const currentIds = new Set(monsters.map(m => m.id));
     
-    // 削除されたモンスターをクリーンアップ
+    // 削除されたモンスターをチェック（倒れアニメーション中は削除しない）
     for (const [id, monsterData] of this.monsterSprites) {
-      if (!currentIds.has(id)) {
+      if (!currentIds.has(id) && !monsterData.isDefeated) {
+        // 即座に削除（倒されたわけではない）
         if (monsterData.sprite && !monsterData.sprite.destroyed) {
             monsterData.sprite.destroy();
         }
@@ -502,7 +508,8 @@ export class FantasyPIXIInstance {
           visualState,
           gameState,
           position: monster.position,
-          gauge: monster.gauge // 追加
+          gauge: monster.gauge, // 追加
+          onDefeatAnimationComplete: this.onMonsterDefeatAnimationComplete?.bind(this, monster.id)
         };
         
         this.monsterSprites.set(monster.id, monsterData);
@@ -751,9 +758,12 @@ export class FantasyPIXIInstance {
       monsterData.gameState.hitCount++;
 
       if (defeated) {
+        monsterData.isDefeated = true;
         monsterData.gameState.state = 'FADING_OUT';
         monsterData.gameState.isFadingOut = true;
-
+        
+        // 倒れアニメーションを開始
+        this.startMonsterDefeatAnimation(monsterData);
       }
 
       // ヒット状態を解除
@@ -1115,6 +1125,52 @@ export class FantasyPIXIInstance {
     devLog.debug('✅ コード名表示:', { chordName });
   }
 
+  // モンスターの倒れアニメーション
+  private startMonsterDefeatAnimation(monsterData: MonsterSpriteData): void {
+    if (this.isDestroyed || !monsterData.sprite || monsterData.sprite.destroyed) return;
+    
+    const sprite = monsterData.sprite;
+    const visualState = monsterData.visualState;
+    const duration = 1000; // 1秒かけて倒れる
+    let elapsed = 0;
+    
+    const animate = () => {
+      if (this.isDestroyed || !sprite || sprite.destroyed) return;
+      
+      elapsed += 16;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // イージング関数（加速）
+      const easeProgress = progress * progress;
+      
+      // 倒れる動き（回転と落下）
+      sprite.rotation = easeProgress * Math.PI / 2; // 90度回転
+      sprite.y = visualState.y + (easeProgress * 100); // 下に落ちる
+      sprite.alpha = 1 - (easeProgress * 0.5); // 徐々に透明に
+      
+      if (progress >= 1) {
+        // アニメーション完了
+        monsterData.gameState.state = 'GONE';
+        
+        // コールバックを実行（次のモンスターを出現させる）
+        if (monsterData.onDefeatAnimationComplete) {
+          monsterData.onDefeatAnimationComplete();
+        }
+        
+        // スプライトを削除
+        if (sprite.parent) {
+          sprite.parent.removeChild(sprite);
+        }
+        sprite.destroy();
+        this.monsterSprites.delete(monsterData.id);
+      } else {
+        requestAnimationFrame(animate);
+      }
+    };
+    
+    animate();
+  }
+
   // モンスターのフェードアウトアニメーション
   private startMonsterFadeOut(): void {
     if (this.isDestroyed) return;
@@ -1181,6 +1237,11 @@ export class FantasyPIXIInstance {
       // 常に monsterSprites マップをループ処理する
       for (const [id, monsterData] of this.monsterSprites) {
         const { visualState, gameState, sprite } = monsterData;
+        
+        // 倒されたモンスターは別処理
+        if (monsterData.isDefeated) {
+          continue; // 倒れアニメーションは別関数で処理
+        }
         
         // ストアから怒り状態を取得
         const enragedTable = useEnemyStore.getState().enraged;
@@ -1648,6 +1709,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   enemyGauge,
   onReady,
   onMonsterDefeated,
+  onMonsterDefeatAnimationComplete,
   className,
   activeMonsters
 }) => {
@@ -1658,7 +1720,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const instance = new FantasyPIXIInstance(width, height, onMonsterDefeated);
+    const instance = new FantasyPIXIInstance(width, height, onMonsterDefeated, onMonsterDefeatAnimationComplete);
     containerRef.current.appendChild(instance.getCanvas());
     
     setPixiInstance(instance);
@@ -1667,7 +1729,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
     return () => {
       instance.destroy();
     };
-  }, [width, height, onReady, onMonsterDefeated]);
+  }, [width, height, onReady, onMonsterDefeated, onMonsterDefeatAnimationComplete]);
 
   // モンスターアイコン変更（状態機械による安全な生成）
   useEffect(() => {

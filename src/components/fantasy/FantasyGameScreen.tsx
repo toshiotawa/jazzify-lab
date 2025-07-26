@@ -280,6 +280,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
+    handleMonsterDefeatComplete,
     ENEMY_LIST
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
@@ -707,6 +708,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
+              onMonsterDefeatAnimationComplete={handleMonsterDefeatComplete}
               className="w-full h-full"
               activeMonsters={gameState.activeMonsters}
             />

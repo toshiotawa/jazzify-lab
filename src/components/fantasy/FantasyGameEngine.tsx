@@ -53,6 +53,7 @@ interface MonsterState {
   correctNotes: number[]; // このモンスター用の正解済み音
   icon: string;
   name: string;
+  isDying?: boolean; // 倒れアニメーション中フラグ
 }
 
 interface FantasyGameState {
@@ -85,6 +86,7 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  pendingMonsterCount?: number; // 出現待ちモンスター数
 }
 
 interface FantasyGameEngineProps {
@@ -399,6 +401,48 @@ export const useFantasyGameEngine = ({
   useEffect(() => {
     setSp(gameState.playerSp);
   }, [gameState.playerSp, setSp]);
+  
+  // 倒されたモンスターを削除して新しいモンスターを追加
+  const handleMonsterDefeatComplete = useCallback((defeatedMonsterId: string) => {
+    setGameState(prevState => {
+      // 倒されたモンスターを削除
+      let newActiveMonsters = prevState.activeMonsters.filter(m => m.id !== defeatedMonsterId);
+      
+      // 新しいモンスターを追加
+      if (prevState.pendingMonsterCount && prevState.pendingMonsterCount > 0 && prevState.monsterQueue.length > 0) {
+        const availablePositions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(
+          pos => !newActiveMonsters.some(m => m.position === pos)
+        );
+        
+        let newMonsterQueue = [...prevState.monsterQueue];
+        const monsterIndex = newMonsterQueue.shift()!;
+        const position = availablePositions[0] || 'B';
+        
+        const newMonster = createMonsterFromQueue(
+          monsterIndex,
+          position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
+          prevState.maxEnemyHp,
+          prevState.currentStage!.allowedChords,
+          undefined,
+          displayOpts
+        );
+        
+        newActiveMonsters.push(newMonster);
+        
+        return {
+          ...prevState,
+          activeMonsters: newActiveMonsters,
+          monsterQueue: newMonsterQueue,
+          pendingMonsterCount: Math.max(0, (prevState.pendingMonsterCount || 0) - 1)
+        };
+      }
+      
+      return {
+        ...prevState,
+        activeMonsters: newActiveMonsters
+      };
+    });
+  }, [displayOpts]);
   
   // ゲーム初期化
   const initializeGame = useCallback((stage: FantasyStage) => {
@@ -826,8 +870,16 @@ export const useFantasyGameEngine = ({
         const defeatedMonstersThisTurn = stateAfterAttack.activeMonsters.filter(m => m.currentHp <= 0);
         stateAfterAttack.enemiesDefeated += defeatedMonstersThisTurn.length;
 
-        // 生き残ったモンスターのリストを作成
-        let remainingMonsters = stateAfterAttack.activeMonsters.filter(m => m.currentHp > 0);
+        // 倒されたモンスターをマーク（まだリストには残す）
+        stateAfterAttack.activeMonsters = stateAfterAttack.activeMonsters.map(m => {
+          if (m.currentHp <= 0) {
+            return { ...m, isDying: true }; // 倒れアニメーション中フラグ
+          }
+          return m;
+        });
+
+        // 生き残ったモンスターのリストを作成（倒れアニメーション中のものも含む）
+        let remainingMonsters = stateAfterAttack.activeMonsters;
         
         // 生き残ったモンスターのうち、今回攻撃したモンスターは問題をリセット
         remainingMonsters = remainingMonsters.map(monster => {
@@ -842,33 +894,18 @@ export const useFantasyGameEngine = ({
           return monster;
         });
 
-        // モンスターの補充
-        let newMonsterQueue = [...stateAfterAttack.monsterQueue];
-        const slotsToFill = stateAfterAttack.simultaneousMonsterCount - remainingMonsters.length;
-        const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
-
-        if (monstersToAddCount > 0) {
-                      const availablePositions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(pos => !remainingMonsters.some(m => m.position === pos));
-          const lastUsedChordId = completedMonsters.length > 0 ? completedMonsters[0].chordTarget.id : undefined;
-
-          for (let i = 0; i < monstersToAddCount; i++) {
-            const monsterIndex = newMonsterQueue.shift()!;
-            const position = availablePositions[i] || 'B';
-            const newMonster = createMonsterFromQueue(
-              monsterIndex,
-              position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
-              stateAfterAttack.maxEnemyHp,
-              stateAfterAttack.currentStage!.allowedChords,
-              lastUsedChordId, // 直前のコードを避ける
-              displayOpts
-            );
-            remainingMonsters.push(newMonster);
-          }
+        // モンスターの補充は倒れアニメーション後に行うため、ここでは行わない
+        // 実際に生きているモンスターの数を計算（isDyingを除く）
+        const aliveMonsterCount = remainingMonsters.filter(m => !m.isDying).length;
+        const slotsToFill = stateAfterAttack.simultaneousMonsterCount - aliveMonsterCount;
+        
+        // 次に出現させるモンスター情報を保存
+        if (slotsToFill > 0 && stateAfterAttack.monsterQueue.length > 0) {
+          stateAfterAttack.pendingMonsterCount = Math.min(slotsToFill, stateAfterAttack.monsterQueue.length);
         }
         
-        // 最終的なモンスターリストとキューを更新
+        // 最終的なモンスターリストを更新（キューはそのまま）
         stateAfterAttack.activeMonsters = remainingMonsters;
-        stateAfterAttack.monsterQueue = newMonsterQueue;
         
         // 互換性のためのレガシーな状態も更新
         stateAfterAttack.correctNotes = [];
@@ -1002,6 +1039,7 @@ export const useFantasyGameEngine = ({
     initializeGame,
     stopGame,
     proceedToNextEnemy,
+    handleMonsterDefeatComplete,
     
     // ヘルパー関数もエクスポート
     checkChordMatch,
