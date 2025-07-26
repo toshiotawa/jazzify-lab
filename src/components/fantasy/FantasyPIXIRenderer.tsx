@@ -753,6 +753,7 @@ export class FantasyPIXIInstance {
       const bubbleTex = await textureCache['noteBubble'];
       const bubble = new PIXI.Sprite(bubbleTex);
       bubble.anchor.set(0.5, 1);
+      bubble.scale.set(0.3);  // サイズを30%に縮小
       bubble.x = monsterData.sprite.width * 0.6;   // 右上
       bubble.y = -monsterData.sprite.height * 0.1;
       monsterData.sprite.addChild(bubble);
