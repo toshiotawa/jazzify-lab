@@ -2,11 +2,12 @@
  * FantasySoundManager
  * ---------------------------------------------
  * 効果音（SE）のロードと再生、音量管理を一括で行うシングルトンクラス。
- *  - 4 種の効果音をプリロード（fire / ice / thunder / enemy_attack）
+ *  - 4 種の効果音をプリロード（fire / ice / thunder / enemy_attack）
  *  - 同時再生に対応するため、再生時は cloneNode() した HTMLAudioElement を使用
  *  - マスターボリューム(0‑1)を保持し、リアルタイムで変更可能
  *  - ユーティリティ関数（playMagic, playEnemyAttack, setVolume, getVolume, init）を公開
  *  - 初期化時に非同期ロードを行うため、init() は Promise<void> を返す
+ *  - 同じ種類の音が重ならないように、最小再生間隔を設定
  *
  *   公開 API
  *   ---------
@@ -39,6 +40,13 @@ interface LoadedAudio {
   ready: boolean;
 }
 
+interface PlayingAudio {
+  /** 再生中のAudioインスタンス */
+  audio: HTMLAudioElement;
+  /** 再生開始時刻 */
+  startTime: number;
+}
+
 export class FantasySoundManager {
   // ─────────────────────────────────────────────
   // singleton
@@ -56,6 +64,28 @@ export class FantasySoundManager {
     ice:           { base: new Audio(), ready: false },
     thunder:       { base: new Audio(), ready: false }
   };
+
+  /** 現在再生中の音声を管理 */
+  private playingAudios: Record<string, PlayingAudio[]> = {
+    enemy_attack: [],
+    fire: [],
+    ice: [],
+    thunder: []
+  };
+
+  /** 最後に再生した時刻を記録 */
+  private lastPlayTime: Record<string, number> = {
+    enemy_attack: 0,
+    fire: 0,
+    ice: 0,
+    thunder: 0
+  };
+
+  /** 同じ種類の音の最小再生間隔（ミリ秒） */
+  private readonly MIN_PLAY_INTERVAL = 50; // 50ms
+
+  /** 同じ種類の音の最大同時再生数 */
+  private readonly MAX_CONCURRENT_SOUNDS = 2;
 
   /** マスターボリューム (0‑1) */
   private _volume = 0.8;
@@ -134,12 +164,25 @@ export class FantasySoundManager {
     Object.values(this.audioMap).forEach(obj => {
       obj.base.volume = this._volume;
     });
+    // 現在再生中の音声にも反映
+    Object.values(this.playingAudios).forEach(audios => {
+      audios.forEach(({ audio }) => {
+        audio.volume = this._volume;
+      });
+    });
   }
 
   private _playMagic(type: MagicSeType) {
     // magic type -> key mapping is 1:1
     console.debug(`[FantasySoundManager] playMagic called with type: ${type}`);
     this._playSe(type);
+  }
+
+  private _cleanupFinishedAudios(key: string) {
+    // 終了した音声を削除
+    this.playingAudios[key] = this.playingAudios[key].filter(({ audio }) => {
+      return !audio.ended && !audio.paused;
+    });
   }
 
   private _playSe(key: keyof typeof this.audioMap) {
@@ -164,16 +207,45 @@ export class FantasySoundManager {
       return;
     }
 
+    const now = Date.now();
+    
+    // 終了した音声をクリーンアップ
+    this._cleanupFinishedAudios(key);
+
+    // 最小再生間隔のチェック
+    if (now - this.lastPlayTime[key] < this.MIN_PLAY_INTERVAL) {
+      console.debug(`[FantasySoundManager] Skipping ${key} - too soon since last play`);
+      return;
+    }
+
+    // 同時再生数のチェック
+    if (this.playingAudios[key].length >= this.MAX_CONCURRENT_SOUNDS) {
+      console.debug(`[FantasySoundManager] Skipping ${key} - max concurrent sounds reached`);
+      return;
+    }
+
     console.debug(`[FantasySoundManager] Playing sound: ${key} at volume: ${this._volume}`);
 
     // 同時再生のため cloneNode()
     const node = base.cloneNode() as HTMLAudioElement;
     node.volume = this._volume;
+    
+    // 再生情報を記録
+    const playingAudio: PlayingAudio = {
+      audio: node,
+      startTime: now
+    };
+    this.playingAudios[key].push(playingAudio);
+    this.lastPlayTime[key] = now;
+
     // onended で解放
     node.addEventListener('ended', () => {
       // Safari では remove() のみで OK、Chrome は detach で GC 対象
       node.src = '';
+      // 再生中リストから削除
+      this._cleanupFinishedAudios(key);
     });
+
     // play() は Promise—but 例外無視
     const playPromise = node.play();
     if (playPromise !== undefined) {
@@ -189,6 +261,8 @@ export class FantasySoundManager {
             networkState: node.networkState,
             error: node.error
           });
+          // 再生失敗時はリストから削除
+          this._cleanupFinishedAudios(key);
         });
     }
   }

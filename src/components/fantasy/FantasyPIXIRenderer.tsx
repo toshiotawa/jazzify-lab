@@ -764,12 +764,18 @@ export class FantasyPIXIInstance {
         magicTypeMap
       });
       if (soundType) {
-        try {
-          FantasySoundManager.playMagic(soundType);
-          devLog.debug('🔊 魔法効果音再生(triggerAttackSuccessOnMonster):', soundType);
-        } catch (error) {
-          console.error('魔法効果音再生エラー:', error);
-        }
+        // モンスターのインデックスに基づいて遅延を計算（0-30ms）
+        const monsterIndex = Array.from(this.monsterSprites.keys()).indexOf(monsterId);
+        const delay = monsterIndex * 15; // 各モンスターごとに15msずつ遅延
+        
+        setTimeout(() => {
+          try {
+            FantasySoundManager.playMagic(soundType);
+            devLog.debug('🔊 魔法効果音再生(triggerAttackSuccessOnMonster):', soundType, 'delay:', delay);
+          } catch (error) {
+            console.error('魔法効果音再生エラー:', error);
+          }
+        }, delay);
       } else {
         console.warn('⚠️ soundTypeが未定義:', this.currentMagicType);
       }
@@ -856,12 +862,18 @@ export class FantasyPIXIInstance {
         magicTypeMap
       });
       if (soundType) {
-        try {
-          FantasySoundManager.playMagic(soundType);
-          devLog.debug('🔊 魔法効果音再生(triggerAttackSuccess):', soundType);
-        } catch (error) {
-          console.error('魔法効果音再生エラー:', error);
-        }
+        // モンスターのインデックスに基づいて遅延を計算（0-30ms）
+        const monsterIndex = Array.from(this.monsterSprites.keys()).indexOf(monsterId);
+        const delay = monsterIndex * 15; // 各モンスターごとに15msずつ遅延
+        
+        setTimeout(() => {
+          try {
+            FantasySoundManager.playMagic(soundType);
+            devLog.debug('🔊 魔法効果音再生(triggerAttackSuccess):', soundType, 'delay:', delay);
+          } catch (error) {
+            console.error('魔法効果音再生エラー:', error);
+          }
+        }, delay);
       } else {
         console.warn('⚠️ soundTypeが未定義:', this.currentMagicType);
       }

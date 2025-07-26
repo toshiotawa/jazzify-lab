@@ -233,10 +233,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // 敵の攻撃音を再生
+    // 敵の攻撃音を再生（ランダムな遅延を追加）
     try {
       const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
-      FantasySoundManager.playEnemyAttack();
+      // 0-20msのランダムな遅延を追加
+      const delay = Math.random() * 20;
+      setTimeout(() => {
+        FantasySoundManager.playEnemyAttack();
+      }, delay);
     } catch (error) {
       console.error('Failed to play enemy attack sound:', error);
     }
