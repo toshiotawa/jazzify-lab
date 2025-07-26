@@ -4,7 +4,7 @@
  */
 
 import { transpose, note as parseNote, distance } from 'tonal';
-import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP } from './chord-templates';
+import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP, CHORD_ALIASES } from './chord-templates';
 
 /**
  * 任意ルートのコードから実音配列を取得（オクターブなし）
@@ -99,6 +99,11 @@ export function transposeKey(currentKey: string, semitones: number): string {
 export function getFantasyChordNotes(chordId: string, octave: number = 4): number[] {
   const mapping = FANTASY_CHORD_MAP[chordId];
   if (!mapping) {
+    // parseChordName を使ったフォールバック処理を追加
+    const parsed = parseChordName(chordId);
+    if (parsed) {
+      return buildChordMidiNotes(parsed.root, parsed.quality, octave);
+    }
     console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
     return [];
   }
@@ -108,45 +113,41 @@ export function getFantasyChordNotes(chordId: string, octave: number = 4): numbe
 
 /**
  * コード名のパース（ルートとクオリティに分割）
+ * 'C#m7' のような複雑なコード名にも対応できるよう改善
  * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7'）
  * @returns { root: string, quality: ChordQuality } | null
  */
 export function parseChordName(chordName: string): { root: string; quality: ChordQuality } | null {
-  // 簡易的なパーサー（後で拡張可能）
-  const match = chordName.match(/^([A-G][#b]?)(.*)$/);
-  if (!match) return null;
-  
-  const [, root, suffix] = match;
-  
-  // サフィックスからクオリティを判定
-  const qualityMap: Record<string, ChordQuality> = {
-    '': 'maj',
-    'm': 'min',
-    '7': '7',
-    'M7': 'maj7',
-    'maj7': 'maj7',
-    'm7': 'm7',
-    'dim': 'dim',
-    'dim7': 'dim7',
-    'aug': 'aug',
-    'sus2': 'sus2',
-    'sus4': 'sus4',
-    '6': '6',
-    'm6': 'm6',
-    '9': '9',
-    'm9': 'm9',
-    'maj9': 'maj9',
-    '11': '11',
-    '13': '13'
-  };
-  
-  const quality = qualityMap[suffix];
-  if (!quality) {
-    console.warn(`⚠️ 未知のコードサフィックス: ${suffix} in ${chordName}`);
+  // 1. ルート音を特定 (例: 'C#', 'Db', 'F', 'G')
+  const rootMatch = chordName.match(/^[A-G](##?|bb?|#|b)?/);
+  if (!rootMatch) {
+    console.warn(`⚠️ 無効なコード名（ルートが見つかりません）: ${chordName}`);
     return null;
   }
+  const root = rootMatch[0];
+  const suffix = chordName.substring(root.length);
+
+  // 2. サフィックスからクオリティを特定
+  // まずエイリアスをチェック (例: 'M7' -> 'maj7')
+  if (suffix in CHORD_ALIASES) {
+    return { root, quality: CHORD_ALIASES[suffix] };
+  }
+
+  // 次にテンプレートのキーと直接比較 (長いものから順に)
+  const qualityKeys = Object.keys(CHORD_TEMPLATES).sort((a, b) => b.length - a.length);
+  const foundQuality = qualityKeys.find(key => key === suffix) as ChordQuality | undefined;
+
+  if (foundQuality) {
+    return { root, quality: foundQuality };
+  }
   
-  return { root, quality };
+  // それでも見つからなければ、エイリアスにフォールバック (例: '' -> 'maj')
+  if (suffix === '') {
+     return { root, quality: 'maj' };
+  }
+
+  console.warn(`⚠️ 未知のコードサフィックス: "${suffix}" in "${chordName}"`);
+  return null;
 }
 
 /**
