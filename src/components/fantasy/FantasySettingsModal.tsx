@@ -27,7 +27,6 @@ interface FantasySettings {
   midiDeviceId: string | null;
   volume: number; // ピアノ音量
   soundEffectVolume: number; // 効果音音量
-  showGuide: boolean;
   noteNameLang: DisplayLang; // 音名表示言語
   simpleNoteName: boolean; // 簡易表記
 }
@@ -48,7 +47,6 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     midiDeviceId: midiDeviceId,
     volume: volume, // propsから受け取ったピアノ音量を使用
     soundEffectVolume: soundEffectVolume, // propsから受け取った効果音音量を使用
-    showGuide: false,
     noteNameLang: noteNameLang,
     simpleNoteName: simpleNoteName
   });
@@ -219,24 +217,6 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             </label>
             <p className="text-xs text-gray-400 mt-1">
               ヒント表示のダブルシャープ・ダブルフラットを基本音名に変換します（例: Fx → G）
-            </p>
-          </div>
-
-          {/* ガイド表示設定 */}
-          <div>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={settings.showGuide}
-                onChange={(e) => handleSettingChange('showGuide', e.target.checked)}
-                className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-white">
-                ガイド表示（鍵盤ハイライト）
-              </span>
-            </label>
-            <p className="text-xs text-gray-400 mt-1">
-              出題コードの鍵盤がハイライト表示されます
             </p>
           </div>
         </div>
