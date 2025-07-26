@@ -46,7 +46,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
   // 設定状態を管理（初期値はstageから取得）
-  const [showGuide, setShowGuide] = useState(stage.showGuide);
+  // showGuideはstage.showGuideを直接使用（状態管理しない）
   const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(noteNameLang);
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
   
@@ -84,11 +84,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  
-  // stage.showGuide の変更をコンポーネントの状態に同期させる
-  useEffect(() => {
-    setShowGuide(stage.showGuide);
-  }, [stage.showGuide]);
   
   // ノート入力のハンドリング用ref
   const handleNoteInputRef = useRef<(note: number) => void>();
@@ -293,7 +288,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
-    displayOpts: { lang: noteNameLang, simple: simpleNoteName }
+    displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
   
   // 現在の敵情報を取得
@@ -365,7 +360,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         noteWidth: dynamicNoteWidth,
         transpose: 0,
         transposingInstrument: 'concert_pitch',
-        practiceGuide: showGuide ? 'key' : 'off', // ガイド表示設定に基づく
+        practiceGuide: stage.showGuide ? 'key' : 'off', // ガイド表示設定に基づく
         showHitLine: false, // ヒットラインを非表示
         viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
         timingAdjustment: 0,
@@ -416,10 +411,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         totalWhiteKeys,
         whiteKeyWidth: whiteKeyWidth.toFixed(2),
         noteWidth: dynamicNoteWidth.toFixed(2),
-        showGuide: showGuide
+        showGuide: stage.showGuide
       });
     }
-  }, [handleNoteInputBridge, showGuide]);
+  }, [handleNoteInputBridge, stage.showGuide]);
 
   // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
   useEffect(() => {
@@ -799,7 +794,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           
                           const isCorrect = monster.correctNotes.includes(noteMod12);
 
-                          if (!showGuide && !isCorrect) {
+                          if (!stage.showGuide && !isCorrect) {
                             return (
                               <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
                                 ?
@@ -994,7 +989,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onClose={() => setIsSettingsModalOpen(false)}
         onSettingsChange={(settings) => {
           devLog.debug('⚙️ ファンタジー設定変更:', settings);
-          setShowGuide(settings.showGuide);
+          // setShowGuide(settings.showGuide); // この行を削除
           setCurrentNoteNameLang(settings.noteNameLang);
           setCurrentSimpleNoteName(settings.simpleNoteName);
           
