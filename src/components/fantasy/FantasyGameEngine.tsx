@@ -359,8 +359,8 @@ export const useFantasyGameEngine = ({
   displayOpts = { lang: 'en', simple: false }
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   
-  // Zustand store for SP gauge
-  const { playerSp, setSp, addSp, resetSp, consumeSp, canUseSpecialAttack } = useFantasyStore();
+  // Zustand store for SP gauge (sync only)
+  const { setSp, resetSp } = useFantasyStore();
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -394,6 +394,11 @@ export const useFantasyGameEngine = ({
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+  
+  // SPゲージをZustand storeに同期
+  useEffect(() => {
+    setSp(gameState.playerSp);
+  }, [gameState.playerSp, setSp]);
   
   // ゲーム初期化
   const initializeGame = useCallback((stage: FantasyStage) => {
@@ -789,7 +794,7 @@ export const useFantasyGameEngine = ({
         // ★ 攻撃処理後の状態を計算する
         let stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
         
-        const isSpecialAttack = canUseSpecialAttack();
+        const isSpecialAttack = stateAfterAttack.playerSp >= 5;
         
         // 攻撃処理ループ
         completedMonsters.forEach(completed => {
@@ -806,14 +811,12 @@ export const useFantasyGameEngine = ({
 
         // プレイヤーの状態更新
         if (isSpecialAttack) {
-          consumeSp(); // Zustand storeでSPを消費
           stateAfterAttack.playerSp = 0;
           
           // ★ 全敵ゲージをリセット
           stateAfterAttack.activeMonsters =
             stateAfterAttack.activeMonsters.map(m => ({ ...m, gauge: 0 }));
         } else {
-          addSp(completedMonsters.length); // Zustand storeでSPを追加
           stateAfterAttack.playerSp = Math.min(stateAfterAttack.playerSp + completedMonsters.length, 5);
         }
         stateAfterAttack.score += 1000 * completedMonsters.length;

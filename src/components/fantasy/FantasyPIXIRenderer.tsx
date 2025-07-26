@@ -644,21 +644,21 @@ export class FantasyPIXIInstance {
       
       // コンテナサイズに応じて動的にスケール調整
       if (isMobile) {
-        // モバイル: コンテナ高さの70%まで使用
-        const mobileMaxHeight = CONTAINER_HEIGHT * 0.7;
+        // モバイル: コンテナ高さの65%まで使用（少し小さめ）
+        const mobileMaxHeight = CONTAINER_HEIGHT * 0.65;
         const mobileScale = Math.min(
-          (availableWidth * 0.9) / sprite.texture.width,
+          (availableWidth * 0.85) / sprite.texture.width,
           mobileMaxHeight / sprite.texture.height
         );
-        sprite.scale.set(Math.min(mobileScale, 0.5)); // 最大50%に制限
+        sprite.scale.set(Math.min(mobileScale, 0.8)); // 最大80%に制限
       } else {
-        // PC: コンテナ高さの90%まで使用、より大きく表示
-        const pcMaxHeight = CONTAINER_HEIGHT * 0.9;
+        // PC: コンテナ高さの95%まで使用、かなり大きく表示
+        const pcMaxHeight = CONTAINER_HEIGHT * 0.95;
         const pcScale = Math.min(
-          (availableWidth * 1.2) / sprite.texture.width,
+          (availableWidth * 1.5) / sprite.texture.width,
           pcMaxHeight / sprite.texture.height
         );
-        sprite.scale.set(Math.min(pcScale, 1.5)); // 最大150%まで許可
+        sprite.scale.set(Math.min(pcScale, 2.0)); // 最大200%まで許可（倍のサイズ）
       }
       
       sprite.anchor.set(0.5);
@@ -763,73 +763,31 @@ export class FantasyPIXIInstance {
         }
       }, 300);
 
-      // —— 音符吹き出しを 1.2 秒間だけ表示 ———————————————
-      const bubbleTex = await textureCache['noteBubble'];
-      const bubble = new PIXI.Sprite(bubbleTex);
-      bubble.anchor.set(0.5, 1);
-      bubble.scale.set(0.3);  // サイズを30%に縮小
-      bubble.x = monsterData.sprite.width * 0.6;   // 右上
-      bubble.y = -monsterData.sprite.height * 0.1;
-      monsterData.sprite.addChild(bubble);
-      setTimeout(() => {
-        if (!bubble.destroyed) monsterData.sprite.removeChild(bubble);
-        bubble.destroy();
-      }, 1200);
+      // SPアタック時は音符を表示しない
+      if (!isSpecial) {
+        // —— 音符吹き出しを 1.2 秒間だけ表示 ———————————————
+        const bubbleTex = await textureCache['noteBubble'];
+        const bubble = new PIXI.Sprite(bubbleTex);
+        bubble.anchor.set(0.5, 1);
+        bubble.scale.set(0.3);  // サイズを30%に縮小
+        bubble.x = monsterData.sprite.width * 0.6;   // 右上
+        bubble.y = -monsterData.sprite.height * 0.1;
+        
+        // モンスターが破棄されていないかチェック
+        if (monsterData.sprite && !monsterData.sprite.destroyed) {
+          monsterData.sprite.addChild(bubble);
+          setTimeout(() => {
+            if (!bubble.destroyed && monsterData.sprite && !monsterData.sprite.destroyed) {
+              monsterData.sprite.removeChild(bubble);
+            }
+            bubble.destroy();
+          }, 1200);
+        }
+      }
 
-      // SPアタック時のカットイン表示
+      // SPアタック時の横一閃エフェクト
       if (isSpecial) {
-        const tex = await textureCache['swingCutin'];
-        const cutin = new PIXI.Sprite(tex);
-        cutin.anchor.set(0.5);
-        cutin.x = this.app.screen.width / 2;
-        cutin.y = this.app.screen.height / 2;
-        
-        // 画面サイズに応じてカットインをリサイズ
-        const screenWidth = this.app.screen.width;
-        const screenHeight = this.app.screen.height;
-        const maxCutinWidth = screenWidth * 0.8; // 画面幅の80%まで
-        const maxCutinHeight = screenHeight * 0.6; // 画面高さの60%まで
-        
-        const cutinScale = Math.min(
-          maxCutinWidth / tex.width,
-          maxCutinHeight / tex.height,
-          1.0 // 最大でも元のサイズまで
-        );
-        cutin.scale.set(cutinScale);
-        cutin.alpha = 0;
-        this.uiContainer.addChild(cutin);
-
-        // シンプルなフェードイン・アウト
-        let fadePhase = 'in';
-        let alpha = 0;
-        const animate = () => {
-          if (this.isDestroyed || !cutin || cutin.destroyed) return;
-          
-          if (fadePhase === 'in') {
-            alpha += 0.05;
-            if (alpha >= 1) {
-              alpha = 1;
-              fadePhase = 'hold';
-              setTimeout(() => { fadePhase = 'out'; }, 800);
-            }
-          } else if (fadePhase === 'out') {
-            alpha -= 0.05;
-            if (alpha <= 0) {
-              alpha = 0;
-              if (!cutin.destroyed) {
-                this.uiContainer.removeChild(cutin);
-                cutin.destroy();
-              }
-              return;
-            }
-          }
-          
-          cutin.alpha = alpha;
-          if (fadePhase !== 'done') {
-            requestAnimationFrame(animate);
-          }
-        };
-        animate();
+        this.createSwingSwingEffect();
       }
 
     } catch (error) {
@@ -890,6 +848,74 @@ export class FantasyPIXIInstance {
 
 
 
+
+  // SPアタック時の横一閃エフェクト
+  private createSwingSwingEffect(): void {
+    if (this.isDestroyed) return;
+    
+    // 背景の一閃エフェクト
+    const flash = new PIXI.Graphics();
+    flash.beginFill(0xFFD700, 0.3);
+    flash.drawRect(0, 0, this.app.screen.width, this.app.screen.height);
+    flash.endFill();
+    this.effectContainer.addChild(flash);
+    
+    // Swing! Swing! Swing! テキスト
+    const text = new PIXI.Text('Swing! Swing! Swing!', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 60,
+      fontWeight: 'bold',
+      fill: [0xFFD700, 0xFFA500], // グラデーション
+      stroke: 0x000000,
+      strokeThickness: 6,
+      dropShadow: true,
+      dropShadowBlur: 4,
+      dropShadowDistance: 2,
+      letterSpacing: 2
+    });
+    
+    text.anchor.set(0, 0.5);
+    text.x = -text.width; // 画面左外からスタート
+    text.y = this.app.screen.height / 2;
+    this.uiContainer.addChild(text);
+    
+    // アニメーション
+    let elapsed = 0;
+    const duration = 800; // 0.8秒
+    const animate = () => {
+      if (this.isDestroyed || !text || text.destroyed) return;
+      
+      elapsed += 16;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // イージング関数（加速して減速）
+      const easeProgress = progress < 0.5 
+        ? 2 * progress * progress 
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      
+      // テキストを左から右へ移動
+      text.x = -text.width + (this.app.screen.width + text.width * 2) * easeProgress;
+      
+      // フラッシュのフェードアウト
+      flash.alpha = 0.3 * (1 - progress);
+      
+      if (progress >= 1) {
+        // アニメーション終了
+        if (!text.destroyed) {
+          this.uiContainer.removeChild(text);
+          text.destroy();
+        }
+        if (!flash.destroyed) {
+          this.effectContainer.removeChild(flash);
+          flash.destroy();
+        }
+      } else {
+        requestAnimationFrame(animate);
+      }
+    };
+    
+    animate();
+  }
 
   // 魔法陣エフェクト作成
   private createMagicCircle(x: number, y: number, type: 'success' | 'failure'): void {
@@ -1164,7 +1190,7 @@ export class FantasyPIXIInstance {
         
         if (enragedTable[id]) {
           // ---- 怒り演出 ----
-          visualState.scale = 0.6; // ★ 怒り時も比例拡大（通常の1.5倍）
+          visualState.scale = 0.8; // ★ 怒り時も比例拡大（通常の1.3倍程度）
           sprite.tint = 0xFFCCCC;
           
           // 怒りマークを追加（まだない場合）
@@ -1211,7 +1237,7 @@ export class FantasyPIXIInstance {
           
         } else {
           // ---- 通常状態 ----
-          visualState.scale = 0.4;  // ★ 通常時も 2 倍へ
+          visualState.scale = 0.6;  // ★ 通常時のデフォルトスケール
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
           
           // 怒りエフェクトを削除
@@ -1445,21 +1471,21 @@ export class FantasyPIXIInstance {
         
         // コンテナサイズに応じて動的にスケール調整
         if (isMobile) {
-          // モバイル: コンテナ高さの70%まで使用
-          const mobileMaxHeight = CONTAINER_HEIGHT * 0.7;
+          // モバイル: コンテナ高さの65%まで使用（少し小さめ）
+          const mobileMaxHeight = CONTAINER_HEIGHT * 0.65;
           const mobileScale = Math.min(
-            (availableWidth * 0.9) / sprite.texture.width,
+            (availableWidth * 0.85) / sprite.texture.width,
             mobileMaxHeight / sprite.texture.height
           );
-          sprite.scale.set(Math.min(mobileScale, 0.5)); // 最大50%に制限
+          sprite.scale.set(Math.min(mobileScale, 0.8)); // 最大80%に制限
         } else {
-          // PC: コンテナ高さの90%まで使用、より大きく表示
-          const pcMaxHeight = CONTAINER_HEIGHT * 0.9;
+          // PC: コンテナ高さの95%まで使用、かなり大きく表示
+          const pcMaxHeight = CONTAINER_HEIGHT * 0.95;
           const pcScale = Math.min(
-            (availableWidth * 1.2) / sprite.texture.width,
+            (availableWidth * 1.5) / sprite.texture.width,
             pcMaxHeight / sprite.texture.height
           );
-          sprite.scale.set(Math.min(pcScale, 1.5)); // 最大150%まで許可
+          sprite.scale.set(Math.min(pcScale, 2.0)); // 最大200%まで許可（倍のサイズ）
         }
         // ▲▲▲ ここまで ▲▲▲
         this.updateMonsterSpriteData(monsterData);
