@@ -700,8 +700,10 @@ export const useFantasyGameEngine = ({
         setEnrage(attackingMonster.id, true);
         setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
         
-        // 攻撃したモンスターのゲージをリセット（SPの場合は全敵で既にリセット済み）
-        const resetMonsters = updatedMonsters;
+        // 攻撃したモンスターのゲージをリセット
+        const resetMonsters = updatedMonsters.map(m => 
+          m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
+        );
         
         // 攻撃処理を非同期で実行
         console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);

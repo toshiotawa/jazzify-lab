@@ -706,7 +706,7 @@ export class FantasyPIXIInstance {
     sprite.scale.y = visualState.scale;
     
     sprite.rotation = visualState.rotation;
-    sprite.tint = gameState.isHit ? gameState.hitColor : visualState.tint;
+    sprite.tint = visualState.tint; // 常に元の色を保持
     sprite.alpha = visualState.alpha;
     sprite.visible = visualState.visible && gameState.state !== 'GONE';
   }
@@ -761,10 +761,10 @@ export class FantasyPIXIInstance {
       monsterData.gameState.isHit = true;
       // 当たりエフェクトで色を変えない
 
-      // よろめきエフェクト
+      // ジャンプエフェクト（上方向のみ）
       monsterData.gameState.staggerOffset = {
-        x: (Math.random() - 0.5) * 20,
-        y: (Math.random() - 0.5) * 10
+        x: 0,
+        y: -30 // 上にジャンプ
       };
 
       // ダメージ数値を表示（モンスターの位置に）
@@ -815,14 +815,14 @@ export class FantasyPIXIInstance {
 
       // モンスター tint を維持
 
-      // 5発目の場合はよろめきエフェクトを無効化
+      // 5発目の場合はジャンプエフェクトを無効化
       if (this.monsterGameState.hitCount < 4) {
         this.monsterGameState.staggerOffset = {
-          x: (Math.random() - 0.5) * 30,
-          y: (Math.random() - 0.5) * 15
+          x: 0,
+          y: -30 // 上にジャンプ
         };
       } else {
-        // 5発目はよろめかない
+        // 5発目はジャンプしない
         this.monsterGameState.staggerOffset = { x: 0, y: 0 };
       }
 
@@ -872,11 +872,11 @@ export class FantasyPIXIInstance {
         
         // 画面の下から指定位置に向かって飛ぶ
         magicSprite.x = targetX;
-        magicSprite.y = targetY;
+        magicSprite.y = targetY + 50; // 下から開始
         
         magicSprite.tint = color;
         magicSprite.alpha = 0.8;
-        magicSprite.scale.set(0.3);
+        magicSprite.scale.set(0.15); // より小さく
         
         if (!this.effectContainer || this.effectContainer.destroyed) {
           magicSprite.destroy();
@@ -886,9 +886,9 @@ export class FantasyPIXIInstance {
         this.effectContainer.addChild(magicSprite);
 
         // アニメーション
-        let life = 400;               // 半分の時間でフェード
-        const finalTargetX = targetX + (isSpecial ? (Math.random() - 0.5) * 80 : 0);
-        const finalTargetY = targetY + (isSpecial ? (Math.random() - 0.5) * 40 : 0);
+        let life = 2000;               // 2秒間
+        const startY = targetY + 50;   // 開始位置（下）
+        const endY = targetY - 50;     // 終了位置（上）
         
         const animate = () => {
           /* ✨ 追加 ✨ : 破棄済み Sprite が残らないよう必ず removeChild */
@@ -901,9 +901,13 @@ export class FantasyPIXIInstance {
           
           if (life > 0) {
             try {
-              const progress = 1 - (life / 400);
-              // 位置は固定なので移動させない
-              magicSprite.alpha = 0.8 * (1 - progress);
+              const progress = 1 - (life / 2000);
+              // 下から上へニョキッと出てくる
+              magicSprite.y = startY + (endY - startY) * Math.min(progress * 2, 1);
+              // 後半でフェードアウト
+              if (progress > 0.5) {
+                magicSprite.alpha = 0.8 * (2 - progress * 2);
+              }
               life -= 16;
               requestAnimationFrame(animate);
             } catch (error) {
@@ -1366,7 +1370,7 @@ export class FantasyPIXIInstance {
         } else {
           // ---- 通常状態 ----
           visualState.scale = 0.2;  // 0.3から0.2に縮小
-          sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
+          sprite.tint = 0xFFFFFF; // 常に白色
           
           // 怒りエフェクトを削除
           if (monsterData.angerMark) {
@@ -1376,9 +1380,15 @@ export class FantasyPIXIInstance {
           }
         }
         
-        // よろけ効果の減衰
-        gameState.staggerOffset.x *= 0.9;
-        gameState.staggerOffset.y *= 0.9;
+        // ジャンプエフェクトの処理（重力を追加）
+        if (gameState.staggerOffset.y < 0) {
+          // 上向きの速度に重力を加える
+          gameState.staggerOffset.y += 2; // 重力
+        } else {
+          // 地面に着地したらリセット
+          gameState.staggerOffset.y = 0;
+        }
+        gameState.staggerOffset.x = 0; // x方向は常に0
         
         // アイドル時の軽い浮遊効果（上下動）
         if (gameState.state === 'IDLE') {
