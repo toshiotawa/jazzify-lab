@@ -151,6 +151,9 @@ interface MonsterSpriteData {
 }
 
 export class FantasyPIXIInstance {
+  // 静的なフラグで攻撃アイコンの読み込み状態を管理
+  private static attackTexturesLoaded = false;
+  
   private app: PIXI.Application;
   private monsterContainer: PIXI.Container;
 
@@ -334,6 +337,30 @@ export class FantasyPIXIInstance {
   // ★★★ 修正点(2): 画像読み込みパスを `public` ディレクトリ基準に修正 ★★★
   private async loadImageTextures(): Promise<void> {
     try {
+      // 静的フラグをチェック
+      if (FantasyPIXIInstance.attackTexturesLoaded) {
+        // 既存のテクスチャを再利用
+        for (const iconPath of ATTACK_ICONS) {
+          const texture = PIXI.Assets.get(iconPath);
+          if (texture) {
+            this.imageTextures.set(iconPath, texture);
+          }
+        }
+        
+        const spTexture = PIXI.Assets.get(SP_ICON);
+        if (spTexture) {
+          this.imageTextures.set(SP_ICON, spTexture);
+        }
+        
+        const angerTexture = PIXI.Assets.get('angerMark');
+        if (angerTexture) {
+          this.imageTextures.set('angerMark', angerTexture);
+        }
+        
+        devLog.debug('✅ 攻撃アイコンテクスチャを再利用');
+        return;
+      }
+
       // 攻撃アイコンのアセット定義
       const attackAssets: Record<string, string> = {};
       
@@ -376,6 +403,9 @@ export class FantasyPIXIInstance {
         this.imageTextures.set('angerMark', angerTexture);
         devLog.debug('✅ 怒りマークテクスチャ読み込み: anger.svg');
       }
+      
+      // 静的フラグを設定
+      FantasyPIXIInstance.attackTexturesLoaded = true;
       
       devLog.debug('✅ 全画像テクスチャ読み込み完了');
     } catch (error) {
@@ -1669,22 +1699,16 @@ export class FantasyPIXIInstance {
     // バンドルされたアセットをアンロード
     PIXI.Assets.unloadBundle('monsterTextures').catch(e => devLog.debug("monsterTextures unload error", e));
     PIXI.Assets.unloadBundle('magicTextures').catch(e => devLog.debug("magicTextures unload error", e));
+    // attackTexturesはアンロードしない（使い回すため）
     // ▲▲▲ ここまで ▲▲▲
     
     // テクスチャクリーンアップ
+    // attackTexturesは使い回すのでクリアしない
     try {
-      this.imageTextures.forEach((texture: PIXI.Texture) => {
-        try {
-          if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
-            texture.destroy(true);
-          }
-        } catch (error) {
-          devLog.debug('⚠️ 画像テクスチャ削除エラー:', error);
-        }
-      });
-      this.imageTextures.clear();
+      // imageTexturesはクリアしない（次のステージで使い回すため）
+      devLog.debug('✅ imageTexturesは保持（次のステージで使い回し）');
     } catch (error) {
-      devLog.debug('⚠️ テクスチャクリーンアップエラー:', error);
+
     }
     
     // PIXIアプリケーションの破棄
