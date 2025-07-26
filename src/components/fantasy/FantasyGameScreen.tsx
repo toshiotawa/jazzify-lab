@@ -727,35 +727,75 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
               <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
                 {gameState.activeMonsters
-                  .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C'順でソート
+                  .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
                   .map((monster) => {
+                    // モンスター数に応じて幅を動的に計算
+                    const monsterCount = gameState.activeMonsters.length;
+                    let widthPercent: string;
+                    let maxWidth: string;
+                    
+                    // モバイル判定（768px未満）
+                    const isMobile = window.innerWidth < 768;
+                    
+                    if (isMobile) {
+                      // モバイルの場合
+                      if (monsterCount <= 3) {
+                        widthPercent = '30%';
+                        maxWidth = '120px';
+                      } else if (monsterCount <= 5) {
+                        widthPercent = '18%';
+                        maxWidth = '80px';
+                      } else {
+                        // 6体以上
+                        widthPercent = '12%';
+                        maxWidth = '60px';
+                      }
+                    } else {
+                      // デスクトップの場合
+                      if (monsterCount <= 3) {
+                        widthPercent = '30%';
+                        maxWidth = '220px';
+                      } else if (monsterCount <= 5) {
+                        widthPercent = '18%';
+                        maxWidth = '150px';
+                      } else {
+                        // 6体以上
+                        widthPercent = '12%';
+                        maxWidth = '120px';
+                      }
+                    }
+                    
                     return (
                       <div 
                         key={monster.id}
                         // ★★★ 修正点: flexアイテムとして定義、幅を設定 ★★★
                         className="flex-shrink-0 flex flex-col items-center"
-                        style={{ width: '30%', maxWidth: '220px' }} // 幅を固定し、最大幅も設定
+                        style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
                       {/* コードネーム */}
-                      <div className="text-yellow-300 text-xl font-bold text-center mb-1 truncate w-full"> {/* w-fullを追加 */}
+                      <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                        monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                      }`}>
                         {monster.chordTarget.displayName}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
-                      <div className="mt-1 text-sm font-medium h-6 text-center">
+                      <div className={`mt-1 font-medium h-6 text-center ${
+                        monsterCount > 5 ? 'text-xs' : 'text-sm'
+                      }`}>
                         {monster.chordTarget.notes.map((note, index) => {
                           const noteMod12 = note % 12;
                           const noteName = getNoteNameFromMidi(note);
                           const isCorrect = monster.correctNotes.includes(noteMod12);
                           if (!showGuide && !isCorrect) {
                             return (
-                              <span key={index} className="mx-0.5 opacity-0 text-xs">
+                              <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
                                 ?
                               </span>
                             );
                           }
                           return (
-                            <span key={index} className={`mx-0.5 text-xs ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
+                            <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
                               {noteName}
                               {isCorrect && '✓'}
                             </span>

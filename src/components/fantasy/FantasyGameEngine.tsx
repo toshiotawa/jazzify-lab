@@ -35,13 +35,13 @@ interface FantasyStage {
   showGuide: boolean; // ガイド表示設定を追加
   monsterIcon: string;
   bgmUrl?: string;
-  simultaneousMonsterCount: number; // 同時出現モンスター数 (1-3)
+  simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
 }
 
 interface MonsterState {
   id: string;
   index: number; // モンスターリストのインデックス
-  position: 'A' | 'B' | 'C'; // 列位置
+  position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'; // 列位置（最大8体対応）
   currentHp: number;
   maxHp: number;
   gauge: number;
@@ -165,7 +165,7 @@ const ENEMY_LIST = [
  */
 const createMonsterFromQueue = (
   monsterIndex: number,
-  position: 'A' | 'B' | 'C',
+  position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
   enemyHp: number,
   allowedChords: string[],
   previousChordId?: string
@@ -190,12 +190,19 @@ const createMonsterFromQueue = (
 };
 
 /**
- * 位置を割り当て（A, B, C列に均等配置）
+ * 位置を割り当て（A-H列に均等配置）
  */
-const assignPositions = (count: number): ('A' | 'B' | 'C')[] => {
-  if (count === 1) return ['B']; // 1体の場合は中央
-  if (count === 2) return ['A', 'C']; // 2体の場合は左右
-  return ['A', 'B', 'C']; // 3体の場合は全列
+const assignPositions = (count: number): ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] => {
+  const allPositions: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  
+  if (count === 1) return ['D']; // 1体の場合は中央寄り
+  if (count === 2) return ['C', 'F']; // 2体の場合は左右に配置
+  if (count === 3) return ['B', 'D', 'F']; // 3体の場合は均等配置
+  if (count === 4) return ['A', 'C', 'E', 'G']; // 4体の場合は均等配置
+  if (count === 5) return ['A', 'C', 'D', 'E', 'G']; // 5体の場合
+  if (count === 6) return ['A', 'B', 'C', 'E', 'F', 'G']; // 6体の場合
+  if (count === 7) return ['A', 'B', 'C', 'D', 'E', 'F', 'G']; // 7体の場合
+  return allPositions.slice(0, count); // 8体以上の場合は全列使用
 };
 
 /**
@@ -818,7 +825,7 @@ export const useFantasyGameEngine = ({
         const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
 
         if (monstersToAddCount > 0) {
-          const availablePositions = ['A', 'B', 'C'].filter(pos => !remainingMonsters.some(m => m.position === pos));
+                      const availablePositions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(pos => !remainingMonsters.some(m => m.position === pos));
           const lastUsedChordId = completedMonsters.length > 0 ? completedMonsters[0].chordTarget.id : undefined;
 
           for (let i = 0; i < monstersToAddCount; i++) {
@@ -826,7 +833,7 @@ export const useFantasyGameEngine = ({
             const position = availablePositions[i] || 'B';
             const newMonster = createMonsterFromQueue(
               monsterIndex,
-              position as 'A' | 'B' | 'C',
+              position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
               stateAfterAttack.maxEnemyHp,
               stateAfterAttack.currentStage!.allowedChords,
               lastUsedChordId // 直前のコードを避ける

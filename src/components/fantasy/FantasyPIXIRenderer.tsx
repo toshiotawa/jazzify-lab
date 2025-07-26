@@ -139,7 +139,7 @@ interface MonsterSpriteData {
   sprite: PIXI.Sprite;
   visualState: MonsterVisualState;
   gameState: MonsterGameState;
-  position: 'A' | 'B' | 'C';
+  position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
   gauge: number; // 追加：ゲージ値を保持
   angerMark?: PIXI.Sprite | PIXI.Text; // 追加：怒りマーク（SVGスプライトまたはテキスト）
   outline?: PIXI.Graphics; // 追加：赤い輪郭
@@ -552,8 +552,34 @@ export class FantasyPIXIInstance {
   /** UI 側とほぼ同じレイアウトになるよう、スロット幅を基準に中央配置 */
   private getPositionX(positionIndex: number, totalMonsters: number): number {
     const w = this.app.screen.width;
-    // 1体あたりのスロット幅を画面幅の約30%と仮定 (UI側のスタイルと合わせる)
-    const monsterSlotWidth = Math.min(w * 0.30, 220); 
+    
+    // モバイル判定（横幅768px未満）
+    const isMobile = w < 768;
+    
+    // 1体あたりのスロット幅を動的に計算
+    let monsterSlotWidth: number;
+    
+    if (isMobile) {
+      // モバイルの場合：モンスター数に応じてスロット幅を調整
+      if (totalMonsters <= 3) {
+        monsterSlotWidth = Math.min(w * 0.30, 120);
+      } else if (totalMonsters <= 5) {
+        monsterSlotWidth = Math.min(w * 0.18, 80);
+      } else {
+        // 6体以上の場合はさらに小さく
+        monsterSlotWidth = Math.min(w * 0.12, 60);
+      }
+    } else {
+      // デスクトップの場合：モンスター数に応じてスロット幅を調整
+      if (totalMonsters <= 3) {
+        monsterSlotWidth = Math.min(w * 0.30, 220);
+      } else if (totalMonsters <= 5) {
+        monsterSlotWidth = Math.min(w * 0.18, 150);
+      } else {
+        // 6体以上の場合
+        monsterSlotWidth = Math.min(w * 0.12, 120);
+      }
+    }
 
     // 全モンスターが表示される領域の合計幅
     const totalGroupWidth = monsterSlotWidth * totalMonsters;
@@ -592,10 +618,38 @@ export class FantasyPIXIInstance {
       const CONTAINER_WIDTH = this.app.screen.width;
       const CONTAINER_HEIGHT = 200; // FantasyGameScreen.tsxで定義されている固定高さ
 
-      // 3体同時表示を想定して、1体あたりの利用可能幅を計算
-      // 各モンスターは画面の25%, 50%, 75%の位置に配置される
-      // そのため、利用可能な幅は画面幅の約25%（モンスター間のマージンを考慮）
-      const availableWidth = CONTAINER_WIDTH * 0.20; // 20%でマージンを確保
+      // モバイル判定
+      const isMobile = CONTAINER_WIDTH < 768;
+      
+      // 現在のモンスター数を取得（デフォルトは3）
+      const currentMonsterCount = this.monsterSprites.size || 3;
+      
+      // モンスター数とデバイスに応じて利用可能幅を計算
+      let availableWidthRatio: number;
+      
+      if (isMobile) {
+        // モバイルの場合
+        if (currentMonsterCount <= 3) {
+          availableWidthRatio = 0.25;
+        } else if (currentMonsterCount <= 5) {
+          availableWidthRatio = 0.15;
+        } else {
+          // 6体以上
+          availableWidthRatio = 0.10;
+        }
+      } else {
+        // デスクトップの場合
+        if (currentMonsterCount <= 3) {
+          availableWidthRatio = 0.20;
+        } else if (currentMonsterCount <= 5) {
+          availableWidthRatio = 0.15;
+        } else {
+          // 6体以上
+          availableWidthRatio = 0.10;
+        }
+      }
+      
+      const availableWidth = CONTAINER_WIDTH * availableWidthRatio;
       
       // モンスターの最大サイズを定義
       // 幅: 利用可能幅の80%（十分なマージンを確保）
@@ -606,8 +660,9 @@ export class FantasyPIXIInstance {
       // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
       const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
       
-      // 最大スケールを制限（小さすぎる画像が拡大されすぎないように）
-      const finalScale = Math.min(scale, 0.5);  // 0.8 から 0.5 に変更
+      // 最大スケールを制限（モバイルとデスクトップで異なる制限）
+      const maxScale = isMobile ? 0.3 : 0.5;
+      const finalScale = Math.min(scale, maxScale);
       sprite.scale.set(finalScale);
       
       sprite.anchor.set(0.5);
