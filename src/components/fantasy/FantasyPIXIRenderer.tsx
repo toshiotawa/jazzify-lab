@@ -9,6 +9,7 @@ import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
+import FantasySoundManager from '@/utils/FantasySoundManager';
 
 // ===== 型定義 =====
 
@@ -682,24 +683,40 @@ export class FantasyPIXIInstance {
       // 魔法タイプをローテーション
       const magicTypes = Object.keys(MAGIC_TYPES);
       const currentIndex = magicTypes.indexOf(this.currentMagicType);
+      devLog.debug('🎯 現在の魔法タイプ:', {
+        current: this.currentMagicType,
+        currentIndex,
+        magicTypes
+      });
       this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
       const magic = MAGIC_TYPES[this.currentMagicType];
+      devLog.debug('🎯 次の魔法タイプ:', {
+        next: this.currentMagicType,
+        magic
+      });
 
       // 魔法効果音を再生
-      try {
-        const { FantasySoundManager } = require('@/utils/FantasySoundManager');
-        // 魔法タイプを正しくマッピング
-        const magicTypeMap: Record<string, 'fire' | 'ice' | 'thunder'> = {
-          'fire': 'fire',
-          'ice': 'ice',
-          'thunder': 'thunder'
-        };
-        const soundType = magicTypeMap[this.currentMagicType];
-        if (soundType) {
+      // 魔法タイプを正しくマッピング
+      const magicTypeMap: Record<string, 'fire' | 'ice' | 'thunder'> = {
+        'fire': 'fire',
+        'ice': 'ice',
+        'thunder': 'thunder'
+      };
+      const soundType = magicTypeMap[this.currentMagicType];
+      devLog.debug('🔊 効果音タイプ:', {
+        currentMagicType: this.currentMagicType,
+        soundType,
+        magicTypeMap
+      });
+      if (soundType) {
+        try {
           FantasySoundManager.playMagic(soundType);
+          devLog.debug('🔊 魔法効果音再生(triggerAttackSuccessOnMonster):', soundType);
+        } catch (error) {
+          console.error('魔法効果音再生エラー:', error);
         }
-      } catch (error) {
-        console.error('Failed to play magic sound:', error);
+      } else {
+        console.warn('⚠️ soundTypeが未定義:', this.currentMagicType);
       }
 
       // 魔法名表示
@@ -758,24 +775,40 @@ export class FantasyPIXIInstance {
       // 魔法タイプをローテーション
       const magicTypes = Object.keys(MAGIC_TYPES);
       const currentIndex = magicTypes.indexOf(this.currentMagicType);
+      devLog.debug('🎯 現在の魔法タイプ:', {
+        current: this.currentMagicType,
+        currentIndex,
+        magicTypes
+      });
       this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
       const magic = MAGIC_TYPES[this.currentMagicType];
+      devLog.debug('🎯 次の魔法タイプ:', {
+        next: this.currentMagicType,
+        magic
+      });
 
       // 魔法効果音を再生
-      try {
-        const { FantasySoundManager } = require('@/utils/FantasySoundManager');
-        // 魔法タイプを正しくマッピング
-        const magicTypeMap: Record<string, 'fire' | 'ice' | 'thunder'> = {
-          'fire': 'fire',
-          'ice': 'ice',
-          'thunder': 'thunder'
-        };
-        const soundType = magicTypeMap[this.currentMagicType];
-        if (soundType) {
+      // 魔法タイプを正しくマッピング
+      const magicTypeMap: Record<string, 'fire' | 'ice' | 'thunder'> = {
+        'fire': 'fire',
+        'ice': 'ice',
+        'thunder': 'thunder'
+      };
+      const soundType = magicTypeMap[this.currentMagicType];
+      devLog.debug('🔊 効果音タイプ:', {
+        currentMagicType: this.currentMagicType,
+        soundType,
+        magicTypeMap
+      });
+      if (soundType) {
+        try {
           FantasySoundManager.playMagic(soundType);
+          devLog.debug('🔊 魔法効果音再生(triggerAttackSuccess):', soundType);
+        } catch (error) {
+          console.error('魔法効果音再生エラー:', error);
         }
-      } catch (error) {
-        console.error('Failed to play magic sound:', error);
+      } else {
+        console.warn('⚠️ soundTypeが未定義:', this.currentMagicType);
       }
 
       // 魔法名表示
