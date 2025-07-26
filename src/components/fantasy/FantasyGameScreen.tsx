@@ -13,6 +13,8 @@ import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesR
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
+import { note as parseNote } from 'tonal';
+import { toDisplayName } from '@/utils/display-note';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -296,12 +298,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
-  
-  // MIDI番号から音名を取得する関数
-  const getNoteNameFromMidi = (midiNote: number): string => {
-    const noteNames = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
-    return noteNames[midiNote % 12];
-  };
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number) => {
@@ -791,10 +787,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
-                        {monster.chordTarget.notes.map((note, index) => {
-                          const noteMod12 = note % 12;
-                          const noteName = getNoteNameFromMidi(note);
+                        {/* ★ monster.chordTarget.noteNames を使用する */}
+                        {monster.chordTarget.noteNames.map((noteName, index) => {
+                          // 表示オプションを定義
+                          const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
+                          // 表示用の音名に変換
+                          const displayNoteName = toDisplayName(noteName, displayOpts);
+                          
+                          // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
+                          const noteObj = parseNote(noteName + '4'); // オクターブはダミー
+                          const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+                          
                           const isCorrect = monster.correctNotes.includes(noteMod12);
+
                           if (!showGuide && !isCorrect) {
                             return (
                               <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
@@ -804,7 +809,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           }
                           return (
                             <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                              {noteName}
+                              {displayNoteName}
                               {isCorrect && '✓'}
                             </span>
                           );
