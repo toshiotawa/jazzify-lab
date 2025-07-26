@@ -88,10 +88,14 @@ export class FantasySoundManager {
     // 事前ロード – ユーザー操作後の初回呼び出しが推奨（Autoplay 制限対策）
     const baseUrl = import.meta.env.BASE_URL || '/';
     const path = (file: string) => `${baseUrl}sounds/${file}`;
+    
+    console.debug('[FantasySoundManager] Loading sounds with baseUrl:', baseUrl);
 
     const load = (key: keyof typeof this.audioMap, file: string) => new Promise<void>((res, rej) => {
       const a = this.audioMap[key].base;
-      a.src = path(file);
+      const fullPath = path(file);
+      console.debug(`[FantasySoundManager] Loading ${key}: ${fullPath}`);
+      a.src = fullPath;
       a.preload = 'auto';
       a.load();
       a.volume = this._volume;
@@ -134,10 +138,13 @@ export class FantasySoundManager {
 
   private _playMagic(type: MagicSeType) {
     // magic type -> key mapping is 1:1
+    console.debug(`[FantasySoundManager] playMagic called with type: ${type}`);
     this._playSe(type);
   }
 
   private _playSe(key: keyof typeof this.audioMap) {
+    console.debug(`[FantasySoundManager] _playSe called with key: ${key}`);
+    
     const entry = this.audioMap[key];
     if (!entry) {
       console.warn(`[FantasySoundManager] Audio entry not found for key: ${key}`);
@@ -148,6 +155,12 @@ export class FantasySoundManager {
     if (!entry.ready) {
       // 未ロード or 失敗時は何もしない（ユーザー体験阻害しない）
       console.warn(`[FantasySoundManager] Audio not ready for key: ${key}`);
+      console.warn(`[FantasySoundManager] Audio state:`, {
+        src: base.src,
+        readyState: base.readyState,
+        networkState: base.networkState,
+        error: base.error
+      });
       return;
     }
 
@@ -162,9 +175,22 @@ export class FantasySoundManager {
       node.src = '';
     });
     // play() は Promise—but 例外無視
-    node.play().catch((error) => {
-      console.warn(`[FantasySoundManager] Failed to play ${key}:`, error);
-    });
+    const playPromise = node.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.debug(`[FantasySoundManager] Successfully played ${key}`);
+        })
+        .catch((error) => {
+          console.warn(`[FantasySoundManager] Failed to play ${key}:`, error);
+          console.warn(`[FantasySoundManager] Audio state:`, {
+            src: node.src,
+            readyState: node.readyState,
+            networkState: node.networkState,
+            error: node.error
+          });
+        });
+    }
   }
 }
 
