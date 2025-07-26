@@ -4,7 +4,8 @@
  */
 
 import { transpose, note as parseNote, distance } from 'tonal';
-import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP } from './chord-templates';
+import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP, CHORD_ALIASES } from './chord-templates';
+import { type DisplayOpts, toDisplayChordName } from './display-note';
 
 /**
  * 任意ルートのコードから実音配列を取得（オクターブなし）
@@ -31,9 +32,10 @@ export function buildChordNotes(root: string, quality: ChordQuality, octave: num
       return root;
     }
     
-    // オクターブ情報を削除して返す
-    const parsed = parseNote(note);
-    return parsed ? parsed.name : root;
+    // オクターブを削除して音名のみを返す
+    const noteNameOnly = note.replace(/\d+$/, '');
+    // ダブルシャープをxに変換（表示用）
+    return noteNameOnly.replace(/##/g, 'x');
   });
 }
 
@@ -112,20 +114,22 @@ export function getFantasyChordNotes(chordId: string, octave: number = 4): numbe
  * @returns { root: string, quality: ChordQuality } | null
  */
 export function parseChordName(chordName: string): { root: string; quality: ChordQuality } | null {
-  // 簡易的なパーサー（後で拡張可能）
-  const match = chordName.match(/^([A-G][#b]?)(.*)$/);
+  // ルート音とサフィックスを分離（ダブルシャープ・ダブルフラットも対応）
+  const match = chordName.match(/^([A-G](?:#{1,2}|b{1,2}|x)?)(.*)$/);
   if (!match) return null;
   
   const [, root, suffix] = match;
   
-  // サフィックスからクオリティを判定
+  // サフィックスからクオリティを判定（エイリアスも含む）
   const qualityMap: Record<string, ChordQuality> = {
+    ...CHORD_ALIASES, // エイリアスを丸ごと吸収
     '': 'maj',
+    'maj': 'maj',
     'm': 'min',
-    '7': '7',
     'M7': 'maj7',
     'maj7': 'maj7',
     'm7': 'm7',
+    '7': '7',
     'dim': 'dim',
     'dim7': 'dim7',
     'aug': 'aug',
@@ -147,6 +151,36 @@ export function parseChordName(chordName: string): { root: string; quality: Chor
   }
   
   return { root, quality };
+}
+
+/**
+ * 任意のコードから実音配列を取得する汎用関数
+ * FANTASY_CHORD_MAPを使わずに動的にコードを解決
+ * @param chordId コードID（例: 'CM7', 'DbM7', 'D#7'）
+ * @param octave 基準オクターブ（デフォルト: 4）
+ * @param displayOpts 表示オプション
+ * @returns コード情報オブジェクト | null
+ */
+export function resolveChord(
+  chordId: string,
+  octave: number = 4,
+  displayOpts?: DisplayOpts
+): { id: string; root: string; quality: ChordQuality; notes: string[]; displayName: string } | null {
+  
+  // a) まずエイリアスを考慮してパース
+  const parsed = parseChordName(chordId);
+  if (!parsed) return null;
+
+  // b) インターバル → 実音配列
+  const notes = buildChordNotes(parsed.root, parsed.quality, octave);
+
+  return {
+    id: chordId,
+    root: parsed.root,
+    quality: parsed.quality,
+    notes,
+    displayName: displayOpts ? toDisplayChordName(chordId, displayOpts) : chordId
+  };
 }
 
 /**
