@@ -254,17 +254,28 @@ export class FantasyPIXIInstance {
     // フォールバックテクスチャを作成
     this.createFallbackTextures();
     
-    // 絵文字テクスチャの事前読み込み
-    // this.loadEmojiTextures(); // ★ 削除
-    await this.loadMonsterTextures(); // ★★★ awaitを追加して読み込み完了を待つ ★★★
-    
-    // ★★★ 修正点(1): 魔法エフェクトのテクスチャ読み込みを追加 ★★★
-    await this.loadImageTextures(); // awaitを追加して読み込み完了を待つ
+    // 初期化処理を開始（非同期）
+    this.initializeAsync();
     
     // アニメーションループ開始
     this.startAnimationLoop();
     
     devLog.debug('✅ ファンタジーPIXI初期化完了（状態機械対応）');
+  }
+
+  // 非同期初期化処理
+  private async initializeAsync(): Promise<void> {
+    try {
+      // 絵文字テクスチャの事前読み込み
+      await this.loadMonsterTextures();
+      
+      // 魔法エフェクトのテクスチャ読み込みを追加
+      await this.loadImageTextures();
+      
+      devLog.debug('✅ 非同期初期化完了');
+    } catch (error) {
+      devLog.debug('❌ 非同期初期化エラー:', error);
+    }
   }
 
   // ★★★ 絵文字テクスチャ読み込みをモンスター画像読み込みに変更 ★★★
