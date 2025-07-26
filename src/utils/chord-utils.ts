@@ -34,7 +34,8 @@ export function buildChordNotes(root: string, quality: ChordQuality, octave: num
     
     // オクターブを削除して音名のみを返す
     const noteNameOnly = note.replace(/\d+$/, '');
-    // ダブルシャープをxに変換（表示用）
+    // ダブルシャープは小文字のxで統一（##→x）
+    // ダブルフラットはbbのまま保持
     return noteNameOnly.replace(/##/g, 'x');
   });
 }

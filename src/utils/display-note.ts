@@ -28,11 +28,11 @@ const SOLFEGE_MAP: Record<string, string> = {
   'Cb': 'シ', 'Db': 'レ♭', 'Eb': 'ミ♭', 'Fb': 'ミ',
   'Gb': 'ソ♭', 'Ab': 'ラ♭', 'Bb': 'シ♭',
   
-  // ダブルシャープ（簡易化前）
+  // ダブルシャープ（小文字のxで統一）
   'Cx': 'レ', 'Dx': 'ミ', 'Ex': 'ファ♯', 'Fx': 'ソ',
   'Gx': 'ラ', 'Ax': 'シ', 'Bx': 'ド♯',
   
-  // ダブルフラット（簡易化前）
+  // ダブルフラット
   'Cbb': 'シ♭', 'Dbb': 'ド', 'Ebb': 'レ', 'Fbb': 'ミ♭',
   'Gbb': 'ファ', 'Abb': 'ソ', 'Bbb': 'ラ'
 };
@@ -68,6 +68,9 @@ export function toDisplayName(noteName: string, opts: DisplayOpts): string {
   
   // 音名部分を取得（オクターブなし）
   let displayName = parsed.name;
+  
+  // ダブルシャープを小文字のxに統一（##→x）
+  displayName = displayName.replace(/##/g, 'x');
   
   // 簡易表記が有効な場合
   if (opts.simple) {
@@ -107,20 +110,13 @@ export function toDisplayChordName(chordName: string, opts: DisplayOpts): string
   if (!match) return chordName;
   
   const [, root, suffix] = match;
-  const displayRoot = toDisplayName(root, opts);
   
-  // サフィックスの表示変換（必要に応じて拡張）
-  let displaySuffix = suffix;
-  if (opts.lang === 'solfege') {
-    // 日本語表記の場合のサフィックス変換
-    displaySuffix = suffix
-      .replace('maj', 'メジャー')
-      .replace('min', 'マイナー')
-      .replace('dim', 'ディミニッシュ')
-      .replace('aug', 'オーグメント');
-  }
+  // ファンタジーモードでは、コードのルート音は常に英語表記
+  // 構成音のみ設定に応じて変換される
+  const displayRoot = root; // 英語表記のまま
   
-  return displayRoot + displaySuffix;
+  // サフィックスはそのまま（M7, m7, 7など）
+  return displayRoot + suffix;
 }
 
 /**
