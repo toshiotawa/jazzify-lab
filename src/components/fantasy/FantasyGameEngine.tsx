@@ -700,10 +700,8 @@ export const useFantasyGameEngine = ({
         setEnrage(attackingMonster.id, true);
         setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
         
-        // 攻撃したモンスターのゲージをリセット
-        const resetMonsters = updatedMonsters.map(m => 
-          m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
-        );
+        // 攻撃したモンスターのゲージをリセット（SPの場合は全敵で既にリセット済み）
+        const resetMonsters = updatedMonsters;
         
         // 攻撃処理を非同期で実行
         console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
@@ -794,7 +792,13 @@ export const useFantasyGameEngine = ({
         });
 
         // プレイヤーの状態更新
-        stateAfterAttack.playerSp = isSpecialAttack ? 0 : Math.min(stateAfterAttack.playerSp + completedMonsters.length, 5);
+        if (isSpecialAttack) {
+          stateAfterAttack.playerSp = 0;
+          // SPアタック: 全モンスターのゲージをリセット
+          stateAfterAttack.activeMonsters = stateAfterAttack.activeMonsters.map(m => ({ ...m, gauge: 0 }));
+        } else {
+          stateAfterAttack.playerSp = Math.min(stateAfterAttack.playerSp + completedMonsters.length, 5);
+        }
         stateAfterAttack.score += 1000 * completedMonsters.length;
         stateAfterAttack.correctAnswers += completedMonsters.length;
         

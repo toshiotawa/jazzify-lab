@@ -123,6 +123,10 @@ const MAGIC_TYPES: Record<string, MagicType> = {
   },
 };
 
+// ===== ヒットアイコン（完全ランダム） =====
+const ATTACK_ICONS: string[] = Array.from({ length: 12 }, (_, i) => `attack_icons/attack_${String(i+1).padStart(2,'0')}.png`);
+const SP_ICON = 'attack_icons/swingswingswing.png';
+
 // ===== モンスターシンボルマッピング（フラットデザイン） =====
 const MONSTER_EMOJI: Record<string, string> = {
   'vampire': '☠', // 頭蓋骨（バンパイア）
@@ -187,11 +191,9 @@ export class FantasyPIXIInstance {
   private chordNameText: PIXI.Text | null = null;
 
   
-  private currentMagicType: string = 'fire';
+  // 魔法タイプ概念を削除
   // ★★★ MONSTER_EMOJI と loadEmojiTextures を削除、またはコメントアウト ★★★
-  /*
-  private emojiTextures: Map<string, PIXI.Texture> = new Map();
-  */
+
   private imageTextures: Map<string, PIXI.Texture> = new Map(); // ★ imageTextures は残す
   
   private isDestroyed: boolean = false;
@@ -332,27 +334,40 @@ export class FantasyPIXIInstance {
   // ★★★ 修正点(2): 画像読み込みパスを `public` ディレクトリ基準に修正 ★★★
   private async loadImageTextures(): Promise<void> {
     try {
-      // 魔法テクスチャのアセット定義
-      const magicAssets: Record<string, string> = {};
-      for (const [key, magic] of Object.entries(MAGIC_TYPES)) {
-        const path = `${import.meta.env.BASE_URL}${magic.svg}`;
-        magicAssets[key] = path;
+      // 攻撃アイコンのアセット定義
+      const attackAssets: Record<string, string> = {};
+      
+      // 通常攻撃アイコン
+      for (const iconPath of ATTACK_ICONS) {
+        const key = iconPath;
+        const path = `${import.meta.env.BASE_URL}${iconPath}`;
+        attackAssets[key] = path;
       }
       
+      // SPアタックアイコン
+      attackAssets[SP_ICON] = `${import.meta.env.BASE_URL}${SP_ICON}`;
+      
       // 怒りマークSVGを追加
-      magicAssets['angerMark'] = `${import.meta.env.BASE_URL}data/anger.svg`;
+      attackAssets['angerMark'] = `${import.meta.env.BASE_URL}data/anger.svg`;
 
       // バンドルとして一括ロード
-      await PIXI.Assets.addBundle('magicTextures', magicAssets);
-      await PIXI.Assets.loadBundle('magicTextures');
+      await PIXI.Assets.addBundle('attackTextures', attackAssets);
+      await PIXI.Assets.loadBundle('attackTextures');
 
       // ロードされたテクスチャを保存
-      for (const [key, magic] of Object.entries(MAGIC_TYPES)) {
-        const texture = PIXI.Assets.get(key);
+      for (const iconPath of ATTACK_ICONS) {
+        const texture = PIXI.Assets.get(iconPath);
         if (texture) {
-          this.imageTextures.set(magic.svg, texture);
-          devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
+          this.imageTextures.set(iconPath, texture);
+          devLog.debug(`✅ 攻撃アイコン読み込み: ${iconPath}`);
         }
+      }
+      
+      // SPアイコンテクスチャを保存
+      const spTexture = PIXI.Assets.get(SP_ICON);
+      if (spTexture) {
+        this.imageTextures.set(SP_ICON, spTexture);
+        devLog.debug(`✅ SPアイコン読み込み: ${SP_ICON}`);
       }
       
       // 怒りマークテクスチャを保存
@@ -730,61 +745,21 @@ export class FantasyPIXIInstance {
   }
 
   // マルチモンスター用攻撃成功エフェクト
-  triggerAttackSuccessOnMonster(monsterId: string, chordName: string | undefined, isSpecial: boolean, damageDealt: number, defeated: boolean): void {
+  triggerAttackSuccessOnMonster(monsterId: string, _chordName: string | undefined, isSpecial: boolean, damageDealt: number, defeated: boolean): void {
     const monsterData = this.monsterSprites.get(monsterId);
     if (!monsterData || this.isDestroyed) return;
     
     try {
-      // 魔法タイプをローテーション
-      const magicTypes = Object.keys(MAGIC_TYPES);
-      const currentIndex = magicTypes.indexOf(this.currentMagicType);
-      devLog.debug('🎯 現在の魔法タイプ:', {
-        current: this.currentMagicType,
-        currentIndex,
-        magicTypes
-      });
-      this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
-      const magic = MAGIC_TYPES[this.currentMagicType];
-      devLog.debug('🎯 次の魔法タイプ:', {
-        next: this.currentMagicType,
-        magic
-      });
+      // 旧魔法システムを廃止し、アイコン／効果音は完全ランダム
+      const iconPath = isSpecial ? SP_ICON : ATTACK_ICONS[Math.floor(Math.random()*ATTACK_ICONS.length)];
 
-      // 魔法効果音を再生
-      // 魔法タイプを正しくマッピング
-      const magicTypeMap: Record<string, 'fire' | 'ice' | 'thunder'> = {
-        'fire': 'fire',
-        'ice': 'ice',
-        'thunder': 'thunder'
-      };
-      const soundType = magicTypeMap[this.currentMagicType];
-      devLog.debug('🔊 効果音タイプ:', {
-        currentMagicType: this.currentMagicType,
-        soundType,
-        magicTypeMap
-      });
-      if (soundType) {
-        try {
-          FantasySoundManager.playMagic(soundType);
-          devLog.debug('🔊 魔法効果音再生(triggerAttackSuccessOnMonster):', soundType);
-        } catch (error) {
-          console.error('魔法効果音再生エラー:', error);
-        }
-      } else {
-        console.warn('⚠️ soundTypeが未定義:', this.currentMagicType);
-      }
+      // 効果音はランダム再生
+      FantasySoundManager.playMagic();
 
-      // 魔法名表示
-      const magicName = isSpecial ? magic.tier2Name : magic.name;
-      const magicColor = isSpecial ? magic.tier2Color : magic.color;
-      
-      // HTMLでの表示のためコールバックを呼び出す
-      if (this.onShowMagicName) {
-        this.onShowMagicName(magicName, isSpecial, monsterId);
-      }
+      // 魔法名の概念を廃止 – 表示しない
 
       monsterData.gameState.isHit = true;
-      monsterData.gameState.hitColor = magicColor;
+      // 当たりエフェクトで色を変えない
 
       // よろめきエフェクト
       monsterData.gameState.staggerOffset = {
@@ -793,10 +768,13 @@ export class FantasyPIXIInstance {
       };
 
       // ダメージ数値を表示（モンスターの位置に）
-      this.createDamageNumberAt(damageDealt, magicColor, monsterData.visualState.x, monsterData.visualState.y - 50);
+      this.createDamageNumberAt(damageDealt, 0xffffff, monsterData.visualState.x, monsterData.visualState.y - 50);
 
       // エフェクトをモンスターの位置に作成
-      this.createImageMagicEffectAt(magic.svg, magicColor, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
+      this.createImageMagicEffectAt(iconPath, 0xffffff, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
+
+      // SPアタックは横からのカットインを追加
+      if (isSpecial) this.createCutIn();
 
       // 状態を更新
       monsterData.gameState.hitCount++;
@@ -820,63 +798,22 @@ export class FantasyPIXIInstance {
   }
 
   // ▼▼▼ 攻撃成功エフェクトを修正 ▼▼▼
-  triggerAttackSuccess(chordName: string | undefined, isSpecial: boolean, damageDealt: number, defeated: boolean): void { // ★ 4番目の引数 defeated を受け取る
+  triggerAttackSuccess(_chordName: string | undefined, isSpecial: boolean, damageDealt: number, defeated: boolean): void { // ★ 4番目の引数 defeated を受け取る
     // 状態ガード: 消滅中または完全消滅中は何もしない
     if (this.isDestroyed || this.monsterGameState.state === 'FADING_OUT' || this.monsterGameState.state === 'GONE') {
       return;
     }
 
     try {
-      // 魔法タイプをローテーション
-      const magicTypes = Object.keys(MAGIC_TYPES);
-      const currentIndex = magicTypes.indexOf(this.currentMagicType);
-      devLog.debug('🎯 現在の魔法タイプ:', {
-        current: this.currentMagicType,
-        currentIndex,
-        magicTypes
-      });
-      this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
-      const magic = MAGIC_TYPES[this.currentMagicType];
-      devLog.debug('🎯 次の魔法タイプ:', {
-        next: this.currentMagicType,
-        magic
-      });
-
-      // 魔法効果音を再生
-      // 魔法タイプを正しくマッピング
-      const magicTypeMap: Record<string, 'fire' | 'ice' | 'thunder'> = {
-        'fire': 'fire',
-        'ice': 'ice',
-        'thunder': 'thunder'
-      };
-      const soundType = magicTypeMap[this.currentMagicType];
-      devLog.debug('🔊 効果音タイプ:', {
-        currentMagicType: this.currentMagicType,
-        soundType,
-        magicTypeMap
-      });
-      if (soundType) {
-        try {
-          FantasySoundManager.playMagic(soundType);
-          devLog.debug('🔊 魔法効果音再生(triggerAttackSuccess):', soundType);
-        } catch (error) {
-          console.error('魔法効果音再生エラー:', error);
-        }
-      } else {
-        console.warn('⚠️ soundTypeが未定義:', this.currentMagicType);
-      }
-
-      // 魔法名表示
-      const magicName = isSpecial ? magic.tier2Name : magic.name;
-      const magicColor = isSpecial ? magic.tier2Color : magic.color;
-      
-      // HTMLでの表示のためコールバックを呼び出す
-      if (this.onShowMagicName) {
-        this.onShowMagicName(magicName, isSpecial, 'default');
-      }
+      const iconPath = isSpecial ? SP_ICON : ATTACK_ICONS[Math.floor(Math.random()*ATTACK_ICONS.length)];
+      FantasySoundManager.playMagic();
+      this.createImageMagicEffect(iconPath, 0xffffff, isSpecial);
+      if (isSpecial) this.createCutIn();
 
       this.monsterGameState.isHit = true;
-      this.monsterGameState.hitColor = magicColor;
+      // ヒット時の色変化を削除
+
+      // モンスター tint を維持
 
       // 5発目の場合はよろめきエフェクトを無効化
       if (this.monsterGameState.hitCount < 4) {
@@ -890,9 +827,7 @@ export class FantasyPIXIInstance {
       }
 
       // ダメージ数値を表示（エンジンから渡された値を使用）
-      this.createDamageNumber(damageDealt, magicColor);
-
-      this.createImageMagicEffect(magic.svg, magicColor, isSpecial);
+      this.createDamageNumber(damageDealt, 0xffffff);
 
       // 状態を更新
       this.monsterGameState.hitCount++;
@@ -903,7 +838,7 @@ export class FantasyPIXIInstance {
       }
 
       devLog.debug('⚔️ 攻撃成功:', { 
-        magic: magic.name, 
+        magic: 'random', 
         damage: damageDealt,
         defeated: defeated, // ログにも追加
         hitCount: this.monsterGameState.hitCount, 
@@ -1803,6 +1738,30 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  /** 横から画面を斬り抜けるカットインエフェクト（SP専用） */
+  private createCutIn() {
+    const texture = this.imageTextures.get(SP_ICON);
+    if (!texture) return;
+    const spr = new PIXI.Sprite(texture);
+    spr.anchor.set(0.5, 0.5);
+    spr.y = this.app.screen.height / 2;
+    spr.x = -spr.width;
+    spr.scale.set(0.6);
+    this.effectContainer.addChild(spr);
+    const targetX = this.app.screen.width + spr.width;
+    const duration = 600; // ms
+    const start = performance.now();
+    const animate = (now: number) => {
+      const t = (now - start) / duration;
+      if (t >= 1) {
+        this.effectContainer.removeChild(spr); spr.destroy();
+        return;
+      }
+      spr.x = -spr.width + (targetX + spr.width) * t;
+      requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  }
 
 }
 

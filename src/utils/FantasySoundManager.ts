@@ -30,7 +30,7 @@
  *   FSM.setVolume(newVolume);  // 0‑1 の値を渡す
  */
 
-export type MagicSeType = 'fire' | 'ice' | 'thunder';
+export type MagicSeType = 'random';
 
 interface LoadedAudio {
   /** プリロード済みのベース Audio インスタンス（再生には clone する） */
@@ -50,11 +50,13 @@ export class FantasySoundManager {
 
   // ─────────────────────────────────────────────
   // fields
+  // 効果音を 4 種類 + 敵攻撃 1 種類 に統一
   private readonly audioMap: Record<string, LoadedAudio> = {
     enemy_attack: { base: new Audio(), ready: false },
-    fire:          { base: new Audio(), ready: false },
-    ice:           { base: new Audio(), ready: false },
-    thunder:       { base: new Audio(), ready: false }
+    magic0:       { base: new Audio(), ready: false }, // shaker
+    magic1:       { base: new Audio(), ready: false }, // dry-brush-snare
+    magic2:       { base: new Audio(), ready: false }, // brush-snare
+    magic3:       { base: new Audio(), ready: false }  // clap
   };
 
   /** マスターボリューム (0‑1) */
@@ -65,7 +67,7 @@ export class FantasySoundManager {
   // ─────────────────────────────────────────────
   // public static wrappers – 使いやすいように static 経由のエイリアスを用意
   public static async init(defaultVolume = 0.8) { return this.instance._init(defaultVolume); }
-  public static playMagic(type: MagicSeType) { return this.instance._playMagic(type); }
+  public static playMagic(type?: MagicSeType) { return this.instance._playMagic(type); }
   public static playEnemyAttack() { return this.instance._playSe('enemy_attack'); }
   public static setVolume(v: number) { return this.instance._setVolume(v); }
   public static getVolume() { return this.instance._volume; }
@@ -112,9 +114,10 @@ export class FantasySoundManager {
 
     const promises = [
       load('enemy_attack', 'enemy_attack.mp3'),
-      load('fire',          'fire.mp3'),
-      load('ice',           'ice.mp3'),
-      load('thunder',       'thunder.mp3')
+      load('magic0',       'shaker.mp3'),
+      load('magic1',       'dry-brush-snare.mp3'),
+      load('magic2',       'brush-snare.mp3'),
+      load('magic3',       'clap.mp3')
     ];
 
     return Promise.all(promises).then(() => {
@@ -136,10 +139,15 @@ export class FantasySoundManager {
     });
   }
 
-  private _playMagic(type: MagicSeType) {
-    // magic type -> key mapping is 1:1
-    console.debug(`[FantasySoundManager] playMagic called with type: ${type}`);
-    this._playSe(type);
+  /**
+   * 魔法効果音を完全ランダムで再生する。
+   * 呼び出し側は "type" を意識する必要がないため無視する。
+   */
+  private _playMagic(_type?: any) {
+    const keys = ['magic0', 'magic1', 'magic2', 'magic3'] as const;
+    const pick = keys[Math.floor(Math.random() * keys.length)];
+    console.debug('[FantasySoundManager] playMagic (random) →', pick);
+    this._playSe(pick);
   }
 
   private _playSe(key: keyof typeof this.audioMap) {
