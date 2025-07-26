@@ -165,9 +165,10 @@ const createMonsterFromQueue = (
   previousChordId?: string,
   displayOpts?: DisplayOpts
 ): MonsterState => {
-  // 完全にランダムにモンスターを選択
-  const randomIndex = Math.floor(Math.random() * ENEMY_LIST.length);
-  const enemy = ENEMY_LIST[randomIndex];
+  // 63 枚からランダムで 1 つ選ぶ（名前や種類はダミー）
+  const rand = Math.floor(Math.random() * 63) + 1;
+  const iconKey = `monster_${String(rand).padStart(2, '0')}`;
+  const enemy = { id: iconKey, icon: iconKey, name: '' }; // ← name は空文字
   const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
   
   return {
