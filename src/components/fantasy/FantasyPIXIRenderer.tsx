@@ -214,8 +214,9 @@ export class FantasyPIXIInstance {
     originalY: 0
   };
 
-
-
+  private _onMonsterDefeated?: () => void; // ★★★ 状態機械用コールバック ★★★
+  
+  private initializationPromise: Promise<void>; // 初期化完了を待つためのPromise
 
   constructor(width: number, height: number, onMonsterDefeated?: () => void, onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void) {
     // コールバックの保存
@@ -255,7 +256,7 @@ export class FantasyPIXIInstance {
     this.createFallbackTextures();
     
     // 初期化処理を開始（非同期）
-    this.initializeAsync();
+    this.initializationPromise = this.initializeAsync();
     
     // アニメーションループ開始
     this.startAnimationLoop();
@@ -312,6 +313,13 @@ export class FantasyPIXIInstance {
       }
 
       devLog.debug('✅ モンスターテクスチャ読み込み処理完了');
+      
+      // デバッグ: 読み込まれたテクスチャのキーを表示
+      const loadedKeys = Array.from(this.imageTextures.keys()).filter(key => key.startsWith('monster_'));
+      devLog.debug('📦 読み込まれたモンスターテクスチャ:', {
+        count: loadedKeys.length,
+        keys: loadedKeys.slice(0, 10) // 最初の10個を表示
+      });
     } catch (error) {
       devLog.debug('❌ モンスターテクスチャの読み込みエラー:', error);
     }
@@ -382,7 +390,10 @@ export class FantasyPIXIInstance {
     try {
       devLog.debug('👾 モンスタースプライト作成開始:', { icon });
       
-      // 既存のテクスチャをクリア
+      // 初期化完了を待つ
+      await this.initializationPromise;
+      
+      // 既存のモンスタースプライトをクリア
       if (this.monsterSprite.texture && this.monsterSprite.texture !== PIXI.Texture.WHITE) {
         this.monsterSprite.texture.destroy(true);
       }
@@ -469,6 +480,9 @@ export class FantasyPIXIInstance {
    */
   async updateActiveMonsters(monsters: GameMonsterState[]): Promise<void> {
     if (this.isDestroyed) return;
+
+    // 初期化完了を待つ
+    await this.initializationPromise;
 
     devLog.debug('👾 アクティブモンスター更新:', { count: monsters.length });
     
@@ -595,6 +609,15 @@ export class FantasyPIXIInstance {
   private async createMonsterSpriteForId(id: string, icon: string): Promise<PIXI.Sprite | null> {
     try {
       // ▼▼▼ 変更点 ▼▼▼
+      // デバッグ: imageTexturesの内容を確認
+      if (this.imageTextures.size === 0) {
+        devLog.debug('⚠️ imageTexturesが空です');
+      }
+      
+      // デバッグ: 最初の数個のキーを表示
+      const keys = Array.from(this.imageTextures.keys()).slice(0, 5);
+      devLog.debug('📦 imageTexturesのキー例:', keys);
+      
       // iconに基づいてテクスチャを動的に選択
       let texture = this.imageTextures.get(icon);
       
