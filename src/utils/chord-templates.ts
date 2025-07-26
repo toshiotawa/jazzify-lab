@@ -26,7 +26,7 @@ export const CHORD_TEMPLATES: Record<ChordQuality, string[]> = {
   'maj7':   ['1P', '3M', '5P', '7M'],
   'm7':     ['1P', '3m', '5P', '7m'],
   'mM7':    ['1P', '3m', '5P', '7M'],
-  'dim7':   ['1P', '3m', '5d', '6M'],  // bb7 = 6M
+  'dim7':   ['1P', '3m', '5d', '7d'],  // 正: 音楽理論的に正しい減7度 (diminished 7th)
   'aug7':   ['1P', '3M', '5A', '7m'],
   'm7b5':   ['1P', '3m', '5d', '7m'],  // ハーフディミニッシュ
   

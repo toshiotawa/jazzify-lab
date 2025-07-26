@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } from 'react';
 import { devLog } from '@/utils/logger';
-import { getFantasyChordNotes, buildChordMidiNotes } from '@/utils/chord-utils';
-import { FANTASY_CHORD_MAP } from '@/utils/chord-templates';
+import { getFantasyChordNotes, buildChordMidiNotes, parseChordName } from '@/utils/chord-utils';
+import { FANTASY_CHORD_MAP, type ChordQuality } from '@/utils/chord-templates';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 
@@ -101,29 +101,54 @@ interface FantasyGameEngineProps {
 // ===== コード定義データ =====
 
 /**
- * コード定義を動的に生成する関数
- * @param chordId コードID
+ * コード定義を動的に生成する関数 (リファクタリング版)
+ * @param chordId コードID (例: 'CM7', 'A', 'F#m7b5')
  * @param displayOpts 表示オプション
- * @returns ChordDefinition
+ * @returns ChordDefinition | null
  */
 const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
-  const mapping = FANTASY_CHORD_MAP[chordId];
-  if (!mapping) {
-    console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
+  // 1. 新しいパーサーでコードを解析
+  const parsed = parseChordName(chordId);
+
+  if (!parsed) {
+    // FANTASY_CHORD_MAPによる互換性チェック（フォールバック）
+    const fantasyMapping = FANTASY_CHORD_MAP[chordId];
+    if (!fantasyMapping) {
+      console.warn(`⚠️ コードの解析に失敗しました: ${chordId}`);
+      return null;
+    }
+    // 互換性マップから取得
+    const notes = buildChordMidiNotes(fantasyMapping.root, fantasyMapping.quality, 4);
+    const displayName = displayOpts ? toDisplayChordName(chordId, displayOpts) : chordId;
+    return {
+      id: chordId,
+      displayName,
+      notes,
+      quality: fantasyMapping.quality,
+      root: fantasyMapping.root
+    };
+  }
+  
+  const { root, quality } = parsed;
+
+  // 2. 解析結果からMIDIノートを生成
+  const notes = buildChordMidiNotes(root, quality, 4); // オクターブ4を基準
+  if (notes.length === 0) {
+    console.warn(`⚠️ ノートの生成に失敗しました: ${chordId}`);
     return null;
   }
-
-  const notes = getFantasyChordNotes(chordId, 4); // オクターブ4を基準
+  
+  // 3. 表示名を生成 (ポリシー④に従い、UI層での変換を推奨)
   const displayName = displayOpts 
-    ? toDisplayChordName(chordId, displayOpts)
+    ? toDisplayChordName(chordId, displayOpts) 
     : chordId;
 
   return {
     id: chordId,
     displayName,
     notes,
-    quality: mapping.quality,
-    root: mapping.root
+    quality,
+    root
   };
 };
 
