@@ -116,6 +116,10 @@ export class FantasySoundManager {
     return Promise.all(promises).then(() => {
       this.isInited = true;
       console.debug('[FantasySoundManager] init complete');
+      // 初期化完了後の状態をログ出力
+      Object.entries(this.audioMap).forEach(([key, entry]) => {
+        console.debug(`[FantasySoundManager] ${key}: ready=${entry.ready}`);
+      });
     });
   }
 
@@ -135,13 +139,19 @@ export class FantasySoundManager {
 
   private _playSe(key: keyof typeof this.audioMap) {
     const entry = this.audioMap[key];
-    if (!entry) return;
+    if (!entry) {
+      console.warn(`[FantasySoundManager] Audio entry not found for key: ${key}`);
+      return;
+    }
 
     const base = entry.base;
     if (!entry.ready) {
       // 未ロード or 失敗時は何もしない（ユーザー体験阻害しない）
+      console.warn(`[FantasySoundManager] Audio not ready for key: ${key}`);
       return;
     }
+
+    console.debug(`[FantasySoundManager] Playing sound: ${key} at volume: ${this._volume}`);
 
     // 同時再生のため cloneNode()
     const node = base.cloneNode() as HTMLAudioElement;
@@ -152,7 +162,9 @@ export class FantasySoundManager {
       node.src = '';
     });
     // play() は Promise—but 例外無視
-    node.play().catch(() => {/* autoplay 制限等で失敗しても握りつぶす */});
+    node.play().catch((error) => {
+      console.warn(`[FantasySoundManager] Failed to play ${key}:`, error);
+    });
   }
 }
 

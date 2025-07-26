@@ -111,7 +111,7 @@ const MAGIC_TYPES: Record<string, MagicType> = {
     tier2Color: 0x4169E1, // ロイヤルブルー
     particleCount: 25,
   },
-  lightning: { // スパーク -> サンダー・ストライク
+  thunder: { // スパーク -> サンダー・ストライク
     name: 'スパーク',
     color: 0xFFD700, // ゴールド
     particleColor: 0xFFF700,
@@ -688,7 +688,16 @@ export class FantasyPIXIInstance {
       // 魔法効果音を再生
       try {
         const { FantasySoundManager } = require('@/utils/FantasySoundManager');
-        FantasySoundManager.playMagic(this.currentMagicType as 'fire' | 'ice' | 'thunder');
+        // 魔法タイプを正しくマッピング
+        const magicTypeMap: Record<string, 'fire' | 'ice' | 'thunder'> = {
+          'fire': 'fire',
+          'ice': 'ice',
+          'thunder': 'thunder'
+        };
+        const soundType = magicTypeMap[this.currentMagicType];
+        if (soundType) {
+          FantasySoundManager.playMagic(soundType);
+        }
       } catch (error) {
         console.error('Failed to play magic sound:', error);
       }
@@ -755,7 +764,16 @@ export class FantasyPIXIInstance {
       // 魔法効果音を再生
       try {
         const { FantasySoundManager } = require('@/utils/FantasySoundManager');
-        FantasySoundManager.playMagic(this.currentMagicType as 'fire' | 'ice' | 'thunder');
+        // 魔法タイプを正しくマッピング
+        const magicTypeMap: Record<string, 'fire' | 'ice' | 'thunder'> = {
+          'fire': 'fire',
+          'ice': 'ice',
+          'thunder': 'thunder'
+        };
+        const soundType = magicTypeMap[this.currentMagicType];
+        if (soundType) {
+          FantasySoundManager.playMagic(soundType);
+        }
       } catch (error) {
         console.error('Failed to play magic sound:', error);
       }
