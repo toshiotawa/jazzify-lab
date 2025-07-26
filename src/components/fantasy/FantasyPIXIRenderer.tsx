@@ -123,6 +123,38 @@ const MAGIC_TYPES: Record<string, MagicType> = {
   },
 };
 
+// ===== テクスチャキャッシュ =====
+// インメモリキャッシュ - 一度ロードしたテクスチャを保持
+const textureCache: Record<string, Promise<PIXI.Texture>> = {};
+
+// 1枚だけロードするユーティリティ関数
+const loadMonsterTexture = async (icon: string): Promise<PIXI.Texture> => {
+  if (!textureCache[icon]) {
+    // 複数のパスを試す（WebP優先、PNG、旧PNGの順）
+    const tryPaths = [
+      `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`,  // WebP (軽量)
+      `${import.meta.env.BASE_URL}monster_icons/${icon}.png`,   // PNG
+    ];
+
+    textureCache[icon] = (async () => {
+      for (const path of tryPaths) {
+        try {
+          const texture = await PIXI.Assets.load(path);
+          devLog.debug(`✅ モンスターテクスチャ遅延ロード完了: ${icon}`);
+          return texture;
+        } catch (error) {
+          // このパスでは見つからなかった
+          continue;
+        }
+      }
+      // すべて失敗したら白テクスチャを返す
+      devLog.debug(`❌ モンスターテクスチャロード失敗: ${icon}`);
+      return PIXI.Texture.WHITE;
+    })();
+  }
+  return textureCache[icon];
+};
+
 // ===== モンスターシンボルマッピング（フラットデザイン） =====
 const MONSTER_EMOJI: Record<string, string> = {
   'vampire': '☠', // 頭蓋骨（バンパイア）
@@ -253,7 +285,7 @@ export class FantasyPIXIInstance {
     
     // 絵文字テクスチャの事前読み込み
     // this.loadEmojiTextures(); // ★ 削除
-    this.loadMonsterTextures(); // ★★★ 新しいメソッドを呼ぶ ★★★
+    // this.loadMonsterTextures(); // ★★★ 遅延ロードに変更したためコメントアウト ★★★
     
     // ★★★ 修正点(1): 魔法エフェクトのテクスチャ読み込みを追加 ★★★
     this.loadImageTextures(); // この行を追加して魔法画像をロードします
@@ -264,57 +296,47 @@ export class FantasyPIXIInstance {
     devLog.debug('✅ ファンタジーPIXI初期化完了（状態機械対応）');
   }
 
-  // ★★★ 絵文字テクスチャ読み込みをモンスター画像読み込みに変更 ★★★
-  private async loadMonsterTextures(): Promise<void> {
-    try {
-      // ▼▼▼ 変更点 ▼▼▼
-      // 複数のモンスター画像をロードする（ENEMY_LISTと完全に一致させる）
-      const monsterIcons = ['devil', 'dragon', 'mao', 'mummy', 'shinigami', 'slime_green', 'slime_red', 'zombie', 'skeleton', 'grey', 'pumpkin', 'alien', 'bat1', 'bat2', 'ghost'];
-      /** まず .svg を読みに行き，失敗したら .png にフォールバックします */
-      const iconMap: Record<string, string> = {
-        devil:        'character_monster_devil_purple.svg',
-        dragon:       'character_monster_dragon_01_red.svg',
-        mao:          'character_monster_mao_01.svg',
-        mummy:        'character_monster_mummy_red.svg',
-        shinigami:    'character_monster_shinigami_01.svg',
-        slime_green:  'character_monster_slime_green.svg',
-        slime_red:    'character_monster_slime_red.svg',
-        zombie:       'character_monster_zombie_brown.svg',
-        skeleton:     'gaikotsu_01.svg',
-        grey:         'grey_green.svg',
-        pumpkin:      'jackolantern_01_orange.svg',
-        alien:        'kaseijin_green.svg',
-        bat1:         'komori_01.svg',
-        bat2:         'komori_02.svg',
-        ghost:        'yurei_halloween_orange.svg'
-      };
+  // ★★★ 遅延ロードに変更したため、この関数は使用しない ★★★
+  // private async loadMonsterTextures(): Promise<void> {
+  //   try {
+  //     // ▼▼▼ 変更点 ▼▼▼
+  //     // public/monster_icons/monster_01.png 〜 63.png を全部読む
+  //     const monsterIcons = Array.from({ length: 63 }, (_, i) =>
+  //       `monster_${String(i + 1).padStart(2, '0')}`
+  //     );
+  //     
+  //     // 画像フォルダにそのまま置いてあるのでマップ不要
+  //     const iconMap: Record<string, string> = {};
+  //     monsterIcons.forEach((name) => {
+  //       iconMap[name] = `monster_icons/${name}.png`;
+  //     });
 
-      // プリロード用のアセット定義
-      const monsterAssets: Record<string, string> = {};
-      for (const icon of monsterIcons) {
-        const path = `${import.meta.env.BASE_URL}data/${iconMap[icon]}`;
-        monsterAssets[icon] = path;
-      }
+  //     // プリロード用のアセット定義
+  //     const monsterAssets: Record<string, string> = {};
+  //     for (const icon of monsterIcons) {
+  //       const path = `${import.meta.env.BASE_URL}${iconMap[icon]}`;
+  //       monsterAssets[icon] = path;
+  //     }
 
-      // バンドルとして一括ロード
-      await PIXI.Assets.addBundle('monsterTextures', monsterAssets);
-      await PIXI.Assets.loadBundle('monsterTextures');
+  //     // バンドルとして一括ロード
+  //     await PIXI.Assets.addBundle('monsterTextures', monsterAssets);
+  //     await PIXI.Assets.loadBundle('monsterTextures');
 
-      // ロードされたテクスチャを保存
-      for (const icon of monsterIcons) {
-        const texture = PIXI.Assets.get(icon);
-        if (texture) {
-          this.imageTextures.set(icon, texture);
-          devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${icon}`);
-        } else {
-          devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${icon}`);
-        }
-      }
-      // ▲▲▲ ここまで ▲▲▲
-    } catch (error) {
-      devLog.debug('❌ モンスターテクスチャの読み込みエラー:', error);
-    }
-  }
+  //     // ロードされたテクスチャを保存
+  //     for (const icon of monsterIcons) {
+  //       const texture = PIXI.Assets.get(icon);
+  //       if (texture) {
+  //         this.imageTextures.set(icon, texture);
+  //         devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${icon}`);
+  //       } else {
+  //         devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${icon}`);
+  //       }
+  //     }
+  //     // ▲▲▲ ここまで ▲▲▲
+  //   } catch (error) {
+  //     devLog.debug('❌ モンスターテクスチャの読み込みエラー:', error);
+  //   }
+  // }
 
   // フォールバック用テクスチャ作成
   private createFallbackTextures(): void {
@@ -596,22 +618,28 @@ export class FantasyPIXIInstance {
    */
   private async createMonsterSpriteForId(id: string, icon: string): Promise<PIXI.Sprite | null> {
     try {
-      // ▼▼▼ 変更点 ▼▼▼
-      // iconに基づいてテクスチャを動的に選択
-      let texture = this.imageTextures.get(icon);
+      // ▼▼▼ 変更点：プレースホルダーで即座に表示 ▼▼▼
+      // まずプレースホルダーを作成（グレーの四角形）
+      const placeholder = new PIXI.Sprite(PIXI.Texture.WHITE);
+      placeholder.width = 64;
+      placeholder.height = 64;
+      placeholder.tint = 0x888888; // グレー色
+      placeholder.anchor.set(0.5);
       
-      // テクスチャが見つからない場合はフォールバックを使用
-      if (!texture || texture.destroyed) {
-        // devLog.debug('⚠️ モンスターテクスチャが見つかりません、フォールバックを使用:', { id, icon });
-        texture = this.imageTextures.get('default_monster');
-        if (!texture || texture.destroyed) {
-          devLog.debug('❌ フォールバックテクスチャも見つかりません');
-          return null;
+      // 非同期で本物のテクスチャをロードして差し替える
+      loadMonsterTexture(icon).then(texture => {
+        if (!placeholder.destroyed) {
+          placeholder.texture = texture;
+          // テクスチャが読み込まれたら色を元に戻す
+          placeholder.tint = 0xFFFFFF;
+          devLog.debug(`✅ モンスタープレースホルダーを実画像に差し替え: ${icon}`);
         }
-      }
-      // ▲▲▲ ここまで ▲▲▲
+      }).catch(error => {
+        devLog.debug(`❌ モンスターテクスチャ差し替え失敗: ${icon}`, error);
+      });
       
-      const sprite = new PIXI.Sprite(texture);
+      const sprite = placeholder;
+      // ▲▲▲ ここまで ▲▲▲
 
       // ▼▼▼ 修正箇所 ▼▼▼
       // 実際のモンスター表示エリアのサイズに基づいてサイズを決定

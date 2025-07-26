@@ -836,11 +836,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         />
                       </div>
                       
-                      {/* モンスター名 */}
-                      <div className="text-white text-xs font-bold text-center mb-1">
-                        {monster.name}
-                      </div>
-                      
                       {/* HPゲージ */}
                       <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
                         <div
