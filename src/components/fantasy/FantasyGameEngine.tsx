@@ -1,20 +1,23 @@
 /**
  * ファンタジーゲームエンジン
- * コード判定・ゲームロジックを管理
+ * ゲームロジックとステート管理を担当
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } from 'react';
 import { devLog } from '@/utils/logger';
+import { getFantasyChordNotes, buildChordMidiNotes } from '@/utils/chord-utils';
+import { FANTASY_CHORD_MAP } from '@/utils/chord-templates';
+import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 
 // ===== 型定義 =====
 
 interface ChordDefinition {
-  id: string;           // "CM7"
-  displayName: string;  // "CM7"
-  notes: number[];      // [60, 64, 67, 71]
-  quality: string;      // "M7"
-  root: string;        // "C"
+  id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
+  displayName: string; // 表示名（言語・簡易化設定に応じて変更）
+  notes: number[];     // MIDIノート番号の配列
+  quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
+  root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
 
 interface FantasyStage {
@@ -97,46 +100,51 @@ interface FantasyGameEngineProps {
 
 // ===== コード定義データ =====
 
-const CHORD_DEFINITIONS: Record<string, ChordDefinition> = {
-  // メジャートライアド
-  'C': { id: 'C', displayName: 'C', notes: [60, 64, 67], quality: 'major', root: 'C' },
-  'F': { id: 'F', displayName: 'F', notes: [65, 69, 72], quality: 'major', root: 'F' },
-  'G': { id: 'G', displayName: 'G', notes: [67, 71, 74], quality: 'major', root: 'G' },
-  
-  // マイナートライアド
-  'Am': { id: 'Am', displayName: 'Am', notes: [57, 60, 64], quality: 'minor', root: 'A' },
-  'Dm': { id: 'Dm', displayName: 'Dm', notes: [62, 65, 69], quality: 'minor', root: 'D' },
-  'Em': { id: 'Em', displayName: 'Em', notes: [64, 67, 71], quality: 'minor', root: 'E' },
-  
-  // ドミナント7th
-  'G7': { id: 'G7', displayName: 'G7', notes: [67, 71, 74, 77], quality: 'dominant7', root: 'G' },
-  'C7': { id: 'C7', displayName: 'C7', notes: [60, 64, 67, 70], quality: 'dominant7', root: 'C' },
-  'F7': { id: 'F7', displayName: 'F7', notes: [65, 69, 72, 75], quality: 'dominant7', root: 'F' },
-  
-  // マイナー7th
-  'Am7': { id: 'Am7', displayName: 'Am7', notes: [57, 60, 64, 67], quality: 'minor7', root: 'A' },
-  'Dm7': { id: 'Dm7', displayName: 'Dm7', notes: [62, 65, 69, 72], quality: 'minor7', root: 'D' },
-  'Em7': { id: 'Em7', displayName: 'Em7', notes: [64, 67, 71, 74], quality: 'minor7', root: 'E' },
-  
-  // メジャー7th
-  'CM7': { id: 'CM7', displayName: 'CM7', notes: [60, 64, 67, 71], quality: 'major7', root: 'C' },
-  'FM7': { id: 'FM7', displayName: 'FM7', notes: [65, 69, 72, 76], quality: 'major7', root: 'F' },
-  'GM7': { id: 'GM7', displayName: 'GM7', notes: [67, 71, 74, 78], quality: 'major7', root: 'G' },
-  
-  // テンション系
-  'C6': { id: 'C6', displayName: 'C6', notes: [60, 64, 67, 69], quality: 'major6', root: 'C' },
-  'Cm6': { id: 'Cm6', displayName: 'Cm6', notes: [60, 63, 67, 69], quality: 'minor6', root: 'C' },
-  'C9': { id: 'C9', displayName: 'C9', notes: [60, 64, 67, 70, 74], quality: 'dominant9', root: 'C' },
-  'Cm9': { id: 'Cm9', displayName: 'Cm9', notes: [60, 63, 67, 70, 74], quality: 'minor9', root: 'C' },
-  'C11': { id: 'C11', displayName: 'C11', notes: [60, 64, 67, 70, 74, 77], quality: 'dominant11', root: 'C' },
-  'C13': { id: 'C13', displayName: 'C13', notes: [60, 64, 67, 70, 74, 81], quality: 'dominant13', root: 'C' },
-  
-  // 追加のドミナント7th
-  'B7': { id: 'B7', displayName: 'B7', notes: [71, 75, 78, 81], quality: 'dominant7', root: 'B' },
-  'E7': { id: 'E7', displayName: 'E7', notes: [64, 68, 71, 74], quality: 'dominant7', root: 'E' },
-  'A7': { id: 'A7', displayName: 'A7', notes: [69, 73, 76, 79], quality: 'dominant7', root: 'A' },
-  'D7': { id: 'D7', displayName: 'D7', notes: [62, 66, 69, 72], quality: 'dominant7', root: 'D' }
+/**
+ * コード定義を動的に生成する関数
+ * @param chordId コードID
+ * @param displayOpts 表示オプション
+ * @returns ChordDefinition
+ */
+const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
+  const mapping = FANTASY_CHORD_MAP[chordId];
+  if (!mapping) {
+    console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
+    return null;
+  }
+
+  const notes = getFantasyChordNotes(chordId, 4); // オクターブ4を基準
+  const displayName = displayOpts 
+    ? toDisplayChordName(chordId, displayOpts)
+    : chordId;
+
+  return {
+    id: chordId,
+    displayName,
+    notes,
+    quality: mapping.quality,
+    root: mapping.root
+  };
 };
+
+/**
+ * 全コード定義を取得（互換性のため）
+ */
+const getAllChordDefinitions = (displayOpts?: DisplayOpts): Record<string, ChordDefinition> => {
+  const definitions: Record<string, ChordDefinition> = {};
+  
+  for (const chordId in FANTASY_CHORD_MAP) {
+    const def = getChordDefinition(chordId, displayOpts);
+    if (def) {
+      definitions[chordId] = def;
+    }
+  }
+  
+  return definitions;
+};
+
+// 互換性のための定数（デフォルト表示）
+const CHORD_DEFINITIONS = getAllChordDefinitions();
 
 // ===== 敵リスト定義 =====
 
@@ -168,12 +176,13 @@ const createMonsterFromQueue = (
   position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
   enemyHp: number,
   allowedChords: string[],
-  previousChordId?: string
+  previousChordId?: string,
+  displayOpts?: DisplayOpts
 ): MonsterState => {
   // 完全にランダムにモンスターを選択
   const randomIndex = Math.floor(Math.random() * ENEMY_LIST.length);
   const enemy = ENEMY_LIST[randomIndex];
-  const chord = selectUniqueRandomChord(allowedChords, previousChordId);
+  const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
   
   return {
     id: `${enemy.id}_${Date.now()}_${position}`,
@@ -214,12 +223,13 @@ const assignPositions = (count: number): ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G
  */
 const selectUniqueRandomChord = (
   allowedChords: string[],
-  previousChordId?: string
+  previousChordId?: string,
+  displayOpts?: DisplayOpts
 ): ChordDefinition | null => {
   // まずは単純に全候補
   let availableChords = allowedChords
-    .map(id => CHORD_DEFINITIONS[id])
-    .filter(Boolean);
+    .map(id => getChordDefinition(id, displayOpts))
+    .filter(Boolean) as ChordDefinition[];
 
   // ---- 同じ列の直前コードだけは除外 ----
   if (previousChordId && availableChords.length > 1) {
@@ -309,10 +319,10 @@ const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): nu
 /**
  * ランダムコード選択（allowedChordsから）
  */
-const selectRandomChord = (allowedChords: string[], previousChordId?: string): ChordDefinition | null => {
+const selectRandomChord = (allowedChords: string[], previousChordId?: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
   let availableChords = allowedChords
-    .map(chordId => CHORD_DEFINITIONS[chordId])
-    .filter(Boolean);
+    .map(chordId => getChordDefinition(chordId, displayOpts))
+    .filter(Boolean) as ChordDefinition[];
     
   if (availableChords.length === 0) return null;
   
@@ -332,11 +342,11 @@ const selectRandomChord = (allowedChords: string[], previousChordId?: string): C
 /**
  * コード進行から次のコードを取得
  */
-const getProgressionChord = (progression: string[], questionIndex: number): ChordDefinition | null => {
+const getProgressionChord = (progression: string[], questionIndex: number, displayOpts?: DisplayOpts): ChordDefinition | null => {
   if (progression.length === 0) return null;
   
   const chordId = progression[questionIndex % progression.length];
-  return CHORD_DEFINITIONS[chordId] || null;
+  return getChordDefinition(chordId, displayOpts) || null;
 };
 
 /**
@@ -357,13 +367,14 @@ export const useFantasyGameEngine = ({
   onChordCorrect,
   onChordIncorrect,
   onGameComplete,
-  onEnemyAttack
-}: FantasyGameEngineProps) => {
+  onEnemyAttack,
+  displayOpts = { lang: 'en', simple: false }
+}: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
-    currentChordTarget: CHORD_DEFINITIONS['CM7'], // デフォルト値を設定
+    currentChordTarget: getChordDefinition('CM7', displayOpts) || CHORD_DEFINITIONS['CM7'], // デフォルト値を設定
     playerHp: 5,
     enemyGauge: 0,
     score: 0,
@@ -433,7 +444,8 @@ export const useFantasyGameEngine = ({
           positions[i],
           enemyHp,
           stage.allowedChords,
-          lastChordId
+          lastChordId,
+          displayOpts
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -512,12 +524,12 @@ export const useFantasyGameEngine = ({
           let nextChord;
           if (prevState.currentStage?.mode === 'single') {
             // ランダムモード：前回と異なるコードを選択
-            nextChord = selectRandomChord(prevState.currentStage.allowedChords, monster.chordTarget.id);
+            nextChord = selectRandomChord(prevState.currentStage.allowedChords, monster.chordTarget.id, displayOpts);
           } else {
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
             const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex);
+            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
           }
           
           return {
@@ -616,12 +628,12 @@ export const useFantasyGameEngine = ({
           if (prevState.currentStage?.mode === 'single') {
             // ランダムモード：前回と異なるコードを選択
             const previousChordId = prevState.currentChordTarget?.id;
-            nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId);
+            nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId, displayOpts);
           } else {
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
             const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex);
+            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
           }
           
           const nextState = {
@@ -812,7 +824,8 @@ export const useFantasyGameEngine = ({
           if (completedMonsters.some(cm => cm.id === monster.id)) {
             const nextChord = selectRandomChord(
               stateAfterAttack.currentStage!.allowedChords,
-              monster.chordTarget.id
+              monster.chordTarget.id,
+              displayOpts
             );
             return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
           }
@@ -836,7 +849,8 @@ export const useFantasyGameEngine = ({
               position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
               stateAfterAttack.maxEnemyHp,
               stateAfterAttack.currentStage!.allowedChords,
-              lastUsedChordId // 直前のコードを避ける
+              lastUsedChordId, // 直前のコードを避ける
+              displayOpts
             );
             remainingMonsters.push(newMonster);
           }
@@ -904,11 +918,11 @@ export const useFantasyGameEngine = ({
       // ★追加：次の問題もここで準備する
       let nextChord;
       if (prevState.currentStage?.mode === 'single') {
-        nextChord = selectRandomChord(prevState.currentStage.allowedChords, prevState.currentChordTarget?.id);
+        nextChord = selectRandomChord(prevState.currentStage.allowedChords, prevState.currentChordTarget?.id, displayOpts);
       } else {
         const progression = prevState.currentStage?.chordProgression || [];
         const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-        nextChord = getProgressionChord(progression, nextIndex);
+        nextChord = getProgressionChord(progression, nextIndex, displayOpts);
       }
 
       nextState = {
