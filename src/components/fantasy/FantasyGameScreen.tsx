@@ -791,7 +791,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
-                        {monster.chordTarget.notes.map((note, index) => {
+                        {monster.chordTarget.midi.map((note, index) => {
                           const noteMod12 = note % 12;
                           const noteName = getNoteNameFromMidi(note);
                           const isCorrect = monster.correctNotes.includes(noteMod12);
