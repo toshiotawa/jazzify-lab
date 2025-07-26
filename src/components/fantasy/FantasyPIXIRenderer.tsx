@@ -251,12 +251,15 @@ export class FantasyPIXIInstance {
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
     
+    // フォールバックテクスチャを作成
+    this.createFallbackTextures();
+    
     // 絵文字テクスチャの事前読み込み
     // this.loadEmojiTextures(); // ★ 削除
-    this.loadMonsterTextures(); // ★★★ 新しいメソッドを呼ぶ ★★★
+    await this.loadMonsterTextures(); // ★★★ awaitを追加して読み込み完了を待つ ★★★
     
     // ★★★ 修正点(1): 魔法エフェクトのテクスチャ読み込みを追加 ★★★
-    this.loadImageTextures(); // この行を追加して魔法画像をロードします
+    await this.loadImageTextures(); // awaitを追加して読み込み完了を待つ
     
     // アニメーションループ開始
     this.startAnimationLoop();
@@ -267,6 +270,8 @@ export class FantasyPIXIInstance {
   // ★★★ 絵文字テクスチャ読み込みをモンスター画像読み込みに変更 ★★★
   private async loadMonsterTextures(): Promise<void> {
     try {
+      devLog.debug('🎮 モンスターテクスチャ読み込み開始...');
+      
       // 提供された63個のモンスター画像を読み込む
       const monsterAssets: Record<string, string> = {};
       
@@ -277,21 +282,25 @@ export class FantasyPIXIInstance {
         monsterAssets[monsterName] = path;
       }
 
-      // バンドルとして一括ロード
-      await PIXI.Assets.addBundle('monsterTextures', monsterAssets);
-      await PIXI.Assets.loadBundle('monsterTextures');
+      devLog.debug('📁 モンスターテクスチャパス例:', {
+        monster_01: monsterAssets['monster_01'],
+        BASE_URL: import.meta.env.BASE_URL
+      });
 
-      // ロードされたテクスチャを保存
-      for (let i = 1; i <= 63; i++) {
-        const monsterName = `monster_${i.toString().padStart(2, '0')}`;
-        const texture = PIXI.Assets.get(monsterName);
-        if (texture) {
-          this.imageTextures.set(monsterName, texture);
-          devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${monsterName}`);
-        } else {
-          devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${monsterName}`);
+      // 各画像を個別に読み込む（バンドルでのエラーを回避）
+      for (const [monsterName, path] of Object.entries(monsterAssets)) {
+        try {
+          const texture = await PIXI.Assets.load(path);
+          if (texture) {
+            this.imageTextures.set(monsterName, texture);
+            devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${monsterName}`);
+          }
+        } catch (individualError) {
+          devLog.debug(`❌ 個別モンスターテクスチャ読み込み失敗: ${monsterName}`, individualError);
         }
       }
+
+      devLog.debug('✅ モンスターテクスチャ読み込み処理完了');
     } catch (error) {
       devLog.debug('❌ モンスターテクスチャの読み込みエラー:', error);
     }
@@ -307,40 +316,37 @@ export class FantasyPIXIInstance {
     const fallbackTexture = this.app.renderer.generateTexture(graphics);
     
     // デフォルトモンスター用のフォールバックテクスチャを設定
+    this.imageTextures.set('monster_01', fallbackTexture);
     this.imageTextures.set('default_monster', fallbackTexture);
   }
 
   // ★★★ 修正点(2): 画像読み込みパスを `public` ディレクトリ基準に修正 ★★★
   private async loadImageTextures(): Promise<void> {
     try {
-      // 魔法テクスチャのアセット定義
-      const magicAssets: Record<string, string> = {};
+      // 魔法テクスチャの個別読み込み
       for (const [key, magic] of Object.entries(MAGIC_TYPES)) {
-        const path = `${import.meta.env.BASE_URL}${magic.svg}`;
-        magicAssets[key] = path;
-      }
-      
-      // 怒りマークSVGを追加
-      magicAssets['angerMark'] = `${import.meta.env.BASE_URL}data/anger.svg`;
-
-      // バンドルとして一括ロード
-      await PIXI.Assets.addBundle('magicTextures', magicAssets);
-      await PIXI.Assets.loadBundle('magicTextures');
-
-      // ロードされたテクスチャを保存
-      for (const [key, magic] of Object.entries(MAGIC_TYPES)) {
-        const texture = PIXI.Assets.get(key);
-        if (texture) {
-          this.imageTextures.set(magic.svg, texture);
-          devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
+        try {
+          const path = `${import.meta.env.BASE_URL}${magic.svg}`;
+          const texture = await PIXI.Assets.load(path);
+          if (texture) {
+            this.imageTextures.set(magic.svg, texture);
+            devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
+          }
+        } catch (individualError) {
+          devLog.debug(`❌ 個別画像テクスチャ読み込み失敗: ${magic.svg}`, individualError);
         }
       }
       
-      // 怒りマークテクスチャを保存
-      const angerTexture = PIXI.Assets.get('angerMark');
-      if (angerTexture) {
-        this.imageTextures.set('angerMark', angerTexture);
-        devLog.debug('✅ 怒りマークテクスチャ読み込み: anger.svg');
+      // 怒りマークSVGを個別に読み込み
+      try {
+        const angerPath = `${import.meta.env.BASE_URL}data/anger.svg`;
+        const angerTexture = await PIXI.Assets.load(angerPath);
+        if (angerTexture) {
+          this.imageTextures.set('angerMark', angerTexture);
+          devLog.debug('✅ 怒りマークテクスチャ読み込み: anger.svg');
+        }
+      } catch (angerError) {
+        devLog.debug('❌ 怒りマークテクスチャ読み込み失敗:', angerError);
       }
       
       devLog.debug('✅ 全画像テクスチャ読み込み完了');
@@ -583,8 +589,8 @@ export class FantasyPIXIInstance {
       
       // テクスチャが見つからない場合はフォールバックを使用
       if (!texture || texture.destroyed) {
-        // devLog.debug('⚠️ モンスターテクスチャが見つかりません、フォールバックを使用:', { id, icon });
-        texture = this.imageTextures.get('default_monster');
+        devLog.debug('⚠️ モンスターテクスチャが見つかりません、フォールバックを使用:', { id, icon });
+        texture = this.imageTextures.get('monster_01');
         if (!texture || texture.destroyed) {
           devLog.debug('❌ フォールバックテクスチャも見つかりません');
           return null;
