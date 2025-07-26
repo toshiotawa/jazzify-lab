@@ -4,17 +4,69 @@
  */
 
 import { transpose, note as parseNote, distance } from 'tonal';
-import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP } from './chord-templates';
+import { CHORD_TEMPLATES, CHORD_INTERVALS, ChordQuality, FANTASY_CHORD_MAP, ChordId } from './chord-templates';
 
 /**
- * 任意ルートのコードから実音配列を取得（オクターブなし）
+ * 任意ルートの実音配列を生成（ChordId版）
+ * @param root ルート音名（英語表記: C, C#, Db, D#, Fx など）
+ * @param chordId コードID（例: 'CM7', 'G7', 'Am'）
+ * @returns 実音配列（音名のみ、オクターブなし）
+ */
+export function buildChordNotes(root: string, chordId: ChordId): string[] {
+  const template = CHORD_TEMPLATES[chordId];
+  if (!template) {
+    console.warn(`⚠️ 未定義のコードID: ${chordId}`);
+    return [];
+  }
+
+  return template.intervals.map(interval => {
+    const note = transpose(root, interval);
+    if (!note) {
+      console.warn(`⚠️ 移調失敗: ${root} + ${interval}`);
+      return root;
+    }
+    return note;
+  });
+}
+
+/**
+ * 任意ルートのコードからMIDIノート番号配列を取得（ChordId版）
+ * @param root ルート音名（英語表記: C, C#, Db, D#, Fx など）
+ * @param chordId コードID（例: 'CM7', 'G7', 'Am'）
+ * @param octave 基準オクターブ（デフォルト: 4）
+ * @returns MIDIノート番号配列
+ */
+export function buildChordMidiNotes(root: string, chordId: ChordId, octave: number = 4): number[] {
+  const notes = buildChordNotes(root, chordId);
+  const rootWithOctave = `${root}${octave}`;
+  
+  return notes.map((noteName, index) => {
+    // ルート音にオクターブを付加
+    const noteWithOctave = index === 0 ? rootWithOctave : transpose(rootWithOctave, CHORD_TEMPLATES[chordId].intervals[index]);
+    
+    if (!noteWithOctave) {
+      console.warn(`⚠️ 移調失敗: ${rootWithOctave} + ${CHORD_TEMPLATES[chordId].intervals[index]}`);
+      return 60; // デフォルトでC4
+    }
+    
+    const note = parseNote(noteWithOctave);
+    if (!note || typeof note.midi !== 'number') {
+      console.warn(`⚠️ MIDI変換失敗: ${noteWithOctave}`);
+      return 60; // デフォルトでC4
+    }
+    return note.midi;
+  });
+}
+
+/**
+ * 任意ルートのコードから実音配列を取得（オクターブなし）- 従来のAPI互換版
  * @param root ルート音名（英語表記: C, C#, Db, D#, Fx など）
  * @param quality コードクオリティ
  * @param octave 基準オクターブ（デフォルト: 4）- 内部計算用
  * @returns 実音配列（音名のみ、オクターブなし）
  */
-export function buildChordNotes(root: string, quality: ChordQuality, octave: number = 4): string[] {
-  const intervals = CHORD_TEMPLATES[quality];
+export function buildChordNotesByQuality(root: string, quality: ChordQuality, octave: number = 4): string[] {
+  const intervals = CHORD_INTERVALS[quality];
   if (!intervals) {
     console.warn(`⚠️ 未定義のコードクオリティ: ${quality}`);
     return [];
@@ -38,14 +90,14 @@ export function buildChordNotes(root: string, quality: ChordQuality, octave: num
 }
 
 /**
- * 任意ルートのコードからMIDIノート番号配列を取得
+ * 任意ルートのコードからMIDIノート番号配列を取得 - 従来のAPI互換版
  * @param root ルート音名（英語表記: C, C#, Db, D#, Fx など）
  * @param quality コードクオリティ
  * @param octave 基準オクターブ（デフォルト: 4）
  * @returns MIDIノート番号配列
  */
-export function buildChordMidiNotes(root: string, quality: ChordQuality, octave: number = 4): number[] {
-  const notes = buildChordNotes(root, quality, octave);
+export function buildChordMidiNotesByQuality(root: string, quality: ChordQuality, octave: number = 4): number[] {
+  const notes = buildChordNotesByQuality(root, quality, octave);
   
   return notes.map(noteName => {
     const note = parseNote(noteName);
@@ -97,13 +149,28 @@ export function transposeKey(currentKey: string, semitones: number): string {
  * @returns MIDIノート番号配列
  */
 export function getFantasyChordNotes(chordId: string, octave: number = 4): number[] {
+  // chordId から root を抽出（正規表現で音名部分を取得）
+  const match = chordId.match(/^([A-G][b#]?)/);
+  if (!match) {
+    console.warn(`⚠️ コードIDからルート音を抽出できません: ${chordId}`);
+    return [];
+  }
+  
+  const root = match[1];
+  
+  // ChordId型にキャストして新しいAPIを使用
+  if (chordId in CHORD_TEMPLATES) {
+    return buildChordMidiNotes(root, chordId as ChordId, octave);
+  }
+  
+  // 従来のFANTASY_CHORD_MAPを使用（後方互換性のため）
   const mapping = FANTASY_CHORD_MAP[chordId];
   if (!mapping) {
     console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
     return [];
   }
   
-  return buildChordMidiNotes(mapping.root, mapping.quality, octave);
+  return buildChordMidiNotesByQuality(mapping.root, mapping.quality, octave);
 }
 
 /**

@@ -10,11 +10,56 @@ export type ChordQuality =
   | 'sus2' | 'sus4' | '7sus4' | 'add9' | 'madd9';
 
 /**
- * Cルートのコードテンプレート
- * 各コードクオリティをインターバル配列で定義
- * 実音は transpose() で都度生成する
+ * コードテンプレート
+ * 各コードIDに対してquality（種類）とintervals（インターバル配列）を定義
+ * 実音は buildChordNotes() で動的に生成される
  */
-export const CHORD_TEMPLATES: Record<ChordQuality, string[]> = {
+export const CHORD_TEMPLATES = {
+  // メジャートライアド
+  'C': { quality: 'maj' as ChordQuality, intervals: ['1P', '3M', '5P'] },
+  'F': { quality: 'maj' as ChordQuality, intervals: ['1P', '3M', '5P'] },
+  'G': { quality: 'maj' as ChordQuality, intervals: ['1P', '3M', '5P'] },
+  
+  // マイナートライアド
+  'Am': { quality: 'min' as ChordQuality, intervals: ['1P', '3m', '5P'] },
+  'Dm': { quality: 'min' as ChordQuality, intervals: ['1P', '3m', '5P'] },
+  'Em': { quality: 'min' as ChordQuality, intervals: ['1P', '3m', '5P'] },
+  
+  // ドミナント7th
+  'G7': { quality: '7' as ChordQuality, intervals: ['1P', '3M', '5P', '7m'] },
+  'C7': { quality: '7' as ChordQuality, intervals: ['1P', '3M', '5P', '7m'] },
+  'F7': { quality: '7' as ChordQuality, intervals: ['1P', '3M', '5P', '7m'] },
+  'B7': { quality: '7' as ChordQuality, intervals: ['1P', '3M', '5P', '7m'] },
+  'E7': { quality: '7' as ChordQuality, intervals: ['1P', '3M', '5P', '7m'] },
+  'A7': { quality: '7' as ChordQuality, intervals: ['1P', '3M', '5P', '7m'] },
+  'D7': { quality: '7' as ChordQuality, intervals: ['1P', '3M', '5P', '7m'] },
+  
+  // マイナー7th
+  'Am7': { quality: 'm7' as ChordQuality, intervals: ['1P', '3m', '5P', '7m'] },
+  'Dm7': { quality: 'm7' as ChordQuality, intervals: ['1P', '3m', '5P', '7m'] },
+  'Em7': { quality: 'm7' as ChordQuality, intervals: ['1P', '3m', '5P', '7m'] },
+  
+  // メジャー7th - 正しいインターバル（7M = 長7度）を使用
+  'CM7': { quality: 'maj7' as ChordQuality, intervals: ['1P', '3M', '5P', '7M'] },
+  'FM7': { quality: 'maj7' as ChordQuality, intervals: ['1P', '3M', '5P', '7M'] },
+  'GM7': { quality: 'maj7' as ChordQuality, intervals: ['1P', '3M', '5P', '7M'] },
+  
+  // テンション系
+  'C6': { quality: '6' as ChordQuality, intervals: ['1P', '3M', '5P', '6M'] },
+  'Cm6': { quality: 'm6' as ChordQuality, intervals: ['1P', '3m', '5P', '6M'] },
+  'C9': { quality: '9' as ChordQuality, intervals: ['1P', '3M', '5P', '7m', '9M'] },
+  'Cm9': { quality: 'm9' as ChordQuality, intervals: ['1P', '3m', '5P', '7m', '9M'] },
+  'C11': { quality: '11' as ChordQuality, intervals: ['1P', '3M', '5P', '7m', '9M', '11P'] },
+  'C13': { quality: '13' as ChordQuality, intervals: ['1P', '3M', '5P', '7m', '9M', '11P', '13M'] }
+} as const;
+
+export type ChordId = keyof typeof CHORD_TEMPLATES;
+
+/**
+ * クオリティごとのインターバル定義（汎用的な音楽理論用）
+ * 既存のコードと互換性を保つために残す
+ */
+export const CHORD_INTERVALS: Record<ChordQuality, string[]> = {
   // トライアド
   'maj':    ['1P', '3M', '5P'],
   'min':    ['1P', '3m', '5P'],
