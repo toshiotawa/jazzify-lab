@@ -642,10 +642,24 @@ export class FantasyPIXIInstance {
       // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
       const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
       
-      // 最大スケールを制限（モバイルとデスクトップで異なる制限）
-      const maxScale = isMobile ? 0.6 : 0.9;   // ★ 1️⃣ 倍近くまで拡大
-      const finalScale = Math.min(scale, maxScale);
-      sprite.scale.set(finalScale);
+      // コンテナサイズに応じて動的にスケール調整
+      if (isMobile) {
+        // モバイル: コンテナ高さの70%まで使用
+        const mobileMaxHeight = CONTAINER_HEIGHT * 0.7;
+        const mobileScale = Math.min(
+          (availableWidth * 0.9) / sprite.texture.width,
+          mobileMaxHeight / sprite.texture.height
+        );
+        sprite.scale.set(Math.min(mobileScale, 0.5)); // 最大50%に制限
+      } else {
+        // PC: コンテナ高さの90%まで使用、より大きく表示
+        const pcMaxHeight = CONTAINER_HEIGHT * 0.9;
+        const pcScale = Math.min(
+          (availableWidth * 1.2) / sprite.texture.width,
+          pcMaxHeight / sprite.texture.height
+        );
+        sprite.scale.set(Math.min(pcScale, 1.5)); // 最大150%まで許可
+      }
       
       sprite.anchor.set(0.5);
       // ▲▲▲ ここまで ▲▲▲
@@ -769,7 +783,19 @@ export class FantasyPIXIInstance {
         cutin.anchor.set(0.5);
         cutin.x = this.app.screen.width / 2;
         cutin.y = this.app.screen.height / 2;
-        cutin.scale.set(0.8);
+        
+        // 画面サイズに応じてカットインをリサイズ
+        const screenWidth = this.app.screen.width;
+        const screenHeight = this.app.screen.height;
+        const maxCutinWidth = screenWidth * 0.8; // 画面幅の80%まで
+        const maxCutinHeight = screenHeight * 0.6; // 画面高さの60%まで
+        
+        const cutinScale = Math.min(
+          maxCutinWidth / tex.width,
+          maxCutinHeight / tex.height,
+          1.0 // 最大でも元のサイズまで
+        );
+        cutin.scale.set(cutinScale);
         cutin.alpha = 0;
         this.uiContainer.addChild(cutin);
 
@@ -1138,7 +1164,7 @@ export class FantasyPIXIInstance {
         
         if (enragedTable[id]) {
           // ---- 怒り演出 ----
-          visualState.scale = 0.5; // ★ 怒り時も比例拡大
+          visualState.scale = 0.6; // ★ 怒り時も比例拡大（通常の1.5倍）
           sprite.tint = 0xFFCCCC;
           
           // 怒りマークを追加（まだない場合）
@@ -1391,24 +1417,50 @@ export class FantasyPIXIInstance {
         // 実際のモンスター表示エリアのサイズに基づいてサイズを決定
         const CONTAINER_WIDTH = width;
         const CONTAINER_HEIGHT = 200; // FantasyGameScreen.tsxで定義されている固定高さ
+        const isMobile = CONTAINER_WIDTH < 768;
 
-        // 3体同時表示を想定して、1体あたりの利用可能幅を計算
-        // 各モンスターは画面の25%, 50%, 75%の位置に配置される
-        // そのため、利用可能な幅は画面幅の約25%（モンスター間のマージンを考慮）
-        const availableWidth = CONTAINER_WIDTH * 0.20; // 20%でマージンを確保
+        // モンスター数に応じて利用可能幅を計算
+        const currentMonsterCount = sortedEntries.length;
+        let availableWidthRatio: number;
         
-        // モンスターの最大サイズを定義
-        // 幅: 利用可能幅の80%（十分なマージンを確保）
-        const maxWidth = availableWidth * 0.8;
-        // 高さ: コンテナ高さの50%（上下のマージンを確保）
-        const maxHeight = CONTAINER_HEIGHT * 0.5;
-
-        // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
-        const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
+        if (isMobile) {
+          if (currentMonsterCount <= 3) {
+            availableWidthRatio = 0.25;
+          } else if (currentMonsterCount <= 5) {
+            availableWidthRatio = 0.15;
+          } else {
+            availableWidthRatio = 0.10;
+          }
+        } else {
+          if (currentMonsterCount <= 3) {
+            availableWidthRatio = 0.20;
+          } else if (currentMonsterCount <= 5) {
+            availableWidthRatio = 0.15;
+          } else {
+            availableWidthRatio = 0.10;
+          }
+        }
         
-        // 最大スケールを制限（小さすぎる画像が拡大されすぎないように）
-        const finalScale = Math.min(scale, 0.5);  // 0.8 から 0.5 に変更
-        sprite.scale.set(finalScale);
+        const availableWidth = CONTAINER_WIDTH * availableWidthRatio;
+        
+        // コンテナサイズに応じて動的にスケール調整
+        if (isMobile) {
+          // モバイル: コンテナ高さの70%まで使用
+          const mobileMaxHeight = CONTAINER_HEIGHT * 0.7;
+          const mobileScale = Math.min(
+            (availableWidth * 0.9) / sprite.texture.width,
+            mobileMaxHeight / sprite.texture.height
+          );
+          sprite.scale.set(Math.min(mobileScale, 0.5)); // 最大50%に制限
+        } else {
+          // PC: コンテナ高さの90%まで使用、より大きく表示
+          const pcMaxHeight = CONTAINER_HEIGHT * 0.9;
+          const pcScale = Math.min(
+            (availableWidth * 1.2) / sprite.texture.width,
+            pcMaxHeight / sprite.texture.height
+          );
+          sprite.scale.set(Math.min(pcScale, 1.5)); // 最大150%まで許可
+        }
         // ▲▲▲ ここまで ▲▲▲
         this.updateMonsterSpriteData(monsterData);
       }

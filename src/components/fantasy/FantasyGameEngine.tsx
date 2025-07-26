@@ -8,6 +8,7 @@ import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
+import { useFantasyStore } from '@/stores/fantasyStore';
 
 // ===== 型定義 =====
 
@@ -358,6 +359,9 @@ export const useFantasyGameEngine = ({
   displayOpts = { lang: 'en', simple: false }
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   
+  // Zustand store for SP gauge
+  const { playerSp, setSp, addSp, resetSp, consumeSp, canUseSpecialAttack } = useFantasyStore();
+  
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
@@ -477,6 +481,9 @@ export const useFantasyGameEngine = ({
 
     setGameState(newState);
     onGameStateChange(newState);
+    
+    // Zustand storeのSPもリセット
+    resetSp();
 
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
@@ -584,6 +591,9 @@ export const useFantasyGameEngine = ({
         
         return finalState;
       } else {
+        // 敵から攻撃を受けたらSPゲージをリセット
+        resetSp();
+        
         // HP減少して次の問題へ（回答数ベース、ループ対応）
         const isComplete = prevState.correctAnswers >= prevState.totalQuestions;
         
@@ -779,7 +789,7 @@ export const useFantasyGameEngine = ({
         // ★ 攻撃処理後の状態を計算する
         let stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
         
-        const isSpecialAttack = stateAfterAttack.playerSp >= 5;
+        const isSpecialAttack = canUseSpecialAttack();
         
         // 攻撃処理ループ
         completedMonsters.forEach(completed => {
@@ -796,12 +806,14 @@ export const useFantasyGameEngine = ({
 
         // プレイヤーの状態更新
         if (isSpecialAttack) {
+          consumeSp(); // Zustand storeでSPを消費
           stateAfterAttack.playerSp = 0;
           
           // ★ 全敵ゲージをリセット
           stateAfterAttack.activeMonsters =
             stateAfterAttack.activeMonsters.map(m => ({ ...m, gauge: 0 }));
         } else {
+          addSp(completedMonsters.length); // Zustand storeでSPを追加
           stateAfterAttack.playerSp = Math.min(stateAfterAttack.playerSp + completedMonsters.length, 5);
         }
         stateAfterAttack.score += 1000 * completedMonsters.length;
