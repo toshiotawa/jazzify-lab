@@ -51,7 +51,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
   
   // 魔法名表示状態
-  const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
+
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -455,14 +455,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setFantasyPixiInstance(instance);
   }, []);
   
-  // 魔法名表示ハンドラー
-  const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
-    setMagicName({ monsterId, name, isSpecial });
-    // 500ms後に自動的に非表示
-    setTimeout(() => {
-      setMagicName(null);
-    }, 500);
-  }, []);
+
   
   // モンスター撃破時のコールバック（状態機械対応）
   const handleMonsterDefeated = useCallback(() => {
@@ -714,7 +707,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
               className="w-full h-full"
               activeMonsters={gameState.activeMonsters}
             />
@@ -809,19 +801,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           );
                         })}
                       </div>
-                      
-                      {/* 魔法名表示 */}
-                      {magicName && magicName.monsterId === monster.id && (
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                          {/* ▼▼▼ 変更点 ▼▼▼ */}
-                          <div className={`font-bold font-dotgothic16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
-                            magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                          }`}>
-                          {/* ▲▲▲ ここまで ▲▲▲ */}
-                            {magicName.name}
-                          </div>
-                        </div>
-                      )}
                       
                       {/* 行動ゲージ */}
                       <div 

@@ -795,7 +795,15 @@ export const useFantasyGameEngine = ({
         });
 
         // プレイヤーの状態更新
-        stateAfterAttack.playerSp = isSpecialAttack ? 0 : Math.min(stateAfterAttack.playerSp + completedMonsters.length, 5);
+        if (isSpecialAttack) {
+          stateAfterAttack.playerSp = 0;
+          
+          // ★ 全敵ゲージをリセット
+          stateAfterAttack.activeMonsters =
+            stateAfterAttack.activeMonsters.map(m => ({ ...m, gauge: 0 }));
+        } else {
+          stateAfterAttack.playerSp = Math.min(stateAfterAttack.playerSp + completedMonsters.length, 5);
+        }
         stateAfterAttack.score += 1000 * completedMonsters.length;
         stateAfterAttack.correctAnswers += completedMonsters.length;
         
