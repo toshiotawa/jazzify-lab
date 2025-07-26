@@ -1,0 +1,161 @@
+/**
+ * 音名表示ユーティリティ
+ * UI レイヤーでの音名表示変換処理
+ */
+
+import { note as parseNote, enharmonic } from 'tonal';
+
+export type DisplayLang = 'en' | 'solfege';
+
+export interface DisplayOpts {
+  lang: DisplayLang;       // 表示言語
+  simple: boolean;         // 簡易表記（ダブルシャープ・フラットを排除）
+}
+
+/**
+ * 英語音名からドレミ（カタカナ）への変換マップ
+ */
+const SOLFEGE_MAP: Record<string, string> = {
+  // 基本音名
+  'C': 'ド', 'D': 'レ', 'E': 'ミ', 'F': 'ファ', 
+  'G': 'ソ', 'A': 'ラ', 'B': 'シ',
+  
+  // シャープ系
+  'C#': 'ド♯', 'D#': 'レ♯', 'E#': 'ファ', 'F#': 'ファ♯',
+  'G#': 'ソ♯', 'A#': 'ラ♯', 'B#': 'ド',
+  
+  // フラット系
+  'Cb': 'シ', 'Db': 'レ♭', 'Eb': 'ミ♭', 'Fb': 'ミ',
+  'Gb': 'ソ♭', 'Ab': 'ラ♭', 'Bb': 'シ♭',
+  
+  // ダブルシャープ（簡易化前）
+  'Cx': 'レ', 'Dx': 'ミ', 'Ex': 'ファ♯', 'Fx': 'ソ',
+  'Gx': 'ラ', 'Ax': 'シ', 'Bx': 'ド♯',
+  
+  // ダブルフラット（簡易化前）
+  'Cbb': 'シ♭', 'Dbb': 'ド', 'Ebb': 'レ', 'Fbb': 'ミ♭',
+  'Gbb': 'ファ', 'Abb': 'ソ', 'Bbb': 'ラ'
+};
+
+/**
+ * 簡易化マッピング（ダブルシャープ・フラット → 基本音名）
+ */
+const SIMPLIFY_MAP: Record<string, string> = {
+  // 異名同音（白鍵）
+  'B#': 'C', 'E#': 'F', 'Cb': 'B', 'Fb': 'E',
+  
+  // ダブルシャープ → 基本音名
+  'Cx': 'D', 'Dx': 'E', 'Ex': 'F#', 'Fx': 'G',
+  'Gx': 'A', 'Ax': 'B', 'Bx': 'C#',
+  
+  // ダブルフラット → 基本音名
+  'Cbb': 'Bb', 'Dbb': 'C', 'Ebb': 'D', 'Fbb': 'Eb',
+  'Gbb': 'F', 'Abb': 'G', 'Bbb': 'A'
+};
+
+/**
+ * 音名を表示用に変換
+ * @param noteName 元の音名（例: 'C', 'F#', 'Gbb', 'Fx4'）
+ * @param opts 表示オプション
+ * @returns 表示用音名
+ */
+export function toDisplayName(noteName: string, opts: DisplayOpts): string {
+  if (!noteName) return '';
+  
+  // オクターブ情報を分離
+  const parsed = parseNote(noteName);
+  if (!parsed || parsed.empty) return noteName;
+  
+  // 音名部分を取得（オクターブなし）
+  let displayName = parsed.name;
+  
+  // 簡易表記が有効な場合
+  if (opts.simple) {
+    // ダブルシャープ・ダブルフラットの場合のみ簡易化
+    if (Math.abs(parsed.alt) > 1) {
+      // tonal.jsのenharmonic機能を使用
+      const simpleNote = enharmonic(displayName);
+      if (simpleNote) {
+        displayName = simpleNote;
+      } else if (SIMPLIFY_MAP[displayName]) {
+        // フォールバック: 手動マッピング
+        displayName = SIMPLIFY_MAP[displayName];
+      }
+    }
+  }
+  
+  // 言語変換
+  if (opts.lang === 'solfege') {
+    displayName = SOLFEGE_MAP[displayName] || displayName;
+  }
+  
+  // オクターブ情報を再付加（必要な場合）
+  if (parsed.oct !== undefined && noteName.match(/\d/)) {
+    displayName += parsed.oct;
+  }
+  
+  return displayName;
+}
+
+/**
+ * コード名を表示用に変換
+ * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7'）
+ * @param opts 表示オプション
+ * @returns 表示用コード名
+ */
+export function toDisplayChordName(chordName: string, opts: DisplayOpts): string {
+  if (!chordName) return '';
+  
+  // ルート音とサフィックスを分離
+  const match = chordName.match(/^([A-G][#bx]*)(.*)/);
+  if (!match) return chordName;
+  
+  const [, root, suffix] = match;
+  const displayRoot = toDisplayName(root, opts);
+  
+  // サフィックスの表示変換（必要に応じて拡張）
+  let displaySuffix = suffix;
+  if (opts.lang === 'solfege') {
+    // 日本語表記の場合のサフィックス変換
+    displaySuffix = suffix
+      .replace('maj', 'メジャー')
+      .replace('min', 'マイナー')
+      .replace('dim', 'ディミニッシュ')
+      .replace('aug', 'オーグメント');
+  }
+  
+  return displayRoot + displaySuffix;
+}
+
+/**
+ * 音名配列を表示用に一括変換
+ * @param noteNames 音名配列
+ * @param opts 表示オプション
+ * @returns 表示用音名配列
+ */
+export function toDisplayNames(noteNames: string[], opts: DisplayOpts): string[] {
+  return noteNames.map(name => toDisplayName(name, opts));
+}
+
+/**
+ * MIDIノート番号から表示用音名を取得
+ * @param midi MIDIノート番号
+ * @param opts 表示オプション
+ * @returns 表示用音名
+ */
+export function midiToDisplayName(midi: number, opts: DisplayOpts): string {
+  const noteName = midiToNoteName(midi);
+  return toDisplayName(noteName, opts);
+}
+
+/**
+ * MIDIノート番号から音名を取得（ヘルパー関数）
+ * @param midi MIDIノート番号
+ * @returns 音名
+ */
+function midiToNoteName(midi: number): string {
+  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const octave = Math.floor(midi / 12) - 1;
+  const noteIndex = midi % 12;
+  return noteNames[noteIndex] + octave;
+}

@@ -12,12 +12,15 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import type { DisplayOpts } from '@/utils/display-note';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
   autoStart?: boolean;        // ★ 追加
   onGameComplete: (result: 'clear' | 'gameover', score: number, correctAnswers: number, totalQuestions: number) => void;
   onBackToStageSelect: () => void;
+  noteNameLang?: DisplayOpts['lang'];     // 音名表示言語
+  simpleNoteName?: boolean;                // 簡易表記
 }
 
 // 不要な定数とインターフェースを削除（PIXI側で処理）
@@ -26,7 +29,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   stage,
   autoStart = false, // ★ 追加
   onGameComplete,
-  onBackToStageSelect
+  onBackToStageSelect,
+  noteNameLang = 'en',
+  simpleNoteName = false
 }) => {
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
@@ -40,6 +45,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 設定状態を管理（初期値はstageから取得）
   const [showGuide, setShowGuide] = useState(stage.showGuide);
+  const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(noteNameLang);
+  const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
   
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
@@ -283,7 +290,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
-    onEnemyAttack: handleEnemyAttack
+    onEnemyAttack: handleEnemyAttack,
+    displayOpts: { lang: noteNameLang, simple: simpleNoteName }
   });
   
   // 現在の敵情報を取得
@@ -943,6 +951,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onSettingsChange={(settings) => {
           devLog.debug('⚙️ ファンタジー設定変更:', settings);
           setShowGuide(settings.showGuide);
+          setCurrentNoteNameLang(settings.noteNameLang);
+          setCurrentSimpleNoteName(settings.simpleNoteName);
           
           // ★★★ 音量更新処理を追加 ★★★
           // ピアノ音量設定が変更されたら、グローバル音量を更新
@@ -976,6 +986,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         midiDeviceId={settings.selectedMidiDevice}
         volume={settings.midiVolume} // gameStoreのMIDI音量を渡す
         soundEffectVolume={settings.soundEffectVolume} // gameStoreの効果音音量を渡す
+        noteNameLang={currentNoteNameLang}
+        simpleNoteName={currentSimpleNoteName}
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}

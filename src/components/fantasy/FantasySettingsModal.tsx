@@ -8,6 +8,7 @@ import { cn } from '@/utils/cn';
 import { MidiDeviceSelector } from '../ui/MidiDeviceManager';
 import { devLog } from '@/utils/logger';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import type { DisplayLang } from '@/utils/display-note';
 
 interface FantasySettingsModalProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ interface FantasySettingsModalProps {
   isMidiConnected?: boolean;
   volume?: number; // ピアノ音量設定をpropsで受け取る
   soundEffectVolume?: number; // 効果音音量設定をpropsで受け取る
+  noteNameLang?: DisplayLang; // 音名表示言語
+  simpleNoteName?: boolean; // 簡易表記
 }
 
 interface FantasySettings {
@@ -25,6 +28,8 @@ interface FantasySettings {
   volume: number; // ピアノ音量
   soundEffectVolume: number; // 効果音音量
   showGuide: boolean;
+  noteNameLang: DisplayLang; // 音名表示言語
+  simpleNoteName: boolean; // 簡易表記
 }
 
 const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
@@ -35,13 +40,17 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   onMidiDeviceChange,
   isMidiConnected = false,
   volume = 0.8, // デフォルト80%音量
-  soundEffectVolume = 0.8 // デフォルト80%効果音音量
+  soundEffectVolume = 0.8, // デフォルト80%効果音音量
+  noteNameLang = 'en', // デフォルト英語表記
+  simpleNoteName = false // デフォルト簡易表記OFF
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
     volume: volume, // propsから受け取ったピアノ音量を使用
     soundEffectVolume: soundEffectVolume, // propsから受け取った効果音音量を使用
-    showGuide: false
+    showGuide: false,
+    noteNameLang: noteNameLang,
+    simpleNoteName: simpleNoteName
   });
   
   // propsのmidiDeviceIdが変更されたらsettingsも更新
@@ -58,6 +67,16 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   useEffect(() => {
     setSettings(prev => ({ ...prev, soundEffectVolume: soundEffectVolume }));
   }, [soundEffectVolume]);
+
+  // propsのnoteNameLangが変更されたらsettingsも更新
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, noteNameLang: noteNameLang }));
+  }, [noteNameLang]);
+
+  // propsのsimpleNoteNameが変更されたらsettingsも更新
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, simpleNoteName: simpleNoteName }));
+  }, [simpleNoteName]);
 
   // 設定変更ハンドラー
   const handleSettingChange = (key: keyof FantasySettings, value: any) => {
@@ -142,6 +161,55 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             />
             <p className="text-xs text-gray-400 mt-1">
               魔法や敵の攻撃音の音量を調整できます
+            </p>
+          </div>
+
+          {/* 音名表示設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              音名表示言語
+            </label>
+            <div className="flex space-x-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="noteNameLang"
+                  value="en"
+                  checked={settings.noteNameLang === 'en'}
+                  onChange={(e) => handleSettingChange('noteNameLang', e.target.value)}
+                  className="mr-2 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-white">英語 (C, D, E)</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="noteNameLang"
+                  value="solfege"
+                  checked={settings.noteNameLang === 'solfege'}
+                  onChange={(e) => handleSettingChange('noteNameLang', e.target.value)}
+                  className="mr-2 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-white">ドレミ</span>
+              </label>
+            </div>
+          </div>
+
+          {/* 簡易表記設定 */}
+          <div>
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={settings.simpleNoteName}
+                onChange={(e) => handleSettingChange('simpleNoteName', e.target.checked)}
+                className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-white">
+                簡易表記
+              </span>
+            </label>
+            <p className="text-xs text-gray-400 mt-1">
+              ダブルシャープ・ダブルフラットを基本音名に変換します（例: Fx → G）
             </p>
           </div>
 

@@ -8,7 +8,9 @@ import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
 import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
+import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
+import type { DisplayLang } from '@/utils/display-note';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -30,6 +32,7 @@ interface GameResult {
 
 const FantasyMain: React.FC = () => {
   const { profile, isGuest } = useAuthStore();
+  const { settings } = useGameStore();
   const [currentStage, setCurrentStage] = useState<FantasyStage | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -431,6 +434,8 @@ const FantasyMain: React.FC = () => {
         autoStart={pendingAutoStart}   // ★
         onGameComplete={handleGameComplete}
         onBackToStageSelect={handleBackToStageSelect}
+        noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
+        simpleNoteName={settings.simpleDisplayMode}
       />
     );
   }

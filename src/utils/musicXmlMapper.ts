@@ -1,5 +1,8 @@
 import type { NoteData, ChordSymbol, ChordInfo } from '@/types';
 import { Note, Interval } from 'tonal';
+import { transpose, note as parseNote } from 'tonal';
+import { transposeKey } from './chord-utils';
+import { toDisplayName, type DisplayOpts } from './display-note';
 
 /**
  * Extract playable note names from transposed MusicXML document.
@@ -498,7 +501,7 @@ function interpolateChordTime(
 
 /**
  * コードネーム専用の移調関数
- * ダブルフラット・ダブルシャープを避ける簡易的な移調
+ * tonal.jsを使用した音楽理論的に正しい移調
  * @param root 元のルート音名（例: "C", "F#", "Bb"）
  * @param semitones 移調量（半音）
  * @returns 移調後のルート音名
@@ -507,50 +510,11 @@ export function transposeChordRoot(root: string, semitones: number): string {
   if (semitones === 0) return root;
   
   try {
-    // tonal.jsで基本的な移調を実行
-    const transposedNote = Note.transpose(root, Interval.fromSemitones(semitones));
-    const parsed = Note.get(transposedNote);
+    // transposeKey関数を使用（chord-utilsから）
+    const transposedRoot = transposeKey(root, semitones);
     
-    if (parsed.empty) {
-      console.warn(`⚠️ 移調失敗: ${root} + ${semitones}半音`);
-      return root;
-    }
-    
-    const { letter, acc } = parsed;
-    
-    // 複雑な音名の簡易化マッピング（simplifyRootNote関数と同じ）
-    const complexToSimpleMap: { [key: string]: string } = {
-      // 異名同音（白鍵）
-      'B#': 'C',
-      'E#': 'F',
-      'Cb': 'B',
-      'Fb': 'E',
-      // ダブルシャープ → 基本的な音名
-      'Ax': 'B',
-      'Bx': 'C#',
-      'Cx': 'D',
-      'Dx': 'E',
-      'Ex': 'F#',
-      'Fx': 'G',
-      'Gx': 'A',
-      // ダブルフラット → 基本的な音名
-      'Abb': 'G',
-      'Bbb': 'A',
-      'Cbb': 'B',
-      'Dbb': 'C',
-      'Ebb': 'D',
-      'Fbb': 'E',
-      'Gbb': 'F',
-    };
-    
-    const fullNoteName = letter + (acc || '');
-    if (complexToSimpleMap[fullNoteName]) {
-      console.log(`🎼 コード移調後簡易化: ${fullNoteName} → ${complexToSimpleMap[fullNoteName]}`);
-      return complexToSimpleMap[fullNoteName];
-    }
-    
-    // 通常のケース（C, C#, Db など）はそのまま
-    return fullNoteName;
+    console.log(`🎼 コード移調: ${root} + ${semitones}半音 → ${transposedRoot}`);
+    return transposedRoot;
     
   } catch (error) {
     console.error(`❌ コード移調エラー: ${root}`, error);
@@ -714,13 +678,16 @@ export function simplifyMusicXmlForDisplay(
     const parser = new DOMParser();
     const doc = parser.parseFromString(musicXmlText, 'text/xml');
 
-    // コードネームの複雑な音名（ダブルシャープ・ダブルフラット）は常に簡易化
-    simplifyChordNames(doc, settings);
-
-    // 簡易表示ONの場合のみ、音名（臨時記号）の簡易化を実行
+    // 新しいシステムでは、表示時に動的に変換するため、
+    // XMLを直接書き換える必要は最小限に
+    
+    // 簡易表示ONの場合のみ、複雑な臨時記号の最小限の簡易化を実行
     if (settings.simpleDisplayMode) {
-      simplifyAccidentals(doc, settings);
+      simplifyAccidentalsMinimal(doc);
     }
+    
+    // コードネームは互換性のため残す（将来的に削除予定）
+    simplifyChordNames(doc, settings);
 
     // コードのみ表示の場合、全てのnote要素を非表示に
     if (settings.chordsOnly) {
@@ -842,6 +809,47 @@ function simplifyAccidentals(doc: Document, settings: { noteNameStyle: 'off' | '
           accidentalElement.textContent = newAccidental;
         } else {
           accidentalElement.remove(); // 臨時記号が不要になった場合は削除
+        }
+      }
+    }
+  });
+}
+
+/**
+ * 臨時記号の最小限の簡易化（互換性のため）
+ * ダブルシャープ・ダブルフラットのみ処理
+ */
+function simplifyAccidentalsMinimal(doc: Document): void {
+  const notes = doc.querySelectorAll('note');
+  
+  notes.forEach(note => {
+    const alterElement = note.querySelector('alter');
+    if (!alterElement) return;
+    
+    const alter = parseInt(alterElement.textContent || '0');
+    
+    // ダブルシャープ・ダブルフラットのみ処理
+    if (Math.abs(alter) > 1) {
+      const stepElement = note.querySelector('pitch step');
+      const octaveElement = note.querySelector('pitch octave');
+      
+      if (!stepElement || !octaveElement) return;
+      
+      const step = stepElement.textContent || '';
+      const octave = parseInt(octaveElement.textContent || '4');
+      
+      // tonal.jsを使って簡易化
+      const currentNote = `${step}${alter > 0 ? 'x'.repeat(alter/2) : 'b'.repeat(-alter/2)}${octave}`;
+      const simpleNote = parseNote(currentNote);
+      
+      if (simpleNote && simpleNote.enharmonic) {
+        const enharmonicNote = parseNote(simpleNote.enharmonic);
+        if (enharmonicNote) {
+          stepElement.textContent = enharmonicNote.letter;
+          alterElement.textContent = enharmonicNote.alt.toString();
+          if (enharmonicNote.oct !== octave) {
+            octaveElement.textContent = enharmonicNote.oct.toString();
+          }
         }
       }
     }
