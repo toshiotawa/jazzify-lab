@@ -3,8 +3,100 @@
  * tonal.js を使った音楽理論的に正しい移調処理
  */
 
-import { transpose, note as parseNote, distance } from 'tonal';
-import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP } from './chord-templates';
+import { transpose, note as parseTonalNote, distance, Note } from 'tonal';
+import { CHORD_TEMPLATES, ChordQuality, CHORD_ALIASES } from './chord-templates';
+
+// +++ 新規追加: コード定義の型 +++
+export interface ChordInfo {
+  name: string;      // コード名 (例: "C#m7")
+  root: string;      // ルート音 (例: "C#")
+  quality: ChordQuality; // コードクオリティ (例: "m7")
+  intervals: string[]; // インターバル配列
+  notes: string[];     // 構成音 (オクターブなし)
+  midi: number[];      // MIDIノート番号
+}
+
+/**
+ * コード名をパースしてルートとクオリティに分割する
+ * @param chordName コード名（例: "C#M7", "Fbbm7", "Gxaug")
+ * @returns { root: string, quality: ChordQuality } | null
+ */
+export function parseChordName(chordName: string): { root: string; quality: ChordQuality } | null {
+  // +++ 変更点: ダブルシャープ/フラットにも対応する正規表現 +++
+  const match = chordName.match(/^([A-G](?:b{1,2}|#{1,2}|x|))(.+)?$/);
+  if (!match) return null;
+  
+  const root = Note.simplify(match[1]); // C## を Cx に、Cbb を C## のまま扱えるように
+  const suffix = match[2] || '';
+  
+  const quality = CHORD_ALIASES[suffix];
+  if (!quality) {
+    console.warn(`⚠️ 未知のコードサフィックス: ${suffix} in ${chordName}`);
+    return null;
+  }
+  
+  return { root, quality };
+}
+
+/**
+ * +++ 新規追加: 中心となる新しい関数 +++
+ * コード名から音楽理論的に正しい構成音を持つオブジェクトを生成する
+ * @param chordName コード名 (例: "DbM7", "D#7", "A")
+ * @param baseOctave 基準オクターブ (デフォルト: 4)
+ * @returns {ChordInfo} | null
+ */
+export function getChord(chordName: string, baseOctave: number = 4): ChordInfo | null {
+  const parsed = parseChordName(chordName);
+  if (!parsed) {
+    console.error(`❌ コードのパースに失敗: ${chordName}`);
+    return null;
+  }
+  
+  const { root, quality } = parsed;
+  const intervals = CHORD_TEMPLATES[quality];
+  if (!intervals) {
+    console.error(`❌ 未定義のコードクオリティ: ${quality}`);
+    return null;
+  }
+  
+  const rootWithOctave = `${root}${baseOctave}`;
+  
+  // `tonal.transpose` を使って各構成音を算出
+  // これにより "D#" の長3度は "Fx" (F##) と正しく計算される
+  const notes = intervals.map(interval => {
+    const noteName = transpose(rootWithOctave, interval);
+    return parseTonalNote(noteName).name; // オクターブ除去
+  });
+  
+  // MIDI番号も計算
+  const midi = notes.map((noteName, index) => {
+    // 各音に適切なオクターブを割り当てる
+    // ルート音から順に、音程が下がらないようにオクターブを調整
+    let octave = baseOctave;
+    if (index > 0) {
+      const prevMidi = parseTonalNote(`${notes[index - 1]}${octave}`).midi || 0;
+      const currentMidi = parseTonalNote(`${noteName}${octave}`).midi || 0;
+      
+      // 前の音より低い場合はオクターブを上げる
+      while (currentMidi < prevMidi && octave < 8) {
+        octave++;
+        const newMidi = parseTonalNote(`${noteName}${octave}`).midi || 0;
+        if (newMidi >= prevMidi) break;
+      }
+    }
+    
+    return parseTonalNote(`${noteName}${octave}`).midi;
+  }).filter(m => m != null) as number[];
+  
+  return {
+    name: chordName,
+    root,
+    quality,
+    intervals,
+    notes,
+    midi,
+  };
+}
 
 /**
  * 任意ルートのコードから実音配列を取得（オクターブなし）
@@ -14,27 +106,9 @@ import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP } from './chord-templa
  * @returns 実音配列（音名のみ、オクターブなし）
  */
 export function buildChordNotes(root: string, quality: ChordQuality, octave: number = 4): string[] {
-  const intervals = CHORD_TEMPLATES[quality];
-  if (!intervals) {
-    console.warn(`⚠️ 未定義のコードクオリティ: ${quality}`);
-    return [];
-  }
-
-  // ルートにオクターブを付加（内部計算用）
-  const rootWithOctave = `${root}${octave}`;
-  
-  // 各インターバルを移調して実音を生成
-  return intervals.map(interval => {
-    const note = transpose(rootWithOctave, interval);
-    if (!note) {
-      console.warn(`⚠️ 移調失敗: ${rootWithOctave} + ${interval}`);
-      return root;
-    }
-    
-    // オクターブ情報を削除して返す
-    const parsed = parseNote(note);
-    return parsed ? parsed.name : root;
-  });
+  const chordName = quality === 'maj' ? root : `${root}${quality}`;
+  const chord = getChord(chordName, octave);
+  return chord ? chord.notes : [];
 }
 
 /**
@@ -45,16 +119,9 @@ export function buildChordNotes(root: string, quality: ChordQuality, octave: num
  * @returns MIDIノート番号配列
  */
 export function buildChordMidiNotes(root: string, quality: ChordQuality, octave: number = 4): number[] {
-  const notes = buildChordNotes(root, quality, octave);
-  
-  return notes.map(noteName => {
-    const note = parseNote(noteName);
-    if (!note || typeof note.midi !== 'number') {
-      console.warn(`⚠️ MIDI変換失敗: ${noteName}`);
-      return 60; // デフォルトでC4
-    }
-    return note.midi;
-  });
+  const chordName = quality === 'maj' ? root : `${root}${quality}`;
+  const chord = getChord(chordName, octave);
+  return chord ? chord.midi : [];
 }
 
 /**
@@ -91,62 +158,12 @@ export function transposeKey(currentKey: string, semitones: number): string {
 }
 
 /**
- * ファンタジーモード用: 既存のコードIDから実音配列を取得
- * @param chordId 既存のコードID（例: 'CM7', 'G7', 'Am'）
- * @param octave 基準オクターブ（デフォルト: 4）
- * @returns MIDIノート番号配列
+ * @deprecated 古いファンタジーモードとの互換性のための関数。新しい `getChord` の使用を推奨。
  */
 export function getFantasyChordNotes(chordId: string, octave: number = 4): number[] {
-  const mapping = FANTASY_CHORD_MAP[chordId];
-  if (!mapping) {
-    console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
-    return [];
-  }
-  
-  return buildChordMidiNotes(mapping.root, mapping.quality, octave);
-}
-
-/**
- * コード名のパース（ルートとクオリティに分割）
- * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7'）
- * @returns { root: string, quality: ChordQuality } | null
- */
-export function parseChordName(chordName: string): { root: string; quality: ChordQuality } | null {
-  // 簡易的なパーサー（後で拡張可能）
-  const match = chordName.match(/^([A-G][#b]?)(.*)$/);
-  if (!match) return null;
-  
-  const [, root, suffix] = match;
-  
-  // サフィックスからクオリティを判定
-  const qualityMap: Record<string, ChordQuality> = {
-    '': 'maj',
-    'm': 'min',
-    '7': '7',
-    'M7': 'maj7',
-    'maj7': 'maj7',
-    'm7': 'm7',
-    'dim': 'dim',
-    'dim7': 'dim7',
-    'aug': 'aug',
-    'sus2': 'sus2',
-    'sus4': 'sus4',
-    '6': '6',
-    'm6': 'm6',
-    '9': '9',
-    'm9': 'm9',
-    'maj9': 'maj9',
-    '11': '11',
-    '13': '13'
-  };
-  
-  const quality = qualityMap[suffix];
-  if (!quality) {
-    console.warn(`⚠️ 未知のコードサフィックス: ${suffix} in ${chordName}`);
-    return null;
-  }
-  
-  return { root, quality };
+  console.warn("⚠️ getFantasyChordNotes() は非推奨です。getChord() を使用してください。");
+  const chord = getChord(chordId, octave);
+  return chord ? chord.midi : [];
 }
 
 /**
@@ -160,8 +177,8 @@ export function semitonesBetween(from: string, to: string): number {
   if (!dist) return 0;
   
   // distanceの結果をsemitonesに変換
-  const note1 = parseNote(from);
-  const note2 = parseNote(to);
+  const note1 = parseTonalNote(from);
+  const note2 = parseTonalNote(to);
   
   if (!note1 || !note2 || 
       typeof note1.midi !== 'number' || 
