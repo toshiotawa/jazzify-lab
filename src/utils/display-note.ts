@@ -54,10 +54,10 @@ const SIMPLIFY_MAP: Record<string, string> = {
 };
 
 /**
- * 音名を表示用に変換
+ * 音名を表示用に変換（オクターブ情報なし）
  * @param noteName 元の音名（例: 'C', 'F#', 'Gbb', 'Fx4'）
  * @param opts 表示オプション
- * @returns 表示用音名
+ * @returns 表示用音名（オクターブなし）
  */
 export function toDisplayName(noteName: string, opts: DisplayOpts): string {
   if (!noteName) return '';
@@ -89,11 +89,7 @@ export function toDisplayName(noteName: string, opts: DisplayOpts): string {
     displayName = SOLFEGE_MAP[displayName] || displayName;
   }
   
-  // オクターブ情報を再付加（必要な場合）
-  if (parsed.oct !== undefined && noteName.match(/\d/)) {
-    displayName += parsed.oct;
-  }
-  
+  // オクターブ情報は付加しない
   return displayName;
 }
 
@@ -151,11 +147,12 @@ export function midiToDisplayName(midi: number, opts: DisplayOpts): string {
 /**
  * MIDIノート番号から音名を取得（ヘルパー関数）
  * @param midi MIDIノート番号
- * @returns 音名
+ * @returns 音名（オクターブ付き - 内部処理用）
  */
 function midiToNoteName(midi: number): string {
   const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const octave = Math.floor(midi / 12) - 1;
   const noteIndex = midi % 12;
+  // toDisplayNameで後でオクターブが削除されるため、ここでは付加する
   return noteNames[noteIndex] + octave;
 }
