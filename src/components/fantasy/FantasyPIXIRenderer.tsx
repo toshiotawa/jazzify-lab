@@ -267,33 +267,14 @@ export class FantasyPIXIInstance {
   // ★★★ 絵文字テクスチャ読み込みをモンスター画像読み込みに変更 ★★★
   private async loadMonsterTextures(): Promise<void> {
     try {
-      // ▼▼▼ 変更点 ▼▼▼
-      // 複数のモンスター画像をロードする（ENEMY_LISTと完全に一致させる）
-      const monsterIcons = ['devil', 'dragon', 'mao', 'mummy', 'shinigami', 'slime_green', 'slime_red', 'zombie', 'skeleton', 'grey', 'pumpkin', 'alien', 'bat1', 'bat2', 'ghost'];
-      /** まず .svg を読みに行き，失敗したら .png にフォールバックします */
-      const iconMap: Record<string, string> = {
-        devil:        'character_monster_devil_purple.svg',
-        dragon:       'character_monster_dragon_01_red.svg',
-        mao:          'character_monster_mao_01.svg',
-        mummy:        'character_monster_mummy_red.svg',
-        shinigami:    'character_monster_shinigami_01.svg',
-        slime_green:  'character_monster_slime_green.svg',
-        slime_red:    'character_monster_slime_red.svg',
-        zombie:       'character_monster_zombie_brown.svg',
-        skeleton:     'gaikotsu_01.svg',
-        grey:         'grey_green.svg',
-        pumpkin:      'jackolantern_01_orange.svg',
-        alien:        'kaseijin_green.svg',
-        bat1:         'komori_01.svg',
-        bat2:         'komori_02.svg',
-        ghost:        'yurei_halloween_orange.svg'
-      };
-
-      // プリロード用のアセット定義
+      // 提供された63個のモンスター画像を読み込む
       const monsterAssets: Record<string, string> = {};
-      for (const icon of monsterIcons) {
-        const path = `${import.meta.env.BASE_URL}data/${iconMap[icon]}`;
-        monsterAssets[icon] = path;
+      
+      // monster_01.png から monster_63.png までを読み込む
+      for (let i = 1; i <= 63; i++) {
+        const monsterName = `monster_${i.toString().padStart(2, '0')}`;
+        const path = `${import.meta.env.BASE_URL}monster_icons/${monsterName}.png`;
+        monsterAssets[monsterName] = path;
       }
 
       // バンドルとして一括ロード
@@ -301,16 +282,16 @@ export class FantasyPIXIInstance {
       await PIXI.Assets.loadBundle('monsterTextures');
 
       // ロードされたテクスチャを保存
-      for (const icon of monsterIcons) {
-        const texture = PIXI.Assets.get(icon);
+      for (let i = 1; i <= 63; i++) {
+        const monsterName = `monster_${i.toString().padStart(2, '0')}`;
+        const texture = PIXI.Assets.get(monsterName);
         if (texture) {
-          this.imageTextures.set(icon, texture);
-          devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${icon}`);
+          this.imageTextures.set(monsterName, texture);
+          devLog.debug(`✅ モンスターテクスチャ読み込み完了: ${monsterName}`);
         } else {
-          devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${icon}`);
+          devLog.debug(`❌ モンスターテクスチャ読み込み失敗: ${monsterName}`);
         }
       }
-      // ▲▲▲ ここまで ▲▲▲
     } catch (error) {
       devLog.debug('❌ モンスターテクスチャの読み込みエラー:', error);
     }

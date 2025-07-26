@@ -52,6 +52,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
+  const [showMonsterAttackEffect, setShowMonsterAttackEffect] = useState(false); // ダメージエフェクト用
+  const [attackingMonsterId, setAttackingMonsterId] = useState<string | null>(null); // 攻撃中のモンスターID
+  const [showStageClearOverlay, setShowStageClearOverlay] = useState(false);
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -236,6 +239,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
+    
+    // 攻撃中のモンスターを設定
+    if (attackingMonsterId) {
+      setAttackingMonsterId(attackingMonsterId);
+      // 1秒後に解除
+      setTimeout(() => {
+        setAttackingMonsterId(null);
+      }, 1000);
+    }
     
     // 敵の攻撃音を再生
     try {
@@ -768,7 +780,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div 
                         key={monster.id}
                         // ★★★ 修正点: flexアイテムとして定義、幅を設定 ★★★
-                        className="flex-shrink-0 flex flex-col items-center"
+                        className={cn(
+                          "flex-shrink-0 flex flex-col items-center transition-all duration-300",
+                          attackingMonsterId === monster.id && "animate-pulse scale-110" // 攻撃中のモンスターを強調
+                        )}
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
                       {/* コードネーム */}
@@ -837,9 +852,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       </div>
                       
                       {/* モンスター名 */}
-                      <div className="text-white text-xs font-bold text-center mb-1">
+                      {/* <div className="text-white text-xs font-bold text-center mb-1">
                         {monster.name}
-                      </div>
+                      </div> */}
                       
                       {/* HPゲージ */}
                       <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
