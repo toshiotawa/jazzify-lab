@@ -712,7 +712,7 @@ export class FantasyPIXIInstance {
   }
 
   // マルチモンスター用攻撃成功エフェクト
-  triggerAttackSuccessOnMonster(monsterId: string, chordName: string | undefined, isSpecial: boolean, damageDealt: number, defeated: boolean): void {
+  async triggerAttackSuccessOnMonster(monsterId: string, chordName: string | undefined, isSpecial: boolean, damageDealt: number, defeated: boolean): Promise<void> {
     const monsterData = this.monsterSprites.get(monsterId);
     if (!monsterData || this.isDestroyed) return;
     
