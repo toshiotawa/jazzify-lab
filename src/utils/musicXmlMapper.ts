@@ -1,6 +1,5 @@
 import type { NoteData, ChordSymbol, ChordInfo } from '@/types';
-import { Note, Interval } from 'tonal';
-import { transpose, note as parseNote } from 'tonal';
+import { Note, Interval, transpose, note as parseNote } from 'tonal';
 import { transposeKey } from './chord-utils';
 import { toDisplayName, type DisplayOpts } from './display-note';
 
@@ -842,13 +841,17 @@ function simplifyAccidentalsMinimal(doc: Document): void {
       const currentNote = `${step}${alter > 0 ? 'x'.repeat(alter/2) : 'b'.repeat(-alter/2)}${octave}`;
       const simpleNote = parseNote(currentNote);
       
-      if (simpleNote && simpleNote.enharmonic) {
-        const enharmonicNote = parseNote(simpleNote.enharmonic);
-        if (enharmonicNote) {
-          stepElement.textContent = enharmonicNote.letter;
-          alterElement.textContent = enharmonicNote.alt.toString();
-          if (enharmonicNote.oct !== octave) {
-            octaveElement.textContent = enharmonicNote.oct.toString();
+      if (simpleNote && !simpleNote.empty) {
+        // Note.enharmonic()を使用
+        const enharmonicName = Note.enharmonic(simpleNote.name);
+        if (enharmonicName && enharmonicName !== simpleNote.name) {
+          const enharmonicNote = parseNote(enharmonicName + octave);
+          if (enharmonicNote && !enharmonicNote.empty) {
+            stepElement.textContent = enharmonicNote.letter;
+            alterElement.textContent = enharmonicNote.alt.toString();
+            if (enharmonicNote.oct !== undefined && enharmonicNote.oct !== octave) {
+              octaveElement.textContent = enharmonicNote.oct.toString();
+            }
           }
         }
       }

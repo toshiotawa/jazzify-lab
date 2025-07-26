@@ -3,7 +3,7 @@
  * UI レイヤーでの音名表示変換処理
  */
 
-import { note as parseNote, enharmonic } from 'tonal';
+import { note as parseNote, Note } from 'tonal';
 
 export type DisplayLang = 'en' | 'solfege';
 
@@ -73,10 +73,10 @@ export function toDisplayName(noteName: string, opts: DisplayOpts): string {
   if (opts.simple) {
     // ダブルシャープ・ダブルフラットの場合のみ簡易化
     if (Math.abs(parsed.alt) > 1) {
-      // tonal.jsのenharmonic機能を使用
-      const simpleNote = enharmonic(displayName);
-      if (simpleNote) {
-        displayName = simpleNote;
+      // tonal v6では、Note.enharmonic()を使用
+      const enharmonicNote = Note.enharmonic(displayName);
+      if (enharmonicNote && enharmonicNote !== displayName) {
+        displayName = enharmonicNote;
       } else if (SIMPLIFY_MAP[displayName]) {
         // フォールバック: 手動マッピング
         displayName = SIMPLIFY_MAP[displayName];
