@@ -14,6 +14,7 @@ export interface DisplayOpts {
 
 /**
  * 英語音名からドレミ（カタカナ）への変換マップ
+ * ★ ダブルシャープ(x)や理論的な異名同音の表記を追加・修正
  */
 const SOLFEGE_MAP: Record<string, string> = {
   // 基本音名
@@ -21,20 +22,21 @@ const SOLFEGE_MAP: Record<string, string> = {
   'G': 'ソ', 'A': 'ラ', 'B': 'シ',
   
   // シャープ系
-  'C#': 'ド♯', 'D#': 'レ♯', 'E#': 'ファ', 'F#': 'ファ♯',
-  'G#': 'ソ♯', 'A#': 'ラ♯', 'B#': 'ド',
+  'C#': 'ド♯', 'D#': 'レ♯', 'F#': 'ファ♯', 'G#': 'ソ♯', 'A#': 'ラ♯',
   
   // フラット系
-  'Cb': 'シ', 'Db': 'レ♭', 'Eb': 'ミ♭', 'Fb': 'ミ',
-  'Gb': 'ソ♭', 'Ab': 'ラ♭', 'Bb': 'シ♭',
+  'Db': 'レ♭', 'Eb': 'ミ♭', 'Gb': 'ソ♭', 'Ab': 'ラ♭', 'Bb': 'シ♭',
   
-  // ダブルシャープ（簡易化前）
-  'Cx': 'レ', 'Dx': 'ミ', 'Ex': 'ファ♯', 'Fx': 'ソ',
-  'Gx': 'ラ', 'Ax': 'シ', 'Bx': 'ド♯',
+  // 理論的な異名同音（簡易表示OFFの時に使われる）
+  'E#': 'ミ♯', 'B#': 'シ♯',
+  'Fb': 'ファ♭', 'Cb': 'ド♭',
+
+  // ダブルシャープ (## と x の両方に対応)
+  'C##': 'ドx', 'D##': 'レx', 'E##': 'ミx', 'F##': 'ファx', 'G##': 'ソx', 'A##': 'ラx', 'B##': 'シx',
+  'Cx': 'ドx', 'Dx': 'レx', 'Ex': 'ミx', 'Fx': 'ファx', 'Gx': 'ソx', 'Ax': 'ラx', 'Bx': 'シx',
   
-  // ダブルフラット（簡易化前）
-  'Cbb': 'シ♭', 'Dbb': 'ド', 'Ebb': 'レ', 'Fbb': 'ミ♭',
-  'Gbb': 'ファ', 'Abb': 'ソ', 'Bbb': 'ラ'
+  // ダブルフラット
+  'Cbb': 'ド♭♭', 'Dbb': 'レ♭♭', 'Ebb': 'ミ♭♭', 'Fbb': 'ファ♭♭', 'Gbb': 'ソ♭♭', 'Abb': 'ラ♭♭', 'Bbb': 'シ♭♭'
 };
 
 /**
@@ -55,6 +57,7 @@ const SIMPLIFY_MAP: Record<string, string> = {
 
 /**
  * 音名を表示用に変換（オクターブ情報なし）
+ * ★ 簡易表示ロジックを tonal.Note.simplify() を使うように修正
  * @param noteName 元の音名（例: 'C', 'F#', 'Gbb', 'Fx4'）
  * @param opts 表示オプション
  * @returns 表示用音名（オクターブなし）
@@ -62,39 +65,28 @@ const SIMPLIFY_MAP: Record<string, string> = {
 export function toDisplayName(noteName: string, opts: DisplayOpts): string {
   if (!noteName) return '';
   
-  // オクターブ情報を分離
-  const parsed = parseNote(noteName);
-  if (!parsed || parsed.empty) return noteName;
-  
-  // 音名部分を取得（オクターブなし）
-  let displayName = parsed.name;
-  
-  // 簡易表記が有効な場合
+  // オクターブ情報などを除去した純粋な音名を取得
+  let processedName = Note.get(noteName).name;
+
+  // 簡易表記が有効な場合、tonal.Note.simplify を使用して異名同音を単純化
   if (opts.simple) {
-    // ダブルシャープ・ダブルフラットの場合のみ簡易化
-    if (Math.abs(parsed.alt) > 1) {
-      // tonal v6では、Note.enharmonic()を使用
-      const enharmonicNote = Note.enharmonic(displayName);
-      if (enharmonicNote && enharmonicNote !== displayName) {
-        displayName = enharmonicNote;
-      } else if (SIMPLIFY_MAP[displayName]) {
-        // フォールバック: 手動マッピング
-        displayName = SIMPLIFY_MAP[displayName];
-      }
-    }
+    processedName = Note.simplify(processedName);
   }
-  
+
+  // ## を x に置換（表示統一のため）
+  processedName = processedName.replace("##", "x");
+
   // 言語変換
   if (opts.lang === 'solfege') {
-    displayName = SOLFEGE_MAP[displayName] || displayName;
+    return SOLFEGE_MAP[processedName] || processedName;
   }
   
-  // オクターブ情報は付加しない
-  return displayName;
+  return processedName;
 }
 
 /**
  * コード名を表示用に変換
+ * ★ 日本語サフィックス変換のロジックを改善
  * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7'）
  * @param opts 表示オプション
  * @returns 表示用コード名
@@ -109,15 +101,27 @@ export function toDisplayChordName(chordName: string, opts: DisplayOpts): string
   const [, root, suffix] = match;
   const displayRoot = toDisplayName(root, opts);
   
-  // サフィックスの表示変換（必要に応じて拡張）
   let displaySuffix = suffix;
+
   if (opts.lang === 'solfege') {
-    // 日本語表記の場合のサフィックス変換
-    displaySuffix = suffix
-      .replace('maj', 'メジャー')
-      .replace('min', 'マイナー')
-      .replace('dim', 'ディミニッシュ')
-      .replace('aug', 'オーグメント');
+    // 日本語表記の場合のサフィックス変換マップ
+    const suffixMap: Record<string, string> = {
+      'M7': 'メジャー7',
+      'maj7': 'メジャー7',
+      'm7': 'マイナー7',
+      '7': '7', // ドミナントセブンスはそのまま「7」
+      'maj': 'メジャー',
+      'm': 'マイナー',
+      'dim': 'ディミニッシュ',
+      'aug': 'オーグメント',
+      // 必要に応じて他のサフィックスも追加
+    };
+    displaySuffix = suffixMap[suffix] ?? suffix;
+  } else {
+    // 英語表記の場合、'maj' は省略することが多い
+    if (suffix === 'maj') {
+      displaySuffix = '';
+    }
   }
   
   return displayRoot + displaySuffix;

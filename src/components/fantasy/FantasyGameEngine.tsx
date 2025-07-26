@@ -15,6 +15,7 @@ interface ChordDefinition {
   id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
   notes: number[];     // MIDIノート番号の配列
+  noteNames: string[]; // 理論的に正しい音名配列を追加
   quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
   root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
@@ -114,6 +115,7 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
 
   // notesをMIDIノート番号に変換
   const midiNotes = resolved.notes.map(noteName => {
+    // tonalのparseNoteは'Fx4'のようなダブルシャープを正しく解釈できる
     const noteObj = parseNote(noteName + '4'); // オクターブ4を付加
     return noteObj && typeof noteObj.midi === 'number' ? noteObj.midi : 60; // デフォルトでC4
   });
@@ -122,6 +124,7 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
     id: chordId,
     displayName: resolved.displayName,
     notes: midiNotes,
+    noteNames: resolved.notes, // ★ 音名配列をそのまま保持する
     quality: resolved.quality,
     root: resolved.root
   };
