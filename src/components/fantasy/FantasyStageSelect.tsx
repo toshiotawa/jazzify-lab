@@ -317,9 +317,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         {/* モンスターアイコン */}
         <div className="text-4xl text-center mb-2">
           {unlocked ? (
-            <FontAwesomeIcon 
-              icon={MONSTER_ICONS[stage.monsterIcon] || faGhost} 
-              className="text-gray-300 drop-shadow-md"
+            <img 
+              src="/monster_icons/monster_01.png"
+              alt="Monster"
+              className="w-16 h-16 mx-auto drop-shadow-md"
             />
           ) : (
             <span>🔒</span>

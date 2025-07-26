@@ -165,13 +165,13 @@ const createMonsterFromQueue = (
   previousChordId?: string,
   displayOpts?: DisplayOpts
 ): MonsterState => {
-  // 完全にランダムにモンスターを選択
-  const randomIndex = Math.floor(Math.random() * ENEMY_LIST.length);
-  const enemy = ENEMY_LIST[randomIndex];
+  // 提供された画像からランダムに選択（monster_01.png〜monster_63.png）
+  const monsterNumber = Math.floor(Math.random() * 63) + 1;
+  const monsterIcon = `monster_${monsterNumber.toString().padStart(2, '0')}`;
   const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
   
   return {
-    id: `${enemy.id}_${Date.now()}_${position}`,
+    id: `monster_${Date.now()}_${position}`,
     index: monsterIndex,
     position,
     currentHp: enemyHp,
@@ -179,8 +179,8 @@ const createMonsterFromQueue = (
     gauge: 0,
     chordTarget: chord!,
     correctNotes: [],
-    icon: enemy.icon,
-    name: enemy.name
+    icon: monsterIcon,
+    name: `モンスター${position}` // 攻撃時の識別用に位置情報を含める
   };
 };
 
