@@ -101,9 +101,15 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
-        <div className="flex justify-between items-center mb-4">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={onClose} // 画面外クリックで閉じる
+    >
+      <div 
+        className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()} // モーダル内のクリックは伝播を止める
+      >
+        <div className="flex justify-between items-center mb-4 sticky top-0 bg-gray-800 pb-2">
           <h2 className="text-xl font-bold text-white">ファンタジーモード設定</h2>
           <button
             onClick={onClose}
@@ -167,7 +173,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
           {/* 音名表示設定 */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              音名表示言語
+              ヒント音名表示言語
             </label>
             <div className="flex space-x-4">
               <label className="flex items-center">
@@ -193,6 +199,9 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                 <span className="text-sm text-white">ドレミ</span>
               </label>
             </div>
+            <p className="text-xs text-gray-400 mt-1">
+              ヒント表示の音名言語を切り替えます（コードネームは常に英語表記）
+            </p>
           </div>
 
           {/* 簡易表記設定 */}
@@ -205,11 +214,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                 className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm font-medium text-white">
-                簡易表記
+                ヒント音名の簡易表記
               </span>
             </label>
             <p className="text-xs text-gray-400 mt-1">
-              ダブルシャープ・ダブルフラットを基本音名に変換します（例: Fx → G）
+              ヒント表示のダブルシャープ・ダブルフラットを基本音名に変換します（例: Fx → G）
             </p>
           </div>
 
