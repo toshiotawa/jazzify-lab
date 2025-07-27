@@ -485,7 +485,7 @@ export const useFantasyGameEngine = ({
           stage.allowedChords,
           lastChordId,
           displayOpts,
-          stageMonsterIds // stageMonsterIdsを渡す
+          monsterIds        // ✅ 今回作った配列
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -539,7 +539,7 @@ export const useFantasyGameEngine = ({
       simultaneousCount,
       activeMonsters: activeMonsters.length
     });
-  }, [onGameStateChange, stageMonsterIds]);
+  }, [onGameStateChange]);
   
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
@@ -926,7 +926,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
@@ -995,6 +995,9 @@ export const useFantasyGameEngine = ({
       ...prevState,
       isGameActive: false
     }));
+    
+    // ステージを抜けるたびにアイコン配列を初期化
+    setStageMonsterIds([]);
     
     if (enemyGaugeTimer) {
       clearInterval(enemyGaugeTimer);
