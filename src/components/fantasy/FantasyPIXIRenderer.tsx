@@ -225,6 +225,8 @@ export class FantasyPIXIInstance {
   private emojiTextures: Map<string, PIXI.Texture> = new Map();
   */
   private imageTextures: Map<string, PIXI.Texture> = new Map(); // ★ imageTextures は残す
+  private fukidashiTexture: PIXI.Texture | null = null;  // 吹き出しテクスチャを追加
+  private activeFukidashi: Map<string, PIXI.Sprite> = new Map();  // アクティブな吹き出しを管理
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
@@ -363,6 +365,9 @@ export class FantasyPIXIInstance {
       
       // 怒りマークSVGを追加
       magicAssets['angerMark'] = `${import.meta.env.BASE_URL}data/anger.svg`;
+      
+      // 音符吹き出しを追加
+      magicAssets['fukidashi'] = `${import.meta.env.BASE_URL}attack_icons/fukidashi_onpu_white.png`;
 
       // バンドルとして一括ロード
       await PIXI.Assets.addBundle('magicTextures', magicAssets);
@@ -382,6 +387,13 @@ export class FantasyPIXIInstance {
       if (angerTexture) {
         this.imageTextures.set('angerMark', angerTexture);
         devLog.debug('✅ 怒りマークテクスチャ読み込み: anger.svg');
+      }
+      
+      // 吹き出しテクスチャを保存
+      const fukidashiTexture = PIXI.Assets.get('fukidashi');
+      if (fukidashiTexture) {
+        this.fukidashiTexture = fukidashiTexture;
+        devLog.debug('✅ 吹き出しテクスチャ読み込み: fukidashi_onpu_white.png');
       }
       
       devLog.debug('✅ 全画像テクスチャ読み込み完了');
@@ -656,24 +668,24 @@ export class FantasyPIXIInstance {
       let availableWidthRatio: number;
       
       if (isMobile) {
-        // モバイルの場合
+        // モバイルの場合（3倍に拡大）
         if (currentMonsterCount <= 3) {
-          availableWidthRatio = 0.25;
+          availableWidthRatio = 0.75;  // 0.25から0.75へ（3倍）
         } else if (currentMonsterCount <= 5) {
-          availableWidthRatio = 0.15;
+          availableWidthRatio = 0.45;  // 0.15から0.45へ（3倍）
         } else {
           // 6体以上
-          availableWidthRatio = 0.10;
+          availableWidthRatio = 0.30;  // 0.10から0.30へ（3倍）
         }
       } else {
-        // デスクトップの場合
+        // デスクトップの場合（3倍に拡大）
         if (currentMonsterCount <= 3) {
-          availableWidthRatio = 0.20;
+          availableWidthRatio = 0.60;  // 0.20から0.60へ（3倍）
         } else if (currentMonsterCount <= 5) {
-          availableWidthRatio = 0.15;
+          availableWidthRatio = 0.45;  // 0.15から0.45へ（3倍）
         } else {
           // 6体以上
-          availableWidthRatio = 0.10;
+          availableWidthRatio = 0.30;  // 0.10から0.30へ（3倍）
         }
       }
       
@@ -682,14 +694,14 @@ export class FantasyPIXIInstance {
       // モンスターの最大サイズを定義
       // 幅: 利用可能幅の80%（十分なマージンを確保）
       const maxWidth = availableWidth * 0.8;
-      // 高さ: コンテナ高さの50%（上下のマージンを確保）
-      const maxHeight = CONTAINER_HEIGHT * 0.5;
+      // 高さ: コンテナ高さの80%（50%から80%へ拡大）
+      const maxHeight = CONTAINER_HEIGHT * 0.8;
 
       // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
       const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
       
-      // 最大スケールを制限（モバイルとデスクトップで異なる制限）
-      const maxScale = isMobile ? 0.3 : 0.5;
+      // 最大スケールを制限（3倍に拡大）
+      const maxScale = isMobile ? 1.2 : 2.0;  // 0.3→1.2、0.5→2.0へ（約4倍）
       const finalScale = Math.min(scale, maxScale);
       sprite.scale.set(finalScale);
       
@@ -763,53 +775,21 @@ export class FantasyPIXIInstance {
     if (!monsterData || this.isDestroyed) return;
     
     try {
-      // 魔法タイプをローテーション
-      const magicTypes = Object.keys(MAGIC_TYPES);
-      const currentIndex = magicTypes.indexOf(this.currentMagicType);
-      devLog.debug('🎯 現在の魔法タイプ:', {
-        current: this.currentMagicType,
-        currentIndex,
-        magicTypes
-      });
-      this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
-      const magic = MAGIC_TYPES[this.currentMagicType];
-      devLog.debug('🎯 次の魔法タイプ:', {
-        next: this.currentMagicType,
-        magic
-      });
-
-      // 魔法効果音を再生
-      // 魔法タイプを正しくマッピング
-      const magicTypeMap: Record<string, 'fire' | 'ice' | 'thunder'> = {
-        'fire': 'fire',
-        'ice': 'ice',
-        'thunder': 'thunder'
-      };
-      const soundType = magicTypeMap[this.currentMagicType];
-      devLog.debug('🔊 効果音タイプ:', {
-        currentMagicType: this.currentMagicType,
-        soundType,
-        magicTypeMap
-      });
-      if (soundType) {
-        try {
-          FantasySoundManager.playMagic(soundType);
-          devLog.debug('🔊 魔法効果音再生(triggerAttackSuccessOnMonster):', soundType);
-        } catch (error) {
-          console.error('魔法効果音再生エラー:', error);
-        }
-      } else {
-        console.warn('⚠️ soundTypeが未定義:', this.currentMagicType);
+      // 魔法効果音を再生（統一）
+      try {
+        FantasySoundManager.playMyAttack();
+        devLog.debug('🔊 攻撃効果音再生(triggerAttackSuccessOnMonster)');
+      } catch (error) {
+        console.error('攻撃効果音再生エラー:', error);
       }
 
-      // 魔法名表示
-      const magicName = isSpecial ? magic.tier2Name : magic.name;
-      const magicColor = isSpecial ? magic.tier2Color : magic.color;
+      // 常に黄色（サンダーの色）を使用
+      const magicColor = 0xFFD700; // 黄色（ゴールド）
       
-      // HTMLでの表示のためコールバックを呼び出す
-      if (this.onShowMagicName) {
-        this.onShowMagicName(magicName, isSpecial, monsterId);
-      }
+      // HTMLでの表示のためコールバックを呼び出す（無効化）
+      // if (this.onShowMagicName) {
+      //   this.onShowMagicName(magicName, isSpecial, monsterId);
+      // }
 
       monsterData.gameState.isHit = true;
       monsterData.gameState.hitColor = magicColor;
@@ -823,8 +803,14 @@ export class FantasyPIXIInstance {
       // ダメージ数値を表示（モンスターの位置に）
       this.createDamageNumberAt(damageDealt, magicColor, monsterData.visualState.x, monsterData.visualState.y - 50);
 
-      // エフェクトをモンスターの位置に作成
-      this.createImageMagicEffectAt(magic.svg, magicColor, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
+      // エフェクトをモンスターの位置に作成（サンダーのエフェクトを使用）
+      this.createImageMagicEffectAt('thunder.png', magicColor, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
+
+      // 音符吹き出しを表示
+      this.showMusicNoteFukidashi(monsterId, monsterData.visualState.x, monsterData.visualState.y);
+
+      // SPアタック時の特殊エフェクト
+      this.triggerSpecialEffects(isSpecial);
 
       // 状態を更新
       monsterData.gameState.hitCount++;
@@ -855,53 +841,21 @@ export class FantasyPIXIInstance {
     }
 
     try {
-      // 魔法タイプをローテーション
-      const magicTypes = Object.keys(MAGIC_TYPES);
-      const currentIndex = magicTypes.indexOf(this.currentMagicType);
-      devLog.debug('🎯 現在の魔法タイプ:', {
-        current: this.currentMagicType,
-        currentIndex,
-        magicTypes
-      });
-      this.currentMagicType = magicTypes[(currentIndex + 1) % magicTypes.length];
-      const magic = MAGIC_TYPES[this.currentMagicType];
-      devLog.debug('🎯 次の魔法タイプ:', {
-        next: this.currentMagicType,
-        magic
-      });
-
-      // 魔法効果音を再生
-      // 魔法タイプを正しくマッピング
-      const magicTypeMap: Record<string, 'fire' | 'ice' | 'thunder'> = {
-        'fire': 'fire',
-        'ice': 'ice',
-        'thunder': 'thunder'
-      };
-      const soundType = magicTypeMap[this.currentMagicType];
-      devLog.debug('🔊 効果音タイプ:', {
-        currentMagicType: this.currentMagicType,
-        soundType,
-        magicTypeMap
-      });
-      if (soundType) {
-        try {
-          FantasySoundManager.playMagic(soundType);
-          devLog.debug('🔊 魔法効果音再生(triggerAttackSuccess):', soundType);
-        } catch (error) {
-          console.error('魔法効果音再生エラー:', error);
-        }
-      } else {
-        console.warn('⚠️ soundTypeが未定義:', this.currentMagicType);
+      // 魔法効果音を再生（統一）
+      try {
+        FantasySoundManager.playMyAttack();
+        devLog.debug('🔊 攻撃効果音再生(triggerAttackSuccess)');
+      } catch (error) {
+        console.error('攻撃効果音再生エラー:', error);
       }
 
-      // 魔法名表示
-      const magicName = isSpecial ? magic.tier2Name : magic.name;
-      const magicColor = isSpecial ? magic.tier2Color : magic.color;
+      // 常に黄色（サンダーの色）を使用
+      const magicColor = 0xFFD700; // 黄色（ゴールド）
       
-      // HTMLでの表示のためコールバックを呼び出す
-      if (this.onShowMagicName) {
-        this.onShowMagicName(magicName, isSpecial, 'default');
-      }
+      // HTMLでの表示のためコールバックを呼び出す（無効化）
+      // if (this.onShowMagicName) {
+      //   this.onShowMagicName(magicName, isSpecial, 'default');
+      // }
 
       this.monsterGameState.isHit = true;
       this.monsterGameState.hitColor = magicColor;
@@ -920,7 +874,13 @@ export class FantasyPIXIInstance {
       // ダメージ数値を表示（エンジンから渡された値を使用）
       this.createDamageNumber(damageDealt, magicColor);
 
-      this.createImageMagicEffect(magic.svg, magicColor, isSpecial);
+      this.createImageMagicEffect('thunder.png', magicColor, isSpecial);
+
+      // 音符吹き出しを表示（シングルモンスター用）
+      this.showMusicNoteFukidashi('default', this.monsterVisualState.x, this.monsterVisualState.y);
+
+      // SPアタック時の特殊エフェクト
+      this.triggerSpecialEffects(isSpecial);
 
       // 状態を更新
       this.monsterGameState.hitCount++;
@@ -1370,7 +1330,121 @@ export class FantasyPIXIInstance {
   private triggerSpecialEffects(isSpecial: boolean): void {
     if (isSpecial) {
       this.createScreenShake(10, 500);
+      this.showSwingSwingSwingCutIn();
     }
+  }
+
+  // Swing! Swing! Swing!カットイン演出
+  private showSwingSwingSwingCutIn(): void {
+    if (this.isDestroyed) return;
+
+    // カットイン用のコンテナを作成
+    const cutInContainer = new PIXI.Container();
+    cutInContainer.zIndex = 2000; // 最前面に表示
+
+    // 背景（左から右への一閃）
+    const flash = new PIXI.Graphics();
+    flash.beginFill(0xFFFFFF, 0.8);
+    flash.drawRect(0, 0, this.app.screen.width, this.app.screen.height);
+    flash.endFill();
+    flash.x = -this.app.screen.width;
+    cutInContainer.addChild(flash);
+
+    // テキスト
+    const text = new PIXI.Text('Swing! Swing! Swing!', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 72,
+      fontWeight: 'bold',
+      fill: 0xFFD700, // 黄色
+      stroke: 0x000000,
+      strokeThickness: 8,
+      align: 'center',
+      dropShadow: true,
+      dropShadowBlur: 4,
+      dropShadowDistance: 4
+    });
+    text.anchor.set(0.5);
+    text.x = this.app.screen.width / 2;
+    text.y = this.app.screen.height / 2;
+    text.alpha = 0;
+    cutInContainer.addChild(text);
+
+    this.uiContainer.addChild(cutInContainer);
+
+    // アニメーション
+    let flashProgress = 0;
+    let textProgress = 0;
+    let fadeOutProgress = 0;
+    let phase = 'flash'; // 'flash', 'text', 'fadeout'
+
+    const animate = () => {
+      if (this.isDestroyed || !cutInContainer) return;
+
+      if (phase === 'flash') {
+        // 白い一閃が左から右へ
+        flashProgress += 0.1;
+        flash.x = -this.app.screen.width + (this.app.screen.width * 2 * flashProgress);
+        
+        if (flashProgress >= 1) {
+          phase = 'text';
+          cutInContainer.removeChild(flash);
+        }
+      } else if (phase === 'text') {
+        // テキストがフェードイン
+        textProgress += 0.05;
+        text.alpha = Math.min(textProgress, 1);
+        
+        if (textProgress >= 1.5) { // 少し待機
+          phase = 'fadeout';
+        }
+      } else if (phase === 'fadeout') {
+        // 全体がフェードアウト
+        fadeOutProgress += 0.05;
+        cutInContainer.alpha = 1 - fadeOutProgress;
+        
+        if (fadeOutProgress >= 1) {
+          // 演出終了
+          this.uiContainer.removeChild(cutInContainer);
+          cutInContainer.destroy({ children: true });
+          return;
+        }
+      }
+
+      requestAnimationFrame(animate);
+    };
+
+    animate();
+  }
+
+  // 音符吹き出し表示
+  private showMusicNoteFukidashi(monsterId: string, x: number, y: number): void {
+    if (!this.fukidashiTexture || this.isDestroyed) return;
+
+    // 既存の吹き出しがあれば削除
+    const existingFukidashi = this.activeFukidashi.get(monsterId);
+    if (existingFukidashi && !existingFukidashi.destroyed) {
+      this.effectContainer.removeChild(existingFukidashi);
+      existingFukidashi.destroy();
+    }
+
+    // 新しい吹き出しを作成
+    const fukidashi = new PIXI.Sprite(this.fukidashiTexture);
+    fukidashi.anchor.set(0.5, 1); // 下部中央をアンカーポイントに
+    fukidashi.x = x + 60; // モンスターの右側に配置
+    fukidashi.y = y - 30; // モンスターの上に配置
+    fukidashi.scale.set(0.5); // サイズ調整
+
+    this.effectContainer.addChild(fukidashi);
+    this.activeFukidashi.set(monsterId, fukidashi);
+
+    // 2秒後に自動で削除
+    setTimeout(() => {
+      if (!this.isDestroyed && fukidashi && !fukidashi.destroyed) {
+        this.effectContainer.removeChild(fukidashi);
+        fukidashi.destroy();
+        this.activeFukidashi.delete(monsterId);
+      }
+    }, 2000);
   }
 
 
