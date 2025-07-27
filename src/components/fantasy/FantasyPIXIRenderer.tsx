@@ -151,9 +151,9 @@ const loadMonsterTexture = async (icon: string): Promise<PIXI.Texture> => {
           continue;
         }
       }
-      // すべて失敗したら白テクスチャを返す
+      // すべて失敗したら透明テクスチャを返す
       devLog.debug(`❌ モンスターテクスチャロード失敗: ${icon}`);
-      return PIXI.Texture.WHITE;
+      return PIXI.Texture.EMPTY;
     })();
   }
   return textureCache[icon];
@@ -669,16 +669,23 @@ export class FantasyPIXIInstance {
       placeholder.anchor.set(0.5);
       
       // 非同期で本物のテクスチャをロードして差し替える
-      loadMonsterTexture(icon).then(texture => {
-        if (!placeholder.destroyed) {
-          placeholder.texture = texture;
-          // テクスチャが読み込まれたら色を元に戻す
-          placeholder.tint = 0xFFFFFF;
-          devLog.debug(`✅ モンスタープレースホルダーを実画像に差し替え: ${icon}`);
-        }
-      }).catch(error => {
-        devLog.debug(`❌ モンスターテクスチャ差し替え失敗: ${icon}`, error);
-      });
+      loadMonsterTexture(icon)
+        .then(texture => {
+          if (!placeholder.destroyed) {
+            placeholder.texture = texture;
+            placeholder.tint = 0xffffff;
+            if (texture === PIXI.Texture.EMPTY) {
+              placeholder.alpha = 0;
+            }
+            devLog.debug(`✅ モンスタープレースホルダーを実画像に差し替え: ${icon}`);
+          }
+        })
+        .catch(error => {
+          devLog.debug(`❌ モンスターテクスチャ差し替え失敗: ${icon}`, error);
+          if (!placeholder.destroyed) {
+            placeholder.alpha = 0;
+          }
+        });
       
       const sprite = placeholder;
       // ▲▲▲ ここまで ▲▲▲
@@ -853,7 +860,11 @@ export class FantasyPIXIInstance {
       this.createImageMagicEffectAt('thunder.png', magicColor, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
 
       // 音符吹き出しを表示
-      this.showMusicNoteFukidashi(monsterId, monsterData.visualState.x, monsterData.visualState.y);
+      void this.showMusicNoteFukidashi(
+        monsterId,
+        monsterData.visualState.x,
+        monsterData.visualState.y
+      );
       
       // 攻撃成功時の音符アイコンを表示
       this.showAttackIcon(monsterData);
@@ -926,7 +937,11 @@ export class FantasyPIXIInstance {
       this.createImageMagicEffect('thunder.png', magicColor, isSpecial);
 
       // 音符吹き出しを表示（シングルモンスター用）
-      this.showMusicNoteFukidashi('default', this.monsterVisualState.x, this.monsterVisualState.y);
+      void this.showMusicNoteFukidashi(
+        'default',
+        this.monsterVisualState.x,
+        this.monsterVisualState.y
+      );
 
       // SPアタック時の特殊エフェクト
       this.triggerSpecialEffects(isSpecial);
@@ -939,11 +954,10 @@ export class FantasyPIXIInstance {
         this.setMonsterState('FADING_OUT');
       }
 
-      devLog.debug('⚔️ 攻撃成功:', { 
-        magic: magic.name, 
+      devLog.debug('⚔️ 攻撃成功:', {
         damage: damageDealt,
         defeated: defeated, // ログにも追加
-        hitCount: this.monsterGameState.hitCount, 
+        hitCount: this.monsterGameState.hitCount,
         state: this.monsterGameState.state
       });
 
@@ -1466,8 +1480,25 @@ export class FantasyPIXIInstance {
   }
 
   // 音符吹き出し表示
-  private showMusicNoteFukidashi(monsterId: string, x: number, y: number): void {
-    if (!this.fukidashiTexture || this.isDestroyed) return;
+  private async showMusicNoteFukidashi(
+    monsterId: string,
+    x: number,
+    y: number
+  ): Promise<void> {
+    if (this.isDestroyed) return;
+
+    // テクスチャ未ロードならここで読み込む
+    if (!this.fukidashiTexture) {
+      try {
+        this.fukidashiTexture = await PIXI.Assets.load(
+          `${import.meta.env.BASE_URL}${ATTACK_ICON_PATH}`
+        );
+        devLog.debug('✅ 吹き出しテクスチャ遅延ロード');
+      } catch (error) {
+        devLog.debug('❌ 吹き出しテクスチャロード失敗', error);
+        return;
+      }
+    }
 
     // 既存の吹き出しがあれば削除
     const existingFukidashi = this.activeFukidashi.get(monsterId);
@@ -1477,7 +1508,7 @@ export class FantasyPIXIInstance {
     }
 
     // 新しい吹き出しを作成
-    const fukidashi = new PIXI.Sprite(this.fukidashiTexture);
+    const fukidashi = new PIXI.Sprite(this.fukidashiTexture as PIXI.Texture);
     fukidashi.anchor.set(0.5, 1); // 下部中央をアンカーポイントに
     fukidashi.x = x + 60; // モンスターの右側に配置
     fukidashi.y = y - 30; // モンスターの上に配置
