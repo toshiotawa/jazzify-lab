@@ -133,6 +133,10 @@ export interface GameSettings {
   midiVolume: number;          // 0-1
   soundEffectVolume: number;   // 0-1 (ファンタジーモード効果音音量)
   
+  // ファンタジーモード設定
+  playRootSound?: boolean;      // ルート音を鳴らすか
+  rootSoundVolume?: number;     // ルート音量(0-1)
+  
   // ゲーム設定
   notesSpeed: number;          // 0.5-3.0
   playbackSpeed: number;       // 0.25-2.0

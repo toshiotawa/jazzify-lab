@@ -129,7 +129,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             
             // FantasySoundManagerの初期化
             import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
-              FantasySoundManager.init(settings.soundEffectVolume || 0.8).then(() => {
+              FantasySoundManager.init(
+                settings.soundEffectVolume || 0.8,
+                settings.rootSoundVolume || 0.8,
+                settings.playRootSound !== false
+              ).then(() => {
                 devLog.debug('🔊 ファンタジーモード効果音初期化完了');
               }).catch(error => {
                 console.error('Failed to initialize FantasySoundManager:', error);
@@ -221,7 +225,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (fantasyPixiInstance) {
       fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
     }
-  }, [fantasyPixiInstance]);
+
+    // ルート音を再生
+    if (settings.playRootSound) {
+      import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
+        FantasySoundManager.playRootNote(chord.root);
+      });
+    }
+  }, [fantasyPixiInstance, settings.playRootSound]);
   // ▲▲▲ ここまで ▲▲▲
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
@@ -1017,6 +1028,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               console.error('Failed to update FantasySoundManager volume:', error);
             });
           }
+
+          // ルート音設定が変更されたら、gameStoreを更新
+          if (settings.playRootSound !== undefined) {
+            updateSettings({ playRootSound: settings.playRootSound });
+          }
+          if (settings.rootSoundVolume !== undefined) {
+            updateSettings({ rootSoundVolume: settings.rootSoundVolume });
+            import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) =>
+              FantasySoundManager.setRootVolume(settings.rootSoundVolume)
+            );
+          }
         }}
         // gameStoreの値を渡す
         midiDeviceId={settings.selectedMidiDevice}
@@ -1024,6 +1046,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         soundEffectVolume={settings.soundEffectVolume} // gameStoreの効果音音量を渡す
         noteNameLang={currentNoteNameLang}
         simpleNoteName={currentSimpleNoteName}
+        playRootSound={settings.playRootSound}
+        rootSoundVolume={settings.rootSoundVolume}
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}

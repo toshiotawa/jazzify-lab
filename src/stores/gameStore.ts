@@ -101,6 +101,10 @@ const defaultSettings: GameSettings = {
   midiVolume: 0.8,
   soundEffectVolume: 0.8, // ファンタジーモード効果音音量
   
+  // ファンタジーモード設定
+  playRootSound: true,
+  rootSoundVolume: 0.8,
+  
   // ゲーム設定
   notesSpeed: 1.0,
   playbackSpeed: 1.0,

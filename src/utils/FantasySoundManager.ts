@@ -2,7 +2,7 @@
  * FantasySoundManager
  * ---------------------------------------------
  * 効果音（SE）のロードと再生、音量管理を一括で行うシングルトンクラス。
- *  - 4 種の効果音をプリロード（fire / ice / thunder / enemy_attack）
+ *  - 4 種の効果音をプリロード（fire / ice / thunder / enemy_attack）
  *  - 同時再生に対応するため、再生時は cloneNode() した HTMLAudioElement を使用
  *  - マスターボリューム(0‑1)を保持し、リアルタイムで変更可能
  *  - ユーティリティ関数（playMagic, playEnemyAttack, setVolume, getVolume, init）を公開
@@ -29,6 +29,9 @@
  *   // 設定モーダルのスライダー変更時
  *   FSM.setVolume(newVolume);  // 0‑1 の値を渡す
  */
+
+// 追加 import
+import { note as tonalNote } from 'tonal';
 
 export type MagicSeType = 'fire' | 'ice' | 'thunder';
 
@@ -64,8 +67,16 @@ export class FantasySoundManager {
   private isInited = false;
 
   // ─────────────────────────────────────────────
+  // ベース音関連フィールド
+  private static bassSynth: any | null = null;
+  private static bassVolume = 0.8;
+  private static bassEnabled = true;
+
+  // ─────────────────────────────────────────────
   // public static wrappers – 使いやすいように static 経由のエイリアスを用意
-  public static async init(defaultVolume = 0.8) { return this.instance._init(defaultVolume); }
+  public static async init(defaultVolume = 0.8, bassVol = 0.8, bassEnabled = true) { 
+    return this.instance._init(defaultVolume, bassVol, bassEnabled); 
+  }
   public static playMagic(type: MagicSeType) { return this.instance._playMagic(type); }
   public static playEnemyAttack() { return this.instance._playSe('enemy_attack'); }
   public static playMyAttack() { return this.instance._playSe('my_attack'); }
@@ -73,12 +84,39 @@ export class FantasySoundManager {
   public static getVolume() { return this.instance._volume; }
 
   // ─────────────────────────────────────────────
+  // ベース音関連のstaticメソッド
+  public static playRootNote(rootName: string) {
+    if (!FantasySoundManager.bassEnabled || !FantasySoundManager.bassSynth) return;
+    const Tone = window.Tone as typeof import('tone');
+    const n = tonalNote(rootName + '2');        // C2 付近
+    if (n.midi == null) return;
+    FantasySoundManager.bassSynth.triggerAttackRelease(
+      Tone.Frequency(n.midi, 'midi').toNote(),
+      '8n',
+      undefined,
+      FantasySoundManager.bassVolume
+    );
+  }
+
+  public static setRootVolume(v: number) {
+    FantasySoundManager.bassVolume = v;
+    if (FantasySoundManager.bassSynth) {
+      (FantasySoundManager.bassSynth.volume as any).value =
+        v === 0 ? -Infinity : Math.log10(v) * 20;
+    }
+  }
+
+  public static enableRootSound(enabled: boolean) {
+    FantasySoundManager.bassEnabled = enabled;
+  }
+
+  // ─────────────────────────────────────────────
   // private constructor – outsider cannot new
   private constructor () {/* nop */}
 
   // ─────────────────────────────────────────────
   // private helpers
-  private _init(defaultVolume: number): Promise<void> {
+  private _init(defaultVolume: number, bassVol: number, bassEnabled: boolean): Promise<void> {
     if (this.isInited) {
       // ボリューム値だけ同期する
       this._setVolume(defaultVolume);
@@ -120,13 +158,42 @@ export class FantasySoundManager {
       load('my_attack',     'my_attack.mp3')
     ];
 
-    return Promise.all(promises).then(() => {
+    return Promise.all(promises).then(async () => {
+      // ─ BassSynth ─
+      await this._initializeAudioSystem();
+      const Tone = window.Tone as typeof import('tone');
+      FantasySoundManager.bassSynth = new Tone.MonoSynth({
+        oscillator: { type: 'square' },
+        filter:     { Q: 2, type: 'lowpass', rolloff: -24 },
+        envelope:   { attack: 0.01, decay: 0.1, sustain: 0.7, release: 0.4 }
+      }).toDestination();
+      FantasySoundManager.setRootVolume(bassVol);
+      FantasySoundManager.bassEnabled = bassEnabled;
+
       this.isInited = true;
       console.debug('[FantasySoundManager] init complete');
       // 初期化完了後の状態をログ出力
       Object.entries(this.audioMap).forEach(([key, entry]) => {
         console.debug(`[FantasySoundManager] ${key}: ready=${entry.ready}`);
       });
+    });
+  }
+
+  private async _initializeAudioSystem(): Promise<void> {
+    return new Promise((resolve) => {
+      const initializeAudioSystem = async () => {
+        try {
+          const Tone = window.Tone as typeof import('tone');
+          if (Tone.context.state !== 'running') {
+            await Tone.context.resume();
+          }
+          resolve();
+        } catch (error) {
+          console.warn('[FantasySoundManager] Audio system initialization failed:', error);
+          resolve(); // エラーでも続行
+        }
+      };
+      initializeAudioSystem();
     });
   }
 
