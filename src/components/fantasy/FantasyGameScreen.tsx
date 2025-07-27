@@ -220,18 +220,51 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // 正解時にルート音を鳴らす（1オクターブ下）
     try {
-      const { playNote } = await import('@/utils/MidiController');
-      // コードのルート音（notes配列の最初の音）を再生
-      if (chord.notes && chord.notes.length > 0) {
+      // Tone.jsの確認とシンセサイザーでの再生
+      if (chord.notes && chord.notes.length > 0 && window.Tone) {
         const rootNote = chord.notes[0] - 12; // ルート音を1オクターブ下げる（-12）
-        await playNote(rootNote, 100); // velocity 100で再生（強めの音量）
-        devLog.debug('🎵 ルート音を再生（1オクターブ下）:', { note: rootNote, originalNote: chord.notes[0], chord: chord.displayName });
         
-        // 少し遅延させてから音を止める（サステインをシミュレート）
-        setTimeout(async () => {
-          const { stopNote } = await import('@/utils/MidiController');
-          stopNote(rootNote);
-        }, 500); // 500ms後に音を止める
+        // ベース音に適したFMSynthを作成
+        const bassSynth = new window.Tone.FMSynth({
+          harmonicity: 2,
+          modulationIndex: 3,
+          oscillator: {
+            type: "sine"
+          },
+          envelope: {
+            attack: 0.01,
+            decay: 0.3,
+            sustain: 0.4,
+            release: 0.5
+          },
+          modulation: {
+            type: "square"
+          },
+          modulationEnvelope: {
+            attack: 0.01,
+            decay: 0.1,
+            sustain: 0.5,
+            release: 0.2
+          }
+        }).toDestination();
+        
+        // 音量を調整（デフォルトより少し下げる）
+        bassSynth.volume.value = -10;
+        
+        const noteName = window.Tone.Frequency(rootNote, "midi").toNote();
+        bassSynth.triggerAttackRelease(noteName, "8n");
+        
+        devLog.debug('🎵 ベース音（FMSynth）を再生（1オクターブ下）:', { 
+          note: rootNote, 
+          noteName: noteName,
+          originalNote: chord.notes[0], 
+          chord: chord.displayName 
+        });
+        
+        // シンセサイザーのクリーンアップ
+        setTimeout(() => {
+          bassSynth.dispose();
+        }, 2000);
       }
     } catch (error) {
       console.error('Failed to play root note:', error);
