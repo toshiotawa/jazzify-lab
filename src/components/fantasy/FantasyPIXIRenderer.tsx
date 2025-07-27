@@ -26,6 +26,7 @@ interface FantasyPIXIRendererProps {
   onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
   className?: string;
   activeMonsters?: GameMonsterState[]; // マルチモンスター対応
+  imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>; // プリロードされたテクスチャへの参照
 }
 
 // モンスターのビジュアル状態を不変に管理
@@ -191,6 +192,9 @@ export class FantasyPIXIInstance {
   private onMonsterDefeated?: () => void;
   private onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
   
+  // プリロードされたテクスチャへの参照を追加
+  private imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>;
+  
   /** ────────────────────────────────────
    *  safe‑default で初期化しておく
    * ─────────────────────────────────── */
@@ -250,14 +254,21 @@ export class FantasyPIXIInstance {
     originalY: 0
   };
 
-
-
-
-  constructor(width: number, height: number, onMonsterDefeated?: () => void, onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void) {
+  constructor(
+    width: number, 
+    height: number, 
+    onMonsterDefeated?: () => void, 
+    onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void,
+    imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>
+  ) {
     // コールバックの保存
     this.onDefeated = onMonsterDefeated;
     this.onMonsterDefeated = onMonsterDefeated; // 状態機械用コールバック
     this.onShowMagicName = onShowMagicName; // 魔法名表示コールバック
+    this.imageTexturesRef = imageTexturesRef; // プリロードされたテクスチャへの参照を保存
+    
+    // PIXIの最適化設定
+    PIXI.settings.ROUND_PIXELS = true; // transform演算コスト最小化&にじみ防止
     
     // PIXI アプリケーション初期化
     this.app = new PIXI.Application({
@@ -364,7 +375,8 @@ export class FantasyPIXIInstance {
       // 魔法テクスチャのアセット定義
       const magicAssets: Record<string, string> = {};
       for (const [key, magic] of Object.entries(MAGIC_TYPES)) {
-        const path = `${import.meta.env.BASE_URL}${magic.svg}`;
+        // 一時的にPNGファイルを直接使用（WebP変換ツールが利用できないため）
+        const path = `${import.meta.env.BASE_URL}data/${magic.svg}`;
         magicAssets[key] = path;
       }
       
@@ -385,7 +397,7 @@ export class FantasyPIXIInstance {
       for (const [key, magic] of Object.entries(MAGIC_TYPES)) {
         const texture = PIXI.Assets.get(key);
         if (texture) {
-          this.imageTextures.set(magic.svg, texture);
+          this.imageTextures.set(magic.svg, texture as PIXI.Texture);
           devLog.debug(`✅ 画像テクスチャ読み込み: ${magic.svg}`);
         }
       }
@@ -393,21 +405,21 @@ export class FantasyPIXIInstance {
       // 怒りマークテクスチャを保存
       const angerTexture = PIXI.Assets.get('angerMark');
       if (angerTexture) {
-        this.imageTextures.set('angerMark', angerTexture);
+        this.imageTextures.set('angerMark', angerTexture as PIXI.Texture);
         devLog.debug('✅ 怒りマークテクスチャ読み込み: anger.svg');
       }
       
       // 吹き出しテクスチャを保存
       const fukidashiTexture = PIXI.Assets.get('fukidashi');
       if (fukidashiTexture) {
-        this.fukidashiTexture = fukidashiTexture;
+        this.fukidashiTexture = fukidashiTexture as PIXI.Texture;
         devLog.debug('✅ 吹き出しテクスチャ読み込み: fukidashi_onpu_white.png');
       }
       
       // 攻撃アイコンテクスチャを保存
       const attackIconTex = PIXI.Assets.get('attackIcon');
       if (attackIconTex) {
-        this.imageTextures.set(ATTACK_ICON_KEY, attackIconTex); // "論理キー" で保存　★ここがポイント
+        this.imageTextures.set(ATTACK_ICON_KEY, attackIconTex as PIXI.Texture); // "論理キー" で保存　★ここがポイント
         devLog.debug('✅ attack icon loaded');
       }
       
@@ -658,34 +670,47 @@ export class FantasyPIXIInstance {
    */
   private async createMonsterSpriteForId(id: string, icon: string): Promise<PIXI.Sprite | null> {
     try {
-      // ▼▼▼ 変更点：完全に透明なプレースホルダーで即座に表示 ▼▼▼
-      // 完全に透明なテクスチャを作成
-      const transparentGraphics = new PIXI.Graphics();
-      transparentGraphics.beginFill(0xFFFFFF, 0); // 完全に透明
-      transparentGraphics.drawRect(0, 0, 64, 64);
-      transparentGraphics.endFill();
-      const transparentTexture = this.app.renderer.generateTexture(transparentGraphics);
-      transparentGraphics.destroy();
+      // まずプリロードされたテクスチャをチェック
+      let texture: PIXI.Texture | null = null;
       
-      // プレースホルダーを作成（完全に透明）
-      const placeholder = new PIXI.Sprite(transparentTexture);
-      placeholder.anchor.set(0.5);
+      if (this.imageTexturesRef?.current.has(icon)) {
+        // プリロードされたテクスチャが存在する場合は即座に使用
+        texture = this.imageTexturesRef.current.get(icon)!;
+        devLog.debug(`✅ プリロードされたテクスチャを使用: ${icon}`);
+      } else {
+        // プリロードされていない場合は従来の非同期ロード
+        // ▼▼▼ 変更点：完全に透明なプレースホルダーで即座に表示 ▼▼▼
+        // 完全に透明なテクスチャを作成
+        const transparentGraphics = new PIXI.Graphics();
+        transparentGraphics.beginFill(0xFFFFFF, 0); // 完全に透明
+        transparentGraphics.drawRect(0, 0, 64, 64);
+        transparentGraphics.endFill();
+        const transparentTexture = this.app.renderer.generateTexture(transparentGraphics);
+        transparentGraphics.destroy();
+        
+        // プレースホルダーを作成（完全に透明）
+        const placeholder = new PIXI.Sprite(transparentTexture);
+        placeholder.anchor.set(0.5);
+        
+        // 非同期で本物のテクスチャをロードして差し替える
+        loadMonsterTexture(icon).then(loadedTexture => {
+          if (!placeholder.destroyed) {
+            placeholder.texture = loadedTexture;
+            placeholder.tint = 0xFFFFFF;
+            placeholder.alpha = 1; // 読み込み後に表示
+            devLog.debug(`✅ モンスタープレースホルダーを実画像に差し替え: ${icon}`);
+          }
+        }).catch(error => {
+          devLog.debug(`❌ モンスターテクスチャ差し替え失敗: ${icon}`, error);
+        });
+        
+        return placeholder;
+      }
       
-      // 非同期で本物のテクスチャをロードして差し替える
-      loadMonsterTexture(icon).then(texture => {
-        if (!placeholder.destroyed) {
-          placeholder.texture = texture;
-          placeholder.tint = 0xFFFFFF;
-          placeholder.alpha = 1; // 読み込み後に表示
-          devLog.debug(`✅ モンスタープレースホルダーを実画像に差し替え: ${icon}`);
-        }
-      }).catch(error => {
-        devLog.debug(`❌ モンスターテクスチャ差し替え失敗: ${icon}`, error);
-      });
+      // プリロードされたテクスチャを使用してスプライトを作成
+      const sprite = new PIXI.Sprite(texture);
+      sprite.anchor.set(0.5);
       
-      const sprite = placeholder;
-      // ▲▲▲ ここまで ▲▲▲
-
       // ▼▼▼ 修正箇所 ▼▼▼
       // 実際のモンスター表示エリアのサイズに基づいてサイズを決定
       const CONTAINER_WIDTH = this.app.screen.width;
@@ -768,10 +793,15 @@ export class FantasyPIXIInstance {
   }
 
   /**
-   * 個別のモンスタースプライトを更新
+   * モンスターデータのビジュアル更新
    */
   private updateMonsterSpriteData(monsterData: MonsterSpriteData): void {
     const { sprite, visualState, gameState } = monsterData;
+    
+    // transform nullチェックを追加
+    if (sprite.destroyed || !(sprite as any).transform) {
+      return;
+    }
     
     sprite.x = visualState.x + gameState.staggerOffset.x;
     sprite.y = visualState.y + gameState.staggerOffset.y;
@@ -1997,7 +2027,8 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   onMonsterDefeated,
   onShowMagicName,
   className,
-  activeMonsters
+  activeMonsters,
+  imageTexturesRef
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pixiInstance, setPixiInstance] = useState<FantasyPIXIInstance | null>(null);
@@ -2006,7 +2037,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const instance = new FantasyPIXIInstance(width, height, onMonsterDefeated, onShowMagicName);
+    const instance = new FantasyPIXIInstance(width, height, onMonsterDefeated, onShowMagicName, imageTexturesRef);
     containerRef.current.appendChild(instance.getCanvas());
     
     setPixiInstance(instance);
@@ -2015,7 +2046,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
     return () => {
       instance.destroy();
     };
-  }, [width, height, onReady, onMonsterDefeated, onShowMagicName]);
+  }, [width, height, onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef]);
 
   // モンスターアイコン変更（状態機械による安全な生成）
   useEffect(() => {

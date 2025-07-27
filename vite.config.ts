@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
         '@/utils': resolve(__dirname, './src/utils')
       }
     },
-    assetsInclude: ['**/*.wasm'],
+    assetsInclude: ['**/*.wasm', '**/*.webp', '**/*.png'],
     esbuild: {
       target: 'es2020',
       sourcemap: !isProduction,

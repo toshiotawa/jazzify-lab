@@ -8,6 +8,8 @@ import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
+import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
+import * as PIXI from 'pixi.js';
 
 // ===== 型定義 =====
 
@@ -155,7 +157,7 @@ const ENEMY_LIST = [
 // ===== ヘルパー関数 =====
 
 /**
- * モンスターキューから次のモンスターを生成
+ * キューからモンスターを生成
  */
 const createMonsterFromQueue = (
   monsterIndex: number,
@@ -163,11 +165,19 @@ const createMonsterFromQueue = (
   enemyHp: number,
   allowedChords: string[],
   previousChordId?: string,
-  displayOpts?: DisplayOpts
+  displayOpts?: DisplayOpts,
+  stageMonsterIds?: string[]
 ): MonsterState => {
-  // 63 枚からランダムで 1 つ選ぶ（名前や種類はダミー）
-  const rand = Math.floor(Math.random() * 63) + 1;
-  const iconKey = `monster_${String(rand).padStart(2, '0')}`;
+  // stageMonsterIdsが提供されている場合は、それを使用
+  let iconKey: string;
+  if (stageMonsterIds && stageMonsterIds[monsterIndex]) {
+    iconKey = stageMonsterIds[monsterIndex];
+  } else {
+    // フォールバック: 従来のランダム選択
+    const rand = Math.floor(Math.random() * 63) + 1;
+    iconKey = `monster_${String(rand).padStart(2, '0')}`;
+  }
+  
   const enemy = { id: iconKey, icon: iconKey, name: '' }; // ← name は空文字
   const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
   
@@ -358,6 +368,11 @@ export const useFantasyGameEngine = ({
   displayOpts = { lang: 'en', simple: false }
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   
+  // ステージで使用するモンスターIDを保持
+  const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
+  // プリロードしたテクスチャを保持
+  const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
+  
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
@@ -392,7 +407,7 @@ export const useFantasyGameEngine = ({
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
   // ゲーム初期化
-  const initializeGame = useCallback((stage: FantasyStage) => {
+  const initializeGame = useCallback(async (stage: FantasyStage) => {
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
 
     // 新しいステージ定義から値を取得
@@ -400,6 +415,43 @@ export const useFantasyGameEngine = ({
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
     const simultaneousCount = stage.simultaneousMonsterCount || 1;
+
+    // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
+    const monsterIds = getStageMonsterIds(totalEnemies);
+    setStageMonsterIds(monsterIds);
+
+    // モンスター画像をプリロード
+    try {
+      // バンドルが既に存在する場合は削除
+      if (PIXI.Assets.resolver.bundles.has('stageMonsters')) {
+        await PIXI.Assets.unloadBundle('stageMonsters');
+      }
+
+      // バンドル用のアセットマッピングを作成
+      const bundle: Record<string, string> = {};
+      monsterIds.forEach(id => {
+        // 一時的にPNG形式を使用（WebP変換ツールが利用できないため）
+        bundle[id] = `${import.meta.env.BASE_URL}monster_icons/${id}.png`;
+      });
+
+      // バンドルを追加してロード
+      PIXI.Assets.addBundle('stageMonsters', bundle);
+      await PIXI.Assets.loadBundle('stageMonsters');
+
+      // テクスチャをキャッシュに保管
+      const textureMap = imageTexturesRef.current;
+      textureMap.clear();
+      monsterIds.forEach(id => {
+        const texture = PIXI.Assets.get(id) as PIXI.Texture;
+        if (texture) {
+          textureMap.set(id, texture);
+        }
+      });
+
+      devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length });
+    } catch (error) {
+      devLog.error('❌ モンスター画像プリロード失敗:', error);
+    }
 
     // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
     // モンスターキューを作成（0からtotalEnemies-1までのインデックス）
@@ -432,7 +484,8 @@ export const useFantasyGameEngine = ({
           enemyHp,
           stage.allowedChords,
           lastChordId,
-          displayOpts
+          displayOpts,
+          stageMonsterIds // stageMonsterIdsを渡す
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -486,7 +539,7 @@ export const useFantasyGameEngine = ({
       simultaneousCount,
       activeMonsters: activeMonsters.length
     });
-  }, [onGameStateChange]);
+  }, [onGameStateChange, stageMonsterIds]);
   
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
@@ -841,7 +894,8 @@ export const useFantasyGameEngine = ({
               stateAfterAttack.maxEnemyHp,
               stateAfterAttack.currentStage!.allowedChords,
               lastUsedChordId, // 直前のコードを避ける
-              displayOpts
+              displayOpts,
+              stageMonsterIds // stageMonsterIdsを渡す
             );
             remainingMonsters.push(newMonster);
           }
@@ -872,7 +926,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
@@ -983,6 +1037,7 @@ export const useFantasyGameEngine = ({
     initializeGame,
     stopGame,
     proceedToNextEnemy,
+    imageTexturesRef, // プリロードされたテクスチャへの参照を追加
     
     // ヘルパー関数もエクスポート
     checkChordMatch,
