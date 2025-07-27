@@ -159,6 +159,19 @@ const loadMonsterTexture = async (icon: string): Promise<PIXI.Texture> => {
   return textureCache[icon];
 };
 
+// 次のモンスターを先読みする関数
+const preloadNextMonsters = (count: number = 3) => {
+  // 次の count 体分のモンスターアイコンを先読み
+  for (let i = 0; i < count; i++) {
+    const rand = Math.floor(Math.random() * 63) + 1;
+    const iconKey = `monster_${String(rand).padStart(2, '0')}`;
+    // 非同期でロードを開始（結果は待たない）
+    loadMonsterTexture(iconKey).catch(() => {
+      // エラーは無視（キャッシュに失敗結果が保存される）
+    });
+  }
+};
+
 // ===== モンスターシンボルマッピング（フラットデザイン） =====
 const MONSTER_EMOJI: Record<string, string> = {
   'vampire': '☠', // 頭蓋骨（バンパイア）
@@ -192,6 +205,9 @@ export class FantasyPIXIInstance {
   private onDefeated?: () => void;
   private onMonsterDefeated?: () => void;
   private onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
+  
+  // Asset loading state flag
+  private isAssetsReady: boolean = false;
   
   /** ────────────────────────────────────
    *  safe‑default で初期化しておく
@@ -294,7 +310,15 @@ export class FantasyPIXIInstance {
     // this.loadMonsterTextures(); // ★★★ 遅延ロードに変更したためコメントアウト ★★★
     
     // ★★★ 修正点(1): 魔法エフェクトのテクスチャ読み込みを追加 ★★★
-    this.loadImageTextures(); // この行を追加して魔法画像をロードします
+    // Fire-and-forget ではなく、完了を待って isAssetsReady フラグを立てる
+    (async () => {
+      await this.loadImageTextures();
+      this.isAssetsReady = true;
+      devLog.debug('✅ すべてのアセットロード完了');
+      
+      // ゲーム開始時に最初の数体分を先読み
+      preloadNextMonsters(5);
+    })();
     
     // よく使われるモンスターアイコンのプリロード（非同期で実行）
     this.preloadCommonMonsters();
@@ -457,7 +481,19 @@ export class FantasyPIXIInstance {
       const sprite = await this.createMonsterSpriteForId('default', icon);
       if (sprite) {
         this.monsterSprite.texture = sprite.texture;
+        // シングルモンスターもalphaを0から開始
+        this.monsterSprite.alpha = 0;
         devLog.debug('✅ モンスター画像テクスチャ適用:', { icon });
+        
+        // フェードインアニメーション
+        const fadeInTicker = () => {
+          if (this.monsterSprite.alpha < 1) {
+            this.monsterSprite.alpha += 0.1;
+          } else {
+            this.app.ticker.remove(fadeInTicker);
+          }
+        };
+        this.app.ticker.add(fadeInTicker);
       } else {
         devLog.debug('⚠️ モンスター画像テクスチャが見つからないか無効、フォールバック作成:', { icon });
         this.createFallbackMonster();
@@ -595,6 +631,16 @@ export class FantasyPIXIInstance {
         
         this.monsterSprites.set(monster.id, monsterData);
         this.monsterContainer.addChild(sprite);
+        
+        // フェードインアニメーション（3〜4フレームでふわっと）
+        const fadeInTicker = () => {
+          if (sprite.alpha < 1) {
+            sprite.alpha += 0.1;
+          } else {
+            this.app.ticker.remove(fadeInTicker);
+          }
+        };
+        this.app.ticker.add(fadeInTicker);
       }
       
       // ゲージ値を更新
@@ -660,27 +706,14 @@ export class FantasyPIXIInstance {
    */
   private async createMonsterSpriteForId(id: string, icon: string): Promise<PIXI.Sprite | null> {
     try {
-      // ▼▼▼ 変更点：プレースホルダーで即座に表示 ▼▼▼
-      // まずプレースホルダーを作成（グレーの四角形）
-      const placeholder = new PIXI.Sprite(PIXI.Texture.WHITE);
-      placeholder.width = 64;
-      placeholder.height = 64;
-      placeholder.tint = 0x888888; // グレー色
-      placeholder.anchor.set(0.5);
-      
-      // 非同期で本物のテクスチャをロードして差し替える
-      loadMonsterTexture(icon).then(texture => {
-        if (!placeholder.destroyed) {
-          placeholder.texture = texture;
-          // テクスチャが読み込まれたら色を元に戻す
-          placeholder.tint = 0xFFFFFF;
-          devLog.debug(`✅ モンスタープレースホルダーを実画像に差し替え: ${icon}`);
-        }
-      }).catch(error => {
-        devLog.debug(`❌ モンスターテクスチャ差し替え失敗: ${icon}`, error);
-      });
-      
-      const sprite = placeholder;
+      // ▼▼▼ 変更点：テクスチャが来るまで待機 ▼▼▼
+      // テクスチャが来るまで待機
+      const texture = await loadMonsterTexture(icon);
+      if (!texture) return null;
+
+      const sprite = new PIXI.Sprite(texture);
+      sprite.anchor.set(0.5);
+      sprite.alpha = 0; // まず透明
       // ▲▲▲ ここまで ▲▲▲
 
       // ▼▼▼ 修正箇所 ▼▼▼
@@ -867,7 +900,9 @@ export class FantasyPIXIInstance {
       if (defeated) {
         monsterData.gameState.state = 'FADING_OUT';
         monsterData.gameState.isFadingOut = true;
-
+        
+        // モンスターが倒されたら次のモンスターを先読み
+        preloadNextMonsters(3);
       }
 
       // ヒット状態を解除
@@ -1467,7 +1502,19 @@ export class FantasyPIXIInstance {
 
   // 音符吹き出し表示
   private showMusicNoteFukidashi(monsterId: string, x: number, y: number): void {
-    if (!this.fukidashiTexture || this.isDestroyed) return;
+    if (this.isDestroyed) return;
+
+    // アセットがまだロード完了していない場合は、ロード後に再実行
+    if (!this.isAssetsReady) {
+      PIXI.Assets.load('fukidashi').then(() => {
+        this.fukidashiTexture = PIXI.Assets.get('fukidashi');
+        this.showMusicNoteFukidashi(monsterId, x, y); // 再帰呼び出し
+      });
+      return;
+    }
+
+    // テクスチャが存在しない場合は何もしない
+    if (!this.fukidashiTexture) return;
 
     // 既存の吹き出しがあれば削除
     const existingFukidashi = this.activeFukidashi.get(monsterId);
