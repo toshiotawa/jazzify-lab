@@ -123,6 +123,9 @@ const MAGIC_TYPES: Record<string, MagicType> = {
   },
 };
 
+// ★ Attack icon path
+const ATTACK_ICON_PATH = 'attack_icons/fukidashi_onpu_white.png';
+
 // ===== テクスチャキャッシュ =====
 // インメモリキャッシュ - 一度ロードしたテクスチャを保持
 const textureCache: Record<string, Promise<PIXI.Texture>> = {};
@@ -368,6 +371,9 @@ export class FantasyPIXIInstance {
       
       // 音符吹き出しを追加
       magicAssets['fukidashi'] = `${import.meta.env.BASE_URL}attack_icons/fukidashi_onpu_white.png`;
+      
+      // 攻撃アイコンを追加
+      magicAssets['attackIcon'] = `${import.meta.env.BASE_URL}${ATTACK_ICON_PATH}`;
 
       // バンドルとして一括ロード
       await PIXI.Assets.addBundle('magicTextures', magicAssets);
@@ -394,6 +400,13 @@ export class FantasyPIXIInstance {
       if (fukidashiTexture) {
         this.fukidashiTexture = fukidashiTexture;
         devLog.debug('✅ 吹き出しテクスチャ読み込み: fukidashi_onpu_white.png');
+      }
+      
+      // 攻撃アイコンテクスチャを保存
+      const attackIconTex = PIXI.Assets.get('attackIcon');
+      if (attackIconTex) {
+        this.imageTextures.set(ATTACK_ICON_PATH, attackIconTex);
+        devLog.debug('✅ 攻撃アイコンテクスチャ読み込み:', ATTACK_ICON_PATH);
       }
       
       devLog.debug('✅ 全画像テクスチャ読み込み完了');
@@ -439,7 +452,7 @@ export class FantasyPIXIInstance {
         alpha: 1.0,
         visible: true,
         tint: 0xFFFFFF,
-        scale: 0.2  // 0.3 から 0.2 に変更（より小さく）
+        scale: this.calcSpriteScale(this.monsterSprite.texture, this.app.screen.width, 200, 1) // 動的スケール計算
       };
       
       // ゲーム状態をリセット
@@ -486,7 +499,7 @@ export class FantasyPIXIInstance {
         alpha: 1.0,
         visible: true,
         tint: 0xFFFFFF,
-        scale: 0.2  // 0.3 から 0.2 に変更（より小さく）
+        scale: this.calcSpriteScale(texture, this.app.screen.width, 200, 1) // 動的スケール計算
       };
       
       // スプライトの属性を更新
@@ -536,7 +549,7 @@ export class FantasyPIXIInstance {
         const visualState: MonsterVisualState = {
           x: this.getPositionX(i, sortedMonsters.length),
           y: 100, // Y座標を100pxに固定（200px高さの中央）
-          scale: 0.2,  // 0.3 から 0.2 に変更（より小さく）
+          scale: this.calcSpriteScale(sprite.texture, this.app.screen.width, 200, sortedMonsters.length),
           rotation: 0,
           tint: 0xFFFFFF,
           alpha: 1.0,
@@ -689,21 +702,15 @@ export class FantasyPIXIInstance {
         }
       }
       
-      const availableWidth = CONTAINER_WIDTH * availableWidthRatio;
+      // 動的スケール計算を使用
+      const dynamicScale = this.calcSpriteScale(
+        sprite.texture,
+        CONTAINER_WIDTH,
+        CONTAINER_HEIGHT,
+        currentMonsterCount
+      );
       
-      // モンスターの最大サイズを定義
-      // 幅: 利用可能幅の80%（十分なマージンを確保）
-      const maxWidth = availableWidth * 0.8;
-      // 高さ: コンテナ高さの80%（50%から80%へ拡大）
-      const maxHeight = CONTAINER_HEIGHT * 0.8;
-
-      // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
-      const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
-      
-      // 最大スケールを制限（3倍に拡大）
-      const maxScale = isMobile ? 1.2 : 2.0;  // 0.3→1.2、0.5→2.0へ（約4倍）
-      const finalScale = Math.min(scale, maxScale);
-      sprite.scale.set(finalScale);
+      sprite.scale.set(dynamicScale);
       
       sprite.anchor.set(0.5);
       // ▲▲▲ ここまで ▲▲▲
@@ -718,6 +725,28 @@ export class FantasyPIXIInstance {
     }
   }
   
+  /**
+   * Calculate dynamic sprite scale based on available space
+   */
+  private calcSpriteScale(
+    texture: PIXI.Texture,
+    containerWidth: number,
+    containerHeight: number,
+    simultaneousCount: number
+  ): number {
+    // Calculate slot size with margin
+    const slotWidth = (containerWidth / simultaneousCount) * 0.8; // 20% horizontal margin
+    const slotHeight = containerHeight * 0.6; // 40% vertical margin (60% of container height)
+    
+    // Calculate scale to fit in slot
+    const scaleX = slotWidth / texture.width;
+    const scaleY = slotHeight / texture.height;
+    
+    // Use the smaller scale to maintain aspect ratio
+    // Remove the 1.0 limit to allow scaling beyond original size
+    return Math.min(scaleX, scaleY);
+  }
+
   /**
    * 個別のモンスタースプライトを更新
    */
@@ -808,6 +837,9 @@ export class FantasyPIXIInstance {
 
       // 音符吹き出しを表示
       this.showMusicNoteFukidashi(monsterId, monsterData.visualState.x, monsterData.visualState.y);
+      
+      // 攻撃成功時の音符アイコンを表示
+      this.showAttackIcon(monsterData);
 
       // SPアタック時の特殊エフェクト
       this.triggerSpecialEffects(isSpecial);
@@ -1447,6 +1479,33 @@ export class FantasyPIXIInstance {
     }, 2000);
   }
 
+  /** 攻撃アイコンを敵スプライト右上に固定で出す */
+  private showAttackIcon(monsterData: MonsterSpriteData): void {
+    const tex = this.imageTextures.get(ATTACK_ICON_PATH);
+    if (!tex) return;
+
+    // 既に付いているアイコンがあれば一旦消す
+    if ((monsterData as any).attackIcon && !(monsterData as any).attackIcon.destroyed) {
+      monsterData.sprite.removeChild((monsterData as any).attackIcon);
+      (monsterData as any).attackIcon.destroy();
+    }
+
+    const icon = new PIXI.Sprite(tex);
+    icon.anchor.set(0.5);
+    icon.scale.set(0.35); // お好みで
+    icon.x = monsterData.sprite.width * 0.45; // 右上へオフセット
+    icon.y = -monsterData.sprite.height * 0.45;
+    monsterData.sprite.addChild(icon);
+
+    // 1 秒後に自動削除（ずっと残すなら setTimeout を外す）
+    setTimeout(() => {
+      if (!icon.destroyed && icon.parent) icon.parent.removeChild(icon);
+      icon.destroy();
+    }, 1000);
+
+    (monsterData as any).attackIcon = icon; // 再利用できるよう保持
+  }
+
 
 
 
@@ -1485,7 +1544,8 @@ export class FantasyPIXIInstance {
         
         if (enragedTable[id]) {
           // ---- 怒り演出 ----
-          visualState.scale = 0.25; // 巨大化（0.2→0.25）
+          const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, 200, this.monsterSprites.size);
+          visualState.scale = baseScale * 1.25; // 巨大化（25%増し）
           sprite.tint = 0xFFCCCC;
           
           // 怒りマークを追加（まだない場合）
@@ -1532,7 +1592,8 @@ export class FantasyPIXIInstance {
           
         } else {
           // ---- 通常状態 ----
-          visualState.scale = 0.2;  // 0.3から0.2に縮小
+          const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, 200, this.monsterSprites.size);
+          visualState.scale = baseScale;
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
           
           // 怒りエフェクトを削除
@@ -1733,29 +1794,15 @@ export class FantasyPIXIInstance {
         monsterData.visualState.x = this.getPositionX(i, sortedEntries.length);
         monsterData.visualState.y = 100; // Y座標を100pxに固定（200px高さの中央）
         // ▼▼▼ 修正箇所 ▼▼▼
-        const sprite = monsterData.sprite;
-
-        // 実際のモンスター表示エリアのサイズに基づいてサイズを決定
-        const CONTAINER_WIDTH = width;
-        const CONTAINER_HEIGHT = 200; // FantasyGameScreen.tsxで定義されている固定高さ
-
-        // 3体同時表示を想定して、1体あたりの利用可能幅を計算
-        // 各モンスターは画面の25%, 50%, 75%の位置に配置される
-        // そのため、利用可能な幅は画面幅の約25%（モンスター間のマージンを考慮）
-        const availableWidth = CONTAINER_WIDTH * 0.20; // 20%でマージンを確保
+        // 動的スケール計算を使用
+        const dynamicScale = this.calcSpriteScale(
+          monsterData.sprite.texture,
+          width,
+          200, // FantasyGameScreen.tsxで定義されている固定高さ
+          sortedEntries.length
+        );
         
-        // モンスターの最大サイズを定義
-        // 幅: 利用可能幅の80%（十分なマージンを確保）
-        const maxWidth = availableWidth * 0.8;
-        // 高さ: コンテナ高さの50%（上下のマージンを確保）
-        const maxHeight = CONTAINER_HEIGHT * 0.5;
-
-        // アスペクト比を維持しつつ、maxWidthとmaxHeightの両方に収まるようにスケーリング
-        const scale = Math.min(maxWidth / sprite.texture.width, maxHeight / sprite.texture.height);
-        
-        // 最大スケールを制限（小さすぎる画像が拡大されすぎないように）
-        const finalScale = Math.min(scale, 0.5);  // 0.8 から 0.5 に変更
-        sprite.scale.set(finalScale);
+        monsterData.visualState.scale = dynamicScale;
         // ▲▲▲ ここまで ▲▲▲
         this.updateMonsterSpriteData(monsterData);
       }
