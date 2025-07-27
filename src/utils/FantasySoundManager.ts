@@ -69,12 +69,13 @@ export class FantasySoundManager {
   // ─────────────────────────────────────────────
   // ベース音関連フィールド
   private static bassSynth: any | null = null;
-  private static bassVolume = 0.8;
+  private static bassVolume = 0.5; // デフォルト50%
   private static bassEnabled = true;
+  private static lastRootStart = 0; // Tone.js例外対策用
 
   // ─────────────────────────────────────────────
   // public static wrappers – 使いやすいように static 経由のエイリアスを用意
-  public static async init(defaultVolume = 0.8, bassVol = 0.8, bassEnabled = true) { 
+  public static async init(defaultVolume = 0.8, bassVol = 0.5, bassEnabled = true) { 
     return this.instance._init(defaultVolume, bassVol, bassEnabled); 
   }
   public static playMagic(type: MagicSeType) { return this.instance._playMagic(type); }
@@ -90,11 +91,18 @@ export class FantasySoundManager {
     const Tone = window.Tone as typeof import('tone');
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
+    
+    // Tone.js 例外対策：必ず前回より >0 の startTime
+    let t = Tone.now();
+    if (t <= FantasySoundManager.lastRootStart) t = FantasySoundManager.lastRootStart + 0.001;
+    FantasySoundManager.lastRootStart = t;
+    
+    const note = Tone.Frequency(n.midi, 'midi').toNote();
     FantasySoundManager.bassSynth.triggerAttackRelease(
-      Tone.Frequency(n.midi, 'midi').toNote(),
+      note,
       '8n',
-      undefined,
-      FantasySoundManager.bassVolume
+      t,
+      FantasySoundManager.bassVolume // velocity 相当
     );
   }
 
@@ -163,9 +171,9 @@ export class FantasySoundManager {
       await this._initializeAudioSystem();
       const Tone = window.Tone as typeof import('tone');
       FantasySoundManager.bassSynth = new Tone.MonoSynth({
-        oscillator: { type: 'square' },
-        filter:     { Q: 2, type: 'lowpass', rolloff: -24 },
-        envelope:   { attack: 0.01, decay: 0.1, sustain: 0.7, release: 0.4 }
+        oscillator: { type: 'sine' }, // まっすぐな低音
+        filter:     { Q: 1, type: 'lowpass', rolloff: -24, frequency: 300 },
+        envelope:   { attack: 0, decay: 0.05, sustain: 0.8, release: 0.3 }
       }).toDestination();
       FantasySoundManager.setRootVolume(bassVol);
       FantasySoundManager.bassEnabled = bassEnabled;

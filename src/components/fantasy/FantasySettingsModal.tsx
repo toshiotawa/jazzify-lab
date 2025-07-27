@@ -47,7 +47,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   noteNameLang = 'en', // デフォルト英語表記
   simpleNoteName = false, // デフォルト簡易表記OFF
   playRootSound = true, // デフォルトルート音ON
-  rootSoundVolume = 0.8 // デフォルト80%ルート音量
+  rootSoundVolume = 0.5 // デフォルト50%ルート音量
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,

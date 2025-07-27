@@ -130,9 +130,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             // FantasySoundManagerの初期化
             import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
               FantasySoundManager.init(
-                settings.soundEffectVolume || 0.8,
-                settings.rootSoundVolume || 0.8,
-                settings.playRootSound !== false
+                settings.soundEffectVolume ?? 0.8,
+                settings.rootSoundVolume ?? 0.5,
+                settings.playRootSound ?? true
               ).then(() => {
                 devLog.debug('🔊 ファンタジーモード効果音初期化完了');
               }).catch(error => {
@@ -1032,6 +1032,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           // ルート音設定が変更されたら、gameStoreを更新
           if (settings.playRootSound !== undefined) {
             updateSettings({ playRootSound: settings.playRootSound });
+            import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) =>
+              FantasySoundManager.enableRootSound(settings.playRootSound)
+            );
           }
           if (settings.rootSoundVolume !== undefined) {
             updateSettings({ rootSoundVolume: settings.rootSoundVolume });
