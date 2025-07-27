@@ -54,7 +54,8 @@ export class FantasySoundManager {
     enemy_attack: { base: new Audio(), ready: false },
     fire:          { base: new Audio(), ready: false },
     ice:           { base: new Audio(), ready: false },
-    thunder:       { base: new Audio(), ready: false }
+    thunder:       { base: new Audio(), ready: false },
+    my_attack:     { base: new Audio(), ready: false }
   };
 
   /** マスターボリューム (0‑1) */
@@ -67,6 +68,7 @@ export class FantasySoundManager {
   public static async init(defaultVolume = 0.8) { return this.instance._init(defaultVolume); }
   public static playMagic(type: MagicSeType) { return this.instance._playMagic(type); }
   public static playEnemyAttack() { return this.instance._playSe('enemy_attack'); }
+  public static playMyAttack() { return this.instance._playSe('my_attack'); }
   public static setVolume(v: number) { return this.instance._setVolume(v); }
   public static getVolume() { return this.instance._volume; }
 
@@ -114,7 +116,8 @@ export class FantasySoundManager {
       load('enemy_attack', 'enemy_attack.mp3'),
       load('fire',          'fire.mp3'),
       load('ice',           'ice.mp3'),
-      load('thunder',       'thunder.mp3')
+      load('thunder',       'thunder.mp3'),
+      load('my_attack',     'my_attack.mp3')
     ];
 
     return Promise.all(promises).then(() => {
@@ -139,7 +142,8 @@ export class FantasySoundManager {
   private _playMagic(type: MagicSeType) {
     // magic type -> key mapping is 1:1
     console.debug(`[FantasySoundManager] playMagic called with type: ${type}`);
-    this._playSe(type);
+    // 魔法タイプに関わらず、常にmy_attackを再生
+    this._playSe('my_attack');
   }
 
   private _playSe(key: keyof typeof this.audioMap) {

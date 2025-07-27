@@ -816,6 +816,10 @@ export const useFantasyGameEngine = ({
             );
             return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
           }
+          // SPアタックの場合は全ての敵のゲージをリセット
+          if (isSpecialAttack) {
+            return { ...monster, gauge: 0 };
+          }
           return monster;
         });
 
