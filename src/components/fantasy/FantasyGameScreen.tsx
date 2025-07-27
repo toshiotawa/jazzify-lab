@@ -218,14 +218,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleChordCorrect = useCallback(async (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
     devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
     
-    // 正解時にルート音を鳴らす
+    // 正解時にルート音を鳴らす（1オクターブ下）
     try {
       const { playNote } = await import('@/utils/MidiController');
       // コードのルート音（notes配列の最初の音）を再生
       if (chord.notes && chord.notes.length > 0) {
-        const rootNote = chord.notes[0]; // ルート音はnotes配列の最初の要素
+        const rootNote = chord.notes[0] - 12; // ルート音を1オクターブ下げる（-12）
         await playNote(rootNote, 100); // velocity 100で再生（強めの音量）
-        devLog.debug('🎵 ルート音を再生:', { note: rootNote, chord: chord.displayName });
+        devLog.debug('🎵 ルート音を再生（1オクターブ下）:', { note: rootNote, originalNote: chord.notes[0], chord: chord.displayName });
         
         // 少し遅延させてから音を止める（サステインをシミュレート）
         setTimeout(async () => {
