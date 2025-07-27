@@ -280,6 +280,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
+    imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
@@ -717,6 +718,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               onShowMagicName={handleShowMagicName}
               className="w-full h-full"
               activeMonsters={gameState.activeMonsters}
+              imageTexturesRef={imageTexturesRef}
             />
           </div>
           
