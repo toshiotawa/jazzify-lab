@@ -133,26 +133,19 @@ const textureCache: Record<string, Promise<PIXI.Texture>> = {};
 // 1枚だけロードするユーティリティ関数
 const loadMonsterTexture = async (icon: string): Promise<PIXI.Texture> => {
   if (!textureCache[icon]) {
-    // 複数のパスを試す（WebP優先、PNG、旧PNGの順）
-    const tryPaths = [
-      `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`,  // WebP (軽量)
-      `${import.meta.env.BASE_URL}monster_icons/${icon}.png`,   // PNG
-    ];
-
+    // PNGのみを直接ロード（WebP試行を削除）
+    const path = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
+    
     textureCache[icon] = (async () => {
-      for (const path of tryPaths) {
-        try {
-          const texture = await PIXI.Assets.load(path);
-          devLog.debug(`✅ モンスターテクスチャ遅延ロード完了: ${icon}`);
-          return texture;
-        } catch (error) {
-          // このパスでは見つからなかった
-          continue;
-        }
+      try {
+        const texture = await PIXI.Assets.load(path);
+        devLog.debug(`✅ モンスターテクスチャ遅延ロード完了: ${icon}`);
+        return texture;
+      } catch (error) {
+        // エラー時は白テクスチャを返す
+        devLog.debug(`❌ モンスターテクスチャロード失敗: ${icon}`);
+        return PIXI.Texture.WHITE;
       }
-      // すべて失敗したら白テクスチャを返す
-      devLog.debug(`❌ モンスターテクスチャロード失敗: ${icon}`);
-      return PIXI.Texture.WHITE;
     })();
   }
   return textureCache[icon];
@@ -295,10 +288,26 @@ export class FantasyPIXIInstance {
     // ★★★ 修正点(1): 魔法エフェクトのテクスチャ読み込みを追加 ★★★
     this.loadImageTextures(); // この行を追加して魔法画像をロードします
     
+    // よく使われるモンスターアイコンを事前にロード
+    this.preloadCommonMonsters();
+    
     // アニメーションループ開始
     this.startAnimationLoop();
     
     devLog.debug('✅ ファンタジーPIXI初期化完了（状態機械対応）');
+  }
+
+  // よく使われるモンスターアイコンを事前にロード
+  private async preloadCommonMonsters(): Promise<void> {
+    // よく使われるモンスターアイコンを事前にロード
+    const commonMonsters = [
+      'monster_01', 'monster_02', 'monster_03', 'monster_04', 'monster_05',
+      'monster_06', 'monster_07', 'monster_08', 'monster_09', 'monster_10'
+    ];
+    
+    const promises = commonMonsters.map(icon => loadMonsterTexture(icon));
+    await Promise.all(promises);
+    devLog.debug('✅ 一般的なモンスターアイコンのプリロード完了');
   }
 
   // ★★★ 遅延ロードに変更したため、この関数は使用しない ★★★
@@ -405,7 +414,7 @@ export class FantasyPIXIInstance {
       // 攻撃アイコンテクスチャを保存
       const attackIconTex = PIXI.Assets.get('attackIcon');
       if (attackIconTex) {
-        this.imageTextures.set(ATTACK_ICON_PATH, attackIconTex);
+        this.imageTextures.set('attackIcon', attackIconTex); // キーを'attackIcon'に修正
         devLog.debug('✅ 攻撃アイコンテクスチャ読み込み:', ATTACK_ICON_PATH);
       }
       
@@ -644,23 +653,24 @@ export class FantasyPIXIInstance {
   private async createMonsterSpriteForId(id: string, icon: string): Promise<PIXI.Sprite | null> {
     try {
       // ▼▼▼ 変更点：プレースホルダーで即座に表示 ▼▼▼
-      // まずプレースホルダーを作成（グレーの四角形）
+      // プレースホルダーを透明にする
       const placeholder = new PIXI.Sprite(PIXI.Texture.WHITE);
       placeholder.width = 64;
       placeholder.height = 64;
-      placeholder.tint = 0x888888; // グレー色
+      placeholder.tint = 0xFFFFFF;
+      placeholder.alpha = 0; // 初期状態では透明
       placeholder.anchor.set(0.5);
       
       // 非同期で本物のテクスチャをロードして差し替える
       loadMonsterTexture(icon).then(texture => {
         if (!placeholder.destroyed) {
           placeholder.texture = texture;
-          // テクスチャが読み込まれたら色を元に戻す
-          placeholder.tint = 0xFFFFFF;
+          placeholder.alpha = 1; // テクスチャロード後に表示
           devLog.debug(`✅ モンスタープレースホルダーを実画像に差し替え: ${icon}`);
         }
       }).catch(error => {
         devLog.debug(`❌ モンスターテクスチャ差し替え失敗: ${icon}`, error);
+        // エラー時も透明のまま
       });
       
       const sprite = placeholder;
@@ -1481,7 +1491,7 @@ export class FantasyPIXIInstance {
 
   /** 攻撃アイコンを敵スプライト右上に固定で出す */
   private showAttackIcon(monsterData: MonsterSpriteData): void {
-    const tex = this.imageTextures.get(ATTACK_ICON_PATH);
+    const tex = this.imageTextures.get('attackIcon'); // キーを修正
     if (!tex) return;
 
     // 既に付いているアイコンがあれば一旦消す
