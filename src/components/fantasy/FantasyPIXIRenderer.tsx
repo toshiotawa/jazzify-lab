@@ -134,10 +134,9 @@ const textureCache: Record<string, Promise<PIXI.Texture>> = {};
 // 1枚だけロードするユーティリティ関数
 const loadMonsterTexture = async (icon: string): Promise<PIXI.Texture> => {
   if (!textureCache[icon]) {
-    // 複数のパスを試す（WebP優先、PNG、旧PNGの順）
     const tryPaths = [
-      `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`,  // WebP (軽量)
-      `${import.meta.env.BASE_URL}monster_icons/${icon}.png`,   // PNG
+      `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`,
+      `${import.meta.env.BASE_URL}monster_icons/${icon}.png`,
     ];
 
     textureCache[icon] = (async () => {
@@ -147,13 +146,12 @@ const loadMonsterTexture = async (icon: string): Promise<PIXI.Texture> => {
           devLog.debug(`✅ モンスターテクスチャ遅延ロード完了: ${icon}`);
           return texture;
         } catch (error) {
-          // このパスでは見つからなかった
           continue;
         }
       }
-      // すべて失敗したら白テクスチャを返す
+      // 失敗したら透明テクスチャを返す
       devLog.debug(`❌ モンスターテクスチャロード失敗: ${icon}`);
-      return PIXI.Texture.WHITE;
+      return PIXI.Texture.EMPTY;
     })();
   }
   return textureCache[icon];
@@ -661,19 +659,19 @@ export class FantasyPIXIInstance {
   private async createMonsterSpriteForId(id: string, icon: string): Promise<PIXI.Sprite | null> {
     try {
       // ▼▼▼ 変更点：プレースホルダーで即座に表示 ▼▼▼
-      // まずプレースホルダーを作成（グレーの四角形）
+      // まずプレースホルダーを作成（透明）
       const placeholder = new PIXI.Sprite(PIXI.Texture.WHITE);
       placeholder.width = 64;
       placeholder.height = 64;
-      placeholder.tint = 0x888888; // グレー色
+      placeholder.alpha = 0; // 白い四角を見せない
       placeholder.anchor.set(0.5);
       
       // 非同期で本物のテクスチャをロードして差し替える
       loadMonsterTexture(icon).then(texture => {
         if (!placeholder.destroyed) {
           placeholder.texture = texture;
-          // テクスチャが読み込まれたら色を元に戻す
           placeholder.tint = 0xFFFFFF;
+          placeholder.alpha = 1; // 読み込み後に表示
           devLog.debug(`✅ モンスタープレースホルダーを実画像に差し替え: ${icon}`);
         }
       }).catch(error => {
@@ -939,11 +937,10 @@ export class FantasyPIXIInstance {
         this.setMonsterState('FADING_OUT');
       }
 
-      devLog.debug('⚔️ 攻撃成功:', { 
-        magic: magic.name, 
+      devLog.debug('⚔️ 攻撃成功:', {
         damage: damageDealt,
         defeated: defeated, // ログにも追加
-        hitCount: this.monsterGameState.hitCount, 
+        hitCount: this.monsterGameState.hitCount,
         state: this.monsterGameState.state
       });
 
@@ -1497,12 +1494,20 @@ export class FantasyPIXIInstance {
   }
 
   /** 攻撃アイコンを敵スプライト右上に固定で出す */
-  private showAttackIcon(monsterData: MonsterSpriteData): void {
-    const tex = this.imageTextures.get(ATTACK_ICON_KEY); // ←統一
+  private async showAttackIcon(monsterData: MonsterSpriteData): Promise<void> {
+    let tex = this.imageTextures.get(ATTACK_ICON_KEY);
     if (!tex) {
-      devLog.debug('⚠️ attackIcon texture missing');
-      return;
+      try {
+        tex = await PIXI.Assets.load(`${import.meta.env.BASE_URL}${ATTACK_ICON_PATH}`);
+        this.imageTextures.set(ATTACK_ICON_KEY, tex as PIXI.Texture);
+        devLog.debug('✅ attack icon lazy-loaded');
+      } catch (error) {
+        devLog.debug('⚠️ attackIcon texture missing');
+        return;
+      }
     }
+
+    if (!tex) return;
 
     // 既に付いているアイコンがあれば一旦消す
     if ((monsterData as any).attackIcon && !(monsterData as any).attackIcon.destroyed) {
@@ -1510,7 +1515,8 @@ export class FantasyPIXIInstance {
       (monsterData as any).attackIcon.destroy();
     }
 
-    const icon = new PIXI.Sprite(tex);
+    const texture = tex as PIXI.Texture;
+    const icon = new PIXI.Sprite(texture);
     icon.anchor.set(0.5);
     icon.scale.set(0.35); // お好みで
     icon.x = monsterData.sprite.width * 0.45; // 右上へオフセット
