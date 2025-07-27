@@ -116,7 +116,7 @@ const MAGIC_TYPES: Record<string, MagicType> = {
     name: 'スパーク',
     color: 0xFFD700, // ゴールド
     particleColor: 0xFFF700,
-    svg: 'thunder.png',
+    svg: 'magic/thunder_yellow.svg', // 正しいパスに修正
     tier2Name: 'サンダー・ストライク',
     tier2Color: 0xFFF8DC, // オフホワイト
     particleCount: 15,
@@ -280,6 +280,7 @@ export class FantasyPIXIInstance {
     this.uiContainer = new PIXI.Container();
     
     // ソート可能にする
+    this.effectContainer.sortableChildren = true;
     this.uiContainer.sortableChildren = true;
     
     // z-indexの設定（背景→モンスター→パーティクル→エフェクト→UI）
@@ -346,19 +347,6 @@ export class FantasyPIXIInstance {
   //     devLog.debug('❌ モンスターテクスチャの読み込みエラー:', error);
   //   }
   // }
-
-  // フォールバック用テクスチャ作成
-  private createFallbackTextures(): void {
-    const graphics = new PIXI.Graphics();
-    graphics.beginFill(0xDDDDDD);
-    graphics.drawCircle(0, 0, 50);
-    graphics.endFill();
-    
-    const fallbackTexture = this.app.renderer.generateTexture(graphics);
-    
-    // デフォルトモンスター用のフォールバックテクスチャを設定
-    this.imageTextures.set('default_monster', fallbackTexture);
-  }
 
   // ★★★ 修正点(2): 画像読み込みパスを `public` ディレクトリ基準に修正 ★★★
   private async loadImageTextures(): Promise<void> {
@@ -459,8 +447,8 @@ export class FantasyPIXIInstance {
         this.monsterSprite.texture = sprite.texture;
         devLog.debug('✅ モンスター画像テクスチャ適用:', { icon });
       } else {
-        devLog.debug('⚠️ モンスター画像テクスチャが見つからないか無効、フォールバック作成:', { icon });
-        this.createFallbackMonster();
+        devLog.debug('⚠️ モンスター画像テクスチャが見つからないか無効:', { icon });
+        // フォールバックモンスターは作成しない
       }
       
       // ビジュアル状態をリセット
@@ -482,49 +470,7 @@ export class FantasyPIXIInstance {
       
     } catch (error) {
       devLog.debug('❌ モンスタースプライト作成エラー:', error);
-      this.createFallbackMonster();
-    }
-  }
-
-  // フォールバック用モンスター作成
-  private createFallbackMonster(): void {
-    if (this.isDestroyed) return;
-    
-    try {
-      // グラフィックスからテクスチャを生成
-      const graphics = new PIXI.Graphics();
-      graphics.beginFill(0xDDDDDD);
-      graphics.drawCircle(64, 64, 64);
-      graphics.endFill();
-      
-      // 絵文字テキスト
-      const text = new PIXI.Text('👻', { fontSize: 48, fill: 0xFFFFFF });
-      text.anchor.set(0.5);
-      text.position.set(64, 64);
-      graphics.addChild(text);
-      
-      // グラフィックスからテクスチャを作成
-      const texture = this.app.renderer.generateTexture(graphics);
-      graphics.destroy();
-      
-      // 既存のスプライトのテクスチャを更新
-      this.monsterSprite.texture = texture;
-      
-      // ビジュアル状態をリセット
-      this.monsterVisualState = {
-        ...this.monsterVisualState,
-        alpha: 1.0,
-        visible: true,
-        tint: 0xFFFFFF,
-        scale: this.calcSpriteScale(texture, this.app.screen.width, 200, 1) // 動的スケール計算
-      };
-      
-      // スプライトの属性を更新
-      this.updateMonsterSprite();
-      
-      devLog.debug('✅ フォールバックモンスター作成完了');
-    } catch (error) {
-      devLog.debug('❌ フォールバックモンスター作成エラー:', error);
+      // フォールバックモンスターは作成しない
     }
   }
 
@@ -849,10 +795,7 @@ export class FantasyPIXIInstance {
       // ダメージ数値を表示（モンスターの位置に）
       this.createDamageNumberAt(damageDealt, magicColor, monsterData.visualState.x, monsterData.visualState.y - 50);
 
-      // エフェクトをモンスターの位置に作成（サンダーのエフェクトを使用）
-      this.createImageMagicEffectAt('thunder.png', magicColor, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
-
-      // 音符吹き出しを表示
+      // 音符吹き出しを表示（thunder.pngのエフェクトは削除）
       this.showMusicNoteFukidashi(monsterId, monsterData.visualState.x, monsterData.visualState.y);
       
       // 攻撃成功時の音符アイコンを表示
@@ -923,9 +866,7 @@ export class FantasyPIXIInstance {
       // ダメージ数値を表示（エンジンから渡された値を使用）
       this.createDamageNumber(damageDealt, magicColor);
 
-      this.createImageMagicEffect('thunder.png', magicColor, isSpecial);
-
-      // 音符吹き出しを表示（シングルモンスター用）
+      // 音符吹き出しを表示（シングルモンスター用、thunder.pngのエフェクトは削除）
       this.showMusicNoteFukidashi('default', this.monsterVisualState.x, this.monsterVisualState.y);
 
       // SPアタック時の特殊エフェクト
@@ -1478,13 +1419,34 @@ export class FantasyPIXIInstance {
 
     // 新しい吹き出しを作成
     const fukidashi = new PIXI.Sprite(this.fukidashiTexture);
-    fukidashi.anchor.set(0.5, 1); // 下部中央をアンカーポイントに
-    fukidashi.x = x + 60; // モンスターの右側に配置
-    fukidashi.y = y - 30; // モンスターの上に配置
-    fukidashi.scale.set(0.5); // サイズ調整
+    fukidashi.anchor.set(0, 1); // 左下をアンカーポイントに変更
+    fukidashi.x = x + 30; // モンスターの右側に配置（位置を調整）
+    fukidashi.y = y - 80; // モンスターの上に配置（より高い位置に）
+    fukidashi.scale.set(0.8); // サイズを少し大きく調整
+    fukidashi.zIndex = 1000; // 前面に表示
 
     this.effectContainer.addChild(fukidashi);
     this.activeFukidashi.set(monsterId, fukidashi);
+
+    // アニメーション付きで表示
+    fukidashi.alpha = 0;
+    fukidashi.scale.set(0.6);
+    
+    const startTime = Date.now();
+    const animate = () => {
+      if (fukidashi.destroyed || this.isDestroyed) return;
+      
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / 200, 1); // 200msでアニメーション
+      
+      fukidashi.alpha = progress;
+      fukidashi.scale.set(0.6 + progress * 0.2); // 0.6から0.8にスケール
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    animate();
 
     // 2秒後に自動で削除
     setTimeout(() => {
