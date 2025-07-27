@@ -691,13 +691,34 @@ export class FantasyPIXIInstance {
         // プレースホルダーを作成（完全に透明）
         const placeholder = new PIXI.Sprite(transparentTexture);
         placeholder.anchor.set(0.5);
+        placeholder.alpha = 0;          // まずは見えない状態で挿入
         
         // 非同期で本物のテクスチャをロードして差し替える
         loadMonsterTexture(icon).then(loadedTexture => {
           if (!placeholder.destroyed) {
             placeholder.texture = loadedTexture;
             placeholder.tint = 0xFFFFFF;
-            placeholder.alpha = 1; // 読み込み後に表示
+            
+            // αを滑らかに 0→1 にする
+            const targetScale = this.calcSpriteScale(
+              loadedTexture,
+              this.app.screen.width,
+              200,
+              this.monsterSprites.size || 1
+            );
+
+            placeholder.scale.set(targetScale);
+
+            // フェードイン
+            let a = 0;
+            const fade = () => {
+              if (placeholder.destroyed) return;
+              a += 0.1;
+              placeholder.alpha = Math.min(1, a);
+              if (a < 1) requestAnimationFrame(fade);
+            };
+            fade();
+            
             devLog.debug(`✅ モンスタープレースホルダーを実画像に差し替え: ${icon}`);
           }
         }).catch(error => {
@@ -883,10 +904,10 @@ export class FantasyPIXIInstance {
       this.createDamageNumberAt(damageDealt, magicColor, monsterData.visualState.x, monsterData.visualState.y - 50);
 
       // エフェクトをモンスターの位置に作成（サンダーのエフェクトを使用）
-      this.createImageMagicEffectAt('thunder.png', magicColor, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
+      // this.createImageMagicEffectAt('thunder.png', magicColor, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
 
       // 音符吹き出しを表示
-      this.showMusicNoteFukidashi(monsterId, monsterData.visualState.x, monsterData.visualState.y);
+      // this.showMusicNoteFukidashi(monsterId, monsterData.visualState.x, monsterData.visualState.y);
       
       // 攻撃成功時の音符アイコンを表示
       this.showAttackIcon(monsterData);
@@ -956,10 +977,10 @@ export class FantasyPIXIInstance {
       // ダメージ数値を表示（エンジンから渡された値を使用）
       this.createDamageNumber(damageDealt, magicColor);
 
-      this.createImageMagicEffect('thunder.png', magicColor, isSpecial);
+      // this.createImageMagicEffect('thunder.png', magicColor, isSpecial);
 
       // 音符吹き出しを表示（シングルモンスター用）
-      this.showMusicNoteFukidashi('default', this.monsterVisualState.x, this.monsterVisualState.y);
+      // this.showMusicNoteFukidashi('default', this.monsterVisualState.x, this.monsterVisualState.y);
 
       // SPアタック時の特殊エフェクト
       this.triggerSpecialEffects(isSpecial);
