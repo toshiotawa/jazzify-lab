@@ -125,6 +125,7 @@ const MAGIC_TYPES: Record<string, MagicType> = {
 
 // ★ Attack icon path
 const ATTACK_ICON_PATH = 'attack_icons/fukidashi_onpu_white.png';
+const ATTACK_ICON_KEY = 'attackIcon'; // ←論理キー
 
 // ===== テクスチャキャッシュ =====
 // インメモリキャッシュ - 一度ロードしたテクスチャを保持
@@ -295,6 +296,9 @@ export class FantasyPIXIInstance {
     // ★★★ 修正点(1): 魔法エフェクトのテクスチャ読み込みを追加 ★★★
     this.loadImageTextures(); // この行を追加して魔法画像をロードします
     
+    // よく使われるモンスターアイコンのプリロード（非同期で実行）
+    this.preloadCommonMonsters();
+    
     // アニメーションループ開始
     this.startAnimationLoop();
     
@@ -405,14 +409,27 @@ export class FantasyPIXIInstance {
       // 攻撃アイコンテクスチャを保存
       const attackIconTex = PIXI.Assets.get('attackIcon');
       if (attackIconTex) {
-        this.imageTextures.set(ATTACK_ICON_PATH, attackIconTex);
-        devLog.debug('✅ 攻撃アイコンテクスチャ読み込み:', ATTACK_ICON_PATH);
+        this.imageTextures.set(ATTACK_ICON_KEY, attackIconTex); // "論理キー" で保存　★ここがポイント
+        devLog.debug('✅ attack icon loaded');
       }
       
       devLog.debug('✅ 全画像テクスチャ読み込み完了');
     } catch (error) {
       devLog.debug('❌ 画像テクスチャ読み込みエラー:', error);
     }
+  }
+
+  // よく使われるモンスターアイコンを事前にロード
+  private async preloadCommonMonsters(): Promise<void> {
+    // よく使われるモンスターアイコンを事前にロード
+    const commonMonsters = [
+      'monster_01', 'monster_02', 'monster_03', 'monster_04', 'monster_05',
+      'monster_06', 'monster_07', 'monster_08', 'monster_09', 'monster_10'
+    ];
+    
+    const promises = commonMonsters.map(icon => loadMonsterTexture(icon));
+    await Promise.all(promises);
+    devLog.debug('✅ 一般的なモンスターアイコンのプリロード完了');
   }
 
   // ▼▼▼ モンスタースプライト作成（SVGベース）を修正 ▼▼▼
@@ -1481,8 +1498,11 @@ export class FantasyPIXIInstance {
 
   /** 攻撃アイコンを敵スプライト右上に固定で出す */
   private showAttackIcon(monsterData: MonsterSpriteData): void {
-    const tex = this.imageTextures.get(ATTACK_ICON_PATH);
-    if (!tex) return;
+    const tex = this.imageTextures.get(ATTACK_ICON_KEY); // ←統一
+    if (!tex) {
+      devLog.debug('⚠️ attackIcon texture missing');
+      return;
+    }
 
     // 既に付いているアイコンがあれば一旦消す
     if ((monsterData as any).attackIcon && !(monsterData as any).attackIcon.destroyed) {
