@@ -206,7 +206,7 @@ export class FantasyPIXIInstance {
   };
   
   /* 既存のフィールドはこのまま */
-  private monsterSprite: PIXI.Sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+  private monsterSprite: PIXI.Sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
   private monsterVisualState: MonsterVisualState = {
     x: 0, y: 0, scale: 0.2, rotation: 0, tint: 0xffffff, alpha: 1, visible: false  // scale を 0.3 から 0.2 に変更（より小さく）
   };
@@ -447,7 +447,7 @@ export class FantasyPIXIInstance {
       devLog.debug('👾 モンスタースプライト作成開始:', { icon });
       
       // 既存のテクスチャをクリア
-      if (this.monsterSprite.texture && this.monsterSprite.texture !== PIXI.Texture.WHITE) {
+      if (this.monsterSprite.texture && this.monsterSprite.texture !== PIXI.Texture.EMPTY) {
         this.monsterSprite.texture.destroy(true);
       }
       
@@ -658,12 +658,17 @@ export class FantasyPIXIInstance {
    */
   private async createMonsterSpriteForId(id: string, icon: string): Promise<PIXI.Sprite | null> {
     try {
-      // ▼▼▼ 変更点：プレースホルダーで即座に表示 ▼▼▼
-      // まずプレースホルダーを作成（透明）
-      const placeholder = new PIXI.Sprite(PIXI.Texture.WHITE);
-      placeholder.width = 64;
-      placeholder.height = 64;
-      placeholder.alpha = 0; // 白い四角を見せない
+      // ▼▼▼ 変更点：完全に透明なプレースホルダーで即座に表示 ▼▼▼
+      // 完全に透明なテクスチャを作成
+      const transparentGraphics = new PIXI.Graphics();
+      transparentGraphics.beginFill(0xFFFFFF, 0); // 完全に透明
+      transparentGraphics.drawRect(0, 0, 64, 64);
+      transparentGraphics.endFill();
+      const transparentTexture = this.app.renderer.generateTexture(transparentGraphics);
+      transparentGraphics.destroy();
+      
+      // プレースホルダーを作成（完全に透明）
+      const placeholder = new PIXI.Sprite(transparentTexture);
       placeholder.anchor.set(0.5);
       
       // 非同期で本物のテクスチャをロードして差し替える
