@@ -224,46 +224,67 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       if (chord.notes && chord.notes.length > 0 && window.Tone) {
         const rootNote = chord.notes[0] - 12; // ルート音を1オクターブ下げる（-12）
         
-        // ベース音に適したFMSynthを作成
-        const bassSynth = new window.Tone.FMSynth({
-          harmonicity: 2,
-          modulationIndex: 3,
+        // エレキベース/コントラバス風のMonoSynthを作成
+        const bassSynth = new window.Tone.MonoSynth({
           oscillator: {
-            type: "sine"
+            type: "sawtooth"  // エレキベースの基本波形
           },
           envelope: {
-            attack: 0.01,
-            decay: 0.3,
-            sustain: 0.4,
-            release: 0.5
+            attack: 0.02,     // わずかなアタック
+            decay: 0.1,       // 速い減衰
+            sustain: 0.3,     // 中程度のサステイン
+            release: 0.5      // 自然なリリース
           },
-          modulation: {
-            type: "square"
+          filterEnvelope: {
+            attack: 0.001,    // フィルターの立ち上がり
+            decay: 0.2,       // ベースらしい音の太さ
+            sustain: 0.2,     // 低めのカットオフ周波数
+            release: 0.8,
+            baseFrequency: 200,  // ベース音域に最適化
+            octaves: 2.5         // 倍音の範囲
           },
-          modulationEnvelope: {
-            attack: 0.01,
-            decay: 0.1,
-            sustain: 0.5,
-            release: 0.2
+          filter: {
+            type: "lowpass",     // ローパスフィルター
+            rolloff: -24,        // 急峻なカットオフ
+            Q: 2                 // 少し共鳴を加える
           }
         }).toDestination();
         
-        // 音量を調整（デフォルトより少し下げる）
-        bassSynth.volume.value = -10;
+        // エフェクトチェーンを追加（よりリアルなベース音に）
+        const compressor = new window.Tone.Compressor({
+          threshold: -20,
+          ratio: 4,
+          attack: 0.003,
+          release: 0.1
+        });
+        
+        const eq = new window.Tone.EQ3({
+          low: 6,         // 低音を強調
+          mid: -3,        // 中音域を少し削る
+          high: -6        // 高音を抑える
+        });
+        
+        // エフェクトチェーンを接続
+        bassSynth.chain(compressor, eq, window.Tone.Destination);
+        
+        // 音量を調整（ベース音として適切なレベル）
+        bassSynth.volume.value = -8;
         
         const noteName = window.Tone.Frequency(rootNote, "midi").toNote();
-        bassSynth.triggerAttackRelease(noteName, "8n");
+        bassSynth.triggerAttackRelease(noteName, "4n");  // より長い音価
         
-        devLog.debug('🎵 ベース音（FMSynth）を再生（1オクターブ下）:', { 
+        devLog.debug('🎵 エレキベース音（MonoSynth）を再生（1オクターブ下）:', { 
           note: rootNote, 
           noteName: noteName,
           originalNote: chord.notes[0], 
           chord: chord.displayName 
         });
         
-        // シンセサイザーのクリーンアップ
+        // シンセサイザーとエフェクトのクリーンアップ
         setTimeout(() => {
           bassSynth.dispose();
+          compressor.dispose();
+          eq.dispose();
         }, 2000);
       }
     } catch (error) {
