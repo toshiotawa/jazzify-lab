@@ -93,6 +93,9 @@ export const devLog = {
   
   info: (...args: unknown[]) => 
     ['info', 'debug'].includes(currentLevel) && console.info(...args),
+  
+  error: (...args: unknown[]) => 
+    console.error(...args), // エラーは常に表示
 };
 
 /**
