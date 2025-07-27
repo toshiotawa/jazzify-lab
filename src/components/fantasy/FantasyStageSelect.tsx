@@ -259,16 +259,21 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
     if (!userProgress) return false;
-    
-    // 現在到達可能なステージ番号と比較
-    const [currentRank, currentStage] = userProgress.currentStageNumber.split('-').map(Number);
-    const [stageRank, stageNum] = stage.stageNumber.split('-').map(Number);
-    
-    if (stageRank < currentRank) return true;
-    if (stageRank === currentRank && stageNum <= currentStage) return true;
-    
+
+    /* 1) すでにクリア記録があれば無条件でアンロック */
+    const cleared = stageClears.some(
+      c => c.stageId === stage.id && c.clearType === 'clear'
+    );
+    if (cleared) return true;
+
+    /* 2) progress に記録されている現在地より前ならアンロック */
+    const [currR, currS] = userProgress.currentStageNumber.split('-').map(Number);
+    const [r, s] = stage.stageNumber.split('-').map(Number);
+    if (r < currR) return true;
+    if (r === currR && s <= currS) return true;
+
     return false;
-  }, [userProgress]);
+  }, [userProgress, stageClears]);
   
   // ステージのクリア状況を取得
   const getStageClearInfo = useCallback((stage: FantasyStage) => {
