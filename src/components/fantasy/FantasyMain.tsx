@@ -3,7 +3,7 @@
  * ルーティング管理とゲーム状態管理
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
 import { FantasyStage } from './FantasyGameEngine';
