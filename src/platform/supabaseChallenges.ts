@@ -121,7 +121,8 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
   fantasy_stage_id?: string;
 }) {
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from('challenge_tracks').insert({
+  
+  const insertData = {
     challenge_id: challengeId,
     song_id: songId,
     key_offset: conditions.key_offset ?? 0,
@@ -130,8 +131,19 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
     clears_required: conditions.clears_required ?? 1,
     notation_setting: conditions.notation_setting ?? 'both',
     is_fantasy: conditions.is_fantasy ?? false,
-    fantasy_stage_id: conditions.fantasy_stage_id ?? null,
+    fantasy_stage_id: conditions.fantasy_stage_id === undefined ? null : conditions.fantasy_stage_id,
+  };
+  
+  console.log('addSongToChallenge - 送信データ:', insertData);
+  console.log('チェック制約の確認:', {
+    is_fantasy: insertData.is_fantasy,
+    fantasy_stage_id: insertData.fantasy_stage_id,
+    song_id: insertData.song_id,
+    制約1: insertData.is_fantasy === true && insertData.fantasy_stage_id !== null && insertData.song_id === null,
+    制約2: insertData.is_fantasy === false && insertData.song_id !== null && insertData.fantasy_stage_id === null,
   });
+  
+  const { error } = await supabase.from('challenge_tracks').insert(insertData);
   if (error) throw error;
   clearSupabaseCache();
 }

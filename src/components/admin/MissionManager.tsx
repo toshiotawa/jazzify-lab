@@ -137,7 +137,7 @@ const MissionManager: React.FC = () => {
             min_clears_required: 1,
             notation_setting: 'both',
             is_fantasy: v.category === 'fantasy',
-            fantasy_stage_id: v.category === 'fantasy' ? songId : undefined,
+            fantasy_stage_id: v.category === 'fantasy' ? songId : null,
           };
           await addSongToChallenge(newChallengeId, v.category === 'fantasy' ? null : songId, conditions);
         }
@@ -186,7 +186,7 @@ const MissionManager: React.FC = () => {
       min_clears_required: 1,
       notation_setting: 'both',
       is_fantasy: isFantasy,
-      fantasy_stage_id: isFantasy ? id : undefined,
+      fantasy_stage_id: isFantasy ? id : null,
     };
 
     try {
