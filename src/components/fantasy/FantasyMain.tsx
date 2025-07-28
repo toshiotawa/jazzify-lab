@@ -194,13 +194,16 @@ const FantasyMain: React.FC = () => {
           // addXp関数をインポートして使用
           const { addXp } = await import('@/platform/supabaseXp');
           
+          // 会員ランクによる倍率を適用
+          const membershipMultiplier = profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1;
+          
           const xpResult = await addXp({
             songId: null, // ファンタジーモードなので曲IDはnull
             baseXp: xpGain,
             speedMultiplier: 1,
             rankMultiplier: 1,
             transposeMultiplier: 1,
-            membershipMultiplier: 1,
+            membershipMultiplier: membershipMultiplier, // 契約ランクによる倍率を適用
             reason: reason
           });
           
