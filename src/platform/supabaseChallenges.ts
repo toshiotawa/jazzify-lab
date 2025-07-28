@@ -136,6 +136,34 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
   
   const supabase = getSupabaseClient();
   
+  // 通常楽曲の場合、楽曲が存在するか確認
+  if (!conditions.is_fantasy && songId) {
+    const { data: songExists, error: songCheckError } = await supabase
+      .from('songs')
+      .select('id')
+      .eq('id', songId)
+      .single();
+      
+    if (songCheckError || !songExists) {
+      console.error('楽曲が見つかりません:', { songId, error: songCheckError });
+      throw new Error(`楽曲ID "${songId}" が存在しません。楽曲が削除されている可能性があります。`);
+    }
+  }
+  
+  // ファンタジーステージの場合、ステージが存在するか確認
+  if (conditions.is_fantasy && conditions.fantasy_stage_id) {
+    const { data: stageExists, error: stageCheckError } = await supabase
+      .from('fantasy_stages')
+      .select('id')
+      .eq('id', conditions.fantasy_stage_id)
+      .single();
+      
+    if (stageCheckError || !stageExists) {
+      console.error('ステージが見つかりません:', { fantasy_stage_id: conditions.fantasy_stage_id, error: stageCheckError });
+      throw new Error(`ステージID "${conditions.fantasy_stage_id}" が存在しません。`);
+    }
+  }
+  
   const insertData = {
     challenge_id: challengeId,
     song_id: conditions.is_fantasy ? null : songId,
@@ -168,9 +196,9 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
     
     if (error.code === '23503') {
       if (error.message.includes('song_id')) {
-        throw new Error(`楽曲ID "${insertData.song_id}" が存在しません。楽曲が削除されている可能性があります。`);
+        throw new Error(`選択された楽曲が見つかりません。楽曲が削除されているか、データベースが更新されている可能性があります。ページを再読み込みして、再度お試しください。`);
       } else if (error.message.includes('fantasy_stage_id')) {
-        throw new Error(`ステージID "${insertData.fantasy_stage_id}" が存在しません。`);
+        throw new Error(`選択されたステージが見つかりません。ステージが削除されているか、データベースが更新されている可能性があります。ページを再読み込みして、再度お試しください。`);
       }
     }
     throw error;
