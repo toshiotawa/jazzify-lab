@@ -179,11 +179,11 @@ const MissionManager: React.FC = () => {
   const handleSongSelect = async (id: string, isFantasy: boolean = false) => {
     if (!selectedMission) return;
 
-    const defaultConditions: SongConditions = {
+    const defaultConditions = {
       key_offset: 0,
       min_speed: 1.0,
       min_rank: 'B',
-      min_clears_required: 1,
+      clears_required: 1,
       notation_setting: 'both',
       is_fantasy: isFantasy,
       fantasy_stage_id: isFantasy ? id : null,

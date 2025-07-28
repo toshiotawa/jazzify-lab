@@ -727,7 +727,7 @@ export const LessonManager: React.FC = () => {
             try {
               const lessonSongData = {
                 lesson_id: selectedLesson.id,
-                song_id: data.fantasy_stage_id, // 一旦IDを入れる（addSongToLessonで処理）
+                song_id: null,
                 clear_conditions: data.clear_conditions,
                 is_fantasy: true,
                 fantasy_stage_id: data.fantasy_stage_id
