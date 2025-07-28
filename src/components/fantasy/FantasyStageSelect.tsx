@@ -256,7 +256,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       <div
         key={stage.id}
         className={cn(
-          "relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:scale-105",
+          "relative p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center gap-4",
           unlocked
             ? "bg-white bg-opacity-10 border-white border-opacity-30 hover:bg-opacity-20"
             : "bg-gray-700 bg-opacity-50 border-gray-600 cursor-not-allowed",
@@ -264,31 +264,43 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         )}
         onClick={() => handleStageSelect(stage)}
       >
-        {/* クリアマーク */}
-        {isCleared && (
-          <div className="absolute top-2 right-2 text-yellow-400 text-2xl">
-            ⭐
-          </div>
-        )}
-        
         {/* ステージ番号 */}
-        <div className="text-white text-xl font-bold text-center">
+        <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
           {stage.stageNumber}
         </div>
         
-        {/* ロック表示 */}
-        {!unlocked && (
-          <div className="text-2xl text-center mt-2">
-            <span>🔒</span>
+        {/* コンテンツ部分 */}
+        <div className="flex-grow">
+          {/* ステージ名 */}
+          <div className={cn(
+            "text-lg font-medium mb-1",
+            unlocked ? "text-white" : "text-gray-400"
+          )}>
+            {unlocked ? stage.name : "???"}
           </div>
-        )}
+          
+          {/* 説明文 */}
+          <div className={cn(
+            "text-sm leading-relaxed",
+            unlocked ? "text-gray-300" : "text-gray-500"
+          )}>
+            {unlocked ? stage.description : "このステージはまだロックされています"}
+          </div>
+        </div>
         
-        {/* ステージ情報 - 敵の数のみ表示 */}
-        {unlocked && (
-          <div className="text-sm text-gray-300 text-center mt-2">
-            <div>敵: {stage.enemyCount}</div>
-          </div>
-        )}
+        {/* 右側のアイコン */}
+        <div className="flex-shrink-0">
+          {!unlocked && (
+            <div className="text-2xl">
+              <span>🔒</span>
+            </div>
+          )}
+          {isCleared && (
+            <div className="text-yellow-400 text-2xl">
+              ⭐
+            </div>
+          )}
+        </div>
       </div>
     );
   }, [isStageUnlocked, getStageClearInfo, handleStageSelect]);
@@ -389,7 +401,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               ランク {selectedRank} - {groupedStages[selectedRank][0]?.name.includes('森') ? '初心者の世界' : '上級者の世界'}
             </h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="space-y-3">
               {groupedStages[selectedRank]
                 .sort((a, b) => {
                   const [, aStage] = a.stageNumber.split('-').map(Number);
