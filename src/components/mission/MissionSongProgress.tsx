@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import type { MissionSongProgress as MissionSongProgressType } from '@/platform/supabaseMissions';
 import { useMissionStore } from '@/stores/missionStore';
-import { useGameStore, useGameActions } from '@/stores/gameStore';
+import { useGameStore } from '@/stores/gameStore';
+import { useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { FaPlay, FaMusic, FaCheck, FaKey, FaTachometerAlt, FaStar, FaListUl, FaDragon } from 'react-icons/fa';
 
