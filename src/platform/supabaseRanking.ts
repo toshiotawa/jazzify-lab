@@ -11,6 +11,7 @@ export interface RankingEntry {
   avatar_url?: string;
   twitter_handle?: string;
   selected_title?: string;
+  fantasy_current_stage?: string;
 }
 
 export async function fetchLevelRanking(limit = 100): Promise<RankingEntry[]> {
@@ -56,6 +57,14 @@ export async function fetchLevelRanking(limit = 100): Promise<RankingEntry[]> {
   
   if (missionError) throw missionError;
   
+  // ファンタジーモード進捗情報を取得
+  const { data: fantasyProgress, error: fantasyError } = await supabase
+    .from('fantasy_user_progress')
+    .select('user_id, current_stage_number')
+    .in('user_id', userIds);
+  
+  if (fantasyError) throw fantasyError;
+  
   // ユーザーごとにカウントを集計
   const lessonCountMap = new Map<string, number>();
   (lessonCounts ?? []).forEach(record => {
@@ -69,6 +78,12 @@ export async function fetchLevelRanking(limit = 100): Promise<RankingEntry[]> {
     missionCountMap.set(record.user_id, count + record.clear_count);
   });
   
+  // ファンタジー進捗情報のマップを作成
+  const fantasyProgressMap = new Map<string, string>();
+  (fantasyProgress ?? []).forEach(record => {
+    fantasyProgressMap.set(record.user_id, record.current_stage_number);
+  });
+  
   // プロフィールデータと集計データを結合
   const result = filteredProfiles.map((p) => {
     const { email, ...profile } = p;
@@ -76,6 +91,7 @@ export async function fetchLevelRanking(limit = 100): Promise<RankingEntry[]> {
       ...profile,
       lessons_cleared: lessonCountMap.get(p.id) || 0,
       missions_completed: missionCountMap.get(p.id) || 0,
+      fantasy_current_stage: fantasyProgressMap.get(p.id),
     };
   });
   
