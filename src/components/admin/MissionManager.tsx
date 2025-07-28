@@ -40,7 +40,7 @@ interface SongConditions {
   key_offset: number;
   min_speed: number;
   min_rank: string;
-  min_clears_required: number;
+  clears_required: number;
   notation_setting: string;
 }
 
@@ -134,7 +134,7 @@ const MissionManager: React.FC = () => {
             key_offset: 0,
             min_speed: 1.0,
             min_rank: 'B',
-            min_clears_required: 1,
+            clears_required: 1,
             notation_setting: 'both',
             is_fantasy: v.category === 'fantasy',
             fantasy_stage_id: v.category === 'fantasy' ? songId : null,
@@ -221,11 +221,11 @@ const MissionManager: React.FC = () => {
       setSongConditions(prev => ({
         ...prev,
         [songId]: {
-          key_offset: 0,
-          min_speed: 1.0,
-          min_rank: 'B',
-          min_clears_required: 1,
-          notation_setting: 'both',
+                key_offset: 0,
+      min_speed: 1.0,
+      min_rank: 'B',
+      clears_required: 1,
+      notation_setting: 'both',
         }
       }));
     }
@@ -448,7 +448,7 @@ const MissionManager: React.FC = () => {
                               キー: {conditions.key_offset > 0 ? '+' : ''}{conditions.key_offset} | 
                               速度: {conditions.min_speed}x | 
                               ランク: {conditions.min_rank} | 
-                              クリア回数: {conditions.min_clears_required}回 | 
+                              クリア回数: {conditions.clears_required}回 | 
                               楽譜: {conditions.notation_setting === 'both' ? 'ノート+コード' : 'コードのみ'}
                             </div>
                           )}
@@ -578,8 +578,14 @@ const MissionManager: React.FC = () => {
       {/* 楽曲選択モーダル */}
       {showSongSelector && selectedMission && (
         <SongStageSelectorModal
-          onSelectSong={(id) => handleSongSelect(id, false)}
-          onSelectStage={(id) => handleSongSelect(id, true)}
+          onSelectSong={(id) => {
+            console.log('SongStageSelectorModal: 楽曲選択コールバック', { id });
+            handleSongSelect(id, false);
+          }}
+          onSelectStage={(id) => {
+            console.log('SongStageSelectorModal: ステージ選択コールバック', { id });
+            handleSongSelect(id, true);
+          }}
           onClose={() => setShowSongSelector(false)}
           excludeSongIds={selectedMission.songs
             .filter(s => !s.is_fantasy && s.song_id)
@@ -843,7 +849,7 @@ const SongConditionsModal: React.FC<{
     key_offset: song.key_offset,
     min_speed: song.min_speed,
     min_rank: song.min_rank,
-    min_clears_required: song.clears_required,
+            clears_required: song.clears_required,
     notation_setting: song.notation_setting,
   });
 
@@ -900,8 +906,8 @@ const SongConditionsModal: React.FC<{
             <input
               type="number"
               min="1"
-              value={conditions.min_clears_required}
-              onChange={(e) => setConditions({...conditions, min_clears_required: parseInt(e.target.value) || 1})}
+              value={conditions.clears_required}
+              onChange={(e) => setConditions({...conditions, clears_required: parseInt(e.target.value) || 1})}
               className="input input-bordered w-full text-white bg-slate-700 border-slate-600"
             />
           </label>
@@ -944,7 +950,7 @@ const FormSongConditionsModal: React.FC<{
       key_offset: 0,
       min_speed: 1.0,
       min_rank: 'B',
-      min_clears_required: 1,
+      clears_required: 1,
       notation_setting: 'both',
     }
   );
@@ -1002,8 +1008,8 @@ const FormSongConditionsModal: React.FC<{
             <input
               type="number"
               min="1"
-              value={formConditions.min_clears_required}
-              onChange={(e) => setFormConditions({...formConditions, min_clears_required: parseInt(e.target.value) || 1})}
+                          value={formConditions.clears_required}
+            onChange={(e) => setFormConditions({...formConditions, clears_required: parseInt(e.target.value) || 1})}
               className="input input-bordered w-full text-white bg-slate-700 border-slate-600"
             />
           </label>
