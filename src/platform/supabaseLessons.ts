@@ -257,6 +257,7 @@ export async function addFantasyStageToLesson(fantasyLessonSongData: FantasyLess
     .from('lesson_songs')
     .insert({
       lesson_id: fantasyLessonSongData.lesson_id,
+      song_id: null, // 明示的にnullを設定
       fantasy_stage_id: fantasyLessonSongData.fantasy_stage_id,
       is_fantasy: true,
       clear_conditions: fantasyLessonSongData.clear_conditions,
