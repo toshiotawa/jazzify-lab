@@ -131,7 +131,11 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
   console.log('addSongToChallenge called with:', {
     challengeId,
     songId,
-    conditions
+    conditions,
+    'conditions.is_fantasy': conditions.is_fantasy,
+    'conditions.fantasy_stage_id': conditions.fantasy_stage_id,
+    'typeof conditions': typeof conditions,
+    'Object.keys(conditions)': Object.keys(conditions)
   });
   
   const supabase = getSupabaseClient();
@@ -164,7 +168,7 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
     }
   }
   
-  const insertData = {
+  const insertData: any = {
     challenge_id: challengeId,
     song_id: conditions.is_fantasy ? null : songId,
     key_offset: conditions.key_offset ?? 0,

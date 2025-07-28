@@ -177,9 +177,10 @@ const MissionManager: React.FC = () => {
   };
 
   const handleSongSelect = async (id: string, isFantasy: boolean = false) => {
+    console.log('handleSongSelect called:', { id, isFantasy });
     if (!selectedMission) return;
 
-    const defaultConditions = {
+    const defaultConditions: any = {
       key_offset: 0,
       min_speed: 1.0,
       min_rank: 'B',
@@ -200,6 +201,13 @@ const MissionManager: React.FC = () => {
       
       // ファンタジーステージの場合、songIdはnullを渡す
       const songIdToPass = isFantasy ? null : id;
+      console.log('addSongToChallenge呼び出し前:', {
+        selectedMissionId: selectedMission.id,
+        songIdToPass,
+        defaultConditions,
+        isFantasy: defaultConditions.is_fantasy,
+        fantasy_stage_id: defaultConditions.fantasy_stage_id
+      });
       await addSongToChallenge(selectedMission.id, songIdToPass, defaultConditions);
       toast.success(isFantasy ? 'ステージ課題を追加しました' : '楽曲を追加しました');
       // ミッション詳細を再読み込み
