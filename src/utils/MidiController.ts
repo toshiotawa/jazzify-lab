@@ -26,6 +26,9 @@ let globalSampler: ToneSampler | null = null;
 let audioSystemInitialized = false;
 let userInteracted = false;
 
+// アクティブなノートを追跡するSet
+const activeNotes = new Set<string>();
+
 /**
  * ユーザーインタラクションの検出
  */
@@ -156,8 +159,18 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
     const noteName = window.Tone.Frequency(note, "midi").toNote();
     const normalizedVelocity = velocity / 127; // 0〜1 に正規化
 
+    // 既に再生中のノートがある場合は一旦停止
+    if (activeNotes.has(noteName)) {
+      try {
+        globalSampler!.triggerRelease(noteName);
+      } catch (error) {
+        console.warn('⚠️ Failed to release existing note:', error);
+      }
+    }
+
     // Sampler で演奏開始（最適化済み）
     globalSampler!.triggerAttack(noteName, undefined, normalizedVelocity);
+    activeNotes.add(noteName);
   } catch (error) {
     console.error('❌ Failed to play note:', error);
   }
@@ -175,12 +188,16 @@ export const stopNote = (note: number): void => {
 
     const noteName = window.Tone.Frequency(note, "midi").toNote();
     
-    // null guardを追加
-    if (globalSampler?.active && globalSampler.active.length > 0) {
+    // アクティブノートから削除
+    activeNotes.delete(noteName);
+    
+    // null guardを強化 - globalSamplerとactiveプロパティの両方をチェック
+    if (globalSampler && typeof globalSampler.triggerRelease === 'function') {
       try {
         globalSampler.triggerRelease(noteName);
       } catch (error) {
-        console.warn('⚠️ Failed to trigger release, voice may be null:', error);
+        console.warn('⚠️ Failed to trigger release:', error);
+        // エラーが発生してもクラッシュしないようにする
       }
     }
   } catch (error) {

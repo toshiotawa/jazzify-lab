@@ -4,29 +4,6 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
-  faGhost,
-  faTree, 
-  faSeedling,
-  faTint,
-  faSun,
-  faCube,
-  faStar,
-  faGem,
-  faWind,
-  faBolt,
-  faSkull,
-  faUserSecret,
-  faSpider,
-  faFish,
-  faDog,
-  faKhanda,
-  faHatWizard,
-  faCrow,
-  faEye,
-  faFire
-} from '@fortawesome/free-solid-svg-icons';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
 import { devLog } from '@/utils/logger';
@@ -78,27 +55,7 @@ const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[
   }, {} as Record<string, FantasyStage[]>);
 };
 
-// ===== モンスターアイコンマッピング =====
-const MONSTER_ICONS: Record<string, any> = {
-  'ghost': faGhost,
-  'tree': faTree,
-  'seedling': faSeedling,
-  'droplet': faTint,
-  'sun': faSun,
-  'rock': faCube,
-  'sparkles': faStar,
-  'gem': faGem,
-  'wind_face': faWind,
-  'zap': faBolt,
-  'star2': faStar,
-  // ファンタジーモード用の敵アイコンマッピング - より適切なアイコンに変更
-  'vampire': faSkull, // バンパイア：頭蓋骨で威圧感を演出
-  'monster': faSpider, // モンスター：蜘蛛のまま
-  'reaper': faHatWizard, // 死神：魔法使いの帽子で神秘的に
-  'kraken': faEye, // クラーケン：目玉で不気味さを演出
-  'werewolf': faCrow, // 人狼：カラスで野生感を演出
-  'demon': faFire // 悪魔：炎で地獄感を演出
-};
+
 
 // ===== ランク背景色 =====
 const RANK_COLORS: Record<string, string> = {
@@ -299,7 +256,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       <div
         key={stage.id}
         className={cn(
-          "relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:scale-105",
+          "relative p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center gap-4",
           unlocked
             ? "bg-white bg-opacity-10 border-white border-opacity-30 hover:bg-opacity-20"
             : "bg-gray-700 bg-opacity-50 border-gray-600 cursor-not-allowed",
@@ -307,57 +264,43 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         )}
         onClick={() => handleStageSelect(stage)}
       >
-        {/* クリアマーク */}
-        {isCleared && (
-          <div className="absolute top-2 right-2 text-yellow-400 text-2xl">
-            ⭐
-          </div>
-        )}
-        
         {/* ステージ番号 */}
-        <div className="text-white text-lg font-bold mb-2">
+        <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
           {stage.stageNumber}
         </div>
         
-        {/* モンスターアイコン */}
-        <div className="text-4xl text-center mb-2">
-          {unlocked ? (
-            <FontAwesomeIcon 
-              icon={MONSTER_ICONS[stage.monsterIcon] || faGhost} 
-              className="text-gray-300 drop-shadow-md"
-            />
-          ) : (
-            <span>🔒</span>
+        {/* コンテンツ部分 */}
+        <div className="flex-grow">
+          {/* ステージ名 */}
+          <div className={cn(
+            "text-lg font-medium mb-1",
+            unlocked ? "text-white" : "text-gray-400"
+          )}>
+            {unlocked ? stage.name : "???"}
+          </div>
+          
+          {/* 説明文 */}
+          <div className={cn(
+            "text-sm leading-relaxed",
+            unlocked ? "text-gray-300" : "text-gray-500"
+          )}>
+            {unlocked ? stage.description : "このステージはまだロックされています"}
+          </div>
+        </div>
+        
+        {/* 右側のアイコン */}
+        <div className="flex-shrink-0">
+          {!unlocked && (
+            <div className="text-2xl">
+              <span>🔒</span>
+            </div>
+          )}
+          {isCleared && (
+            <div className="text-yellow-400 text-2xl">
+              ⭐
+            </div>
           )}
         </div>
-        
-        {/* ステージ名 */}
-        <div className={cn(
-          "text-center font-medium mb-2",
-          unlocked ? "text-white" : "text-gray-400"
-        )}>
-          {stage.name}
-        </div>
-        
-        {/* ステージ情報 */}
-        {unlocked && (
-          <div className="text-xs text-gray-300 text-center space-y-1">
-            <div>HP: {stage.maxHp} / 敵: {stage.enemyCount} (HP:{stage.enemyHp})</div>
-            <div className="text-yellow-300">
-              {stage.mode === 'single' ? '単一コード' : 'コード進行'}
-            </div>
-          </div>
-        )}
-        
-        {/* クリア情報 */}
-        {clearInfo && (
-          <div className="mt-2 pt-2 border-t border-gray-600">
-            <div className="text-xs text-gray-300 text-center">
-              <div>スコア: {clearInfo.score}</div>
-              {clearInfo.totalQuestions > 0 && <div>正解率: {Math.round((clearInfo.correctAnswers / clearInfo.totalQuestions) * 100)}%</div>}
-            </div>
-          </div>
-        )}
       </div>
     );
   }, [isStageUnlocked, getStageClearInfo, handleStageSelect]);
@@ -414,8 +357,6 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           <div>
             <h1 className="text-3xl font-bold mb-2">🧙‍♂️ ファンタジーモード</h1>
             <div className="flex items-center space-x-6 text-sm">
-              <div>魔法使いランク: <span className="text-yellow-300 font-bold">{currentWizardRank}</span></div>
-              <div>クリア済みステージ: <span className="text-green-300 font-bold">{totalCleared}</span></div>
               <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber}</span></div>
             </div>
           </div>
@@ -460,7 +401,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               ランク {selectedRank} - {groupedStages[selectedRank][0]?.name.includes('森') ? '初心者の世界' : '上級者の世界'}
             </h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="space-y-3">
               {groupedStages[selectedRank]
                 .sort((a, b) => {
                   const [, aStage] = a.stageNumber.split('-').map(Number);
