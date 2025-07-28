@@ -374,7 +374,18 @@ const FantasyMain: React.FC = () => {
             {/* 経験値獲得 */}
             <div className="mt-4 pt-4 border-t border-gray-600 font-dotgothic16">
               <div className="text-blue-300">
-                経験値 +{gameResult.result === 'clear' ? 1000 : 200} XP
+                基本経験値: {gameResult.result === 'clear' ? 1000 : 200} XP
+              </div>
+              {profile && (profile.rank === 'premium' || profile.rank === 'platinum') && (
+                <div className="text-yellow-300 text-sm mt-1">
+                  契約ランクボーナス: ×{profile.rank === 'premium' ? '1.5' : '2.0'}
+                </div>
+              )}
+              <div className="text-green-300 font-bold text-xl mt-2">
+                獲得: +{gameResult.result === 'clear' ? 
+                  (profile?.rank === 'platinum' ? 2000 : profile?.rank === 'premium' ? 1500 : 1000) : 
+                  (profile?.rank === 'platinum' ? 400 : profile?.rank === 'premium' ? 300 : 200)
+                } XP
               </div>
             </div>
           </div>
