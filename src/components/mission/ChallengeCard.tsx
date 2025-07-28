@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Mission, UserMissionProgress } from '@/platform/supabaseMissions';
 import { useMissionStore } from '@/stores/missionStore';
 import { cn } from '@/utils/cn';
-import { FaTrophy, FaMusic, FaCalendarAlt, FaClock, FaCheck, FaPlay, FaKey, FaTachometerAlt, FaStar, FaListUl } from 'react-icons/fa';
+import { FaTrophy, FaMusic, FaCalendarAlt, FaClock, FaCheck, FaPlay, FaKey, FaTachometerAlt, FaStar, FaListUl, FaDragon } from 'react-icons/fa';
 import MissionSongProgress from './MissionSongProgress';
 
 interface Props {
@@ -198,9 +198,17 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
                   <div key={s.song_id} className="bg-slate-700/50 p-2 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <FaMusic className="w-3 h-3 text-blue-400" />
+                        {s.is_fantasy ? (
+                          <FaDragon className="w-3 h-3 text-purple-400" />
+                        ) : (
+                          <FaMusic className="w-3 h-3 text-blue-400" />
+                        )}
                         <span className="text-sm font-medium text-gray-200">
-                          {s.songs?.title || s.song_id}
+                          {s.is_fantasy 
+                            ? (s.fantasy_stages 
+                              ? `ステージ ${s.fantasy_stages.stage_number}: ${s.fantasy_stages.name}`
+                              : `ステージ ${s.fantasy_stage_id}`)
+                            : (s.songs?.title || s.song?.title || s.song_id)}
                         </span>
                         {songProgress?.is_completed && (
                           <FaCheck className="w-3 h-3 text-emerald-400" />

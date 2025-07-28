@@ -8,7 +8,7 @@ import {
   checkAllRequirementsCompleted,
   LessonRequirementProgress 
 } from '@/platform/supabaseLessonRequirements';
-import { clearSupabaseCache, clearCacheByKey } from '@/platform/supabaseClient';
+import { clearSupabaseCache, clearCacheByKey, getSupabaseClient } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { useUserStatsStore } from '@/stores/userStatsStore';
@@ -24,7 +24,8 @@ import {
   FaClock,
   FaChevronLeft,
   FaChevronRight,
-  FaHome
+  FaHome,
+  FaDragon
 } from 'react-icons/fa';
 import { useGameActions } from '@/stores/helpers';
 import { 
@@ -53,6 +54,8 @@ const LessonDetailPage: React.FC = () => {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
+  const [songInfo, setSongInfo] = useState<Record<string, { title: string; artist?: string }>>({});
+  const [stageInfo, setStageInfo] = useState<Record<string, { stage_number: string; name: string }>>({});
 
   const { profile } = useAuthStore();
   const toast = useToast();
@@ -114,6 +117,40 @@ const LessonDetailPage: React.FC = () => {
       setRequirements(requirementsData);
       setRequirementsProgress(progressData.progress);
       setAllRequirementsCompleted(progressData.allCompleted);
+      
+      // 曲情報とステージ情報を取得
+      const songIds = requirementsData
+        .filter(req => !req.is_fantasy)
+        .map(req => req.song_id);
+      const stageIds = requirementsData
+        .filter(req => req.is_fantasy && req.fantasy_stage_id)
+        .map(req => req.fantasy_stage_id!);
+      
+      if (songIds.length > 0) {
+        const { data: songs } = await getSupabaseClient()
+          .from('songs')
+          .select('id, title, artist')
+          .in('id', songIds);
+        
+        const songMap: Record<string, { title: string; artist?: string }> = {};
+        songs?.forEach(song => {
+          songMap[song.id] = { title: song.title, artist: song.artist };
+        });
+        setSongInfo(songMap);
+      }
+      
+      if (stageIds.length > 0) {
+        const { data: stages } = await getSupabaseClient()
+          .from('fantasy_stages')
+          .select('id, stage_number, name')
+          .in('id', stageIds);
+        
+        const stageMap: Record<string, { stage_number: string; name: string }> = {};
+        stages?.forEach(stage => {
+          stageMap[stage.id] = { stage_number: stage.stage_number, name: stage.name };
+        });
+        setStageInfo(stageMap);
+      }
       
       // レッスンの完了状態を取得
       if (lessonData?.course_id) {
@@ -413,8 +450,24 @@ const LessonDetailPage: React.FC = () => {
                         )}
                         
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-medium">課題 {index + 1}</h4>
-                          <FaMusic className="w-4 h-4 text-blue-400" />
+                          <h4 className="font-medium">
+                            {req.is_fantasy ? (
+                              <>
+                                {stageInfo[req.fantasy_stage_id!] 
+                                  ? `ステージ ${stageInfo[req.fantasy_stage_id!].stage_number}`
+                                  : '不明なステージ'}
+                              </>
+                            ) : (
+                              <>
+                                {songInfo[req.song_id]?.title || '不明な曲'}
+                              </>
+                            )}
+                          </h4>
+                          {req.is_fantasy ? (
+                            <FaDragon className="w-4 h-4 text-purple-400" />
+                          ) : (
+                            <FaMusic className="w-4 h-4 text-blue-400" />
+                          )}
                         </div>
                         
                         {/* 進捗表示 */}
@@ -521,34 +574,44 @@ const LessonDetailPage: React.FC = () => {
                         </div>
                         
                         <div className="space-y-2 text-sm">
-                          <div className="grid grid-cols-2 gap-2">
+                          {/* ファンタジーステージの場合はクリア回数のみ表示 */}
+                          {req.is_fantasy ? (
                             <div>
-                              <span className="text-gray-400">キー:</span>
-                              <span className="ml-2 font-mono">
-                                {(req.clear_conditions?.key || 0) > 0 ? `+${req.clear_conditions?.key}` : req.clear_conditions?.key || 0}
-                              </span>
+                              <span className="text-gray-400">必要クリア回数:</span>
+                              <span className="ml-2 font-semibold">{requiredCount}回</span>
                             </div>
-                            <div>
-                              <span className="text-gray-400">速度:</span>
-                              <span className="ml-2 font-mono">{req.clear_conditions?.speed || 1.0}x</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-400">ランク:</span>
-                              <span className="ml-2 font-semibold">{req.clear_conditions?.rank || 'B'}以上</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-400">回数:</span>
-                              <span className="ml-2">{requiresDays ? `${requiredCount}日間` : `${requiredCount}回`}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="mt-3">
-                            <span className="text-gray-400">表示設定:</span>
-                            <span className="ml-2">
-                              {req.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
-                               req.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
-                            </span>
-                          </div>
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <span className="text-gray-400">キー:</span>
+                                  <span className="ml-2 font-mono">
+                                    {(req.clear_conditions?.key || 0) > 0 ? `+${req.clear_conditions?.key}` : req.clear_conditions?.key || 0}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400">速度:</span>
+                                  <span className="ml-2 font-mono">{req.clear_conditions?.speed || 1.0}x</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400">ランク:</span>
+                                  <span className="ml-2 font-semibold">{req.clear_conditions?.rank || 'B'}以上</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400">回数:</span>
+                                  <span className="ml-2">{requiresDays ? `${requiredCount}日間` : `${requiredCount}回`}</span>
+                                </div>
+                              </div>
+                              
+                              <div className="mt-3">
+                                <span className="text-gray-400">表示設定:</span>
+                                <span className="ml-2">
+                                  {req.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
+                                   req.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
+                                </span>
+                              </div>
+                            </>
+                          )}
                           
                           {/* 最高ランク表示 */}
                           {progress?.best_rank && (
@@ -564,18 +627,31 @@ const LessonDetailPage: React.FC = () => {
                             isCompleted ? 'btn-success' : 'btn-primary'
                           }`}
                           onClick={() => {
-                            // レッスン曲を直接ゲーム画面で開く
-                            const params = new URLSearchParams();
-                            params.set('id', req.song_id);
-                            params.set('lessonId', req.lesson_id);
-                            params.set('key', String(req.clear_conditions?.key || 0));
-                            params.set('speed', String(req.clear_conditions?.speed || 1.0));
-                            params.set('rank', req.clear_conditions?.rank || 'B');
-                            params.set('count', String(req.clear_conditions?.count || 1));
-                            params.set('notation', req.clear_conditions?.notation_setting || 'both');
-                            params.set('requiresDays', String(req.clear_conditions?.requires_days || false));
-                            params.set('dailyCount', String(req.clear_conditions?.daily_count || 1));
-                            window.location.hash = `#play-lesson?${params.toString()}`;
+                            if (req.is_fantasy && req.fantasy_stage_id) {
+                              // ファンタジーステージの場合
+                              gameActions.setLessonContext(req.lesson_id, {
+                                count: req.clear_conditions?.count || 1
+                              });
+                              
+                              // ステージIDをURLに設定してファンタジーモードを起動
+                              const params = new URLSearchParams();
+                              params.set('stageId', req.fantasy_stage_id);
+                              params.set('lessonId', req.lesson_id);
+                              window.location.hash = `#fantasy?${params.toString()}`;
+                            } else {
+                              // 通常の曲課題の場合
+                              const params = new URLSearchParams();
+                              params.set('id', req.song_id);
+                              params.set('lessonId', req.lesson_id);
+                              params.set('key', String(req.clear_conditions?.key || 0));
+                              params.set('speed', String(req.clear_conditions?.speed || 1.0));
+                              params.set('rank', req.clear_conditions?.rank || 'B');
+                              params.set('count', String(req.clear_conditions?.count || 1));
+                              params.set('notation', req.clear_conditions?.notation_setting || 'both');
+                              params.set('requiresDays', String(req.clear_conditions?.requires_days || false));
+                              params.set('dailyCount', String(req.clear_conditions?.daily_count || 1));
+                              window.location.hash = `#play-lesson?${params.toString()}`;
+                            }
                           }}
                         >
                           {isCompleted ? '再挑戦' : '練習開始'}

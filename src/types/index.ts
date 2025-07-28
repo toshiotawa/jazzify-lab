@@ -629,6 +629,20 @@ export interface LessonSong {
   clear_conditions?: ClearConditions;
   created_at: string;
   songs: Pick<Song, 'id' | 'title' | 'artist'>;
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
+}
+
+export interface MissionSong {
+  song_id: string;
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
+  key_offset: number;
+  min_speed: number;
+  min_rank: string;
+  clears_required: number;
+  notation_setting: string;
+  songs?: { id: string; title: string; artist?: string };
 }
 
 export interface Lesson {

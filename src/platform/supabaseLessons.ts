@@ -164,8 +164,10 @@ export async function deleteLesson(id: string): Promise<void> {
 
 type LessonSongData = {
   lesson_id: string;
-  song_id: string;
+  song_id: string | null;
   clear_conditions?: ClearConditions;
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
 };
 
 /**
@@ -174,9 +176,17 @@ type LessonSongData = {
  * @returns {Promise<LessonSong>}
  */
 export async function addSongToLesson(lessonSongData: LessonSongData): Promise<LessonSong> {
+  // is_fantasyがtrueの場合、song_idをnullに設定
+  const insertData = {
+    ...lessonSongData,
+    song_id: lessonSongData.is_fantasy ? null : lessonSongData.song_id
+  };
+  
+  console.log('addSongToLesson - 送信データ:', insertData);
+  
   const { data, error } = await getSupabaseClient()
     .from('lesson_songs')
-    .insert(lessonSongData)
+    .insert(insertData)
     .select()
     .single();
   
