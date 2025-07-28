@@ -601,14 +601,14 @@ export const LessonManager: React.FC = () => {
       </dialog>
 
       <dialog ref={songDialogRef} className="modal">
-        <div className="modal-box">
+        <div className="modal-box max-w-2xl">
           <h3 className="font-bold text-lg">レッスン課題を追加</h3>
           {/* --- タスクモード切替 --- */}
-          <div className="tabs mb-4">
-            <a className={`tab tab-bordered ${taskMode==='song'?'tab-active':''}`} onClick={()=>setTaskMode('song')}>
-              <FaMusic className="mr-1"/> 曲
+          <div className="tabs tabs-boxed mb-4">
+            <a className={`tab ${taskMode==='song'?'tab-active':''}`} onClick={()=>setTaskMode('song')}>
+              <FaMusic className="mr-1"/> 通常曲
             </a>
-            <a className={`tab tab-bordered ${taskMode==='fantasy'?'tab-active':''}`} onClick={()=>setTaskMode('fantasy')}>
+            <a className={`tab ${taskMode==='fantasy'?'tab-active':''}`} onClick={()=>setTaskMode('fantasy')}>
               <FaDragon className="mr-1"/> ファンタジーステージ
             </a>
           </div>
@@ -725,13 +725,16 @@ export const LessonManager: React.FC = () => {
             
             setIsSubmitting(true);
             try {
-              await addSongToLesson({
+              const lessonSongData = {
                 lesson_id: selectedLesson.id,
                 song_id: data.fantasy_stage_id, // ダミー。is_fantasy=true で識別
                 clear_conditions: data.clear_conditions,
                 is_fantasy: true,
                 fantasy_stage_id: data.fantasy_stage_id
-              } as any);
+              };
+              console.log('ファンタジーステージ課題追加データ:', lessonSongData);
+              
+              await addSongToLesson(lessonSongData as any);
               
               invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
               setTimeout(() => loadLessons(true), 500);
@@ -740,7 +743,7 @@ export const LessonManager: React.FC = () => {
               closeSongDialog();
             } catch (error) {
               toast.error('ステージ課題の追加に失敗しました。');
-              console.error(error);
+              console.error('ファンタジーステージ課題追加エラー:', error);
             } finally {
               setIsSubmitting(false);
             }
@@ -750,7 +753,37 @@ export const LessonManager: React.FC = () => {
               <StageSelector {...registerStage('fantasy_stage_id', { required: true })} />
             </div>
             <div>
-              <label className="label"><span className="label-text">最低クリア回数</span></label>
+              <label className="label">
+                <span className="label-text">達成条件</span>
+              </label>
+              <label className="flex items-center space-x-2 mb-2">
+                <input 
+                  type="checkbox" 
+                  {...registerStage('clear_conditions.requires_days')} 
+                  className="checkbox checkbox-sm" 
+                />
+                <span className="text-sm">日数でカウント（チェックなし: 回数でカウント）</span>
+              </label>
+            </div>
+            {watchStage && watchStage('clear_conditions.requires_days') && (
+              <div>
+                <label className="label"><span className="label-text">1日あたりの必要クリア回数</span></label>
+                <input 
+                  type="number" 
+                  {...registerStage('clear_conditions.daily_count')} 
+                  className="input input-bordered w-full" 
+                  min="1" 
+                  max="20"
+                  defaultValue={1}
+                />
+              </div>
+            )}
+            <div>
+              <label className="label">
+                <span className="label-text">
+                  {watchStage && watchStage('clear_conditions.requires_days') ? '必要日数' : '最低クリア回数'}
+                </span>
+              </label>
               <input 
                 type="number" 
                 {...registerStage('clear_conditions.count')} 

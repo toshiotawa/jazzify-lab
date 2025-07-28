@@ -117,6 +117,8 @@ export async function addSongToChallenge(challengeId: string, songId: string, co
   min_rank?: string;
   clears_required?: number;
   notation_setting?: string;
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
 }) {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('challenge_tracks').insert({
@@ -127,6 +129,8 @@ export async function addSongToChallenge(challengeId: string, songId: string, co
     min_rank: conditions.min_rank ?? 'B',
     clears_required: conditions.clears_required ?? 1,
     notation_setting: conditions.notation_setting ?? 'both',
+    is_fantasy: conditions.is_fantasy ?? false,
+    fantasy_stage_id: conditions.fantasy_stage_id ?? null,
   });
   if (error) throw error;
   clearSupabaseCache();
