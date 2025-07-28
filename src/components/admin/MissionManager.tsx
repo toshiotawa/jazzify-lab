@@ -130,12 +130,17 @@ const MissionManager: React.FC = () => {
       // 曲クリア・ファンタジータイプで楽曲/ステージが選択されている場合、追加
       if ((v.category === 'song_clear' || v.category === 'fantasy') && selectedSongs.length > 0) {
         for (const songId of selectedSongs) {
-          const conditions = songConditions[songId] || {
+          const baseConditions = songConditions[songId] || {
             key_offset: 0,
             min_speed: 1.0,
             min_rank: 'B',
             clears_required: 1,
             notation_setting: 'both',
+          };
+          
+          // is_fantasy と fantasy_stage_id は常に設定する
+          const conditions = {
+            ...baseConditions,
             is_fantasy: v.category === 'fantasy',
             fantasy_stage_id: v.category === 'fantasy' ? songId : null,
           };
@@ -153,13 +158,13 @@ const MissionManager: React.FC = () => {
           
           // 明示的にすべてのプロパティを含むオブジェクトを作成
           const conditionsToSend = {
-            key_offset: conditions.key_offset,
-            min_speed: conditions.min_speed,
-            min_rank: conditions.min_rank,
-            clears_required: conditions.clears_required,
-            notation_setting: conditions.notation_setting,
-            is_fantasy: conditions.is_fantasy,
-            fantasy_stage_id: conditions.fantasy_stage_id
+            key_offset: conditions.key_offset ?? 0,
+            min_speed: conditions.min_speed ?? 1.0,
+            min_rank: conditions.min_rank ?? 'B',
+            clears_required: conditions.clears_required ?? 1,
+            notation_setting: conditions.notation_setting ?? 'both',
+            is_fantasy: conditions.is_fantasy ?? false,
+            fantasy_stage_id: conditions.fantasy_stage_id ?? null
           };
           
           await addSongToChallenge(newChallengeId, songIdToPass, conditionsToSend);
@@ -234,13 +239,13 @@ const MissionManager: React.FC = () => {
       
       // 明示的にすべてのプロパティを含むオブジェクトを作成
       const conditionsToSend = {
-        key_offset: defaultConditions.key_offset,
-        min_speed: defaultConditions.min_speed,
-        min_rank: defaultConditions.min_rank,
-        clears_required: defaultConditions.clears_required,
-        notation_setting: defaultConditions.notation_setting,
-        is_fantasy: defaultConditions.is_fantasy,
-        fantasy_stage_id: defaultConditions.fantasy_stage_id
+        key_offset: defaultConditions.key_offset ?? 0,
+        min_speed: defaultConditions.min_speed ?? 1.0,
+        min_rank: defaultConditions.min_rank ?? 'B',
+        clears_required: defaultConditions.clears_required ?? 1,
+        notation_setting: defaultConditions.notation_setting ?? 'both',
+        is_fantasy: defaultConditions.is_fantasy ?? false,
+        fantasy_stage_id: defaultConditions.fantasy_stage_id ?? null
       };
       
       console.log('送信する条件:', conditionsToSend);
