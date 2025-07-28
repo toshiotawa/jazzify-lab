@@ -25,7 +25,8 @@ export async function fetchLessonsByCourse(
         *,
         lesson_songs (
           *,
-          songs (id, title, artist)
+          songs (id, title, artist),
+          fantasy_stages:fantasy_stage_id (id, stage_number, name)
         )
       `)
       .eq('course_id', courseId)
@@ -51,7 +52,8 @@ export async function fetchLessonsByCourse(
         *,
         lesson_songs (
           *,
-          songs (id, title, artist)
+          songs (id, title, artist),
+          fantasy_stages:fantasy_stage_id (id, stage_number, name)
         )
       `)
       .eq('course_id', courseId)
@@ -78,7 +80,8 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
       *,
       lesson_songs (
         *,
-        songs (id, title, artist)
+        songs (id, title, artist),
+        fantasy_stages:fantasy_stage_id (id, stage_number, name)
       )
     `)
     .eq('id', lessonId)
@@ -164,7 +167,9 @@ export async function deleteLesson(id: string): Promise<void> {
 
 type LessonSongData = {
   lesson_id: string;
-  song_id: string;
+  song_id?: string;
+  fantasy_stage_id?: string;
+  clear_days?: number;
   clear_conditions?: ClearConditions;
 };
 
@@ -174,6 +179,11 @@ type LessonSongData = {
  * @returns {Promise<LessonSong>}
  */
 export async function addSongToLesson(lessonSongData: LessonSongData): Promise<LessonSong> {
+  // Validate that either song_id or fantasy_stage_id is provided
+  if (!lessonSongData.song_id && !lessonSongData.fantasy_stage_id) {
+    throw new Error('Either song_id or fantasy_stage_id must be provided');
+  }
+  
   const { data, error } = await getSupabaseClient()
     .from('lesson_songs')
     .insert(lessonSongData)
@@ -201,6 +211,22 @@ export async function removeSongFromLesson(lessonId: string, songId: string): Pr
 
   if (error) {
     console.error(`Error removing song ${songId} from lesson ${lessonId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * レッスン曲をIDで削除します（ファンタジーステージ用）。
+ * @param {string} lessonSongId
+ */
+export async function removeLessonSongById(lessonSongId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .delete()
+    .eq('id', lessonSongId);
+
+  if (error) {
+    console.error(`Error removing lesson song ${lessonSongId}:`, error);
     throw error;
   }
 }

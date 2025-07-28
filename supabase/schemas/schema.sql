@@ -115,7 +115,9 @@ create table public.user_song_play_progress (
 create table public.lesson_songs (
   id uuid default gen_random_uuid() not null primary key,
   lesson_id uuid not null references public.lessons(id) on delete cascade,
-  song_id uuid not null references public.songs(id) on delete cascade,
+  song_id uuid references public.songs(id) on delete cascade,
+  fantasy_stage_id uuid references public.fantasy_stages(id) on delete cascade,
+  clear_days integer default 1 check (clear_days >= 1),
   order_index integer not null default 0,
   clear_conditions jsonb,
   created_at timestamp with time zone default now() not null,
@@ -166,12 +168,42 @@ create table public.challenges (
 create table public.challenge_tracks (
   challenge_id uuid references public.challenges(id) on delete cascade,
   song_id uuid references public.songs(id) on delete cascade,
+  fantasy_stage_id uuid references public.fantasy_stages(id) on delete cascade,
+  clear_days integer default 1 check (clear_days >= 1),
   key_offset integer default 0,
   min_speed numeric default 1.0,
   min_rank text default 'B',
   min_clear_count integer default 1,
   notation_setting text default 'both',
   primary key (challenge_id, song_id)
+);
+
+-- レッスンのファンタジーステージクリア記録
+create table public.lesson_fantasy_clears (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  lesson_song_id uuid not null references public.lesson_songs(id) on delete cascade,
+  fantasy_stage_id uuid not null references public.fantasy_stages(id) on delete cascade,
+  clear_type text not null check (clear_type in ('clear', 'gameover')),
+  remaining_hp integer not null,
+  clear_time float not null,
+  cleared_at timestamp with time zone default now(),
+  created_at timestamp with time zone default now(),
+  constraint unique_lesson_fantasy_clear_per_day unique (user_id, lesson_song_id, fantasy_stage_id, date(cleared_at))
+);
+
+-- ミッションのファンタジーステージクリア記録
+create table public.mission_fantasy_clears (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  challenge_id uuid not null references public.challenges(id) on delete cascade,
+  fantasy_stage_id uuid not null references public.fantasy_stages(id) on delete cascade,
+  clear_type text not null check (clear_type in ('clear', 'gameover')),
+  remaining_hp integer not null,
+  clear_time float not null,
+  cleared_at timestamp with time zone default now(),
+  created_at timestamp with time zone default now(),
+  constraint unique_mission_fantasy_clear_per_day unique (user_id, challenge_id, fantasy_stage_id, date(cleared_at))
 );
 
 -- ユーザー進捗 (チャレンジ / ミッション)
@@ -430,11 +462,25 @@ create index if not exists idx_challenge_progress_user_id on public.challenge_pr
 create index if not exists idx_challenge_progress_challenge_id on public.challenge_progress(challenge_id);
 create index if not exists idx_challenge_progress_completed on public.challenge_progress(is_completed);
 
+-- lesson_fantasy_clears indexes
+create index if not exists idx_lesson_fantasy_clears_user_id on public.lesson_fantasy_clears(user_id);
+create index if not exists idx_lesson_fantasy_clears_lesson_song_id on public.lesson_fantasy_clears(lesson_song_id);
+create index if not exists idx_lesson_fantasy_clears_fantasy_stage_id on public.lesson_fantasy_clears(fantasy_stage_id);
+create index if not exists idx_lesson_fantasy_clears_cleared_at on public.lesson_fantasy_clears(cleared_at);
+
+-- mission_fantasy_clears indexes
+create index if not exists idx_mission_fantasy_clears_user_id on public.mission_fantasy_clears(user_id);
+create index if not exists idx_mission_fantasy_clears_challenge_id on public.mission_fantasy_clears(challenge_id);
+create index if not exists idx_mission_fantasy_clears_fantasy_stage_id on public.mission_fantasy_clears(fantasy_stage_id);
+create index if not exists idx_mission_fantasy_clears_cleared_at on public.mission_fantasy_clears(cleared_at);
+
 -- RLS for new tables
 alter table public.course_prerequisites enable row level security;
 alter table public.user_course_progress enable row level security;
 alter table public.user_song_play_progress enable row level security;
 alter table public.challenge_progress enable row level security;
+alter table public.lesson_fantasy_clears enable row level security;
+alter table public.mission_fantasy_clears enable row level security;
 
 -- course_prerequisites RLS policies
 create policy "Allow admin full access on course_prerequisites" on public.course_prerequisites
@@ -473,6 +519,20 @@ create policy "Users can insert their own challenge progress" on public.challeng
 create policy "Users can update their own challenge progress" on public.challenge_progress
   for update using ( auth.uid() = user_id )
   with check ( auth.uid() = user_id );
+
+-- lesson_fantasy_clears RLS policies
+create policy "lesson_fantasy_clears_read_own" on public.lesson_fantasy_clears
+  for select using (auth.uid() = user_id);
+
+create policy "lesson_fantasy_clears_insert_own" on public.lesson_fantasy_clears
+  for insert with check (auth.uid() = user_id);
+
+-- mission_fantasy_clears RLS policies
+create policy "mission_fantasy_clears_read_own" on public.mission_fantasy_clears
+  for select using (auth.uid() = user_id);
+
+create policy "mission_fantasy_clears_insert_own" on public.mission_fantasy_clears
+  for insert with check (auth.uid() = user_id);
 
 -- course_prerequisites constraint
 alter table public.course_prerequisites add constraint no_self_reference 

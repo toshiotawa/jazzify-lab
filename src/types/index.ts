@@ -629,6 +629,13 @@ export interface LessonSong {
   clear_conditions?: ClearConditions;
   created_at: string;
   songs: Pick<Song, 'id' | 'title' | 'artist'>;
+  fantasy_stage_id?: string;
+  clear_days?: number;
+  fantasy_stages?: {
+    id: string;
+    stage_number: string;
+    name: string;
+  };
 }
 
 export interface Lesson {

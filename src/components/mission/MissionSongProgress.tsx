@@ -3,7 +3,7 @@ import type { MissionSongProgress as MissionSongProgressType } from '@/platform/
 import { useMissionStore } from '@/stores/missionStore';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
-import { FaPlay, FaMusic, FaCheck, FaKey, FaTachometerAlt, FaStar, FaListUl } from 'react-icons/fa';
+import { FaPlay, FaMusic, FaCheck, FaKey, FaTachometerAlt, FaStar, FaListUl, FaDragon } from 'react-icons/fa';
 
 interface Props {
   missionId: string;
@@ -22,32 +22,49 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
     }
   }, [missionId, songProgress.length, fetchSongProgress]);
 
-  const handlePlaySong = async (songId: string, songProgress: MissionSongProgressType) => {
+  const handlePlaySong = async (songId: string | null, songProgress: MissionSongProgressType) => {
     try {
-      console.log('🎵 ミッション曲をプレイ開始:', { 
-        songId, 
-        missionId, 
-        songTitle: songProgress.song?.title,
-        songProgress: {
-          clear_count: songProgress.clear_count,
-          required_count: songProgress.required_count,
-          is_completed: songProgress.is_completed
-        }
-      });
+      const isFantasyStage = !!songProgress.fantasy_stage_id;
       
-      // ミッションから曲をプレイする際はsongとmissionのみを渡す
-      // 条件はGameScreenでデータベースから取得する
-      const params = new URLSearchParams();
-      params.set('song', songId);
-      params.set('mission', missionId);
+      if (isFantasyStage) {
+        console.log('🐉 ミッションのファンタジーステージをプレイ開始:', { 
+          stageId: songProgress.fantasy_stage_id,
+          missionId,
+          stageName: songProgress.fantasy_stages?.name
+        });
+        
+        const params = new URLSearchParams();
+        params.set('stageId', songProgress.fantasy_stage_id!);
+        params.set('mission', missionId);
+        params.set('clearDays', String(songProgress.clear_days || 1));
+        
+        window.location.hash = `#play-mission-fantasy?${params.toString()}`;
+      } else {
+        console.log('🎵 ミッション曲をプレイ開始:', { 
+          songId, 
+          missionId, 
+          songTitle: songProgress.song?.title,
+          songProgress: {
+            clear_count: songProgress.clear_count,
+            required_count: songProgress.required_count,
+            is_completed: songProgress.is_completed
+          }
+        });
+        
+        // ミッションから曲をプレイする際はsongとmissionのみを渡す
+        // 条件はGameScreenでデータベースから取得する
+        const params = new URLSearchParams();
+        params.set('song', songId!);
+        params.set('mission', missionId);
+        
+        const hash = `#play-mission?${params.toString()}`;
+        console.log('🔗 生成されたハッシュ:', hash);
+        
+        // ハッシュを設定してGameScreenの処理をトリガー
+        window.location.hash = hash;
+      }
       
-      const hash = `#play-mission?${params.toString()}`;
-      console.log('🔗 生成されたハッシュ:', hash);
-      
-      // ハッシュを設定してGameScreenの処理をトリガー
-      window.location.hash = hash;
-      
-      console.log('✅ ミッション曲プレイ処理完了、GameScreenで処理中...');
+      console.log('✅ ミッション課題プレイ処理完了、GameScreenで処理中...');
     } catch (error) {
       console.error('❌ ミッション曲プレイ処理エラー:', {
         error,
@@ -97,12 +114,21 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
           >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-3">
-                <FaMusic className="w-4 h-4 text-blue-400" />
+                {song.fantasy_stage_id ? (
+                  <FaDragon className="w-4 h-4 text-purple-400" />
+                ) : (
+                  <FaMusic className="w-4 h-4 text-blue-400" />
+                )}
                 <div>
                   <div className="font-medium text-white">
-                    {song.song?.title || `曲 ${song.song_id}`}
+                    {song.fantasy_stage_id 
+                      ? (song.fantasy_stages?.name || '不明なステージ')
+                      : (song.song?.title || `曲 ${song.song_id}`)
+                    }
                   </div>
-                  {song.song?.artist && (
+                  {song.fantasy_stage_id ? (
+                    <div className="text-sm text-gray-400">ステージ {song.fantasy_stages?.stage_number}</div>
+                  ) : song.song?.artist && (
                     <div className="text-sm text-gray-400">{song.song.artist}</div>
                   )}
                 </div>

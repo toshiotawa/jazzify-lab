@@ -15,11 +15,12 @@ import {
   updateChallengeSong,
   removeSongFromChallenge,
 } from '@/platform/supabaseChallenges';
+import { fetchAllFantasyStages, FantasyStage } from '@/platform/supabaseFantasy';
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import SongSelector from './SongSelector';
 import { fetchUserMissionProgress } from '@/platform/supabaseMissions';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy } from 'react-icons/fa';
+import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy, FaDragon } from 'react-icons/fa';
 
 interface FormValues {
   type: ChallengeType;
@@ -45,7 +46,9 @@ const MissionManager: React.FC = () => {
   const [selectedMission, setSelectedMission] = useState<Challenge & { songs: ChallengeSong[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSongSelector, setShowSongSelector] = useState(false);
+  const [showFantasySelector, setShowFantasySelector] = useState(false);
   const [editingSong, setEditingSong] = useState<ChallengeSong | null>(null);
+  const [fantasyStages, setFantasyStages] = useState<FantasyStage[]>([]);
   const [progressMap, setProgressMap] = useState<Record<string, {clear_count:number; completed:boolean}>>({});
   const [selectedSongs, setSelectedSongs] = useState<string[]>([]);
   const [showFormSongSelector, setShowFormSongSelector] = useState(false);
@@ -68,8 +71,12 @@ const MissionManager: React.FC = () => {
     setLoading(true);
     try {
       // 管理画面では全てのミッションを取得（アクティブでないものも含む）
-      const data = await listChallenges();
+      const [data, stages] = await Promise.all([
+        listChallenges(),
+        fetchAllFantasyStages()
+      ]);
       setMissions(data);
+      setFantasyStages(stages);
       try {
         const progress = await fetchUserMissionProgress();
         const map: Record<string, {clear_count:number; completed:boolean}> = {};
@@ -189,6 +196,31 @@ const MissionManager: React.FC = () => {
       setShowSongSelector(false);
     } catch (error) {
       toast.error('楽曲の追加に失敗しました');
+    }
+  };
+
+  const handleFantasyStageSelect = async (stageId: string, clearDays: number) => {
+    if (!selectedMission) return;
+
+    const defaultConditions: SongConditions & { fantasy_stage_id: string; clear_days: number } = {
+      key_offset: 0,
+      min_speed: 1.0,
+      min_rank: 'B',
+      min_clears_required: 1,
+      notation_setting: 'both',
+      fantasy_stage_id: stageId,
+      clear_days: clearDays,
+    };
+
+    try {
+      await addSongToChallenge(selectedMission.id, null, defaultConditions);
+      toast.success('ファンタジーステージを追加しました');
+      // ミッション詳細を再読み込み
+      const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
+      setSelectedMission(updatedChallenge);
+      setShowFantasySelector(false);
+    } catch (error) {
+      toast.error('ファンタジーステージの追加に失敗しました');
     }
   };
 
@@ -484,13 +516,22 @@ const MissionManager: React.FC = () => {
                     </p>
                   </div>
                   {selectedMission.category === 'song_clear' && (
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => setShowSongSelector(true)}
-                    >
-                      <FaMusic className="w-4 h-4 mr-2" />
-                      楽曲追加
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => setShowSongSelector(true)}
+                      >
+                        <FaMusic className="w-4 h-4 mr-2" />
+                        楽曲追加
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setShowFantasySelector(true)}
+                      >
+                        <FaDragon className="w-4 h-4 mr-2" />
+                        ファンタジーステージ追加
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -537,6 +578,14 @@ const MissionManager: React.FC = () => {
           onSelect={handleSongSelect}
           onClose={() => setShowSongSelector(false)}
           excludeSongIds={selectedMission.songs.map(s => s.song_id)}
+        />
+      )}
+
+      {/* ファンタジーステージ選択モーダル */}
+      {showFantasySelector && selectedMission && (
+        <FantasyStageSelectorModal
+          onSelect={handleFantasyStageSelect}
+          onClose={() => setShowFantasySelector(false)}
         />
       )}
 
@@ -721,29 +770,48 @@ const SongItem: React.FC<{
   onEdit: (song: ChallengeSong) => void;
   onRemove: (songId: string) => void;
 }> = ({ song, onEdit, onRemove }) => {
+  const isFantasyStage = !!song.fantasy_stage_id;
+  
   return (
-    <div className="border border-slate-600 rounded-lg p-3 bg-slate-800/30">
+    <div className={`border rounded-lg p-3 ${isFantasyStage ? 'border-purple-600 bg-purple-900/20' : 'border-slate-600 bg-slate-800/30'}`}>
       <div className="flex items-center justify-between">
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-white">{song.song?.title || '不明'}</div>
-          <div className="text-sm text-gray-400">{song.song?.artist || '不明'}</div>
-          <div className="text-xs text-gray-500 mt-1">
-            キー: {song.key_offset > 0 ? '+' : ''}{song.key_offset} | 
-            速度: {song.min_speed}x | 
-            ランク: {song.min_rank} | 
-            クリア回数: {song.clears_required}回
-          </div>
+          {isFantasyStage ? (
+            <>
+              <div className="flex items-center gap-2">
+                <FaDragon className="w-4 h-4 text-purple-400" />
+                <div className="font-medium text-white">{song.fantasy_stages?.name || '不明なステージ'}</div>
+              </div>
+              <div className="text-sm text-gray-400">ステージ {song.fantasy_stages?.stage_number}</div>
+              <div className="text-xs text-gray-500 mt-1">
+                クリア日数: {song.clear_days || 1}日
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="font-medium text-white">{song.song?.title || '不明'}</div>
+              <div className="text-sm text-gray-400">{song.song?.artist || '不明'}</div>
+              <div className="text-xs text-gray-500 mt-1">
+                キー: {song.key_offset > 0 ? '+' : ''}{song.key_offset} | 
+                速度: {song.min_speed}x | 
+                ランク: {song.min_rank} | 
+                クリア回数: {song.clears_required}回
+              </div>
+            </>
+          )}
         </div>
         <div className="flex gap-1 ml-2">
-          <button
-            className="btn btn-xs btn-primary"
-            onClick={() => onEdit(song)}
-          >
-            <FaEdit className="w-3 h-3" />
-          </button>
+          {!isFantasyStage && (
+            <button
+              className="btn btn-xs btn-primary"
+              onClick={() => onEdit(song)}
+            >
+              <FaEdit className="w-3 h-3" />
+            </button>
+          )}
           <button
             className="btn btn-xs btn-error"
-            onClick={() => onRemove(song.song_id)}
+            onClick={() => onRemove(song.song_id || song.fantasy_stage_id!)}
           >
             <FaTrash className="w-3 h-3" />
           </button>
@@ -769,6 +837,79 @@ const SongSelectorModal: React.FC<{
           onSelect={onSelect}
           excludeSongIds={excludeSongIds}
         />
+      </div>
+    </div>
+  );
+};
+
+const FantasyStageSelectorModal: React.FC<{
+  onSelect: (stageId: string, clearDays: number) => void;
+  onClose: () => void;
+}> = ({ onSelect, onClose }) => {
+  const [selectedStageId, setSelectedStageId] = useState<string>('');
+  const [clearDays, setClearDays] = useState<number>(1);
+  const [fantasyStages, setFantasyStages] = useState<FantasyStage[]>([]);
+  
+  useEffect(() => {
+    fetchAllFantasyStages().then(setFantasyStages).catch(console.error);
+  }, []);
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedStageId) {
+      onSelect(selectedStageId, clearDays);
+    }
+  };
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="bg-slate-800 rounded-lg p-6 w-full max-w-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">ファンタジーステージを追加</h3>
+          <button className="btn btn-sm btn-ghost" onClick={onClose}>✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="label">
+              <span className="label-text">ステージを選択</span>
+            </label>
+            <select 
+              className="select select-bordered w-full"
+              value={selectedStageId}
+              onChange={(e) => setSelectedStageId(e.target.value)}
+              required
+            >
+              <option value="">-- ステージを選択してください --</option>
+              {fantasyStages.map(stage => (
+                <option key={stage.id} value={stage.id}>
+                  {stage.stage_number} - {stage.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">
+              <span className="label-text">クリア必要日数</span>
+            </label>
+            <input
+              type="number"
+              className="input input-bordered w-full"
+              value={clearDays}
+              onChange={(e) => setClearDays(Number(e.target.value))}
+              min="1"
+              max="30"
+              required
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>
+              キャンセル
+            </button>
+            <button type="submit" className="btn btn-primary">
+              追加
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

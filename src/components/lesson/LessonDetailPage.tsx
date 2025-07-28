@@ -24,7 +24,8 @@ import {
   FaClock,
   FaChevronLeft,
   FaChevronRight,
-  FaHome
+  FaHome,
+  FaDragon
 } from 'react-icons/fa';
 import { useGameActions } from '@/stores/helpers';
 import { 
@@ -393,13 +394,14 @@ const LessonDetailPage: React.FC = () => {
               {requirements.length > 0 ? (
                 <div className="space-y-4">
                   {requirements.map((req, index) => {
+                    const isFantasyStage = !!req.fantasy_stage_id;
                     // この実習課題の進捗を取得
                     const progress = requirementsProgress.find(p => p.song_id === req.song_id);
                     const isCompleted = progress?.is_completed || false;
                     const clearCount = progress?.clear_count || 0;
-                    const requiredCount = req.clear_conditions?.count || 1;
+                    const requiredCount = isFantasyStage ? (req.clear_days || 1) : (req.clear_conditions?.count || 1);
                     const clearDates = progress?.clear_dates || [];
-                    const requiresDays = req.clear_conditions?.requires_days || false;
+                    const requiresDays = isFantasyStage || req.clear_conditions?.requires_days || false;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -414,7 +416,28 @@ const LessonDetailPage: React.FC = () => {
                         
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-medium">課題 {index + 1}</h4>
-                          <FaMusic className="w-4 h-4 text-blue-400" />
+                          {isFantasyStage ? (
+                            <FaDragon className="w-4 h-4 text-purple-400" />
+                          ) : (
+                            <FaMusic className="w-4 h-4 text-blue-400" />
+                          )}
+                        </div>
+                        
+                        {/* 曲名/ステージ名表示 */}
+                        <div className="mb-3">
+                          {isFantasyStage ? (
+                            <div>
+                              <div className="font-medium text-purple-300">{req.fantasy_stages?.name || '不明なステージ'}</div>
+                              <div className="text-sm text-gray-400">ステージ {req.fantasy_stages?.stage_number}</div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="font-medium">{req.songs?.title || '不明な曲'}</div>
+                              {req.songs?.artist && (
+                                <div className="text-sm text-gray-400">{req.songs.artist}</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                         
                         {/* 進捗表示 */}
@@ -564,18 +587,28 @@ const LessonDetailPage: React.FC = () => {
                             isCompleted ? 'btn-success' : 'btn-primary'
                           }`}
                           onClick={() => {
-                            // レッスン曲を直接ゲーム画面で開く
-                            const params = new URLSearchParams();
-                            params.set('id', req.song_id);
-                            params.set('lessonId', req.lesson_id);
-                            params.set('key', String(req.clear_conditions?.key || 0));
-                            params.set('speed', String(req.clear_conditions?.speed || 1.0));
-                            params.set('rank', req.clear_conditions?.rank || 'B');
-                            params.set('count', String(req.clear_conditions?.count || 1));
-                            params.set('notation', req.clear_conditions?.notation_setting || 'both');
-                            params.set('requiresDays', String(req.clear_conditions?.requires_days || false));
-                            params.set('dailyCount', String(req.clear_conditions?.daily_count || 1));
-                            window.location.hash = `#play-lesson?${params.toString()}`;
+                            if (isFantasyStage) {
+                              // ファンタジーステージを開く
+                              const params = new URLSearchParams();
+                              params.set('stageId', req.fantasy_stage_id!);
+                              params.set('lessonSongId', req.id);
+                              params.set('lessonId', req.lesson_id);
+                              params.set('clearDays', String(req.clear_days || 1));
+                              window.location.hash = `#play-lesson-fantasy?${params.toString()}`;
+                            } else {
+                              // レッスン曲を直接ゲーム画面で開く
+                              const params = new URLSearchParams();
+                              params.set('id', req.song_id);
+                              params.set('lessonId', req.lesson_id);
+                              params.set('key', String(req.clear_conditions?.key || 0));
+                              params.set('speed', String(req.clear_conditions?.speed || 1.0));
+                              params.set('rank', req.clear_conditions?.rank || 'B');
+                              params.set('count', String(req.clear_conditions?.count || 1));
+                              params.set('notation', req.clear_conditions?.notation_setting || 'both');
+                              params.set('requiresDays', String(req.clear_conditions?.requires_days || false));
+                              params.set('dailyCount', String(req.clear_conditions?.daily_count || 1));
+                              window.location.hash = `#play-lesson?${params.toString()}`;
+                            }
                           }}
                         >
                           {isCompleted ? '再挑戦' : '練習開始'}
