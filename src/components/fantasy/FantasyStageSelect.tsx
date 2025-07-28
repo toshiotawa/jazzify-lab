@@ -4,29 +4,6 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
-  faGhost,
-  faTree, 
-  faSeedling,
-  faTint,
-  faSun,
-  faCube,
-  faStar,
-  faGem,
-  faWind,
-  faBolt,
-  faSkull,
-  faUserSecret,
-  faSpider,
-  faFish,
-  faDog,
-  faKhanda,
-  faHatWizard,
-  faCrow,
-  faEye,
-  faFire
-} from '@fortawesome/free-solid-svg-icons';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
 import { devLog } from '@/utils/logger';
@@ -78,27 +55,7 @@ const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[
   }, {} as Record<string, FantasyStage[]>);
 };
 
-// ===== モンスターアイコンマッピング =====
-const MONSTER_ICONS: Record<string, any> = {
-  'ghost': faGhost,
-  'tree': faTree,
-  'seedling': faSeedling,
-  'droplet': faTint,
-  'sun': faSun,
-  'rock': faCube,
-  'sparkles': faStar,
-  'gem': faGem,
-  'wind_face': faWind,
-  'zap': faBolt,
-  'star2': faStar,
-  // ファンタジーモード用の敵アイコンマッピング - より適切なアイコンに変更
-  'vampire': faSkull, // バンパイア：頭蓋骨で威圧感を演出
-  'monster': faSpider, // モンスター：蜘蛛のまま
-  'reaper': faHatWizard, // 死神：魔法使いの帽子で神秘的に
-  'kraken': faEye, // クラーケン：目玉で不気味さを演出
-  'werewolf': faCrow, // 人狼：カラスで野生感を演出
-  'demon': faFire // 悪魔：炎で地獄感を演出
-};
+
 
 // ===== ランク背景色 =====
 const RANK_COLORS: Record<string, string> = {
@@ -315,44 +272,21 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         )}
         
         {/* ステージ番号 */}
-        <div className="text-white text-lg font-bold mb-2">
+        <div className="text-white text-xl font-bold text-center">
           {stage.stageNumber}
         </div>
         
-        {/* モンスターアイコン */}
-        <div className="text-4xl text-center mb-2">
-          {unlocked ? (
-            <FontAwesomeIcon 
-              icon={MONSTER_ICONS[stage.monsterIcon] || faGhost} 
-              className="text-gray-300 drop-shadow-md"
-            />
-          ) : (
+        {/* ロック表示 */}
+        {!unlocked && (
+          <div className="text-2xl text-center mt-2">
             <span>🔒</span>
-          )}
-        </div>
-        
-        {/* ステージ名 */}
-        <div className={cn(
-          "text-center font-medium mb-2",
-          unlocked ? "text-white" : "text-gray-400"
-        )}>
-          {stage.name}
-        </div>
-        
-        {/* ステージ情報 - 敵の数のみ表示 */}
-        {unlocked && (
-          <div className="text-xs text-gray-300 text-center">
-            <div>敵: {stage.enemyCount}</div>
           </div>
         )}
         
-        {/* クリア情報 */}
-        {clearInfo && (
-          <div className="mt-2 pt-2 border-t border-gray-600">
-            <div className="text-xs text-gray-300 text-center">
-              <div>スコア: {clearInfo.score}</div>
-              {clearInfo.totalQuestions > 0 && <div>正解率: {Math.round((clearInfo.correctAnswers / clearInfo.totalQuestions) * 100)}%</div>}
-            </div>
+        {/* ステージ情報 - 敵の数のみ表示 */}
+        {unlocked && (
+          <div className="text-sm text-gray-300 text-center mt-2">
+            <div>敵: {stage.enemyCount}</div>
           </div>
         )}
       </div>
