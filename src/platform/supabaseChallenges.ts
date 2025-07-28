@@ -67,14 +67,22 @@ export async function getChallengeWithSongs(challengeId: string): Promise<Challe
       *,
       challenge_tracks(
         *,
-        songs(id, title, artist)
+        songs(id, title, artist),
+        fantasy_stages(id, stage_number, name)
       )
     `)
     .eq('id', challengeId)
     .single();
   
   if (error) throw error;
-  return data as Challenge & { songs: ChallengeSong[] };
+  
+  // challenge_tracksをsongsに変換（互換性のため）
+  const result = {
+    ...data,
+    songs: data.challenge_tracks || []
+  };
+  
+  return result as Challenge & { songs: ChallengeSong[] };
 }
 
 /**

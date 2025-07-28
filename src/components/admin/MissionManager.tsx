@@ -556,9 +556,9 @@ const MissionManager: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {selectedMission.songs.map(song => (
+                    {selectedMission.songs.map((song, index) => (
                       <SongItem
-                        key={song.song_id}
+                        key={song.is_fantasy ? `fantasy-${song.fantasy_stage_id}` : `song-${song.song_id}`}
                         song={song}
                         onEdit={handleSongEdit}
                         onRemove={handleSongRemove}
@@ -578,7 +578,10 @@ const MissionManager: React.FC = () => {
           onSelectSong={(id) => handleSongSelect(id, false)}
           onSelectStage={(id) => handleSongSelect(id, true)}
           onClose={() => setShowSongSelector(false)}
-          excludeSongIds={selectedMission.songs.filter(s => !s.is_fantasy).map(s => s.song_id)}
+          excludeSongIds={selectedMission.songs
+            .filter(s => !s.is_fantasy && s.song_id)
+            .map(s => s.song_id)
+            .filter(id => id !== null)}
         />
       )}
 
