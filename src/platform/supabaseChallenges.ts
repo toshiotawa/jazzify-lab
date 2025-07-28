@@ -24,10 +24,17 @@ export interface ChallengeSong {
   min_rank: string;
   clears_required: number;
   notation_setting: string;
+  fantasy_stage_id?: string;
+  clear_days?: number;
   song?: {
     id: string;
     title: string;
     artist?: string;
+  };
+  fantasy_stages?: {
+    id: string;
+    stage_number: string;
+    name: string;
   };
 }
 
@@ -65,7 +72,8 @@ export async function getChallengeWithSongs(challengeId: string): Promise<Challe
       *,
       challenge_tracks(
         *,
-        songs(id, title, artist)
+        songs(id, title, artist),
+        fantasy_stages:fantasy_stage_id(id, stage_number, name)
       )
     `)
     .eq('id', challengeId)
@@ -109,17 +117,21 @@ export async function deleteChallenge(id: string) {
 /**
  * Add song to challenge (admin only)
  */
-export async function addSongToChallenge(challengeId: string, songId: string, conditions: {
+export async function addSongToChallenge(challengeId: string, songId: string | null, conditions: {
   key_offset?: number;
   min_speed?: number;
   min_rank?: string;
   clears_required?: number;
   notation_setting?: string;
+  fantasy_stage_id?: string;
+  clear_days?: number;
 }) {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('challenge_tracks').insert({
     challenge_id: challengeId,
     song_id: songId,
+    fantasy_stage_id: conditions.fantasy_stage_id,
+    clear_days: conditions.clear_days ?? 1,
     key_offset: conditions.key_offset ?? 0,
     min_speed: conditions.min_speed ?? 1.0,
     min_rank: conditions.min_rank ?? 'B',

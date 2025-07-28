@@ -43,6 +43,14 @@ export interface MissionSongProgress {
   min_speed?: number;
   key_offset?: number;
   notation_setting?: string;
+  // ファンタジーステージ
+  fantasy_stage_id?: string;
+  clear_days?: number;
+  fantasy_stages?: {
+    id: string;
+    stage_number: string;
+    name: string;
+  };
 }
 
 // JSTで今日の日付(yyyy-mm-dd)を取得
@@ -127,13 +135,13 @@ export async function fetchMissionSongProgress(missionId: string): Promise<Missi
   // ミッションの曲一覧を取得
   const { data: songsData, error: songsError } = await supabase
     .from('challenge_tracks')
-    .select('*, songs(id,title,artist)')
+    .select('*, songs(id,title,artist), fantasy_stages:fantasy_stage_id(id,stage_number,name)')
     .eq('challenge_id', missionId);
   
   if (songsError) throw songsError;
   
-  // 曲IDのリストを作成
-  const songIds = songsData.map(song => song.song_id);
+  // 曲IDのリストを作成（ファンタジーステージを除く）
+  const songIds = songsData.filter(track => track.song_id).map(track => track.song_id);
   
   // 一括で進捗を取得
   const { data: progressData } = await supabase
@@ -150,24 +158,49 @@ export async function fetchMissionSongProgress(missionId: string): Promise<Missi
     });
   }
   
-  const songProgress = songsData.map((song) => {
-    const clearCount = progressMap.get(song.song_id) || 0;
-    const requiredCount = song.clears_required || 1;
+  const songProgress = await Promise.all(songsData.map(async (track) => {
+    let clearCount = 0;
+    let requiredCount = track.clears_required || 1;
+    
+    if (track.fantasy_stage_id) {
+      // ファンタジーステージの進捗を取得
+      const { data: fantasyClears } = await supabase
+        .from('mission_fantasy_clears')
+        .select('cleared_at')
+        .eq('user_id', user.id)
+        .eq('challenge_id', missionId)
+        .eq('fantasy_stage_id', track.fantasy_stage_id)
+        .eq('clear_type', 'clear');
+      
+      if (fantasyClears) {
+        // 異なる日付のクリア数をカウント
+        const uniqueDays = new Set(fantasyClears.map(c => c.cleared_at.split('T')[0]));
+        clearCount = uniqueDays.size;
+      }
+      requiredCount = track.clear_days || 1;
+    } else {
+      // 通常の曲の進捗
+      clearCount = progressMap.get(track.song_id) || 0;
+    }
     
     return {
       challenge_id: missionId,
-      song_id: song.song_id,
+      song_id: track.song_id,
       clear_count: clearCount,
       required_count: requiredCount,
       is_completed: clearCount >= requiredCount,
-      song: song.songs,
+      song: track.songs,
       // クリア条件を追加
-      min_rank: song.min_rank,
-      min_speed: song.min_speed,
-      key_offset: song.key_offset,
-      notation_setting: song.notation_setting
+      min_rank: track.min_rank,
+      min_speed: track.min_speed,
+      key_offset: track.key_offset,
+      notation_setting: track.notation_setting,
+      // ファンタジーステージ情報
+      fantasy_stage_id: track.fantasy_stage_id,
+      clear_days: track.clear_days,
+      fantasy_stages: track.fantasy_stages,
     };
-  });
+  }));
   
   return songProgress;
 }

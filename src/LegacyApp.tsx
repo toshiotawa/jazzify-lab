@@ -22,6 +22,7 @@ import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import PricingTable from '@/components/subscription/PricingTable';
 import FantasyMain from '@/components/fantasy/FantasyMain';
+import FantasyLessonMissionWrapper from '@/components/fantasy/FantasyLessonMissionWrapper';
 
 /**
  * メインアプリケーションコンポーネント
@@ -242,6 +243,12 @@ const App: React.FC = () => {
     case '#play-lesson':
     case '#play-mission':
       MainContent = <GameScreen />;
+      break;
+    case '#play-lesson-fantasy':
+      MainContent = <FantasyLessonMissionWrapper isLesson={true} />;
+      break;
+    case '#play-mission-fantasy':
+      MainContent = <FantasyLessonMissionWrapper isLesson={false} />;
       break;
     default:
       MainContent = <GameScreen />;
