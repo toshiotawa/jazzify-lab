@@ -73,8 +73,7 @@ const MissionPage: React.FC = () => {
                   <h2 className="text-lg font-semibold">月間ミッション</h2>
                 </div>
                 <p className="text-gray-300 text-sm">
-                  毎月新しいミッションが登場します。ミッションをクリアして報酬を獲得しましょう！<br/>
-                  <span className="font-semibold text-yellow-300">※ミッション曲はスコアボーナスが2倍！</span>
+                  毎月新しいミッションが登場します。ミッションをクリアして報酬を獲得しましょう！
                 </p>
               </div>
 

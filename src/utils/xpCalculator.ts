@@ -9,8 +9,8 @@ export interface XPCalcParams {
   scoreRank: ScoreRank;
   playbackSpeed: number; // 0.5 ~ 1.0 (1.0 = 標準)
   transposed: boolean;   // true で 1.3x
-  lessonBonusMultiplier?: number;   // レッスン曲 2x など
-  missionBonusMultiplier?: number;  // ミッション報酬 1.3x など
+  lessonBonusMultiplier?: number;   // レッスン曲ボーナス（現在は1.0）
+  missionBonusMultiplier?: number;  // ミッション報酬ボーナス（現在は1.0）
   challengeBonusMultiplier?: number; // チャレンジ報酬
   seasonMultiplier?: number; // プロフィール next_season_xp_multiplier
 }

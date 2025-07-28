@@ -72,8 +72,8 @@ const ResultModal: React.FC = () => {
             scoreRank: score.rank as any,
             playbackSpeed: settings.playbackSpeed,
             transposed: settings.transpose !== 0,
-            lessonBonusMultiplier: lessonContext ? 2 : 1,
-            missionBonusMultiplier: missionContext ? 2 : 1,
+            lessonBonusMultiplier: 1, // レッスンボーナスを削除（2→1）
+            missionBonusMultiplier: 1, // ミッションボーナスを削除（2→1）
             challengeBonusMultiplier: 1, // TODO: challengeから
             seasonMultiplier: profile.next_season_xp_multiplier ?? 1,
           });
@@ -96,7 +96,7 @@ const ResultModal: React.FC = () => {
             rankMultiplier: 1, // 新しい計算方式では基本XPに含まれているため1
             transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
             membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
-            missionMultiplier: (lessonContext || missionContext) ? 2 : 1, // レッスンまたはミッションの場合は2倍
+            missionMultiplier: 1, // レッスン・ミッションボーナスを削除（2→1）
             reason: lessonContext ? 'lesson_clear' : missionContext ? 'mission_clear' : 'song_clear', // コンテキストに応じた理由を指定
           });
 
