@@ -213,6 +213,15 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     loadFantasyData();
   }, [loadFantasyData]);
   
+  // 現在地のステージ番号からランクを設定
+  useEffect(() => {
+    if (userProgress && userProgress.currentStageNumber) {
+      const currentRank = userProgress.currentStageNumber.split('-')[0];
+      setSelectedRank(currentRank);
+      devLog.debug('🎮 現在のランクを設定:', currentRank);
+    }
+  }, [userProgress]);
+  
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
     if (!userProgress) return false;
