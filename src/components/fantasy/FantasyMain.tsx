@@ -60,6 +60,14 @@ const FantasyMain: React.FC = () => {
     const stageId = params.get('stageId');
     const clearConditionsStr = params.get('clearConditions');
     
+    devLog.debug('🎮 FantasyMain URLパラメータ:', {
+      lessonId,
+      lessonSongId,
+      stageId,
+      clearConditionsStr,
+      fullHash: window.location.hash
+    });
+    
     if (lessonId && lessonSongId && stageId && clearConditionsStr) {
       // レッスンモード
       setIsLessonMode(true);
@@ -72,8 +80,11 @@ const FantasyMain: React.FC = () => {
           sourceType: 'fantasy'
         });
         
+        devLog.debug('🎮 ファンタジーステージを読み込み中:', stageId);
+        
         // ステージを取得して自動的に開始
         fetchFantasyStageById(stageId).then(stage => {
+          devLog.debug('🎮 ファンタジーステージ取得成功:', stage);
           // FantasyStageの形式に変換
           const fantasyStage: FantasyStage = {
             id: stage.id,
@@ -92,12 +103,15 @@ const FantasyMain: React.FC = () => {
             showSheetMusic: stage.show_sheet_music,
             showGuide: stage.show_guide
           };
+          devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
         }).catch(err => {
           console.error('Failed to load fantasy stage:', err);
+          devLog.error('🎮 ファンタジーステージ取得エラー:', err);
         });
       } catch (e) {
         console.error('Failed to parse clear conditions:', e);
+        devLog.error('🎮 clear conditions パースエラー:', e);
       }
     }
   }, []);

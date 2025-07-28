@@ -114,13 +114,15 @@ const LessonDetailPage: React.FC = () => {
       
       // lesson_songsをrequirementsとして設定（後方互換性のため）
       if (lessonData?.lesson_songs) {
+        console.log('レッスン楽曲データ:', lessonData.lesson_songs);
         const requirementsFromLessonSongs = lessonData.lesson_songs.map(ls => ({
           lesson_id: ls.lesson_id,
           song_id: ls.song_id || ls.id, // ファンタジーステージの場合はidを使用
           clear_conditions: ls.clear_conditions,
           is_fantasy: ls.is_fantasy,
-          fantasy_stage: ls.fantasy_stage
-        } as LessonRequirement & { is_fantasy?: boolean; fantasy_stage?: any }));
+          fantasy_stage: ls.fantasy_stage,
+          fantasy_stage_id: ls.fantasy_stage_id // 追加
+        } as LessonRequirement & { is_fantasy?: boolean; fantasy_stage?: any; fantasy_stage_id?: string }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -604,12 +606,18 @@ const LessonDetailPage: React.FC = () => {
                           onClick={() => {
                             if (isFantasy) {
                               // ファンタジーステージの場合
+                              console.log('ファンタジー課題データ:', req);
+                              console.log('fantasy_stage:', req.fantasy_stage);
+                              console.log('fantasy_stage_id:', req.fantasy_stage_id);
+                              
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);
                               params.set('lessonSongId', req.song_id); // lesson_songs.id
-                              params.set('stageId', req.fantasy_stage?.id || '');
+                              params.set('stageId', req.fantasy_stage?.id || req.fantasy_stage_id || '');
                               params.set('clearConditions', JSON.stringify(req.clear_conditions));
-                              window.location.hash = `#fantasy?${params.toString()}`;
+                              const url = `#fantasy?${params.toString()}`;
+                              console.log('ファンタジーモードURL:', url);
+                              window.location.hash = url;
                             } else {
                               // 通常の楽曲の場合
                               const params = new URLSearchParams();
