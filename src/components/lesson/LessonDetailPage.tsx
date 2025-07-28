@@ -117,12 +117,13 @@ const LessonDetailPage: React.FC = () => {
         console.log('レッスン楽曲データ:', lessonData.lesson_songs);
         const requirementsFromLessonSongs = lessonData.lesson_songs.map(ls => ({
           lesson_id: ls.lesson_id,
-          song_id: ls.song_id || ls.id, // ファンタジーステージの場合はidを使用
+          song_id: ls.song_id, // 通常の楽曲の場合のみ
+          lesson_song_id: ls.id, // lesson_songs.idを追加
           clear_conditions: ls.clear_conditions,
           is_fantasy: ls.is_fantasy,
           fantasy_stage: ls.fantasy_stage,
-          fantasy_stage_id: ls.fantasy_stage_id // 追加
-        } as LessonRequirement & { is_fantasy?: boolean; fantasy_stage?: any; fantasy_stage_id?: string }));
+          fantasy_stage_id: ls.fantasy_stage_id
+        } as LessonRequirement & { is_fantasy?: boolean; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -411,7 +412,7 @@ const LessonDetailPage: React.FC = () => {
                     const progress = requirementsProgress.find(p => {
                       if (req.is_fantasy) {
                         // ファンタジーステージの場合はlesson_song_idで比較
-                        return p.lesson_song_id === req.song_id;
+                        return p.lesson_song_id === req.lesson_song_id;
                       }
                       // 通常の楽曲の場合はsong_idで比較
                       return p.song_id === req.song_id;
@@ -616,10 +617,11 @@ const LessonDetailPage: React.FC = () => {
                               console.log('ファンタジー課題データ:', req);
                               console.log('fantasy_stage:', req.fantasy_stage);
                               console.log('fantasy_stage_id:', req.fantasy_stage_id);
+                              console.log('lesson_song_id:', req.lesson_song_id);
                               
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);
-                              params.set('lessonSongId', req.song_id); // lesson_songs.id
+                              params.set('lessonSongId', req.lesson_song_id); // lesson_songs.idを使用
                               params.set('stageId', req.fantasy_stage?.id || req.fantasy_stage_id || '');
                               params.set('clearConditions', JSON.stringify(req.clear_conditions));
                               const url = `#fantasy?${params.toString()}`;
