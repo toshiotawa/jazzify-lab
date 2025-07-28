@@ -150,45 +150,24 @@ const FantasyMain: React.FC = () => {
       
       if (result === 'clear') {
         try {
-          // ランクを計算（S: 100%, A: 90%+, B: 80%+, C: 70%+, D: それ以下）
-          const accuracy = correctAnswers / totalQuestions;
-          let rank = 'D';
-          if (accuracy >= 1.0) rank = 'S';
-          else if (accuracy >= 0.9) rank = 'A';
-          else if (accuracy >= 0.8) rank = 'B';
-          else if (accuracy >= 0.7) rank = 'C';
-          
-          // 最低ランクをチェック
-          const requiredRank = lessonContext.clearConditions?.rank || 'B';
-          const rankOrder = ['S', 'A', 'B', 'C', 'D'];
-          const achievedRankIndex = rankOrder.indexOf(rank);
-          const requiredRankIndex = rankOrder.indexOf(requiredRank);
-          
-          devLog.debug('🎮 ランクチェック:', {
-            achievedRank: rank,
-            requiredRank,
-            passed: achievedRankIndex <= requiredRankIndex
-          });
-          
-          // 必要ランク以上でない場合はスキップ
-          if (achievedRankIndex > requiredRankIndex) {
-            devLog.debug('🎮 必要ランクに達していません');
-            return;
-          }
+          // ファンタジーモードでは、クリア自体が成功なので、
+          // clearConditionsで指定されたランクをそのまま使用
+          const achievedRank = lessonContext.clearConditions?.rank || 'B';
           
           devLog.debug('🎮 レッスン進捗更新パラメータ:', {
             lessonId: lessonContext.lessonId,
             lessonSongId: lessonContext.lessonSongId,
-            rank,
+            rank: achievedRank,
             clearConditions: lessonContext.clearConditions,
-            accuracy
+            correctAnswers,
+            totalQuestions
           });
           
           // レッスン課題の進捗を更新（fantasy_stage_clearsは更新しない）
           await updateLessonRequirementProgress(
             lessonContext.lessonId,
             lessonContext.lessonSongId,
-            rank,
+            achievedRank, // 必要ランクをそのまま渡す（ファンタジーモードはクリア＝成功）
             lessonContext.clearConditions,
             {
               sourceType: 'fantasy',
