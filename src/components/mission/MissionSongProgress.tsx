@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import type { MissionSongProgress as MissionSongProgressType } from '@/platform/supabaseMissions';
 import { useMissionStore } from '@/stores/missionStore';
 import { useGameStore } from '@/stores/gameStore';
-import { useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { FaPlay, FaMusic, FaCheck, FaKey, FaTachometerAlt, FaStar, FaListUl, FaDragon } from 'react-icons/fa';
 
@@ -13,8 +12,7 @@ interface Props {
 
 const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
   const { fetchSongProgress } = useMissionStore();
-  const { loadSong } = useGameStore();
-  const gameActions = useGameActions();
+  const { loadSong, setMissionContext } = useGameStore();
 
   useEffect(() => {
     console.log('MissionSongProgress useEffect:', { missionId, songProgressLength: songProgress.length });
@@ -34,7 +32,7 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
         });
         
         // ミッションコンテキストを設定
-        gameActions.setMissionContext(missionId, songId, {
+        setMissionContext(missionId, songId, {
           count: songProgress.required_count || 1
         });
         
