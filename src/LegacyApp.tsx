@@ -231,6 +231,7 @@ const App: React.FC = () => {
     case '#admin-challenges':
     case '#admin-users':
     case '#admin-announcements':
+    case '#admin-courses':
       MainContent = <AdminDashboard />;
       break;
     case '#fantasy':
