@@ -65,13 +65,15 @@ export class FantasySoundManager {
   private _volume = 0.8;
   /** 初期化済みフラグ */
   private isInited = false;
+  /** ロード完了を待つPromise */
+  private loadedPromise: Promise<void> | null = null;
 
   // ─────────────────────────────────────────────
-  // ベース音関連フィールド
-  private static bassSynth: any | null = null;
-  private static bassVolume = 0.5; // デフォルト50%
-  private static bassEnabled = true;
-  private static lastRootStart = 0; // Tone.js例外対策用
+  // ベース音関連フィールド - globalSamplerを上書きしない独自のsampler
+  private bassSampler: any | null = null;
+  private bassVolume = 0.5; // デフォルト50%
+  private bassEnabled = true;
+  private lastRootStart = 0; // Tone.js例外対策用
 
   // ─────────────────────────────────────────────
   // public static wrappers – 使いやすいように static 経由のエイリアスを用意
@@ -85,37 +87,17 @@ export class FantasySoundManager {
   public static getVolume() { return this.instance._volume; }
 
   // ─────────────────────────────────────────────
-  // ベース音関連のstaticメソッド
-  public static playRootNote(rootName: string) {
-    if (!FantasySoundManager.bassEnabled || !FantasySoundManager.bassSynth) return;
-    const Tone = window.Tone as typeof import('tone');
-    const n = tonalNote(rootName + '2');        // C2 付近
-    if (n.midi == null) return;
-    
-    // Tone.js 例外対策：必ず前回より >0 の startTime
-    let t = Tone.now();
-    if (t <= FantasySoundManager.lastRootStart) t = FantasySoundManager.lastRootStart + 0.001;
-    FantasySoundManager.lastRootStart = t;
-    
-    const note = Tone.Frequency(n.midi, 'midi').toNote();
-    FantasySoundManager.bassSynth.triggerAttackRelease(
-      note,
-      '8n',
-      t,
-      FantasySoundManager.bassVolume // velocity 相当
-    );
+  // ベース音関連のstaticメソッド - 非同期対応
+  public static async playRootNote(rootName: string) {
+    return this.instance._playRootNote(rootName);
   }
 
   public static setRootVolume(v: number) {
-    FantasySoundManager.bassVolume = v;
-    if (FantasySoundManager.bassSynth) {
-      (FantasySoundManager.bassSynth.volume as any).value =
-        v === 0 ? -Infinity : Math.log10(v) * 20;
-    }
+    this.instance._setRootVolume(v);
   }
 
   public static enableRootSound(enabled: boolean) {
-    FantasySoundManager.bassEnabled = enabled;
+    this.instance._enableRootSound(enabled);
   }
 
   // ─────────────────────────────────────────────
@@ -166,17 +148,28 @@ export class FantasySoundManager {
       load('my_attack',     'my_attack.mp3')
     ];
 
-    return Promise.all(promises).then(async () => {
-      // ─ BassSynth ─
+    // ロード完了Promiseを保存
+    this.loadedPromise = Promise.all(promises).then(async () => {
+      // ─ BassSynth ─ - globalSamplerを上書きしない独自のsampler
       await this._initializeAudioSystem();
       const Tone = window.Tone as typeof import('tone');
-      FantasySoundManager.bassSynth = new Tone.MonoSynth({
-        oscillator: { type: 'sine' }, // まっすぐな低音
-        filter:     { Q: 1, type: 'lowpass', rolloff: -24, frequency: 300 },
-        envelope:   { attack: 0, decay: 0.05, sustain: 0.8, release: 0.3 }
+      this.bassSampler = new Tone.Sampler({
+        urls: {
+          "A1": "A1.mp3",
+          "C2": "C2.mp3",
+          "D#2": "Ds2.mp3",
+          "F#2": "Fs2.mp3",
+          "A2": "A2.mp3",
+          "C3": "C3.mp3",
+          "D#3": "Ds3.mp3",
+          "F#3": "Fs3.mp3",
+          "A3": "A3.mp3",
+          "C4": "C4.mp3"
+        },
+        baseUrl: "https://tonejs.github.io/audio/salamander/"
       }).toDestination();
-      FantasySoundManager.setRootVolume(bassVol);
-      FantasySoundManager.bassEnabled = bassEnabled;
+      this._setRootVolume(bassVol);
+      this._enableRootSound(bassEnabled);
 
       this.isInited = true;
       console.debug('[FantasySoundManager] init complete');
@@ -185,6 +178,8 @@ export class FantasySoundManager {
         console.debug(`[FantasySoundManager] ${key}: ready=${entry.ready}`);
       });
     });
+
+    return this.loadedPromise;
   }
 
   private async _initializeAudioSystem(): Promise<void> {
@@ -270,6 +265,45 @@ export class FantasySoundManager {
           });
         });
     }
+  }
+
+  // ベース音関連のprivateメソッド
+  private async _playRootNote(rootName: string) {
+    if (!this.bassEnabled || !this.bassSampler) return;
+    
+    // ロード完了を待つ
+    if (this.loadedPromise) {
+      await this.loadedPromise;
+    }
+    
+    const Tone = window.Tone as typeof import('tone');
+    const n = tonalNote(rootName + '2');        // C2 付近
+    if (n.midi == null) return;
+    
+    // Tone.js 例外対策：必ず前回より >0 の startTime
+    let t = Tone.now();
+    if (t <= this.lastRootStart) t = this.lastRootStart + 0.001;
+    this.lastRootStart = t;
+    
+    const note = Tone.Frequency(n.midi, 'midi').toNote();
+    this.bassSampler.triggerAttackRelease(
+      note,
+      '8n',
+      t,
+      this.bassVolume // velocity 相当
+    );
+  }
+
+  private _setRootVolume(v: number) {
+    this.bassVolume = v;
+    if (this.bassSampler) {
+      (this.bassSampler.volume as any).value =
+        v === 0 ? -Infinity : Math.log10(v) * 20;
+    }
+  }
+
+  private _enableRootSound(enabled: boolean) {
+    this.bassEnabled = enabled;
   }
 }
 

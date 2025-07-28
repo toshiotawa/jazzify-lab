@@ -86,7 +86,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   
   // ノート入力のハンドリング用ref
-  const handleNoteInputRef = useRef<(note: number) => void>();
+  const handleNoteInputRef = useRef<(note: number, source?: 'mouse' | 'midi') => void>();
   
   // 再生中のノートを追跡
   const activeNotesRef = useRef<Set<number>>(new Set());
@@ -99,7 +99,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onNoteOn: (note: number, velocity?: number) => {
           devLog.debug('🎹 MIDI Note On:', { note, velocity });
           if (handleNoteInputRef.current) {
-            handleNoteInputRef.current(note);
+            handleNoteInputRef.current(note, 'midi'); // MIDI経由として指定
           }
         },
         onNoteOff: (note: number) => {
@@ -219,18 +219,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を受け取り、新しいPIXIメソッドを呼び出す
-  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
+  const handleChordCorrect = useCallback(async (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
     devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
     
     if (fantasyPixiInstance) {
       fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
     }
 
-    // ルート音を再生
+    // ルート音を再生（非同期対応）
     if (settings.playRootSound) {
-      import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
-        FantasySoundManager.playRootNote(chord.root);
-      });
+      try {
+        const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
+        await FantasySoundManager.playRootNote(chord.root);
+      } catch (error) {
+        console.error('Failed to play root note:', error);
+      }
     }
   }, [fantasyPixiInstance, settings.playRootSound]);
   // ▲▲▲ ここまで ▲▲▲
@@ -307,9 +310,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
   
   // MIDI/音声入力のハンドリング
-  const handleNoteInputBridge = useCallback(async (note: number) => {
-    // 既に再生中の場合はスキップ
-    if (activeNotesRef.current.has(note)) {
+  const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
+    // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
+    if (source === 'mouse' && activeNotesRef.current.has(note)) {
       devLog.debug('🎵 Note already playing, skipping:', note);
       return;
     }
@@ -388,7 +391,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       renderer.setKeyCallbacks(
         (note: number) => {
           devLog.debug('🎹 Fantasy mode key press:', note);
-          handleNoteInputBridge(note);
+          handleNoteInputBridge(note, 'mouse'); // マウスクリックとして扱う
         },
         async (note: number) => {
           devLog.debug('🎹 Fantasy mode key release:', note);

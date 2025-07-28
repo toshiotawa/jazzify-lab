@@ -8,11 +8,18 @@ import type {
   MidiMessage,
   MidiInput,
   MidiAccess,
-  ToneSampler,
   ToneFrequency,
   ToneStatic,
   MidiControllerOptions
 } from '@/types';
+
+// ToneSamplerインターフェースを拡張
+interface ToneSampler {
+  triggerAttack(note: string, time?: number, velocity?: number): void;
+  triggerRelease(note: string, time?: number): void;
+  toDestination(): ToneSampler;
+  active?: any[];
+}
 
 // 共通音声再生システム
 let globalSampler: ToneSampler | null = null;
@@ -167,7 +174,15 @@ export const stopNote = (note: number): void => {
     }
 
     const noteName = window.Tone.Frequency(note, "midi").toNote();
-    globalSampler.triggerRelease(noteName);
+    
+    // null guardを追加
+    if (globalSampler?.active && globalSampler.active.length > 0) {
+      try {
+        globalSampler.triggerRelease(noteName);
+      } catch (error) {
+        console.warn('⚠️ Failed to trigger release, voice may be null:', error);
+      }
+    }
   } catch (error) {
     console.error('❌ Failed to stop note:', error);
   }
@@ -264,11 +279,11 @@ export class MIDIController {
     
     const [status, note, velocity] = Array.from(message.data) as [number, number, number];
     
-    // ノートオン
+    // ノートオン（velocity > 0）
     if ((status & 0xf0) === 0x90 && velocity > 0) {
       this.handleNoteOn(note, velocity);
     }
-    // ノートオフ
+    // ノートオフ（velocity = 0 または 0x80）
     else if ((status & 0xf0) === 0x80 || ((status & 0xf0) === 0x90 && velocity === 0)) {
       this.handleNoteOff(note);
     }
@@ -484,6 +499,21 @@ export class MIDIController {
    */
   public updateVolume(volume: number): void {
     updateGlobalVolume(volume);
+  }
+
+  // シーク・ループ状態をチェック
+  private isSeekingOrLooping(): boolean {
+    const gameInstance = (window as any).gameInstance;
+    
+    if (gameInstance) {
+      const now = Date.now();
+      const isInSeekCooldown = (now - gameInstance.lastSeekTime) < gameInstance.seekCooldownTime;
+      return gameInstance.isJustAfterSeek || 
+             gameInstance.isInLoop || 
+             gameInstance.isSkipping || 
+             isInSeekCooldown;
+    }
+    return false;
   }
 }
 
