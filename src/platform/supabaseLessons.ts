@@ -164,7 +164,7 @@ export async function deleteLesson(id: string): Promise<void> {
 
 type LessonSongData = {
   lesson_id: string;
-  song_id: string;
+  song_id: string | null;
   clear_conditions?: ClearConditions;
   is_fantasy?: boolean;
   fantasy_stage_id?: string;

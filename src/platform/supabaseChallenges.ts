@@ -111,7 +111,7 @@ export async function deleteChallenge(id: string) {
 /**
  * Add song to challenge (admin only)
  */
-export async function addSongToChallenge(challengeId: string, songId: string, conditions: {
+export async function addSongToChallenge(challengeId: string, songId: string | null, conditions: {
   key_offset?: number;
   min_speed?: number;
   min_rank?: string;
