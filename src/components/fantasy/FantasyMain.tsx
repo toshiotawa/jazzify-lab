@@ -362,19 +362,10 @@ const FantasyMain: React.FC = () => {
             {gameResult.result === 'clear' ? 'ステージクリア！' : 'ゲームオーバー'}
           </h2>
           
-          {/* スコア表示 */}
+          {/* 結果表示 */}
           <div className="bg-black bg-opacity-30 rounded-lg p-6 mb-6">
-            <div className="space-y-2 text-lg font-dotgothic16">
-              <div>スコア: <span className="text-yellow-300 font-bold">{gameResult.score.toLocaleString()}</span></div>
-              <div>正解数: <span className="text-green-300 font-bold">{gameResult.correctAnswers}</span> / {gameResult.totalQuestions}</div>
-              <div>
-                正解率: <span className={`font-bold ${
-                  (gameResult.correctAnswers / gameResult.totalQuestions) >= 0.8 ? 'text-green-300' : 
-                  (gameResult.correctAnswers / gameResult.totalQuestions) >= 0.6 ? 'text-yellow-300' : 'text-red-300'
-                }`}>
-                  {Math.round((gameResult.correctAnswers / gameResult.totalQuestions) * 100)}%
-                </span>
-              </div>
+            <div className="text-lg font-dotgothic16">
+              <div>正解数: <span className="text-green-300 font-bold text-2xl">{gameResult.correctAnswers}</span></div>
             </div>
             
             {/* 経験値獲得 */}
