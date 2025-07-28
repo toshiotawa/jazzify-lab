@@ -1,7 +1,7 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { MembershipRank } from '@/platform/supabaseSongs';
 
-// 経験値テーブル: レベル1-10 => 2,000 XP / lvl, 11-50 => 5,000, 51+ => 20,000
+// 経験値テーブル: レベル1-10 => 2,000 XP / lvl, 11-50 => 50,000, 51+ => 100,000
 export function calcLevel(totalXp: number): { level: number; remainder: number; nextLevelXp: number } {
   let level = 1;
   let xp = totalXp;
@@ -22,11 +22,11 @@ export function calcLevel(totalXp: number): { level: number; remainder: number; 
 
   // Lv11-50 (40 gaps)
   for (let i = 10; i < 50; i++) {
-    if (!consume(5000)) return { level, remainder: xp, nextLevelXp: 5000 };
+    if (!consume(50000)) return { level, remainder: xp, nextLevelXp: 50000 };
   }
 
   // Lv51+ (infinite)
-  const per = 20000;
+  const per = 100000;
   while (consume(per)) {
     // loop until not enough xp
   }
