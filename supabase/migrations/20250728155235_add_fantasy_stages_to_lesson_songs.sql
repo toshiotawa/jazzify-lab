@@ -9,6 +9,11 @@ ALTER TABLE public.lesson_songs
 ADD COLUMN IF NOT EXISTS is_fantasy BOOLEAN DEFAULT false,
 ADD COLUMN IF NOT EXISTS fantasy_stage_id UUID REFERENCES public.fantasy_stages(id) ON DELETE RESTRICT;
 
+-- Update existing rows to have is_fantasy = false (for existing song entries)
+UPDATE public.lesson_songs 
+SET is_fantasy = false 
+WHERE is_fantasy IS NULL AND song_id IS NOT NULL;
+
 -- 3. Add clear_conditions column if not exists
 DO $$
 BEGIN
@@ -28,6 +33,11 @@ ON public.lesson_songs(fantasy_stage_id)
 WHERE fantasy_stage_id IS NOT NULL;
 
 -- 5. Add constraint to ensure either song or fantasy stage is set
+-- First drop the constraint if it exists
+ALTER TABLE public.lesson_songs
+DROP CONSTRAINT IF EXISTS lesson_songs_check_fantasy_or_song;
+
+-- Then add the constraint
 ALTER TABLE public.lesson_songs
 ADD CONSTRAINT lesson_songs_check_fantasy_or_song CHECK (
   (is_fantasy = true AND fantasy_stage_id IS NOT NULL AND song_id IS NULL) 
