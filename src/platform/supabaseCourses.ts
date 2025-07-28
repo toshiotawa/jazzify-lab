@@ -357,6 +357,46 @@ export async function adminUnlockCourse(userId: string, courseId: string): Promi
 }
 
 /**
+ * コースの前提条件を設定します
+ * @param {string} courseId - コースID
+ * @param {string[]} prerequisiteIds - 前提条件となるコースIDの配列
+ */
+export async function setCoursePrerequisites(courseId: string, prerequisiteIds: string[]): Promise<void> {
+  const supabase = getSupabaseClient();
+  
+  // まず既存の前提条件を削除
+  const { error: deleteError } = await supabase
+    .from('course_prerequisites')
+    .delete()
+    .eq('course_id', courseId);
+
+  if (deleteError) {
+    console.error('Error deleting existing prerequisites:', deleteError);
+    throw deleteError;
+  }
+
+  // 新しい前提条件を追加
+  if (prerequisiteIds.length > 0) {
+    const prerequisites = prerequisiteIds.map(id => ({
+      course_id: courseId,
+      prerequisite_course_id: id
+    }));
+
+    const { error: insertError } = await supabase
+      .from('course_prerequisites')
+      .insert(prerequisites);
+
+    if (insertError) {
+      console.error('Error inserting prerequisites:', insertError);
+      throw insertError;
+    }
+  }
+
+  // キャッシュをクリア
+  clearCacheByPattern(/^courses/);
+}
+
+/**
  * 前提条件チェックおよび依存コースの自動アンロック（RPC呼び出し）
  * @param {string} userId
  */
