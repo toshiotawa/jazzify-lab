@@ -339,13 +339,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           {stage.name}
         </div>
         
-        {/* ステージ情報 */}
+        {/* ステージ情報 - 敵の数のみ表示 */}
         {unlocked && (
-          <div className="text-xs text-gray-300 text-center space-y-1">
-            <div>HP: {stage.maxHp} / 敵: {stage.enemyCount} (HP:{stage.enemyHp})</div>
-            <div className="text-yellow-300">
-              {stage.mode === 'single' ? '単一コード' : 'コード進行'}
-            </div>
+          <div className="text-xs text-gray-300 text-center">
+            <div>敵: {stage.enemyCount}</div>
           </div>
         )}
         
@@ -414,8 +411,6 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           <div>
             <h1 className="text-3xl font-bold mb-2">🧙‍♂️ ファンタジーモード</h1>
             <div className="flex items-center space-x-6 text-sm">
-              <div>魔法使いランク: <span className="text-yellow-300 font-bold">{currentWizardRank}</span></div>
-              <div>クリア済みステージ: <span className="text-green-300 font-bold">{totalCleared}</span></div>
               <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber}</span></div>
             </div>
           </div>

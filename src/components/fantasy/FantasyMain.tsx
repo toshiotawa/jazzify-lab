@@ -98,21 +98,22 @@ const FantasyMain: React.FC = () => {
           });
         }
         
-        // クリア記録を保存（既存記録がある場合は更新）
-        try {
-          const { error: clearError } = await supabase
-            .from('fantasy_stage_clears')
-            .upsert({
-              user_id: profile.id,
-              stage_id: currentStage.id,
-              score: score,
-              clear_type: result,
-              remaining_hp: result === 'clear' ? Math.max(1, 5 - (totalQuestions - correctAnswers)) : 0,
-              total_questions: totalQuestions,
-              correct_answers: correctAnswers
-            }, {
-              onConflict: 'user_id,stage_id'
-            });
+        // クリア記録を保存（クリアの場合のみ保存、ゲームオーバーは既存のクリア記録を上書きしない）
+        if (result === 'clear') {
+          try {
+            const { error: clearError } = await supabase
+              .from('fantasy_stage_clears')
+              .upsert({
+                user_id: profile.id,
+                stage_id: currentStage.id,
+                score: score,
+                clear_type: result,
+                remaining_hp: Math.max(1, 5 - (totalQuestions - correctAnswers)),
+                total_questions: totalQuestions,
+                correct_answers: correctAnswers
+              }, {
+                onConflict: 'user_id,stage_id'
+              });
           
           if (clearError) {
             console.error('ファンタジークリア記録保存エラー:', clearError);
@@ -129,10 +130,11 @@ const FantasyMain: React.FC = () => {
               }
             });
           } else {
-            devLog.debug('✅ ファンタジークリア記録保存完了');
+              devLog.debug('✅ ファンタジークリア記録保存完了');
+            }
+          } catch (clearSaveError) {
+            console.error('ファンタジークリア記録保存例外:', clearSaveError);
           }
-        } catch (clearSaveError) {
-          console.error('ファンタジークリア記録保存例外:', clearSaveError);
         }
         
         // ───────── 進捗の更新判定 ─────────
