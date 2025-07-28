@@ -21,6 +21,11 @@ const AdminDashboard: React.FC = () => {
   
   // profile.is_admin を使用
   const isAdmin = !!profile?.is_admin;
+  
+  // デバッグ用ログ
+  console.log('AdminDashboard - Profile:', profile);
+  console.log('AdminDashboard - is_admin:', profile?.is_admin);
+  console.log('AdminDashboard - isAdmin:', isAdmin);
 
   useEffect(() => {
     const handler = () => {

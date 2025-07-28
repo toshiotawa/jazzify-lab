@@ -80,7 +80,7 @@ interface AuthState {
     rank: 'free' | 'standard' | 'premium' | 'platinum';
     level: number;
     xp: number;
-    isAdmin: boolean;
+    is_admin: boolean;
     id: string;
     email?: string;
     avatar_url?: string | null;
@@ -612,7 +612,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               rank: data.rank,
               level: data.level,
               xp: data.xp,
-              isAdmin: data.is_admin,
+              is_admin: data.is_admin,
               id: user.id,
               email: data.email || user.email,
               avatar_url: data.avatar_url,
