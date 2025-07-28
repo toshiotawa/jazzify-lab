@@ -190,7 +190,13 @@ const MissionManager: React.FC = () => {
     };
 
     try {
-      console.log('ミッション課題追加:', { missionId: selectedMission.id, id, isFantasy, defaultConditions });
+      console.log('ミッション課題追加:', { 
+        missionId: selectedMission.id, 
+        id, 
+        isFantasy, 
+        defaultConditions,
+        説明: isFantasy ? 'ファンタジーステージを追加' : '楽曲を追加'
+      });
       await addSongToChallenge(selectedMission.id, id, defaultConditions);
       toast.success(isFantasy ? 'ステージ課題を追加しました' : '楽曲を追加しました');
       // ミッション詳細を再読み込み
@@ -572,7 +578,7 @@ const MissionManager: React.FC = () => {
           onSelectSong={(id) => handleSongSelect(id, false)}
           onSelectStage={(id) => handleSongSelect(id, true)}
           onClose={() => setShowSongSelector(false)}
-          excludeSongIds={selectedMission.songs.map(s => s.song_id)}
+          excludeSongIds={selectedMission.songs.filter(s => !s.is_fantasy).map(s => s.song_id)}
         />
       )}
 

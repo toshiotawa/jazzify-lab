@@ -144,7 +144,17 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
   });
   
   const { error } = await supabase.from('challenge_tracks').insert(insertData);
-  if (error) throw error;
+  if (error) {
+    console.error('challenge_tracks挿入エラー:', error);
+    if (error.code === '23503') {
+      if (error.message.includes('song_id')) {
+        throw new Error(`楽曲ID "${insertData.song_id}" が存在しません。楽曲が削除されている可能性があります。`);
+      } else if (error.message.includes('fantasy_stage_id')) {
+        throw new Error(`ステージID "${insertData.fantasy_stage_id}" が存在しません。`);
+      }
+    }
+    throw error;
+  }
   clearSupabaseCache();
 }
 
