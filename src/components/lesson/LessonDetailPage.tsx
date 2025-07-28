@@ -408,7 +408,14 @@ const LessonDetailPage: React.FC = () => {
                 <div className="space-y-4">
                   {requirements.map((req: any, index) => {
                     // この実習課題の進捗を取得
-                    const progress = requirementsProgress.find(p => p.song_id === req.song_id);
+                    const progress = requirementsProgress.find(p => {
+                      if (req.is_fantasy) {
+                        // ファンタジーステージの場合はlesson_song_idで比較
+                        return p.lesson_song_id === req.song_id;
+                      }
+                      // 通常の楽曲の場合はsong_idで比較
+                      return p.song_id === req.song_id;
+                    });
                     const isCompleted = progress?.is_completed || false;
                     const clearCount = progress?.clear_count || 0;
                     const requiredCount = req.clear_conditions?.count || 1;

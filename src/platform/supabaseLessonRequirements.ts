@@ -4,7 +4,8 @@ export interface LessonRequirementProgress {
   id: string;
   user_id: string;
   lesson_id: string;
-  song_id: string;
+  song_id: string | null;
+  lesson_song_id?: string | null;
   clear_count: number;
   clear_dates: string[]; // Date strings in ISO format
   best_rank?: string;
@@ -126,12 +127,13 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
   
   if (!user) throw new Error('ログインが必要です');
 
-  // レッスンの実習課題を取得
+  // レッスンの実習課題を取得（ファンタジーステージも含む）
   const { data: requirements, error: reqError } = await supabase
     .from('lesson_songs')
     .select(`
       *,
-      songs (id, title, artist)
+      songs (id, title, artist),
+      fantasy_stage:fantasy_stages (*)
     `)
     .eq('lesson_id', lessonId);
 
@@ -143,7 +145,14 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
   // すべて完了しているかチェック
   const allCompleted = requirements ? 
     requirements.every(req => 
-      progress.some(p => p.song_id === req.song_id && p.is_completed)
+      progress.some(p => {
+        // ファンタジーステージの場合はlesson_song_idで比較
+        if (req.is_fantasy) {
+          return p.lesson_song_id === req.id && p.is_completed;
+        }
+        // 通常の楽曲の場合はsong_idで比較
+        return p.song_id === req.song_id && p.is_completed;
+      })
     ) : true;
 
   return {
