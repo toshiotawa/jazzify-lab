@@ -23,6 +23,8 @@ interface FantasyGameScreenProps {
   onBackToStageSelect: () => void;
   noteNameLang?: DisplayOpts['lang'];     // 音名表示言語
   simpleNoteName?: boolean;                // 簡易表記
+  lessonContext?: { lessonId: string; clearConditions: any };
+  missionContext?: { missionId: string; songId: string; clearConditions?: any };
 }
 
 // 不要な定数とインターフェースを削除（PIXI側で処理）
@@ -33,7 +35,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   onGameComplete,
   onBackToStageSelect,
   noteNameLang = 'en',
-  simpleNoteName = false
+  simpleNoteName = false,
+  lessonContext,
+  missionContext
 }) => {
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
@@ -688,12 +692,32 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
           
           {/* 戻るボタン */}
-          <button
-            onClick={onBackToStageSelect}
-            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
-          >
-            ステージ選択に戻る
-          </button>
+          {lessonContext ? (
+            <button
+              onClick={() => {
+                window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+              }}
+              className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
+            >
+              レッスンに戻る
+            </button>
+          ) : missionContext ? (
+            <button
+              onClick={() => {
+                window.location.hash = '#missions';
+              }}
+              className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
+            >
+              ミッションに戻る
+            </button>
+          ) : (
+            <button
+              onClick={onBackToStageSelect}
+              className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
+            >
+              ステージ選択に戻る
+            </button>
+          )}
           
           {/* 設定ボタン */}
           <button

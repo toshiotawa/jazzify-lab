@@ -1,7 +1,7 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache, clearCacheByPattern } from '@/platform/supabaseClient';
 
 export type ChallengeType = 'weekly' | 'monthly';
-export type ChallengeCategory = 'diary' | 'song_clear';
+export type ChallengeCategory = 'diary' | 'song_clear' | 'fantasy';
 
 export interface Challenge {
   id: string;
@@ -19,6 +19,8 @@ export interface Challenge {
 export interface ChallengeSong {
   challenge_id: string;
   song_id: string;
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
   key_offset: number;
   min_speed: number;
   min_rank: string;
@@ -65,14 +67,22 @@ export async function getChallengeWithSongs(challengeId: string): Promise<Challe
       *,
       challenge_tracks(
         *,
-        songs(id, title, artist)
+        songs(id, title, artist),
+        fantasy_stages(id, stage_number, name)
       )
     `)
     .eq('id', challengeId)
     .single();
   
   if (error) throw error;
-  return data as Challenge & { songs: ChallengeSong[] };
+  
+  // challenge_tracksをsongsに変換（互換性のため）
+  const result = {
+    ...data,
+    songs: data.challenge_tracks || []
+  };
+  
+  return result as Challenge & { songs: ChallengeSong[] };
 }
 
 /**
@@ -109,24 +119,50 @@ export async function deleteChallenge(id: string) {
 /**
  * Add song to challenge (admin only)
  */
-export async function addSongToChallenge(challengeId: string, songId: string, conditions: {
+export async function addSongToChallenge(challengeId: string, songId: string | null, conditions: {
   key_offset?: number;
   min_speed?: number;
   min_rank?: string;
   clears_required?: number;
   notation_setting?: string;
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
 }) {
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from('challenge_tracks').insert({
+  
+  const insertData = {
     challenge_id: challengeId,
-    song_id: songId,
+    song_id: conditions.is_fantasy ? null : songId,
     key_offset: conditions.key_offset ?? 0,
     min_speed: conditions.min_speed ?? 1.0,
     min_rank: conditions.min_rank ?? 'B',
     clears_required: conditions.clears_required ?? 1,
     notation_setting: conditions.notation_setting ?? 'both',
+    is_fantasy: conditions.is_fantasy ?? false,
+    fantasy_stage_id: conditions.fantasy_stage_id === undefined ? null : conditions.fantasy_stage_id,
+  };
+  
+  console.log('addSongToChallenge - 送信データ:', insertData);
+  console.log('チェック制約の確認:', {
+    is_fantasy: insertData.is_fantasy,
+    fantasy_stage_id: insertData.fantasy_stage_id,
+    song_id: insertData.song_id,
+    制約1: insertData.is_fantasy === true && insertData.fantasy_stage_id !== null && insertData.song_id === null,
+    制約2: insertData.is_fantasy === false && insertData.song_id !== null && insertData.fantasy_stage_id === null,
   });
-  if (error) throw error;
+  
+  const { error } = await supabase.from('challenge_tracks').insert(insertData);
+  if (error) {
+    console.error('challenge_tracks挿入エラー:', error);
+    if (error.code === '23503') {
+      if (error.message.includes('song_id')) {
+        throw new Error(`楽曲ID "${insertData.song_id}" が存在しません。楽曲が削除されている可能性があります。`);
+      } else if (error.message.includes('fantasy_stage_id')) {
+        throw new Error(`ステージID "${insertData.fantasy_stage_id}" が存在しません。`);
+      }
+    }
+    throw error;
+  }
   clearSupabaseCache();
 }
 

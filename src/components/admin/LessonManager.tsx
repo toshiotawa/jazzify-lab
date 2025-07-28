@@ -7,7 +7,9 @@ import { fetchSongs } from '@/platform/supabaseSongs';
 import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
-import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical } from 'react-icons/fa';
+import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical, FaDragon } from 'react-icons/fa';
+import StageSelector from './StageSelector';
+import { getSupabaseClient } from '@/platform/supabaseClient';
 
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number'>;
 
@@ -16,6 +18,13 @@ type SongFormData = {
   clear_conditions: ClearConditions;
 };
 
+type StageFormData = {
+  fantasy_stage_id: string;
+  clear_conditions: ClearConditions;
+};
+
+type LessonTaskMode = 'song' | 'fantasy';
+
 export const LessonManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
@@ -23,15 +32,18 @@ export const LessonManager: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [availableSongs, setAvailableSongs] = useState<SongData[]>([]);
+  const [availableStages, setAvailableStages] = useState<Array<{id:string; stage_number:string; name:string}>>([]);
   const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set());
   const [currentLessons, setCurrentLessons] = useState<Lesson[]>([]);
   const [lessonsLoading, setLessonsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSorting, setIsSorting] = useState(false);
+  const [taskMode, setTaskMode] = useState<LessonTaskMode>('song');
 
   const toast = useToast();
   const { register, handleSubmit, reset, setValue } = useForm<LessonFormData>();
   const { register: registerSong, handleSubmit: handleSubmitSong, reset: resetSong, setValue: setValueSong, watch: watchSong } = useForm<SongFormData>();
+  const { register: registerStage, handleSubmit: handleSubmitStage, reset: resetStage, watch: watchStage } = useForm<StageFormData>();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const songDialogRef = useRef<HTMLDialogElement>(null);
 
@@ -39,12 +51,20 @@ export const LessonManager: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [coursesData, songsData] = await Promise.all([
+      const [coursesData, songsData, stagesResult] = await Promise.all([
         fetchCoursesSimple(),
-        fetchSongs('lesson')
+        fetchSongs('lesson'),
+        getSupabaseClient()
+          .from('fantasy_stages')
+          .select('id, stage_number, name')
+          .order('stage_number', { ascending: true })
       ]);
       setCourses(coursesData);
       setAvailableSongs(songsData);
+      
+      if (!stagesResult.error && stagesResult.data) {
+        setAvailableStages(stagesResult.data);
+      }
 
       if (!selectedCourseId || !coursesData.some(c => c.id === selectedCourseId)) {
         const firstCourseId = coursesData[0]?.id || '';
@@ -120,6 +140,13 @@ export const LessonManager: React.FC = () => {
         notation_setting: 'both'
       }
     });
+    resetStage({
+      fantasy_stage_id: '',
+      clear_conditions: {
+        count: 1
+      }
+    });
+    setTaskMode('song'); // デフォルトは曲モード
     songDialogRef.current?.showModal();
   };
 
@@ -459,38 +486,66 @@ export const LessonManager: React.FC = () => {
                             <p className="text-sm text-gray-400 mb-4">{lesson.assignment_description}</p>
                           </>
                         )}
-                        <h5 className="font-semibold mb-2">収録曲</h5>
+                        <h5 className="font-semibold mb-2">収録曲・課題</h5>
                         {lesson.lesson_songs && lesson.lesson_songs.length > 0 ? (
                           <div className="space-y-2">
                             {lesson.lesson_songs.map(ls => {
-                              const song = availableSongs.find(s => s.id === ls.song_id);
-                              return (
-                                <div key={ls.song_id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
-                                  <div>
-                                    <span className="font-medium">{song?.title || '不明な曲'}</span>
-                                    <span className="text-xs text-gray-400 ml-2">
-                                      (キー: {ls.clear_conditions?.key || 0}, 
-                                      速度: {ls.clear_conditions?.speed || 1.0}x, 
-                                      ランク: {ls.clear_conditions?.rank || 'B'},
-                                      {ls.clear_conditions?.requires_days 
-                                        ? `${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間`
-                                        : `${ls.clear_conditions?.count || 1}回`},
-                                      楽譜: {ls.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
-                                             ls.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'})
-                                    </span>
+                              if (ls.is_fantasy) {
+                                // ファンタジーステージ課題の場合
+                                const stage = availableStages.find(s => s.id === ls.fantasy_stage_id);
+                                return (
+                                  <div key={ls.id || ls.fantasy_stage_id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                    <div className="flex items-center">
+                                      <FaDragon className="mr-2 text-purple-400" />
+                                      <div>
+                                        <span className="font-medium">{stage ? `${stage.stage_number} : ${stage.name}` : '不明なステージ'}</span>
+                                        <span className="text-xs text-gray-400 ml-2">
+                                          (クリア回数: {ls.clear_conditions?.count || 1}回)
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <button 
+                                      className="btn btn-ghost btn-xs text-red-500"
+                                      onClick={() => handleRemoveSong(lesson.id, ls.fantasy_stage_id || '')}
+                                    >
+                                      <FaTrash />
+                                    </button>
                                   </div>
-                                  <button 
-                                    className="btn btn-ghost btn-xs text-red-500"
-                                    onClick={() => handleRemoveSong(lesson.id, ls.song_id)}
-                                  >
-                                    <FaTrash />
-                                  </button>
-                                </div>
-                              );
+                                );
+                              } else {
+                                // 通常の曲課題の場合
+                                const song = availableSongs.find(s => s.id === ls.song_id);
+                                return (
+                                  <div key={ls.song_id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                    <div className="flex items-center">
+                                      <FaMusic className="mr-2 text-blue-400" />
+                                      <div>
+                                        <span className="font-medium">{song?.title || '不明な曲'}</span>
+                                        <span className="text-xs text-gray-400 ml-2">
+                                          (キー: {ls.clear_conditions?.key || 0}, 
+                                          速度: {ls.clear_conditions?.speed || 1.0}x, 
+                                          ランク: {ls.clear_conditions?.rank || 'B'},
+                                          {ls.clear_conditions?.requires_days 
+                                            ? `${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間`
+                                            : `${ls.clear_conditions?.count || 1}回`},
+                                          楽譜: {ls.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
+                                                 ls.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'})
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <button 
+                                      className="btn btn-ghost btn-xs text-red-500"
+                                      onClick={() => handleRemoveSong(lesson.id, ls.song_id)}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </div>
+                                );
+                              }
                             })}
                           </div>
                         ) : (
-                          <p className="text-sm text-gray-400">曲が登録されていません。</p>
+                          <p className="text-sm text-gray-400">曲・課題が登録されていません。</p>
                         )}
                       </div>
                     </td>
@@ -546,8 +601,20 @@ export const LessonManager: React.FC = () => {
       </dialog>
 
       <dialog ref={songDialogRef} className="modal">
-        <div className="modal-box">
-          <h3 className="font-bold text-lg">レッスンに曲を追加</h3>
+        <div className="modal-box max-w-2xl">
+          <h3 className="font-bold text-lg">レッスン課題を追加</h3>
+          {/* --- タスクモード切替 --- */}
+          <div className="tabs tabs-boxed mb-4">
+            <a className={`tab ${taskMode==='song'?'tab-active':''}`} onClick={()=>setTaskMode('song')}>
+              <FaMusic className="mr-1"/> 通常曲
+            </a>
+            <a className={`tab ${taskMode==='fantasy'?'tab-active':''}`} onClick={()=>setTaskMode('fantasy')}>
+              <FaDragon className="mr-1"/> ファンタジーステージ
+            </a>
+          </div>
+          
+          {/* ========= 曲課題フォーム ========= */}
+          {taskMode === 'song' && (
           <form onSubmit={handleSubmitSong(onSubmitSong)} className="space-y-4 mt-4">
             <div>
               <label className="label"><span className="label-text">曲を選択 *</span></label>
@@ -649,6 +716,91 @@ export const LessonManager: React.FC = () => {
               </button>
             </div>
           </form>
+          )}
+          
+          {/* ========= ステージ課題フォーム ========= */}
+          {taskMode === 'fantasy' && (
+          <form onSubmit={handleSubmitStage(async (data) => {
+            if (!selectedLesson || !selectedCourseId) return;
+            
+            setIsSubmitting(true);
+            try {
+              const lessonSongData = {
+                lesson_id: selectedLesson.id,
+                song_id: data.fantasy_stage_id, // 一旦IDを入れる（addSongToLessonで処理）
+                clear_conditions: data.clear_conditions,
+                is_fantasy: true,
+                fantasy_stage_id: data.fantasy_stage_id
+              };
+              console.log('ファンタジーステージ課題追加データ:', lessonSongData);
+              
+              await addSongToLesson(lessonSongData as any);
+              
+              invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+              setTimeout(() => loadLessons(true), 500);
+              
+              toast.success('ステージ課題を追加しました。');
+              closeSongDialog();
+            } catch (error) {
+              toast.error('ステージ課題の追加に失敗しました。');
+              console.error('ファンタジーステージ課題追加エラー:', error);
+            } finally {
+              setIsSubmitting(false);
+            }
+          })} className="space-y-4 mt-4">
+            <div>
+              <label className="label"><span className="label-text">ステージ *</span></label>
+              <StageSelector {...registerStage('fantasy_stage_id', { required: true })} />
+            </div>
+            <div>
+              <label className="label">
+                <span className="label-text">達成条件</span>
+              </label>
+              <label className="flex items-center space-x-2 mb-2">
+                <input 
+                  type="checkbox" 
+                  {...registerStage('clear_conditions.requires_days')} 
+                  className="checkbox checkbox-sm" 
+                />
+                <span className="text-sm">日数でカウント（チェックなし: 回数でカウント）</span>
+              </label>
+            </div>
+            {watchStage && watchStage('clear_conditions.requires_days') && (
+              <div>
+                <label className="label"><span className="label-text">1日あたりの必要クリア回数</span></label>
+                <input 
+                  type="number" 
+                  {...registerStage('clear_conditions.daily_count')} 
+                  className="input input-bordered w-full" 
+                  min="1" 
+                  max="20"
+                  defaultValue={1}
+                />
+              </div>
+            )}
+            <div>
+              <label className="label">
+                <span className="label-text">
+                  {watchStage && watchStage('clear_conditions.requires_days') ? '必要日数' : '最低クリア回数'}
+                </span>
+              </label>
+              <input 
+                type="number" 
+                {...registerStage('clear_conditions.count')} 
+                className="input input-bordered w-full"
+                min="1"
+                max="10"
+                defaultValue={1}
+              />
+            </div>
+            <div className="modal-action">
+              <button type="button" className="btn btn-ghost" onClick={closeSongDialog}>キャンセル</button>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                {isSubmitting ? '追加中...' : '追加'}
+              </button>
+            </div>
+          </form>
+          )}
         </div>
         <form method="dialog" className="modal-backdrop">
           <button>close</button>

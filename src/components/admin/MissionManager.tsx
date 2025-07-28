@@ -17,9 +17,11 @@ import {
 } from '@/platform/supabaseChallenges';
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import SongSelector from './SongSelector';
+import SongStageSelectorModal from './SongStageSelectorModal';
+import StageSelector from './StageSelector';
 import { fetchUserMissionProgress } from '@/platform/supabaseMissions';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy } from 'react-icons/fa';
+import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy, FaDragon } from 'react-icons/fa';
 
 interface FormValues {
   type: ChallengeType;
@@ -33,6 +35,8 @@ interface FormValues {
 }
 
 interface SongConditions {
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
   key_offset: number;
   min_speed: number;
   min_rank: string;
@@ -123,8 +127,8 @@ const MissionManager: React.FC = () => {
       
       const newChallengeId = await createChallenge(payload);
       
-      // 曲クリアタイプで楽曲が選択されている場合、楽曲を追加
-      if (v.category === 'song_clear' && selectedSongs.length > 0) {
+      // 曲クリア・ファンタジータイプで楽曲/ステージが選択されている場合、追加
+      if ((v.category === 'song_clear' || v.category === 'fantasy') && selectedSongs.length > 0) {
         for (const songId of selectedSongs) {
           const conditions = songConditions[songId] || {
             key_offset: 0,
@@ -132,11 +136,14 @@ const MissionManager: React.FC = () => {
             min_rank: 'B',
             min_clears_required: 1,
             notation_setting: 'both',
+            is_fantasy: v.category === 'fantasy',
+            fantasy_stage_id: v.category === 'fantasy' ? songId : null,
           };
           await addSongToChallenge(newChallengeId, songId, conditions);
         }
         
-        toast.success(`ミッションを追加し、${selectedSongs.length}曲を追加しました`, {
+        const itemLabel = v.category === 'fantasy' ? 'ステージ' : '曲';
+        toast.success(`ミッションを追加し、${selectedSongs.length}${itemLabel}を追加しました`, {
           title: '追加完了',
           duration: 3000,
         });
@@ -169,7 +176,7 @@ const MissionManager: React.FC = () => {
     }
   };
 
-  const handleSongSelect = async (songId: string) => {
+  const handleSongSelect = async (id: string, isFantasy: boolean = false) => {
     if (!selectedMission) return;
 
     const defaultConditions: SongConditions = {
@@ -178,17 +185,27 @@ const MissionManager: React.FC = () => {
       min_rank: 'B',
       min_clears_required: 1,
       notation_setting: 'both',
+      is_fantasy: isFantasy,
+      fantasy_stage_id: isFantasy ? id : null,
     };
 
     try {
-      await addSongToChallenge(selectedMission.id, songId, defaultConditions);
-      toast.success('楽曲を追加しました');
+      console.log('ミッション課題追加:', { 
+        missionId: selectedMission.id, 
+        id, 
+        isFantasy, 
+        defaultConditions,
+        説明: isFantasy ? 'ファンタジーステージを追加' : '楽曲を追加'
+      });
+      await addSongToChallenge(selectedMission.id, id, defaultConditions);
+      toast.success(isFantasy ? 'ステージ課題を追加しました' : '楽曲を追加しました');
       // ミッション詳細を再読み込み
       const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
       setSelectedMission(updatedChallenge);
       setShowSongSelector(false);
     } catch (error) {
-      toast.error('楽曲の追加に失敗しました');
+      console.error('ミッション課題追加エラー:', error);
+      toast.error(isFantasy ? 'ステージ課題の追加に失敗しました' : '楽曲の追加に失敗しました');
     }
   };
 
@@ -276,11 +293,25 @@ const MissionManager: React.FC = () => {
   };
 
   const getCategoryIcon = (category: ChallengeCategory) => {
-    return category === 'diary' ? <FaBook className="w-4 h-4" /> : <FaPlay className="w-4 h-4" />;
+    switch (category) {
+      case 'diary':
+        return <FaBook className="w-4 h-4" />;
+      case 'fantasy':
+        return <FaDragon className="w-4 h-4" />;
+      default:
+        return <FaPlay className="w-4 h-4" />;
+    }
   };
 
   const getCategoryLabel = (category: ChallengeCategory) => {
-    return category === 'diary' ? '日記投稿' : '曲クリア';
+    switch (category) {
+      case 'diary':
+        return '日記投稿';
+      case 'fantasy':
+        return 'ファンタジー';
+      default:
+        return '曲クリア';
+    }
   };
 
   const getTypeLabel = (type: ChallengeType) => {
@@ -311,6 +342,7 @@ const MissionManager: React.FC = () => {
               <select className="select select-bordered w-full text-white" {...register('category')}>
                 <option value="song_clear">曲クリア</option>
                 <option value="diary">日記投稿</option>
+                <option value="fantasy">ファンタジー</option>
               </select>
             </label>
           </div>
@@ -364,18 +396,27 @@ const MissionManager: React.FC = () => {
             {...register('description')} 
           />
 
-          {/* 曲クリアタイプの場合、楽曲選択セクション */}
-          {watchedCategory === 'song_clear' && (
+          {/* 曲クリア・ファンタジータイプの場合、楽曲/ステージ選択セクション */}
+          {(watchedCategory === 'song_clear' || watchedCategory === 'fantasy') && (
             <div className="border border-slate-600 rounded-lg p-4 bg-slate-800/30">
               <div className="flex items-center justify-between mb-4">
-                <h4 className="font-medium text-lg">楽曲選択</h4>
+                <h4 className="font-medium text-lg">{watchedCategory === 'fantasy' ? 'ステージ選択' : '楽曲選択'}</h4>
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"
                   onClick={() => setShowFormSongSelector(true)}
                 >
-                  <FaMusic className="w-4 h-4 mr-2" />
-                  楽曲を追加
+                  {watchedCategory === 'fantasy' ? (
+                    <>
+                      <FaDragon className="w-4 h-4 mr-2" />
+                      ステージを追加
+                    </>
+                  ) : (
+                    <>
+                      <FaMusic className="w-4 h-4 mr-2" />
+                      楽曲を追加
+                    </>
+                  )}
                 </button>
               </div>
               
@@ -483,7 +524,7 @@ const MissionManager: React.FC = () => {
                       {selectedMission.title} ({getCategoryLabel(selectedMission.category)})
                     </p>
                   </div>
-                  {selectedMission.category === 'song_clear' && (
+                  {(selectedMission.category === 'song_clear' || selectedMission.category === 'fantasy') && (
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={() => setShowSongSelector(true)}
@@ -515,9 +556,9 @@ const MissionManager: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {selectedMission.songs.map(song => (
+                    {selectedMission.songs.map((song, index) => (
                       <SongItem
-                        key={song.song_id}
+                        key={song.is_fantasy ? `fantasy-${song.fantasy_stage_id}` : `song-${song.song_id}`}
                         song={song}
                         onEdit={handleSongEdit}
                         onRemove={handleSongRemove}
@@ -533,10 +574,14 @@ const MissionManager: React.FC = () => {
 
       {/* 楽曲選択モーダル */}
       {showSongSelector && selectedMission && (
-        <SongSelectorModal
-          onSelect={handleSongSelect}
+        <SongStageSelectorModal
+          onSelectSong={(id) => handleSongSelect(id, false)}
+          onSelectStage={(id) => handleSongSelect(id, true)}
           onClose={() => setShowSongSelector(false)}
-          excludeSongIds={selectedMission.songs.map(s => s.song_id)}
+          excludeSongIds={selectedMission.songs
+            .filter(s => !s.is_fantasy && s.song_id)
+            .map(s => s.song_id)
+            .filter(id => id !== null)}
         />
       )}
 
@@ -545,13 +590,25 @@ const MissionManager: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="bg-slate-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">楽曲を選択</h3>
+              <h3 className="text-lg font-bold">{watchedCategory === 'fantasy' ? 'ステージを選択' : '楽曲を選択'}</h3>
               <button className="btn btn-sm btn-ghost" onClick={() => setShowFormSongSelector(false)}>✕</button>
             </div>
-            <SongSelector
-              onSelect={handleFormSongSelect}
-              excludeSongIds={selectedSongs}
-            />
+            {watchedCategory === 'fantasy' ? (
+              <StageSelector
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (id) {
+                    handleFormSongSelect(id);
+                    setShowFormSongSelector(false);
+                  }
+                }}
+              />
+            ) : (
+              <SongSelector
+                onSelect={handleFormSongSelect}
+                excludeSongIds={selectedSongs}
+              />
+            )}
           </div>
         </div>
       )}
