@@ -1,7 +1,7 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache, clearCacheByPattern } from '@/platform/supabaseClient';
 
 export type ChallengeType = 'weekly' | 'monthly';
-export type ChallengeCategory = 'diary' | 'song_clear';
+export type ChallengeCategory = 'diary' | 'song_clear' | 'fantasy';
 
 export interface Challenge {
   id: string;

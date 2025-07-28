@@ -18,6 +18,7 @@ import {
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import SongSelector from './SongSelector';
 import SongStageSelectorModal from './SongStageSelectorModal';
+import StageSelector from './StageSelector';
 import { fetchUserMissionProgress } from '@/platform/supabaseMissions';
 import { fetchSongs } from '@/platform/supabaseSongs';
 import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy, FaDragon } from 'react-icons/fa';
@@ -126,8 +127,8 @@ const MissionManager: React.FC = () => {
       
       const newChallengeId = await createChallenge(payload);
       
-      // 曲クリアタイプで楽曲が選択されている場合、楽曲を追加
-      if (v.category === 'song_clear' && selectedSongs.length > 0) {
+      // 曲クリア・ファンタジータイプで楽曲/ステージが選択されている場合、追加
+      if ((v.category === 'song_clear' || v.category === 'fantasy') && selectedSongs.length > 0) {
         for (const songId of selectedSongs) {
           const conditions = songConditions[songId] || {
             key_offset: 0,
@@ -135,11 +136,14 @@ const MissionManager: React.FC = () => {
             min_rank: 'B',
             min_clears_required: 1,
             notation_setting: 'both',
+            is_fantasy: v.category === 'fantasy',
+            fantasy_stage_id: v.category === 'fantasy' ? songId : undefined,
           };
           await addSongToChallenge(newChallengeId, songId, conditions);
         }
         
-        toast.success(`ミッションを追加し、${selectedSongs.length}曲を追加しました`, {
+        const itemLabel = v.category === 'fantasy' ? 'ステージ' : '曲';
+        toast.success(`ミッションを追加し、${selectedSongs.length}${itemLabel}を追加しました`, {
           title: '追加完了',
           duration: 3000,
         });
@@ -283,11 +287,25 @@ const MissionManager: React.FC = () => {
   };
 
   const getCategoryIcon = (category: ChallengeCategory) => {
-    return category === 'diary' ? <FaBook className="w-4 h-4" /> : <FaPlay className="w-4 h-4" />;
+    switch (category) {
+      case 'diary':
+        return <FaBook className="w-4 h-4" />;
+      case 'fantasy':
+        return <FaDragon className="w-4 h-4" />;
+      default:
+        return <FaPlay className="w-4 h-4" />;
+    }
   };
 
   const getCategoryLabel = (category: ChallengeCategory) => {
-    return category === 'diary' ? '日記投稿' : '曲クリア';
+    switch (category) {
+      case 'diary':
+        return '日記投稿';
+      case 'fantasy':
+        return 'ファンタジー';
+      default:
+        return '曲クリア';
+    }
   };
 
   const getTypeLabel = (type: ChallengeType) => {
@@ -318,6 +336,7 @@ const MissionManager: React.FC = () => {
               <select className="select select-bordered w-full text-white" {...register('category')}>
                 <option value="song_clear">曲クリア</option>
                 <option value="diary">日記投稿</option>
+                <option value="fantasy">ファンタジー</option>
               </select>
             </label>
           </div>
@@ -371,18 +390,27 @@ const MissionManager: React.FC = () => {
             {...register('description')} 
           />
 
-          {/* 曲クリアタイプの場合、楽曲選択セクション */}
-          {watchedCategory === 'song_clear' && (
+          {/* 曲クリア・ファンタジータイプの場合、楽曲/ステージ選択セクション */}
+          {(watchedCategory === 'song_clear' || watchedCategory === 'fantasy') && (
             <div className="border border-slate-600 rounded-lg p-4 bg-slate-800/30">
               <div className="flex items-center justify-between mb-4">
-                <h4 className="font-medium text-lg">楽曲選択</h4>
+                <h4 className="font-medium text-lg">{watchedCategory === 'fantasy' ? 'ステージ選択' : '楽曲選択'}</h4>
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"
                   onClick={() => setShowFormSongSelector(true)}
                 >
-                  <FaMusic className="w-4 h-4 mr-2" />
-                  楽曲を追加
+                  {watchedCategory === 'fantasy' ? (
+                    <>
+                      <FaDragon className="w-4 h-4 mr-2" />
+                      ステージを追加
+                    </>
+                  ) : (
+                    <>
+                      <FaMusic className="w-4 h-4 mr-2" />
+                      楽曲を追加
+                    </>
+                  )}
                 </button>
               </div>
               
@@ -490,7 +518,7 @@ const MissionManager: React.FC = () => {
                       {selectedMission.title} ({getCategoryLabel(selectedMission.category)})
                     </p>
                   </div>
-                  {selectedMission.category === 'song_clear' && (
+                  {(selectedMission.category === 'song_clear' || selectedMission.category === 'fantasy') && (
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={() => setShowSongSelector(true)}
@@ -553,13 +581,25 @@ const MissionManager: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="bg-slate-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">楽曲を選択</h3>
+              <h3 className="text-lg font-bold">{watchedCategory === 'fantasy' ? 'ステージを選択' : '楽曲を選択'}</h3>
               <button className="btn btn-sm btn-ghost" onClick={() => setShowFormSongSelector(false)}>✕</button>
             </div>
-            <SongSelector
-              onSelect={handleFormSongSelect}
-              excludeSongIds={selectedSongs}
-            />
+            {watchedCategory === 'fantasy' ? (
+              <StageSelector
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (id) {
+                    handleFormSongSelect(id);
+                    setShowFormSongSelector(false);
+                  }
+                }}
+              />
+            ) : (
+              <SongSelector
+                onSelect={handleFormSongSelect}
+                excludeSongIds={selectedSongs}
+              />
+            )}
           </div>
         </div>
       )}
