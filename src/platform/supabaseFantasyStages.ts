@@ -1,4 +1,4 @@
-import { getSupabaseClient } from './supabase';
+import { getSupabaseClient } from './supabaseClient';
 import { FantasyStage } from '../types';
 
 /**
