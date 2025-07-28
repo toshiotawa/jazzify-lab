@@ -139,7 +139,7 @@ const MissionManager: React.FC = () => {
             is_fantasy: v.category === 'fantasy',
             fantasy_stage_id: v.category === 'fantasy' ? songId : null,
           };
-          await addSongToChallenge(newChallengeId, v.category === 'fantasy' ? null : songId, conditions);
+          await addSongToChallenge(newChallengeId, songId, conditions);
         }
         
         const itemLabel = v.category === 'fantasy' ? 'ステージ' : '曲';
@@ -191,7 +191,7 @@ const MissionManager: React.FC = () => {
 
     try {
       console.log('ミッション課題追加:', { missionId: selectedMission.id, id, isFantasy, defaultConditions });
-      await addSongToChallenge(selectedMission.id, isFantasy ? null : id, defaultConditions);
+      await addSongToChallenge(selectedMission.id, id, defaultConditions);
       toast.success(isFantasy ? 'ステージ課題を追加しました' : '楽曲を追加しました');
       // ミッション詳細を再読み込み
       const updatedChallenge = await getChallengeWithSongs(selectedMission.id);

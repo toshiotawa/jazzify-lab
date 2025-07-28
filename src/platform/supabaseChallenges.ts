@@ -124,7 +124,7 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
   
   const insertData = {
     challenge_id: challengeId,
-    song_id: songId,
+    song_id: conditions.is_fantasy ? null : songId,
     key_offset: conditions.key_offset ?? 0,
     min_speed: conditions.min_speed ?? 1.0,
     min_rank: conditions.min_rank ?? 'B',

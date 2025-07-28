@@ -176,9 +176,17 @@ type LessonSongData = {
  * @returns {Promise<LessonSong>}
  */
 export async function addSongToLesson(lessonSongData: LessonSongData): Promise<LessonSong> {
+  // is_fantasyがtrueの場合、song_idをnullに設定
+  const insertData = {
+    ...lessonSongData,
+    song_id: lessonSongData.is_fantasy ? null : lessonSongData.song_id
+  };
+  
+  console.log('addSongToLesson - 送信データ:', insertData);
+  
   const { data, error } = await getSupabaseClient()
     .from('lesson_songs')
-    .insert(lessonSongData)
+    .insert(insertData)
     .select()
     .single();
   
