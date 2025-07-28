@@ -32,7 +32,11 @@ const SongStageSelectorModal:React.FC<Props>=({onSelectSong,onSelectStage,onClos
         {mode==='song' && (
           <SongSelector
             excludeSongIds={excludeSongIds}
-            onSelect={(id)=>{onSelectSong(id);onClose();}}
+            onSelect={(id)=>{
+              console.log('SongStageSelectorModal: 楽曲選択', { id, mode });
+              onSelectSong(id);
+              onClose();
+            }}
           />
         )}
 
@@ -41,6 +45,7 @@ const SongStageSelectorModal:React.FC<Props>=({onSelectSong,onSelectStage,onClos
             onChange={(e)=>{
               const id=e.target.value;
               if(id){
+                console.log('SongStageSelectorModal: ステージ選択', { id, mode });
                 onSelectStage(id);
                 onClose();
               }

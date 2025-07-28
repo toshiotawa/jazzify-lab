@@ -135,7 +135,10 @@ const SongSelector: React.FC<SongSelectorProps> = ({
             {filteredSongs.map(song => (
               <button
                 key={song.id}
-                onClick={() => onSelect(song.id)}
+                onClick={() => {
+                  console.log('SongSelector: 楽曲選択', { id: song.id, title: song.title, artist: song.artist });
+                  onSelect(song.id);
+                }}
                 className="w-full p-3 text-left hover:bg-slate-700 transition-colors"
               >
                 <div className="flex items-center justify-between">
