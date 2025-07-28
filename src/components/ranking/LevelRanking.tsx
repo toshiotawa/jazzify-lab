@@ -177,7 +177,7 @@ const LevelRanking: React.FC = () => {
             </div>
             
             <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse min-w-[800px] sm:min-w-full">
+            <table className="w-full text-sm border-collapse min-w-[900px] sm:min-w-full">
             <thead>
               <tr className="border-b border-slate-700 text-left">
                 <th className="py-2 px-2 min-w-[3rem]">#</th>
@@ -186,6 +186,7 @@ const LevelRanking: React.FC = () => {
                 <th className="py-2 px-2 min-w-[3rem]">Lv</th>
                 <th className="py-2 px-2 min-w-[4rem]">レッスン</th>
                 <th className="py-2 px-2 min-w-[4rem]">ミッション</th>
+                <th className="py-2 px-2 min-w-[4rem]">ファンタジー</th>
                 <th className="py-2 px-2 min-w-[5rem] sm:min-w-[4rem]">ランク</th>
                 <th className="py-2 px-2 min-w-[8rem] sm:min-w-[6rem]">Twitter</th>
               </tr>
@@ -224,6 +225,7 @@ const LevelRanking: React.FC = () => {
                   <td className="py-1 px-2">{e.level}</td>
                   <td className="py-1 px-2">{e.lessons_cleared}</td>
                   <td className="py-1 px-2">{e.missions_completed || 0}</td>
+                  <td className="py-1 px-2 text-purple-300">{e.fantasy_current_stage || '-'}</td>
                   <td className="py-1 px-2">
                     <div className="flex items-center space-x-1">
                       {getRankIcon(e.rank)}
