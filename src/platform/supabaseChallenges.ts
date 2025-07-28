@@ -128,6 +128,12 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
   is_fantasy?: boolean;
   fantasy_stage_id?: string;
 }) {
+  console.log('addSongToChallenge called with:', {
+    challengeId,
+    songId,
+    conditions
+  });
+  
   const supabase = getSupabaseClient();
   
   const insertData = {
@@ -138,6 +144,7 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
     min_rank: conditions.min_rank ?? 'B',
     clears_required: conditions.clears_required ?? 1,
     notation_setting: conditions.notation_setting ?? 'both',
+    score_mode: 'NOTES_AND_CHORDS', // デフォルト値を追加
     is_fantasy: conditions.is_fantasy ?? false,
     fantasy_stage_id: conditions.fantasy_stage_id === undefined ? null : conditions.fantasy_stage_id,
   };
@@ -154,6 +161,11 @@ export async function addSongToChallenge(challengeId: string, songId: string | n
   const { error } = await supabase.from('challenge_tracks').insert(insertData);
   if (error) {
     console.error('challenge_tracks挿入エラー:', error);
+    console.error('エラーコード:', error.code);
+    console.error('エラーメッセージ:', error.message);
+    console.error('エラー詳細:', error.details);
+    console.error('エラーヒント:', error.hint);
+    
     if (error.code === '23503') {
       if (error.message.includes('song_id')) {
         throw new Error(`楽曲ID "${insertData.song_id}" が存在しません。楽曲が削除されている可能性があります。`);

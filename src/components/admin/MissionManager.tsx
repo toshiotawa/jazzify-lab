@@ -197,7 +197,10 @@ const MissionManager: React.FC = () => {
         defaultConditions,
         説明: isFantasy ? 'ファンタジーステージを追加' : '楽曲を追加'
       });
-      await addSongToChallenge(selectedMission.id, id, defaultConditions);
+      
+      // ファンタジーステージの場合、songIdはnullを渡す
+      const songIdToPass = isFantasy ? null : id;
+      await addSongToChallenge(selectedMission.id, songIdToPass, defaultConditions);
       toast.success(isFantasy ? 'ステージ課題を追加しました' : '楽曲を追加しました');
       // ミッション詳細を再読み込み
       const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
