@@ -622,13 +622,42 @@ export interface ClearConditions {
   daily_count?: number;  // 1日あたりの必要クリア回数（requires_days が true の場合に使用）
 }
 
+// ファンタジーモード関連の型定義
+export interface FantasyStage {
+  id: string;
+  stage_number: string;
+  name: string;
+  description: string;
+  max_hp: number;
+  enemy_gauge_seconds: number;
+  enemy_count: number;
+  enemy_hp: number;
+  min_damage: number;
+  max_damage: number;
+  mode: 'single' | 'progression';
+  allowed_chords: string[];
+  chord_progression?: string[];
+  show_sheet_music: boolean;
+  show_guide: boolean;
+}
+
+export interface LessonContext {
+  lessonId: string;
+  lessonSongId: string; // lesson_songs.id（進捗記録用）
+  clearConditions: ClearConditions;
+  sourceType: 'song' | 'fantasy';
+}
+
 export interface LessonSong {
   id: string;
   lesson_id: string;
-  song_id: string;
+  song_id: string | null;
+  fantasy_stage_id: string | null;
+  is_fantasy: boolean;
   clear_conditions?: ClearConditions;
   created_at: string;
-  songs: Pick<Song, 'id' | 'title' | 'artist'>;
+  songs?: Pick<Song, 'id' | 'title' | 'artist'>;
+  fantasy_stage?: FantasyStage;
 }
 
 export interface Lesson {

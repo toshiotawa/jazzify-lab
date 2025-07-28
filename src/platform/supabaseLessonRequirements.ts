@@ -46,17 +46,27 @@ export async function updateLessonRequirementProgress(
   lessonId: string,
   songId: string,
   rank: string,
-  clearConditions: any
+  clearConditions: any,
+  options?: {
+    sourceType?: 'song' | 'fantasy';
+    lessonSongId?: string;
+  }
 ): Promise<boolean> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) throw new Error('ログインが必要です');
 
+  // レッスン課題のタイプに応じて、適切なIDを使用
+  // ファンタジーステージの場合は、lessonSongIdを使用（song_idカラムに格納）
+  const progressSongId = options?.sourceType === 'fantasy' && options?.lessonSongId 
+    ? options.lessonSongId 
+    : songId;
+    
   const { data, error } = await supabase.rpc('update_lesson_requirement_progress', {
     p_user_id: user.id,
     p_lesson_id: lessonId,
-    p_song_id: songId,
+    p_song_id: progressSongId,
     p_rank: rank,
     p_clear_conditions: clearConditions
   });
@@ -78,16 +88,16 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   
   if (!user) throw new Error('ログインが必要です');
 
-  // レッスンに必要な実習課題の数を取得
+  // レッスンに必要な実習課題の数を取得（楽曲とファンタジーステージ両方）
   const { data: requirements, error: reqError } = await supabase
     .from('lesson_songs')
-    .select('song_id')
+    .select('id, song_id, fantasy_stage_id, is_fantasy')
     .eq('lesson_id', lessonId);
 
   if (reqError || !requirements) return false;
   if (requirements.length === 0) return true; // 実習課題がない場合は完了扱い
 
-  // ユーザーの進捗を取得
+  // ユーザーの進捗を取得（lesson_songs.idで管理）
   const { data: progress, error: progError } = await supabase
     .from('user_lesson_requirements_progress')
     .select('song_id, is_completed')
@@ -98,8 +108,9 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   if (progError) return false;
 
   // すべての実習課題が完了しているかチェック
-  const completedSongIds = new Set(progress?.map(p => p.song_id) || []);
-  return requirements.every(req => completedSongIds.has(req.song_id));
+  // song_idフィールドにはlesson_songs.idが格納されているので、それを使用
+  const completedIds = new Set(progress?.map(p => p.song_id) || []);
+  return requirements.every(req => completedIds.has(req.id));
 }
 
 /**
