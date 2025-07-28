@@ -639,6 +639,8 @@ export interface FantasyStage {
   chord_progression?: string[];
   show_sheet_music: boolean;
   show_guide: boolean;
+  simultaneous_monster_count?: number;
+  monster_icon?: string;
 }
 
 export interface LessonContext {

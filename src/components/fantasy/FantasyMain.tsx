@@ -101,7 +101,9 @@ const FantasyMain: React.FC = () => {
             allowedChords: stage.allowed_chords,
             chordProgression: stage.chord_progression,
             showSheetMusic: stage.show_sheet_music,
-            showGuide: stage.show_guide
+            showGuide: stage.show_guide,
+            simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+            monsterIcon: stage.monster_icon || 'dragon'
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -143,31 +145,62 @@ const FantasyMain: React.FC = () => {
     setShowResult(true);
     
     // レッスンモードの場合の処理
-    if (isLessonMode && lessonContext && result === 'clear') {
-      try {
-        // ランクを計算（S: 100%, A: 90%+, B: 80%+, C: 70%+, D: それ以下）
-        const accuracy = correctAnswers / totalQuestions;
-        let rank = 'D';
-        if (accuracy >= 1.0) rank = 'S';
-        else if (accuracy >= 0.9) rank = 'A';
-        else if (accuracy >= 0.8) rank = 'B';
-        else if (accuracy >= 0.7) rank = 'C';
-        
-        // レッスン課題の進捗を更新（fantasy_stage_clearsは更新しない）
-        await updateLessonRequirementProgress(
-          lessonContext.lessonId,
-          lessonContext.lessonSongId,
-          rank,
-          lessonContext.clearConditions,
-          {
-            sourceType: 'fantasy',
-            lessonSongId: lessonContext.lessonSongId
+    if (isLessonMode && lessonContext) {
+      devLog.debug('🎮 レッスンモード判定:', { isLessonMode, lessonContext, result });
+      
+      if (result === 'clear') {
+        try {
+          // ランクを計算（S: 100%, A: 90%+, B: 80%+, C: 70%+, D: それ以下）
+          const accuracy = correctAnswers / totalQuestions;
+          let rank = 'D';
+          if (accuracy >= 1.0) rank = 'S';
+          else if (accuracy >= 0.9) rank = 'A';
+          else if (accuracy >= 0.8) rank = 'B';
+          else if (accuracy >= 0.7) rank = 'C';
+          
+          // 最低ランクをチェック
+          const requiredRank = lessonContext.clearConditions?.rank || 'B';
+          const rankOrder = ['S', 'A', 'B', 'C', 'D'];
+          const achievedRankIndex = rankOrder.indexOf(rank);
+          const requiredRankIndex = rankOrder.indexOf(requiredRank);
+          
+          devLog.debug('🎮 ランクチェック:', {
+            achievedRank: rank,
+            requiredRank,
+            passed: achievedRankIndex <= requiredRankIndex
+          });
+          
+          // 必要ランク以上でない場合はスキップ
+          if (achievedRankIndex > requiredRankIndex) {
+            devLog.debug('🎮 必要ランクに達していません');
+            return;
           }
-        );
-        
-        devLog.debug('✅ レッスン課題進捗を更新しました');
-      } catch (error) {
-        console.error('レッスン課題進捗更新エラー:', error);
+          
+          devLog.debug('🎮 レッスン進捗更新パラメータ:', {
+            lessonId: lessonContext.lessonId,
+            lessonSongId: lessonContext.lessonSongId,
+            rank,
+            clearConditions: lessonContext.clearConditions,
+            accuracy
+          });
+          
+          // レッスン課題の進捗を更新（fantasy_stage_clearsは更新しない）
+          await updateLessonRequirementProgress(
+            lessonContext.lessonId,
+            lessonContext.lessonSongId,
+            rank,
+            lessonContext.clearConditions,
+            {
+              sourceType: 'fantasy',
+              lessonSongId: lessonContext.lessonSongId
+            }
+          );
+          
+          devLog.debug('✅ レッスン課題進捗を更新しました');
+        } catch (error) {
+          console.error('レッスン課題進捗更新エラー:', error);
+          devLog.error('🎮 レッスン進捗更新エラー詳細:', error);
+        }
       }
       return; // レッスンモードの場合はここで終了
     }
