@@ -17,9 +17,10 @@ import {
 } from '@/platform/supabaseChallenges';
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import SongSelector from './SongSelector';
+import SongStageSelectorModal from './SongStageSelectorModal';
 import { fetchUserMissionProgress } from '@/platform/supabaseMissions';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy } from 'react-icons/fa';
+import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy, FaDragon } from 'react-icons/fa';
 
 interface FormValues {
   type: ChallengeType;
@@ -33,6 +34,8 @@ interface FormValues {
 }
 
 interface SongConditions {
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
   key_offset: number;
   min_speed: number;
   min_rank: string;
@@ -169,7 +172,7 @@ const MissionManager: React.FC = () => {
     }
   };
 
-  const handleSongSelect = async (songId: string) => {
+  const handleSongSelect = async (id: string, isFantasy: boolean = false) => {
     if (!selectedMission) return;
 
     const defaultConditions: SongConditions = {
@@ -178,17 +181,19 @@ const MissionManager: React.FC = () => {
       min_rank: 'B',
       min_clears_required: 1,
       notation_setting: 'both',
+      is_fantasy: isFantasy,
+      fantasy_stage_id: isFantasy ? id : undefined,
     };
 
     try {
-      await addSongToChallenge(selectedMission.id, songId, defaultConditions);
-      toast.success('楽曲を追加しました');
+      await addSongToChallenge(selectedMission.id, id, defaultConditions);
+      toast.success(isFantasy ? 'ステージ課題を追加しました' : '楽曲を追加しました');
       // ミッション詳細を再読み込み
       const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
       setSelectedMission(updatedChallenge);
       setShowSongSelector(false);
     } catch (error) {
-      toast.error('楽曲の追加に失敗しました');
+      toast.error(isFantasy ? 'ステージ課題の追加に失敗しました' : '楽曲の追加に失敗しました');
     }
   };
 
@@ -533,8 +538,9 @@ const MissionManager: React.FC = () => {
 
       {/* 楽曲選択モーダル */}
       {showSongSelector && selectedMission && (
-        <SongSelectorModal
-          onSelect={handleSongSelect}
+        <SongStageSelectorModal
+          onSelectSong={(id) => handleSongSelect(id, false)}
+          onSelectStage={(id) => handleSongSelect(id, true)}
           onClose={() => setShowSongSelector(false)}
           excludeSongIds={selectedMission.songs.map(s => s.song_id)}
         />

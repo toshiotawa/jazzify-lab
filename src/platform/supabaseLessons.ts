@@ -166,6 +166,8 @@ type LessonSongData = {
   lesson_id: string;
   song_id: string;
   clear_conditions?: ClearConditions;
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
 };
 
 /**

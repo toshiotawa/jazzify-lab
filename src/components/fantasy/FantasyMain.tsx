@@ -32,7 +32,7 @@ interface GameResult {
 
 const FantasyMain: React.FC = () => {
   const { profile, isGuest } = useAuthStore();
-  const { settings } = useGameStore();
+  const { settings, lessonContext, missionContext } = useGameStore();
   const [currentStage, setCurrentStage] = useState<FantasyStage | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -46,6 +46,60 @@ const FantasyMain: React.FC = () => {
   
   // プレミアムプラン以上の確認
   const isPremiumOrHigher = profile && ['premium', 'platinum'].includes(profile.rank);
+  
+  // URLパラメータからステージIDを取得
+  useEffect(() => {
+    const checkUrlParams = async () => {
+      const hash = window.location.hash;
+      if (hash.includes('?')) {
+        const params = new URLSearchParams(hash.split('?')[1]);
+        const stageId = params.get('stageId');
+        
+        if (stageId) {
+          // ステージIDからステージ情報を取得
+          try {
+            const { getSupabaseClient } = await import('@/platform/supabaseClient');
+            const { data: stageData, error } = await getSupabaseClient()
+              .from('fantasy_stages')
+              .select('*')
+              .eq('id', stageId)
+              .single();
+            
+            if (!error && stageData) {
+              // データベースの形式から FantasyStage 形式に変換
+              const convertedStage: FantasyStage = {
+                id: stageData.id,
+                stageNumber: stageData.stage_number,
+                name: stageData.name,
+                description: stageData.description || '',
+                maxHp: stageData.max_hp,
+                enemyGaugeSeconds: stageData.enemy_gauge_seconds,
+                enemyCount: stageData.enemy_count,
+                enemyHp: stageData.enemy_hp,
+                minDamage: stageData.min_damage,
+                maxDamage: stageData.max_damage,
+                mode: stageData.mode as 'single' | 'progression',
+                allowedChords: Array.isArray(stageData.allowed_chords) ? stageData.allowed_chords : [],
+                chordProgression: Array.isArray(stageData.chord_progression) ? stageData.chord_progression : undefined,
+                showSheetMusic: stageData.show_sheet_music,
+                showGuide: stageData.show_guide,
+                monsterIcon: stageData.monster_icon,
+                bgmUrl: stageData.bgm_url,
+                simultaneousMonsterCount: stageData.simultaneous_monster_count || 1
+              };
+              
+              setCurrentStage(convertedStage);
+              setGameKey(k => k + 1);
+            }
+          } catch (err) {
+            console.error('ステージ読み込みエラー:', err);
+          }
+        }
+      }
+    };
+    
+    checkUrlParams();
+  }, []);
   
   // ステージ選択ハンドラ
   const handleStageSelect = useCallback((stage: FantasyStage) => {
@@ -79,9 +133,12 @@ const FantasyMain: React.FC = () => {
         const { getSupabaseClient } = await import('@/platform/supabaseClient');
         const supabase = getSupabaseClient();
         
+        // レッスン／ミッション課題経由の場合はステージクリア記録を書き込まない
+        const isExternalTask = !!(lessonContext || missionContext);
+        
         // まず初クリアかどうかを判定（upsertの前に実行）
         let isFirstTimeClear = false;
-        if (result === 'clear') {
+        if (result === 'clear' && !isExternalTask) {
           const { data: preClear, error: preErr } = await supabase
             .from('fantasy_stage_clears')
             .select('id')
@@ -99,7 +156,7 @@ const FantasyMain: React.FC = () => {
         }
         
         // クリア記録を保存（クリアの場合のみ保存、ゲームオーバーは既存のクリア記録を上書きしない）
-        if (result === 'clear') {
+        if (result === 'clear' && !isExternalTask) {
           try {
             const { error: clearError } = await supabase
               .from('fantasy_stage_clears')
@@ -138,7 +195,7 @@ const FantasyMain: React.FC = () => {
         }
         
         // ───────── 進捗の更新判定 ─────────
-        if (result === 'clear') {
+        if (result === 'clear' && !isExternalTask) {
           const { data: currentProgress, error: progressError } = await supabase
             .from('fantasy_user_progress')
             .select('*')
@@ -414,12 +471,33 @@ const FantasyMain: React.FC = () => {
               再挑戦
             </button>
             
-            <button
-              onClick={handleBackToStageSelect}
-              className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-dotgothic16"
-            >
-              ステージ選択に戻る
-            </button>
+            {/* レッスン/ミッション経由の場合はそれぞれのページに戻る */}
+            {lessonContext ? (
+              <button
+                onClick={() => {
+                  window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+                }}
+                className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-dotgothic16"
+              >
+                レッスンに戻る
+              </button>
+            ) : missionContext ? (
+              <button
+                onClick={() => {
+                  window.location.hash = '#missions';
+                }}
+                className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-dotgothic16"
+              >
+                ミッションに戻る
+              </button>
+            ) : (
+              <button
+                onClick={handleBackToStageSelect}
+                className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-dotgothic16"
+              >
+                ステージ選択に戻る
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -439,6 +517,8 @@ const FantasyMain: React.FC = () => {
         onBackToStageSelect={handleBackToStageSelect}
         noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
         simpleNoteName={settings.simpleDisplayMode}
+        lessonContext={lessonContext}
+        missionContext={missionContext}
       />
     );
   }

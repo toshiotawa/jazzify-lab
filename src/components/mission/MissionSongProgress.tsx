@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import type { MissionSongProgress as MissionSongProgressType } from '@/platform/supabaseMissions';
 import { useMissionStore } from '@/stores/missionStore';
-import { useGameStore } from '@/stores/gameStore';
+import { useGameStore, useGameActions } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
-import { FaPlay, FaMusic, FaCheck, FaKey, FaTachometerAlt, FaStar, FaListUl } from 'react-icons/fa';
+import { FaPlay, FaMusic, FaCheck, FaKey, FaTachometerAlt, FaStar, FaListUl, FaDragon } from 'react-icons/fa';
 
 interface Props {
   missionId: string;
@@ -13,6 +13,7 @@ interface Props {
 const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
   const { fetchSongProgress } = useMissionStore();
   const { loadSong } = useGameStore();
+  const gameActions = useGameActions();
 
   useEffect(() => {
     console.log('MissionSongProgress useEffect:', { missionId, songProgressLength: songProgress.length });
@@ -24,32 +25,51 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
 
   const handlePlaySong = async (songId: string, songProgress: MissionSongProgressType) => {
     try {
-      console.log('🎵 ミッション曲をプレイ開始:', { 
-        songId, 
-        missionId, 
-        songTitle: songProgress.song?.title,
-        songProgress: {
-          clear_count: songProgress.clear_count,
-          required_count: songProgress.required_count,
-          is_completed: songProgress.is_completed
-        }
-      });
+      if (songProgress.is_fantasy && songProgress.fantasy_stage_id) {
+        console.log('🐉 ミッションステージをプレイ開始:', { 
+          stageId: songProgress.fantasy_stage_id, 
+          missionId, 
+          stageName: songProgress.stage?.name
+        });
+        
+        // ミッションコンテキストを設定
+        gameActions.setMissionContext(missionId, songId, {
+          count: songProgress.required_count || 1
+        });
+        
+        // ステージIDをURLに設定してファンタジーモードを起動
+        const params = new URLSearchParams();
+        params.set('stageId', songProgress.fantasy_stage_id);
+        params.set('missionId', missionId);
+        window.location.hash = `#fantasy?${params.toString()}`;
+      } else {
+        console.log('🎵 ミッション曲をプレイ開始:', { 
+          songId, 
+          missionId, 
+          songTitle: songProgress.song?.title,
+          songProgress: {
+            clear_count: songProgress.clear_count,
+            required_count: songProgress.required_count,
+            is_completed: songProgress.is_completed
+          }
+        });
+        
+        // ミッションから曲をプレイする際はsongとmissionのみを渡す
+        // 条件はGameScreenでデータベースから取得する
+        const params = new URLSearchParams();
+        params.set('song', songId);
+        params.set('mission', missionId);
+        
+        const hash = `#play-mission?${params.toString()}`;
+        console.log('🔗 生成されたハッシュ:', hash);
+        
+        // ハッシュを設定してGameScreenの処理をトリガー
+        window.location.hash = hash;
+      }
       
-      // ミッションから曲をプレイする際はsongとmissionのみを渡す
-      // 条件はGameScreenでデータベースから取得する
-      const params = new URLSearchParams();
-      params.set('song', songId);
-      params.set('mission', missionId);
-      
-      const hash = `#play-mission?${params.toString()}`;
-      console.log('🔗 生成されたハッシュ:', hash);
-      
-      // ハッシュを設定してGameScreenの処理をトリガー
-      window.location.hash = hash;
-      
-      console.log('✅ ミッション曲プレイ処理完了、GameScreenで処理中...');
+      console.log('✅ ミッション課題プレイ処理完了、処理中...');
     } catch (error) {
-      console.error('❌ ミッション曲プレイ処理エラー:', {
+      console.error('❌ ミッション課題プレイ処理エラー:', {
         error,
         songId,
         missionId,
@@ -97,12 +117,18 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
           >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-3">
-                <FaMusic className="w-4 h-4 text-blue-400" />
+                {song.is_fantasy ? (
+                  <FaDragon className="w-4 h-4 text-purple-400" />
+                ) : (
+                  <FaMusic className="w-4 h-4 text-blue-400" />
+                )}
                 <div>
                   <div className="font-medium text-white">
-                    {song.song?.title || `曲 ${song.song_id}`}
+                    {song.is_fantasy 
+                      ? (song.stage ? `ステージ ${song.stage.stage_number}: ${song.stage.name}` : '不明なステージ')
+                      : (song.song?.title || `曲 ${song.song_id}`)}
                   </div>
-                  {song.song?.artist && (
+                  {!song.is_fantasy && song.song?.artist && (
                     <div className="text-sm text-gray-400">{song.song.artist}</div>
                   )}
                 </div>
@@ -133,37 +159,46 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
             {/* クリア条件の詳細表示 */}
             <div className="mb-3 p-3 bg-slate-700/50 rounded-lg">
               <div className="text-xs font-medium text-gray-300 mb-2">クリア条件</div>
-              <div className="grid grid-cols-1 gap-2 text-xs text-gray-400">
-                <div className="flex items-center space-x-2">
-                  <FaStar className="w-3 h-3 text-yellow-400" />
-                  <span>ランク{song.min_rank || 'B'}以上</span>
+              {song.is_fantasy ? (
+                <div className="grid grid-cols-1 gap-2 text-xs text-gray-400">
+                  <div className="flex items-center space-x-2">
+                    <FaListUl className="w-3 h-3 text-blue-400" />
+                    <span>{song.required_count || 1}回クリア</span>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <FaListUl className="w-3 h-3 text-blue-400" />
-                  <span>{song.required_count || 1}回クリア</span>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 text-xs text-gray-400">
+                  <div className="flex items-center space-x-2">
+                    <FaStar className="w-3 h-3 text-yellow-400" />
+                    <span>ランク{song.min_rank || 'B'}以上</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <FaListUl className="w-3 h-3 text-blue-400" />
+                    <span>{song.required_count || 1}回クリア</span>
+                  </div>
+                  {song.min_speed && song.min_speed !== 1.0 && (
+                    <div className="flex items-center space-x-2">
+                      <FaTachometerAlt className="w-3 h-3 text-green-400" />
+                      <span>速度{song.min_speed}倍以上</span>
+                    </div>
+                  )}
+                  {song.key_offset && song.key_offset !== 0 && (
+                    <div className="flex items-center space-x-2">
+                      <FaKey className="w-3 h-3 text-purple-400" />
+                      <span>キー{song.key_offset > 0 ? '+' : ''}{song.key_offset} ({song.key_offset > 0 ? '高く' : '低く'})</span>
+                    </div>
+                  )}
+                  {song.notation_setting && (
+                    <div className="flex items-center space-x-2">
+                      <FaMusic className="w-3 h-3 text-orange-400" />
+                      <span>
+                        楽譜: {song.notation_setting === 'notes_chords' ? 'ノート+コード' :
+                               song.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                {song.min_speed && song.min_speed !== 1.0 && (
-                  <div className="flex items-center space-x-2">
-                    <FaTachometerAlt className="w-3 h-3 text-green-400" />
-                    <span>速度{song.min_speed}倍以上</span>
-                  </div>
-                )}
-                {song.key_offset && song.key_offset !== 0 && (
-                  <div className="flex items-center space-x-2">
-                    <FaKey className="w-3 h-3 text-purple-400" />
-                    <span>キー{song.key_offset > 0 ? '+' : ''}{song.key_offset} ({song.key_offset > 0 ? '高く' : '低く'})</span>
-                  </div>
-                )}
-                {song.notation_setting && (
-                  <div className="flex items-center space-x-2">
-                    <FaMusic className="w-3 h-3 text-orange-400" />
-                    <span>
-                      楽譜: {song.notation_setting === 'notes_chords' ? 'ノート+コード' :
-                             song.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
-                    </span>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
             {/* 進捗バー */}

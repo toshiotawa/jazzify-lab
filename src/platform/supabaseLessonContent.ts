@@ -10,6 +10,8 @@ export interface LessonVideo {
 export interface LessonRequirement {
   lesson_id: string;
   song_id: string;
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
   clear_conditions?: {
     key: number;
     speed: number;

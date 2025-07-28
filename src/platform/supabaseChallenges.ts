@@ -19,6 +19,8 @@ export interface Challenge {
 export interface ChallengeSong {
   challenge_id: string;
   song_id: string;
+  is_fantasy?: boolean;
+  fantasy_stage_id?: string;
   key_offset: number;
   min_speed: number;
   min_rank: string;
