@@ -19,8 +19,8 @@ const AdminDashboard: React.FC = () => {
     return hash.startsWith('#admin');
   });
   
-  // profile.isAdmin を使用
-  const isAdmin = !!profile?.isAdmin;
+  // profile.is_admin を使用
+  const isAdmin = !!profile?.is_admin;
 
   useEffect(() => {
     const handler = () => {

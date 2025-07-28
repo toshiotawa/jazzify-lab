@@ -43,7 +43,7 @@ const UserManager: React.FC = () => {
 
   const handleRankChange = async (id:string, rank:Rank)=>{
     // 管理者でない場合、自分以外のユーザーを更新できない
-    if (!profile?.isAdmin && id !== profile?.id) {
+    if (!profile?.is_admin && id !== profile?.id) {
       toast.error('自分以外のユーザーのステータスを変更する権限がありません');
       return;
     }
@@ -68,7 +68,7 @@ const UserManager: React.FC = () => {
 
   const toggleAdmin = async(id:string, isAdmin:boolean)=>{
     // 管理者でない場合、自分以外のユーザーを更新できない
-    if (!profile?.isAdmin && id !== profile?.id) {
+    if (!profile?.is_admin && id !== profile?.id) {
       toast.error('自分以外のユーザーのステータスを変更する権限がありません');
       return;
     }
@@ -335,7 +335,7 @@ const UserManager: React.FC = () => {
       </div>
       
       {/* 管理者でない場合の警告 */}
-      {!profile?.isAdmin && (
+                      {!profile?.is_admin && (
         <div className="alert alert-warning mb-4">
           <div className="flex items-center">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -369,10 +369,10 @@ const UserManager: React.FC = () => {
                   </td>
                   <td className="py-1 px-2">
                     <select 
-                      className={`select select-xs w-20 ${!profile?.isAdmin && u.id !== profile?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className={`select select-xs w-20 ${!profile?.is_admin && u.id !== profile?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                       value={u.rank} 
                       onChange={e=>handleRankChange(u.id, e.target.value as Rank)}
-                      disabled={!profile?.isAdmin && u.id !== profile?.id}
+                      disabled={!profile?.is_admin && u.id !== profile?.id}
                     >
                       {ranks.map(r=>(<option key={r} value={r}>{r}</option>))}
                     </select>
@@ -380,18 +380,18 @@ const UserManager: React.FC = () => {
                   <td className="py-1 px-2">
                     <input 
                       type="checkbox" 
-                      className={`checkbox checkbox-sm ${!profile?.isAdmin && u.id !== profile?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className={`checkbox checkbox-sm ${!profile?.is_admin && u.id !== profile?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                       checked={u.is_admin} 
                       onChange={e=>toggleAdmin(u.id, e.target.checked)}
-                      disabled={!profile?.isAdmin && u.id !== profile?.id}
+                      disabled={!profile?.is_admin && u.id !== profile?.id}
                     />
                   </td>
                   <td className="py-1 px-2 text-right text-xs">Lv{u.level}</td>
                   <td className="py-1 px-2">
                     <button 
-                      className={`btn btn-xs btn-primary ${!profile?.isAdmin && u.id !== profile?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className={`btn btn-xs btn-primary ${!profile?.is_admin && u.id !== profile?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                       onClick={() => openProgressModal(u)}
-                      disabled={!profile?.isAdmin && u.id !== profile?.id}
+                      disabled={!profile?.is_admin && u.id !== profile?.id}
                     >
                       <FaEdit className="mr-1" />
                       進捗管理
