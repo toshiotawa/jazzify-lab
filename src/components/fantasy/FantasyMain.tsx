@@ -378,7 +378,7 @@ const FantasyMain: React.FC = () => {
               </div>
               {profile && (profile.rank === 'premium' || profile.rank === 'platinum') && (
                 <div className="text-yellow-300 text-sm mt-1">
-                  契約ランクボーナス: ×{profile.rank === 'premium' ? '1.5' : '2.0'}
+                  ランクボーナス {profile.rank === 'premium' ? 'プレミアム1.5x' : 'プラチナ2.0x'}
                 </div>
               )}
               <div className="text-green-300 font-bold text-xl mt-2">
