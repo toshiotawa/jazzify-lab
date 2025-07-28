@@ -23,6 +23,7 @@ interface FantasyGameScreenProps {
   onBackToStageSelect: () => void;
   noteNameLang?: DisplayOpts['lang'];     // 音名表示言語
   simpleNoteName?: boolean;                // 簡易表記
+  lessonMode?: boolean;                    // レッスンモード
 }
 
 // 不要な定数とインターフェースを削除（PIXI側で処理）
@@ -33,7 +34,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   onGameComplete,
   onBackToStageSelect,
   noteNameLang = 'en',
-  simpleNoteName = false
+  simpleNoteName = false,
+  lessonMode = false
 }) => {
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
