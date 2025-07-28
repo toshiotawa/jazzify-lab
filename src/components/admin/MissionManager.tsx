@@ -139,7 +139,30 @@ const MissionManager: React.FC = () => {
             is_fantasy: v.category === 'fantasy',
             fantasy_stage_id: v.category === 'fantasy' ? songId : null,
           };
-          await addSongToChallenge(newChallengeId, songId, conditions);
+          
+          console.log('ミッション作成時の課題追加:', {
+            category: v.category,
+            songId,
+            conditions,
+            is_fantasy: conditions.is_fantasy,
+            fantasy_stage_id: conditions.fantasy_stage_id
+          });
+          
+          // ファンタジーモードの場合、songIdにはnullを渡す
+          const songIdToPass = v.category === 'fantasy' ? null : songId;
+          
+          // 明示的にすべてのプロパティを含むオブジェクトを作成
+          const conditionsToSend = {
+            key_offset: conditions.key_offset,
+            min_speed: conditions.min_speed,
+            min_rank: conditions.min_rank,
+            clears_required: conditions.clears_required,
+            notation_setting: conditions.notation_setting,
+            is_fantasy: conditions.is_fantasy,
+            fantasy_stage_id: conditions.fantasy_stage_id
+          };
+          
+          await addSongToChallenge(newChallengeId, songIdToPass, conditionsToSend);
         }
         
         const itemLabel = v.category === 'fantasy' ? 'ステージ' : '曲';
@@ -208,7 +231,20 @@ const MissionManager: React.FC = () => {
         isFantasy: defaultConditions.is_fantasy,
         fantasy_stage_id: defaultConditions.fantasy_stage_id
       });
-      await addSongToChallenge(selectedMission.id, songIdToPass, defaultConditions);
+      
+      // 明示的にすべてのプロパティを含むオブジェクトを作成
+      const conditionsToSend = {
+        key_offset: defaultConditions.key_offset,
+        min_speed: defaultConditions.min_speed,
+        min_rank: defaultConditions.min_rank,
+        clears_required: defaultConditions.clears_required,
+        notation_setting: defaultConditions.notation_setting,
+        is_fantasy: defaultConditions.is_fantasy,
+        fantasy_stage_id: defaultConditions.fantasy_stage_id
+      };
+      
+      console.log('送信する条件:', conditionsToSend);
+      await addSongToChallenge(selectedMission.id, songIdToPass, conditionsToSend);
       toast.success(isFantasy ? 'ステージ課題を追加しました' : '楽曲を追加しました');
       // ミッション詳細を再読み込み
       const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
