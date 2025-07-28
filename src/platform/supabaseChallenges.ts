@@ -31,6 +31,11 @@ export interface ChallengeSong {
     title: string;
     artist?: string;
   };
+  fantasy_stages?: {
+    id: string;
+    stage_number: string;
+    name: string;
+  };
 }
 
 /**

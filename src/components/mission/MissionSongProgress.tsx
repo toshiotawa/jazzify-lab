@@ -141,7 +141,7 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
                     missionId,
                     isCompleted: song.is_completed
                   });
-                  handlePlaySong(song.song_id, song);
+                  handlePlaySong(song.is_fantasy ? (song.fantasy_stage_id || '') : song.song_id, song);
                 }}
                 className={cn(
                   "btn btn-sm flex items-center space-x-2 transition-all duration-300",
