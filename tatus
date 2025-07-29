@@ -3,3 +3,8 @@
 [33ma31ec6b[m a
 [33m357428a[m a
 [33m714e9f3[m a
+[33ma91324a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m Update schema.sql with production database dump - 本番環境のスキーマダンプでschema.sqlを更新
+[33mc1f3658[m Fix: Add #admin-courses route to LegacyApp.tsx
+[33m94d592b[m Enable fantasy mode exp, remove lesson/mission bonuses (#165)
+[33mbdf25a4[m Set initial rank based on current stage number in fantasy stage select (#164)
+[33m7882ccf[m Add fantasy mode stage to level ranking table and data fetching (#162)
