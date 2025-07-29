@@ -15,6 +15,8 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { ReadyOverlay } from '../common/ReadyOverlay';
+import { JudgmentMarker } from '../common/JudgmentMarker';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -578,7 +580,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
     return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
+      <div className="relative w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
           className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
           style={{ 
@@ -586,9 +588,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
           }}
         />
+        {/* リズムモードの場合、判定マーカーを表示 */}
+        {stage.gameType === 'rhythm' && <JudgmentMarker position={80} />}
       </div>
     );
-  }, [gameState.enemyGauge]);
+  }, [gameState.enemyGauge, stage.gameType]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -852,6 +856,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
                           style={{ width: `${monster.gauge}%` }}
                         />
+                        {/* リズムモードの場合、判定マーカーを表示 */}
+                        {stage.gameType === 'rhythm' && <JudgmentMarker position={80} />}
                       </div>
                       
                       {/* HPゲージ */}
@@ -1068,6 +1074,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {overlay.text}
           </span>
         </div>
+      )}
+      
+      {/* Readyフェーズオーバーレイ */}
+      {gameState.isReady && gameState.readyCountdown >= 0 && (
+        <ReadyOverlay count={gameState.readyCountdown} />
       )}
     </div>
   );
