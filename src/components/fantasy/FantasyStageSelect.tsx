@@ -149,32 +149,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       
       //// データの変換とセット
       const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
-        id: stage.id,
-        stageNumber: stage.stage_number,
-        name: stage.name,
-        description: stage.description || '',
-        maxHp: stage.max_hp,
-        enemyGaugeSeconds: stage.enemy_gauge_seconds,
-        enemyCount: stage.enemy_count,
-        enemyHp: stage.enemy_hp,
-        minDamage: stage.min_damage,
-        maxDamage: stage.max_damage,
+        ...stage,  // 全てのプロパティをそのまま渡す
         mode: stage.mode as 'single' | 'progression',
-        allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
-        chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
-        showSheetMusic: stage.show_sheet_music,
-        showGuide: stage.show_guide,
-        monsterIcon: stage.monster_icon,
-        bgmUrl: stage.bgm_url,
-        simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
-        // リズムモード関連フィールド
-        game_type: stage.game_type || 'quiz',
-        rhythm_pattern: stage.rhythm_pattern,
-        bpm: stage.bpm,
-        time_signature: stage.time_signature,
-        loop_measures: stage.loop_measures,
-        chord_progression_data: stage.chord_progression_data,
-        mp3_url: stage.mp3_url
+        allowed_chords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
+        chord_progression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -283,7 +261,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       >
         {/* ステージ番号 */}
         <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
-          {stage.stageNumber}
+          {stage.stage_number}
         </div>
         
         {/* コンテンツ部分 */}

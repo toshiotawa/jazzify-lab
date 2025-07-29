@@ -27,23 +27,23 @@ interface ChordDefinition {
 
 interface FantasyStage {
   id: string;
-  stageNumber: string;
+  stage_number: string;
   name: string;
   description: string;
-  maxHp: number;
-  enemyGaugeSeconds: number;
-  enemyCount: number;
-  enemyHp: number;
-  minDamage: number;
-  maxDamage: number;
+  max_hp: number;
+  enemy_gauge_seconds: number;
+  enemy_count: number;
+  enemy_hp: number;
+  min_damage: number;
+  max_damage: number;
   mode: 'single' | 'progression';
-  allowedChords: string[];
-  chordProgression?: string[];
-  showSheetMusic: boolean;
-  showGuide: boolean; // ガイド表示設定を追加
-  monsterIcon: string;
-  bgmUrl?: string;
-  simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  allowed_chords: string[];
+  chord_progression?: string[];
+  show_sheet_music: boolean;
+  show_guide: boolean;
+  monster_icon?: string;
+  bgm_url?: string;
+  simultaneous_monster_count?: number;
   // リズムモード関連
   game_type?: 'quiz' | 'rhythm';
   rhythm_pattern?: 'random' | 'progression';
@@ -619,10 +619,10 @@ export const useFantasyGameEngine = ({
     devLog.debug('🔍 リズムモードのデバッグ: gameType =', gameType);
 
     // 新しいステージ定義から値を取得
-    const totalEnemies = normalizedStage.enemyCount;
-    const enemyHp = normalizedStage.enemyHp;
+    const totalEnemies = normalizedStage.enemy_count;
+    const enemyHp = normalizedStage.enemy_hp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = normalizedStage.simultaneousMonsterCount || 1;
+    const simultaneousCount = normalizedStage.simultaneous_monster_count || 1;
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -790,10 +790,10 @@ export const useFantasyGameEngine = ({
           devLog.debug('🎲 リズムランダムパターンでモンスター生成');
           
           // ランダムなコードを選択
-          const availableChords = normalizedStage.allowedChords.filter(chord => chord !== lastChordId);
+          const availableChords = normalizedStage.allowed_chords.filter(chord => chord !== lastChordId);
           const randomChordName = availableChords.length > 0 
             ? availableChords[Math.floor(Math.random() * availableChords.length)]
-            : normalizedStage.allowedChords[Math.floor(Math.random() * normalizedStage.allowedChords.length)];
+            : normalizedStage.allowed_chords[Math.floor(Math.random() * normalizedStage.allowed_chords.length)];
           
           const chord = getChordDefinition(randomChordName, displayOptsParam);
           if (chord) {
@@ -820,7 +820,7 @@ export const useFantasyGameEngine = ({
             monsterIndex,
             positions[i],
             enemyHp,
-            normalizedStage.allowedChords,
+            normalizedStage.allowed_chords,
             lastChordId,
             displayOptsParam,
             monsterIds
@@ -840,7 +840,7 @@ export const useFantasyGameEngine = ({
       currentStage: normalizedStage,
       currentQuestionIndex: 0,
       currentChordTarget: firstChord,
-      playerHp: normalizedStage.maxHp,
+      playerHp: normalizedStage.max_hp,
       enemyGauge: 0,
       score: 0,
       totalQuestions: totalQuestions,
@@ -1140,7 +1140,7 @@ export const useFantasyGameEngine = ({
           
           // 判定時刻までの残り時間から逆算してゲージを計算（タイムオフセットを考慮）
           const timeToTarget = monster.timing.targetTime - currentTimeMs + prevState.timeOffset;
-          const totalTime = prevState.currentStage.enemyGaugeSeconds * 1000;
+          const totalTime = prevState.currentStage.enemy_gauge_seconds * 1000;
           const gaugeProgress = Math.max(0, Math.min(100, (1 - timeToTarget / totalTime) * 100));
           
           // 判定ウィンドウ内かチェック
@@ -1192,7 +1192,7 @@ export const useFantasyGameEngine = ({
       }
       
       // クイズモードの場合（既存の処理）
-      const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
+      const incrementRate = 100 / (prevState.currentStage.enemy_gauge_seconds * 10); // 100ms間隔で更新
       
       // 各モンスターのゲージを更新
       const updatedMonsters = prevState.activeMonsters.map(monster => ({

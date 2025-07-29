@@ -87,31 +87,7 @@ const FantasyMain: React.FC = () => {
           devLog.debug('🎮 ファンタジーステージ取得成功:', stage);
           // FantasyStageの形式に変換
           const fantasyStage: FantasyStage = {
-            id: stage.id,
-            stage_number: stage.stage_number,
-            name: stage.name,
-            description: stage.description,
-            max_hp: stage.max_hp,
-            enemy_gauge_seconds: stage.enemy_gauge_seconds,
-            enemy_count: stage.enemy_count,
-            enemy_hp: stage.enemy_hp,
-            min_damage: stage.min_damage,
-            max_damage: stage.max_damage,
-            mode: stage.mode,
-            allowed_chords: stage.allowed_chords,
-            chord_progression: stage.chord_progression,
-            show_sheet_music: stage.show_sheet_music,
-            show_guide: stage.show_guide,
-            simultaneous_monster_count: stage.simultaneous_monster_count || 1,
-            monster_icon: stage.monster_icon || 'dragon',
-            // リズムモード関連フィールドを追加
-            game_type: stage.game_type || 'quiz',
-            rhythm_pattern: stage.rhythm_pattern,
-            bpm: stage.bpm,
-            time_signature: stage.time_signature,
-            loop_measures: stage.loop_measures,
-            chord_progression_data: stage.chord_progression_data,
-            mp3_url: stage.mp3_url
+            ...stage  // 全てのプロパティをそのまま渡す
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
