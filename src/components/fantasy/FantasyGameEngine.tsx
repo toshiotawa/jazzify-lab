@@ -10,6 +10,10 @@ import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { useRhythmMode } from '@/hooks/useRhythmMode';
+import { ChordDefinition as RhythmChordDefinition } from '@/types';
+import { RandomProblemGenerator } from '@/lib/rhythm/RandomProblemGenerator';
+import { ProgressionProblemGenerator, ProgressionChord } from '@/lib/rhythm/ProgressionProblemGenerator';
 
 // ===== 型定義 =====
 
@@ -22,7 +26,8 @@ interface ChordDefinition {
   root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
 
-interface FantasyStage {
+// FantasyStage型は@/typesから使用するが、必要なフィールドを追加
+interface FantasyStageExtended {
   id: string;
   stageNumber: string;
   name: string;
@@ -33,15 +38,26 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'quiz' | 'rhythm';  // リズムモードに対応
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
-  showGuide: boolean; // ガイド表示設定を追加
+  showGuide: boolean;
   monsterIcon: string;
   bgmUrl?: string;
-  simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  simultaneousMonsterCount: number;
+  // リズムモード用フィールド（@/typesのFantasyStageに定義済み）
+  patternType?: 'random' | 'progression';
+  musicMeta?: {
+    bpm: number;
+    timeSig: number;
+    bars: number;
+  };
+  audioUrl?: string;
 }
+
+// 実際にはFantasyStageを使うが、エクスポート用にエイリアスを作成
+type FantasyStage = FantasyStageExtended;
 
 interface MonsterState {
   id: string;
@@ -731,6 +747,11 @@ export const useFantasyGameEngine = ({
     setGameState(prevState => {
       if (!prevState.isGameActive || !prevState.currentStage) {
         devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
+        return prevState;
+      }
+      
+      // リズムモードの場合はゲージ更新をスキップ（Timeline側で管理）
+      if (prevState.currentStage.mode === 'rhythm') {
         return prevState;
       }
       
