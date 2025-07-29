@@ -63,19 +63,22 @@ if (missingFiles.length === 0) {
 }
 
 // 5. 環境変数チェック（ビルド時に必要なもの）
-console.log('🔐 Checking environment variables...');
-const requiredEnvVars = [
-  'VITE_SUPABASE_URL',
-  'VITE_SUPABASE_ANON_KEY'
-];
+// CI環境では環境変数チェックをスキップ
+if (!process.env.CI) {
+  console.log('🔐 Checking environment variables...');
+  const requiredEnvVars = [
+    'VITE_SUPABASE_URL',
+    'VITE_SUPABASE_ANON_KEY'
+  ];
 
-const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-if (missingEnvVars.length === 0) {
-  console.log('✅ All required environment variables are set\n');
-} else {
-  console.warn('⚠️  Missing environment variables:');
-  missingEnvVars.forEach(envVar => console.warn(`   - ${envVar}`));
-  console.warn('   Build may fail or app may not work properly.\n');
+  const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+  if (missingEnvVars.length === 0) {
+    console.log('✅ All required environment variables are set\n');
+  } else {
+    console.warn('⚠️  Missing environment variables:');
+    missingEnvVars.forEach(envVar => console.warn(`   - ${envVar}`));
+    console.warn('   Build may fail or app may not work properly.\n');
+  }
 }
 
 // 6. 依存関係の脆弱性チェック

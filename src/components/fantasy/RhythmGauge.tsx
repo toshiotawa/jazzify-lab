@@ -90,7 +90,7 @@ export const RhythmGauge: React.FC<RhythmGaugeProps> = ({
       )}
 
       {/* スタイル定義 */}
-      <style jsx>{`
+      <style>{`
         .shadow-glow {
           box-shadow: 0 0 8px rgba(250, 204, 21, 0.8);
         }
@@ -118,5 +118,4 @@ export const RhythmGauge: React.FC<RhythmGaugeProps> = ({
   );
 };
 
-export { RhythmGauge };
 export default RhythmGauge;

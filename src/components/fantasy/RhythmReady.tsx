@@ -114,5 +114,4 @@ export const RhythmReady: React.FC<RhythmReadyProps> = ({
   );
 };
 
-export { RhythmReady };
 export default RhythmReady;

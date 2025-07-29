@@ -16,8 +16,9 @@ import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
 import { useRhythmMode } from '@/hooks/useRhythmMode';
-import { RhythmGauge } from './RhythmGauge';
-import { RhythmReady } from './RhythmReady';
+import RhythmGauge from './RhythmGauge';
+import RhythmReady from './RhythmReady';
+import { ChordDefinition as RhythmChordDefinition } from '@/types';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -60,7 +61,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // リズムモードの状態管理
   const rhythmMode = useRhythmMode({
-    stage: stage.game_mode === 'rhythm' ? stage as any : null,
+    stage: stage.gameMode === 'rhythm' ? stage as any : null,
     onBeat: (bar, beat) => {
       devLog.debug(`🎵 Beat: Bar ${bar}, Beat ${beat}`);
     },
@@ -74,7 +75,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // リズムモードのコード変更を監視
   useEffect(() => {
-    if (stage.game_mode !== 'rhythm' || !rhythmMode.problemGenerator) return;
+    if (stage.gameMode !== 'rhythm' || !rhythmMode.problemGenerator) return;
     
     const generator = rhythmMode.problemGenerator;
     
@@ -377,7 +378,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     
     // リズムモードの場合は判定タイミングチェック
-    if (stage.game_mode === 'rhythm') {
+    if (stage.gameMode === 'rhythm') {
       if (!rhythmMode.checkJudgment()) {
         devLog.debug('🎵 Not in judgment timing, ignoring input');
         return;
@@ -680,7 +681,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (autoStart) {
       initializeGame(stage);
       // リズムモードの場合は初期化
-      if (stage.game_mode === 'rhythm') {
+      if (stage.gameMode === 'rhythm') {
         rhythmMode.initialize().then(() => {
           rhythmMode.startReady();
         });
@@ -712,7 +713,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               devLog.debug('🎮 ゲーム開始ボタンクリック');
               initializeGame(stage);
               // リズムモードの場合は初期化
-              if (stage.game_mode === 'rhythm') {
+              if (stage.gameMode === 'rhythm') {
                 rhythmMode.initialize().then(() => {
                   rhythmMode.startReady();
                 });
@@ -909,7 +910,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       )}
                       
                       {/* 行動ゲージ */}
-                      {stage.game_mode === 'rhythm' ? (
+                      {stage.gameMode === 'rhythm' ? (
                         <RhythmGauge
                           progress={rhythmMode.state.barProgress}
                           isJudgmentTiming={rhythmMode.state.isJudgmentTiming}
@@ -1059,7 +1060,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>SP: {gameState.playerSp}</div>
           
           {/* リズムモードのデバッグ情報 */}
-          {stage.game_mode === 'rhythm' && rhythmMode.state.debugInfo && (
+          {stage.gameMode === 'rhythm' && rhythmMode.state.debugInfo && (
             <>
               <div>Bar: {rhythmMode.state.debugInfo.bar}</div>
               <div>Beat: {rhythmMode.state.debugInfo.beat}</div>
@@ -1150,7 +1151,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       />
       
       {/* リズムモード Ready画面 */}
-      {stage.game_mode === 'rhythm' && (
+      {stage.gameMode === 'rhythm' && (
         <RhythmReady
           isReady={rhythmMode.state.isReady}
           countdown={rhythmMode.state.readyCountdown}

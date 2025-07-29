@@ -11,7 +11,6 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
 import { useRhythmMode } from '@/hooks/useRhythmMode';
-import { ChordDefinition as RhythmChordDefinition } from '@/types';
 import { RandomProblemGenerator } from '@/lib/rhythm/RandomProblemGenerator';
 import { ProgressionProblemGenerator, ProgressionChord } from '@/lib/rhythm/ProgressionProblemGenerator';
 
