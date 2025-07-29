@@ -90,6 +90,12 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
       lanes = initializeLanes(laneCount, stage.chord_progression);
     }
 
+    // ランダムパターンの初期コード
+    let initialChord: string | undefined;
+    if (patternType === 'random' && rhythmEvents.length > 0) {
+      initialChord = rhythmEvents[0].code;
+    }
+
     return {
       playMode: stage.play_mode,
       patternType: patternType as PatternType,
@@ -106,7 +112,7 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
       isPaused: false,
       
       // パターン別の初期値
-      currentChord: patternType === 'random' ? undefined : undefined,
+      currentChord: initialChord,
       nextChordTime: patternType === 'random' ? 0 : undefined,
       lanes,
       progressionIndex: patternType === 'progression' ? 0 : undefined,
@@ -118,7 +124,7 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
       sp: 0,
       judgmentHistory: [],
     };
-  }, [stage]);
+  }, [stage, rhythmEvents]);
 
   // ゲーム状態
   const [gameState, setGameState] = useState<RhythmGameState | null>(initializeGameState);
@@ -256,28 +262,72 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
     onGameStateChange(updatedState);
   }, [stage, onGameStateChange]);
 
+  // 次のイベントを見つける
+  const findNextEvent = useCallback((currentTime: number): RhythmEvent | null => {
+    if (!rhythmEvents.length) return null;
+    
+    const { bpm, timeSignature } = gameStateRef.current!.songMetadata;
+    const secondsPerBeat = 60 / bpm;
+    const secondsPerMeasure = secondsPerBeat * timeSignature;
+    
+    // 各イベントの時刻を計算して、次のイベントを見つける
+    for (const event of rhythmEvents) {
+      const eventTime = (event.measure - 1) * secondsPerMeasure + (event.beat - 1) * secondsPerBeat;
+      if (eventTime > currentTime) {
+        return event;
+      }
+    }
+    
+    // ループ時は最初のイベントに戻る
+    return rhythmEvents[0];
+  }, [rhythmEvents]);
+
   // ゲージの更新
   const updateGauges = useCallback((songTime: number, deltaTime: number) => {
     if (!stage || !gameStateRef.current) return;
 
     const state = gameStateRef.current;
     const { bpm, timeSignature } = state.songMetadata;
+    const secondsPerBeat = 60 / bpm;
+    const secondsPerMeasure = secondsPerBeat * timeSignature;
+
+    // 次のイベントを取得
+    const nextEvent = findNextEvent(songTime);
+    if (!nextEvent) return;
+
+    // 次のイベントまでの時間を計算
+    const nextEventTime = (nextEvent.measure - 1) * secondsPerMeasure + (nextEvent.beat - 1) * secondsPerBeat;
+    let timeUntilEvent = nextEventTime - songTime;
+    
+    // すでに過ぎている場合は次のループでのタイミングを計算
+    if (timeUntilEvent < 0) {
+      const loopDuration = state.songMetadata.loopMeasures * secondsPerMeasure;
+      timeUntilEvent += loopDuration;
+    }
 
     // パターンによって異なる処理
     if (state.patternType === 'random') {
       // ランダムパターン：単一の敵のゲージ更新
       const enemy = enemies.find(e => e.hp > 0);
       if (enemy) {
-        const measureProgress = calculateMeasureProgress(songTime, bpm, timeSignature);
-        const gaugePercent = calculateGaugePercent(measureProgress);
+        // イベントまでの残り時間からゲージを計算
+        const secondsForGauge = stage.enemy_gauge_seconds || secondsPerMeasure;
+        const gaugePercent = Math.max(0, Math.min(100, (1 - timeUntilEvent / secondsForGauge) * 100));
+        
         updateEnemy(enemy.id, { gauge: gaugePercent });
 
+        // 現在のコードを設定
+        if (state.currentChord !== nextEvent.code && timeUntilEvent < secondsForGauge) {
+          gameStateRef.current.currentChord = nextEvent.code;
+        }
+
         // タイミングを逃した場合
-        if (hasMissedTiming(gaugePercent, bpm, timeSignature)) {
-          handleMissedTiming(enemy.id, 0);
-          // 次のコードを設定
-          const nextChord = selectRandomChord(stage.allowed_chords, state.currentChord);
-          gameStateRef.current.currentChord = nextChord;
+        if (gaugePercent >= 100 && timeUntilEvent <= 0) {
+          const eventId = `${nextEvent.measure}-${nextEvent.beat}-${nextEvent.code}`;
+          if (!processedEventsRef.current.has(eventId)) {
+            handleMissedTiming(enemy.id, 0);
+            processedEventsRef.current.add(eventId);
+          }
         }
       }
     } else if (state.patternType === 'progression' && state.lanes) {
@@ -286,21 +336,32 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
         const enemy = enemies[index];
         if (!enemy || enemy.hp <= 0) return;
 
-        const measureProgress = calculateMeasureProgress(songTime, bpm, timeSignature);
-        const gaugePercent = calculateGaugePercent(measureProgress);
-        updateEnemy(enemy.id, { gauge: gaugePercent });
+        // このレーンに対応するイベントを探す
+        const laneEvent = rhythmEvents.find(e => 
+          e.code === lane.currentChord && 
+          Math.abs(((e.measure - 1) * secondsPerMeasure + (e.beat - 1) * secondsPerBeat) - songTime) < secondsPerMeasure
+        );
 
-        // 更新されたゲージ状態を保存
-        const updatedGaugeState = updateGaugeState(lane.gaugeState, songTime, bpm, timeSignature);
-        state.lanes![index].gaugeState = updatedGaugeState;
+        if (laneEvent) {
+          const eventTime = (laneEvent.measure - 1) * secondsPerMeasure + (laneEvent.beat - 1) * secondsPerBeat;
+          let timeUntil = eventTime - songTime;
+          
+          if (timeUntil < 0 && timeUntil > -0.2) {
+            // Just passed
+            timeUntil = 0;
+          } else if (timeUntil < -0.2) {
+            // Way past, wait for next loop
+            timeUntil += state.songMetadata.loopMeasures * secondsPerMeasure;
+          }
 
-        // タイミングを逃した場合
-        if (hasMissedTiming(gaugePercent, bpm, timeSignature)) {
-          handleMissedTiming(enemy.id, index);
+          const secondsForGauge = stage.enemy_gauge_seconds || secondsPerMeasure;
+          const gaugePercent = Math.max(0, Math.min(100, (1 - timeUntil / secondsForGauge) * 100));
+          
+          updateEnemy(enemy.id, { gauge: gaugePercent });
         }
       });
     }
-  }, [stage, enemies, updateEnemy]);
+  }, [stage, enemies, updateEnemy, findNextEvent, rhythmEvents]);
 
   // リズムイベントの処理
   const processRhythmEvents = useCallback((songTime: number) => {
@@ -309,17 +370,20 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
     const state = gameStateRef.current;
     const { bpm, timeSignature } = state.songMetadata;
     const secondsPerBeat = 60 / bpm;
+    const secondsPerMeasure = secondsPerBeat * timeSignature;
 
     rhythmEvents.forEach(event => {
       // イベント時刻を計算
-      const eventTime = (event.measure - 1) * timeSignature * secondsPerBeat + 
+      const eventTime = (event.measure - 1) * secondsPerMeasure + 
                        (event.beat - 1) * secondsPerBeat;
       
       // イベントIDを作成（重複処理を防ぐため）
       const eventId = `${event.measure}-${event.beat}-${event.code}`;
       
-      // 判定ウィンドウ内かチェック
-      if (Math.abs(songTime - eventTime) <= JUDGMENT_WINDOW && 
+      // 判定ウィンドウ内かチェック（JUDGMENT_WINDOW_MS をミリ秒から秒に変換）
+      const judgmentWindowSeconds = JUDGMENT_WINDOW_MS / 1000;
+      
+      if (Math.abs(songTime - eventTime) <= judgmentWindowSeconds && 
           !processedEventsRef.current.has(eventId)) {
         
         // 入力をチェック

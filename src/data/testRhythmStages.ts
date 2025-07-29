@@ -11,7 +11,7 @@ export const testRhythmStages: RhythmStageData[] = [
     bpm: 120,
     loop_measures: 8,
     allowed_chords: ['C', 'F', 'G', 'Am', 'Dm', 'Em'],
-    enemy_gauge_seconds: 0, // 小節長に基づいて自動計算
+    enemy_gauge_seconds: 2, // 2秒でゲージがMAXになる
     enemy_count: 1,
     enemy_hp: 100,
     min_damage: 20,
@@ -31,7 +31,7 @@ export const testRhythmStages: RhythmStageData[] = [
     loop_measures: 8,
     allowed_chords: ['C', 'Am', 'F', 'G'],
     chord_progression: ['C', 'Am', 'F', 'G', 'C', 'Am', 'F', 'G'],
-    enemy_gauge_seconds: 0,
+    enemy_gauge_seconds: 2,
     enemy_count: 4,
     enemy_hp: 80,
     min_damage: 15,
@@ -51,7 +51,7 @@ export const testRhythmStages: RhythmStageData[] = [
     loop_measures: 8,
     allowed_chords: ['C', 'F', 'G'],
     chord_progression: ['C', 'F', 'G', 'C', 'G', 'F'], // 6コード（3の倍数でない例）
-    enemy_gauge_seconds: 0,
+    enemy_gauge_seconds: 1.5, // 3拍子なので少し短め
     enemy_count: 3,
     enemy_hp: 90,
     min_damage: 18,
