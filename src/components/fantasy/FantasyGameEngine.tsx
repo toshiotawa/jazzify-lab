@@ -773,8 +773,37 @@ export const useFantasyGameEngine = ({
               lastChordId = monster.chordTarget.id;
             }
           }
+        } else if (gameType === 'rhythm' && normalizedStage.rhythm_pattern === 'random') {
+          // リズムランダムモードの場合
+          devLog.debug('🎲 リズムランダムパターンでモンスター生成');
+          
+          // ランダムなコードを選択
+          const availableChords = normalizedStage.allowedChords.filter(chord => chord !== lastChordId);
+          const randomChordName = availableChords.length > 0 
+            ? availableChords[Math.floor(Math.random() * availableChords.length)]
+            : normalizedStage.allowedChords[Math.floor(Math.random() * normalizedStage.allowedChords.length)];
+          
+          const chord = getChordDefinition(randomChordName, displayOptsParam);
+          if (chord) {
+            // 最初のモンスターは1小節目の1拍目に配置
+            const timing = { measure: i + 1, beat: 1.0 };
+            const monster = createRhythmMonster(
+              monsterIndex,
+              positions[i],
+              enemyHp,
+              chord,
+              timing,
+              normalizedStage.bpm || 120,
+              performance.now() + 3000, // Readyフェーズ後に開始
+              monsterIds,
+              normalizedStage.time_signature || 4
+            );
+            activeMonsters.push(monster);
+            usedChordIds.push(monster.chordTarget.id);
+            lastChordId = monster.chordTarget.id;
+          }
         } else {
-          // 既存の処理（クイズモード、リズムランダムモード）
+          // クイズモードの処理
           const monster = createMonsterFromQueue(
             monsterIndex,
             positions[i],
@@ -782,7 +811,7 @@ export const useFantasyGameEngine = ({
             normalizedStage.allowedChords,
             lastChordId,
             displayOptsParam,
-            monsterIds        // ✅ 今回作った配列
+            monsterIds
           );
           activeMonsters.push(monster);
           usedChordIds.push(monster.chordTarget.id);
@@ -1031,8 +1060,8 @@ export const useFantasyGameEngine = ({
       setEnemyGaugeTimer(null);
     }
     
-    // ゲームがアクティブな場合のみ新しいタイマーを開始
-    if (gameState.isGameActive && gameState.currentStage) {
+    // ゲームがアクティブでReadyフェーズでない場合のみ新しいタイマーを開始
+    if (gameState.isGameActive && gameState.currentStage && !gameState.isReady) {
       devLog.debug('⏰ 敵ゲージタイマー開始');
       const timer = setInterval(() => {
         updateEnemyGauge();
@@ -1046,7 +1075,7 @@ export const useFantasyGameEngine = ({
         clearInterval(enemyGaugeTimer);
       }
     };
-  }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
+  }, [gameState.isGameActive, gameState.currentStage, gameState.isReady, updateEnemyGauge]); // ゲーム状態とステージの変更を監視
   
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
@@ -1086,12 +1115,24 @@ export const useFantasyGameEngine = ({
         
         // 各モンスターのゲージを音楽に同期して更新
         const updatedMonsters = prevState.activeMonsters.map(monster => {
-          if (!monster.timing) return monster;
+          if (!monster.timing) {
+            devLog.warn('⚠️ モンスターにtimingがありません:', monster);
+            return monster;
+          }
           
           // 判定時刻までの残り時間から逆算してゲージを計算（タイムオフセットを考慮）
           const timeToTarget = monster.timing.targetTime - currentTimeMs + prevState.timeOffset;
           const totalTime = prevState.currentStage.enemyGaugeSeconds * 1000;
           const gaugeProgress = Math.max(0, Math.min(100, (1 - timeToTarget / totalTime) * 100));
+          
+          devLog.debug('🎯 ゲージ更新:', {
+            monsterName: monster.name,
+            currentTimeMs,
+            targetTime: monster.timing.targetTime,
+            timeToTarget,
+            totalTime,
+            gaugeProgress
+          });
           
           return {
             ...monster,
