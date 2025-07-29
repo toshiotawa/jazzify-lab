@@ -166,7 +166,15 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
         bgmUrl: stage.bgm_url,
-        simultaneousMonsterCount: stage.simultaneous_monster_count || 1
+        simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+        // リズムモード関連フィールド
+        game_type: stage.game_type || 'quiz',
+        rhythm_pattern: stage.rhythm_pattern,
+        bpm: stage.bpm,
+        time_signature: stage.time_signature,
+        loop_measures: stage.loop_measures,
+        chord_progression_data: stage.chord_progression_data,
+        mp3_url: stage.mp3_url
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -286,6 +294,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             unlocked ? "text-white" : "text-gray-400"
           )}>
             {unlocked ? stage.name : "???"}
+            {/* デバッグ用：game_typeを表示 */}
+            {stage.game_type && (
+              <span className="ml-2 text-xs text-purple-300">
+                [{stage.game_type === 'rhythm' ? 'リズム' : 'クイズ'}
+                {stage.rhythm_pattern && ` - ${stage.rhythm_pattern}`}]
+              </span>
+            )}
           </div>
           
           {/* 説明文 */}

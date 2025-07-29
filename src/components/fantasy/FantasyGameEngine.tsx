@@ -594,6 +594,9 @@ export const useFantasyGameEngine = ({
     devLog.debug('🎮 Stage game_type:', stage.game_type);
     devLog.debug('🎮 Stage rhythm_pattern:', stage.rhythm_pattern);
     
+    // デバッグ用：ステージの全プロパティを表示
+    console.log('🔍 Full stage data:', JSON.stringify(stage, null, 2));
+    
     // ステージデータを正規化（デフォルト値を設定）
     const normalizedStage: FantasyStage = {
       ...stage,
