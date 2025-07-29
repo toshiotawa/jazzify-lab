@@ -10,6 +10,7 @@ import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { RhythmManager, type RhythmConfig, type TimingInfo } from '@/utils/rhythm-manager';
 
 // ===== 型定義 =====
 
@@ -41,6 +42,12 @@ interface FantasyStage {
   monsterIcon: string;
   bgmUrl?: string;
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  game_mode?: 'quiz' | 'rhythm'; // ゲームモード
+  rhythm_pattern?: 'random' | 'progression'; // リズムパターン
+  bpm?: number; // リズムモード用
+  time_signature?: number; // リズムモード用（3または4）
+  measure_count?: number; // リズムモード用
+  chord_timings?: { measure: number; beat: number }[]; // リズムモード用のコードタイミング
 }
 
 interface MonsterState {
@@ -86,6 +93,14 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  // リズムモード関連の状態
+  isReady: boolean; // Readyフェーズかどうか
+  gameMode: 'quiz' | 'rhythm'; // ゲームモード
+  rhythmPattern?: 'random' | 'progression'; // リズムパターン
+  currentMeasure: number; // 現在の小節
+  currentBeat: number; // 現在の拍
+  bgmStartTime: number; // BGM開始時刻
+  nextChordIndex?: number; // プログレッションパターン用の次のコードインデックス
 }
 
 interface FantasyGameEngineProps {
@@ -373,6 +388,11 @@ export const useFantasyGameEngine = ({
   // プリロードしたテクスチャを保持
   const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
   
+  // リズムマネージャーの追加
+  const rhythmManagerRef = useRef<RhythmManager | null>(null);
+  const [isReadyPhase, setIsReadyPhase] = useState(false);
+  const [readyCountdown, setReadyCountdown] = useState(3); // 3秒のカウントダウン
+  
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
@@ -401,7 +421,15 @@ export const useFantasyGameEngine = ({
     monsterQueue: [],
     simultaneousMonsterCount: 1,
     // ゲーム完了処理中フラグ
-    isCompleting: false
+    isCompleting: false,
+    // リズムモード関連の状態
+    isReady: false, // Readyフェーズかどうか
+    gameMode: 'quiz', // ゲームモード
+    rhythmPattern: 'random', // リズムパターン
+    currentMeasure: 0, // 現在の小節
+    currentBeat: 0, // 現在の拍
+    bgmStartTime: 0, // BGM開始時刻
+    nextChordIndex: 0 // プログレッションパターン用の次のコードインデックス
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -414,11 +442,44 @@ export const useFantasyGameEngine = ({
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.simultaneousMonsterCount || 1;
+    
+    // ゲームモードとリズムパターンを決定
+    const gameMode = stage.game_mode || 'quiz';
+    const rhythmPattern = stage.rhythm_pattern || 'random';
+    
+    // リズムモードの場合、パターンに応じて同時出現数を決定
+    let simultaneousCount = stage.simultaneousMonsterCount || 1;
+    if (gameMode === 'rhythm') {
+      if (rhythmPattern === 'random') {
+        simultaneousCount = 1; // ランダムパターンは1体のみ
+      } else if (rhythmPattern === 'progression') {
+        simultaneousCount = 4; // プログレッションパターンは4体固定
+      }
+    }
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
     setStageMonsterIds(monsterIds);
+    
+    // リズムモードの場合、リズムマネージャーを初期化
+    if (gameMode === 'rhythm' && stage.bgmUrl && stage.bpm && stage.time_signature && stage.measure_count) {
+      const rhythmConfig: RhythmConfig = {
+        bpm: stage.bpm,
+        timeSignature: stage.time_signature,
+        measureCount: stage.measure_count,
+        bgmUrl: stage.bgmUrl
+      };
+      
+      rhythmManagerRef.current = new RhythmManager(rhythmConfig);
+      
+      // BGMをプリロード
+      try {
+        await rhythmManagerRef.current.loadBGM();
+        devLog.debug('✅ BGMプリロード完了');
+      } catch (error) {
+        devLog.error('❌ BGMプリロード失敗:', error);
+      }
+    }
 
     // モンスター画像をプリロード
     try {
@@ -478,6 +539,21 @@ export const useFantasyGameEngine = ({
       const monsterIndex = monsterQueue.shift()!;
       // simultaneousMonsterCount === 1 のとき、0 番目のみ即生成。
       if (i === 0 || simultaneousCount > 1) {
+        let chordForMonster: ChordDefinition | null = null;
+        
+        // リズムモードのプログレッションパターンの場合
+        if (gameMode === 'rhythm' && rhythmPattern === 'progression' && stage.chordProgression) {
+          // プログレッションから順番にコードを取得
+          chordForMonster = getProgressionChord(stage.chordProgression, i, displayOpts);
+        } else {
+          // 通常モードまたはランダムパターン
+          chordForMonster = selectUniqueRandomChord(
+            stage.allowedChords,
+            lastChordId,
+            displayOpts
+          );
+        }
+        
         const monster = createMonsterFromQueue(
           monsterIndex,
           positions[i],
@@ -485,8 +561,14 @@ export const useFantasyGameEngine = ({
           stage.allowedChords,
           lastChordId,
           displayOpts,
-          monsterIds        // ✅ 今回作った配列
+          monsterIds
         );
+        
+        // コードを上書き
+        if (chordForMonster) {
+          monster.chordTarget = chordForMonster;
+        }
+        
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
         lastChordId = monster.chordTarget.id;
@@ -525,11 +607,49 @@ export const useFantasyGameEngine = ({
       monsterQueue,
       simultaneousMonsterCount: simultaneousCount,
       // ゲーム完了処理中フラグ
-      isCompleting: false
+      isCompleting: false,
+      // リズムモード関連の状態
+      isReady: true, // Readyフェーズで開始
+      gameMode: gameMode, // ゲームモード
+      rhythmPattern: rhythmPattern, // リズムパターン
+      currentMeasure: 0, // 現在の小節
+      currentBeat: 0, // 現在の拍
+      bgmStartTime: 0, // BGM開始時刻
+      nextChordIndex: 0 // プログレッションパターン用の次のコードインデックス
     };
 
     setGameState(newState);
     onGameStateChange(newState);
+    
+    // Readyフェーズを開始（3秒後に本フェーズ開始）
+    setIsReadyPhase(true);
+    setReadyCountdown(3);
+    
+    // カウントダウンタイマー
+    let countdown = 3;
+    const countdownTimer = setInterval(() => {
+      countdown--;
+      setReadyCountdown(countdown);
+      
+      if (countdown <= 0) {
+        clearInterval(countdownTimer);
+        setIsReadyPhase(false);
+        
+        // ゲーム本体を開始
+        setGameState(prev => {
+          const updatedState = { ...prev, isReady: false };
+          
+          // リズムモードの場合、BGMを開始
+          if (gameMode === 'rhythm' && rhythmManagerRef.current) {
+            rhythmManagerRef.current.start();
+            updatedState.bgmStartTime = Date.now();
+          }
+          
+          onGameStateChange(updatedState);
+          return updatedState;
+        });
+      }
+    }, 1000);
 
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
@@ -537,7 +657,9 @@ export const useFantasyGameEngine = ({
       enemyHp,
       totalQuestions,
       simultaneousCount,
-      activeMonsters: activeMonsters.length
+      activeMonsters: activeMonsters.length,
+      gameMode,
+      rhythmPattern
     });
   }, [onGameStateChange]);
   
@@ -700,7 +822,8 @@ export const useFantasyGameEngine = ({
     devLog.debug('🎮 ゲージタイマー状態チェック:', { 
       isGameActive: gameState.isGameActive, 
       hasTimer: !!enemyGaugeTimer,
-      currentStage: gameState.currentStage?.stageNumber
+      currentStage: gameState.currentStage?.stageNumber,
+      isReady: gameState.isReady
     });
     
     // 既存のタイマーをクリア
@@ -709,7 +832,7 @@ export const useFantasyGameEngine = ({
       setEnemyGaugeTimer(null);
     }
     
-    // ゲームがアクティブな場合のみ新しいタイマーを開始
+    // ゲームがアクティブな場合のみ新しいタイマーを開始（Readyフェーズも含む）
     if (gameState.isGameActive && gameState.currentStage) {
       devLog.debug('⏰ 敵ゲージタイマー開始');
       const timer = setInterval(() => {
@@ -742,7 +865,49 @@ export const useFantasyGameEngine = ({
         gauge: Math.min(monster.gauge + incrementRate, 100)
       }));
       
-      // ゲージが満タンになったモンスターをチェック
+      // リズムモードの場合、80%で判定
+      if (prevState.gameMode === 'rhythm') {
+        const judgmentMonsters = updatedMonsters.filter(m => 
+          m.gauge >= 80 && m.gauge < 80 + incrementRate // 80%を通過したタイミング
+        );
+        
+        if (judgmentMonsters.length > 0) {
+          // 判定タイミングに到達したモンスターがいる
+          judgmentMonsters.forEach(monster => {
+            // このモンスターのコードが未完成なら攻撃扱い
+            const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
+            const isComplete = monster.correctNotes.length === targetNotes.length;
+            
+            if (!isComplete) {
+              devLog.debug('🎯 リズムモード: 判定失敗でモンスター攻撃', { monster: monster.name });
+              
+              // 怒り状態をストアに通知
+              const { setEnrage } = useEnemyStore.getState();
+              setEnrage(monster.id, true);
+              setTimeout(() => setEnrage(monster.id, false), 500);
+              
+              // 攻撃処理を非同期で実行
+              setTimeout(() => handleEnemyAttack(monster.id), 0);
+            }
+          });
+          
+          // 判定済みのモンスターのゲージをリセット
+          const resetMonsters = updatedMonsters.map(m => {
+            const wasJudged = judgmentMonsters.some(jm => jm.id === m.id);
+            return wasJudged ? { ...m, gauge: 0 } : m;
+          });
+          
+          const nextState = { 
+            ...prevState, 
+            activeMonsters: resetMonsters,
+            enemyGauge: 0 
+          };
+          onGameStateChange(nextState);
+          return nextState;
+        }
+      }
+      
+      // 通常モード、またはゲージが満タンになったモンスターをチェック
       const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
       
       if (attackingMonster) {
@@ -788,8 +953,8 @@ export const useFantasyGameEngine = ({
   const handleNoteInput = useCallback((note: number) => {
     // updater関数の中でロジックを実行するように変更
     setGameState(prevState => {
-      // ゲームがアクティブでない場合は何もしない
-      if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
+      // ゲームがアクティブでない場合、Readyフェーズ中、待機中の場合は何もしない
+      if (!prevState.isGameActive || prevState.isReady || prevState.isWaitingForNextMonster) {
         return prevState;
       }
 
@@ -798,6 +963,41 @@ export const useFantasyGameEngine = ({
       const noteMod12 = note % 12;
       const completedMonsters: MonsterState[] = [];
       let hasAnyNoteChanged = false;
+
+      // リズムモードの場合、判定タイミングをチェック
+      if (prevState.gameMode === 'rhythm' && rhythmManagerRef.current) {
+        const timing = rhythmManagerRef.current.getCurrentTiming();
+        
+        // モンスターごとに判定タイミングをチェック
+        const monstersWithTiming = prevState.activeMonsters.map(monster => {
+          // プログレッションパターンの場合、モンスターの位置に応じたタイミングを取得
+          if (prevState.rhythmPattern === 'progression' && prevState.currentStage?.chord_timings) {
+            const positionIndex = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].indexOf(monster.position);
+            const chordTiming = prevState.currentStage.chord_timings[positionIndex];
+            
+            if (chordTiming && rhythmManagerRef.current) {
+              const isInTiming = rhythmManagerRef.current.isJudgmentTiming(
+                chordTiming.measure,
+                chordTiming.beat,
+                200 // 前後200ms
+              );
+              
+              return { monster, isInTiming };
+            }
+          }
+          
+          // ランダムパターンの場合、各小節の1拍目で判定
+          const isInTiming = Math.abs(timing.currentBeat - 1) < 0.2; // 1拍目の前後
+          return { monster, isInTiming };
+        });
+        
+        // タイミング外の入力は無視（リズムモード時のみ）
+        const validMonsters = monstersWithTiming.filter(m => m.isInTiming);
+        if (validMonsters.length === 0) {
+          devLog.debug('⏰ タイミング外の入力（リズムモード）');
+          return prevState;
+        }
+      }
 
       // 1. 今回の入力でどのモンスターが影響を受けるか判定し、新しい状態を作る
       const monstersAfterInput = prevState.activeMonsters.map(monster => {
@@ -882,12 +1082,25 @@ export const useFantasyGameEngine = ({
         const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
 
         if (monstersToAddCount > 0) {
-                      const availablePositions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(pos => !remainingMonsters.some(m => m.position === pos));
+          const availablePositions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(pos => !remainingMonsters.some(m => m.position === pos));
           const lastUsedChordId = completedMonsters.length > 0 ? completedMonsters[0].chordTarget.id : undefined;
 
           for (let i = 0; i < monstersToAddCount; i++) {
             const monsterIndex = newMonsterQueue.shift()!;
             const position = availablePositions[i] || 'B';
+            
+            // プログレッションパターンの場合の特別な処理
+            let newChord: ChordDefinition | null = null;
+            if (stateAfterAttack.gameMode === 'rhythm' && 
+                stateAfterAttack.rhythmPattern === 'progression' && 
+                stateAfterAttack.currentStage?.chordProgression) {
+              
+              // 次のコードインデックスを計算
+              const nextIndex = (stateAfterAttack.nextChordIndex || 0) + defeatedMonstersThisTurn.length + i;
+              const progression = stateAfterAttack.currentStage.chordProgression;
+              newChord = getProgressionChord(progression, nextIndex, displayOpts);
+            }
+            
             const newMonster = createMonsterFromQueue(
               monsterIndex,
               position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
@@ -897,7 +1110,18 @@ export const useFantasyGameEngine = ({
               displayOpts,
               stageMonsterIds // stageMonsterIdsを渡す
             );
+            
+            // プログレッションパターンの場合、コードを上書き
+            if (newChord) {
+              newMonster.chordTarget = newChord;
+            }
+            
             remainingMonsters.push(newMonster);
+          }
+          
+          // プログレッションパターンの場合、次のコードインデックスを更新
+          if (stateAfterAttack.gameMode === 'rhythm' && stateAfterAttack.rhythmPattern === 'progression') {
+            stateAfterAttack.nextChordIndex = (stateAfterAttack.nextChordIndex || 0) + defeatedMonstersThisTurn.length;
           }
         }
         
@@ -989,65 +1213,54 @@ export const useFantasyGameEngine = ({
     });
   }, [onGameStateChange, onGameComplete]);
   
-  // ゲーム停止
+  // ゲーム停止処理の修正
   const stopGame = useCallback(() => {
-    setGameState(prevState => ({
-      ...prevState,
-      isGameActive: false
-    }));
+    devLog.debug('🛑 ゲーム停止処理開始');
     
-    // ステージを抜けるたびにアイコン配列を初期化
-    setStageMonsterIds([]);
-    
-    if (enemyGaugeTimer) {
-      clearInterval(enemyGaugeTimer);
-      setEnemyGaugeTimer(null);
+    // リズムマネージャーのクリーンアップ
+    if (rhythmManagerRef.current) {
+      rhythmManagerRef.current.dispose();
+      rhythmManagerRef.current = null;
     }
     
-    // if (inputTimeout) { // 削除
-    //   clearTimeout(inputTimeout); // 削除
-    // } // 削除
-    
-    // setInputBuffer([]); // 削除
+    if (enemyGaugeTimer) {
+      devLog.debug('⏰ 敵ゲージタイマー停止');
+      clearInterval(enemyGaugeTimer);
+    }
   }, [enemyGaugeTimer]);
   
-  // ステージ変更時の初期化
-  // useEffect(() => {
-  //   if (stage) {
-  //     initializeGame(stage);
-  //   }
-  // }, [stage, initializeGame]);
-  
-  // コンポーネント破棄時のクリーンアップ
+  // コンポーネントのアンマウント時のクリーンアップ
   useEffect(() => {
     return () => {
+      devLog.debug('🧹 ファンタジーゲームエンジン: クリーンアップ');
       if (enemyGaugeTimer) {
-        devLog.debug('⏰ 敵ゲージタイマー クリーンアップで停止');
         clearInterval(enemyGaugeTimer);
       }
-      // if (inputTimeout) { // 削除
-      //   devLog.debug('⏰ 入力タイムアウト クリーンアップで停止'); // 削除
-      //   clearTimeout(inputTimeout); // 削除
-      // } // 削除
+      if (rhythmManagerRef.current) {
+        rhythmManagerRef.current.dispose();
+      }
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
-
+  // リズムマネージャーの音量設定
+  const setRhythmVolume = useCallback((volume: number) => {
+    if (rhythmManagerRef.current) {
+      rhythmManagerRef.current.setVolume(volume);
+    }
+  }, []);
   
   return {
     gameState,
     handleNoteInput,
     initializeGame,
     stopGame,
-    proceedToNextEnemy,
-    imageTexturesRef, // プリロードされたテクスチャへの参照を追加
-    
-    // ヘルパー関数もエクスポート
-    checkChordMatch,
-    selectRandomChord,
-    getProgressionChord,
     getCurrentEnemy,
-    ENEMY_LIST
+    proceedToNextEnemy,
+    imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
+    ENEMY_LIST,
+    isReadyPhase,
+    readyCountdown,
+    setRhythmVolume // 追加
   };
 };
 

@@ -641,6 +641,21 @@ export interface FantasyStage {
   show_guide: boolean;
   simultaneous_monster_count?: number;
   monster_icon?: string;
+  // リズムモード関連のプロパティ
+  game_mode?: 'quiz' | 'rhythm'; // クイズモードかリズムモードか
+  rhythm_pattern?: 'random' | 'progression'; // コードランダムパターンかコードプログレッションパターンか
+  bgm_url?: string; // BGMのURL
+  bpm?: number; // テンポ（BPM）
+  time_signature?: number; // 拍子（3または4）
+  measure_count?: number; // 小節数（ループポイント）
+  chord_timings?: ChordTiming[]; // コード出題タイミング（プログレッションパターン用）
+}
+
+// コード出題タイミングの型定義
+export interface ChordTiming {
+  chord: string; // コード名
+  measure: number; // 小節番号（1から開始）
+  beat: number; // 拍番号（1拍目の裏は1.5、3拍目の16分音符4つ目は3.75）
 }
 
 export interface LessonContext {

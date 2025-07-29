@@ -84,6 +84,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []);
   
+  // リズムマネージャーの音量設定を更新
+  useEffect(() => {
+    if (setRhythmVolume) {
+      setRhythmVolume(settings.musicVolume);
+    }
+  }, [settings.musicVolume, setRhythmVolume]);
+  
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   
@@ -297,7 +304,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     getCurrentEnemy,
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
-    ENEMY_LIST
+    ENEMY_LIST,
+    isReadyPhase,
+    readyCountdown,
+    setRhythmVolume
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
@@ -1067,6 +1077,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <span className="font-dotgothic16 text-6xl text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
             {overlay.text}
           </span>
+        </div>
+      )}
+      
+      {/* Readyフェーズのカウントダウン表示 */}
+      {isReadyPhase && (
+        <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none">
+          <div className="text-center">
+            <div className="font-dotgothic16 text-8xl text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] mb-4">
+              {readyCountdown > 0 ? readyCountdown : 'GO!'}
+            </div>
+            <div className="font-dotgothic16 text-4xl text-yellow-300 drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
+              READY
+            </div>
+          </div>
         </div>
       )}
     </div>
