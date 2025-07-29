@@ -567,7 +567,7 @@ export const useFantasyGameEngine = ({
     setGameState(newState);
     onGameStateChange(newState);
 
-    devLog.debug('✅ ゲーム初期化完了:', {
+        devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
       totalEnemies,
       enemyHp,
@@ -575,16 +575,6 @@ export const useFantasyGameEngine = ({
       simultaneousCount,
       activeMonsters: activeMonsters.length
     });
-    
-    // Readyフェーズを3秒間実行（クイズモードでも音楽を再生）
-    readyTimerRef.current = setTimeout(() => {
-      startGameWithMusic();
-    }, 3000);
-    
-    // リズムモードの場合、リズムデータをロード
-    if (stage.gameType === 'rhythm' && stage.rhythmData) {
-      loadRhythmData(stage.rhythmData);
-    }
   }, [onGameStateChange]);
   
   // 次の問題への移行（マルチモンスター対応）
@@ -1058,6 +1048,65 @@ export const useFantasyGameEngine = ({
     });
   }, [onGameStateChange, onGameComplete]);
   
+  // Readyフェーズ処理（ゲーム開始時）
+  useEffect(() => {
+    if (gameState.gamePhase === 'ready' && gameState.isGameActive) {
+      // リズムデータのロード
+      if (gameState.currentStage?.gameType === 'rhythm' && gameState.currentStage.rhythmData) {
+        loadRhythmData(gameState.currentStage.rhythmData);
+      }
+      
+      // 3秒後に音楽を開始
+      readyTimerRef.current = setTimeout(() => {
+        // gamePhaseをplayingに変更
+        setGameState(prev => ({ 
+          ...prev, 
+          gamePhase: 'playing',
+          rhythmStartTime: Date.now()
+        }));
+        
+        // 音楽再生開始（クイズモードでも再生）
+        const bgmPath = gameState.currentStage?.bgmUrl || '/demo-1.mp3';
+        audioRef.current = new Audio(bgmPath);
+        audioRef.current.loop = true;
+        audioRef.current.play().catch(error => {
+          devLog.error('❌ 音楽再生失敗:', error);
+        });
+        
+        // リズムタイマーは別のuseEffectで設定される
+        
+        devLog.debug('🎵 ゲーム開始（音楽付き）', { 
+          isRhythmMode: gameState.isRhythmMode,
+          bgmPath 
+        });
+      }, 3000);
+    }
+    
+    return () => {
+      if (readyTimerRef.current) {
+        clearTimeout(readyTimerRef.current);
+        readyTimerRef.current = null;
+      }
+    };
+  }, [gameState.gamePhase, gameState.isGameActive, gameState.currentStage, gameState.isRhythmMode, loadRhythmData]);
+  
+  // リズムタイマーの設定（checkRhythmTimingが定義された後）
+  useEffect(() => {
+    if (gameState.gamePhase === 'playing' && gameState.isRhythmMode && gameState.currentStage?.bpm && !rhythmTimerRef.current) {
+      const beatInterval = 60000 / gameState.currentStage.bpm;
+      rhythmTimerRef.current = setInterval(() => {
+        checkRhythmTiming();
+      }, beatInterval / 4);
+    }
+    
+    return () => {
+      if (rhythmTimerRef.current) {
+        clearInterval(rhythmTimerRef.current);
+        rhythmTimerRef.current = null;
+      }
+    };
+  }, [gameState.gamePhase, gameState.isRhythmMode, gameState.currentStage?.bpm, checkRhythmTiming]);
+  
   // ゲーム停止
   const stopGame = useCallback(() => {
     setGameState(prevState => ({
@@ -1132,39 +1181,7 @@ export const useFantasyGameEngine = ({
     }
   }, []);
   
-  // ゲーム開始（音楽付き）
-  const startGameWithMusic = useCallback(() => {
-    if (!gameState.currentStage) return;
-    
-    // gamePhaseをplayingに変更
-    setGameState(prev => ({ 
-      ...prev, 
-      gamePhase: 'playing',
-      rhythmStartTime: Date.now()
-    }));
-    
-    // 音楽再生開始（クイズモードでも再生）
-    const bgmPath = gameState.currentStage.bgmUrl || '/demo-1.mp3';
-    audioRef.current = new Audio(bgmPath);
-    audioRef.current.loop = true;
-    audioRef.current.play().catch(error => {
-      devLog.error('❌ 音楽再生失敗:', error);
-    });
-    
-    // リズムモードの場合、リズムタイマー開始
-    if (gameState.isRhythmMode && gameState.currentStage.bpm) {
-      const beatInterval = 60000 / gameState.currentStage.bpm; // ミリ秒単位
-      rhythmTimerRef.current = setInterval(() => {
-        checkRhythmTiming();
-      }, beatInterval / 4); // 16分音符の精度でチェック
-    }
-    
-    devLog.debug('🎵 ゲーム開始（音楽付き）', { 
-      isRhythmMode: gameState.isRhythmMode,
-      bgmPath 
-    });
-  }, [gameState.currentStage, gameState.isRhythmMode]);
-  
+
   // リズムタイミングチェック
   const checkRhythmTiming = useCallback(() => {
     setGameState(prev => {
@@ -1252,7 +1269,7 @@ export const useFantasyGameEngine = ({
         lastJudgmentTime: shouldUpdateJudgmentTime ? currentTime : prev.lastJudgmentTime
       };
     });
-  }, [handleEnemyAttack]);
+  }, [handleEnemyAttack, displayOpts]);
   
   // クリーンアップ
   useEffect(() => {
