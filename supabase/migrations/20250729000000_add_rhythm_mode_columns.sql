@@ -20,21 +20,19 @@ ALTER TABLE fantasy_stages
 ADD COLUMN IF NOT EXISTS simultaneous_monster_count INTEGER NOT NULL DEFAULT 1
 CHECK (simultaneous_monster_count >= 1 AND simultaneous_monster_count <= 8);
 
--- Update existing allowed_chords to TEXT[] from JSONB for consistency
-ALTER TABLE fantasy_stages 
-ALTER COLUMN allowed_chords TYPE TEXT[] 
-USING CASE 
-    WHEN allowed_chords::text = '[]' THEN '{}'::TEXT[]
-    ELSE ARRAY(SELECT jsonb_array_elements_text(allowed_chords))
-END;
+-- Note: If you need to convert JSONB to TEXT[], you may need to do it in steps
+-- For now, we'll skip the type conversion if the columns are already JSONB
+-- You can manually convert the data later if needed
 
--- Update existing chord_progression to TEXT[] from JSONB
-ALTER TABLE fantasy_stages 
-ALTER COLUMN chord_progression TYPE TEXT[] 
-USING CASE 
-    WHEN chord_progression IS NULL OR chord_progression::text = '[]' THEN NULL
-    ELSE ARRAY(SELECT jsonb_array_elements_text(chord_progression))
-END;
+-- Check if columns need to be converted (commented out for safety)
+-- If your allowed_chords and chord_progression are already TEXT[], you can skip this section
+-- If they are JSONB and you need to convert them, you'll need to:
+-- 1. Create new temporary columns
+-- 2. Copy and transform the data
+-- 3. Drop the old columns
+-- 4. Rename the new columns
+
+-- For now, let's assume the columns can work with both JSONB and TEXT[]
 
 -- Add comment for new columns
 COMMENT ON COLUMN fantasy_stages.play_mode IS 'Game mode: quiz (traditional) or rhythm (new rhythm mode)';
@@ -56,7 +54,7 @@ INSERT INTO fantasy_stages (
 (
     'R-1', 'Rhythm Basics', 'Learn the rhythm of basic chords', 
     5, 1, 100, 20, 30, 0, 'single', 
-    '{C,F,G,Am,Dm,Em}'::TEXT[], 
+    '["C","F","G","Am","Dm","Em"]'::jsonb, 
     NULL, false, true, '🎵', 
     '/sounds/demo1.mp3', 'rhythm', 4, 'random', 1
 ),
@@ -64,8 +62,8 @@ INSERT INTO fantasy_stages (
 (
     'R-2', 'Chord Progression', 'Master the classic progression', 
     5, 4, 80, 15, 25, 0, 'progression', 
-    '{C,Am,F,G}'::TEXT[], 
-    '{C,Am,F,G,C,Am,F,G}'::TEXT[], 
+    '["C","Am","F","G"]'::jsonb, 
+    '["C","Am","F","G","C","Am","F","G"]'::jsonb, 
     false, true, '🎹', 
     '/sounds/demo1.mp3', 'rhythm', 4, 'progression', 4
 ),
@@ -73,8 +71,8 @@ INSERT INTO fantasy_stages (
 (
     'R-3', 'Waltz Time', '3/4 time signature challenge', 
     5, 3, 90, 18, 28, 0, 'progression', 
-    '{C,F,G}'::TEXT[], 
-    '{C,F,G,C,G,F}'::TEXT[], 
+    '["C","F","G"]'::jsonb, 
+    '["C","F","G","C","G","F"]'::jsonb, 
     false, false, '🎼', 
     '/sounds/demo1.mp3', 'rhythm', 3, 'progression', 3
 )
