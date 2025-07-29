@@ -46,19 +46,21 @@ export const RhythmGauge: React.FC<RhythmGaugeProps> = ({
   return (
     <div className={`relative w-full h-8 ${className}`}>
       {/* ゲージ背景 */}
-      <div className="absolute inset-0 bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-700">
+      <div className="absolute inset-0 bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-700" data-testid="rhythm-gauge-bar">
         {/* 進行バー */}
         <motion.div
           className="absolute left-0 top-0 h-full bg-gradient-to-r from-purple-600 to-purple-400"
           style={{ width: `${progress * 100}%` }}
           transition={{ type: 'tween', ease: 'linear', duration: 0.05 }}
+          data-testid="rhythm-gauge-progress"
         />
 
         {/* 80%マーカー（常時表示） */}
         <div
           ref={markerRef}
-          className="absolute top-0 h-full w-1 bg-yellow-400 shadow-glow"
+          className={`absolute top-0 h-full w-1 bg-yellow-400 shadow-glow ${isJudgmentTiming ? 'animate-pulse' : ''}`}
           style={{ left: `${JUDGMENT_RATIO * 100}%`, transform: 'translateX(-50%)' }}
+          data-testid="rhythm-gauge-marker"
         >
           {/* マーカーの装飾 */}
           <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-yellow-400 rounded-full" />

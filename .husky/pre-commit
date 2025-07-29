@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# 型チェック
+echo "Running type check..."
+npm run type-check || {
+  echo "❌ Type check failed. Please fix type errors before committing."
+  exit 1
+}
+
+# Lintチェック
+echo "Running linter..."
+npm run lint || {
+  echo "❌ Lint check failed. Please fix linting errors before committing."
+  exit 1
+}
+
+# テスト実行（変更されたファイルのみ）
+echo "Running tests..."
+npm test -- --run --changed || {
+  echo "❌ Tests failed. Please fix failing tests before committing."
+  exit 1
+}
+
+echo "✅ All checks passed!"
