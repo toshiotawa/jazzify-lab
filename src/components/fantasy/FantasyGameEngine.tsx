@@ -590,6 +590,10 @@ export const useFantasyGameEngine = ({
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage, displayOptsParam?: DisplayOpts) => {
+    devLog.debug('🎮 initializeGame called with stage:', stage);
+    devLog.debug('🎮 Stage game_type:', stage.game_type);
+    devLog.debug('🎮 Stage rhythm_pattern:', stage.rhythm_pattern);
+    
     // ステージデータを正規化（デフォルト値を設定）
     const normalizedStage: FantasyStage = {
       ...stage,
