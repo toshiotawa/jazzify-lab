@@ -74,58 +74,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     debugMode: process.env.NODE_ENV === 'development'
   });
   
-  // リズムモードのコード変更を監視
-  useEffect(() => {
-    if (stage.gameMode !== 'rhythm' || !rhythmMode.problemGenerator) return;
-    
-    const generator = rhythmMode.problemGenerator;
-    
-    if ('onChordChange' in generator) {
-      // RandomProblemGenerator
-      const handleChordChange = (chord: RhythmChordDefinition, barIdx: number) => {
-        devLog.debug('🎵 Rhythm mode chord change:', chord.name);
-        // FantasyGameEngineのChordDefinition形式に変換
-        const fantasyChord: ChordDefinition = {
-          id: chord.id,
-          displayName: chord.displayName || chord.name,
-          notes: chord.notes,
-          noteNames: chord.notes.map(n => `Note${n}`), // 仮の音名
-          quality: 'major', // 仮の品質
-          root: chord.root
-        };
-        // 新しいコードを設定
-        setCurrentChord(fantasyChord);
-      };
-      generator.onChordChange(handleChordChange);
-      
-      return () => {
-        generator.offChordChange(handleChordChange);
-      };
-    } else if ('onProgressionChange' in generator) {
-      // ProgressionProblemGenerator
-      const handleProgressionChange = (columns: ProgressionChord[][]) => {
-        devLog.debug('🎵 Rhythm mode progression change:', columns);
-        // 最初のコードを設定（複数コラムの場合は最初のアクティブなもの）
-        const firstChord = columns.find(col => col.length > 0)?.[0];
-        if (firstChord) {
-          const fantasyChord: ChordDefinition = {
-            id: firstChord.chord.id,
-            displayName: firstChord.chord.displayName || firstChord.chord.name,
-            notes: firstChord.chord.notes,
-            noteNames: firstChord.chord.notes.map(n => `Note${n}`),
-            quality: 'major',
-            root: firstChord.chord.root
-          };
-          setCurrentChord(fantasyChord);
-        }
-      };
-      generator.onProgressionChange(handleProgressionChange);
-      
-      return () => {
-        generator.offProgressionChange(handleProgressionChange);
-      };
-    }
-  }, [stage.gameMode, rhythmMode.problemGenerator, setCurrentChord]);
+  // リズムモードのコード変更を監視（useFantasyGameEngineの後に移動）
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -380,6 +329,59 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
+  
+  // リズムモードのコード変更を監視
+  useEffect(() => {
+    if (stage.gameMode !== 'rhythm' || !rhythmMode.problemGenerator) return;
+    
+    const generator = rhythmMode.problemGenerator;
+    
+    if ('onChordChange' in generator) {
+      // RandomProblemGenerator
+      const handleChordChange = (chord: RhythmChordDefinition, barIdx: number) => {
+        devLog.debug('🎵 Rhythm mode chord change:', chord.name);
+        // FantasyGameEngineのChordDefinition形式に変換
+        const fantasyChord: ChordDefinition = {
+          id: chord.id,
+          displayName: chord.displayName || chord.name,
+          notes: chord.notes,
+          noteNames: chord.notes.map(n => `Note${n}`), // 仮の音名
+          quality: 'major', // 仮の品質
+          root: chord.root
+        };
+        // 新しいコードを設定
+        setCurrentChord(fantasyChord);
+      };
+      generator.onChordChange(handleChordChange);
+      
+      return () => {
+        generator.offChordChange(handleChordChange);
+      };
+    } else if ('onProgressionChange' in generator) {
+      // ProgressionProblemGenerator
+      const handleProgressionChange = (columns: ProgressionChord[][]) => {
+        devLog.debug('🎵 Rhythm mode progression change:', columns);
+        // 最初のコードを設定（複数コラムの場合は最初のアクティブなもの）
+        const firstChord = columns.find(col => col.length > 0)?.[0];
+        if (firstChord) {
+          const fantasyChord: ChordDefinition = {
+            id: firstChord.chord.id,
+            displayName: firstChord.chord.displayName || firstChord.chord.name,
+            notes: firstChord.chord.notes,
+            noteNames: firstChord.chord.notes.map(n => `Note${n}`),
+            quality: 'major',
+            root: firstChord.chord.root
+          };
+          setCurrentChord(fantasyChord);
+        }
+      };
+      generator.onProgressionChange(handleProgressionChange);
+      
+      return () => {
+        generator.offProgressionChange(handleProgressionChange);
+      };
+    }
+  }, [stage.gameMode, rhythmMode.problemGenerator, setCurrentChord]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
