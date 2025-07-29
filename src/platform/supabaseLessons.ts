@@ -25,7 +25,8 @@ export async function fetchLessonsByCourse(
         *,
         lesson_songs (
           *,
-          songs (id, title, artist)
+          songs (id, title, artist),
+          fantasy_stage:fantasy_stages (*)
         )
       `)
       .eq('course_id', courseId)
@@ -51,7 +52,8 @@ export async function fetchLessonsByCourse(
         *,
         lesson_songs (
           *,
-          songs (id, title, artist)
+          songs (id, title, artist),
+          fantasy_stage:fantasy_stages (*)
         )
       `)
       .eq('course_id', courseId)
@@ -168,6 +170,12 @@ type LessonSongData = {
   clear_conditions?: ClearConditions;
 };
 
+type FantasyLessonSongData = {
+  lesson_id: string;
+  fantasy_stage_id: string;
+  clear_conditions?: ClearConditions;
+};
+
 /**
  * レッスンに曲を追加します。
  * @param {LessonSongData} lessonSongData
@@ -223,5 +231,66 @@ export async function updateLessonSongConditions(lessonSongId: string, updates: 
     console.error(`Error updating lesson song conditions for ${lessonSongId}:`, error);
     throw error;
   }
+  
   return data as LessonSong;
+}
+
+/**
+ * レッスンにファンタジーステージを追加します。
+ * @param {FantasyLessonSongData} fantasyLessonSongData
+ * @returns {Promise<LessonSong>}
+ */
+export async function addFantasyStageToLesson(fantasyLessonSongData: FantasyLessonSongData): Promise<LessonSong> {
+  // order_indexを自動計算
+  const { data: existingItems } = await getSupabaseClient()
+    .from('lesson_songs')
+    .select('order_index')
+    .eq('lesson_id', fantasyLessonSongData.lesson_id)
+    .order('order_index', { ascending: false })
+    .limit(1);
+    
+  const nextOrderIndex = existingItems && existingItems.length > 0 
+    ? (existingItems[0].order_index || 0) + 1 
+    : 0;
+    
+  const { data, error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .insert({
+      lesson_id: fantasyLessonSongData.lesson_id,
+      song_id: null, // 明示的にnullを設定
+      fantasy_stage_id: fantasyLessonSongData.fantasy_stage_id,
+      is_fantasy: true,
+      clear_conditions: fantasyLessonSongData.clear_conditions,
+      order_index: nextOrderIndex
+    })
+    .select(`
+      *,
+      fantasy_stage:fantasy_stages (*)
+    `)
+    .single();
+  
+  if (error) {
+    console.error('Error adding fantasy stage to lesson:', error);
+    throw error;
+  }
+  
+  return data as LessonSong;
+}
+
+/**
+ * レッスンからファンタジーステージを削除します。
+ * @param {string} lessonId
+ * @param {string} fantasyStageId
+ */
+export async function removeFantasyStageFromLesson(lessonId: string, fantasyStageId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .delete()
+    .eq('lesson_id', lessonId)
+    .eq('fantasy_stage_id', fantasyStageId);
+
+  if (error) {
+    console.error(`Error removing fantasy stage ${fantasyStageId} from lesson ${lessonId}:`, error);
+    throw error;
+  }
 } 

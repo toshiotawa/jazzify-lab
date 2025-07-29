@@ -3,7 +3,7 @@
  * ルーティング管理とゲーム状態管理
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
 import { FantasyStage } from './FantasyGameEngine';
@@ -11,6 +11,9 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
 import type { DisplayLang } from '@/utils/display-note';
+import { LessonContext } from '@/types';
+import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
+import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -36,6 +39,8 @@ const FantasyMain: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<FantasyStage | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
+  const [isLessonMode, setIsLessonMode] = useState(false);
   
   // ▼▼▼ 追加 ▼▼▼
   // ゲームコンポーネントを強制的に再マウントさせるためのキー
@@ -46,6 +51,72 @@ const FantasyMain: React.FC = () => {
   
   // プレミアムプラン以上の確認
   const isPremiumOrHigher = profile && ['premium', 'platinum'].includes(profile.rank);
+  
+  // URLパラメータからレッスンコンテキストを取得
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const lessonId = params.get('lessonId');
+    const lessonSongId = params.get('lessonSongId');
+    const stageId = params.get('stageId');
+    const clearConditionsStr = params.get('clearConditions');
+    
+    devLog.debug('🎮 FantasyMain URLパラメータ:', {
+      lessonId,
+      lessonSongId,
+      stageId,
+      clearConditionsStr,
+      fullHash: window.location.hash
+    });
+    
+    if (lessonId && lessonSongId && stageId && clearConditionsStr) {
+      // レッスンモード
+      setIsLessonMode(true);
+      try {
+        const clearConditions = JSON.parse(clearConditionsStr);
+        setLessonContext({
+          lessonId,
+          lessonSongId,
+          clearConditions,
+          sourceType: 'fantasy'
+        });
+        
+        devLog.debug('🎮 ファンタジーステージを読み込み中:', stageId);
+        
+        // ステージを取得して自動的に開始
+        fetchFantasyStageById(stageId).then(stage => {
+          devLog.debug('🎮 ファンタジーステージ取得成功:', stage);
+          // FantasyStageの形式に変換
+          const fantasyStage: FantasyStage = {
+            id: stage.id,
+            stageNumber: stage.stage_number,
+            name: stage.name,
+            description: stage.description,
+            maxHp: stage.max_hp,
+            enemyGaugeSeconds: stage.enemy_gauge_seconds,
+            enemyCount: stage.enemy_count,
+            enemyHp: stage.enemy_hp,
+            minDamage: stage.min_damage,
+            maxDamage: stage.max_damage,
+            mode: stage.mode,
+            allowedChords: stage.allowed_chords,
+            chordProgression: stage.chord_progression,
+            showSheetMusic: stage.show_sheet_music,
+            showGuide: stage.show_guide,
+            simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+            monsterIcon: stage.monster_icon || 'dragon'
+          };
+          devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
+          setCurrentStage(fantasyStage);
+        }).catch(err => {
+          console.error('Failed to load fantasy stage:', err);
+          devLog.error('🎮 ファンタジーステージ取得エラー:', err);
+        });
+      } catch (e) {
+        console.error('Failed to parse clear conditions:', e);
+        devLog.error('🎮 clear conditions パースエラー:', e);
+      }
+    }
+  }, []);
   
   // ステージ選択ハンドラ
   const handleStageSelect = useCallback((stage: FantasyStage) => {
@@ -73,6 +144,47 @@ const FantasyMain: React.FC = () => {
     setGameResult(gameResult);
     setShowResult(true);
     
+    // レッスンモードの場合の処理
+    if (isLessonMode && lessonContext) {
+      devLog.debug('🎮 レッスンモード判定:', { isLessonMode, lessonContext, result });
+      
+      if (result === 'clear') {
+        try {
+          // ファンタジーモードでは、クリア自体が成功なので、
+          // clearConditionsで指定されたランクをそのまま使用
+          const achievedRank = lessonContext.clearConditions?.rank || 'B';
+          
+          devLog.debug('🎮 レッスン進捗更新パラメータ:', {
+            lessonId: lessonContext.lessonId,
+            lessonSongId: lessonContext.lessonSongId,
+            rank: achievedRank,
+            clearConditions: lessonContext.clearConditions,
+            correctAnswers,
+            totalQuestions
+          });
+          
+          // レッスン課題の進捗を更新（fantasy_stage_clearsは更新しない）
+          await updateLessonRequirementProgress(
+            lessonContext.lessonId,
+            lessonContext.lessonSongId,
+            achievedRank, // 必要ランクをそのまま渡す（ファンタジーモードはクリア＝成功）
+            lessonContext.clearConditions,
+            {
+              sourceType: 'fantasy',
+              lessonSongId: lessonContext.lessonSongId
+            }
+          );
+          
+          devLog.debug('✅ レッスン課題進捗を更新しました');
+        } catch (error) {
+          console.error('レッスン課題進捗更新エラー:', error);
+          devLog.error('🎮 レッスン進捗更新エラー詳細:', error);
+        }
+      }
+      return; // レッスンモードの場合はここで終了
+    }
+    
+    // 通常のファンタジーモードの処理
     // データベースに結果を保存
     try {
       if (!isGuest && profile && currentStage) {
@@ -220,7 +332,7 @@ const FantasyMain: React.FC = () => {
     } catch (error) {
       console.error('ファンタジーモード結果保存エラー:', error);
     }
-  }, [isGuest, profile, currentStage]);
+  }, [isGuest, profile, currentStage, isLessonMode, lessonContext]);
   
   // ステージ選択に戻る
   const handleBackToStageSelect = useCallback(() => {
@@ -392,7 +504,7 @@ const FantasyMain: React.FC = () => {
           
           {/* アクションボタン */}
           <div className="space-y-4">
-            {gameResult.result === 'clear' && (
+            {gameResult.result === 'clear' && !isLessonMode && (
               <button
                 onClick={gotoNextStageWaiting}
                 className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-dotgothic16"
@@ -414,12 +526,24 @@ const FantasyMain: React.FC = () => {
               再挑戦
             </button>
             
-            <button
-              onClick={handleBackToStageSelect}
-              className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-dotgothic16"
-            >
-              ステージ選択に戻る
-            </button>
+            {isLessonMode && lessonContext ? (
+              <button
+                onClick={() => {
+                  // レッスン詳細ページに戻る
+                  window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+                }}
+                className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-dotgothic16"
+              >
+                レッスンに戻る
+              </button>
+            ) : (
+              <button
+                onClick={handleBackToStageSelect}
+                className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-dotgothic16"
+              >
+                ステージ選択に戻る
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -439,6 +563,7 @@ const FantasyMain: React.FC = () => {
         onBackToStageSelect={handleBackToStageSelect}
         noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
         simpleNoteName={settings.simpleDisplayMode}
+        lessonMode={isLessonMode}
       />
     );
   }
