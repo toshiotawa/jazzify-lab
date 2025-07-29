@@ -68,7 +68,7 @@ export const useRhythmMode = ({
 
   // BGMとTimelineの初期化
   const initialize = useCallback(async () => {
-    if (!stage || stage.game_mode !== 'rhythm' || !stage.audio_url || !stage.music_meta) {
+    if (!stage || stage.mode !== 'rhythm' || !stage.audio_url || !stage.music_meta) {
       console.warn('Invalid stage for rhythm mode');
       return;
     }

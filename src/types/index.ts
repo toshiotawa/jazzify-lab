@@ -642,7 +642,7 @@ export interface FantasyStage {
   simultaneous_monster_count?: number;
   monster_icon?: string;
   // リズムモード用フィールド
-  game_mode?: 'quiz' | 'rhythm';  // ゲームモード（デフォルト: 'quiz'）
+  mode?: 'quiz' | 'rhythm';  // ゲームモード（デフォルト: 'quiz'）
   pattern_type?: 'random' | 'progression';  // リズムモードのパターン
   music_meta?: {
     bpm: number;      // BPM（例: 120）
