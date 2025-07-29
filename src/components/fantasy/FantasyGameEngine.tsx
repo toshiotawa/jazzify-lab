@@ -424,7 +424,12 @@ export const useFantasyGameEngine = ({
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
-    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+    devLog.debug('🎮 ファンタジーゲーム初期化:', { 
+      stage: stage.name,
+      gameMode: stage.gameMode,
+      pattern_type: stage.pattern_type,
+      music_meta: stage.music_meta
+    });
 
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;

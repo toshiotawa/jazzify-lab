@@ -7,6 +7,13 @@ const RhythmTest: React.FC = () => {
 
   if (selectedStage !== null) {
     const stage = rhythmTestStages[selectedStage];
+    console.log('🎵 RhythmTest: Selected stage:', {
+      stage_number: stage.stage_number,
+      gameMode: stage.gameMode,
+      pattern_type: stage.pattern_type,
+      music_meta: stage.music_meta,
+      audio_url: stage.audio_url
+    });
     return (
       <FantasyGameScreen
         stage={stage as any}

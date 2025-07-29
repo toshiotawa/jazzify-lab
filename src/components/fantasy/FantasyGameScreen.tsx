@@ -62,7 +62,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // リズムモードの状態管理
   const rhythmMode = useRhythmMode({
-    stage: stage.gameMode === 'rhythm' ? stage as any : null,
+    stage: stage,  // 常にstageを渡す（useRhythmMode内でgameModeをチェック）
     onBeat: (bar, beat) => {
       devLog.debug(`🎵 Beat: Bar ${bar}, Beat ${beat}`);
     },
@@ -750,6 +750,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <button
             onClick={() => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
+              console.log('🎮 [Button Click] Stage data:', {
+                stage_number: stage.stage_number,
+                gameMode: stage.gameMode,
+                pattern_type: stage.pattern_type,
+                music_meta: stage.music_meta,
+                audio_url: stage.audio_url
+              });
               initializeGame(stage);
               // リズムモードの場合は初期化
               if (stage.gameMode === 'rhythm') {
