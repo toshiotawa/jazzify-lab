@@ -556,7 +556,7 @@ export const useFantasyGameEngine = ({
       const chord = selectRandomChord(
         prevState.currentStage.allowedChords,
         lastChordId,
-        displayOpts
+        displayOpts || { lang: 'en', simple: false }
       );
       
       if (!chord) return prevState;
@@ -605,7 +605,8 @@ export const useFantasyGameEngine = ({
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: normalizedStage.name });
 
     // gameTypeのデフォルト値を設定
-    const gameType = normalizedStage.game_type || 'quiz';
+    const gameType = 'quiz'; // normalizedStage.game_type || 'quiz';
+    devLog.debug('🔍 DEBUG: Forcing gameType to quiz to debug the error');
 
     // 新しいステージ定義から値を取得
     const totalEnemies = normalizedStage.enemyCount;
