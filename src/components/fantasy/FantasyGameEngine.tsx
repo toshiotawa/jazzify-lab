@@ -589,7 +589,7 @@ export const useFantasyGameEngine = ({
   }, [stageMonsterIds, displayOpts]);
   
   // ゲーム初期化
-  const initializeGame = useCallback(async (stage: FantasyStage) => {
+  const initializeGame = useCallback(async (stage: FantasyStage, displayOptsParam?: DisplayOpts) => {
     // ステージデータを正規化（デフォルト値を設定）
     const normalizedStage: FantasyStage = {
       ...stage,
@@ -738,11 +738,17 @@ export const useFantasyGameEngine = ({
       if (i === 0 || simultaneousCount > 1) {
         // リズムプログレッションパターンの場合
         if (gameType === 'rhythm' && normalizedStage.rhythm_pattern === 'progression' && progressionManager) {
+          devLog.debug('🎯 リズムプログレッションパターンでモンスター生成開始');
           const initialChords = progressionManager.getInitialChords();
           if (i < initialChords.length) {
             const chordAssignment = initialChords[i];
-            const chord = getChordDefinition(chordAssignment.chord, displayOpts);
+            const chord = getChordDefinition(chordAssignment.chord, displayOptsParam);
             if (chord) {
+              devLog.debug('🎯 プログレッションモンスター生成:', {
+                index: i,
+                chord: chordAssignment.chord,
+                questionNumber: chordAssignment.questionNumber
+              });
               const monster = createRhythmMonster(
                 monsterIndex,
                 positions[i],
@@ -768,7 +774,7 @@ export const useFantasyGameEngine = ({
             enemyHp,
             normalizedStage.allowedChords,
             lastChordId,
-            displayOpts,
+            displayOptsParam,
             monsterIds        // ✅ 今回作った配列
           );
           activeMonsters.push(monster);
@@ -848,7 +854,7 @@ export const useFantasyGameEngine = ({
       simultaneousCount,
       activeMonsters: activeMonsters.length
     });
-  }, [onGameStateChange]);
+  }, [onGameStateChange, displayOpts]);
   
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
