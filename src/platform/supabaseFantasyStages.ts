@@ -2,6 +2,29 @@ import { getSupabaseClient } from './supabaseClient';
 import { FantasyStage } from '../types';
 
 /**
+ * データベースのスネークケース形式をTypeScriptのキャメルケース形式に変換
+ */
+function transformFantasyStage(dbStage: any): FantasyStage {
+  // デバッグ用
+  console.log('🔄 Transforming stage data:', {
+    stage_number: dbStage.stage_number,
+    game_mode: dbStage.game_mode,
+    pattern_type: dbStage.pattern_type,
+    music_meta: dbStage.music_meta,
+    audio_url: dbStage.audio_url
+  });
+  
+  return {
+    ...dbStage,
+    // stage_mode はそのまま mode として使用（'single' | 'progression'）
+    mode: dbStage.stage_mode || dbStage.mode || 'single',
+    // game_mode → gameMode（'quiz' | 'rhythm'）
+    gameMode: dbStage.game_mode,
+    // 他のフィールドはそのまま（既にキャメルケース）
+  };
+}
+
+/**
  * ファンタジーステージ一覧を取得
  */
 export async function fetchFantasyStages(): Promise<FantasyStage[]> {
@@ -17,7 +40,7 @@ export async function fetchFantasyStages(): Promise<FantasyStage[]> {
     throw error;
   }
   
-  return data || [];
+  return (data || []).map(transformFantasyStage);
 }
 
 /**
@@ -41,7 +64,7 @@ export async function fetchFantasyStageById(stageId: string): Promise<FantasySta
     throw new Error('Fantasy stage not found');
   }
   
-  return data;
+  return transformFantasyStage(data);
 }
 
 /**
@@ -65,7 +88,7 @@ export async function fetchFantasyStageByNumber(stageNumber: string): Promise<Fa
     throw error;
   }
   
-  return data;
+  return data ? transformFantasyStage(data) : null;
 }
 
 /**
@@ -84,5 +107,5 @@ export async function fetchActiveFantasyStages(): Promise<FantasyStage[]> {
     throw error;
   }
   
-  return data || [];
+  return (data || []).map(transformFantasyStage);
 }
