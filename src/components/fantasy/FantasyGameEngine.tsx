@@ -697,16 +697,18 @@ export const useFantasyGameEngine = ({
         // onMeasureは後でuseEffectで設定（scheduleRandomMonsterを使うため）
       }
       
-      // 一時的にProgressionManagerの初期化をスキップ
-      /*
       // プログレッションパターンの場合、ProgressionManagerを初期化
       if (normalizedStage.rhythm_pattern === 'progression' && normalizedStage.chord_progression_data) {
-        progressionManager = new ProgressionManager(
-          normalizedStage.chord_progression_data,
-          normalizedStage.loop_measures || 8
-        );
+        try {
+          progressionManager = new ProgressionManager(
+            normalizedStage.chord_progression_data,
+            normalizedStage.loop_measures || 8
+          );
+          devLog.debug('✅ ProgressionManager初期化成功');
+        } catch (error) {
+          devLog.error('❌ ProgressionManager初期化エラー:', error);
+        }
       }
-      */
     }
 
     // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
