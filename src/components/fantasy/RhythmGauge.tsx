@@ -116,4 +116,5 @@ export const RhythmGauge: React.FC<RhythmGaugeProps> = ({
   );
 };
 
+export { RhythmGauge };
 export default RhythmGauge;

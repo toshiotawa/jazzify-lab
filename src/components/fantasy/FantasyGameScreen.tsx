@@ -16,8 +16,8 @@ import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
 import { useRhythmMode } from '@/hooks/useRhythmMode';
-import RhythmGauge from './RhythmGauge';
-import RhythmReady from './RhythmReady';
+import { RhythmGauge } from './RhythmGauge';
+import { RhythmReady } from './RhythmReady';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
