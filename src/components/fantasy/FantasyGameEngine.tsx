@@ -605,8 +605,8 @@ export const useFantasyGameEngine = ({
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: normalizedStage.name });
 
     // gameTypeのデフォルト値を設定
-    const gameType = 'quiz'; // normalizedStage.game_type || 'quiz';
-    devLog.debug('🔍 DEBUG: Forcing gameType to quiz to debug the error');
+    const gameType = normalizedStage.game_type || 'quiz';
+    devLog.debug('🔍 リズムモードのデバッグ: gameType =', gameType);
 
     // 新しいステージ定義から値を取得
     const totalEnemies = normalizedStage.enemyCount;
@@ -657,6 +657,8 @@ export const useFantasyGameEngine = ({
     let syncMonitor: SyncMonitor | undefined;
 
     if (gameType === 'rhythm') {
+      devLog.debug('🎵 リズムモード検出、RhythmManagerのみ初期化');
+      
       try {
         // RhythmManagerの初期化
         rhythmManager = new RhythmManager({
@@ -666,34 +668,30 @@ export const useFantasyGameEngine = ({
           loopMeasures: normalizedStage.loop_measures || 8,
           volume: 0.7
         });
+        devLog.debug('✅ RhythmManager初期化成功');
       } catch (error) {
         devLog.error('❌ RhythmManager初期化エラー:', error);
       }
-
+      
+      // 一時的に他の初期化をスキップ
+      /*
       // SyncMonitorの初期化
       syncMonitor = new SyncMonitor(
-        performance.now() + 3000, // ゲーム開始時刻（Readyフェーズ後）
-        performance.now() + 3000  // 音楽開始時刻（同じ）
+        performance.now(),
+        0 // 音楽開始時刻は後で設定
       );
 
-      // ビートコールバックの設定
-      rhythmManager.onBeat((pos) => {
-        // ビート情報の更新は後でreducerで処理
-        devLog.debug('🎵 Beat:', pos);
+      // コールバックの設定
+      rhythmManager.onBeat((beat) => {
+        devLog.debug('🎵 Beat:', beat);
       });
 
-      // 小節コールバックの設定（ランダムパターンで使用）
-      // 後でuseEffectで設定
-      // rhythmManager.onMeasure((measure) => {
-      //   if (stage.rhythm_pattern === 'random') {
-      //     // 新しい小節でモンスター生成をスケジュール
-      //     scheduleRandomMonster(measure);
-      //   }
-      // });
+      rhythmManager.onMeasure((measure) => {
+        devLog.debug('🎵 Measure:', measure);
+      });
 
-      // ループコールバックの設定
       rhythmManager.onLoop(() => {
-        devLog.debug('🔄 Loop triggered');
+        devLog.debug('🎵 Loop!');
       });
 
       // プログレッションパターンの場合、ProgressionManagerを初期化
@@ -703,6 +701,7 @@ export const useFantasyGameEngine = ({
           normalizedStage.loop_measures || 8
         );
       }
+      */
     }
 
     // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
