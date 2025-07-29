@@ -166,7 +166,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
         bgmUrl: stage.bgm_url,
-        simultaneousMonsterCount: stage.simultaneous_monster_count || 1
+        simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+        // リズムモード関連
+        gameType: stage.game_type as 'quiz' | 'rhythm' || 'quiz',
+        rhythmType: stage.rhythm_type as 'randomChord' | 'progression',
+        bpm: stage.bpm,
+        timeSignature: stage.time_signature as 3 | 4,
+        measureCount: stage.measure_count,
+        rhythmData: stage.rhythm_data
       }));
       
       const convertedProgress: FantasyUserProgress = {

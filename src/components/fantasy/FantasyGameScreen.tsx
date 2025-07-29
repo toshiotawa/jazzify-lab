@@ -166,6 +166,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []); // 空の依存配列で一度だけ実行
   
+  // Readyフェーズの表示
+  useEffect(() => {
+    if (gameState.gamePhase === 'ready') {
+      setOverlay({ text: 'READY' });
+    } else if (gameState.gamePhase === 'playing' && overlay?.text === 'READY') {
+      // Readyフェーズが終わったらオーバーレイを非表示
+      setOverlay(null);
+    }
+  }, [gameState.gamePhase]);
+  
   // ★★★ 修正箇所 ★★★
   // gameStoreのデバイスIDを監視して接続/切断
   useEffect(() => {
@@ -852,6 +862,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
                           style={{ width: `${monster.gauge}%` }}
                         />
+                        {/* リズムモード時の8割マーカー */}
+                        {gameState.isRhythmMode && (
+                          <div
+                            className="absolute top-0 bottom-0 w-0.5 bg-yellow-400"
+                            style={{ left: '80%' }}
+                          />
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
