@@ -475,6 +475,8 @@ export const useFantasyGameEngine = ({
   const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
   // クイズモード用のオーディオ参照
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // リズムマネージャーの参照
+  const rhythmManagerRef = useRef<RhythmManager | null>(null);
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -675,6 +677,7 @@ export const useFantasyGameEngine = ({
           loopMeasures: normalizedStage.loop_measures || 8,
           volume: 0.7
         });
+        rhythmManagerRef.current = rhythmManager; // refに保存
         devLog.debug('✅ RhythmManager初期化成功');
       } catch (error) {
         devLog.error('❌ RhythmManager初期化エラー:', error);
@@ -1086,9 +1089,15 @@ export const useFantasyGameEngine = ({
       }
       
       // リズムモードの場合
-      if (prevState.currentStage.game_type === 'rhythm' && prevState.rhythmManager) {
-        const currentPos = prevState.rhythmManager.getCurrentPosition();
+      if (prevState.currentStage.game_type === 'rhythm' && rhythmManagerRef.current) {
+        const currentPos = rhythmManagerRef.current.getCurrentPosition();
         const currentTimeMs = performance.now();
+        
+        devLog.debug('🎵 リズム位置:', {
+          measure: currentPos.measure,
+          beat: currentPos.beat,
+          absoluteBeat: currentPos.absoluteBeat
+        });
         
         // 同期チェック
         if (prevState.syncMonitor?.shouldCheckSync(currentTimeMs)) {
@@ -1552,6 +1561,12 @@ export const useFantasyGameEngine = ({
       setEnemyGaugeTimer(null);
     }
     
+    // リズムマネージャーを停止
+    if (rhythmManagerRef.current) {
+      rhythmManagerRef.current.stop();
+      rhythmManagerRef.current = null;
+    }
+    
     // if (inputTimeout) { // 削除
     //   clearTimeout(inputTimeout); // 削除
     // } // 削除
@@ -1573,7 +1588,7 @@ export const useFantasyGameEngine = ({
         setGameState(prevState => {
           if (prevState.readyCountdown === 0) {
             // カウントダウン終了、音楽開始
-            prevState.rhythmManager?.start();
+            rhythmManagerRef.current?.start();
             devLog.debug('🎵 音楽開始！');
             return {
               ...prevState,
@@ -1613,8 +1628,9 @@ export const useFantasyGameEngine = ({
         clearInterval(enemyGaugeTimer);
       }
       // リズムマネージャーのクリーンアップ
-      if (gameState.rhythmManager) {
-        gameState.rhythmManager.stop();
+      if (rhythmManagerRef.current) {
+        rhythmManagerRef.current.stop();
+        rhythmManagerRef.current = null;
       }
       // クイズモード用音楽のクリーンアップ
       if (audioRef.current) {
