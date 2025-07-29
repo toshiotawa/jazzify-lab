@@ -1053,6 +1053,13 @@ export const useFantasyGameEngine = ({
     };
   }, []);
   
+  // リズムモード用：現在のコードを設定
+  const setCurrentChord = useCallback((chord: ChordDefinition | null) => {
+    setGameState(prevState => ({
+      ...prevState,
+      currentChordTarget: chord
+    }));
+  }, []);
 
   
   return {
@@ -1062,6 +1069,7 @@ export const useFantasyGameEngine = ({
     stopGame,
     proceedToNextEnemy,
     imageTexturesRef, // プリロードされたテクスチャへの参照を追加
+    setCurrentChord, // リズムモード用
     
     // ヘルパー関数もエクスポート
     checkChordMatch,

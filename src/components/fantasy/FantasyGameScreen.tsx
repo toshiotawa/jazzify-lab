@@ -19,6 +19,7 @@ import { useRhythmMode } from '@/hooks/useRhythmMode';
 import RhythmGauge from './RhythmGauge';
 import RhythmReady from './RhythmReady';
 import { ChordDefinition as RhythmChordDefinition } from '@/types';
+import { ProgressionChord } from '@/lib/rhythm/ProgressionProblemGenerator';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -92,16 +93,39 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           quality: 'major', // 仮の品質
           root: chord.root
         };
-        // 新しいコードを設定（実装が必要）
-        // TODO: FantasyGameEngineに新しいコードを設定する処理
+        // 新しいコードを設定
+        setCurrentChord(fantasyChord);
       };
       generator.onChordChange(handleChordChange);
       
       return () => {
         generator.offChordChange(handleChordChange);
       };
+    } else if ('onProgressionChange' in generator) {
+      // ProgressionProblemGenerator
+      const handleProgressionChange = (columns: ProgressionChord[][]) => {
+        devLog.debug('🎵 Rhythm mode progression change:', columns);
+        // 最初のコードを設定（複数コラムの場合は最初のアクティブなもの）
+        const firstChord = columns.find(col => col.length > 0)?.[0];
+        if (firstChord) {
+          const fantasyChord: ChordDefinition = {
+            id: firstChord.chord.id,
+            displayName: firstChord.chord.displayName || firstChord.chord.name,
+            notes: firstChord.chord.notes,
+            noteNames: firstChord.chord.notes.map(n => `Note${n}`),
+            quality: 'major',
+            root: firstChord.chord.root
+          };
+          setCurrentChord(fantasyChord);
+        }
+      };
+      generator.onProgressionChange(handleProgressionChange);
+      
+      return () => {
+        generator.offProgressionChange(handleProgressionChange);
+      };
     }
-  }, [stage.mode, rhythmMode.problemGenerator]);
+  }, [stage.gameMode, rhythmMode.problemGenerator, setCurrentChord]);
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -345,6 +369,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     getCurrentEnemy,
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
+    setCurrentChord, // リズムモード用
     ENEMY_LIST
   } = useFantasyGameEngine({
     stage: stage, // リズムモード判定のためにstageを渡す
@@ -696,12 +721,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage, rhythmMode]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  // リズムモードの場合は、rhythmMode.state.isPlayingもチェック
+  const shouldShowStartScreen = !overlay && !gameState.isCompleting && 
+    (!gameState.isGameActive || (!gameState.currentChordTarget && stage.gameMode !== 'rhythm'));
+  
+  if (shouldShowStartScreen) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
       stageName: stage.name,
-      hasOverlay: !!overlay
+      hasOverlay: !!overlay,
+      gameMode: stage.gameMode,
+      isRhythmPlaying: rhythmMode.state.isPlaying
     });
     
     return (

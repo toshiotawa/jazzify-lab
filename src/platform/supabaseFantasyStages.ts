@@ -19,7 +19,7 @@ function transformFantasyStage(dbStage: any): FantasyStage {
     // stage_mode はそのまま mode として使用（'single' | 'progression'）
     mode: dbStage.stage_mode || dbStage.mode || 'single',
     // game_mode → gameMode（'quiz' | 'rhythm'）
-    gameMode: dbStage.game_mode,
+    gameMode: dbStage.game_mode || 'quiz', // デフォルトは 'quiz'
     // 他のフィールドはそのまま（既にキャメルケース）
   };
 }
