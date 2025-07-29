@@ -684,21 +684,21 @@ export const useFantasyGameEngine = ({
         devLog.error('❌ SyncMonitor初期化エラー:', error);
       }
       
-      // 一時的に他の初期化をスキップ
-      /*
       // コールバックの設定
-      rhythmManager.onBeat((beat) => {
-        devLog.debug('🎵 Beat:', beat);
-      });
+      if (rhythmManager) {
+        rhythmManager.onBeat((pos) => {
+          devLog.debug('🎵 Beat:', pos);
+        });
 
-      rhythmManager.onMeasure((measure) => {
-        devLog.debug('🎵 Measure:', measure);
-      });
-
-      rhythmManager.onLoop(() => {
-        devLog.debug('🎵 Loop!');
-      });
-
+        rhythmManager.onLoop(() => {
+          devLog.debug('🔄 Loop triggered');
+        });
+        
+        // onMeasureは後でuseEffectで設定（scheduleRandomMonsterを使うため）
+      }
+      
+      // 一時的にProgressionManagerの初期化をスキップ
+      /*
       // プログレッションパターンの場合、ProgressionManagerを初期化
       if (normalizedStage.rhythm_pattern === 'progression' && normalizedStage.chord_progression_data) {
         progressionManager = new ProgressionManager(
