@@ -20,10 +20,24 @@ import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
+import {
+  calculateMeasureProgress,
+  calculateGaugePercent,
+  judgeInputTiming,
+  calculateDamageMultiplier,
+  calculateScoreBonus,
+  initializeLanes,
+  updateLaneChord,
+  selectRandomChord,
+  isWithinJudgmentWindow,
+  hasMissedTiming,
+  updateGaugeState,
+  GAUGE_MARKER_PERCENT,
+  JUDGMENT_WINDOW_MS,
+  type TimingJudgment,
+} from '@/utils/rhythmGameLogic';
 
 // ===== 定数 =====
-const JUDGMENT_WINDOW = 0.2; // ±200ms
-const GAUGE_MARKER_PERCENT = 80; // 80%地点で判定
 const SP_MAX = 5;
 const SP_DAMAGE_MULTIPLIER = 2;
 
@@ -73,21 +87,7 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
     // レーンの初期化（プログレッションパターン用）
     let lanes: LaneState[] | undefined;
     if (patternType === 'progression' && stage.chord_progression) {
-      lanes = Array.from({ length: laneCount }, (_, i) => {
-        const chordIndex = i % stage.chord_progression!.length;
-        const enemyId = `enemy-${i}`;
-        return {
-          lane: i,
-          currentChord: stage.chord_progression![chordIndex],
-          enemyId,
-          gaugeState: {
-            enemyId,
-            currentPercent: 0,
-            isActive: false,
-            targetTime: 0,
-          }
-        };
-      });
+      lanes = initializeLanes(laneCount, stage.chord_progression);
     }
 
     return {
@@ -262,23 +262,44 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
 
     const state = gameStateRef.current;
     const { bpm, timeSignature } = state.songMetadata;
-    const secondsPerMeasure = (60 / bpm) * timeSignature;
 
-    // 各敵のゲージを更新
-    enemies.forEach((enemy, index) => {
-      if (enemy.hp <= 0) return;
+    // パターンによって異なる処理
+    if (state.patternType === 'random') {
+      // ランダムパターン：単一の敵のゲージ更新
+      const enemy = enemies.find(e => e.hp > 0);
+      if (enemy) {
+        const measureProgress = calculateMeasureProgress(songTime, bpm, timeSignature);
+        const gaugePercent = calculateGaugePercent(measureProgress);
+        updateEnemy(enemy.id, { gauge: gaugePercent });
 
-      // リズムモードでは小節ごとにゲージがリセット
-      const measureProgress = (songTime % secondsPerMeasure) / secondsPerMeasure;
-      const gaugePercent = measureProgress * 100;
-
-      updateEnemy(enemy.id, { gauge: gaugePercent });
-
-      // 判定タイミングを過ぎた場合の処理
-      if (gaugePercent >= GAUGE_MARKER_PERCENT + (JUDGMENT_WINDOW * 100 / secondsPerMeasure)) {
-        handleMissedTiming(enemy.id, index);
+        // タイミングを逃した場合
+        if (hasMissedTiming(gaugePercent, bpm, timeSignature)) {
+          handleMissedTiming(enemy.id, 0);
+          // 次のコードを設定
+          const nextChord = selectRandomChord(stage.allowed_chords, state.currentChord);
+          gameStateRef.current.currentChord = nextChord;
+        }
       }
-    });
+    } else if (state.patternType === 'progression' && state.lanes) {
+      // プログレッションパターン：複数レーンのゲージ更新
+      state.lanes.forEach((lane, index) => {
+        const enemy = enemies[index];
+        if (!enemy || enemy.hp <= 0) return;
+
+        const measureProgress = calculateMeasureProgress(songTime, bpm, timeSignature);
+        const gaugePercent = calculateGaugePercent(measureProgress);
+        updateEnemy(enemy.id, { gauge: gaugePercent });
+
+        // 更新されたゲージ状態を保存
+        const updatedGaugeState = updateGaugeState(lane.gaugeState, songTime, bpm, timeSignature);
+        state.lanes![index].gaugeState = updatedGaugeState;
+
+        // タイミングを逃した場合
+        if (hasMissedTiming(gaugePercent, bpm, timeSignature)) {
+          handleMissedTiming(enemy.id, index);
+        }
+      });
+    }
   }, [stage, enemies, updateEnemy]);
 
   // リズムイベントの処理
@@ -314,6 +335,7 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
   const checkInputTiming = useCallback((event: RhythmEvent, timingDiff: number) => {
     if (!stage || !gameStateRef.current) return;
 
+    const state = gameStateRef.current;
     const chord = resolveChord(event.code);
     if (!chord) return;
 
@@ -321,7 +343,16 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
     const isCorrect = Array.from(requiredNotes).every(note => inputNotes.has(note));
 
     if (isCorrect) {
-      handleCorrectTiming(event, timingDiff);
+      // パターンに応じた正解判定
+      if (state.patternType === 'random') {
+        // ランダムパターン：現在のコードと一致するか確認
+        if (event.code === state.currentChord) {
+          handleCorrectTiming(event, timingDiff);
+        }
+      } else if (state.patternType === 'progression') {
+        // プログレッションパターン：該当レーンのコードと一致するか確認
+        handleCorrectTiming(event, timingDiff);
+      }
     }
   }, [stage, inputNotes]);
 
@@ -330,15 +361,11 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
     if (!stage || !gameStateRef.current) return;
 
     const state = gameStateRef.current;
-    const accuracy = Math.abs(timingDiff);
-    const timing: JudgmentResult['timing'] = 
-      accuracy < 0.05 ? 'perfect' : 
-      accuracy < 0.1 ? 'good' : 
-      'miss';
+    const timing = judgeInputTiming(timingDiff);
 
     // ダメージ計算
     const baseDamage = stage.min_damage + Math.random() * (stage.max_damage - stage.min_damage);
-    const timingMultiplier = timing === 'perfect' ? 1.5 : timing === 'good' ? 1.0 : 0.5;
+    const timingMultiplier = calculateDamageMultiplier(timing);
     const damage = Math.round(baseDamage * timingMultiplier);
 
     // SP処理
@@ -346,7 +373,20 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
     const newSp = state.sp >= SP_MAX ? 0 : Math.min(state.sp + 1, SP_MAX);
 
     // 対象の敵を特定
-    const targetEnemy = enemies.find(e => e.hp > 0);
+    let targetEnemy;
+    let targetLane = 0;
+    
+    if (state.patternType === 'random') {
+      targetEnemy = enemies.find(e => e.hp > 0);
+    } else if (state.patternType === 'progression' && state.lanes) {
+      // プログレッションパターン：コードに対応するレーンを探す
+      const laneIndex = state.lanes.findIndex(lane => lane.currentChord === event.code);
+      if (laneIndex >= 0) {
+        targetEnemy = enemies[laneIndex];
+        targetLane = laneIndex;
+      }
+    }
+
     if (!targetEnemy) return;
 
     // ダメージ適用
@@ -355,18 +395,36 @@ export const RhythmGameEngine: React.FC<RhythmGameEngineProps> = ({
     
     updateEnemy(targetEnemy.id, { hp: newHp });
 
+    // ランダムパターンで敵を倒した場合、次のコードを設定
+    if (state.patternType === 'random' && defeated) {
+      const nextChord = selectRandomChord(stage.allowed_chords, state.currentChord);
+      gameStateRef.current.currentChord = nextChord;
+    }
+
+    // プログレッションパターンで敵を倒した場合、レーンを更新
+    if (state.patternType === 'progression' && defeated && state.lanes && state.progressionIndex !== undefined && stage.chord_progression) {
+      const { updatedLanes, newProgressionIndex } = updateLaneChord(
+        state.lanes,
+        targetLane,
+        stage.chord_progression,
+        state.progressionIndex
+      );
+      gameStateRef.current.lanes = updatedLanes;
+      gameStateRef.current.progressionIndex = newProgressionIndex;
+    }
+
     // コールバック
     const judgmentResult: JudgmentResult = {
-      timing,
+      timing: timing as JudgmentResult['timing'],
       accuracy: timingDiff,
       chord: event.code,
-      lane: targetEnemy.lane || 0,
+      lane: targetLane,
     };
 
     onChordCorrect(event.code, judgmentResult, spDamage, defeated, targetEnemy.id);
 
     // スコア更新
-    const scoreBonus = timing === 'perfect' ? 100 : timing === 'good' ? 50 : 10;
+    const scoreBonus = calculateScoreBonus(timing);
     const newScore = state.score + scoreBonus + Math.round(spDamage);
 
     // 状態更新
