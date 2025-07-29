@@ -97,6 +97,17 @@ export class RhythmManager {
     };
   }
 
+  // 指定した時刻がタイミングウィンドウ内かチェック
+  isInJudgmentWindow(measure: number, beat: number, currentTimeMs: number): boolean {
+    const beatDurMs = 60000 / this.bpm;
+    const tgtBeatIdx = (measure - 1) * this.tsig + (beat - 1);
+    const tgtTimeMs = tgtBeatIdx * beatDurMs;
+    const audioTimeMs = this.audio.currentTime * 1000;
+    const diff = currentTimeMs - audioTimeMs;
+    const adjustedTargetTime = tgtTimeMs + diff;
+    return Math.abs(adjustedTargetTime - currentTimeMs) <= 200;
+  }
+
   getTimeToNextBeat(): number {
     const beatDuration = 60 / this.bpm;
     const currentBeatProgress = (this.audio.currentTime % beatDuration) / beatDuration;

@@ -79,6 +79,7 @@ interface MonsterState {
     targetTime: number; // 判定時刻（ms）
   };
   questionNumber?: number; // プログレッションパターン用
+  isInJudgmentWindow?: boolean; // 判定ウィンドウ内かどうか
 }
 
 interface FantasyGameState {
@@ -701,7 +702,15 @@ export const useFantasyGameEngine = ({
         });
 
         rhythmManager.onLoop(() => {
-          devLog.debug('🔄 Loop triggered');
+          devLog.debug('🔄 音楽ループ！', {
+            loopCount: rhythmManager.getLoopCount(),
+            currentMeasure: rhythmManager.getCurrentPosition().measure
+          });
+          
+          // ループ時の処理
+          // - ゲージとタイミング計算は継続
+          // - 音楽位置のみリセット
+          // - プログレッションパターンでは問題番号は継続
         });
         
         // onMeasureは後でuseEffectで設定（scheduleRandomMonsterを使うため）
@@ -1134,18 +1143,23 @@ export const useFantasyGameEngine = ({
           const totalTime = prevState.currentStage.enemyGaugeSeconds * 1000;
           const gaugeProgress = Math.max(0, Math.min(100, (1 - timeToTarget / totalTime) * 100));
           
+          // 判定ウィンドウ内かチェック
+          const isInWindow = Math.abs(timeToTarget) <= 200;
+          
           devLog.debug('🎯 ゲージ更新:', {
             monsterName: monster.name,
             currentTimeMs,
             targetTime: monster.timing.targetTime,
             timeToTarget,
             totalTime,
-            gaugeProgress
+            gaugeProgress,
+            isInJudgmentWindow: isInWindow
           });
           
           return {
             ...monster,
-            gauge: gaugeProgress
+            gauge: gaugeProgress,
+            isInJudgmentWindow: isInWindow
           };
         });
         
@@ -1240,7 +1254,7 @@ export const useFantasyGameEngine = ({
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
 
       // リズムモードの判定処理
-      if (prevState.currentStage?.game_type === 'rhythm' && prevState.rhythmManager) {
+      if (prevState.currentStage?.game_type === 'rhythm' && rhythmManagerRef.current) {
         const currentTimeMs = performance.now();
         const noteMod12 = note % 12;
         
@@ -1303,7 +1317,7 @@ export const useFantasyGameEngine = ({
             const remainingQueue = prevState.monsterQueue.slice(1);
             
             const chordAssignment = prevState.progressionManager.getNextChordForColumn(targetMonster.position);
-            const chord = getChordDefinition(chordAssignment.chord, displayOpts);
+            const chord = getChordDefinition(chordAssignment.chord, displayOpts || { lang: 'en', simple: false });
             
             if (chord) {
               const newMonster = createRhythmMonster(
@@ -1611,14 +1625,15 @@ export const useFantasyGameEngine = ({
 
   // リズムマネージャーの小節コールバック設定
   useEffect(() => {
-    if (gameState.rhythmManager && 
+    if (rhythmManagerRef.current && 
         gameState.currentStage?.game_type === 'rhythm' && 
         gameState.currentStage?.rhythm_pattern === 'random') {
-      gameState.rhythmManager.onMeasure((measure) => {
+      rhythmManagerRef.current.onMeasure((measure) => {
+        devLog.debug('🎵 新しい小節:', measure);
         scheduleRandomMonster(measure);
       });
     }
-  }, [gameState.rhythmManager, gameState.currentStage, scheduleRandomMonster]);
+  }, [gameState.currentStage, scheduleRandomMonster]);
   
   // コンポーネント破棄時のクリーンアップ
   useEffect(() => {
