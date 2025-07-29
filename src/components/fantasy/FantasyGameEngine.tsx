@@ -865,7 +865,7 @@ export const useFantasyGameEngine = ({
         gauge: Math.min(monster.gauge + incrementRate, 100)
       }));
       
-      // リズムモードの場合、80%で判定
+      // リズムモードの場合、80%で判定タイミングを記録（攻撃はしない）
       if (prevState.gameMode === 'rhythm') {
         const judgmentMonsters = updatedMonsters.filter(m => 
           m.gauge >= 80 && m.gauge < 80 + incrementRate // 80%を通過したタイミング
@@ -874,40 +874,21 @@ export const useFantasyGameEngine = ({
         if (judgmentMonsters.length > 0) {
           // 判定タイミングに到達したモンスターがいる
           judgmentMonsters.forEach(monster => {
-            // このモンスターのコードが未完成なら攻撃扱い
             const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
             const isComplete = monster.correctNotes.length === targetNotes.length;
             
             if (!isComplete) {
-              devLog.debug('🎯 リズムモード: 判定失敗でモンスター攻撃', { monster: monster.name });
-              
-              // 怒り状態をストアに通知
-              const { setEnrage } = useEnemyStore.getState();
-              setEnrage(monster.id, true);
-              setTimeout(() => setEnrage(monster.id, false), 500);
-              
-              // 攻撃処理を非同期で実行
-              setTimeout(() => handleEnemyAttack(monster.id), 0);
+              devLog.debug('🎯 リズムモード: 判定タイミング通過（未完成）', { 
+                monster: monster.name,
+                gauge: monster.gauge 
+              });
+              // ゲージはリセットせず、そのまま100%まで溜まり続ける
             }
           });
-          
-          // 判定済みのモンスターのゲージをリセット
-          const resetMonsters = updatedMonsters.map(m => {
-            const wasJudged = judgmentMonsters.some(jm => jm.id === m.id);
-            return wasJudged ? { ...m, gauge: 0 } : m;
-          });
-          
-          const nextState = { 
-            ...prevState, 
-            activeMonsters: resetMonsters,
-            enemyGauge: 0 
-          };
-          onGameStateChange(nextState);
-          return nextState;
         }
       }
       
-      // 通常モード、またはゲージが満タンになったモンスターをチェック
+      // ゲージが満タンになったモンスターをチェック
       const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
       
       if (attackingMonster) {
@@ -1075,6 +1056,17 @@ export const useFantasyGameEngine = ({
           }
           return monster;
         });
+        
+        // リズムモードで判定タイミング内に成功した場合、該当モンスターのゲージをリセット
+        if (stateAfterAttack.gameMode === 'rhythm') {
+          stateAfterAttack.activeMonsters = stateAfterAttack.activeMonsters.map(monster => {
+            // 完成したモンスターのゲージをリセット
+            if (completedMonsters.some(cm => cm.id === monster.id)) {
+              return { ...monster, gauge: 0 };
+            }
+            return monster;
+          });
+        }
 
         // モンスターの補充
         let newMonsterQueue = [...stateAfterAttack.monsterQueue];
