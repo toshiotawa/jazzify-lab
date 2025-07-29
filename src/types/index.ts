@@ -641,6 +641,15 @@ export interface FantasyStage {
   show_guide: boolean;
   simultaneous_monster_count?: number;
   monster_icon?: string;
+  // リズムモード用フィールド
+  game_mode?: 'quiz' | 'rhythm';  // ゲームモード（デフォルト: 'quiz'）
+  pattern_type?: 'random' | 'progression';  // リズムモードのパターン
+  music_meta?: {
+    bpm: number;      // BPM（例: 120）
+    timeSig: number;  // 拍子（3 または 4）
+    bars: number;     // 小節数（例: 32）
+  };
+  audio_url?: string;  // BGMファイルのURL
 }
 
 export interface LessonContext {
