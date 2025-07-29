@@ -589,10 +589,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           }}
         />
         {/* リズムモードの場合、判定マーカーを表示 */}
-        {stage.gameType === 'rhythm' && <JudgmentMarker position={80} />}
+        {stage.game_type === 'rhythm' && <JudgmentMarker position={80} />}
       </div>
     );
-  }, [gameState.enemyGauge, stage.gameType]);
+  }, [gameState.enemyGauge, stage.game_type]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -857,7 +857,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           style={{ width: `${monster.gauge}%` }}
                         />
                         {/* リズムモードの場合、判定マーカーを表示 */}
-                        {stage.gameType === 'rhythm' && <JudgmentMarker position={80} />}
+                        {stage.game_type === 'rhythm' && <JudgmentMarker position={80} />}
                       </div>
                       
                       {/* HPゲージ */}
