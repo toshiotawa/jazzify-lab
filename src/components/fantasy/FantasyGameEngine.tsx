@@ -657,7 +657,7 @@ export const useFantasyGameEngine = ({
     let syncMonitor: SyncMonitor | undefined;
 
     if (gameType === 'rhythm') {
-      devLog.debug('🎵 リズムモード検出、RhythmManagerのみ初期化');
+      devLog.debug('🎵 リズムモード検出、RhythmManagerとSyncMonitorを初期化');
       
       try {
         // RhythmManagerの初期化
@@ -673,14 +673,19 @@ export const useFantasyGameEngine = ({
         devLog.error('❌ RhythmManager初期化エラー:', error);
       }
       
+      // SyncMonitorの初期化
+      try {
+        syncMonitor = new SyncMonitor(
+          performance.now() + 3000, // ゲーム開始時刻（Readyフェーズ後）
+          performance.now() + 3000  // 音楽開始時刻（同じ）
+        );
+        devLog.debug('✅ SyncMonitor初期化成功');
+      } catch (error) {
+        devLog.error('❌ SyncMonitor初期化エラー:', error);
+      }
+      
       // 一時的に他の初期化をスキップ
       /*
-      // SyncMonitorの初期化
-      syncMonitor = new SyncMonitor(
-        performance.now(),
-        0 // 音楽開始時刻は後で設定
-      );
-
       // コールバックの設定
       rhythmManager.onBeat((beat) => {
         devLog.debug('🎵 Beat:', beat);
