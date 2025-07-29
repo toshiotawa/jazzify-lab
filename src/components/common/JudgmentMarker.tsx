@@ -7,7 +7,7 @@ interface Props {
 export const JudgmentMarker: React.FC<Props> = ({ position }) => {
   return (
     <div 
-      className="absolute top-0 bottom-0 w-1 bg-yellow-400 shadow-glow"
+      className="absolute top-0 bottom-0 w-1 bg-yellow-400 shadow-lg"
       style={{ left: `${position}%` }}
     >
       {/* 上部の三角形マーカー */}
