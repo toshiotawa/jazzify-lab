@@ -347,7 +347,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: null, // ★★★ change
+    stage: stage, // リズムモード判定のためにstageを渡す
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
@@ -682,9 +682,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       initializeGame(stage);
       // リズムモードの場合は初期化
       if (stage.gameMode === 'rhythm') {
+        console.log('🎵 Initializing rhythm mode for stage:', stage.stage_number);
         rhythmMode.initialize().then(() => {
+          console.log('🎵 Rhythm mode initialized, starting ready phase');
           rhythmMode.startReady();
+        }).catch(error => {
+          console.error('🎵 Failed to initialize rhythm mode:', error);
         });
+      } else {
+        console.log('🎮 Stage is in quiz mode');
       }
     }
   }, [autoStart, initializeGame, stage, rhythmMode]);
@@ -714,9 +720,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               initializeGame(stage);
               // リズムモードの場合は初期化
               if (stage.gameMode === 'rhythm') {
+                console.log('🎵 [Button Click] Initializing rhythm mode for stage:', stage.stage_number);
                 rhythmMode.initialize().then(() => {
+                  console.log('🎵 [Button Click] Rhythm mode initialized, starting ready phase');
                   rhythmMode.startReady();
+                }).catch(error => {
+                  console.error('🎵 [Button Click] Failed to initialize rhythm mode:', error);
                 });
+              } else {
+                console.log('🎮 [Button Click] Stage is in quiz mode');
               }
             }}
             className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"

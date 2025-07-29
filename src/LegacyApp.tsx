@@ -22,6 +22,7 @@ import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import PricingTable from '@/components/subscription/PricingTable';
 import FantasyMain from '@/components/fantasy/FantasyMain';
+import RhythmTest from '@/pages/RhythmTest';
 
 /**
  * メインアプリケーションコンポーネント
@@ -236,6 +237,9 @@ const App: React.FC = () => {
       break;
     case '#fantasy':
       MainContent = <FantasyMain />;
+      break;
+    case '#rhythm-test':
+      MainContent = <RhythmTest />;
       break;
     case '#songs':
     case '#practice':
