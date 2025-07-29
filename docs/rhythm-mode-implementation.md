@@ -10,7 +10,7 @@
 
 `fantasy_stages`テーブルに以下のカラムを追加：
 
-- `mode`: 'quiz' | 'rhythm' - ゲームモード
+- `game_mode`: 'quiz' | 'rhythm' - ゲームモード
 - `pattern_type`: 'random' | 'progression' - リズムモードのパターン
 - `music_meta`: JSONB - BGM情報 `{ bpm, timeSig, bars }`
 - `audio_url`: TEXT - BGMファイルのURL
@@ -77,7 +77,7 @@ const stage: FantasyStage = {
   name: 'リズムステージ1',
   
   // リズムモード設定
-  mode: 'rhythm',
+  game_mode: 'rhythm',
   pattern_type: 'random', // または 'progression'
   music_meta: {
     bpm: 120,

@@ -26,7 +26,7 @@ export const rhythmTestStages: FantasyStage[] = [
     simultaneous_monster_count: 1,
     monster_icon: 'monster_01',
     // リズムモード専用フィールド
-    mode: 'rhythm',
+    game_game_mode: 'rhythm',
     pattern_type: 'random',
     music_meta: {
       bpm: 120,
@@ -54,7 +54,7 @@ export const rhythmTestStages: FantasyStage[] = [
     show_guide: true,
     simultaneous_monster_count: 1,
     monster_icon: 'monster_02',
-    mode: 'rhythm',
+    game_mode: 'rhythm',
     pattern_type: 'random',
     music_meta: {
       bpm: 80,
@@ -83,7 +83,7 @@ export const rhythmTestStages: FantasyStage[] = [
     show_guide: true,
     simultaneous_monster_count: 3,
     monster_icon: 'monster_03',
-    mode: 'rhythm',
+    game_mode: 'rhythm',
     pattern_type: 'progression',
     music_meta: {
       bpm: 90,
@@ -112,7 +112,7 @@ export const rhythmTestStages: FantasyStage[] = [
     show_guide: true,
     simultaneous_monster_count: 4,
     monster_icon: 'monster_04',
-    mode: 'rhythm',
+    game_mode: 'rhythm',
     pattern_type: 'progression',
     music_meta: {
       bpm: 140,
@@ -140,7 +140,7 @@ export const rhythmTestStages: FantasyStage[] = [
     show_guide: true,
     simultaneous_monster_count: 1,
     monster_icon: 'monster_05',
-    mode: 'rhythm',
+    game_mode: 'rhythm',
     pattern_type: 'random',
     music_meta: {
       bpm: 120,
@@ -168,7 +168,7 @@ export const rhythmTestStages: FantasyStage[] = [
     show_guide: true,
     simultaneous_monster_count: 1,
     monster_icon: 'monster_06',
-    mode: 'rhythm',
+    game_mode: 'rhythm',
     pattern_type: 'random',
     music_meta: {
       bpm: 100,
@@ -196,7 +196,7 @@ export const rhythmTestStages: FantasyStage[] = [
     show_guide: true,
     simultaneous_monster_count: 1,
     monster_icon: 'monster_07',
-    mode: 'rhythm',
+    game_mode: 'rhythm',
     pattern_type: 'random',
     music_meta: {
       bpm: 120,

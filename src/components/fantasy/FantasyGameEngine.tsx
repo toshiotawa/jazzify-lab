@@ -38,7 +38,8 @@ interface FantasyStageExtended {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression' | 'quiz' | 'rhythm';  // リズムモードに対応
+  mode: 'single' | 'progression';  // 既存のステージモード
+  gameMode?: 'quiz' | 'rhythm';  // 新しいゲームモード
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
@@ -751,7 +752,7 @@ export const useFantasyGameEngine = ({
       }
       
       // リズムモードの場合はゲージ更新をスキップ（Timeline側で管理）
-      if (prevState.currentStage.mode === 'rhythm') {
+      if (prevState.currentStage.gameMode === 'rhythm') {
         return prevState;
       }
       
