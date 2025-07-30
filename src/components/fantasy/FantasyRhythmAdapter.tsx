@@ -63,7 +63,18 @@ export const FantasyRhythmAdapter: React.FC<FantasyRhythmAdapterProps> = ({
     };
   }, [isRhythmMode, isActive, rhythmEngine, onChordInput]);
 
-  if (!isRhythmMode) return null;
+  // For quiz mode with music
+  if (!isRhythmMode) {
+    const extendedStage = stage as FantasyStage & { mp3_url?: string };
+    if (!extendedStage.mp3_url) return null;
+
+    // Simple music player for quiz mode
+    return (
+      <div className="music-indicator absolute top-20 right-4 bg-black/50 backdrop-blur-sm rounded-lg p-2 text-white text-sm z-10">
+        🎵 Background Music
+      </div>
+    );
+  }
 
   return (
     <>

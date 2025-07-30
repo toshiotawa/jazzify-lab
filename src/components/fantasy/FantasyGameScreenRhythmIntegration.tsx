@@ -6,7 +6,7 @@ interface RhythmIntegrationProps {
   stage: FantasyStage;
   gameState: FantasyGameState;
   isGameActive: boolean;
-  onChordCorrect: (chord: string) => void;
+      onChordCorrect: (chord: unknown, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => void;
   onEnemyAttack: () => void;
 }
 
@@ -46,6 +46,13 @@ export const FantasyGameScreenRhythmIntegration: React.FC<RhythmIntegrationProps
     }));
   };
 
+  // Wrap the chord correct callback for rhythm mode
+  const handleRhythmChordCorrect = (chord: string) => {
+    // For rhythm mode, we use simplified parameters
+    const chordObj = { displayName: chord, id: chord };
+    onChordCorrect(chordObj, false, 1, false, 'rhythm-enemy');
+  };
+
   return (
     <FantasyRhythmAdapter
       stage={extendedStage as FantasyStage}
@@ -53,7 +60,7 @@ export const FantasyGameScreenRhythmIntegration: React.FC<RhythmIntegrationProps
       isActive={isGameActive}
       onChordInput={handleChordInput}
       onEnemyAttack={onEnemyAttack}
-      onChordCorrect={onChordCorrect}
+      onChordCorrect={handleRhythmChordCorrect}
     />
   );
 };

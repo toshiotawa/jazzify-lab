@@ -12,6 +12,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { FantasyGameScreenRhythmIntegration } from './FantasyGameScreenRhythmIntegration';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
@@ -1059,6 +1060,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
+      />
+      
+      {/* リズムモード統合 */}
+      <FantasyGameScreenRhythmIntegration
+        stage={stage}
+        gameState={gameState}
+        isGameActive={gameState.isGameActive}
+        onChordCorrect={handleChordCorrect}
+        onEnemyAttack={handleEnemyAttack}
       />
       
       {/* オーバーレイ表示 */}           {/* ★★★ add */}
