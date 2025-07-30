@@ -518,7 +518,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
         if (data.session) {
           set(state => {
-            state.user = data.session.user;
+            state.user = data.session!.user; // すでにチェック済みなので!を追加
             state.loading = false;
             state.error = null;
           });

@@ -455,8 +455,10 @@ export const useFantasyGameEngine = ({
     // モンスター画像をプリロード
     try {
       // バンドルが既に存在する場合は削除
-      if (PIXI.Assets.resolver.bundles.has('stageMonsters')) {
+      try {
         await PIXI.Assets.unloadBundle('stageMonsters');
+      } catch {
+        // バンドルが存在しない場合は無視
       }
 
       // バンドル用のアセットマッピングを作成
