@@ -1,4 +1,4 @@
-import { getChordDefinition } from '@/components/fantasy/FantasyGameEngine';
+// Chord definitions are handled by the judge engine
 
 // Extended FantasyStage interface with rhythm fields
 export interface RhythmFantasyStage {
