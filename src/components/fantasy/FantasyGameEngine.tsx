@@ -9,7 +9,7 @@ import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
-import { Assets, Texture } from 'pixi.js';
+import * as PIXI from 'pixi.js';
 import { RhythmManager } from '@/utils/RhythmManager';
 import { ProgressionManager } from '@/utils/ProgressionManager';
 import { SyncMonitor } from '@/utils/SyncMonitor';
@@ -441,7 +441,7 @@ export const useFantasyGameEngine = ({
   // ステージで使用するモンスターIDを保持
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
   // プリロードしたテクスチャを保持
-  const imageTexturesRef = useRef<Map<string, Texture>>(new Map());
+  const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
   // クイズモード用のオーディオ参照
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // リズムマネージャーの参照
@@ -599,8 +599,8 @@ export const useFantasyGameEngine = ({
     // モンスター画像をプリロード
     try {
       // バンドルが既に存在する場合は削除
-      if (Assets.resolver.bundles.has('stageMonsters')) {
-        await Assets.unloadBundle('stageMonsters');
+              if (PIXI.Assets.resolver.bundles.has('stageMonsters')) {
+          await PIXI.Assets.unloadBundle('stageMonsters');
       }
 
       // バンドル用のアセットマッピングを作成
@@ -611,16 +611,16 @@ export const useFantasyGameEngine = ({
       });
 
       // バンドルを追加してロード
-      Assets.addBundle('stageMonsters', bundle);
-      await Assets.loadBundle('stageMonsters');
+              PIXI.Assets.addBundle('stageMonsters', bundle);
+        await PIXI.Assets.loadBundle('stageMonsters');
 
       // テクスチャをキャッシュに保管
       const textureMap = imageTexturesRef.current;
       textureMap.clear();
       monsterIds.forEach(id => {
-        const texture = Assets.get(id) as Texture;
-        if (texture) {
-          textureMap.set(id, texture);
+                  const texture = PIXI.Assets.get(id) as PIXI.Texture;
+          if (texture) {
+            textureMap.set(id, texture);
         }
       });
 
