@@ -274,8 +274,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         onClick={() => handleStageSelect(stage)}
       >
         {/* ステージ番号 */}
-        <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
+        <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center relative">
           {stage.stageNumber}
+          {/* リズムモードインジケーター */}
+          {(stage as any).game_type === 'rhythm' && (
+            <div className="absolute -top-2 -right-2 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center text-xs">
+              ♪
+            </div>
+          )}
         </div>
         
         {/* コンテンツ部分 */}

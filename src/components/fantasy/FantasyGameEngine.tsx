@@ -41,6 +41,14 @@ interface FantasyStage {
   monsterIcon: string;
   bgmUrl?: string;
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  // Rhythm mode specific fields
+  game_type?: 'quiz' | 'rhythm';
+  rhythm_pattern?: 'random' | 'progression';
+  bpm?: number;
+  time_signature?: 3 | 4;
+  loop_measures?: number;
+  mp3_url?: string;
+  chord_progression_data?: any;
 }
 
 interface MonsterState {

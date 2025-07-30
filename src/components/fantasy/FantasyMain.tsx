@@ -103,7 +103,15 @@ const FantasyMain: React.FC = () => {
             showSheetMusic: stage.show_sheet_music,
             showGuide: stage.show_guide,
             simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
-            monsterIcon: stage.monster_icon || 'dragon'
+            monsterIcon: stage.monster_icon || 'dragon',
+            // Rhythm mode specific fields
+            game_type: stage.game_type,
+            rhythm_pattern: stage.rhythm_pattern,
+            bpm: stage.bpm,
+            time_signature: stage.time_signature,
+            loop_measures: stage.loop_measures,
+            mp3_url: stage.mp3_url,
+            chord_progression_data: stage.chord_progression_data
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
