@@ -1,0 +1,120 @@
+-- Add sample rhythm mode stages for testing
+INSERT INTO fantasy_stages (
+  stage_number,
+  name,
+  description,
+  max_hp,
+  enemy_gauge_seconds,
+  enemy_count,
+  enemy_hp,
+  min_damage,
+  max_damage,
+  mode,
+  allowed_chords,
+  show_sheet_music,
+  show_guide,
+  simultaneous_monster_count,
+  game_type,
+  rhythm_pattern,
+  bpm,
+  time_signature,
+  loop_measures,
+  mp3_url,
+  rhythm_data
+) VALUES 
+(
+  'R1',
+  'リズムチュートリアル',
+  'リズムに合わせてコードを入力しよう！シンプルなビートから始めよう。',
+  5,
+  10.0,
+  3,
+  2,
+  1,
+  2,
+  'single',
+  ARRAY['C', 'G', 'Am', 'F'],
+  false,
+  true,
+  1,
+  'rhythm',
+  'random',
+  120,
+  4,
+  8,
+  '/demo-1.mp3',
+  '/rhythm-data/demo-rhythm-random.json'
+),
+(
+  'R2',
+  'ジャズリズム',
+  '複雑なコード進行に挑戦！リズムに乗ってジャズの世界へ。',
+  5,
+  8.0,
+  5,
+  3,
+  1,
+  3,
+  'progression',
+  ARRAY['CM7', 'Am7', 'Dm7', 'G7', 'Em7', 'C7', 'FM7', 'Fm7'],
+  false,
+  true,
+  4,
+  'rhythm',
+  'progression',
+  140,
+  4,
+  8,
+  '/demo-1.mp3',
+  '/rhythm-data/demo-rhythm-progression.json'
+),
+(
+  'R3',
+  'ワルツリズム',
+  '3拍子のリズムで優雅に戦おう！',
+  5,
+  12.0,
+  4,
+  2,
+  1,
+  3,
+  'single',
+  ARRAY['C', 'F', 'G', 'Am', 'Dm', 'Em'],
+  false,
+  true,
+  1,
+  'rhythm',
+  'random',
+  90,
+  3,
+  8,
+  '/demo-1.mp3',
+  '/rhythm-data/demo-rhythm-random.json'
+);
+
+-- コード進行データの例（R2ステージ用）
+UPDATE fantasy_stages 
+SET chord_progression_data = '[
+  {"chord": "CM7", "measure": 1, "beat": 1},
+  {"chord": "Am7", "measure": 1, "beat": 3},
+  {"chord": "Dm7", "measure": 2, "beat": 1},
+  {"chord": "G7", "measure": 2, "beat": 3},
+  {"chord": "Em7", "measure": 3, "beat": 1},
+  {"chord": "Am7", "measure": 3, "beat": 3},
+  {"chord": "Dm7", "measure": 4, "beat": 1},
+  {"chord": "G7", "measure": 4, "beat": 3},
+  {"chord": "CM7", "measure": 5, "beat": 1},
+  {"chord": "C7", "measure": 5, "beat": 3},
+  {"chord": "FM7", "measure": 6, "beat": 1},
+  {"chord": "Fm7", "measure": 6, "beat": 3},
+  {"chord": "Em7", "measure": 7, "beat": 1},
+  {"chord": "Am7", "measure": 7, "beat": 3},
+  {"chord": "Dm7", "measure": 8, "beat": 1},
+  {"chord": "G7", "measure": 8, "beat": 3}
+]'::jsonb
+WHERE stage_number = 'R2';
+
+-- プログレッションモードのコード進行も設定
+UPDATE fantasy_stages 
+SET chord_progression = ARRAY['CM7', 'Am7', 'Dm7', 'G7', 'Em7', 'Am7', 'Dm7', 'G7', 'CM7', 'C7', 'FM7', 'Fm7', 'Em7', 'Am7', 'Dm7', 'G7']
+WHERE stage_number = 'R2';

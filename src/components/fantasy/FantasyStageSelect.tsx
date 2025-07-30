@@ -166,7 +166,16 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
         bgmUrl: stage.bgm_url,
-        simultaneousMonsterCount: stage.simultaneous_monster_count || 1
+        simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+        // リズムモード関連
+        gameType: stage.game_type,
+        rhythmPattern: stage.rhythm_pattern,
+        bpm: stage.bpm,
+        timeSignature: stage.time_signature,
+        loopMeasures: stage.loop_measures,
+        mp3Url: stage.mp3_url,
+        rhythmData: stage.rhythm_data,
+        chordProgressionData: stage.chord_progression_data
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -295,6 +304,23 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : "このステージはまだロックされています"}
           </div>
+          
+          {/* リズムモード表示 */}
+          {unlocked && stage.gameType === 'rhythm' && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-blue-400 text-sm">🎵 リズムモード</span>
+              {stage.bpm && (
+                <span className="text-blue-300 text-xs">
+                  {stage.bpm} BPM
+                </span>
+              )}
+              {stage.rhythmPattern && (
+                <span className="text-blue-300 text-xs bg-blue-900 bg-opacity-30 px-2 py-0.5 rounded">
+                  {stage.rhythmPattern === 'random' ? 'ランダム' : 'プログレッション'}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         
         {/* 右側のアイコン */}

@@ -287,6 +287,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }, 2000);                             // 2 秒待ってから結果画面へ
   }, [onGameComplete]);
   
+  // リズムモード用のタイミング成功/失敗ハンドラー
+  const handleTimingSuccess = useCallback((monsterId: string) => {
+    devLog.debug('🎵 Timing success:', monsterId);
+    // タイミング成功時のエフェクトを追加できます
+    // 例: PIXIレンダラーでタイミング成功エフェクトを表示
+  }, []);
+  
+  const handleTimingFailure = useCallback((monsterId: string) => {
+    devLog.debug('❌ Timing failure:', monsterId);
+    // タイミング失敗時のエフェクトを追加できます
+    // 例: PIXIレンダラーでタイミング失敗エフェクトを表示
+  }, []);
+  
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
   const {
@@ -305,6 +318,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
+    onTimingSuccess: handleTimingSuccess,
+    onTimingFailure: handleTimingFailure,
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
   
@@ -684,10 +699,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <div className="text-sm font-bold">
               Stage {stage.stageNumber}
             </div>
-            <div className="text-xs text-gray-300">
-              敵の数: {stage.enemyCount}
-            </div>
+                      <div className="text-xs text-gray-300">
+            敵の数: {stage.enemyCount}
           </div>
+          {/* リズムモード表示 */}
+          {stage.gameType === 'rhythm' && (
+            <div className="text-xs text-blue-300 mt-1">
+              🎵 リズムモード - {stage.bpm} BPM
+            </div>
+          )}
+        </div>
           
           {/* 戻るボタン */}
           <button
