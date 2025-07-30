@@ -794,6 +794,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
                         {monster.chordTarget.displayName}
+                        {/* リズムモードのタイミング表示 */}
+                        {stage.gameType === 'rhythm' && monster.chordTarget.timing && (
+                          <div className="text-[10px] text-blue-300 mt-0.5">
+                            M{monster.chordTarget.timing.measure} B{monster.chordTarget.timing.beat}
+                          </div>
+                        )}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
@@ -881,6 +887,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <div className="text-blue-300 text-sm font-bold">
               {getNextChord()}
             </div>
+          </div>
+        )}
+
+        {/* リズムモードインジケーター */}
+        {stage.gameType === 'rhythm' && (
+          <div className="mb-1 text-center">
+            <div className="text-yellow-300 text-xs font-bold animate-pulse">
+              ♪ RHYTHM MODE ♪
+            </div>
+            {stage.rhythmPattern && (
+              <div className="text-white text-xs">
+                {stage.rhythmPattern === 'random' ? 'Random Pattern' : 'Progression Pattern'}
+              </div>
+            )}
           </div>
         )}
       </div>

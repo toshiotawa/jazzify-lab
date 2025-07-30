@@ -254,6 +254,18 @@ export class FantasyPIXIInstance {
     originalY: 0
   };
 
+  // リズムモードインジケーター関連
+  private rhythmIndicators: Map<string, PIXI.Graphics> = new Map();
+  private rhythmIndicatorData: Map<string, {
+    monsterId: string;
+    targetTime: number;
+    radius: number;
+    maxRadius: number;
+    alpha: number;
+  }> = new Map();
+  private isRhythmMode: boolean = false;
+  private currentBPM: number = 120;
+
   constructor(
     width: number, 
     height: number, 
@@ -1601,6 +1613,7 @@ export class FantasyPIXIInstance {
       this.updateMagicCircles();
       this.updateDamageNumbers();
       this.updateScreenShake(); // 画面揺れの更新を追加
+      this.updateRhythmIndicators(); // リズムモードインジケーターの更新
       
       this.animationFrameId = requestAnimationFrame(animate);
     };
@@ -1862,6 +1875,60 @@ export class FantasyPIXIInstance {
     }
   }
 
+  // リズムインジケーター更新
+  private updateRhythmIndicators(): void {
+    if (this.isDestroyed || !this.isRhythmMode) return;
+    
+    // 各モンスターのリズムインジケーターを更新
+    for (const [id, indicatorData] of this.rhythmIndicatorData.entries()) {
+      const indicator = this.rhythmIndicators.get(id);
+      const monsterData = this.monsterSprites.get(indicatorData.monsterId);
+      
+      if (!indicator || !monsterData) continue;
+      
+      // 現在時刻からターゲット時刻までの差を計算
+      const currentTime = Date.now();
+      const timeDiff = indicatorData.targetTime - currentTime;
+      
+      // タイミングが近づくにつれて円が収縮
+      if (timeDiff > 0 && timeDiff < 2000) { // 2秒前から表示
+        indicator.visible = true;
+        
+        // 円の半径を計算（時間が近づくほど小さくなる）
+        const progress = 1 - (timeDiff / 2000);
+        indicatorData.radius = indicatorData.maxRadius * (1 - progress * 0.8);
+        
+        // アルファ値（徐々に濃くなる）
+        indicatorData.alpha = progress;
+        
+        // インジケーターを再描画
+        indicator.clear();
+        indicator.lineStyle(3, 0xFFFF00, indicatorData.alpha);
+        indicator.drawCircle(0, 0, indicatorData.radius);
+        
+        // モンスターの位置に配置
+        const monsterSprite = monsterData.sprite;
+        indicator.x = monsterSprite.x;
+        indicator.y = monsterSprite.y;
+        
+        // タイミングウィンドウ内なら色を変える
+        if (timeDiff < 200) { // ±200ms
+          indicator.lineStyle(3, 0x00FF00, indicatorData.alpha); // 緑色
+          indicator.drawCircle(0, 0, indicatorData.radius);
+        }
+      } else {
+        indicator.visible = false;
+      }
+      
+      // 過ぎたインジケーターを削除
+      if (timeDiff < -200) {
+        this.app.stage.removeChild(indicator);
+        this.rhythmIndicators.delete(id);
+        this.rhythmIndicatorData.delete(id);
+      }
+    }
+  }
+
   // サイズ変更（中央配置）
   resize(width: number, height: number): void {
     if (!this.app || !this.app.renderer || this.isDestroyed) return;
@@ -1892,6 +1959,52 @@ export class FantasyPIXIInstance {
     } catch (error) {
       devLog.debug('⚠️ リサイズエラー:', error);
     }
+  }
+
+  // リズムモードの設定
+  setRhythmMode(enabled: boolean, bpm: number = 120): void {
+    this.isRhythmMode = enabled;
+    this.currentBPM = bpm;
+    
+    if (!enabled) {
+      // リズムモードを無効化する場合、すべてのインジケーターをクリア
+      for (const [id, indicator] of this.rhythmIndicators) {
+        this.app.stage.removeChild(indicator);
+      }
+      this.rhythmIndicators.clear();
+      this.rhythmIndicatorData.clear();
+    }
+  }
+
+  // リズムインジケーターを作成
+  createRhythmIndicator(monsterId: string, targetMeasure: number, targetBeat: number): void {
+    if (!this.isRhythmMode) return;
+    
+    const monsterData = this.monsterSprites.get(monsterId);
+    if (!monsterData) return;
+    
+    // BPMから実際の時刻を計算
+    const beatDuration = 60 / this.currentBPM;
+    const currentTime = Date.now();
+    const targetTime = currentTime + (targetMeasure * 4 + targetBeat - 1) * beatDuration * 1000;
+    
+    // インジケーター用のグラフィックスを作成
+    const indicator = new PIXI.Graphics();
+    indicator.lineStyle(3, 0xFFFF00, 0);
+    indicator.drawCircle(0, 0, 60);
+    
+    // ステージに追加
+    this.app.stage.addChild(indicator);
+    
+    const indicatorId = `rhythm_${monsterId}_${Date.now()}`;
+    this.rhythmIndicators.set(indicatorId, indicator);
+    this.rhythmIndicatorData.set(indicatorId, {
+      monsterId,
+      targetTime,
+      radius: 60,
+      maxRadius: 60,
+      alpha: 0
+    });
   }
 
   // Canvas要素取得
