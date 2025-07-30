@@ -244,6 +244,7 @@ export class PIXINotesRendererInstance {
   private effectsContainer!: PIXI.Container;
   private hitLineContainer!: PIXI.Container;
   private pianoContainer!: PIXI.Container;
+  private particles!: PIXI.Container; // パーティクルコンテナを追加
   
   private noteSprites: Map<string, NoteSprite> = new Map();
 
@@ -2897,8 +2898,7 @@ export class PIXINotesRendererInstance {
   private handleKeyPress(midiNote: number): void {
     log.info('🎹 handleKeyPress called', { 
       midiNote, 
-      hasOnKeyPress: !!this.onKeyPress,
-      destroyed: this.destroyed
+      hasOnKeyPress: !!this.onKeyPress
     });
     
     // アクティブキープレス状態に追加

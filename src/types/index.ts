@@ -749,3 +749,129 @@ export interface RankingEntry {
   updated_at: string;
   twitter_handle?: string;
 }
+
+// ===== リズムモード関連型定義 =====
+
+// リズムモード関連型定義
+export interface ChordProgressionData {
+  chord: string      // コード名 (例: "C", "G", "Am", "F")
+  measure: number    // 小節番号 (1から開始)
+  beat: number       // 拍位置 (1.0, 1.5, 3.75など)
+}
+
+export interface RhythmTiming {
+  targetTime: number     // 目標タイミング (ms)
+  actualTime: number     // 実際の入力タイミング (ms)
+  difference: number     // 差分 (ms)
+  isSuccess: boolean     // 成功判定
+  windowSize: number     // 判定ウィンドウサイズ (ms)
+}
+
+export interface RhythmGameState {
+  isPlaying: boolean
+  currentTime: number
+  currentMeasure: number
+  currentBeat: number
+  nextChordTiming: number
+  nextChord: string | null
+  progressionIndex: number
+}
+
+export interface AudioSettings {
+  volume: number         // 0.0 - 1.0
+  isLoaded: boolean
+  duration: number       // ms
+  loopStartTime: number  // ms
+  loopEndTime: number    // ms
+}
+
+// ファンタジーステージ型の拡張
+export interface FantasyStage {
+  // 既存のプロパティ
+  id: string
+  uuid: string
+  stage_number: string
+  name: string
+  allowed_chords: string[]
+  enemy_hp: number
+  min_damage: number
+  max_damage: number
+  enemy_gauge_seconds: number
+  
+  // リズムモード関連
+  game_type: 'quiz' | 'rhythm'
+  rhythm_pattern?: 'random' | 'progression'
+  bpm?: number
+  time_signature?: number
+  loop_measures?: number
+  mp3_url?: string | null
+  chord_progression_data?: ChordProgressionData[] | null
+}
+
+// ゲーム結果型の拡張
+export interface RhythmGameResult {
+  // リズム関連結果
+  rhythmAccuracy?: number        // タイミング精度 (%)
+  perfectHits?: number           // パーフェクトタイミング数
+  nearHits?: number             // ニアタイミング数
+  misses?: number               // ミス数
+  averageTimingError?: number   // 平均タイミング誤差 (ms)
+  gameType: 'quiz' | 'rhythm'
+}
+
+// 判定結果型
+export type RhythmJudgmentResult = 'perfect' | 'great' | 'good' | 'miss'
+
+export interface RhythmJudgmentFeedback {
+  result: RhythmJudgmentResult
+  timingError: number    // ms
+  score: number
+  timestamp: number
+}
+
+// UI表示用型
+export interface TimingDisplayProps {
+  isActive: boolean
+  currentTime: number
+  nextTiming: number
+  isInWindow: boolean
+  judgmentResult?: RhythmJudgmentFeedback
+}
+
+export interface MusicControlProps {
+  isPlaying: boolean
+  volume: number
+  onPlayPause: () => void
+  onVolumeChange: (volume: number) => void
+  showControls: boolean
+}
+
+// エラー型
+export interface RhythmError {
+  type: 'AUDIO_LOAD_ERROR' | 'TIMING_SYNC_ERROR' | 'INVALID_PROGRESSION' | 'UNKNOWN_ERROR'
+  message: string
+  timestamp: number
+  additionalInfo?: any
+}
+
+// 統計型
+export interface RhythmStats {
+  totalNotes: number
+  hitNotes: number
+  accuracy: number
+  maxCombo: number
+  currentCombo: number
+  perfectCount: number
+  greatCount: number
+  goodCount: number
+  missCount: number
+}
+
+// 設定型
+export interface RhythmSettings {
+  judgmentWindowMs: number    // デフォルト: 200
+  visualOffset: number        // 視覚的オフセット (ms)
+  audioOffset: number         // オーディオオフセット (ms)
+  showTimingMarker: boolean
+  showDebugInfo: boolean
+}

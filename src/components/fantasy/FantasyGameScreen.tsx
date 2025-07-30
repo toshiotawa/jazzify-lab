@@ -16,6 +16,10 @@ import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
 
+// リズムモード関連のインポート
+import { RhythmTimingDisplay } from './RhythmTimingDisplay';
+import { useRhythmStore } from '@/stores/rhythmStore';
+
 interface FantasyGameScreenProps {
   stage: FantasyStage;
   autoStart?: boolean;        // ★ 追加
@@ -291,13 +295,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
   const {
     gameState,
-    handleNoteInput: engineHandleNoteInput,
+    handleNoteInput,
     initializeGame,
     stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
-    ENEMY_LIST
+    ENEMY_LIST,
+    
+    // リズムモード関連
+    isRhythmMode,
+    rhythmStore,
+    rhythmManager,
+    audioManager
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
@@ -330,8 +340,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     
     // ファンタジーゲームエンジンにのみ送信
-    engineHandleNoteInput(note);
-  }, [engineHandleNoteInput]);
+    handleNoteInput(note);
+  }, [handleNoteInput]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
@@ -432,39 +442,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       });
     }
   }, [handleNoteInputBridge, stage.showGuide]);
-
-  // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
-  useEffect(() => {
-    const linkMidiAndPixi = async () => {
-      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-        
-        // 1. 鍵盤ハイライト用のコールバックを設定
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRenderer.highlightKey(note, active);
-          if (active) {
-            pixiRenderer.triggerKeyPressEffect(note);
-          }
-        });
-        
-        // 2. デバイスに再接続して、設定したコールバックを有効化
-        devLog.debug(`🔧 Fantasy: Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        if (success) {
-          devLog.debug('✅ Fantasy: MIDI device successfully linked to renderer.');
-        } else {
-          devLog.debug('⚠️ Fantasy: Failed to link MIDI device to renderer.');
-        }
-      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-        // デバイス選択が解除された場合は切断
-        midiControllerRef.current.disconnect();
-        devLog.debug('🔌 Fantasy: MIDIデバイス切断');
-      }
-    };
-
-    linkMidiAndPixi();
-    
-  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
@@ -714,6 +691,91 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           ... (古いヒント表示エリア) ...
         </div>
         */}
+        
+        {/* リズムモード専用オーバーレイ */}
+        {isRhythmMode && (
+          <div className="rhythm-overlay absolute inset-0 pointer-events-none">
+            
+            {/* タイミングディスプレイ */}
+            <div className="timing-display-container absolute bottom-24 left-1/2 transform -translate-x-1/2 w-96 pointer-events-auto">
+              <RhythmTimingDisplay 
+                isActive={gameState.isGameActive}
+                className="backdrop-blur-sm bg-black/30 p-4 rounded-lg border border-white/20"
+              />
+            </div>
+
+            {/* 音楽情報表示 */}
+            <div className="music-info absolute top-4 left-4 bg-black/50 backdrop-blur-sm rounded-lg p-3 text-white">
+              <div className="text-sm font-semibold mb-1">🎵 {stage.name}</div>
+              <div className="text-xs text-gray-300">
+                {stage.bpm} BPM • {stage.time_signature}/4
+              </div>
+              <div className="text-xs text-gray-400">
+                Pattern: {stage.rhythm_pattern === 'random' ? 'Random' : 'Progression'}
+              </div>
+            </div>
+
+            {/* 音楽コントロール */}
+            <div className="music-controls absolute top-4 right-4 flex gap-2 pointer-events-auto">
+              
+              {/* Play/Pause Toggle */}
+              <button
+                onClick={() => {
+                  if (rhythmStore.rhythmState.isPlaying) {
+                    rhythmStore.pauseMusic()
+                  } else {
+                    rhythmStore.startMusic()
+                  }
+                }}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  rhythmStore.rhythmState.isPlaying
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'bg-green-500 hover:bg-green-600 text-white'
+                }`}
+                title={rhythmStore.rhythmState.isPlaying ? 'Pause Music' : 'Play Music'}
+              >
+                {rhythmStore.rhythmState.isPlaying ? '⏸️' : '▶️'}
+              </button>
+
+              {/* Volume Control */}
+              <div className="volume-control bg-black/50 backdrop-blur-sm rounded-lg p-2">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  defaultValue="70"
+                  onChange={(e) => {
+                    const volume = parseInt(e.target.value) / 100
+                    audioManager?.setVolume(volume)
+                  }}
+                  className="w-20 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* リズムガイド（オプション） */}
+            {stage.showGuide && (
+              <div className="rhythm-guide absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm rounded-lg p-3 text-white text-sm max-w-xs">
+                <div className="font-semibold mb-2">🎯 Rhythm Guide</div>
+                <div className="text-xs text-gray-300 space-y-1">
+                  <div>• Watch the timing marker</div>
+                  <div>• Play chord when marker hits the line</div>
+                  <div>• ±200ms timing window</div>
+                  {stage.rhythm_pattern === 'progression' && (
+                    <div>• Follow the chord progression</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* クイズモード時の音楽表示 */}
+        {!isRhythmMode && stage.mp3_url && (
+          <div className="quiz-music-indicator absolute top-4 right-4 bg-black/50 backdrop-blur-sm rounded-lg p-2 text-white text-sm">
+            🎵 Background Music
+          </div>
+        )}
         
         {/* ===== モンスター＋エフェクト描画エリア ===== */}
         <div className="mb-2 text-center relative w-full">
@@ -981,6 +1043,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
           <div>SP: {gameState.playerSp}</div>
+          
+          {/* リズムモード情報 */}
+          {isRhythmMode && (
+            <>
+              <div className="mt-2 border-t border-gray-600 pt-2">
+                <div>Game Type: {stage.game_type}</div>
+                <div>Pattern: {stage.rhythm_pattern}</div>
+                <div>BPM: {stage.bpm}</div>
+                <div>Time Sig: {stage.time_signature}</div>
+                <div>Playing: {rhythmStore.rhythmState.isPlaying ? 'Yes' : 'No'}</div>
+                <div>Current Time: {Math.round(rhythmStore.rhythmState.currentTime)}ms</div>
+                <div>Measure: {rhythmStore.rhythmState.currentMeasure}</div>
+                <div>Beat: {rhythmStore.rhythmState.currentBeat}</div>
+              </div>
+            </>
+          )}
           
           {/* ゲージ強制満タンテストボタン */}
           <button

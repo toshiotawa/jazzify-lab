@@ -399,6 +399,59 @@ npm run preview:prod
 - **パフォーマンス監視**: FPSモニター、レンダリング時間測定
 - **統合フレーム制御**: 重複アニメーションループの防止
 
+## 開発者向け
+
+### 静的チェック
+
+このプロジェクトでは、ビルド前に以下の静的チェックを実行してコード品質を保証しています：
+
+#### TypeScript型チェック
+```bash
+npm run type-check
+```
+- 存在しないexportの参照を検出
+- 型の不整合を検出
+- `tsc --noEmit`を使用
+
+#### ESLintチェック
+```bash
+npm run lint
+```
+- React Hooksのルール違反を検出（`react-hooks/rules-of-hooks`）
+- 未使用の変数や型の検出
+- コード品質の問題を検出
+
+#### 統合チェック
+```bash
+npm run check        # 型チェック + ESLint
+npm run check:ci     # 型チェック + ESLint + ビルド
+```
+
+#### vite-plugin-checker
+開発環境では`vite-plugin-checker`が自動的に以下をチェックします：
+- TypeScriptの型エラー
+- ESLintエラー
+- リアルタイムでのフィードバック
+
+#### CI/CDでの自動チェック
+Netlifyでのビルド時に自動的に実行されます：
+1. `npm run type-check` - TypeScript型チェック
+2. `npm run lint` - ESLintチェック
+3. `npm run build` - ビルド
+
+これにより、以下のようなバグをデプロイ前に検出できます：
+- Hooks のルール違反（ループや条件分岐内でのHook呼び出し）
+- 存在しないモジュールメンバーのimport
+- 型の不整合
+- 未使用の変数や関数
+
+### セットアップ
+
+```bash
+npm install
+npm run dev
+```
+
 ## ライセンス
 
 Private
