@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import * as PIXI from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Text, Texture, Assets, Rectangle, Point } from 'pixi.js';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import type { MonsterState as GameMonsterState } from './FantasyGameEngine';
