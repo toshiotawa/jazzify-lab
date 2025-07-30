@@ -641,6 +641,21 @@ export interface FantasyStage {
   show_guide: boolean;
   simultaneous_monster_count?: number;
   monster_icon?: string;
+  // ===== リズムタイプ関連フィールド =====
+  /** ゲームタイプ: quiz | rhythm */
+  game_type?: 'quiz' | 'rhythm';
+  /** リズムタイプ時のパターン: random | progression */
+  rhythm_pattern?: 'random' | 'progression';
+  /** テンポ (BPM) */
+  bpm?: number;
+  /** 拍子 (3 または 4) */
+  time_signature?: number;
+  /** ループ開始小節 (例: 8) */
+  loop_measures?: number;
+  /** MP3ファイル URL */
+  mp3_url?: string;
+  /** リズムデータ(JSON)へのパス */
+  rhythm_data?: string;
 }
 
 export interface LessonContext {

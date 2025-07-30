@@ -7,9 +7,16 @@ import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } 
 import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
-import { useEnemyStore } from '@/stores/enemyStore';
-import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
-import * as PIXI from 'pixi.js';
+import { useGlobalTimeStore } from '@/stores/globalTimeStore';
+import * as Tone from 'tone';
+import FantasySoundManager from '@/utils/FantasySoundManager';
+
+// Rhythm entry type (measure is 1-based, beat may be fractional)
+type RhythmEntry = {
+  chord: string;
+  measure: number;
+  beat: number;
+};
 
 // ===== 型定義 =====
 
@@ -41,6 +48,14 @@ interface FantasyStage {
   monsterIcon: string;
   bgmUrl?: string;
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  /* ===== Rhythm モード拡張フィールド ===== */
+  game_type?: 'quiz' | 'rhythm';
+  rhythm_pattern?: 'random' | 'progression';
+  bpm?: number;
+  time_signature?: number;
+  loop_measures?: number;
+  mp3_url?: string;
+  rhythm_data?: string;
 }
 
 interface MonsterState {
@@ -86,6 +101,10 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  /* ===== Rhythm ===== */
+  currentTime: number;
+  isPlaying: boolean;
+  rhythmData: RhythmEntry[];
 }
 
 interface FantasyGameEngineProps {
@@ -98,6 +117,9 @@ interface FantasyGameEngineProps {
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: (attackingMonsterId?: string) => void;
+  /* Rhythm モード用: タイミングコールバック (オプション) */
+  onTimingSuccess?: (monsterId: string) => void;
+  onTimingFailure?: (monsterId: string) => void;
 }
 
 // ===== コード定義データ =====
@@ -367,7 +389,10 @@ export const useFantasyGameEngine = ({
   onEnemyAttack,
   displayOpts = { lang: 'en', simple: false }
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
-  
+   
+   // Rhythm モード共通タイムライン
+  const globalTime = useGlobalTimeStore();
+   
   // ステージで使用するモンスターIDを保持
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
   // プリロードしたテクスチャを保持
@@ -401,10 +426,63 @@ export const useFantasyGameEngine = ({
     monsterQueue: [],
     simultaneousMonsterCount: 1,
     // ゲーム完了処理中フラグ
-    isCompleting: false
+    isCompleting: false,
+    currentTime: 0,
+    isPlaying: false,
+    rhythmData: []
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+
+  // ===== Rhythm helpers =====
+  const loadRhythmData = useCallback(async (path?: string): Promise<RhythmEntry[]> => {
+    if (!path) return [];
+    try {
+      const res = await fetch(path);
+      if (!res.ok) throw new Error(`Failed to load rhythm data: ${res.status}`);
+      const json = await res.json();
+      return Array.isArray(json) ? (json as RhythmEntry[]) : [];
+    } catch (err) {
+      console.error('[Rhythm] loadRhythmData error', err);
+      return [];
+    }
+  }, []);
+
+  const initializeMusic = useCallback(async (mp3Url?: string, bpm?: number, timeSig?: number, loopMeasures?: number) => {
+    if (!mp3Url) return;
+    try {
+      await Tone.start();
+      const player = new Tone.Player(mp3Url).toDestination();
+      // BPM / Time Signature
+      Tone.Transport.bpm.value = bpm || 120;
+      if (timeSig) {
+        Tone.Transport.timeSignature = timeSig;
+      }
+      player.sync().start(0);
+      if (loopMeasures && loopMeasures > 0) {
+        const beatsPerMeasure = timeSig || 4;
+        const loopEnd = `${loopMeasures}m`;
+        Tone.Transport.loop = true;
+        Tone.Transport.loopStart = 0;
+        Tone.Transport.loopEnd = loopEnd;
+      } else {
+        Tone.Transport.loop = false;
+      }
+      Tone.Transport.start();
+
+      // Update global time every animation frame
+      const update = () => {
+        globalTime.setCurrentTime(Tone.Transport.seconds * 1000);
+        if (Tone.Transport.state === 'started') {
+          rafId = requestAnimationFrame(update);
+        }
+      };
+      let rafId = requestAnimationFrame(update);
+      globalTime.setIsPlaying(true);
+    } catch (e) {
+      console.error('[Rhythm] initializeMusic error', e);
+    }
+  }, [globalTime]);
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
@@ -415,6 +493,8 @@ export const useFantasyGameEngine = ({
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
     const simultaneousCount = stage.simultaneousMonsterCount || 1;
+
+    const isRhythmMode = stage.game_type === 'rhythm';
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -528,7 +608,12 @@ export const useFantasyGameEngine = ({
       isCompleting: false
     };
 
-    setGameState(newState);
+    setGameState({
+      ...newState,
+      rhythmData: loadedRhythmData,
+      isPlaying: isRhythmMode,
+      currentTime: 0
+    });
     onGameStateChange(newState);
 
     devLog.debug('✅ ゲーム初期化完了:', {
