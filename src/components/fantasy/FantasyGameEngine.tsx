@@ -696,8 +696,16 @@ export const useFantasyGameEngine = ({
       
       try {
         // RhythmManagerの初期化
+        const audioUrl = normalizedStage.mp3_url || '/demo-1.mp3';
+        devLog.debug('🎵 RhythmManager初期化開始', {
+          audioUrl,
+          bpm: normalizedStage.bpm || 120,
+          timeSignature: normalizedStage.time_signature || 4,
+          loopMeasures: normalizedStage.loop_measures || 8
+        });
+        
         rhythmManager = new RhythmManager({
-          audioUrl: normalizedStage.mp3_url || '/demo-1.mp3',
+          audioUrl: audioUrl,
           bpm: normalizedStage.bpm || 120,
           timeSignature: normalizedStage.time_signature || 4,
           loopMeasures: normalizedStage.loop_measures || 8,

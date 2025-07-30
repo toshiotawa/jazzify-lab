@@ -44,13 +44,44 @@ export class RhythmManager {
     this.audio = new Audio(cfg.audioUrl);
     this.audio.loop = false; // 手動ループ
     this.audio.volume = cfg.volume ?? 0.7;
+    
+    console.log('🎵 RhythmManager constructor', {
+      audioUrl: cfg.audioUrl,
+      bpm: cfg.bpm,
+      timeSignature: cfg.timeSignature,
+      loopMeasures: cfg.loopMeasures
+    });
+    
+    // 音楽ファイルの読み込み状態を監視
+    this.audio.addEventListener('loadedmetadata', () => {
+      console.log('🎵 Audio loadedmetadata', {
+        duration: this.audio.duration,
+        readyState: this.audio.readyState
+      });
+    });
+    
+    this.audio.addEventListener('error', (e) => {
+      console.error('🎵 Audio error', e);
+    });
   }
 
   /* ───────── public ───────── */
   start(startOffset = 0) {
+    console.log('🎵 RhythmManager.start called', {
+      audioUrl: this.audio.src,
+      startOffset,
+      readyState: this.audio.readyState,
+      duration: this.audio.duration
+    });
+    
     this.audio.currentTime = startOffset;
     // Safari 対策: play() promise 無視
-    void this.audio.play();
+    void this.audio.play().then(() => {
+      console.log('🎵 Audio play() success');
+    }).catch((error) => {
+      console.error('🎵 Audio play() error:', error);
+    });
+    
     const tick = () => {
       this.process();
       this.raf = requestAnimationFrame(tick);
@@ -111,6 +142,15 @@ export class RhythmManager {
 
   /* ───────── internal ───────── */
   private process() {
+    // 最初の数フレームのみログ
+    if (this.audio.currentTime < 0.1) {
+      console.log('🎵 RhythmManager.process', {
+        currentTime: this.audio.currentTime,
+        paused: this.audio.paused,
+        readyState: this.audio.readyState
+      });
+    }
+    
     const pos = this.getCurrentPosition();
 
     // ループ判定
