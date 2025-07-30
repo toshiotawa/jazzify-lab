@@ -15,6 +15,7 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { useGlobalTimeStore } from '@/stores/globalTimeStore';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -43,6 +44,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [damageShake, setDamageShake] = useState(false);
   const [overlay, setOverlay] = useState<null | { text:string }>(null); // ★★★ add
   const [heartFlash, setHeartFlash] = useState(false); // ハートフラッシュ効果
+  
+  // リズムモード用の状態
+  const { getMeasureBeat, isPlaying } = useGlobalTimeStore();
+  const [currentBeat, setCurrentBeat] = useState({ measure: 1, beat: 1 });
   
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -290,15 +295,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // リズムモード用のタイミング成功/失敗ハンドラー
   const handleTimingSuccess = useCallback((monsterId: string) => {
     devLog.debug('🎵 Timing success:', monsterId);
-    // タイミング成功時のエフェクトを追加できます
-    // 例: PIXIレンダラーでタイミング成功エフェクトを表示
-  }, []);
+    // タイミング成功時のエフェクト
+    setOverlay({ text: "Perfect!" });
+    setTimeout(() => setOverlay(null), 500);
+    
+    // PIXIレンダラーでタイミング成功エフェクトを表示
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.showTimingSuccess(monsterId);
+    }
+  }, [fantasyPixiInstance]);
   
   const handleTimingFailure = useCallback((monsterId: string) => {
     devLog.debug('❌ Timing failure:', monsterId);
-    // タイミング失敗時のエフェクトを追加できます
-    // 例: PIXIレンダラーでタイミング失敗エフェクトを表示
-  }, []);
+    // タイミング失敗時のエフェクト
+    setDamageShake(true);
+    setTimeout(() => setDamageShake(false), 300);
+    
+    // PIXIレンダラーでタイミング失敗エフェクトを表示
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.showTimingFailure(monsterId);
+    }
+  }, [fantasyPixiInstance]);
   
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
@@ -352,6 +369,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInputBridge;
   }, [handleNoteInputBridge]);
+  
+  // リズムモードでの拍更新
+  useEffect(() => {
+    if (stage?.gameType === 'rhythm' && isPlaying) {
+      let animationId: number;
+      const updateBeat = () => {
+        const beat = getMeasureBeat();
+        setCurrentBeat(beat);
+        animationId = requestAnimationFrame(updateBeat);
+      };
+      animationId = requestAnimationFrame(updateBeat);
+      return () => cancelAnimationFrame(animationId);
+    }
+  }, [stage?.gameType, isPlaying, getMeasureBeat]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -704,8 +735,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
           {/* リズムモード表示 */}
           {stage.gameType === 'rhythm' && (
-            <div className="text-xs text-blue-300 mt-1">
-              🎵 リズムモード - {stage.bpm} BPM
+            <div>
+              <div className="text-xs text-blue-300 mt-1">
+                🎵 リズムモード - {stage.bpm} BPM
+              </div>
+              {isPlaying && (
+                <div className="text-xs text-yellow-300 mt-1">
+                  {currentBeat.measure}小節 {Math.floor(currentBeat.beat)}拍目
+                </div>
+              )}
             </div>
           )}
         </div>

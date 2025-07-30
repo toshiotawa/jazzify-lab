@@ -43,7 +43,7 @@ INSERT INTO fantasy_stages (
   4,
   8,
   '/demo-1.mp3',
-  '/rhythm-data/demo-rhythm-random.json'
+  NULL -- ランダムパターンではJSONファイル不要
 ),
 (
   'R2',
@@ -89,7 +89,7 @@ INSERT INTO fantasy_stages (
   3,
   8,
   '/demo-1.mp3',
-  '/rhythm-data/demo-rhythm-random.json'
+  NULL -- ランダムパターンではJSONファイル不要
 );
 
 -- コード進行データの例（R2ステージ用）

@@ -62,34 +62,32 @@ export const useGlobalTimeStore = create<GlobalTimeState>((set, get) => ({
   }),
   
   // Calculated values
-  getMeasureBeat: () => {
-    const state = get();
-    const { currentTime, bpm, timeSignature, loopMeasures, loopStartTime } = state;
-    
-    // Calculate beat duration in milliseconds
-    const beatDuration = 60000 / bpm; // ms per beat
-    const measureDuration = beatDuration * timeSignature; // ms per measure
-    
-    // Calculate total elapsed time considering loops
-    let elapsedTime = currentTime;
-    if (loopStartTime > 0) {
-      // We've looped at least once
-      const loopDuration = (loopMeasures - 1) * measureDuration; // Loop from measure 2
-      const timeSinceLoop = currentTime - loopStartTime;
-      const loopsCompleted = Math.floor(timeSinceLoop / loopDuration);
-      const remainingTime = timeSinceLoop % loopDuration;
-      
-      // Calculate current position
-      elapsedTime = measureDuration + remainingTime; // Start from measure 2
-    }
-    
-    // Calculate current measure and beat
-    const totalBeats = elapsedTime / beatDuration;
-    const measure = Math.floor(totalBeats / timeSignature) + 1;
-    const beat = (totalBeats % timeSignature) + 1;
-    
-    return { measure, beat };
-  },
+        getMeasureBeat: () => {
+        const state = get();
+        const { currentTime, bpm, timeSignature, loopMeasures } = state;
+
+        // Calculate beat duration in milliseconds
+        const beatDuration = 60000 / bpm; // ms per beat
+        const measureDuration = beatDuration * timeSignature; // ms per measure
+        const totalDuration = measureDuration * loopMeasures; // Total duration before loop
+
+        // Handle looping: after loopMeasures, go back to measure 2
+        let effectiveTime = currentTime;
+        if (currentTime >= totalDuration) {
+          // Calculate time within the loop (measures 2 to loopMeasures)
+          const loopDuration = measureDuration * (loopMeasures - 1); // Duration of measures 2 to end
+          const timeSinceFirstLoop = currentTime - totalDuration;
+          const positionInLoop = timeSinceFirstLoop % loopDuration;
+          effectiveTime = measureDuration + positionInLoop; // Start from measure 2
+        }
+
+        // Calculate current measure and beat
+        const totalBeats = effectiveTime / beatDuration;
+        const measure = Math.floor(totalBeats / timeSignature) + 1;
+        const beatInMeasure = (totalBeats % timeSignature) + 1;
+
+        return { measure, beat: beatInMeasure };
+      },
   
   getTimeForMeasureBeat: (measure, beat) => {
     const state = get();
