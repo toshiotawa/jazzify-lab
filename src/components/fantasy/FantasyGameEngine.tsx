@@ -412,15 +412,15 @@ const createRhythmMonster = (
   // タイミング計算 - 音楽のビート位置から逆算
   const beatDurationMs = 60000 / bpm;
   const absBeat = (timing.measure - 1) * timeSignature + (timing.beat - 1);
-  const targetTimeMs = startTimeMs + (absBeat * beatDurationMs);
+  const nowAudio = useRhythmStore.getState().lastAudioTime; // ★
+  const targetTimeMs = nowAudio + absBeat * beatDurationMs;
   const appearLeadMs = 4000; // 4秒前に出現
   const spawnTimeMs = targetTimeMs - appearLeadMs;
   
   // spawn以前は0、target時点で100になるように初期ゲージを計算
-  const now = performance.now();
   let initialGauge = 0;
-  if (now >= spawnTimeMs) {
-    const elapsed = now - spawnTimeMs;
+  if (nowAudio >= spawnTimeMs) {
+    const elapsed = nowAudio - spawnTimeMs;
     const totalDuration = targetTimeMs - spawnTimeMs;
     initialGauge = Math.min(100, (elapsed / totalDuration) * 100);
   }
@@ -1095,9 +1095,11 @@ export const useFantasyGameEngine = ({
         const updatedMonsters = prevState.activeMonsters.map(monster => {
           if (!monster.timing) return monster;
           
-          // spawn以前は0、target時点で100になる計算式
-          const now = performance.now();
-          const elapsed = now - monster.timing.spawnTime;
+          // (1) store から現在の audio 時刻を取得
+          const audioNow = useRhythmStore.getState().lastAudioTime;
+          
+          // (2) ゲージ更新
+          const elapsed = audioNow - monster.timing.spawnTime;
           const totalDuration = monster.timing.targetTime - monster.timing.spawnTime;
           const gaugeProgress = Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
           
@@ -1108,8 +1110,9 @@ export const useFantasyGameEngine = ({
         });
         
         // 判定タイミングを過ぎたモンスターをチェック（判定ウィンドウ外）
+        const audioNow = useRhythmStore.getState().lastAudioTime;
         const missedMonster = updatedMonsters.find(m => 
-          m.timing && currentTimeMs > m.timing.targetTime + 200
+          m.timing && audioNow > m.timing.targetTime + 200
         );
         
         if (missedMonster) {
@@ -1538,6 +1541,12 @@ export const useFantasyGameEngine = ({
     if (gameState.isReady && gameState.readyCountdown >= 0) {
       const countdownTimer = setTimeout(() => {
         setGameState(prevState => {
+          // readyCountdown === 3 の時点で予定開始時刻を先に設定
+          if (prevState.readyCountdown === 3) {
+            const est = performance.now() + 3000;
+            useRhythmStore.getState().setStart(est);
+          }
+          
           if (prevState.readyCountdown === 0) {
             // カウントダウン終了、音楽とタイマーを同時に開始
             prevState.rhythmManager?.start();

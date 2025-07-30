@@ -67,6 +67,7 @@ export class RhythmManager {
     this.beatCb = (pos) => {
       // Update rhythm store with current position
       useRhythmStore.getState().setPos(pos);
+      useRhythmStore.getState().setLastAudioTime(this.audio.currentTime * 1000);
       if (cb) cb(pos);
     };
   }
