@@ -64,12 +64,7 @@ export class RhythmManager {
   }
 
   onBeat(cb: CB<RhythmPosition>) { 
-    this.beatCb = (pos) => {
-      // Update rhythm store with current position
-      useRhythmStore.getState().setPos(pos);
-      useRhythmStore.getState().setLastAudioTime(this.audio.currentTime * 1000);
-      if (cb) cb(pos);
-    };
+    this.beatCb = cb;
   }
 
   onMeasure(cb: CB<number>) { 
@@ -133,6 +128,20 @@ export class RhythmManager {
     const intBeat = Math.floor(pos.absoluteBeat);
     if (intBeat !== this.lastBeat) {
       this.lastBeat = intBeat;
+      // rhythmStoreを直接更新
+      useRhythmStore.getState().setPos(pos);
+      useRhythmStore.getState().setLastAudioTime(this.audio.currentTime * 1000);
+      
+      // デバッグログ（最初の数回のみ）
+      if (intBeat < 5) {
+        console.log('🎵 Beat更新:', {
+          intBeat,
+          audioTime: this.audio.currentTime,
+          lastAudioTimeMs: this.audio.currentTime * 1000,
+          pos
+        });
+      }
+      
       this.beatCb?.(pos);
     }
 

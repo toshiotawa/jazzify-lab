@@ -540,11 +540,21 @@ export const useFantasyGameEngine = ({
   
   // リズムランダムパターン用のモンスター生成スケジューラー
   const scheduleRandomMonster = useCallback((measure: number) => {
+    devLog.debug('📍 scheduleRandomMonster called:', { measure });
+    
     setGameState(prevState => {
       if (!prevState.currentStage || 
           prevState.currentStage.game_type !== 'rhythm' || 
           prevState.currentStage.rhythm_pattern !== 'random' ||
-          !prevState.isGameActive) {
+          !prevState.isGameActive ||
+          prevState.isReady) {  // Readyフェーズ中はスキップ
+        devLog.debug('📍 scheduleRandomMonster スキップ:', {
+          hasStage: !!prevState.currentStage,
+          gameType: prevState.currentStage?.game_type,
+          rhythmPattern: prevState.currentStage?.rhythm_pattern,
+          isGameActive: prevState.isGameActive,
+          isReady: prevState.isReady
+        });
         return prevState;
       }
       
@@ -1081,6 +1091,16 @@ export const useFantasyGameEngine = ({
         devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
         return prevState;
       }
+      
+      // デバッグログ：activeMonsters配列の状態
+      devLog.debug('🎮 updateEnemyGauge - activeMonsters:', {
+        count: prevState.activeMonsters.length,
+        monsters: prevState.activeMonsters.map(m => ({
+          name: m.name,
+          gauge: m.gauge,
+          timing: m.timing
+        }))
+      });
       
       // リズムモードの場合
       if (prevState.currentStage.game_type === 'rhythm' && prevState.rhythmManager) {
