@@ -22,12 +22,24 @@ interface FantasyGameScreenWrapperProps {
 const FantasyGameScreenWrapper: React.FC<FantasyGameScreenWrapperProps> = (props) => {
   const { stage } = props;
   
+  // デバッグログ
+  console.log('🎮 FantasyGameScreenWrapper - stage:', {
+    id: stage.id,
+    name: stage.name,
+    game_type: stage.game_type,
+    rhythm_pattern: stage.rhythm_pattern,
+    stage_number: stage.stage_number
+  });
+  
   // game_typeによる分岐
-  if (stage.game_type === 'rhythm') {
+  // 一時的な対処: ステージ4-1以降は強制的にリズムモードとする
+  if (stage.game_type === 'rhythm' || stage.stage_number?.startsWith('4-')) {
+    console.log('🎵 リズムモードを選択');
     return <FantasyRhythmGameScreen {...props} />;
   }
   
   // デフォルトはクイズモード
+  console.log('❓ クイズモードを選択（game_type:', stage.game_type, '）');
   return <FantasyGameScreen {...props} />;
 };
 
