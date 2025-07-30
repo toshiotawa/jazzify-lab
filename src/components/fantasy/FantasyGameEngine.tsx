@@ -78,6 +78,7 @@ interface MonsterState {
     beat: number;
     spawnTime: number; // 出現時刻（ms）
     targetTime: number; // 判定時刻（ms）
+    missed?: boolean; // 攻撃済みフラグ
   };
   questionNumber?: number; // プログレッションパターン用
 }
@@ -406,22 +407,22 @@ const createRhythmMonster = (
   monsterIds: string[],
   timeSignature: number = 4  // 追加
 ): MonsterState => {
-  const monsterId = monsterIds[monsterIndex % monsterIds.length];
+  const monsterId = monsterIds[monsterIds.length > 0 ? monsterIndex % monsterIds.length : 0];
   const monsterData = MONSTERS[monsterId] || MONSTERS['slime_green'];
   
-  // タイミング計算 - 音楽のビート位置から逆算
+  // gameClock基準で時間を計算（startAtに依存しない）
+  const gameClock = performance.now() - startTimeMs; // 現在のゲーム時間
   const beatDurationMs = 60000 / bpm;
   const absBeat = (timing.measure - 1) * timeSignature + (timing.beat - 1);
-  const targetTimeMs = startTimeMs + (absBeat * beatDurationMs);
+  const targetTime = absBeat * beatDurationMs; // startAtからの相対時間
   const appearLeadMs = 4000; // 4秒前に出現
-  const spawnTimeMs = targetTimeMs - appearLeadMs;
+  const spawnTime = targetTime - appearLeadMs;
   
   // spawn以前は0、target時点で100になるように初期ゲージを計算
-  const now = performance.now();
   let initialGauge = 0;
-  if (now >= spawnTimeMs) {
-    const elapsed = now - spawnTimeMs;
-    const totalDuration = targetTimeMs - spawnTimeMs;
+  if (gameClock >= spawnTime) {
+    const elapsed = gameClock - spawnTime;
+    const totalDuration = targetTime - spawnTime;
     initialGauge = Math.min(100, (elapsed / totalDuration) * 100);
   }
   
@@ -439,8 +440,9 @@ const createRhythmMonster = (
     timing: {
       measure: timing.measure,
       beat: timing.beat,
-      spawnTime: spawnTimeMs,
-      targetTime: targetTimeMs
+      spawnTime: spawnTime,
+      targetTime: targetTime,
+      missed: false // 攻撃済みフラグを初期化
     }
   };
 };
@@ -1066,13 +1068,13 @@ export const useFantasyGameEngine = ({
       // リズムモードの場合
       if (prevState.currentStage.game_type === 'rhythm' && prevState.rhythmManager) {
         const currentPos = prevState.rhythmManager.getCurrentPosition();
-        const currentTimeMs = performance.now();
+        const gameClock = performance.now() - prevState.startTime; // startAt基準のゲーム時間
         
         // 同期チェック
-        if (prevState.syncMonitor?.shouldCheckSync(currentTimeMs)) {
+        if (prevState.syncMonitor?.shouldCheckSync(performance.now())) {
           const syncStatus = prevState.syncMonitor.checkSync(
             prevState.rhythmManager.getCurrentPosition().absoluteBeat * (60 / (prevState.currentStage.bpm || 120)),
-            currentTimeMs,
+            performance.now(),
             prevState.currentStage.bpm || 120
           );
           
@@ -1091,15 +1093,34 @@ export const useFantasyGameEngine = ({
           }
         }
         
-        // 各モンスターのゲージを音楽に同期して更新
+        // 各モンスターのゲージを更新＆攻撃判定
         const updatedMonsters = prevState.activeMonsters.map(monster => {
           if (!monster.timing) return monster;
           
-          // spawn以前は0、target時点で100になる計算式
-          const now = performance.now();
-          const elapsed = now - monster.timing.spawnTime;
+          // gameClock基準でゲージを計算
+          const elapsed = gameClock - monster.timing.spawnTime;
           const totalDuration = monster.timing.targetTime - monster.timing.spawnTime;
           const gaugeProgress = Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
+          
+          // 攻撃判定（missed=falseかつtarget+200ms経過）
+          if (!monster.timing.missed && gameClock > monster.timing.targetTime + 200) {
+            devLog.debug('⚔️ 敵の攻撃発動！', { 
+              monster: monster.name, 
+              gameClock, 
+              targetTime: monster.timing.targetTime 
+            });
+            // 攻撃処理を即座に実行
+            setTimeout(() => handleEnemyAttack(monster.id), 0);
+            
+            return {
+              ...monster,
+              gauge: gaugeProgress,
+              timing: {
+                ...monster.timing,
+                missed: true // 攻撃済みフラグを立てる
+              }
+            };
+          }
           
           return {
             ...monster,
@@ -1107,29 +1128,19 @@ export const useFantasyGameEngine = ({
           };
         });
         
-        // 判定タイミングを過ぎたモンスターをチェック（判定ウィンドウ外）
-        const missedMonster = updatedMonsters.find(m => 
-          m.timing && currentTimeMs > m.timing.targetTime + 200
+        // missedフラグが立ったモンスターを削除
+        const survivingMonsters = updatedMonsters.filter(m => 
+          !m.timing || !m.timing.missed
         );
         
-        if (missedMonster) {
-          devLog.debug('⏰ 判定タイミングミス！', { monster: missedMonster.name });
-          // 攻撃処理を実行
-          setTimeout(() => handleEnemyAttack(missedMonster.id), 0);
-          
-          // ミスしたモンスターを削除して新しいモンスターを生成
-          const filteredMonsters = updatedMonsters.filter(m => m.id !== missedMonster.id);
+        // 削除されたモンスターがあれば新しいモンスターを生成
+        if (survivingMonsters.length < updatedMonsters.length) {
           // TODO: 新しいモンスター生成処理
-          
-          return {
-            ...prevState,
-            activeMonsters: filteredMonsters
-          };
         }
         
         return {
           ...prevState,
-          activeMonsters: updatedMonsters,
+          activeMonsters: survivingMonsters,
           currentMeasure: currentPos.measure,
           currentBeat: currentPos.beat
         };
