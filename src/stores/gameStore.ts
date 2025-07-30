@@ -18,7 +18,17 @@ import type {
   ActiveNote,
   GameError,
   ChordInfo,
-  ClearConditions
+  ClearConditions,
+  RhythmPattern,
+  RhythmGameState,
+  RhythmSettings,
+  RhythmScore,
+  ActiveRhythmNote,
+  RhythmJudgmentResult
+} from '@/types';
+import {
+  DEFAULT_RHYTHM_SETTINGS,
+  DEFAULT_RHYTHM_SCORE
 } from '@/types';
 // GameEngine は実行時にのみ必要なため、型のみインポート
 // import { GameEngine } from '@/utils/gameEngine';
@@ -291,6 +301,17 @@ const defaultState: GameState = {
   missionContext: undefined,
 };
 
+// リズムモードのデフォルト状態
+const defaultRhythmState = {
+  pattern: null,
+  activeNotes: new Map<string, ActiveRhythmNote>(),
+  score: DEFAULT_RHYTHM_SCORE,
+  settings: DEFAULT_RHYTHM_SETTINGS,
+  isMetronomeOn: false,
+  currentBeat: 0,
+  currentMeasure: 0,
+};
+
 // 練習モード専用設定のデフォルト値
 const defaultPracticeModeSettings = {
   practiceGuide: 'key' as const
@@ -484,6 +505,17 @@ interface GameStoreState extends GameState {
     general: string[];
   };
   
+  // ===== リズムモード状態 =====
+  rhythmState: {
+    pattern: RhythmPattern | null;
+    activeNotes: Map<string, ActiveRhythmNote>;
+    score: RhythmScore;
+    settings: RhythmSettings;
+    isMetronomeOn: boolean;
+    currentBeat: number;
+    currentMeasure: number;
+  };
+  
   // アクション
   setMode: (mode: GameMode) => void;
   setInstrumentMode: (mode: InstrumentMode) => void;
@@ -605,6 +637,14 @@ interface GameStoreState extends GameState {
   // ミッションコンテキスト
   setMissionContext: (missionId: string, songId: string, clearConditions?: ClearConditions) => void;
   clearMissionContext: () => void;
+  
+  // ===== リズムモードアクション =====
+  loadRhythmPattern: (pattern: RhythmPattern) => void;
+  handleRhythmInput: (padIndex: number, velocity?: number) => void;
+  updateRhythmSettings: (settings: Partial<RhythmSettings>) => void;
+  resetRhythmScore: () => void;
+  setRhythmMetronome: (enabled: boolean) => void;
+  clearRhythmPattern: () => void;
 }
 
 // ===== ヘルパー関数 =====
@@ -642,6 +682,9 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // 練習モード専用設定
         practiceModeSettings: defaultPracticeModeSettings,
+        
+        // リズムモード状態
+        rhythmState: defaultRhythmState,
         
         // Phase 2: ゲームエンジン制御
         initializeGameEngine: async () => {
@@ -1893,6 +1936,50 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           set((state: GameStoreState) => {
             state.missionContext = undefined;
           }),
+        
+        // ===== リズムモードアクション =====
+        
+        loadRhythmPattern: (pattern: RhythmPattern) =>
+          set((state: GameStoreState) => {
+            state.rhythmState.pattern = pattern;
+            state.rhythmState.activeNotes.clear();
+            state.rhythmState.score = { ...DEFAULT_RHYTHM_SCORE, totalNotes: pattern.notes.length };
+            state.rhythmState.currentBeat = 0;
+            state.rhythmState.currentMeasure = 0;
+          }),
+        
+        handleRhythmInput: (padIndex: number, velocity?: number) => {
+          const state = get();
+          if (!state.rhythmState.pattern || !state.isPlaying) return;
+          
+          // TODO: Implement rhythm input handling logic
+          console.log(`Rhythm input on pad ${padIndex} with velocity ${velocity}`);
+        },
+        
+        updateRhythmSettings: (settings: Partial<RhythmSettings>) =>
+          set((state: GameStoreState) => {
+            state.rhythmState.settings = { ...state.rhythmState.settings, ...settings };
+          }),
+        
+        resetRhythmScore: () =>
+          set((state: GameStoreState) => {
+            const totalNotes = state.rhythmState.pattern?.notes.length || 0;
+            state.rhythmState.score = { ...DEFAULT_RHYTHM_SCORE, totalNotes };
+          }),
+        
+        setRhythmMetronome: (enabled: boolean) =>
+          set((state: GameStoreState) => {
+            state.rhythmState.isMetronomeOn = enabled;
+          }),
+        
+        clearRhythmPattern: () =>
+          set((state: GameStoreState) => {
+            state.rhythmState.pattern = null;
+            state.rhythmState.activeNotes.clear();
+            state.rhythmState.score = DEFAULT_RHYTHM_SCORE;
+            state.rhythmState.currentBeat = 0;
+            state.rhythmState.currentMeasure = 0;
+          }),
       }))
     ),
     {
@@ -2098,3 +2185,19 @@ export const useLessonContext = () =>
 
 export const useIsLessonMode = () =>
   useGameStore((state: GameStoreState) => !!state.lessonContext);
+
+// ===== リズムモードセレクタ =====
+export const useRhythmState = () =>
+  useGameStore((state: GameStoreState) => state.rhythmState);
+
+export const useRhythmPattern = () =>
+  useGameStore((state: GameStoreState) => state.rhythmState.pattern);
+
+export const useRhythmScore = () =>
+  useGameStore((state: GameStoreState) => state.rhythmState.score);
+
+export const useRhythmSettings = () =>
+  useGameStore((state: GameStoreState) => state.rhythmState.settings);
+
+export const useIsRhythmMode = () =>
+  useGameStore((state: GameStoreState) => state.settings.instrumentMode === 'rhythm');

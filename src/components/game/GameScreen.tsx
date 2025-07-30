@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft, FaAward } from 'react-icons/fa';
+import RhythmModeScreen from '@/components/rhythm/RhythmModeScreen';
 
 /**
  * メインゲーム画面コンポーネント
@@ -956,7 +957,11 @@ const GamePlayScreen: React.FC = () => {
             height: settings.showSheetMusic ? `${100 - sheetMusicHeightPercentage}%` : '100%'
           }}
         >
-          <GameEngineComponent className="h-full w-full" />
+          {settings.instrumentMode === 'rhythm' ? (
+            <RhythmModeScreen />
+          ) : (
+            <GameEngineComponent className="h-full w-full" />
+          )}
         </div>
         
         {/* リハ/ステージ 縦ボタン - 画面中央右に配置 */}
