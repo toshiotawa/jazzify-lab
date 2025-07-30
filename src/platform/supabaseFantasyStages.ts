@@ -41,6 +41,15 @@ export async function fetchFantasyStageById(stageId: string): Promise<FantasySta
     throw new Error('Fantasy stage not found');
   }
   
+  // デバッグログ
+  console.log('📊 fetchFantasyStageById - raw data:', {
+    id: data.id,
+    name: data.name,
+    game_type: data.game_type,
+    rhythm_pattern: data.rhythm_pattern,
+    stage_number: data.stage_number
+  });
+  
   return data;
 }
 

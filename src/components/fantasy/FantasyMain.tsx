@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
-import FantasyGameScreen from './FantasyGameScreen';
+import FantasyGameScreenWrapper from './FantasyGameScreenWrapper';
 import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
@@ -553,7 +553,7 @@ const FantasyMain: React.FC = () => {
   // ゲーム画面
   if (currentStage) {
     return (
-      <FantasyGameScreen
+      <FantasyGameScreenWrapper
         // ▼▼▼ 追加 ▼▼▼
         key={gameKey} // keyプロパティを渡す
         // ▲▲▲ ここまで ▲▲▲
