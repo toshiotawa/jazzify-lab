@@ -1,11 +1,10 @@
 import { useRhythmStore } from './store';
 
 /** 
- * question.absSec を 0→80% にマッピングしたゲージ値(0-100)を返す 
+ * question.absSec を 0→80% にマッピングしたゲージ値(0-100)を計算する
+ * 注意: これは通常の関数で、Reactコンポーネント内でのみ使用すること
  */
-export const useGaugePercent = (absSec: number): number => {
-  const now = useRhythmStore((s) => s.now);
-  const measureLen = useRhythmStore((s) => s.measureLen);
+export const calculateGaugePercent = (absSec: number, now: number, measureLen: number): number => {
   const delta = absSec - now; // 秒差
   
   // 1小節前〜判定点の範囲だけをゲージ対象にする
@@ -14,6 +13,16 @@ export const useGaugePercent = (absSec: number): number => {
   const clamp = Math.max(0, Math.min(0.8, p)); // 80%上限
   
   return clamp * 100;
+};
+
+/**
+ * Reactコンポーネント用のフック
+ */
+export const useGaugePercent = (absSec: number): number => {
+  const now = useRhythmStore((s) => s.now);
+  const measureLen = useRhythmStore((s) => s.measureLen);
+  
+  return calculateGaugePercent(absSec, now, measureLen);
 };
 
 /**

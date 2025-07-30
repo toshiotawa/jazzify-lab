@@ -37,6 +37,24 @@ export default function RhythmGameScreen({
   const [overlay, setOverlay] = useState<null | { text: string }>(null);
   const [activeMonsters, setActiveMonsters] = useState<(MonsterState & { rhythmQuestion?: RhythmQuestion })[]>([]);
   
+  // Ensure stage is valid for hook call
+  const fantasyStage = stage ? {
+    ...stage,
+    stageNumber: stage.stage_number,
+    maxHp: stage.max_hp,
+    enemyGaugeSeconds: stage.enemy_gauge_seconds,
+    enemyCount: stage.enemy_count,
+    enemyHp: stage.enemy_hp,
+    minDamage: stage.min_damage,
+    maxDamage: stage.max_damage,
+    allowedChords: stage.allowed_chords,
+    chordProgression: stage.chord_progression,
+    showSheetMusic: stage.show_sheet_music,
+    showGuide: stage.show_guide,
+    simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+    monsterIcon: stage.monster_icon || 'dragon'
+  } : null;
+  
   // Initialize fantasy game engine
   const {
     gameState,
@@ -44,7 +62,7 @@ export default function RhythmGameScreen({
     initializeGame,
     stopGame
   } = useFantasyGameEngine({
-    stage: stage as any, // TODO: Fix type
+    stage: fantasyStage,
     onGameStateChange: (state) => {
       devLog('Game state changed:', state);
     },
