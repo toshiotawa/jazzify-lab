@@ -412,10 +412,16 @@ export const useFantasyGameEngine = ({
   // 新規: グローバルタイムストアから状態を取得
   const { currentTime, isPlaying, setCurrentTime, setIsPlaying, setMusicProperties, resetTimeState } = useGlobalTimeStore();
   // 新規: 曲再生管理
-  const toneTransportRef = useRef<Tone.Transport | null>(null);
   const tonePlayerRef = useRef<Tone.Player | null>(null);
   // 新規: リズムデータ
-  const rhythmDataRef = useRef<Array<{chord: string, measure: number, beat: number}> | null>(null);
+  const rhythmDataRef = useRef<any[]>([]);
+  // ゲーム状態への参照（useEffect内で使用）
+  const gameStateRef = useRef(gameState);
+  
+  // gameStateRefを更新
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -1268,14 +1274,13 @@ export const useFantasyGameEngine = ({
       const updateTimeRef = { id: 0 };
       
       const updateTime = () => {
-        const globalTimeStore = useGlobalTimeStore.getState();
-        if (tonePlayerRef.current && globalTimeStore.isPlaying) {
+        if (tonePlayerRef.current && isPlaying) {
           const elapsed = (Tone.now() * 1000) - startTime;
           setCurrentTime(elapsed);
           
           // リズムタイミングのチェック
-          if (gameState.currentStage?.gameType === 'rhythm') {
-            checkRhythmTiming(gameState);
+          if (gameStateRef.current.currentStage?.gameType === 'rhythm') {
+            checkRhythmTiming(gameStateRef.current);
           }
           
           updateTimeRef.id = requestAnimationFrame(updateTime);
@@ -1288,14 +1293,15 @@ export const useFantasyGameEngine = ({
     } catch (error) {
       devLog.error('Failed to initialize music:', error);
     }
-  }, [setMusicProperties, setIsPlaying, setCurrentTime, checkRhythmTiming, gameState]);
+  }, [setMusicProperties, setIsPlaying, setCurrentTime, checkRhythmTiming, isPlaying]);
 
   // 新規: タイミング判定関数
   const checkTiming = useCallback((timing?: { measure: number; beat: number }, inputTime?: number): boolean => {
     if (!timing || inputTime === undefined) return false;
     
-    const targetTime = useGlobalTimeStore.getState().getTimeForMeasureBeat(timing.measure, timing.beat);
-    return useGlobalTimeStore.getState().checkTimingWindow(targetTime, 200); // ±200ms
+    const globalTimeStore = useGlobalTimeStore.getState();
+    const targetTime = globalTimeStore.getTimeForMeasureBeat(timing.measure, timing.beat);
+    return globalTimeStore.checkTimingWindow(targetTime, 200); // ±200ms
   }, []);
   
   // 新規: コードマッチ判定関数
@@ -1318,7 +1324,8 @@ export const useFantasyGameEngine = ({
       // すでに処理済みまたはタイミング情報がない場合はスキップ
       if (!monster.chordTarget.timing || monster.hasMissedTiming) return;
       
-      const targetTime = useGlobalTimeStore.getState().getTimeForMeasureBeat(
+      const globalTimeStore = useGlobalTimeStore.getState();
+      const targetTime = globalTimeStore.getTimeForMeasureBeat(
         monster.chordTarget.timing.measure,
         monster.chordTarget.timing.beat
       );

@@ -46,7 +46,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [heartFlash, setHeartFlash] = useState(false); // ハートフラッシュ効果
   
   // リズムモード用の状態
-  const { getMeasureBeat, isPlaying } = useGlobalTimeStore();
+  const globalTimeStore = useGlobalTimeStore();
   const [currentBeat, setCurrentBeat] = useState({ measure: 1, beat: 1 });
   
   // 設定モーダル状態
@@ -372,17 +372,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // リズムモードでの拍更新
   useEffect(() => {
-    if (stage?.gameType === 'rhythm' && isPlaying) {
+    if (stage?.gameType === 'rhythm' && globalTimeStore.isPlaying) {
       let animationId: number;
       const updateBeat = () => {
-        const beat = getMeasureBeat();
+        const beat = globalTimeStore.getMeasureBeat();
         setCurrentBeat(beat);
         animationId = requestAnimationFrame(updateBeat);
       };
       animationId = requestAnimationFrame(updateBeat);
       return () => cancelAnimationFrame(animationId);
     }
-  }, [stage?.gameType, isPlaying, getMeasureBeat]);
+  }, [stage?.gameType, globalTimeStore]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -739,7 +739,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div className="text-xs text-blue-300 mt-1">
                 🎵 リズムモード - {stage.bpm} BPM
               </div>
-              {isPlaying && (
+              {globalTimeStore.isPlaying && (
                 <div className="text-xs text-yellow-300 mt-1">
                   {currentBeat.measure}小節 {Math.floor(currentBeat.beat)}拍目
                 </div>
