@@ -10,7 +10,13 @@ import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
-import * as Tone from 'tone';
+// Tone.jsを動的にインポート
+let Tone: any = null;
+try {
+  Tone = require('tone');
+} catch (e) {
+  devLog.error('Failed to import Tone.js:', e);
+}
 import { useGlobalTimeStore } from '@/stores/globalTimeStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 
@@ -403,6 +409,8 @@ export const useFantasyGameEngine = ({
   onTimingFailure,
   displayOpts = { lang: 'en', simple: false }
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
+  try {
+    devLog.debug('🎮 FantasyGameEngine: Initializing hook');
   
   // ステージで使用するモンスターIDを保持
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
@@ -410,7 +418,27 @@ export const useFantasyGameEngine = ({
   const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
   
   // 新規: グローバルタイムストアから状態を取得
-  const { currentTime, isPlaying, setCurrentTime, setIsPlaying, setMusicProperties, resetTimeState } = useGlobalTimeStore();
+  let globalTimeStore: any;
+  let currentTime = 0;
+  let isPlaying = false;
+  let setCurrentTime: (time: number) => void = () => {};
+  let setIsPlaying: (playing: boolean) => void = () => {};
+  let setMusicProperties: (bpm: number, timeSignature: number, loopMeasures: number) => void = () => {};
+  let resetTimeState: () => void = () => {};
+  
+  try {
+    globalTimeStore = useGlobalTimeStore();
+    if (globalTimeStore) {
+      currentTime = globalTimeStore.currentTime;
+      isPlaying = globalTimeStore.isPlaying;
+      setCurrentTime = globalTimeStore.setCurrentTime;
+      setIsPlaying = globalTimeStore.setIsPlaying;
+      setMusicProperties = globalTimeStore.setMusicProperties;
+      resetTimeState = globalTimeStore.resetTimeState;
+    }
+  } catch (storeError) {
+    devLog.error('🚨 Failed to access globalTimeStore:', storeError);
+  }
   // 新規: 曲再生管理
   const tonePlayerRef = useRef<Tone.Player | null>(null);
   // 新規: リズムデータ
@@ -1382,6 +1410,11 @@ export const useFantasyGameEngine = ({
     getCurrentEnemy,
     ENEMY_LIST
   };
+  } catch (error) {
+    devLog.error('🚨 FantasyGameEngine: Hook initialization error', error);
+    console.error('FantasyGameEngine initialization error:', error);
+    throw error;
+  }
 };
 
 export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState };

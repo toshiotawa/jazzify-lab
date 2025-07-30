@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { devLog } from '@/utils/logger';
 
+// エラーハンドリングを追加
+try {
+  devLog.debug('🕐 GlobalTimeStore: Module loading');
+} catch (e) {
+  console.error('GlobalTimeStore: Module loading error', e);
+}
+
 interface GlobalTimeState {
   // Time management
   currentTime: number; // Current time in milliseconds
@@ -26,7 +33,9 @@ interface GlobalTimeState {
   checkTimingWindow: (targetTime: number, tolerance: number) => boolean;
 }
 
-export const useGlobalTimeStore = create<GlobalTimeState>((set, get) => ({
+export const useGlobalTimeStore = create<GlobalTimeState>((set, get) => {
+  devLog.debug('🕐 GlobalTimeStore: Creating store');
+  return {
   // Initial state
   currentTime: 0,
   startTime: 0,
@@ -108,4 +117,5 @@ export const useGlobalTimeStore = create<GlobalTimeState>((set, get) => ({
     const difference = Math.abs(currentTime - targetTime);
     return difference <= tolerance;
   }
-}));
+  };
+});

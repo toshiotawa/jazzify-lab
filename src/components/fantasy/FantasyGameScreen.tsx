@@ -46,7 +46,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [heartFlash, setHeartFlash] = useState(false); // ハートフラッシュ効果
   
   // リズムモード用の状態
-  const globalTimeStore = useGlobalTimeStore();
+  let globalTimeStore: any = { isPlaying: false, getMeasureBeat: () => ({ measure: 1, beat: 1 }) };
+  try {
+    globalTimeStore = useGlobalTimeStore();
+  } catch (error) {
+    devLog.error('🚨 FantasyGameScreen: Failed to access globalTimeStore', error);
+  }
   const [currentBeat, setCurrentBeat] = useState({ measure: 1, beat: 1 });
   
   // 設定モーダル状態
