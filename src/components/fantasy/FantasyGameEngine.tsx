@@ -410,8 +410,9 @@ const createRhythmMonster = (
   const monsterId = monsterIds[monsterIds.length > 0 ? monsterIndex % monsterIds.length : 0];
   const monsterData = MONSTERS[monsterId] || MONSTERS['slime_green'];
   
-  // gameClock基準で時間を計算（startAtに依存しない）
-  const gameClock = performance.now() - startTimeMs; // 現在のゲーム時間
+  // rhythmStore.startAtを使用して時間を計算
+  const startAt = useRhythmStore.getState().startAt;
+  const gameClock = performance.now() - startAt; // 現在のゲーム時間
   const beatDurationMs = 60000 / bpm;
   const absBeat = (timing.measure - 1) * timeSignature + (timing.beat - 1);
   const targetTime = absBeat * beatDurationMs; // startAtからの相対時間
@@ -837,8 +838,8 @@ export const useFantasyGameEngine = ({
       rhythmManager: rhythmManager,
       progressionManager: progressionManager,
       syncMonitor: syncMonitor,
-      isReady: gameType === 'rhythm', // リズムモードの場合はReadyフェーズから開始
-      readyCountdown: gameType === 'rhythm' ? 3 : 0,
+      isReady: false, // Readyフェーズをスキップ
+      readyCountdown: 0,
       currentMeasure: 0,
       currentBeat: 0,
       timeOffset: 0
@@ -846,6 +847,15 @@ export const useFantasyGameEngine = ({
 
     setGameState(newState);
     onGameStateChange(newState);
+
+    // リズムモードの場合は即座に音楽を開始
+    if (gameType === 'rhythm' && rhythmManager) {
+      rhythmManager.start();
+      const startTime = performance.now();
+      useRhythmStore.getState().setStart(startTime);
+      useRhythmStore.getState().setPlaying(true);
+      devLog.debug('🎵 音楽開始！startAt:', startTime);
+    }
 
     // クイズモードでも音楽を再生
     if (gameType !== 'rhythm') {
@@ -1068,7 +1078,8 @@ export const useFantasyGameEngine = ({
       // リズムモードの場合
       if (prevState.currentStage.game_type === 'rhythm' && prevState.rhythmManager) {
         const currentPos = prevState.rhythmManager.getCurrentPosition();
-        const gameClock = performance.now() - prevState.startTime; // startAt基準のゲーム時間
+        const startAt = useRhythmStore.getState().startAt; // storeから取得
+        const gameClock = performance.now() - startAt; // startAt基準のゲーム時間
         
         // 同期チェック
         if (prevState.syncMonitor?.shouldCheckSync(performance.now())) {

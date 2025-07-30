@@ -1076,8 +1076,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
       )}
       
-      {/* Readyフェーズオーバーレイ */}
-      {gameState.isReady && gameState.readyCountdown >= 0 && (
+      {/* Readyフェーズオーバーレイ（リズムモードでは表示しない） */}
+      {gameState.isReady && gameState.readyCountdown >= 0 && gameState.currentStage?.game_type !== 'rhythm' && (
         <ReadyOverlay count={gameState.readyCountdown} />
       )}
     </div>
