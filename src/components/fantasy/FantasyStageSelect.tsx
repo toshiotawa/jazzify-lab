@@ -46,14 +46,18 @@ const getRankFromClearedStages = (clearedStages: number): string => {
 };
 
 // ===== ステージグルーピング =====
-const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
-  return stages.reduce((groups, stage) => {
-    const rank = stage.stageNumber.split('-')[0];
-    if (!groups[rank]) groups[rank] = [];
-    groups[rank].push(stage);
-    return groups;
-  }, {} as Record<string, FantasyStage[]>);
-};
+  const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
+    return stages.reduce((groups, stage) => {
+      if (!stage.stage_number) {
+        console.warn('ステージ番号が未定義:', stage);
+        return groups;
+      }
+      const rank = stage.stage_number.split('-')[0];
+      if (!groups[rank]) groups[rank] = [];
+      groups[rank].push(stage);
+      return groups;
+    }, {} as Record<string, FantasyStage[]>);
+  };
 
 
 
@@ -202,7 +206,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   // 現在地のステージ番号からランクを設定
   useEffect(() => {
     if (userProgress && userProgress.currentStageNumber) {
-      const currentRank = userProgress.currentStageNumber.split('-')[0];
+      const currentRank = userProgress.currentStageNumber ? userProgress.currentStageNumber.split('-')[0] : '1';
       setSelectedRank(currentRank);
       devLog.debug('🎮 現在のランクを設定:', currentRank);
     }
@@ -218,9 +222,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     );
     if (cleared) return true;
 
-    /* 2) progress に記録されている現在地より前ならアンロック */
-    const [currR, currS] = userProgress.currentStageNumber.split('-').map(Number);
-    const [r, s] = stage.stageNumber.split('-').map(Number);
+          /* 2) progress に記録されている現在地より前ならアンロック */
+      if (!userProgress.currentStageNumber || !stage.stage_number) return false;
+      const [currR, currS] = userProgress.currentStageNumber.split('-').map(Number);
+      const [r, s] = stage.stage_number.split('-').map(Number);
     if (r < currR) return true;
     if (r === currR && s <= currS) return true;
 
@@ -404,13 +409,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             </h2>
             
             <div className="space-y-3">
-              {groupedStages[selectedRank]
-                .sort((a, b) => {
-                  const [, aStage] = a.stageNumber.split('-').map(Number);
-                  const [, bStage] = b.stageNumber.split('-').map(Number);
-                  return aStage - bStage;
-                })
-                .map(renderStageCard)
+                              {groupedStages[selectedRank]
+                  .sort((a, b) => {
+                    if (!a.stage_number || !b.stage_number) return 0;
+                    const [, aStage] = a.stage_number.split('-').map(Number);
+                    const [, bStage] = b.stage_number.split('-').map(Number);
+                    return aStage - bStage;
+                  })
+                  .map(renderStageCard)
               }
             </div>
             
