@@ -383,7 +383,15 @@ const FantasyMain: React.FC = () => {
         showGuide: nextStageData.show_guide,
         monsterIcon: nextStageData.monster_icon,
         bgmUrl: nextStageData.bgm_url,
-        simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1
+        simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1,
+        // リズムモード関連フィールドを追加
+        game_type: nextStageData.game_type as 'quiz' | 'rhythm' | undefined,
+        rhythm_pattern: nextStageData.rhythm_pattern as 'random' | 'progression' | undefined,
+        bpm: nextStageData.bpm,
+        time_signature: nextStageData.time_signature as 3 | 4 | undefined,
+        loop_measures: nextStageData.loop_measures,
+        chord_progression_data: nextStageData.chord_progression_data,
+        mp3_url: nextStageData.mp3_url
       };
 
       setGameResult(null);
