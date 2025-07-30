@@ -115,6 +115,8 @@ export class RhythmManager {
 
   /* ───────── internal ───────── */
   private process() {
+    // ★ 毎フレーム Audio 時刻を同期
+    useRhythmStore.getState().setLastAudioTime(this.audio.currentTime * 1000);
     const pos = this.getCurrentPosition();
 
     // ループ判定
