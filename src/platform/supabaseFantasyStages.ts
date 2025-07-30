@@ -17,7 +17,16 @@ export async function fetchFantasyStages(): Promise<FantasyStage[]> {
     throw error;
   }
   
-  return data || [];
+  // データ変換とデフォルト値設定
+  return (data || []).map(stage => ({
+    ...stage,
+    game_type: stage.game_type || 'quiz',
+    rhythm_pattern: stage.rhythm_pattern || 'random',
+    bpm: stage.bpm || 120,
+    time_signature: stage.time_signature || 4,
+    loop_measures: stage.loop_measures || 8,
+    chord_progression_data: stage.chord_progression_data || []
+  }));
 }
 
 /**
@@ -41,7 +50,16 @@ export async function fetchFantasyStageById(stageId: string): Promise<FantasySta
     throw new Error('Fantasy stage not found');
   }
   
-  return data;
+  // データ変換とデフォルト値設定
+  return {
+    ...data,
+    game_type: data.game_type || 'quiz',
+    rhythm_pattern: data.rhythm_pattern || 'random',
+    bpm: data.bpm || 120,
+    time_signature: data.time_signature || 4,
+    loop_measures: data.loop_measures || 8,
+    chord_progression_data: data.chord_progression_data || []
+  };
 }
 
 /**
@@ -65,7 +83,20 @@ export async function fetchFantasyStageByNumber(stageNumber: string): Promise<Fa
     throw error;
   }
   
-  return data;
+  if (!data) {
+    return null;
+  }
+  
+  // データ変換とデフォルト値設定
+  return {
+    ...data,
+    game_type: data.game_type || 'quiz',
+    rhythm_pattern: data.rhythm_pattern || 'random',
+    bpm: data.bpm || 120,
+    time_signature: data.time_signature || 4,
+    loop_measures: data.loop_measures || 8,
+    chord_progression_data: data.chord_progression_data || []
+  };
 }
 
 /**
@@ -84,5 +115,75 @@ export async function fetchActiveFantasyStages(): Promise<FantasyStage[]> {
     throw error;
   }
   
-  return data || [];
+  // データ変換とデフォルト値設定
+  return (data || []).map(stage => ({
+    ...stage,
+    game_type: stage.game_type || 'quiz',
+    rhythm_pattern: stage.rhythm_pattern || 'random',
+    bpm: stage.bpm || 120,
+    time_signature: stage.time_signature || 4,
+    loop_measures: stage.loop_measures || 8,
+    chord_progression_data: stage.chord_progression_data || []
+  }));
+}
+
+/**
+ * リズムモード専用のバリデーション関数
+ */
+export function validateRhythmStage(stage: FantasyStage): { 
+  isValid: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
+
+  // 基本バリデーション
+  if (stage.game_type === 'rhythm') {
+    
+    // BPM範囲チェック
+    if (stage.bpm && (stage.bpm < 60 || stage.bpm > 200)) {
+      errors.push(`Invalid BPM: ${stage.bpm} (must be 60-200)`);
+    }
+
+    // 拍子チェック
+    if (stage.time_signature && ![3, 4].includes(stage.time_signature)) {
+      errors.push(`Invalid time signature: ${stage.time_signature} (must be 3 or 4)`);
+    }
+
+    // 小節数チェック
+    if (stage.loop_measures && (stage.loop_measures < 4 || stage.loop_measures > 32)) {
+      errors.push(`Invalid loop measures: ${stage.loop_measures} (must be 4-32)`);
+    }
+
+    // プログレッション専用チェック
+    if (stage.rhythm_pattern === 'progression') {
+      if (!stage.chord_progression_data || stage.chord_progression_data.length === 0) {
+        errors.push('Progression pattern requires chord_progression_data');
+      } else {
+        // プログレッションデータの妥当性チェック
+        stage.chord_progression_data.forEach((chord, index) => {
+          if (!chord.chord || chord.chord.trim() === '') {
+            errors.push(`Empty chord at index ${index}`);
+          }
+          if (chord.measure < 1 || (stage.loop_measures && chord.measure > stage.loop_measures)) {
+            errors.push(`Invalid measure ${chord.measure} at index ${index}`);
+          }
+          if (chord.beat < 1 || (stage.time_signature && chord.beat > stage.time_signature)) {
+            errors.push(`Invalid beat ${chord.beat} at index ${index}`);
+          }
+        });
+      }
+    }
+
+    // ランダム専用チェック
+    if (stage.rhythm_pattern === 'random') {
+      if (!stage.allowed_chords || stage.allowed_chords.length === 0) {
+        errors.push('Random pattern requires allowed_chords');
+      }
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
 }
