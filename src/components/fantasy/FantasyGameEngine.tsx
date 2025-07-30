@@ -79,6 +79,7 @@ interface MonsterState {
     spawnTime: number; // 出現時刻（ms）
     targetTime: number; // 判定時刻（ms）
   };
+  missed?: boolean; // ★ 1回だけ攻撃させるためのフラグ
   questionNumber?: number; // プログレッションパターン用
 }
 
@@ -445,7 +446,8 @@ const createRhythmMonster = (
       beat: timing.beat,
       spawnTime: spawnTimeMs,
       targetTime: targetTimeMs
-    }
+    },
+    missed: false
   };
 };
 
@@ -1070,73 +1072,32 @@ export const useFantasyGameEngine = ({
       // リズムモードの場合
       if (prevState.currentStage.game_type === 'rhythm' && prevState.rhythmManager) {
         const currentPos = prevState.rhythmManager.getCurrentPosition();
-        const audioNow = useRhythmStore.getState().lastAudioTime;  // ★ Audio 時刻取得
+        const audioNow = useRhythmStore.getState().lastAudioTime; // ms (Audio clock)
         
-        // 同期チェックでは performance.now() を維持
-        const currentTimeMs = performance.now();
-        if (prevState.syncMonitor?.shouldCheckSync(currentTimeMs)) {
-          const syncStatus = prevState.syncMonitor.checkSync(
-            prevState.rhythmManager.getCurrentPosition().absoluteBeat * (60 / (prevState.currentStage.bpm || 120)),
-            currentTimeMs,
-            prevState.currentStage.bpm || 120
-          );
-          
-          if (!syncStatus.inSync && syncStatus.correction) {
-            devLog.warn('🔄 同期補正:', { drift: syncStatus.drift, correction: syncStatus.correction });
-            // タイムオフセットを徐々に補正
-            const newOffset = prevState.syncMonitor.autoCorrect(
-              prevState.timeOffset,
-              syncStatus.correction
-            );
-            
-            return {
-              ...prevState,
-              timeOffset: newOffset
-            };
-          }
-        }
-        
-        // 各モンスターのゲージを音楽に同期して更新
+        // ① ゲージ進行
         const updatedMonsters = prevState.activeMonsters.map(monster => {
           if (!monster.timing) return monster;
-          
-          // spawn以前は0、target時点で100になる計算式（audioNow 基準）
-          const elapsed = audioNow - monster.timing.spawnTime;
-          const totalDuration = monster.timing.targetTime - monster.timing.spawnTime;
-          const gaugeProgress = Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
-          
-          return {
-            ...monster,
-            gauge: gaugeProgress
-          };
+          const { spawnTime, targetTime } = monster.timing;
+          const gauge = ((audioNow - spawnTime) / (targetTime - spawnTime)) * 100;
+          return { ...monster, gauge: Math.max(0, Math.min(100, gauge)) };
         });
         
-        // 判定タイミングを過ぎたモンスターをチェック（判定ウィンドウ外）
-        const missedMonster = updatedMonsters.find(m => 
-          m.timing && audioNow > m.timing.targetTime + 200
-        );
+        // ② 攻撃判定
+        const windowMs = 200;
+        const monstersToAttack = updatedMonsters.filter(m => m.timing && !m.missed && audioNow > m.timing.targetTime + windowMs);
         
-        if (missedMonster) {
-          devLog.debug('⏰ 判定タイミングミス！', { monster: missedMonster.name });
-          // 攻撃処理を実行
-          setTimeout(() => handleEnemyAttack(missedMonster.id), 0);
-          
-          // ミスしたモンスターを削除して新しいモンスターを生成
-          const filteredMonsters = updatedMonsters.filter(m => m.id !== missedMonster.id);
-          // TODO: 新しいモンスター生成処理
-          
-          return {
-            ...prevState,
-            activeMonsters: filteredMonsters
-          };
+        if (monstersToAttack.length) {
+          monstersToAttack.forEach(mon => {
+            // 二重発射防止フラグを立てる
+            mon.missed = true;
+            setTimeout(() => handleEnemyAttack(mon.id), 0);
+          });
         }
         
-        return {
-          ...prevState,
-          activeMonsters: updatedMonsters,
-          currentMeasure: currentPos.measure,
-          currentBeat: currentPos.beat
-        };
+        // ③ 攻撃済みモンスターを除外
+        const survivors = updatedMonsters.filter(m => !m.missed);
+        
+        return { ...prevState, activeMonsters: survivors };
       }
       
       // クイズモードの場合（既存の処理）
