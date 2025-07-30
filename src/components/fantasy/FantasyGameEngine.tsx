@@ -1,5 +1,6 @@
 /**
  * ファンタジーゲームエンジン
+ * リズムタイプ対応: 時間管理をZustandで統一、ループ再生とタイミング判定を追加
  * ゲームロジックとステート管理を担当
  */
 
@@ -7,6 +8,12 @@ import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } 
 import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
+import { useGameStore } from '@/stores/gameStore';
+import * as Tone from 'tone';
+import FantasySoundManager from '@/utils/FantasySoundManager';
+
+// グローバルタイムストア（Zustandからインポート）
+import { useGlobalTimeStore } from '@/stores/globalTimeStore'; // 新規ストア追加（後述）
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
@@ -18,6 +25,10 @@ interface ChordDefinition {
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
   notes: number[];     // MIDIノート番号の配列
   noteNames: string[]; // ★ 理論的に正しい音名配列を追加
+  timing?: {
+    measure: number;
+    beat: number; // 例: 1.5 (1拍目の裏) または 3.75 (3拍目の16分4つ目)
+  }; // リズムタイプ用のタイミング情報
   quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
   root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
@@ -32,6 +43,13 @@ interface FantasyStage {
   enemyCount: number;
   enemyHp: number;
   minDamage: number;
+  bpm: number; // 新規: テンポ
+  time_signature: number; // 新規: 拍子 (3 or 4)
+  loop_measures: number; // 新規: ループ開始小節
+  mp3_url: string; // 新規: MP3ファイルパス
+  rhythm_data: string; // 新規: リズムデータJSONパス
+  game_type: 'quiz' | 'rhythm'; // 新規: モードタイプ
+  rhythm_pattern: 'random' | 'progression'; // 新規: リズムサブパターン
   maxDamage: number;
   mode: 'single' | 'progression';
   allowedChords: string[];
@@ -53,6 +71,7 @@ interface MonsterState {
   chordTarget: ChordDefinition;
   correctNotes: number[]; // このモンスター用の正解済み音
   icon: string;
+  lastGaugeUpdate: number; // ゲージ更新タイムスタンプ（リズム同期用）
   name: string;
 }
 
@@ -67,6 +86,10 @@ interface FantasyGameState {
   correctAnswers: number;
   isGameActive: boolean;
   isGameOver: boolean;
+  currentTime: number; // グローバル時間（Zustand管理）
+  isPlaying: boolean; // 曲再生状態
+  loopStartTime: number; // ループ開始時間
+  rhythmData: Array<{chord: string, measure: number, beat: number}>; // JSONから読み込んだリズムデータ
   gameResult: 'clear' | 'gameover' | null;
   // 複数敵システム用
   currentEnemyIndex: number; // 廃止予定（互換性のため残す）
@@ -85,6 +108,7 @@ interface FantasyGameState {
   monsterQueue: number[]; // 残りのモンスターインデックスのキュー
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
+  pendingInputs: number[]; // タイミング判定用の入力バッファ
   isCompleting: boolean;
 }
 
@@ -98,6 +122,8 @@ interface FantasyGameEngineProps {
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: (attackingMonsterId?: string) => void;
+  onTimingSuccess: (monsterId: string) => void; // 新規: タイミング成功コールバック
+  onTimingFailure: (monsterId: string) => void; // 新規: タイミング失敗コールバック
 }
 
 // ===== コード定義データ =====
@@ -121,14 +147,17 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
     return noteObj && typeof noteObj.midi === 'number' ? noteObj.midi : 60; // デフォルトでC4
   });
 
-  return {
+  const chordDef = {
     id: chordId,
     displayName: resolved.displayName,
     notes: midiNotes,
     noteNames: resolved.notes, // 理論的に正しい音名配列を追加
     quality: resolved.quality,
-    root: resolved.root
+    root: resolved.root,
+    timing: undefined // リズムタイプ時はJSONからセット
   };
+
+  return chordDef;
 };
 
 // parseNoteをインポート
