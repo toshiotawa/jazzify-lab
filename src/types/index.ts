@@ -623,6 +623,16 @@ export interface ClearConditions {
 }
 
 // ファンタジーモード関連の型定義
+// リズムモード用のコード定義
+export interface ChordDefinition {
+  id: string;
+  name: string;
+  displayName?: string;
+  notes: number[];
+  root: string;
+  color?: string;
+}
+
 export interface FantasyStage {
   id: string;
   stage_number: string;
@@ -641,6 +651,15 @@ export interface FantasyStage {
   show_guide: boolean;
   simultaneous_monster_count?: number;
   monster_icon?: string;
+  // リズムモード用フィールド
+  gameMode?: 'quiz' | 'rhythm';  // ゲームモード（デフォルト: 'quiz'）
+  pattern_type?: 'random' | 'progression';  // リズムモードのパターン
+  music_meta?: {
+    bpm: number;      // BPM（例: 120）
+    timeSig: number;  // 拍子（3 または 4）
+    bars: number;     // 小節数（例: 32）
+  };
+  audio_url?: string;  // BGMファイルのURL
 }
 
 export interface LessonContext {

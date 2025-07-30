@@ -10,6 +10,9 @@ import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { useRhythmMode } from '@/hooks/useRhythmMode';
+import { RandomProblemGenerator } from '@/lib/rhythm/RandomProblemGenerator';
+import { ProgressionProblemGenerator, ProgressionChord } from '@/lib/rhythm/ProgressionProblemGenerator';
 
 // ===== 型定義 =====
 
@@ -22,7 +25,8 @@ interface ChordDefinition {
   root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
 
-interface FantasyStage {
+// FantasyStage型は@/typesから使用するが、必要なフィールドを追加
+interface FantasyStageExtended {
   id: string;
   stageNumber: string;
   name: string;
@@ -33,15 +37,27 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression';  // 既存のステージモード
+  gameMode?: 'quiz' | 'rhythm';  // 新しいゲームモード
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
-  showGuide: boolean; // ガイド表示設定を追加
+  showGuide: boolean;
   monsterIcon: string;
   bgmUrl?: string;
-  simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  simultaneousMonsterCount: number;
+  // リズムモード用フィールド（@/typesのFantasyStageに定義済み）
+  patternType?: 'random' | 'progression';
+  musicMeta?: {
+    bpm: number;
+    timeSig: number;
+    bars: number;
+  };
+  audioUrl?: string;
 }
+
+// 実際にはFantasyStageを使うが、エクスポート用にエイリアスを作成
+type FantasyStage = FantasyStageExtended;
 
 interface MonsterState {
   id: string;
@@ -408,7 +424,12 @@ export const useFantasyGameEngine = ({
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
-    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+    devLog.debug('🎮 ファンタジーゲーム初期化:', { 
+      stage: stage.name,
+      gameMode: stage.gameMode,
+      pattern_type: stage.pattern_type,
+      music_meta: stage.music_meta
+    });
 
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;
@@ -734,6 +755,11 @@ export const useFantasyGameEngine = ({
         return prevState;
       }
       
+      // リズムモードの場合はゲージ更新をスキップ（Timeline側で管理）
+      if (prevState.currentStage.gameMode === 'rhythm') {
+        return prevState;
+      }
+      
       const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
       
       // 各モンスターのゲージを更新
@@ -1032,6 +1058,13 @@ export const useFantasyGameEngine = ({
     };
   }, []);
   
+  // リズムモード用：現在のコードを設定
+  const setCurrentChord = useCallback((chord: ChordDefinition | null) => {
+    setGameState(prevState => ({
+      ...prevState,
+      currentChordTarget: chord
+    }));
+  }, []);
 
   
   return {
@@ -1041,6 +1074,7 @@ export const useFantasyGameEngine = ({
     stopGame,
     proceedToNextEnemy,
     imageTexturesRef, // プリロードされたテクスチャへの参照を追加
+    setCurrentChord, // リズムモード用
     
     // ヘルパー関数もエクスポート
     checkChordMatch,

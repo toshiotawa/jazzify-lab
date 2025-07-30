@@ -15,6 +15,11 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { useRhythmMode } from '@/hooks/useRhythmMode';
+import RhythmGauge from './RhythmGauge';
+import RhythmReady from './RhythmReady';
+import { ChordDefinition as RhythmChordDefinition } from '@/types';
+import { ProgressionChord } from '@/lib/rhythm/ProgressionProblemGenerator';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -54,6 +59,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
+  
+  // リズムモードの状態管理
+  const rhythmMode = useRhythmMode({
+    stage: stage,  // 常にstageを渡す（useRhythmMode内でgameModeをチェック）
+    onBeat: (bar, beat) => {
+      devLog.debug(`🎵 Beat: Bar ${bar}, Beat ${beat}`);
+    },
+    onJudgmentWindow: (isInWindow) => {
+      if (isInWindow) {
+        devLog.debug('⚡ 判定タイミング！');
+      }
+    },
+    debugMode: process.env.NODE_ENV === 'development'
+  });
+  
+  // リズムモードのコード変更を監視（useFantasyGameEngineの後に移動）
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -297,9 +318,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     getCurrentEnemy,
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
+    setCurrentChord, // リズムモード用
     ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: null, // ★★★ change
+    stage: stage, // リズムモード判定のためにstageを渡す
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
@@ -307,6 +329,59 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
+  
+  // リズムモードのコード変更を監視
+  useEffect(() => {
+    if (stage.gameMode !== 'rhythm' || !rhythmMode.problemGenerator) return;
+    
+    const generator = rhythmMode.problemGenerator;
+    
+    if ('onChordChange' in generator) {
+      // RandomProblemGenerator
+      const handleChordChange = (chord: RhythmChordDefinition, barIdx: number) => {
+        devLog.debug('🎵 Rhythm mode chord change:', chord.name);
+        // FantasyGameEngineのChordDefinition形式に変換
+        const fantasyChord: ChordDefinition = {
+          id: chord.id,
+          displayName: chord.displayName || chord.name,
+          notes: chord.notes,
+          noteNames: chord.notes.map(n => `Note${n}`), // 仮の音名
+          quality: 'major', // 仮の品質
+          root: chord.root
+        };
+        // 新しいコードを設定
+        setCurrentChord(fantasyChord);
+      };
+      generator.onChordChange(handleChordChange);
+      
+      return () => {
+        generator.offChordChange(handleChordChange);
+      };
+    } else if ('onProgressionChange' in generator) {
+      // ProgressionProblemGenerator
+      const handleProgressionChange = (columns: ProgressionChord[][]) => {
+        devLog.debug('🎵 Rhythm mode progression change:', columns);
+        // 最初のコードを設定（複数コラムの場合は最初のアクティブなもの）
+        const firstChord = columns.find(col => col.length > 0)?.[0];
+        if (firstChord) {
+          const fantasyChord: ChordDefinition = {
+            id: firstChord.chord.id,
+            displayName: firstChord.chord.displayName || firstChord.chord.name,
+            notes: firstChord.chord.notes,
+            noteNames: firstChord.chord.notes.map(n => `Note${n}`),
+            quality: 'major',
+            root: firstChord.chord.root
+          };
+          setCurrentChord(fantasyChord);
+        }
+      };
+      generator.onProgressionChange(handleProgressionChange);
+      
+      return () => {
+        generator.offProgressionChange(handleProgressionChange);
+      };
+    }
+  }, [stage.gameMode, rhythmMode.problemGenerator, setCurrentChord]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -327,6 +402,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       devLog.debug('🎵 Played note via click:', note);
     } catch (error) {
       console.error('Failed to play note:', error);
+    }
+    
+    // リズムモードの場合は判定タイミングチェック
+    if (stage.gameMode === 'rhythm') {
+      if (!rhythmMode.checkJudgment()) {
+        devLog.debug('🎵 Not in judgment timing, ignoring input');
+        return;
+      }
     }
     
     // ファンタジーゲームエンジンにのみ送信
@@ -624,16 +707,34 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (autoStart) {
       initializeGame(stage);
+      // リズムモードの場合は初期化
+      if (stage.gameMode === 'rhythm') {
+        console.log('🎵 Initializing rhythm mode for stage:', stage.stage_number);
+        rhythmMode.initialize().then(() => {
+          console.log('🎵 Rhythm mode initialized, starting ready phase');
+          rhythmMode.startReady();
+        }).catch(error => {
+          console.error('🎵 Failed to initialize rhythm mode:', error);
+        });
+      } else {
+        console.log('🎮 Stage is in quiz mode');
+      }
     }
-  }, [autoStart, initializeGame, stage]);
+  }, [autoStart, initializeGame, stage, rhythmMode]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  // リズムモードの場合は、rhythmMode.state.isPlayingもチェック
+  const shouldShowStartScreen = !overlay && !gameState.isCompleting && 
+    (!gameState.isGameActive || (!gameState.currentChordTarget && stage.gameMode !== 'rhythm'));
+  
+  if (shouldShowStartScreen) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
       stageName: stage.name,
-      hasOverlay: !!overlay
+      hasOverlay: !!overlay,
+      gameMode: stage.gameMode,
+      isRhythmPlaying: rhythmMode.state.isPlaying
     });
     
     return (
@@ -649,7 +750,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <button
             onClick={() => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
+              console.log('🎮 [Button Click] Stage data:', {
+                stage_number: stage.stage_number,
+                gameMode: stage.gameMode,
+                pattern_type: stage.pattern_type,
+                music_meta: stage.music_meta,
+                audio_url: stage.audio_url
+              });
               initializeGame(stage);
+              // リズムモードの場合は初期化
+              if (stage.gameMode === 'rhythm') {
+                console.log('🎵 [Button Click] Initializing rhythm mode for stage:', stage.stage_number);
+                rhythmMode.initialize().then(() => {
+                  console.log('🎵 [Button Click] Rhythm mode initialized, starting ready phase');
+                  rhythmMode.startReady();
+                }).catch(error => {
+                  console.error('🎵 [Button Click] Failed to initialize rhythm mode:', error);
+                });
+              } else {
+                console.log('🎮 [Button Click] Stage is in quiz mode');
+              }
             }}
             className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
           >
@@ -842,17 +962,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       )}
                       
                       {/* 行動ゲージ */}
-                      <div 
-                        ref={el => {
-                          if (el) gaugeRefs.current.set(monster.id, el);
-                        }}
-                        className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
-                      >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
+                      {stage.gameMode === 'rhythm' ? (
+                        <RhythmGauge
+                          progress={rhythmMode.state.barProgress}
+                          isJudgmentTiming={rhythmMode.state.isJudgmentTiming}
+                          monsterPosition={monster.position}
+                          className="mb-1"
                         />
-                      </div>
+                      ) : (
+                        <div 
+                          ref={el => {
+                            if (el) gaugeRefs.current.set(monster.id, el);
+                          }}
+                          className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
+                        >
+                          <div
+                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                            style={{ width: `${monster.gauge}%` }}
+                          />
+                        </div>
+                      )}
                       
                       {/* HPゲージ */}
                       <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
@@ -982,6 +1111,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
           <div>SP: {gameState.playerSp}</div>
           
+          {/* リズムモードのデバッグ情報 */}
+          {stage.gameMode === 'rhythm' && rhythmMode.state.debugInfo && (
+            <>
+              <div>Bar: {rhythmMode.state.debugInfo.bar}</div>
+              <div>Beat: {rhythmMode.state.debugInfo.beat}</div>
+              <div>Loop: {rhythmMode.state.debugInfo.loop}</div>
+              <div>BPM: {rhythmMode.state.debugInfo.bpm}</div>
+              <div>拍子: {rhythmMode.state.debugInfo.timeSig}/4</div>
+              <div>判定中: {rhythmMode.state.isJudgmentTiming ? 'YES' : 'NO'}</div>
+            </>
+          )}
+          
           {/* ゲージ強制満タンテストボタン */}
           <button
             onClick={() => {
@@ -1060,6 +1201,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
       />
+      
+      {/* リズムモード Ready画面 */}
+      {stage.gameMode === 'rhythm' && (
+        <RhythmReady
+          isReady={rhythmMode.state.isReady}
+          countdown={rhythmMode.state.readyCountdown}
+          onStart={() => {
+            // 手動スタートはなし（自動カウントダウンのみ）
+          }}
+          showStartButton={false}
+        />
+      )}
       
       {/* オーバーレイ表示 */}           {/* ★★★ add */}
       {overlay && (
