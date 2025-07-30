@@ -865,7 +865,7 @@ export const useFantasyGameEngine = ({
       
       // Safari対策: play() promise 無視
       void audio.play().catch(err => {
-        devLog.warn('⚠️ 音楽自動再生失敗（ユーザー操作が必要）:', err);
+        devLog.info('⚠️ 音楽自動再生失敗（ユーザー操作が必要）:', err);
       });
       
       // クリーンアップ用に保存
@@ -1090,7 +1090,7 @@ export const useFantasyGameEngine = ({
           );
           
           if (!syncStatus.inSync && syncStatus.correction) {
-            devLog.warn('🔄 同期補正:', { drift: syncStatus.drift, correction: syncStatus.correction });
+            devLog.info('🔄 同期補正:', { drift: syncStatus.drift, correction: syncStatus.correction });
             // タイムオフセットを徐々に補正
             const newOffset = prevState.syncMonitor.autoCorrect(
               prevState.timeOffset,
