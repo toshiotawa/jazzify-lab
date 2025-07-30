@@ -148,26 +148,44 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       }
       
       //// データの変換とセット
-      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
-        id: stage.id,
-        stageNumber: stage.stage_number,
-        name: stage.name,
-        description: stage.description || '',
-        maxHp: stage.max_hp,
-        enemyGaugeSeconds: stage.enemy_gauge_seconds,
-        enemyCount: stage.enemy_count,
-        enemyHp: stage.enemy_hp,
-        minDamage: stage.min_damage,
-        maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
-        allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
-        chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
-        showSheetMusic: stage.show_sheet_music,
-        showGuide: stage.show_guide,
-        monsterIcon: stage.monster_icon,
-        bgmUrl: stage.bgm_url,
-        simultaneousMonsterCount: stage.simultaneous_monster_count || 1
-      }));
+      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => {
+        // デバッグログを追加
+        devLog.debug('🎮 ステージデータ変換:', {
+          stage_number: stage.stage_number,
+          game_type: stage.game_type,
+          rhythm_pattern: stage.rhythm_pattern,
+          bpm: stage.bpm
+        });
+        
+        return {
+          id: stage.id,
+          stageNumber: stage.stage_number,
+          name: stage.name,
+          description: stage.description || '',
+          maxHp: stage.max_hp,
+          enemyGaugeSeconds: stage.enemy_gauge_seconds,
+          enemyCount: stage.enemy_count,
+          enemyHp: stage.enemy_hp,
+          minDamage: stage.min_damage,
+          maxDamage: stage.max_damage,
+          mode: stage.mode as 'single' | 'progression',
+          allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
+          chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+          showSheetMusic: stage.show_sheet_music,
+          showGuide: stage.show_guide,
+          monsterIcon: stage.monster_icon,
+          bgmUrl: stage.bgm_url,
+          simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+          // リズムモード関連フィールドを追加
+          game_type: stage.game_type as 'quiz' | 'rhythm' | undefined,
+          rhythm_pattern: stage.rhythm_pattern as 'random' | 'progression' | undefined,
+          bpm: stage.bpm,
+          time_signature: stage.time_signature as 3 | 4 | undefined,
+          loop_measures: stage.loop_measures,
+          chord_progression_data: stage.chord_progression_data,
+          mp3_url: stage.mp3_url
+        };
+      });
       
       const convertedProgress: FantasyUserProgress = {
         id: userProgressData.id,
