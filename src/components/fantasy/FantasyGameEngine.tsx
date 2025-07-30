@@ -411,13 +411,23 @@ const createRhythmMonster = (
   const monsterData = MONSTERS[monsterId] || MONSTERS['slime_green'];
   
   // rhythmStore.startAtを使用して時間を計算
-  const startAt = useRhythmStore.getState().startAt;
+  const startAt = useRhythmStore.getState().startAt || startTimeMs;
   const gameClock = performance.now() - startAt; // 現在のゲーム時間
   const beatDurationMs = 60000 / bpm;
   const absBeat = (timing.measure - 1) * timeSignature + (timing.beat - 1);
   const targetTime = absBeat * beatDurationMs; // startAtからの相対時間
   const appearLeadMs = 4000; // 4秒前に出現
   const spawnTime = targetTime - appearLeadMs;
+  
+  devLog.debug('🎯 createRhythmMonster timing:', {
+    startAt,
+    gameClock,
+    timing,
+    absBeat,
+    targetTime,
+    spawnTime,
+    appearLeadMs
+  });
   
   // spawn以前は0、target時点で100になるように初期ゲージを計算
   let initialGauge = 0;
@@ -850,11 +860,50 @@ export const useFantasyGameEngine = ({
 
     // リズムモードの場合は即座に音楽を開始
     if (gameType === 'rhythm' && rhythmManager) {
-      rhythmManager.start();
       const startTime = performance.now();
       useRhythmStore.getState().setStart(startTime);
       useRhythmStore.getState().setPlaying(true);
+      rhythmManager.start();
       devLog.debug('🎵 音楽開始！startAt:', startTime);
+      
+      // ランダムパターンの場合は最初のモンスターを即座に生成
+      if (normalizedStage.rhythm_pattern === 'random' && activeMonsters.length === 0 && monsterQueue.length > 0) {
+        const nextMonsterIndex = monsterQueue[0];
+        const remainingQueue = monsterQueue.slice(1);
+        
+        // 1小節目の1拍目にモンスターを生成
+        const timing = { measure: 1, beat: 1 };
+        const chord = selectRandomChord(
+          normalizedStage.allowedChords,
+          undefined,
+          displayOptsParam
+        );
+        
+        if (chord) {
+          const monster = createRhythmMonster(
+            nextMonsterIndex,
+            'A',
+            normalizedStage.enemyHp,
+            chord,
+            timing,
+            normalizedStage.bpm || 120,
+            startTime,
+            monsterIds,
+            normalizedStage.time_signature || 4
+          );
+          
+          activeMonsters.push(monster);
+          newState.activeMonsters = activeMonsters;
+          newState.monsterQueue = remainingQueue;
+          
+          devLog.debug('🎲 初期ランダムモンスター生成:', {
+            measure: timing.measure,
+            beat: timing.beat,
+            chord: chord.id,
+            monster: monster.name
+          });
+        }
+      }
     }
 
     // クイズモードでも音楽を再生
@@ -1112,6 +1161,19 @@ export const useFantasyGameEngine = ({
           const elapsed = gameClock - monster.timing.spawnTime;
           const totalDuration = monster.timing.targetTime - monster.timing.spawnTime;
           const gaugeProgress = Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
+          
+          // デバッグ：初回のみログ出力
+          if (!monster.timing.missed && gaugeProgress > 95) {
+            devLog.debug('🎮 Monster gauge near 100%:', {
+              monster: monster.name,
+              gameClock,
+              spawnTime: monster.timing.spawnTime,
+              targetTime: monster.timing.targetTime,
+              elapsed,
+              gaugeProgress,
+              willAttack: gameClock > monster.timing.targetTime + 200
+            });
+          }
           
           // 攻撃判定（missed=falseかつtarget+200ms経過）
           if (!monster.timing.missed && gameClock > monster.timing.targetTime + 200) {
