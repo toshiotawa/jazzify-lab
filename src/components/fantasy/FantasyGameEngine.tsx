@@ -413,19 +413,19 @@ const createRhythmMonster = (
   // タイミング計算 - 音楽のビート位置から逆算
   const beatDurationMs = 60000 / bpm;
   const absBeat = (timing.measure - 1) * timeSignature + (timing.beat - 1);
-  const nowAudio = useRhythmStore.getState().lastAudioTime; // ★ 現在のAudio時刻(ms)
-  let targetTimeMs = nowAudio + absBeat * beatDurationMs;
+  const gameClockNow = Math.max(0, performance.now() - useRhythmStore.getState().startAt); // 経過時間(ms)
+  let targetTimeMs = gameClockNow + absBeat * beatDurationMs;
   const appearLeadMs = 4000; // 4秒前に出現
   // targetTime が近すぎる場合は 1 小節ずつ先送り
-  while (targetTimeMs - nowAudio < appearLeadMs) {
+  while (targetTimeMs - gameClockNow < appearLeadMs) {
     targetTimeMs += timeSignature * beatDurationMs;
   }
   const spawnTimeMs = targetTimeMs - appearLeadMs;
   
   // spawn以前は0、target時点で100になるように初期ゲージを計算
   let initialGauge = 0;
-  if (nowAudio >= spawnTimeMs) {
-    const elapsed = nowAudio - spawnTimeMs;
+  if (gameClockNow >= spawnTimeMs) {
+    const elapsed = gameClockNow - spawnTimeMs;
     const totalDuration = targetTimeMs - spawnTimeMs;
     initialGauge = Math.min(100, (elapsed / totalDuration) * 100);
   }
@@ -1072,19 +1072,19 @@ export const useFantasyGameEngine = ({
       // リズムモードの場合
       if (prevState.currentStage.game_type === 'rhythm' && prevState.rhythmManager) {
         const currentPos = prevState.rhythmManager.getCurrentPosition();
-        const audioNow = useRhythmStore.getState().lastAudioTime; // ms (Audio clock)
+        const gameClock = Math.max(0, performance.now() - useRhythmStore.getState().startAt); // ゲーム経過 ms
         
         // ① ゲージ進行
         const updatedMonsters = prevState.activeMonsters.map(monster => {
           if (!monster.timing) return monster;
           const { spawnTime, targetTime } = monster.timing;
-          const gauge = ((audioNow - spawnTime) / (targetTime - spawnTime)) * 100;
+          const gauge = ((gameClock - spawnTime) / (targetTime - spawnTime)) * 100;
           return { ...monster, gauge: Math.max(0, Math.min(100, gauge)) };
         });
         
         // ② 攻撃判定
         const windowMs = 200;
-        const monstersToAttack = updatedMonsters.filter(m => m.timing && !m.missed && audioNow > m.timing.targetTime + windowMs);
+        const monstersToAttack = updatedMonsters.filter(m => m.timing && !m.missed && gameClock > m.timing.targetTime + windowMs);
         
         if (monstersToAttack.length) {
           monstersToAttack.forEach(mon => {
