@@ -13,10 +13,11 @@ import { Assets, Texture } from 'pixi.js';
 import { RhythmManager } from '@/utils/RhythmManager';
 import { ProgressionManager } from '@/utils/ProgressionManager';
 import { SyncMonitor } from '@/utils/SyncMonitor';
+import type { FantasyStage } from '@/types';
 
 // ===== 型定義 =====
 
-interface ChordDefinition {
+export interface ChordDefinition {
   id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
   notes: number[];     // MIDIノート番号の配列
@@ -25,42 +26,9 @@ interface ChordDefinition {
   root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
 
-interface FantasyStage {
-  id: string;
-  stage_number: string;
-  name: string;
-  description: string;
-  max_hp: number;
-  enemy_gauge_seconds: number;
-  enemy_count: number;
-  enemy_hp: number;
-  min_damage: number;
-  max_damage: number;
-  mode: 'single' | 'progression';
-  allowed_chords: string[];
-  chord_progression?: string[];
-  show_sheet_music: boolean;
-  show_guide: boolean;
-  monster_icon?: string;
-  bgm_url?: string;
-  simultaneous_monster_count?: number;
-  // リズムモード関連
-  game_type?: 'quiz' | 'rhythm';
-  rhythm_pattern?: 'random' | 'progression';
-  bpm?: number;
-  time_signature?: 3 | 4;
-  loop_measures?: number;
-  chord_progression_data?: {
-    chords: Array<{
-      chord: string;
-      measure: number;
-      beat: number;
-    }>;
-  };
-  mp3_url?: string;
-}
 
-interface MonsterState {
+
+export interface MonsterState {
   id: string;
   index: number; // モンスターリストのインデックス
   position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'; // 列位置（最大8体対応）
@@ -82,7 +50,7 @@ interface MonsterState {
   isInJudgmentWindow?: boolean; // 判定ウィンドウ内かどうか
 }
 
-interface FantasyGameState {
+export interface FantasyGameState {
   currentStage: FantasyStage | null;
   currentQuestionIndex: number;
   currentChordTarget: ChordDefinition | null; // 廃止予定（互換性のため残す）

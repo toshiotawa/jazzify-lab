@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
-import { FantasyStage } from './FantasyGameEngine';
+import type { FantasyStage } from '@/types';
 import { devLog } from '@/utils/logger';
 
 // ===== 型定義 =====

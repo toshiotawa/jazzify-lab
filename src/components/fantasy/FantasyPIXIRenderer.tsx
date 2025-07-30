@@ -7,7 +7,7 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
-import { MonsterState as GameMonsterState } from './FantasyGameEngine';
+import type { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 
