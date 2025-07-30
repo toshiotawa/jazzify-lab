@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { fetchUserStats, UserStats, clearUserStatsCache } from '@/platform/supabaseUserStats';
-import { useAuthStore } from './authStore';
 
 interface UserStatsState {
   stats: UserStats | null;
@@ -24,12 +23,10 @@ export const useUserStatsStore = create<UserStatsState & UserStatsActions>()(
     lastFetched: null,
 
     fetchStats: async (userId?: string) => {
-      const { profile } = useAuthStore.getState();
-      
-      if (!profile && !userId) {
+      if (!userId) {
         set(state => {
           state.stats = null;
-          state.error = 'プロフィールが見つかりません';
+          state.error = 'ユーザーIDが指定されていません';
         });
         return;
       }
@@ -40,12 +37,7 @@ export const useUserStatsStore = create<UserStatsState & UserStatsActions>()(
       });
 
       try {
-        const targetUserId = userId || profile?.id;
-        if (!targetUserId) {
-          throw new Error('ユーザーIDが見つかりません');
-        }
-
-        const stats = await fetchUserStats(targetUserId);
+        const stats = await fetchUserStats(userId);
         
         set(state => {
           state.stats = stats;

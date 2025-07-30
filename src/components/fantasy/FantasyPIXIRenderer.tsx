@@ -7,7 +7,7 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
-import { MonsterState as GameMonsterState } from './FantasyGameEngine';
+import type { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 
@@ -1046,7 +1046,7 @@ export class FantasyPIXIInstance {
         const finalTargetY = targetY + (isSpecial ? (Math.random() - 0.5) * 40 : 0);
         
         const animate = () => {
-          /* ✨ 追加 ✨ : 破棄済み Sprite が残らないよう必ず removeChild */
+          /* ✨ 追加 ✨ : 破棄済み PIXI.Sprite が残らないよう必ず removeChild */
           if (this.isDestroyed || !magicSprite) return;
 
           if (magicSprite.destroyed) {
@@ -1137,7 +1137,7 @@ export class FantasyPIXIInstance {
         // startXとstartYは既に上で宣言されているため、ここでは削除
         
         const animate = () => {
-          /* ✨ 追加 ✨ : 破棄済み Sprite が残らないよう必ず removeChild */
+          /* ✨ 追加 ✨ : 破棄済み PIXI.Sprite が残らないよう必ず removeChild */
           if (this.isDestroyed || !magicSprite) return;
 
           if (magicSprite.destroyed) {

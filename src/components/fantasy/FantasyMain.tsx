@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
-import { FantasyStage } from './FantasyGameEngine';
+import type { FantasyStage } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
@@ -87,23 +87,7 @@ const FantasyMain: React.FC = () => {
           devLog.debug('🎮 ファンタジーステージ取得成功:', stage);
           // FantasyStageの形式に変換
           const fantasyStage: FantasyStage = {
-            id: stage.id,
-            stageNumber: stage.stage_number,
-            name: stage.name,
-            description: stage.description,
-            maxHp: stage.max_hp,
-            enemyGaugeSeconds: stage.enemy_gauge_seconds,
-            enemyCount: stage.enemy_count,
-            enemyHp: stage.enemy_hp,
-            minDamage: stage.min_damage,
-            maxDamage: stage.max_damage,
-            mode: stage.mode,
-            allowedChords: stage.allowed_chords,
-            chordProgression: stage.chord_progression,
-            showSheetMusic: stage.show_sheet_music,
-            showGuide: stage.show_guide,
-            simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
-            monsterIcon: stage.monster_icon || 'dragon'
+            ...stage  // 全てのプロパティをそのまま渡す
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -120,7 +104,7 @@ const FantasyMain: React.FC = () => {
   
   // ステージ選択ハンドラ
   const handleStageSelect = useCallback((stage: FantasyStage) => {
-    devLog.debug('🎮 ファンタジーモード: ステージ選択', stage.stageNumber);
+    devLog.debug('🎮 ファンタジーモード: ステージ選択', stage?.stage_number);
     setCurrentStage(stage);
     setGameResult(null);
     setShowResult(false);

@@ -17,6 +17,9 @@ export async function fetchFantasyStages(): Promise<FantasyStage[]> {
     throw error;
   }
   
+  // デバッグ用：取得したデータを表示
+  console.log('🔍 Fetched fantasy stages:', data);
+  
   return data || [];
 }
 

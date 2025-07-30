@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
-import { FantasyStage } from './FantasyGameEngine';
+import type { FantasyStage } from '@/types';
 import { devLog } from '@/utils/logger';
 
 // ===== 型定義 =====
@@ -46,14 +46,18 @@ const getRankFromClearedStages = (clearedStages: number): string => {
 };
 
 // ===== ステージグルーピング =====
-const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
-  return stages.reduce((groups, stage) => {
-    const rank = stage.stageNumber.split('-')[0];
-    if (!groups[rank]) groups[rank] = [];
-    groups[rank].push(stage);
-    return groups;
-  }, {} as Record<string, FantasyStage[]>);
-};
+  const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
+    return stages.reduce((groups, stage) => {
+      if (!stage.stage_number) {
+        console.warn('ステージ番号が未定義:', stage);
+        return groups;
+      }
+      const rank = stage.stage_number.split('-')[0];
+      if (!groups[rank]) groups[rank] = [];
+      groups[rank].push(stage);
+      return groups;
+    }, {} as Record<string, FantasyStage[]>);
+  };
 
 
 
@@ -149,24 +153,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       
       //// データの変換とセット
       const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
-        id: stage.id,
-        stageNumber: stage.stage_number,
-        name: stage.name,
-        description: stage.description || '',
-        maxHp: stage.max_hp,
-        enemyGaugeSeconds: stage.enemy_gauge_seconds,
-        enemyCount: stage.enemy_count,
-        enemyHp: stage.enemy_hp,
-        minDamage: stage.min_damage,
-        maxDamage: stage.max_damage,
+        ...stage,  // 全てのプロパティをそのまま渡す
         mode: stage.mode as 'single' | 'progression',
-        allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
-        chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
-        showSheetMusic: stage.show_sheet_music,
-        showGuide: stage.show_guide,
-        monsterIcon: stage.monster_icon,
-        bgmUrl: stage.bgm_url,
-        simultaneousMonsterCount: stage.simultaneous_monster_count || 1
+        allowed_chords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
+        chord_progression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -216,7 +206,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   // 現在地のステージ番号からランクを設定
   useEffect(() => {
     if (userProgress && userProgress.currentStageNumber) {
-      const currentRank = userProgress.currentStageNumber.split('-')[0];
+      const currentRank = userProgress.currentStageNumber ? userProgress.currentStageNumber.split('-')[0] : '1';
       setSelectedRank(currentRank);
       devLog.debug('🎮 現在のランクを設定:', currentRank);
     }
@@ -232,9 +222,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     );
     if (cleared) return true;
 
-    /* 2) progress に記録されている現在地より前ならアンロック */
-    const [currR, currS] = userProgress.currentStageNumber.split('-').map(Number);
-    const [r, s] = stage.stageNumber.split('-').map(Number);
+          /* 2) progress に記録されている現在地より前ならアンロック */
+      if (!userProgress.currentStageNumber || !stage.stage_number) return false;
+      const [currR, currS] = userProgress.currentStageNumber.split('-').map(Number);
+      const [r, s] = stage.stage_number.split('-').map(Number);
     if (r < currR) return true;
     if (r === currR && s <= currS) return true;
 
@@ -251,7 +242,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const handleStageSelect = useCallback((stage: FantasyStage) => {
     if (!isStageUnlocked(stage)) return;
     
-    devLog.debug('🎮 ステージ選択:', stage.stageNumber);
+    devLog.debug('🎮 ステージ選択:', stage?.stage_number);
     onStageSelect(stage);
   }, [isStageUnlocked, onStageSelect]);
   
@@ -275,7 +266,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       >
         {/* ステージ番号 */}
         <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
-          {stage.stageNumber}
+          {stage.stage_number}
         </div>
         
         {/* コンテンツ部分 */}
@@ -286,6 +277,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             unlocked ? "text-white" : "text-gray-400"
           )}>
             {unlocked ? stage.name : "???"}
+            {/* デバッグ用：game_typeを表示 */}
+            {stage.game_type && (
+              <span className="ml-2 text-xs text-purple-300">
+                [{stage.game_type === 'rhythm' ? 'リズム' : 'クイズ'}
+                {stage.rhythm_pattern && ` - ${stage.rhythm_pattern}`}]
+              </span>
+            )}
           </div>
           
           {/* 説明文 */}
@@ -411,13 +409,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             </h2>
             
             <div className="space-y-3">
-              {groupedStages[selectedRank]
-                .sort((a, b) => {
-                  const [, aStage] = a.stageNumber.split('-').map(Number);
-                  const [, bStage] = b.stageNumber.split('-').map(Number);
-                  return aStage - bStage;
-                })
-                .map(renderStageCard)
+                              {groupedStages[selectedRank]
+                  .sort((a, b) => {
+                    if (!a.stage_number || !b.stage_number) return 0;
+                    const [, aStage] = a.stage_number.split('-').map(Number);
+                    const [, bStage] = b.stage_number.split('-').map(Number);
+                    return aStage - bStage;
+                  })
+                  .map(renderStageCard)
               }
             </div>
             
