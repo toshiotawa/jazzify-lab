@@ -166,10 +166,15 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
     }
     
     return (
-      <div className="mt-3 w-full">
+      <div className="mt-3 w-full relative">
         <div className="flex space-x-1">
           {blocks}
         </div>
+        {/* 80%判定タイミングマーカー */}
+        <div 
+          className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.8)]"
+          style={{ left: '80%' }}
+        />
         <div className="text-center text-xs text-gray-300 mt-1">
           行動ゲージ
         </div>

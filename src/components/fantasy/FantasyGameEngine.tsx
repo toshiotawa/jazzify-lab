@@ -13,6 +13,7 @@ import * as PIXI from 'pixi.js';
 import { RhythmManager } from '@/utils/RhythmManager';
 import { ProgressionManager } from '@/utils/ProgressionManager';
 import { SyncMonitor } from '@/utils/SyncMonitor';
+import { useFantasyStore } from '@/stores/fantasyStore';
 
 // ===== 型定義 =====
 
@@ -476,6 +477,9 @@ export const useFantasyGameEngine = ({
   // クイズモード用のオーディオ参照
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
+  // Zustand store
+  const fantasyStore = useFantasyStore();
+  
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
@@ -562,6 +566,8 @@ export const useFantasyGameEngine = ({
       if (!chord) return prevState;
       
       // モンスターを生成
+      // ゲーム開始時刻を使用（Readyフェーズが終わった時点）
+      const gameStartTime = prevState.syncMonitor?.getGameStartTime() || performance.now();
       const newMonster = createRhythmMonster(
         nextMonsterIndex,
         'A', // ランダムパターンは常に1体なのでA列固定
@@ -569,7 +575,7 @@ export const useFantasyGameEngine = ({
         chord,
         timing,
         prevState.currentStage.bpm || 120,
-        performance.now(),
+        gameStartTime,
         stageMonsterIds,
         prevState.currentStage.time_signature || 4 // タイムシグネチャーを渡す
       );
@@ -663,6 +669,18 @@ export const useFantasyGameEngine = ({
     if (gameType === 'rhythm') {
       devLog.debug('🎵 リズムモード検出、RhythmManagerとSyncMonitorを初期化');
       
+      // Zustand storeの初期化
+      fantasyStore.setGameType('rhythm');
+      fantasyStore.setRhythmPattern(normalizedStage.rhythm_pattern || 'random');
+      fantasyStore.initRhythm(
+        normalizedStage.bpm || 120,
+        normalizedStage.time_signature || 4,
+        normalizedStage.loop_measures || 8
+      );
+      
+      // オーディオの初期化
+      await fantasyStore.initAudio(normalizedStage.mp3_url || '/demo-1.mp3');
+      
       try {
         // RhythmManagerの初期化
         rhythmManager = new RhythmManager({
@@ -713,6 +731,11 @@ export const useFantasyGameEngine = ({
           devLog.error('❌ ProgressionManager初期化エラー:', error);
         }
       }
+    } else if (gameType === 'quiz' && normalizedStage.mp3_url) {
+      // クイズモードでもMP3を再生
+      devLog.debug('🎵 クイズモードでMP3再生を初期化');
+      fantasyStore.setGameType('quiz');
+      await fantasyStore.initAudio(normalizedStage.mp3_url);
     }
 
     // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
@@ -770,8 +793,34 @@ export const useFantasyGameEngine = ({
               lastChordId = monster.chordTarget.id;
             }
           }
+        } else if (gameType === 'rhythm' && normalizedStage.rhythm_pattern === 'random') {
+          // リズムランダムモードの場合、最初のモンスターを1小節目に配置
+          if (i === 0) {
+            const timing = generateRandomRhythmTiming(1, normalizedStage.time_signature || 4, normalizedStage.bpm || 120);
+            const chord = selectRandomChord(
+              normalizedStage.allowedChords,
+              undefined,
+              displayOptsParam || { lang: 'en', simple: false }
+            );
+            if (chord) {
+              const monster = createRhythmMonster(
+                monsterIndex,
+                'A',
+                enemyHp,
+                chord,
+                timing,
+                normalizedStage.bpm || 120,
+                performance.now() + 3000, // Readyフェーズ後に開始
+                monsterIds,
+                normalizedStage.time_signature || 4
+              );
+              activeMonsters.push(monster);
+              usedChordIds.push(monster.chordTarget.id);
+              lastChordId = monster.chordTarget.id;
+            }
+          }
         } else {
-          // 既存の処理（クイズモード、リズムランダムモード）
+          // 既存の処理（クイズモード）
           const monster = createMonsterFromQueue(
             monsterIndex,
             positions[i],
@@ -1090,6 +1139,11 @@ export const useFantasyGameEngine = ({
           const totalTime = prevState.currentStage.enemyGaugeSeconds * 1000;
           const gaugeProgress = Math.max(0, Math.min(100, (1 - timeToTarget / totalTime) * 100));
           
+          // zustand storeに判定タイミングを設定（80%地点）
+          if (gaugeProgress >= 70 && gaugeProgress <= 90) {
+            fantasyStore.setJudgmentTiming(monster.id, monster.timing.targetTime);
+          }
+          
           return {
             ...monster,
             gauge: gaugeProgress
@@ -1318,7 +1372,28 @@ export const useFantasyGameEngine = ({
 
         // コードが完成したかチェック
         if (newCorrectNotes.length === targetNotes.length) {
-            completedMonsters.push(updatedMonster);
+            // リズムモードの場合、判定タイミングをチェック
+            if (prevState.currentStage?.game_type === 'rhythm' && updatedMonster.timing) {
+                const currentTime = performance.now();
+                const isInWindow = fantasyStore.checkJudgmentWindow(updatedMonster.id, currentTime);
+                if (isInWindow) {
+                    completedMonsters.push(updatedMonster);
+                    devLog.debug('🎯 リズムモード判定成功:', {
+                        monsterId: updatedMonster.id,
+                        currentTime,
+                        targetTime: updatedMonster.timing.targetTime
+                    });
+                } else {
+                    devLog.debug('⏰ リズムモード判定タイミング外:', {
+                        monsterId: updatedMonster.id,
+                        currentTime,
+                        targetTime: updatedMonster.timing.targetTime
+                    });
+                }
+            } else {
+                // クイズモードはタイミング関係なく完成
+                completedMonsters.push(updatedMonster);
+            }
         }
         
         return updatedMonster;
@@ -1525,11 +1600,16 @@ export const useFantasyGameEngine = ({
   // Readyフェーズのカウントダウン処理
   useEffect(() => {
     if (gameState.isReady && gameState.readyCountdown >= 0) {
+      // Readyフェーズ開始
+      fantasyStore.setGamePhase('ready');
+      
       const countdownTimer = setTimeout(() => {
         setGameState(prevState => {
           if (prevState.readyCountdown === 0) {
             // カウントダウン終了、音楽開始
             prevState.rhythmManager?.start();
+            fantasyStore.playAudio(); // zustand経由でも音楽を開始
+            fantasyStore.setGamePhase('playing');
             devLog.debug('🎵 音楽開始！');
             return {
               ...prevState,
@@ -1548,7 +1628,7 @@ export const useFantasyGameEngine = ({
 
       return () => clearTimeout(countdownTimer);
     }
-  }, [gameState.isReady, gameState.readyCountdown]);
+  }, [gameState.isReady, gameState.readyCountdown, fantasyStore]);
 
   // リズムマネージャーの小節コールバック設定
   useEffect(() => {
