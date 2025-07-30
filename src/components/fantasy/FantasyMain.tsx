@@ -103,7 +103,16 @@ const FantasyMain: React.FC = () => {
             showSheetMusic: stage.show_sheet_music,
             showGuide: stage.show_guide,
             simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
-            monsterIcon: stage.monster_icon || 'dragon'
+            monsterIcon: stage.monster_icon || 'dragon',
+            // リズムモード関連
+            gameType: stage.game_type,
+            rhythmPattern: stage.rhythm_pattern,
+            bpm: stage.bpm,
+            timeSignature: stage.time_signature,
+            loopMeasures: stage.loop_measures,
+            mp3Url: stage.mp3_url,
+            rhythmData: stage.rhythm_data,
+            chordProgressionData: stage.chord_progression_data
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -383,7 +392,16 @@ const FantasyMain: React.FC = () => {
         showGuide: nextStageData.show_guide,
         monsterIcon: nextStageData.monster_icon,
         bgmUrl: nextStageData.bgm_url,
-        simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1
+        simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1,
+        // リズムモード関連
+        gameType: nextStageData.game_type,
+        rhythmPattern: nextStageData.rhythm_pattern,
+        bpm: nextStageData.bpm,
+        timeSignature: nextStageData.time_signature,
+        loopMeasures: nextStageData.loop_measures,
+        mp3Url: nextStageData.mp3_url,
+        rhythmData: nextStageData.rhythm_data,
+        chordProgressionData: nextStageData.chord_progression_data
       };
 
       setGameResult(null);

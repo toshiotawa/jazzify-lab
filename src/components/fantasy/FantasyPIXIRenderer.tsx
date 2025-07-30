@@ -2034,6 +2034,80 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  /** リズムモード：タイミング成功エフェクト */
+  showTimingSuccess(monsterId: string): void {
+    const monsterData = this.monsters.get(monsterId);
+    if (!monsterData || !monsterData.sprite) return;
+
+    // 緑色の円形エフェクトを表示
+    const successCircle = new PIXI.Graphics();
+    successCircle.lineStyle(3, 0x00FF00, 1);
+    successCircle.drawCircle(0, 0, 50);
+    successCircle.position.set(monsterData.visualState.x, monsterData.visualState.y);
+    successCircle.alpha = 1;
+    successCircle.scale.set(0.5);
+    
+    this.effectContainer.addChild(successCircle);
+
+    // アニメーション
+    let frame = 0;
+    const animate = () => {
+      if (successCircle.destroyed) return;
+      
+      frame++;
+      successCircle.scale.set(0.5 + frame * 0.05);
+      successCircle.alpha = 1 - frame * 0.03;
+      
+      if (frame < 30) {
+        requestAnimationFrame(animate);
+      } else {
+        if (successCircle.parent) {
+          successCircle.parent.removeChild(successCircle);
+        }
+        successCircle.destroy();
+      }
+    };
+    requestAnimationFrame(animate);
+  }
+
+  /** リズムモード：タイミング失敗エフェクト */
+  showTimingFailure(monsterId: string): void {
+    const monsterData = this.monsters.get(monsterId);
+    if (!monsterData || !monsterData.sprite) return;
+
+    // 赤色のX印エフェクトを表示
+    const failureX = new PIXI.Graphics();
+    failureX.lineStyle(4, 0xFF0000, 1);
+    // X印を描画
+    failureX.moveTo(-20, -20);
+    failureX.lineTo(20, 20);
+    failureX.moveTo(20, -20);
+    failureX.lineTo(-20, 20);
+    failureX.position.set(monsterData.visualState.x, monsterData.visualState.y);
+    
+    this.effectContainer.addChild(failureX);
+
+    // アニメーション
+    let frame = 0;
+    const animate = () => {
+      if (failureX.destroyed) return;
+      
+      frame++;
+      failureX.alpha = 1 - frame * 0.02;
+      failureX.scale.set(1 + frame * 0.02);
+      
+      if (frame < 50) {
+        requestAnimationFrame(animate);
+      } else {
+        if (failureX.parent) {
+          failureX.parent.removeChild(failureX);
+        }
+        failureX.destroy();
+      }
+    };
+    requestAnimationFrame(animate);
+  }
+
 
 }
 

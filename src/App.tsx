@@ -6,6 +6,8 @@ import AuthCallback from '@/components/auth/AuthCallback';
 import VerifyOtpPage from '@/components/auth/VerifyOtpPage';
 import AuthGate from '@/components/auth/AuthGate';
 import ToastContainer from '@/components/ui/ToastContainer';
+import { TestRhythmMode } from '@/components/TestRhythmMode';
+import { MinimalTest } from '@/components/MinimalTest';
 
 // LegacyApp はバンドルサイズが大きいため遅延読み込みする
 const LegacyApp = React.lazy(() => import('./LegacyApp'));
@@ -26,6 +28,8 @@ const App: React.FC = () => {
           <Route path="/login" element={<AuthLanding />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/login/verify-otp" element={<VerifyOtpPage />} />
+          <Route path="/test-rhythm" element={<TestRhythmMode />} />
+          <Route path="/minimal-test" element={<MinimalTest />} />
 
           {/* ========== 保護ルート (AuthGateの内側) ========== */}
           {/* '/*' を使い、上記以外のすべてのパスを保護対象にする */}
