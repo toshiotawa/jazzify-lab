@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } 
 import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
+import { useGlobalTimeStore } from '@/stores/globalTimeStore';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
@@ -41,6 +42,14 @@ interface FantasyStage {
   monsterIcon: string;
   bgmUrl?: string;
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  /* ===== Rhythm モード拡張フィールド ===== */
+  game_type?: 'quiz' | 'rhythm';
+  rhythm_pattern?: 'random' | 'progression';
+  bpm?: number;
+  time_signature?: number;
+  loop_measures?: number;
+  mp3_url?: string;
+  rhythm_data?: string;
 }
 
 interface MonsterState {
@@ -98,6 +107,9 @@ interface FantasyGameEngineProps {
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: (attackingMonsterId?: string) => void;
+  /* Rhythm モード用: タイミングコールバック (オプション) */
+  onTimingSuccess?: (monsterId: string) => void;
+  onTimingFailure?: (monsterId: string) => void;
 }
 
 // ===== コード定義データ =====
@@ -367,7 +379,10 @@ export const useFantasyGameEngine = ({
   onEnemyAttack,
   displayOpts = { lang: 'en', simple: false }
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
-  
+   
+   // Rhythm モード共通タイムライン
+  const globalTime = useGlobalTimeStore();
+   
   // ステージで使用するモンスターIDを保持
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
   // プリロードしたテクスチャを保持
