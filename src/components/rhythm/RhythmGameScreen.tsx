@@ -40,34 +40,37 @@ export default function RhythmGameScreen({
   // Initialize fantasy game engine
   const {
     gameState,
-    handleInput,
-    startGame,
-    isGameActive
-  } = useFantasyGameEngine(
-    stage as any, // TODO: Fix type
-    {
-      onGameComplete,
-      onMonsterDefeat: (monsterId) => {
-        devLog(`Monster defeated: ${monsterId}`);
-      },
-      onPlayerDamage: () => {
-        setDamageShake(true);
-        setTimeout(() => setDamageShake(false), 500);
-      },
-      onAttackSuccess: (monsterId, damage) => {
-        pixiInstanceRef.current?.triggerAttackSuccessOnMonster(monsterId);
-      },
-      onMagicActivate: (monsterId, magicName, isSpecial) => {
-        devLog(`Magic: ${magicName} on ${monsterId}`);
-      }
+    handleNoteInput,
+    initializeGame,
+    stopGame
+  } = useFantasyGameEngine({
+    stage: stage as any, // TODO: Fix type
+    onGameStateChange: (state) => {
+      devLog('Game state changed:', state);
+    },
+    onChordCorrect: (chord, isSpecial, damageDealt, defeated, monsterId) => {
+      devLog(`Chord correct: ${chord.id}, damage: ${damageDealt}, defeated: ${defeated}`);
+      pixiInstanceRef.current?.triggerAttackSuccessOnMonster(monsterId);
+    },
+    onChordIncorrect: (expectedChord, inputNotes) => {
+      devLog(`Chord incorrect: expected ${expectedChord.id}`);
+    },
+    onGameComplete: (result, finalState) => {
+      onGameComplete(result, finalState.score, finalState.correctAnswers, finalState.totalQuestions);
+    },
+    onEnemyAttack: (attackingMonsterId) => {
+      devLog(`Enemy attack from: ${attackingMonsterId}`);
+      setDamageShake(true);
+      setTimeout(() => setDamageShake(false), 500);
+      pixiInstanceRef.current?.triggerEnemyAttack();
     }
-  );
+  });
   
   // Create rhythm game callbacks
   const callbacks: RhythmGameCallbacks = {
     onAttackSuccess: (monsterId, chord, result) => {
       devLog(`Rhythm hit: ${chord} (${result.timing})`);
-      handleInput(60); // Dummy note for now
+      // The hit is already handled by the judge engine
       
       // Show timing feedback
       if (result.timing === 'perfect') {
@@ -111,10 +114,10 @@ export default function RhythmGameScreen({
   
   // Initialize monsters
   useEffect(() => {
-    if (gameState.monsters) {
-      setActiveMonsters(gameState.monsters.map(m => ({ ...m })));
+    if (gameState.activeMonsters) {
+      setActiveMonsters(gameState.activeMonsters.map(m => ({ ...m })));
     }
-  }, [gameState.monsters]);
+  }, [gameState.activeMonsters]);
   
   // MIDI controller setup
   useEffect(() => {
@@ -137,7 +140,7 @@ export default function RhythmGameScreen({
     };
   }, []);
   
-  const handleNoteInput = useCallback((note: number, source?: 'mouse' | 'midi') => {
+  const handleRhythmNoteInput = useCallback((note: number, source?: 'mouse' | 'midi') => {
     if (source === 'mouse') {
       managerRef.current?.handleNoteOn(note);
       setTimeout(() => {
@@ -148,7 +151,7 @@ export default function RhythmGameScreen({
   
   const handleStartGame = () => {
     setGameStarted(true);
-    startGame();
+    initializeGame();
   };
   
   return (
@@ -209,7 +212,7 @@ export default function RhythmGameScreen({
           ref={notesRendererRef}
           width={window.innerWidth}
           height={192}
-          onNoteInput={handleNoteInput}
+          onNoteInput={handleRhythmNoteInput}
           noteNameLang={noteNameLang}
           simpleNoteName={simpleNoteName}
           showGuide={stage.show_guide}
