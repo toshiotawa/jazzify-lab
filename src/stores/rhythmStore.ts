@@ -10,9 +10,11 @@ interface RhythmState {
     beat: number;           // 小数込み (1.0,1.5…)
     absoluteBeat: number;   // loop 0 始まり
   };
+  lastAudioTime: number;          // ★ Audio の現在時刻(ms)
   setPlaying: (flag: boolean) => void;
   setStart: (t: number) => void;
   setPos: (pos: RhythmState['currentPos']) => void;
+  setLastAudioTime: (t: number) => void;
 }
 
 export const useRhythmStore = create<RhythmState>()((set) => ({
@@ -21,7 +23,9 @@ export const useRhythmStore = create<RhythmState>()((set) => ({
   bpm: 120,
   beatDuration: 500,
   currentPos: { measure: 0, beat: 0, absoluteBeat: 0 },
+  lastAudioTime: 0,
   setPlaying: (f) => set({ isPlaying: f }),
   setStart: (t) => set({ startAt: t }),
   setPos: (p) => set({ currentPos: p }),
+  setLastAudioTime: (t) => set({ lastAudioTime: t }),
 }));

@@ -412,15 +412,15 @@ const createRhythmMonster = (
   // タイミング計算 - 音楽のビート位置から逆算
   const beatDurationMs = 60000 / bpm;
   const absBeat = (timing.measure - 1) * timeSignature + (timing.beat - 1);
-  const targetTimeMs = startTimeMs + (absBeat * beatDurationMs);
+  const nowAudio = useRhythmStore.getState().lastAudioTime; // ★ 現在のAudio時刻(ms)
+  const targetTimeMs = nowAudio + absBeat * beatDurationMs;
   const appearLeadMs = 4000; // 4秒前に出現
   const spawnTimeMs = targetTimeMs - appearLeadMs;
   
   // spawn以前は0、target時点で100になるように初期ゲージを計算
-  const now = performance.now();
   let initialGauge = 0;
-  if (now >= spawnTimeMs) {
-    const elapsed = now - spawnTimeMs;
+  if (nowAudio >= spawnTimeMs) {
+    const elapsed = nowAudio - spawnTimeMs;
     const totalDuration = targetTimeMs - spawnTimeMs;
     initialGauge = Math.min(100, (elapsed / totalDuration) * 100);
   }
@@ -1066,9 +1066,10 @@ export const useFantasyGameEngine = ({
       // リズムモードの場合
       if (prevState.currentStage.game_type === 'rhythm' && prevState.rhythmManager) {
         const currentPos = prevState.rhythmManager.getCurrentPosition();
-        const currentTimeMs = performance.now();
+        const audioNow = useRhythmStore.getState().lastAudioTime;  // ★ Audio 時刻取得
         
-        // 同期チェック
+        // 同期チェックでは performance.now() を維持
+        const currentTimeMs = performance.now();
         if (prevState.syncMonitor?.shouldCheckSync(currentTimeMs)) {
           const syncStatus = prevState.syncMonitor.checkSync(
             prevState.rhythmManager.getCurrentPosition().absoluteBeat * (60 / (prevState.currentStage.bpm || 120)),
@@ -1095,9 +1096,8 @@ export const useFantasyGameEngine = ({
         const updatedMonsters = prevState.activeMonsters.map(monster => {
           if (!monster.timing) return monster;
           
-          // spawn以前は0、target時点で100になる計算式
-          const now = performance.now();
-          const elapsed = now - monster.timing.spawnTime;
+          // spawn以前は0、target時点で100になる計算式（audioNow 基準）
+          const elapsed = audioNow - monster.timing.spawnTime;
           const totalDuration = monster.timing.targetTime - monster.timing.spawnTime;
           const gaugeProgress = Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
           
@@ -1109,7 +1109,7 @@ export const useFantasyGameEngine = ({
         
         // 判定タイミングを過ぎたモンスターをチェック（判定ウィンドウ外）
         const missedMonster = updatedMonsters.find(m => 
-          m.timing && currentTimeMs > m.timing.targetTime + 200
+          m.timing && audioNow > m.timing.targetTime + 200
         );
         
         if (missedMonster) {
@@ -1538,13 +1538,17 @@ export const useFantasyGameEngine = ({
     if (gameState.isReady && gameState.readyCountdown >= 0) {
       const countdownTimer = setTimeout(() => {
         setGameState(prevState => {
+          // カウント 3 のタイミングで予定開始時刻を store へ書き込み
+          if (prevState.readyCountdown === 3) {
+            const est = performance.now() + 3000; // 3秒後を予定開始時刻とする
+            useRhythmStore.getState().setStart(est);
+          }
+          
           if (prevState.readyCountdown === 0) {
             // カウントダウン終了、音楽とタイマーを同時に開始
             prevState.rhythmManager?.start();
-            const startTime = performance.now();
-            useRhythmStore.getState().setStart(startTime);
             useRhythmStore.getState().setPlaying(true);
-            devLog.debug('🎵 音楽開始！startAt:', startTime);
+            devLog.debug('🎵 音楽開始！startAt:', useRhythmStore.getState().startAt);
             return {
               ...prevState,
               isReady: false,
