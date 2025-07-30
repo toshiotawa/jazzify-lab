@@ -4,7 +4,8 @@ import { useRhythmStore } from './store';
  * question.absSec を 0→80% にマッピングしたゲージ値(0-100)を返す 
  */
 export const useGaugePercent = (absSec: number): number => {
-  const { now, measureLen } = useRhythmStore();
+  const now = useRhythmStore((s) => s.now);
+  const measureLen = useRhythmStore((s) => s.measureLen);
   const delta = absSec - now; // 秒差
   
   // 1小節前〜判定点の範囲だけをゲージ対象にする
