@@ -1,4 +1,6 @@
 /* eslint-disable no-magic-numbers */
+import { useRhythmStore } from '../stores/rhythmStore';
+
 export interface RhythmPosition {
   measure: number;      // 1,2,3…
   beat: number;         // 1.0,1.5,2 …
@@ -62,7 +64,11 @@ export class RhythmManager {
   }
 
   onBeat(cb: CB<RhythmPosition>) { 
-    this.beatCb = cb; 
+    this.beatCb = (pos) => {
+      // Update rhythm store with current position
+      useRhythmStore.getState().setPos(pos);
+      if (cb) cb(pos);
+    };
   }
 
   onMeasure(cb: CB<number>) { 
