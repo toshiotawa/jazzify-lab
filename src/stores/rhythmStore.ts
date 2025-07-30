@@ -5,6 +5,7 @@ interface RhythmState {
   startAt: number;          // High-res 時刻 (ms)
   bpm: number;
   beatDuration: number;     // 1beat ms
+  lastAudioTime: number;    // オーディオの現在時刻 (ms)
   currentPos: {
     measure: number;
     beat: number;           // 小数込み (1.0,1.5…)
@@ -13,6 +14,7 @@ interface RhythmState {
   setPlaying: (flag: boolean) => void;
   setStart: (t: number) => void;
   setPos: (pos: RhythmState['currentPos']) => void;
+  setLastAudioTime: (time: number) => void;
 }
 
 export const useRhythmStore = create<RhythmState>()((set) => ({
@@ -20,8 +22,10 @@ export const useRhythmStore = create<RhythmState>()((set) => ({
   startAt: 0,
   bpm: 120,
   beatDuration: 500,
+  lastAudioTime: 0,
   currentPos: { measure: 0, beat: 0, absoluteBeat: 0 },
   setPlaying: (f) => set({ isPlaying: f }),
   setStart: (t) => set({ startAt: t }),
   setPos: (p) => set({ currentPos: p }),
+  setLastAudioTime: (t) => set({ lastAudioTime: t }),
 }));
