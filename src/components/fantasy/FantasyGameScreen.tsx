@@ -298,6 +298,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
+    updateMonsterGauges, // 追加: ゲージ更新関数
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
@@ -630,6 +631,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       initializeGame(stage, { lang: currentNoteNameLang, simple: currentSimpleNoteName });
     }
   }, [autoStart, initializeGame, stage, currentNoteNameLang, currentSimpleNoteName]);
+  
+  // ★ ゲージ更新タイマー
+  useEffect(() => {
+    if (!gameState.isGameActive) {
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      updateMonsterGauges();
+    }, 100); // 100msごとに更新
+    
+    return () => clearInterval(interval);
+  }, [gameState.isGameActive, updateMonsterGauges]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {

@@ -120,6 +120,7 @@ interface FantasyGameState {
   currentMeasure: number;
   currentBeat: number;
   timeOffset: number; // 同期補正用のオフセット
+  gameStartTime: number; // ゲーム開始時刻
 }
 
 interface FantasyGameEngineProps {
@@ -770,8 +771,36 @@ export const useFantasyGameEngine = ({
               lastChordId = monster.chordTarget.id;
             }
           }
+        } else if (gameType === 'rhythm' && normalizedStage.rhythm_pattern === 'random') {
+          // リズムランダムモード
+          devLog.debug('🎲 リズムランダムモードでモンスター生成');
+          const randomTiming = {
+            measure: i + 1, // 各モンスターを異なる小節に配置
+            beat: 1 // 1拍目に固定（後で実装でランダムにできる）
+          };
+          const chord = selectUniqueRandomChord(
+            normalizedStage.allowedChords,
+            lastChordId,
+            displayOptsParam
+          );
+          if (chord) {
+            const monster = createRhythmMonster(
+              monsterIndex,
+              positions[i],
+              enemyHp,
+              chord,
+              randomTiming,
+              normalizedStage.bpm || 120,
+              performance.now() + 3000, // Readyフェーズ後に開始
+              monsterIds,
+              normalizedStage.time_signature || 4
+            );
+            activeMonsters.push(monster);
+            usedChordIds.push(monster.chordTarget.id);
+            lastChordId = monster.chordTarget.id;
+          }
         } else {
-          // 既存の処理（クイズモード、リズムランダムモード）
+          // クイズモード
           const monster = createMonsterFromQueue(
             monsterIndex,
             positions[i],
@@ -829,7 +858,8 @@ export const useFantasyGameEngine = ({
       readyCountdown: gameType === 'rhythm' ? 3 : 0,
       currentMeasure: 0,
       currentBeat: 0,
-      timeOffset: 0
+      timeOffset: 0,
+      gameStartTime: performance.now() + (gameType === 'rhythm' ? 3000 : 0) // Readyフェーズ考慮
     };
 
     setGameState(newState);
@@ -1107,8 +1137,48 @@ export const useFantasyGameEngine = ({
           setTimeout(() => handleEnemyAttack(missedMonster.id), 0);
           
           // ミスしたモンスターを削除して新しいモンスターを生成
-          const filteredMonsters = updatedMonsters.filter(m => m.id !== missedMonster.id);
-          // TODO: 新しいモンスター生成処理
+          let filteredMonsters = updatedMonsters.filter(m => m.id !== missedMonster.id);
+          
+          // 新しいモンスターを生成（キューに残りがある場合）
+          if (prevState.monsterQueue.length > 0) {
+            const newMonsterIndex = prevState.monsterQueue[0];
+            const newQueue = prevState.monsterQueue.slice(1);
+            const position = missedMonster.position;
+            
+            // 次の小節にモンスターを配置
+            const nextMeasure = prevState.currentMeasure + 2;
+            const randomTiming = {
+              measure: nextMeasure,
+              beat: 1
+            };
+            
+            const chord = selectUniqueRandomChord(
+              prevState.currentStage!.allowedChords,
+              missedMonster.chordTarget.id,
+              displayOpts
+            );
+            
+            if (chord) {
+              const newMonster = createRhythmMonster(
+                newMonsterIndex,
+                position,
+                prevState.maxEnemyHp,
+                chord,
+                randomTiming,
+                prevState.currentStage!.bpm || 120,
+                prevState.gameStartTime,
+                stageMonsterIds,
+                prevState.currentStage!.time_signature || 4
+              );
+              filteredMonsters.push(newMonster);
+              
+              return {
+                ...prevState,
+                activeMonsters: filteredMonsters,
+                monsterQueue: newQueue
+              };
+            }
+          }
           
           return {
             ...prevState,
@@ -1392,16 +1462,51 @@ export const useFantasyGameEngine = ({
           for (let i = 0; i < monstersToAddCount; i++) {
             const monsterIndex = newMonsterQueue.shift()!;
             const position = availablePositions[i] || 'B';
-            const newMonster = createMonsterFromQueue(
-              monsterIndex,
-              position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
-              stateAfterAttack.maxEnemyHp,
-              stateAfterAttack.currentStage!.allowedChords,
-              lastUsedChordId, // 直前のコードを避ける
-              displayOpts,
-              stageMonsterIds // stageMonsterIdsを渡す
-            );
-            remainingMonsters.push(newMonster);
+            
+            // リズムモードの場合、タイミング情報を持つモンスターを生成
+            if (stateAfterAttack.currentStage!.game_type === 'rhythm') {
+              const currentTime = performance.now();
+              const beatDurationMs = 60000 / (stateAfterAttack.currentStage!.bpm || 120);
+              const nextMeasure = Math.floor((currentTime - stateAfterAttack.gameStartTime) / (beatDurationMs * (stateAfterAttack.currentStage!.time_signature || 4))) + 2;
+              
+              const randomTiming = {
+                measure: nextMeasure,
+                beat: 1
+              };
+              
+              const chord = selectUniqueRandomChord(
+                stateAfterAttack.currentStage!.allowedChords,
+                lastUsedChordId,
+                displayOpts
+              );
+              
+              if (chord) {
+                const newMonster = createRhythmMonster(
+                  monsterIndex,
+                  position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
+                  stateAfterAttack.maxEnemyHp,
+                  chord,
+                  randomTiming,
+                  stateAfterAttack.currentStage!.bpm || 120,
+                  stateAfterAttack.gameStartTime,
+                  stageMonsterIds,
+                  stateAfterAttack.currentStage!.time_signature || 4
+                );
+                remainingMonsters.push(newMonster);
+              }
+            } else {
+              // クイズモード
+              const newMonster = createMonsterFromQueue(
+                monsterIndex,
+                position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
+                stateAfterAttack.maxEnemyHp,
+                stateAfterAttack.currentStage!.allowedChords,
+                lastUsedChordId, // 直前のコードを避ける
+                displayOpts,
+                stageMonsterIds // stageMonsterIdsを渡す
+              );
+              remainingMonsters.push(newMonster);
+            }
           }
         }
         
