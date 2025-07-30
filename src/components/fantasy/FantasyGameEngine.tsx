@@ -766,6 +766,7 @@ export const useFantasyGameEngine = ({
   useEffect(() => {
     devLog.debug('🎮 ゲージタイマー状態チェック:', { 
       isGameActive: gameState.isGameActive, 
+      isRhythm: gameState.currentStage?.gameType === 'rhythm',
       hasTimer: !!enemyGaugeTimer,
       currentStage: gameState.currentStage?.stageNumber
     });
@@ -833,15 +834,15 @@ export const useFantasyGameEngine = ({
         setEnrage(attackingMonster.id, true);
         setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
         
-        // リズムモード時はタイミング失敗コールバック
-        if (isTimingFailure) {
-          onTimingFailure?.(attackingMonster.id);
-        }
-        
         // 攻撃したモンスターのゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 
           m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
         );
+        
+        // リズムモード時はタイミング失敗コールバック
+        if (isTimingFailure) {
+          onTimingFailure?.(attackingMonster.id);
+        }
         
         // 攻撃処理を非同期で実行
         console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
@@ -873,15 +874,22 @@ export const useFantasyGameEngine = ({
     // updater関数の中でロジックを実行するように変更
     setGameState(prevState => {
       // ゲームがアクティブでない場合は何もしない
+      const isRhythm = prevState.currentStage?.gameType === 'rhythm';
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
         return prevState;
       }
 
-      devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
+      devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12, isRhythm });
 
       const noteMod12 = note % 12;
       const completedMonsters: MonsterState[] = [];
       let hasAnyNoteChanged = false;
+      
+      // リズムモード時は入力をバッファに追加
+      let updatedPendingInputs = prevState.pendingInputs || [];
+      if (isRhythm) {
+        updatedPendingInputs = [...updatedPendingInputs, noteMod12];
+      }
 
       // 1. 今回の入力でどのモンスターが影響を受けるか判定し、新しい状態を作る
       const monstersAfterInput = prevState.activeMonsters.map(monster => {
@@ -923,12 +931,26 @@ export const useFantasyGameEngine = ({
           const monsterToUpdate = stateAfterAttack.activeMonsters.find(m => m.id === completed.id);
           if (!monsterToUpdate) return;
 
-          const currentStage = stateAfterAttack.currentStage!;
-          const damageDealt = (Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage) * (isSpecialAttack ? 2 : 1);
-          const willBeDefeated = (monsterToUpdate.currentHp - damageDealt) <= 0;
-          
-          onChordCorrect(completed.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completed.id);
-          monsterToUpdate.currentHp -= damageDealt;
+          // リズムモード時はタイミング判定
+          let shouldDealDamage = true;
+          if (isRhythm && completed.chordTarget.timing) {
+            const isTimingHit = checkTiming(completed.chordTarget.timing, currentTime);
+            if (isTimingHit) {
+              onTimingSuccess?.(completed.id);
+            } else {
+              onTimingFailure?.(completed.id);
+              shouldDealDamage = false; // タイミングが合わない場合はダメージなし
+            }
+          }
+
+          if (shouldDealDamage) {
+            const currentStage = stateAfterAttack.currentStage!;
+            const damageDealt = (Math.floor(Math.random() * (currentStage.maxDamage - currentStage.minDamage + 1)) + currentStage.minDamage) * (isSpecialAttack ? 2 : 1);
+            const willBeDefeated = (monsterToUpdate.currentHp - damageDealt) <= 0;
+            
+            onChordCorrect(completed.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completed.id);
+            monsterToUpdate.currentHp -= damageDealt;
+          }
         });
 
         // プレイヤーの状態更新
@@ -1005,12 +1027,16 @@ export const useFantasyGameEngine = ({
 
       } else {
         // 3. 部分一致のみの場合は、ノートの状態だけ更新
-        const newState = { ...prevState, activeMonsters: monstersAfterInput };
+        const newState = { 
+          ...prevState, 
+          activeMonsters: monstersAfterInput,
+          pendingInputs: updatedPendingInputs
+        };
         onGameStateChange(newState);
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange, onTimingSuccess, onTimingFailure, checkTiming, currentTime]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
@@ -1153,12 +1179,15 @@ export const useFantasyGameEngine = ({
       await Tone.start();
       
       // プレイヤーの作成
+      const beatDuration = 60 / bpm; // 1拍の秒数
+      const measureDuration = beatDuration * timeSignature; // 1小節の秒数
+      
       const player = new Tone.Player({
         url: mp3Url,
         autostart: false,
         loop: true,
-        loopStart: (60 / bpm) * timeSignature, // 2小節目から（1小節はカウント）
-        loopEnd: (60 / bpm) * timeSignature * loopMeasures
+        loopStart: measureDuration, // 2小節目から（1小節目はカウントイン）
+        loopEnd: measureDuration * loopMeasures // ループ終了位置
       }).toDestination();
       
       tonePlayerRef.current = player;
@@ -1167,25 +1196,36 @@ export const useFantasyGameEngine = ({
       setMusicProperties(bpm, timeSignature, loopMeasures);
       
       // プレイヤーがロードされたら再生開始
-      player.loaded.then(() => {
-        player.start();
-        setIsPlaying(true);
-        
-        // タイマーで currentTime を更新
-        const startTime = Tone.now() * 1000;
-        const updateTime = () => {
-          if (tonePlayerRef.current && isPlaying) {
-            const elapsed = (Tone.now() * 1000) - startTime;
-            setCurrentTime(elapsed);
-            requestAnimationFrame(updateTime);
+      await player.loaded;
+      player.start();
+      setIsPlaying(true);
+      
+      // タイマーで currentTime を更新
+      const startTime = Tone.now() * 1000;
+      const updateTimeRef = { id: 0 };
+      
+      const updateTime = () => {
+        const globalTimeStore = useGlobalTimeStore.getState();
+        if (tonePlayerRef.current && globalTimeStore.isPlaying) {
+          const elapsed = (Tone.now() * 1000) - startTime;
+          setCurrentTime(elapsed);
+          
+          // リズムタイミングのチェック
+          if (gameState.currentStage?.gameType === 'rhythm') {
+            checkRhythmTiming(gameState);
           }
-        };
-        requestAnimationFrame(updateTime);
-      });
+          
+          updateTimeRef.id = requestAnimationFrame(updateTime);
+        }
+      };
+      updateTimeRef.id = requestAnimationFrame(updateTime);
+      
+      // クリーンアップ用にIDを保存
+      return () => cancelAnimationFrame(updateTimeRef.id);
     } catch (error) {
       devLog.error('Failed to initialize music:', error);
     }
-  }, [setMusicProperties, setIsPlaying, setCurrentTime, isPlaying]);
+  }, [setMusicProperties, setIsPlaying, setCurrentTime, checkRhythmTiming, gameState]);
 
   // 新規: タイミング判定関数
   const checkTiming = useCallback((timing?: { measure: number; beat: number }, inputTime?: number): boolean => {
