@@ -11,6 +11,13 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
 
+// リズムモード関連のインポート
+import { useRhythmStore } from '@/stores/rhythmStore';
+import { RhythmTimingManager } from '@/utils/RhythmTimingManager';
+import { AudioManager } from '@/utils/AudioManager';
+import { RhythmTimingDisplay, useJudgmentFeedback } from './RhythmTimingDisplay';
+import type { ChordProgressionData, FantasyStage as FantasyStageType } from '@/types';
+
 // ===== 型定義 =====
 
 interface ChordDefinition {
@@ -41,6 +48,15 @@ interface FantasyStage {
   monsterIcon: string;
   bgmUrl?: string;
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  
+  // リズムモード関連
+  game_type?: 'quiz' | 'rhythm';
+  rhythm_pattern?: 'random' | 'progression';
+  bpm?: number;
+  time_signature?: number;
+  loop_measures?: number;
+  mp3_url?: string | null;
+  chord_progression_data?: ChordProgressionData[] | null;
 }
 
 interface MonsterState {
@@ -373,6 +389,13 @@ export const useFantasyGameEngine = ({
   // プリロードしたテクスチャを保持
   const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
   
+  // リズムモード関連
+  const rhythmStore = useRhythmStore();
+  const [rhythmManager, setRhythmManager] = useState<RhythmTimingManager | null>(null);
+  const [audioManager, setAudioManager] = useState<AudioManager | null>(null);
+  const [isRhythmMode, setIsRhythmMode] = useState(false);
+  const { setDisplayRef, triggerJudgment } = useJudgmentFeedback();
+  
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
@@ -409,6 +432,15 @@ export const useFantasyGameEngine = ({
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+
+    // リズムモード判定
+    const rhythmMode = stage.game_type === 'rhythm';
+    setIsRhythmMode(rhythmMode);
+    
+    // リズムモードの初期化
+    if (rhythmMode) {
+      await initializeRhythmMode(stage);
+    }
 
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;
@@ -541,6 +573,117 @@ export const useFantasyGameEngine = ({
     });
   }, [onGameStateChange]);
   
+  // リズムモードの初期化
+  const initializeRhythmMode = useCallback(async (stage: FantasyStage) => {
+    devLog.debug('🎮 リズムモード初期化:', { stage: stage.name });
+    
+    // リズムストア初期化
+    rhythmStore.initializeRhythm(stage);
+    
+    // タイミングマネージャー初期化
+    const manager = new RhythmTimingManager(
+      stage.bpm || 120,
+      stage.time_signature || 4
+    );
+    setRhythmManager(manager);
+    
+    // オーディオマネージャー初期化
+    if (stage.mp3_url) {
+      try {
+        const audio = new AudioManager(
+          (time) => rhythmStore.updateTime(time),
+          () => rhythmStore.resetToLoop()
+        );
+        
+        await audio.load(stage.mp3_url);
+        
+        // ループ設定
+        audio.setupLoop(
+          2, // 2小節目開始
+          stage.loop_measures || 8,
+          stage.bpm || 120,
+          stage.time_signature || 4
+        );
+        
+        setAudioManager(audio);
+        
+        // 音楽開始を少し遅らせる
+        setTimeout(() => {
+          audio.play().catch(err => {
+            devLog.error('音楽再生エラー:', err);
+          });
+        }, 1000);
+        
+      } catch (error) {
+        devLog.error('Failed to load audio:', error);
+        // オーディオなしでも続行
+      }
+    }
+
+    // 次のコード準備
+    prepareNextChord();
+    
+    devLog.debug('✅ リズムモード初期化完了');
+  }, [rhythmStore]);
+
+  // 次のコード準備
+  const prepareNextChord = useCallback(() => {
+    if (!isRhythmMode || !rhythmManager || !stage) return;
+
+    const { rhythm_pattern } = stage;
+    
+    if (rhythm_pattern === 'random') {
+      prepareNextRandomChord();
+    } else if (rhythm_pattern === 'progression') {
+      prepareNextProgressionChord();
+    }
+  }, [isRhythmMode, rhythmManager, stage]);
+
+  const prepareNextRandomChord = useCallback(() => {
+    if (!stage || !rhythmManager) return;
+    
+    const nextChord = rhythmStore.getNextRandomChord();
+    const nextTiming = rhythmManager.getNextRandomTiming(rhythmStore.rhythmState.currentTime);
+    
+    // リズムストアに次のコード情報を設定
+    rhythmStore.rhythmState.nextChord = nextChord;
+    rhythmStore.rhythmState.nextChordTiming = nextTiming;
+    
+    // 敵を生成
+    spawnEnemyForChord(nextChord, nextTiming);
+  }, [stage, rhythmManager, rhythmStore]);
+
+  const prepareNextProgressionChord = useCallback(() => {
+    if (!stage || !rhythmManager) return;
+    
+    const nextChordData = rhythmStore.getNextProgressionChord();
+    if (!nextChordData) return;
+
+    const nextTiming = rhythmManager.calculateProgressionTiming(
+      nextChordData,
+      rhythmStore.audioState.loopStartTime
+    );
+    
+    // リズムストアに次のコード情報を設定
+    rhythmStore.rhythmState.nextChord = nextChordData.chord;
+    rhythmStore.rhythmState.nextChordTiming = nextTiming;
+    
+    // 敵を生成
+    spawnEnemyForChord(nextChordData.chord, nextTiming);
+  }, [stage, rhythmManager, rhythmStore]);
+
+  // リズム用敵生成
+  const spawnEnemyForChord = useCallback((chord: string, timing: number) => {
+    // 既存の敵生成ロジックを活用
+    // TODO: タイミング情報を含む敵の生成
+    devLog.debug('リズム用敵生成:', { chord, timing });
+    
+    // 次のコード準備をスケジュール
+    setTimeout(() => {
+      prepareNextChord();
+    }, 1000);
+  }, [prepareNextChord]);
+
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
     setGameState(prevState => {
@@ -1041,6 +1184,12 @@ export const useFantasyGameEngine = ({
     stopGame,
     proceedToNextEnemy,
     imageTexturesRef, // プリロードされたテクスチャへの参照を追加
+    
+    // リズムモード関連
+    isRhythmMode,
+    rhythmStore,
+    rhythmManager,
+    audioManager,
     
     // ヘルパー関数もエクスポート
     checkChordMatch,
