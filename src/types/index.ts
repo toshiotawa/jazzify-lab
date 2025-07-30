@@ -5,7 +5,7 @@
 // ===== 基本的なゲーム状態 =====
 
 export type GameMode = 'practice' | 'performance';
-export type InstrumentMode = 'piano' | 'guitar';
+export type InstrumentMode = 'piano' | 'guitar' | 'rhythm';
 export type InputMode = 'midi' | 'audio' | 'both';
 
 // 移調楽器タイプ
@@ -749,3 +749,6 @@ export interface RankingEntry {
   updated_at: string;
   twitter_handle?: string;
 }
+
+// ===== リズムモード型 =====
+export * from './rhythm';
