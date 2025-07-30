@@ -672,6 +672,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
   }
   
+  // Check if this is a rhythm mode stage
+  if ((stage as any).game_type === 'rhythm') {
+    const RhythmGameScreen = React.lazy(() => import('../rhythm/RhythmGameScreen'));
+    return (
+      <React.Suspense fallback={<div className="h-screen flex items-center justify-center text-white">Loading...</div>}>
+        <RhythmGameScreen
+          stage={stage as any}
+          onGameComplete={onGameComplete}
+          onBackToStageSelect={onBackToStageSelect}
+          noteNameLang={currentNoteNameLang}
+          simpleNoteName={currentSimpleNoteName}
+          lessonMode={lessonMode}
+        />
+      </React.Suspense>
+    );
+  }
+
   return (
     <div className={cn(
       "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen"

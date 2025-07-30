@@ -641,6 +641,14 @@ export interface FantasyStage {
   show_guide: boolean;
   simultaneous_monster_count?: number;
   monster_icon?: string;
+  // Rhythm mode specific fields
+  game_type?: 'quiz' | 'rhythm';
+  rhythm_pattern?: 'random' | 'progression';
+  bpm?: number;
+  time_signature?: 3 | 4;
+  loop_measures?: number;
+  mp3_url?: string;
+  chord_progression_data?: any; // JSON field
 }
 
 export interface LessonContext {
