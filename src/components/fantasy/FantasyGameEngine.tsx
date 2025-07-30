@@ -22,7 +22,8 @@ interface ChordDefinition {
   root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
 
-interface FantasyStage {
+// FantasyStageインターフェースを型マッピングで変換
+interface FantasyStageInternal {
   id: string;
   stageNumber: string;
   name: string;
@@ -37,10 +38,34 @@ interface FantasyStage {
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
-  showGuide: boolean; // ガイド表示設定を追加
+  showGuide: boolean;
   monsterIcon: string;
   bgmUrl?: string;
-  simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  simultaneousMonsterCount: number;
+}
+
+// src/types/index.tsのFantasyStageからInternal形式に変換
+function convertToInternalStage(stage: import('@/types').FantasyStage): FantasyStageInternal {
+  return {
+    id: stage.id,
+    stageNumber: stage.stage_number,
+    name: stage.name,
+    description: stage.description || '',
+    maxHp: stage.max_hp,
+    enemyGaugeSeconds: stage.enemy_gauge_seconds,
+    enemyCount: stage.enemy_count,
+    enemyHp: stage.enemy_hp,
+    minDamage: stage.min_damage,
+    maxDamage: stage.max_damage,
+    mode: stage.mode,
+    allowedChords: stage.allowed_chords,
+    chordProgression: stage.chord_progression,
+    showSheetMusic: stage.show_sheet_music,
+    showGuide: stage.show_guide,
+    monsterIcon: stage.monster_icon || 'fa-dragon',
+    bgmUrl: stage.mp3_url,
+    simultaneousMonsterCount: stage.simultaneous_monster_count || 1
+  };
 }
 
 interface MonsterState {
@@ -57,7 +82,7 @@ interface MonsterState {
 }
 
 interface FantasyGameState {
-  currentStage: FantasyStage | null;
+  currentStage: FantasyStageInternal | null;
   currentQuestionIndex: number;
   currentChordTarget: ChordDefinition | null; // 廃止予定（互換性のため残す）
   playerHp: number;
@@ -89,7 +114,7 @@ interface FantasyGameState {
 }
 
 interface FantasyGameEngineProps {
-  stage: FantasyStage | null;
+  stage: import('@/types').FantasyStage | null;
   onGameStateChange: (state: FantasyGameState) => void;
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を追加
@@ -407,8 +432,39 @@ export const useFantasyGameEngine = ({
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
   // ゲーム初期化
-  const initializeGame = useCallback(async (stage: FantasyStage) => {
+  const initializeGame = useCallback(async (externalStage: import('@/types').FantasyStage) => {
+    const stage = convertToInternalStage(externalStage);
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+    
+    // BGM再生（クイズモードでもBGMを再生する場合）
+    if (stage.bgmUrl) {
+      try {
+        const { RhythmMusicManager } = await import('@/utils/RhythmMusicManager');
+        const musicManager = RhythmMusicManager.getInstance();
+        await musicManager.loadMusic(stage.bgmUrl);
+        
+        // クイズモードではループなしで再生
+        const audioContext = new AudioContext();
+        const response = await fetch(stage.bgmUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        const sourceNode = audioContext.createBufferSource();
+        sourceNode.buffer = audioBuffer;
+        
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 0.5; // 音量を50%に設定
+        
+        sourceNode.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        sourceNode.start(0);
+        devLog.debug('BGM再生開始（クイズモード）');
+      } catch (error) {
+        devLog.error('BGM再生エラー:', error);
+        // BGM再生に失敗してもゲームは続行
+      }
+    }
 
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;
@@ -1051,5 +1107,6 @@ export const useFantasyGameEngine = ({
   };
 };
 
-export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState };
+export type { ChordDefinition, FantasyGameState, FantasyGameEngineProps, MonsterState };
+export type FantasyStage = import('@/types').FantasyStage;
 export { ENEMY_LIST, getCurrentEnemy };
