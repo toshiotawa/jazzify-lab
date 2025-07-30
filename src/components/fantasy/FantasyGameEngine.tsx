@@ -8,6 +8,7 @@ import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
+import { useRhythmStore } from '@/stores/rhythmStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
 import { RhythmManager } from '@/utils/RhythmManager';
@@ -408,14 +409,21 @@ const createRhythmMonster = (
   const monsterId = monsterIds[monsterIndex % monsterIds.length];
   const monsterData = MONSTERS[monsterId] || MONSTERS['slime_green'];
   
-  // タイミング計算
+  // タイミング計算 - 音楽のビート位置から逆算
   const beatDurationMs = 60000 / bpm;
-  const beatsFromStart = (timing.measure - 1) * timeSignature + (timing.beat - 1);
-  const targetTimeMs = startTimeMs + (beatsFromStart * beatDurationMs);
-  const spawnTimeMs = targetTimeMs - 4000; // 4秒前に出現
+  const absBeat = (timing.measure - 1) * timeSignature + (timing.beat - 1);
+  const targetTimeMs = startTimeMs + (absBeat * beatDurationMs);
+  const appearLeadMs = 4000; // 4秒前に出現
+  const spawnTimeMs = targetTimeMs - appearLeadMs;
   
-  // 0秒地点のコードの場合、初期ゲージを調整
-  const initialGauge = targetTimeMs <= startTimeMs ? 80 : 0;
+  // spawn以前は0、target時点で100になるように初期ゲージを計算
+  const now = performance.now();
+  let initialGauge = 0;
+  if (now >= spawnTimeMs) {
+    const elapsed = now - spawnTimeMs;
+    const totalDuration = targetTimeMs - spawnTimeMs;
+    initialGauge = Math.min(100, (elapsed / totalDuration) * 100);
+  }
   
   return {
     id: `monster_${Date.now()}_${Math.random()}`,
@@ -561,7 +569,8 @@ export const useFantasyGameEngine = ({
       
       if (!chord) return prevState;
       
-      // モンスターを生成
+      // モンスターを生成（rhythmStoreのstartAtを使用）
+      const rhythmStartAt = useRhythmStore.getState().startAt;
       const newMonster = createRhythmMonster(
         nextMonsterIndex,
         'A', // ランダムパターンは常に1体なのでA列固定
@@ -569,7 +578,7 @@ export const useFantasyGameEngine = ({
         chord,
         timing,
         prevState.currentStage.bpm || 120,
-        performance.now(),
+        rhythmStartAt,
         stageMonsterIds,
         prevState.currentStage.time_signature || 4 // タイムシグネチャーを渡す
       );
@@ -677,11 +686,12 @@ export const useFantasyGameEngine = ({
         devLog.error('❌ RhythmManager初期化エラー:', error);
       }
       
-      // SyncMonitorの初期化
+      // SyncMonitorの初期化（実際の開始時刻はReady終了時に設定される）
       try {
+        const estimatedStartTime = performance.now() + 3000; // 3秒後の予定時刻
         syncMonitor = new SyncMonitor(
-          performance.now() + 3000, // ゲーム開始時刻（Readyフェーズ後）
-          performance.now() + 3000  // 音楽開始時刻（同じ）
+          estimatedStartTime, // ゲーム開始時刻（Readyフェーズ後）
+          estimatedStartTime  // 音楽開始時刻（同じ）
         );
         devLog.debug('✅ SyncMonitor初期化成功');
       } catch (error) {
@@ -760,7 +770,7 @@ export const useFantasyGameEngine = ({
                 chord,
                 chordAssignment.timing,
                 normalizedStage.bpm || 120,
-                performance.now() + 3000, // Readyフェーズ後に開始
+                performance.now() + 3000, // Readyフェーズ後に開始（後でrhythmStoreで上書きされる）
                 monsterIds,
                 normalizedStage.time_signature || 4 // タイムシグネチャーを渡す
               );
@@ -1085,10 +1095,11 @@ export const useFantasyGameEngine = ({
         const updatedMonsters = prevState.activeMonsters.map(monster => {
           if (!monster.timing) return monster;
           
-          // 判定時刻までの残り時間から逆算してゲージを計算（タイムオフセットを考慮）
-          const timeToTarget = monster.timing.targetTime - currentTimeMs + prevState.timeOffset;
-          const totalTime = prevState.currentStage.enemyGaugeSeconds * 1000;
-          const gaugeProgress = Math.max(0, Math.min(100, (1 - timeToTarget / totalTime) * 100));
+          // spawn以前は0、target時点で100になる計算式
+          const now = performance.now();
+          const elapsed = now - monster.timing.spawnTime;
+          const totalDuration = monster.timing.targetTime - monster.timing.spawnTime;
+          const gaugeProgress = Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
           
           return {
             ...monster,
@@ -1528,9 +1539,12 @@ export const useFantasyGameEngine = ({
       const countdownTimer = setTimeout(() => {
         setGameState(prevState => {
           if (prevState.readyCountdown === 0) {
-            // カウントダウン終了、音楽開始
+            // カウントダウン終了、音楽とタイマーを同時に開始
             prevState.rhythmManager?.start();
-            devLog.debug('🎵 音楽開始！');
+            const startTime = performance.now();
+            useRhythmStore.getState().setStart(startTime);
+            useRhythmStore.getState().setPlaying(true);
+            devLog.debug('🎵 音楽開始！startAt:', startTime);
             return {
               ...prevState,
               isReady: false,
