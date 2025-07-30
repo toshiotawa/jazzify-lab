@@ -261,6 +261,11 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     const clearInfo = getStageClearInfo(stage);
     const isCleared = clearInfo && clearInfo.clearType === 'clear';
     
+    // play_modeとpattern_typeの取得（型安全に）
+    const playMode = (stage as any).play_mode || 'quiz';
+    const patternType = (stage as any).pattern_type;
+    const timeSignature = (stage as any).time_signature || 4;
+    
     return (
       <div
         key={stage.id}
@@ -280,12 +285,34 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         
         {/* コンテンツ部分 */}
         <div className="flex-grow">
-          {/* ステージ名 */}
+          {/* ステージ名とモードアイコン */}
           <div className={cn(
-            "text-lg font-medium mb-1",
+            "text-lg font-medium mb-1 flex items-center gap-2",
             unlocked ? "text-white" : "text-gray-400"
           )}>
-            {unlocked ? stage.name : "???"}
+            {unlocked ? (
+              <>
+                {stage.name}
+                {/* モードアイコン */}
+                {playMode === 'rhythm' ? (
+                  <span className="text-sm bg-purple-600 bg-opacity-50 px-2 py-1 rounded-md">
+                    🎵 リズム
+                  </span>
+                ) : (
+                  <span className="text-sm bg-blue-600 bg-opacity-50 px-2 py-1 rounded-md">
+                    🎲 クイズ
+                  </span>
+                )}
+                {/* パターンタイプ（リズムモードの場合） */}
+                {playMode === 'rhythm' && patternType && (
+                  <span className="text-xs bg-gray-700 bg-opacity-50 px-2 py-1 rounded-md">
+                    {patternType === 'random' ? 'ランダム' : 'プログレッション'} {timeSignature}/4
+                  </span>
+                )}
+              </>
+            ) : (
+              "???"
+            )}
           </div>
           
           {/* 説明文 */}

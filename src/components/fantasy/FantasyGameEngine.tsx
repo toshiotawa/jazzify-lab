@@ -41,6 +41,9 @@ interface FantasyStage {
   monsterIcon: string;
   bgmUrl?: string;
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  playMode?: 'quiz' | 'rhythm'; // 追加: ゲームモード
+  timeSignature?: 3 | 4; // 追加: 拍子
+  patternType?: 'random' | 'progression'; // 追加: リズムモードのパターン
 }
 
 interface MonsterState {
