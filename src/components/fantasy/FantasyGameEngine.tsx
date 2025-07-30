@@ -412,18 +412,30 @@ const createRhythmMonster = (
   // タイミング計算 - 音楽のビート位置から逆算
   const beatDurationMs = 60000 / bpm;
   const absBeat = (timing.measure - 1) * timeSignature + (timing.beat - 1);
-  const nowAudio = useRhythmStore.getState().lastAudioTime; // ★
-  const targetTimeMs = nowAudio + absBeat * beatDurationMs;
+  
+  // audio時刻ベースのタイミング計算
+  const targetTimeAudio = absBeat * beatDurationMs; // audio時刻での判定タイミング
   const appearLeadMs = 4000; // 4秒前に出現
-  const spawnTimeMs = targetTimeMs - appearLeadMs;
+  const spawnTimeAudio = targetTimeAudio - appearLeadMs;
   
   // spawn以前は0、target時点で100になるように初期ゲージを計算
+  const nowAudio = useRhythmStore.getState().lastAudioTime;
   let initialGauge = 0;
-  if (nowAudio >= spawnTimeMs) {
-    const elapsed = nowAudio - spawnTimeMs;
-    const totalDuration = targetTimeMs - spawnTimeMs;
+  if (nowAudio >= spawnTimeAudio) {
+    const elapsed = nowAudio - spawnTimeAudio;
+    const totalDuration = appearLeadMs;
     initialGauge = Math.min(100, (elapsed / totalDuration) * 100);
   }
+  
+  devLog.debug('🎮 リズムモンスター生成:', {
+    measure: timing.measure,
+    beat: timing.beat,
+    absBeat,
+    nowAudio,
+    spawnTimeAudio,
+    targetTimeAudio,
+    initialGauge
+  });
   
   return {
     id: `monster_${Date.now()}_${Math.random()}`,
@@ -439,8 +451,8 @@ const createRhythmMonster = (
     timing: {
       measure: timing.measure,
       beat: timing.beat,
-      spawnTime: spawnTimeMs,
-      targetTime: targetTimeMs
+      spawnTime: spawnTimeAudio,
+      targetTime: targetTimeAudio
     }
   };
 };
@@ -682,6 +694,13 @@ export const useFantasyGameEngine = ({
           volume: 0.7
         });
         devLog.debug('✅ RhythmManager初期化成功');
+        
+        // rhythmStoreの初期化
+        useRhythmStore.getState().setPlaying(false);
+        useRhythmStore.getState().setStart(0);
+        useRhythmStore.getState().setPos({ measure: 0, beat: 0, absoluteBeat: 0 });
+        useRhythmStore.getState().setLastAudioTime(0);
+        devLog.debug('✅ rhythmStore初期化完了');
       } catch (error) {
         devLog.error('❌ RhythmManager初期化エラー:', error);
       }
@@ -1097,6 +1116,14 @@ export const useFantasyGameEngine = ({
           
           // (1) store から現在の audio 時刻を取得
           const audioNow = useRhythmStore.getState().lastAudioTime;
+          
+          // デバッグログ
+          devLog.debug('🎯 ゲージ更新:', {
+            audioNow,
+            spawnTime: monster.timing.spawnTime,
+            targetTime: monster.timing.targetTime,
+            monster: monster.name
+          });
           
           // (2) ゲージ更新
           const elapsed = audioNow - monster.timing.spawnTime;
