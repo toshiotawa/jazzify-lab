@@ -157,11 +157,18 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
         <div
           key={i}
           className={cn(
-            "flex-1 border border-gray-600 transition-all duration-100",
+            "flex-1 border border-gray-600 transition-all duration-100 relative",
             sizeConfig.gauge,
             i < filledBlocks ? "bg-red-500" : "bg-gray-700"
           )}
-        />
+        >
+          {/* 8割（80%）のタイミングマーカー */}
+          {i === 7 && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-full h-1 bg-yellow-400 opacity-80"></div>
+            </div>
+          )}
+        </div>
       );
     }
     

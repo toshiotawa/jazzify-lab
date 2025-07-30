@@ -1,0 +1,47 @@
+{
+  "bpm": 120,
+  "timeSignature": 4,
+  "measureCount": 8,
+  "chords": [
+    {
+      "chord": "CM7",
+      "measure": 1,
+      "beat": 1
+    },
+    {
+      "chord": "Am7",
+      "measure": 2,
+      "beat": 1
+    },
+    {
+      "chord": "Dm7",
+      "measure": 3,
+      "beat": 1
+    },
+    {
+      "chord": "G7",
+      "measure": 4,
+      "beat": 1
+    },
+    {
+      "chord": "CM7",
+      "measure": 5,
+      "beat": 1
+    },
+    {
+      "chord": "Am7",
+      "measure": 6,
+      "beat": 1
+    },
+    {
+      "chord": "FM7",
+      "measure": 7,
+      "beat": 1
+    },
+    {
+      "chord": "G7",
+      "measure": 8,
+      "beat": 1
+    }
+  ]
+}
