@@ -641,6 +641,14 @@ export interface FantasyStage {
   show_guide: boolean;
   simultaneous_monster_count?: number;
   monster_icon?: string;
+  // リズムモード関連
+  game_type?: 'quiz' | 'rhythm';
+  rhythm_type?: 'randomChord' | 'progression';
+  bpm?: number;
+  time_signature?: 3 | 4;
+  measure_count?: number;
+  rhythm_data?: string;
+  bgm_url?: string;
 }
 
 export interface LessonContext {
