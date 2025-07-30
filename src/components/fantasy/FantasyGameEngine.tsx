@@ -413,8 +413,12 @@ const createRhythmMonster = (
   const beatDurationMs = 60000 / bpm;
   const absBeat = (timing.measure - 1) * timeSignature + (timing.beat - 1);
   const nowAudio = useRhythmStore.getState().lastAudioTime; // ★ 現在のAudio時刻(ms)
-  const targetTimeMs = nowAudio + absBeat * beatDurationMs;
+  let targetTimeMs = nowAudio + absBeat * beatDurationMs;
   const appearLeadMs = 4000; // 4秒前に出現
+  // targetTime が近すぎる場合は 1 小節ずつ先送り
+  while (targetTimeMs - nowAudio < appearLeadMs) {
+    targetTimeMs += timeSignature * beatDurationMs;
+  }
   const spawnTimeMs = targetTimeMs - appearLeadMs;
   
   // spawn以前は0、target時点で100になるように初期ゲージを計算
