@@ -1,0 +1,7 @@
+This is a placeholder for the demo-1.mp3 file.
+
+To test rhythm mode:
+1. Place an actual MP3 file named "demo-1.mp3" in this directory
+2. The file should be 120 BPM with a 4/4 time signature
+3. First measure should be a count-in
+4. File will be accessed at /music/demo-1.mp3

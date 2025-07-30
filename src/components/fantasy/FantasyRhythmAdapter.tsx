@@ -65,13 +65,45 @@ export const FantasyRhythmAdapter: React.FC<FantasyRhythmAdapterProps> = ({
 
   // For quiz mode with music
   if (!isRhythmMode) {
-    const extendedStage = stage as FantasyStage & { mp3_url?: string };
+    const extendedStage = stage as FantasyStage & { mp3_url?: string; bpm?: number; time_signature?: number; loop_measures?: number };
     if (!extendedStage.mp3_url) return null;
+
+    // Use rhythm engine for music playback in quiz mode
+    const quizMusicEngine = useRhythmGameEngine({ 
+      stage: {
+        ...stage,
+        game_type: 'quiz',
+        rhythm_pattern: 'random',
+        bpm: extendedStage.bpm || 120,
+        time_signature: extendedStage.time_signature || 4,
+        loop_measures: extendedStage.loop_measures || 8,
+        mp3_url: extendedStage.mp3_url
+      } as FantasyStage,
+      onChordTiming: () => {}, // No timing in quiz mode
+      onMissedTiming: () => {} // No timing in quiz mode
+    });
+
+    useEffect(() => {
+      if (isActive && quizMusicEngine.isInitialized && !quizMusicEngine.isPlaying) {
+        quizMusicEngine.startMusic();
+      } else if (!isActive && quizMusicEngine.isPlaying) {
+        quizMusicEngine.pauseMusic();
+      }
+    }, [isActive, quizMusicEngine]);
 
     // Simple music player for quiz mode
     return (
-      <div className="music-indicator absolute top-20 right-4 bg-black/50 backdrop-blur-sm rounded-lg p-2 text-white text-sm z-10">
-        🎵 Background Music
+      <div className="music-controls absolute top-20 right-4 bg-black/50 backdrop-blur-sm rounded-lg p-4 text-white z-10">
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => quizMusicEngine.isPlaying ? quizMusicEngine.pauseMusic() : quizMusicEngine.startMusic()}
+            className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors text-sm"
+            disabled={!quizMusicEngine.isInitialized}
+          >
+            {quizMusicEngine.isPlaying ? '⏸️ Pause' : '▶️ Play'} BGM
+          </button>
+          <span className="text-xs opacity-70">Quiz Mode</span>
+        </div>
       </div>
     );
   }

@@ -15,7 +15,14 @@ export class AudioManager {
    */
   async load(url: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.audio = new Audio(url);
+      // Handle relative paths for public directory
+      // If URL is /demo-1.mp3, convert to /music/demo-1.mp3
+      let fullUrl = url;
+      if (url.startsWith('/') && !url.startsWith('/music/')) {
+        fullUrl = `/music${url}`;
+      }
+      
+      this.audio = new Audio(fullUrl);
       this.audio.preload = 'auto';
       
       this.audio.addEventListener('loadedmetadata', () => {
@@ -24,6 +31,7 @@ export class AudioManager {
       });
       
       this.audio.addEventListener('error', (e) => {
+
         reject(e);
       });
     });

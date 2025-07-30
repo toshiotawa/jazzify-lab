@@ -32,6 +32,9 @@ export const FantasyGameScreenRhythmIntegration: React.FC<RhythmIntegrationProps
     chord_progression_data?: Array<{ chord: string; measure: number; beat: number }>;
   };
 
+  // Stage data validation
+  const hasRhythmData = !!(extendedStage.game_type && extendedStage.mp3_url);
+
   const isRhythmMode = extendedStage.game_type === 'rhythm';
 
   if (!isRhythmMode) {

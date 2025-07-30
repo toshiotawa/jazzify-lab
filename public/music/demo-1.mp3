@@ -1,0 +1,11 @@
+# Demo Music File
+
+This is a placeholder for demo-1.mp3.
+
+To add a demo music file:
+1. Create or obtain a royalty-free MP3 file
+2. Set it to 120 BPM (or adjust the stage settings)
+3. Make sure the first measure is a count-in
+4. Name it demo-1.mp3 and place it in this directory
+
+The file will be accessed at /music/demo-1.mp3

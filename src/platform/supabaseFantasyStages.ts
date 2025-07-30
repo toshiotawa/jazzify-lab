@@ -25,6 +25,7 @@ export async function fetchFantasyStages(): Promise<FantasyStage[]> {
     bpm: stage.bpm || 120,
     time_signature: stage.time_signature || 4,
     loop_measures: stage.loop_measures || 8,
+    mp3_url: stage.mp3_url || null,
     chord_progression_data: stage.chord_progression_data || []
   }));
 }
@@ -58,6 +59,7 @@ export async function fetchFantasyStageById(stageId: string): Promise<FantasySta
     bpm: data.bpm || 120,
     time_signature: data.time_signature || 4,
     loop_measures: data.loop_measures || 8,
+    mp3_url: data.mp3_url || null,
     chord_progression_data: data.chord_progression_data || []
   };
 }
@@ -95,6 +97,7 @@ export async function fetchFantasyStageByNumber(stageNumber: string): Promise<Fa
     bpm: data.bpm || 120,
     time_signature: data.time_signature || 4,
     loop_measures: data.loop_measures || 8,
+    mp3_url: data.mp3_url || null,
     chord_progression_data: data.chord_progression_data || []
   };
 }
