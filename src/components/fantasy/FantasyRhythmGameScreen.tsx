@@ -58,11 +58,19 @@ const FantasyRhythmGameScreen: React.FC<FantasyRhythmGameScreenProps> = ({
     gameState,
     isInitialized,
     handleChordInput,
+    startGame,
     stopGame
   } = useFantasyRhythmEngine({
     stage,
     onGameStateChange: (state) => {
-      devLog.debug('リズムゲーム状態更新:', state);
+      devLog.debug('リズムゲーム状態更新:', {
+        isGameActive: state.isGameActive,
+        isPlaying: state.isPlaying,
+        playerHp: state.playerHp,
+        totalEnemies: state.totalEnemies,
+        activeMonsters: state.activeMonsters.length,
+        currentTime: state.currentTime
+      });
     },
     onChordJudge: (judgment, chord, monsterId) => {
       devLog.debug('コード判定:', { judgment, chord, monsterId });
@@ -201,6 +209,51 @@ const FantasyRhythmGameScreen: React.FC<FantasyRhythmGameScreenProps> = ({
       // 自動開始の実装（必要に応じて）
     }
   }, [autoStart, isInitialized]);
+  
+  // ゲーム開始前画面
+  if (!gameState.isGameActive || !isInitialized) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center fantasy-game-screen">
+        <div className="text-white text-center">
+          <div className="text-6xl mb-6">🎵</div>
+          <h2 className="text-3xl font-bold mb-4">
+            {stage?.name ?? 'タイトル取得失敗'}
+          </h2>
+          <p className="text-gray-200 mb-4">
+            {stage?.description ?? '説明テキストを取得できませんでした'}
+          </p>
+          <p className="text-yellow-300 mb-8">
+            リズムモード - {stage.rhythm_pattern === 'random' ? 'ランダムパターン' : 'プログレッションパターン'}
+          </p>
+          <button
+            onClick={() => {
+              devLog.debug('🎮 リズムゲーム開始ボタンクリック');
+              // ゲームが既に初期化されている場合は、ゲームを開始
+              if (isInitialized) {
+                startGame();
+              }
+            }}
+            className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
+            disabled={!isInitialized}
+          >
+            {isInitialized ? '🎵 リズムゲーム開始！' : '読み込み中...'}
+          </button>
+          
+          {/* デバッグ情報 */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 bg-black bg-opacity-50 text-white text-xs p-3 rounded">
+              <div>初期化状態: {isInitialized ? '完了' : '未完了'}</div>
+              <div>ゲーム状態: {gameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
+              <div>音楽再生中: {gameState.isPlaying ? 'はい' : 'いいえ'}</div>
+              <div>プレイヤーHP: {gameState.playerHp}/{stage.max_hp}</div>
+              <div>敵の総数: {gameState.totalEnemies}</div>
+              <div>アクティブモンスター: {gameState.activeMonsters.length}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div ref={containerRef} className={cn(

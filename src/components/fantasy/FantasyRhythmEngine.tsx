@@ -61,6 +61,9 @@ export const useFantasyRhythmEngine = ({
       const loopMeasures = stage.loop_measures || 8;
       musicManager.current.play(bpm, timeSignature, loopMeasures);
       
+      // リズムストアの再生状態を更新
+      rhythmStore.startMusic();
+      
       setIsInitialized(true);
       devLog.debug('リズムゲーム初期化完了');
     } catch (error) {
@@ -82,8 +85,13 @@ export const useFantasyRhythmEngine = ({
     
     lastUpdateTime.current = timestamp;
     
-    // ゲーム時間の更新
-    rhythmStore.updateGameTime();
+    // 音楽時間を取得してゲーム時間を更新
+    const currentTime = musicManager.current.getCurrentTime();
+    const { measure, beat } = musicManager.current.getMeasureAndBeat(
+      stage?.bpm || 120,
+      stage?.time_signature || 4
+    );
+    rhythmStore.updateGameTime(currentTime, measure, beat);
     
     // ゲーム終了判定
     const { isGameOver, gameResult } = rhythmStore.gameState;
@@ -172,6 +180,7 @@ export const useFantasyRhythmEngine = ({
     gameState: rhythmStore.gameState,
     isInitialized,
     handleChordInput,
+    startGame,
     stopGame,
   };
 };

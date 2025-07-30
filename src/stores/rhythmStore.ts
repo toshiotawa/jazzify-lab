@@ -39,7 +39,7 @@ interface RhythmStore {
   
   // アクション - ゲーム制御
   initializeGame: (stage: FantasyStage, getChordDefinition: (chordId: string) => ChordDefinition | null) => void;
-  updateGameTime: () => void;
+  updateGameTime: (currentTime: number, currentMeasure: number, currentBeat: number) => void;
   judgeInput: (chordNotes: number[], inputTime: number) => { judgment: JudgmentType; monsterId?: string };
   processMonsterAttack: (monsterId: string) => void;
   processChordHit: (monsterId: string, judgment: JudgmentType) => void;
@@ -115,43 +115,13 @@ export const useRhythmStore = createWithEqualityFn<RhythmStore>()(
         },
         
         startMusic: () => {
-          const { audioContext, audioBuffer } = get();
-          if (!audioContext || !audioBuffer) {
-            devLog.error('音楽が初期化されていません');
-            return;
-          }
-          
-          // 既存の再生を停止
-          const { sourceNode } = get();
-          if (sourceNode) {
-            sourceNode.stop();
-          }
-          
-          // 新しいソースノードを作成
-          const newSourceNode = audioContext.createBufferSource();
-          newSourceNode.buffer = audioBuffer;
-          newSourceNode.loop = true;
-          
-          // ループポイントの設定（2小節目の開始地点）
-          const { gameState } = get();
-          const bpm = gameState.currentStage?.bpm || 120;
-          const timeSignature = gameState.currentStage?.time_signature || 4;
-          const beatDuration = 60 / bpm; // 1拍の秒数
-          const measureDuration = beatDuration * timeSignature; // 1小節の秒数
-          
-          newSourceNode.loopStart = measureDuration; // 2小節目から
-          newSourceNode.loopEnd = audioBuffer.duration;
-          
-          newSourceNode.connect(audioContext.destination);
-          newSourceNode.start(0);
-          
+          // 音楽の再生はRhythmMusicManagerで管理されているため、
+          // ここでは再生状態のフラグのみを管理
           set((state) => {
-            state.sourceNode = newSourceNode;
-            state.startTime = audioContext.currentTime;
             state.gameState.isPlaying = true;
           });
           
-          devLog.debug('音楽再生開始');
+          devLog.debug('音楽再生状態を有効化');
         },
         
         stopMusic: () => {
@@ -166,8 +136,10 @@ export const useRhythmStore = createWithEqualityFn<RhythmStore>()(
         },
         
         getCurrentMusicTime: (): MusicTimeInfo => {
-          const { audioContext, startTime, gameState } = get();
-          if (!audioContext || !gameState.isPlaying) {
+          // RhythmMusicManagerから現在の音楽時間を取得
+          // 注: この関数は実際にはFantasyRhythmEngineから呼ばれるべき
+          const { gameState } = get();
+          if (!gameState.isPlaying) {
             return {
               currentTime: 0,
               currentMeasure: 1,
@@ -177,38 +149,13 @@ export const useRhythmStore = createWithEqualityFn<RhythmStore>()(
             };
           }
           
-          const elapsed = audioContext.currentTime - startTime;
-          const bpm = gameState.currentStage?.bpm || 120;
-          const timeSignature = gameState.currentStage?.time_signature || 4;
-          const beatDuration = 60 / bpm;
-          const measureDuration = beatDuration * timeSignature;
-          
-          // ループを考慮した時間計算
-          const loopMeasures = gameState.currentStage?.loop_measures || 8;
-          const loopDuration = measureDuration * (loopMeasures - 1); // 1小節目を除く
-          
-          let adjustedTime = elapsed;
-          // let loopCount = 0;
-          
-          if (elapsed > measureDuration) {
-            // 2小節目以降
-            const timeAfterFirstMeasure = elapsed - measureDuration;
-            // loopCount = Math.floor(timeAfterFirstMeasure / loopDuration);
-            adjustedTime = measureDuration + (timeAfterFirstMeasure % loopDuration);
-          }
-          
-          const totalBeats = adjustedTime / beatDuration;
-          const currentMeasure = Math.floor(totalBeats / timeSignature) + 1;
-          const beatInMeasure = (totalBeats % timeSignature) + 1;
-          const beatProgress = (totalBeats % 1);
-          const measureProgress = ((totalBeats % timeSignature) / timeSignature);
-          
+          // 簡易実装：実際の時間管理はRhythmMusicManagerで行う
           return {
-            currentTime: elapsed,
-            currentMeasure,
-            currentBeat: beatInMeasure,
-            beatProgress,
-            measureProgress,
+            currentTime: 0,
+            currentMeasure: 1,
+            currentBeat: 1,
+            beatProgress: 0,
+            measureProgress: 0,
           };
         },
         
@@ -265,14 +212,9 @@ export const useRhythmStore = createWithEqualityFn<RhythmStore>()(
           });
         },
         
-        updateGameTime: () => {
-          const { gameState, audioContext } = get();
-          if (!gameState.isGameActive || !gameState.isPlaying || !audioContext) return;
-          
-          const musicTime = get().getCurrentMusicTime();
-          
-          // モンスターゲージの更新
-          const currentTime = musicTime.currentTime;
+        updateGameTime: (currentTime: number, currentMeasure: number, currentBeat: number) => {
+          const { gameState } = get();
+          if (!gameState.isGameActive || !gameState.isPlaying) return;
           const updatedMonsters = gameState.activeMonsters.map(monster => {
             if (monster.isDefeated) return monster;
             
@@ -295,18 +237,17 @@ export const useRhythmStore = createWithEqualityFn<RhythmStore>()(
           );
           
           set((state) => {
-            state.gameState.currentMeasure = musicTime.currentMeasure;
-            state.gameState.currentBeat = musicTime.currentBeat;
-            state.gameState.currentTime = musicTime.currentTime;
+            state.gameState.currentMeasure = currentMeasure;
+            state.gameState.currentBeat = currentBeat;
+            state.gameState.currentTime = currentTime;
             state.gameState.activeMonsters = updatedMonsters;
             state.gameState.nextChordTiming = nextTiming || null;
           });
         },
         
-        judgeInput: (chordNotes: number[], _inputTime: number) => {
+        judgeInput: (chordNotes: number[], inputTime: number) => {
           const { gameState, judgmentWindow } = get();
-          const musicTime = get().getCurrentMusicTime();
-          const currentTime = musicTime.currentTime;
+          const currentTime = inputTime;
           
           // 最も近いタイミングのモンスターを探す
           let closestMonster: RhythmMonsterState | null = null;
