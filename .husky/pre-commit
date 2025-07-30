@@ -1,0 +1,34 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 コミット前チェックを実行中..."
+
+# TypeScriptの型チェック
+echo "📘 TypeScript型チェック..."
+npm run type-check || {
+  echo "❌ TypeScript型チェックに失敗しました"
+  exit 1
+}
+
+# ESLintチェック（循環参照も含む）
+echo "📋 ESLintチェック..."
+npm run lint || {
+  echo "❌ ESLintチェックに失敗しました"
+  exit 1
+}
+
+# 循環参照チェック
+echo "🔄 循環参照チェック..."
+npm run check:circular || {
+  echo "❌ 循環参照が検出されました"
+  exit 1
+}
+
+# テスト実行（オプション）
+# echo "🧪 テスト実行..."
+# npm test || {
+#   echo "❌ テストに失敗しました"
+#   exit 1
+# }
+
+echo "✅ すべてのチェックが完了しました！"

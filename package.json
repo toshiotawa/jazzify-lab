@@ -19,6 +19,8 @@
     "preview:prod": "vite build --mode production && vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
+    "check:circular": "node check-circular-deps.js",
+    "check:all": "npm run type-check && npm run lint && npm run check:circular",
     "clean": "rm -rf dist node_modules/.vite",
     "clean:all": "rm -rf dist node_modules/.vite node_modules && npm install"
   },
