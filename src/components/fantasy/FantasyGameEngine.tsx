@@ -99,6 +99,8 @@ interface FantasyGameState {
   currentEnemyHits: number; // 廃止予定（互換性のため残す）
   enemiesDefeated: number;
   totalEnemies: number;
+  // モンスターID管理
+  stageMonsterIds: string[];
   // 敵のHP管理を追加
   currentEnemyHp: number; // 廃止予定（互換性のため残す）
   maxEnemyHp: number; // 廃止予定（互換性のため残す）
@@ -406,6 +408,12 @@ const createRhythmMonster = (
   monsterIds: string[],
   timeSignature: number = 4  // 追加
 ): MonsterState => {
+  // モンスターID配列が空の場合のフォールバック
+  if (!monsterIds || monsterIds.length === 0) {
+    devLog.warn('⚠️ モンスターID配列が空です。デフォルトのモンスターを使用します。');
+    monsterIds = ['slime_green'];
+  }
+  
   const monsterId = monsterIds[monsterIndex % monsterIds.length];
   const monsterData = MONSTERS[monsterId] || MONSTERS['slime_green'];
   
@@ -517,7 +525,8 @@ export const useFantasyGameEngine = ({
     readyCountdown: 3,
     currentMeasure: 0,
     currentBeat: 0,
-    timeOffset: 0
+    timeOffset: 0,
+    stageMonsterIds: []
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -576,7 +585,7 @@ export const useFantasyGameEngine = ({
         timing,
         prevState.currentStage.bpm || 120,
         gameStartTime,
-        stageMonsterIds,
+        prevState.stageMonsterIds,
         prevState.currentStage.time_signature || 4 // タイムシグネチャーを渡す
       );
       
@@ -599,6 +608,9 @@ export const useFantasyGameEngine = ({
     devLog.debug('🎮 initializeGame called with stage:', stage);
     devLog.debug('🎮 Stage game_type:', stage.game_type);
     devLog.debug('🎮 Stage rhythm_pattern:', stage.rhythm_pattern);
+    devLog.debug('🎮 Stage mp3_url:', stage.mp3_url);
+    devLog.debug('🎮 Stage bpm:', stage.bpm);
+    devLog.debug('🎮 Stage time_signature:', stage.time_signature);
     
     // ステージデータを正規化（デフォルト値を設定）
     const normalizedStage: FantasyStage = {
@@ -878,7 +890,8 @@ export const useFantasyGameEngine = ({
       readyCountdown: gameType === 'rhythm' ? 3 : 0,
       currentMeasure: 0,
       currentBeat: 0,
-      timeOffset: 0
+      timeOffset: 0,
+      stageMonsterIds: monsterIds // モンスターIDを保存
     };
 
     setGameState(newState);
@@ -1315,7 +1328,7 @@ export const useFantasyGameEngine = ({
                 chordAssignment.timing,
                 prevState.currentStage.bpm || 120,
                 currentTimeMs,
-                stageMonsterIds,
+                prevState.stageMonsterIds,
                 prevState.currentStage.time_signature || 4 // タイムシグネチャーを渡す
               );
               newMonster.questionNumber = chordAssignment.questionNumber;
