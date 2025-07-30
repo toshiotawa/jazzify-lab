@@ -242,7 +242,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const handleStageSelect = useCallback((stage: FantasyStage) => {
     if (!isStageUnlocked(stage)) return;
     
-    devLog.debug('🎮 ステージ選択:', stage.stageNumber);
+    devLog.debug('🎮 ステージ選択:', stage?.stage_number);
     onStageSelect(stage);
   }, [isStageUnlocked, onStageSelect]);
   

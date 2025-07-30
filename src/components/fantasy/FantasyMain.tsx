@@ -104,7 +104,7 @@ const FantasyMain: React.FC = () => {
   
   // ステージ選択ハンドラ
   const handleStageSelect = useCallback((stage: FantasyStage) => {
-    devLog.debug('🎮 ファンタジーモード: ステージ選択', stage.stageNumber);
+    devLog.debug('🎮 ファンタジーモード: ステージ選択', stage?.stage_number);
     setCurrentStage(stage);
     setGameResult(null);
     setShowResult(false);
