@@ -582,7 +582,6 @@ const FantasyMain: React.FC = () => {
         onBackToStageSelect={handleBackToStageSelect}
         noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
         simpleNoteName={settings.simpleDisplayMode}
-        lessonMode={isLessonMode}
       />
     );
   }

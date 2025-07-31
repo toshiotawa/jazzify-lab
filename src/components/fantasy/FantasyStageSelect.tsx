@@ -7,7 +7,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
 import { devLog } from '@/utils/logger';
-import { Database } from '@/types/supabase';
 
 // ===== 型定義 =====
 
@@ -17,6 +16,7 @@ interface FantasyUserProgress {
   currentStageNumber: string;
   wizardRank: string;
   totalClearedStages: number;
+  stageClearCounts?: Record<string, number>;
 }
 
 interface FantasyStageClear {
@@ -139,7 +139,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       }
       
       //// データの変換とセット
-      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: Database['public']['Tables']['fantasy_stages']['Row']) => ({
+      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
         id: stage.id,
         stageNumber: stage.stage_number,
         name: stage.name,
@@ -170,7 +170,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         rhythmData: stage.rhythm_data
       }));
       
-      let convertedProgress: FantasyUserProgress;
+      let convertedProgress: FantasyUserProgress = {
+        id: '',
+        userId: '',
+        currentStageNumber: '1-1',
+        wizardRank: 'F',
+        totalClearedStages: 0
+      };
+      
       if (userProgressData) {
         convertedProgress = {
           id: (userProgressData as { id: string }).id,
@@ -181,7 +188,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         };
       }
       
-      const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: Database['public']['Tables']['fantasy_stage_clears']['Row']) => ({
+      const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: any) => ({
         id: clear.id,
         userId: clear.user_id,
         stageId: clear.stage_id,
@@ -387,7 +394,6 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   
   // メイン画面
   const groupedStages = groupStagesByRank(stages);
-    const stageClearCounts = userProgress?.stageClearCounts || {};
     
     // ステージ選択ハンドラ
   

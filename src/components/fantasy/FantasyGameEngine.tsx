@@ -649,7 +649,6 @@ export const useFantasyGameEngine = ({
       // リズムモードの場合は特別な計算
       if (prevState.isRhythmMode) {
         // リズムモードではゲージが80%の位置が判定タイミングになるように計算
-        const currentPos = getCurrentPosition();
         const bpm = prevState.currentStage.bpm || 120;
         const timeSignature = prevState.currentStage.timeSignature || 4;
         
@@ -692,7 +691,7 @@ export const useFantasyGameEngine = ({
         
         // 攻撃処理を非同期で実行
         devLog.debug('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
-        setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
+        setTimeout(() => onEnemyAttack(attackingMonster.id), 0);
         
         const nextState = { 
           ...prevState, 
@@ -713,7 +712,7 @@ export const useFantasyGameEngine = ({
         return nextState;
       }
     });
-  }, [handleEnemyAttack, onGameStateChange, getCurrentPosition]);
+  }, [onGameStateChange, onEnemyAttack, getCurrentPosition]);
   
   // リズムタイミング判定関数
   const checkRhythmTiming = useCallback((
@@ -799,10 +798,8 @@ export const useFantasyGameEngine = ({
           
           if (!isTimingCorrect) {
             devLog.debug('❌ リズムタイミング外です');
-            // タイミング外の場合は敵の攻撃として処理
-            handleEnemyAttack();
             
-            // コードをリセット
+            // コードをリセットして、敵の攻撃を実行
             const resetMonsters = monstersAfterInput.map(monster => {
               if (completedMonsters.some(cm => cm.id === monster.id)) {
                 const nextChord = selectRandomChord(
@@ -814,6 +811,11 @@ export const useFantasyGameEngine = ({
               }
               return monster;
             });
+            
+            // 敵の攻撃処理を非同期で実行
+            setTimeout(() => {
+              onEnemyAttack();
+            }, 0);
             
             return {
               ...prevState,
@@ -921,7 +923,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange]);
+  }, [checkRhythmTiming, displayOpts, getCurrentPosition, onChordCorrect, onEnemyAttack, onGameComplete, onGameStateChange, stageMonsterIds]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
