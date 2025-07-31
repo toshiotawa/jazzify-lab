@@ -46,8 +46,7 @@ interface CacheEntry<T> {
 
 // 最適化: キャッシュTTLを調整
 const DEFAULT_TTL = 1000 * 600; // 600 秒（10分）に延長
-const SHORT_TTL = 1000 * 60; // 1分（頻繁に変更されるデータ用）
-const cache: Map<string, CacheEntry<any>> = new Map();
+const cache: Map<string, CacheEntry<unknown>> = new Map();
 
 /**
  * クエリを実行し、結果を TTL 付きでキャッシュする
@@ -87,11 +86,15 @@ export async function fetchWithCache<T>(
  * @param callback イベントコールバック
  * @param options 追加オプション
  */
-export function subscribeRealtime<T>(
+export function subscribeRealtime<T = Record<string, unknown>>(
   channelName: string,
   tableName: string,
   eventType: 'INSERT' | 'UPDATE' | 'DELETE' | '*',
-  callback: (payload: any) => void,
+  callback: (payload: {
+    eventType: string;
+    new: T;
+    old: T;
+  }) => void,
   options?: {
     clearCache?: boolean; // キャッシュクリアの有無（デフォルト: false）
     filter?: string; // フィルタ条件
@@ -100,21 +103,17 @@ export function subscribeRealtime<T>(
   const supabase = getSupabaseClient();
   const channel = supabase.channel(channelName);
   
-  const eventConfig: any = { 
+  const eventConfig = { 
     event: eventType, 
     schema: 'public', 
-    table: tableName 
+    table: tableName,
+    ...(options?.filter && { filter: options.filter })
   };
   
-  // フィルタが指定されている場合は追加
-  if (options?.filter) {
-    eventConfig.filter = options.filter;
-  }
-  
   channel.on(
-    'postgres_changes' as any,
+    'postgres_changes',
     eventConfig,
-    (payload: any) => {
+    (payload) => {
       // 最適化: キャッシュクリアは必要な場合のみ
       if (options?.clearCache !== false) {
         clearCacheByPattern(`.*${tableName}.*`);
@@ -166,11 +165,15 @@ let lastCallTime = 0;
  * @param channelName チャンネル名
  * @param callback サブスクリプション作成コールバック
  */
-export function subscribeRealtimeOnce<T>(
+export function subscribeRealtimeOnce<T = Record<string, unknown>>(
   channelName: string,
   tableName: string,
   eventType: 'INSERT' | 'UPDATE' | 'DELETE' | '*',
-  callback: (payload: any) => void,
+  callback: (payload: {
+    eventType: string;
+    new: T;
+    old: T;
+  }) => void,
   options?: {
     clearCache?: boolean;
     filter?: string;
@@ -178,7 +181,7 @@ export function subscribeRealtimeOnce<T>(
 ) {
   // 既に同じチャンネルがアクティブな場合は何もしない
   if (activeSubscriptions.has(channelName)) {
-    console.log(`Realtime subscription ${channelName} already active, skipping...`);
+    log.debug(`Realtime subscription ${channelName} already active, skipping...`);
     return () => {}; // 空のクリーンアップ関数
   }
 

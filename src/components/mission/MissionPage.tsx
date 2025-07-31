@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import ChallengeBoard from './ChallengeBoard';
 import { useMissionStore } from '@/stores/missionStore';
-import { fetchMissionSongProgress } from '@/platform/supabaseMissions';
-import { FaArrowLeft, FaTrophy, FaCalendarAlt, FaBullseye } from 'react-icons/fa';
+import { FaCalendarAlt, FaBullseye } from 'react-icons/fa';
 
 const MissionPage: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#missions');
@@ -33,9 +32,7 @@ const MissionPage: React.FC = () => {
 
   if (!open) return null;
 
-  const handleClose = () => {
-    window.location.href = '/main#dashboard';
-  };
+
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">

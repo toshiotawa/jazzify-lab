@@ -4,19 +4,15 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import { loadStripe } from '@stripe/stripe-js';
 
 // Stripe Pricing Table用の型定義
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'stripe-pricing-table': {
-        'pricing-table-id': string;
-        'publishable-key': string;
-        'customer-email'?: string;
-      };
-    }
+declare module 'react' {
+  interface IntrinsicElements {
+    'stripe-pricing-table': {
+      'pricing-table-id': string;
+      'publishable-key': string;
+      'customer-email'?: string;
+    };
   }
 }
-
-const stripePromise = loadStripe(process.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 
 interface PlanPrice {
   monthly: string;

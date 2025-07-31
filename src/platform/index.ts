@@ -13,8 +13,8 @@ export interface PlatformElement {
   style: CSSStyleDeclaration;
   appendChild(child: PlatformElement): void;
   removeChild(child: PlatformElement): void;
-  addEventListener(event: string, handler: Function): void;
-  removeEventListener(event: string, handler: Function): void;
+  addEventListener(event: string, handler: EventListenerOrEventListenerObject): void;
+  removeEventListener(event: string, handler: EventListenerOrEventListenerObject): void;
   getAttribute(name: string): string | null;
   setAttribute(name: string, value: string): void;
   querySelector(selector: string): PlatformElement | null;
@@ -25,13 +25,13 @@ export interface PlatformWindow {
   innerWidth: number;
   innerHeight: number;
   devicePixelRatio: number;
-  addEventListener(event: string, handler: Function): void;
-  removeEventListener(event: string, handler: Function): void;
+  addEventListener(event: string, handler: EventListenerOrEventListenerObject): void;
+  removeEventListener(event: string, handler: EventListenerOrEventListenerObject): void;
   requestAnimationFrame(callback: FrameRequestCallback): number;
   cancelAnimationFrame(id: number): void;
-  setTimeout(handler: Function, timeout: number): number;
+  setTimeout(handler: TimerHandler, timeout: number): number;
   clearTimeout(id: number): void;
-  setInterval(handler: Function, timeout: number): number;
+  setInterval(handler: TimerHandler, timeout: number): number;
   clearInterval(id: number): void;
   location: Location;
   navigator: Navigator;
@@ -43,8 +43,8 @@ export interface PlatformDocument {
   getElementById(id: string): PlatformElement | null;
   querySelector(selector: string): PlatformElement | null;
   querySelectorAll(selector: string): PlatformElement[];
-  addEventListener(event: string, handler: Function): void;
-  removeEventListener(event: string, handler: Function): void;
+  addEventListener(event: string, handler: EventListenerOrEventListenerObject): void;
+  removeEventListener(event: string, handler: EventListenerOrEventListenerObject): void;
 }
 
 // ブラウザ実装
@@ -103,11 +103,11 @@ class BrowserElement implements PlatformElement {
     this.nativeElement.removeChild(child.nativeElement);
   }
 
-  addEventListener(event: string, handler: Function): void {
+  addEventListener(event: string, handler: EventListenerOrEventListenerObject): void {
     this.nativeElement.addEventListener(event, handler as EventListener);
   }
 
-  removeEventListener(event: string, handler: Function): void {
+  removeEventListener(event: string, handler: EventListenerOrEventListenerObject): void {
     this.nativeElement.removeEventListener(event, handler as EventListener);
   }
 
@@ -151,11 +151,11 @@ class BrowserWindow implements PlatformWindow {
     return window.navigator;
   }
 
-  addEventListener(event: string, handler: Function): void {
+  addEventListener(event: string, handler: EventListenerOrEventListenerObject): void {
     window.addEventListener(event, handler as EventListener);
   }
 
-  removeEventListener(event: string, handler: Function): void {
+  removeEventListener(event: string, handler: EventListenerOrEventListenerObject): void {
     window.removeEventListener(event, handler as EventListener);
   }
 
@@ -167,7 +167,7 @@ class BrowserWindow implements PlatformWindow {
     window.cancelAnimationFrame(id);
   }
 
-  setTimeout(handler: Function, timeout: number): number {
+  setTimeout(handler: TimerHandler, timeout: number): number {
     return window.setTimeout(handler as TimerHandler, timeout);
   }
 
@@ -175,7 +175,7 @@ class BrowserWindow implements PlatformWindow {
     window.clearTimeout(id);
   }
 
-  setInterval(handler: Function, timeout: number): number {
+  setInterval(handler: TimerHandler, timeout: number): number {
     return window.setInterval(handler as TimerHandler, timeout);
   }
 
@@ -208,11 +208,11 @@ class BrowserDocument implements PlatformDocument {
     return Array.from(elements).map(el => new BrowserElement(el as HTMLElement));
   }
 
-  addEventListener(event: string, handler: Function): void {
+  addEventListener(event: string, handler: EventListenerOrEventListenerObject): void {
     document.addEventListener(event, handler as EventListener);
   }
 
-  removeEventListener(event: string, handler: Function): void {
+  removeEventListener(event: string, handler: EventListenerOrEventListenerObject): void {
     document.removeEventListener(event, handler as EventListener);
   }
 }
@@ -221,7 +221,7 @@ class BrowserDocument implements PlatformDocument {
 class Platform {
   private _window: PlatformWindow;
   private _document: PlatformDocument;
-  private _globalProperties: Map<string, any> = new Map();
+  private _globalProperties: Map<string, unknown> = new Map();
 
   constructor() {
     // ブラウザ環境の検出
@@ -261,20 +261,20 @@ class Platform {
   }
 
   // イベント処理
-  addEventListener(element: PlatformElement | PlatformWindow | PlatformDocument, event: string, handler: Function): void {
+  addEventListener(element: PlatformElement | PlatformWindow | PlatformDocument, event: string, handler: EventListenerOrEventListenerObject): void {
     element.addEventListener(event, handler);
   }
 
-  removeEventListener(element: PlatformElement | PlatformWindow | PlatformDocument, event: string, handler: Function): void {
+  removeEventListener(element: PlatformElement | PlatformWindow | PlatformDocument, event: string, handler: EventListenerOrEventListenerObject): void {
     element.removeEventListener(event, handler);
   }
 
   // グローバルプロパティ管理（テスト用）
-  setGlobalProperty(key: string, value: any): void {
+  setGlobalProperty(key: string, value: unknown): void {
     this._globalProperties.set(key, value);
   }
 
-  getGlobalProperty(key: string): any {
+  getGlobalProperty(key: string): unknown {
     return this._globalProperties.get(key);
   }
 
@@ -292,7 +292,7 @@ class Platform {
   }
 
   // タイマー制御
-  setTimeout(handler: Function, timeout: number): number {
+  setTimeout(handler: TimerHandler, timeout: number): number {
     return this._window.setTimeout(handler, timeout);
   }
 
@@ -300,7 +300,7 @@ class Platform {
     this._window.clearTimeout(id);
   }
 
-  setInterval(handler: Function, timeout: number): number {
+  setInterval(handler: TimerHandler, timeout: number): number {
     return this._window.setInterval(handler, timeout);
   }
 
@@ -329,9 +329,9 @@ export const createElement = (tagName: string): PlatformElement => platform.crea
 export const getElementById = (id: string): PlatformElement | null => platform.getElementById(id);
 export const querySelector = (selector: string): PlatformElement | null => platform.querySelector(selector);
 export const querySelectorAll = (selector: string): PlatformElement[] => platform.querySelectorAll(selector);
-export const addEventListener = (element: any, event: string, handler: Function): void => platform.addEventListener(element, event, handler);
-export const removeEventListener = (element: any, event: string, handler: Function): void => platform.removeEventListener(element, event, handler);
-export const setGlobalProperty = (key: string, value: any): void => platform.setGlobalProperty(key, value);
-export const getGlobalProperty = (key: string): any => platform.getGlobalProperty(key);
+export const addEventListener = (element: PlatformElement | PlatformWindow | PlatformDocument, event: string, handler: EventListenerOrEventListenerObject): void => platform.addEventListener(element, event, handler);
+export const removeEventListener = (element: PlatformElement | PlatformWindow | PlatformDocument, event: string, handler: EventListenerOrEventListenerObject): void => platform.removeEventListener(element, event, handler);
+export const setGlobalProperty = (key: string, value: unknown): void => platform.setGlobalProperty(key, value);
+export const getGlobalProperty = (key: string): unknown => platform.getGlobalProperty(key);
 
 export default platform; 

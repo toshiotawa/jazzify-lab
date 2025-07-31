@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Mission, UserMissionProgress } from '@/platform/supabaseMissions';
 import { useMissionStore } from '@/stores/missionStore';
 import { cn } from '@/utils/cn';
-import { FaTrophy, FaMusic, FaCalendarAlt, FaClock, FaCheck, FaPlay, FaKey, FaTachometerAlt, FaStar, FaListUl } from 'react-icons/fa';
+import { FaTrophy, FaMusic, FaCalendarAlt, FaClock, FaCheck } from 'react-icons/fa';
 import MissionSongProgress from './MissionSongProgress';
 
 interface Props {

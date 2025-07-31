@@ -4,6 +4,7 @@ import { useMissionStore } from '@/stores/missionStore';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import { FaPlay, FaMusic, FaCheck, FaKey, FaTachometerAlt, FaStar, FaListUl } from 'react-icons/fa';
+import { log } from '@/utils/logger';
 
 interface Props {
   missionId: string;
@@ -12,19 +13,19 @@ interface Props {
 
 const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
   const { fetchSongProgress } = useMissionStore();
-  const { loadSong } = useGameStore();
+
 
   useEffect(() => {
-    console.log('MissionSongProgress useEffect:', { missionId, songProgressLength: songProgress.length });
+    log.debug('MissionSongProgress useEffect:', { missionId, songProgressLength: songProgress.length });
     if (songProgress.length === 0) {
-      console.log('曲進捗を取得中:', missionId);
+      log.debug('曲進捗を取得中:', missionId);
       fetchSongProgress(missionId);
     }
   }, [missionId, songProgress.length, fetchSongProgress]);
 
   const handlePlaySong = async (songId: string, songProgress: MissionSongProgressType) => {
     try {
-      console.log('🎵 ミッション曲をプレイ開始:', { 
+      log.info('🎵 ミッション曲をプレイ開始:', { 
         songId, 
         missionId, 
         songTitle: songProgress.song?.title,
@@ -42,14 +43,14 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
       params.set('mission', missionId);
       
       const hash = `#play-mission?${params.toString()}`;
-      console.log('🔗 生成されたハッシュ:', hash);
+      log.info('🔗 生成されたハッシュ:', hash);
       
       // ハッシュを設定してGameScreenの処理をトリガー
       window.location.hash = hash;
       
-      console.log('✅ ミッション曲プレイ処理完了、GameScreenで処理中...');
+      log.info('✅ ミッション曲プレイ処理完了、GameScreenで処理中...');
     } catch (error) {
-      console.error('❌ ミッション曲プレイ処理エラー:', {
+      log.error('❌ ミッション曲プレイ処理エラー:', {
         error,
         songId,
         missionId,
@@ -65,7 +66,7 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
 
   const allSongsCompleted = songProgress.length > 0 && songProgress.every(song => song.is_completed);
   
-  console.log('MissionSongProgress render:', { 
+  log.debug('MissionSongProgress render:', { 
     missionId, 
     songProgressLength: songProgress.length, 
     allSongsCompleted,

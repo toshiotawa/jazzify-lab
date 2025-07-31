@@ -431,12 +431,13 @@ const validateStateTransition = (currentState: GameState, action: string, params
       }
       break;
       
-    case 'updateSettings':
+    case 'updateSettings': {
       const validation = validateSettings(params.settings);
       if (!validation.valid) {
         return { valid: false, error: validation.errors.join(', ') };
       }
       break;
+    }
   }
   
   return { valid: true };

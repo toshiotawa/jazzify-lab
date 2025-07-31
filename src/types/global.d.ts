@@ -1,10 +1,10 @@
 declare global {
   interface Window {
     Tone: {
-      Context: any;
-      Sampler: any;
-      Frequency: any;
-      setContext: (context: any) => void;
+      Context: typeof AudioContext;
+      Sampler: unknown;
+      Frequency: unknown;
+      setContext: (context: AudioContext) => void;
       loaded: () => Promise<void>;
       start: () => Promise<void>;
       context: {
@@ -56,8 +56,8 @@ declare global {
     state: string;
     connection: string;
     type: string;
-    addEventListener(type: string, listener: (event: any) => void): void;
-    removeEventListener(type: string, listener: (event: any) => void): void;
+    addEventListener(type: string, listener: (event: Event) => void): void;
+    removeEventListener(type: string, listener: (event: Event) => void): void;
     onmidimessage: ((event: { data: Uint8Array }) => void) | null;
   }
   
