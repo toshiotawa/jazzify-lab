@@ -60,12 +60,6 @@ const LessonPage: React.FC = () => {
   }, [open, profile, selectedCourse]);
 
   useEffect(() => {
-    if (open && profile) {
-      loadData();
-    }
-  }, [open, profile, loadData]);
-
-  useEffect(() => {
     if (selectedCourse) {
       loadLessons(selectedCourse.id);
     }
@@ -183,6 +177,12 @@ const LessonPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (open && profile) {
+      loadData();
+    }
+  }, [open, profile]);
 
   const loadLessons = async (courseId: string) => {
     try {
