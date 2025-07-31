@@ -61,7 +61,7 @@ const updateUserSubscription = async (subscription: Stripe.Subscription) => {
     const cancelDate = subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null;
     
     // ダウングレード予約の確認（Subscription Scheduleがある場合）
-    let downgradeInfo: { downgrade_to: string | null; downgrade_date: string | null } = {
+    const downgradeInfo: { downgrade_to: string | null; downgrade_date: string | null } = {
       downgrade_to: null,
       downgrade_date: null
     };

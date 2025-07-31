@@ -33,5 +33,5 @@ export const useGameSelector = <T>(
  * getState() 由来なのでレンダリングには影響しない
  */
 // 型循環の警告を避けるため any を許容
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+ 
 export const useGameActions: () => any = () => useGameStore.getState(); 
