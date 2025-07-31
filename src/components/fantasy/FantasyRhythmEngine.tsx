@@ -150,7 +150,16 @@ export const useFantasyRhythmEngine = ({
   onEnemyAttack 
 }: RhythmEngineProps) => {
   const { settings } = useGameStore();
-  const timeStore = useTimeStore();
+  const { 
+    currentBeat, 
+    currentMeasure, 
+    bpm, 
+    timeSignature, 
+    measureCount, 
+    countInMeasures, 
+    isCountIn,
+    setRhythmMode
+  } = useTimeStore();
   const animationFrameRef = useRef<number>();
   const gameStartTimeRef = useRef<number>(0);
 
@@ -188,7 +197,7 @@ export const useFantasyRhythmEngine = ({
     devLog.debug('🎵 リズムモード初期化', { stage });
 
     // timeStoreのリズムモード設定
-    timeStore.setRhythmMode(true);
+    setRhythmMode(true);
 
     let rhythmData: RhythmJsonData | null = null;
     let totalQuestions = 0;
@@ -246,7 +255,7 @@ export const useFantasyRhythmEngine = ({
 
     setGameState(initialState);
     onGameStateChange(initialState);
-  }, [stage, displayOpts, onGameStateChange, timeStore]);
+  }, [stage, displayOpts, onGameStateChange, setRhythmMode]);
 
   // ===== ゲーム開始処理 =====
 
@@ -294,7 +303,6 @@ export const useFantasyRhythmEngine = ({
     if (!monsterData) return;
 
     const currentTime = performance.now() - gameStartTimeRef.current;
-    const { currentMeasure, currentBeat } = timeStore;
 
     const newMonster: RhythmMonsterState = {
       id: `${monsterId}_${state.currentQuestionIndex}`,
@@ -379,7 +387,6 @@ export const useFantasyRhythmEngine = ({
   // ===== タイミング判定処理 =====
 
   const checkTiming = useCallback((monster: RhythmMonsterState): boolean => {
-    const { currentMeasure, currentBeat, bpm, timeSignature, measureCount, countInMeasures, isCountIn } = timeStore;
     
     // カウントイン中は判定しない
     if (isCountIn) return false;
@@ -404,7 +411,7 @@ export const useFantasyRhythmEngine = ({
     const timeDiffMs = Math.abs(totalBeatDiff * msPerBeat);
 
     return timeDiffMs <= JUDGMENT_WINDOW_MS;
-  }, [timeStore]);
+  }, [currentMeasure, currentBeat, bpm, timeSignature, measureCount, isCountIn]);
 
   // ===== 入力処理 =====
 
@@ -646,12 +653,12 @@ export const useFantasyRhythmEngine = ({
   useEffect(() => {
     initializeGame();
     return () => {
-      timeStore.setRhythmMode(false);
+      setRhythmMode(false);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [stage, initializeGame, timeStore]);
+  }, [stage, initializeGame, setRhythmMode]);
 
   return {
     gameState,
