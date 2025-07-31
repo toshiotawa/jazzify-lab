@@ -18,8 +18,8 @@ import {
   FaMusic 
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
-import { fetchDetailedRequirementsProgress, LessonRequirementProgress, fetchMultipleLessonRequirementsProgress } from '@/platform/supabaseLessonRequirements';
-import { clearNavigationCacheForCourse, clearAllNavigationCache } from '@/utils/lessonNavigation';
+import { LessonRequirementProgress, fetchMultipleLessonRequirementsProgress } from '@/platform/supabaseLessonRequirements';
+import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
 
 /**
  * レッスン学習画面
@@ -63,7 +63,7 @@ const LessonPage: React.FC = () => {
     if (open && profile) {
       loadData();
     }
-  }, [open, profile]);
+  }, [open, profile, loadData]);
 
   useEffect(() => {
     if (selectedCourse) {

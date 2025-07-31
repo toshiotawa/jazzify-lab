@@ -92,10 +92,11 @@ const MissionRanking: React.FC = () => {
           {/* ミッション選択 */}
           {monthly.length > 1 && (
             <div className="mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="mission-select" className="block text-sm font-medium text-gray-300 mb-2">
                 ミッションを選択
               </label>
               <select
+                id="mission-select"
                 className="select select-bordered w-full text-white bg-slate-700 border-slate-600"
                 value={missionId ?? ''}
                 onChange={(e) => setMissionId(e.target.value)}

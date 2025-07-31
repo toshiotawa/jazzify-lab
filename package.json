@@ -64,6 +64,7 @@
     "stripe": "^14.25.0",
     "supabase": "^2.30.4",
     "tailwindcss": "^3.4.0",
+    "ts-prune": "^0.10.3",
     "typescript": "^5.2.2",
     "vite": "^5.0.8"
   },

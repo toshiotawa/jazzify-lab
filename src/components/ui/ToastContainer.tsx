@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useToastStore, Toast } from '@/stores/toastStore';
 import { FaTimes, FaCheck, FaExclamationTriangle, FaInfoCircle, FaExclamationCircle } from 'react-icons/fa';
 
@@ -15,15 +15,14 @@ const ToastContainer: React.FC = () => {
 };
 
 const ToastItem: React.FC<{ toast: Toast; onRemove: (id: string) => void }> = ({ toast, onRemove }) => {
-  const [isVisible, setIsVisible] = useState(true);
   const [isExiting, setIsExiting] = useState(false);
 
-  const handleRemove = () => {
+  const handleRemove = useCallback(() => {
     setIsExiting(true);
     setTimeout(() => {
       onRemove(toast.id);
     }, 300); // アニメーション完了後に削除
-  };
+  }, [toast.id, onRemove]);
 
   // 自動削除のタイマー（永続的でない場合）
   useEffect(() => {
@@ -33,7 +32,7 @@ const ToastItem: React.FC<{ toast: Toast; onRemove: (id: string) => void }> = ({
       }, toast.duration);
       return () => clearTimeout(timer);
     }
-  }, [toast.duration, toast.persistent]);
+  }, [toast.duration, toast.persistent, handleRemove]);
 
   const getToastStyle = () => {
     const baseStyle = `

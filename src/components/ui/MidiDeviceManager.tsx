@@ -168,7 +168,7 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
   className = ''
 }) => {
   const { devices, isRefreshing, error, refreshDevices } = useMidiDevices();
-  const [forceReconnect, setForceReconnect] = useState(false);
+
 
   // デバイス選択時の処理を改善
   const handleDeviceChange = (newDeviceId: string | null) => {
@@ -189,11 +189,12 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
     <div className={`space-y-3 ${className}`}>
       {/* デバイス選択ドロップダウン */}
       <div>
-        <label className="block text-xs text-blue-200 mb-1">
+        <label htmlFor="midi-device-select" className="block text-xs text-blue-200 mb-1">
           使用デバイス
         </label>
         <div className="flex gap-2">
           <select
+            id="midi-device-select"
             value={value || ''}
             onChange={(e) => handleDeviceChange(e.target.value || null)}
             className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-blue-600"
@@ -263,11 +264,12 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
     <div className={`space-y-3 ${className}`}>
       {/* デバイス選択ドロップダウン */}
       <div>
-        <label className="block text-xs text-green-200 mb-1">
+        <label htmlFor="audio-device-select" className="block text-xs text-green-200 mb-1">
           マイクデバイス
         </label>
         <div className="flex gap-2">
           <select
+            id="audio-device-select"
             value={value || ''}
             onChange={(e) => onChange(e.target.value || null)}
             className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-green-600 audio-devices"

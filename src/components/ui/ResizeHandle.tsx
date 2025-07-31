@@ -15,7 +15,6 @@ interface ResizeHandleProps {
  */
 export const ResizeHandle: React.FC<ResizeHandleProps> = ({
   onResize,
-  initialPercentage = 30,
   minPercentage = 10,
   maxPercentage = 90,
   className

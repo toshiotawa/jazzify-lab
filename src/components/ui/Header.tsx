@@ -26,9 +26,12 @@ const Header: React.FC = () => {
   return (
     <header className="w-full flex items-center justify-between px-4 py-2 bg-slate-900/70 backdrop-blur z-40">
       {/* Left: Top page button */}
-      <a href="#" className="text-xl font-bold text-white hover:text-blue-300 transition-colors">
+      <button 
+        onClick={() => window.location.href = '/'}
+        className="text-xl font-bold text-white hover:text-blue-300 transition-colors"
+      >
         JazzGame
-      </a>
+      </button>
 
       {/* Desktop: Right buttons */}
       <div className="hidden md:flex items-center space-x-2">
