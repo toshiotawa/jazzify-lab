@@ -581,9 +581,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (fantasyPixiInstance && currentEnemy) {
       // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
       // 遅延処理は不要になった（状態機械が適切なタイミングを制御）
-      fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
+      fantasyPixiInstance.createMonsterSprite(currentEnemy?.icon || 'monster_01.png');
       devLog.debug('🔄 モンスタースプライト更新要求:', { 
-        monster: currentEnemy.icon,
+        monster: currentEnemy?.icon || 'monster_01.png',
         enemyIndex: gameState.currentEnemyIndex
       });
     }
@@ -803,7 +803,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <FantasyPIXIRenderer
               width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
               height={200}
-              monsterIcon={currentEnemy.icon}
+              monsterIcon={currentEnemy?.icon || 'monster_01.png'}
     
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}

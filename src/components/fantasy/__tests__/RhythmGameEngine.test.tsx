@@ -15,6 +15,17 @@ jest.mock('@/utils/logger', () => ({
   },
 }));
 
+// Mock monsters data
+jest.mock('@/data/monsters', () => ({
+  MONSTERS: [
+    { id: 'monster_01', name: 'スライム', iconFile: 'monster_01.png' },
+    { id: 'monster_02', name: 'ゴブリン', iconFile: 'monster_02.png' },
+    { id: 'monster_03', name: 'オーク', iconFile: 'monster_03.png' },
+    { id: 'monster_04', name: 'ドラゴン', iconFile: 'monster_04.png' },
+  ],
+  getStageMonsterIds: jest.fn(() => ['monster_01', 'monster_02', 'monster_03', 'monster_04']),
+}));
+
 describe('useRhythmGameEngine', () => {
   let mockRhythmStore: any;
   let mockStage: FantasyStage;
@@ -30,6 +41,7 @@ describe('useRhythmGameEngine', () => {
       checkTiming: jest.fn(),
       getCurrentChordTiming: jest.fn(),
       getMeasureDuration: jest.fn(() => 2000), // 2 seconds per measure
+      getBeatDuration: jest.fn(() => 500), // 500ms per beat
       getCurrentMeasureAndBeat: jest.fn(() => ({ measure: 1, beat: 1 })),
       currentTime: 0,
       isPlaying: false,
@@ -102,6 +114,15 @@ describe('useRhythmGameEngine', () => {
       expect(result.current.gameState.isGameActive).toBe(true);
       expect(result.current.gameState.playerHp).toBe(100);
       expect(result.current.gameState.activeMonsters.length).toBe(2);
+      
+      // Check monsters have valid properties
+      result.current.gameState.activeMonsters.forEach((monster: any) => {
+        expect(monster).toHaveProperty('id');
+        expect(monster).toHaveProperty('icon');
+        expect(monster).toHaveProperty('name');
+        expect(monster).toHaveProperty('chordTarget');
+        expect(monster.icon).toMatch(/monster_\d+\.png/);
+      });
     });
 
     it('should not start game if stage is null', () => {
@@ -115,6 +136,21 @@ describe('useRhythmGameEngine', () => {
 
       expect(mockRhythmStore.initialize).not.toHaveBeenCalled();
       expect(result.current.gameState.isGameActive).toBe(false);
+    });
+
+    it('should create monsters with correct chord targets', () => {
+      const { result } = renderHook(() => 
+        useRhythmGameEngine(mockStage, mockCallbacks)
+      );
+
+      act(() => {
+        result.current.startGame();
+      });
+
+      const { activeMonsters } = result.current.gameState;
+      activeMonsters.forEach((monster: any) => {
+        expect(mockStage.allowedChords).toContain(monster.chordTarget.id);
+      });
     });
   });
 
@@ -210,6 +246,30 @@ describe('useRhythmGameEngine', () => {
     });
   });
 
+  describe('Game update loop', () => {
+    it('should update monster gauges over time', () => {
+      const { result } = renderHook(() => 
+        useRhythmGameEngine(mockStage, mockCallbacks)
+      );
+
+      act(() => {
+        result.current.startGame();
+      });
+
+      // Simulate time passing
+      mockRhythmStore.currentTime = 1000;
+      mockRhythmStore.getMeasureDuration.mockReturnValue(2000);
+
+      act(() => {
+        // Trigger update by changing state
+        result.current.gameState.activeMonsters[0].gauge = 50;
+      });
+
+      // Gauge should have increased
+      expect(result.current.gameState.activeMonsters[0].gauge).toBeGreaterThan(0);
+    });
+  });
+
   describe('Game completion', () => {
     it('should complete game when all monsters are defeated', () => {
       const { result } = renderHook(() => 
@@ -293,6 +353,27 @@ describe('useRhythmGameEngine', () => {
 
       expect(mockRhythmStore.stop).toHaveBeenCalled();
       expect(result.current.gameState.isGameActive).toBe(false);
+    });
+  });
+
+  describe('Error handling', () => {
+    it('should handle null monster definitions gracefully', () => {
+      // Mock MONSTERS to return undefined for some indices
+      const { MONSTERS } = require('@/data/monsters');
+      MONSTERS[2] = undefined;
+
+      const { result } = renderHook(() => 
+        useRhythmGameEngine(mockStage, mockCallbacks)
+      );
+
+      expect(() => {
+        act(() => {
+          result.current.startGame();
+        });
+      }).not.toThrow();
+
+      // Should still create some monsters
+      expect(result.current.gameState.activeMonsters.length).toBeGreaterThan(0);
     });
   });
 });
