@@ -18,6 +18,8 @@ interface TimeState {
   currentMeasure: number
   /* カウントイン中かどうか */
   isCountIn: boolean
+  /* リズムモードフラグ */
+  isRhythmMode: boolean
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -27,6 +29,10 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* リズムモード設定関数 */
+  setRhythmMode: (enabled: boolean) => void
+  /* リズムモード判定関数 */
+  isInRhythmMode: () => boolean
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -39,6 +45,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  isRhythmMode: false,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -48,7 +55,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       countInMeasures: ci,
       currentBeat: 1,
       currentMeasure: 1,
-      isCountIn: false
+      isCountIn: false,
+      isRhythmMode: false // リセット
     }),
   tick: () => {
     const s = get()
@@ -91,5 +99,10 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         isCountIn: false
       })
     }
-  }
+  },
+  // リズムモード設定関数
+  setRhythmMode: (enabled: boolean) => 
+    set({ isRhythmMode: enabled }),
+  // リズムモード判定関数
+  isInRhythmMode: () => get().isRhythmMode
 }))

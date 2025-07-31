@@ -12,7 +12,8 @@ class BGMManager {
     timeSig: number,
     measureCount: number,
     countIn: number,
-    volume = 0.7
+    volume = 0.7,
+    _isRhythmMode = false // リズムモードフラグを追加（互換性のため）
   ) {
     if (!url) return
     
@@ -41,6 +42,9 @@ class BGMManager {
     }
     
     this.audio.addEventListener('timeupdate', this.timeUpdateHandler)
+    
+    // リズムモード時も通常のループ処理を使用
+    // （JSONベースのタイミング調整は各コンポーネント側で行う）
     
     this.audio.play().catch((error) => {
       console.warn('BGM playback failed:', error)

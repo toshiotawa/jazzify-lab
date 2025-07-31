@@ -16,6 +16,7 @@ const ToastContainer: React.FC = () => {
 
 const ToastItem: React.FC<{ toast: Toast; onRemove: (id: string) => void }> = ({ toast, onRemove }) => {
   const [isExiting, setIsExiting] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
 
   const handleRemove = useCallback(() => {
     setIsExiting(true);
@@ -23,6 +24,14 @@ const ToastItem: React.FC<{ toast: Toast; onRemove: (id: string) => void }> = ({
       onRemove(toast.id);
     }, 300); // アニメーション完了後に削除
   }, [toast.id, onRemove]);
+
+  // マウント時にアニメーション開始
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+    }, 10);
+    return () => clearTimeout(timer);
+  }, []);
 
   // 自動削除のタイマー（永続的でない場合）
   useEffect(() => {

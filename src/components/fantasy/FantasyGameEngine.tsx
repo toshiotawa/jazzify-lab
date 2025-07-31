@@ -34,7 +34,7 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
@@ -46,6 +46,7 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
+  chordProgressionData?: any; // リズムモード用のJSON進行データ
 }
 
 interface MonsterState {
@@ -855,7 +856,7 @@ export const useFantasyGameEngine = ({
         devLog.debug(`🎯 ${completedMonsters.length}体のコードが完成しました！`, { ids: completedMonsters.map(m => m.id) });
 
         // ★ 攻撃処理後の状態を計算する
-        let stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
+        const stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
         
         const isSpecialAttack = stateAfterAttack.playerSp >= 5;
         
@@ -902,7 +903,7 @@ export const useFantasyGameEngine = ({
         });
 
         // モンスターの補充
-        let newMonsterQueue = [...stateAfterAttack.monsterQueue];
+        const newMonsterQueue = [...stateAfterAttack.monsterQueue];
         const slotsToFill = stateAfterAttack.simultaneousMonsterCount - remainingMonsters.length;
         const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
 
