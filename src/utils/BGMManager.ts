@@ -5,6 +5,7 @@ class BGMManager {
   private loopBegin = 0
   private loopEnd = 0
   private timeUpdateHandler: (() => void) | null = null
+  private isRhythmMode = false
 
   play(
     url: string,
@@ -53,6 +54,14 @@ class BGMManager {
     }
   }
 
+  setRhythmMode(enabled: boolean) {
+    this.isRhythmMode = enabled
+  }
+
+  getCurrentTime(): number {
+    return this.audio?.currentTime ?? 0
+  }
+
   stop() {
     if (this.audio) {
       if (this.timeUpdateHandler) {
@@ -63,6 +72,7 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    this.isRhythmMode = false
   }
 }
 

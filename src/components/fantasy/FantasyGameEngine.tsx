@@ -34,7 +34,7 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
@@ -46,6 +46,7 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
+  chord_progression_data?: any; // リズムモード用コード進行データ
 }
 
 interface MonsterState {

@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
+import FantasyRhythmScreen from './FantasyRhythmScreen';
 import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
@@ -108,7 +109,8 @@ const FantasyMain: React.FC = () => {
             bgmUrl: stage.bgm_url || stage.mp3_url,
             measureCount: stage.measure_count,
             countInMeasures: stage.count_in_measures,
-            timeSignature: stage.time_signature
+            timeSignature: stage.time_signature,
+            chord_progression_data: stage.chord_progression_data
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -561,20 +563,36 @@ const FantasyMain: React.FC = () => {
   
   // ゲーム画面
   if (currentStage) {
-    return (
-      <FantasyGameScreen
-        // ▼▼▼ 追加 ▼▼▼
-        key={gameKey} // keyプロパティを渡す
-        // ▲▲▲ ここまで ▲▲▲
-        stage={currentStage}
-        autoStart={pendingAutoStart}   // ★
-        onGameComplete={handleGameComplete}
-        onBackToStageSelect={handleBackToStageSelect}
-        noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
-        simpleNoteName={settings.simpleDisplayMode}
-        lessonMode={isLessonMode}
-      />
-    );
+    // リズムモードかクイズモードかで分岐
+    if (currentStage.mode === 'rhythm') {
+      return (
+        <FantasyRhythmScreen
+          key={gameKey}
+          stage={currentStage}
+          autoStart={pendingAutoStart}
+          onGameComplete={handleGameComplete}
+          onBackToStageSelect={handleBackToStageSelect}
+          noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
+          simpleNoteName={settings.simpleDisplayMode}
+          lessonMode={isLessonMode}
+        />
+      );
+    } else {
+      return (
+        <FantasyGameScreen
+          // ▼▼▼ 追加 ▼▼▼
+          key={gameKey} // keyプロパティを渡す
+          // ▲▲▲ ここまで ▲▲▲
+          stage={currentStage}
+          autoStart={pendingAutoStart}   // ★
+          onGameComplete={handleGameComplete}
+          onBackToStageSelect={handleBackToStageSelect}
+          noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
+          simpleNoteName={settings.simpleDisplayMode}
+          lessonMode={isLessonMode}
+        />
+      );
+    }
   }
   
   // ステージ選択画面
