@@ -1,8 +1,47 @@
-# インデックスも AI 参照も不要
-node_modules/
-**/*.mp4
-**/*.zip
+# Cursor AI Coding Rules for This Project
 
-# AI には見せたいが検索結果にいらない場合
-# .cursorindexingignore にだけ記載
-dist/
+## 1. General Principles
+- All code must be valid TypeScript with strict mode enabled. Run `tsc --noEmit` and ensure 0 errors.
+- All code must pass ESLint with 0 errors and 0 warnings (use `npm run lint`). Fix with `--fix` if possible.
+- All code must pass ts-prune with 0 unused exports (run `npx ts-prune`).
+- Write clean, minimal code. Avoid unused variables, functions, imports, or exports.
+- Test all generated code with Jest (`npm test`). Ensure 100% coverage for new functions.
+- No console.log, console.warn, or console.error in production code. Use logger if needed.
+- Prefer const over let/var. Use arrow functions for callbacks.
+
+## 2. TypeScript Rules
+- Never use `any` type. Always specify explicit types (e.g., string, number, or custom interfaces).
+- No unused variables/functions/imports/exports (ESLint: @typescript-eslint/no-unused-vars = error).
+- No unused parameters in functions (ignore with _ prefix if necessary, e.g., _unusedParam).
+- Use interfaces/types for props, state, and return values in React components.
+- Avoid type assertions (as, !). Use type guards instead.
+
+## 3. React Rules
+- Follow Hooks rules strictly (ESLint: react-hooks/rules-of-hooks, exhaustive-deps = error).
+  - No Hooks in loops, conditions, or nested functions.
+  - Always include all dependencies in useEffect/useCallback arrays.
+- Ensure JSX accessibility (jsx-a11y plugin: label-has-associated-control, no-static-element-interactions = error).
+- No unused props in components. Destructure and use all props.
+- Use useMemo/useCallback for performance-critical code.
+
+## 4. Cleanup Rules (for ts-prune)
+- Only export what's used in other files. Remove unused exports.
+- Remove dead code (unused if/else branches, functions).
+- Check with ts-prune after generation: If unused items found, refactor to remove them.
+
+## 5. Testing Rules
+- For new functions, generate Jest tests covering 100% (use describe/it/expect).
+- Mock dependencies (e.g., use jest.mock for imports).
+- Run `npm test` and ensure all tests pass before finalizing code.
+
+## 6. Project-Specific Rules
+- Use React 18+ best practices (e.g., no class components, prefer functional).
+- For Vite: Imports must be relative or aliased (@/path). No absolute paths.
+- No side-effects in render (e.g., no fetch in component body).
+- Follow file structure: Components in src/components/, Utils in src/utils/.
+
+When generating code:
+1. Write the code.
+2. Simulate running tsc/ESLint/ts-prune/Jest.
+3. If errors, fix and re-output.
+4. Output final code only if all checks pass.
