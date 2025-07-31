@@ -372,6 +372,11 @@ export class FantasyPIXIInstance {
   // ★★★ 修正点(2): 画像読み込みパスを `public` ディレクトリ基準に修正 ★★★
   private async loadImageTextures(): Promise<void> {
     try {
+      // PIXIのアセットローダーの初期化を確認
+      if (!PIXI.Assets.resolver) {
+        PIXI.Assets.init();
+      }
+      
       // 魔法テクスチャのアセット定義
       const magicAssets: Record<string, string> = {};
       for (const [key, magic] of Object.entries(MAGIC_TYPES)) {
@@ -389,9 +394,21 @@ export class FantasyPIXIInstance {
       // 攻撃アイコンを追加
       magicAssets['attackIcon'] = `${import.meta.env.BASE_URL}${ATTACK_ICON_PATH}`;
 
-      // バンドルとして一括ロード
-      await PIXI.Assets.addBundle('magicTextures', magicAssets);
-      await PIXI.Assets.loadBundle('magicTextures');
+      // 個別にアセットを追加してロード
+      for (const [key, url] of Object.entries(magicAssets)) {
+        try {
+          // 既に存在する場合はスキップ
+          if (PIXI.Assets.cache.has(key)) {
+            devLog.debug(`✅ アセット既存: ${key}`);
+            continue;
+          }
+          
+          await PIXI.Assets.add({ alias: key, src: url });
+          await PIXI.Assets.load(key);
+        } catch (err) {
+          devLog.debug(`⚠️ アセット読み込みエラー: ${key}`, err);
+        }
+      }
 
       // ロードされたテクスチャを保存
       for (const [key, magic] of Object.entries(MAGIC_TYPES)) {

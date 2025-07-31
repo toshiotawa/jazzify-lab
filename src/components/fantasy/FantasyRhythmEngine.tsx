@@ -209,7 +209,8 @@ export const useFantasyRhythmEngine = ({
       }
     } else {
       // ランダムパターンの場合
-      totalQuestions = stage.enemyCount;
+      totalQuestions = stage.enemyCount || 1;  // 最低1つの質問を保証
+      devLog.debug('🎲 ランダムパターン設定', { enemyCount: stage.enemyCount, totalQuestions });
     }
 
     // モンスターIDの取得（敵の数に基づいて取得）
@@ -250,6 +251,12 @@ export const useFantasyRhythmEngine = ({
       });
     }
 
+    devLog.debug('🎵 ゲーム初期状態設定', { 
+      totalQuestions: initialState.totalQuestions,
+      rhythmData: !!initialState.rhythmData,
+      stage: initialState.currentStage
+    });
+    
     setGameState(initialState);
     onGameStateChange(initialState);
   }, [stage, displayOpts, onGameStateChange]);
@@ -280,18 +287,30 @@ export const useFantasyRhythmEngine = ({
       // ランダムパターン
       spawnRandomMonster(newState);
     }
-  }, [gameState, onGameStateChange]);
+  }, [gameState, onGameStateChange, spawnProgressionMonsters, spawnRandomMonster]);
 
   // ===== モンスター生成処理 =====
 
   const spawnRandomMonster = useCallback((state: RhythmGameState) => {
-    if (!state.currentStage || state.currentQuestionIndex >= state.totalQuestions) return;
+    devLog.debug('🎲 spawnRandomMonster called', { state });
+    
+    if (!state.currentStage || state.currentQuestionIndex >= state.totalQuestions) {
+      devLog.debug('🎲 spawnRandomMonster early return', { 
+        hasStage: !!state.currentStage, 
+        currentIndex: state.currentQuestionIndex, 
+        totalQuestions: state.totalQuestions 
+      });
+      return;
+    }
 
     const { allowedChords } = state.currentStage;
     const randomChord = allowedChords[Math.floor(Math.random() * allowedChords.length)];
     const chordDef = getChordDefinition(randomChord, displayOpts);
     
-    if (!chordDef) return;
+    if (!chordDef) {
+      devLog.debug('🎲 No chord definition found', { randomChord });
+      return;
+    }
 
     const monsterIds = getStageMonsterIds(state.currentStage.enemyCount);
     const monsterId = monsterIds[state.currentQuestionIndex % monsterIds.length];
@@ -330,7 +349,15 @@ export const useFantasyRhythmEngine = ({
   }, [displayOpts, currentMeasure, currentBeat, onGameStateChange]);
 
   const spawnProgressionMonsters = useCallback((state: RhythmGameState) => {
-    if (!state.currentStage || !state.rhythmData) return;
+    devLog.debug('🎼 spawnProgressionMonsters called', { state });
+    
+    if (!state.currentStage || !state.rhythmData) {
+      devLog.debug('🎼 spawnProgressionMonsters early return', { 
+        hasStage: !!state.currentStage, 
+        hasRhythmData: !!state.rhythmData 
+      });
+      return;
+    }
 
     const positions = state.currentStage.timeSignature === 3 ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
     const newMonsters: RhythmMonsterState[] = [];
@@ -541,9 +568,16 @@ export const useFantasyRhythmEngine = ({
 
   const updateGauges = useCallback(() => {
     const currentState = gameState;
-    if (!currentState.isGameActive || !currentState.currentStage) return;
+    if (!currentState.isGameActive || !currentState.currentStage) {
+      devLog.debug('🕐 updateGauges skipped', { 
+        isActive: currentState.isGameActive, 
+        hasStage: !!currentState.currentStage 
+      });
+      return;
+    }
 
     const currentTime = performance.now() - gameStartTimeRef.current;
+    devLog.debug('🕐 updateGauges running', { currentTime, activeMonsters: currentState.activeMonsters.length });
     let anyTimeout = false;
 
     const updatedMonsters = currentState.activeMonsters.map(monster => {
