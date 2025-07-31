@@ -58,12 +58,12 @@ const detectUserInteraction = (): Promise<void> => {
  */
 export const initializeAudioSystem = async (): Promise<void> => {
   if (audioSystemInitialized) {
-    // // console.log('🎹 Audio system already initialized');
+    // console.log('🎹 Audio system already initialized');
     return;
   }
 
   try {
-    // // console.log('🎹 Initializing optimized audio system...');
+    // console.log('🎹 Initializing optimized audio system...');
     
     // ユーザーインタラクションを待つ
     await detectUserInteraction();
@@ -78,7 +78,7 @@ export const initializeAudioSystem = async (): Promise<void> => {
         try {
           const Tone = await import('tone');
           (window as unknown).Tone = Tone;
-          // // console.log('✅ Tone.js loaded dynamically');
+          // console.log('✅ Tone.js loaded dynamically');
           break;
         } catch (toneError) {
           retryCount++;
@@ -104,7 +104,7 @@ export const initializeAudioSystem = async (): Promise<void> => {
     // Tone.jsのコンテキストを最適化済みに切り替え
     window.Tone.setContext(optimizedContext);
     
-    // // console.log('✅ Tone.js context optimized for low latency');
+    // console.log('✅ Tone.js context optimized for low latency');
 
     // Salamander サンプラーの初期化
     globalSampler = new window.Tone.Sampler({
@@ -130,10 +130,10 @@ export const initializeAudioSystem = async (): Promise<void> => {
 
     // 全サンプルのプリロード完了を待機
     await window.Tone.loaded();
-    // // console.log('✅ All audio samples preloaded and decoded');
+    // console.log('✅ All audio samples preloaded and decoded');
 
     audioSystemInitialized = true;
-    // // console.log('✅ Optimized audio system initialized successfully');
+    // console.log('✅ Optimized audio system initialized successfully');
     
   } catch (error) {
     // console.error('❌ Audio system initialization failed:', error);
@@ -244,12 +244,12 @@ export class MIDIController {
     this.onConnectionChange = options.onConnectionChange || null;
     this.playMidiSound = options.playMidiSound ?? true; // デフォルトは音を鳴らす
 
-    // // console.log('🎹 MIDI Controller initialized (using global audio system)');
+    // console.log('🎹 MIDI Controller initialized (using global audio system)');
   }
 
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
-      // // console.log('🎹 MIDI Controller already initialized');
+      // console.log('🎹 MIDI Controller already initialized');
       return;
     }
 
@@ -290,7 +290,7 @@ export class MIDIController {
   private handleMIDIMessage = (message: unknown): void => {
     // MIDI入力が無効な場合は処理をスキップ
     if (!this.isEnabled) {
-      // // console.log('🎹 MIDI input disabled, skipping message');
+      // console.log('🎹 MIDI input disabled, skipping message');
       return;
     }
     
@@ -394,13 +394,13 @@ export class MIDIController {
       this.currentDeviceId = deviceId;
       this.isEnabled = true; // デバイス接続時にMIDI入力を明示的に有効化
       
-      // // console.log(`✅ Connected to MIDI device: ${input.name} (${deviceId})`);
+      // console.log(`✅ Connected to MIDI device: ${input.name} (${deviceId})`);
       
       this.notifyConnectionChange(true);
       return true;
     } else {
       // console.error(`❌ MIDI device not found: ${deviceId}`);
-      // // console.log('🎹 Available devices:', this.getDeviceList());
+      // console.log('🎹 Available devices:', this.getDeviceList());
       return false;
     }
   }
@@ -459,13 +459,13 @@ export class MIDIController {
 
     const input = this.midiAccess.inputs.get(this.currentDeviceId);
     if (!input || input.state !== 'connected') {
-      // // console.log('🔄 Device disconnected, attempting to reconnect...');
+      // console.log('🔄 Device disconnected, attempting to reconnect...');
       return this.connectDevice(this.currentDeviceId);
     }
 
     // 既に接続されているが、メッセージハンドラが設定されていない場合
     if (!input.onmidimessage) {
-      // // console.log('🔧 Restoring message handler for connected device');
+      // console.log('🔧 Restoring message handler for connected device');
       input.onmidimessage = this.handleMIDIMessage;
       this.isEnabled = true;
       this.notifyConnectionChange(true);
@@ -491,7 +491,7 @@ export class MIDIController {
   
   public setKeyHighlightCallback(callback: (note: number, active: boolean) => void): void {
     this.onKeyHighlight = callback;
-    // // console.log('🎹 Key highlight callback set');
+    // console.log('🎹 Key highlight callback set');
   }
   
   public setEnabled(enabled: boolean): void {

@@ -88,13 +88,13 @@ export const useMissionStore = create<State & Actions>()(
 
     claim: async(id:string)=>{
       try {
-        // // console.log('claimReward開始:', id);
+        // console.log('claimReward開始:', id);
         const xpResult = await claimReward(id);
-        // // console.log('claimReward完了:', xpResult);
+        // console.log('claimReward完了:', xpResult);
         
-        // // console.log('fetchAll開始');
+        // console.log('fetchAll開始');
         await get().fetchAll();
-        // // console.log('fetchAll完了');
+        // console.log('fetchAll完了');
         
         // ユーザー統計を更新
         const { fetchStats } = useUserStatsStore.getState();
@@ -103,7 +103,7 @@ export const useMissionStore = create<State & Actions>()(
         // トースト通知を表示
         const { push } = useToastStore.getState();
         if (xpResult) {
-          // // console.log('トースト通知表示:', xpResult);
+          // console.log('トースト通知表示:', xpResult);
           push(
             `+${xpResult.gainedXp} XP${xpResult.levelUp ? ' (レベルアップ！)' : ''}`,
             'success',

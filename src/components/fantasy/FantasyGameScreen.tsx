@@ -250,7 +250,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
-    // // console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
+    // console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
     // 敵の攻撃音を再生

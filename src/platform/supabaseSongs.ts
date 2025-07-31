@@ -62,8 +62,8 @@ export async function addSongWithFiles(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
   
-  // // console.log('addSongWithFiles開始:', song);
-  // // console.log('認証ユーザーID:', user.id);
+  // console.log('addSongWithFiles開始:', song);
+  // console.log('認証ユーザーID:', user.id);
   
   // JSONファイルの内容を読み込んで検証
   let jsonData = null;
@@ -71,7 +71,7 @@ export async function addSongWithFiles(
     try {
       const text = await files.jsonFile.text();
       jsonData = JSON.parse(text);
-      // // console.log('JSONファイル解析成功:', jsonData);
+      // console.log('JSONファイル解析成功:', jsonData);
     } catch (e) {
       // console.error('JSONファイル解析エラー:', e);
       throw new Error('JSONファイルの形式が不正です');
@@ -87,7 +87,7 @@ export async function addSongWithFiles(
     created_by: user.id // マイグレーション完了により使用可能
   };
   
-  // // console.log('データベースに挿入するデータ:', insertData);
+  // console.log('データベースに挿入するデータ:', insertData);
   
   const { data: newSong, error: songError } = await supabase
     .from('songs')
@@ -100,33 +100,33 @@ export async function addSongWithFiles(
     throw songError;
   }
   
-  // // console.log('データベース挿入成功:', newSong);
+  // console.log('データベース挿入成功:', newSong);
   
   // 2. ファイルをアップロード
   const urls: { audio_url?: string; xml_url?: string; json_url?: string } = {};
   
   try {
     if (files.audioFile) {
-      // // console.log('音声ファイルアップロード開始');
+      // console.log('音声ファイルアップロード開始');
       urls.audio_url = await uploadSongFile(files.audioFile, newSong.id, 'audio');
-      // // console.log('音声ファイルアップロード成功:', urls.audio_url);
+      // console.log('音声ファイルアップロード成功:', urls.audio_url);
     }
     
     if (files.xmlFile) {
-      // // console.log('XMLファイルアップロード開始');
+      // console.log('XMLファイルアップロード開始');
       urls.xml_url = await uploadSongFile(files.xmlFile, newSong.id, 'xml');
-      // // console.log('XMLファイルアップロード成功:', urls.xml_url);
+      // console.log('XMLファイルアップロード成功:', urls.xml_url);
     }
     
     if (files.jsonFile) {
-      // // console.log('JSONファイルアップロード開始');
+      // console.log('JSONファイルアップロード開始');
       urls.json_url = await uploadSongFile(files.jsonFile, newSong.id, 'json');
-      // // console.log('JSONファイルアップロード成功:', urls.json_url);
+      // console.log('JSONファイルアップロード成功:', urls.json_url);
     }
     
     // 3. URLを更新
     if (Object.keys(urls).length > 0) {
-      // // console.log('URLを更新:', urls);
+      // console.log('URLを更新:', urls);
       const { data: updatedSong, error: updateError } = await supabase
         .from('songs')
         .update(urls)
@@ -173,7 +173,7 @@ export async function updateSong(id: string, updates: Partial<Omit<Song, 'id' | 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
   
-  // // console.log('updateSong実行 - ユーザーID:', user.id);
+  // console.log('updateSong実行 - ユーザーID:', user.id);
   
   // ファイルがある場合はアップロード
   const urls: { audio_url?: string; xml_url?: string; json_url?: string } = {};
@@ -213,7 +213,7 @@ export async function deleteSong(id: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
   
-  // // console.log('deleteSong実行 - ユーザーID:', user.id);
+  // console.log('deleteSong実行 - ユーザーID:', user.id);
   
   // ストレージからファイルを削除
   await deleteSongFiles(id);

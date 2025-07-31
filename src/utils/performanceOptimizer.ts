@@ -252,7 +252,7 @@ export class PerformanceMonitor {
     // 初期化フェーズの判定（最初の15秒間に延長）
     if (this.isInitializationPhase && (this.frameStartTime - this.initializationTime) > 15000) {
       this.isInitializationPhase = false;
-      // // console.log('🎯 パフォーマンス監視開始 - 初期化フェーズ完了');
+      // console.log('🎯 パフォーマンス監視開始 - 初期化フェーズ完了');
     }
   }
   

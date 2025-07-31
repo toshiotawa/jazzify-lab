@@ -305,12 +305,12 @@ export const LessonManager: React.FC = () => {
   const handleRemoveSong = async (lessonId: string, songId: string) => {
     if (!selectedCourseId) return;
     
-    // // console.log('削除しようとしている曲:', { lessonId, songId });
+    // console.log('削除しようとしている曲:', { lessonId, songId });
     
     if (window.confirm('この曲をレッスンから削除しますか？')) {
       try {
         const lesson = currentLessons.find(l => l.id === lessonId);
-        // // console.log('削除前の曲リスト:', lesson?.lesson_songs);
+        // console.log('削除前の曲リスト:', lesson?.lesson_songs);
         
         await removeSongFromLesson(lessonId, songId);
         

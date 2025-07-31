@@ -28,7 +28,7 @@ const SongManager: React.FC = () => {
 
   // 環境変数チェック
   useEffect(() => {
-    // // console.log('環境変数チェック:', {
+    // console.log('環境変数チェック:', {
       VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL ? '設定済み' : '未設定',
       VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY ? '設定済み' : '未設定',
     });
@@ -69,7 +69,7 @@ const SongManager: React.FC = () => {
         jsonFile: values.jsonFile?.[0]
       };
 
-      // // console.log('アップロード開始:', {
+      // console.log('アップロード開始:', {
         title: values.title,
         artist: values.artist,
         min_rank: values.min_rank,
@@ -88,7 +88,7 @@ const SongManager: React.FC = () => {
         usage_type: activeFormTab,
       }, files);
 
-      // // console.log('アップロード成功:', result);
+      // console.log('アップロード成功:', result);
       toast.success(`[${activeFormTab}] 曲を追加しました`);
       reset();
       if (activeListTab === activeFormTab) {

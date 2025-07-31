@@ -220,9 +220,9 @@ export async function migrateLegacyConditions(dryRun: boolean = true): Promise<v
     const allConditions = [...missionConditions, ...lessonConditions];
 
     if (dryRun) {
-      // // console.log('Dry run - would migrate:', allConditions.length, 'conditions');
-      // // console.log('Mission conditions:', missionConditions.length);
-      // // console.log('Lesson conditions:', lessonConditions.length);
+      // console.log('Dry run - would migrate:', allConditions.length, 'conditions');
+      // console.log('Mission conditions:', missionConditions.length);
+      // console.log('Lesson conditions:', lessonConditions.length);
       return;
     }
 
@@ -236,7 +236,7 @@ export async function migrateLegacyConditions(dryRun: boolean = true): Promise<v
       return;
     }
 
-    // // console.log('Successfully migrated', allConditions.length, 'conditions');
+    // console.log('Successfully migrated', allConditions.length, 'conditions');
   } catch (error) {
     // console.error('Error during migration:', error);
   }

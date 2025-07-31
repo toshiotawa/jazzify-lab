@@ -186,13 +186,13 @@ export function subscribeRealtimeOnce<T = Record<string, unknown>>(
   }
 
   activeSubscriptions.add(channelName);
-  // // console.log(`Starting realtime subscription: ${channelName}`);
+  // console.log(`Starting realtime subscription: ${channelName}`);
 
   const unsubscribe = subscribeRealtime(channelName, tableName, eventType, callback, options);
 
   return () => {
     activeSubscriptions.delete(channelName);
-    // // console.log(`Stopping realtime subscription: ${channelName}`);
+    // console.log(`Stopping realtime subscription: ${channelName}`);
     unsubscribe();
   };
 }
@@ -209,7 +209,7 @@ export function getActiveSubscriptionCount(): number {
  */
 export function clearAllSubscriptions(): void {
   activeSubscriptions.clear();
-  // // console.log('All realtime subscriptions cleared');
+  // console.log('All realtime subscriptions cleared');
 }
 
 /**
@@ -237,6 +237,6 @@ export function recordRealtimeCall(channelName: string) {
   
   // 開発環境でのみログ出力
   if (import.meta.env.DEV) {
-    // // console.log(`Realtime call #${realtimeCallCount}: ${channelName}`);
+    // console.log(`Realtime call #${realtimeCallCount}: ${channelName}`);
   }
 } 

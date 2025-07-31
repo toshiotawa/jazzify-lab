@@ -101,8 +101,8 @@ export function logMagicLinkDebugInfo(): void {
   const validation = validateMagicLinkConfig();
 
   console.group('🔍 Magic Link 設定デバッグ情報');
-  // // console.log('設定情報:', config);
-  // // console.log('検証結果:', validation);
+  // console.log('設定情報:', config);
+  // console.log('検証結果:', validation);
   
   if (validation.issues.length > 0) {
     // console.warn('⚠️ 問題点:', validation.issues);
@@ -120,12 +120,12 @@ export function logMagicLinkDebugInfo(): void {
  */
 export function logMagicLinkLoginProcess(email: string, mode: 'signup' | 'login', redirectUrl: string): void {
   console.group('🔐 Magic Link ログイン処理開始');
-  // // console.log('📧 メールアドレス:', email);
-  // // console.log('🎯 モード:', mode);
-  // // console.log('🔗 リダイレクトURL:', redirectUrl);
-  // // console.log('🌐 現在のorigin:', typeof location !== 'undefined' ? location.origin : 'N/A');
-  // // console.log('📱 User Agent:', navigator.userAgent);
-  // // console.log('🔒 HTTPS:', location.protocol === 'https:');
+  // console.log('📧 メールアドレス:', email);
+  // console.log('🎯 モード:', mode);
+  // console.log('🔗 リダイレクトURL:', redirectUrl);
+  // console.log('🌐 現在のorigin:', typeof location !== 'undefined' ? location.origin : 'N/A');
+  // console.log('📱 User Agent:', navigator.userAgent);
+  // console.log('🔒 HTTPS:', location.protocol === 'https:');
   console.groupEnd();
 }
 
@@ -134,19 +134,19 @@ export function logMagicLinkLoginProcess(email: string, mode: 'signup' | 'login'
  */
 export function logMagicLinkError(error: Error | unknown, context: string): void {
   console.group('❌ Magic Link エラー');
-  // // console.log('🔍 エラーコンテキスト:', context);
-  // // console.log('🚨 エラー詳細:', error);
+  // console.log('🔍 エラーコンテキスト:', context);
+  // console.log('🚨 エラー詳細:', error);
   
   if (error instanceof Error) {
-    // // console.log('📝 エラーメッセージ:', error.message);
-    // // console.log('📚 エラースタック:', error.stack);
+    // console.log('📝 エラーメッセージ:', error.message);
+    // console.log('📚 エラースタック:', error.stack);
   }
   
   // URLパラメータの確認
   if (typeof location !== 'undefined') {
-    // // console.log('🔗 現在のURL:', location.href);
-    // // console.log('📋 URLパラメータ:', location.search);
-    // // console.log('🔍 ハッシュ:', location.hash);
+    // console.log('🔗 現在のURL:', location.href);
+    // console.log('📋 URLパラメータ:', location.search);
+    // console.log('🔍 ハッシュ:', location.hash);
   }
   
   console.groupEnd();
@@ -157,12 +157,12 @@ export function logMagicLinkError(error: Error | unknown, context: string): void
  */
 export function logMagicLinkSuccess(email: string, session: unknown): void {
   console.group('✅ Magic Link ログイン成功');
-  // // console.log('📧 メールアドレス:', email);
-  // // console.log('👤 ユーザーID:', session?.user?.id);
-  // // console.log('📅 セッション作成時刻:', session?.created_at);
-  // // console.log('⏰ セッション有効期限:', session?.expires_at);
-  // // console.log('🔗 アクセストークン:', session?.access_token ? '存在します' : 'なし');
-  // // console.log('🔄 リフレッシュトークン:', session?.refresh_token ? '存在します' : 'なし');
+  // console.log('📧 メールアドレス:', email);
+  // console.log('👤 ユーザーID:', session?.user?.id);
+  // console.log('📅 セッション作成時刻:', session?.created_at);
+  // console.log('⏰ セッション有効期限:', session?.expires_at);
+  // console.log('🔗 アクセストークン:', session?.access_token ? '存在します' : 'なし');
+  // console.log('🔄 リフレッシュトークン:', session?.refresh_token ? '存在します' : 'なし');
   console.groupEnd();
 }
 
@@ -193,15 +193,15 @@ export function parseMagicLinkFromUrl(): {
   const hasMagicLink = !!(accessToken || refreshToken || type || tokenHash);
 
   console.group('🔍 URL マジックリンク解析');
-  // // console.log('🔗 現在のURL:', location.href);
-  // // console.log('📋 URLパラメータ:', Object.fromEntries(urlParams.entries()));
-  // // console.log('🔍 ハッシュパラメータ:', Object.fromEntries(hashParams.entries()));
-  // // console.log('🎯 マジックリンク検出:', hasMagicLink);
-  // // console.log('🔑 アクセストークン:', accessToken ? '存在します' : 'なし');
-  // // console.log('🔄 リフレッシュトークン:', refreshToken ? '存在します' : 'なし');
-  // // console.log('🔐 トークンハッシュ:', tokenHash ? '存在します' : 'なし');
-  // // console.log('📝 タイプ:', type);
-  // // console.log('❌ エラー:', error);
+  // console.log('🔗 現在のURL:', location.href);
+  // console.log('📋 URLパラメータ:', Object.fromEntries(urlParams.entries()));
+  // console.log('🔍 ハッシュパラメータ:', Object.fromEntries(hashParams.entries()));
+  // console.log('🎯 マジックリンク検出:', hasMagicLink);
+  // console.log('🔑 アクセストークン:', accessToken ? '存在します' : 'なし');
+  // console.log('🔄 リフレッシュトークン:', refreshToken ? '存在します' : 'なし');
+  // console.log('🔐 トークンハッシュ:', tokenHash ? '存在します' : 'なし');
+  // console.log('📝 タイプ:', type);
+  // console.log('❌ エラー:', error);
   console.groupEnd();
 
   return {
@@ -219,7 +219,7 @@ export function parseMagicLinkFromUrl(): {
  */
 export function autoLogMagicLinkInfo(): void {
   if (import.meta.env.DEV) {
-    // // console.log('🚀 開発環境でマジックリンクログを有効化');
+    // console.log('🚀 開発環境でマジックリンクログを有効化');
     
     // 設定情報を自動出力
     logMagicLinkDebugInfo();
@@ -227,16 +227,16 @@ export function autoLogMagicLinkInfo(): void {
     // URLからマジックリンク情報を解析
     const urlInfo = parseMagicLinkFromUrl();
     if (urlInfo.hasMagicLink) {
-      // // console.log('🎯 ページ読み込み時にマジックリンクが検出されました');
+      // console.log('🎯 ページ読み込み時にマジックリンクが検出されました');
     }
     
     // ブラウザ情報を出力
     console.group('🌐 ブラウザ情報');
-    // // console.log('User Agent:', navigator.userAgent);
-    // // console.log('プラットフォーム:', navigator.platform);
-    // // console.log('言語:', navigator.language);
-    // // console.log('Cookie有効:', navigator.cookieEnabled);
-    // // console.log('オンライン:', navigator.onLine);
+    // console.log('User Agent:', navigator.userAgent);
+    // console.log('プラットフォーム:', navigator.platform);
+    // console.log('言語:', navigator.language);
+    // console.log('Cookie有効:', navigator.cookieEnabled);
+    // console.log('オンライン:', navigator.onLine);
     console.groupEnd();
   }
 }

@@ -59,7 +59,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // // console.log('🎵 Initializing Jazz Learning Game App...');
+        // console.log('🎵 Initializing Jazz Learning Game App...');
         setInitProgress(0.1);
         
         // 基本的な環境チェック（簡素化）
@@ -71,11 +71,11 @@ const App: React.FC = () => {
         setInitProgress(0.5);
         
         // 簡素化された初期化 - エラーが起きやすい処理を削除
-        // // console.log('🔊 Checking basic browser features...');
+        // console.log('🔊 Checking basic browser features...');
         
         // Web Audio API の基本チェック（但しエラーは無視）
         if (typeof AudioContext !== 'undefined' || typeof (window as unknown).webkitAudioContext !== 'undefined') {
-          // // console.log('🔊 Audio context available');
+          // console.log('🔊 Audio context available');
         } else {
           // console.warn('⚠️ Web Audio API not supported');
         }
@@ -84,7 +84,7 @@ const App: React.FC = () => {
         
         // MIDI API の基本チェック（但しエラーは無視）
         if (typeof navigator !== 'undefined' && navigator.requestMIDIAccess !== undefined) {
-          // // console.log('🎹 MIDI API available');
+          // console.log('🎹 MIDI API available');
         } else {
           // console.warn('⚠️ Web MIDI API not supported');
         }
@@ -96,7 +96,7 @@ const App: React.FC = () => {
         
         setInitProgress(1.0);
         setIsInitialized(true);
-        // // console.log('✅ Jazz Learning Game App initialized successfully');
+        // console.log('✅ Jazz Learning Game App initialized successfully');
         
       } catch (error) {
         // console.error('❌ Failed to initialize app:', error);

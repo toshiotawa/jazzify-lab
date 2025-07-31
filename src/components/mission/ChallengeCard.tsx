@@ -41,7 +41,7 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
     : 0;
   
   // デバッグログを追加
-  // // console.log('ChallengeCard render:', { 
+  // console.log('ChallengeCard render:', { 
     missionId: mission.id, 
     currentSongProgressLength: currentSongProgress.length,
     allSongsCompleted,

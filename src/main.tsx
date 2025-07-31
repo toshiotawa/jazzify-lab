@@ -16,7 +16,7 @@ autoLogMagicLinkInfo();
 // 本番環境でもデバッグ情報を表示する関数
 const showDebugInfo = (message: string, isError = false) => {
   const timestamp = new Date().toLocaleTimeString();
-  // // console.log(`🎵 [${timestamp}] ${message}`);
+  // console.log(`🎵 [${timestamp}] ${message}`);
   
   // 画面にも表示
   const debugDiv = document.getElementById('debug-info') || document.createElement('div');

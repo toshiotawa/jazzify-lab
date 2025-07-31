@@ -90,19 +90,19 @@ const Dashboard: React.FC = () => {
             
             const latestData = sortedAnnouncements.length > 0 ? sortedAnnouncements[0] : null;
             
-            // // console.log('Dashboard: Latest announcement data:', latestData);
-            // // console.log('Dashboard: All active announcements:', announcementsData);
-            // // console.log('Dashboard: Sorted announcements:', sortedAnnouncements);
-            // // console.log('Dashboard: Total active announcements count:', announcementsData.length);
+            // console.log('Dashboard: Latest announcement data:', latestData);
+            // console.log('Dashboard: All active announcements:', announcementsData);
+            // console.log('Dashboard: Sorted announcements:', sortedAnnouncements);
+            // console.log('Dashboard: Total active announcements count:', announcementsData.length);
             
             setLatestAnnouncement(latestData);
             
             if (!latestData) {
-              // // console.log('Dashboard: No active announcements found');
+              // console.log('Dashboard: No active announcements found');
               if (announcementsData.length === 0) {
-                // // console.log('Dashboard: No announcements exist at all');
+                // console.log('Dashboard: No announcements exist at all');
               } else {
-                // // console.log('Dashboard: Active announcements exist but latestData is null');
+                // console.log('Dashboard: Active announcements exist but latestData is null');
               }
             }
           }).catch((announcementError: unknown) => {

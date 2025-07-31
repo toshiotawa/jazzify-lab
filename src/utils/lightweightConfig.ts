@@ -49,7 +49,7 @@ export let currentConfig: LightweightConfig = LIGHTWEIGHT_MODE;
 // 設定変更関数
 export const setPerformanceMode = (lightweight: boolean) => {
   currentConfig = lightweight ? LIGHTWEIGHT_MODE : STANDARD_MODE;
-  // // console.log(`🎯 パフォーマンスモード変更: ${lightweight ? '軽量化' : '標準'}モード`);
+  // console.log(`🎯 パフォーマンスモード変更: ${lightweight ? '軽量化' : '標準'}モード`);
 };
 
 // フレームレート制御ヘルパー
@@ -78,7 +78,7 @@ export const fpsController = new SimpleFPSController();
 // デバッグログ制御ヘルパー
 export const debugLog = (message: string, ...args: unknown[]) => {
   if (currentConfig.enableDebugLogs) {
-    // // console.log(message, ...args);
+    // console.log(message, ...args);
   }
 };
 

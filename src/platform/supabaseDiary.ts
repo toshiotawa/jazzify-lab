@@ -272,7 +272,7 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
           // 成功時のみカウントを増やす
           if (!upsertError) {
             missionsUpdated++;
-            // // console.log('ミッション進捗更新成功', { 
+            // console.log('ミッション進捗更新成功', { 
               challengeId: m.id, 
               clearCount: actualDiaryCount || 0,
               completed: (actualDiaryCount || 0) >= m.diary_count 
@@ -383,7 +383,7 @@ export async function updateDiary(diaryId: string, content: string, imageUrl?: s
     updateData.image_url = imageUrl;
   }
 
-  // // console.log('日記更新中:', { diaryId, userId: user.id, updateData });
+  // console.log('日記更新中:', { diaryId, userId: user.id, updateData });
 
   const { data, error } = await supabase
     .from('practice_diaries')
@@ -404,7 +404,7 @@ export async function updateDiary(diaryId: string, content: string, imageUrl?: s
     throw new Error('日記が見つからないか、更新権限がありません');
   }
   
-  // // console.log('日記更新完了:', data[0]);
+  // console.log('日記更新完了:', data[0]);
 }
 
 export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
@@ -513,7 +513,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     throw new Error('ログインが必要です');
   }
   
-  // // console.log('日記削除開始:', { diaryId, userId: user.id });
+  // console.log('日記削除開始:', { diaryId, userId: user.id });
   
   // 削除対象の日記の存在確認と権限チェック
   const { data: diary, error: fetchError } = await supabase
@@ -555,7 +555,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     throw new Error('日記が見つからないか、削除権限がありません');
   }
   
-  // // console.log('日記削除完了:', deletedData[0]);
+  // console.log('日記削除完了:', deletedData[0]);
   
   // 削除された日記がミッション進捗に影響する場合は進捗を調整
   try {

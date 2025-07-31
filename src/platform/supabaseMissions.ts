@@ -63,7 +63,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
       .lte('start_date', today)  // 開始日が今日以前（今日を含む）
       .gte('end_date', today);   // 終了日が今日以降（今日を含む）
     
-    // // console.log('fetchActiveMonthlyMissions raw data:', result);
+    // console.log('fetchActiveMonthlyMissions raw data:', result);
     return result;
   }, 1000 * 60 * 3); // 最適化: 3分キャッシュ（短いTTLで最新情報を確保）
   if (error) throw error;
@@ -82,7 +82,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
     })) || []
   }));
   
-  // // console.log('fetchActiveMonthlyMissions processed missions:', missions);
+  // console.log('fetchActiveMonthlyMissions processed missions:', missions);
   return missions as Mission[];
 }
 

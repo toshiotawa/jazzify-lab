@@ -242,7 +242,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
     ];
 
     if (dryRun) {
-      // // console.log('Dry run - would migrate:', migratedProgress.length, 'progress records for user', userId);
+      // console.log('Dry run - would migrate:', migratedProgress.length, 'progress records for user', userId);
       return;
     }
 
@@ -256,7 +256,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
       return;
     }
 
-    // // console.log('Successfully migrated', migratedProgress.length, 'progress records for user', userId);
+    // console.log('Successfully migrated', migratedProgress.length, 'progress records for user', userId);
   } catch (error) {
     // console.error('Error during migration:', error);
   }

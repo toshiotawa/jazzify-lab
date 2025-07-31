@@ -47,7 +47,7 @@ const LessonPage: React.FC = () => {
       
       // レッスン詳細から戻ってきた場合は強制再読み込み
       if (isLessonsPage && !wasOpen && profile && selectedCourse) {
-        // // console.log('レッスン詳細から戻ってきたため、データを強制再読み込み');
+        // console.log('レッスン詳細から戻ってきたため、データを強制再読み込み');
         // ナビゲーションキャッシュをクリア
         clearNavigationCacheForCourse(selectedCourse.id);
         loadLessons(selectedCourse.id);
@@ -92,7 +92,7 @@ const LessonPage: React.FC = () => {
       'lessons',
       '*',
       (payload: unknown) => {
-        // // console.log('Lesson data changed, reloading...', payload);
+        // console.log('Lesson data changed, reloading...', payload);
         // データが変更されたら現在のコースのレッスンを再読み込み
         if (selectedCourse) {
           loadLessons(selectedCourse.id);
@@ -107,7 +107,7 @@ const LessonPage: React.FC = () => {
       'lesson_songs',
       '*',
       (payload: unknown) => {
-        // // console.log('Lesson songs data changed, reloading...', payload);
+        // console.log('Lesson songs data changed, reloading...', payload);
         if (selectedCourse) {
           loadLessons(selectedCourse.id);
         }
@@ -186,7 +186,7 @@ const LessonPage: React.FC = () => {
 
   const loadLessons = async (courseId: string) => {
     try {
-      // // console.log(`Loading lessons for course: ${courseId}`);
+      // console.log(`Loading lessons for course: ${courseId}`);
       
       // レッスンデータ、進捗データ、要件進捗を並行取得
       const [lessonsData, progressData, requirementsMap] = await Promise.all([
@@ -198,14 +198,14 @@ const LessonPage: React.FC = () => {
         })
       ]);
       
-      // // console.log(`Loaded ${lessonsData.length} lessons`);
+      // console.log(`Loaded ${lessonsData.length} lessons`);
       
       setLessonRequirementsProgress(requirementsMap);
       setLessons(lessonsData);
       
       // レッスンデータが空で、以前にレッスンがあった場合は強制再読み込み
       if (lessonsData.length === 0 && lessons.length > 0) {
-        // // console.log('Empty lessons detected, forcing cache bypass and reload...');
+        // console.log('Empty lessons detected, forcing cache bypass and reload...');
         // キャッシュをクリアしてもう一度読み込み
         const { clearSupabaseCache } = await import('@/platform/supabaseClient');
         clearSupabaseCache();
@@ -214,7 +214,7 @@ const LessonPage: React.FC = () => {
         setTimeout(async () => {
           try {
             const retryLessonsData = await fetchLessonsByCourse(courseId);
-            // // console.log(`Retry loaded ${retryLessonsData.length} lessons`);
+            // console.log(`Retry loaded ${retryLessonsData.length} lessons`);
             
             // Requirements progress も再取得
             const retryLessonIds = retryLessonsData.map(lesson => lesson.id);

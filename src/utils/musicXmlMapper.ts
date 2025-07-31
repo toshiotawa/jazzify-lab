@@ -19,7 +19,7 @@ export function extractPlayableNoteNames(doc: Document): string[] {
     // Skip rest notes
     if (noteEl.querySelector('rest')) {
       skippedRests++;
-      // // console.log(`⏸️ Skipping rest at position ${totalNotes}`);
+      // console.log(`⏸️ Skipping rest at position ${totalNotes}`);
       return;
     }
     
@@ -27,7 +27,7 @@ export function extractPlayableNoteNames(doc: Document): string[] {
     const ties = Array.from(noteEl.querySelectorAll('tie'));
     if (ties.some(t => t.getAttribute('type') === 'stop' && !ties.some(t2 => t2.getAttribute('type') === 'start'))) {
       skippedTies++;
-      // // console.log(`🔗 Skipping tie-stop at position ${totalNotes}`);
+      // console.log(`🔗 Skipping tie-stop at position ${totalNotes}`);
       return;
     }
 
@@ -51,7 +51,7 @@ export function extractPlayableNoteNames(doc: Document): string[] {
 
     const noteName = `${step}${accidental}${octave}`;
     names.push(noteName);
-    // // console.log(`🎵 Extracted note ${names.length}: ${noteName} (position ${totalNotes})`);
+    // console.log(`🎵 Extracted note ${names.length}: ${noteName} (position ${totalNotes})`);
   });
   
   // console.log(`📊 MusicXML Note Extraction Summary:
@@ -68,24 +68,24 @@ export function extractPlayableNoteNames(doc: Document): string[] {
  * Assumes both arrays are in the same order (time-sequential).
  */
 export function mergeJsonWithNames(jsonNotes: NoteData[], noteNames: string[]): NoteData[] {
-  // // console.log(`🔄 Merging ${jsonNotes.length} JSON notes with ${noteNames.length} XML note names`);
+  // console.log(`🔄 Merging ${jsonNotes.length} JSON notes with ${noteNames.length} XML note names`);
   
   if (jsonNotes.length !== noteNames.length) {
     // console.error(`❌ Note count mismatch: JSON=${jsonNotes.length}, XML=${noteNames.length}`);
-    // // console.log('First 5 JSON notes:', jsonNotes.slice(0, 5).map(n => ({ time: n.time, pitch: n.pitch })));
-    // // console.log('First 5 XML names:', noteNames.slice(0, 5));
+    // console.log('First 5 JSON notes:', jsonNotes.slice(0, 5).map(n => ({ time: n.time, pitch: n.pitch })));
+    // console.log('First 5 XML names:', noteNames.slice(0, 5));
   }
 
   const merged = jsonNotes.map((note, index) => {
     const noteName = noteNames[index] ?? `Unknown${index}`;
-    // // console.log(`   Note ${index}: time=${note.time.toFixed(2)}s, pitch=${note.pitch}, name=${noteName}`);
+    // console.log(`   Note ${index}: time=${note.time.toFixed(2)}s, pitch=${note.pitch}, name=${noteName}`);
     return {
       ...note,
       noteName
     };
   });
   
-  // // console.log(`✅ Merged ${merged.length} notes with names`);
+  // console.log(`✅ Merged ${merged.length} notes with names`);
   return merged;
 }
 
@@ -258,7 +258,7 @@ function estimateMeasureTimeInfo(notePositions: MusicXmlNotePosition[], jsonNote
   const measures: MeasureTimeInfo[] = [];
   const measureNumbers = [...new Set(notePositions.map(pos => pos.measureNumber))].sort((a, b) => a - b);
   
-  // // console.log(`📐 小節時間推定開始: ${measureNumbers.length}小節`);
+  // console.log(`📐 小節時間推定開始: ${measureNumbers.length}小節`);
   
   for (let i = 0; i < measureNumbers.length; i++) {
     const measureNumber = measureNumbers[i];
@@ -336,7 +336,7 @@ function estimateMeasureTimeInfo(notePositions: MusicXmlNotePosition[], jsonNote
       totalDivisions
     });
     
-    // // console.log(`📏 小節${measureNumber}: ${startTime.toFixed(2)}s - ${(startTime + duration).toFixed(2)}s (${duration.toFixed(2)}s, ${totalDivisions}div)`);
+    // console.log(`📏 小節${measureNumber}: ${startTime.toFixed(2)}s - ${(startTime + duration).toFixed(2)}s (${duration.toFixed(2)}s, ${totalDivisions}div)`);
   }
   
   return measures;
@@ -367,13 +367,13 @@ function estimateDurationFromPrevious(measures: MeasureTimeInfo[]): number {
  * @returns コードネーム情報の配列
  */
 export function extractChordProgressions(doc: Document, jsonNotes: NoteData[]): ChordInfo[] {
-  // // console.log(`🎵 コードネーム時間同期開始: ${jsonNotes.length} JSONノーツ`);
+  // console.log(`🎵 コードネーム時間同期開始: ${jsonNotes.length} JSONノーツ`);
   
   // MusicXMLからノーツとコードの位置情報を抽出
   const notePositions = extractNotePositions(doc);
   const chordPositions = extractChordPositions(doc);
   
-  // // console.log(`📍 MusicXML位置情報: ${notePositions.length}ノーツ, ${chordPositions.length}コード`);
+  // console.log(`📍 MusicXML位置情報: ${notePositions.length}ノーツ, ${chordPositions.length}コード`);
   
   if (notePositions.length !== jsonNotes.length) {
     // console.warn(`⚠️ ノーツ数不一致: MusicXML=${notePositions.length}, JSON=${jsonNotes.length}`);
@@ -397,7 +397,7 @@ export function extractChordProgressions(doc: Document, jsonNotes: NoteData[]): 
       // 小節の時間情報から正確に計算
       const relativePosition = positionInMeasure / measureInfo.totalDivisions;
       startTime = measureInfo.startTime + (relativePosition * measureInfo.duration);
-      // // console.log(`🎯 小節ベース計算: コード "${symbol.displayText}" = ${startTime.toFixed(2)}s (小節${measureNumber}, 位置${positionInMeasure}/${measureInfo.totalDivisions})`);
+      // console.log(`🎯 小節ベース計算: コード "${symbol.displayText}" = ${startTime.toFixed(2)}s (小節${measureNumber}, 位置${positionInMeasure}/${measureInfo.totalDivisions})`);
     } else {
       // フォールバック：従来の補間計算
       startTime = interpolateChordTime(chordPos, notePositions, jsonNotes);
@@ -428,7 +428,7 @@ export function extractChordProgressions(doc: Document, jsonNotes: NoteData[]): 
     lastChord.endTime = Math.max(lastNoteTime + 4.0, lastChord.startTime + 2.0); // 最低2秒は表示
   }
   
-  // // console.log(`✅ コードネーム時間同期完了: ${chords.length}コード`);
+  // console.log(`✅ コードネーム時間同期完了: ${chords.length}コード`);
   return chords;
 }
 
@@ -512,7 +512,7 @@ export function transposeChordRoot(root: string, semitones: number): string {
     // transposeKey関数を使用（chord-utilsから）
     const transposedRoot = transposeKey(root, semitones);
     
-    // // console.log(`🎼 コード移調: ${root} + ${semitones}半音 → ${transposedRoot}`);
+    // console.log(`🎼 コード移調: ${root} + ${semitones}半音 → ${transposedRoot}`);
     return transposedRoot;
     
   } catch (error) {
@@ -555,7 +555,7 @@ export function transposeChordProgression(chords: ChordInfo[], semitones: number
  * @returns 小節ベース時間で調整されたノーツデータ
  */
 export function recalculateNotesWithMeasureTime(doc: Document, jsonNotes: NoteData[]): NoteData[] {
-  // // console.log(`🎯 ノーツ時間再計算開始: ${jsonNotes.length}ノーツ`);
+  // console.log(`🎯 ノーツ時間再計算開始: ${jsonNotes.length}ノーツ`);
   
   // MusicXMLからノーツ位置情報を抽出
   const notePositions = extractNotePositions(doc);
@@ -583,7 +583,7 @@ export function recalculateNotesWithMeasureTime(doc: Document, jsonNotes: NoteDa
     // 元の時間との差分をログ
     const timeDiff = Math.abs(recalculatedTime - note.time);
     if (timeDiff > 0.1) { // 100ms以上の差がある場合のみログ
-      // // console.log(`🎯 ノーツ${index} 時間調整: ${note.time.toFixed(2)}s → ${recalculatedTime.toFixed(2)}s (差分${timeDiff.toFixed(2)}s)`);
+      // console.log(`🎯 ノーツ${index} 時間調整: ${note.time.toFixed(2)}s → ${recalculatedTime.toFixed(2)}s (差分${timeDiff.toFixed(2)}s)`);
     }
     
     return {
@@ -592,7 +592,7 @@ export function recalculateNotesWithMeasureTime(doc: Document, jsonNotes: NoteDa
     };
   });
   
-  // // console.log(`✅ ノーツ時間再計算完了: ${recalculatedNotes.length}ノーツ`);
+  // console.log(`✅ ノーツ時間再計算完了: ${recalculatedNotes.length}ノーツ`);
   return recalculatedNotes;
 }
 
@@ -904,7 +904,7 @@ function simplifyRootNote(step: string, alter: number, settings: { noteNameStyle
   // 簡易化マッピングをチェック
   const simplified = complexToSimpleMap[currentNoteName];
   if (simplified) {
-    // // console.log(`🎼 コード音名簡易化: ${currentNoteName} → ${simplified.step}${simplified.alter === 1 ? '#' : simplified.alter === -1 ? 'b' : ''}`);
+    // console.log(`🎼 コード音名簡易化: ${currentNoteName} → ${simplified.step}${simplified.alter === 1 ? '#' : simplified.alter === -1 ? 'b' : ''}`);
     return simplified;
   }
 
@@ -960,7 +960,7 @@ function simplifyNoteAccidental(step: string, alter: number, octave: number, set
   const simplified = complexToSimpleWithOctaveMap[currentNoteName];
   if (simplified) {
     const newOctave = octave + simplified.octaveAdjustment;
-    // // console.log(`🎼 音符簡易化: ${currentNoteName}${octave} → ${simplified.step}${simplified.alter === 1 ? '#' : simplified.alter === -1 ? 'b' : ''}${newOctave}`);
+    // console.log(`🎼 音符簡易化: ${currentNoteName}${octave} → ${simplified.step}${simplified.alter === 1 ? '#' : simplified.alter === -1 ? 'b' : ''}${newOctave}`);
     return { 
       step: simplified.step, 
       alter: simplified.alter, 

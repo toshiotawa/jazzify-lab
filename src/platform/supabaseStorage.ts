@@ -39,7 +39,7 @@ export async function createSongFilesBucket() {
         throw error;
       }
       
-      // // console.log('song-filesバケットを作成しました');
+      // console.log('song-filesバケットを作成しました');
     }
   } catch (error) {
     // console.error('バケット確認/作成エラー:', error);
@@ -134,7 +134,7 @@ export async function createDiaryImagesBucket() {
         throw error;
       }
       
-      // // console.log('diary-imagesバケットを作成しました');
+      // console.log('diary-imagesバケットを作成しました');
     }
   } catch (error) {
     // console.error('バケット確認/作成エラー:', error);
