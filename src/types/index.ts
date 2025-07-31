@@ -641,6 +641,17 @@ export interface FantasyStage {
   show_guide: boolean;
   simultaneous_monster_count?: number;
   monster_icon?: string;
+  
+  // リズムモード関連の新規フィールド
+  game_type?: 'quiz' | 'rhythm';  // ゲームタイプ（デフォルト: 'quiz'）
+  rhythm_pattern?: 'random' | 'progression';  // リズムパターン（randomまたはprogression）
+  bpm?: number;  // テンポ（BPM）
+  time_signature?: number;  // 拍子（3または4）
+  measure_count?: number;  // 小節数
+  loop_measures?: number;  // ループする小節数
+  rhythm_data?: string;  // リズムデータのファイルパス
+  chord_progression_data?: any;  // プログレッションモード用のコード進行データ（JSON）
+  mp3_url?: string;  // BGMのMP3ファイルURL
 }
 
 export interface LessonContext {

@@ -9,6 +9,8 @@ import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { useRhythmGameEngine } from './RhythmGameEngine';
+import RhythmAudioPlayer from './RhythmAudioPlayer';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
@@ -289,16 +291,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
-  const {
-    gameState,
-    handleNoteInput: engineHandleNoteInput,
-    initializeGame,
-    stopGame,
-    getCurrentEnemy,
-    proceedToNextEnemy,
-    imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
-    ENEMY_LIST
-  } = useFantasyGameEngine({
+  
+  // クイズモード用のゲームエンジン
+  const quizEngine = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
@@ -307,6 +302,46 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
+  
+  // リズムモード用のゲームエンジン
+  const rhythmEngine = useRhythmGameEngine({
+    stage: stage?.game_type === 'rhythm' ? stage : null,
+    onGameStateChange: handleGameStateChange,
+    onChordCorrect: (chord, timing, damage, defeated, monsterId) => {
+      // リズムモードではisSpecialをfalseに設定
+      handleChordCorrect(chord, false, damage, defeated, monsterId);
+    },
+    onChordMiss: (chord, monsterId) => {
+      // ミス時の処理
+      handleChordIncorrect(chord, []);
+      handleEnemyAttack(monsterId);
+    },
+    onGameComplete: handleGameCompleteCallback,
+    onEnemyAttack: handleEnemyAttack,
+    displayOpts: { lang: 'en', simple: false }
+  });
+  
+  // ゲームタイプに応じてエンジンを選択
+  const isRhythmMode = stage?.game_type === 'rhythm';
+  const {
+    gameState,
+    handleNoteInput: engineHandleNoteInput,
+    initializeGame,
+    stopGame,
+    getCurrentEnemy,
+    proceedToNextEnemy,
+    imageTexturesRef,
+    ENEMY_LIST
+  } = isRhythmMode ? {
+    gameState: rhythmEngine.gameState as FantasyGameState,
+    handleNoteInput: rhythmEngine.handleNoteInput,
+    initializeGame: rhythmEngine.startGame,
+    stopGame: rhythmEngine.stopGame,
+    getCurrentEnemy: () => null,  // リズムモードでは使わない
+    proceedToNextEnemy: () => {},  // リズムモードでは使わない
+    imageTexturesRef: { current: null },  // リズムモードでは使わない
+    ENEMY_LIST: []  // リズムモードでは使わない
+  } : quizEngine;
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -676,6 +711,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     <div className={cn(
       "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen"
     )}>
+      {/* リズムモード用オーディオプレイヤー */}
+      {isRhythmMode && stage.mp3_url && (
+        <RhythmAudioPlayer
+          mp3Url={stage.mp3_url}
+          autoStart={autoStart}
+          onTimeUpdate={(time) => {
+            devLog.debug('🎵 Rhythm time update:', time);
+          }}
+          onLoop={() => {
+            devLog.debug('🎵 Audio looped');
+          }}
+        />
+      )}
+      
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="flex justify-between items-center">
@@ -852,6 +901,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
                           style={{ width: `${monster.gauge}%` }}
                         />
+                        
+                        {/* リズムモード用の判定マーカー */}
+                        {isRhythmMode && (
+                          <div 
+                            className="absolute top-0 bottom-0 bg-yellow-400"
+                            style={{ 
+                              left: '80%',
+                              width: '2px',
+                              boxShadow: '0 0 4px rgba(250, 204, 21, 0.8)'
+                            }}
+                          />
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
