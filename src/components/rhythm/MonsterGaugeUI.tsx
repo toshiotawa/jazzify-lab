@@ -9,7 +9,7 @@ const barCls =
 // フックを安全に使うため 1 モンスター=1 コンポーネントに分割
 const GaugeBar: React.FC<{ monster: MonsterState & { rhythmQuestion?: RhythmQuestion } }> = ({ monster }) => {
   // フックは条件分岐の前に呼び出す（React Hooksのルール）
-  const gauge = monster.rhythmQuestion ? useGaugePercent(monster.rhythmQuestion.absSec) : 0;
+  const gauge = useGaugePercent(monster.rhythmQuestion?.absSec || 0);
   
   if (!monster.rhythmQuestion) return null;
   
@@ -41,12 +41,10 @@ const GaugeBar: React.FC<{ monster: MonsterState & { rhythmQuestion?: RhythmQues
 };
 
 export const MonsterGaugeUI: React.FC<{ monsters: (MonsterState & { rhythmQuestion?: RhythmQuestion })[] }> = ({ monsters }) => {
-  // Subscribe to rhythm store updates directly
-  const [tick, setTick] = React.useState(0);
-  
+  // Force re-render for animation updates
   React.useEffect(() => {
     const interval = setInterval(() => {
-      setTick(t => t + 1);
+      // Force re-render to update gauge positions
     }, 16); // ~60fps
     
     return () => clearInterval(interval);
