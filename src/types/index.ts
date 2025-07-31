@@ -649,6 +649,7 @@ export interface FantasyStage {
   time_signature?: number;
   count_in_measures?: number;
   chord_progression_data?: any;
+  rhythm_pattern_type?: 'random' | 'progression';
 }
 
 export interface LessonContext {

@@ -296,7 +296,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           {/* モードタイプ表示 */}
           {unlocked && stage.mode === 'rhythm' && (
             <div className="text-xs text-blue-300 mb-1">
-              リズムモード {stage.chordProgressionData ? '(プログレッション)' : '(ランダム)'}
+              リズムモード {stage.rhythmPatternType === 'progression' ? '(プログレッション)' : '(ランダム)'}
             </div>
           )}
           {unlocked && stage.mode !== 'rhythm' && (

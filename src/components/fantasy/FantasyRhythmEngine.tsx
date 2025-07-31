@@ -58,6 +58,7 @@ export interface FantasyStage {
   countInMeasures?: number;
   timeSignature?: number;
   chordProgressionData?: any;
+  rhythmPatternType?: 'random' | 'progression';
 }
 
 interface RhythmMonsterState {
@@ -194,7 +195,7 @@ export const useFantasyRhythmEngine = ({
     let totalQuestions = 0;
 
     // プログレッションパターンの場合、JSONデータを読み込む
-    if (stage.mode === 'rhythm' && stage.chordProgressionData) {
+    if (stage.mode === 'rhythm' && stage.rhythmPatternType === 'progression' && stage.chordProgressionData) {
       try {
         rhythmData = loadRhythmJson(stage.chordProgressionData);
         totalQuestions = rhythmData.chords.length;
@@ -233,7 +234,7 @@ export const useFantasyRhythmEngine = ({
     };
 
     // プログレッションパターンの初期化
-    if (stage.mode === 'rhythm' && rhythmData) {
+    if (stage.mode === 'rhythm' && stage.rhythmPatternType === 'progression' && rhythmData) {
       // 問題キューの初期化（全問題のインデックス）
       initialState.questionQueue = Array.from({ length: totalQuestions }, (_, i) => i);
       
