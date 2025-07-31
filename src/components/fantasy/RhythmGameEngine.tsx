@@ -188,9 +188,9 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
   const createMonster = useCallback((index: number, position: 'A' | 'B' | 'C' | 'D'): RhythmMonsterState | null => {
     if (!stage) return null;
 
-    const monsterIds = getStageMonsterIds(stage.stageNumber);
-    const monsterId = monsterIds[index % monsterIds.length];
-    const monsterDef = MONSTERS[monsterId as keyof typeof MONSTERS];
+    const monsterIds = getStageMonsterIds(4); // 固定で4種類のモンスターを使用
+    const monsterIdIndex = index % monsterIds.length;
+    const monsterDef = MONSTERS[monsterIdIndex];
     
     if (!monsterDef) return null;
 
@@ -441,10 +441,10 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
     };
     
     // console.log('🎵 Initializing game state:', {
-      activeMonsters: newGameState.activeMonsters.length,
-      currentChord: newGameState.currentChord?.id,
-      isGameActive: newGameState.isGameActive
-    });
+    //   activeMonsters: newGameState.activeMonsters.length,
+    //   currentChord: newGameState.currentChord?.id,
+    //   isGameActive: newGameState.isGameActive
+    // });
     
     setGameState(newGameState);
 
@@ -473,10 +473,10 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
   // エフェクト: 状態変更通知
   useEffect(() => {
     // console.log('🎵 Rhythm game state changed:', {
-      isGameActive: gameState.isGameActive,
-      activeMonsters: gameState.activeMonsters.length,
-      currentChord: gameState.currentChord?.id
-    });
+    //   isGameActive: gameState.isGameActive,
+    //   activeMonsters: gameState.activeMonsters.length,
+    //   currentChord: gameState.currentChord?.id
+    // });
     onGameStateChange(gameState);
   }, [gameState, onGameStateChange]);
 
