@@ -173,6 +173,13 @@ export const FantasyRhythmEngine = forwardRef<
       ? generateProgressionSchedule()
       : generateRandomSchedule();
     
+    devLog.debug('🎵 Rhythm schedule generated:', {
+      scheduleLength: newSchedule.length,
+      isProgression: !!chordProgressionData,
+      firstItems: newSchedule.slice(0, 3),
+      currentTime: getCurrentGameTime()
+    });
+    
     setChordSchedule(newSchedule);
     onChordSchedule(newSchedule);
   }, [isActive, startAt, currentMeasure, chordProgressionData, generateProgressionSchedule, generateRandomSchedule, onChordSchedule]);
@@ -222,6 +229,11 @@ export const FantasyRhythmEngine = forwardRef<
           if (existingJudgment) {
             existingJudgment.judged = true;
             existingJudgment.result = 'miss';
+            devLog.debug('🎵 Auto miss judgment:', { 
+              chordId: existingJudgment.chordId, 
+              targetTime: existingJudgment.targetTime,
+              currentTime 
+            });
             onJudgment(existingJudgment);
           }
         }
@@ -237,6 +249,17 @@ export const FantasyRhythmEngine = forwardRef<
 
   // 判定処理（外部から呼び出される）
   const judge = useCallback((chordId: string, inputTime: number) => {
+    devLog.debug('🎵 Judge called:', {
+      chordId,
+      inputTime,
+      activeJudgments: activeJudgments.length,
+      judgmentDetails: activeJudgments.map(j => ({
+        chordId: j.chordId,
+        targetTime: j.targetTime,
+        judged: j.judged
+      }))
+    });
+    
     const judgment = activeJudgments.find(j => j.chordId === chordId && !j.judged);
     
     if (!judgment) {
@@ -249,10 +272,12 @@ export const FantasyRhythmEngine = forwardRef<
     if (timeDiff <= JUDGMENT_WINDOW_MS) {
       judgment.judged = true;
       judgment.result = timeDiff <= 50 ? 'perfect' : 'good';
+      devLog.debug('🎵 Judgment success:', { chordId, timeDiff, result: judgment.result });
       onJudgment(judgment);
       return judgment;
     }
     
+    devLog.debug('🎵 Judgment failed - outside window:', { chordId, timeDiff, window: JUDGMENT_WINDOW_MS });
     return null;
   }, [activeJudgments, onJudgment]);
 

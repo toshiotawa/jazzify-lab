@@ -26,12 +26,16 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
 
   // 現在のスケジュール項目を見つける
   const currentScheduleItem = useMemo(() => {
-    return schedule.find(item => 
-      item.position === position && 
-      item.chordId === chordId &&
-      item.targetTime > currentTime - 1000 // 1秒前まで
-    );
-  }, [schedule, position, chordId, currentTime]);
+    // 現在時刻から最も近い未来のスケジュール項目を探す
+    const futureItems = schedule
+      .filter(item => 
+        item.position === position && 
+        item.targetTime > currentTime - 200 // 判定ウィンドウ分前まで
+      )
+      .sort((a, b) => a.targetTime - b.targetTime);
+    
+    return futureItems[0];
+  }, [schedule, position, currentTime]);
 
   // ゲージの進行を計算
   useEffect(() => {
@@ -61,7 +65,7 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
   }
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700">
+    <div className="absolute inset-0">
       {/* 80%地点のマーカー */}
       <div className="absolute left-[80%] top-0 bottom-0 w-0.5 bg-yellow-400 z-10" />
       

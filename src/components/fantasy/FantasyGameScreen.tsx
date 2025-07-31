@@ -343,7 +343,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     isRhythmMode,
     rhythmSchedule,
     rhythmJudgments,
-    rhythmEngineRef
+    rhythmEngineRef,
+    updateRhythmMonsters
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
@@ -357,41 +358,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // リズムスケジュールハンドラー（gameStateとisRhythmModeが利用可能になった後で定義）
   const handleRhythmSchedule = useCallback((schedule: RhythmChordSchedule[]) => {
     devLog.debug('🎵 Rhythm schedule updated:', schedule);
-    // スケジュールに基づいてモンスターを生成・配置する処理
     
-    // リズムモードの場合、スケジュールに基づいてモンスターのコードを更新
-    if (isRhythmMode && gameState.isGameActive) {
-      const currentTime = performance.now() - (startAt || 0) - readyDuration;
-      
-      // 現在時刻に近いスケジュール項目を探す
-      const upcomingSchedule = schedule.filter(item => 
-        item.targetTime > currentTime - 1000 && 
-        item.targetTime < currentTime + 2000
-      );
-      
-      // 各モンスターに対応するスケジュールを割り当て
-      const updatedMonsters = gameState.activeMonsters.map(monster => {
-        const scheduleItem = upcomingSchedule.find(item => item.position === monster.position);
-        if (scheduleItem && scheduleItem.chordId !== monster.chordTarget.id) {
-          // コードが変わった場合は更新
-          const newChord = getChordDefinition(scheduleItem.chordId, { lang: 'en', simple: false });
-          if (newChord) {
-            return {
-              ...monster,
-              chordTarget: newChord,
-              correctNotes: [] // リセット
-            };
-          }
-        }
-        return monster;
-      });
-      
-      // モンスターの状態を更新（必要に応じて）
-      // Note: 実際の更新はFantasyGameEngine内で行うべきですが、
-      // ここではログのみ出力
-      devLog.debug('🎵 Monsters updated based on rhythm schedule:', updatedMonsters);
+    // リズムモードでモンスターを更新
+    if (isRhythmMode && updateRhythmMonsters) {
+      updateRhythmMonsters(schedule);
     }
-  }, [isRhythmMode, gameState, startAt, readyDuration]);
+  }, [isRhythmMode, updateRhythmMonsters]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
