@@ -24,6 +24,7 @@ interface FantasySettingsModalProps {
   simpleNoteName?: boolean; // 簡易表記
   playRootSound?: boolean; // ルート音を鳴らすか
   rootSoundVolume?: number; // ルート音量
+  showNoteNames?: boolean; // 音名を常に表示するか
 }
 
 interface FantasySettings {
@@ -35,6 +36,7 @@ interface FantasySettings {
   simpleNoteName: boolean; // 簡易表記
   playRootSound: boolean; // ルート音を鳴らすか
   rootSoundVolume: number; // ルート音量
+  showNoteNames: boolean; // 音名を常に表示するか
 }
 
 const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
@@ -50,7 +52,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   noteNameLang = 'en', // デフォルト英語表記
   simpleNoteName = false, // デフォルト簡易表記OFF
   playRootSound = true, // デフォルトルート音ON
-  rootSoundVolume = 0.5 // デフォルト50%ルート音量
+  rootSoundVolume = 0.5, // デフォルト50%ルート音量
+  showNoteNames = false // デフォルト音名表示OFF
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
@@ -60,7 +63,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     noteNameLang: noteNameLang,
     simpleNoteName: simpleNoteName,
     playRootSound: playRootSound,
-    rootSoundVolume: rootSoundVolume
+    rootSoundVolume: rootSoundVolume,
+    showNoteNames: showNoteNames ?? false
   });
   
   // propsのmidiDeviceIdが変更されたらsettingsも更新

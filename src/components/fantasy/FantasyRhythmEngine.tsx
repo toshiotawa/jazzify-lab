@@ -278,16 +278,7 @@ export const useFantasyRhythmEngine = ({
 
     setGameState(newState);
     onGameStateChange(newState);
-
-    // 最初のモンスターを配置
-    if (currentState.rhythmData) {
-      // プログレッションパターン
-      spawnProgressionMonsters(newState);
-    } else {
-      // ランダムパターン
-      spawnRandomMonster(newState);
-    }
-  }, [gameState, onGameStateChange, spawnProgressionMonsters, spawnRandomMonster]);
+  }, [gameState, onGameStateChange]);
 
   // ===== モンスター生成処理 =====
 
@@ -320,23 +311,23 @@ export const useFantasyRhythmEngine = ({
 
     const currentTime = performance.now() - gameStartTimeRef.current;
 
-    const newMonster: RhythmMonsterState = {
-      id: `${monsterId}_${state.currentQuestionIndex}`,
-      index: state.currentQuestionIndex,
-      position: 'A', // ランダムパターンは常にA列
-      currentHp: state.currentStage.enemyHp,
-      maxHp: state.currentStage.enemyHp,
-      chordTarget: chordDef,
-      correctNotes: [],
-      icon: monsterData.icon,
-      name: monsterData.name,
-      appearTiming: currentTime,
-      targetMeasure: currentMeasure,
-      targetBeat: currentBeat,
-      gaugeProgress: 0,
-      isActive: true,
-      questionIndex: state.currentQuestionIndex
-    };
+          const newMonster: RhythmMonsterState = {
+        id: `${monsterId}_${state.currentQuestionIndex}`,
+        index: state.currentQuestionIndex,
+        position: 'A', // ランダムパターンは常にA列
+        currentHp: state.currentStage.enemyHp,
+        maxHp: state.currentStage.enemyHp,
+        chordTarget: chordDef,
+        correctNotes: [],
+        icon: monsterData.iconFile,
+        name: monsterData.name,
+        appearTiming: currentTime,
+        targetMeasure: currentMeasure,
+        targetBeat: currentBeat,
+        gaugeProgress: 0,
+        isActive: true,
+        questionIndex: state.currentQuestionIndex
+      };
 
     const newState = {
       ...state,
@@ -378,23 +369,23 @@ export const useFantasyRhythmEngine = ({
 
       if (!monsterData) return;
 
-      const newMonster: RhythmMonsterState = {
-        id: `${monsterId}_${questionIndex}`,
-        index: questionIndex,
-        position: pos as any,
-        currentHp: state.currentStage!.enemyHp,
-        maxHp: state.currentStage!.enemyHp,
-        chordTarget: chordDef,
-        correctNotes: [],
-        icon: monsterData.icon,
-        name: monsterData.name,
-        appearTiming: currentTime,
-        targetMeasure: chordData.measure,
-        targetBeat: chordData.beat,
-        gaugeProgress: 0,
-        isActive: true,
-        questionIndex
-      };
+              const newMonster: RhythmMonsterState = {
+          id: `${monsterId}_${questionIndex}`,
+          index: questionIndex,
+          position: pos as any,
+          currentHp: state.currentStage!.enemyHp,
+          maxHp: state.currentStage!.enemyHp,
+          chordTarget: chordDef,
+          correctNotes: [],
+          icon: monsterData.iconFile,
+          name: monsterData.name,
+          appearTiming: currentTime,
+          targetMeasure: chordData.measure,
+          targetBeat: chordData.beat,
+          gaugeProgress: 0,
+          isActive: true,
+          questionIndex
+        };
 
       newMonsters.push(newMonster);
     });
@@ -539,7 +530,7 @@ export const useFantasyRhythmEngine = ({
                 chordTarget: chordDef,
                 currentHp: state.currentStage!.enemyHp,
                 correctNotes: [],
-                icon: monsterData.icon,
+                icon: monsterData.iconFile,
                 name: monsterData.name,
                 targetMeasure: chordData.measure,
                 targetBeat: chordData.beat,
@@ -700,6 +691,22 @@ export const useFantasyRhythmEngine = ({
       }
     };
   }, [stage, initializeGame]);
+
+  // ===== ゲーム開始時のモンスター生成 =====
+  
+  useEffect(() => {
+    if (gameState.isGameActive && gameState.activeMonsters.length === 0 && gameState.currentStage) {
+      devLog.debug('🎮 初回モンスター生成開始');
+      // 最初のモンスターを配置
+      if (gameState.rhythmData) {
+        // プログレッションパターン
+        spawnProgressionMonsters(gameState);
+      } else {
+        // ランダムパターン
+        spawnRandomMonster(gameState);
+      }
+    }
+  }, [gameState, spawnProgressionMonsters, spawnRandomMonster]);
 
   return {
     gameState,

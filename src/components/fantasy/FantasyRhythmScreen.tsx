@@ -460,7 +460,7 @@ const FantasyRhythmScreen: React.FC<FantasyRhythmScreenProps> = ({
         bgmVolume={settings.bgmVolume ?? 0.7}
         soundEffectVolume={settings.soundEffectVolume ?? 0.8}
         rootSoundVolume={settings.rootSoundVolume ?? 0.5}
-        alwaysShowNoteName={settings.showNoteNames ?? false}
+        showNoteNames={settings.showNoteNames ?? false}
         noteNameLang={currentNoteNameLang}
         simpleNoteName={currentSimpleNoteName}
         playRootSound={settings.playRootSound ?? true}
@@ -469,7 +469,7 @@ const FantasyRhythmScreen: React.FC<FantasyRhythmScreenProps> = ({
             bgmVolume: newSettings.bgmVolume,
             soundEffectVolume: newSettings.soundEffectVolume,
             rootSoundVolume: newSettings.rootSoundVolume,
-            showNoteNames: newSettings.alwaysShowNoteName,
+            showNoteNames: newSettings.showNoteNames,
             playRootSound: newSettings.playRootSound
           });
           setCurrentNoteNameLang(newSettings.noteNameLang);
