@@ -58,7 +58,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
   // 時間管理
-  const { currentBeat, currentMeasure, tick, startAt, readyDuration } = useTimeStore();
+  const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -711,7 +711,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
-          M {currentMeasure} - B {currentBeat}
+          {isCountIn ? (
+            <>M / - B {currentBeat}</>
+          ) : (
+            <>M {currentMeasure} - B {currentBeat}</>
+          )}
         </div>
         <div className="flex justify-between items-center">
           {/* ステージ情報と敵の数 */}

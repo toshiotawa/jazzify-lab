@@ -28,12 +28,14 @@ class BGMManager {
     this.loopBegin = countIn * secPerMeas
     this.loopEnd = (countIn + measureCount) * secPerMeas
 
-    this.audio.currentTime = this.loopBegin
+    // 初回再生は最初から（カウントインを含む）
+    this.audio.currentTime = 0
     
     // timeupdate イベントハンドラを保存
     this.timeUpdateHandler = () => {
       if (!this.audio) return
       if (this.audio.currentTime >= this.loopEnd) {
+        // ループ時はカウントイン後から再生
         this.audio.currentTime = this.loopBegin
       }
     }

@@ -16,6 +16,8 @@ interface TimeState {
   /* 現在の拍(1-timeSignature) と小節(1-measureCount) */
   currentBeat: number
   currentMeasure: number
+  /* カウントイン中かどうか */
+  isCountIn: boolean
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -36,6 +38,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   countInMeasures: 0,
   currentBeat: 1,
   currentMeasure: 1,
+  isCountIn: false,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -44,7 +47,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       measureCount: mc,
       countInMeasures: ci,
       currentBeat: 1,
-      currentMeasure: 1
+      currentMeasure: 1,
+      isCountIn: false
     }),
   tick: () => {
     const s = get()
@@ -66,21 +70,26 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     )
 
     const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
-    
-    /* カウントイン後のループ処理 */
-    let loopMeasure: number
-    if (totalMeasures < s.countInMeasures) {
-      loopMeasure = totalMeasures + 1
-    } else {
-      const measuresAfterCountIn = totalMeasures - s.countInMeasures
-      loopMeasure = (measuresAfterCountIn % s.measureCount) + s.countInMeasures + 1
-    }
-
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
-
-    set({
-      currentBeat: currentBeatInMeasure,
-      currentMeasure: loopMeasure
-    })
+    
+    /* カウントイン中かどうかを判定 */
+    if (totalMeasures < s.countInMeasures) {
+      // カウントイン中
+      set({
+        currentBeat: currentBeatInMeasure,
+        currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
+        isCountIn: true
+      })
+    } else {
+      // メイン部分（カウントイン後）
+      const measuresAfterCountIn = totalMeasures - s.countInMeasures
+      const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
+      
+      set({
+        currentBeat: currentBeatInMeasure,
+        currentMeasure: displayMeasure, // カウントイン後を1から表示
+        isCountIn: false
+      })
+    }
   }
 }))
