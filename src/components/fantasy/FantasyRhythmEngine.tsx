@@ -196,9 +196,6 @@ export const useFantasyRhythmEngine = ({
 
     devLog.debug('🎵 リズムモード初期化', { stage });
 
-    // timeStoreのリズムモード設定
-    setRhythmMode(true);
-
     let rhythmData: RhythmJsonData | null = null;
     let totalQuestions = 0;
 
@@ -255,7 +252,7 @@ export const useFantasyRhythmEngine = ({
 
     setGameState(initialState);
     onGameStateChange(initialState);
-  }, [stage, displayOpts, onGameStateChange, setRhythmMode]);
+  }, [stage, displayOpts, onGameStateChange]);
 
   // ===== ゲーム開始処理 =====
 
@@ -648,17 +645,27 @@ export const useFantasyRhythmEngine = ({
     };
   }, [gameState.isGameActive, updateGauges]);
 
+  // ===== リズムモード設定 =====
+  
+  useEffect(() => {
+    if (stage && stage.mode === 'rhythm') {
+      setRhythmMode(true);
+      return () => {
+        setRhythmMode(false);
+      };
+    }
+  }, [stage, setRhythmMode]);
+
   // ===== 初期化 =====
 
   useEffect(() => {
     initializeGame();
     return () => {
-      setRhythmMode(false);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [stage, initializeGame, setRhythmMode]);
+  }, [stage, initializeGame]);
 
   return {
     gameState,
