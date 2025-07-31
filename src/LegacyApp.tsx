@@ -74,7 +74,7 @@ const App: React.FC = () => {
         // // console.log('🔊 Checking basic browser features...');
         
         // Web Audio API の基本チェック（但しエラーは無視）
-        if (typeof AudioContext !== 'undefined' || typeof (window as any).webkitAudioContext !== 'undefined') {
+        if (typeof AudioContext !== 'undefined' || typeof (window as unknown).webkitAudioContext !== 'undefined') {
           // // console.log('🔊 Audio context available');
         } else {
           // console.warn('⚠️ Web Audio API not supported');

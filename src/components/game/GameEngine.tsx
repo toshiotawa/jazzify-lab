@@ -67,14 +67,14 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // 🔧 追加: グローバルアクセス用に参照を公開（再生中のシーク対応）
   useEffect(() => {
-    (window as any).__gameAudioRef = audioRef;
-    (window as any).__gameAudioContextRef = audioContextRef;
-    (window as any).__gameBaseOffsetRef = baseOffsetRef;
+    (window as unknown).__gameAudioRef = audioRef;
+    (window as unknown).__gameAudioContextRef = audioContextRef;
+    (window as unknown).__gameBaseOffsetRef = baseOffsetRef;
     
     return () => {
-      delete (window as any).__gameAudioRef;
-      delete (window as any).__gameAudioContextRef;
-      delete (window as any).__gameBaseOffsetRef;
+      delete (window as unknown).__gameAudioRef;
+      delete (window as unknown).__gameAudioContextRef;
+      delete (window as unknown).__gameBaseOffsetRef;
     };
   }, []);
   
@@ -149,7 +149,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
         // 1) AudioContext を初期化 (存在しなければ)
         if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          audioContextRef.current = new (window.AudioContext || (window as unknown).webkitAudioContext)();
         }
         const audioContext = audioContextRef.current!;
 
@@ -252,7 +252,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           
           // AudioContextを簡易作成
           if (!audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            audioContextRef.current = new (window.AudioContext || (window as unknown).webkitAudioContext)();
           }
           const audioContext = audioContextRef.current!;
           
@@ -488,9 +488,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [currentTime, audioLoaded, gameEngine, settings.playbackSpeed]);
   
   // MIDIController管理用のRef
-  const midiControllerRef = useRef<any>(null);
+  const midiControllerRef = useRef<unknown>(null);
   // AudioController管理用のRef（音声入力）
-  const audioControllerRef = useRef<any>(null);
+  const audioControllerRef = useRef<unknown>(null);
 
   // 共通音声システム + MIDIController + AudioController初期化
   useEffect(() => {
@@ -740,7 +740,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   useEffect(() => {
     if (pitchShiftRef.current) {
       // Tone.PitchShift の pitch プロパティは semitones
-      (pitchShiftRef.current as any).pitch = settings.transpose;
+      (pitchShiftRef.current as unknown).pitch = settings.transpose;
     }
   }, [settings.transpose]);
   

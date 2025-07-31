@@ -1798,7 +1798,7 @@ const SettingsPanel: React.FC = () => {
               </label>
               <select
                 value={settings.noteNameStyle}
-                onChange={(e) => gameActions.updateSettings({ noteNameStyle: e.target.value as any })}
+                onChange={(e) => gameActions.updateSettings({ noteNameStyle: e.target.value as unknown })}
                 className="select select-bordered w-full max-w-xs bg-gray-800 text-white mb-2"
               >
                 <option value="off">OFF</option>
@@ -1880,7 +1880,7 @@ const SettingsPanel: React.FC = () => {
                 </label>
                 <select
                   value={settings.practiceGuide ?? 'key'}
-                  onChange={(e) => gameActions.updateSettings({ practiceGuide: e.target.value as any })}
+                  onChange={(e) => gameActions.updateSettings({ practiceGuide: e.target.value as unknown })}
                   className="select select-bordered w-full max-w-xs bg-gray-800 text-white"
                 >
                   <option value="off">OFF</option>

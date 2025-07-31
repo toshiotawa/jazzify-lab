@@ -109,7 +109,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       
       // レンダリング後に正確なスケールファクターを計算
       const svgElement = containerRef.current.querySelector('svg');
-      const boundingBox = (osmdRef.current.GraphicSheet as any).BoundingBox;
+      const boundingBox = (osmdRef.current.GraphicSheet as unknown).BoundingBox;
 
       if (svgElement && boundingBox && boundingBox.width > 0) {
         // レンダリングされたSVGの実際のピクセル幅とOSMDの内部的な幅からスケールを算出
@@ -177,7 +177,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
               for (const voice of staffEntry.graphicalVoiceEntries) {
                 for (const graphicNote of voice.notes) {
                   // isRest() が true、または sourceNote がない場合は休符と見なす
-                  if (!graphicNote.sourceNote || (graphicNote.sourceNote as any).isRest?.()) {
+                  if (!graphicNote.sourceNote || (graphicNote.sourceNote as unknown).isRest?.()) {
                     continue;
                   }
                   
@@ -202,7 +202,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                   if (noteIndex < notes.length) {
                     const note = notes[noteIndex];
                     // 音符の中心X座標を計算
-                    const positionAndShape = graphicNote.PositionAndShape as any;
+                    const positionAndShape = graphicNote.PositionAndShape as unknown;
                     const noteHeadX = positionAndShape?.AbsolutePosition?.x;
 
                     if (noteHeadX !== undefined) {

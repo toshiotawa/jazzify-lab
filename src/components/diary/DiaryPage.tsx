@@ -162,7 +162,7 @@ const DiaryPage: React.FC = () => {
   // 称号の種類を判定する関数
   const getTitleType = (title: string): 'level' | 'mission' | 'lesson' => {
     // レベル称号の判定
-    if (TITLES.includes(title as any)) {
+    if (TITLES.includes(title as unknown)) {
       return 'level';
     }
     // ミッション称号の判定

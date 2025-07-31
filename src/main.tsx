@@ -137,7 +137,7 @@ const initializeApp = async () => {
     // Tone.js を動的にロードして初期化（遅延ロード）
     try {
       const Tone = await import('tone');
-      (window as any).Tone = Tone;
+      (window as unknown).Tone = Tone;
       showDebugInfo('Tone.js loaded and attached to window');
     } catch (toneError) {
       showDebugInfo(`Tone.js loading failed: ${toneError}`, true);

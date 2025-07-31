@@ -917,10 +917,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           
           // 🔧 追加: 再生中の音声を即座にシーク
           // グローバルにアクセス可能な音声要素とbaseOffsetRefを更新
-          if (state.isPlaying && (window as any).__gameAudioRef) {
-            const audioRef = (window as any).__gameAudioRef;
-            const audioContextRef = (window as any).__gameAudioContextRef;
-            const baseOffsetRef = (window as any).__gameBaseOffsetRef;
+          if (state.isPlaying && (window as unknown).__gameAudioRef) {
+            const audioRef = (window as unknown).__gameAudioRef;
+            const audioContextRef = (window as unknown).__gameAudioContextRef;
+            const baseOffsetRef = (window as unknown).__gameBaseOffsetRef;
             const settings = state.settings;
             
             if (audioRef.current && audioContextRef.current && baseOffsetRef) {

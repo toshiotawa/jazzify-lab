@@ -64,7 +64,7 @@ const Dashboard: React.FC = () => {
     
     try {
       // すべてのデータを並行読み込み
-      const promises: Promise<any>[] = [];
+      const promises: Promise<unknown>[] = [];
       
       // ミッションのロード
       promises.push(
@@ -141,7 +141,7 @@ const Dashboard: React.FC = () => {
   // 称号の種類を判定する関数
   const getTitleType = (title: string): 'level' | 'mission' | 'lesson' => {
     // レベル称号の判定
-    if (TITLES.includes(title as any)) {
+    if (TITLES.includes(title as unknown)) {
       return 'level';
     }
     // ミッション称号の判定

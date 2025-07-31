@@ -297,7 +297,7 @@ export class FantasySoundManager {
   private _setRootVolume(v: number) {
     this.bassVolume = v;
     if (this.bassSampler) {
-      (this.bassSampler.volume as any).value =
+      (this.bassSampler.volume as unknown).value =
         v === 0 ? -Infinity : Math.log10(v) * 20;
     }
   }

@@ -1387,7 +1387,7 @@ export class PIXINotesRendererInstance {
         this.handleKeyRelease(midiNote);
         if (event) {
           try {
-            (event.currentTarget as any).releasePointer?.(event.pointerId);
+            (event.currentTarget as unknown).releasePointer?.(event.pointerId);
           } catch (err) {
             // Safari等未対応ブラウザでは無視
           }
@@ -1399,7 +1399,7 @@ export class PIXINotesRendererInstance {
         event.stopPropagation();
         // ポインタキャプチャで押したまま外に出ても確実にpointerupを受信
         try {
-          (event.currentTarget as any).capturePointer?.(event.pointerId);
+          (event.currentTarget as unknown).capturePointer?.(event.pointerId);
         } catch (err) {
           // Safari等未対応ブラウザでは無視
         }
@@ -1488,7 +1488,7 @@ export class PIXINotesRendererInstance {
         this.handleKeyRelease(midiNote);
         if (event) {
           try {
-            (event.currentTarget as any).releasePointer?.(event.pointerId);
+            (event.currentTarget as unknown).releasePointer?.(event.pointerId);
           } catch (err) {
             // Safari等未対応ブラウザでは無視
           }
@@ -1500,7 +1500,7 @@ export class PIXINotesRendererInstance {
         event.stopPropagation();
         // ポインタキャプチャで押したまま外に出ても確実にpointerupを受信
         try {
-          (event.currentTarget as any).capturePointer?.(event.pointerId);
+          (event.currentTarget as unknown).capturePointer?.(event.pointerId);
         } catch (err) {
           // Safari等未対応ブラウザでは無視
         }
@@ -2302,7 +2302,7 @@ export class PIXINotesRendererInstance {
       
         // ラベルもαで同期させる（visibleだとGCがズレる）
     if (noteSprite.label) {
-      noteSprite.label.alpha = (note.state as any) === 'hit' ? 0 : 1;
+      noteSprite.label.alpha = (note.state as unknown) === 'hit' ? 0 : 1;
     }
       
       // ミス時のエフェクトは無し
@@ -2382,7 +2382,7 @@ export class PIXINotesRendererInstance {
     effectContainer.name = 'HitEffect'; // デバッグ用名前付け
     
     // === ポインターイベントを完全無効化 ===
-    (effectContainer as any).eventMode = 'none';
+    (effectContainer as unknown).eventMode = 'none';
     effectContainer.interactive = false;
     
     // ===== 1. 縦レーンライト（新機能） =====
@@ -2542,7 +2542,7 @@ export class PIXINotesRendererInstance {
     
     // 破棄後に呼ばれた場合の安全ガード
     // this.app.renderer は destroy() 後にプロパティが undefined になるためチェック
-    if (!this.app || (this.app as any)._destroyed || !this.app.screen) {
+    if (!this.app || (this.app as unknown)._destroyed || !this.app.screen) {
       log.warn('PIXINotesRendererInstance.updateSettings: renderer already destroyed, skipping');
       return;
     }
@@ -2868,7 +2868,7 @@ export class PIXINotesRendererInstance {
       
 
       // PIXI.jsアプリケーションを破棄
-      if (this.app && (this.app as any)._destroyed !== true) {
+      if (this.app && (this.app as unknown)._destroyed !== true) {
         this.app.destroy(true, { 
           children: true, 
           texture: false,  // テクスチャは共有されている可能性があるのでfalse

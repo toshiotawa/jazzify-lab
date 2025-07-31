@@ -67,10 +67,10 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset PIXI mocks
-    (PIXI.Assets.unloadBundle as any).mockResolvedValue(undefined);
-    (PIXI.Assets.addBundle as any).mockReturnValue(undefined);
-    (PIXI.Assets.loadBundle as any).mockResolvedValue(undefined);
-    (PIXI.Assets.get as any).mockReturnValue({ texture: 'mock-texture' });
+    (PIXI.Assets.unloadBundle as unknown).mockResolvedValue(undefined);
+    (PIXI.Assets.addBundle as unknown).mockReturnValue(undefined);
+    (PIXI.Assets.loadBundle as unknown).mockResolvedValue(undefined);
+    (PIXI.Assets.get as unknown).mockReturnValue({ texture: 'mock-texture' });
   });
 
   afterEach(() => {
@@ -120,7 +120,7 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
 
   it('should handle errors gracefully when unloadBundle fails', async () => {
     // Mock unloadBundle to throw an error
-    (PIXI.Assets.unloadBundle as any).mockRejectedValue(new Error('Bundle not found'));
+    (PIXI.Assets.unloadBundle as unknown).mockRejectedValue(new Error('Bundle not found'));
 
     const { container } = render(
       <FantasyGameEngine
@@ -150,7 +150,7 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
 
   it('should handle complete failure of monster image loading', async () => {
     // Mock loadBundle to throw an error
-    (PIXI.Assets.loadBundle as any).mockRejectedValue(new Error('Network error'));
+    (PIXI.Assets.loadBundle as unknown).mockRejectedValue(new Error('Network error'));
 
     const { container } = render(
       <FantasyGameEngine

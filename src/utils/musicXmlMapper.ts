@@ -54,10 +54,10 @@ export function extractPlayableNoteNames(doc: Document): string[] {
     // // console.log(`🎵 Extracted note ${names.length}: ${noteName} (position ${totalNotes})`);
   });
   
-  // // console.log(`📊 MusicXML Note Extraction Summary:
-    Total notes in XML: ${totalNotes}
-    Skipped rests: ${skippedRests}
-    Skipped ties: ${skippedTies}
+  // console.log(`📊 MusicXML Note Extraction Summary:
+  //   Total notes in XML: ${totalNotes}
+  //   Skipped rests: ${skippedRests}
+  //   Skipped ties: ${skippedTies}
     Extracted playable notes: ${names.length}`);
   
   return names;

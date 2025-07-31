@@ -183,7 +183,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
       // コメント新規投稿（最適化: 特定の日記のコメントのみ更新）
       supabase.channel('realtime-diary-comments')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'diary_comments' }, async (payload) => {
-          const diaryId = (payload.new as any).diary_id;
+          const diaryId = (payload.new as unknown).diary_id;
           if (diaryId) {
             await get().fetchComments(diaryId);
           }

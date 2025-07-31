@@ -77,7 +77,7 @@ export const initializeAudioSystem = async (): Promise<void> => {
       while (retryCount < maxRetries) {
         try {
           const Tone = await import('tone');
-          (window as any).Tone = Tone;
+          (window as unknown).Tone = Tone;
           // // console.log('✅ Tone.js loaded dynamically');
           break;
         } catch (toneError) {
@@ -124,8 +124,8 @@ export const initializeAudioSystem = async (): Promise<void> => {
     }).toDestination();
 
     // 立ち上がりを限界まで短く（型安全性確保）
-    if (globalSampler && (globalSampler as any).envelope) {
-      (globalSampler as any).envelope.attack = 0.001;
+    if (globalSampler && (globalSampler as unknown).envelope) {
+      (globalSampler as unknown).envelope.attack = 0.001;
     }
 
     // 全サンプルのプリロード完了を待機
@@ -213,7 +213,7 @@ export const updateGlobalVolume = (volume: number): void => {
     try {
       // 0-1 の範囲を -40dB から 0dB にマッピング
       const volumeDb = volume === 0 ? -Infinity : Math.log10(volume) * 20;
-      (globalSampler as any).volume.value = volumeDb;
+      (globalSampler as unknown).volume.value = volumeDb;
     } catch (error) {
       // console.error('❌ Failed to update global volume:', error);
     }
@@ -520,7 +520,7 @@ export class MIDIController {
 
   // シーク・ループ状態をチェック
   private isSeekingOrLooping(): boolean {
-    const gameInstance = (window as any).gameInstance;
+    const gameInstance = (window as unknown).gameInstance;
     
     if (gameInstance) {
       const now = Date.now();

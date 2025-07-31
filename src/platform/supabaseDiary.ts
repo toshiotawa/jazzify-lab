@@ -291,7 +291,7 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   // 会員ランクに応じたXP倍率を適用
   const membershipMultiplier = membershipRank === 'premium' ? 1.5 : membershipRank === 'platinum' ? 2 : 1;
 
-  let xpResult: { gainedXp: number; totalXp: number; level: number } = { gainedXp:0, totalXp:0, level:currentLevel } as any;
+  let xpResult: { gainedXp: number; totalXp: number; level: number } = { gainedXp:0, totalXp:0, level:currentLevel } as unknown;
 
   // ────────── XP 付与判定 ──────────
   if (!todayDiaryXpCount) {
@@ -307,7 +307,7 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   } else {
     // XP 付与なし
     const { data: prof } = await supabase.from('profiles').select('xp, level').eq('id', user.id).single();
-    xpResult = { gainedXp:0, totalXp: prof?.xp || 0, level: prof?.level || currentLevel } as any;
+    xpResult = { gainedXp:0, totalXp: prof?.xp || 0, level: prof?.level || currentLevel } as unknown;
   }
 
   // ────────── キャッシュをクリア ──────────

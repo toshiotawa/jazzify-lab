@@ -537,11 +537,11 @@ export const performanceUtils = {
   /**
    * デバウンス処理
    */
-  debounce<T extends (...args: unknown[]) => any>(func: T, wait: number): T {
+  debounce<T extends (...args: unknown[]) => unknown>(func: T, wait: number): T {
     let timeout: NodeJS.Timeout;
     return ((...args: unknown[]) => {
       clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(null, args), wait);
+      timeout = setTimeout(() => func(...args), wait);
     }) as T;
   },
   
