@@ -105,7 +105,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
-        4,
+        stage.timeSignature || 4,
         stage.measureCount ?? 8,
         stage.countInMeasures ?? 0,
         settings.bgmVolume ?? 0.7

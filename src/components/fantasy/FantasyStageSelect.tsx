@@ -165,8 +165,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
-        bgmUrl: stage.bgm_url,
-        simultaneousMonsterCount: stage.simultaneous_monster_count || 1
+        bgmUrl: stage.bgm_url || stage.mp3_url,
+        simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+        bpm: stage.bpm || 120,
+        measureCount: stage.measure_count,
+        countInMeasures: stage.count_in_measures,
+        timeSignature: stage.time_signature
       }));
       
       const convertedProgress: FantasyUserProgress = {

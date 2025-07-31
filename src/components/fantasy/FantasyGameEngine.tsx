@@ -45,6 +45,7 @@ interface FantasyStage {
   bpm: number;
   measureCount?: number;
   countInMeasures?: number;
+  timeSignature?: number;
 }
 
 interface MonsterState {
@@ -543,7 +544,7 @@ export const useFantasyGameEngine = ({
       .getState()
       .setStart(
         stage.bpm || 120,
-        4, // 4/4 基本。未設定列は後方互換
+        stage.timeSignature || 4, // デフォルトは4/4拍子
         stage.measureCount ?? 8,
         stage.countInMeasures ?? 0
       );
