@@ -190,6 +190,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
 
     const monsterIds = getStageMonsterIds(4); // 固定で4種類のモンスターを使用
     const monsterIdIndex = index % monsterIds.length;
+    const monsterId = monsterIds[monsterIdIndex]; // monsterIdを復活
     const monsterDef = MONSTERS[monsterIdIndex];
     
     if (!monsterDef) return null;
@@ -211,7 +212,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
       gaugeSpeed,
       chordTarget: chord,
       correctNotes: [],
-      icon: monsterDef.icon,
+      icon: monsterDef.iconFile,
       name: monsterDef.name,
       nextAttackTime: rhythmStore.currentTime + beatDuration * (stage.timeSignature || 4),
       attackInterval: beatDuration * (stage.timeSignature || 4)
