@@ -641,6 +641,11 @@ export interface FantasyStage {
   show_guide: boolean;
   simultaneous_monster_count?: number;
   monster_icon?: string;
+  mp3_url?: string;
+  bpm?: number;
+  measure_count?: number;
+  beats_per_measure?: number;
+  count_in_measures?: number;
 }
 
 export interface LessonContext {

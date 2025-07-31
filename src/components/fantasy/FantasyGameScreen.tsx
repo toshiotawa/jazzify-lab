@@ -15,6 +15,9 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { useBgmStore } from '@/stores/bgmStore';
+import { ReadyOverlay } from '../game/ReadyOverlay';
+import { BeatDisplay } from '../game/BeatDisplay';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -46,6 +49,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  
+  // BGMストア
+  const bgmVolume = useBgmStore(state => state.volume);
+  const isReadyPhase = useBgmStore(state => state.isReadyPhase);
   
   // 設定状態を管理（初期値はstageから取得）
   // showGuideはstage.showGuideを直接使用（状態管理しない）
@@ -313,6 +320,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
+    // Ready phase中は入力を受け付けない
+    const { isReadyPhase } = useBgmStore.getState();
+    if (isReadyPhase) {
+      devLog.debug('🎵 Note input blocked during Ready phase');
+      return;
+    }
+    
     // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
     if (source === 'mouse' && activeNotesRef.current.has(note)) {
       devLog.debug('🎵 Note already playing, skipping:', note);
@@ -623,9 +637,42 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ★ マウント時 autoStart なら即開始
   useEffect(() => {
     if (autoStart) {
-      initializeGame(stage);
+      // Auto-start with BGM and Ready phase
+      const startWithBgm = async () => {
+        const bgmState = useBgmStore.getState();
+        if (stage.mp3_url && stage.bpm && stage.measure_count) {
+          try {
+            await bgmState.initialize(
+              stage.mp3_url,
+              stage.bpm,
+              stage.beats_per_measure || 4,
+              stage.measure_count,
+              stage.count_in_measures || 2
+            );
+          } catch (error) {
+            console.error('Failed to initialize BGM:', error);
+          }
+        }
+          
+          bgmState.startReadyPhase();
+          
+          // Initialize game after Ready phase completes
+          setTimeout(() => {
+            initializeGame(stage);
+          }, 2800); // 2s Ready countdown + 0.5s Start! + 0.3s buffer
+        };
+      
+      startWithBgm();
     }
   }, [autoStart, initializeGame, stage]);
+  
+  // Cleanup BGM on unmount
+  useEffect(() => {
+    const { cleanup } = useBgmStore.getState();
+    return () => {
+      cleanup();
+    };
+  }, []);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
@@ -647,9 +694,33 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {stage?.description ?? '説明テキストを取得できませんでした'}
           </p>
           <button
-            onClick={() => {
+            onClick={async () => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
-              initializeGame(stage);
+              
+              const bgmState = useBgmStore.getState();
+              
+              // Initialize BGM if available
+              if (stage.mp3_url && stage.bpm && stage.measure_count) {
+                try {
+                  await bgmState.initialize(
+                    stage.mp3_url,
+                    stage.bpm,
+                    stage.beats_per_measure || 4,
+                    stage.measure_count,
+                    stage.count_in_measures || 2
+                  );
+                } catch (error) {
+                  console.error('Failed to initialize BGM:', error);
+                }
+              }
+              
+              // Start Ready phase
+              bgmState.startReadyPhase();
+              
+              // Initialize game after Ready phase completes
+              setTimeout(() => {
+                initializeGame(stage);
+              }, 2800); // 2s Ready countdown + 0.5s Start! + 0.3s buffer
             }}
             className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
           >
@@ -1056,6 +1127,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         simpleNoteName={currentSimpleNoteName}
         playRootSound={settings.playRootSound}
         rootSoundVolume={settings.rootSoundVolume}
+        bgmVolume={bgmVolume}
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
@@ -1069,6 +1141,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </span>
         </div>
       )}
+      
+      {/* Ready Phase Overlay */}
+      <ReadyOverlay
+        isVisible={isReadyPhase}
+        onComplete={() => {
+          // Ready phase completion is handled by bgmStore
+        }}
+      />
+      
+      {/* Beat Display */}
+      <BeatDisplay />
     </div>
   );
 };
