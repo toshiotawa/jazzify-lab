@@ -23,7 +23,7 @@ const MissionPage: React.FC = () => {
           // ミッションデータと進捗を取得
           await fetchAll();
         } catch (err) {
-          console.error('ミッション取得エラー:', err);
+          // console.error('ミッション取得エラー:', err);
           setError('ミッション情報の取得に失敗しました');
         }
       })();

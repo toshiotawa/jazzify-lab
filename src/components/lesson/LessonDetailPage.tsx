@@ -114,7 +114,7 @@ const LessonDetailPage: React.FC = () => {
       
       // lesson_songsをrequirementsとして設定（後方互換性のため）
       if (lessonData?.lesson_songs) {
-        console.log('レッスン楽曲データ:', lessonData.lesson_songs);
+        // // console.log('レッスン楽曲データ:', lessonData.lesson_songs);
         const requirementsFromLessonSongs = lessonData.lesson_songs.map(ls => ({
           lesson_id: ls.lesson_id,
           song_id: ls.song_id, // 通常の楽曲の場合のみ
@@ -123,7 +123,7 @@ const LessonDetailPage: React.FC = () => {
           is_fantasy: ls.is_fantasy,
           fantasy_stage: ls.fantasy_stage,
           fantasy_stage_id: ls.fantasy_stage_id
-        } as LessonRequirement & { is_fantasy?: boolean; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string }));
+        } as LessonRequirement & { is_fantasy?: boolean; fantasy_stage?: unknown; fantasy_stage_id?: string; lesson_song_id?: string }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -149,14 +149,14 @@ const LessonDetailPage: React.FC = () => {
           const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id);
           setNavigationInfo(navInfo);
         } catch (navError) {
-          console.error('Navigation info loading error:', navError);
+          // console.error('Navigation info loading error:', navError);
           // ナビゲーション情報の取得失敗は致命的ではないので、エラーログのみ
         }
       }
       
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error('レッスンデータの読み込みに失敗しました');
-      console.error('Error loading lesson data:', e);
+      // console.error('Error loading lesson data:', e);
     } finally {
       setLoading(false);
     }
@@ -191,9 +191,9 @@ const LessonDetailPage: React.FC = () => {
       
       // レッスン一覧に戻る
       window.location.hash = '#lessons';
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error('完了処理に失敗しました');
-      console.error('レッスン完了エラー:', e);
+      // console.error('レッスン完了エラー:', e);
     } finally {
       setCompleting(false);
     }
@@ -407,7 +407,7 @@ const LessonDetailPage: React.FC = () => {
               
               {requirements.length > 0 ? (
                 <div className="space-y-4">
-                  {requirements.map((req: any, index) => {
+                  {requirements.map((req: unknown, index) => {
                     // この実習課題の進捗を取得
                     const progress = requirementsProgress.find(p => {
                       if (req.is_fantasy) {
@@ -614,10 +614,10 @@ const LessonDetailPage: React.FC = () => {
                           onClick={() => {
                             if (isFantasy) {
                               // ファンタジーステージの場合
-                              console.log('ファンタジー課題データ:', req);
-                              console.log('fantasy_stage:', req.fantasy_stage);
-                              console.log('fantasy_stage_id:', req.fantasy_stage_id);
-                              console.log('lesson_song_id:', req.lesson_song_id);
+                              // // console.log('ファンタジー課題データ:', req);
+                              // // console.log('fantasy_stage:', req.fantasy_stage);
+                              // // console.log('fantasy_stage_id:', req.fantasy_stage_id);
+                              // // console.log('lesson_song_id:', req.lesson_song_id);
                               
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);
@@ -625,7 +625,7 @@ const LessonDetailPage: React.FC = () => {
                               params.set('stageId', req.fantasy_stage?.id || req.fantasy_stage_id || '');
                               params.set('clearConditions', JSON.stringify(req.clear_conditions));
                               const url = `#fantasy?${params.toString()}`;
-                              console.log('ファンタジーモードURL:', url);
+                              // // console.log('ファンタジーモードURL:', url);
                               window.location.hash = url;
                             } else {
                               // 通常の楽曲の場合

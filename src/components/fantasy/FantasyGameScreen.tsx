@@ -138,16 +138,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               ).then(() => {
                 devLog.debug('🔊 ファンタジーモード効果音初期化完了');
               }).catch(error => {
-                console.error('Failed to initialize FantasySoundManager:', error);
+                // console.error('Failed to initialize FantasySoundManager:', error);
               });
             }).catch(error => {
-              console.error('Failed to import FantasySoundManager:', error);
+              // console.error('Failed to import FantasySoundManager:', error);
             });
           }).catch(error => {
-            console.error('Audio system initialization failed:', error);
+            // console.error('Audio system initialization failed:', error);
           });
         }).catch(error => {
-          console.error('MidiController import failed:', error);
+          // console.error('MidiController import failed:', error);
         });
         
         // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
@@ -234,7 +234,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
         await FantasySoundManager.playRootNote(chord.root);
       } catch (error) {
-        console.error('Failed to play root note:', error);
+        // console.error('Failed to play root note:', error);
       }
     }
   }, [fantasyPixiInstance, settings.playRootSound]);
@@ -250,7 +250,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
-    console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
+    // // console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
     // 敵の攻撃音を再生
@@ -258,7 +258,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
       FantasySoundManager.playEnemyAttack();
     } catch (error) {
-      console.error('Failed to play enemy attack sound:', error);
+      // console.error('Failed to play enemy attack sound:', error);
     }
     
     // confetti削除 - 何もしない
@@ -326,7 +326,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       activeNotesRef.current.add(note);
       devLog.debug('🎵 Played note via click:', note);
     } catch (error) {
-      console.error('Failed to play note:', error);
+      // console.error('Failed to play note:', error);
     }
     
     // ファンタジーゲームエンジンにのみ送信
@@ -404,7 +404,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             activeNotesRef.current.delete(note);
             devLog.debug('🎵 Stopped note via release:', note);
           } catch (error) {
-            console.error('Failed to stop note:', error);
+            // console.error('Failed to stop note:', error);
           }
         }
       );
@@ -1017,7 +1017,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               updateGlobalVolume(settings.volume);
               devLog.debug(`🎵 ファンタジーモードのピアノ音量を更新: ${settings.volume}`);
             }).catch(error => {
-              console.error('MidiController import failed:', error);
+              // console.error('MidiController import failed:', error);
             });
           }
           
@@ -1030,7 +1030,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
               FantasySoundManager.setVolume(settings.soundEffectVolume);
             }).catch(error => {
-              console.error('Failed to update FantasySoundManager volume:', error);
+              // console.error('Failed to update FantasySoundManager volume:', error);
             });
           }
 

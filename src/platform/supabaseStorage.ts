@@ -35,14 +35,14 @@ export async function createSongFilesBucket() {
       });
       
       if (error) {
-        console.error('バケット作成エラー:', error);
+        // console.error('バケット作成エラー:', error);
         throw error;
       }
       
-      console.log('song-filesバケットを作成しました');
+      // // console.log('song-filesバケットを作成しました');
     }
   } catch (error) {
-    console.error('バケット確認/作成エラー:', error);
+    // console.error('バケット確認/作成エラー:', error);
   }
 }
 
@@ -80,7 +80,7 @@ export async function uploadSongFile(
     });
   
   if (error) {
-    console.error(`${fileType}ファイルアップロードエラー:`, error);
+    // console.error(`${fileType}ファイルアップロードエラー:`, error);
     throw error;
   }
   
@@ -108,7 +108,7 @@ export async function deleteSongFiles(songId: string): Promise<void> {
     .remove(files);
   
   if (error) {
-    console.error('ファイル削除エラー:', error);
+    // console.error('ファイル削除エラー:', error);
     throw error;
   }
 }
@@ -130,14 +130,14 @@ export async function createDiaryImagesBucket() {
       });
       
       if (error) {
-        console.error('バケット作成エラー:', error);
+        // console.error('バケット作成エラー:', error);
         throw error;
       }
       
-      console.log('diary-imagesバケットを作成しました');
+      // // console.log('diary-imagesバケットを作成しました');
     }
   } catch (error) {
-    console.error('バケット確認/作成エラー:', error);
+    // console.error('バケット確認/作成エラー:', error);
   }
 }
 
@@ -158,7 +158,7 @@ export async function uploadDiaryImage(file: File, userId: string, diaryId: stri
     });
   
   if (error) {
-    console.error('日記画像アップロードエラー:', error);
+    // console.error('日記画像アップロードエラー:', error);
     throw error;
   }
   
@@ -187,7 +187,7 @@ export async function deleteDiaryImage(userId: string, diaryId: string): Promise
     .remove(possiblePaths);
   
   if (error) {
-    console.error('日記画像削除エラー:', error);
+    // console.error('日記画像削除エラー:', error);
     throw error;
   }
 } 

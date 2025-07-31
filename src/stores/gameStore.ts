@@ -402,7 +402,7 @@ const validateSettings = (settings: Partial<GameSettings>): { valid: boolean; er
 
 // ===== 新機能: 状態遷移バリデーション =====
 
-const validateStateTransition = (currentState: GameState, action: string, params?: any): { valid: boolean; error?: string } => {
+const validateStateTransition = (currentState: GameState, action: string, params?: unknown): { valid: boolean; error?: string } => {
   switch (action) {
     case 'play':
       if (!currentState.currentSong || currentState.notes.length === 0) {
@@ -447,7 +447,7 @@ const validateStateTransition = (currentState: GameState, action: string, params
 
 interface GameStoreState extends GameState {
   // Phase 2: ゲームエンジン統合
-  gameEngine: any | null; // GameEngine型は動的インポートで使用
+  gameEngine: unknown | null; // GameEngine型は動的インポートで使用
   engineActiveNotes: ActiveNote[];
   
   // 練習モードガイド: キーハイライト情報
@@ -651,7 +651,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const engine = new GameEngine({ ...state.settings });
           
           // エンジンの更新コールバック設定
-          engine.setUpdateCallback((data: any) => {
+          engine.setUpdateCallback((data: unknown) => {
             set((state) => {
               // currentTime は AudioContext 同期ループで更新する
               state.engineActiveNotes = data.activeNotes;
@@ -662,7 +662,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               const { abRepeat } = state;
               if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
                 if (state.currentTime >= abRepeat.endTime) {
-                  console.log(`🔄 ABリピート(Store): ${state.currentTime.toFixed(2)}s → ${abRepeat.startTime.toFixed(2)}s`);
+                  // // console.log(`🔄 ABリピート(Store): ${state.currentTime.toFixed(2)}s → ${abRepeat.startTime.toFixed(2)}s`);
                   // 🔧 修正: get()の代わりにuseGameStore.getState()を使用
                   const seekTime = abRepeat.startTime;
                   setTimeout(() => {
@@ -763,7 +763,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 
                 // HTMLが返されている場合の検出（XML読み込み時）
                 if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
-                  console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
+                  // console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
                   throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
                 }
                 
@@ -773,7 +773,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 // XML解析エラーのチェック
                 const parseError = xmlDoc.querySelector('parsererror');
                 if (parseError) {
-                  console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
+                  // console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
                   throw new Error('MusicXMLファイルの解析に失敗しました');
                 }
                 
@@ -786,10 +786,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
                 finalChords = extractChordProgressions(xmlDoc, notes);
                 
-                console.log(`🎵 MusicXML音名マージ完了: ${noteNames.length}音名 → ${finalNotes.length}ノーツ`);
-                console.log(`🎵 コードネーム抽出完了: ${finalChords.length}コード`);
+                // // console.log(`🎵 MusicXML音名マージ完了: ${noteNames.length}音名 → ${finalNotes.length}ノーツ`);
+                // // console.log(`🎵 コードネーム抽出完了: ${finalChords.length}コード`);
               } catch (error) {
-                console.warn('⚠️ MusicXML音名抽出に失敗:', error);
+                // console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                 finalXml = null; // エラー時はnullに
               }
             }
@@ -853,7 +853,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // GameEngineに楽曲ロード
             if (state.gameEngine) {
               state.gameEngine.loadSong(finalNotes);
-              console.log(`🎵 GameEngine に楽曲ロード: ${finalNotes.length}ノーツ`);
+              // // console.log(`🎵 GameEngine に楽曲ロード: ${finalNotes.length}ノーツ`);
             }
           });
         },
@@ -912,7 +912,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           // GameEngineにもシーク処理を伝達
           if (state.gameEngine) {
             state.gameEngine.seek(newTime);
-            console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
+            // // console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
           }
           
           // 🔧 追加: 再生中の音声を即座にシーク
@@ -931,7 +931,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               const realTimeElapsed = newTime / settings.playbackSpeed;
               baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
               
-              console.log(`🎵 Audio seek to ${newTime.toFixed(2)}s (再生中)`);
+              // // console.log(`🎵 Audio seek to ${newTime.toFixed(2)}s (再生中)`);
             }
           }
         },
@@ -1068,7 +1068,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             
             // 課題条件に関連する設定変更を無効化
             if ('transpose' in filteredSettings && clearConditions.key !== undefined) {
-              console.warn('⚠️ 本番モード時はキー設定（transpose）を変更できません');
+              // console.warn('⚠️ 本番モード時はキー設定（transpose）を変更できません');
               delete filteredSettings.transpose;
             }
             
@@ -1076,10 +1076,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               const newSpeed = filteredSettings.playbackSpeed!;
               const minSpeed = clearConditions.speed;
               if (newSpeed < minSpeed) {
-                console.warn(`⚠️ 本番モード時は速度設定を${minSpeed}倍速未満に変更できません`);
+                // console.warn(`⚠️ 本番モード時は速度設定を${minSpeed}倍速未満に変更できません`);
                 delete filteredSettings.playbackSpeed;
               } else {
-                console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
+                // // console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
               }
             }
           }
@@ -1090,7 +1090,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             
             // 課題条件に関連する設定変更を無効化
             if ('transpose' in filteredSettings && clearConditions.key !== undefined) {
-              console.warn('⚠️ 本番モード時はキー設定（transpose）を変更できません');
+              // console.warn('⚠️ 本番モード時はキー設定（transpose）を変更できません');
               delete filteredSettings.transpose;
             }
             
@@ -1098,21 +1098,21 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               const newSpeed = filteredSettings.playbackSpeed!;
               const minSpeed = clearConditions.speed;
               if (newSpeed < minSpeed) {
-                console.warn(`⚠️ 本番モード時は速度設定を${minSpeed}倍速未満に変更できません`);
+                // console.warn(`⚠️ 本番モード時は速度設定を${minSpeed}倍速未満に変更できません`);
                 delete filteredSettings.playbackSpeed;
               } else {
-                console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
+                // // console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
               }
             }
             
             // レッスンコンテキストでの楽譜表示制限
             if (clearConditions.notation_setting) {
               if ('showSheetMusic' in filteredSettings) {
-                console.warn('⚠️ 本番モード時は楽譜表示設定（showSheetMusic）を変更できません');
+                // console.warn('⚠️ 本番モード時は楽譜表示設定（showSheetMusic）を変更できません');
                 delete filteredSettings.showSheetMusic;
               }
               if ('sheetMusicChordsOnly' in filteredSettings) {
-                console.warn('⚠️ 本番モード時は楽譜表示設定（sheetMusicChordsOnly）を変更できません');
+                // console.warn('⚠️ 本番モード時は楽譜表示設定（sheetMusicChordsOnly）を変更できません');
                 delete filteredSettings.sheetMusicChordsOnly;
               }
             }
@@ -1124,11 +1124,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             
             if (clearConditions.notation_setting) {
               if ('showSheetMusic' in filteredSettings) {
-                console.warn('⚠️ 本番モード時は楽譜表示設定（showSheetMusic）を変更できません');
+                // console.warn('⚠️ 本番モード時は楽譜表示設定（showSheetMusic）を変更できません');
                 delete filteredSettings.showSheetMusic;
               }
               if ('sheetMusicChordsOnly' in filteredSettings) {
-                console.warn('⚠️ 本番モード時は楽譜表示設定（sheetMusicChordsOnly）を変更できません');
+                // console.warn('⚠️ 本番モード時は楽譜表示設定（sheetMusicChordsOnly）を変更できません');
                 delete filteredSettings.sheetMusicChordsOnly;
               }
             }
@@ -1137,7 +1137,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           // 制限された設定がある場合はログ出力
           const restrictedKeys = Object.keys(newSettings).filter(key => !(key in filteredSettings));
           if (restrictedKeys.length > 0) {
-            console.log(`🎯 本番モード課題条件制限: ${restrictedKeys.join(', ')} の変更がブロックされました`);
+            // // console.log(`🎯 本番モード課題条件制限: ${restrictedKeys.join(', ')} の変更がブロックされました`);
           }
           
           // まず Immer の set でストアの設定値を更新（フィルタ後の設定を使用）
@@ -1169,7 +1169,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 set((state) => {
                   state.engineActiveNotes = engineState.activeNotes;
                 });
-                console.log(`🔄 停止中の移調設定変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
+                // // console.log(`🔄 停止中の移調設定変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
               }, 0);
             }
           }
@@ -1200,7 +1200,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   
                   // HTMLが返されている場合の検出（XML読み込み時）
                   if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
-                    console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
+                    // console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
                     throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
                   }
                   
@@ -1210,7 +1210,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   // XML解析エラーのチェック
                   const parseError = xmlDoc.querySelector('parsererror');
                   if (parseError) {
-                    console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
+                    // console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
                     throw new Error('MusicXMLファイルの解析に失敗しました');
                   }
                   
@@ -1223,7 +1223,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
                   finalChords = extractChordProgressions(xmlDoc, notes);
                 } catch (error) {
-                  console.warn('⚠️ MusicXML音名抽出に失敗:', error);
+                  // console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                   finalXml = null;
                 }
               }
@@ -1240,11 +1240,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               // GameEngineにも更新を通知
               if (state.gameEngine) {
                 state.gameEngine.loadSong(finalNotes);
-                console.log(`🎵 GameEngineに移調楽器用のノートを再ロード: ${finalNotes.length}ノーツ`);
+                // // console.log(`🎵 GameEngineに移調楽器用のノートを再ロード: ${finalNotes.length}ノーツ`);
               }
             });
             
-            console.log(`🎵 移調楽器設定変更により楽譜を再処理: ${settings.transposingInstrument} (+${transposingInstrumentSemitones}半音)`);
+            // // console.log(`🎵 移調楽器設定変更により楽譜を再処理: ${settings.transposingInstrument} (+${transposingInstrumentSemitones}半音)`);
           }
         },
         
@@ -1278,7 +1278,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // 🆕 レッスンモード時：本番モードで課題条件を強制適用
             if (state.lessonContext) {
               const { clearConditions } = state.lessonContext;
-              console.log('🎯 本番モード切り替え: レッスン課題条件を適用', clearConditions);
+              // // console.log('🎯 本番モード切り替え: レッスン課題条件を適用', clearConditions);
               
               // キー（移調）設定
               if (clearConditions.key !== undefined) {
@@ -1308,7 +1308,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 }
               }
               
-              console.log('✅ 本番モード課題条件適用完了:', {
+              // // console.log('✅ 本番モード課題条件適用完了:', {
                 transpose: state.settings.transpose,
                 playbackSpeed: state.settings.playbackSpeed,
                 showSheetMusic: state.settings.showSheetMusic,
@@ -1319,7 +1319,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // 🆕 ミッションモード時：本番モードで課題条件を強制適用
             if (state.missionContext?.clearConditions) {
               const { clearConditions } = state.missionContext;
-              console.log('🎯 本番モード切り替え: ミッション課題条件を適用', clearConditions);
+              // // console.log('🎯 本番モード切り替え: ミッション課題条件を適用', clearConditions);
               
               // キー（移調）設定
               if (clearConditions.key !== undefined) {
@@ -1349,7 +1349,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 }
               }
               
-              console.log('✅ 本番モード課題条件適用完了:', {
+              // // console.log('✅ 本番モード課題条件適用完了:', {
                 transpose: state.settings.transpose,
                 playbackSpeed: state.settings.playbackSpeed,
                 showSheetMusic: state.settings.showSheetMusic,
@@ -1375,7 +1375,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           state.score = { ...defaultScore, totalNotes };
           state.judgmentHistory = [];
           
-          console.log(`🔄 モード切り替え: ${previousMode} → ${mode} - 再生停止・リセット完了`);
+          // // console.log(`🔄 モード切り替え: ${previousMode} → ${mode} - 再生停止・リセット完了`);
         }),
         
         setInstrumentMode: (mode) => set((state) => {
@@ -1421,7 +1421,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.score = { ...defaultScore, totalNotes };
             state.judgmentHistory = [];
             
-            console.log(`🔄 タブ切り替え: ${previousTab} → ${tab} - 再生停止・リセット完了`);
+            // // console.log(`🔄 タブ切り替え: ${previousTab} → ${tab} - 再生停止・リセット完了`);
           }
         }),
         
@@ -1440,7 +1440,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // エラーハンドリング
         handleError: (error) => {
-          console.error('Game Error:', error);
+          // console.error('Game Error:', error);
           // エラーログ記録やユーザー通知の実装
           // 必要に応じてゲーム状態のリセットなど
         },
@@ -1456,7 +1456,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           
           // seekメソッドを再利用（音声シーク処理も含まれる）
           state.seek(newTime);
-          console.log(`⏩ Skip forward to ${newTime.toFixed(2)}s`);
+          // // console.log(`⏩ Skip forward to ${newTime.toFixed(2)}s`);
         },
         
         skipBackward: (seconds: number) => {
@@ -1465,7 +1465,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           
           // seekメソッドを再利用（音声シーク処理も含まれる）
           state.seek(newTime);
-          console.log(`⏪ Skip backward to ${newTime.toFixed(2)}s`);
+          // // console.log(`⏪ Skip backward to ${newTime.toFixed(2)}s`);
         },
         
         // 新規追加: 移調制御
@@ -1506,7 +1506,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                  
                  // HTMLが返されている場合の検出（XML読み込み時）
                  if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
-                   console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
+                   // console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
                    throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
                  }
                  
@@ -1516,7 +1516,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                  // XML解析エラーのチェック
                  const parseError = xmlDoc.querySelector('parsererror');
                  if (parseError) {
-                   console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
+                   // console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
                    throw new Error('MusicXMLファイルの解析に失敗しました');
                  }
                  
@@ -1529,7 +1529,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                  // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
                  finalChords = extractChordProgressions(xmlDoc, notes);
                } catch (error) {
-                 console.warn('⚠️ MusicXML音名抽出に失敗:', error);
+                 // console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                  finalXml = null;
                }
              }
@@ -1552,19 +1552,19 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // GameEngineにも更新を通知
             if (state.gameEngine) {
               state.gameEngine.loadSong(finalNotes);
-              console.log(`🎵 GameEngineに移調後のノートを再ロード: ${finalNotes.length}ノーツ`);
+              // // console.log(`🎵 GameEngineに移調後のノートを再ロード: ${finalNotes.length}ノーツ`);
               
               // 🔧 停止中の移調変更対応: 停止中でも強制的にengineActiveNotesを更新
               if (!state.isPlaying) {
                 const engineState = state.gameEngine.getState();
                 state.engineActiveNotes = engineState.activeNotes;
-                console.log(`🔄 停止中の移調変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
+                // // console.log(`🔄 停止中の移調変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
               }
             }
           });
           
           updateEngineSettings();
-          console.log(`🎵 Transpose changed to ${clamped}, song re-processed without playback interruption.`);
+          // // console.log(`🎵 Transpose changed to ${clamped}, song re-processed without playback interruption.`);
         },
         
         // 練習モードガイド制御
@@ -2076,7 +2076,7 @@ if (typeof window !== 'undefined') {
       useGameStore.getState().updateSettings(parsed);
     }
   } catch (e) {
-    console.warn('Failed to load settings from localStorage', e);
+    // console.warn('Failed to load settings from localStorage', e);
   }
 
   useGameStore.subscribe(
@@ -2087,7 +2087,7 @@ if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('gameSettings', JSON.stringify(persist));
       } catch (e) {
-        console.warn('Failed to save settings to localStorage', e);
+        // console.warn('Failed to save settings to localStorage', e);
       }
     }
   );

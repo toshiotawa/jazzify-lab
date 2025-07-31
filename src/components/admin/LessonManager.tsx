@@ -68,7 +68,7 @@ export const LessonManager: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : 'データの読み込みに失敗しました。';
       setError(errorMessage);
       toast.error(errorMessage);
-      console.error(error);
+      // console.error(error);
     } finally {
       setLoading(false);
     }
@@ -96,7 +96,7 @@ export const LessonManager: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : 'レッスンの読み込みに失敗しました。';
       setError(errorMessage);
       toast.error(errorMessage);
-      console.error('Error loading lessons:', error);
+      // console.error('Error loading lessons:', error);
     } finally {
       setLessonsLoading(false);
     }
@@ -198,7 +198,7 @@ export const LessonManager: React.FC = () => {
       closeDialog();
     } catch (error) {
       toast.error('レッスンの保存に失敗しました。');
-      console.error(error);
+      // console.error(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -231,7 +231,7 @@ export const LessonManager: React.FC = () => {
       closeSongDialog();
     } catch (error) {
       toast.error('曲の追加に失敗しました。');
-      console.error(error);
+      // console.error(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -276,7 +276,7 @@ export const LessonManager: React.FC = () => {
       closeContentDialog();
     } catch (error) {
       toast.error('課題の追加に失敗しました。');
-      console.error(error);
+      // console.error(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -297,7 +297,7 @@ export const LessonManager: React.FC = () => {
         setTimeout(() => loadLessons(true), 500);
       } catch (error) {
         toast.error('レッスンの削除に失敗しました。');
-        console.error(error);
+        // console.error(error);
       }
     }
   };
@@ -305,12 +305,12 @@ export const LessonManager: React.FC = () => {
   const handleRemoveSong = async (lessonId: string, songId: string) => {
     if (!selectedCourseId) return;
     
-    console.log('削除しようとしている曲:', { lessonId, songId });
+    // // console.log('削除しようとしている曲:', { lessonId, songId });
     
     if (window.confirm('この曲をレッスンから削除しますか？')) {
       try {
         const lesson = currentLessons.find(l => l.id === lessonId);
-        console.log('削除前の曲リスト:', lesson?.lesson_songs);
+        // // console.log('削除前の曲リスト:', lesson?.lesson_songs);
         
         await removeSongFromLesson(lessonId, songId);
         
@@ -328,7 +328,7 @@ export const LessonManager: React.FC = () => {
         setTimeout(() => loadLessons(true), 500);
       } catch (error) {
         toast.error('曲の削除に失敗しました。');
-        console.error('削除エラーの詳細:', error);
+        // console.error('削除エラーの詳細:', error);
       }
     }
   };
@@ -360,7 +360,7 @@ export const LessonManager: React.FC = () => {
         setTimeout(() => loadLessons(true), 500);
       } catch (error) {
         toast.error('課題の削除に失敗しました。');
-        console.error('削除エラーの詳細:', error);
+        // console.error('削除エラーの詳細:', error);
       }
     }
   };
@@ -406,9 +406,9 @@ export const LessonManager: React.FC = () => {
       setTimeout(() => loadLessons(true), 500);
       
       toast.success('並び順を更新しました。');
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       toast.error('並び順の更新に失敗しました。');
-      console.error(error);
+      // console.error(error);
     } finally {
       setIsSorting(false);
     }
@@ -434,9 +434,9 @@ export const LessonManager: React.FC = () => {
       setTimeout(() => loadLessons(true), 500);
       
       toast.success('並び順を更新しました。');
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       toast.error('並び順の更新に失敗しました。');
-      console.error(error);
+      // console.error(error);
     } finally {
       setIsSorting(false);
     }

@@ -13,7 +13,7 @@ export async function fetchFantasyStages(): Promise<FantasyStage[]> {
     .order('stage_number', { ascending: true });
     
   if (error) {
-    console.error('Error fetching fantasy stages:', error);
+    // console.error('Error fetching fantasy stages:', error);
     throw error;
   }
   
@@ -33,7 +33,7 @@ export async function fetchFantasyStageById(stageId: string): Promise<FantasySta
     .single();
     
   if (error) {
-    console.error('Error fetching fantasy stage:', error);
+    // console.error('Error fetching fantasy stage:', error);
     throw error;
   }
   
@@ -61,7 +61,7 @@ export async function fetchFantasyStageByNumber(stageNumber: string): Promise<Fa
       // No rows returned
       return null;
     }
-    console.error('Error fetching fantasy stage by number:', error);
+    // console.error('Error fetching fantasy stage by number:', error);
     throw error;
   }
   
@@ -80,7 +80,7 @@ export async function fetchActiveFantasyStages(): Promise<FantasyStage[]> {
     .order('stage_number', { ascending: true });
     
   if (error) {
-    console.error('Error fetching active fantasy stages:', error);
+    // console.error('Error fetching active fantasy stages:', error);
     throw error;
   }
   

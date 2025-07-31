@@ -17,7 +17,7 @@ export interface SongWithConditions {
   artist: string | null;
   bpm: number | null;
   difficulty: number | null;
-  data: any;
+  data: unknown;
   conditions: UnifiedSongConditions;
 }
 
@@ -44,7 +44,7 @@ export async function getSongPlayConditions(
       .single();
 
     if (error) {
-      console.error('Error fetching song play conditions:', error);
+      // console.error('Error fetching song play conditions:', error);
       return null;
     }
 
@@ -59,7 +59,7 @@ export async function getSongPlayConditions(
       notationSetting: data.notation_setting,
     };
   } catch (error) {
-    console.error('Error fetching song play conditions:', error);
+    // console.error('Error fetching song play conditions:', error);
     return null;
   }
 }
@@ -97,7 +97,7 @@ export async function getSongWithConditions(
       .single();
 
     if (error) {
-      console.error('Error fetching song with conditions:', error);
+      // console.error('Error fetching song with conditions:', error);
       return null;
     }
 
@@ -121,7 +121,7 @@ export async function getSongWithConditions(
       },
     };
   } catch (error) {
-    console.error('Error fetching song with conditions:', error);
+    // console.error('Error fetching song with conditions:', error);
     return null;
   }
 }
@@ -153,13 +153,13 @@ export async function upsertSongPlayConditions(
       });
 
     if (error) {
-      console.error('Error upserting song play conditions:', error);
+      // console.error('Error upserting song play conditions:', error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Error upserting song play conditions:', error);
+    // console.error('Error upserting song play conditions:', error);
     return false;
   }
 }
@@ -178,7 +178,7 @@ export async function migrateLegacyConditions(dryRun: boolean = true): Promise<v
       .select('*');
     
     if (challengeError) {
-      console.error('Error fetching challenge tracks:', challengeError);
+      // console.error('Error fetching challenge tracks:', challengeError);
       return;
     }
 
@@ -199,7 +199,7 @@ export async function migrateLegacyConditions(dryRun: boolean = true): Promise<v
       .select('*');
     
     if (lessonError) {
-      console.error('Error fetching lesson songs:', lessonError);
+      // console.error('Error fetching lesson songs:', lessonError);
       return;
     }
 
@@ -220,9 +220,9 @@ export async function migrateLegacyConditions(dryRun: boolean = true): Promise<v
     const allConditions = [...missionConditions, ...lessonConditions];
 
     if (dryRun) {
-      console.log('Dry run - would migrate:', allConditions.length, 'conditions');
-      console.log('Mission conditions:', missionConditions.length);
-      console.log('Lesson conditions:', lessonConditions.length);
+      // // console.log('Dry run - would migrate:', allConditions.length, 'conditions');
+      // // console.log('Mission conditions:', missionConditions.length);
+      // // console.log('Lesson conditions:', lessonConditions.length);
       return;
     }
 
@@ -232,12 +232,12 @@ export async function migrateLegacyConditions(dryRun: boolean = true): Promise<v
       .insert(allConditions);
 
     if (insertError) {
-      console.error('Error inserting migrated conditions:', insertError);
+      // console.error('Error inserting migrated conditions:', insertError);
       return;
     }
 
-    console.log('Successfully migrated', allConditions.length, 'conditions');
+    // // console.log('Successfully migrated', allConditions.length, 'conditions');
   } catch (error) {
-    console.error('Error during migration:', error);
+    // console.error('Error during migration:', error);
   }
 }

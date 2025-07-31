@@ -18,7 +18,7 @@ interface ToneSampler {
   triggerAttack(note: string, time?: number, velocity?: number): void;
   triggerRelease(note: string, time?: number): void;
   toDestination(): ToneSampler;
-  active?: any[];
+  active?: unknown[];
 }
 
 // 共通音声再生システム
@@ -58,19 +58,19 @@ const detectUserInteraction = (): Promise<void> => {
  */
 export const initializeAudioSystem = async (): Promise<void> => {
   if (audioSystemInitialized) {
-    console.log('🎹 Audio system already initialized');
+    // // console.log('🎹 Audio system already initialized');
     return;
   }
 
   try {
-    console.log('🎹 Initializing optimized audio system...');
+    // // console.log('🎹 Initializing optimized audio system...');
     
     // ユーザーインタラクションを待つ
     await detectUserInteraction();
     
     // Tone.jsの存在確認
     if (typeof window === 'undefined' || !window.Tone) {
-      console.warn('⚠️ Tone.js not available, attempting to load...');
+      // console.warn('⚠️ Tone.js not available, attempting to load...');
       let retryCount = 0;
       const maxRetries = 3;
       
@@ -78,14 +78,14 @@ export const initializeAudioSystem = async (): Promise<void> => {
         try {
           const Tone = await import('tone');
           (window as any).Tone = Tone;
-          console.log('✅ Tone.js loaded dynamically');
+          // // console.log('✅ Tone.js loaded dynamically');
           break;
         } catch (toneError) {
           retryCount++;
-          console.warn(`⚠️ Dynamic import attempt ${retryCount} failed:`, toneError);
+          // console.warn(`⚠️ Dynamic import attempt ${retryCount} failed:`, toneError);
           
           if (retryCount >= maxRetries) {
-            console.error('❌ All dynamic import attempts failed');
+            // console.error('❌ All dynamic import attempts failed');
             throw new Error(`音声/MIDIシステム初期化に失敗 (ユーザーインタラクション後に再試行): ${toneError instanceof Error ? toneError.message : 'Unknown error'}`);
           }
           
@@ -104,7 +104,7 @@ export const initializeAudioSystem = async (): Promise<void> => {
     // Tone.jsのコンテキストを最適化済みに切り替え
     window.Tone.setContext(optimizedContext);
     
-    console.log('✅ Tone.js context optimized for low latency');
+    // // console.log('✅ Tone.js context optimized for low latency');
 
     // Salamander サンプラーの初期化
     globalSampler = new window.Tone.Sampler({
@@ -130,13 +130,13 @@ export const initializeAudioSystem = async (): Promise<void> => {
 
     // 全サンプルのプリロード完了を待機
     await window.Tone.loaded();
-    console.log('✅ All audio samples preloaded and decoded');
+    // // console.log('✅ All audio samples preloaded and decoded');
 
     audioSystemInitialized = true;
-    console.log('✅ Optimized audio system initialized successfully');
+    // // console.log('✅ Optimized audio system initialized successfully');
     
   } catch (error) {
-    console.error('❌ Audio system initialization failed:', error);
+    // console.error('❌ Audio system initialization failed:', error);
     throw error;
   }
 };
@@ -164,7 +164,7 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
       try {
         globalSampler!.triggerRelease(noteName);
       } catch (error) {
-        console.warn('⚠️ Failed to release existing note:', error);
+        // console.warn('⚠️ Failed to release existing note:', error);
       }
     }
 
@@ -172,7 +172,7 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
     globalSampler!.triggerAttack(noteName, undefined, normalizedVelocity);
     activeNotes.add(noteName);
   } catch (error) {
-    console.error('❌ Failed to play note:', error);
+    // console.error('❌ Failed to play note:', error);
   }
 };
 
@@ -182,7 +182,7 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
 export const stopNote = (note: number): void => {
   try {
     if (!globalSampler) {
-      console.warn('⚠️ Audio system not initialized');
+      // console.warn('⚠️ Audio system not initialized');
       return;
     }
 
@@ -196,12 +196,12 @@ export const stopNote = (note: number): void => {
       try {
         globalSampler.triggerRelease(noteName);
       } catch (error) {
-        console.warn('⚠️ Failed to trigger release:', error);
+        // console.warn('⚠️ Failed to trigger release:', error);
         // エラーが発生してもクラッシュしないようにする
       }
     }
   } catch (error) {
-    console.error('❌ Failed to stop note:', error);
+    // console.error('❌ Failed to stop note:', error);
   }
 };
 
@@ -215,7 +215,7 @@ export const updateGlobalVolume = (volume: number): void => {
       const volumeDb = volume === 0 ? -Infinity : Math.log10(volume) * 20;
       (globalSampler as any).volume.value = volumeDb;
     } catch (error) {
-      console.error('❌ Failed to update global volume:', error);
+      // console.error('❌ Failed to update global volume:', error);
     }
   }
 };
@@ -244,12 +244,12 @@ export class MIDIController {
     this.onConnectionChange = options.onConnectionChange || null;
     this.playMidiSound = options.playMidiSound ?? true; // デフォルトは音を鳴らす
 
-    console.log('🎹 MIDI Controller initialized (using global audio system)');
+    // // console.log('🎹 MIDI Controller initialized (using global audio system)');
   }
 
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.log('🎹 MIDI Controller already initialized');
+      // // console.log('🎹 MIDI Controller already initialized');
       return;
     }
 
@@ -281,16 +281,16 @@ export class MIDIController {
       this.isInitialized = true;
 
     } catch (error) {
-      console.error('❌ MIDI Error:', error);
+      // console.error('❌ MIDI Error:', error);
       this.notifyConnectionChange(false);
       throw error;
     }
   }
 
-  private handleMIDIMessage = (message: any): void => {
+  private handleMIDIMessage = (message: unknown): void => {
     // MIDI入力が無効な場合は処理をスキップ
     if (!this.isEnabled) {
-      console.log('🎹 MIDI input disabled, skipping message');
+      // // console.log('🎹 MIDI input disabled, skipping message');
       return;
     }
     
@@ -325,7 +325,7 @@ export class MIDIController {
       this.onNoteOn(note, velocity);
       
     } catch (error) {
-      console.error('❌ Failed to handle note on:', error);
+      // console.error('❌ Failed to handle note on:', error);
     }
   }
 
@@ -346,7 +346,7 @@ export class MIDIController {
       this.onNoteOff(note);
       
     } catch (error) {
-      console.error('❌ Failed to handle note off:', error);
+      // console.error('❌ Failed to handle note off:', error);
     }
   }
 
@@ -362,7 +362,7 @@ export class MIDIController {
     }
     
     const devices: MidiDevice[] = [];
-    this.midiAccess.inputs.forEach((input: any) => {
+    this.midiAccess.inputs.forEach((input: unknown) => {
       devices.push({
         id: input.id,
         name: input.name || `Unknown Device (${input.id})`,
@@ -379,7 +379,7 @@ export class MIDIController {
     await this.initialize();
 
     if (!this.midiAccess) {
-      console.warn('⚠️ MIDI access not available');
+      // console.warn('⚠️ MIDI access not available');
       return false;
     }
     
@@ -394,13 +394,13 @@ export class MIDIController {
       this.currentDeviceId = deviceId;
       this.isEnabled = true; // デバイス接続時にMIDI入力を明示的に有効化
       
-      console.log(`✅ Connected to MIDI device: ${input.name} (${deviceId})`);
+      // // console.log(`✅ Connected to MIDI device: ${input.name} (${deviceId})`);
       
       this.notifyConnectionChange(true);
       return true;
     } else {
-      console.error(`❌ MIDI device not found: ${deviceId}`);
-      console.log('🎹 Available devices:', this.getDeviceList());
+      // console.error(`❌ MIDI device not found: ${deviceId}`);
+      // // console.log('🎹 Available devices:', this.getDeviceList());
       return false;
     }
   }
@@ -453,19 +453,19 @@ export class MIDIController {
 
     // 現在のデバイスが実際に接続されているか確認
     if (!this.midiAccess) {
-      console.warn('⚠️ MIDI access not available');
+      // console.warn('⚠️ MIDI access not available');
       return false;
     }
 
     const input = this.midiAccess.inputs.get(this.currentDeviceId);
     if (!input || input.state !== 'connected') {
-      console.log('🔄 Device disconnected, attempting to reconnect...');
+      // // console.log('🔄 Device disconnected, attempting to reconnect...');
       return this.connectDevice(this.currentDeviceId);
     }
 
     // 既に接続されているが、メッセージハンドラが設定されていない場合
     if (!input.onmidimessage) {
-      console.log('🔧 Restoring message handler for connected device');
+      // // console.log('🔧 Restoring message handler for connected device');
       input.onmidimessage = this.handleMIDIMessage;
       this.isEnabled = true;
       this.notifyConnectionChange(true);
@@ -491,7 +491,7 @@ export class MIDIController {
   
   public setKeyHighlightCallback(callback: (note: number, active: boolean) => void): void {
     this.onKeyHighlight = callback;
-    console.log('🎹 Key highlight callback set');
+    // // console.log('🎹 Key highlight callback set');
   }
   
   public setEnabled(enabled: boolean): void {

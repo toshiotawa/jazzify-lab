@@ -4,7 +4,7 @@ import { useGameStore } from './gameStore';
 type StoreState = ReturnType<typeof useGameStore.getState>;
 
 // 簡単なshallow比較の実装（本番環境での読み込みエラーを回避）
-const shallowEqual = (a: any, b: any): boolean => {
+const shallowEqual = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
   
@@ -33,5 +33,5 @@ export const useGameSelector = <T>(
  * getState() 由来なのでレンダリングには影響しない
  */
 // 型循環の警告を避けるため any を許容
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+ 
 export const useGameActions: () => any = () => useGameStore.getState(); 

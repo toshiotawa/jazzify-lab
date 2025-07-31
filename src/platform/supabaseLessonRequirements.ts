@@ -47,7 +47,7 @@ export async function updateLessonRequirementProgress(
   lessonId: string,
   songId: string,
   rank: string,
-  clearConditions: any,
+  clearConditions: unknown,
   options?: {
     sourceType?: 'song' | 'fantasy';
     lessonSongId?: string;
@@ -118,7 +118,7 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
  * 実習課題の進捗情報を詳細に取得（表示用）
  */
 export async function fetchDetailedRequirementsProgress(lessonId: string): Promise<{
-  requirements: any[];
+  requirements: unknown[];
   progress: LessonRequirementProgress[];
   allCompleted: boolean;
 }> {

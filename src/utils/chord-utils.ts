@@ -17,7 +17,7 @@ import { type DisplayOpts, toDisplayChordName } from './display-note';
 export function buildChordNotes(root: string, quality: ChordQuality, octave: number = 4): string[] {
   const intervals = CHORD_TEMPLATES[quality];
   if (!intervals) {
-    console.warn(`⚠️ 未定義のコードクオリティ: ${quality}`);
+    // console.warn(`⚠️ 未定義のコードクオリティ: ${quality}`);
     return [];
   }
 
@@ -28,7 +28,7 @@ export function buildChordNotes(root: string, quality: ChordQuality, octave: num
   return intervals.map(interval => {
     const note = transpose(rootWithOctave, interval);
     if (!note) {
-      console.warn(`⚠️ 移調失敗: ${rootWithOctave} + ${interval}`);
+      // console.warn(`⚠️ 移調失敗: ${rootWithOctave} + ${interval}`);
       return root;
     }
     
@@ -52,7 +52,7 @@ export function buildChordMidiNotes(root: string, quality: ChordQuality, octave:
   return notes.map(noteName => {
     const note = parseNote(noteName);
     if (!note || typeof note.midi !== 'number') {
-      console.warn(`⚠️ MIDI変換失敗: ${noteName}`);
+      // console.warn(`⚠️ MIDI変換失敗: ${noteName}`);
       return 60; // デフォルトでC4
     }
     return note.midi;
@@ -79,13 +79,13 @@ export function transposeKey(currentKey: string, semitones: number): string {
   
   const interval = intervalMap[semitones.toString()];
   if (!interval) {
-    console.warn(`⚠️ サポートされていない移調量: ${semitones}半音`);
+    // console.warn(`⚠️ サポートされていない移調量: ${semitones}半音`);
     return currentKey;
   }
   
   const transposed = transpose(currentKey, interval);
   if (!transposed) {
-    console.warn(`⚠️ 移調失敗: ${currentKey} + ${semitones}半音`);
+    // console.warn(`⚠️ 移調失敗: ${currentKey} + ${semitones}半音`);
     return currentKey;
   }
   
@@ -101,7 +101,7 @@ export function transposeKey(currentKey: string, semitones: number): string {
 export function getFantasyChordNotes(chordId: string, octave: number = 4): number[] {
   const mapping = FANTASY_CHORD_MAP[chordId];
   if (!mapping) {
-    console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
+    // console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
     return [];
   }
   
@@ -146,7 +146,7 @@ export function parseChordName(chordName: string): { root: string; quality: Chor
   
   const quality = qualityMap[suffix];
   if (!quality) {
-    console.warn(`⚠️ 未知のコードサフィックス: ${suffix} in ${chordName}`);
+    // console.warn(`⚠️ 未知のコードサフィックス: ${suffix} in ${chordName}`);
     return null;
   }
   

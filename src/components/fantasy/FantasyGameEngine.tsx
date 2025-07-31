@@ -111,7 +111,7 @@ interface FantasyGameEngineProps {
 const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
   const resolved = resolveChord(chordId, 4, displayOpts);
   if (!resolved) {
-    console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
+    // console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
     return null;
   }
 
@@ -749,7 +749,7 @@ export const useFantasyGameEngine = ({
       const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
       
       if (attackingMonster) {
-        console.log('🎲 Found attacking monster:', attackingMonster);
+        // // console.log('🎲 Found attacking monster:', attackingMonster);
         devLog.debug('💥 モンスターゲージ満タン！攻撃開始', { monster: attackingMonster.name });
         
         // 怒り状態をストアに通知
@@ -763,7 +763,7 @@ export const useFantasyGameEngine = ({
         );
         
         // 攻撃処理を非同期で実行
-        console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
+        // // console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
         setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
         
         const nextState = { 
@@ -833,7 +833,7 @@ export const useFantasyGameEngine = ({
         devLog.debug(`🎯 ${completedMonsters.length}体のコードが完成しました！`, { ids: completedMonsters.map(m => m.id) });
 
         // ★ 攻撃処理後の状態を計算する
-        let stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
+        const stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
         
         const isSpecialAttack = stateAfterAttack.playerSp >= 5;
         
@@ -880,7 +880,7 @@ export const useFantasyGameEngine = ({
         });
 
         // モンスターの補充
-        let newMonsterQueue = [...stateAfterAttack.monsterQueue];
+        const newMonsterQueue = [...stateAfterAttack.monsterQueue];
         const slotsToFill = stateAfterAttack.simultaneousMonsterCount - remainingMonsters.length;
         const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
 

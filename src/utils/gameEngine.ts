@@ -495,7 +495,7 @@ export class GameEngine {
         this.activeNotes.set(note.id, activeNote);
         // デバッグログを条件付きで表示
         // if (Math.abs(currentTime - note.time) < 4.0) { // 判定時間の±4秒以内のみログ
-        //   console.log(`🎵 新しいノート出現: ${note.id} (pitch=${note.pitch}, time=${note.time}, y=${activeNote.y?.toFixed(1) || 'undefined'})`);
+        //   // console.log(`🎵 新しいノート出現: ${note.id} (pitch=${note.pitch}, time=${note.time}, y=${activeNote.y?.toFixed(1) || 'undefined'})`);
         // }
       }
     }

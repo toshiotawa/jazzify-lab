@@ -35,7 +35,7 @@ export const CourseManager: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : 'コースの読み込みに失敗しました。';
       setError(errorMessage);
       toast.error(errorMessage);
-      console.error('Error loading courses:', error);
+      // console.error('Error loading courses:', error);
     } finally {
       setLoading(false);
     }
@@ -76,9 +76,9 @@ export const CourseManager: React.FC = () => {
       }
       await loadCourses();
       closeDialog();
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       toast.error(`コースの保存に失敗しました: ${error.message}`);
-      console.error(error);
+      // console.error(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -90,9 +90,9 @@ export const CourseManager: React.FC = () => {
         await deleteCourse(id);
         toast.success('コースを削除しました。');
         await loadCourses();
-      } catch (error: any) {
+      } catch (error: Error | unknown) {
         toast.error(`コースの削除に失敗しました: ${error.message}`);
-        console.error(error);
+        // console.error(error);
       }
     }
   };
@@ -115,9 +115,9 @@ export const CourseManager: React.FC = () => {
       );
       await loadCourses();
       toast.success('並び順を更新しました。');
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       toast.error('並び順の更新に失敗しました。');
-      console.error(error);
+      // console.error(error);
     } finally {
       setIsSorting(false);
     }
@@ -141,9 +141,9 @@ export const CourseManager: React.FC = () => {
       );
       await loadCourses();
       toast.success('並び順を更新しました。');
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       toast.error('並び順の更新に失敗しました。');
-      console.error(error);
+      // console.error(error);
     } finally {
       setIsSorting(false);
     }

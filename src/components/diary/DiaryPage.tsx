@@ -90,7 +90,7 @@ const DiaryPage: React.FC = () => {
       setDiaries(result.diaries);
       setProfile(result.profile);
       setUserStats(stats);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || 'データの読み込みに失敗しました');
     } finally {
       setLoading(false);

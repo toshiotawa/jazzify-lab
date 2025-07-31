@@ -41,7 +41,7 @@ export async function getSongPlayProgress(
         // No rows found
         return null;
       }
-      console.error('Error fetching song play progress:', error);
+      // console.error('Error fetching song play progress:', error);
       return null;
     }
 
@@ -56,7 +56,7 @@ export async function getSongPlayProgress(
       lastClearedAt: data.last_cleared_at,
     };
   } catch (error) {
-    console.error('Error fetching song play progress:', error);
+    // console.error('Error fetching song play progress:', error);
     return null;
   }
 }
@@ -110,13 +110,13 @@ export async function updateSongPlayProgress(
       });
 
     if (error) {
-      console.error('Error updating song play progress:', error);
+      // console.error('Error updating song play progress:', error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Error updating song play progress:', error);
+    // console.error('Error updating song play progress:', error);
     return false;
   }
 }
@@ -143,7 +143,7 @@ export async function getContextSongProgress(
       .eq('context_id', contextId);
 
     if (error) {
-      console.error('Error fetching context song progress:', error);
+      // console.error('Error fetching context song progress:', error);
       return [];
     }
 
@@ -158,7 +158,7 @@ export async function getContextSongProgress(
       lastClearedAt: row.last_cleared_at,
     }));
   } catch (error) {
-    console.error('Error fetching context song progress:', error);
+    // console.error('Error fetching context song progress:', error);
     return [];
   }
 }
@@ -179,7 +179,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
       .eq('user_id', userId);
     
     if (songError) {
-      console.error('Error fetching user song progress:', songError);
+      // console.error('Error fetching user song progress:', songError);
       return;
     }
 
@@ -190,7 +190,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
       .eq('user_id', userId);
     
     if (lessonError) {
-      console.error('Error fetching user lesson progress:', lessonError);
+      // console.error('Error fetching user lesson progress:', lessonError);
       return;
     }
 
@@ -201,7 +201,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
       .eq('user_id', userId);
     
     if (statsError) {
-      console.error('Error fetching user song stats:', statsError);
+      // console.error('Error fetching user song stats:', statsError);
       return;
     }
 
@@ -242,7 +242,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
     ];
 
     if (dryRun) {
-      console.log('Dry run - would migrate:', migratedProgress.length, 'progress records for user', userId);
+      // // console.log('Dry run - would migrate:', migratedProgress.length, 'progress records for user', userId);
       return;
     }
 
@@ -252,12 +252,12 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
       .insert(migratedProgress);
 
     if (insertError) {
-      console.error('Error inserting migrated progress:', insertError);
+      // console.error('Error inserting migrated progress:', insertError);
       return;
     }
 
-    console.log('Successfully migrated', migratedProgress.length, 'progress records for user', userId);
+    // // console.log('Successfully migrated', migratedProgress.length, 'progress records for user', userId);
   } catch (error) {
-    console.error('Error during migration:', error);
+    // console.error('Error during migration:', error);
   }
 }

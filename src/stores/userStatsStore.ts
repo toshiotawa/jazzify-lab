@@ -53,7 +53,7 @@ export const useUserStatsStore = create<UserStatsState & UserStatsActions>()(
           state.lastFetched = Date.now();
         });
       } catch (error) {
-        console.error('ユーザー統計の取得に失敗:', error);
+        // console.error('ユーザー統計の取得に失敗:', error);
         set(state => {
           state.error = error instanceof Error ? error.message : '統計の取得に失敗しました';
           state.loading = false;

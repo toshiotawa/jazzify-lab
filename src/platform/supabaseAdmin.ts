@@ -31,7 +31,7 @@ export async function fetchAllUsers({ forceRefresh = false } = {}): Promise<User
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching all users:', error);
+      // console.error('Error fetching all users:', error);
       throw error;
     }
 

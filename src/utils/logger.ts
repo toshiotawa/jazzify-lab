@@ -48,7 +48,7 @@ export const log = {
     ['info', 'debug'].includes(currentLevel) && console.info(...args),
   
   debug: (...args: unknown[]) => 
-    currentLevel === 'debug' && console.log(...args),
+    currentLevel === 'debug' && // console.log(...args),
 };
 
 /**
@@ -89,13 +89,13 @@ export const perfLog = new ThrottledLogger(1000);
  */
 export const devLog = {
   debug: (...args: unknown[]) => 
-    currentLevel === 'debug' && console.log(...args),
+    currentLevel === 'debug' && // console.log(...args),
   
   info: (...args: unknown[]) => 
     ['info', 'debug'].includes(currentLevel) && console.info(...args),
   
   error: (...args: unknown[]) => 
-    console.error(...args), // エラーは常に表示
+    // console.error(...args), // エラーは常に表示
 };
 
 /**

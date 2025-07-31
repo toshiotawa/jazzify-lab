@@ -33,7 +33,7 @@ export async function fetchLessonsByCourse(
       .order('order_index', { ascending: true });
 
     if (error) {
-      console.error(`Error fetching lessons for course ${courseId}:`, error);
+      // console.error(`Error fetching lessons for course ${courseId}:`, error);
       throw error;
     }
 
@@ -62,7 +62,7 @@ export async function fetchLessonsByCourse(
   );
 
   if (error) {
-    console.error(`Error fetching lessons for course ${courseId}:`, error);
+    // console.error(`Error fetching lessons for course ${courseId}:`, error);
     throw error;
   }
   return data || [];
@@ -87,7 +87,7 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
     .single();
 
   if (error) {
-    console.error(`Error fetching lesson ${lessonId}:`, error);
+    // console.error(`Error fetching lesson ${lessonId}:`, error);
     throw error;
   }
   return data as Lesson;
@@ -113,7 +113,7 @@ export async function addLesson(lessonData: LessonData): Promise<Lesson> {
     .single();
 
   if (error) {
-    console.error('Error adding lesson:', error);
+    // console.error('Error adding lesson:', error);
     throw error;
   }
   return data as Lesson;
@@ -139,7 +139,7 @@ export async function updateLesson(id: string, updates: Partial<LessonData>): Pr
     .single();
 
   if (error) {
-    console.error(`Error updating lesson ${id}:`, error);
+    // console.error(`Error updating lesson ${id}:`, error);
     throw error;
   }
   return data as Lesson;
@@ -156,7 +156,7 @@ export async function deleteLesson(id: string): Promise<void> {
     .eq('id', id);
 
   if (error) {
-    console.error(`Error deleting lesson ${id}:`, error);
+    // console.error(`Error deleting lesson ${id}:`, error);
     throw error;
   }
 }
@@ -189,7 +189,7 @@ export async function addSongToLesson(lessonSongData: LessonSongData): Promise<L
     .single();
   
   if (error) {
-    console.error('Error adding song to lesson:', error);
+    // console.error('Error adding song to lesson:', error);
     throw error;
   }
   return data as LessonSong;
@@ -208,7 +208,7 @@ export async function removeSongFromLesson(lessonId: string, songId: string): Pr
     .eq('song_id', songId);
 
   if (error) {
-    console.error(`Error removing song ${songId} from lesson ${lessonId}:`, error);
+    // console.error(`Error removing song ${songId} from lesson ${lessonId}:`, error);
     throw error;
   }
 }
@@ -228,7 +228,7 @@ export async function updateLessonSongConditions(lessonSongId: string, updates: 
     .single();
 
   if (error) {
-    console.error(`Error updating lesson song conditions for ${lessonSongId}:`, error);
+    // console.error(`Error updating lesson song conditions for ${lessonSongId}:`, error);
     throw error;
   }
   
@@ -270,7 +270,7 @@ export async function addFantasyStageToLesson(fantasyLessonSongData: FantasyLess
     .single();
   
   if (error) {
-    console.error('Error adding fantasy stage to lesson:', error);
+    // console.error('Error adding fantasy stage to lesson:', error);
     throw error;
   }
   
@@ -290,7 +290,7 @@ export async function removeFantasyStageFromLesson(lessonId: string, fantasyStag
     .eq('fantasy_stage_id', fantasyStageId);
 
   if (error) {
-    console.error(`Error removing fantasy stage ${fantasyStageId} from lesson ${lessonId}:`, error);
+    // console.error(`Error removing fantasy stage ${fantasyStageId} from lesson ${lessonId}:`, error);
     throw error;
   }
 } 

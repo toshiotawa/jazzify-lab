@@ -33,7 +33,7 @@ const SongSelector: React.FC<SongSelectorProps> = ({
         const allSongs = await fetchSongs();
         setSongs(allSongs);
       } catch (error) {
-        console.error('楽曲読み込みエラー:', error);
+        // console.error('楽曲読み込みエラー:', error);
         toast.error('楽曲の読み込みに失敗しました');
       } finally {
         setLoading(false);

@@ -20,7 +20,7 @@ const AuthCallback: React.FC = () => {
         const errorDescription = hashParams.get('error_description');
 
         if (error) {
-          console.error('認証エラー:', error, errorDescription);
+          // console.error('認証エラー:', error, errorDescription);
           toast.error(errorDescription || '認証に失敗しました', {
             title: '認証エラー',
             duration: 5000,
@@ -40,7 +40,7 @@ const AuthCallback: React.FC = () => {
         // 状態を確実に反映させるために、ハードリフレッシュを伴う画面遷移を行う
         window.location.href = '/main#dashboard';
       } catch (err) {
-        console.error('コールバック処理エラー:', err);
+        // console.error('コールバック処理エラー:', err);
         toast.error('認証処理中にエラーが発生しました', {
           title: 'エラー',
           duration: 5000,

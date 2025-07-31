@@ -3,8 +3,8 @@
  * ゲームエンジンとPIXI.jsレンダリングの接続
  */
 
-/* eslint-disable @typescript-eslint/no-use-before-define */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useGameStore } from '@/stores/gameStore';
@@ -94,7 +94,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         });
       };
       
-      const handleError = (e: any) => {
+      const handleError = (e: unknown) => {
         log.error(`🚨 音声読み込みエラー詳細:`, {
           error: e,
           src: audio.src,

@@ -398,7 +398,7 @@ const AccountPage: React.FC = () => {
                                 alert('サブスクリプション管理画面の表示に失敗しました');
                               }
                             } catch (error) {
-                              console.error('Portal session error:', error);
+                              // console.error('Portal session error:', error);
                               alert('エラーが発生しました');
                             }
                           }}

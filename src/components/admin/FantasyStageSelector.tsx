@@ -22,7 +22,7 @@ export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
     fetchFantasyStages()
       .then(setStages)
       .catch((err) => {
-        console.error('Failed to fetch fantasy stages:', err);
+        // console.error('Failed to fetch fantasy stages:', err);
         setError('ファンタジーステージの取得に失敗しました');
       })
       .finally(() => setLoading(false));

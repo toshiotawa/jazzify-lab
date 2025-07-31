@@ -71,7 +71,7 @@ const AnnouncementManager: React.FC = () => {
     try {
       const data = await fetchAllAnnouncements();
       setAnnouncements(data);
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error(handleApiError(e, 'お知らせ読み込み'));
     } finally {
       setLoading(false);
@@ -98,7 +98,7 @@ const AnnouncementManager: React.FC = () => {
       reset();
       setShowForm(false);
       await loadAnnouncements();
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error(handleApiError(e, editingId ? 'お知らせ更新' : 'お知らせ作成'), {
         title: editingId ? '更新エラー' : '作成エラー',
       });
@@ -126,7 +126,7 @@ const AnnouncementManager: React.FC = () => {
         duration: 2000,
       });
       await loadAnnouncements();
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error(handleApiError(e, 'お知らせ削除'), {
         title: '削除エラー',
       });
@@ -140,7 +140,7 @@ const AnnouncementManager: React.FC = () => {
         duration: 2000,
       });
       await loadAnnouncements();
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error(handleApiError(e, '状態変更'));
     }
   };
@@ -159,7 +159,7 @@ const AnnouncementManager: React.FC = () => {
       
       toast.success('表示順を変更しました', { duration: 2000 });
       await loadAnnouncements();
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error(handleApiError(e, '表示順変更'));
     }
   };

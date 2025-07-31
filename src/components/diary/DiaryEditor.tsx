@@ -68,7 +68,7 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
       
       toast.success('画像を圧縮しました');
     } catch (error) {
-      console.error('画像圧縮エラー:', error);
+      // console.error('画像圧縮エラー:', error);
       toast.error('画像の処理に失敗しました');
     } finally {
       setImageUploading(false);
@@ -115,7 +115,7 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
               await createDiaryImagesBucket();
               finalImageUrl = await uploadDiaryImage(selectedImage, profile!.id, diary.id);
             } catch (uploadError) {
-              console.error('画像アップロードエラー:', uploadError);
+              // console.error('画像アップロードエラー:', uploadError);
               toast.error('画像のアップロードに失敗しました');
               setSubmitting(false);
               return;
@@ -146,7 +146,7 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
             await update(result.diaryId, content, imageUrl);
             
           } catch (uploadError) {
-            console.error('画像アップロードエラー:', uploadError);
+            // console.error('画像アップロードエラー:', uploadError);
             toast.error('画像のアップロードに失敗しました（日記は投稿されました）');
           }
         }
@@ -182,7 +182,7 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
           }
         );
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error(handleApiError(e, isEdit ? '日記更新' : '日記投稿'), {
         title: 'エラー',
         actions: [

@@ -37,7 +37,7 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('Error fetching courses with details:', error);
+      // console.error('Error fetching courses with details:', error);
       throw error;
     }
 
@@ -73,7 +73,7 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
   );
 
   if (error) {
-    console.error('Error fetching courses with details:', error);
+    // console.error('Error fetching courses with details:', error);
     throw error;
   }
   return data || [];
@@ -94,7 +94,7 @@ export async function fetchCoursesSimple(): Promise<Course[]> {
   );
 
   if (error) {
-    console.error('Error fetching courses:', error);
+    // console.error('Error fetching courses:', error);
     throw error;
   }
   return data || [];
@@ -113,7 +113,7 @@ export async function addCourse(courseData: Omit<Course, 'id' | 'created_at' | '
     .single();
 
   if (error) {
-    console.error('Error adding course:', error);
+    // console.error('Error adding course:', error);
     throw error;
   }
 
@@ -137,7 +137,7 @@ export async function updateCourse(id: string, updates: Partial<Omit<Course, 'id
     .single();
 
   if (error) {
-    console.error('Error updating course:', error);
+    // console.error('Error updating course:', error);
     throw error;
   }
 
@@ -157,7 +157,7 @@ export async function deleteCourse(id: string): Promise<void> {
     .eq('id', id);
 
   if (error) {
-    console.error('Error deleting course:', error);
+    // console.error('Error deleting course:', error);
     throw error;
   }
 
@@ -184,7 +184,7 @@ export async function fetchUserCompletedCourses(userId: string): Promise<string[
     ]);
 
     if (progressData.error) {
-      console.error('Error fetching user lesson progress:', progressData.error);
+      // console.error('Error fetching user lesson progress:', progressData.error);
       return [];
     }
 
@@ -212,7 +212,7 @@ export async function fetchUserCompletedCourses(userId: string): Promise<string[
 
     return completedCourseIds;
   } catch (error) {
-    console.error('Error fetching user completed courses:', error);
+    // console.error('Error fetching user completed courses:', error);
     return [];
   }
 }
@@ -298,7 +298,7 @@ export async function fetchUserCourseUnlockStatus(userId: string): Promise<Recor
       .eq('user_id', userId);
 
     if (error) {
-      console.error('Error fetching user course unlock status:', error);
+      // console.error('Error fetching user course unlock status:', error);
       return {};
     }
 
@@ -309,7 +309,7 @@ export async function fetchUserCourseUnlockStatus(userId: string): Promise<Recor
 
     return unlockStatus;
   } catch (error) {
-    console.error('Error fetching user course unlock status:', error);
+    // console.error('Error fetching user course unlock status:', error);
     return {};
   }
 }
@@ -327,7 +327,7 @@ export async function adminLockCourse(userId: string, courseId: string): Promise
     });
 
   if (error) {
-    console.error('Error locking course:', error);
+    // console.error('Error locking course:', error);
     throw error;
   }
 
@@ -348,7 +348,7 @@ export async function adminUnlockCourse(userId: string, courseId: string): Promi
     });
 
   if (error) {
-    console.error('Error unlocking course:', error);
+    // console.error('Error unlocking course:', error);
     throw error;
   }
 
@@ -367,7 +367,7 @@ export async function unlockDependentCourses(userId: string): Promise<void> {
     });
 
   if (error) {
-    console.error('Error unlocking dependent courses:', error);
+    // console.error('Error unlocking dependent courses:', error);
     throw error;
   }
 

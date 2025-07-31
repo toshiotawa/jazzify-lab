@@ -880,7 +880,7 @@ export class FantasyPIXIInstance {
         FantasySoundManager.playMyAttack();
         devLog.debug('🔊 攻撃効果音再生(triggerAttackSuccessOnMonster)');
       } catch (error) {
-        console.error('攻撃効果音再生エラー:', error);
+        // console.error('攻撃効果音再生エラー:', error);
       }
 
       // 常に黄色（サンダーの色）を使用
@@ -949,7 +949,7 @@ export class FantasyPIXIInstance {
         FantasySoundManager.playMyAttack();
         devLog.debug('🔊 攻撃効果音再生(triggerAttackSuccess)');
       } catch (error) {
-        console.error('攻撃効果音再生エラー:', error);
+        // console.error('攻撃効果音再生エラー:', error);
       }
 
       // 常に黄色（サンダーの色）を使用

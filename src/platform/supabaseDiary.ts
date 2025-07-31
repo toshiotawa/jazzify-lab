@@ -42,7 +42,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   if (!diariesData) return [];
 
   // 自動作成されたプロフィール（nickname = email）のユーザーの日記を除外
-  const filteredDiaries = diariesData.filter((diary: any) => {
+  const filteredDiaries = diariesData.filter((diary: unknown) => {
     const profile = diary.profiles;
     return profile && profile.nickname && profile.nickname !== profile.email;
   });
@@ -59,7 +59,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
       .then(result => {
         const likesMap = new Map();
         if (result.data) {
-          result.data.forEach((item: any) => {
+          result.data.forEach((item: unknown) => {
             likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
           });
         }
@@ -72,7 +72,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
       .then(result => {
         const commentsMap = new Map();
         if (result.data) {
-          result.data.forEach((item: any) => {
+          result.data.forEach((item: unknown) => {
             commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
           });
         }
@@ -80,7 +80,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
       })
   ]);
   
-  const diariesWithLikes = filteredDiaries.slice(0, limit).map((diary: any) => ({
+  const diariesWithLikes = filteredDiaries.slice(0, limit).map((diary: unknown) => ({
     id: diary.id,
     user_id: diary.user_id,
     content: diary.content,
@@ -142,7 +142,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
       .then(result => {
         const likesMap = new Map();
         if (result.data) {
-          result.data.forEach((item: any) => {
+          result.data.forEach((item: unknown) => {
             likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
           });
         }
@@ -155,7 +155,7 @@ export async function fetchUserDiaries(userId: string): Promise<{
       .then(result => {
         const commentsMap = new Map();
         if (result.data) {
-          result.data.forEach((item: any) => {
+          result.data.forEach((item: unknown) => {
             commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
           });
         }
@@ -272,19 +272,19 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
           // 成功時のみカウントを増やす
           if (!upsertError) {
             missionsUpdated++;
-            console.log('ミッション進捗更新成功', { 
+            // // console.log('ミッション進捗更新成功', { 
               challengeId: m.id, 
               clearCount: actualDiaryCount || 0,
               completed: (actualDiaryCount || 0) >= m.diary_count 
             });
           } else {
-            console.error('ミッション進捗更新エラー', upsertError);
+            // console.error('ミッション進捗更新エラー', upsertError);
           }
         }
       }
     }
   } catch (e) {
-    console.warn('ミッション進捗の更新でエラーが発生しました:', e);
+    // console.warn('ミッション進捗の更新でエラーが発生しました:', e);
     // ミッションエラーは致命的ではないので続行
   }
 
@@ -366,7 +366,7 @@ export async function updateDiary(diaryId: string, content: string, imageUrl?: s
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
   if (authError) {
-    console.error('認証エラー:', authError);
+    // console.error('認証エラー:', authError);
     throw new Error('認証エラーが発生しました');
   }
   
@@ -374,7 +374,7 @@ export async function updateDiary(diaryId: string, content: string, imageUrl?: s
     throw new Error('ログインが必要です');
   }
 
-  const updateData: any = { 
+  const updateData: unknown = { 
     content,
     updated_at: new Date().toISOString()
   };
@@ -383,7 +383,7 @@ export async function updateDiary(diaryId: string, content: string, imageUrl?: s
     updateData.image_url = imageUrl;
   }
 
-  console.log('日記更新中:', { diaryId, userId: user.id, updateData });
+  // // console.log('日記更新中:', { diaryId, userId: user.id, updateData });
 
   const { data, error } = await supabase
     .from('practice_diaries')
@@ -393,7 +393,7 @@ export async function updateDiary(diaryId: string, content: string, imageUrl?: s
     .select();
     
   if (error) {
-    console.error('日記更新エラー:', error);
+    // console.error('日記更新エラー:', error);
     if (error.code === 'PGRST301') {
       throw new Error('更新権限がありません。この日記を編集できるのは作成者のみです。');
     }
@@ -404,7 +404,7 @@ export async function updateDiary(diaryId: string, content: string, imageUrl?: s
     throw new Error('日記が見つからないか、更新権限がありません');
   }
   
-  console.log('日記更新完了:', data[0]);
+  // // console.log('日記更新完了:', data[0]);
 }
 
 export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
@@ -505,7 +505,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
   if (authError) {
-    console.error('認証エラー:', authError);
+    // console.error('認証エラー:', authError);
     throw new Error('認証エラーが発生しました');
   }
   
@@ -513,7 +513,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     throw new Error('ログインが必要です');
   }
   
-  console.log('日記削除開始:', { diaryId, userId: user.id });
+  // // console.log('日記削除開始:', { diaryId, userId: user.id });
   
   // 削除対象の日記の存在確認と権限チェック
   const { data: diary, error: fetchError } = await supabase
@@ -523,7 +523,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     .single();
   
   if (fetchError) {
-    console.error('日記取得エラー:', fetchError);
+    // console.error('日記取得エラー:', fetchError);
     throw new Error('日記の取得に失敗しました');
   }
   
@@ -544,7 +544,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     .select();
     
   if (deleteError) {
-    console.error('日記削除エラー:', deleteError);
+    // console.error('日記削除エラー:', deleteError);
     if (deleteError.code === 'PGRST301') {
       throw new Error('削除権限がありません。この日記を削除できるのは作成者のみです。');
     }
@@ -555,7 +555,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     throw new Error('日記が見つからないか、削除権限がありません');
   }
   
-  console.log('日記削除完了:', deletedData[0]);
+  // // console.log('日記削除完了:', deletedData[0]);
   
   // 削除された日記がミッション進捗に影響する場合は進捗を調整
   try {
@@ -582,7 +582,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
       }
     }
   } catch (e) {
-    console.warn('ミッション進捗の調整でエラーが発生しました:', e);
+    // console.warn('ミッション進捗の調整でエラーが発生しました:', e);
   }
   
   // ────────── キャッシュをクリア ──────────

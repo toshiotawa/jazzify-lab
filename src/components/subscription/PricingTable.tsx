@@ -90,7 +90,7 @@ const PricingTable: React.FC = () => {
         alert(`エラー: ${error.error}`);
       }
     } catch (error) {
-      console.error('Checkout session error:', error);
+      // console.error('Checkout session error:', error);
       alert('エラーが発生しました');
     } finally {
       setLoading(null);

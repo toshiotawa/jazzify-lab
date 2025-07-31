@@ -34,7 +34,7 @@ const MissionRanking: React.FC = () => {
           const data = await fetchMissionRanking(missionId);
           setEntries(data);
         } catch (err) {
-          console.error('ミッションランキング取得エラー:', err);
+          // console.error('ミッションランキング取得エラー:', err);
           setError('ランキングデータの取得に失敗しました');
         } finally {
           setLoading(false);

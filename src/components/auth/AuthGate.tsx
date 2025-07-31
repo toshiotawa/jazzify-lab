@@ -57,7 +57,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   }
 
   // デバッグ情報を出力
-  console.log('🔍 AuthGate: 状態確認', { 
+  // // console.log('🔍 AuthGate: 状態確認', { 
     user: !!user, 
     isGuest, 
     hasProfile, 
@@ -69,13 +69,13 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
 
   // ログイン済みでプロフィールがある、またはゲストモード
   if (isGuest || (user && hasProfile)) {
-    console.log('✅ AuthGate: 正常アクセス許可');
+    // // console.log('✅ AuthGate: 正常アクセス許可');
     return <>{children}</>;
   }
 
   // ログイン済みだがプロフィール未作成 -> モーダル
   if (user && !hasProfile) {
-    console.log('⚠️ AuthGate: プロフィール未作成 - アカウント登録モーダル表示');
+    // // console.log('⚠️ AuthGate: プロフィール未作成 - アカウント登録モーダル表示');
     return (
       <AccountRegistrationModal 
         onSubmit={createProfile} 
