@@ -281,6 +281,9 @@ export const FantasyRhythmEngine = forwardRef<
   return null;
 });
 
+// コンポーネントに表示名を設定
+FantasyRhythmEngine.displayName = 'FantasyRhythmEngine';
+
 // 判定関数をエクスポート
 export const useRhythmJudge = (rhythmEngine: React.RefObject<{ judge: (chordId: string, inputTime: number) => RhythmJudgment | null }>) => {
   return useCallback((chordId: string) => {

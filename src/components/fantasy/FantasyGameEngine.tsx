@@ -525,8 +525,34 @@ export const useFantasyGameEngine = ({
         ? Math.min(stage.timeSignature || 4, 4) // コード進行パターンでは拍子数（最大4）
         : 1; // ランダムパターンでは1体
       
-      // 初期状態では空のモンスターリストを作成（リズムエンジンが制御）
-      // モンスターは後でリズムスケジュールに基づいて生成される
+      // リズムモードでも初期モンスターを作成
+      const rhythmPositions = assignPositions(rhythmSimultaneousCount);
+      
+      // ランダムパターンの場合は1体、コード進行パターンの場合は拍子数分のモンスターを作成
+      for (let i = 0; i < rhythmSimultaneousCount && i < totalEnemies; i++) {
+        const monsterIndex = monsterQueue.shift()!;
+        const chordId = stage.chordProgressionData?.chords?.[i]?.chord || 
+                       stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)];
+        
+        const chord = getChordDefinition(chordId, displayOpts);
+        if (chord) {
+          const monster: MonsterState = {
+            id: `monster-${monsterIndex}-${Date.now()}`,
+            index: monsterIndex,
+            position: rhythmPositions[i],
+            currentHp: enemyHp,
+            maxHp: enemyHp,
+            gauge: 0,
+            chordTarget: chord,
+            correctNotes: [],
+            icon: monsterIds[monsterIndex % monsterIds.length],
+            name: MONSTERS.find(m => m.id === monsterIds[monsterIndex % monsterIds.length])?.name || 'Unknown'
+          };
+          activeMonsters.push(monster);
+          usedChordIds.push(chord.id);
+          lastChordId = chord.id;
+        }
+      }
     } else {
       // 既存のクイズモードの処理
       // 既に同時出現数が 1 の場合に後続モンスターが "フェードアウト待ち" の間に
@@ -581,7 +607,9 @@ export const useFantasyGameEngine = ({
       // マルチモンスター対応
       activeMonsters,
       monsterQueue,
-      simultaneousMonsterCount: simultaneousCount,
+      simultaneousMonsterCount: stage.mode === 'rhythm' 
+        ? (stage.chordProgressionData ? Math.min(stage.timeSignature || 4, 4) : 1)
+        : simultaneousCount,
       // ゲーム完了処理中フラグ
       isCompleting: false
     };
@@ -768,13 +796,20 @@ export const useFantasyGameEngine = ({
     devLog.debug('🎮 ゲージタイマー状態チェック:', { 
       isGameActive: gameState.isGameActive, 
       hasTimer: !!enemyGaugeTimer,
-      currentStage: gameState.currentStage?.stageNumber
+      currentStage: gameState.currentStage?.stageNumber,
+      isRhythmMode: gameState.currentStage?.mode === 'rhythm'
     });
     
     // 既存のタイマーをクリア
     if (enemyGaugeTimer) {
       clearInterval(enemyGaugeTimer);
       setEnemyGaugeTimer(null);
+    }
+    
+    // リズムモードではタイマーを使用しない
+    if (gameState.currentStage?.mode === 'rhythm') {
+      devLog.debug('🎵 リズムモードのため、ゲージタイマーをスキップ');
+      return;
     }
     
     // ゲームがアクティブな場合のみ新しいタイマーを開始
@@ -1159,4 +1194,4 @@ export const useFantasyGameEngine = ({
 };
 
 export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState };
-export { ENEMY_LIST, getCurrentEnemy };
+export { ENEMY_LIST, getCurrentEnemy, getChordDefinition };

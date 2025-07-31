@@ -11,6 +11,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { getChordDefinition } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
@@ -327,11 +328,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 判定結果をPIXIに反映させる処理などを追加可能
   }, []);
   
-  const handleRhythmSchedule = useCallback((schedule: RhythmChordSchedule[]) => {
-    devLog.debug('🎵 Rhythm schedule updated:', schedule);
-    // スケジュールに基づいてモンスターを生成・配置する処理を追加可能
-  }, []);
-  
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
   const {
@@ -357,6 +353,45 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
+  
+  // リズムスケジュールハンドラー（gameStateとisRhythmModeが利用可能になった後で定義）
+  const handleRhythmSchedule = useCallback((schedule: RhythmChordSchedule[]) => {
+    devLog.debug('🎵 Rhythm schedule updated:', schedule);
+    // スケジュールに基づいてモンスターを生成・配置する処理
+    
+    // リズムモードの場合、スケジュールに基づいてモンスターのコードを更新
+    if (isRhythmMode && gameState.isGameActive) {
+      const currentTime = performance.now() - (startAt || 0) - readyDuration;
+      
+      // 現在時刻に近いスケジュール項目を探す
+      const upcomingSchedule = schedule.filter(item => 
+        item.targetTime > currentTime - 1000 && 
+        item.targetTime < currentTime + 2000
+      );
+      
+      // 各モンスターに対応するスケジュールを割り当て
+      const updatedMonsters = gameState.activeMonsters.map(monster => {
+        const scheduleItem = upcomingSchedule.find(item => item.position === monster.position);
+        if (scheduleItem && scheduleItem.chordId !== monster.chordTarget.id) {
+          // コードが変わった場合は更新
+          const newChord = getChordDefinition(scheduleItem.chordId, { lang: 'en', simple: false });
+          if (newChord) {
+            return {
+              ...monster,
+              chordTarget: newChord,
+              correctNotes: [] // リセット
+            };
+          }
+        }
+        return monster;
+      });
+      
+      // モンスターの状態を更新（必要に応じて）
+      // Note: 実際の更新はFantasyGameEngine内で行うべきですが、
+      // ここではログのみ出力
+      devLog.debug('🎵 Monsters updated based on rhythm schedule:', updatedMonsters);
+    }
+  }, [isRhythmMode, gameState, startAt, readyDuration]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -482,39 +517,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       });
     }
   }, [handleNoteInputBridge, stage.showGuide]);
-
-  // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
-  useEffect(() => {
-    const linkMidiAndPixi = async () => {
-      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-        
-        // 1. 鍵盤ハイライト用のコールバックを設定
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRenderer.highlightKey(note, active);
-          if (active) {
-            pixiRenderer.triggerKeyPressEffect(note);
-          }
-        });
-        
-        // 2. デバイスに再接続して、設定したコールバックを有効化
-        devLog.debug(`🔧 Fantasy: Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        if (success) {
-          devLog.debug('✅ Fantasy: MIDI device successfully linked to renderer.');
-        } else {
-          devLog.debug('⚠️ Fantasy: Failed to link MIDI device to renderer.');
-        }
-      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-        // デバイス選択が解除された場合は切断
-        midiControllerRef.current.disconnect();
-        devLog.debug('🔌 Fantasy: MIDIデバイス切断');
-      }
-    };
-
-    linkMidiAndPixi();
-    
-  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
