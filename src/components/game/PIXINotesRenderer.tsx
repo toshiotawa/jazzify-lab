@@ -244,6 +244,7 @@ export class PIXINotesRendererInstance {
   private effectsContainer!: PIXI.Container;
   private hitLineContainer!: PIXI.Container;
   private pianoContainer!: PIXI.Container;
+  private particles!: PIXI.Container; // パーティクル用コンテナ
   
   private noteSprites: Map<string, NoteSprite> = new Map();
 
@@ -292,6 +293,7 @@ export class PIXINotesRendererInstance {
   
   // 破棄状態の追跡
   private isDestroyed: boolean = false;
+  private destroyed: boolean = false; // 破棄状態フラグ
   
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
@@ -2898,7 +2900,7 @@ export class PIXINotesRendererInstance {
     log.info('🎹 handleKeyPress called', { 
       midiNote, 
       hasOnKeyPress: !!this.onKeyPress,
-      destroyed: this.destroyed
+      destroyed: this.isDestroyed
     });
     
     // アクティブキープレス状態に追加
