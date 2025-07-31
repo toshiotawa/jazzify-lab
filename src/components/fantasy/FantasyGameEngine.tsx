@@ -46,8 +46,7 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
-  chordProgressionData?: any;
-  rhythmPatternType?: 'random' | 'progression'; // リズムモード用のJSON進行データ
+  chordProgressionData?: any; // リズムモード用のJSON進行データ
 }
 
 interface MonsterState {
