@@ -41,6 +41,14 @@ interface FantasyStage {
   monsterIcon: string;
   bgmUrl?: string;
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  // Rhythm mode specific fields
+  game_type?: 'quiz' | 'rhythm';
+  rhythm_pattern?: 'random' | 'progression';
+  bpm?: number;
+  time_signature?: 3 | 4;
+  loop_measures?: number;
+  mp3_url?: string;
+  chord_progression_data?: any;
 }
 
 interface MonsterState {
@@ -423,7 +431,7 @@ export const useFantasyGameEngine = ({
     // モンスター画像をプリロード
     try {
       // バンドルが既に存在する場合は削除
-      if (PIXI.Assets.resolver.bundles.has('stageMonsters')) {
+      if (PIXI.Assets.hasBundle('stageMonsters')) {
         await PIXI.Assets.unloadBundle('stageMonsters');
       }
 
@@ -1052,4 +1060,4 @@ export const useFantasyGameEngine = ({
 };
 
 export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState };
-export { ENEMY_LIST, getCurrentEnemy };
+export { ENEMY_LIST, getCurrentEnemy, getChordDefinition };
