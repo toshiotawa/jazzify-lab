@@ -51,7 +51,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
   // BGMストア
-  const bgmStore = useBgmStore();
+  const bgmVolume = useBgmStore(state => state.volume);
   const [isReadyPhase, setIsReadyPhase] = useState(false);
   
   // 設定状態を管理（初期値はstageから取得）
@@ -321,7 +321,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
     // Ready phase中は入力を受け付けない
-    if (bgmStore.isReadyPhase) {
+    const { isReadyPhase } = useBgmStore.getState();
+    if (isReadyPhase) {
       devLog.debug('🎵 Note input blocked during Ready phase');
       return;
     }
@@ -638,9 +639,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (autoStart) {
       // Auto-start with BGM and Ready phase
       const startWithBgm = async () => {
+        const bgmState = useBgmStore.getState();
         if (stage.mp3_url && stage.bpm && stage.measure_count) {
           try {
-            await bgmStore.initialize(
+            await bgmState.initialize(
               stage.mp3_url,
               stage.bpm,
               stage.beats_per_measure || 4,
@@ -653,20 +655,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }
         
         setIsReadyPhase(true);
-        bgmStore.startReadyPhase();
+        bgmState.startReadyPhase();
         initializeGame(stage);
       };
       
       startWithBgm();
     }
-  }, [autoStart, initializeGame, stage, bgmStore]);
+  }, [autoStart, initializeGame, stage]);
   
   // Cleanup BGM on unmount
   useEffect(() => {
+    const { cleanup } = useBgmStore.getState();
     return () => {
-      bgmStore.cleanup();
+      cleanup();
     };
-  }, [bgmStore]);
+  }, []);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
@@ -691,10 +694,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             onClick={async () => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
               
+              const bgmState = useBgmStore.getState();
+              
               // Initialize BGM if available
               if (stage.mp3_url && stage.bpm && stage.measure_count) {
                 try {
-                  await bgmStore.initialize(
+                  await bgmState.initialize(
                     stage.mp3_url,
                     stage.bpm,
                     stage.beats_per_measure || 4,
@@ -708,7 +713,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               
               // Start Ready phase
               setIsReadyPhase(true);
-              bgmStore.startReadyPhase();
+              bgmState.startReadyPhase();
               
               // Initialize game after Ready phase starts
               initializeGame(stage);
@@ -1118,7 +1123,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         simpleNoteName={currentSimpleNoteName}
         playRootSound={settings.playRootSound}
         rootSoundVolume={settings.rootSoundVolume}
-        bgmVolume={bgmStore.volume}
+        bgmVolume={bgmVolume}
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
