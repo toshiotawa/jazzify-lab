@@ -166,7 +166,17 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
         bgmUrl: stage.bgm_url,
-        simultaneousMonsterCount: stage.simultaneous_monster_count || 1
+        simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+        // リズムモード関連
+        gameType: stage.game_type || 'quiz',
+        rhythmPattern: stage.rhythm_pattern,
+        bpm: stage.bpm,
+        timeSignature: stage.time_signature,
+        measureCount: stage.measure_count,
+        loopMeasures: stage.loop_measures,
+        rhythmData: stage.rhythm_data,
+        chordProgressionData: stage.chord_progression_data,
+        mp3Url: stage.mp3_url
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -275,7 +285,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       >
         {/* ステージ番号 */}
         <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
-          {stage.stageNumber}
+                            {stage.stageNumber}
+                  {/* リズムタイプ表示 */}
+                  {stage.gameType === 'rhythm' && (
+                    <div className="text-xs mt-1 text-yellow-300">
+                      {stage.rhythmPattern === 'progression' ? '♪ コード進行' : '♪ ランダム'}
+                    </div>
+                  )}
         </div>
         
         {/* コンテンツ部分 */}
