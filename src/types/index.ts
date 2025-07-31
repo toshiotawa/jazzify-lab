@@ -749,3 +749,139 @@ export interface RankingEntry {
   updated_at: string;
   twitter_handle?: string;
 }
+
+// ===== コード定義 =====
+
+export interface ChordDefinition {
+  id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
+  displayName: string; // 表示名（言語・簡易化設定に応じて変更）
+  notes: number[];     // MIDIノート番号の配列
+  noteNames: string[]; // 理論的に正しい音名配列
+  quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
+  root: string;        // ルート音（例: 'C', 'G', 'A'）
+}
+
+// ===== リズムゲーム関連型定義 =====
+
+export type RhythmPattern = 'random' | 'progression';
+export type GameType = 'quiz' | 'rhythm';
+
+export interface RhythmData {
+  chord: string;
+  measure: number;
+  beat: number; // 1.0, 1.5, 3.75 etc.
+}
+
+export interface RhythmGameState {
+  // 共通状態
+  gameType: GameType;
+  rhythmPattern: RhythmPattern;
+  isPlaying: boolean;
+  currentTime: number;
+  bpm: number;
+  timeSignature: number;
+  measureCount: number;
+  loopMeasures: number;
+  
+  // リズム関連
+  currentMeasure: number;
+  currentBeat: number;
+  nextJudgmentTime: number;
+  judgmentWindow: number; // 200ms
+  
+  // プログレッション関連
+  progressionIndex: number;
+  progressionData: RhythmData[];
+  
+  // 音楽関連
+  audioElement: HTMLAudioElement | null;
+  audioContext: AudioContext | null;
+  isAudioLoaded: boolean;
+  isAudioPlaying: boolean;
+  
+  // 判定関連
+  lastJudgmentTime: number;
+  isInJudgmentWindow: boolean;
+  currentExpectedChord: string | null;
+}
+
+export interface RhythmStageData {
+  id: string;
+  stage_number: string;
+  name: string;
+  description: string;
+  game_type: GameType;
+  rhythm_pattern: RhythmPattern;
+  bpm: number;
+  time_signature: number;
+  loop_measures: number;
+  measure_count: number | null;
+  chord_progression_data: RhythmData[] | null;
+  rhythm_data: string | null;
+  mp3_url: string;
+  allowed_chords: string[];
+  simultaneous_monster_count: number;
+  max_hp: number;
+  enemy_count: number;
+  enemy_hp: number;
+  min_damage: number;
+  max_damage: number;
+  enemy_gauge_seconds: number;
+  show_sheet_music: boolean;
+  show_guide: boolean;
+  monster_icon: string;
+  bgm_url: string | null;
+}
+
+export interface RhythmJudgment {
+  success: boolean;
+  timingError: number; // milliseconds
+  expectedTime: number;
+  actualTime: number;
+  chord: string;
+}
+
+export interface RhythmEnemy {
+  id: string;
+  hp: number;
+  maxHp: number;
+  position: number; // 0-7 (8レーン)
+  attackProgress: number; // 0-1 (0% to 100%)
+  targetJudgmentTime: number; // いつ判定されるべきか
+  assignedChord: string;
+  isActive: boolean;
+  gaugeSpeed: number; // ゲージの進行速度
+}
+
+// 既存のFantasyStage型を拡張
+export interface ExtendedFantasyStage {
+  id: string;
+  stageNumber: string;
+  name: string;
+  description: string;
+  maxHp: number;
+  enemyGaugeSeconds: number;
+  enemyCount: number;
+  enemyHp: number;
+  minDamage: number;
+  maxDamage: number;
+  mode: 'single' | 'progression';
+  allowedChords: string[];
+  chordProgression?: string[];
+  showSheetMusic: boolean;
+  showGuide: boolean;
+  monsterIcon: string;
+  bgmUrl?: string;
+  simultaneousMonsterCount: number;
+  
+  // リズムゲーム拡張
+  gameType?: GameType;
+  rhythmPattern?: RhythmPattern;
+  bpm?: number;
+  timeSignature?: number;
+  loopMeasures?: number;
+  measureCount?: number;
+  chordProgressionData?: RhythmData[];
+  rhythmData?: string;
+  mp3Url?: string;
+}
