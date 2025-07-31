@@ -659,7 +659,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           // Initialize game after Ready phase completes
           setTimeout(() => {
             initializeGame(stage);
-          }, 2000); // 2 seconds for Ready phase
+          }, 2800); // 2s Ready countdown + 0.5s Start! + 0.3s buffer
         };
       
       startWithBgm();
@@ -720,7 +720,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               // Initialize game after Ready phase completes
               setTimeout(() => {
                 initializeGame(stage);
-              }, 2000); // 2 seconds for Ready phase
+              }, 2800); // 2s Ready countdown + 0.5s Start! + 0.3s buffer
             }}
             className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
           >
