@@ -208,18 +208,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
   // ゲームエンジン コールバック
-  const handleGameStateChange = useCallback((state: FantasyGameState) => {
+  const handleGameStateChange = useCallback((state: any) => {
     devLog.debug('🎮 ファンタジーゲーム状態更新:', {
-      currentQuestion: state.currentQuestionIndex + 1,
+      currentQuestion: state.currentQuestionIndex || 0,
       totalQuestions: state.totalQuestions,
       playerHp: state.playerHp,
       enemyGauge: state.enemyGauge ? state.enemyGauge.toFixed(1) : 'N/A',
       isGameActive: state.isGameActive,
-      currentChord: state.currentChordTarget?.displayName,
+      currentChord: state.currentChordTarget?.displayName || state.currentChord?.displayName,
       score: state.score,
-      correctAnswers: state.correctAnswers
+      correctAnswers: state.correctAnswers,
+      isRhythmMode: isRhythmMode,
+      activeMonsters: state.activeMonsters?.length || 0
     });
-  }, []);
+  }, [isRhythmMode]);
   
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を受け取り、新しいPIXIメソッドを呼び出す
@@ -323,6 +325,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ゲームタイプに応じてエンジンを選択
   const isRhythmMode = stage?.gameType === 'rhythm';
+  
+  // リズムモードとクイズモードの共通インターフェースに変換
+  const gameEngine = isRhythmMode ? {
+    gameState: {
+      ...rhythmEngine.gameState,
+      // リズムモードにない必須フィールドをダミー値で埋める
+      currentStage: null,
+      currentQuestionIndex: 0,
+      currentChordTarget: rhythmEngine.gameState.currentChord,
+      enemyGauge: 0,
+      currentEnemyIndex: 0,
+      currentEnemyHits: 0,
+      enemiesDefeated: rhythmEngine.gameState.activeMonsters.filter(m => m.currentHp <= 0).length,
+      totalEnemies: rhythmEngine.gameState.activeMonsters.length + rhythmEngine.gameState.monsterQueue.length,
+      currentEnemyHp: 0,
+      maxEnemyHp: 0,
+      correctNotes: [],
+      isWaitingForNextMonster: false,
+      playerSp: 0
+    } as FantasyGameState,
+    handleNoteInput: rhythmEngine.handleNoteInput,
+    initializeGame: rhythmEngine.startGame,
+    stopGame: rhythmEngine.stopGame,
+    getCurrentEnemy: () => null,
+    proceedToNextEnemy: () => {},
+    imageTexturesRef: { current: null },
+    ENEMY_LIST: []
+  } : quizEngine;
+  
   const {
     gameState,
     handleNoteInput: engineHandleNoteInput,
@@ -332,16 +363,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     proceedToNextEnemy,
     imageTexturesRef,
     ENEMY_LIST
-  } = isRhythmMode ? {
-    gameState: rhythmEngine.gameState as FantasyGameState,
-    handleNoteInput: rhythmEngine.handleNoteInput,
-    initializeGame: rhythmEngine.startGame,
-    stopGame: rhythmEngine.stopGame,
-    getCurrentEnemy: () => null,  // リズムモードでは使わない
-    proceedToNextEnemy: () => {},  // リズムモードでは使わない
-    imageTexturesRef: { current: null },  // リズムモードでは使わない
-    ENEMY_LIST: []  // リズムモードでは使わない
-  } : quizEngine;
+  } = gameEngine;
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -663,12 +685,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  // リズムモードではcurrentChord、クイズモードではcurrentChordTargetをチェック
+  const hasCurrentChord = isRhythmMode ? 
+    !!(gameState as any).currentChord : 
+    !!gameState.currentChordTarget;
+    
+  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !hasCurrentChord)) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
-      hasCurrentChord: !!gameState.currentChordTarget,
+      hasCurrentChord: hasCurrentChord,
       stageName: stage.name,
-      hasOverlay: !!overlay
+      hasOverlay: !!overlay,
+      isRhythmMode: isRhythmMode
     });
     
     return (

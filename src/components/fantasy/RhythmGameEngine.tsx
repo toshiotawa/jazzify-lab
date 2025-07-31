@@ -382,7 +382,12 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
 
   // ゲーム開始
   const startGame = useCallback(() => {
-    if (!stage) return;
+    if (!stage) {
+      console.error('Cannot start rhythm game: stage is null');
+      return;
+    }
+
+    console.log('🎵 Starting rhythm game with stage:', stage);
 
     // リズムストアの初期化
     rhythmStore.initialize(
@@ -402,15 +407,20 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
     const initialMonsters: RhythmMonsterState[] = [];
     const monsterCount = Math.min(stage.simultaneousMonsterCount || 1, 4);
 
+    console.log('🎵 Creating initial monsters:', monsterCount);
+
     for (let i = 0; i < monsterCount; i++) {
       const monster = createMonster(i, positions[i]);
       if (monster) {
         initialMonsters.push(monster);
+        console.log('🎵 Created monster:', monster.name, 'with chord:', monster.chordTarget.id);
+      } else {
+        console.error('Failed to create monster at index:', i);
       }
     }
 
     // ゲーム状態初期化
-    setGameState({
+    const newGameState = {
       playerHp: stage.maxHp,
       maxPlayerHp: stage.maxHp,
       score: 0,
@@ -427,7 +437,15 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
       isCompleting: false,
       currentChord: initialMonsters[0]?.chordTarget || null,
       nextChord: null
+    };
+    
+    console.log('🎵 Initializing game state:', {
+      activeMonsters: newGameState.activeMonsters.length,
+      currentChord: newGameState.currentChord?.id,
+      isGameActive: newGameState.isGameActive
     });
+    
+    setGameState(newGameState);
 
     // リズム再生開始
     rhythmStore.start();
@@ -453,6 +471,11 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
 
   // エフェクト: 状態変更通知
   useEffect(() => {
+    console.log('🎵 Rhythm game state changed:', {
+      isGameActive: gameState.isGameActive,
+      activeMonsters: gameState.activeMonsters.length,
+      currentChord: gameState.currentChord?.id
+    });
     onGameStateChange(gameState);
   }, [gameState, onGameStateChange]);
 
