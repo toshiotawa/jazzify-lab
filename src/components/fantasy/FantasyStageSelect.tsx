@@ -16,6 +16,7 @@ interface FantasyUserProgress {
   currentStageNumber: string;
   wizardRank: string;
   totalClearedStages: number;
+  stageClearCounts?: Record<string, number>;
 }
 
 interface FantasyStageClear {
@@ -34,16 +35,6 @@ interface FantasyStageSelectProps {
   onStageSelect: (stage: FantasyStage) => void;
   onBackToMenu: () => void;
 }
-
-// ===== ランクシステム定義 =====
-const WIZARD_RANKS = [
-  'F', 'F+', 'E', 'E+', 'D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S', 'S+'
-];
-
-const getRankFromClearedStages = (clearedStages: number): string => {
-  const rankIndex = Math.floor(clearedStages / 10);
-  return WIZARD_RANKS[Math.min(rankIndex, WIZARD_RANKS.length - 1)];
-};
 
 // ===== ステージグルーピング =====
 const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
@@ -164,18 +155,38 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
-        monsterIcon: stage.monster_icon,
+        simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+        monsterIcon: stage.monster_icon || 'dragon',
         bgmUrl: stage.bgm_url,
-        simultaneousMonsterCount: stage.simultaneous_monster_count || 1
+        // リズムモード関連フィールド
+        gameType: stage.game_type,
+        rhythmPattern: stage.rhythm_pattern,
+        bpm: stage.bpm,
+        timeSignature: stage.time_signature,
+        measureCount: stage.measure_count,
+        loopMeasures: stage.loop_measures,
+        chordProgressionData: stage.chord_progression_data,
+        mp3Url: stage.mp3_url,
+        rhythmData: stage.rhythm_data
       }));
       
-      const convertedProgress: FantasyUserProgress = {
-        id: userProgressData.id,
-        userId: userProgressData.user_id,
-        currentStageNumber: userProgressData.current_stage_number,
-        wizardRank: userProgressData.wizard_rank,
-        totalClearedStages: userProgressData.total_cleared_stages
+      let convertedProgress: FantasyUserProgress = {
+        id: '',
+        userId: '',
+        currentStageNumber: '1-1',
+        wizardRank: 'F',
+        totalClearedStages: 0
       };
+      
+      if (userProgressData) {
+        convertedProgress = {
+          id: (userProgressData as { id: string }).id,
+          userId: userProgressData.user_id,
+          currentStageNumber: userProgressData.current_stage_number,
+          wizardRank: userProgressData.wizard_rank,
+          totalClearedStages: userProgressData.total_cleared_stages
+        };
+      }
       
       const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: any) => ({
         id: clear.id,
@@ -272,10 +283,25 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           isCleared && "ring-2 ring-yellow-400"
         )}
         onClick={() => handleStageSelect(stage)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleStageSelect(stage);
+          }
+        }}
+        role="button"
+        tabIndex={unlocked ? 0 : -1}
+        aria-label={`ステージ ${stage.stageNumber}: ${stage.name}`}
       >
         {/* ステージ番号 */}
-        <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
+        <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center relative">
           {stage.stageNumber}
+          {/* リズムモードインジケーター */}
+          {(stage as any).game_type === 'rhythm' && (
+            <div className="absolute -top-2 -right-2 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center text-xs">
+              ♪
+            </div>
+          )}
         </div>
         
         {/* コンテンツ部分 */}
@@ -286,6 +312,25 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             unlocked ? "text-white" : "text-gray-400"
           )}>
             {unlocked ? stage.name : "???"}
+          </div>
+          
+          {/* モードバッジ */}
+          <div className="flex gap-2 mb-1">
+            {stage.gameType === 'rhythm' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500 text-black">
+                ♪ リズム
+              </span>
+            )}
+            {stage.gameType === 'rhythm' && stage.rhythmPattern === 'progression' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500 text-white">
+                進行
+              </span>
+            )}
+            {stage.gameType === 'rhythm' && stage.rhythmPattern === 'random' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500 text-white">
+                ランダム
+              </span>
+            )}
           </div>
           
           {/* 説明文 */}
@@ -355,8 +400,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   
   // メイン画面
   const groupedStages = groupStagesByRank(stages);
-  const currentWizardRank = userProgress ? userProgress.wizardRank : 'F';
-  const totalCleared = userProgress ? userProgress.totalClearedStages : 0;
+    
+    // ステージ選択ハンドラ
   
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto fantasy-game-screen">
@@ -365,9 +410,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold mb-2">🧙‍♂️ ファンタジーモード</h1>
-            <div className="flex items-center space-x-6 text-sm">
-              <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber}</span></div>
-            </div>
+            {/* 現在の進行状況 */}
+            <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber}</span></div>
+            <div>ランク: <span className="text-yellow-300 font-bold">{userProgress?.wizardRank}</span></div>
+            <div>クリア数: <span className="text-green-300 font-bold">{userProgress?.totalClearedStages || 0}</span></div>
           </div>
           
           <button

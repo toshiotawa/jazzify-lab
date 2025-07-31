@@ -1,12 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import checker from 'vite-plugin-checker'
 
 export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production';
+  const isDevelopment = mode === 'development';
   
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      // 開発時のみ型チェックを有効化
+      isDevelopment && checker({
+        typescript: true,
+        eslint: {
+          lintCommand: 'eslint "./src/**/*.{ts,tsx}"',
+        },
+      })
+    ].filter(Boolean),
     resolve: {
       alias: {
         '@': resolve(__dirname, './src'),

@@ -10,7 +10,6 @@ import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
-import type { DisplayLang } from '@/utils/display-note';
 import { LessonContext } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
@@ -103,7 +102,18 @@ const FantasyMain: React.FC = () => {
             showSheetMusic: stage.show_sheet_music,
             showGuide: stage.show_guide,
             simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
-            monsterIcon: stage.monster_icon || 'dragon'
+            monsterIcon: stage.monster_icon || 'dragon',
+            // リズムモード関連フィールド
+            gameType: stage.game_type,
+            rhythmPattern: stage.rhythm_pattern,
+            bpm: stage.bpm,
+            timeSignature: stage.time_signature,
+            measureCount: stage.measure_count,
+            loopMeasures: stage.loop_measures,
+            chordProgressionData: stage.chord_progression_data,
+            mp3Url: stage.mp3_url,
+            rhythmData: stage.rhythm_data
+
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -194,7 +204,7 @@ const FantasyMain: React.FC = () => {
         // まず初クリアかどうかを判定（upsertの前に実行）
         let isFirstTimeClear = false;
         if (result === 'clear') {
-          const { data: preClear, error: preErr } = await supabase
+          const { data: preClear } = await supabase
             .from('fantasy_stage_clears')
             .select('id')
             .eq('user_id', profile.id)
@@ -383,7 +393,17 @@ const FantasyMain: React.FC = () => {
         showGuide: nextStageData.show_guide,
         monsterIcon: nextStageData.monster_icon,
         bgmUrl: nextStageData.bgm_url,
-        simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1
+        simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1,
+        // リズムモード関連フィールド
+        gameType: nextStageData.game_type,
+        rhythmPattern: nextStageData.rhythm_pattern,
+        bpm: nextStageData.bpm,
+        timeSignature: nextStageData.time_signature,
+        measureCount: nextStageData.measure_count,
+        loopMeasures: nextStageData.loop_measures,
+        chordProgressionData: nextStageData.chord_progression_data,
+        mp3Url: nextStageData.mp3_url,
+        rhythmData: nextStageData.rhythm_data
       };
 
       setGameResult(null);
@@ -563,7 +583,6 @@ const FantasyMain: React.FC = () => {
         onBackToStageSelect={handleBackToStageSelect}
         noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
         simpleNoteName={settings.simpleDisplayMode}
-        lessonMode={isLessonMode}
       />
     );
   }

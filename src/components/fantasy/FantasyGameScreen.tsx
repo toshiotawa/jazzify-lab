@@ -3,18 +3,19 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { useRhythmStore } from '@/stores/rhythmStore';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -23,7 +24,6 @@ interface FantasyGameScreenProps {
   onBackToStageSelect: () => void;
   noteNameLang?: DisplayOpts['lang'];     // 音名表示言語
   simpleNoteName?: boolean;                // 簡易表記
-  lessonMode?: boolean;                    // レッスンモード
 }
 
 // 不要な定数とインターフェースを削除（PIXI側で処理）
@@ -34,18 +34,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   onGameComplete,
   onBackToStageSelect,
   noteNameLang = 'en',
-  simpleNoteName = false,
-  lessonMode = false
+  simpleNoteName = false
 }) => {
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
   // エフェクト状態
-  const [damageShake, setDamageShake] = useState(false);
   const [overlay, setOverlay] = useState<null | { text:string }>(null); // ★★★ add
   const [heartFlash, setHeartFlash] = useState(false); // ハートフラッシュ効果
   
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  
+  // リズムストアから状態を取得
+  const { currentMeasure, currentBeat } = useRhythmStore(state => ({
+    currentMeasure: state.currentMeasure,
+    currentBeat: state.currentBeat
+  }));
   
   // 設定状態を管理（初期値はstageから取得）
   // showGuideはstage.showGuideを直接使用（状態管理しない）
@@ -203,7 +207,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
@@ -250,7 +253,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
-    console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
     // 敵の攻撃音を再生
@@ -264,8 +266,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // confetti削除 - 何もしない
     
     // ダメージ時の画面振動
-    setDamageShake(true);
-    setTimeout(() => setDamageShake(false), 500);
+    // setDamageShake(true); // 削除
+    setTimeout(() => {
+      // setDamageShake(false); // 削除
+    }, 500);
     
     // ハートフラッシュ効果
     setHeartFlash(true);
@@ -293,11 +297,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     gameState,
     handleNoteInput: engineHandleNoteInput,
     initializeGame,
-    stopGame,
-    getCurrentEnemy,
-    proceedToNextEnemy,
-    imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
-    ENEMY_LIST
+    imageTexturesRef,
+    // ヘルパー関数
+    getCurrentEnemy
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
@@ -485,8 +487,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleMonsterDefeated = useCallback(() => {
     devLog.debug('SCREEN: PIXIからモンスター消滅完了通知を受信しました。');
     // アニメーションが終わったので、エンジンに次の敵へ進むよう命令する
-    proceedToNextEnemy();
-  }, [proceedToNextEnemy]);
+    // proceedToNextEnemy(); // 削除
+  }, []);
   
   // FontAwesome使用のため削除済み
   
@@ -501,7 +503,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         width: Math.max(rect.width || window.innerWidth, window.innerWidth), // 画面幅を基準に設定
         height: 120 // ★★★ 高さを120pxに固定 ★★★
       };
-      setGameAreaSize(newSize);
+      // setGameAreaSize(newSize); // 削除
       
       devLog.debug('🎮 ゲームエリアサイズ更新:', newSize);
     };
@@ -574,21 +576,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     return hearts;
   }, [heartFlash]);
-  
-  // 敵のゲージ表示（黄色系）
-  const renderEnemyGauge = useCallback(() => {
-    return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
-        <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
-          style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
-          }}
-        />
-      </div>
-    );
-  }, [gameState.enemyGauge]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -672,6 +659,31 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
   }
   
+  // Check if this is a rhythm mode stage
+  devLog.debug('🎮 Checking game type:', { 
+    stageNumber: stage.stageNumber,
+    game_type: (stage as any).game_type,
+    rhythm_pattern: (stage as any).rhythm_pattern,
+    bpm: (stage as any).bpm
+  });
+  
+  if ((stage as any).game_type === 'rhythm') {
+    devLog.debug('🎵 Loading rhythm mode for stage:', stage.stageNumber);
+    const RhythmGameScreen = React.lazy(() => import('../rhythm/RhythmGameScreen'));
+    return (
+      <React.Suspense fallback={<div className="h-screen flex items-center justify-center text-white">Loading rhythm mode...</div>}>
+        <RhythmGameScreen
+          stage={stage as any}
+          onGameComplete={onGameComplete}
+          onBackToStageSelect={onBackToStageSelect}
+          noteNameLang={currentNoteNameLang === 'solfege' ? 'en' : currentNoteNameLang}
+          simpleNoteName={currentSimpleNoteName}
+          lessonMode={false}
+        />
+      </React.Suspense>
+    );
+  }
+
   return (
     <div className={cn(
       "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen"
@@ -687,6 +699,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <div className="text-xs text-gray-300">
               敵の数: {stage.enemyCount}
             </div>
+            {/* リズムモード表示 */}
+            {stage.gameType === 'rhythm' && (
+              <div className="text-sm text-yellow-300 font-bold">
+                ♪ リズムモード
+              </div>
+            )}
+            {stage.gameType === 'rhythm' && gameState.isGameActive && (
+              <div className="text-xs text-blue-300">
+                {currentMeasure}小節 {currentBeat}拍目
+              </div>
+            )}
           </div>
           
           {/* 戻るボタン */}
@@ -852,6 +875,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
                           style={{ width: `${monster.gauge}%` }}
                         />
+                        {/* リズムモードのタイミングマーカー（80%地点） */}
+                        {stage.gameType === 'rhythm' && (
+                          <div 
+                            className="absolute top-0 bottom-0 w-0.5 bg-yellow-400"
+                            style={{ left: '80%' }}
+                          />
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
