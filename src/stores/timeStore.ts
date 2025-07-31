@@ -18,6 +18,8 @@ interface TimeState {
   currentMeasure: number
   /* カウントイン中かどうか */
   isCountIn: boolean
+  /* リズムモードフラグ */
+  isRhythmMode: boolean
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -27,6 +29,18 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* リズムモード設定 */
+  setRhythmMode: (enabled: boolean) => void
+  /* 現在のタイミング情報を取得 */
+  getCurrentTimingInfo: () => {
+    currentTime: number
+    measureFromStart: number
+    beatFromStart: number
+    beatInMeasure: number
+    isInCountIn: boolean
+  }
+  /* リセット */
+  reset: () => void
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -39,6 +53,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  isRhythmMode: false,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -91,5 +106,52 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         isCountIn: false
       })
     }
-  }
+  },
+  setRhythmMode: (enabled: boolean) => set({ isRhythmMode: enabled }),
+  getCurrentTimingInfo: () => {
+    const s = get()
+    if (s.startAt === null) {
+      return {
+        currentTime: 0,
+        measureFromStart: 0,
+        beatFromStart: 0,
+        beatInMeasure: 1,
+        isInCountIn: false
+      }
+    }
+    
+    const elapsed = performance.now() - s.startAt
+    const currentTime = elapsed
+    
+    // Ready中の場合
+    if (elapsed < s.readyDuration) {
+      return {
+        currentTime,
+        measureFromStart: 0,
+        beatFromStart: 0,
+        beatInMeasure: 1,
+        isInCountIn: false
+      }
+    }
+    
+    const msecPerBeat = 60000 / s.bpm
+    const beatsFromStart = (elapsed - s.readyDuration) / msecPerBeat
+    const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
+    const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
+    
+    return {
+      currentTime,
+      measureFromStart: totalMeasures + 1,
+      beatFromStart: beatsFromStart,
+      beatInMeasure: currentBeatInMeasure,
+      isInCountIn: totalMeasures < s.countInMeasures
+    }
+  },
+  reset: () => set({
+    startAt: null,
+    currentBeat: 1,
+    currentMeasure: 1,
+    isCountIn: false,
+    isRhythmMode: false
+  })
 }))
