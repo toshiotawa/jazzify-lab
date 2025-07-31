@@ -41,6 +41,12 @@ interface FantasyStage {
   monsterIcon: string;
   bgmUrl?: string;
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  // BGM関連フィールド
+  mp3Url?: string;
+  bpm?: number;
+  measureCount?: number;
+  timeSignature?: string;
+  countInMeasures?: number;
 }
 
 interface MonsterState {
