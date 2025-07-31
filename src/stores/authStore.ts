@@ -24,9 +24,6 @@ function getValidRedirectUrl(): string | null {
   // 環境変数から取得を試行
   const envRedirectUrl = import.meta.env.VITE_SUPABASE_REDIRECT_URL;
   
-  // console.log('🔍 Magic Link リダイレクトURL検証開始');
-  // console.log('環境変数 VITE_SUPABASE_REDIRECT_URL:', envRedirectUrl);
-  
   if (envRedirectUrl) {
     try {
       const url = new URL(envRedirectUrl);
@@ -136,11 +133,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       // if (magicLinkInfo.hasMagicLink) {
       //   console.log('📋 マジックリンク詳細:', magicLinkInfo);
       // }
-      // console.groupEnd();
-      
-      set(state => {
-        state.loading = true;
-      });
+      // console.groupEnd(        state.loading = true;
+       {
+// });
       
       // マジックリンクが検出された場合、セッションを確立
       if (magicLinkInfo.hasMagicLink && magicLinkInfo.tokenHash) {
@@ -168,14 +163,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               url.searchParams.delete('access_token');
               url.searchParams.delete('refresh_token');
               window.history.replaceState({}, '', url.toString());
-              // console.log('🧹 URLパラメータをクリアしました');
-            }
-          }
-        } catch (error) {
-          // console.error('❌ マジックリンク処理エラー:', error);
-          set(state => {
-            state.error = '認証処理中にエラーが発生しました';
-          });
+              // console.log('🔍 マジックリンクのクエリパラメータをクリア');
+            } catch (error) {
+              // console.error('❌ マジックリンク処理エラー:', error);
+              set(state => {
+                state.error = '認証処理中にエラーが発生しました';
+              });
         }
       }
       
@@ -187,7 +180,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       //   userEmail: session?.user?.email,
       //   sessionCreated: session ? '存在します' : 'なし',
       //   sessionExpires: session ? '存在します' : 'なし'
-      // });
+      //  {
+// });
       
       set(state => {
         state.session = session ?? null;
@@ -277,10 +271,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           (event === 'INITIAL_SESSION'  && session?.user) ||
           (event === 'TOKEN_REFRESHED'  && session?.user)
         ) {
-          // console.log('✅ プロフィール取得開始');
-          get().fetchProfile().catch(error => {
-            // console.error('❌ プロフィール取得エラー:', error);
-          });
+          // console.log(            // console.error('❌ プロフィール取得エラー:', error);
+           {
+// });
         }
 
         // メールアドレス変更完了の検出とStripe同期
@@ -461,13 +454,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             }
           }
 
-          // console.log('✅ Magic Link 送信成功');
-        }
-
-        set(state => {
-          state.loading = false;
+          // console.log(          state.loading = false;
           state.error = null;
-        });
+         {
+// });
 
       } catch (error) {
         logMagicLinkError(error, useOtp ? 'OTP送信処理エラー' : 'Magic Link送信処理エラー');
@@ -639,15 +629,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         } else if (error) {
           // console.log('❌ fetchProfile: プロフィール取得エラー', { error });
         } else {
-          // console.log('⚠️ fetchProfile: プロフィールが見つかりません（新規ユーザー）');
-        }
-      } catch (err) {
-        // console.error('Profile fetch error:', err);
+          // console.log(        // console.error('Profile fetch error:', err);
         
         // ネットワークエラーや一時的なエラーの場合は hasProfile を変更しない
         const errorMessage = err instanceof Error ? err.message : String(err);
         if (errorMessage.includes('network') || errorMessage.includes('timeout') || errorMessage.includes('fetch')) {
-          // console.log('🌐 fetchProfile: ネットワークエラー', { errorMessage });
+          // console.log('🌐 fetchProfile: ネットワークエラー', { errorMessage  {
+// });
           set(state => {
             state.error = '一時的なネットワークエラーです。しばらくしてから再試行してください。';
           });
@@ -729,11 +717,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         });
         
       } catch (error) {
-        // console.error('Profile creation error:', error);
-        set(state => { 
-          state.loading = false;
+        // console.error(          state.loading = false;
           state.error = (error instanceof Error ? error.message : String(error)) || 'プロフィールの作成に失敗しました';
-        });
+         {
+// });
       }
     },
 
@@ -781,12 +768,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         };
 
       } catch (error) {
-        // console.error('Email update error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'メールアドレスの更新に失敗しました';
-        set(state => {
-          state.loading = false;
+        // console.error(          state.loading = false;
           state.error = errorMessage;
-        });
+         {
+// });
         
         return { 
           success: false, 

@@ -56,12 +56,7 @@ export const useMissionStore = create<State & Actions>()(
           s.songProgress[missionId] = songProgress;
         });
       } catch (error) {
-        // console.error('曲進捗の取得に失敗:', error);
-      }
-    },
-
-    fetchSongProgressAll: async (missionIds: string[], forceRefresh = false) => {
-      try {
+        // console.error(      try {
         let missionIdsToFetch = missionIds;
         
         // forceRefreshがfalseの場合、既に進捗があるミッションを除外
@@ -70,7 +65,8 @@ export const useMissionStore = create<State & Actions>()(
           missionIdsToFetch = missionIds.filter(id => {
             const progress = existingProgress[id];
             return !progress || progress.length === 0;
-          });
+           {
+// });
         }
         
         if (missionIdsToFetch.length === 0) {

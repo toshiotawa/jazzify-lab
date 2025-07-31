@@ -178,12 +178,7 @@ export async function migrateLegacyConditions(dryRun: boolean = true): Promise<v
       .select('*');
     
     if (challengeError) {
-      // console.error('Error fetching challenge tracks:', challengeError);
-      return;
-    }
-
-    const missionConditions = challengeTracks.map(track => ({
-      song_id: track.song_id,
+      // console.error(      song_id: track.song_id,
       context_type: 'mission',
       context_id: track.challenge_id,
       key_offset: track.key_offset || 0,
@@ -191,7 +186,8 @@ export async function migrateLegacyConditions(dryRun: boolean = true): Promise<v
       min_rank: track.min_rank || 'B',
       clears_required: track.clears_required || 1,
       notation_setting: track.notation_setting || 'both',
-    }));
+     {
+// }));
 
     // lesson_songsからの移行
     const { data: lessonSongs, error: lessonError } = await supabase

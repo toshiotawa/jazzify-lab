@@ -192,21 +192,13 @@ export class FantasySoundManager {
           }
           resolve();
         } catch (error) {
-          // console.warn('[FantasySoundManager] Audio system initialization failed:', error);
-          resolve(); // エラーでも続行
-        }
-      };
-      initializeAudioSystem();
-    });
-  }
-
-  private _setVolume(v: number) {
-    // clamp 0‑1
+          // console.warn(    // clamp 0‑1
     this._volume = Math.max(0, Math.min(1, v));
     // すでにロード済みの base にも反映
     Object.values(this.audioMap).forEach(obj => {
       obj.base.volume = this._volume;
-    });
+     {
+// });
   }
 
   private _playMagic(type: MagicSeType) {
@@ -229,12 +221,12 @@ export class FantasySoundManager {
     if (!entry.ready) {
       // 未ロード or 失敗時は何もしない（ユーザー体験阻害しない）
       // console.warn(`[FantasySoundManager] Audio not ready for key: ${key}`);
-      // console.warn(`[FantasySoundManager] Audio state:`, {
-        src: base.src,
+      // console.warn(        src: base.src,
         readyState: base.readyState,
         networkState: base.networkState,
         error: base.error
-      });
+       {
+// });
       return;
     }
 
@@ -257,12 +249,12 @@ export class FantasySoundManager {
         })
         .catch((error) => {
           // console.warn(`[FantasySoundManager] Failed to play ${key}:`, error);
-          // console.warn(`[FantasySoundManager] Audio state:`, {
-            src: node.src,
+          // console.warn(            src: node.src,
             readyState: node.readyState,
             networkState: node.networkState,
             error: node.error
-          });
+           {
+// });
         });
     }
   }

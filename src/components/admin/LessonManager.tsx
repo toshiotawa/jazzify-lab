@@ -297,15 +297,10 @@ export const LessonManager: React.FC = () => {
         setTimeout(() => loadLessons(true), 500);
       } catch (error) {
         toast.error('レッスンの削除に失敗しました。');
-        // console.error(error);
-      }
-    }
-  };
-
-  const handleRemoveSong = async (lessonId: string, songId: string) => {
-    if (!selectedCourseId) return;
+        // console.error(    if (!selectedCourseId) return;
     
-    // console.log('削除しようとしている曲:', { lessonId, songId });
+    // console.log('削除しようとしている曲:', { lessonId, songId  {
+// });
     
     if (window.confirm('この曲をレッスンから削除しますか？')) {
       try {

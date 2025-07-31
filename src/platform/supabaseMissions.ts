@@ -63,14 +63,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
       .lte('start_date', today)  // 開始日が今日以前（今日を含む）
       .gte('end_date', today);   // 終了日が今日以降（今日を含む）
     
-    // console.log('fetchActiveMonthlyMissions raw data:', result);
-    return result;
-  }, 1000 * 60 * 3); // 最適化: 3分キャッシュ（短いTTLで最新情報を確保）
-  if (error) throw error;
-  
-  // データを正しくマッピング
-  const missions = data.map((mission: unknown) => ({
-    ...mission,
+    // console.log(    ...mission,
     songs: mission.challenge_tracks?.map((track: unknown) => ({
       song_id: track.song_id,
       key_offset: track.key_offset || 0,
@@ -79,7 +72,8 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
       clears_required: track.clears_required || 1,
       notation_setting: track.notation_setting || 'both',
       songs: track.songs
-    })) || []
+     {
+// })) || []
   }));
   
   // console.log('fetchActiveMonthlyMissions processed missions:', missions);

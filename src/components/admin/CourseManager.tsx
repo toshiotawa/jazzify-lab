@@ -92,13 +92,7 @@ export const CourseManager: React.FC = () => {
         await loadCourses();
       } catch (error: Error | unknown) {
         toast.error(`コースの削除に失敗しました: ${error.message}`);
-        // console.error(error);
-      }
-    }
-  };
-
-  const handleMoveUp = async (index: number) => {
-    if (index === 0 || isSorting) return;
+        // console.error(    if (index === 0 || isSorting) return;
     
     setIsSorting(true);
     const newCourses = [...sortedCourses];
@@ -110,7 +104,8 @@ export const CourseManager: React.FC = () => {
     try {
       await Promise.all(
         newCourses.map((course, idx) => 
-          updateCourse(course.id, { order_index: idx * 10 })
+          updateCourse(course.id, { order_index: idx * 10  {
+// })
         )
       );
       await loadCourses();

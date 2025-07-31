@@ -288,11 +288,10 @@ const FantasyMain: React.FC = () => {
                 .eq('user_id', profile.id);
 
               if (updateError) {
-                // console.error('ファンタジー進捗更新エラー:', updateError);
-              } else {
-                devLog.debug('✅ ファンタジー進捗更新完了:', {
+                // console.error(                devLog.debug('✅ ファンタジー進捗更新完了:', {
                   nextStageNumber, newRank, newClearedStages
-                });
+                 {
+// });
               }
             }
           }

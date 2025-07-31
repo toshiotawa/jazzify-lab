@@ -143,12 +143,7 @@ export async function getContextSongProgress(
       .eq('context_id', contextId);
 
     if (error) {
-      // console.error('Error fetching context song progress:', error);
-      return [];
-    }
-
-    return data.map(row => ({
-      userId: row.user_id,
+      // console.error(      userId: row.user_id,
       songId: row.song_id,
       contextType: row.context_type,
       contextId: row.context_id,
@@ -156,7 +151,8 @@ export async function getContextSongProgress(
       bestRank: row.best_rank,
       bestScore: row.best_score,
       lastClearedAt: row.last_cleared_at,
-    }));
+     {
+// }));
   } catch (error) {
     // console.error('Error fetching context song progress:', error);
     return [];
@@ -201,14 +197,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
       .eq('user_id', userId);
     
     if (statsError) {
-      // console.error('Error fetching user song stats:', statsError);
-      return;
-    }
-
-    const migratedProgress = [
-      // Mission progress
-      ...songProgress.map(progress => ({
-        user_id: progress.user_id,
+      // console.error(        user_id: progress.user_id,
         song_id: progress.song_id,
         context_type: 'mission',
         context_id: null, // We'll need to determine this from challenge data
@@ -216,7 +205,8 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
         best_rank: progress.best_rank,
         best_score: null,
         last_cleared_at: progress.last_cleared_at,
-      })),
+       {
+// })),
       // Lesson progress
       ...lessonProgress.map(progress => ({
         user_id: progress.user_id,

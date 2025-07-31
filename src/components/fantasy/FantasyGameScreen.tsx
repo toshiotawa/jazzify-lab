@@ -138,17 +138,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               ).then(() => {
                 devLog.debug('🔊 ファンタジーモード効果音初期化完了');
               }).catch(error => {
-                // console.error('Failed to initialize FantasySoundManager:', error);
-              });
-            }).catch(error => {
-              // console.error('Failed to import FantasySoundManager:', error);
-            });
+                // console.error(              // console.error('Failed to import FantasySoundManager:', error);
+             {
+// });
           }).catch(error => {
-            // console.error('Audio system initialization failed:', error);
-          });
-        }).catch(error => {
-          // console.error('MidiController import failed:', error);
-        });
+            // console.error(          // console.error('MidiController import failed:', error);
+         {
+// });
         
         // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
         // 接続処理は下のuseEffectに任せる。
@@ -234,14 +230,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
         await FantasySoundManager.playRootNote(chord.root);
       } catch (error) {
-        // console.error('Failed to play root note:', error);
-      }
-    }
-  }, [fantasyPixiInstance, settings.playRootSound]);
-  // ▲▲▲ ここまで ▲▲▲
-  
-  const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
-    devLog.debug('🎵 まだ構成音が足りません:', { expected: expectedChord.displayName, input: inputNotes });
+        // console.error(    devLog.debug('🎵 まだ構成音が足りません:', { expected: expectedChord.displayName, input: inputNotes  {
+// });
     
     // 不正解エフェクトは削除（音の積み重ね方式のため）
     // setShowIncorrectEffect(true);
@@ -258,24 +248,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
       FantasySoundManager.playEnemyAttack();
     } catch (error) {
-      // console.error('Failed to play enemy attack sound:', error);
-    }
-    
-    // confetti削除 - 何もしない
-    
-    // ダメージ時の画面振動
-    setDamageShake(true);
-    setTimeout(() => setDamageShake(false), 500);
-    
-    // ハートフラッシュ効果
-    setHeartFlash(true);
-    setTimeout(() => setHeartFlash(false), 150);
-    
-  }, []);
-  
-  const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
-    const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
-    setOverlay({ text });                 // ★★★ add
+      // console.error(    const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
+    setOverlay({ text  {
+// });                 // ★★★ add
     setTimeout(() => {
       setOverlay(null);                   // オーバーレイを消す
       onGameComplete(
@@ -1017,26 +992,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               updateGlobalVolume(settings.volume);
               devLog.debug(`🎵 ファンタジーモードのピアノ音量を更新: ${settings.volume}`);
             }).catch(error => {
-              // console.error('MidiController import failed:', error);
-            });
-          }
-          
-          // 効果音音量設定が変更されたら、gameStoreを更新
-          if (settings.soundEffectVolume !== undefined) {
-            updateSettings({ soundEffectVolume: settings.soundEffectVolume });
+              // console.error(            updateSettings({ soundEffectVolume: settings.soundEffectVolume  {
+// });
             devLog.debug(`🔊 ファンタジーモードの効果音音量を更新: ${settings.soundEffectVolume}`);
             
             // FantasySoundManagerの音量も即座に更新
             import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
               FantasySoundManager.setVolume(settings.soundEffectVolume);
             }).catch(error => {
-              // console.error('Failed to update FantasySoundManager volume:', error);
-            });
-          }
-
-          // ルート音設定が変更されたら、gameStoreを更新
-          if (settings.playRootSound !== undefined) {
-            updateSettings({ playRootSound: settings.playRootSound });
+              // console.error(            updateSettings({ playRootSound: settings.playRootSound  {
+// });
             import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) =>
               FantasySoundManager.enableRootSound(settings.playRootSound)
             );

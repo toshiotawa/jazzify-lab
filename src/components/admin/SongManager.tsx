@@ -28,10 +28,10 @@ const SongManager: React.FC = () => {
 
   // 環境変数チェック
   useEffect(() => {
-    // console.log('環境変数チェック:', {
-      VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL ? '設定済み' : '未設定',
+    // console.log(      VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL ? '設定済み' : '未設定',
       VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY ? '設定済み' : '未設定',
-    });
+     {
+// });
   }, []);
 
   const loadSongs = async (usageType: SongUsageType) => {
@@ -97,14 +97,13 @@ const SongManager: React.FC = () => {
         setActiveListTab(activeFormTab);
       }
     } catch (e: unknown) {
-      // console.error('曲の追加エラー:', e);
-      // console.error('エラー詳細:', {
-        message: e.message,
+      // console.error(        message: e.message,
         code: e.code,
         details: e.details,
         hint: e.hint,
         statusCode: e.statusCode || e.status
-      });
+       {
+// });
       
       // エラーメッセージを改善
       let errorMessage = '曲の追加に失敗しました';

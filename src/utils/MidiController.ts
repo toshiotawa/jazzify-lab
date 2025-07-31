@@ -215,13 +215,7 @@ export const updateGlobalVolume = (volume: number): void => {
       const volumeDb = volume === 0 ? -Infinity : Math.log10(volume) * 20;
       (globalSampler as unknown).volume.value = volumeDb;
     } catch (error) {
-      // console.error('❌ Failed to update global volume:', error);
-    }
-  }
-};
-
-export class MIDIController {
-  private readonly onNoteOn: (note: number, velocity?: number) => void;
+      // console.error(  private readonly onNoteOn: (note: number, velocity?: number) => void;
   private readonly onNoteOff: (note: number) => void;
   private midiAccess: MIDIAccess | null = null;
   private readonly activeNotes = new Set<number>();
@@ -238,7 +232,8 @@ export class MIDIController {
   // 音声再生制御フラグ
   private readonly playMidiSound: boolean;
 
-  constructor(options: MidiControllerOptions & { playMidiSound?: boolean }) {
+  constructor(options: MidiControllerOptions & { playMidiSound?: boolean  {
+// }) {
     this.onNoteOn = options.onNoteOn;
     this.onNoteOff = options.onNoteOff;
     this.onConnectionChange = options.onConnectionChange || null;

@@ -272,11 +272,11 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
           // 成功時のみカウントを増やす
           if (!upsertError) {
             missionsUpdated++;
-            // console.log('ミッション進捗更新成功', { 
-              challengeId: m.id, 
+            // console.log(              challengeId: m.id, 
               clearCount: actualDiaryCount || 0,
               completed: (actualDiaryCount || 0) >= m.diary_count 
-            });
+             {
+// });
           } else {
             // console.error('ミッション進捗更新エラー', upsertError);
           }
@@ -582,18 +582,9 @@ export async function deleteDiary(diaryId: string): Promise<void> {
       }
     }
   } catch (e) {
-    // console.warn('ミッション進捗の調整でエラーが発生しました:', e);
-  }
-  
-  // ────────── キャッシュをクリア ──────────
-  clearSupabaseCache();
-  clearUserStatsCache();
-}
-
-// テスト用ヘルパー関数
-export async function getTodayDiaryCount(userId: string): Promise<number> {
-  const supabase = getSupabaseClient();
-  const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
+    // console.warn(  const supabase = getSupabaseClient();
+  const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit'  {
+// }).split('/').join('-');
   
   const { count } = await supabase
     .from('practice_diaries')

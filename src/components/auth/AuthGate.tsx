@@ -57,15 +57,15 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   }
 
   // デバッグ情報を出力
-  // console.log('🔍 AuthGate: 状態確認', { 
-  //   user: !!user, 
+  // console.log(  //   user: !!user, 
   //   isGuest, 
   //   hasProfile, 
   //   loading, 
   //   error,
   //   userId: user?.id,
   //   userEmail: user?.email
-  // });
+  //  {
+// });
 
   // ログイン済みでプロフィールがある、またはゲストモード
   if (isGuest || (user && hasProfile)) {

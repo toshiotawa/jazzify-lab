@@ -28,13 +28,8 @@ class ErrorBoundary extends Component<Props, State> {
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
-    this.setState({
-      error,
-      errorInfo
-    });
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // console.error('ErrorBoundary caught error:', error, errorInfo);
     
     // エラー報告システムにログを送信（将来的に実装）
     // reportError(error, errorInfo);

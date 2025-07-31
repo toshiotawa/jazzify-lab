@@ -988,6 +988,17 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           }
         }),
         
+        transpose: (semitones: number) => {
+          const { settings, setTranspose } = get();
+          const nextValue = settings.transpose + semitones;
+          setTranspose(nextValue);
+        },
+        
+        setTranspose: (semitones: number) => set((state) => {
+          const clamped = Math.max(-12, Math.min(12, semitones));
+          state.settings.transpose = clamped;
+        }),
+        
         // ノーツ管理
         addActiveNote: (noteId) => set((state) => {
           state.activeNotes.add(noteId);
@@ -1572,28 +1583,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
   // }
   // }
   // });
-          
-          updateEngineSettings();
-          // console.log(`🎵 Transpose changed to ${clamped}, song re-processed without playback interruption.`);
-        },
-        
-        // 練習モードガイド制御
-        setLastKeyHighlight: (pitch: number, timestamp: number) => set((state) => {
-          state.lastKeyHighlight = { pitch, timestamp };
-        }),
-        clearLastKeyHighlight: () => set((state) => {
-          state.lastKeyHighlight = undefined;
-        }),
-        
-        // ===== 新機能: 拡張状態管理 =====
-        
-        // 初期化状態
-        initialization: defaultInitialization,
-        
-        // 設定プリセット
-        settingsPresets: defaultPresets,
-        
-        // セッション管理
         currentSession: null,
         sessionHistory: [],
         
@@ -1865,6 +1854,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           set((state: GameStoreState) => {
             state.resultModalOpen = false;
           }),
+        
+        // 練習モードガイド制御
+        setLastKeyHighlight: (pitch: number, timestamp: number) => set((state) => {
+          state.lastKeyHighlight = { pitch, timestamp };
+        }),
+        
+        clearLastKeyHighlight: () => set((state) => {
+          state.lastKeyHighlight = undefined;
+        }),
         
         // 音名情報更新
         updateNoteNames: (noteNamesMap: Record<string, string>) =>

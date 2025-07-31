@@ -163,16 +163,11 @@ const LessonPage: React.FC = () => {
           const progressMap = Object.fromEntries(courseProgressResults) as Record<string, number>;
           setAllCoursesProgress(progressMap);
         } catch (error) {
-          // console.error('Error loading course progress data:', error);
-        }
-      }
-      
-      // アクセス可能な最初のコースを選択
-      const firstAccessibleCourse = sortedCourses.find(course => {
-        const courseUnlockFlag = unlockStatus[course.id] !== undefined ? unlockStatus[course.id] : null;
+          // console.error(        const courseUnlockFlag = unlockStatus[course.id] !== undefined ? unlockStatus[course.id] : null;
         const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourses, courseUnlockFlag);
         return accessResult.canAccess;
-      });
+       {
+// });
       if (firstAccessibleCourse) {
         setSelectedCourse(firstAccessibleCourse);
       }
