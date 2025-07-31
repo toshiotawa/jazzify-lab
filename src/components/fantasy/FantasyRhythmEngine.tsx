@@ -330,7 +330,7 @@ export const useFantasyRhythmEngine = ({
 
     setGameState(newState);
     onGameStateChange(newState);
-  }, [displayOpts, timeStore, onGameStateChange]);
+  }, [displayOpts, currentMeasure, currentBeat, onGameStateChange]);
 
   const spawnProgressionMonsters = useCallback((state: RhythmGameState) => {
     if (!state.currentStage || !state.rhythmData) return;
