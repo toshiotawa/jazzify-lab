@@ -57,7 +57,14 @@ export const FantasyGameMode: React.FC<FantasyGameModeProps> = (props) => {
   }), [stage]);
 
   // ゲームタイプに基づいて分岐
+  console.log('FantasyGameMode - Stage data:', {
+    stageGameType: stage.gameType,
+    extendedGameType: extendedStage.gameType,
+    stageName: stage.name
+  });
+  
   if (extendedStage.gameType === 'rhythm') {
+    console.log('リズムモードとして認識されました');
     return (
       <RhythmFantasyGame
         stage={extendedStage}
@@ -83,6 +90,7 @@ export const FantasyGameMode: React.FC<FantasyGameModeProps> = (props) => {
   }
 
   // クイズモード（既存）
+  console.log('クイズモードとして認識されました');
   return <FantasyGameScreen {...props} />;
 };
 
