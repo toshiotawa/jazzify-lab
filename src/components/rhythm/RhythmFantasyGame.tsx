@@ -2,10 +2,12 @@
  * リズム機能を統合したファンタジーゲーム
  */
 
-import React, { useEffect, useCallback, useMemo, useState } from 'react';
+import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import { useRhythmStore, useRhythmGameState, useRhythmEnemies, useRhythmJudgment } from '@/stores/rhythmStore';
 import { AudioManager } from './AudioManager';
 import { RhythmEngine } from './RhythmEngine';
+import { RhythmGameUI } from './RhythmGameUI';
+import { MIDIController } from '@/utils/MidiController';
 import type { ExtendedFantasyStage, RhythmStageData, ChordDefinition } from '@/types';
 import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName } from '@/utils/display-note';
@@ -16,6 +18,7 @@ interface RhythmFantasyGameProps {
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover') => void;
   onEnemyAttack: (attackingMonsterId?: string) => void;
+  onBackToStageSelect: () => void;
 }
 
 export const RhythmFantasyGame: React.FC<RhythmFantasyGameProps> = ({
@@ -24,12 +27,19 @@ export const RhythmFantasyGame: React.FC<RhythmFantasyGameProps> = ({
   onChordIncorrect,
   onGameComplete,
   onEnemyAttack,
+  onBackToStageSelect,
 }) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [playerHp, setPlayerHp] = useState(stage.maxHp);
+  const [isMidiConnected, setIsMidiConnected] = useState(false);
   
   // ストア
   const rhythmStore = useRhythmStore();
+  
+  // MIDI管理
+  const midiControllerRef = useRef<MIDIController | null>(null);
+  const activeNotesRef = useRef<Set<number>>(new Set());
   
   // リズム状態
   const rhythmGameState = useRhythmGameState();
@@ -64,6 +74,32 @@ export const RhythmFantasyGame: React.FC<RhythmFantasyGameProps> = ({
     monster_icon: stage.monsterIcon,
     bgm_url: stage.bgmUrl || null,
   }), [stage]);
+
+  // MIDI初期化
+  useEffect(() => {
+    if (!midiControllerRef.current) {
+      const controller = new MIDIController({
+        onNoteOn: (note: number) => {
+          activeNotesRef.current.add(note);
+          handleNoteInput(note);
+        },
+        onNoteOff: (note: number) => {
+          activeNotesRef.current.delete(note);
+        },
+        onDeviceChange: (connected: boolean) => {
+          setIsMidiConnected(connected);
+        },
+      });
+      midiControllerRef.current = controller;
+    }
+
+    return () => {
+      if (midiControllerRef.current) {
+        midiControllerRef.current.destroy();
+        midiControllerRef.current = null;
+      }
+    };
+  }, [handleNoteInput]);
 
   // ゲーム初期化
   useEffect(() => {
@@ -151,6 +187,9 @@ export const RhythmFantasyGame: React.FC<RhythmFantasyGameProps> = ({
         const expectedChordDef = createChordDefinition(rhythmJudgment.currentExpectedChord || judgment.chord);
         onChordIncorrect(expectedChordDef, []);
         onEnemyAttack();
+        
+        // HPを減少
+        setPlayerHp(prev => Math.max(0, prev - 1));
       }
     } catch (error) {
       console.error('Error handling judgment:', error);
@@ -165,6 +204,47 @@ export const RhythmFantasyGame: React.FC<RhythmFantasyGameProps> = ({
     onChordIncorrect, 
     onEnemyAttack
   ]);
+
+  // ノート入力処理
+  const handleNoteInput = useCallback((_note: number) => {
+    // 現在アクティブなノートセットからコードを判定
+    const currentNotes = Array.from(activeNotesRef.current).sort((a, b) => a - b);
+    
+    if (currentNotes.length >= 3) { // 最低3音でコード判定
+      // 簡単なコード判定ロジック（実際の実装ではより複雑な判定が必要）
+      const chord = recognizeChord(currentNotes);
+      if (chord && rhythmStageData.allowed_chords.includes(chord)) {
+        handleChordInput(chord);
+      }
+    }
+  }, [rhythmStageData.allowed_chords, recognizeChord, handleChordInput]);
+
+  // 簡単なコード認識（実際の実装ではより精密な判定が必要）
+  const recognizeChord = useCallback((notes: number[]): string | null => {
+    const intervals = notes.slice(1).map(note => note - notes[0]);
+    
+    // 基本的なコードパターン
+    const chordPatterns: Record<string, number[]> = {
+      'C': [4, 7],     // メジャー
+      'Cm': [3, 7],    // マイナー
+      'C7': [4, 7, 10], // セブンス
+      'CM7': [4, 7, 11], // メジャーセブンス
+      // 他のコードパターンも追加可能
+    };
+
+    for (const [chordType, pattern] of Object.entries(chordPatterns)) {
+      if (intervals.length >= pattern.length && 
+          pattern.every(interval => intervals.includes(interval))) {
+        // ルート音からコード名を生成
+        const rootNote = notes[0] % 12;
+        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const root = noteNames[rootNote];
+        return chordType === 'C' ? root : root + chordType.slice(1);
+      }
+    }
+    
+    return null;
+  }, []);
 
   // 外部からのコード入力処理
   const handleChordInput = useCallback((chordName: string) => {
@@ -183,6 +263,14 @@ export const RhythmFantasyGame: React.FC<RhythmFantasyGameProps> = ({
       onGameComplete(gameStatus.gameResult);
     }
   }, [gameStatus.isGameOver, gameStatus.gameResult, onGameComplete]);
+
+  // HP 0でゲームオーバー
+  useEffect(() => {
+    if (playerHp <= 0) {
+      rhythmStore.stopGame();
+      onGameComplete('gameover');
+    }
+  }, [playerHp, rhythmStore, onGameComplete]);
 
   // ゲーム開始
   const startGame = useCallback(() => {
@@ -205,7 +293,7 @@ export const RhythmFantasyGame: React.FC<RhythmFantasyGameProps> = ({
 
   return (
     <div className="rhythm-fantasy-game">
-      {/* オーディオマネージャー */}
+      {/* バックグラウンド処理 */}
       <AudioManager
         src={rhythmStageData.mp3_url}
         isPlaying={rhythmGameState.isPlaying}
@@ -218,7 +306,6 @@ export const RhythmFantasyGame: React.FC<RhythmFantasyGameProps> = ({
         onError={handleAudioError}
       />
 
-      {/* リズムエンジン */}
       <RhythmEngine
         bpm={rhythmGameState.bpm}
         timeSignature={rhythmGameState.timeSignature}
@@ -232,25 +319,47 @@ export const RhythmFantasyGame: React.FC<RhythmFantasyGameProps> = ({
         onJudgmentEnd={handleJudgmentEnd}
       />
 
+      {/* メインUI */}
+      <RhythmGameUI
+        stage={{
+          name: stage.name,
+          stageNumber: stage.stageNumber,
+          showGuide: stage.showGuide,
+        }}
+        playerHp={playerHp}
+        maxHp={stage.maxHp}
+        onBackToStageSelect={onBackToStageSelect}
+      />
+
+      {/* ゲーム開始/停止ボタン */}
+      <div className="fixed bottom-4 left-4 space-x-2">
+        <button
+          onClick={startGame}
+          disabled={rhythmGameState.isPlaying}
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-500 text-white rounded"
+        >
+          開始
+        </button>
+        <button
+          onClick={stopGame}
+          disabled={!rhythmGameState.isPlaying}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-500 text-white rounded"
+        >
+          停止
+        </button>
+      </div>
+
+      {/* MIDI接続状態 */}
+      <div className="fixed top-4 right-4">
+        <div className={`px-3 py-1 rounded text-sm ${isMidiConnected ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'}`}>
+          MIDI: {isMidiConnected ? '接続済み' : '未接続'}
+        </div>
+      </div>
+
       {/* エラー表示 */}
       {audioError && (
-        <div className="error-message text-red-500 p-4 bg-red-100 rounded">
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-red-600 text-white p-4 rounded shadow-lg">
           {audioError}
-        </div>
-      )}
-
-      {/* デバッグ情報 */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="debug-info text-xs bg-gray-100 p-2 rounded">
-          <div>Game Type: {rhythmGameState.gameType}</div>
-          <div>Pattern: {rhythmGameState.rhythmPattern}</div>
-          <div>BPM: {rhythmGameState.bpm}</div>
-          <div>Time: {rhythmGameState.currentTime.toFixed(2)}s</div>
-          <div>Measure: {rhythmGameState.currentMeasure}</div>
-          <div>Beat: {rhythmGameState.currentBeat.toFixed(2)}</div>
-          <div>Expected: {rhythmJudgment.currentExpectedChord}</div>
-          <div>In Window: {rhythmJudgment.isInJudgmentWindow ? 'Yes' : 'No'}</div>
-          <div>Active Enemies: {rhythmEnemies.filter(e => e.isActive).length}</div>
         </div>
       )}
     </div>
