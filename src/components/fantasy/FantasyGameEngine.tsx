@@ -53,6 +53,7 @@ interface FantasyStage {
   chordProgressionData?: ChordProgressionData[];
   mp3Url?: string;
   rhythmData?: string;
+
 }
 
 interface MonsterState {
@@ -480,6 +481,7 @@ export const useFantasyGameEngine = ({
     try {
       // バンドルが既に存在する場合は削除
       if (PIXI.Assets.resolver && (PIXI.Assets.resolver as { bundles?: Map<string, unknown> }).bundles?.has('stageMonsters')) {
+
         await PIXI.Assets.unloadBundle('stageMonsters');
       }
 
@@ -1076,4 +1078,4 @@ export const useFantasyGameEngine = ({
 };
 
 export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState };
-export { ENEMY_LIST, getCurrentEnemy };
+export { ENEMY_LIST, getCurrentEnemy, getChordDefinition };

@@ -113,6 +113,7 @@ const FantasyMain: React.FC = () => {
             chordProgressionData: stage.chord_progression_data,
             mp3Url: stage.mp3_url,
             rhythmData: stage.rhythm_data
+
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);

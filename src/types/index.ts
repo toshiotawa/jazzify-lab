@@ -658,6 +658,7 @@ export interface ChordProgressionData {
   chord: string;
   measure: number;
   beat: number;
+
 }
 
 export interface LessonContext {
