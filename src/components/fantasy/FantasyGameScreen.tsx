@@ -8,6 +8,8 @@ import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
+import { useTimeStore } from '@/stores/timeStore';
+import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
@@ -55,6 +57,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
+  // 時間管理
+  const { currentBeat, currentMeasure, tick, startAt, readyDuration } = useTimeStore();
+  
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
   const { settings, updateSettings } = useGameStore();
@@ -64,6 +69,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
   const monsterAreaRef = useRef<HTMLDivElement>(null);
+  
+  /* 毎 100 ms で時間ストア tick */
+  useEffect(() => {
+    const id = setInterval(() => tick(), 100);
+    return () => clearInterval(id);
+  }, [tick]);
+
+  /* Ready → Start 判定 */
+  const isReady =
+    startAt !== null && performance.now() - startAt < readyDuration;
   
   // ★★★ 追加: モンスターエリアのサイズ監視 ★★★
   useEffect(() => {
@@ -83,6 +98,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       window.removeEventListener('resize', update);
     };
   }, []);
+  
+  // Ready 終了時に BGM 再生
+  useEffect(() => {
+    if (!isReady && startAt) {
+      bgmManager.play(
+        stage.bgmUrl ?? '/demo-1.mp3',
+        stage.bpm || 120,
+        4,
+        stage.measureCount ?? 8,
+        stage.countInMeasures ?? 0,
+        settings.bgmVolume ?? 0.7
+      );
+    } else {
+      bgmManager.stop();
+    }
+    return () => bgmManager.stop();
+  }, [isReady, stage, settings.bgmVolume, startAt]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -678,6 +710,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     )}>
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
+        <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
+          M {currentMeasure} - B {currentBeat}
+        </div>
         <div className="flex justify-between items-center">
           {/* ステージ情報と敵の数 */}
           <div className="flex items-center space-x-4">
@@ -1066,6 +1101,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none">
           <span className="font-dotgothic16 text-6xl text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
             {overlay.text}
+          </span>
+        </div>
+      )}
+      
+      {/* Ready オーバーレイ */}
+      {isReady && (
+        <div className="absolute inset-0 flex items-center justify-center z-[9998] bg-black/60">
+          <span className="font-dotgothic16 text-7xl text-white animate-pulse">
+            Ready
           </span>
         </div>
       )}

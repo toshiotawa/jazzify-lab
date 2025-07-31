@@ -132,6 +132,7 @@ export interface GameSettings {
   musicVolume: number;         // 0-1
   midiVolume: number;          // 0-1
   soundEffectVolume: number;   // 0-1 (ファンタジーモード効果音音量)
+  bgmVolume: number;           // 0-1 (ファンタジーモードBGM音量)
   
   // ファンタジーモード設定
   playRootSound?: boolean;      // ルート音を鳴らすか

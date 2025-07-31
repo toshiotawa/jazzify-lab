@@ -8,6 +8,7 @@ import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
+import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
 
@@ -41,6 +42,9 @@ interface FantasyStage {
   monsterIcon: string;
   bgmUrl?: string;
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
+  bpm: number;
+  measureCount?: number;
+  countInMeasures?: number;
 }
 
 interface MonsterState {
@@ -534,6 +538,16 @@ export const useFantasyGameEngine = ({
     setGameState(newState);
     onGameStateChange(newState);
 
+    /* ===== Ready + 時間ストア開始 ===== */
+    useTimeStore
+      .getState()
+      .setStart(
+        stage.bpm || 120,
+        4, // 4/4 基本。未設定列は後方互換
+        stage.measureCount ?? 8,
+        stage.countInMeasures ?? 0
+      );
+
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
       totalEnemies,
@@ -731,6 +745,13 @@ export const useFantasyGameEngine = ({
   
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
+    /* Ready 中はゲージ停止 */
+    const timeState = useTimeStore.getState();
+    if (timeState.startAt &&
+        performance.now() - timeState.startAt < timeState.readyDuration) {
+      return;
+    }
+    
     setGameState(prevState => {
       if (!prevState.isGameActive || !prevState.currentStage) {
         devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
