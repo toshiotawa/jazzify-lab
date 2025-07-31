@@ -52,7 +52,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // BGMストア
   const bgmVolume = useBgmStore(state => state.volume);
-  const [isReadyPhase, setIsReadyPhase] = useState(false);
+  const isReadyPhase = useBgmStore(state => state.isReadyPhase);
   
   // 設定状態を管理（初期値はstageから取得）
   // showGuideはstage.showGuideを直接使用（状態管理しない）
@@ -653,11 +653,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             console.error('Failed to initialize BGM:', error);
           }
         }
-        
-        setIsReadyPhase(true);
-        bgmState.startReadyPhase();
-        initializeGame(stage);
-      };
+          
+          bgmState.startReadyPhase();
+          
+          // Initialize game after Ready phase completes
+          setTimeout(() => {
+            initializeGame(stage);
+          }, 2000); // 2 seconds for Ready phase
+        };
       
       startWithBgm();
     }
@@ -712,11 +715,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               }
               
               // Start Ready phase
-              setIsReadyPhase(true);
               bgmState.startReadyPhase();
               
-              // Initialize game after Ready phase starts
-              initializeGame(stage);
+              // Initialize game after Ready phase completes
+              setTimeout(() => {
+                initializeGame(stage);
+              }, 2000); // 2 seconds for Ready phase
             }}
             className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
           >
@@ -1141,7 +1145,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* Ready Phase Overlay */}
       <ReadyOverlay
         isVisible={isReadyPhase}
-        onComplete={() => setIsReadyPhase(false)}
+        onComplete={() => {
+          // Ready phase completion is handled by bgmStore
+        }}
       />
       
       {/* Beat Display */}

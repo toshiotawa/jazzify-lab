@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ReadyOverlayProps {
@@ -8,26 +8,46 @@ interface ReadyOverlayProps {
 
 export const ReadyOverlay: React.FC<ReadyOverlayProps> = ({ isVisible, onComplete }) => {
   const [countdown, setCountdown] = useState(2);
+  const [showStart, setShowStart] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const cleanup = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
   
   useEffect(() => {
     if (!isVisible) {
+      cleanup();
       setCountdown(2);
+      setShowStart(false);
       return;
     }
     
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
+    // Start countdown
+    let currentCount = 2;
+    
+    timerRef.current = setInterval(() => {
+      currentCount--;
+      
+      if (currentCount > 0) {
+        setCountdown(currentCount);
+      } else if (currentCount === 0) {
+        setCountdown(0);
+        setShowStart(true);
+        cleanup();
+        
+        // Show "Start!" for a moment then complete
+        setTimeout(() => {
           onComplete?.();
-          return 0;
-        }
-        return prev - 1;
-      });
+        }, 500);
+      }
     }, 1000);
     
-    return () => clearInterval(timer);
-  }, [isVisible, onComplete]);
+    return cleanup;
+  }, [isVisible, onComplete, cleanup]);
   
   return (
     <AnimatePresence>
@@ -46,7 +66,7 @@ export const ReadyOverlay: React.FC<ReadyOverlayProps> = ({ isVisible, onComplet
             transition={{ duration: 0.3 }}
             className="text-center"
           >
-            {countdown > 0 ? (
+            {!showStart ? (
               <motion.div
                 key={countdown}
                 initial={{ scale: 0.5, opacity: 0 }}
