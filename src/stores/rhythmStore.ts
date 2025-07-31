@@ -176,15 +176,17 @@ export const useRhythmStore = create<RhythmStoreState>()(
       },
       
       setAudioElement: (element) => {
-        set((state) => {
-          state.audioElement = element;
-        });
+        // Immerのドラフトの外でセット
+        set(() => ({
+          audioElement: element
+        }));
       },
       
       setAudioContext: (context) => {
-        set((state) => {
-          state.audioContext = context;
-        });
+        // Immerのドラフトの外でセット
+        set(() => ({
+          audioContext: context
+        }));
       },
       
       checkTiming: (chord) => {

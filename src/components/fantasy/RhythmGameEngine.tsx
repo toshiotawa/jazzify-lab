@@ -190,7 +190,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
 
     const monsterIds = getStageMonsterIds(stage.stageNumber);
     const monsterId = monsterIds[index % monsterIds.length];
-    const monsterDef = MONSTERS[monsterId];
+    const monsterDef = MONSTERS[monsterId as keyof typeof MONSTERS];
     
     if (!monsterDef) return null;
 
@@ -234,7 +234,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
         const updatedMonster = { ...monster };
 
         // リズムモードでのゲージ計算
-        if (stage.gameType === 'rhythm') {
+        if (stage && stage.gameType === 'rhythm') {
           // 現在の小節内での進行度を計算
           const measureDuration = rhythmStore.getMeasureDuration();
           const currentMeasureTime = currentTime % measureDuration;
@@ -307,7 +307,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
       let hitAny = false;
 
       // リズムモードの判定
-      if (stage.gameType === 'rhythm') {
+      if (stage && stage.gameType === 'rhythm') {
         // 現在のタイミングでのコード判定
         const currentChordTiming = rhythmStore.getCurrentChordTiming();
         
@@ -337,7 +337,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
               const judgment = rhythmStore.checkTiming(monster.chordTarget.id);
               
               // ダメージ計算
-              const baseDamage = stage.minDamage;
+              const baseDamage = stage?.minDamage || 1;
               const bonusDamage = judgment.timing === 'perfect' ? 2 : 
                                  judgment.timing === 'good' ? 1 : 0;
               const totalDamage = baseDamage + bonusDamage;
@@ -355,7 +355,10 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
               
               // 撃破判定
               const defeated = updatedMonster.currentHp <= 0;
-              onChordCorrect(monster.chordTarget, judgment.timing, totalDamage, defeated, monster.id);
+              // judgmentの型を確認してperfect/goodのみ渡す
+              if (judgment.timing === 'perfect' || judgment.timing === 'good') {
+                onChordCorrect(monster.chordTarget, judgment.timing, totalDamage, defeated, monster.id);
+              }
               
               // 次のコードを設定
               if (!defeated) {
@@ -387,8 +390,6 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
       return;
     }
 
-    console.log('🎵 Starting rhythm game with stage:', stage);
-
     // リズムストアの初期化
     rhythmStore.initialize(
       stage.bpm || 120,
@@ -407,13 +408,13 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
     const initialMonsters: RhythmMonsterState[] = [];
     const monsterCount = Math.min(stage.simultaneousMonsterCount || 1, 4);
 
-    console.log('🎵 Creating initial monsters:', monsterCount);
+    // console.log('🎵 Creating initial monsters:', monsterCount);
 
     for (let i = 0; i < monsterCount; i++) {
       const monster = createMonster(i, positions[i]);
       if (monster) {
         initialMonsters.push(monster);
-        console.log('🎵 Created monster:', monster.name, 'with chord:', monster.chordTarget.id);
+        // console.log('🎵 Created monster:', monster.name, 'with chord:', monster.chordTarget.id);
       } else {
         console.error('Failed to create monster at index:', i);
       }
@@ -439,7 +440,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
       nextChord: null
     };
     
-    console.log('🎵 Initializing game state:', {
+    // console.log('🎵 Initializing game state:', {
       activeMonsters: newGameState.activeMonsters.length,
       currentChord: newGameState.currentChord?.id,
       isGameActive: newGameState.isGameActive
@@ -471,7 +472,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
 
   // エフェクト: 状態変更通知
   useEffect(() => {
-    console.log('🎵 Rhythm game state changed:', {
+    // console.log('🎵 Rhythm game state changed:', {
       isGameActive: gameState.isGameActive,
       activeMonsters: gameState.activeMonsters.length,
       currentChord: gameState.currentChord?.id

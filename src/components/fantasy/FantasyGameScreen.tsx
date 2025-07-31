@@ -218,10 +218,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       currentChord: state.currentChordTarget?.displayName || state.currentChord?.displayName,
       score: state.score,
       correctAnswers: state.correctAnswers,
-      isRhythmMode: isRhythmMode,
+      isRhythmMode: stage?.gameType === 'rhythm',
       activeMonsters: state.activeMonsters?.length || 0
     });
-  }, [isRhythmMode]);
+  }, [stage?.gameType]);
   
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を受け取り、新しいPIXIメソッドを呼び出す
@@ -350,7 +350,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stopGame: rhythmEngine.stopGame,
     getCurrentEnemy: () => null,
     proceedToNextEnemy: () => {},
-    imageTexturesRef: { current: null },
+    imageTexturesRef: { current: new Map() },
     ENEMY_LIST: []
   } : quizEngine;
   
