@@ -8,6 +8,7 @@ import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
+import { useFantasyTimeStore } from '@/stores/fantasyTimeStore';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
@@ -60,6 +61,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const { settings, updateSettings } = useGameStore();
   const midiControllerRef = useRef<MIDIController | null>(null);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
+  
+  // ★★★ BGMと時間管理 ★★★
+  const { 
+    gamePhase, 
+    bgmVolume,
+    currentMeasure,
+    currentBeat,
+    setGamePhase,
+    setBgmSettings,
+    setCurrentPosition,
+    startBgm,
+    stopBgm,
+    setAudioRef,
+    reset: resetTimeStore
+  } = useFantasyTimeStore();
+  
+  const beatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
@@ -198,6 +216,92 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const timer = setTimeout(restoreMidiConnection, 100);
     return () => clearTimeout(timer);
   }, [stage]); // stageが変更されたときに実行
+  
+  // ★★★ BGM初期化 ★★★
+  useEffect(() => {
+    if (!stage?.mp3Url) return;
+
+    const audio = new Audio(stage.mp3Url);
+    audio.volume = bgmVolume;
+    audio.loop = false; // 手動でループ管理
+    setAudioRef(audio);
+    
+    // BGM設定を更新
+    setBgmSettings({
+      url: stage.mp3Url,
+      bpm: stage.bpm || 120,
+      timeSignature: stage.timeSignature || '4/4',
+      measureCount: stage.measureCount || 8,
+      countInMeasures: stage.countInMeasures || 2
+    });
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+      if (beatIntervalRef.current) {
+        clearInterval(beatIntervalRef.current);
+        beatIntervalRef.current = null;
+      }
+    };
+  }, [stage, setBgmSettings, setAudioRef]);
+  
+  // ★★★ BGM音量更新 ★★★
+  useEffect(() => {
+    const { audioRef } = useFantasyTimeStore.getState();
+    if (audioRef) {
+      audioRef.volume = bgmVolume;
+    }
+  }, [bgmVolume]);
+  
+  // ★★★ ビートカウンター ★★★
+  const startBeatCounter = useCallback(() => {
+    if (!stage) return;
+    
+    const [beatsPerMeasure] = (stage.timeSignature || '4/4').split('/').map(Number);
+    const beatDuration = 60000 / (stage.bpm || 120); // ミリ秒単位
+    
+    if (beatIntervalRef.current) {
+      clearInterval(beatIntervalRef.current);
+    }
+    
+    let measure = 1;
+    let beat = 1;
+    
+    beatIntervalRef.current = setInterval(() => {
+      beat++;
+      if (beat > beatsPerMeasure) {
+        beat = 1;
+        measure++;
+        
+        // ループ処理
+        if (measure > (stage.measureCount || 8)) {
+          measure = (stage.countInMeasures || 2) + 1;
+          // BGMの再生位置を調整
+          const { audioRef } = useFantasyTimeStore.getState();
+          if (audioRef) {
+            const loopStartTime = ((stage.countInMeasures || 2) * beatsPerMeasure * beatDuration) / 1000;
+            audioRef.currentTime = loopStartTime;
+          }
+        }
+      }
+      
+      setCurrentPosition(measure, beat);
+    }, beatDuration);
+  }, [stage, setCurrentPosition]);
+  
+  // ★★★ ゲーム開始時のReady処理 ★★★
+  useEffect(() => {
+    if (gameState.isGameActive && gamePhase === 'ready') {
+      // 2秒後にplayingフェーズに移行してBGMを開始
+      const timer = setTimeout(() => {
+        setGamePhase('playing');
+        startBgm();
+        startBeatCounter();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [gameState.isGameActive, gamePhase, setGamePhase, startBgm, startBeatCounter]);
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -623,9 +727,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ★ マウント時 autoStart なら即開始
   useEffect(() => {
     if (autoStart) {
+      setGamePhase('ready');
       initializeGame(stage);
     }
-  }, [autoStart, initializeGame, stage]);
+  }, [autoStart, initializeGame, stage, setGamePhase]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
@@ -649,6 +754,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <button
             onClick={() => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
+              setGamePhase('ready');
               initializeGame(stage);
             }}
             className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
@@ -706,6 +812,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </button>
         </div>
       </div>
+      
+      {/* ★★★ Readyフェーズオーバーレイ ★★★ */}
+      {gamePhase === 'ready' && gameState.isGameActive && (
+        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div className="text-white text-6xl font-bold animate-pulse">Ready...</div>
+        </div>
+      )}
+      
+      {/* ★★★ 小節・拍表示 ★★★ */}
+      {gamePhase === 'playing' && gameState.isGameActive && (
+        <div className="absolute top-16 left-4 bg-black/50 px-3 py-1 rounded-lg text-sm text-white z-40">
+          {currentMeasure}小節目 - {currentBeat}拍目
+        </div>
+      )}
       
       {/* ===== メインゲームエリア ===== */}
       <div className="flex-grow flex flex-col justify-center px-2 py-1 text-white text-center relative z-20" style={{ minHeight: '200px' }}>
@@ -1046,6 +1166,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) =>
               FantasySoundManager.setRootVolume(settings.rootSoundVolume)
             );
+          }
+          
+          // BGM音量設定が変更されたら、fantasyTimeStoreを更新
+          if (settings.bgmVolume !== undefined) {
+            setBgmSettings({ volume: settings.bgmVolume });
+            devLog.debug(`🎵 BGM音量を更新: ${settings.bgmVolume}`);
           }
         }}
         // gameStoreの値を渡す
