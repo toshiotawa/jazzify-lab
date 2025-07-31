@@ -12,6 +12,37 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import { note as parseNote } from 'tonal';
 
+// FantasyStage型をインポート（FantasyGameEngineから）
+type FantasyStage = {
+  id: string;
+  stageNumber: string;
+  name: string;
+  description: string;
+  maxHp: number;
+  enemyGaugeSeconds: number;
+  enemyCount: number;
+  enemyHp: number;
+  minDamage: number;
+  maxDamage: number;
+  mode: 'single' | 'progression';
+  allowedChords: string[];
+  chordProgression?: string[];
+  showSheetMusic: boolean;
+  showGuide: boolean;
+  monsterIcon: string;
+  bgmUrl?: string;
+  simultaneousMonsterCount: number;
+  gameType?: 'quiz' | 'rhythm';
+  rhythmPattern?: 'random' | 'progression';
+  bpm?: number;
+  timeSignature?: number;
+  measureCount?: number;
+  loopMeasures?: number;
+  rhythmData?: string;
+  chordProgressionData?: any;
+  mp3Url?: string;
+};
+
 // ===== 型定義 =====
 
 interface ChordDefinition {
@@ -59,7 +90,7 @@ interface RhythmGameState {
 }
 
 interface RhythmGameEngineProps {
-  stage: any;  // FantasyStage型
+  stage: FantasyStage | null;  // FantasyStage型を正しくインポート
   onGameStateChange: (state: RhythmGameState) => void;
   onChordCorrect: (chord: ChordDefinition, timing: 'perfect' | 'good', damage: number, defeated: boolean, monsterId: string) => void;
   onChordMiss: (chord: ChordDefinition, monsterId: string) => void;
@@ -110,8 +141,8 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
   
   // ゲーム状態
   const [gameState, setGameState] = useState<RhythmGameState>({
-    playerHp: stage?.max_hp || 5,
-    maxPlayerHp: stage?.max_hp || 5,
+    playerHp: stage?.maxHp || 5,
+    maxPlayerHp: stage?.maxHp || 5,
     score: 0,
     combo: 0,
     maxCombo: 0,
@@ -122,7 +153,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
     gameResult: null,
     activeMonsters: [],
     monsterQueue: [],
-    simultaneousMonsterCount: stage?.simultaneous_monster_count || 1,
+    simultaneousMonsterCount: stage?.simultaneousMonsterCount || 1,
     isCompleting: false,
     currentChord: null,
     nextChord: null
@@ -138,15 +169,15 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
     if (!stage) return null;
 
     // プログレッションモードの場合
-    if (stage.rhythm_pattern === 'progression' && rhythmStore.chordProgressionData.length > 0) {
+    if (stage.rhythmPattern === 'progression' && rhythmStore.chordProgressionData.length > 0) {
       const currentChordData = rhythmStore.chordProgressionData[rhythmStore.currentChordIndex];
       return getChordDefinition(currentChordData.chord, displayOpts);
     }
 
     // ランダムモードの場合
-    if (stage.allowed_chords && stage.allowed_chords.length > 0) {
-      const randomIndex = Math.floor(Math.random() * stage.allowed_chords.length);
-      const chordId = stage.allowed_chords[randomIndex];
+    if (stage.allowedChords && stage.allowedChords.length > 0) {
+      const randomIndex = Math.floor(Math.random() * stage.allowedChords.length);
+      const chordId = stage.allowedChords[randomIndex];
       return getChordDefinition(chordId, displayOpts);
     }
 
@@ -157,7 +188,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
   const createMonster = useCallback((index: number, position: 'A' | 'B' | 'C' | 'D'): RhythmMonsterState | null => {
     if (!stage) return null;
 
-    const monsterIds = getStageMonsterIds(stage.stage_number);
+    const monsterIds = getStageMonsterIds(stage.stageNumber);
     const monsterId = monsterIds[index % monsterIds.length];
     const monsterDef = MONSTERS[monsterId];
     
@@ -168,22 +199,22 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
 
     // リズムモードでのゲージ速度計算
     const beatDuration = rhythmStore.getBeatDuration();
-    const gaugeSpeed = 100 / (beatDuration * stage.time_signature);  // 1小節で100%になる速度
+    const gaugeSpeed = 100 / (beatDuration * (stage.timeSignature || 4));  // 1小節で100%になる速度
 
     return {
       id: `${monsterId}_${index}_${Date.now()}`,
       index,
       position,
-      currentHp: stage.enemy_hp,
-      maxHp: stage.enemy_hp,
+      currentHp: stage.enemyHp,
+      maxHp: stage.enemyHp,
       gauge: 0,
       gaugeSpeed,
       chordTarget: chord,
       correctNotes: [],
       icon: monsterDef.icon,
       name: monsterDef.name,
-      nextAttackTime: rhythmStore.currentTime + beatDuration * stage.time_signature,
-      attackInterval: beatDuration * stage.time_signature
+      nextAttackTime: rhythmStore.currentTime + beatDuration * (stage.timeSignature || 4),
+      attackInterval: beatDuration * (stage.timeSignature || 4)
     };
   }, [stage, selectNextChord, rhythmStore]);
 
@@ -203,7 +234,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
         const updatedMonster = { ...monster };
 
         // リズムモードでのゲージ計算
-        if (stage.game_type === 'rhythm') {
+        if (stage.gameType === 'rhythm') {
           // 現在の小節内での進行度を計算
           const measureDuration = rhythmStore.getMeasureDuration();
           const currentMeasureTime = currentTime % measureDuration;
@@ -276,7 +307,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
       let hitAny = false;
 
       // リズムモードの判定
-      if (stage.game_type === 'rhythm') {
+      if (stage.gameType === 'rhythm') {
         // 現在のタイミングでのコード判定
         const currentChordTiming = rhythmStore.getCurrentChordTiming();
         
@@ -306,7 +337,7 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
               const judgment = rhythmStore.checkTiming(monster.chordTarget.id);
               
               // ダメージ計算
-              const baseDamage = stage.min_damage;
+              const baseDamage = stage.minDamage;
               const bonusDamage = judgment.timing === 'perfect' ? 2 : 
                                  judgment.timing === 'good' ? 1 : 0;
               const totalDamage = baseDamage + bonusDamage;
@@ -356,20 +387,20 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
     // リズムストアの初期化
     rhythmStore.initialize(
       stage.bpm || 120,
-      stage.time_signature || 4,
-      stage.measure_count || 8,
-      stage.loop_measures || 8
+      stage.timeSignature || 4,
+      stage.measureCount || 8,
+      stage.loopMeasures || 8
     );
 
     // プログレッションデータの設定
-    if (stage.rhythm_pattern === 'progression' && stage.chord_progression_data) {
-      rhythmStore.setChordProgressionData(stage.chord_progression_data);
+    if (stage.rhythmPattern === 'progression' && stage.chordProgressionData) {
+      rhythmStore.setChordProgressionData(stage.chordProgressionData);
     }
 
     // モンスター初期化
     const positions: ('A' | 'B' | 'C' | 'D')[] = ['A', 'B', 'C', 'D'];
     const initialMonsters: RhythmMonsterState[] = [];
-    const monsterCount = Math.min(stage.simultaneous_monster_count || 1, 4);
+    const monsterCount = Math.min(stage.simultaneousMonsterCount || 1, 4);
 
     for (let i = 0; i < monsterCount; i++) {
       const monster = createMonster(i, positions[i]);
@@ -380,8 +411,8 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
 
     // ゲーム状態初期化
     setGameState({
-      playerHp: stage.max_hp,
-      maxPlayerHp: stage.max_hp,
+      playerHp: stage.maxHp,
+      maxPlayerHp: stage.maxHp,
       score: 0,
       combo: 0,
       maxCombo: 0,
@@ -391,8 +422,8 @@ export const useRhythmGameEngine = (props: RhythmGameEngineProps) => {
       isGameOver: false,
       gameResult: null,
       activeMonsters: initialMonsters,
-      monsterQueue: Array.from({ length: stage.enemy_count - monsterCount }, (_, i) => i + monsterCount),
-      simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+      monsterQueue: Array.from({ length: stage.enemyCount - monsterCount }, (_, i) => i + monsterCount),
+      simultaneousMonsterCount: stage.simultaneousMonsterCount || 1,
       isCompleting: false,
       currentChord: initialMonsters[0]?.chordTarget || null,
       nextChord: null

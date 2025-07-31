@@ -213,7 +213,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       currentQuestion: state.currentQuestionIndex + 1,
       totalQuestions: state.totalQuestions,
       playerHp: state.playerHp,
-      enemyGauge: state.enemyGauge.toFixed(1),
+      enemyGauge: state.enemyGauge ? state.enemyGauge.toFixed(1) : 'N/A',
       isGameActive: state.isGameActive,
       currentChord: state.currentChordTarget?.displayName,
       score: state.score,
@@ -305,7 +305,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // リズムモード用のゲームエンジン
   const rhythmEngine = useRhythmGameEngine({
-    stage: stage?.game_type === 'rhythm' ? stage : null,
+    stage: stage?.gameType === 'rhythm' ? stage : null,
     onGameStateChange: handleGameStateChange,
     onChordCorrect: (chord, timing, damage, defeated, monsterId) => {
       // リズムモードではisSpecialをfalseに設定
@@ -322,7 +322,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   });
   
   // ゲームタイプに応じてエンジンを選択
-  const isRhythmMode = stage?.game_type === 'rhythm';
+  const isRhythmMode = stage?.gameType === 'rhythm';
   const {
     gameState,
     handleNoteInput: engineHandleNoteInput,
@@ -712,9 +712,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen"
     )}>
       {/* リズムモード用オーディオプレイヤー */}
-      {isRhythmMode && stage.mp3_url && (
+      {isRhythmMode && stage.mp3Url && (
         <RhythmAudioPlayer
-          mp3Url={stage.mp3_url}
+          mp3Url={stage.mp3Url}
           autoStart={autoStart}
           onTimeUpdate={(time) => {
             devLog.debug('🎵 Rhythm time update:', time);
@@ -1037,7 +1037,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         <div className="fixed bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs p-2 rounded z-40">
           <div>Q: {gameState.currentQuestionIndex + 1}/{gameState.totalQuestions}</div>
           <div>HP: {gameState.playerHp}/{stage.maxHp}</div>
-          <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>
+          <div>ゲージ: {gameState.enemyGauge ? gameState.enemyGauge.toFixed(1) : 'N/A'}%</div>
           <div>スコア: {gameState.score}</div>
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>

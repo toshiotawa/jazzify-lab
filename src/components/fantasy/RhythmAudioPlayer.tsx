@@ -43,7 +43,7 @@ const RhythmAudioPlayer: React.FC<RhythmAudioPlayerProps> = ({
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       setAudioContext(audioContextRef.current);
-      devLog('rhythm', 'AudioContext initialized');
+      devLog.debug('rhythm', 'AudioContext initialized');
     }
   }, [setAudioContext]);
 
@@ -56,7 +56,7 @@ const RhythmAudioPlayer: React.FC<RhythmAudioPlayerProps> = ({
       audioRef.current.preload = 'auto';
       audioRef.current.volume = 0.7; // 初期音量
       
-      devLog('rhythm', 'Audio element initialized:', mp3Url);
+      devLog.debug('rhythm', 'Audio element initialized:', mp3Url);
     }
   }, [mp3Url, setAudioElement]);
 
@@ -72,7 +72,7 @@ const RhythmAudioPlayer: React.FC<RhythmAudioPlayerProps> = ({
     if (currentTime >= totalDuration) {
       // 2小節目（ループ開始位置）に戻る
       audioRef.current.currentTime = loopStartTime;
-      devLog('rhythm', `Audio looped: ${currentTime.toFixed(2)}s → ${loopStartTime.toFixed(2)}s`);
+      devLog.debug('rhythm', `Audio looped: ${currentTime.toFixed(2)}s → ${loopStartTime.toFixed(2)}s`);
       
       if (onLoop) {
         onLoop();
@@ -109,7 +109,7 @@ const RhythmAudioPlayer: React.FC<RhythmAudioPlayerProps> = ({
       // 更新ループ開始
       animationFrameRef.current = requestAnimationFrame(updateLoop);
       
-      devLog('rhythm', 'Audio playback started');
+      devLog.debug('rhythm', 'Audio playback started');
     } else {
       // 再生停止
       audioRef.current.pause();
@@ -119,7 +119,7 @@ const RhythmAudioPlayer: React.FC<RhythmAudioPlayerProps> = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
       
-      devLog('rhythm', 'Audio playback stopped');
+      devLog.debug('rhythm', 'Audio playback stopped');
     }
   }, [isPlaying, updateLoop]);
 
@@ -142,14 +142,14 @@ const RhythmAudioPlayer: React.FC<RhythmAudioPlayerProps> = ({
         audioRef.current.currentTime = 0;
       }
       
-      devLog('rhythm', 'Audio player cleanup');
+      devLog.debug('rhythm', 'Audio player cleanup');
     };
   }, []);
 
   // メタデータ読み込み完了時の処理
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
-      devLog('rhythm', 'Audio metadata loaded:', {
+      devLog.debug('rhythm', 'Audio metadata loaded:', {
         duration: audioRef.current.duration,
         readyState: audioRef.current.readyState
       });
