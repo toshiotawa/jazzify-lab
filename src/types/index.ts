@@ -132,6 +132,7 @@ export interface GameSettings {
   musicVolume: number;         // 0-1
   midiVolume: number;          // 0-1
   soundEffectVolume: number;   // 0-1 (ファンタジーモード効果音音量)
+  bgmVolume: number;           // 0-1 (ファンタジーモードBGM音量)
   
   // ファンタジーモード設定
   playRootSound?: boolean;      // ルート音を鳴らすか
@@ -641,6 +642,12 @@ export interface FantasyStage {
   show_guide: boolean;
   simultaneous_monster_count?: number;
   monster_icon?: string;
+  bgm_url?: string;
+  mp3_url?: string;
+  bpm?: number;
+  measure_count?: number;
+  time_signature?: number;
+  count_in_measures?: number;
 }
 
 export interface LessonContext {

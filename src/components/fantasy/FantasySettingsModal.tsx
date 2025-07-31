@@ -19,6 +19,7 @@ interface FantasySettingsModalProps {
   isMidiConnected?: boolean;
   volume?: number; // ピアノ音量設定をpropsで受け取る
   soundEffectVolume?: number; // 効果音音量設定をpropsで受け取る
+  bgmVolume?: number; // BGM音量設定をpropsで受け取る
   noteNameLang?: DisplayLang; // 音名表示言語
   simpleNoteName?: boolean; // 簡易表記
   playRootSound?: boolean; // ルート音を鳴らすか
@@ -29,6 +30,7 @@ interface FantasySettings {
   midiDeviceId: string | null;
   volume: number; // ピアノ音量
   soundEffectVolume: number; // 効果音音量
+  bgmVolume: number; // BGM音量
   noteNameLang: DisplayLang; // 音名表示言語
   simpleNoteName: boolean; // 簡易表記
   playRootSound: boolean; // ルート音を鳴らすか
@@ -44,6 +46,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   isMidiConnected = false,
   volume = 0.8, // デフォルト80%音量
   soundEffectVolume = 0.8, // デフォルト80%効果音音量
+  bgmVolume = 0.7, // デフォルト70%BGM音量
   noteNameLang = 'en', // デフォルト英語表記
   simpleNoteName = false, // デフォルト簡易表記OFF
   playRootSound = true, // デフォルトルート音ON
@@ -53,6 +56,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     midiDeviceId: midiDeviceId,
     volume: volume, // propsから受け取ったピアノ音量を使用
     soundEffectVolume: soundEffectVolume, // propsから受け取った効果音音量を使用
+    bgmVolume: bgmVolume, // propsから受け取ったBGM音量を使用
     noteNameLang: noteNameLang,
     simpleNoteName: simpleNoteName,
     playRootSound: playRootSound,
@@ -73,6 +77,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   useEffect(() => {
     setSettings(prev => ({ ...prev, soundEffectVolume: soundEffectVolume }));
   }, [soundEffectVolume]);
+
+  // propsのbgmVolumeが変更されたらsettingsも更新
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, bgmVolume: bgmVolume }));
+  }, [bgmVolume]);
 
   // propsのnoteNameLangが変更されたらsettingsも更新
   useEffect(() => {
@@ -99,6 +108,13 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     onSettingsChange?.(newSettings);
+    
+    // BGM音量即時反映
+    if (key === 'bgmVolume') {
+      import('@/utils/BGMManager').then(({ bgmManager }) =>
+        bgmManager.setVolume(value)
+      );
+    }
   };
 
   // MIDIデバイス変更ハンドラー
@@ -183,6 +199,27 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             />
             <p className="text-xs text-gray-400 mt-1">
               魔法や敵の攻撃音の音量を調整できます
+            </p>
+          </div>
+
+          {/* BGM音量 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              BGM音量: {Math.round(settings.bgmVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={settings.bgmVolume}
+              onChange={(e) =>
+                handleSettingChange('bgmVolume', parseFloat(e.target.value))
+              }
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              背景音楽の音量を調整できます
             </p>
           </div>
 

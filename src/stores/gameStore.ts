@@ -100,6 +100,7 @@ const defaultSettings: GameSettings = {
   musicVolume: 0.7,
   midiVolume: 0.8,
   soundEffectVolume: 0.8, // ファンタジーモード効果音音量
+  bgmVolume: 0.7, // ファンタジーモードBGM音量
   
   // ファンタジーモード設定
   playRootSound: true,
@@ -316,6 +317,11 @@ const validateSettings = (settings: Partial<GameSettings>): { valid: boolean; er
   if (normalized.midiVolume < 0 || normalized.midiVolume > 1) {
     errors.push('MIDI音量は0-1の範囲で設定してください');
     normalized.midiVolume = Math.max(0, Math.min(1, normalized.midiVolume));
+  }
+  
+  if (normalized.bgmVolume < 0 || normalized.bgmVolume > 1) {
+    errors.push('BGM音量は0-1の範囲で設定してください');
+    normalized.bgmVolume = Math.max(0, Math.min(1, normalized.bgmVolume));
   }
   
   // 速度設定の検証
