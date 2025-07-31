@@ -505,7 +505,7 @@ export const useFantasyRhythmEngine = ({
 
   // ===== モンスター補充処理 =====
 
-  const replaceDefeatedMonsters = useCallback((state: RhythmGameState) => {
+  const replaceDefeatedMonsters = useCallback((state: RhythmGameState, spawnRef = spawnMonstersRef) => {
     if (!state.currentStage) return;
 
     const newMonsters = [...state.activeMonsters];
@@ -550,10 +550,10 @@ export const useFantasyRhythmEngine = ({
     } else {
       // ランダムパターン（次の問題を生成）
       if (state.currentQuestionIndex < state.totalQuestions) {
-        spawnRandomMonster(state);
+        spawnRef.current.spawnRandom(state);
       }
     }
-  }, [displayOpts, spawnRandomMonster]);
+  }, [displayOpts]);
 
   // ===== ゲージ更新処理 =====
 
@@ -596,7 +596,7 @@ export const useFantasyRhythmEngine = ({
 
     if (anyTimeout) {
       // タイムアウトしたモンスターの補充
-      replaceDefeatedMonsters(newState);
+      replaceDefeatedMonsters(newState, spawnMonstersRef);
     }
 
     setGameState(newState);
@@ -606,7 +606,7 @@ export const useFantasyRhythmEngine = ({
     if (newState.playerHp <= 0) {
       endGame('gameover');
     }
-  }, [gameState, checkTiming, onEnemyAttack, onGameStateChange, replaceDefeatedMonsters]);
+  }, [gameState, checkTiming, onEnemyAttack, onGameStateChange]);
 
   // ===== ゲーム終了判定 =====
 
@@ -692,21 +692,43 @@ export const useFantasyRhythmEngine = ({
     };
   }, [stage, initializeGame]);
 
+  // ===== モンスター生成管理 =====
+  
+  const spawnMonstersRef = useRef<{
+    spawnRandom: (state: RhythmGameState) => void;
+    spawnProgression: (state: RhythmGameState) => void;
+  }>({
+    spawnRandom: () => {},
+    spawnProgression: () => {}
+  });
+  
+  // 関数の参照を更新
+  useEffect(() => {
+    spawnMonstersRef.current.spawnRandom = spawnRandomMonster;
+    spawnMonstersRef.current.spawnProgression = spawnProgressionMonsters;
+  }, [spawnRandomMonster, spawnProgressionMonsters]);
+  
   // ===== ゲーム開始時のモンスター生成 =====
   
   useEffect(() => {
     if (gameState.isGameActive && gameState.activeMonsters.length === 0 && gameState.currentStage) {
       devLog.debug('🎮 初回モンスター生成開始');
-      // 最初のモンスターを配置
-      if (gameState.rhythmData) {
-        // プログレッションパターン
-        spawnProgressionMonsters(gameState);
-      } else {
-        // ランダムパターン
-        spawnRandomMonster(gameState);
-      }
+      
+      // 少し遅延させて関数の初期化を待つ
+      const timer = setTimeout(() => {
+        // 最初のモンスターを配置
+        if (gameState.rhythmData) {
+          // プログレッションパターン
+          spawnMonstersRef.current.spawnProgression(gameState);
+        } else {
+          // ランダムパターン
+          spawnMonstersRef.current.spawnRandom(gameState);
+        }
+      }, 50);
+      
+      return () => clearTimeout(timer);
     }
-  }, [gameState, spawnProgressionMonsters, spawnRandomMonster]);
+  }, [gameState.isGameActive, gameState.activeMonsters.length, gameState.currentStage, gameState.rhythmData]);
 
   return {
     gameState,
