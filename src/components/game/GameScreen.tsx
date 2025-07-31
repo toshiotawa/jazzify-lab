@@ -130,8 +130,14 @@ const GameScreen: React.FC = () => {
                 // タイムアウト処理
                 setTimeout(() => resolve(void 0), 5000);
               });
-            } catch (e) {
-              // console.warn(            gameActions.setLessonContext(lessonId, {
+                        } catch (e) {
+              // console.warn('課題条件の読み込みに失敗:', e);
+            }
+          }
+          
+          // レッスンコンテキストを設定
+          if (isLesson && lessonId && clearConditions) {
+            gameActions.setLessonContext(lessonId, {
               key,
               speed,
               rank,
@@ -139,10 +145,8 @@ const GameScreen: React.FC = () => {
               notation_setting: notation,
               requires_days: requiresDays,
               daily_count: dailyCount
-             {
-// });
-          }
-          
+            });
+          }     
           // レッスン設定を先に適用（loadSongの前に実行）
           await gameActions.updateSettings({
             transpose: key,
@@ -317,14 +321,9 @@ const GameScreen: React.FC = () => {
                 setTimeout(() => resolve(void 0), 5000);
               });
             } catch (e) {
-              // console.warn(            key: challengeSong.key_offset,
-            speed: challengeSong.min_speed,
-            rank: challengeSong.min_rank,
-            count: challengeSong.clears_required,
-            notation_setting: challengeSong.notation_setting
-           {
-// });
-          
+              // console.warn('課題条件の読み込みに失敗:', e);
+            }
+          }    
           // ミッション曲の条件を先に設定に適用（loadSongの前に実行）
           await gameActions.updateSettings({
             transpose: challengeSong.key_offset,
@@ -354,13 +353,14 @@ const GameScreen: React.FC = () => {
           // console.log('🔧 ミッション曲読み込み完了、practiceタブに遷移中');
           setTimeout(() => {
             window.location.hash = '#practice';
-            // console.log(          // console.error('❌ ミッション曲の読み込みエラー:', {
-            error,
-            songId,
-            missionId,
-            errorMessage: error instanceof Error ? error.message : 'Unknown error'
-           {
-// });
+          }, 1000);
+        } catch (error) {
+          // console.error('❌ ミッション曲の読み込みエラー:', {
+          //   error,
+          //   songId,
+          //   missionId,
+          //   errorMessage: error instanceof Error ? error.message : 'Unknown error'
+          // });
           setIsLoadingLessonSong(false);
           // エラー時はミッション一覧に戻る
           setTimeout(() => {

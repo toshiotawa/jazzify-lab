@@ -1582,326 +1582,314 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
   //  // console.log(`🔄 停止中の移調変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
   // }
   // }
-  // });
-        currentSession: null,
-        sessionHistory: [],
-        
-        // パフォーマンス監視
-        performance: defaultPerformanceMetrics,
-        
-        // エラー状態管理強化
-        errors: {
-          settings: [],
-          gameEngine: [],
-          audio: [],
-          midi: [],
-          general: [],
-        },
-        
-        // 設定（強化版）
-        updateSettingsSafe: (settings) => {
-          const state = get();
-          const validation = validateStateTransition(state, 'updateSettings', { settings });
-          
-          if (!validation.valid) {
-            set((draft) => {
-              draft.errors.settings.push(validation.error || '設定の更新に失敗しました');
-            });
-            return { success: false, errors: [validation.error || '設定の更新に失敗しました'] };
-          }
-          
-          const settingsValidation = validateSettings(settings);
-          
-          if (!settingsValidation.valid) {
-            set((draft) => {
-              draft.errors.settings.push(...settingsValidation.errors);
-            });
-            return { success: false, errors: settingsValidation.errors };
-          }
-          
-          // 設定を正規化して適用
-          set((state) => {
-            state.settings = { ...state.settings, ...settingsValidation.normalized };
-            // ゲームエンジンにも反映
-            if (state.gameEngine) {
-              state.gameEngine.updateSettings(state.settings);
-            }
-          });
-          
-          return { success: true, errors: [] };
-        },
-        
-        // ===== 新機能: 設定プリセット管理 =====
-        applySettingsPreset: (presetId) => set((state) => {
-          const preset = state.settingsPresets.find(p => p.id === presetId);
-          if (!preset) {
-            state.errors.settings.push(`プリセット '${presetId}' が見つかりません`);
-            return;
-          }
-          
-          const validation = validateSettings(preset.settings);
-          state.settings = { ...state.settings, ...validation.normalized };
-          
-          // 練習モードでpracticeGuideが含まれている場合は保存
-          if (state.mode === 'practice' && 'practiceGuide' in preset.settings) {
-            state.practiceModeSettings.practiceGuide = preset.settings.practiceGuide ?? 'key';
-          }
-          
-          // 本番モードでは練習モードガイドを無効化
-          if (state.mode === 'performance') {
-            state.settings.practiceGuide = 'off';
-          }
-          
-          if (state.gameEngine) {
-            state.gameEngine.updateSettings(state.settings);
-          }
-        }),
-        
-        saveSettingsPreset: (name, description, settings) => set((state) => {
-          const presetSettings = settings || state.settings;
-          const newPreset: SettingsPreset = {
-            id: `preset-${Date.now()}`,
-            name,
-            description,
-            settings: presetSettings,
-            createdAt: Date.now()
-          };
-          state.settingsPresets.push(newPreset);
-        }),
-        
-        deleteSettingsPreset: (presetId) => set((state) => {
-          const index = state.settingsPresets.findIndex(p => p.id === presetId);
-          if (index !== -1) {
-            state.settingsPresets.splice(index, 1);
-          }
-        }),
-        
-        updateSettingsPreset: (presetId, updates) => set((state) => {
-          const preset = state.settingsPresets.find(p => p.id === presetId);
-          if (preset) {
-            Object.assign(preset, updates);
-          }
-        }),
-        
-        // ===== 新機能: 初期化状態管理 =====
-        setInitializationState: (updates) => set((state) => {
-          Object.assign(state.initialization, updates);
-        }),
-        
-        addInitializationError: (error) => set((state) => {
-          state.initialization.errors.push(error);
-        }),
-        
-        clearInitializationErrors: () => set((state) => {
-          state.initialization.errors = [];
-        }),
-        
-        // ===== 新機能: セッション管理 =====
-        startPlaySession: () => set((state) => {
-          const session: PlaySession = {
-            id: `session-${Date.now()}`,
-            songId: state.currentSong?.id || null,
-            startTime: Date.now(),
-            endTime: null,
-            score: { ...state.score },
-            judgments: [],
-            settings: { ...state.settings }
-          };
-          state.currentSession = session;
-        }),
-        
-        endPlaySession: () => set((state) => {
-          if (state.currentSession) {
-            state.currentSession.endTime = Date.now();
-            state.currentSession.score = { ...state.score };
-            state.currentSession.judgments = [...state.judgmentHistory];
-          }
-        }),
-        
-        saveCurrentSession: () => set((state) => {
-          if (state.currentSession) {
-            state.sessionHistory.push({ ...state.currentSession });
-            state.currentSession = null;
-          }
-        }),
-        
-        loadSessionFromHistory: (sessionId) => set((state) => {
-          const session = state.sessionHistory.find(s => s.id === sessionId);
-          if (session) {
-            state.score = { ...session.score };
-            state.judgmentHistory = [...session.judgments];
-            state.settings = { ...session.settings };
-          }
-        }),
-        
-        clearSessionHistory: () => set((state) => {
-          state.sessionHistory = [];
-        }),
-        
-        // ===== 新機能: パフォーマンス監視 =====
-        updatePerformanceMetrics: (metrics) => set((state) => {
-          Object.assign(state.performance, metrics);
-        }),
-        
-        recordFrameTime: (frameTime) => set((state) => {
-          state.performance.lastFrameTime = frameTime;
-          // 移動平均を計算
-          state.performance.averageFrameTime = 
-            (state.performance.averageFrameTime * 0.9) + (frameTime * 0.1);
-          // FPS計算
-          state.performance.fps = Math.round(1000 / state.performance.averageFrameTime);
-          
-          // フレームドロップ検出（33ms = 30fps以下）
-          if (frameTime > 33) {
-            state.performance.frameDrops++;
-          }
-        }),
-        
-        incrementFrameDrops: () => set((state) => {
-          state.performance.frameDrops++;
-        }),
-        
-        resetPerformanceMetrics: () => set((state) => {
-          state.performance = { ...defaultPerformanceMetrics };
-        }),
-        
-        // ===== 新機能: エフェクト統計管理 =====
-        recordEffectGenerated: () => set((state) => {
-          state.performance.effects.totalGenerated++;
-        }),
-        
-        recordEffectSuccess: (processTime: number) => set((state) => {
-          state.performance.effects.successCount++;
-          state.performance.effects.lastProcessTime = processTime;
-          // 移動平均で平均処理時間を更新
-          const currentAvg = state.performance.effects.averageProcessTime;
-          state.performance.effects.averageProcessTime = 
-            currentAvg === 0 ? processTime : (currentAvg * 0.9) + (processTime * 0.1);
-        }),
-        
-        recordEffectSkipped: (reason: 'performance' | 'proximity' | 'note_not_found') => set((state) => {
-          state.performance.effects.skippedCount++;
-          switch (reason) {
-            case 'proximity':
-              state.performance.effects.proximityRejectCount++;
-              break;
-            case 'note_not_found':
-              state.performance.effects.noteNotFoundRejectCount++;
-              break;
-            // 'performance' はカウンターなし（skippedCountに含まれる）
-          }
-        }),
-        
-        resetEffectStats: () => set((state) => {
-          state.performance.effects = {
-            totalGenerated: 0,
-            successCount: 0,
-            skippedCount: 0,
-            proximityRejectCount: 0,
-            noteNotFoundRejectCount: 0,
-            averageProcessTime: 0,
-            lastProcessTime: 0
-          };
-        }),
-        
-        getEffectStats: () => {
-          const state = get();
-          return state.performance.effects;
-        },
-        
-        // ===== 新機能: エラー管理強化 =====
-        addError: (category: keyof GameStoreState['errors'], error: string) =>
-          set((state: GameStoreState) => {
-            state.errors[category].push(error);
-          }),
-        
-        clearErrors: (category?: keyof GameStoreState['errors']) =>
-          set((state: GameStoreState) => {
-            if (category) {
-              state.errors[category] = [];
-            } else {
-              Object.keys(state.errors).forEach(key => {
-                state.errors[key as keyof typeof state.errors] = [];
-              });
-            }
-          }),
-        
-        hasErrors: () => {
-          const state = get();
-          return Object.values(state.errors).some(
-            (errors: string[]) => errors.length > 0
-          );
-        },
-        
-        getErrorSummary: () => {
-          const state = get();
-          const summary: string[] = [];
-          Object.entries(state.errors).forEach(([category, errors]) => {
-            const list = errors as string[];
-            if (list.length > 0) {
-              summary.push(`${category}: ${list.length}件のエラー`);
-            }
-          });
-          return summary;
-        },
-        
-        // リザルトモーダル
-        openResultModal: () =>
-          set((state: GameStoreState) => {
-            state.resultModalOpen = true;
-          }),
-        closeResultModal: () =>
-          set((state: GameStoreState) => {
-            state.resultModalOpen = false;
-          }),
-        
-        // 練習モードガイド制御
-        setLastKeyHighlight: (pitch: number, timestamp: number) => set((state) => {
-          state.lastKeyHighlight = { pitch, timestamp };
-        }),
-        
-        clearLastKeyHighlight: () => set((state) => {
-          state.lastKeyHighlight = undefined;
-        }),
-        
-        // 音名情報更新
-        updateNoteNames: (noteNamesMap: Record<string, string>) =>
-          set((state: GameStoreState) => {
-            // notesに音名情報を追加
-            state.notes = state.notes.map(note => ({
-              ...note,
-              noteName: noteNamesMap[note.id] || note.noteName
-            }));
-          }),
-        
-        // レッスンコンテキスト
-        setLessonContext: (lessonId: string, clearConditions: ClearConditions) =>
-          set((state: GameStoreState) => {
-            state.lessonContext = {
-              lessonId,
-              clearConditions
-            };
-          }),
-        
-        clearLessonContext: () =>
-          set((state: GameStoreState) => {
-            state.lessonContext = undefined;
-          }),
-        
-        // ミッションコンテキスト
-        setMissionContext: (missionId: string, songId: string, clearConditions?: ClearConditions) =>
-          set((state: GameStoreState) => {
-            state.missionContext = {
-              missionId,
-              songId,
-              clearConditions
-            };
-          }),
+//   // });
+//         
+// 
+//         
+//         // 設定（強化版）
+//         // updateSettingsSafe: (settings) => {
+//           const state = get();
+//           const validation = validateStateTransition(state, 'updateSettings', { settings });
+//           
+//           if (!validation.valid) {
+//             set((draft) => {
+//               draft.errors.settings.push(validation.error || '設定の更新に失敗しました');
+//             });
+//             return { success: false, errors: [validation.error || '設定の更新に失敗しました'] };
+//           }
+//           
+//           const settingsValidation = validateSettings(settings);
+//           
+//           if (!settingsValidation.valid) {
+//             set((draft) => {
+//               draft.errors.settings.push(...settingsValidation.errors);
+//             });
+//             return { success: false, errors: settingsValidation.errors };
+//           }
+//           
+//           // 設定を正規化して適用
+//           set((state) => {
+//             state.settings = { ...state.settings, ...settingsValidation.normalized };
+//             // ゲームエンジンにも反映
+//             if (state.gameEngine) {
+//               state.gameEngine.updateSettings(state.settings);
+//             }
+//           });
+//           
+//           return { success: true, errors: [] };
+//         },
+//         
+//         // ===== 新機能: 設定プリセット管理 =====
+//         applySettingsPreset: (presetId: string) => set((state) => {
+//           const preset = state.settingsPresets.find(p => p.id === presetId);
+//           if (!preset) {
+//             state.errors.settings.push(`プリセット '${presetId}' が見つかりません`);
+//             return;
+//           }
+//           
+//           const validation = validateSettings(preset.settings);
+//           state.settings = { ...state.settings, ...validation.normalized };
+//           
+//           // 練習モードでpracticeGuideが含まれている場合は保存
+//           if (state.mode === 'practice' && 'practiceGuide' in preset.settings) {
+//             state.practiceModeSettings.practiceGuide = preset.settings.practiceGuide ?? 'key';
+//           }
+//           
+//           // 本番モードでは練習モードガイドを無効化
+//           if (state.mode === 'performance') {
+//             state.settings.practiceGuide = 'off';
+//           }
+//           
+//           if (state.gameEngine) {
+//             state.gameEngine.updateSettings(state.settings);
+//           }
+//         }),
+//         
+//         saveSettingsPreset: (name, description, settings) => set((state) => {
+//           const presetSettings = settings || state.settings;
+//           const newPreset: SettingsPreset = {
+//             id: `preset-${Date.now()}`,
+//             name,
+//             description,
+//             settings: presetSettings,
+//             createdAt: Date.now()
+//           };
+//           state.settingsPresets.push(newPreset);
+//         }),
+//         
+//         deleteSettingsPreset: (presetId) => set((state) => {
+//           const index = state.settingsPresets.findIndex(p => p.id === presetId);
+//           if (index !== -1) {
+//             state.settingsPresets.splice(index, 1);
+//           }
+//         }),
+//         
+//         updateSettingsPreset: (presetId, updates) => set((state) => {
+//           const preset = state.settingsPresets.find(p => p.id === presetId);
+//           if (preset) {
+//             Object.assign(preset, updates);
+//           }
+//         }),
+//         
+//         // ===== 新機能: 初期化状態管理 =====
+//         setInitializationState: (updates) => set((state) => {
+//           Object.assign(state.initialization, updates);
+//         }),
+//         
+//         addInitializationError: (error) => set((state) => {
+//           state.initialization.errors.push(error);
+//         }),
+//         
+//         clearInitializationErrors: () => set((state) => {
+//           state.initialization.errors = [];
+//         }),
+//         
+//         // ===== 新機能: セッション管理 =====
+//         startPlaySession: () => set((state) => {
+//           const session: PlaySession = {
+//             id: `session-${Date.now()}`,
+//             songId: state.currentSong?.id || null,
+//             startTime: Date.now(),
+//             endTime: null,
+//             score: { ...state.score },
+//             judgments: [],
+//             settings: { ...state.settings }
+//           };
+//           state.currentSession = session;
+//         }),
+//         
+//         endPlaySession: () => set((state) => {
+//           if (state.currentSession) {
+//             state.currentSession.endTime = Date.now();
+//             state.currentSession.score = { ...state.score };
+//             state.currentSession.judgments = [...state.judgmentHistory];
+//           }
+//         }),
+//         
+//         saveCurrentSession: () => set((state) => {
+//           if (state.currentSession) {
+//             state.sessionHistory.push({ ...state.currentSession });
+//             state.currentSession = null;
+//           }
+//         }),
+//         
+//         loadSessionFromHistory: (sessionId) => set((state) => {
+//           const session = state.sessionHistory.find(s => s.id === sessionId);
+//           if (session) {
+//             state.score = { ...session.score };
+//             state.judgmentHistory = [...session.judgments];
+//             state.settings = { ...session.settings };
+//           }
+//         }),
+//         
+//         clearSessionHistory: () => set((state) => {
+//           state.sessionHistory = [];
+//         }),
+//         
+//         // ===== 新機能: パフォーマンス監視 =====
+//         updatePerformanceMetrics: (metrics) => set((state) => {
+//           Object.assign(state.performance, metrics);
+//         }),
+//         
+//         recordFrameTime: (frameTime) => set((state) => {
+//           state.performance.lastFrameTime = frameTime;
+//           // 移動平均を計算
+//           state.performance.averageFrameTime = 
+//             (state.performance.averageFrameTime * 0.9) + (frameTime * 0.1);
+//           // FPS計算
+//           state.performance.fps = Math.round(1000 / state.performance.averageFrameTime);
+//           
+//           // フレームドロップ検出（33ms = 30fps以下）
+//           if (frameTime > 33) {
+//             state.performance.frameDrops++;
+//           }
+//         }),
+//         
+//         incrementFrameDrops: () => set((state) => {
+//           state.performance.frameDrops++;
+//         }),
+//         
+//         resetPerformanceMetrics: () => set((state) => {
+//           state.performance = { ...defaultPerformanceMetrics };
+//         }),
+//         
+//         // ===== 新機能: エフェクト統計管理 =====
+//         recordEffectGenerated: () => set((state) => {
+//           state.performance.effects.totalGenerated++;
+//         }),
+//         
+//         recordEffectSuccess: (processTime: number) => set((state) => {
+//           state.performance.effects.successCount++;
+//           state.performance.effects.lastProcessTime = processTime;
+//           // 移動平均で平均処理時間を更新
+//           const currentAvg = state.performance.effects.averageProcessTime;
+//           state.performance.effects.averageProcessTime = 
+//             currentAvg === 0 ? processTime : (currentAvg * 0.9) + (processTime * 0.1);
+//         }),
+//         
+//         recordEffectSkipped: (reason: 'performance' | 'proximity' | 'note_not_found') => set((state) => {
+//           state.performance.effects.skippedCount++;
+//           switch (reason) {
+//             case 'proximity':
+//               state.performance.effects.proximityRejectCount++;
+//               break;
+//             case 'note_not_found':
+//               state.performance.effects.noteNotFoundRejectCount++;
+//               break;
+//             // 'performance' はカウンターなし（skippedCountに含まれる）
+//           }
+//         }),
+//         
+//         resetEffectStats: () => set((state) => {
+//           state.performance.effects = {
+//             totalGenerated: 0,
+//             successCount: 0,
+//             skippedCount: 0,
+//             proximityRejectCount: 0,
+//             noteNotFoundRejectCount: 0,
+//             averageProcessTime: 0,
+//             lastProcessTime: 0
+//           };
+//         }),
+//         
+//         getEffectStats: () => {
+//           const state = get();
+//           return state.performance.effects;
+//         },
+//         
+//         // ===== 新機能: エラー管理強化 =====
+//         addError: (category: keyof GameStoreState['errors'], error: string) =>
+//           set((state: GameStoreState) => {
+//             state.errors[category].push(error);
+//           }),
+//         
+//         clearErrors: (category?: keyof GameStoreState['errors']) =>
+//           set((state: GameStoreState) => {
+//             if (category) {
+//               state.errors[category] = [];
+//             } else {
+//               Object.keys(state.errors).forEach(key => {
+//                 state.errors[key as keyof typeof state.errors] = [];
+//               });
+//             }
+//           }),
+//         
+//         hasErrors: () => {
+//           const state = get();
+//           return Object.values(state.errors).some(
+//             (errors: string[]) => errors.length > 0
+//           );
+//         },
+//         
+//         getErrorSummary: () => {
+//           const state = get();
+//           const summary: string[] = [];
+//           Object.entries(state.errors).forEach(([category, errors]) => {
+//             const list = errors as string[];
+//             if (list.length > 0) {
+//               summary.push(`${category}: ${list.length}件のエラー`);
+//             }
+//           });
+//           return summary;
+//         },
+//         
+//         // リザルトモーダル
+//         openResultModal: () =>
+//           set((state: GameStoreState) => {
+//             state.resultModalOpen = true;
+//           }),
+//         closeResultModal: () =>
+//           set((state: GameStoreState) => {
+//             state.resultModalOpen = false;
+//           }),
+//         
+//         // 練習モードガイド制御
+//         setLastKeyHighlight: (pitch: number, timestamp: number) => set((state) => {
+//           state.lastKeyHighlight = { pitch, timestamp };
+//         }),
+//         
+//         clearLastKeyHighlight: () => set((state) => {
+//           state.lastKeyHighlight = undefined;
+//         }),
+//         
+//         // 音名情報更新
+//         updateNoteNames: (noteNamesMap: Record<string, string>) =>
+//           set((state: GameStoreState) => {
+//             // notesに音名情報を追加
+//             state.notes = state.notes.map(note => ({
+//               ...note,
+//               noteName: noteNamesMap[note.id] || note.noteName
+//             }));
+//           }),
+//         
+//         // レッスンコンテキスト
+//         setLessonContext: (lessonId: string, clearConditions: ClearConditions) =>
+//           set((state: GameStoreState) => {
+//             state.lessonContext = {
+//               lessonId,
+//               clearConditions
+//             };
+//           }),
+//         
+//         clearLessonContext: () =>
+//           set((state: GameStoreState) => {
+//             state.lessonContext = undefined;
+//           }),
+//         
+//         // ミッションコンテキスト
+//         setMissionContext: (missionId: string, songId: string, clearConditions?: ClearConditions) =>
+//           set((state: GameStoreState) => {
+//             state.missionContext = {
+//               missionId,
+//               songId,
+//               clearConditions
+//             };
+//           }),
         
         clearMissionContext: () =>
           set((state: GameStoreState) => {
             state.missionContext = undefined;
-          }),
+          })
       }))
     ),
     {

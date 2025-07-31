@@ -133,9 +133,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       // if (magicLinkInfo.hasMagicLink) {
       //   console.log('📋 マジックリンク詳細:', magicLinkInfo);
       // }
-      // console.groupEnd(        state.loading = true;
-       {
-// });
+      // console.groupEnd();
+      
+      set(state => {
+        state.loading = true;
+      });
       
       // マジックリンクが検出された場合、セッションを確立
       if (magicLinkInfo.hasMagicLink && magicLinkInfo.tokenHash) {
@@ -157,18 +159,27 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             
             // URLパラメータをクリア（セキュリティのため）
             if (typeof window !== 'undefined' && window.history.replaceState) {
-              const url = new URL(window.location.href);
-              url.searchParams.delete('token_hash');
-              url.searchParams.delete('type');
-              url.searchParams.delete('access_token');
-              url.searchParams.delete('refresh_token');
-              window.history.replaceState({}, '', url.toString());
-              // console.log('🔍 マジックリンクのクエリパラメータをクリア');
-            } catch (error) {
-              // console.error('❌ マジックリンク処理エラー:', error);
-              set(state => {
-                state.error = '認証処理中にエラーが発生しました';
-              });
+              try {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('token_hash');
+                url.searchParams.delete('type');
+                url.searchParams.delete('access_token');
+                url.searchParams.delete('refresh_token');
+                window.history.replaceState({}, '', url.toString());
+                // console.log('🔍 マジックリンクのクエリパラメータをクリア');
+              } catch (error) {
+                // console.error('❌ マジックリンク処理エラー:', error);
+                set(state => {
+                  state.error = '認証処理中にエラーが発生しました';
+                });
+              }
+            }
+          }
+        } catch (error) {
+          // console.error('❌ マジックリンク認証エラー:', error);
+          set(state => {
+            state.error = '認証処理中にエラーが発生しました';
+          });
         }
       }
       
