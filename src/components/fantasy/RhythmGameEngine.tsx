@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRhythmEngine } from '@/hooks/useRhythmEngine';
 import { FantasyStage, FantasyGameState, FantasyGameEngineProps } from './FantasyGameEngine';
 import type { DisplayOpts } from '@/utils/display-note';
@@ -67,61 +67,63 @@ export const useRhythmGameEngine = ({
   );
 
   // Convert rhythm game state to FantasyGameState format
-  const fantasyGameState: FantasyGameState = {
-    currentStage: stage,
-    currentQuestionIndex: 0,
-    currentChordTarget: gameState.activeQuestions.length > 0 ? {
-      id: gameState.activeQuestions[0].chord,
-      displayName: gameState.activeQuestions[0].chord,
-      notes: [],
-      noteNames: [],
-      quality: '',
-      root: ''
-    } : null,  // ★ activeQuestionsから最初のコードを取得
-    playerHp: stage?.maxHp || 5,
-    enemyGauge: 0,
-    score: 0,
-    totalQuestions: gameState.total,
-    correctAnswers: gameState.defeated,
-    isGameActive: isStarted,  // ★ isStartedを使用
-    isGameOver: false,
-    gameResult: null,
-    currentEnemyIndex: 0,
-    currentEnemyHits: 0,
-    enemiesDefeated: gameState.defeated,
-    totalEnemies: gameState.total,
-    currentEnemyHp: 1,
-    maxEnemyHp: 1,
-    correctNotes: [],
-    isWaitingForNextMonster: false,
-    playerSp: 0,
-    activeMonsters: gameState.activeQuestions.map((q, idx) => ({
-      id: q.id,
-      index: idx,
-      position: q.position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
-      currentHp: 1,
-      maxHp: 1,
-      gauge: gaugeProgress * 100,
-      chordTarget: {
-        id: q.chord,
-        displayName: q.chord,
+  const fantasyGameState: FantasyGameState = useMemo(() => {
+    return {
+      currentStage: stage,
+      currentQuestionIndex: 0,
+      currentChordTarget: gameState.activeQuestions.length > 0 ? {
+        id: gameState.activeQuestions[0].chord,
+        displayName: gameState.activeQuestions[0].chord,
         notes: [],
         noteNames: [],
         quality: '',
         root: ''
-      },
+      } : null,  // ★ activeQuestionsから最初のコードを取得
+      playerHp: stage?.maxHp || 5,
+      enemyGauge: 0,
+      score: 0,
+      totalQuestions: gameState.total,
+      correctAnswers: gameState.defeated,
+      isGameActive: isStarted,  // ★ isStartedを使用
+      isGameOver: false,
+      gameResult: null,
+      currentEnemyIndex: 0,
+      currentEnemyHits: 0,
+      enemiesDefeated: gameState.defeated,
+      totalEnemies: gameState.total,
+      currentEnemyHp: 1,
+      maxEnemyHp: 1,
       correctNotes: [],
-      icon: stage?.monsterIcon || 'fa-drum',
-      name: `Monster ${idx}`
-    })),
-    monsterQueue: [],
-    simultaneousMonsterCount: stage?.simultaneousMonsterCount || 1,
-    isCompleting: false
-  };
+      isWaitingForNextMonster: false,
+      playerSp: 0,
+      activeMonsters: gameState.activeQuestions.map((q, idx) => ({
+        id: q.id,
+        index: idx,
+        position: q.position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
+        currentHp: 1,
+        maxHp: 1,
+        gauge: gaugeProgress * 100,
+        chordTarget: {
+          id: q.chord,
+          displayName: q.chord,
+          notes: [],
+          noteNames: [],
+          quality: '',
+          root: ''
+        },
+        correctNotes: [],
+        icon: stage?.monsterIcon || 'fa-drum',
+        name: `Monster ${idx}`
+      })),
+      monsterQueue: [],
+      simultaneousMonsterCount: stage?.simultaneousMonsterCount || 1,
+      isCompleting: false
+    };
+  }, [gameState, gaugeProgress, isStarted, stage]);
 
   useEffect(() => {
     onGameStateChange(fantasyGameState);
-  }, [gameState, gaugeProgress, fantasyGameState, onGameStateChange]);
+  }, [gameState, gaugeProgress, isStarted, onGameStateChange]); // fantasyGameStateを削除し、isStartedを追加
 
   // 入力ハンドラを親に渡すため返す（従来 API 維持）
   return {
