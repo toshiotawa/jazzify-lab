@@ -55,6 +55,7 @@ export class RhythmGameEngine {
   private questions: RhythmQuestion[] = []
   private activeQuestions = new Set<string>()
   private disposed = false
+  private lastVisibleCount = -1 // デバッグ用：前回の表示数
 
   constructor(private callbacks: RhythmGameCallbacks) {}
 
@@ -188,6 +189,38 @@ export class RhythmGameEngine {
     return activeQuestions
   }
 
+  /** ゲージが表示されている質問を取得（表示用） */
+  getVisibleQuestions(now: number): RhythmQuestion[] {
+    const PRE_WINDOW_MS = 1000 // 判定 1 秒前から表示
+    const visibleQuestions: RhythmQuestion[] = []
+    
+    for (const q of this.questions) {
+      const preStart = q.windowStart - PRE_WINDOW_MS
+      if (now >= preStart && now <= q.windowEnd) {
+        visibleQuestions.push(q)
+      }
+    }
+    
+    // デバッグ: 表示数が変化した時のみログを出力
+    if (visibleQuestions.length !== this.lastVisibleCount) {
+      console.log('🎵 getVisibleQuestions (changed):', {
+        now,
+        totalQuestions: this.questions.length,
+        visibleCount: visibleQuestions.length,
+        firstQuestion: this.questions[0] ? {
+          windowStart: this.questions[0].windowStart,
+          windowEnd: this.questions[0].windowEnd,
+          preStart: this.questions[0].windowStart - PRE_WINDOW_MS,
+          nowToWindowStart: this.questions[0].windowStart - now,
+          nowToPreStart: (this.questions[0].windowStart - PRE_WINDOW_MS) - now
+        } : null
+      });
+      this.lastVisibleCount = visibleQuestions.length;
+    }
+    
+    return visibleQuestions
+  }
+
   /** 破棄 */
   dispose(): void {
     this.disposed = true
@@ -209,6 +242,21 @@ export class RhythmGameEngine {
     
     // readyDurationを加算してタイミングを計算
     const ms = baseMs + readyDuration + totalBeats * msecPerBeat
+    
+    // デバッグ: 最初の質問のタイミングを確認
+    if (measure === 1 && beat === 1) {
+      console.log('🎵 toWindow (first question):', {
+        measure,
+        beat,
+        baseMs,
+        readyDuration,
+        totalBeats,
+        msecPerBeat,
+        ms,
+        windowStart: ms - WINDOW_MS,
+        windowEnd: ms + WINDOW_MS
+      });
+    }
     
     return {
       msStart: ms - WINDOW_MS,

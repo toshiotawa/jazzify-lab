@@ -70,8 +70,17 @@ export const useRhythmGameEngine = ({
   // Convert rhythm game state to FantasyGameState format
   const fantasyGameState: FantasyGameState = useMemo(() => {
     // デバッグ: activeQuestionsの状態を確認
-    if (gameState.activeQuestions.length > 0) {
-      console.log('🎵 RhythmGameEngine - Active questions:', gameState.activeQuestions);
+    if (gameState.activeQuestions.length > 0 || isStarted) {
+      console.log('🎵 RhythmGameEngine - Game state:', {
+        activeQuestions: gameState.activeQuestions.length,
+        isStarted,
+        gaugeProgress,
+        activeMonsters: gameState.activeQuestions.map(q => ({
+          id: q.id,
+          chord: q.chord,
+          position: q.position
+        }))
+      });
     }
     
     return {

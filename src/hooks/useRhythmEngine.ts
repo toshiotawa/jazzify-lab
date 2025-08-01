@@ -96,16 +96,17 @@ export const useRhythmEngine = (
     let frame: number
     const loop = () => {
       if (engineRef.current) {
-        const progress = engineRef.current.getGaugeProgress(performance.now())
+        const now = performance.now()
+        const progress = engineRef.current.getGaugeProgress(now)
         setGauge(progress)
         
-        // ★ アクティブな質問を取得して状態を更新
-        const activeQuestions = engineRef.current.getActiveQuestions()
+        // ★ 表示用の質問を取得（ゲージが表示されているもの）
+        const visibleQuestions = engineRef.current.getVisibleQuestions(now)
         setState(prevState => {
-          // console.log('🎵 Updating activeQuestions:', activeQuestions);
+          // activeQuestionsには表示用の質問を設定
           return {
             ...prevState,
-            activeQuestions
+            activeQuestions: visibleQuestions
           };
         })
       }
