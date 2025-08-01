@@ -173,13 +173,22 @@ export const FantasyRhythmEngine = forwardRef<
   useEffect(() => {
     if (!isActive || !startAt) return;
     
+    // 初回スケジュール生成
+    const initialSchedule = chordProgressionData 
+      ? generateProgressionSchedule()
+      : generateRandomSchedule();
+    
+    setChordSchedule(initialSchedule);
+    onChordSchedule(initialSchedule);
+    
     // 1フレームごとに全生成し直すのをやめ、
     // 既存 schedule の末尾が lookAhead の手前になったら追加入稿する
     const updateLoop = () => {
+      const currentTime = Date.now() - startAt;
+      
       setChordSchedule(prev => {
         const tailTime = prev.length ? prev[prev.length - 1].targetTime : 0;
-        const now = getCurrentGameTime();
-        if (tailTime - now < 8000) {        // 残り 8 秒になったら追加入稿
+        if (tailTime - currentTime < 8000) {        // 残り 8 秒になったら追加入稿
           const additional = chordProgressionData
             ? generateProgressionSchedule()
             : generateRandomSchedule();
@@ -195,7 +204,7 @@ export const FantasyRhythmEngine = forwardRef<
 
     const id = setInterval(updateLoop, 250); // 4fps で十分
     return () => clearInterval(id);
-  }, [isActive, startAt, chordProgressionData, generateProgressionSchedule, generateRandomSchedule, onChordSchedule, getCurrentGameTime]);
+  }, [isActive, startAt, chordProgressionData, generateProgressionSchedule, generateRandomSchedule, onChordSchedule]);
 
   // 判定ウィンドウのチェック
   useEffect(() => {
