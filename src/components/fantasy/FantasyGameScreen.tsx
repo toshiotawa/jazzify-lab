@@ -14,6 +14,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { RhythmModeUI } from './RhythmModeUI';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
@@ -776,6 +777,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               imageTexturesRef={imageTexturesRef}
             />
           </div>
+          
+          {/* リズムモードUI */}
+          {stage.mode === 'rhythm' && gameState.currentChordTarget && (
+            <RhythmModeUI
+              currentChord={gameState.currentChordTarget.id}
+              nextChords={[]}
+              allowedChords={stage.allowedChords}
+              bpm={stage.bpm || 120}
+              timeSignature={stage.timeSignature || 4}
+              measureCount={stage.measureCount || 8}
+              countInMeasures={stage.countInMeasures || 0}
+              progressionData={stage.chordProgressionData || null}
+            />
+          )}
           
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
