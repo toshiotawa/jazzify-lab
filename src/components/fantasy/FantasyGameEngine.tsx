@@ -425,6 +425,13 @@ export const useFantasyGameEngine = ({
   const [rhythmJudgments, setRhythmJudgments] = useState<RhythmJudgment[]>([]);
   const rhythmEngineRef = useRef<{ judge: (chordId: string, inputTime: number) => RhythmJudgment | null } | null>(null);
   
+  // リズムモードかどうかを判定
+  const isRhythmMode = gameState.currentStage?.mode === 'rhythm' || stage?.mode === 'rhythm';
+  
+  // タイムストアから必要な値を取得
+  const timeStore = useTimeStore();
+  const { startAt: timeStartAt, readyDuration: timeReadyDuration } = timeStore;
+  
   // デバッグ用：refの状態を確認
   useEffect(() => {
     devLog.debug('🎵 rhythmEngineRef status:', { 
@@ -432,9 +439,6 @@ export const useFantasyGameEngine = ({
       isRhythmMode 
     });
   }, [isRhythmMode]);
-  
-  // リズムモードかどうかを判定
-  const isRhythmMode = gameState.currentStage?.mode === 'rhythm' || stage?.mode === 'rhythm';
   
   // リズムモード用のコールバック
   const handleRhythmJudgment = useCallback((judgment: RhythmJudgment) => {
@@ -626,8 +630,7 @@ export const useFantasyGameEngine = ({
     onGameStateChange(newState);
 
     /* ===== Ready + 時間ストア開始 ===== */
-    useTimeStore
-      .getState()
+    timeStore
       .setStart(
         stage.bpm || 120,
         stage.timeSignature || 4, // デフォルトは4/4拍子
@@ -840,9 +843,8 @@ export const useFantasyGameEngine = ({
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中はゲージ停止 */
-    const timeState = useTimeStore.getState();
-    if (timeState.startAt &&
-        performance.now() - timeState.startAt < timeState.readyDuration) {
+    if (timeStartAt &&
+        performance.now() - timeStartAt < timeReadyDuration) {
       return;
     }
     
@@ -900,7 +902,7 @@ export const useFantasyGameEngine = ({
         return nextState;
       }
     });
-  }, [handleEnemyAttack, onGameStateChange]);
+  }, [handleEnemyAttack, onGameStateChange, timeStartAt, timeReadyDuration]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
@@ -928,7 +930,7 @@ export const useFantasyGameEngine = ({
         });
         
         // 現在の入力時刻を取得（ゲーム時間に変換）
-        const inputTime = performance.now() - (useTimeStore.getState().startAt || 0) - useTimeStore.getState().readyDuration;
+        const inputTime = performance.now() - (timeStartAt || 0) - timeReadyDuration;
         
         // アクティブなモンスターから、入力された音符を含むコードを探す
         const targetMonster = prevState.activeMonsters.find(monster => {
@@ -1093,7 +1095,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange, isRhythmMode]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange, isRhythmMode, timeStartAt, timeReadyDuration]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
@@ -1182,7 +1184,7 @@ export const useFantasyGameEngine = ({
   const updateRhythmMonsters = useCallback((schedule: RhythmChordSchedule[]) => {
     if (!isRhythmMode || !gameState.isGameActive) return;
     
-    const currentTime = performance.now() - (useTimeStore.getState().startAt || 0) - useTimeStore.getState().readyDuration;
+    const currentTime = performance.now() - (timeStartAt || 0) - timeReadyDuration;
     
     // 次の1秒以内のスケジュール項目を取得
     const upcomingItems = schedule.filter(item => 
@@ -1224,14 +1226,25 @@ export const useFantasyGameEngine = ({
       onGameStateChange(newState);
       return newState;
     });
-  }, [gameState.currentStage, gameState.isGameActive, onGameStateChange, displayOpts]);
+  }, [gameState.currentStage, gameState.isGameActive, onGameStateChange, displayOpts, isRhythmMode, timeStartAt, timeReadyDuration]);
+  
+  // リズムモードでのモンスター更新を定期的に実行
+  useEffect(() => {
+    if (!isRhythmMode || !gameState.isGameActive || !rhythmSchedule.length) return;
+    
+    const interval = setInterval(() => {
+      updateRhythmMonsters(rhythmSchedule);
+    }, 100); // 100msごとに更新
+    
+    return () => clearInterval(interval);
+  }, [isRhythmMode, gameState.isGameActive, rhythmSchedule, updateRhythmMonsters]);
   
   // リズムモード用のゲージ更新処理
   useEffect(() => {
     if (!isRhythmMode || !gameState.isGameActive || !rhythmSchedule.length) return;
     
     const updateGauges = () => {
-      const currentTime = performance.now() - (useTimeStore.getState().startAt || 0) - useTimeStore.getState().readyDuration;
+      const currentTime = performance.now() - (timeStartAt || 0) - timeReadyDuration;
       
       setGameState(prevState => {
         const updatedMonsters = prevState.activeMonsters.map(monster => {
@@ -1272,18 +1285,7 @@ export const useFantasyGameEngine = ({
     updateGauges(); // 初回実行
     
     return () => clearInterval(interval);
-  }, [isRhythmMode, gameState.isGameActive, rhythmSchedule]);
-  
-  // リズムモードでのモンスター更新を定期的に実行
-  useEffect(() => {
-    if (!isRhythmMode || !gameState.isGameActive || !rhythmSchedule.length) return;
-    
-    const interval = setInterval(() => {
-      updateRhythmMonsters(rhythmSchedule);
-    }, 100); // 100msごとに更新
-    
-    return () => clearInterval(interval);
-  }, [isRhythmMode, gameState.isGameActive, rhythmSchedule, updateRhythmMonsters]);
+  }, [isRhythmMode, gameState.isGameActive, rhythmSchedule, timeStartAt, timeReadyDuration]);
   
   // ステージ変更時の初期化
   // useEffect(() => {
