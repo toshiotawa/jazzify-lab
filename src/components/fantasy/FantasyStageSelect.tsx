@@ -159,7 +159,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'single' | 'progression' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
@@ -291,6 +291,25 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.name : "???"}
           </div>
+          
+          {/* リズムモードバッジ */}
+          {unlocked && stage.mode === 'rhythm' && (
+            <div className="inline-flex items-center gap-2 mb-2">
+              <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded">
+                リズムモード
+              </span>
+              {/* rhythmTypeとchord_progression_dataの型定義が必要なため、一旦コメントアウト */}
+              {/* {(stage as any).rhythmType === 'random' ? (
+                <span className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded">
+                  ランダム
+                </span>
+              ) : (
+                <span className="bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded">
+                  進行
+                </span>
+              )} */}
+            </div>
+          )}
           
           {/* 説明文 */}
           <div className={cn(
