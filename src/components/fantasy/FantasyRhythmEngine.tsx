@@ -32,17 +32,12 @@ interface RhythmEngineProps {
   timeSignature: number;
   measureCount: number;
   countInMeasures: number;
-  chordProgressionData?: {
-    chords: Array<{
-      measure: number;
-      beat: number;
-      chord: string;
-    }>;
-  } | null;
+  chordProgressionData: { chords: Array<{ measure: number; beat: number; chord: string }> } | null;
   allowedChords: string[];
   simultaneousMonsterCount: number;
   onJudgment: (judgment: RhythmJudgment) => void;
   onChordSchedule: (schedule: RhythmChordSchedule[]) => void;
+  onMissJudgment?: (chordId: string) => void; // Add callback for miss judgments
 }
 
 export const FantasyRhythmEngine = forwardRef<
@@ -58,12 +53,12 @@ export const FantasyRhythmEngine = forwardRef<
   allowedChords,
   simultaneousMonsterCount,
   onJudgment,
-  onChordSchedule
+  onChordSchedule,
+  onMissJudgment
 }, ref) => {
   const { currentMeasure, currentBeat, isCountIn, startAt, readyDuration } = useTimeStore();
   const [activeJudgments, setActiveJudgments] = useState<RhythmJudgment[]>([]);
   const [chordSchedule, setChordSchedule] = useState<RhythmChordSchedule[]>([]);
-  const [currentChordIndex, setCurrentChordIndex] = useState(0);
 
   // 拍子に基づいて使用する列位置を決定
   const positions = useMemo(() => {
@@ -97,13 +92,14 @@ export const FantasyRhythmEngine = forwardRef<
     const lookAheadTime = currentTime + 10000; // 10秒先まで生成
     
     let loopCount = 0;
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       for (let i = 0; i < chords.length; i++) {
         const chord = chords[i];
-        const actualMeasure = loopCount * measureCount + chord.measure;
         
-        // カウントイン後の時間を計算
-        const measureTime = (actualMeasure - 1 + countInMeasures) * msPerMeasure;
+        // ループを考慮した実際の小節番号
+        const actualMeasure = ((loopCount * measureCount + chord.measure - 1) % measureCount) + 1;
+        const measureTime = (loopCount * measureCount + chord.measure - 1 + countInMeasures) * msPerMeasure;
         const beatTime = (chord.beat - 1) * msPerBeat;
         const targetTime = measureTime + beatTime;
         
@@ -235,6 +231,7 @@ export const FantasyRhythmEngine = forwardRef<
               currentTime 
             });
             onJudgment(existingJudgment);
+            onMissJudgment?.(existingJudgment.chordId); // ミス判定時にコールバックを呼び出す
           }
         }
       });
@@ -245,7 +242,7 @@ export const FantasyRhythmEngine = forwardRef<
     const interval = setInterval(checkJudgmentWindow, 16); // 60FPS
     
     return () => clearInterval(interval);
-  }, [isActive, startAt, chordSchedule, activeJudgments, getCurrentGameTime, onJudgment]);
+  }, [isActive, startAt, chordSchedule, activeJudgments, getCurrentGameTime, onJudgment, onMissJudgment]);
 
   // 判定処理（外部から呼び出される）
   const judge = useCallback((chordId: string, inputTime: number) => {

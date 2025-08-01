@@ -19,7 +19,7 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
   schedule,
   currentTime,
   position,
-  chordId
+  chordId: _chordId
 }) => {
   const [gaugeProgress, setGaugeProgress] = useState(0);
   const { startAt, readyDuration } = useTimeStore();
@@ -49,7 +49,7 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
       const timeUntilTarget = currentScheduleItem.targetTime - now;
       
       // 1秒前から0%、ターゲットタイムで80%になるように計算
-      const progress = Math.max(0, Math.min(80, (1000 - timeUntilTarget) / 1000 * 80));
+      const progress = timeUntilTarget > 1000 ? 0 : Math.max(0, Math.min(80, (1000 - timeUntilTarget) / 1000 * 80));
       setGaugeProgress(progress);
     };
 

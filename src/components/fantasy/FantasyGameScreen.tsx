@@ -46,7 +46,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // エフェクト状態
   const [damageShake, setDamageShake] = useState(false);
-  const [overlay, setOverlay] = useState<null | { text:string }>(null); // ★★★ add
+  const [overlay, setOverlay] = useState<null | { text:string }>(null);
   const [heartFlash, setHeartFlash] = useState(false); // ハートフラッシュ効果
   
   // 設定モーダル状態
@@ -63,13 +63,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
   
-  // ★★★ 修正箇所 ★★★
+ 
   // ローカルのuseStateからgameStoreに切り替え
   const { settings, updateSettings } = useGameStore();
   const midiControllerRef = useRef<MIDIController | null>(null);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   
-  // ★★★ 追加: モンスターエリアの幅管理 ★★★
+ 
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
   const monsterAreaRef = useRef<HTMLDivElement>(null);
   
@@ -83,7 +83,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const isReady =
     startAt !== null && performance.now() - startAt < readyDuration;
   
-  // ★★★ 追加: モンスターエリアのサイズ監視 ★★★
+ 
   useEffect(() => {
     const update = () => {
       if (monsterAreaRef.current) {
@@ -119,7 +119,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume, startAt]);
   
-  // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
+ 
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   
   // ノート入力のハンドリング用ref
@@ -156,7 +156,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       controller.initialize().then(() => {
         devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
         
-        // ★★★ デフォルト音量設定を追加 ★★★
+       
         // ファンタジーモード開始時にデフォルト音量（80%）を設定
         import('@/utils/MidiController').then(({ updateGlobalVolume, initializeAudioSystem }) => {
           // 音声システムを初期化
@@ -201,7 +201,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []); // 空の依存配列で一度だけ実行
   
-  // ★★★ 修正箇所 ★★★
+ 
   // gameStoreのデバイスIDを監視して接続/切断
   useEffect(() => {
     const connect = async () => {
@@ -310,7 +310,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
-    setOverlay({ text });                 // ★★★ add
+    setOverlay({ text });                
     setTimeout(() => {
       setOverlay(null);                   // オーバーレイを消す
       onGameComplete(
@@ -326,6 +326,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleRhythmJudgment = useCallback((judgment: RhythmJudgment) => {
     devLog.debug('🎵 Rhythm judgment received:', judgment);
     // 判定結果をPIXIに反映させる処理などを追加可能
+  }, []);
+  
+
+
+  const handleMissJudgment = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
+    devLog.debug('🎵 ミス:', { expected: expectedChord.displayName, input: inputNotes });
+    // ミスエフェクトは削除（音の積み重ね方式のため）
+    // setShowIncorrectEffect(true);
+    // setTimeout(() => setShowIncorrectEffect(false), 500);
   }, []);
   
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
@@ -344,9 +353,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     rhythmSchedule,
     rhythmJudgments,
     rhythmEngineRef,
-    updateRhythmMonsters
+    updateRhythmMonsters,
+    handleMissJudgment: handleRhythmMissJudgment
   } = useFantasyGameEngine({
-    stage: null, // ★★★ change
+    stage: null,
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
@@ -523,7 +533,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const rect = gameAreaRef.current.getBoundingClientRect();
       const newSize = {
         width: Math.max(rect.width || window.innerWidth, window.innerWidth), // 画面幅を基準に設定
-        height: 120 // ★★★ 高さを120pxに固定 ★★★
+        height: 120
       };
       setGameAreaSize(newSize);
       
@@ -576,7 +586,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         )}>
           ♥×{hp}
         </span>
-      );                                    // ★★★ add
+      );                                   
     }
     
     const hearts = [];
@@ -740,7 +750,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       {/* ===== メインゲームエリア ===== */}
       <div className="flex-grow flex flex-col justify-center px-2 py-1 text-white text-center relative z-20" style={{ minHeight: '200px' }}>
-        {/* ★★★ このエリアは削除します ★★★ */}
+        {/*  */}
         {/* <div className="mb-1 text-center">
           ... (古いヒント表示エリア) ...
         </div>
@@ -772,7 +782,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
-              // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
+             
               <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
                 {gameState.activeMonsters
                   .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
@@ -816,7 +826,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                     return (
                       <div 
                         key={monster.id}
-                        // ★★★ 修正点: flexアイテムとして定義、幅を設定 ★★★
+                       
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
@@ -827,7 +837,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         {monster.chordTarget.displayName}
                       </div>
                       
-                      {/* ★★★ ここにヒント表示を追加 ★★★ */}
+                      {/*  */}
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
@@ -946,7 +956,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div 
         ref={gameAreaRef}
         className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
-        style={{ height: '120px' }} // ★★★ 高さを120pxに固定 ★★★
+        style={{ height: '120px' }}
       >
         {(() => {
           // スクロール判定ロジック（GameEngine.tsxと同様）
@@ -986,7 +996,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <PIXINotesRenderer
                   activeNotes={[]}
                   width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
+                  height={120}
                   currentTime={0}
                   onReady={handlePixiReady}
                   className="w-full h-full"
@@ -1000,7 +1010,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <PIXINotesRenderer
                   activeNotes={[]}
                   width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
+                  height={120}
                   currentTime={0}
                   onReady={handlePixiReady}
                   className="w-full h-full"
@@ -1051,7 +1061,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           setCurrentNoteNameLang(settings.noteNameLang);
           setCurrentSimpleNoteName(settings.simpleNoteName);
           
-          // ★★★ 音量更新処理を追加 ★★★
+         
           // ピアノ音量設定が変更されたら、グローバル音量を更新
           if (settings.volume !== undefined) {
             // gameStoreの音量設定も更新
@@ -1106,7 +1116,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         isMidiConnected={isMidiConnected}
       />
       
-      {/* オーバーレイ表示 */}           {/* ★★★ add */}
+      {/* オーバーレイ表示 */}           {/*  */}
       {overlay && (
         <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none">
           <span className="font-dotgothic16 text-6xl text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
@@ -1124,11 +1134,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           timeSignature={stage.timeSignature || 4}
           measureCount={stage.measureCount || 8}
           countInMeasures={stage.countInMeasures || 1}
-          chordProgressionData={stage.chordProgressionData}
+          chordProgressionData={stage.chordProgressionData || null}
           allowedChords={stage.allowedChords}
           simultaneousMonsterCount={stage.simultaneousMonsterCount}
-          onJudgment={handleRhythmJudgment}
-          onChordSchedule={handleRhythmSchedule}
+                      onJudgment={handleRhythmJudgment}
+            onChordSchedule={handleRhythmSchedule}
+            onMissJudgment={handleRhythmMissJudgment}
         />
       )}
       
