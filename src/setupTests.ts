@@ -1,5 +1,6 @@
 // Setup file for tests
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -19,7 +20,7 @@ Object.defineProperty(window, 'matchMedia', {
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
   constructor() {}
-  disconnect() {}
   observe() {}
   unobserve() {}
-};
+  disconnect() {}
+} as any;

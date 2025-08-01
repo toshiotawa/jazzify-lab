@@ -4,6 +4,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as PIXI from 'pixi.js';
 import FantasyGameEngine from '../FantasyGameEngine';
 import { getStageMonsterIds } from '@/data/monsters';
+import type { FantasyStage, FantasyGameState } from '@/types';
 
 // Mock PIXI.js
 vi.mock('pixi.js', () => ({
@@ -34,7 +35,7 @@ vi.mock('@/utils/logger', () => ({
 }));
 
 describe('FantasyGameEngine - Monster Image Preloading', () => {
-  const mockStage = {
+  const mockStage: FantasyStage = {
     id: 'test-stage',
     stageNumber: '1-1',
     name: 'Test Stage',
@@ -173,5 +174,64 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
 
     // Component should still render even if image loading fails
     expect(container).toBeTruthy();
+  });
+});
+
+describe('FantasyGameEngine - Rhythm Mode', () => {
+  const mockRhythmStage: FantasyStage = {
+    id: 'rhythm-test',
+    stageNumber: '1-1',
+    name: 'Rhythm Test Stage',
+    description: 'Test rhythm mode',
+    maxHp: 10,
+    enemyGaugeSeconds: 10,
+    enemyCount: 10,
+    enemyHp: 5,
+    minDamage: 1,
+    maxDamage: 2,
+    mode: 'rhythm' as const,
+    allowedChords: ['C', 'G', 'Am', 'F'],
+    showSheetMusic: true,
+    showGuide: true,
+    monsterIcon: 'test-icon',
+    simultaneousMonsterCount: 4,
+    bpm: 120,
+    measureCount: 8,
+    countInMeasures: 1,
+    timeSignature: 4,
+    chordProgressionData: {
+      chords: [
+        { beat: 1, chord: 'C', measure: 1 },
+        { beat: 1, chord: 'G', measure: 2 },
+        { beat: 1, chord: 'Am', measure: 3 },
+        { beat: 1, chord: 'F', measure: 4 }
+      ]
+    }
+  };
+
+  test('initializes rhythm mode with judgment windows', () => {
+    let gameState: FantasyGameState | null = null;
+    
+    render(
+      <FantasyGameEngine
+        stage={mockRhythmStage}
+        onGameStateChange={(state) => { gameState = state; }}
+        onChordCorrect={vi.fn()}
+        onChordIncorrect={vi.fn()}
+        onGameComplete={vi.fn()}
+        onEnemyAttack={vi.fn()}
+        displayOpts={{ lang: 'en', simple: false }}
+      />
+    );
+    
+    // Check that rhythm chords and judgment windows are created
+    expect(gameState).toBeTruthy();
+    expect(gameState?.rhythmChords).toBeDefined();
+    expect(gameState?.rhythmChords?.length).toBeGreaterThan(0);
+    expect(gameState?.judgmentWindows).toBeDefined();
+    expect(gameState?.judgmentWindows?.length).toBe(gameState?.rhythmChords?.length);
+    
+    // Check that 4 monsters are created for rhythm mode
+    expect(gameState?.activeMonsters.length).toBe(4);
   });
 });
