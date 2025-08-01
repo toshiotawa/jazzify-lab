@@ -635,7 +635,7 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';
   allowed_chords: string[];
   chord_progression?: string[];
   show_sheet_music: boolean;
@@ -648,6 +648,26 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  chord_progression_data?: ChordProgressionData;
+}
+
+// リズムモード用のコード進行データ
+export interface ChordProgressionData {
+  chords: Array<{
+    measure: number;
+    beat: number;
+    chord: string;
+  }>;
+}
+
+// リズムモード用の判定ウィンドウ
+export interface JudgmentWindow {
+  startTime: number;  // 判定開始時刻（ms）
+  endTime: number;    // 判定終了時刻（ms）
+  chord: string;      // 判定対象のコード
+  measure: number;    // 小節番号
+  beat: number;       // 拍番号
+  judged: boolean;    // 判定済みフラグ
 }
 
 export interface LessonContext {
