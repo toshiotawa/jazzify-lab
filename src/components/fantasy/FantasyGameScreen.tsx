@@ -3,20 +3,21 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { COUNT_IN_SYMBOL } from '@/utils/rhythm';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -712,7 +713,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
           {isCountIn ? (
-            <>M / - B {currentBeat}</>
+            <>M {COUNT_IN_SYMBOL} - B {currentBeat}</>
           ) : (
             <>M {currentMeasure} - B {currentBeat}</>
           )}

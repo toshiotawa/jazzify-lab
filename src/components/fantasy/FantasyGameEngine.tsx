@@ -3,14 +3,15 @@
  * ゲームロジックとステート管理を担当
  */
 
-import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
-import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
+import { type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
-import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
+import { getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { nextDeadline } from '@/utils/rhythm';
 
 // ===== 型定義 =====
 
@@ -59,6 +60,7 @@ interface MonsterState {
   correctNotes: number[]; // このモンスター用の正解済み音
   icon: string;
   name: string;
+  judgementDeadline: number;   // Rhythm 用
 }
 
 interface FantasyGameState {
@@ -196,7 +198,8 @@ const createMonsterFromQueue = (
     chordTarget: chord!,
     correctNotes: [],
     icon: enemy.icon,
-    name: enemy.name
+    name: enemy.name,
+    judgementDeadline: nextDeadline()
   };
 };
 
@@ -870,6 +873,7 @@ export const useFantasyGameEngine = ({
           
           onChordCorrect(completed.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completed.id);
           monsterToUpdate.currentHp -= damageDealt;
+          monsterToUpdate.judgementDeadline = Infinity;  // 判定クリア
         });
 
         // プレイヤーの状態更新
@@ -1057,6 +1061,47 @@ export const useFantasyGameEngine = ({
     };
   }, []);
   
+  /* ===== rhythm 判定タイマー ===== */
+  useEffect(() => {
+    const id = setInterval(() => {
+      setGameState(prev => {
+        if (!prev.isGameActive) return prev;
+
+        const now = performance.now();
+        let monstersChanged = false;
+
+        const updated = prev.activeMonsters.map(m => {
+          /* 完成済みは対象外 (judgementDeadline は handleNoteInput で消す) */
+          if (m.judgementDeadline && now > m.judgementDeadline) {
+            /* 攻撃失敗 → 敵攻撃 */
+            monstersChanged = true;
+            setTimeout(() => handleEnemyAttack(m.id), 0);
+
+            /* 新しいコードに差し替え */
+            const newChord = selectRandomChord(
+              prev.currentStage!.allowedChords,
+              m.chordTarget.id,
+              displayOpts
+            );
+            return {
+              ...m,
+              chordTarget: newChord!,
+              correctNotes: [],
+              gauge: 0,
+              judgementDeadline: nextDeadline()
+            };
+          }
+          return m;
+        });
+
+        if (!monstersChanged) return prev;
+        const next = { ...prev, activeMonsters: updated };
+        onGameStateChange(next);
+        return next;
+      });
+    }, 50);               // 50 ms resolution
+    return () => clearInterval(id);
+  }, [handleEnemyAttack, onGameStateChange, displayOpts]);
 
   
   return {

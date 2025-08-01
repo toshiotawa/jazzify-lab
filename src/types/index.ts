@@ -7,6 +7,7 @@
 export type GameMode = 'practice' | 'performance';
 export type InstrumentMode = 'piano' | 'guitar';
 export type InputMode = 'midi' | 'audio' | 'both';
+export const JUDGEMENT_WINDOW_MS = 400;   // 外部でも使えるよう re-export
 
 // 移調楽器タイプ
 export type TransposingInstrument = 
