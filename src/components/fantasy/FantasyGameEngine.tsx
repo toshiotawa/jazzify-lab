@@ -425,6 +425,14 @@ export const useFantasyGameEngine = ({
   const [rhythmJudgments, setRhythmJudgments] = useState<RhythmJudgment[]>([]);
   const rhythmEngineRef = useRef<{ judge: (chordId: string, inputTime: number) => RhythmJudgment | null } | null>(null);
   
+  // デバッグ用：refの状態を確認
+  useEffect(() => {
+    devLog.debug('🎵 rhythmEngineRef status:', { 
+      hasRef: !!rhythmEngineRef.current,
+      isRhythmMode 
+    });
+  }, [isRhythmMode]);
+  
   // リズムモードかどうかを判定
   const isRhythmMode = gameState.currentStage?.mode === 'rhythm' || stage?.mode === 'rhythm';
   
@@ -906,6 +914,12 @@ export const useFantasyGameEngine = ({
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
 
       // リズムモードの場合は特別な処理
+      devLog.debug('🎵 Rhythm mode check:', { 
+        isRhythmMode, 
+        hasRhythmEngine: !!rhythmEngineRef.current,
+        currentStageMode: prevState.currentStage?.mode
+      });
+      
       if (isRhythmMode && rhythmEngineRef.current) {
         devLog.debug('🎵 Rhythm mode input processing:', { 
           note, 
@@ -913,8 +927,8 @@ export const useFantasyGameEngine = ({
           hasRhythmEngine: !!rhythmEngineRef.current 
         });
         
-        // 現在の入力時刻を取得
-        const inputTime = performance.now();
+        // 現在の入力時刻を取得（ゲーム時間に変換）
+        const inputTime = performance.now() - (useTimeStore.getState().startAt || 0) - useTimeStore.getState().readyDuration;
         
         // アクティブなモンスターから、入力された音符を含むコードを探す
         const targetMonster = prevState.activeMonsters.find(monster => {
@@ -1079,7 +1093,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange, isRhythmMode]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
@@ -1259,6 +1273,17 @@ export const useFantasyGameEngine = ({
     
     return () => clearInterval(interval);
   }, [isRhythmMode, gameState.isGameActive, rhythmSchedule]);
+  
+  // リズムモードでのモンスター更新を定期的に実行
+  useEffect(() => {
+    if (!isRhythmMode || !gameState.isGameActive || !rhythmSchedule.length) return;
+    
+    const interval = setInterval(() => {
+      updateRhythmMonsters(rhythmSchedule);
+    }, 100); // 100msごとに更新
+    
+    return () => clearInterval(interval);
+  }, [isRhythmMode, gameState.isGameActive, rhythmSchedule, updateRhythmMonsters]);
   
   // ステージ変更時の初期化
   // useEffect(() => {
