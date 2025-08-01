@@ -9,6 +9,7 @@ import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
+import { useRhythmStore } from '@/stores/rhythmStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
@@ -60,6 +61,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
   
+  // リズムモード管理
+  const { lastJudgmentResult } = useRhythmStore();
+  
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
   const { settings, updateSettings } = useGameStore();
@@ -103,7 +107,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (!isReady && startAt) {
       bgmManager.play(
-        stage.bgmUrl ?? '/demo-1.mp3',
+        stage.mode === 'rhythm' && stage.mp3Url ? stage.mp3Url : (stage.bgmUrl ?? '/demo-1.mp3'),
         stage.bpm || 120,
         stage.timeSignature || 4,
         stage.measureCount ?? 8,
@@ -920,6 +924,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <div className="text-blue-300 text-sm font-bold">
               {getNextChord()}
             </div>
+          </div>
+        )}
+        
+        {/* リズムモード表示 */}
+        {stage.mode === 'rhythm' && (
+          <div className="mb-1 text-right">
+            <div className="text-white text-xs">RHYTHM MODE</div>
+            <div className="text-yellow-300 text-sm font-bold">
+              {stage.chordProgressionData ? 'PROGRESSION' : 'RANDOM'}
+            </div>
+            {lastJudgmentResult && (
+              <div className={cn(
+                "text-lg font-bold mt-1 animate-bounce",
+                lastJudgmentResult === 'perfect' && "text-green-400",
+                lastJudgmentResult === 'good' && "text-yellow-400",
+                lastJudgmentResult === 'miss' && "text-red-400"
+              )}>
+                {lastJudgmentResult.toUpperCase()}!
+              </div>
+            )}
           </div>
         )}
       </div>
