@@ -83,7 +83,7 @@ export const useRhythmEngine = (
         // ★ アクティブな質問を取得して状態を更新
         const activeQuestions = engineRef.current.getActiveQuestions()
         setState(prevState => {
-          console.log('🎵 Updating activeQuestions:', activeQuestions);
+          // console.log('🎵 Updating activeQuestions:', activeQuestions);
           return {
             ...prevState,
             activeQuestions
