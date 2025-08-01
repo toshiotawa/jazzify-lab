@@ -648,6 +648,13 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  chord_progression_data?: {
+    chords: Array<{
+      chord: string;
+      measure: number;
+      beat: number;
+    }>;
+  } | null;
 }
 
 export interface LessonContext {
