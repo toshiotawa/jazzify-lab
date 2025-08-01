@@ -18,6 +18,10 @@ interface TimeState {
   currentMeasure: number
   /* カウントイン中かどうか */
   isCountIn: boolean
+  /* 正確な拍位置（小数点含む） */
+  exactBeat: number
+  /* 現在の経過時間（ms） */
+  elapsedTime: number
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -27,6 +31,8 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* 現在の小節とビートの正確な位置を取得 */
+  getExactPosition: () => { measure: number; beat: number }
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -39,6 +45,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  exactBeat: 1,
+  elapsedTime: 0,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -48,7 +56,9 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       countInMeasures: ci,
       currentBeat: 1,
       currentMeasure: 1,
-      isCountIn: false
+      isCountIn: false,
+      exactBeat: 1,
+      elapsedTime: 0
     }),
   tick: () => {
     const s = get()
@@ -59,18 +69,20 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (elapsed < s.readyDuration) {
       set({
         currentBeat: 1,
-        currentMeasure: 1
+        currentMeasure: 1,
+        exactBeat: 1,
+        elapsedTime: elapsed
       })
       return
     }
 
     const msecPerBeat = 60000 / s.bpm
-    const beatsFromStart = Math.floor(
-      (elapsed - s.readyDuration) / msecPerBeat
-    )
+    const exactBeatsFromStart = (elapsed - s.readyDuration) / msecPerBeat
+    const beatsFromStart = Math.floor(exactBeatsFromStart)
 
     const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
+    const exactBeatInMeasure = (exactBeatsFromStart % s.timeSignature) + 1
     
     /* カウントイン中かどうかを判定 */
     if (totalMeasures < s.countInMeasures) {
@@ -78,7 +90,9 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       set({
         currentBeat: currentBeatInMeasure,
         currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
-        isCountIn: true
+        isCountIn: true,
+        exactBeat: exactBeatInMeasure,
+        elapsedTime: elapsed
       })
     } else {
       // メイン部分（カウントイン後）
@@ -88,8 +102,33 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       set({
         currentBeat: currentBeatInMeasure,
         currentMeasure: displayMeasure, // カウントイン後を1から表示
-        isCountIn: false
+        isCountIn: false,
+        exactBeat: exactBeatInMeasure,
+        elapsedTime: elapsed
       })
+    }
+  },
+  getExactPosition: () => {
+    const s = get()
+    if (s.startAt === null || s.elapsedTime < s.readyDuration) {
+      return { measure: 1, beat: 1 }
+    }
+    
+    const msecPerBeat = 60000 / s.bpm
+    const exactBeatsFromStart = (s.elapsedTime - s.readyDuration) / msecPerBeat
+    const totalBeats = exactBeatsFromStart
+    
+    const totalMeasures = Math.floor(totalBeats / s.timeSignature)
+    const exactBeatInMeasure = (totalBeats % s.timeSignature) + 1
+    
+    if (totalMeasures < s.countInMeasures) {
+      // Count-in phase
+      return { measure: totalMeasures + 1, beat: exactBeatInMeasure }
+    } else {
+      // Main phase (after count-in)
+      const measuresAfterCountIn = totalMeasures - s.countInMeasures
+      const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
+      return { measure: displayMeasure, beat: exactBeatInMeasure }
     }
   }
 }))
