@@ -97,7 +97,7 @@ const FantasyMain: React.FC = () => {
             enemyHp: stage.enemy_hp,
             minDamage: stage.min_damage,
             maxDamage: stage.max_damage,
-            mode: stage.mode,
+            mode: stage.mode as 'single' | 'progression' | 'rhythm',
             allowedChords: stage.allowed_chords,
             chordProgression: stage.chord_progression,
             showSheetMusic: stage.show_sheet_music,

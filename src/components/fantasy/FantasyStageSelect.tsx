@@ -159,7 +159,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'single' | 'progression' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
@@ -289,7 +289,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             "text-lg font-medium mb-1",
             unlocked ? "text-white" : "text-gray-400"
           )}>
-            {unlocked ? stage.name : "???"}
+            {unlocked ? (
+              <span>
+                {stage.name}
+                <span className="ml-2 px-2 py-0.5 text-xs rounded bg-black bg-opacity-40 align-middle">
+                  {stage.mode === 'rhythm' ? 'リズム' : 'クイズ'}
+                </span>
+              </span>
+            ) : "???"}
           </div>
           
           {/* 説明文 */}
