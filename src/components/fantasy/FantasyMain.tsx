@@ -108,7 +108,8 @@ const FantasyMain: React.FC = () => {
             bgmUrl: stage.bgm_url || stage.mp3_url,
             measureCount: stage.measure_count,
             countInMeasures: stage.count_in_measures,
-            timeSignature: stage.time_signature
+            timeSignature: stage.time_signature,
+            chordProgressionData: stage.chord_progression_data || null
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -381,7 +382,7 @@ const FantasyMain: React.FC = () => {
         enemyHp: nextStageData.enemy_hp,
         minDamage: nextStageData.min_damage,
         maxDamage: nextStageData.max_damage,
-        mode: nextStageData.mode as 'single' | 'progression',
+                  mode: nextStageData.mode as 'single' | 'progression' | 'rhythm',
         allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
         chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
         showSheetMusic: nextStageData.show_sheet_music,
@@ -392,7 +393,8 @@ const FantasyMain: React.FC = () => {
         bpm: nextStageData.bpm || 120,
         measureCount: nextStageData.measure_count,
         countInMeasures: nextStageData.count_in_measures,
-        timeSignature: nextStageData.time_signature
+        timeSignature: nextStageData.time_signature,
+        chordProgressionData: nextStageData.chord_progression_data || null
       };
 
       setGameResult(null);

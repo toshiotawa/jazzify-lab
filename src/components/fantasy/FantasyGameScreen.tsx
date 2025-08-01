@@ -14,6 +14,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { RhythmLane } from './RhythmLane';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
@@ -56,6 +57,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
+  
+  // リズムモード用の入力バッファ
+  const [rhythmInputBuffer, setRhythmInputBuffer] = useState<number[]>([]);
+  const rhythmInputTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
@@ -324,6 +329,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const {
     gameState,
     handleNoteInput: engineHandleNoteInput,
+    handleRhythmNoteInput: engineHandleRhythmNoteInput,
     initializeGame,
     stopGame,
     getCurrentEnemy,
@@ -361,9 +367,31 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       console.error('Failed to play note:', error);
     }
     
-    // ファンタジーゲームエンジンにのみ送信
-    engineHandleNoteInput(note);
-  }, [engineHandleNoteInput]);
+    if (stage.mode === 'rhythm') {
+      // リズムモード: バッファに追加してタイマーを設定
+      setRhythmInputBuffer(prev => {
+        const newBuffer = [...prev, note];
+        
+        // 既存のタイマーをクリア
+        if (rhythmInputTimeoutRef.current) {
+          clearTimeout(rhythmInputTimeoutRef.current);
+        }
+        
+        // 300ms後にバッファをチェック
+        rhythmInputTimeoutRef.current = setTimeout(() => {
+          if (newBuffer.length > 0) {
+            engineHandleRhythmNoteInput(newBuffer);
+            setRhythmInputBuffer([]);
+          }
+        }, 300);
+        
+        return newBuffer;
+      });
+    } else {
+      // 通常モード: ファンタジーゲームエンジンに直接送信
+      engineHandleNoteInput(note);
+    }
+  }, [engineHandleNoteInput, engineHandleRhythmNoteInput, stage.mode]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
@@ -936,73 +964,90 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         {renderSpGauge(gameState.playerSp)}
       </div>
       
-      {/* ===== ピアノ鍵盤エリア ===== */}
+      {/* ===== ピアノ鍵盤 / リズムレーン エリア ===== */}
       <div 
         ref={gameAreaRef}
         className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
-        style={{ height: '120px' }} // ★★★ 高さを120pxに固定 ★★★
+        style={{ height: stage.mode === 'rhythm' ? '132px' : '120px' }} // リズムモードは少し高めに
       >
-        {(() => {
-          // スクロール判定ロジック（GameEngine.tsxと同様）
-          const VISIBLE_WHITE_KEYS = 14; // モバイル表示時の可視白鍵数
-          const TOTAL_WHITE_KEYS = 52; // 88鍵中の白鍵数
-          const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
-          const adjustedThreshold = 1100; // PC判定のしきい値
-          
-          let pixiWidth: number;
-          let needsScroll: boolean;
-          
-          if (gameAreaWidth >= adjustedThreshold) {
-            // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
-            pixiWidth = gameAreaWidth;
-            needsScroll = false;
-          } else {
-            // モバイル等、画面が狭い → 横スクロール表示
-            const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
-            pixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
-            needsScroll = true;
-          }
-          
-          if (needsScroll) {
-            // スクロールが必要な場合
-            return (
-              <div 
-                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
-                style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                  scrollSnapType: 'x proximity',
-                  scrollBehavior: 'smooth',
-                  width: '100%',
-                  touchAction: 'pan-x', // 横スクロールのみを許可
-                  overscrollBehavior: 'contain' // スクロールの境界を制限
-                }}
-              >
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          } else {
-            // スクロールが不要な場合（全画面表示）
-            return (
-              <div className="absolute inset-0 overflow-hidden">
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          }
-        })()}
+        {stage.mode === 'rhythm' ? (
+          // リズムモード: リズムレーン表示
+          <RhythmLane
+            notes={gameState.rhythmManager?.getVisibleNotes(performance.now()) || []}
+            currentChord={null} // 現在の入力コードを追跡する必要がある場合は実装
+            onJudgment={(noteId, timing) => {
+              devLog.debug('🎵 リズム判定:', { noteId, timing });
+            }}
+            bpm={stage.bpm || 120}
+            measureCount={stage.measureCount || 8}
+            timeSignature={stage.timeSignature || 4}
+            isPlaying={gameState.isGameActive}
+            targetChord={gameState.activeMonsters[0]?.chordTarget.displayName || null}
+          />
+        ) : (
+          // 通常モード: ピアノ鍵盤表示
+          (() => {
+            // スクロール判定ロジック（GameEngine.tsxと同様）
+            const VISIBLE_WHITE_KEYS = 14; // モバイル表示時の可視白鍵数
+            const TOTAL_WHITE_KEYS = 52; // 88鍵中の白鍵数
+            const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
+            const adjustedThreshold = 1100; // PC判定のしきい値
+            
+            let pixiWidth: number;
+            let needsScroll: boolean;
+            
+            if (gameAreaWidth >= adjustedThreshold) {
+              // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
+              pixiWidth = gameAreaWidth;
+              needsScroll = false;
+            } else {
+              // モバイル等、画面が狭い → 横スクロール表示
+              const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
+              pixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
+              needsScroll = true;
+            }
+            
+            if (needsScroll) {
+              // スクロールが必要な場合
+              return (
+                <div 
+                  className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
+                  style={{ 
+                    WebkitOverflowScrolling: 'touch',
+                    scrollSnapType: 'x proximity',
+                    scrollBehavior: 'smooth',
+                    width: '100%',
+                    touchAction: 'pan-x', // 横スクロールのみを許可
+                    overscrollBehavior: 'contain' // スクロールの境界を制限
+                  }}
+                >
+                  <PIXINotesRenderer
+                    activeNotes={[]}
+                    width={pixiWidth}
+                    height={120} // ★★★ 高さを120に固定 ★★★
+                    currentTime={0}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
+                </div>
+              );
+            } else {
+              // スクロールが不要な場合（全画面表示）
+              return (
+                <div className="absolute inset-0 overflow-hidden">
+                  <PIXINotesRenderer
+                    activeNotes={[]}
+                    width={pixiWidth}
+                    height={120} // ★★★ 高さを120に固定 ★★★
+                    currentTime={0}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
+                </div>
+              );
+            }
+          })()
+        )}
         
         {/* 入力中のノーツ表示 */}
         
