@@ -329,6 +329,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const isRhythm = stage.mode === 'rhythm';
 
   const rhythmEngineRef = useRef<RhythmGameEngine | null>(null);
+  const [rhythmGameState, setRhythmGameState] = useState({
+    isGameActive: false,
+    playerHp: stage.maxHp || 5,
+    score: 0,
+    correctAnswers: 0,
+    totalQuestions: 0,
+    currentChordTarget: null as ChordDefinition | null,
+  });
+
+  // リズムモード用のダミーモンスター
+  const rhythmMonsters: MonsterState[] = isRhythm ? [{
+    id: 'rhythm-enemy-1',
+    index: 0,
+    position: 'A',
+    currentHp: 1,
+    maxHp: 1,
+    gauge: 0,
+    chordTarget: { id: 'C', displayName: 'C', notes: [60, 64, 67], noteNames: ['C', 'E', 'G'], quality: 'major', root: 'C' },
+    correctNotes: [],
+    icon: (stage as any).monster_icon || 'dragon',
+    name: 'リズムモンスター'
+  }] : [];
 
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
@@ -352,11 +374,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   });
   
   // 現在の敵情報を取得
-  const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
+  const currentEnemy = isRhythm 
+    ? { id: 'rhythm-enemy-1', icon: (stage as any).monster_icon || 'dragon', name: 'リズムモンスター' }
+    : getCurrentEnemy(gameState.currentEnemyIndex);
 
   /* Rhythm GameEngine lazy init */
   useEffect(() => {
-    if (isRhythm && stage && !rhythmEngineRef.current) {
+    if (isRhythm && stage && rhythmGameState.isGameActive && !rhythmEngineRef.current) {
       const rhythmStage = stage as unknown as RhythmStage;
       rhythmEngineRef.current = new RhythmGameEngine(rhythmStage, {
         onAttackSuccess: (q: RhythmQuestion, damage: number) => {
@@ -371,10 +395,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               false
             );
           }
+          // スコア更新
+          setRhythmGameState(prev => ({
+            ...prev,
+            score: prev.score + 100,
+            correctAnswers: prev.correctAnswers + 1,
+            totalQuestions: prev.totalQuestions + 1
+          }));
         },
         onAttackFail: (q: RhythmQuestion) => {
           devLog.debug('❌ リズム攻撃失敗:', { chord: q.chord });
           handleEnemyAttack();
+          // プレイヤーHPを減らす
+          setRhythmGameState(prev => ({
+            ...prev,
+            playerHp: Math.max(0, prev.playerHp - 1),
+            totalQuestions: prev.totalQuestions + 1
+          }));
         },
         onEnemyDefeat: (enemyIndex: number) => {
           devLog.debug('🎉 敵撃破:', { enemyIndex });
@@ -385,13 +422,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           handleGameCompleteCallback('clear', gameState);
         }
       });
-      rhythmEngineRef.current.start();
+            rhythmEngineRef.current.start();
     }
     return () => {
       rhythmEngineRef.current?.stop?.();
       rhythmEngineRef.current = null;
     };
-  }, [isRhythm, stage, currentEnemy, fantasyPixiInstance, handleEnemyAttack, proceedToNextEnemy, handleGameCompleteCallback, gameState]);
+  }, [isRhythm, stage, rhythmGameState.isGameActive, currentEnemy, fantasyPixiInstance, handleEnemyAttack, proceedToNextEnemy, handleGameCompleteCallback, gameState, setRhythmGameState]);
+
+  // リズムモードのゲームオーバー判定
+  useEffect(() => {
+    if (isRhythm && rhythmGameState.isGameActive && rhythmGameState.playerHp <= 0) {
+      devLog.debug('💀 リズムモードゲームオーバー');
+      handleGameCompleteCallback('gameover', {
+        ...gameState,
+        playerHp: 0,
+        score: rhythmGameState.score,
+        correctAnswers: rhythmGameState.correctAnswers,
+        totalQuestions: rhythmGameState.totalQuestions
+      });
+    }
+  }, [isRhythm, rhythmGameState, handleGameCompleteCallback, gameState]);
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
@@ -714,7 +765,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  const effectiveGameState = isRhythm ? rhythmGameState : gameState;
+  if (!overlay && !gameState.isCompleting && (!effectiveGameState.isGameActive || (!isRhythm && !gameState.currentChordTarget))) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
@@ -735,7 +787,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <button
             onClick={() => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
-              initializeGame(stage);
+              if (isRhythm) {
+                // リズムモードの場合は独自の初期化
+                setRhythmGameState(prev => ({ ...prev, isGameActive: true }));
+                // timeStoreも初期化
+                const { setStart } = useTimeStore.getState();
+                setStart(
+                  stage.bpm || 120,
+                  stage.timeSignature || 4,
+                  stage.measureCount || 8,
+                  stage.countInMeasures || 0
+                );
+              } else {
+                initializeGame(stage);
+              }
             }}
             className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
           >
@@ -834,21 +899,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               onMonsterDefeated={handleMonsterDefeated}
               onShowMagicName={handleShowMagicName}
               className="w-full h-full"
-              activeMonsters={gameState.activeMonsters}
+              activeMonsters={isRhythm ? rhythmMonsters : gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
             />
           </div>
           
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
-            {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
+            {(isRhythm ? rhythmMonsters : gameState.activeMonsters)?.length > 0 ? (
               // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
               <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
-                {gameState.activeMonsters
+                {(isRhythm ? rhythmMonsters : gameState.activeMonsters)
                   .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
                   .map((monster) => {
                     // モンスター数に応じて幅を動的に計算
-                    const monsterCount = gameState.activeMonsters.length;
+                    const monsterCount = (isRhythm ? rhythmMonsters : gameState.activeMonsters).length;
                     let widthPercent: string;
                     let maxWidth: string;
                     
@@ -990,12 +1055,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div className="absolute left-2 bottom-2 z-50
                   pointer-events-none bg-black/40 rounded px-2 py-1">
         <div className="flex space-x-0.5">
-          {renderHearts(gameState.playerHp, stage.maxHp)}
+          {renderHearts(isRhythm ? rhythmGameState.playerHp : gameState.playerHp, stage.maxHp)}
         </div>
       </div>
       <div className="absolute right-2 bottom-2 z-50
                   pointer-events-none bg-black/40 rounded px-2 py-1">
-        {renderSpGauge(gameState.playerSp)}
+        {renderSpGauge(isRhythm ? 0 : gameState.playerSp)}
       </div>
       
       {/* ===== ピアノ鍵盤エリア ===== */}
