@@ -922,7 +922,13 @@ export const useFantasyGameEngine = ({
         devLog.debug('🎵 Rhythm mode input processing:', { 
           note, 
           noteMod12: note % 12,
-          hasRhythmEngine: !!rhythmEngineRef.current 
+          hasRhythmEngine: !!rhythmEngineRef.current,
+          rhythmScheduleLength: rhythmSchedule.length,
+          activeMonsters: prevState.activeMonsters.map(m => ({
+            id: m.id,
+            chordId: m.chordTarget.id,
+            position: m.position
+          }))
         });
         
         // 現在の入力時刻を取得
@@ -1239,6 +1245,17 @@ export const useFantasyGameEngine = ({
       return newState;
     });
   }, [isRhythmMode, gameState.isGameActive, onGameStateChange, displayOpts]);
+  
+  // リズムモードでのモンスター定期更新
+  useEffect(() => {
+    if (!isRhythmMode || !gameState.isGameActive || !rhythmSchedule.length) return;
+    
+    const updateInterval = setInterval(() => {
+      updateRhythmMonsters(rhythmSchedule);
+    }, 16); // 60FPSで更新
+    
+    return () => clearInterval(updateInterval);
+  }, [isRhythmMode, gameState.isGameActive, rhythmSchedule, updateRhythmMonsters]);
   
   // ステージ変更時の初期化
   // useEffect(() => {

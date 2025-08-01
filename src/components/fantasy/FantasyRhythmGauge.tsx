@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useTimeStore } from '@/stores/timeStore';
 import { RhythmChordSchedule } from './FantasyRhythmEngine';
+import { devLog } from '@/utils/logger';
 
 interface FantasyRhythmGaugeProps {
   schedule: RhythmChordSchedule[];
@@ -34,7 +35,20 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
       )
       .sort((a, b) => a.targetTime - b.targetTime);
     
-    return futureItems[0];
+    const result = futureItems[0];
+    
+    // デバッグログ追加
+    if (result) {
+      devLog.debug('🎵 Rhythm gauge schedule item:', {
+        position,
+        currentTime,
+        targetTime: result.targetTime,
+        timeUntil: result.targetTime - currentTime,
+        chordId: result.chordId
+      });
+    }
+    
+    return result;
   }, [schedule, position, currentTime]);
 
   // ゲージの進行を計算

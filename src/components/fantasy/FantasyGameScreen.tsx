@@ -63,6 +63,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
   
+  // 現在のゲーム時間を計算
+  const [currentGameTime, setCurrentGameTime] = useState(0);
+  
+  useEffect(() => {
+    if (!startAt) return;
+    
+    const updateTime = () => {
+      setCurrentGameTime(performance.now() - startAt - readyDuration);
+    };
+    
+    updateTime(); // 初回実行
+    const interval = setInterval(updateTime, 16); // 60FPS
+    
+    return () => clearInterval(interval);
+  }, [startAt, readyDuration]);
+  
  
   // ローカルのuseStateからgameStoreに切り替え
   const { settings, updateSettings } = useGameStore();
@@ -897,7 +913,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         {isRhythmMode ? (
                           <FantasyRhythmGauge
                             schedule={rhythmSchedule}
-                            currentTime={performance.now() - (startAt || 0) - readyDuration}
+                            currentTime={currentGameTime}
                             position={monster.position}
                             chordId={monster.chordTarget.id}
                           />

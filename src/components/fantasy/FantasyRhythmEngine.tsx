@@ -165,20 +165,30 @@ export const FantasyRhythmEngine = forwardRef<
   useEffect(() => {
     if (!isActive || !startAt) return;
     
-    const newSchedule = chordProgressionData 
-      ? generateProgressionSchedule()
-      : generateRandomSchedule();
+    const updateSchedule = () => {
+      const newSchedule = chordProgressionData 
+        ? generateProgressionSchedule()
+        : generateRandomSchedule();
+      
+      devLog.debug('🎵 Rhythm schedule generated:', {
+        scheduleLength: newSchedule.length,
+        isProgression: !!chordProgressionData,
+        firstItems: newSchedule.slice(0, 3),
+        currentTime: getCurrentGameTime()
+      });
+      
+      setChordSchedule(newSchedule);
+      onChordSchedule(newSchedule);
+    };
     
-    devLog.debug('🎵 Rhythm schedule generated:', {
-      scheduleLength: newSchedule.length,
-      isProgression: !!chordProgressionData,
-      firstItems: newSchedule.slice(0, 3),
-      currentTime: getCurrentGameTime()
-    });
+    // 初回実行
+    updateSchedule();
     
-    setChordSchedule(newSchedule);
-    onChordSchedule(newSchedule);
-  }, [isActive, startAt, currentMeasure, chordProgressionData, generateProgressionSchedule, generateRandomSchedule, onChordSchedule]);
+    // 5秒ごとにスケジュールを再生成（10秒先まで生成するので、5秒ごとで十分）
+    const interval = setInterval(updateSchedule, 5000);
+    
+    return () => clearInterval(interval);
+  }, [isActive, startAt, chordProgressionData, generateProgressionSchedule, generateRandomSchedule, getCurrentGameTime, onChordSchedule]);
 
   // 判定ウィンドウのチェック
   useEffect(() => {
