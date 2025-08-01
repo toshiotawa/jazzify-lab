@@ -3,7 +3,7 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
@@ -11,6 +11,8 @@ import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { useFantasyRhythmGameEngine } from './FantasyRhythmGameEngine';
+import { FantasyRhythmLane } from './FantasyRhythmLane';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
@@ -59,6 +61,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
+  
+  // リズムモードかどうかの判定
+  const isRhythmMode = stage.mode === 'rhythm';
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -340,6 +345,87 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
   
+  // リズムモードのエンジン
+  const rhythmEngine = useFantasyRhythmGameEngine({
+    stage: isRhythmMode ? {
+      bpm: stage.bpm || 120,
+      timeSignature: stage.timeSignature || 4,
+      measureCount: stage.measureCount || 8,
+      countInMeasures: stage.countInMeasures || 0,
+      allowedChords: stage.allowedChords,
+      chordProgressionData: stage.chordProgressionData,
+      maxHp: stage.maxHp,
+      enemyCount: stage.enemyCount,
+      enemyHp: stage.enemyHp,
+      minDamage: stage.minDamage,
+      maxDamage: stage.maxDamage
+    } : {
+      bpm: 120,
+      timeSignature: 4,
+      measureCount: 8,
+      countInMeasures: 0,
+      allowedChords: [],
+      chordProgressionData: null,
+      maxHp: 5,
+      enemyCount: 10,
+      enemyHp: 1,
+      minDamage: 1,
+      maxDamage: 1
+    },
+    onNoteHit: (chord: string, timing: 'perfect' | 'good', damage: number, enemiesDefeated: number) => {
+      devLog.debug('リズムモード: ノートヒット', { chord, timing, damage, enemiesDefeated });
+      // 既存のhandleChordCorrectを呼び出す（ダミーのChordDefinitionを作成）
+      const chordDef: ChordDefinition = {
+        id: chord,
+        displayName: chord,
+        notes: [],
+        noteNames: [],
+        quality: '',
+        root: chord[0]
+      };
+      const defeated = enemiesDefeated > (rhythmEngine?.gameState.enemiesDefeated || 0);
+      handleChordCorrect(chordDef, timing === 'perfect', damage, defeated, 'rhythm');
+    },
+    onNoteMiss: (chord: string) => {
+      devLog.debug('リズムモード: ノートミス', { chord });
+      handleEnemyAttack('rhythm');
+    },
+    onPlayerDamage: (damage: number) => {
+      devLog.debug('リズムモード: プレイヤーダメージ', { damage });
+      // リズムモードではダメージ処理はエンジン内で管理
+    },
+    onGameComplete: (result: 'clear' | 'gameover') => {
+      devLog.debug('リズムモード: ゲーム完了', { result });
+      handleGameCompleteCallback(result, {
+        currentStage: stage,
+        currentQuestionIndex: 0,
+        currentChordTarget: null,
+        playerHp: rhythmEngine?.gameState.playerHp || 0,
+        enemyGauge: 0,
+        score: rhythmEngine?.gameState.score || 0,
+        totalQuestions: rhythmEngine?.gameState.totalEnemies || 0,
+        correctAnswers: rhythmEngine?.gameState.enemiesDefeated || 0,
+        isGameActive: false,
+        isGameOver: true,
+        gameResult: result,
+        currentEnemyIndex: 0,
+        currentEnemyHits: 0,
+        enemiesDefeated: rhythmEngine?.gameState.enemiesDefeated || 0,
+        totalEnemies: rhythmEngine?.gameState.totalEnemies || 0,
+        currentEnemyHp: 0,
+        maxEnemyHp: 0,
+        correctNotes: [],
+        isWaitingForNextMonster: false,
+        playerSp: 0,
+        activeMonsters: [],
+        monsterQueue: [],
+        simultaneousMonsterCount: 1,
+        isCompleting: false
+      });
+    },
+    displayOpts: { lang: currentNoteNameLang, simple: currentSimpleNoteName }
+  });
+  
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
   
@@ -361,9 +447,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       console.error('Failed to play note:', error);
     }
     
-    // ファンタジーゲームエンジンにのみ送信
-    engineHandleNoteInput(note);
-  }, [engineHandleNoteInput]);
+    if (isRhythmMode) {
+      // リズムモードの場合は、まず入力音を収集
+      rhythmEngine.addNoteInput(note);
+    } else {
+      // ファンタジーゲームエンジンにのみ送信
+      engineHandleNoteInput(note);
+    }
+  }, [engineHandleNoteInput, isRhythmMode, rhythmEngine]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
@@ -462,9 +553,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         noteWidth: dynamicNoteWidth.toFixed(2),
         showGuide: stage.showGuide
       });
-    }
-  }, [handleNoteInputBridge, stage.showGuide]);
-
+          }
+    }, [handleNoteInputBridge, stage.showGuide]);
+  
   // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
   useEffect(() => {
     const linkMidiAndPixi = async () => {
@@ -497,7 +588,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     linkMidiAndPixi();
     
   }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
-
+  
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
@@ -607,24 +698,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return hearts;
   }, [heartFlash]);
   
-  // 敵のゲージ表示（黄色系）
-  const renderEnemyGauge = useCallback(() => {
-    return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
-        <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
-          style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
-          }}
-        />
-      </div>
-    );
-  }, [gameState.enemyGauge]);
+
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    if (stage.mode === 'quiz' || !stage.chordProgression) return null;
     
     const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
     return stage.chordProgression[nextIndex];
@@ -660,12 +738,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  if (!overlay && !gameState.isCompleting && !isRhythmMode && (!gameState.isGameActive || !gameState.currentChordTarget)) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
       stageName: stage.name,
-      hasOverlay: !!overlay
+      hasOverlay: !!overlay,
+      isRhythmMode
     });
     
     return (
@@ -699,6 +778,40 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div>完了処理中: {gameState.isCompleting ? 'はい' : 'いいえ'}</div>
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+  
+  // リズムモード用のゲーム開始前画面
+  if (!overlay && isRhythmMode && !rhythmEngine.gameState.isGameActive) {
+    devLog.debug('🎮 リズムモード: ゲーム開始前画面表示');
+    
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center fantasy-game-screen">
+        <div className="text-white text-center">
+          <div className="text-6xl mb-6">🎵</div>
+          <h2 className="text-3xl font-bold mb-4">
+            {stage?.name ?? 'タイトル取得失敗'}
+          </h2>
+          <p className="text-gray-200 mb-8">
+            {stage?.description ?? '説明テキストを取得できませんでした'}
+          </p>
+          <button
+            onClick={() => {
+              devLog.debug('🎮 リズムモード: ゲーム開始ボタンクリック');
+              // リズムモードは自動的に開始される（timeStoreのstartAtにより）
+              useTimeStore.getState().setStart(
+                stage.bpm || 120,
+                stage.timeSignature || 4,
+                stage.measureCount || 8,
+                stage.countInMeasures || 0
+              );
+            }}
+            className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
+          >
+            🎵 ゲーム開始！
+          </button>
         </div>
       </div>
     );
@@ -756,30 +869,55 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         
         {/* ===== モンスター＋エフェクト描画エリア ===== */}
         <div className="mb-2 text-center relative w-full">
-          <div
-            ref={monsterAreaRef}
-            className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
-            style={{ height: 'min(200px, 30vh)' }}
-          >
-            {/* 魔法名表示 - モンスターカード内に移動 */}
-            <FantasyPIXIRenderer
-              width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
-              height={200}
-              monsterIcon={currentEnemy.icon}
-    
-              enemyGauge={gameState.enemyGauge}
-              onReady={handleFantasyPixiReady}
-              onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
-              className="w-full h-full"
-              activeMonsters={gameState.activeMonsters}
-              imageTexturesRef={imageTexturesRef}
-            />
-          </div>
+          {isRhythmMode ? (
+            // リズムモード: 現在の判定ウィンドウのコードを表示
+            <div className="flex flex-col items-center justify-center h-48">
+              <div className="text-6xl font-bold text-yellow-300 mb-4">
+                {rhythmEngine.getCurrentJudgeWindow()?.chordTarget.chord || '...'}
+              </div>
+              <div className="text-xl text-white">
+                {rhythmEngine.gameState.currentInputNotes.length > 0 && (
+                  <div className="flex gap-2">
+                    {rhythmEngine.gameState.currentInputNotes.map((note, idx) => {
+                      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                      const noteName = noteNames[note % 12];
+                      return (
+                        <span key={idx} className="px-3 py-1 bg-green-600 rounded font-bold">
+                          {noteName}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            // クイズモード: モンスター表示
+            <div
+              ref={monsterAreaRef}
+              className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
+              style={{ height: 'min(200px, 30vh)' }}
+            >
+              {/* 魔法名表示 - モンスターカード内に移動 */}
+              <FantasyPIXIRenderer
+                width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
+                height={200}
+                monsterIcon={currentEnemy.icon}
+      
+                enemyGauge={gameState.enemyGauge}
+                onReady={handleFantasyPixiReady}
+                onMonsterDefeated={handleMonsterDefeated}
+                onShowMagicName={handleShowMagicName}
+                className="w-full h-full"
+                activeMonsters={gameState.activeMonsters}
+                imageTexturesRef={imageTexturesRef}
+              />
+            </div>
+          )}
           
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
-            {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
+            {!isRhythmMode && gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
               // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
               <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
                 {gameState.activeMonsters
@@ -914,7 +1052,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
+        {stage.mode === 'rhythm' && getNextChord() && (
           <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">
@@ -928,81 +1066,107 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div className="absolute left-2 bottom-2 z-50
                   pointer-events-none bg-black/40 rounded px-2 py-1">
         <div className="flex space-x-0.5">
-          {renderHearts(gameState.playerHp, stage.maxHp)}
+          {isRhythmMode 
+            ? renderHearts(rhythmEngine.gameState.playerHp, stage.maxHp)
+            : renderHearts(gameState.playerHp, stage.maxHp)
+          }
         </div>
       </div>
-      <div className="absolute right-2 bottom-2 z-50
-                  pointer-events-none bg-black/40 rounded px-2 py-1">
-        {renderSpGauge(gameState.playerSp)}
-      </div>
+      {!isRhythmMode && (
+        <div className="absolute right-2 bottom-2 z-50
+                    pointer-events-none bg-black/40 rounded px-2 py-1">
+          {renderSpGauge(gameState.playerSp)}
+        </div>
+      )}
+      {isRhythmMode && (
+        <div className="absolute right-2 bottom-2 z-50
+                    pointer-events-none bg-black/40 rounded px-2 py-1">
+          <div className="text-white">
+            <div className="text-sm">Score: {rhythmEngine.gameState.score}</div>
+            <div className="text-sm">Combo: {rhythmEngine.gameState.combo}</div>
+            <div className="text-sm">倒した敵: {rhythmEngine.gameState.enemiesDefeated}/{rhythmEngine.gameState.totalEnemies}</div>
+          </div>
+        </div>
+      )}
       
-      {/* ===== ピアノ鍵盤エリア ===== */}
+      {/* ===== ピアノ鍵盤エリア / リズムレーン ===== */}
       <div 
         ref={gameAreaRef}
         className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
         style={{ height: '120px' }} // ★★★ 高さを120pxに固定 ★★★
       >
-        {(() => {
-          // スクロール判定ロジック（GameEngine.tsxと同様）
-          const VISIBLE_WHITE_KEYS = 14; // モバイル表示時の可視白鍵数
-          const TOTAL_WHITE_KEYS = 52; // 88鍵中の白鍵数
-          const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
-          const adjustedThreshold = 1100; // PC判定のしきい値
-          
-          let pixiWidth: number;
-          let needsScroll: boolean;
-          
-          if (gameAreaWidth >= adjustedThreshold) {
-            // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
-            pixiWidth = gameAreaWidth;
-            needsScroll = false;
-          } else {
-            // モバイル等、画面が狭い → 横スクロール表示
-            const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
-            pixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
-            needsScroll = true;
-          }
-          
-          if (needsScroll) {
-            // スクロールが必要な場合
-            return (
-              <div 
-                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
-                style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                  scrollSnapType: 'x proximity',
-                  scrollBehavior: 'smooth',
-                  width: '100%',
-                  touchAction: 'pan-x', // 横スクロールのみを許可
-                  overscrollBehavior: 'contain' // スクロールの境界を制限
-                }}
-              >
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          } else {
-            // スクロールが不要な場合（全画面表示）
-            return (
-              <div className="absolute inset-0 overflow-hidden">
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          }
-        })()}
+        {isRhythmMode ? (
+          // リズムモード: レーン表示
+          <FantasyRhythmLane
+            notes={rhythmEngine.gameState.laneNotes}
+            width={gameAreaRef.current?.clientWidth || window.innerWidth}
+            height={120}
+            className="absolute inset-0"
+          />
+        ) : (
+          // クイズモード: ピアノ鍵盤表示
+          (() => {
+            // スクロール判定ロジック（GameEngine.tsxと同様）
+            const VISIBLE_WHITE_KEYS = 14; // モバイル表示時の可視白鍵数
+            const TOTAL_WHITE_KEYS = 52; // 88鍵中の白鍵数
+            const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
+            const adjustedThreshold = 1100; // PC判定のしきい値
+            
+            let pixiWidth: number;
+            let needsScroll: boolean;
+            
+            if (gameAreaWidth >= adjustedThreshold) {
+              // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
+              pixiWidth = gameAreaWidth;
+              needsScroll = false;
+            } else {
+              // モバイル等、画面が狭い → 横スクロール表示
+              const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
+              pixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
+              needsScroll = true;
+            }
+            
+            if (needsScroll) {
+              // スクロールが必要な場合
+              return (
+                <div 
+                  className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
+                  style={{ 
+                    WebkitOverflowScrolling: 'touch',
+                    scrollSnapType: 'x proximity',
+                    scrollBehavior: 'smooth',
+                    width: '100%',
+                    touchAction: 'pan-x', // 横スクロールのみを許可
+                    overscrollBehavior: 'contain' // スクロールの境界を制限
+                  }}
+                >
+                  <PIXINotesRenderer
+                    activeNotes={[]}
+                    width={pixiWidth}
+                    height={120} // ★★★ 高さを120に固定 ★★★
+                    currentTime={0}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
+                </div>
+              );
+            } else {
+              // スクロールが不要な場合（全画面表示）
+              return (
+                <div className="absolute inset-0 overflow-hidden">
+                  <PIXINotesRenderer
+                    activeNotes={[]}
+                    width={pixiWidth}
+                    height={120} // ★★★ 高さを120に固定 ★★★
+                    currentTime={0}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
+                </div>
+              );
+            }
+          })()
+        )}
         
         {/* 入力中のノーツ表示 */}
         
