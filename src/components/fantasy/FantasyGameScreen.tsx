@@ -333,6 +333,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
+    forceEnemyAttack: engineForceEnemyAttack,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
@@ -377,7 +378,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     },
     onNoteMiss: (chord: string) => {
       devLog.debug('リズムモード: ノートミス', { chord });
-      handleEnemyAttack('rhythm');
+      /* HP 減少も行うためエンジン本体の攻撃処理を直接呼ぶ */
+      engineForceEnemyAttack('rhythm');
     },
     displayOpts: { lang: currentNoteNameLang, simple: currentSimpleNoteName }
   });

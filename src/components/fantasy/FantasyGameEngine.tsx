@@ -937,6 +937,14 @@ export const useFantasyGameEngine = ({
         // 最終的なモンスターリストとキューを更新
         stateAfterAttack.activeMonsters = remainingMonsters;
         stateAfterAttack.monsterQueue = newMonsterQueue;
+
+        // --------- ★ BUG FIX : currentChordTarget が null になる問題 ----------
+        // 先頭モンスターのコードを常に保持しておく
+        stateAfterAttack.currentChordTarget =
+          remainingMonsters.length > 0
+            ? remainingMonsters[0].chordTarget
+            : stateAfterAttack.currentChordTarget;
+        // ----------------------------------------------------------------------
         
         // 互換性のためのレガシーな状態も更新
         stateAfterAttack.correctNotes = [];
@@ -1073,6 +1081,8 @@ export const useFantasyGameEngine = ({
     initializeGame,
     stopGame,
     proceedToNextEnemy,
+    /* 外部から強制的に敵攻撃を発火させる - Rhythm モードのミス判定で使用 */
+    forceEnemyAttack: (monsterId?: string) => handleEnemyAttack(monsterId),
     imageTexturesRef, // プリロードされたテクスチャへの参照を追加
     
     // ヘルパー関数もエクスポート
