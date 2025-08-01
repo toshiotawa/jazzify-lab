@@ -34,7 +34,7 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression' | 'rhythm';
+  mode: 'single' | 'progression' | 'quiz' | 'rhythm';
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
