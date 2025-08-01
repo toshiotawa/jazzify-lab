@@ -159,18 +159,20 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
-        allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
+        mode: stage.mode as 'quiz' | 'rhythm',
+        allowedChords: stage.allowed_chords as string[],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
         bgmUrl: stage.bgm_url || stage.mp3_url,
+        mp3Url: stage.mp3_url,
         simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
         bpm: stage.bpm || 120,
         measureCount: stage.measure_count,
         countInMeasures: stage.count_in_measures,
-        timeSignature: stage.time_signature
+        timeSignature: stage.time_signature,
+        chordProgressionData: stage.chord_progression_data
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -299,6 +301,38 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : "このステージはまだロックされています"}
           </div>
+          
+          {/* ステージ情報タグ */}
+          {unlocked && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {/* モードタグ */}
+              <span className={cn(
+                "text-xs px-2 py-1 rounded",
+                stage.mode === 'rhythm' 
+                  ? "bg-purple-600 text-white" 
+                  : "bg-blue-600 text-white"
+              )}>
+                {stage.mode === 'rhythm' ? '🎵 リズム' : '📝 クイズ'}
+              </span>
+              
+              {/* リズムモードの詳細 */}
+              {stage.mode === 'rhythm' && (
+                <>
+                  <span className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded">
+                    {stage.chordProgressionData ? 'コード進行' : 'ランダム'}
+                  </span>
+                  <span className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded">
+                    BPM {stage.bpm}
+                  </span>
+                </>
+              )}
+              
+              {/* 敵数 */}
+              <span className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded">
+                敵 {stage.enemyCount}体
+              </span>
+            </div>
+          )}
         </div>
         
         {/* 右側のアイコン */}

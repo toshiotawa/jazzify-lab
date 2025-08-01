@@ -7,7 +7,7 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
-import { MonsterState as GameMonsterState } from './FantasyGameEngine';
+import { MonsterState as GameMonsterState, RhythmNoteState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 
@@ -27,6 +27,10 @@ interface FantasyPIXIRendererProps {
   className?: string;
   activeMonsters?: GameMonsterState[]; // マルチモンスター対応
   imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>; // プリロードされたテクスチャへの参照
+  // リズムモード用
+  rhythmNotes?: RhythmNoteState[];
+  isRhythmMode?: boolean;
+  judgmentLinePosition?: number; // 判定ラインの位置（0-1の割合）
 }
 
 // モンスターのビジュアル状態を不変に管理
@@ -195,6 +199,13 @@ export class FantasyPIXIInstance {
   // プリロードされたテクスチャへの参照を追加
   private imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>;
   
+  // リズムモード用
+  private rhythmContainer: PIXI.Container;
+  private rhythmNoteSprites: Map<string, PIXI.Container> = new Map();
+  private judgmentLine: PIXI.Graphics | null = null;
+  private isRhythmMode: boolean = false;
+  private judgmentLineY: number = 0;
+  
   /** ────────────────────────────────────
    *  safe‑default で初期化しておく
    * ─────────────────────────────────── */
@@ -287,13 +298,15 @@ export class FantasyPIXIInstance {
 
     this.effectContainer = new PIXI.Container();
     this.uiContainer = new PIXI.Container();
+    this.rhythmContainer = new PIXI.Container(); // リズムモード用コンテナ
     
     // ソート可能にする
     this.uiContainer.sortableChildren = true;
     
-    // z-indexの設定（背景→モンスター→パーティクル→エフェクト→UI）
+    // z-indexの設定（背景→モンスター→リズム→パーティクル→エフェクト→UI）
     this.app.stage.addChild(this.backgroundContainer);
     this.app.stage.addChild(this.monsterContainer);
+    this.app.stage.addChild(this.rhythmContainer); // リズムコンテナを追加
 
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
@@ -2034,6 +2047,136 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  // ===== リズムモード用メソッド =====
+  
+  // リズムモードの有効化/無効化
+  setRhythmMode(enabled: boolean, judgmentLinePosition: number = 0.8): void {
+    this.isRhythmMode = enabled;
+    
+    if (enabled) {
+      // 判定ライン作成
+      if (!this.judgmentLine) {
+        this.judgmentLine = new PIXI.Graphics();
+        this.rhythmContainer.addChild(this.judgmentLine);
+      }
+      
+      // 判定ラインの描画
+      this.judgmentLineY = this.app.screen.height * judgmentLinePosition;
+      this.judgmentLine.clear();
+      this.judgmentLine.lineStyle(2, 0xFFFF00, 0.8);
+      this.judgmentLine.moveTo(0, this.judgmentLineY);
+      this.judgmentLine.lineTo(this.app.screen.width, this.judgmentLineY);
+      
+      // モンスターエリアを非表示
+      this.monsterContainer.visible = false;
+    } else {
+      // リズムモード終了時のクリーンアップ
+      if (this.judgmentLine) {
+        this.judgmentLine.destroy();
+        this.judgmentLine = null;
+      }
+      
+      // リズムノートのクリーンアップ
+      this.rhythmNoteSprites.forEach(container => {
+        container.destroy({ children: true });
+      });
+      this.rhythmNoteSprites.clear();
+      
+      // モンスターエリアを表示
+      this.monsterContainer.visible = true;
+    }
+  }
+  
+  // リズムノートの更新
+  updateRhythmNotes(notes: RhythmNoteState[], currentMeasure: number, currentBeat: number, bpm: number): void {
+    if (!this.isRhythmMode) return;
+    
+    // 画面に表示すべきノートのみ処理
+    const visibleNotes = notes.filter(note => {
+      // 判定済みのノートは表示しない
+      if (note.judged) return false;
+      
+      // 2小節先まで表示
+      const measureDiff = note.targetMeasure - currentMeasure;
+      return measureDiff >= -1 && measureDiff <= 2;
+    });
+    
+    // 表示不要になったノートを削除
+    this.rhythmNoteSprites.forEach((container, noteId) => {
+      if (!visibleNotes.find(n => n.id === noteId)) {
+        container.destroy({ children: true });
+        this.rhythmNoteSprites.delete(noteId);
+      }
+    });
+    
+    // ノートの描画・更新
+    visibleNotes.forEach(note => {
+      let noteContainer = this.rhythmNoteSprites.get(note.id);
+      
+      // 新しいノートの場合は作成
+      if (!noteContainer) {
+        noteContainer = new PIXI.Container();
+        
+        // ノートの背景
+        const bg = new PIXI.Graphics();
+        bg.beginFill(0x4444FF, 0.8);
+        bg.drawRoundedRect(-40, -20, 80, 40, 10);
+        bg.endFill();
+        noteContainer.addChild(bg);
+        
+        // コードネーム表示
+        const text = new PIXI.Text(note.chord.displayName, {
+          fontFamily: 'Arial',
+          fontSize: 24,
+          fill: 0xFFFFFF,
+          align: 'center'
+        });
+        text.anchor.set(0.5);
+        noteContainer.addChild(text);
+        
+        this.rhythmContainer.addChild(noteContainer);
+        this.rhythmNoteSprites.set(note.id, noteContainer);
+      }
+      
+      // ノートの位置を計算
+      const msPerBeat = 60000 / bpm;
+      const currentTimeBeat = (currentMeasure - 1) * 4 + currentBeat; // 4/4拍子と仮定
+      const targetTimeBeat = (note.targetMeasure - 1) * 4 + note.targetBeat;
+      const beatDiff = targetTimeBeat - currentTimeBeat;
+      const timeDiffMs = beatDiff * msPerBeat;
+      
+      // 3秒で画面を降下するように計算
+      const fallDurationMs = 3000;
+      const progress = 1 - (timeDiffMs / fallDurationMs);
+      
+      // X座標（B列相当 = 画面中央）
+      noteContainer.x = this.app.screen.width / 2;
+      
+      // Y座標（上から降下）
+      noteContainer.y = progress * this.judgmentLineY;
+      
+      // 判定結果に応じた色変更
+      if (note.judgmentResult) {
+        const bg = noteContainer.children[0] as PIXI.Graphics;
+        bg.clear();
+        
+        switch (note.judgmentResult) {
+          case 'perfect':
+            bg.beginFill(0xFFD700, 0.8); // 金色
+            break;
+          case 'good':
+            bg.beginFill(0x44FF44, 0.8); // 緑色
+            break;
+          case 'miss':
+            bg.beginFill(0xFF4444, 0.8); // 赤色
+            break;
+        }
+        
+        bg.drawRoundedRect(-40, -20, 80, 40, 10);
+        bg.endFill();
+      }
+    });
+  }
 
 }
 
@@ -2049,7 +2192,10 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   onShowMagicName,
   className,
   activeMonsters,
-  imageTexturesRef
+  imageTexturesRef,
+  rhythmNotes,
+  isRhythmMode,
+  judgmentLinePosition
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pixiInstance, setPixiInstance] = useState<FantasyPIXIInstance | null>(null);
@@ -2084,6 +2230,24 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   }, [pixiInstance, monsterIcon, activeMonsters]);
 
 
+  // リズムモード設定
+  useEffect(() => {
+    if (pixiInstance && isRhythmMode !== undefined) {
+      pixiInstance.setRhythmMode(isRhythmMode, judgmentLinePosition);
+    }
+  }, [pixiInstance, isRhythmMode, judgmentLinePosition]);
+  
+  // リズムノート更新
+  useEffect(() => {
+    if (pixiInstance && rhythmNotes && isRhythmMode) {
+      // timeStoreから現在の時間情報を取得
+      const { useTimeStore } = require('@/stores/timeStore');
+      const timeState = useTimeStore.getState();
+      const { currentMeasure, currentBeat, bpm } = timeState;
+      
+      pixiInstance.updateRhythmNotes(rhythmNotes, currentMeasure, currentBeat, bpm);
+    }
+  }, [pixiInstance, rhythmNotes, isRhythmMode]);
 
   // サイズ変更
   useEffect(() => {
