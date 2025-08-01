@@ -365,6 +365,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [isRhythmMode, updateRhythmMonsters]);
   
+  // 位置からモンスターIDを取得する関数
+  const getMonsterIdByPosition = useCallback((position: string) => {
+    const monster = gameState.activeMonsters.find(m => m.position === position);
+    return monster?.id;
+  }, [gameState.activeMonsters]);
+  
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
   
@@ -1129,6 +1135,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           simultaneousMonsterCount={stage.simultaneousMonsterCount}
           onJudgment={handleRhythmJudgment}
           onChordSchedule={handleRhythmSchedule}
+          onEnemyAttack={handleEnemyAttack}
+          getMonsterIdByPosition={getMonsterIdByPosition}
         />
       )}
       

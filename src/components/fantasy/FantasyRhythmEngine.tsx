@@ -43,6 +43,8 @@ interface RhythmEngineProps {
   simultaneousMonsterCount: number;
   onJudgment: (judgment: RhythmJudgment) => void;
   onChordSchedule: (schedule: RhythmChordSchedule[]) => void;
+  onEnemyAttack?: (monsterId: string) => void;
+  getMonsterIdByPosition?: (position: string) => string | undefined; // 追加
 }
 
 export const FantasyRhythmEngine = forwardRef<
@@ -58,7 +60,9 @@ export const FantasyRhythmEngine = forwardRef<
   allowedChords,
   simultaneousMonsterCount,
   onJudgment,
-  onChordSchedule
+  onChordSchedule,
+  onEnemyAttack,
+  getMonsterIdByPosition // 追加
 }, ref) => {
   const { currentMeasure, currentBeat, isCountIn, startAt, readyDuration } = useTimeStore();
   const [activeJudgments, setActiveJudgments] = useState<RhythmJudgment[]>([]);
@@ -176,13 +180,16 @@ export const FantasyRhythmEngine = forwardRef<
     devLog.debug('🎵 Rhythm schedule generated:', {
       scheduleLength: newSchedule.length,
       isProgression: !!chordProgressionData,
-      firstItems: newSchedule.slice(0, 3),
-      currentTime: getCurrentGameTime()
+      firstItems: newSchedule.slice(0, 5), // 最初の5つを表示
+      currentTime: getCurrentGameTime(),
+      startAt,
+      readyDuration,
+      isCountIn
     });
     
     setChordSchedule(newSchedule);
     onChordSchedule(newSchedule);
-  }, [isActive, startAt, currentMeasure, chordProgressionData, generateProgressionSchedule, generateRandomSchedule, onChordSchedule]);
+  }, [isActive, startAt, currentMeasure, chordProgressionData, generateProgressionSchedule, generateRandomSchedule, onChordSchedule, getCurrentGameTime, readyDuration, isCountIn]);
 
   // 判定ウィンドウのチェック
   useEffect(() => {
@@ -235,6 +242,17 @@ export const FantasyRhythmEngine = forwardRef<
               currentTime 
             });
             onJudgment(existingJudgment);
+            
+            // 敵攻撃イベントを発火（位置からモンスターIDを推定）
+            if (onEnemyAttack) {
+              // 位置に基づいてモンスターIDを生成（実際のモンスターIDと一致させる必要がある）
+              const monsterId = getMonsterIdByPosition?.(existingJudgment.position);
+              if (monsterId) {
+                onEnemyAttack(monsterId);
+              } else {
+                devLog.warn('No monster ID found for position:', existingJudgment.position);
+              }
+            }
           }
         }
       });
@@ -245,7 +263,7 @@ export const FantasyRhythmEngine = forwardRef<
     const interval = setInterval(checkJudgmentWindow, 16); // 60FPS
     
     return () => clearInterval(interval);
-  }, [isActive, startAt, chordSchedule, activeJudgments, getCurrentGameTime, onJudgment]);
+  }, [isActive, startAt, chordSchedule, activeJudgments, getCurrentGameTime, onJudgment, onEnemyAttack, getMonsterIdByPosition]);
 
   // 判定処理（外部から呼び出される）
   const judge = useCallback((chordId: string, inputTime: number) => {
