@@ -17,6 +17,7 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { COUNT_IN_SYMBOL } from '@/utils/rhythm';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -712,7 +713,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
           {isCountIn ? (
-            <>M / - B {currentBeat}</>
+            <>M {COUNT_IN_SYMBOL} - B {currentBeat}</>
           ) : (
             <>M {currentMeasure} - B {currentBeat}</>
           )}
