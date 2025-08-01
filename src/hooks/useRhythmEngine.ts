@@ -13,6 +13,7 @@ export const useRhythmEngine = (
   onEnemyAttack?: (monsterId: string) => void
 ) => {
   const engineRef = useRef<RhythmGameEngine | null>(null)
+  const [isStarted, setIsStarted] = useState(false)
 
   const [state, setState] = useState<RhythmGameState>(() => ({
     defeated: 0,
@@ -46,15 +47,24 @@ export const useRhythmEngine = (
       }
     })
     engine.loadStage(stage)
-    engine.start()
+    // ★ 自動開始を削除 - engine.start() を呼ばない
     engineRef.current = engine
 
     return () => {
       engine.dispose()
       engineRef.current = null
+      setIsStarted(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage?.id])
+
+  // ★ 明示的な開始関数を追加
+  const startGame = () => {
+    if (engineRef.current && !isStarted) {
+      engineRef.current.start()
+      setIsStarted(true)
+    }
+  }
 
   const handleInput = (midiNotes: number[]) => {
     engineRef.current?.handleInput(midiNotes)
@@ -69,6 +79,16 @@ export const useRhythmEngine = (
       if (engineRef.current) {
         const progress = engineRef.current.getGaugeProgress(performance.now())
         setGauge(progress)
+        
+        // ★ アクティブな質問を取得して状態を更新
+        const activeQuestions = engineRef.current.getActiveQuestions()
+        setState(prevState => {
+          // console.log('🎵 Updating activeQuestions:', activeQuestions);
+          return {
+            ...prevState,
+            activeQuestions
+          };
+        })
       }
       frame = requestAnimationFrame(loop)
     }
@@ -79,6 +99,8 @@ export const useRhythmEngine = (
   return {
     gameState: state,
     gaugeProgress: gauge,
-    handleInput
+    handleInput,
+    startGame,  // ★ 開始関数を公開
+    isStarted   // ★ 開始状態を公開
   }
 }

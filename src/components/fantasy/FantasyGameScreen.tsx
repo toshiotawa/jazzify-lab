@@ -57,6 +57,37 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
+  // リズムモードかどうかの判定
+  const isRhythmMode = stage?.mode === 'rhythm';
+  
+  // ゲーム状態の初期値（useFantasyGameEngineより前に必要）
+  const [localGameState, setLocalGameState] = useState<FantasyGameState>({
+    currentStage: null,
+    currentQuestionIndex: 0,
+    currentChordTarget: null,
+    playerHp: 5,
+    enemyGauge: 0,
+    score: 0,
+    totalQuestions: 0,
+    correctAnswers: 0,
+    isGameActive: false,
+    isGameOver: false,
+    gameResult: null,
+    currentEnemyIndex: 0,
+    currentEnemyHits: 0,
+    enemiesDefeated: 0,
+    totalEnemies: 0,
+    currentEnemyHp: 1,
+    maxEnemyHp: 1,
+    correctNotes: [],
+    isWaitingForNextMonster: false,
+    playerSp: 0,
+    activeMonsters: [],
+    monsterQueue: [],
+    simultaneousMonsterCount: 1,
+    isCompleting: false
+  });
+  
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
   
@@ -101,7 +132,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // Ready 終了時に BGM 再生
   useEffect(() => {
-    if (!isReady && startAt) {
+    // リズムモードの場合は、localGameState.isGameActiveを使用
+    const shouldPlayBGM = isRhythmMode ? localGameState.isGameActive : (!isReady && startAt);
+    
+    if (shouldPlayBGM) {
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
@@ -114,7 +148,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       bgmManager.stop();
     }
     return () => bgmManager.stop();
-  }, [isReady, stage, settings.bgmVolume, startAt]);
+  }, [isReady, stage, settings.bgmVolume, startAt, isRhythmMode, localGameState.isGameActive]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -239,6 +273,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
+    setLocalGameState(state); // ローカル状態を更新
     devLog.debug('🎮 ファンタジーゲーム状態更新:', {
       currentQuestion: state.currentQuestionIndex + 1,
       totalQuestions: state.totalQuestions,
@@ -322,7 +357,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
   const {
-    gameState,
+    gameState: _engineGameState, // 使用しない
     handleNoteInput: engineHandleNoteInput,
     initializeGame,
     stopGame: _stopGame,
@@ -341,7 +376,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   });
   
   // 現在の敵情報を取得
-  const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
+  const currentEnemy = getCurrentEnemy(localGameState.currentEnemyIndex);
+  
+  // リズムモードの場合、モンスターアイコンはstageから取得
+  const monsterIcon = isRhythmMode ? (stage?.monsterIcon || 'fa-drum') : (currentEnemy?.icon || 'fa-dragon');
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
@@ -559,10 +597,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
       devLog.debug('🔄 モンスタースプライト更新要求:', { 
         monster: currentEnemy.icon,
-        enemyIndex: gameState.currentEnemyIndex
+        enemyIndex: localGameState.currentEnemyIndex
+      });
+    } else if (fantasyPixiInstance && isRhythmMode && monsterIcon) {
+      // リズムモードの場合はmonsterIconを使用
+      fantasyPixiInstance.createMonsterSprite(monsterIcon);
+      devLog.debug('🔄 リズムモード: モンスタースプライト更新要求:', { 
+        monster: monsterIcon,
+        enemyIndex: localGameState.currentEnemyIndex
       });
     }
-  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
+  }, [fantasyPixiInstance, currentEnemy, localGameState.currentEnemyIndex, isRhythmMode, monsterIcon]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -613,9 +658,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const getNextChord = useCallback(() => {
     if (stage.mode !== 'progression' || !stage.chordProgression) return null;
     
-    const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
+    const nextIndex = (localGameState.currentQuestionIndex + 1) % stage.chordProgression.length;
     return stage.chordProgression[nextIndex];
-  }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
+  }, [stage.mode, stage.chordProgression, localGameState.currentQuestionIndex]);
   
   // SPゲージ表示
   const renderSpGauge = useCallback((sp: number) => {
@@ -647,10 +692,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  if (!overlay && !localGameState.isCompleting && (!localGameState.isGameActive || !localGameState.currentChordTarget)) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
-      isGameActive: gameState.isGameActive,
-      hasCurrentChord: !!gameState.currentChordTarget,
+      isGameActive: localGameState.isGameActive,
+      hasCurrentChord: !!localGameState.currentChordTarget,
       stageName: stage.name,
       hasOverlay: !!overlay
     });
@@ -678,12 +723,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* デバッグ情報 */}
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 bg-black bg-opacity-50 text-white text-xs p-3 rounded">
-              <div>ゲーム状態: {gameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
-              <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
+              <div>ゲーム状態: {localGameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
+              <div>現在のコード: {localGameState.currentChordTarget?.displayName || 'なし'}</div>
               <div>許可コード数: {stage.allowedChords?.length || 0}</div>
               <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>
               <div>オーバーレイ: {overlay ? '表示中' : 'なし'}</div>
-              <div>完了処理中: {gameState.isCompleting ? 'はい' : 'いいえ'}</div>
+              <div>完了処理中: {localGameState.isCompleting ? 'はい' : 'いいえ'}</div>
             </div>
           )}
         </div>
@@ -752,28 +797,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <FantasyPIXIRenderer
               width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
               height={200}
-              monsterIcon={currentEnemy.icon}
+              monsterIcon={monsterIcon}
     
-              enemyGauge={gameState.enemyGauge}
+              enemyGauge={localGameState.enemyGauge}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
               onShowMagicName={handleShowMagicName}
               className="w-full h-full"
-              activeMonsters={gameState.activeMonsters}
+              activeMonsters={localGameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
             />
           </div>
           
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
-            {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
+            {localGameState.activeMonsters && localGameState.activeMonsters.length > 0 ? (
               // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
               <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
-                {gameState.activeMonsters
+                {localGameState.activeMonsters
                   .sort((a: MonsterState, b: MonsterState) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
                   .map((monster: MonsterState) => {
                     // モンスター数に応じて幅を動的に計算
-                    const monsterCount = gameState.activeMonsters.length;
+                    const monsterCount = localGameState.activeMonsters.length;
                     let widthPercent: string;
                     let maxWidth: string;
                     
@@ -926,12 +971,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div className="absolute left-2 bottom-2 z-50
                   pointer-events-none bg-black/40 rounded px-2 py-1">
         <div className="flex space-x-0.5">
-          {renderHearts(gameState.playerHp, stage.maxHp)}
+          {renderHearts(localGameState.playerHp, stage.maxHp)}
         </div>
       </div>
       <div className="absolute right-2 bottom-2 z-50
                   pointer-events-none bg-black/40 rounded px-2 py-1">
-        {renderSpGauge(gameState.playerSp)}
+        {renderSpGauge(localGameState.playerSp)}
       </div>
       
       {/* ===== ピアノ鍵盤エリア ===== */}
@@ -1011,13 +1056,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* デバッグ情報（FPSモニター削除済み） */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs p-2 rounded z-40">
-          <div>Q: {gameState.currentQuestionIndex + 1}/{gameState.totalQuestions}</div>
-          <div>HP: {gameState.playerHp}/{stage.maxHp}</div>
-          <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>
-          <div>スコア: {gameState.score}</div>
-          <div>正解数: {gameState.correctAnswers}</div>
-          <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
-          <div>SP: {gameState.playerSp}</div>
+          <div>Q: {localGameState.currentQuestionIndex + 1}/{localGameState.totalQuestions}</div>
+          <div>HP: {localGameState.playerHp}/{stage.maxHp}</div>
+          <div>ゲージ: {localGameState.enemyGauge.toFixed(1)}%</div>
+          <div>スコア: {localGameState.score}</div>
+          <div>正解数: {localGameState.correctAnswers}</div>
+          <div>現在のコード: {localGameState.currentChordTarget?.displayName || 'なし'}</div>
+          <div>SP: {localGameState.playerSp}</div>
           
           {/* ゲージ強制満タンテストボタン */}
           <button

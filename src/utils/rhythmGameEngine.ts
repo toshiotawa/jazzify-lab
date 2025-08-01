@@ -62,10 +62,27 @@ export class RhythmGameEngine {
   loadStage(stage: RhythmStageInfo): void {
     this.stage = stage
     this.questions = []
+    // 質問の生成はstart()メソッドで行う
+  }
 
-    if (stage.mode === 'progression' && stage.chordProgressionData && stage.chordProgressionData.length) {
+  /** BGM 再生と timeStore を開始 */
+  start(now: number = performance.now()): void {
+    const ts = this.stage.timeSignature
+    const store = useTimeStore.getState()
+    store.setStart(this.stage.bpm, ts, this.stage.measureCount, this.stage.countInMeasures, now)
+    
+    // ★ 質問をここで生成（startAtが設定された後）
+    this.generateQuestions()
+    
+    this.disposed = false
+    this.tick() // ループ開始
+  }
+  
+  /** 質問を生成 */
+  private generateQuestions(): void {
+    if (this.stage.mode === 'progression' && this.stage.chordProgressionData && this.stage.chordProgressionData.length) {
       // progression モード: JSON データをそのまま使用
-      this.questions = stage.chordProgressionData.map((d, i) => {
+      this.questions = this.stage.chordProgressionData.map((d, i) => {
         const { msStart, msEnd } = this.toWindow(d.measure, d.beat)
         return {
           id: `q${i}`,
@@ -79,9 +96,9 @@ export class RhythmGameEngine {
       })
     } else {
       // ランダムモード: 1 小節に 1 つ allowedChords からランダムに生成
-      for (let m = 1; m <= stage.measureCount; m += 1) {
-        const chordIdx = Math.floor(Math.random() * stage.allowedChords.length)
-        const chordId = stage.allowedChords[chordIdx]
+      for (let m = 1; m <= this.stage.measureCount; m += 1) {
+        const chordIdx = Math.floor(Math.random() * this.stage.allowedChords.length)
+        const chordId = this.stage.allowedChords[chordIdx]
         const { msStart, msEnd } = this.toWindow(m, 1)
         this.questions.push({
           id: `q${m}`,
@@ -94,15 +111,8 @@ export class RhythmGameEngine {
         })
       }
     }
-  }
-
-  /** BGM 再生と timeStore を開始 */
-  start(now: number = performance.now()): void {
-    const ts = this.stage.timeSignature
-    const store = useTimeStore.getState()
-    store.setStart(this.stage.bpm, ts, this.stage.measureCount, this.stage.countInMeasures, now)
-    this.disposed = false
-    this.tick() // ループ開始
+    
+    console.log('🎵 Generated questions:', this.questions);
   }
 
   /** ゲームループ */
@@ -154,11 +164,34 @@ export class RhythmGameEngine {
     }
   }
 
+  /** ゲージ進捗 (0〜1) */
+  getGaugeProgress(now: number): number {
+    const PRE_WINDOW_MS = 1000 // 判定 1 秒前を 0% とする
+    for (const q of this.questions) {
+      const preStart = q.windowStart - PRE_WINDOW_MS
+      if (now >= preStart && now <= q.windowEnd) {
+        const total = q.windowEnd - preStart
+        return Math.min(1, Math.max(0, (now - preStart) / total))
+      }
+    }
+    return 0
+  }
+
+  /** 現在アクティブな質問を取得 */
+  getActiveQuestions(): RhythmQuestion[] {
+    const activeQuestions: RhythmQuestion[] = []
+    this.activeQuestions.forEach(id => {
+      const q = this.questions.find(qq => qq.id === id)
+      if (q) activeQuestions.push(q)
+    })
+    return activeQuestions
+  }
+
   /** 破棄 */
   dispose(): void {
     this.disposed = true
-    this.activeQuestions.clear()
     this.questions = []
+    this.activeQuestions.clear()
   }
 
   /** measure & beat -> 判定ウィンドウの開始/終了時刻(ms) を算出 */
@@ -166,11 +199,13 @@ export class RhythmGameEngine {
     const bpm = this.stage.bpm
     const ts = this.stage.timeSignature
     const msecPerBeat = 60000 / bpm
-    const beatsFromCountIn = this.stage.countInMeasures * ts
-
-    const totalBeats = (measure - 1) * ts + (beat - 1) - beatsFromCountIn
+    const countInMeasures = this.stage.countInMeasures || 0
+    
+    // カウントインを考慮した拍数の計算
+    const totalBeats = (measure - 1 + countInMeasures) * ts + (beat - 1)
     const baseMs = useTimeStore.getState().startAt ?? performance.now()
     const ms = baseMs + totalBeats * msecPerBeat
+    
     return {
       msStart: ms - WINDOW_MS,
       msEnd: ms + WINDOW_MS
@@ -178,19 +213,6 @@ export class RhythmGameEngine {
   }
 
   /** progression 用: index -> 列位置 */
-  /** 現在時刻からゲージ進捗を計算 (0-1) */
-  public getGaugeProgress(nowMs: number): number {
-    const PRE_WINDOW_MS = 1000 // 判定 1 秒前を 0% とする
-    for (const q of this.questions) {
-      const preStart = q.windowStart - PRE_WINDOW_MS
-      if (nowMs >= preStart && nowMs <= q.windowEnd) {
-        const total = q.windowEnd - preStart
-        return Math.min(1, Math.max(0, (nowMs - preStart) / total))
-      }
-    }
-    return 0
-  }
-
   private pickPositionByIndex(i: number): string {
     const cols3 = ['A', 'B', 'C']
     const cols4 = ['A', 'B', 'C', 'D']
