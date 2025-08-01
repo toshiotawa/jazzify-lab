@@ -69,13 +69,16 @@ export const useRhythmGameEngine = ({
 
   // Convert rhythm game state to FantasyGameState format
   const fantasyGameState: FantasyGameState = useMemo(() => {
+    // activeQuestionsが配列であることを保証
+    const activeQuestions = Array.isArray(gameState.activeQuestions) ? gameState.activeQuestions : [];
+    
     // デバッグ: activeQuestionsの状態を確認
-    if (gameState.activeQuestions.length > 0 || isStarted) {
+    if (activeQuestions.length > 0 || isStarted) {
       console.log('🎵 RhythmGameEngine - Game state:', {
-        activeQuestions: gameState.activeQuestions.length,
+        activeQuestions: activeQuestions.length,
         isStarted,
         gaugeProgress,
-        activeMonsters: gameState.activeQuestions.map(q => ({
+        activeMonsters: activeQuestions.map(q => ({
           id: q.id,
           chord: q.chord,
           position: q.position
@@ -86,9 +89,9 @@ export const useRhythmGameEngine = ({
     return {
       currentStage: stage,
       currentQuestionIndex: 0,
-      currentChordTarget: gameState.activeQuestions && gameState.activeQuestions.length > 0 ? {
-        id: gameState.activeQuestions[0].chord,
-        displayName: gameState.activeQuestions[0].chord,
+      currentChordTarget: activeQuestions.length > 0 ? {
+        id: activeQuestions[0].chord,
+        displayName: activeQuestions[0].chord,
         notes: [],
         noteNames: [],
         quality: '',
@@ -111,7 +114,7 @@ export const useRhythmGameEngine = ({
       correctNotes: [],
       isWaitingForNextMonster: false,
       playerSp: 0,
-      activeMonsters: (gameState.activeQuestions || []).map((q, idx) => ({
+      activeMonsters: activeQuestions.map((q, idx) => ({
         id: q.id,
         index: idx,
         position: q.position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',

@@ -101,14 +101,24 @@ export const useRhythmEngine = (
         setGauge(progress)
         
         // ★ 表示用の質問を取得（ゲージが表示されているもの）
-        const visibleQuestions = engineRef.current.getVisibleQuestions(now)
-        setState(prevState => {
-          // activeQuestionsには表示用の質問を設定
-          return {
+        try {
+          const visibleQuestions = engineRef.current.getVisibleQuestions ? 
+            engineRef.current.getVisibleQuestions(now) : []
+          
+          setState(prevState => {
+            // activeQuestionsには表示用の質問を設定
+            return {
+              ...prevState,
+              activeQuestions: Array.isArray(visibleQuestions) ? visibleQuestions : []
+            };
+          })
+        } catch (error) {
+          console.error('🎵 Error getting visible questions:', error);
+          setState(prevState => ({
             ...prevState,
-            activeQuestions: visibleQuestions
-          };
-        })
+            activeQuestions: []
+          }));
+        }
       }
       frame = requestAnimationFrame(loop)
     }
