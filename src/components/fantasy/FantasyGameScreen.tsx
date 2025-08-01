@@ -465,39 +465,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [handleNoteInputBridge, stage.showGuide]);
 
-  // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
-  useEffect(() => {
-    const linkMidiAndPixi = async () => {
-      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-        
-        // 1. 鍵盤ハイライト用のコールバックを設定
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRenderer.highlightKey(note, active);
-          if (active) {
-            pixiRenderer.triggerKeyPressEffect(note);
-          }
-        });
-        
-        // 2. デバイスに再接続して、設定したコールバックを有効化
-        devLog.debug(`🔧 Fantasy: Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        if (success) {
-          devLog.debug('✅ Fantasy: MIDI device successfully linked to renderer.');
-        } else {
-          devLog.debug('⚠️ Fantasy: Failed to link MIDI device to renderer.');
-        }
-      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-        // デバイス選択が解除された場合は切断
-        midiControllerRef.current.disconnect();
-        devLog.debug('🔌 Fantasy: MIDIデバイス切断');
-      }
-    };
-
-    linkMidiAndPixi();
-    
-  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
-
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
@@ -834,55 +801,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       </div>
                       
                       {/* リズムモード用の判定サークル */}
-                      {stage.mode === 'rhythm' && gameState.rhythmChords && gameState.currentRhythmIndex !== undefined && (
+                      {stage.mode === 'rhythm' && monster.gauge >= 75 && monster.gauge <= 95 && (
                         <div className="absolute inset-0 pointer-events-none">
-                          {(() => {
-                            // 現在のリズムコードインデックスを取得
-                            const rhythmIndex = gameState.currentRhythmIndex + monsterIndex;
-                            const rhythmChord = gameState.rhythmChords[rhythmIndex % gameState.rhythmChords.length];
-                            
-                            if (!rhythmChord) return null;
-                            
-                            // 現在時刻と判定タイミングまでの時間を計算
-                            const currentTime = performance.now() - (startAt || 0);
-                            const timeUntilJudgment = rhythmChord.timing - currentTime;
-                            const judgmentWindowSize = 400; // 判定ウィンドウの前後200ms
-                            
-                            // 判定ウィンドウ内かどうか
-                            const inWindow = Math.abs(timeUntilJudgment) <= 200;
-                            
-                            // サークルのサイズとアニメーション（1秒前から表示開始）
-                            const showCircle = timeUntilJudgment <= 1000 && timeUntilJudgment >= -200;
-                            const circleScale = showCircle ? Math.max(0, 1 - (timeUntilJudgment / 1000)) : 0;
-                            
-                            return showCircle ? (
-                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                                {/* 外側のサークル（アプローチサークル） */}
-                                <div 
-                                  className={`absolute rounded-full border-2 ${
-                                    inWindow ? 'border-green-400' : 'border-blue-400'
-                                  } transition-all duration-100`}
-                                  style={{
-                                    width: `${60 + (1 - circleScale) * 40}px`,
-                                    height: `${60 + (1 - circleScale) * 40}px`,
-                                    transform: 'translate(-50%, -50%)',
-                                    opacity: circleScale
-                                  }}
-                                />
-                                {/* 内側のサークル（判定サークル） */}
-                                <div 
-                                  className={`absolute rounded-full border-2 ${
-                                    inWindow ? 'border-green-400 bg-green-400/20' : 'border-gray-400'
-                                  }`}
-                                  style={{
-                                    width: '60px',
-                                    height: '60px',
-                                    transform: 'translate(-50%, -50%)'
-                                  }}
-                                />
-                              </div>
-                            ) : null;
-                          })()}
+                          {/* 判定ウィンドウインジケーター */}
+                          <div className={cn(
+                            "absolute inset-0 rounded-full border-2 transition-all duration-100",
+                            monster.gauge >= 80 && monster.gauge <= 90 ? 
+                              "border-green-400 shadow-lg shadow-green-400/50 animate-pulse" : 
+                              "border-yellow-400 shadow-lg shadow-yellow-400/30"
+                          )} />
+                          
+                          {/* ゲージパーセンテージ表示 */}
+                          <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-xs font-bold">
+                            <span className={cn(
+                              "px-1 py-0.5 rounded",
+                              monster.gauge >= 80 && monster.gauge <= 90 ? 
+                                "bg-green-500/20 text-green-300" : 
+                                "bg-yellow-500/20 text-yellow-300"
+                            )}>
+                              {Math.floor(monster.gauge)}%
+                            </span>
+                          </div>
                         </div>
                       )}
                       
