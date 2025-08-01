@@ -132,20 +132,23 @@ export const FantasyRhythmEngine = forwardRef<
   const generateRandomSchedule = useCallback(() => {
     const schedule: RhythmChordSchedule[] = [];
     const currentTime = getCurrentGameTime();
-    const lookAheadTime = currentTime + 10000; // 10秒先まで生成
+    const beatDuration = 60000 / bpm; // msPerBeat
+    const measureDuration = beatDuration * timeSignature; // msPerMeasure
     
-    // カウントイン後から開始
-    const startMeasure = isCountIn ? currentMeasure : Math.max(1, currentMeasure);
+    // 現在の小節から10小節先まで生成（より多くのスケジュールを事前に生成）
+    const startMeasure = Math.max(0, currentMeasure - 2);
+    const endMeasure = currentMeasure + 10;
     
-    for (let m = startMeasure; m <= measureCount + 10; m++) {
-      // 各小節の1拍目にコードを配置
-      const actualMeasure = ((m - 1) % measureCount) + 1;
-      const measureTime = (m - 1 + countInMeasures) * msPerMeasure;
-      
-      if (measureTime > lookAheadTime) {
-        break;
+    for (let measure = startMeasure; measure <= endMeasure; measure++) {
+      // カウントイン中はスキップ
+      if (measure < countInMeasures) {
+        continue;
       }
       
+      const actualMeasure = measure - countInMeasures;
+      const measureTime = actualMeasure * measureDuration;
+      
+      // 過去のスケジュールは生成しない
       if (measureTime < currentTime - 1000) {
         continue;
       }
@@ -160,10 +163,25 @@ export const FantasyRhythmEngine = forwardRef<
         targetTime: measureTime,
         position: 'A' // ランダムパターンでは1体のみなので常にA列
       });
+      
+      devLog.debug('🎵 Random schedule item:', {
+        measure: actualMeasure,
+        measureTime,
+        chordId,
+        currentTime
+      });
     }
     
+    devLog.debug('🎵 Generated random schedule:', {
+      totalItems: schedule.length,
+      currentMeasure,
+      startMeasure,
+      endMeasure,
+      currentTime
+    });
+    
     return schedule;
-  }, [getCurrentGameTime, isCountIn, currentMeasure, measureCount, countInMeasures, msPerMeasure, allowedChords]);
+  }, [getCurrentGameTime, currentMeasure, countInMeasures, bpm, timeSignature, allowedChords]);
 
   // スケジュールの更新
   useEffect(() => {
@@ -195,10 +213,11 @@ export const FantasyRhythmEngine = forwardRef<
       const newActiveJudgments: RhythmJudgment[] = [];
       
       chordSchedule.forEach(schedule => {
-        const timeDiff = Math.abs(currentTime - schedule.targetTime);
+        // 判定ウィンドウ内かチェック（targetTime - 200ms から targetTime + 200ms まで）
+        const isInWindow = currentTime >= schedule.targetTime - JUDGMENT_WINDOW_MS && 
+                          currentTime <= schedule.targetTime + JUDGMENT_WINDOW_MS;
         
-        // 判定ウィンドウ内かチェック
-        if (timeDiff <= JUDGMENT_WINDOW_MS) {
+        if (isInWindow) {
           // 既存の判定を探す
           const existingJudgment = activeJudgments.find(
             j => j.chordId === schedule.chordId && j.targetTime === schedule.targetTime
@@ -215,6 +234,12 @@ export const FantasyRhythmEngine = forwardRef<
             };
             newActiveJudgments.push(judgment);
             onJudgment(judgment);
+            devLog.debug('🎵 New judgment window:', { 
+              chordId: schedule.chordId, 
+              targetTime: schedule.targetTime,
+              currentTime,
+              window: `${schedule.targetTime - JUDGMENT_WINDOW_MS} to ${schedule.targetTime + JUDGMENT_WINDOW_MS}`
+            });
           } else {
             newActiveJudgments.push(existingJudgment);
           }
@@ -232,9 +257,26 @@ export const FantasyRhythmEngine = forwardRef<
             devLog.debug('🎵 Auto miss judgment:', { 
               chordId: existingJudgment.chordId, 
               targetTime: existingJudgment.targetTime,
-              currentTime 
+              currentTime,
+              timePassed: currentTime - existingJudgment.targetTime
             });
             onJudgment(existingJudgment);
+          } else if (!activeJudgments.find(j => j.chordId === schedule.chordId && j.targetTime === schedule.targetTime)) {
+            // まだ判定されていない場合は新規にミス判定を作成
+            const missJudgment: RhythmJudgment = {
+              targetTime: schedule.targetTime,
+              chordId: schedule.chordId,
+              judged: true,
+              result: 'miss',
+              position: schedule.position
+            };
+            devLog.debug('🎵 Creating new miss judgment:', { 
+              chordId: schedule.chordId, 
+              targetTime: schedule.targetTime,
+              currentTime,
+              timePassed: currentTime - schedule.targetTime
+            });
+            onJudgment(missJudgment);
           }
         }
       });

@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useTimeStore } from '@/stores/timeStore';
 import { RhythmChordSchedule } from './FantasyRhythmEngine';
+import { devLog } from '@/utils/logger';
 
 interface FantasyRhythmGaugeProps {
   schedule: RhythmChordSchedule[];
@@ -34,6 +35,14 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
       )
       .sort((a, b) => a.targetTime - b.targetTime);
     
+    devLog.debug('🎵 Rhythm gauge schedule check:', {
+      position,
+      currentTime,
+      scheduleLength: schedule.length,
+      futureItemsCount: futureItems.length,
+      nextItem: futureItems[0]
+    });
+    
     return futureItems[0];
   }, [schedule, position, currentTime]);
 
@@ -51,32 +60,46 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
       // 1秒前から0%、ターゲットタイムで80%になるように計算
       const progress = Math.max(0, Math.min(80, (1000 - timeUntilTarget) / 1000 * 80));
       setGaugeProgress(progress);
+      
+      // デバッグログ（1秒に1回）
+      if (Math.floor(now) % 1000 < 16) {
+        devLog.debug('🎵 Gauge progress:', {
+          position,
+          progress,
+          timeUntilTarget,
+          targetTime: currentScheduleItem.targetTime,
+          currentTime: now
+        });
+      }
     };
 
     const interval = setInterval(updateGauge, 16); // 60fps
     updateGauge(); // 初回実行
 
     return () => clearInterval(interval);
-  }, [currentScheduleItem, startAt, readyDuration]);
+  }, [currentScheduleItem, startAt, readyDuration, position]);
 
-  // スケジュールがない場合は非表示
-  if (!currentScheduleItem) {
-    return null;
-  }
-
+  // リズムモードでは常にゲージを表示（マーカーを見せるため）
   return (
-    <div className="absolute inset-0">
-      {/* 80%地点のマーカー */}
-      <div className="absolute left-[80%] top-0 bottom-0 w-0.5 bg-yellow-400 z-10" />
+    <div className="absolute inset-0 relative">
+      {/* 80%地点のマーカー（常に表示） */}
+      <div className="absolute left-[80%] top-0 bottom-0 w-1 bg-yellow-400 z-20 animate-pulse" />
       
       {/* 進行ゲージ */}
-      <div 
-        className={cn(
-          "h-full transition-all duration-100",
-          gaugeProgress >= 70 && gaugeProgress <= 90 ? "bg-green-400" : "bg-blue-400"
-        )}
-        style={{ width: `${gaugeProgress}%` }}
-      />
+      {currentScheduleItem && (
+        <div 
+          className={cn(
+            "h-full transition-all duration-100 relative z-10",
+            gaugeProgress >= 70 && gaugeProgress <= 90 ? "bg-green-400" : "bg-blue-400"
+          )}
+          style={{ width: `${gaugeProgress}%` }}
+        />
+      )}
+      
+      {/* ベースライン（ゲージがない時も薄く表示） */}
+      {!currentScheduleItem && (
+        <div className="h-full bg-gray-600 opacity-30" style={{ width: '100%' }} />
+      )}
     </div>
   );
 };
