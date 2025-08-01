@@ -159,7 +159,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'single' | 'progression' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
@@ -170,7 +170,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         bpm: stage.bpm || 120,
         measureCount: stage.measure_count,
         countInMeasures: stage.count_in_measures,
-        timeSignature: stage.time_signature
+        timeSignature: stage.time_signature,
+        // リズムモード用プロパティ
+        ...(stage.mode === 'rhythm' && stage.chord_progression_data ? {
+          rhythmType: stage.chord_progression_data ? 'progression' as const : 'random' as const,
+          chord_progression_data: stage.chord_progression_data as { chords: { chord: string; measure: number; beat: number }[] }
+        } : {})
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -286,10 +291,17 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         <div className="flex-grow">
           {/* ステージ名 */}
           <div className={cn(
-            "text-lg font-medium mb-1",
+            "text-lg font-medium mb-1 flex items-center gap-2",
             unlocked ? "text-white" : "text-gray-400"
           )}>
             {unlocked ? stage.name : "???"}
+            {/* リズムモードバッジ */}
+            {unlocked && stage.mode === 'rhythm' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-600 text-white">
+                リズム
+                {(stage as FantasyStage & { rhythmType?: 'progression' | 'random' }).rhythmType === 'progression' ? '/進行' : '/ランダム'}
+              </span>
+            )}
           </div>
           
           {/* 説明文 */}
