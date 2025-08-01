@@ -27,7 +27,7 @@ export const useRhythmGameEngine = ({
     simultaneousMonsterCount: isProgressionMode ? (stage.timeSignature || 4) : 1
   } : null;
   
-  const { gameState, handleInput, gaugeProgress } = useRhythmEngine(
+  const { gameState, handleInput, gaugeProgress, startGame, isStarted } = useRhythmEngine(
     rhythmStageInfo,
     () => {
       // onComplete callback
@@ -70,13 +70,20 @@ export const useRhythmGameEngine = ({
   const fantasyGameState: FantasyGameState = {
     currentStage: stage,
     currentQuestionIndex: 0,
-    currentChordTarget: null,
+    currentChordTarget: gameState.activeQuestions.length > 0 ? {
+      id: gameState.activeQuestions[0].chord,
+      displayName: gameState.activeQuestions[0].chord,
+      notes: [],
+      noteNames: [],
+      quality: '',
+      root: ''
+    } : null,  // ★ activeQuestionsから最初のコードを取得
     playerHp: stage?.maxHp || 5,
     enemyGauge: 0,
     score: 0,
     totalQuestions: gameState.total,
     correctAnswers: gameState.defeated,
-    isGameActive: true,
+    isGameActive: isStarted,  // ★ isStartedを使用
     isGameOver: false,
     gameResult: null,
     currentEnemyIndex: 0,
@@ -121,7 +128,7 @@ export const useRhythmGameEngine = ({
     gameState: fantasyGameState,
     handleNoteInput: handleInput,
     handleMidiInput: handleInput,
-    initializeGame: () => {},
+    initializeGame: startGame,  // ★ startGame関数を使用
     stopGame: () => {},
     getCurrentEnemy: () => null,
     proceedToNextEnemy: () => {},

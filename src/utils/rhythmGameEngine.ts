@@ -154,11 +154,34 @@ export class RhythmGameEngine {
     }
   }
 
+  /** ゲージ進捗 (0〜1) */
+  getGaugeProgress(now: number): number {
+    const PRE_WINDOW_MS = 1000 // 判定 1 秒前を 0% とする
+    for (const q of this.questions) {
+      const preStart = q.windowStart - PRE_WINDOW_MS
+      if (now >= preStart && now <= q.windowEnd) {
+        const total = q.windowEnd - preStart
+        return Math.min(1, Math.max(0, (now - preStart) / total))
+      }
+    }
+    return 0
+  }
+
+  /** 現在アクティブな質問を取得 */
+  getActiveQuestions(): RhythmQuestion[] {
+    const activeQuestions: RhythmQuestion[] = []
+    this.activeQuestions.forEach(id => {
+      const q = this.questions.find(qq => qq.id === id)
+      if (q) activeQuestions.push(q)
+    })
+    return activeQuestions
+  }
+
   /** 破棄 */
   dispose(): void {
     this.disposed = true
-    this.activeQuestions.clear()
     this.questions = []
+    this.activeQuestions.clear()
   }
 
   /** measure & beat -> 判定ウィンドウの開始/終了時刻(ms) を算出 */
@@ -178,19 +201,6 @@ export class RhythmGameEngine {
   }
 
   /** progression 用: index -> 列位置 */
-  /** 現在時刻からゲージ進捗を計算 (0-1) */
-  public getGaugeProgress(nowMs: number): number {
-    const PRE_WINDOW_MS = 1000 // 判定 1 秒前を 0% とする
-    for (const q of this.questions) {
-      const preStart = q.windowStart - PRE_WINDOW_MS
-      if (nowMs >= preStart && nowMs <= q.windowEnd) {
-        const total = q.windowEnd - preStart
-        return Math.min(1, Math.max(0, (nowMs - preStart) / total))
-      }
-    }
-    return 0
-  }
-
   private pickPositionByIndex(i: number): string {
     const cols3 = ['A', 'B', 'C']
     const cols4 = ['A', 'B', 'C', 'D']

@@ -57,6 +57,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
+  // リズムモードかどうかの判定
+  const isRhythmMode = stage?.mode === 'rhythm';
+  
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
   
@@ -101,7 +104,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // Ready 終了時に BGM 再生
   useEffect(() => {
-    if (!isReady && startAt) {
+    // リズムモードの場合は、gameState.isGameActiveを使用
+    const shouldPlayBGM = isRhythmMode ? gameState.isGameActive : (!isReady && startAt);
+    
+    if (shouldPlayBGM) {
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
@@ -114,7 +120,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       bgmManager.stop();
     }
     return () => bgmManager.stop();
-  }, [isReady, stage, settings.bgmVolume, startAt]);
+  }, [isReady, stage, settings.bgmVolume, startAt, isRhythmMode, gameState.isGameActive]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
