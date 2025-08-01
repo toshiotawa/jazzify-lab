@@ -25,6 +25,17 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
   const [gaugeProgress, setGaugeProgress] = useState(0);
   const { startAt, readyDuration } = useTimeStore();
 
+  // コンポーネントがマウントされたことをログ
+  useEffect(() => {
+    devLog.debug('🎵 FantasyRhythmGauge mounted:', {
+      position,
+      scheduleLength: schedule.length,
+      currentTime,
+      startAt,
+      readyDuration
+    });
+  }, [position, schedule.length, currentTime, startAt, readyDuration]);
+
   // 現在のスケジュール項目を見つける
   const currentScheduleItem = useMemo(() => {
     // 現在時刻から最も近い未来のスケジュール項目を探す
@@ -80,6 +91,11 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
 
   return (
     <div className="absolute inset-0">
+      {/* デバッグ情報を表示 */}
+      <div className="absolute top-0 left-0 text-xs text-white bg-black bg-opacity-50 px-1 z-20">
+        {gaugeProgress.toFixed(0)}%
+      </div>
+      
       {/* 80%地点のマーカー */}
       <div className="absolute left-[80%] top-0 bottom-0 w-0.5 bg-yellow-400 z-10" />
       

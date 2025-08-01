@@ -372,7 +372,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     updateRhythmMonsters,
     handleMissJudgment: handleRhythmMissJudgment
   } = useFantasyGameEngine({
-    stage: null,
+    stage: stage,
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
@@ -722,6 +722,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
   }
   
+  // デバッグ: リズムモードの状態を確認
+  useEffect(() => {
+    devLog.debug('🎵 Rhythm mode status:', {
+      isRhythmMode,
+      stageMode: stage?.mode,
+      stageName: stage?.name,
+      rhythmScheduleLength: rhythmSchedule.length,
+      gameEngineIsRhythmMode: isRhythmMode
+    });
+  }, [isRhythmMode, stage?.mode, stage?.name, rhythmSchedule.length]);
+
   return (
     <div className={cn(
       "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen"
@@ -911,12 +922,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       >
                         {/* リズムモードの場合は専用ゲージ、それ以外は通常ゲージ */}
                         {isRhythmMode ? (
-                          <FantasyRhythmGauge
-                            schedule={rhythmSchedule}
-                            currentTime={currentGameTime}
-                            position={monster.position}
-                            chordId={monster.chordTarget.id}
-                          />
+                          <>
+                            {devLog.debug('🎵 Rendering rhythm gauge for monster:', {
+                              monsterId: monster.id,
+                              position: monster.position,
+                              scheduleLength: rhythmSchedule.length,
+                              currentGameTime
+                            })}
+                            <FantasyRhythmGauge
+                              schedule={rhythmSchedule}
+                              currentTime={currentGameTime}
+                              position={monster.position}
+                              chordId={monster.chordTarget.id}
+                            />
+                          </>
                         ) : (
                           <div
                             className="h-full bg-gradient-to-r from-yellow-400 to-yellow-500 transition-all duration-100"
