@@ -3,20 +3,18 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
-import { getChordDefinition } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import { FantasyRhythmEngine, RhythmJudgment, RhythmChordSchedule } from './FantasyRhythmEngine';
-import { FantasyRhythmGauge } from './FantasyRhythmGauge';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
@@ -39,13 +37,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   onGameComplete,
   onBackToStageSelect,
   noteNameLang = 'en',
-  simpleNoteName = false,
-  lessonMode = false
+  simpleNoteName = false
 }) => {
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
   // エフェクト状態
-  const [damageShake, setDamageShake] = useState(false);
+  const [, setDamageShake] = useState(false);
   const [overlay, setOverlay] = useState<null | { text:string }>(null); // ★★★ add
   const [heartFlash, setHeartFlash] = useState(false); // ハートフラッシュ効果
   
@@ -238,7 +235,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
@@ -285,7 +281,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
-    console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
     // 敵の攻撃音を再生
@@ -334,17 +329,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     gameState,
     handleNoteInput: engineHandleNoteInput,
     initializeGame,
-    stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
-    ENEMY_LIST,
     // リズムモード関連
     isRhythmMode,
-    rhythmSchedule,
-    rhythmJudgments,
     rhythmEngineRef,
-    updateRhythmMonsters
+    updateRhythmMonsters,
+    handleRhythmMiss // 追加
   } = useFantasyGameEngine({
     stage: stage, // ★★★ change from null to stage
     onGameStateChange: handleGameStateChange,
@@ -600,19 +592,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [heartFlash]);
   
   // 敵のゲージ表示（黄色系）
-  const renderEnemyGauge = useCallback(() => {
-    return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
-        <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
-          style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
-          }}
-        />
-      </div>
-    );
-  }, [gameState.enemyGauge]);
+  // const renderEnemyGauge = useCallback(() => {
+  //   return (
+  //     <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
+  //       <div 
+  //         className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
+  //         style={{ 
+  //           width: `${Math.min(gameState.enemyGauge, 100)}%`,
+  //           boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+  //         }}
+  //       />
+  //     </div>
+  //   );
+  // }, [gameState.enemyGauge]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -885,12 +877,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       >
                         {/* リズムモードの場合は専用ゲージ、それ以外は通常ゲージ */}
                         {isRhythmMode ? (
-                          <FantasyRhythmGauge
-                            schedule={rhythmSchedule}
-                            currentTime={performance.now() - (startAt || 0) - readyDuration}
-                            position={monster.position}
-                            chordId={monster.chordTarget.id}
-                          />
+                          <div className="relative h-full">
+                            {/* 80%地点のマーカー */}
+                            <div className="absolute left-[80%] top-0 bottom-0 w-0.5 bg-yellow-400 z-10" />
+                            {/* 進行ゲージ */}
+                            <div
+                              className={cn(
+                                "h-full transition-all duration-100",
+                                monster.gauge >= 70 && monster.gauge <= 90 ? "bg-green-400" : "bg-blue-400"
+                              )}
+                              style={{ width: `${monster.gauge}%` }}
+                            />
+                          </div>
                         ) : (
                           <div
                             className="h-full bg-gradient-to-r from-yellow-400 to-yellow-500 transition-all duration-100"
@@ -1129,6 +1127,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           simultaneousMonsterCount={stage.simultaneousMonsterCount}
           onJudgment={handleRhythmJudgment}
           onChordSchedule={handleRhythmSchedule}
+          onMiss={handleRhythmMiss}
         />
       )}
       

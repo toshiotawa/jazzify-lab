@@ -43,6 +43,7 @@ interface RhythmEngineProps {
   simultaneousMonsterCount: number;
   onJudgment: (judgment: RhythmJudgment) => void;
   onChordSchedule: (schedule: RhythmChordSchedule[]) => void;
+  onMiss?: (chordId: string, position: string) => void; // 追加: ミス時のコールバック
 }
 
 export const FantasyRhythmEngine = forwardRef<
@@ -58,12 +59,12 @@ export const FantasyRhythmEngine = forwardRef<
   allowedChords,
   simultaneousMonsterCount,
   onJudgment,
-  onChordSchedule
+  onChordSchedule,
+  onMiss
 }, ref) => {
   const { currentMeasure, currentBeat, isCountIn, startAt, readyDuration } = useTimeStore();
   const [activeJudgments, setActiveJudgments] = useState<RhythmJudgment[]>([]);
   const [chordSchedule, setChordSchedule] = useState<RhythmChordSchedule[]>([]);
-  const [currentChordIndex, setCurrentChordIndex] = useState(0);
 
   // 拍子に基づいて使用する列位置を決定
   const positions = useMemo(() => {
@@ -97,7 +98,8 @@ export const FantasyRhythmEngine = forwardRef<
     const lookAheadTime = currentTime + 10000; // 10秒先まで生成
     
     let loopCount = 0;
-    while (true) {
+    let scheduleGenerated = false;
+    while (!scheduleGenerated) {
       for (let i = 0; i < chords.length; i++) {
         const chord = chords[i];
         const actualMeasure = loopCount * measureCount + chord.measure;
@@ -108,7 +110,8 @@ export const FantasyRhythmEngine = forwardRef<
         const targetTime = measureTime + beatTime;
         
         if (targetTime > lookAheadTime) {
-          return schedule;
+          scheduleGenerated = true;
+          break;
         }
         
         // 既に過ぎた時間はスキップ
@@ -124,8 +127,10 @@ export const FantasyRhythmEngine = forwardRef<
           position: positions[i % positions.length]
         });
       }
+      if (scheduleGenerated) break;
       loopCount++;
     }
+    return schedule;
   }, [chordProgressionData, getCurrentGameTime, measureCount, countInMeasures, msPerMeasure, msPerBeat, positions]);
 
   // ランダムパターンの場合のスケジュール生成
@@ -235,6 +240,7 @@ export const FantasyRhythmEngine = forwardRef<
               currentTime 
             });
             onJudgment(existingJudgment);
+            onMiss?.(existingJudgment.chordId, existingJudgment.position);
           }
         }
       });
@@ -245,7 +251,7 @@ export const FantasyRhythmEngine = forwardRef<
     const interval = setInterval(checkJudgmentWindow, 16); // 60FPS
     
     return () => clearInterval(interval);
-  }, [isActive, startAt, chordSchedule, activeJudgments, getCurrentGameTime, onJudgment]);
+  }, [isActive, startAt, chordSchedule, activeJudgments, getCurrentGameTime, onJudgment, onMiss]);
 
   // 判定処理（外部から呼び出される）
   const judge = useCallback((chordId: string, inputTime: number) => {
