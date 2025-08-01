@@ -46,7 +46,7 @@ interface RhythmEngineProps {
 }
 
 export const FantasyRhythmEngine = forwardRef<
-  { judge: (chordId: string, inputTime: number) => RhythmJudgment | null },
+  { judge: (chordId: string, inputTime: number, monsterPosition?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H') => RhythmJudgment | null },
   RhythmEngineProps
 >(({
   isActive,
@@ -191,51 +191,51 @@ export const FantasyRhythmEngine = forwardRef<
     const checkJudgmentWindow = () => {
       const currentTime = getCurrentGameTime();
       
-      // アクティブな判定を更新
+      // アクティブな判定を更新（既存の未判定分も保持）
       const newActiveJudgments: RhythmJudgment[] = [];
+      const processedKeys = new Set<string>();
       
-      chordSchedule.forEach(schedule => {
-        const timeDiff = Math.abs(currentTime - schedule.targetTime);
-        
-        // 判定ウィンドウ内かチェック
-        if (timeDiff <= JUDGMENT_WINDOW_MS) {
-          // 既存の判定を探す
-          const existingJudgment = activeJudgments.find(
-            j => j.chordId === schedule.chordId && j.targetTime === schedule.targetTime
-          );
+      // 既存の未判定分を保持
+      activeJudgments.forEach(existingJudgment => {
+        if (!existingJudgment.judged) {
+          const key = `${existingJudgment.chordId}-${existingJudgment.targetTime}-${existingJudgment.position}`;
           
-          if (!existingJudgment) {
-            // 新しい判定を作成
-            const judgment: RhythmJudgment = {
-              targetTime: schedule.targetTime,
-              chordId: schedule.chordId,
-              judged: false,
-              result: null,
-              position: schedule.position
-            };
-            newActiveJudgments.push(judgment);
-            onJudgment(judgment);
-          } else {
-            newActiveJudgments.push(existingJudgment);
-          }
-        }
-        
-        // 判定ウィンドウを過ぎた未判定のものはミス判定
-        if (currentTime > schedule.targetTime + JUDGMENT_WINDOW_MS) {
-          const existingJudgment = activeJudgments.find(
-            j => j.chordId === schedule.chordId && j.targetTime === schedule.targetTime && !j.judged
-          );
-          
-          if (existingJudgment) {
+          // 判定ウィンドウを過ぎた場合はミス判定
+          if (currentTime > existingJudgment.targetTime + JUDGMENT_WINDOW_MS) {
             existingJudgment.judged = true;
             existingJudgment.result = 'miss';
             devLog.debug('🎵 Auto miss judgment:', { 
               chordId: existingJudgment.chordId, 
               targetTime: existingJudgment.targetTime,
+              position: existingJudgment.position,
               currentTime 
             });
             onJudgment(existingJudgment);
+          } else {
+            // まだ判定ウィンドウ内なら保持
+            newActiveJudgments.push(existingJudgment);
+            processedKeys.add(key);
           }
+        }
+      });
+      
+      // 新しい判定を追加
+      chordSchedule.forEach(schedule => {
+        const timeDiff = Math.abs(currentTime - schedule.targetTime);
+        const key = `${schedule.chordId}-${schedule.targetTime}-${schedule.position}`;
+        
+        // 判定ウィンドウ内かつ未処理のもの
+        if (timeDiff <= JUDGMENT_WINDOW_MS && !processedKeys.has(key)) {
+          // 新しい判定を作成
+          const judgment: RhythmJudgment = {
+            targetTime: schedule.targetTime,
+            chordId: schedule.chordId,
+            judged: false,
+            result: null,
+            position: schedule.position
+          };
+          newActiveJudgments.push(judgment);
+          onJudgment(judgment);
         }
       });
       
@@ -248,22 +248,28 @@ export const FantasyRhythmEngine = forwardRef<
   }, [isActive, startAt, chordSchedule, activeJudgments, getCurrentGameTime, onJudgment]);
 
   // 判定処理（外部から呼び出される）
-  const judge = useCallback((chordId: string, inputTime: number) => {
+  const judge = useCallback((chordId: string, inputTime: number, monsterPosition?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H') => {
     devLog.debug('🎵 Judge called:', {
       chordId,
       inputTime,
+      monsterPosition,
       activeJudgments: activeJudgments.length,
       judgmentDetails: activeJudgments.map(j => ({
         chordId: j.chordId,
         targetTime: j.targetTime,
+        position: j.position,
         judged: j.judged
       }))
     });
     
-    const judgment = activeJudgments.find(j => j.chordId === chordId && !j.judged);
+    const judgment = activeJudgments.find(j => 
+      j.chordId === chordId && 
+      (!monsterPosition || j.position === monsterPosition) && // positionが指定されていれば照合
+      !j.judged
+    );
     
     if (!judgment) {
-      devLog.debug('No active judgment found for chord:', chordId);
+      devLog.debug('No active judgment found for chord:', { chordId, position: monsterPosition });
       return null;
     }
     
@@ -272,7 +278,7 @@ export const FantasyRhythmEngine = forwardRef<
     if (timeDiff <= JUDGMENT_WINDOW_MS) {
       judgment.judged = true;
       judgment.result = timeDiff <= 50 ? 'perfect' : 'good';
-      devLog.debug('🎵 Judgment success:', { chordId, timeDiff, result: judgment.result });
+      devLog.debug('🎵 Judgment success:', { chordId, timeDiff, result: judgment.result, position: judgment.position });
       onJudgment(judgment);
       return judgment;
     }
@@ -310,10 +316,10 @@ export const FantasyRhythmEngine = forwardRef<
 FantasyRhythmEngine.displayName = 'FantasyRhythmEngine';
 
 // 判定関数をエクスポート
-export const useRhythmJudge = (rhythmEngine: React.RefObject<{ judge: (chordId: string, inputTime: number) => RhythmJudgment | null }>) => {
-  return useCallback((chordId: string) => {
+export const useRhythmJudge = (rhythmEngine: React.RefObject<{ judge: (chordId: string, inputTime: number, monsterPosition?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H') => RhythmJudgment | null }>) => {
+  return useCallback((chordId: string, monsterPosition?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H') => {
     if (!rhythmEngine.current) return null;
     const inputTime = performance.now();
-    return rhythmEngine.current.judge(chordId, inputTime);
+    return rhythmEngine.current.judge(chordId, inputTime, monsterPosition);
   }, [rhythmEngine]);
 };

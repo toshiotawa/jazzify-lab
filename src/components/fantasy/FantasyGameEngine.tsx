@@ -212,9 +212,15 @@ const createMonsterFromQueue = (
 /**
  * 位置を割り当て（A-H列に均等配置）
  */
-const assignPositions = (count: number): ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] => {
+const assignPositions = (count: number, isRhythmMode: boolean = false): ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] => {
   const allPositions: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   
+  // リズムモードでは常にA,B,C,D...の順で先頭n個を返す
+  if (isRhythmMode) {
+    return allPositions.slice(0, count);
+  }
+  
+  // 通常モードは既存の配置ロジック
   if (count === 1) return ['D']; // 1体の場合は中央寄り
   if (count === 2) return ['C', 'F']; // 2体の場合は左右に配置
   if (count === 3) return ['B', 'D', 'F']; // 3体の場合は均等配置
@@ -511,7 +517,7 @@ export const useFantasyGameEngine = ({
     
     // 初期モンスターを配置
     const initialMonsterCount = Math.min(simultaneousCount, totalEnemies);
-    const positions = assignPositions(initialMonsterCount);
+    const positions = assignPositions(initialMonsterCount, isRhythmMode);
     const activeMonsters: MonsterState[] = [];
     const usedChordIds: string[] = [];
     
@@ -526,7 +532,7 @@ export const useFantasyGameEngine = ({
         : 1; // ランダムパターンでは1体
       
       // リズムモードでも初期モンスターを作成
-      const rhythmPositions = assignPositions(rhythmSimultaneousCount);
+      const rhythmPositions = assignPositions(rhythmSimultaneousCount, isRhythmMode);
       
       // ランダムパターンの場合は1体、コード進行パターンの場合は拍子数分のモンスターを作成
       for (let i = 0; i < rhythmSimultaneousCount && i < totalEnemies; i++) {
@@ -929,7 +935,7 @@ export const useFantasyGameEngine = ({
           });
           
           // リズムエンジンで判定
-          const judgment = rhythmEngineRef.current.judge(targetMonster.chordTarget.id, inputTime);
+          const judgment = rhythmEngineRef.current.judge(targetMonster.chordTarget.id, inputTime, targetMonster.position);
           
           if (judgment && (judgment.result === 'perfect' || judgment.result === 'good')) {
             // 判定成功時は通常の処理を続行
