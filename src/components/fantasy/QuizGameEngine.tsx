@@ -93,9 +93,16 @@ export const ENEMY_LIST = [
 ];
 export const useQuizGameEngine = (props: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   // 元のuseFantasyGameEngineの実装をここにコピー
-  // ...
+  // TODO: Implement quiz game engine
   return {
-    gameState,
-    // ...
+    gameState: {} as FantasyGameState,
+    handleNoteInput: () => {},
+    handleMidiInput: () => {},
+    initializeGame: () => {},
+    stopGame: () => {},
+    getCurrentEnemy: () => null,
+    proceedToNextEnemy: () => {},
+    imageTexturesRef: { current: new Map() },
+    ENEMY_LIST: []
   };
 }; 

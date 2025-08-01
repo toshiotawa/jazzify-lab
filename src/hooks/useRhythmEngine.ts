@@ -9,8 +9,9 @@ export interface RhythmGameState {
 
 export const useRhythmEngine = (
   stage: RhythmStageInfo | null,
-  onComplete?: () => void
-) => { /* eslint-disable-line complexity */
+  onComplete?: () => void,
+  onEnemyAttack?: (monsterId: string) => void
+) => {
   const engineRef = useRef<RhythmGameEngine | null>(null)
 
   const [state, setState] = useState<RhythmGameState>(() => ({
@@ -35,6 +36,10 @@ export const useRhythmEngine = (
           ...s,
           activeQuestions: s.activeQuestions.filter(a => a.id !== q.id)
         }))
+        // Call enemy attack callback if provided
+        if (onEnemyAttack) {
+          onEnemyAttack(q.id);
+        }
       },
       onComplete: () => {
         onComplete?.()
@@ -69,7 +74,7 @@ export const useRhythmEngine = (
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   return {
     gameState: state,

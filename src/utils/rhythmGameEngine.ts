@@ -1,7 +1,6 @@
 import { useTimeStore } from '@/stores/timeStore'
 import { resolveChord } from '@/utils/chord-utils'
 import { note as parseNote } from 'tonal'
-import type { DisplayOpts } from '@/utils/display-note'
 
 /**
  * リズムモードで 1 つの判定対象となる問題
@@ -60,7 +59,7 @@ export class RhythmGameEngine {
   constructor(private callbacks: RhythmGameCallbacks) {}
 
   /** ステージをロードし question 配列を準備 */
-  loadStage(stage: RhythmStageInfo, displayOpts: DisplayOpts = { lang: 'en', simple: false }): void {
+  loadStage(stage: RhythmStageInfo): void {
     this.stage = stage
     this.questions = []
 
@@ -112,7 +111,6 @@ export class RhythmGameEngine {
     // timeStore 更新
     useTimeStore.getState().tick()
 
-    const tState = useTimeStore.getState()
     const nowMs = performance.now()
 
     // ウィンドウ突入チェック

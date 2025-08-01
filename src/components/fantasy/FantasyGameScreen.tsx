@@ -3,7 +3,7 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
@@ -37,7 +37,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   onBackToStageSelect,
   noteNameLang = 'en',
   simpleNoteName = false,
-  lessonMode = false
+  lessonMode: _lessonMode = false
 }) => {
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
@@ -235,7 +235,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
+  const [, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
@@ -266,7 +266,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
         await FantasySoundManager.playRootNote(chord.root);
       } catch (error) {
-        console.error('Failed to play root note:', error);
+        devLog.error('Failed to play root note:', error as Error);
       }
     }
   }, [fantasyPixiInstance, settings.playRootSound]);
@@ -282,7 +282,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
-    console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
+    devLog.debug('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
     // 敵の攻撃音を再生
@@ -325,13 +325,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     gameState,
     handleNoteInput: engineHandleNoteInput,
     initializeGame,
-    stopGame,
+    stopGame: _stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
-    ENEMY_LIST
+    ENEMY_LIST: _ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: null, // ★★★ change
+    stage: stage,
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
@@ -607,20 +607,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return hearts;
   }, [heartFlash]);
   
-  // 敵のゲージ表示（黄色系）
-  const renderEnemyGauge = useCallback(() => {
-    return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
-        <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
-          style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
-          }}
-        />
-      </div>
-    );
-  }, [gameState.enemyGauge]);
+
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -783,8 +770,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
               <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
                 {gameState.activeMonsters
-                  .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
-                  .map((monster) => {
+                  .sort((a: MonsterState, b: MonsterState) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
+                  .map((monster: MonsterState) => {
                     // モンスター数に応じて幅を動的に計算
                     const monsterCount = gameState.activeMonsters.length;
                     let widthPercent: string;
@@ -839,7 +826,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
+                        {monster.chordTarget.noteNames.map((noteName: string, index: number) => {
                           // 表示オプションを定義
                           const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
                           // 表示用の音名に変換
@@ -888,9 +875,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                          className={`h-full transition-all duration-100 ${
+                            stage.mode === 'rhythm' 
+                              ? 'bg-gradient-to-r from-green-500 to-green-700' 
+                              : 'bg-gradient-to-r from-purple-500 to-purple-700'
+                          }`}
                           style={{ width: `${monster.gauge}%` }}
                         />
+                        {/* リズムモードの判定ウィンドウマーカー（80%地点） */}
+                        {stage.mode === 'rhythm' && (
+                          <div
+                            className="absolute top-0 bottom-0 w-0.5 bg-yellow-400"
+                            style={{ left: '80%' }}
+                          />
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
