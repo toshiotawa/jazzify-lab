@@ -14,6 +14,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import RhythmNoteLane from './RhythmNoteLane';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
@@ -756,30 +757,43 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         
         {/* ===== モンスター＋エフェクト描画エリア ===== */}
         <div className="mb-2 text-center relative w-full">
-          <div
-            ref={monsterAreaRef}
-            className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
-            style={{ height: 'min(200px, 30vh)' }}
-          >
-            {/* 魔法名表示 - モンスターカード内に移動 */}
-            <FantasyPIXIRenderer
-              width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
-              height={200}
-              monsterIcon={currentEnemy.icon}
-    
-              enemyGauge={gameState.enemyGauge}
-              onReady={handleFantasyPixiReady}
-              onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
-              className="w-full h-full"
-              activeMonsters={gameState.activeMonsters}
-              imageTexturesRef={imageTexturesRef}
+          {stage.mode === 'rhythm' ? (
+            // リズムモード: 太鼓の達人風レーン表示
+            <RhythmNoteLane
+              notes={gameState.rhythmChords || []}
+              currentIndex={gameState.currentRhythmIndex || 0}
+              judgmentWindows={gameState.judgmentWindows || []}
+              isReady={isReady}
+              className="mb-4"
             />
-          </div>
+          ) : (
+            // クイズモード: 従来のモンスター表示
+            <div
+              ref={monsterAreaRef}
+              className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
+              style={{ height: 'min(200px, 30vh)' }}
+            >
+              {/* 魔法名表示 - モンスターカード内に移動 */}
+              <FantasyPIXIRenderer
+                width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
+                height={200}
+                monsterIcon={currentEnemy.icon}
+      
+                enemyGauge={gameState.enemyGauge}
+                onReady={handleFantasyPixiReady}
+                onMonsterDefeated={handleMonsterDefeated}
+                onShowMagicName={handleShowMagicName}
+                className="w-full h-full"
+                activeMonsters={gameState.activeMonsters}
+                imageTexturesRef={imageTexturesRef}
+              />
+            </div>
+          )}
           
           {/* モンスターの UI オーバーレイ */}
-          <div className="mt-2">
-            {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
+          {stage.mode !== 'rhythm' && (
+            <div className="mt-2">
+              {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
               // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
               <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
                 {gameState.activeMonsters
@@ -963,7 +977,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             ) : null}
             
             {/* プレイヤーのHP表示とSPゲージ */}
-          </div>
+            </div>
+          )}
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}

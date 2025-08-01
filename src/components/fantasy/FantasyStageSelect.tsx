@@ -301,15 +301,20 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             {unlocked ? stage.description : "このステージはまだロックされています"}
           </div>
           
-          {/* リズムモード情報 */}
-          {unlocked && stage.mode === 'rhythm' && (
+          {/* モード情報 */}
+          {unlocked && (
             <div className="mt-2 flex gap-2 text-xs">
-              <span className="px-2 py-1 bg-purple-600/50 rounded-full text-purple-200">
-                リズムモード
+              <span className={cn(
+                "px-2 py-1 rounded-full",
+                stage.mode === 'rhythm' ? "bg-purple-600/50 text-purple-200" : "bg-green-600/50 text-green-200"
+              )}>
+                {stage.mode === 'rhythm' ? 'リズムモード' : 'クイズモード'}
               </span>
-              <span className="px-2 py-1 bg-blue-600/50 rounded-full text-blue-200">
-                {stage.chordProgressionData ? 'コード進行' : 'ランダム'}
-              </span>
+              {stage.mode === 'rhythm' && (
+                <span className="px-2 py-1 bg-blue-600/50 rounded-full text-blue-200">
+                  {stage.chordProgressionData ? 'コード進行' : 'ランダム'}
+                </span>
+              )}
             </div>
           )}
         </div>
