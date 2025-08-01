@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
 import { devLog } from '@/utils/logger';
+import { MusicalNoteIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
 
 // ===== 型定義 =====
 
@@ -286,31 +287,53 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         
         {/* コンテンツ部分 */}
         <div className="flex-grow">
-          {/* ステージ名 */}
-          <div className={cn(
-            "text-lg font-medium mb-1",
-            unlocked ? "text-white" : "text-gray-400"
-          )}>
+          {/* ステージ名と説明 */}
+          <h3 className="text-lg font-bold mb-1">
             {unlocked ? stage.name : "???"}
-          </div>
-          
-          {/* 説明文 */}
-          <div className={cn(
-            "text-sm leading-relaxed",
-            unlocked ? "text-gray-300" : "text-gray-500"
-          )}>
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
             {unlocked ? stage.description : "このステージはまだロックされています"}
-          </div>
+          </p>
           
-          {/* リズムモード表示 */}
-          {unlocked && stage.mode === 'rhythm' && (
-            <div className="mt-2 flex items-center gap-2">
-              <span className="text-xs bg-purple-500 text-white px-2 py-1 rounded">
-                リズムモード
-              </span>
-              <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded">
-                {stage.chordProgressionData ? 'コード進行' : 'ランダム'}
-              </span>
+          {/* モード表示（アンロック時のみ） */}
+          {unlocked && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {stage.mode === 'rhythm' ? (
+                <>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                    <MusicalNoteIcon className="w-3 h-3 mr-1" />
+                    リズムモード
+                  </span>
+                  {stage.chordProgressionData ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                      コード進行
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                      ランダム
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                  <ClipboardDocumentCheckIcon className="w-3 h-3 mr-1" />
+                  クイズモード
+                </span>
+              )}
+            </div>
+          )}
+          
+          {/* ステージ詳細情報（アンロック時のみ） */}
+          {unlocked && (
+            <div className="text-sm text-gray-300 grid grid-cols-2 gap-1">
+              <p>HP: {stage.maxHp}</p>
+              <p>敵数: {stage.enemyCount}</p>
+              {stage.mode === 'rhythm' && (
+                <>
+                  <p>BPM: {stage.bpm}</p>
+                  <p>拍子: {stage.timeSignature}/4</p>
+                </>
+              )}
             </div>
           )}
         </div>

@@ -22,6 +22,7 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
   chordId
 }) => {
   const [gaugeProgress, setGaugeProgress] = useState(0);
+  const [isNearTiming, setIsNearTiming] = useState(false);
   const { startAt, readyDuration } = useTimeStore();
 
   // 現在のスケジュール項目を見つける
@@ -41,6 +42,7 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
   useEffect(() => {
     if (!currentScheduleItem || !startAt) {
       setGaugeProgress(0);
+      setIsNearTiming(false);
       return;
     }
 
@@ -49,8 +51,11 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
       const timeUntilTarget = currentScheduleItem.targetTime - now;
       
       // 1秒前から0%、ターゲットタイムで80%になるように計算
-      const progress = Math.max(0, Math.min(80, (1000 - timeUntilTarget) / 1000 * 80));
+      const progress = Math.max(0, Math.min(100, (1000 - timeUntilTarget) / 1000 * 80));
       setGaugeProgress(progress);
+      
+      // タイミング判定ウィンドウ内かチェック（前後200ms）
+      setIsNearTiming(Math.abs(timeUntilTarget) <= 200);
     };
 
     const interval = setInterval(updateGauge, 16); // 60fps
@@ -66,17 +71,41 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
 
   return (
     <div className="absolute inset-0">
-      {/* 80%地点のマーカー */}
-      <div className="absolute left-[80%] top-0 bottom-0 w-0.5 bg-yellow-400 z-10" />
-      
-      {/* 進行ゲージ */}
+      {/* 80%地点の判定マーカー */}
       <div 
         className={cn(
-          "h-full transition-all duration-100",
-          gaugeProgress >= 70 && gaugeProgress <= 90 ? "bg-green-400" : "bg-blue-400"
+          "absolute left-[80%] top-0 bottom-0 w-1 z-20 transition-all",
+          isNearTiming ? "bg-yellow-300 animate-pulse shadow-lg shadow-yellow-300/50" : "bg-yellow-400"
         )}
-        style={{ width: `${gaugeProgress}%` }}
-      />
+        style={{
+          boxShadow: isNearTiming ? '0 0 8px rgba(252, 211, 77, 0.8)' : undefined
+        }}
+      >
+        {/* マーカー上下の装飾 */}
+        <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-yellow-400 rounded-full" />
+        <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-yellow-400 rounded-full" />
+      </div>
+      
+      {/* 進行ゲージ */}
+      <div className="relative h-full">
+        <div 
+          className={cn(
+            "h-full transition-all duration-100 relative overflow-hidden",
+            isNearTiming ? "bg-gradient-to-r from-green-400 to-green-500" : 
+            gaugeProgress >= 70 ? "bg-gradient-to-r from-blue-400 to-cyan-400" : 
+            "bg-gradient-to-r from-purple-400 to-blue-400"
+          )}
+          style={{ width: `${gaugeProgress}%` }}
+        >
+          {/* ゲージの先端にグロー効果 */}
+          <div className="absolute right-0 top-0 bottom-0 w-2 bg-gradient-to-r from-transparent to-white/30" />
+        </div>
+      </div>
+      
+      {/* タイミングウィンドウの可視化（デバッグ用、必要なら表示） */}
+      {isNearTiming && (
+        <div className="absolute left-[76%] right-[16%] top-0 bottom-0 bg-green-400/20 z-10" />
+      )}
     </div>
   );
 };
