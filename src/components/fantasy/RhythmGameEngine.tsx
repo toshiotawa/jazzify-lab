@@ -132,7 +132,19 @@ export const useRhythmGameEngine = ({
     handleMidiInput: handleInput,
     initializeGame: startGame,  // ★ startGame関数を使用
     stopGame: () => {},
-    getCurrentEnemy: () => null,
+    getCurrentEnemy: (index: number) => {
+      // リズムモードでは activeMonsters から取得
+      const monsters = fantasyGameState.activeMonsters;
+      if (monsters && monsters.length > index) {
+        return {
+          icon: monsters[index].icon,
+          name: monsters[index].name,
+          hp: monsters[index].currentHp,
+          maxHp: monsters[index].maxHp
+        };
+      }
+      return null;
+    },
     proceedToNextEnemy: () => {},
     imageTexturesRef: { current: new Map() },
     ENEMY_LIST: []

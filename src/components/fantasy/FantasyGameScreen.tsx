@@ -378,6 +378,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(localGameState.currentEnemyIndex);
   
+  // リズムモードの場合、モンスターアイコンはstageから取得
+  const monsterIcon = isRhythmMode ? (stage?.monsterIcon || 'fa-drum') : (currentEnemy?.icon || 'fa-dragon');
+  
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
     // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
@@ -596,8 +599,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         monster: currentEnemy.icon,
         enemyIndex: localGameState.currentEnemyIndex
       });
+    } else if (fantasyPixiInstance && isRhythmMode && monsterIcon) {
+      // リズムモードの場合はmonsterIconを使用
+      fantasyPixiInstance.createMonsterSprite(monsterIcon);
+      devLog.debug('🔄 リズムモード: モンスタースプライト更新要求:', { 
+        monster: monsterIcon,
+        enemyIndex: localGameState.currentEnemyIndex
+      });
     }
-  }, [fantasyPixiInstance, currentEnemy, localGameState.currentEnemyIndex]);
+  }, [fantasyPixiInstance, currentEnemy, localGameState.currentEnemyIndex, isRhythmMode, monsterIcon]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -787,7 +797,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <FantasyPIXIRenderer
               width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
               height={200}
-              monsterIcon={currentEnemy.icon}
+              monsterIcon={monsterIcon}
     
               enemyGauge={localGameState.enemyGauge}
               onReady={handleFantasyPixiReady}
