@@ -18,7 +18,8 @@ import type {
   ActiveNote,
   GameError,
   ChordInfo,
-  ClearConditions
+  ClearConditions,
+  RhythmQuestion
 } from '@/types';
 // GameEngine は実行時にのみ必要なため、型のみインポート
 // import { GameEngine } from '@/utils/gameEngine';
@@ -290,6 +291,10 @@ const defaultState: GameState = {
   
   // ミッション情報
   missionContext: undefined,
+  
+  // リズムモード状態
+  currentRhythmQuestion: undefined,
+  playedNotesBuffer: [],
 };
 
 // 練習モード専用設定のデフォルト値
@@ -612,6 +617,11 @@ interface GameStoreState extends GameState {
   // ミッションコンテキスト
   setMissionContext: (missionId: string, songId: string, clearConditions?: ClearConditions) => void;
   clearMissionContext: () => void;
+  
+  // リズムモード制御
+  setCurrentRhythmQuestion: (question: RhythmQuestion | undefined) => void;
+  addToPlayedNotesBuffer: (note: number) => void;
+  clearPlayedNotesBuffer: () => void;
 }
 
 // ===== ヘルパー関数 =====
@@ -1899,6 +1909,22 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         clearMissionContext: () =>
           set((state: GameStoreState) => {
             state.missionContext = undefined;
+          }),
+        
+        // リズムモード制御
+        setCurrentRhythmQuestion: (question: RhythmQuestion | undefined) =>
+          set((state: GameStoreState) => {
+            state.currentRhythmQuestion = question;
+          }),
+        
+        addToPlayedNotesBuffer: (note: number) =>
+          set((state: GameStoreState) => {
+            state.playedNotesBuffer.push(note);
+          }),
+        
+        clearPlayedNotesBuffer: () =>
+          set((state: GameStoreState) => {
+            state.playedNotesBuffer = [];
           }),
       }))
     ),

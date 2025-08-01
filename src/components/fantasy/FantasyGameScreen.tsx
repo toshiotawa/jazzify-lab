@@ -17,6 +17,8 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import RhythmGameEngine from '@/utils/rhythmGameEngine';
+import type { RhythmStage } from '@/types';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -237,6 +239,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
+  // リズムモード判定
+  const isRhythm = stage.mode === 'rhythm';
+  const rhythmEngineRef = useRef<RhythmGameEngine | null>(null);
+  
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
     devLog.debug('🎮 ファンタジーゲーム状態更新:', {
@@ -361,9 +367,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       console.error('Failed to play note:', error);
     }
     
-    // ファンタジーゲームエンジンにのみ送信
-    engineHandleNoteInput(note);
-  }, [engineHandleNoteInput]);
+    // リズムモードの場合はリズムエンジンに送信
+    if (isRhythm && rhythmEngineRef.current) {
+      rhythmEngineRef.current.handleInput(note);
+    } else {
+      // ファンタジーゲームエンジンにのみ送信
+      engineHandleNoteInput(note);
+    }
+  }, [engineHandleNoteInput, isRhythm]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
@@ -609,6 +620,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
+    if (isRhythm) {
+      // リズムモード: 80%位置に判定ライン
+      return (
+        <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden relative">
+          <div 
+            className="absolute top-0 bottom-0 w-0.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"
+            style={{ left: '80%' }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-xs text-gray-400">判定ライン</span>
+          </div>
+        </div>
+      );
+    }
+    
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
@@ -620,7 +646,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         />
       </div>
     );
-  }, [gameState.enemyGauge]);
+  }, [gameState.enemyGauge, isRhythm]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -651,6 +677,56 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       </div>
     );
   }, []);
+  
+  // リズムエンジンの初期化
+  useEffect(() => {
+    if (isRhythm && stage && !rhythmEngineRef.current) {
+      // Convert FantasyStage to RhythmStage
+      const rhythmStage: RhythmStage = {
+        id: stage.id,
+        stage_number: stage.stageNumber,
+        name: stage.name,
+        description: stage.description,
+        max_hp: stage.maxHp,
+        enemy_gauge_seconds: stage.enemyGaugeSeconds,
+        enemy_count: stage.enemyCount,
+        enemy_hp: stage.enemyHp,
+        min_damage: stage.minDamage,
+        max_damage: stage.maxDamage,
+        mode: 'rhythm',
+        allowed_chords: stage.allowedChords,
+        chord_progression: stage.chordProgression,
+        show_sheet_music: stage.showSheetMusic,
+        show_guide: stage.showGuide,
+        simultaneous_monster_count: stage.simultaneousMonsterCount,
+        monster_icon: stage.monsterIcon,
+        bgm_url: stage.bgmUrl,
+        mp3_url: stage.bgmUrl,
+        bpm: stage.bpm,
+        measure_count: stage.measureCount,
+        time_signature: stage.timeSignature,
+        count_in_measures: stage.countInMeasures,
+        rhythmType: (stage as any).rhythmType || 'random',
+        chord_progression_data: (stage as any).chord_progression_data
+      };
+      
+      rhythmEngineRef.current = new RhythmGameEngine(rhythmStage, {
+        onAttackSuccess: (q) => {
+          devLog.debug('✅ リズム成功:', { chord: q.chord, measure: q.measure, beat: q.beat });
+          // TODO: 攻撃成功処理
+        },
+        onAttackFail: (q) => {
+          devLog.debug('❌ リズム失敗:', { chord: q.chord, measure: q.measure, beat: q.beat });
+          // TODO: 敵攻撃処理
+        }
+      });
+      rhythmEngineRef.current.start();
+    }
+    return () => {
+      rhythmEngineRef.current?.stop?.();
+      rhythmEngineRef.current = null;
+    };
+  }, [isRhythm, stage]);
   
   // ★ マウント時 autoStart なら即開始
   useEffect(() => {

@@ -247,6 +247,46 @@ export interface GameScore {
 
 export type ScoreRank = 'S' | 'A' | 'B' | 'C' | 'D';
 
+/* ───── Rhythm モード追加型 ───── */
+export interface RhythmQuestion {
+  id: string;
+  chord: string;
+  measure: number;
+  beat: number;            // 1 | 1.5 | 3.75 等
+  windowStart: number;     // ms
+  windowEnd: number;       // ms
+}
+
+export interface RhythmStage {
+  id: string;
+  stage_number: string;
+  name: string;
+  description: string;
+  max_hp: number;
+  enemy_gauge_seconds: number;
+  enemy_count: number;
+  enemy_hp: number;
+  min_damage: number;
+  max_damage: number;
+  mode: 'rhythm';
+  allowed_chords: string[];
+  chord_progression?: string[];
+  show_sheet_music: boolean;
+  show_guide: boolean;
+  simultaneous_monster_count?: number;
+  monster_icon?: string;
+  bgm_url?: string;
+  mp3_url?: string;
+  bpm?: number;
+  measure_count?: number;
+  time_signature?: number;
+  count_in_measures?: number;
+  rhythmType: 'random' | 'progression';
+  chord_progression_data?: {
+    chords: { chord: string; measure: number; beat: number }[];
+  };
+}
+
 // ===== ゲーム状態 =====
 
 export interface GameState {
@@ -303,6 +343,10 @@ export interface GameState {
     songId: string;
     clearConditions?: ClearConditions;
   };
+  
+  // リズムモード状態
+  currentRhythmQuestion?: RhythmQuestion;
+  playedNotesBuffer: number[]; // 判定ウィンドウ内で維持
 }
 
 // ===== 入力システム =====
@@ -635,7 +679,7 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';
   allowed_chords: string[];
   chord_progression?: string[];
   show_sheet_music: boolean;
