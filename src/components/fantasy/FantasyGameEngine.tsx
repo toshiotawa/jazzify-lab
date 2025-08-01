@@ -34,7 +34,7 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
@@ -363,7 +363,9 @@ const getCurrentEnemy = (enemyIndex: number) => {
 
 // ===== メインコンポーネント =====
 
-export const useFantasyGameEngine = ({
+import { useRhythmEngine } from '@/hooks/useRhythmEngine'
+
+export const useFantasyGameEngine = ({ /* eslint-disable-line complexity */
   stage,
   onGameStateChange,
   onChordCorrect,
@@ -373,6 +375,31 @@ export const useFantasyGameEngine = ({
   displayOpts = { lang: 'en', simple: false }
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   
+  // ------ Rhythm Mode Short-Circuit ------
+  if (stage?.mode === 'rhythm') {
+    const { gameState, handleInput } = useRhythmEngine(stage as any, () => {
+      onGameComplete('clear', {
+        // rhythm モードでは簡易 State を返す
+        ...gameState,
+        currentStage: stage,
+        isGameOver: false,
+        gameResult: 'clear'
+      } as any)
+    })
+
+    // Rhythm では FantasyGameState をほぼ使わないため placeholder
+    useEffect(() => {
+      onGameStateChange(gameState as any)
+    }, [gameState])
+
+    // 入力ハンドラを親に渡すため返す（従来 API 維持）
+    return {
+      handleMidiInput: handleInput
+    } as any
+  }
+
+  // ------------------------------
+
   // ステージで使用するモンスターIDを保持
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
   // プリロードしたテクスチャを保持
