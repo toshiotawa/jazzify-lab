@@ -27,6 +27,12 @@ interface FantasyPIXIRendererProps {
   className?: string;
   activeMonsters?: GameMonsterState[]; // マルチモンスター対応
   imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>; // プリロードされたテクスチャへの参照
+  isRhythmMode?: boolean; // リズムモードかどうか
+  rhythmPattern?: 'random' | 'progression'; // リズムパターン
+  currentMeasure?: number; // 現在の小節
+  currentBeat?: number; // 現在の拍
+  bpm?: number; // BPM
+  timeSignature?: number; // 拍子
 }
 
 // モンスターのビジュアル状態を不変に管理
@@ -195,6 +201,13 @@ export class FantasyPIXIInstance {
   // プリロードされたテクスチャへの参照を追加
   private imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>;
   
+  // リズムモード用のプロパティ
+  private isRhythmMode: boolean = false;
+  private rhythmPattern: 'random' | 'progression' = 'random';
+  private notesContainer: PIXI.Container = new PIXI.Container();
+  private fallingNotes: Map<string, { sprite: PIXI.Container; targetBeat: number; targetMeasure: number; chord: string }> = new Map();
+  private judgmentLine: PIXI.Graphics | null = null;
+  
   /** ────────────────────────────────────
    *  safe‑default で初期化しておく
    * ─────────────────────────────────── */
@@ -292,11 +305,22 @@ export class FantasyPIXIInstance {
     this.uiContainer.sortableChildren = true;
     
     // z-indexの設定（背景→モンスター→パーティクル→エフェクト→UI）
+    this.backgroundContainer.zIndex = 0;
+    this.monsterContainer.zIndex = 1;
+    
+    this.effectContainer.zIndex = 3;
+    this.uiContainer.zIndex = 4;
+    
     this.app.stage.addChild(this.backgroundContainer);
     this.app.stage.addChild(this.monsterContainer);
-
+    
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
+    this.app.stage.addChild(this.notesContainer); // リズムモード用
+    
+    // ノーツコンテナの設定
+    this.notesContainer.zIndex = 5; // UIの上に表示
+    this.notesContainer.sortableChildren = true;
     
     // 絵文字テクスチャの事前読み込み
     // this.loadEmojiTextures(); // ★ 削除
@@ -2034,6 +2058,109 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  // リズムモード設定
+  setRhythmMode(isRhythm: boolean, pattern: 'random' | 'progression' = 'random'): void {
+    this.isRhythmMode = isRhythm;
+    this.rhythmPattern = pattern;
+    
+    if (isRhythm) {
+      this.setupRhythmMode();
+    } else {
+      this.cleanupRhythmMode();
+    }
+  }
+
+  // リズムモードのセットアップ
+  private setupRhythmMode(): void {
+    // 判定ラインの作成
+    if (!this.judgmentLine) {
+      this.judgmentLine = new PIXI.Graphics();
+      this.judgmentLine.lineStyle(2, 0xFFFF00, 0.8);
+      this.judgmentLine.moveTo(0, this.app.screen.height * 0.8);
+      this.judgmentLine.lineTo(this.app.screen.width, this.app.screen.height * 0.8);
+      this.notesContainer.addChild(this.judgmentLine);
+    }
+  }
+
+  // リズムモードのクリーンアップ
+  private cleanupRhythmMode(): void {
+    // 判定ラインの削除
+    if (this.judgmentLine) {
+      this.judgmentLine.destroy();
+      this.judgmentLine = null;
+    }
+    
+    // 落下ノーツの削除
+    this.fallingNotes.forEach(noteData => {
+      noteData.sprite.destroy();
+    });
+    this.fallingNotes.clear();
+  }
+
+  // ノーツの生成
+  createFallingNote(chord: string, targetMeasure: number, targetBeat: number): void {
+    if (!this.isRhythmMode) return;
+    
+    const noteContainer = new PIXI.Container();
+    
+    // ノーツの背景
+    const noteBackground = new PIXI.Graphics();
+    noteBackground.beginFill(0x4444FF, 0.8);
+    noteBackground.drawRoundedRect(-40, -20, 80, 40, 10);
+    noteBackground.endFill();
+    
+    // コード名のテキスト
+    const chordText = new PIXI.Text(chord, {
+      fontFamily: 'Arial',
+      fontSize: 20,
+      fill: 0xFFFFFF,
+      align: 'center'
+    });
+    chordText.anchor.set(0.5);
+    
+    noteContainer.addChild(noteBackground);
+    noteContainer.addChild(chordText);
+    
+    // 初期位置（画面上部）
+    noteContainer.x = this.app.screen.width / 2;
+    noteContainer.y = -50;
+    
+    this.notesContainer.addChild(noteContainer);
+    
+    const noteId = `note_${Date.now()}_${Math.random()}`;
+    this.fallingNotes.set(noteId, {
+      sprite: noteContainer,
+      targetMeasure,
+      targetBeat,
+      chord
+    });
+  }
+
+  // ノーツの位置更新
+  updateFallingNotes(currentMeasure: number, currentBeat: number, bpm: number, timeSignature: number): void {
+    if (!this.isRhythmMode) return;
+    
+    const judgmentY = this.app.screen.height * 0.8;
+    const fallSpeed = 200; // ピクセル/秒
+    const msPerBeat = 60000 / bpm;
+    
+    this.fallingNotes.forEach((noteData, noteId) => {
+      // 現在の時間と目標時間の差を計算
+      const currentTime = ((currentMeasure - 1) * timeSignature + (currentBeat - 1)) * msPerBeat;
+      const targetTime = ((noteData.targetMeasure - 1) * timeSignature + (noteData.targetBeat - 1)) * msPerBeat;
+      const timeDiff = (targetTime - currentTime) / 1000; // 秒に変換
+      
+      // Y座標を計算
+      const targetY = judgmentY - (timeDiff * fallSpeed);
+      noteData.sprite.y = targetY;
+      
+      // 画面外に出たノーツを削除
+      if (targetY > this.app.screen.height + 50) {
+        noteData.sprite.destroy();
+        this.fallingNotes.delete(noteId);
+      }
+    });
+  }
 
 }
 
@@ -2049,7 +2176,13 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   onShowMagicName,
   className,
   activeMonsters,
-  imageTexturesRef
+  imageTexturesRef,
+  isRhythmMode,
+  rhythmPattern,
+  currentMeasure,
+  currentBeat,
+  bpm,
+  timeSignature
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pixiInstance, setPixiInstance] = useState<FantasyPIXIInstance | null>(null);
@@ -2083,7 +2216,19 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
     }
   }, [pixiInstance, monsterIcon, activeMonsters]);
 
+  // リズムモード設定
+  useEffect(() => {
+    if (pixiInstance && isRhythmMode !== undefined) {
+      pixiInstance.setRhythmMode(isRhythmMode, rhythmPattern);
+    }
+  }, [pixiInstance, isRhythmMode, rhythmPattern]);
 
+  // リズムモードのノーツ更新
+  useEffect(() => {
+    if (pixiInstance && isRhythmMode && currentMeasure && currentBeat && bpm && timeSignature) {
+      pixiInstance.updateFallingNotes(currentMeasure, currentBeat, bpm, timeSignature);
+    }
+  }, [pixiInstance, isRhythmMode, currentMeasure, currentBeat, bpm, timeSignature]);
 
   // サイズ変更
   useEffect(() => {

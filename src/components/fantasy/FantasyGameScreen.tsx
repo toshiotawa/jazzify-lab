@@ -520,6 +520,31 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     proceedToNextEnemy();
   }, [proceedToNextEnemy]);
   
+  // リズムモードでコードが変わったときにノーツを生成
+  useEffect(() => {
+    if (gameState.isRhythmMode && fantasyPixiInstance && gameState.activeMonsters.length > 0) {
+      const currentMonster = gameState.activeMonsters[0];
+      const currentChord = currentMonster.chordTarget;
+      
+      // プログレッションパターンの場合は次のタイミングを使用
+      if (gameState.rhythmPattern === 'progression' && gameState.nextChordTiming) {
+        fantasyPixiInstance.createFallingNote(
+          currentChord.displayName,
+          gameState.nextChordTiming.measure,
+          gameState.nextChordTiming.beat
+        );
+      } else if (gameState.rhythmPattern === 'random' && gameState.lastChordChangeMeasure) {
+        // ランダムパターンの場合は次の小節の1拍目
+        const nextMeasure = gameState.lastChordChangeMeasure + 1;
+        fantasyPixiInstance.createFallingNote(
+          currentChord.displayName,
+          nextMeasure,
+          1
+        );
+      }
+    }
+  }, [gameState.isRhythmMode, gameState.activeMonsters, gameState.rhythmPattern, gameState.nextChordTiming, gameState.lastChordChangeMeasure, fantasyPixiInstance]);
+  
   // FontAwesome使用のため削除済み
   
   // ゲームエリアのリサイズ対応
@@ -774,6 +799,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               className="w-full h-full"
               activeMonsters={gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
+              isRhythmMode={gameState.isRhythmMode}
+              rhythmPattern={gameState.rhythmPattern}
+              currentMeasure={currentMeasure}
+              currentBeat={currentBeat}
+              bpm={stage.bpm}
+              timeSignature={stage.timeSignature}
             />
           </div>
           
@@ -919,6 +950,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">
               {getNextChord()}
+            </div>
+          </div>
+        )}
+        
+        {/* リズムモード表示 */}
+        {gameState.isRhythmMode && (
+          <div className="mb-2 text-center">
+            <div className="text-white text-sm">
+              リズムモード: {gameState.rhythmPattern === 'random' ? 'ランダムパターン' : 'コードプログレッション'}
+            </div>
+            <div className="text-yellow-300 text-xs mt-1">
+              M {isCountIn ? '/' : currentMeasure} - B {currentBeat}
             </div>
           </div>
         )}
