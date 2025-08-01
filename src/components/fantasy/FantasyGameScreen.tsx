@@ -835,55 +835,61 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       
                       {/* リズムモード用の判定サークル */}
                       {stage.mode === 'rhythm' && gameState.rhythmChords && gameState.currentRhythmIndex !== undefined && (
-                        <div className="absolute inset-0 pointer-events-none">
-                          {(() => {
-                            // 現在のリズムコードインデックスを取得
-                            const rhythmIndex = gameState.currentRhythmIndex + monsterIndex;
-                            const rhythmChord = gameState.rhythmChords[rhythmIndex % gameState.rhythmChords.length];
-                            
-                            if (!rhythmChord) return null;
-                            
-                            // 現在時刻と判定タイミングまでの時間を計算
-                            const currentTime = performance.now() - (startAt || 0);
-                            const timeUntilJudgment = rhythmChord.timing - currentTime;
-                            const judgmentWindowSize = 400; // 判定ウィンドウの前後200ms
-                            
-                            // 判定ウィンドウ内かどうか
-                            const inWindow = Math.abs(timeUntilJudgment) <= 200;
-                            
-                            // サークルのサイズとアニメーション（1秒前から表示開始）
-                            const showCircle = timeUntilJudgment <= 1000 && timeUntilJudgment >= -200;
-                            const circleScale = showCircle ? Math.max(0, 1 - (timeUntilJudgment / 1000)) : 0;
-                            
-                            return showCircle ? (
-                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                                {/* 外側のサークル（アプローチサークル） */}
-                                <div 
-                                  className={`absolute rounded-full border-2 ${
-                                    inWindow ? 'border-green-400' : 'border-blue-400'
-                                  } transition-all duration-100`}
-                                  style={{
-                                    width: `${60 + (1 - circleScale) * 40}px`,
-                                    height: `${60 + (1 - circleScale) * 40}px`,
-                                    transform: 'translate(-50%, -50%)',
-                                    opacity: circleScale
-                                  }}
-                                />
-                                {/* 内側のサークル（判定サークル） */}
-                                <div 
-                                  className={`absolute rounded-full border-2 ${
-                                    inWindow ? 'border-green-400 bg-green-400/20' : 'border-gray-400'
-                                  }`}
-                                  style={{
-                                    width: '60px',
-                                    height: '60px',
-                                    transform: 'translate(-50%, -50%)'
-                                  }}
-                                />
-                              </div>
-                            ) : null;
-                          })()}
-                        </div>
+                        (() => {
+                          // 現在のリズムコードインデックスを取得
+                          const rhythmIndex = gameState.currentRhythmIndex + monsterIndex;
+                          const rhythmChord = gameState.rhythmChords[rhythmIndex % gameState.rhythmChords.length];
+                          
+                          if (!rhythmChord) return null;
+                          
+                          // 現在時刻と判定タイミングまでの時間を計算
+                          const currentTime = performance.now() - (startAt || 0);
+                          const timeUntilJudgment = rhythmChord.timing - currentTime;
+                          
+                          // 判定ウィンドウ内かどうか
+                          const inWindow = Math.abs(timeUntilJudgment) <= 200;
+                          
+                          // サークルのサイズとアニメーション（1秒前から表示開始）
+                          const showCircle = timeUntilJudgment <= 1000 && timeUntilJudgment >= -200;
+                          const circleScale = showCircle ? Math.max(0, 1 - (timeUntilJudgment / 1000)) : 0;
+                          
+                          return showCircle ? (
+                            <div className="absolute pointer-events-none" style={{
+                              top: '70%',  // コード名の下に配置
+                              left: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              zIndex: 10
+                            }}>
+                              {/* 外側のサークル（アプローチサークル） */}
+                              <div 
+                                className={`absolute rounded-full border-2 ${
+                                  inWindow ? 'border-green-400' : 'border-blue-400'
+                                } transition-all duration-100`}
+                                style={{
+                                  width: `${60 + (1 - circleScale) * 40}px`,
+                                  height: `${60 + (1 - circleScale) * 40}px`,
+                                  left: '50%',
+                                  top: '50%',
+                                  transform: 'translate(-50%, -50%)',
+                                  opacity: circleScale
+                                }}
+                              />
+                              {/* 内側のサークル（判定サークル） */}
+                              <div 
+                                className={`absolute rounded-full border-2 ${
+                                  inWindow ? 'border-green-400 bg-green-400/20' : 'border-gray-400'
+                                }`}
+                                style={{
+                                  width: '60px',
+                                  height: '60px',
+                                  left: '50%',
+                                  top: '50%',
+                                  transform: 'translate(-50%, -50%)'
+                                }}
+                              />
+                            </div>
+                          ) : null;
+                        })()
                       )}
                       
                       {/* コード構成音表示 */}
