@@ -11,7 +11,7 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
-import { FantasyRhythmEngine, RhythmJudgment, RhythmChordSchedule } from './FantasyRhythmEngine';
+import { FantasyRhythmEngine, RhythmJudgment, RhythmChordSchedule, useRhythmJudge } from './FantasyRhythmEngine';
 
 // ===== 型定義 =====
 
@@ -428,6 +428,9 @@ export const useFantasyGameEngine = ({
   // リズムモードかどうかを判定
   const isRhythmMode = gameState.currentStage?.mode === 'rhythm' || stage?.mode === 'rhythm';
   
+  // リズム判定フック
+  const rhythmJudge = useRhythmJudge(rhythmEngineRef);
+  
   // タイムストアから必要な値を取得
   const timeStore = useTimeStore();
   const { startAt: timeStartAt, readyDuration: timeReadyDuration } = timeStore;
@@ -445,16 +448,26 @@ export const useFantasyGameEngine = ({
     devLog.debug('🎵 Rhythm judgment:', judgment);
     setRhythmJudgments(prev => [...prev, judgment]);
     
-    // ミス判定の場合は敵の攻撃として処理
+    // ミス判定の場合は敵の攻撃として処理とバッファリセット
     if (judgment.result === 'miss') {
-      // ここで直接handleEnemyAttackを呼び出すのではなく、
-      // 対応するモンスターIDを渡す
+      // 対応するモンスターを探す
       const monster = gameState.activeMonsters.find(m => m.chordTarget.id === judgment.chordId);
       if (monster) {
+        // 敵の攻撃
         onEnemyAttack(monster.id);
+        
+        // 入力バッファ（correctNotes）をリセット
+        onGameStateChange({
+          ...gameState,
+          activeMonsters: gameState.activeMonsters.map(m => 
+            m.chordTarget.id === judgment.chordId 
+              ? { ...m, correctNotes: [] } // バッファリセット
+              : m
+          )
+        });
       }
     }
-  }, [gameState.activeMonsters, onEnemyAttack]);
+  }, [gameState, onEnemyAttack, onGameStateChange]);
   
   const handleRhythmSchedule = useCallback((schedule: RhythmChordSchedule[]) => {
     devLog.debug('🎵 Rhythm schedule updated:', schedule);
@@ -534,7 +547,7 @@ export const useFantasyGameEngine = ({
     if (stage.mode === 'rhythm') {
       // リズムモードでは、同時出現数を調整
       const rhythmSimultaneousCount = stage.chordProgressionData 
-        ? Math.min(stage.timeSignature || 4, 4) // コード進行パターンでは拍子数（最大4）
+        ? Math.min(stage.timeSignature || 4, 8) // コード進行パターンでは拍子数（最大8）
         : 1; // ランダムパターンでは1体
       
       // リズムモードでも初期モンスターを作成
@@ -620,7 +633,7 @@ export const useFantasyGameEngine = ({
       activeMonsters,
       monsterQueue,
       simultaneousMonsterCount: stage.mode === 'rhythm' 
-        ? (stage.chordProgressionData ? Math.min(stage.timeSignature || 4, 4) : 1)
+        ? (stage.chordProgressionData ? Math.min(stage.timeSignature || 4, 8) : 1)
         : simultaneousCount,
       // ゲーム完了処理中フラグ
       isCompleting: false
@@ -906,6 +919,37 @@ export const useFantasyGameEngine = ({
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
+    // リズムモードの場合は先に判定を行う
+    if (isRhythmMode && rhythmEngineRef.current) {
+      // アクティブなモンスターから、入力された音符を含むコードを探す
+      const currentMonsters = gameState.activeMonsters;
+      const targetMonster = currentMonsters.find(monster => {
+        const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
+        return targetNotes.includes(note % 12);
+      });
+      
+      if (targetMonster) {
+        devLog.debug('🎵 Found target monster for rhythm judgment:', {
+          monsterId: targetMonster.id,
+          chordId: targetMonster.chordTarget.id
+        });
+        
+        // リズムエンジンで判定（rhythmJudgeフックを使用）
+        const judgment = rhythmJudge(targetMonster.chordTarget.id);
+        
+        if (!judgment || (judgment.result !== 'perfect' && judgment.result !== 'good')) {
+          // 判定失敗またはタイミング外
+          devLog.debug('🎵 Rhythm judgment failed or out of window', {
+            judgment,
+            reason: judgment ? 'bad timing' : 'no active judgment'
+          });
+          return; // 何もせずに終了
+        }
+        
+        devLog.debug('🎵 Rhythm judgment success:', judgment);
+      }
+    }
+    
     // updater関数の中でロジックを実行するように変更
     setGameState(prevState => {
       // ゲームがアクティブでない場合は何もしない
@@ -914,55 +958,6 @@ export const useFantasyGameEngine = ({
       }
 
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
-
-      // リズムモードの場合は特別な処理
-      devLog.debug('🎵 Rhythm mode check:', { 
-        isRhythmMode, 
-        hasRhythmEngine: !!rhythmEngineRef.current,
-        currentStageMode: prevState.currentStage?.mode
-      });
-      
-      if (isRhythmMode && rhythmEngineRef.current) {
-        devLog.debug('🎵 Rhythm mode input processing:', { 
-          note, 
-          noteMod12: note % 12,
-          hasRhythmEngine: !!rhythmEngineRef.current 
-        });
-        
-        // 現在の入力時刻を取得（ゲーム時間に変換）
-        const inputTime = performance.now() - (timeStartAt || 0) - timeReadyDuration;
-        
-        // アクティブなモンスターから、入力された音符を含むコードを探す
-        const targetMonster = prevState.activeMonsters.find(monster => {
-          const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
-          return targetNotes.includes(note % 12);
-        });
-        
-        if (targetMonster) {
-          devLog.debug('🎵 Found target monster for rhythm judgment:', {
-            monsterId: targetMonster.id,
-            chordId: targetMonster.chordTarget.id
-          });
-          
-          // リズムエンジンで判定
-          const judgment = rhythmEngineRef.current.judge(targetMonster.chordTarget.id, inputTime);
-          
-          if (judgment && (judgment.result === 'perfect' || judgment.result === 'good')) {
-            // 判定成功時は通常の処理を続行
-            devLog.debug('🎵 Rhythm judgment success:', judgment);
-          } else {
-            // 判定失敗またはタイミング外
-            devLog.debug('🎵 Rhythm judgment failed or out of window', {
-              judgment,
-              reason: judgment ? 'bad timing' : 'no active judgment'
-            });
-            return prevState; // 何もせずに終了
-          }
-        } else {
-          devLog.debug('🎵 No monster found for note:', note % 12);
-          return prevState;
-        }
-      }
 
       const noteMod12 = note % 12;
       const completedMonsters: MonsterState[] = [];
@@ -1095,7 +1090,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange, isRhythmMode, timeStartAt, timeReadyDuration]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange, isRhythmMode, rhythmJudge, gameState.activeMonsters]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {

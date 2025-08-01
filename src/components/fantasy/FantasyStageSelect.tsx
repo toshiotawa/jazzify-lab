@@ -309,7 +309,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
                 リズムモード
               </span>
               <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded">
-                {stage.chordProgressionData ? 'コード進行' : 'ランダム'}
+                {stage.chordProgressionData ? '進行' : 'ランダム'}
               </span>
             </div>
           )}

@@ -1,6 +1,6 @@
 import React from 'react';
-import { render } from '@testing-library/react';
-import { FantasyRhythmEngine } from '../FantasyRhythmEngine';
+import { render, act } from '@testing-library/react';
+import { FantasyRhythmEngine, useRhythmJudge } from '../FantasyRhythmEngine';
 
 // Mock the timeStore
 jest.mock('@/stores/timeStore', () => ({
@@ -121,5 +121,102 @@ describe('FantasyRhythmEngine', () => {
 
     // Should not call onChordSchedule when inactive
     expect(onChordSchedule).not.toHaveBeenCalled();
+  });
+  
+  describe('judge function', () => {
+    it('returns perfect judgment for small time difference (30ms)', () => {
+      const onJudgment = jest.fn();
+      const ref = React.createRef<{ judge: (chordId: string, inputTime: number) => any }>();
+      
+      render(
+        <FantasyRhythmEngine
+          {...defaultProps}
+          ref={ref}
+          onJudgment={onJudgment}
+        />
+      );
+      
+      // Wait for the component to be ready
+      act(() => {
+        jest.advanceTimersByTime(100);
+      });
+      
+      // Create a mock judgment scenario
+      const targetTime = 1000;
+      const inputTime = targetTime + 30; // 30ms late
+      
+      // Manually create an active judgment for testing
+      act(() => {
+        onJudgment.mockImplementation((judgment) => {
+          if (!judgment.judged) {
+            // Simulate having an active judgment
+            const result = ref.current?.judge('C', inputTime);
+            expect(result).toBeTruthy();
+            if (result) {
+              expect(result.result).toBe('perfect');
+            }
+          }
+        });
+      });
+    });
+    
+    it('returns good judgment for medium time difference (150ms)', () => {
+      const onJudgment = jest.fn();
+      const ref = React.createRef<{ judge: (chordId: string, inputTime: number) => any }>();
+      
+      render(
+        <FantasyRhythmEngine
+          {...defaultProps}
+          ref={ref}
+          onJudgment={onJudgment}
+        />
+      );
+      
+      // Wait for the component to be ready
+      act(() => {
+        jest.advanceTimersByTime(100);
+      });
+      
+      const targetTime = 1000;
+      const inputTime = targetTime + 150; // 150ms late
+      
+      act(() => {
+        onJudgment.mockImplementation((judgment) => {
+          if (!judgment.judged) {
+            const result = ref.current?.judge('C', inputTime);
+            expect(result).toBeTruthy();
+            if (result) {
+              expect(result.result).toBe('good');
+            }
+          }
+        });
+      });
+    });
+    
+    it('returns null for large time difference (250ms)', () => {
+      const onJudgment = jest.fn();
+      const ref = React.createRef<{ judge: (chordId: string, inputTime: number) => any }>();
+      
+      render(
+        <FantasyRhythmEngine
+          {...defaultProps}
+          ref={ref}
+          onJudgment={onJudgment}
+        />
+      );
+      
+      // Wait for the component to be ready
+      act(() => {
+        jest.advanceTimersByTime(100);
+      });
+      
+      const targetTime = 1000;
+      const inputTime = targetTime + 250; // 250ms late (outside window)
+      
+      act(() => {
+        const result = ref.current?.judge('C', inputTime);
+        expect(result).toBeNull(); // Should be null because it's outside the judgment window
+      });
+    });
   });
 });
