@@ -303,6 +303,25 @@ export interface GameState {
     songId: string;
     clearConditions?: ClearConditions;
   };
+  
+  // リズムモード関連（ファンタジーモード用）
+  rhythmMode?: {
+    isActive: boolean;
+    pattern: 'random' | 'progression';
+    currentChordIndex: number;
+    chordProgressionData: Array<{
+      measure: number;
+      beat: number;
+      chord: string;
+    }> | null;
+    judgmentWindow: {
+      startTime: number | null;
+      endTime: number | null;
+      chord: string | null;
+      judged: boolean;
+    };
+    nextChordTime: number | null;
+  };
 }
 
 // ===== 入力システム =====

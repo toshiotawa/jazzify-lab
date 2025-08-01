@@ -754,6 +754,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         */}
         
+        {/* ===== リズムモード用判定ライン表示 ===== */}
+        {stage.mode === 'rhythm' && (
+          <div className="relative w-full h-20 bg-black bg-opacity-30 rounded-lg overflow-hidden mb-2">
+            {/* 判定ライン */}
+            <div className="absolute left-16 top-1/2 -translate-y-1/2 w-1 h-16 bg-yellow-400 z-20"></div>
+            <div className="absolute left-14 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-yellow-400 border-2 border-yellow-600 z-20"></div>
+            
+            {/* ノートレーン */}
+            <div className="absolute inset-0 flex items-center">
+              <div className="relative w-full h-full">
+                {/* TODO: スクロールするノート表示 */}
+                <div className="absolute top-1/2 -translate-y-1/2 text-white text-sm left-24">
+                  {gameState.activeMonsters[0]?.chordTarget?.displayName || ''}
+                </div>
+              </div>
+            </div>
+            
+            {/* 判定表示 */}
+            <div className="absolute left-14 bottom-1 text-xs text-yellow-300">判定</div>
+          </div>
+        )}
+        
         {/* ===== モンスター＋エフェクト描画エリア ===== */}
         <div className="mb-2 text-center relative w-full">
           <div
