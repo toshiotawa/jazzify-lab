@@ -3,4 +3,5 @@ export * from './FantasySoundManager';
 
 // ===== リズムモード関連 =====
 export * from './beatTime';
-export { default as RhythmGameEngine } from './rhythmGameEngine';
+// RhythmGameEngineは直接インポートして使用するため、ここではエクスポートしない
+// export { default as RhythmGameEngine } from './rhythmGameEngine';

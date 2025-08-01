@@ -17,7 +17,8 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
-import RhythmGameEngine from '@/utils/rhythmGameEngine';
+// RhythmGameEngineは動的インポートに変更
+// import RhythmGameEngine from '@/utils/rhythmGameEngine';
 import RhythmVisualizer from '@/components/rhythm/RhythmVisualizer';
 import type { RhythmQuestion, RhythmStage } from '@/types';
 
@@ -78,7 +79,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const isRhythmMode = stage.mode === 'rhythm';
   
   // リズムエンジンのref
-  const rhythmEngineRef = useRef<RhythmGameEngine | null>(null);
+  const rhythmEngineRef = useRef<any | null>(null); // RhythmGameEngineの型をanyに変更
   
   /* 毎 100 ms で時間ストア tick */
   useEffect(() => {
@@ -377,22 +378,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         count_in_measures: stage.countInMeasures
       };
       
-      rhythmEngineRef.current = new RhythmGameEngine(rhythmStage, {
-        onAttackSuccess: (question: RhythmQuestion, damage: number) => {
-          devLog.debug('🎯 リズム攻撃成功', { chord: question.chord, damage });
-          // TODO: エフェクト処理
-        },
-        onAttackFail: (question: RhythmQuestion) => {
-          devLog.debug('❌ リズム攻撃失敗', { chord: question.chord });
-          handleEnemyAttack();
-        },
-        onQuestionScheduled: (question: RhythmQuestion) => {
-          devLog.debug('🎵 リズム問題スケジュール', { chord: question.chord, measure: question.measure, beat: question.beat });
-          // TODO: UIにモンスター表示
-        },
-        onGameComplete: () => {
-          handleGameCompleteCallback('clear', gameState);
-        }
+      // RhythmGameEngineを動的にインポート
+      import('@/utils/rhythmGameEngine').then((module) => {
+        const RhythmGameEngine = module.default;
+        rhythmEngineRef.current = new RhythmGameEngine(rhythmStage, {
+          onAttackSuccess: (question: RhythmQuestion, damage: number) => {
+            devLog.debug('🎯 リズム攻撃成功', { chord: question.chord, damage });
+            // TODO: エフェクト処理
+          },
+          onAttackFail: (question: RhythmQuestion) => {
+            devLog.debug('❌ リズム攻撃失敗', { chord: question.chord });
+            handleEnemyAttack();
+          },
+          onQuestionScheduled: (question: RhythmQuestion) => {
+            devLog.debug('🎵 リズム問題スケジュール', { chord: question.chord, measure: question.measure, beat: question.beat });
+            // TODO: UIにモンスター表示
+          },
+          onGameComplete: () => {
+            handleGameCompleteCallback('clear', gameState);
+          }
+        });
+      }).catch(error => {
+        console.error('Failed to import RhythmGameEngine:', error);
       });
     }
     
