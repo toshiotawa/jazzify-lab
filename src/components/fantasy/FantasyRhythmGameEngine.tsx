@@ -3,7 +3,7 @@
  * リズムモード専用のゲームロジックとステート管理
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
 import { type DisplayOpts } from '@/utils/display-note';
@@ -45,6 +45,13 @@ interface RhythmGameState {
   perfectCount: number;
   goodCount: number;
   missCount: number;
+  playerHp: number;
+  maxPlayerHp: number;
+  isGameActive: boolean;
+  isGameOver: boolean;
+  enemiesDefeated: number;
+  totalEnemies: number;
+  currentInputNotes: number[]; // 現在入力中のノート
 }
 
 interface FantasyRhythmGameEngineProps {
@@ -61,9 +68,16 @@ interface FantasyRhythmGameEngineProps {
         beat: number;
       }>;
     } | null;
+    maxHp?: number;
+    enemyCount?: number;
+    enemyHp?: number;
+    minDamage?: number;
+    maxDamage?: number;
   };
-  onNoteHit: (chord: string, timing: 'perfect' | 'good') => void;
+  onNoteHit: (chord: string, timing: 'perfect' | 'good', damage: number, enemiesDefeated: number) => void;
   onNoteMiss: (chord: string) => void;
+  onPlayerDamage: (damage: number) => void;
+  onGameComplete: (result: 'clear' | 'gameover') => void;
   displayOpts?: DisplayOpts;
 }
 
@@ -112,13 +126,42 @@ const selectRandomChord = (allowedChords: string[], previousChord?: string): str
   return chords[Math.floor(Math.random() * chords.length)];
 };
 
+/**
+ * コードの構成音を取得
+ */
+const getChordNotes = (chordName: string): number[] => {
+  const resolved = resolveChord(chordName, 4);
+  if (!resolved) return [];
+  
+  // MIDIノート番号のmod 12を返す（オクターブを無視）
+  return resolved.notes.map(noteName => {
+    const noteObj = parseNote(noteName);
+    return noteObj.midi !== null ? noteObj.midi % 12 : -1;
+  }).filter(n => n !== -1);
+};
+
+/**
+ * 入力ノートがコードと一致するかチェック
+ */
+const checkChordMatch = (inputNotes: number[], targetChord: string): boolean => {
+  const chordNotes = getChordNotes(targetChord);
+  if (chordNotes.length === 0) return false;
+  
+  // 入力ノートをmod 12に変換
+  const inputMod12 = inputNotes.map(n => n % 12);
+  
+  // すべてのコード構成音が入力に含まれているか確認
+  return chordNotes.every(note => inputMod12.includes(note));
+};
+
 // ===== コンポーネント =====
 
 export const useFantasyRhythmGameEngine = ({
   stage,
   onNoteHit,
   onNoteMiss,
-  displayOpts
+  onPlayerDamage,
+  onGameComplete
 }: FantasyRhythmGameEngineProps) => {
   const { startAt, readyDuration, currentMeasure, currentBeat, isCountIn } = useTimeStore();
   
@@ -131,11 +174,21 @@ export const useFantasyRhythmGameEngine = ({
     maxCombo: 0,
     perfectCount: 0,
     goodCount: 0,
-    missCount: 0
+    missCount: 0,
+    playerHp: stage.maxHp || 5,
+    maxPlayerHp: stage.maxHp || 5,
+    isGameActive: true,
+    isGameOver: false,
+    enemiesDefeated: 0,
+    totalEnemies: stage.enemyCount || 10,
+    currentInputNotes: []
   });
   
   const lastSpawnedMeasure = useRef<number>(0);
   const processedNoteIds = useRef<Set<string>>(new Set());
+  const lastChord = useRef<string>('');
+  const enemyHp = useRef<number>(stage.enemyHp || 1);
+  const currentEnemyHp = useRef<number>(stage.enemyHp || 1);
   
   // 現在時刻を取得
   const getCurrentTime = useCallback(() => {
@@ -145,7 +198,7 @@ export const useFantasyRhythmGameEngine = ({
   
   // ノーツの生成
   const spawnNotes = useCallback(() => {
-    if (!startAt || isCountIn) return;
+    if (!startAt || isCountIn || !gameState.isGameActive) return;
     
     const currentTime = getCurrentTime();
     const { bpm, timeSignature, countInMeasures, allowedChords, chordProgressionData } = stage;
@@ -159,12 +212,19 @@ export const useFantasyRhythmGameEngine = ({
       
       setGameState(prevState => {
         const newNotes: RhythmLaneNote[] = [];
+        const nextIndex = prevState.nextChordIndex;
         
         // 次に生成すべきコードを探す
-        for (let i = prevState.nextChordIndex; i < progression.length; i++) {
-          const chordData = progression[i];
+        for (let i = 0; i < progression.length; i++) {
+          const actualIndex = (nextIndex + i) % progression.length;
+          const chordData = progression[actualIndex];
+          
+          // ループを考慮した小節番号の計算
+          const loopCount = Math.floor((nextIndex + i) / progression.length);
+          const actualMeasure = chordData.measure + (loopCount * stage.measureCount);
+          
           const noteTime = getMeasureBeatTime(
-            chordData.measure,
+            actualMeasure,
             chordData.beat,
             bpm,
             timeSignature,
@@ -176,7 +236,7 @@ export const useFantasyRhythmGameEngine = ({
           // 先読み時間内のノーツのみ生成
           if (noteTime - currentTime > SPAWN_AHEAD_TIME) break;
           
-          const noteId = `${chordData.chord}_${chordData.measure}_${chordData.beat}`;
+          const noteId = `${chordData.chord}_${actualMeasure}_${chordData.beat}_${loopCount}`;
           if (!processedNoteIds.current.has(noteId)) {
             processedNoteIds.current.add(noteId);
             
@@ -191,19 +251,10 @@ export const useFantasyRhythmGameEngine = ({
           }
         }
         
-        // 無限ループ：最後まで行ったら最初に戻る
-        if (prevState.nextChordIndex >= progression.length - 1) {
-          return {
-            ...prevState,
-            laneNotes: [...prevState.laneNotes, ...newNotes],
-            nextChordIndex: 0
-          };
-        }
-        
         return {
           ...prevState,
           laneNotes: [...prevState.laneNotes, ...newNotes],
-          nextChordIndex: prevState.nextChordIndex + newNotes.length
+          nextChordIndex: (nextIndex + newNotes.length) % progression.length
         };
       });
     } else {
@@ -225,8 +276,8 @@ export const useFantasyRhythmGameEngine = ({
           );
           
           if (noteTime - currentTime <= SPAWN_AHEAD_TIME) {
-            const previousChord = gameState.laneNotes[gameState.laneNotes.length - 1]?.chord;
-            const chord = selectRandomChord(allowedChords, previousChord);
+            const chord = selectRandomChord(allowedChords, lastChord.current);
+            lastChord.current = chord;
             const noteId = `${chord}_${m}_1`;
             
             if (!processedNoteIds.current.has(noteId)) {
@@ -250,10 +301,12 @@ export const useFantasyRhythmGameEngine = ({
         lastSpawnedMeasure.current = targetMeasure;
       }
     }
-  }, [getCurrentTime, stage, startAt, readyDuration, currentMeasure, isCountIn, gameState.laneNotes]);
+  }, [getCurrentTime, stage, startAt, readyDuration, currentMeasure, isCountIn, gameState.isGameActive]);
   
   // ノーツの位置更新と判定ウィンドウの管理
   const updateNotes = useCallback(() => {
+    if (!gameState.isGameActive) return;
+    
     const currentTime = getCurrentTime();
     
     setGameState(prevState => {
@@ -268,6 +321,7 @@ export const useFantasyRhythmGameEngine = ({
         if (currentTime > note.targetTime + JUDGE_WINDOW_MS) {
           if (!note.isMissed) {
             onNoteMiss(note.chord);
+            onPlayerDamage(1);
             return { ...note, position, isMissed: true };
           }
         }
@@ -301,6 +355,23 @@ export const useFantasyRhythmGameEngine = ({
       
       // ミスカウントの更新
       const newMissCount = updatedNotes.filter(n => n.isMissed).length;
+      const newHp = prevState.maxPlayerHp - newMissCount;
+      
+      // ゲームオーバー判定
+      if (newHp <= 0 && !prevState.isGameOver) {
+        onGameComplete('gameover');
+        return {
+          ...prevState,
+          laneNotes: activeNotes,
+          currentJudgeWindows: currentWindows,
+          missCount: newMissCount,
+          playerHp: 0,
+          combo: 0,
+          isGameActive: false,
+          isGameOver: true
+        };
+      }
+      
       if (newMissCount > prevState.missCount) {
         // コンボリセット
         return {
@@ -308,6 +379,7 @@ export const useFantasyRhythmGameEngine = ({
           laneNotes: activeNotes,
           currentJudgeWindows: currentWindows,
           missCount: newMissCount,
+          playerHp: newHp,
           combo: 0
         };
       }
@@ -315,52 +387,90 @@ export const useFantasyRhythmGameEngine = ({
       return {
         ...prevState,
         laneNotes: activeNotes,
-        currentJudgeWindows: currentWindows
+        currentJudgeWindows: currentWindows,
+        playerHp: newHp
       };
     });
-  }, [getCurrentTime, onNoteMiss]);
+  }, [getCurrentTime, onNoteMiss, onPlayerDamage, onGameComplete, gameState.isGameActive]);
   
-  // 入力判定
-  const judgeInput = useCallback((inputChord: string) => {
-    const currentTime = getCurrentTime();
+  // ノート入力を追加
+  const addNoteInput = useCallback((note: number) => {
+    if (!gameState.isGameActive) return;
     
     setGameState(prevState => {
-      // 判定可能なノーツを探す
-      const hitNote = prevState.laneNotes.find(note => {
-        if (note.isHit || note.isMissed) return false;
-        if (note.chord !== inputChord) return false;
+      const newInputNotes = [...prevState.currentInputNotes, note];
+      
+      // 現在の判定ウィンドウを確認
+      const currentWindow = prevState.currentJudgeWindows[0];
+      if (!currentWindow) {
+        return { ...prevState, currentInputNotes: newInputNotes };
+      }
+      
+      // コードマッチをチェック
+      if (checkChordMatch(newInputNotes, currentWindow.chordTarget.chord)) {
+        // 判定成功！
+        const currentTime = getCurrentTime();
+        const timeDiff = Math.abs(currentTime - currentWindow.chordTarget.judgeTime);
+        const timing = timeDiff <= PERFECT_WINDOW_MS ? 'perfect' : 'good';
         
-        const timeDiff = Math.abs(currentTime - note.targetTime);
-        return timeDiff <= JUDGE_WINDOW_MS;
-      });
+        // ダメージ計算
+        const damage = stage.minDamage || 1;
+        currentEnemyHp.current -= damage;
+        
+        let newEnemiesDefeated = prevState.enemiesDefeated;
+        if (currentEnemyHp.current <= 0) {
+          newEnemiesDefeated++;
+          currentEnemyHp.current = enemyHp.current; // 次の敵のHPをリセット
+          
+          // クリア判定
+          if (newEnemiesDefeated >= prevState.totalEnemies) {
+            onGameComplete('clear');
+            return {
+              ...prevState,
+              isGameActive: false,
+              enemiesDefeated: newEnemiesDefeated
+            };
+          }
+        }
+        
+        // ヒット処理
+        onNoteHit(currentWindow.chordTarget.chord, timing, damage, newEnemiesDefeated);
+        
+        // 該当するノーツをヒット状態に
+        const hitNoteId = prevState.laneNotes.find(n => 
+          n.chord === currentWindow.chordTarget.chord && 
+          Math.abs(n.targetTime - currentWindow.chordTarget.judgeTime) < 1
+        )?.id;
+        
+        const updatedNotes = prevState.laneNotes.map(note =>
+          note.id === hitNoteId ? { ...note, isHit: true } : note
+        );
+        
+        const newCombo = prevState.combo + 1;
+        const newMaxCombo = Math.max(newCombo, prevState.maxCombo);
+        
+        return {
+          ...prevState,
+          laneNotes: updatedNotes,
+          combo: newCombo,
+          maxCombo: newMaxCombo,
+          perfectCount: prevState.perfectCount + (timing === 'perfect' ? 1 : 0),
+          goodCount: prevState.goodCount + (timing === 'good' ? 1 : 0),
+          score: prevState.score + (timing === 'perfect' ? 100 : 50) * Math.max(1, Math.floor(newCombo / 10)),
+          currentInputNotes: [], // 入力をクリア
+          enemiesDefeated: newEnemiesDefeated
+        };
+      }
       
-      if (!hitNote) return prevState;
-      
-      // タイミング判定
-      const timeDiff = Math.abs(currentTime - hitNote.targetTime);
-      const timing = timeDiff <= PERFECT_WINDOW_MS ? 'perfect' : 'good';
-      
-      // ヒット処理
-      onNoteHit(hitNote.chord, timing);
-      
-      const updatedNotes = prevState.laneNotes.map(note =>
-        note.id === hitNote.id ? { ...note, isHit: true } : note
-      );
-      
-      const newCombo = prevState.combo + 1;
-      const newMaxCombo = Math.max(newCombo, prevState.maxCombo);
-      
-      return {
-        ...prevState,
-        laneNotes: updatedNotes,
-        combo: newCombo,
-        maxCombo: newMaxCombo,
-        perfectCount: prevState.perfectCount + (timing === 'perfect' ? 1 : 0),
-        goodCount: prevState.goodCount + (timing === 'good' ? 1 : 0),
-        score: prevState.score + (timing === 'perfect' ? 100 : 50) * Math.max(1, Math.floor(newCombo / 10))
-      };
+      return { ...prevState, currentInputNotes: newInputNotes };
     });
-  }, [getCurrentTime, onNoteHit]);
+  }, [getCurrentTime, onNoteHit, onGameComplete, stage.minDamage, gameState.isGameActive]);
+  
+  // 入力判定（互換性のため残す）
+  const judgeInput = useCallback((inputChord: string) => {
+    // 新しいシステムでは使用しない
+    devLog.debug('judgeInput called but not used in new system:', inputChord);
+  }, []);
   
   // ゲームループ
   useEffect(() => {
@@ -385,6 +495,7 @@ export const useFantasyRhythmGameEngine = ({
   return {
     gameState,
     judgeInput,
+    addNoteInput,
     getCurrentJudgeWindow: () => gameState.currentJudgeWindows[0] || null
   };
 };
