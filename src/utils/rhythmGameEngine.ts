@@ -37,6 +37,13 @@ export class RhythmGameEngine {
     this.startedAt = now;
   }
   public stop(): void {/* no-op */}
+  
+  /** 定期的に呼ばれるアップデート処理 */
+  public update(now: number = performance.now()): void {
+    if (!this.startedAt) return;
+    const elapsed = now - this.startedAt;
+    this.handleExpired(elapsed);
+  }
 
   /** MIDI / クリック入力 */
   public handleInput(note: number, now: number = performance.now()): void {
