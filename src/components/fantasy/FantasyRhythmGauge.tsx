@@ -48,8 +48,17 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
       const now = performance.now() - startAt - readyDuration;
       const timeUntilTarget = currentScheduleItem.targetTime - now;
       
-      // 1秒前から0%、ターゲットタイムで80%になるように計算
-      const progress = Math.max(0, Math.min(80, (1000 - timeUntilTarget) / 1000 * 80));
+      // 出題タイミング（targetTime）から1秒前を0%、targetTimeで80%になるように計算
+      // timeUntilTargetが1000ms以上の場合は0%
+      // timeUntilTargetが0msの場合は80%
+      // その間は線形補間
+      let progress = 0;
+      if (timeUntilTarget <= 1000) {
+        // 1秒前から出題タイミングまでの間
+        progress = ((1000 - timeUntilTarget) / 1000) * 80;
+        progress = Math.max(0, Math.min(80, progress));
+      }
+      
       setGaugeProgress(progress);
     };
 
