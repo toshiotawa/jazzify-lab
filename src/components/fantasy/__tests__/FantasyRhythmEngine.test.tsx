@@ -1,6 +1,7 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import { FantasyRhythmEngine } from '../FantasyRhythmEngine';
+import { renderHook, act } from '@testing-library/react';
 
 // Mock the timeStore
 jest.mock('@/stores/timeStore', () => ({
@@ -122,4 +123,34 @@ describe('FantasyRhythmEngine', () => {
     // Should not call onChordSchedule when inactive
     expect(onChordSchedule).not.toHaveBeenCalled();
   });
+});
+
+test('random schedule keeps growing but does not regenerate from scratch', () => {
+  const onSch = jest.fn();
+  const { result } = renderHook(() =>
+    FantasyRhythmEngine({
+      isActive      : true,
+      bpm           : 120,
+      timeSignature : 4,
+      measureCount  : 8,
+      countInMeasures: 1,
+      allowedChords : ['C', 'G'],
+      simultaneousMonsterCount: 1,
+      chordProgressionData: null,
+      onJudgment    : jest.fn(),
+      onChordSchedule : onSch
+    })
+  );
+
+  // 初回呼び出しで1回 schedule 発行
+  expect(onSch).toHaveBeenCalledTimes(1);
+  const firstCallLen = onSch.mock.calls[0][0].length;
+
+  // 300ms後に still active → schedule should only append (len grow)
+  act(() => {
+    jest.advanceTimersByTime(300);
+  });
+  expect(onSch).toHaveBeenCalled();
+  const lastLen = onSch.mock.calls.pop()[0].length;
+  expect(lastLen).toBeGreaterThan(firstCallLen);
 });

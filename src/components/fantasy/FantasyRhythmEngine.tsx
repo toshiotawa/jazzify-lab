@@ -132,57 +132,70 @@ export const FantasyRhythmEngine = forwardRef<
   const generateRandomSchedule = useCallback(() => {
     const schedule: RhythmChordSchedule[] = [];
     const currentTime = getCurrentGameTime();
-    const lookAheadTime = currentTime + 10000; // 10秒先まで生成
-    
-    // カウントイン後から開始
-    const startMeasure = isCountIn ? currentMeasure : Math.max(1, currentMeasure);
-    
-    for (let m = startMeasure; m <= measureCount + 10; m++) {
-      // 各小節の1拍目にコードを配置
-      const actualMeasure = ((m - 1) % measureCount) + 1;
-      const measureTime = (m - 1 + countInMeasures) * msPerMeasure;
-      
-      if (measureTime > lookAheadTime) {
-        break;
+
+    // いま何小節目か（カウントイン込み）を逆算
+    //   例) count-in 1 小節, BPM120(500ms/beat)4/4 → 1小節=2000ms
+    const elapsedFromMusicTop = currentTime; // count-in 開始からの経過
+    const currentAbsMeasure = Math.floor(elapsedFromMusicTop / msPerMeasure);
+
+    // 先読みは常に「今の小節 + 1」から 10 秒先まで
+    const lookAheadStartAbsMeas = currentAbsMeasure + 1;
+    const lookAheadEndTime = currentTime + 10000;
+
+    for (let abs = lookAheadStartAbsMeas; ; abs++) {
+      const measureTime = abs * msPerMeasure; // count-in も含む絶対時間
+      if (measureTime > lookAheadEndTime) break;
+
+      // 曲頭 0ms から数えて何周めか
+      const loopedMeasureNo = ((abs - countInMeasures) % measureCount + measureCount) % measureCount;
+      const logicalMeasure = loopedMeasureNo + 1; // 1-based
+
+      // ランダムコード選択（連続重複を避ける）
+      const lastChordId = schedule[schedule.length - 1]?.chordId;
+      let chordId = allowedChords[Math.floor(Math.random() * allowedChords.length)];
+      if (allowedChords.length > 1 && chordId === lastChordId) {
+        chordId = allowedChords[(allowedChords.indexOf(chordId) + 1) % allowedChords.length];
       }
-      
-      if (measureTime < currentTime - 1000) {
-        continue;
-      }
-      
-      // ランダムにコードを選択
-      const chordId = allowedChords[Math.floor(Math.random() * allowedChords.length)];
-      
+
       schedule.push({
         chordId,
-        measure: actualMeasure,
+        measure: logicalMeasure,
         beat: 1,
         targetTime: measureTime,
-        position: 'A' // ランダムパターンでは1体のみなので常にA列
+        position: 'A'
       });
     }
-    
-    return schedule;
-  }, [getCurrentGameTime, isCountIn, currentMeasure, measureCount, countInMeasures, msPerMeasure, allowedChords]);
 
-  // スケジュールの更新
+    return schedule;
+  }, [getCurrentGameTime, msPerMeasure, allowedChords, measureCount, countInMeasures]);
+
+    // スケジュールの更新
   useEffect(() => {
     if (!isActive || !startAt) return;
     
-    const newSchedule = chordProgressionData 
-      ? generateProgressionSchedule()
-      : generateRandomSchedule();
-    
-    devLog.debug('🎵 Rhythm schedule generated:', {
-      scheduleLength: newSchedule.length,
-      isProgression: !!chordProgressionData,
-      firstItems: newSchedule.slice(0, 3),
-      currentTime: getCurrentGameTime()
-    });
-    
-    setChordSchedule(newSchedule);
-    onChordSchedule(newSchedule);
-  }, [isActive, startAt, currentMeasure, chordProgressionData, generateProgressionSchedule, generateRandomSchedule, onChordSchedule]);
+    // 1フレームごとに全生成し直すのをやめ、
+    // 既存 schedule の末尾が lookAhead の手前になったら追加入稿する
+    const updateLoop = () => {
+      setChordSchedule(prev => {
+        const tailTime = prev.length ? prev[prev.length - 1].targetTime : 0;
+        const now = getCurrentGameTime();
+        if (tailTime - now < 8000) {        // 残り 8 秒になったら追加入稿
+          const additional = chordProgressionData
+            ? generateProgressionSchedule()
+            : generateRandomSchedule();
+          if (additional.length) {
+            const merged = [...prev, ...additional];
+            onChordSchedule(merged);
+            return merged;
+          }
+        }
+        return prev;
+      });
+    };
+
+    const id = setInterval(updateLoop, 250); // 4fps で十分
+    return () => clearInterval(id);
+  }, [isActive, startAt, chordProgressionData, generateProgressionSchedule, generateRandomSchedule, onChordSchedule, getCurrentGameTime]);
 
   // 判定ウィンドウのチェック
   useEffect(() => {
