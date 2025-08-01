@@ -346,7 +346,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     rhythmEngineRef,
     updateRhythmMonsters
   } = useFantasyGameEngine({
-    stage: null, // ★★★ change
+    stage: stage, // ★★★ change from null to stage
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,

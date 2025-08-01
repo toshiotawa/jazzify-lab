@@ -426,7 +426,7 @@ export const useFantasyGameEngine = ({
   const rhythmEngineRef = useRef<{ judge: (chordId: string, inputTime: number) => RhythmJudgment | null } | null>(null);
   
   // リズムモードかどうかを判定
-  const isRhythmMode = stage?.mode === 'rhythm';
+  const isRhythmMode = gameState.currentStage?.mode === 'rhythm' || stage?.mode === 'rhythm';
   
   // リズムモード用のコールバック
   const handleRhythmJudgment = useCallback((judgment: RhythmJudgment) => {
@@ -1210,7 +1210,55 @@ export const useFantasyGameEngine = ({
       onGameStateChange(newState);
       return newState;
     });
-  }, [isRhythmMode, gameState.isGameActive, onGameStateChange, displayOpts]);
+  }, [gameState.currentStage, gameState.isGameActive, onGameStateChange, displayOpts]);
+  
+  // リズムモード用のゲージ更新処理
+  useEffect(() => {
+    if (!isRhythmMode || !gameState.isGameActive || !rhythmSchedule.length) return;
+    
+    const updateGauges = () => {
+      const currentTime = performance.now() - (useTimeStore.getState().startAt || 0) - useTimeStore.getState().readyDuration;
+      
+      setGameState(prevState => {
+        const updatedMonsters = prevState.activeMonsters.map(monster => {
+          // この位置の次のスケジュール項目を探す
+          const futureItems = rhythmSchedule
+            .filter(item => 
+              item.position === monster.position && 
+              item.targetTime > currentTime - 200 // 判定ウィンドウ分前まで
+            )
+            .sort((a, b) => a.targetTime - b.targetTime);
+          
+          const nextItem = futureItems[0];
+          
+          if (!nextItem) {
+            return monster;
+          }
+          
+          const timeUntilTarget = nextItem.targetTime - currentTime;
+          
+          // 1秒前から0%、ターゲットタイムで80%になるように計算
+          const progress = Math.max(0, Math.min(80, (1000 - timeUntilTarget) / 1000 * 80));
+          
+          return {
+            ...monster,
+            gauge: progress
+          };
+        });
+        
+        return {
+          ...prevState,
+          activeMonsters: updatedMonsters
+        };
+      });
+    };
+    
+    // 60fpsで更新
+    const interval = setInterval(updateGauges, 16);
+    updateGauges(); // 初回実行
+    
+    return () => clearInterval(interval);
+  }, [isRhythmMode, gameState.isGameActive, rhythmSchedule]);
   
   // ステージ変更時の初期化
   // useEffect(() => {
