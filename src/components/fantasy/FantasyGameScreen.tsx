@@ -372,7 +372,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     updateRhythmMonsters,
     handleMissJudgment: handleRhythmMissJudgment
   } = useFantasyGameEngine({
-    stage: stage,
+    stage: null,
+    isRhythmModeOverride: stage?.mode === 'rhythm',
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,

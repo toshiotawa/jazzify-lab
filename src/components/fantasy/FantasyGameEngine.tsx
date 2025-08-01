@@ -104,6 +104,7 @@ interface FantasyGameState {
 
 interface FantasyGameEngineProps {
   stage: FantasyStage | null;
+  isRhythmModeOverride?: boolean; // Add override for rhythm mode
   onGameStateChange: (state: FantasyGameState) => void;
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を追加
@@ -112,6 +113,7 @@ interface FantasyGameEngineProps {
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: (attackingMonsterId?: string) => void;
+  displayOpts: DisplayOpts;
 }
 
 // ===== コード定義データ =====
@@ -374,6 +376,7 @@ const getCurrentEnemy = (enemyIndex: number) => {
 
 export const useFantasyGameEngine = ({
   stage,
+  isRhythmModeOverride,
   onGameStateChange,
   onChordCorrect,
   onChordIncorrect,
@@ -424,9 +427,9 @@ export const useFantasyGameEngine = ({
   const [rhythmSchedule, setRhythmSchedule] = useState<RhythmChordSchedule[]>([]);
   const [rhythmJudgments, setRhythmJudgments] = useState<RhythmJudgment[]>([]);
   const rhythmEngineRef = useRef<{ judge: (chordId: string, inputTime: number) => RhythmJudgment | null } | null>(null);
-  
-  // リズムモードかどうかを判定
-  const isRhythmMode = stage?.mode === 'rhythm';
+
+  // リズムモードかどうかを判定 - オーバーライドがあればそれを使用、なければstageから判定
+  const isRhythmMode = isRhythmModeOverride !== undefined ? isRhythmModeOverride : (stage?.mode === 'rhythm');
   
   // リズムモード用のコールバック
   const handleRhythmJudgment = useCallback((judgment: RhythmJudgment) => {
