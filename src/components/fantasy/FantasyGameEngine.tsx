@@ -47,6 +47,7 @@ interface FantasyStage {
   countInMeasures?: number;
   timeSignature?: number;
   chordProgressionData?: ChordProgressionData | null;
+  chord_progression_data?: ChordProgressionData | null; // For compatibility with database field name
 }
 
 interface ChordProgressionData {
@@ -454,8 +455,8 @@ export const useFantasyGameEngine = ({
     const totalQuestions = totalEnemies * enemyHp;
     const simultaneousCount = stage.simultaneousMonsterCount || 1;
 
-    // リズムモードの場合、同時出現数は4で固定
-    const actualSimultaneousCount = stage.mode === 'rhythm' ? 4 : simultaneousCount;
+    // リズムモードの場合、同時出現数は1で固定
+    const actualSimultaneousCount = stage.mode === 'rhythm' ? 1 : simultaneousCount;
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -552,9 +553,10 @@ export const useFantasyGameEngine = ({
       const countInDuration = (stage.countInMeasures || 0) * (stage.timeSignature || 4) * msPerBeat;
       const gameStartTime = readyDuration + countInDuration;
       
-      if (stage.chordProgressionData?.chords) {
+      const chordProgressionData = stage.chordProgressionData || stage.chord_progression_data;
+      if (chordProgressionData?.chords) {
         // コード進行パターン
-        rhythmChords = stage.chordProgressionData.chords.map((item, index) => {
+        rhythmChords = chordProgressionData.chords.map((item, index) => {
           const measureTime = (item.measure - 1) * (stage.timeSignature || 4) * msPerBeat;
           const beatTime = (item.beat - 1) * msPerBeat;
           const timing = gameStartTime + measureTime + beatTime;
@@ -612,12 +614,10 @@ export const useFantasyGameEngine = ({
         }
       }
       
-      // リズムモードでは最初の4つのコードをモンスターに割り当て
-      activeMonsters.forEach((monster, index) => {
-        if (rhythmChords && index < rhythmChords.length) {
-          monster.chordTarget = rhythmChords[index].chord;
-        }
-      });
+      // リズムモードでは最初のコードをモンスターに割り当て
+      if (activeMonsters.length > 0 && rhythmChords && rhythmChords.length > 0) {
+        activeMonsters[0].chordTarget = rhythmChords[0].chord;
+      }
     }
 
     const newState: FantasyGameState = {
@@ -902,14 +902,15 @@ export const useFantasyGameEngine = ({
             const measureDuration = (prevState.currentStage.timeSignature || 4) * msPerBeat;
             const loopDuration = (prevState.currentStage.measureCount || 8) * measureDuration;
             
-            if (prevState.currentStage.chordProgressionData?.chords) {
+            const chordProgressionData = prevState.currentStage.chordProgressionData || prevState.currentStage.chord_progression_data;
+            if (chordProgressionData?.chords) {
               // コード進行パターン - 次のループを追加
               const baseTime = lastChord.timing + measureDuration;
               const readyDuration = 2000; // Ready期間
               const countInDuration = (prevState.currentStage.countInMeasures || 0) * (prevState.currentStage.timeSignature || 4) * msPerBeat;
               const loopCount = Math.floor((baseTime - (readyDuration + countInDuration)) / loopDuration);
               
-              prevState.currentStage.chordProgressionData.chords.forEach((item, index) => {
+              chordProgressionData.chords.forEach((item, index) => {
                 const measureTime = (item.measure - 1) * measureDuration;
                 const beatTime = (item.beat - 1) * msPerBeat;
                 const timing = baseTime + measureTime + beatTime - (loopCount * loopDuration);
@@ -992,14 +993,14 @@ export const useFantasyGameEngine = ({
             // 次のコードに進む
             if (prevState.rhythmChords && prevState.currentRhythmIndex !== undefined) {
               const nextIndex = (prevState.currentRhythmIndex + 1) % prevState.rhythmChords.length;
-              const nextChords = prevState.rhythmChords.slice(nextIndex, nextIndex + 4);
+              const nextChord = prevState.rhythmChords[nextIndex];
               
-              // モンスターに新しいコードを割り当て
-              const updatedMonsters = prevState.activeMonsters.map((monster, i) => {
-                if (nextChords[i]) {
+              // モンスターに新しいコードを割り当て（リズムモードは1体のみ）
+              const updatedMonsters = prevState.activeMonsters.map((monster) => {
+                if (nextChord) {
                   return {
                     ...monster,
-                    chordTarget: nextChords[i].chord,
+                    chordTarget: nextChord.chord,
                     correctNotes: []
                   };
                 }
@@ -1104,23 +1105,22 @@ export const useFantasyGameEngine = ({
         const timeState = useTimeStore.getState();
         const currentTime = performance.now() - (timeState.startAt || 0);
         
-        // 現在のリズムインデックスから4つのアクティブなコードを取得
-        const startIdx = prevState.currentRhythmIndex || 0;
-        const activeRhythmChords = prevState.rhythmChords.slice(startIdx, startIdx + 4);
+        // 現在のリズムインデックスのコードを取得
+        const currentIdx = prevState.currentRhythmIndex || 0;
+        const currentRhythmChord = prevState.rhythmChords[currentIdx];
         
-        // アクティブな判定ウィンドウをチェック
+        // 現在の判定ウィンドウをチェック
         let windowFound = false;
-        for (let i = 0; i < 4 && startIdx + i < prevState.judgmentWindows.length; i++) {
-          const window = prevState.judgmentWindows[startIdx + i];
-          const rhythmChord = activeRhythmChords[i];
+        if (currentIdx < prevState.judgmentWindows.length) {
+          const window = prevState.judgmentWindows[currentIdx];
           
           if (!window.judged && 
               currentTime >= window.startTime && 
               currentTime <= window.endTime &&
-              rhythmChord) {
+              currentRhythmChord) {
             
-            // 対応するモンスターを見つける
-            const targetMonster = prevState.activeMonsters[i];
+            // 対応するモンスターを見つける（リズムモードは1体のみ）
+            const targetMonster = prevState.activeMonsters[0];
             if (targetMonster) {
               const targetNotes = [...new Set(targetMonster.chordTarget.notes.map(n => n % 12))];
               
@@ -1132,7 +1132,7 @@ export const useFantasyGameEngine = ({
                 if (newCorrectNotes.length === targetNotes.length) {
                   // 判定成功
                   const updatedWindows = [...prevState.judgmentWindows];
-                  updatedWindows[startIdx + i] = { ...window, judged: true, success: true };
+                  updatedWindows[currentIdx] = { ...window, judged: true, success: true };
                   
                   // モンスターにダメージ
                   const damage = Math.floor(Math.random() * 
@@ -1161,28 +1161,21 @@ export const useFantasyGameEngine = ({
                     }
                     
                     // 撃破したが、まだ敵が残っている場合
-                    const nextIndex = (startIdx + 1) % prevState.rhythmChords.length;
-                    const nextChords = prevState.rhythmChords.slice(nextIndex, nextIndex + 4);
+                    const nextIndex = (currentIdx + 1) % prevState.rhythmChords.length;
+                    const nextChord = prevState.rhythmChords[nextIndex];
                     
-                    // モンスターに新しいコードを割り当て
-                    const updatedMonsters = prevState.activeMonsters.map((monster, idx) => {
-                      if (idx === i) {
-                        // 攻撃したモンスターの更新
-                        return {
-                          ...monster,
-                          currentHp: 0,
-                          correctNotes: monster.correctNotes
-                        };
-                      } else if (nextChords[idx]) {
-                        // 他のモンスターのコード更新
-                        return {
-                          ...monster,
-                          chordTarget: nextChords[idx].chord,
-                          correctNotes: []
-                        };
-                      }
-                      return monster;
-                    });
+                    // 新しいモンスターを生成
+                    const newMonster = {
+                      ...targetMonster,
+                      id: `${Date.now()}-${Math.random()}`,
+                      currentHp: prevState.currentStage.enemyHp,
+                      maxHp: prevState.currentStage.enemyHp,
+                      chordTarget: nextChord.chord,
+                      correctNotes: [],
+                      attackGauge: 0
+                    };
+                    
+                    const updatedMonsters = [newMonster];
                     
                     // 正解時のコールバック
                     onChordCorrect?.(targetMonster.chordTarget, false, damage, true, targetMonster.id);
@@ -1199,27 +1192,17 @@ export const useFantasyGameEngine = ({
                   }
                   
                   // 次のコードに進む（モンスターは倒していない）
-                  const nextIndex = (startIdx + 1) % prevState.rhythmChords.length;
-                  const nextChords = prevState.rhythmChords.slice(nextIndex, nextIndex + 4);
+                  const nextIndex = (currentIdx + 1) % prevState.rhythmChords.length;
+                  const nextChord = prevState.rhythmChords[nextIndex];
                   
-                  // モンスターに新しいコードを割り当て
-                  const updatedMonsters = prevState.activeMonsters.map((monster, idx) => {
-                    if (idx === i) {
-                      // 攻撃したモンスターの更新
-                      return {
-                        ...monster,
-                        currentHp: targetMonster.currentHp,
-                        correctNotes: targetMonster.currentHp > 0 ? [] : monster.correctNotes
-                      };
-                    } else if (nextChords[idx]) {
-                      // 他のモンスターのコード更新
-                      return {
-                        ...monster,
-                        chordTarget: nextChords[idx].chord,
-                        correctNotes: []
-                      };
-                    }
-                    return monster;
+                  // モンスターのコードを更新（リズムモードは1体のみ）
+                  const updatedMonsters = prevState.activeMonsters.map((monster) => {
+                    return {
+                      ...monster,
+                      currentHp: targetMonster.currentHp - damage,
+                      chordTarget: nextChord.chord,
+                      correctNotes: []
+                    };
                   });
                   
                   // 正解時のコールバック
@@ -1236,8 +1219,8 @@ export const useFantasyGameEngine = ({
                   };
                 } else {
                   // まだコード未完成
-                  const updatedMonsters = prevState.activeMonsters.map((m, idx) => 
-                    idx === i ? { ...m, correctNotes: newCorrectNotes } : m
+                  const updatedMonsters = prevState.activeMonsters.map((m) => 
+                    ({ ...m, correctNotes: newCorrectNotes })
                   );
                   
                   return {

@@ -17,6 +17,7 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { RhythmLane } from './RhythmLane';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -776,6 +777,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               imageTexturesRef={imageTexturesRef}
             />
           </div>
+          
+          {/* リズムモードの場合はレーンUI、それ以外は通常UI */}
+          {stage.mode === 'rhythm' && gameState.rhythmChords && gameState.judgmentWindows ? (
+            <div className="mt-4">
+              <RhythmLane
+                rhythmChords={gameState.rhythmChords}
+                judgmentWindows={gameState.judgmentWindows}
+                startAt={startAt}
+                bpm={stage.bpm || 120}
+                timeSignature={stage.timeSignature || 4}
+                onNoteHit={() => {
+                  // Note hit callback if needed
+                }}
+              />
+            </div>
+          ) : null}
           
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
