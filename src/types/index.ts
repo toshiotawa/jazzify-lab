@@ -485,6 +485,8 @@ export interface CompatibilityLayer {
 
 export type JudgmentEvent = JudgmentResult;
 
+export const JUDGEMENT_WINDOW_MS = 400;   // 外部でも使えるよう re-export
+
 // ===== MIDI関連の型定義 =====
 
 export interface MidiMessage {
