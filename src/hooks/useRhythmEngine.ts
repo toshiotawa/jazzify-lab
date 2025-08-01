@@ -13,6 +13,7 @@ export const useRhythmEngine = (
   onEnemyAttack?: (monsterId: string) => void
 ) => {
   const engineRef = useRef<RhythmGameEngine | null>(null)
+  const [isStarted, setIsStarted] = useState(false)
 
   const [state, setState] = useState<RhythmGameState>(() => ({
     defeated: 0,
@@ -43,15 +44,22 @@ export const useRhythmEngine = (
       },
       onComplete: () => {
         onComplete?.()
+      },
+      onQuestionActivated: q => {
+        setState(s => ({
+          ...s,
+          activeQuestions: [...s.activeQuestions, q]
+        }))
       }
     })
     engine.loadStage(stage)
-    engine.start()
+    // 自動開始を削除 - 手動で start() を呼ぶまで待機
     engineRef.current = engine
 
     return () => {
       engine.dispose()
       engineRef.current = null
+      setIsStarted(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage?.id])
@@ -60,13 +68,20 @@ export const useRhythmEngine = (
     engineRef.current?.handleInput(midiNotes)
   }
 
+  const startGame = () => {
+    if (engineRef.current && !isStarted) {
+      engineRef.current.start()
+      setIsStarted(true)
+    }
+  }
+
   const [gauge, setGauge] = useState(0)
 
   // RAF でゲージ進捗を取得
   useEffect(() => {
     let frame: number
     const loop = () => {
-      if (engineRef.current) {
+      if (engineRef.current && isStarted) {
         const progress = engineRef.current.getGaugeProgress(performance.now())
         setGauge(progress)
       }
@@ -74,11 +89,13 @@ export const useRhythmEngine = (
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
-  }, [])
+  }, [isStarted])
 
   return {
     gameState: state,
     gaugeProgress: gauge,
-    handleInput
+    handleInput,
+    startGame,
+    isStarted
   }
 }
