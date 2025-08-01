@@ -27,7 +27,7 @@ export const useRhythmGameEngine = ({
     simultaneousMonsterCount: isProgressionMode ? (stage.timeSignature || 4) : 1
   } : null;
   
-  const { gameState, handleInput, gaugeProgress, startGame, isStarted } = useRhythmEngine(
+  const { gameState = { defeated: 0, total: 0, activeQuestions: [] }, handleInput, gaugeProgress, startGame, isStarted } = useRhythmEngine(
     rhythmStageInfo,
     () => {
       // onComplete callback
@@ -71,7 +71,7 @@ export const useRhythmGameEngine = ({
     return {
       currentStage: stage,
       currentQuestionIndex: 0,
-      currentChordTarget: gameState.activeQuestions.length > 0 ? {
+      currentChordTarget: gameState.activeQuestions && gameState.activeQuestions.length > 0 ? {
         id: gameState.activeQuestions[0].chord,
         displayName: gameState.activeQuestions[0].chord,
         notes: [],
@@ -96,7 +96,7 @@ export const useRhythmGameEngine = ({
       correctNotes: [],
       isWaitingForNextMonster: false,
       playerSp: 0,
-      activeMonsters: gameState.activeQuestions.map((q, idx) => ({
+      activeMonsters: (gameState.activeQuestions || []).map((q, idx) => ({
         id: q.id,
         index: idx,
         position: q.position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
