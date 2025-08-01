@@ -3,20 +3,21 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { RhythmLane } from './RhythmLane';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -25,7 +26,6 @@ interface FantasyGameScreenProps {
   onBackToStageSelect: () => void;
   noteNameLang?: DisplayOpts['lang'];     // 音名表示言語
   simpleNoteName?: boolean;                // 簡易表記
-  lessonMode?: boolean;                    // レッスンモード
 }
 
 // 不要な定数とインターフェースを削除（PIXI側で処理）
@@ -36,8 +36,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   onGameComplete,
   onBackToStageSelect,
   noteNameLang = 'en',
-  simpleNoteName = false,
-  lessonMode = false
+  simpleNoteName = false
 }) => {
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
@@ -57,6 +56,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
+  // リズムレーン用の時間状態
+  const [, forceUpdate] = useState({});
+  
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
   
@@ -72,7 +74,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   /* 毎 100 ms で時間ストア tick */
   useEffect(() => {
-    const id = setInterval(() => tick(), 100);
+    const id = setInterval(() => {
+      tick();
+    }, 100);
     return () => clearInterval(id);
   }, [tick]);
 
@@ -235,7 +239,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
+
   
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
@@ -282,7 +286,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
-    console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
+    
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
     // 敵の攻撃音を再生
@@ -325,11 +329,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     gameState,
     handleNoteInput: engineHandleNoteInput,
     initializeGame,
-    stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
-    imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
-    ENEMY_LIST
+    imageTexturesRef // 追加: プリロードされたテクスチャへの参照
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
@@ -339,6 +341,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
+  
+  // リズムモード用の定期更新
+  useEffect(() => {
+    if (stage.mode === 'rhythm' && gameState.isGameActive) {
+      const id = setInterval(() => {
+        forceUpdate({});
+      }, 50); // より滑らかな更新のため50msに
+      return () => clearInterval(id);
+    }
+  }, [stage.mode, gameState.isGameActive]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -607,20 +619,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return hearts;
   }, [heartFlash]);
   
-  // 敵のゲージ表示（黄色系）
-  const renderEnemyGauge = useCallback(() => {
-    return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
-        <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
-          style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
-          }}
-        />
-      </div>
-    );
-  }, [gameState.enemyGauge]);
+
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -754,28 +753,49 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         */}
         
-        {/* ===== モンスター＋エフェクト描画エリア ===== */}
+        {/* ===== モンスター＋エフェクト描画エリア / リズムレーン ===== */}
         <div className="mb-2 text-center relative w-full">
-          <div
-            ref={monsterAreaRef}
-            className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
-            style={{ height: 'min(200px, 30vh)' }}
-          >
-            {/* 魔法名表示 - モンスターカード内に移動 */}
-            <FantasyPIXIRenderer
-              width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
-              height={200}
-              monsterIcon={currentEnemy.icon}
-    
-              enemyGauge={gameState.enemyGauge}
-              onReady={handleFantasyPixiReady}
-              onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
-              className="w-full h-full"
-              activeMonsters={gameState.activeMonsters}
-              imageTexturesRef={imageTexturesRef}
-            />
-          </div>
+          {stage.mode === 'rhythm' ? (
+            // リズムモード用レーン表示
+            <div
+              ref={monsterAreaRef}
+              className="relative w-full"
+              style={{ height: 'min(150px, 25vh)' }}
+            >
+              {gameState.rhythmChords && (
+                <RhythmLane
+                  rhythmChords={gameState.rhythmChords}
+                  currentTime={performance.now() - (startAt || 0)}
+                  laneWidth={monsterAreaWidth || window.innerWidth - 16}
+                  laneHeight={150}
+                  noteSpeed={400}
+                  judgmentLinePosition={20}
+                />
+              )}
+            </div>
+          ) : (
+            // クイズモード用モンスター表示
+            <div
+              ref={monsterAreaRef}
+              className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
+              style={{ height: 'min(200px, 30vh)' }}
+            >
+              {/* 魔法名表示 - モンスターカード内に移動 */}
+              <FantasyPIXIRenderer
+                width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
+                height={200}
+                monsterIcon={currentEnemy.icon}
+      
+                enemyGauge={gameState.enemyGauge}
+                onReady={handleFantasyPixiReady}
+                onMonsterDefeated={handleMonsterDefeated}
+                onShowMagicName={handleShowMagicName}
+                className="w-full h-full"
+                activeMonsters={gameState.activeMonsters}
+                imageTexturesRef={imageTexturesRef}
+              />
+            </div>
+          )}
           
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
@@ -833,58 +853,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         {monster.chordTarget.displayName}
                       </div>
                       
-                      {/* リズムモード用の判定サークル */}
-                      {stage.mode === 'rhythm' && gameState.rhythmChords && gameState.currentRhythmIndex !== undefined && (
-                        <div className="absolute inset-0 pointer-events-none">
-                          {(() => {
-                            // 現在のリズムコードインデックスを取得
-                            const rhythmIndex = gameState.currentRhythmIndex + monsterIndex;
-                            const rhythmChord = gameState.rhythmChords[rhythmIndex % gameState.rhythmChords.length];
-                            
-                            if (!rhythmChord) return null;
-                            
-                            // 現在時刻と判定タイミングまでの時間を計算
-                            const currentTime = performance.now() - (startAt || 0);
-                            const timeUntilJudgment = rhythmChord.timing - currentTime;
-                            const judgmentWindowSize = 400; // 判定ウィンドウの前後200ms
-                            
-                            // 判定ウィンドウ内かどうか
-                            const inWindow = Math.abs(timeUntilJudgment) <= 200;
-                            
-                            // サークルのサイズとアニメーション（1秒前から表示開始）
-                            const showCircle = timeUntilJudgment <= 1000 && timeUntilJudgment >= -200;
-                            const circleScale = showCircle ? Math.max(0, 1 - (timeUntilJudgment / 1000)) : 0;
-                            
-                            return showCircle ? (
-                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                                {/* 外側のサークル（アプローチサークル） */}
-                                <div 
-                                  className={`absolute rounded-full border-2 ${
-                                    inWindow ? 'border-green-400' : 'border-blue-400'
-                                  } transition-all duration-100`}
-                                  style={{
-                                    width: `${60 + (1 - circleScale) * 40}px`,
-                                    height: `${60 + (1 - circleScale) * 40}px`,
-                                    transform: 'translate(-50%, -50%)',
-                                    opacity: circleScale
-                                  }}
-                                />
-                                {/* 内側のサークル（判定サークル） */}
-                                <div 
-                                  className={`absolute rounded-full border-2 ${
-                                    inWindow ? 'border-green-400 bg-green-400/20' : 'border-gray-400'
-                                  }`}
-                                  style={{
-                                    width: '60px',
-                                    height: '60px',
-                                    transform: 'translate(-50%, -50%)'
-                                  }}
-                                />
-                              </div>
-                            ) : null;
-                          })()}
-                        </div>
-                      )}
+
                       
                       {/* コード構成音表示 */}
                       <div className={`mt-1 font-medium h-6 text-center ${
