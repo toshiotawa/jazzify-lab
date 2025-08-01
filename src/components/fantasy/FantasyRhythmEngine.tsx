@@ -249,6 +249,7 @@ export const FantasyRhythmEngine = forwardRef<
 
   // 判定処理（外部から呼び出される）
   const judge = useCallback((chordId: string, inputTime: number) => {
+    // inputTimeは既にゲーム時間として渡されている
     devLog.debug('🎵 Judge called:', {
       chordId,
       inputTime,
@@ -311,9 +312,11 @@ FantasyRhythmEngine.displayName = 'FantasyRhythmEngine';
 
 // 判定関数をエクスポート
 export const useRhythmJudge = (rhythmEngine: React.RefObject<{ judge: (chordId: string, inputTime: number) => RhythmJudgment | null }>) => {
+  const { startAt, readyDuration } = useTimeStore();
+  
   return useCallback((chordId: string) => {
     if (!rhythmEngine.current) return null;
-    const inputTime = performance.now();
+    const inputTime = performance.now() - (startAt || 0) - readyDuration;
     return rhythmEngine.current.judge(chordId, inputTime);
-  }, [rhythmEngine]);
+  }, [rhythmEngine, startAt, readyDuration]);
 };
