@@ -7,8 +7,9 @@ import React, { useCallback, useEffect, useMemo, useState, forwardRef, useImpera
 import { useTimeStore } from '@/stores/timeStore';
 import { devLog } from '@/utils/logger';
 
-// 判定ウィンドウの定数
-const JUDGMENT_WINDOW_MS = 200; // 前後200ms
+// 判定ウィンドウの長さ (±ms)
+// 200ms だとテンポ120では体感的に狭すぎるため 300ms に拡大
+const JUDGMENT_WINDOW_MS = 300;
 
 export interface RhythmJudgment {
   targetTime: number;  // 判定タイミング（ms）
@@ -132,38 +133,42 @@ export const FantasyRhythmEngine = forwardRef<
   const generateRandomSchedule = useCallback(() => {
     const schedule: RhythmChordSchedule[] = [];
     const currentTime = getCurrentGameTime();
-    const lookAheadTime = currentTime + 10000; // 10秒先まで生成
-    
+    const lookAheadTime = currentTime + 10000; // 10 秒先まで生成
+
     // カウントイン後から開始
     const startMeasure = isCountIn ? currentMeasure : Math.max(1, currentMeasure);
-    
+
+    // 各小節内のすべての拍にコードを配置することで問題が「変わらない」状態を改善する
     for (let m = startMeasure; m <= measureCount + 10; m++) {
-      // 各小節の1拍目にコードを配置
       const actualMeasure = ((m - 1) % measureCount) + 1;
-      const measureTime = (m - 1 + countInMeasures) * msPerMeasure;
-      
-      if (measureTime > lookAheadTime) {
-        break;
+
+      for (let b = 1; b <= timeSignature; b++) {
+        const measureTime = (m - 1 + countInMeasures) * msPerMeasure;
+        const beatTime = (b - 1) * msPerBeat;
+        const targetTime = measureTime + beatTime;
+
+        if (targetTime > lookAheadTime) {
+          break;
+        }
+
+        if (targetTime < currentTime - 1000) {
+          continue;
+        }
+
+        const chordId = allowedChords[Math.floor(Math.random() * allowedChords.length)];
+
+        schedule.push({
+          chordId,
+          measure: actualMeasure,
+          beat: b,
+          targetTime,
+          position: 'A' // ランダムパターンでは 1 体のみ
+        });
       }
-      
-      if (measureTime < currentTime - 1000) {
-        continue;
-      }
-      
-      // ランダムにコードを選択
-      const chordId = allowedChords[Math.floor(Math.random() * allowedChords.length)];
-      
-      schedule.push({
-        chordId,
-        measure: actualMeasure,
-        beat: 1,
-        targetTime: measureTime,
-        position: 'A' // ランダムパターンでは1体のみなので常にA列
-      });
     }
-    
+
     return schedule;
-  }, [getCurrentGameTime, isCountIn, currentMeasure, measureCount, countInMeasures, msPerMeasure, allowedChords]);
+  }, [getCurrentGameTime, isCountIn, currentMeasure, measureCount, countInMeasures, msPerMeasure, msPerBeat, timeSignature, allowedChords]);
 
   // スケジュールの更新
   useEffect(() => {
