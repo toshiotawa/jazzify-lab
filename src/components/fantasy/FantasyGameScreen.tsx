@@ -11,6 +11,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { useRhythmGameEngine } from './RhythmGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
@@ -321,6 +322,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
+  const isRhythmMode = stage.mode === 'rhythm';
+  
   const {
     gameState,
     handleNoteInput: engineHandleNoteInput,
@@ -330,18 +333,30 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST: _ENEMY_LIST
-  } = useFantasyGameEngine({
-    stage: stage,
-    onGameStateChange: handleGameStateChange,
-    onChordCorrect: handleChordCorrect,
-    onChordIncorrect: handleChordIncorrect,
-    onGameComplete: handleGameCompleteCallback,
-    onEnemyAttack: handleEnemyAttack,
-    displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
-  });
+  } = isRhythmMode 
+    ? useRhythmGameEngine({
+        stage: stage,
+        onGameStateChange: handleGameStateChange,
+        onChordCorrect: handleChordCorrect,
+        onChordIncorrect: handleChordIncorrect,
+        onGameComplete: handleGameCompleteCallback,
+        onEnemyAttack: handleEnemyAttack,
+        displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
+      })
+    : useFantasyGameEngine({
+        stage: stage,
+        onGameStateChange: handleGameStateChange,
+        onChordCorrect: handleChordCorrect,
+        onChordIncorrect: handleChordIncorrect,
+        onGameComplete: handleGameCompleteCallback,
+        onEnemyAttack: handleEnemyAttack,
+        displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
+      });
   
-  // 現在の敵情報を取得
-  const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
+  // 現在の敵情報を取得（リズムモードではダミー値を返す）
+  const currentEnemy = isRhythmMode 
+    ? { icon: stage.monsterIcon || 'dragon', name: 'Rhythm Monster' }
+    : getCurrentEnemy(gameState.currentEnemyIndex);
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {

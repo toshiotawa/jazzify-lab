@@ -41,6 +41,8 @@ export interface RhythmGameCallbacks {
   onFail: (question: RhythmQuestion) => void
   /** 全敵撃破などゲーム完了 */
   onComplete: () => void
+  /** 新しい問題が有効になった時 */
+  onQuestionActivated: (question: RhythmQuestion) => void
 }
 
 /** ±200ms の判定幅 */
@@ -116,7 +118,10 @@ export class RhythmGameEngine {
     // ウィンドウ突入チェック
     this.questions.forEach(q => {
       if (nowMs >= q.windowStart && nowMs <= q.windowEnd) {
-        this.activeQuestions.add(q.id)
+        if (!this.activeQuestions.has(q.id)) {
+          this.activeQuestions.add(q.id)
+          this.callbacks.onQuestionActivated(q)
+        }
       } else if (nowMs > q.windowEnd && this.activeQuestions.has(q.id)) {
         // 失敗
         this.activeQuestions.delete(q.id)
@@ -189,6 +194,11 @@ export class RhythmGameEngine {
       }
     }
     return 0
+  }
+
+  /** 現在アクティブな問題を取得 */
+  public getActiveQuestions(): RhythmQuestion[] {
+    return this.questions.filter(q => this.activeQuestions.has(q.id))
   }
 
   private pickPositionByIndex(i: number): string {

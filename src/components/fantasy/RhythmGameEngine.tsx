@@ -27,7 +27,7 @@ export const useRhythmGameEngine = ({
     simultaneousMonsterCount: isProgressionMode ? (stage.timeSignature || 4) : 1
   } : null;
   
-  const { gameState, handleInput, gaugeProgress } = useRhythmEngine(
+  const { gameState, handleInput, gaugeProgress, startGame, isStarted } = useRhythmEngine(
     rhythmStageInfo,
     () => {
       // onComplete callback
@@ -41,7 +41,7 @@ export const useRhythmGameEngine = ({
           score: 0,
           totalQuestions: 0,
           correctAnswers: 0,
-          isGameActive: false,
+          isGameActive: isStarted,
           isGameOver: false,
           gameResult: 'clear',
           currentEnemyIndex: 0,
@@ -76,7 +76,7 @@ export const useRhythmGameEngine = ({
     score: 0,
     totalQuestions: gameState.total,
     correctAnswers: gameState.defeated,
-    isGameActive: true,
+    isGameActive: isStarted,
     isGameOver: false,
     gameResult: null,
     currentEnemyIndex: 0,
@@ -121,7 +121,7 @@ export const useRhythmGameEngine = ({
     gameState: fantasyGameState,
     handleNoteInput: handleInput,
     handleMidiInput: handleInput,
-    initializeGame: () => {},
+    initializeGame: startGame, // リズムモード用の開始処理
     stopGame: () => {},
     getCurrentEnemy: () => null,
     proceedToNextEnemy: () => {},
