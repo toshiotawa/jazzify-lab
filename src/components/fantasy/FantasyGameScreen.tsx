@@ -18,6 +18,7 @@ import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
 import { RhythmLane } from './RhythmLane';
+import FantasyMonster from './FantasyMonster';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -768,7 +769,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   currentTime={performance.now() - (startAt || 0)}
                   laneWidth={monsterAreaWidth || window.innerWidth - 16}
                   laneHeight={150}
-                  noteSpeed={400}
+                  noteSpeed={200}
                   judgmentLinePosition={20}
                 />
               )}
@@ -853,7 +854,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         {monster.chordTarget.displayName}
                       </div>
                       
-
+                      {/* モンスターアイコン（リズムモードの場合） */}
+                      {stage.mode === 'rhythm' && (
+                        <div className="relative my-1">
+                          <FantasyMonster
+                            monsterIcon={monster.icon}
+                            hp={monster.currentHp}
+                            maxHp={monster.maxHp}
+                            enemyGauge={monster.gauge}
+                            size={monsterCount > 5 ? 'small' : 'medium'}
+                          />
+                        </div>
+                      )}
                       
                       {/* コード構成音表示 */}
                       <div className={`mt-1 font-medium h-6 text-center ${

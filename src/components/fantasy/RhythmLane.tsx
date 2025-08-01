@@ -28,7 +28,7 @@ export const RhythmLane: React.FC<RhythmLaneProps> = ({
   currentTime,
   laneWidth,
   laneHeight,
-  noteSpeed = 400, // デフォルト: 400px/秒
+  noteSpeed = 200, // デフォルト: 200px/秒（ゆっくり）
   judgmentLinePosition = 20 // デフォルト: 左から20%の位置
 }) => {
 
@@ -80,13 +80,14 @@ export const RhythmLane: React.FC<RhythmLaneProps> = ({
           <div
             key={`${note.measure}-${note.beat}-${index}`}
             className={`
-              absolute top-1/2 -translate-y-1/2 
-              transition-all duration-100
+              absolute 
               ${note.judged ? 'opacity-30' : 'opacity-100'}
             `}
             style={{ 
               left: `${xPosition}px`,
-              transform: `translateX(-50%) translateY(-50%)`,
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              transition: 'none' // スムーズな動きのためtransitionを削除
             }}
           >
             {/* ノートの円 */}

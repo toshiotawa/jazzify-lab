@@ -878,6 +878,7 @@ export const useFantasyGameEngine = ({
         }
         
         // 判定ウィンドウをチェック
+        let updatedState = prevState;
         updatedWindows.forEach((window, index) => {
           if (!window.judged && currentTime > window.endTime) {
             // 判定ウィンドウを過ぎたら失敗扱い
@@ -907,7 +908,7 @@ export const useFantasyGameEngine = ({
               const nextChords = prevState.rhythmChords.slice(nextIndex, nextIndex + 4);
               
               // モンスターに新しいコードを割り当て
-              const updatedMonsters = prevState.activeMonsters.map((monster, i) => {
+              const updatedActiveMonsters = prevState.activeMonsters.map((monster, i) => {
                 if (nextChords[i]) {
                   return {
                     ...monster,
@@ -918,23 +919,34 @@ export const useFantasyGameEngine = ({
                 return monster;
               });
               
-              return {
+              const newHp = Math.max(0, prevState.playerHp - damage);
+              updatedState = {
                 ...prevState,
-                playerHp: Math.max(0, prevState.playerHp - damage),
+                playerHp: newHp,
                 judgmentWindows: updatedWindows,
                 rhythmChords: updatedRhythmChords,
                 currentRhythmIndex: nextIndex,
-                activeMonsters: updatedMonsters,
-                isGameOver: prevState.playerHp - damage <= 0,
-                gameResult: prevState.playerHp - damage <= 0 ? 'gameover' as const : null
+                activeMonsters: updatedActiveMonsters,
+                isGameOver: newHp <= 0,
+                gameResult: newHp <= 0 ? 'gameover' as const : null,
+                isGameActive: newHp > 0 // ゲームオーバーでない限りアクティブ
               };
+              
+              // ゲームオーバーの場合
+              if (newHp <= 0) {
+                const finalState = {
+                  ...updatedState,
+                  isCompleting: true
+                };
+                onGameComplete('gameover', finalState);
+              }
             }
           }
         });
         
         if (hasUpdate) {
-          onGameStateChange(prevState);
-          return prevState;
+          onGameStateChange(updatedState);
+          return updatedState;
         }
         
         // 新しいコードが追加された場合も状態を更新
