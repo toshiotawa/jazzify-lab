@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { RhythmGameEngine, RhythmQuestion, RhythmStageInfo } from '@/utils/rhythmGameEngine'
+import { useTimeStore } from '@/stores/timeStore'
 
 export interface RhythmGameState {
   defeated: number
@@ -60,9 +61,27 @@ export const useRhythmEngine = (
 
   // ★ 明示的な開始関数を追加
   const startGame = () => {
-    if (engineRef.current && !isStarted) {
+    if (engineRef.current && !isStarted && stage) {
+      console.log('🎵 Starting rhythm game with stage:', stage);
+      
+      // ★ リズムモードでもTimeStoreを開始
+      useTimeStore
+        .getState()
+        .setStart(
+          stage.bpm || 120,
+          stage.timeSignature || 4,
+          stage.measureCount || 8,
+          stage.countInMeasures || 0
+        );
+      
       engineRef.current.start()
       setIsStarted(true)
+      
+      // 開始直後のアクティブな質問を確認
+      setTimeout(() => {
+        const activeQuestions = engineRef.current?.getActiveQuestions();
+        console.log('🎵 Active questions after start:', activeQuestions);
+      }, 100);
     }
   }
 

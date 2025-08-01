@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useRhythmEngine } from '@/hooks/useRhythmEngine';
 import { FantasyStage, FantasyGameState, FantasyGameEngineProps } from './FantasyGameEngine';
 import type { DisplayOpts } from '@/utils/display-note';
+import { useTimeStore } from '@/stores/timeStore';
 
 export const useRhythmGameEngine = ({ 
   stage,
@@ -68,6 +69,11 @@ export const useRhythmGameEngine = ({
 
   // Convert rhythm game state to FantasyGameState format
   const fantasyGameState: FantasyGameState = useMemo(() => {
+    // デバッグ: activeQuestionsの状態を確認
+    if (gameState.activeQuestions.length > 0) {
+      console.log('🎵 RhythmGameEngine - Active questions:', gameState.activeQuestions);
+    }
+    
     return {
       currentStage: stage,
       currentQuestionIndex: 0,

@@ -692,12 +692,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !localGameState.isCompleting && (!localGameState.isGameActive || !localGameState.currentChordTarget)) {
+  // リズムモードの場合は、isGameActiveだけで判定
+  const shouldShowStartScreen = !overlay && !localGameState.isCompleting && (
+    isRhythmMode 
+      ? !localGameState.isGameActive 
+      : (!localGameState.isGameActive || !localGameState.currentChordTarget)
+  );
+  
+  if (shouldShowStartScreen) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: localGameState.isGameActive,
       hasCurrentChord: !!localGameState.currentChordTarget,
       stageName: stage.name,
-      hasOverlay: !!overlay
+      hasOverlay: !!overlay,
+      isRhythmMode
     });
     
     return (

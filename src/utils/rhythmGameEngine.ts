@@ -67,9 +67,10 @@ export class RhythmGameEngine {
 
   /** BGM 再生と timeStore を開始 */
   start(now: number = performance.now()): void {
-    const ts = this.stage.timeSignature
-    const store = useTimeStore.getState()
-    store.setStart(this.stage.bpm, ts, this.stage.measureCount, this.stage.countInMeasures, now)
+    // ★ TimeStoreのsetStartはuseRhythmEngineで呼ぶように変更したので、ここでは呼ばない
+    // const ts = this.stage.timeSignature
+    // const store = useTimeStore.getState()
+    // store.setStart(this.stage.bpm, ts, this.stage.measureCount, this.stage.countInMeasures, now)
     
     // ★ 質問をここで生成（startAtが設定された後）
     this.generateQuestions()
@@ -204,7 +205,10 @@ export class RhythmGameEngine {
     // カウントインを考慮した拍数の計算
     const totalBeats = (measure - 1 + countInMeasures) * ts + (beat - 1)
     const baseMs = useTimeStore.getState().startAt ?? performance.now()
-    const ms = baseMs + totalBeats * msecPerBeat
+    const readyDuration = useTimeStore.getState().readyDuration || 2000
+    
+    // readyDurationを加算してタイミングを計算
+    const ms = baseMs + readyDuration + totalBeats * msecPerBeat
     
     return {
       msStart: ms - WINDOW_MS,
