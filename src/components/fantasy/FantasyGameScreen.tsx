@@ -13,6 +13,9 @@ import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
+import RhythmGameEngine from '@/utils/rhythmGameEngine';
+import RhythmVisualizer from '@/components/rhythm/RhythmVisualizer';
+import type { RhythmStage, RhythmQuestion } from '@/types';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
@@ -69,6 +72,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
   const monsterAreaRef = useRef<HTMLDivElement>(null);
+  /* Rhythm 判定ライン用に高さも保持 */
+  const [monsterAreaHeight, setMonsterAreaHeight] = useState<number>(200);
   
   /* 毎 100 ms で時間ストア tick */
   useEffect(() => {
@@ -85,6 +90,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const update = () => {
       if (monsterAreaRef.current) {
         setMonsterAreaWidth(monsterAreaRef.current.clientWidth);
+        setMonsterAreaHeight(monsterAreaRef.current.clientHeight);
       }
     };
     update(); // 初期化時
@@ -319,6 +325,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }, 2000);                             // 2 秒待ってから結果画面へ
   }, [onGameComplete]);
   
+  /* ---------------- Engine Switch ---------------- */
+  const isRhythm = stage.mode === 'rhythm';
+
+  const rhythmEngineRef = useRef<RhythmGameEngine | null>(null);
+
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
   const {
@@ -331,7 +342,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: null, // ★★★ change
+    stage: isRhythm ? null : stage, // リズムモード時はnull
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
@@ -342,6 +353,45 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
+
+  /* Rhythm GameEngine lazy init */
+  useEffect(() => {
+    if (isRhythm && stage && !rhythmEngineRef.current) {
+      const rhythmStage = stage as unknown as RhythmStage;
+      rhythmEngineRef.current = new RhythmGameEngine(rhythmStage, {
+        onAttackSuccess: (q: RhythmQuestion, damage: number) => {
+          devLog.debug('✅ リズム攻撃成功:', { chord: q.chord, damage });
+          // 既存のUIエフェクトを流用
+          if (fantasyPixiInstance && currentEnemy) {
+            fantasyPixiInstance.triggerAttackSuccessOnMonster(
+              currentEnemy.id,
+              q.chord,
+              false,
+              damage,
+              false
+            );
+          }
+        },
+        onAttackFail: (q: RhythmQuestion) => {
+          devLog.debug('❌ リズム攻撃失敗:', { chord: q.chord });
+          handleEnemyAttack();
+        },
+        onEnemyDefeat: (enemyIndex: number) => {
+          devLog.debug('🎉 敵撃破:', { enemyIndex });
+          proceedToNextEnemy();
+        },
+        onGameComplete: () => {
+          devLog.debug('🏆 リズムモードクリア');
+          handleGameCompleteCallback('clear', gameState);
+        }
+      });
+      rhythmEngineRef.current.start();
+    }
+    return () => {
+      rhythmEngineRef.current?.stop?.();
+      rhythmEngineRef.current = null;
+    };
+  }, [isRhythm, stage, currentEnemy, fantasyPixiInstance, handleEnemyAttack, proceedToNextEnemy, handleGameCompleteCallback, gameState]);
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
@@ -361,9 +411,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       console.error('Failed to play note:', error);
     }
     
-    // ファンタジーゲームエンジンにのみ送信
-    engineHandleNoteInput(note);
-  }, [engineHandleNoteInput]);
+    // ファンタジーゲームエンジンまたはリズムエンジンに送信
+    if (isRhythm && rhythmEngineRef.current) {
+      rhythmEngineRef.current.handleInput(note, performance.now());
+    } else {
+      engineHandleNoteInput(note);
+    }
+  }, [engineHandleNoteInput, isRhythm]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
@@ -761,6 +815,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
             style={{ height: 'min(200px, 30vh)' }}
           >
+            {/* Rhythm モード判定ライン */}
+            {isRhythm && (
+              <RhythmVisualizer
+                width={monsterAreaWidth}
+                height={monsterAreaHeight}
+                ratio={0.8}
+              />
+            )}
             {/* 魔法名表示 - モンスターカード内に移動 */}
             <FantasyPIXIRenderer
               width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない

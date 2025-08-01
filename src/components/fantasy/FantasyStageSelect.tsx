@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
 import { devLog } from '@/utils/logger';
+import type { RhythmStage } from '@/types';
 
 // ===== 型定義 =====
 
@@ -285,11 +286,40 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         {/* コンテンツ部分 */}
         <div className="flex-grow">
           {/* ステージ名 */}
-          <div className={cn(
-            "text-lg font-medium mb-1",
-            unlocked ? "text-white" : "text-gray-400"
-          )}>
-            {unlocked ? stage.name : "???"}
+          <div className="flex items-center gap-2 mb-1">
+            <div className={cn(
+              "text-lg font-medium",
+              unlocked ? "text-white" : "text-gray-400"
+            )}>
+              {unlocked ? stage.name : "???"}
+            </div>
+            {/* リズムモードバッジ */}
+            {unlocked && stage.mode === 'rhythm' && (
+              <>
+                <span className="text-xs px-2 py-0.5 bg-yellow-500 text-black rounded-full font-bold">
+                  RHYTHM
+                </span>
+                {/* リズムタイプバッジ */}
+                {((stage as unknown as RhythmStage).rhythm_type === 'random' || 
+                 (stage as unknown as RhythmStage).chord_progression_data === null) && (
+                  <span className="text-xs px-2 py-0.5 bg-orange-500 text-white rounded-full font-bold">
+                    RANDOM
+                  </span>
+                )}
+                {(stage as unknown as RhythmStage).rhythm_type === 'progression' || 
+                 (stage as unknown as RhythmStage).chord_progression_data !== null && (
+                  <span className="text-xs px-2 py-0.5 bg-purple-500 text-white rounded-full font-bold">
+                    PROGRESSION
+                  </span>
+                )}
+              </>
+            )}
+            {/* コード進行モードバッジ */}
+            {unlocked && stage.mode === 'progression' && (
+              <span className="text-xs px-2 py-0.5 bg-blue-500 text-white rounded-full font-bold">
+                PROGRESSION
+              </span>
+            )}
           </div>
           
           {/* 説明文 */}
