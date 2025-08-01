@@ -828,10 +828,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
-                      {/* コード名 */}
-                      <div className={`font-bold ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} mb-0.5`}>
-                        {monster.chordTarget.displayName}
-                      </div>
+                      {/* コード名（リズムモードのランダムパターンでは非表示） */}
+                      {!(stage.mode === 'rhythm' && stage.rhythmPattern === 'random') && (
+                        <div className={`font-bold ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} mb-0.5`}>
+                          {monster.chordTarget.displayName}
+                        </div>
+                      )}
                       
                       {/* リズムモード用の判定サークル */}
                       {stage.mode === 'rhythm' && gameState.rhythmChords && gameState.currentRhythmIndex !== undefined && (
@@ -880,17 +882,31 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                                     transform: 'translate(-50%, -50%)'
                                   }}
                                 />
+                                {/* コード名表示 */}
+                                <div 
+                                  className={`absolute text-center font-bold ${
+                                    inWindow ? 'text-green-600' : 'text-gray-600'
+                                  }`}
+                                  style={{
+                                    transform: 'translate(-50%, -50%)',
+                                    fontSize: '14px',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  {rhythmChord.chord.displayName}
+                                </div>
                               </div>
                             ) : null;
                           })()}
                         </div>
                       )}
                       
-                      {/* コード構成音表示 */}
-                      <div className={`mt-1 font-medium h-6 text-center ${
-                        monsterCount > 5 ? 'text-xs' : 'text-sm'
-                      }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
+                      {/* コード構成音表示（リズムモードのランダムパターンでは非表示） */}
+                      {!(stage.mode === 'rhythm' && stage.rhythmPattern === 'random') && (
+                        <div className={`mt-1 font-medium h-6 text-center ${
+                          monsterCount > 5 ? 'text-xs' : 'text-sm'
+                        }`}>
+                          {monster.chordTarget.noteNames.map((noteName, index) => {
                           // 表示オプションを定義
                           const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
                           // 表示用の音名に変換
@@ -916,7 +932,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                             </span>
                           );
                         })}
-                      </div>
+                        </div>
+                      )}
                       
                       {/* 魔法名表示 */}
                       {magicName && magicName.monsterId === monster.id && (

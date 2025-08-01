@@ -454,8 +454,15 @@ export const useFantasyGameEngine = ({
     const totalQuestions = totalEnemies * enemyHp;
     const simultaneousCount = stage.simultaneousMonsterCount || 1;
 
-    // リズムモードの場合、同時出現数は4で固定
-    const actualSimultaneousCount = stage.mode === 'rhythm' ? 4 : simultaneousCount;
+    // リズムモードの場合、パターンによって同時出現数を調整
+    let actualSimultaneousCount = simultaneousCount;
+    if (stage.mode === 'rhythm') {
+      if (stage.rhythmPattern === 'progression') {
+        actualSimultaneousCount = 4; // プログレッションパターンは4体固定
+      } else if (stage.rhythmPattern === 'random') {
+        actualSimultaneousCount = 1; // ランダムパターンは1体固定
+      }
+    }
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
