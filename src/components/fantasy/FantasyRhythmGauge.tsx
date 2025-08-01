@@ -49,7 +49,7 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
       const timeUntilTarget = currentScheduleItem.targetTime - now;
       
       // 1秒前から0%、ターゲットタイムで80%になるように計算
-      const progress = Math.max(0, Math.min(80, (1000 - timeUntilTarget) / 1000 * 80));
+      const progress = Math.max(0, Math.min(100, (1000 - timeUntilTarget) / 1000 * 100));
       setGaugeProgress(progress);
     };
 
@@ -66,14 +66,14 @@ export const FantasyRhythmGauge: React.FC<FantasyRhythmGaugeProps> = ({
 
   return (
     <div className="absolute inset-0">
-      {/* 80%地点のマーカー */}
-      <div className="absolute left-[80%] top-0 bottom-0 w-0.5 bg-yellow-400 z-10" />
+      {/* 100%地点のマーカー（判定タイミング） */}
+      <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-yellow-400 z-10" />
       
       {/* 進行ゲージ */}
       <div 
         className={cn(
           "h-full transition-all duration-100",
-          gaugeProgress >= 70 && gaugeProgress <= 90 ? "bg-green-400" : "bg-blue-400"
+          gaugeProgress >= 90 ? "bg-green-400" : "bg-blue-400"
         )}
         style={{ width: `${gaugeProgress}%` }}
       />

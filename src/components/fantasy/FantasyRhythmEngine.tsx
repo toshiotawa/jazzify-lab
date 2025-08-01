@@ -134,13 +134,34 @@ export const FantasyRhythmEngine = forwardRef<
     const currentTime = getCurrentGameTime();
     const lookAheadTime = currentTime + 10000; // 10秒先まで生成
     
-    // カウントイン後から開始
-    const startMeasure = isCountIn ? currentMeasure : Math.max(1, currentMeasure);
+    // デバッグログ
+    devLog.debug('🎵 generateRandomSchedule called:', {
+      currentTime,
+      currentMeasure,
+      isCountIn,
+      countInMeasures,
+      measureCount
+    });
     
-    for (let m = startMeasure; m <= measureCount + 10; m++) {
-      // 各小節の1拍目にコードを配置
-      const actualMeasure = ((m - 1) % measureCount) + 1;
-      const measureTime = (m - 1 + countInMeasures) * msPerMeasure;
+    // カウントイン後から開始
+    // カウントイン中は小節番号が1から始まるが、実際の音は出さない
+    // カウントイン後（isCountIn = false）から音を出す
+    let startMeasure: number;
+    if (isCountIn) {
+      // カウントイン中なので、カウントイン後の最初の小節から生成
+      startMeasure = countInMeasures + 1;
+    } else {
+      // すでにメイン部分なので、現在の小節から生成
+      // ただし、カウントイン後の実際の小節番号に変換
+      const absoluteMeasure = currentMeasure + countInMeasures;
+      startMeasure = absoluteMeasure;
+    }
+    
+    // 十分な量のスケジュールを生成
+    for (let i = 0; i < 20; i++) {
+      const m = startMeasure + i;
+      // カウントインを考慮した絶対時間を計算
+      const measureTime = (m - 1) * msPerMeasure;
       
       if (measureTime > lookAheadTime) {
         break;
@@ -150,17 +171,29 @@ export const FantasyRhythmEngine = forwardRef<
         continue;
       }
       
+      // 表示用の小節番号（1〜measureCount の循環）
+      const displayMeasure = ((m - countInMeasures - 1) % measureCount) + 1;
+      
       // ランダムにコードを選択
       const chordId = allowedChords[Math.floor(Math.random() * allowedChords.length)];
       
       schedule.push({
         chordId,
-        measure: actualMeasure,
+        measure: displayMeasure,
         beat: 1,
         targetTime: measureTime,
         position: 'A' // ランダムパターンでは1体のみなので常にA列
       });
     }
+    
+    devLog.debug('🎵 Generated schedule:', {
+      scheduleLength: schedule.length,
+      firstItems: schedule.slice(0, 3).map(s => ({
+        measure: s.measure,
+        targetTime: s.targetTime,
+        timeDiff: s.targetTime - currentTime
+      }))
+    });
     
     return schedule;
   }, [getCurrentGameTime, isCountIn, currentMeasure, measureCount, countInMeasures, msPerMeasure, allowedChords]);
@@ -214,6 +247,12 @@ export const FantasyRhythmEngine = forwardRef<
               position: schedule.position
             };
             newActiveJudgments.push(judgment);
+            devLog.debug('🎵 New judgment created:', {
+              chordId: judgment.chordId,
+              targetTime: judgment.targetTime,
+              currentTime,
+              timeDiff
+            });
             onJudgment(judgment);
           } else {
             newActiveJudgments.push(existingJudgment);
@@ -232,12 +271,28 @@ export const FantasyRhythmEngine = forwardRef<
             devLog.debug('🎵 Auto miss judgment:', { 
               chordId: existingJudgment.chordId, 
               targetTime: existingJudgment.targetTime,
-              currentTime 
+              currentTime,
+              timePassed: currentTime - existingJudgment.targetTime
             });
             onJudgment(existingJudgment);
           }
         }
       });
+      
+      // デバッグログ（1秒ごとに状態を出力）
+      if (Math.floor(currentTime / 1000) !== Math.floor((currentTime - 16) / 1000)) {
+        devLog.debug('🎵 Judgment window state:', {
+          currentTime,
+          activeJudgmentsCount: newActiveJudgments.length,
+          upcomingSchedules: chordSchedule
+            .filter(s => s.targetTime > currentTime && s.targetTime <= currentTime + 2000)
+            .map(s => ({
+              chordId: s.chordId,
+              targetTime: s.targetTime,
+              timeUntil: s.targetTime - currentTime
+            }))
+        });
+      }
       
       setActiveJudgments(newActiveJudgments);
     };
