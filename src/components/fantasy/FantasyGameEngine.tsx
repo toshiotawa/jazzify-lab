@@ -11,7 +11,24 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
-import { FantasyRhythmEngine, RhythmJudgment, RhythmChordSchedule } from './FantasyRhythmEngine';
+import { RhythmGameEngine } from '@/utils/rhythmGameEngine';
+
+// Types for rhythm mode
+interface RhythmJudgment {
+  targetTime: number;
+  chordId: string;
+  judged: boolean;
+  result: 'perfect' | 'good' | 'miss' | null;
+  position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+}
+
+interface RhythmChordSchedule {
+  chordId: string;
+  measure: number;
+  beat: number;
+  targetTime: number;
+  position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+}
 
 // ===== 型定義 =====
 
@@ -423,7 +440,7 @@ export const useFantasyGameEngine = ({
   // リズムモード用の状態
   const [rhythmSchedule, setRhythmSchedule] = useState<RhythmChordSchedule[]>([]);
   const [rhythmJudgments, setRhythmJudgments] = useState<RhythmJudgment[]>([]);
-  const rhythmEngineRef = useRef<{ judge: (chordId: string, inputTime: number) => RhythmJudgment | null } | null>(null);
+  const rhythmEngineRef = useRef<RhythmGameEngine | null>(null);
   
   // リズムモードかどうかを判定
   const isRhythmMode = gameState.currentStage?.mode === 'rhythm' || stage?.mode === 'rhythm';
@@ -638,13 +655,76 @@ export const useFantasyGameEngine = ({
         stage.countInMeasures ?? 0
       );
 
+    // リズムモードの場合、RhythmGameEngineを初期化
+    if (stage.mode === 'rhythm') {
+      const rhythmType: 'progression' | 'random' = stage.chordProgressionData ? 'progression' : 'random';
+      const rhythmStage = {
+        bpm: stage.bpm || 120,
+        timeSignature: stage.timeSignature || 4,
+        measureCount: stage.measureCount || 8,
+        countInMeasures: stage.countInMeasures || 1,
+        rhythmType,
+        allowedChords: stage.allowedChords,
+        chordProgressionData: stage.chordProgressionData,
+        simultaneousMonsterCount: stage.simultaneousMonsterCount
+      };
+      
+      const rhythmEngine = new RhythmGameEngine(rhythmStage, {
+        onAttackSuccess: (questionId, chord, position) => {
+          devLog.debug('🎵 リズム攻撃成功:', { questionId, chord, position });
+          // モンスターにダメージを与える処理はhandleNoteInputで行う
+        },
+        onAttackFail: (questionId, chord, position) => {
+          devLog.debug('🎵 リズム攻撃失敗:', { questionId, chord, position });
+          // 敵の攻撃として処理
+          setGameState(prevState => {
+            const monster = prevState.activeMonsters.find(m => m.position === position);
+            if (monster) {
+              onEnemyAttack(monster.id);
+            }
+            return prevState;
+          });
+        },
+        onStateUpdate: (questions) => {
+          // リズムモードの状態更新
+          devLog.debug('🎵 リズム状態更新:', { activeQuestions: questions.length });
+          // アクティブな問題に基づいてモンスターのコードを更新
+          setGameState(prevState => {
+            const updatedMonsters = prevState.activeMonsters.map(monster => {
+              const activeQuestion = questions.find(q => q.position === monster.position);
+              if (activeQuestion && monster.chordTarget.id !== activeQuestion.chord) {
+                const newChord = getChordDefinition(activeQuestion.chord, displayOpts);
+                if (newChord) {
+                  return {
+                    ...monster,
+                    chordTarget: newChord,
+                    correctNotes: []
+                  };
+                }
+              }
+              return monster;
+            });
+            
+            return {
+              ...prevState,
+              activeMonsters: updatedMonsters
+            };
+          });
+        }
+      });
+      
+      rhythmEngineRef.current = rhythmEngine;
+      rhythmEngine.start(performance.now());
+    }
+
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
       totalEnemies,
       enemyHp,
       totalQuestions,
       simultaneousCount,
-      activeMonsters: activeMonsters.length
+      activeMonsters: activeMonsters.length,
+      isRhythmMode: stage.mode === 'rhythm'
     });
   }, [onGameStateChange]);
   
@@ -929,39 +1009,11 @@ export const useFantasyGameEngine = ({
           hasRhythmEngine: !!rhythmEngineRef.current 
         });
         
-        // 現在の入力時刻を取得（ゲーム時間に変換）
-        const inputTime = performance.now() - (timeStartAt || 0) - timeReadyDuration;
+        // リズムエンジンに入力を渡す
+        rhythmEngineRef.current.handleNoteInput(note);
         
-        // アクティブなモンスターから、入力された音符を含むコードを探す
-        const targetMonster = prevState.activeMonsters.find(monster => {
-          const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
-          return targetNotes.includes(note % 12);
-        });
-        
-        if (targetMonster) {
-          devLog.debug('🎵 Found target monster for rhythm judgment:', {
-            monsterId: targetMonster.id,
-            chordId: targetMonster.chordTarget.id
-          });
-          
-          // リズムエンジンで判定
-          const judgment = rhythmEngineRef.current.judge(targetMonster.chordTarget.id, inputTime);
-          
-          if (judgment && (judgment.result === 'perfect' || judgment.result === 'good')) {
-            // 判定成功時は通常の処理を続行
-            devLog.debug('🎵 Rhythm judgment success:', judgment);
-          } else {
-            // 判定失敗またはタイミング外
-            devLog.debug('🎵 Rhythm judgment failed or out of window', {
-              judgment,
-              reason: judgment ? 'bad timing' : 'no active judgment'
-            });
-            return prevState; // 何もせずに終了
-          }
-        } else {
-          devLog.debug('🎵 No monster found for note:', note % 12);
-          return prevState;
-        }
+        // リズムモードでは判定ウィンドウ外の入力は無視される
+        // RhythmGameEngineが判定を管理するため、ここでは通常処理を続行
       }
 
       const noteMod12 = note % 12;
@@ -1173,6 +1225,12 @@ export const useFantasyGameEngine = ({
       setEnemyGaugeTimer(null);
     }
     
+    // リズムエンジンの停止
+    if (rhythmEngineRef.current) {
+      rhythmEngineRef.current.stop();
+      rhythmEngineRef.current = null;
+    }
+    
     // if (inputTimeout) { // 削除
     //   clearTimeout(inputTimeout); // 削除
     // } // 削除
@@ -1245,6 +1303,11 @@ export const useFantasyGameEngine = ({
     
     const updateGauges = () => {
       const currentTime = performance.now() - (timeStartAt || 0) - timeReadyDuration;
+      
+      // リズムエンジンの更新
+      if (rhythmEngineRef.current) {
+        rhythmEngineRef.current.update(performance.now());
+      }
       
       setGameState(prevState => {
         const updatedMonsters = prevState.activeMonsters.map(monster => {

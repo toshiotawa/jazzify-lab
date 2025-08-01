@@ -15,7 +15,7 @@ import { getChordDefinition } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
-import { FantasyRhythmEngine, RhythmJudgment, RhythmChordSchedule } from './FantasyRhythmEngine';
+// FantasyRhythmEngine is now handled internally by FantasyGameEngine
 import { FantasyRhythmGauge } from './FantasyRhythmGauge';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
@@ -322,11 +322,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }, 2000);                             // 2 秒待ってから結果画面へ
   }, [onGameComplete]);
   
-  // リズムモード用ハンドラー
-  const handleRhythmJudgment = useCallback((judgment: RhythmJudgment) => {
-    devLog.debug('🎵 Rhythm judgment received:', judgment);
-    // 判定結果をPIXIに反映させる処理などを追加可能
-  }, []);
+  // リズムモード用ハンドラーは FantasyGameEngine 内部で処理されるようになりました
   
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
@@ -355,15 +351,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
   
-  // リズムスケジュールハンドラー（gameStateとisRhythmModeが利用可能になった後で定義）
-  const handleRhythmSchedule = useCallback((schedule: RhythmChordSchedule[]) => {
-    devLog.debug('🎵 Rhythm schedule updated:', schedule);
-    
-    // リズムモードでモンスターを更新
-    if (isRhythmMode && updateRhythmMonsters) {
-      updateRhythmMonsters(schedule);
-    }
-  }, [isRhythmMode, updateRhythmMonsters]);
+  // リズムスケジュールハンドラーも FantasyGameEngine 内部で処理されるようになりました
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -1115,22 +1103,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
       )}
       
-      {/* リズムエンジン */}
-      {isRhythmMode && stage && (
-        <FantasyRhythmEngine
-          ref={rhythmEngineRef}
-          isActive={gameState.isGameActive}
-          bpm={stage.bpm || 120}
-          timeSignature={stage.timeSignature || 4}
-          measureCount={stage.measureCount || 8}
-          countInMeasures={stage.countInMeasures || 1}
-          chordProgressionData={stage.chordProgressionData}
-          allowedChords={stage.allowedChords}
-          simultaneousMonsterCount={stage.simultaneousMonsterCount}
-          onJudgment={handleRhythmJudgment}
-          onChordSchedule={handleRhythmSchedule}
-        />
-      )}
+      {/* リズムエンジンはFantasyGameEngine内で管理されるようになりました */}
       
       {/* Ready オーバーレイ */}
       {isReady && (
