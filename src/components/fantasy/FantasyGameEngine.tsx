@@ -34,7 +34,7 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
@@ -228,6 +228,11 @@ const selectUniqueRandomChord = (
   previousChordId?: string,
   displayOpts?: DisplayOpts
 ): ChordDefinition | null => {
+  // 配列でない場合のフォールバック
+  if (!Array.isArray(allowedChords) || allowedChords.length === 0) {
+    console.error('allowedChords is not a valid array:', allowedChords);
+    return null;
+  }
   // まずは単純に全候補
   let availableChords = allowedChords
     .map(id => getChordDefinition(id, displayOpts))
@@ -322,6 +327,11 @@ const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): nu
  * ランダムコード選択（allowedChordsから）
  */
 const selectRandomChord = (allowedChords: string[], previousChordId?: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
+  // 配列でない場合のフォールバック
+  if (!Array.isArray(allowedChords) || allowedChords.length === 0) {
+    console.error('selectRandomChord: allowedChords is not a valid array:', allowedChords);
+    return null;
+  }
   let availableChords = allowedChords
     .map(chordId => getChordDefinition(chordId, displayOpts))
     .filter(Boolean) as ChordDefinition[];
