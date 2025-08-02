@@ -922,6 +922,71 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                     );
                   })}
               </div>
+            ) : stage.mode === 'progression' && gameState.currentProgressionQuestion?.isActive && gameState.currentProgressionQuestion.chord ? (
+              // プログレッションモード用の単一表示
+              <div className="flex justify-center items-center w-full mx-auto" style={{ height: 'min(120px,22vw)' }}>
+                <div className="text-center">
+                  {/* コードネーム */}
+                  <div className="text-yellow-300 font-bold text-2xl mb-2">
+                    {gameState.currentProgressionQuestion.chord.displayName}
+                  </div>
+                  
+                  {/* ヒント表示 */}
+                  <div className="mt-2 font-medium text-base">
+                    {gameState.currentProgressionQuestion.chord.noteNames.map((noteName, index) => {
+                      // 表示オプションを定義
+                      const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
+                      // 表示用の音名に変換
+                      const displayNoteName = toDisplayName(noteName, displayOpts);
+                      
+                      // 正解判定用にMIDI番号を計算
+                      const noteObj = parseNote(noteName + '4'); // オクターブはダミー
+                      const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+                      
+                      const isCorrect = gameState.correctNotes?.includes(noteMod12) || false;
+
+                      if (!stage.showGuide && !isCorrect) {
+                        return <span key={index}>？{index < gameState.currentProgressionQuestion.chord.noteNames.length - 1 ? " " : ""}</span>;
+                      }
+
+                      return (
+                        <span
+                          key={index}
+                          className={cn(
+                            isCorrect ? "text-green-400" : "text-gray-300"
+                          )}
+                        >
+                          {displayNoteName}
+                          {index < gameState.currentProgressionQuestion.chord.noteNames.length - 1 ? " " : ""}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* 行動ゲージ */}
+                  <div className="mt-4 w-48 mx-auto">
+                    <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
+                      <div
+                        className={cn(
+                          "h-full transition-all duration-100",
+                          gameState.isInAcceptWindow ? 
+                            (gameState.progressionGaugePercent >= 95 ? "bg-gradient-to-r from-red-500 to-red-600" : "bg-gradient-to-r from-yellow-500 to-orange-400") :
+                            "bg-gradient-to-r from-blue-500 to-blue-600"
+                        )}
+                        style={{ width: `${gameState.progressionGaugePercent}%` }}
+                      />
+                      {/* マーカー */}
+                      <div className="absolute top-0 bottom-0 left-[90%] w-0.5 bg-white/30" />
+                      <div className="absolute top-0 bottom-0 left-[95%] w-0.5 bg-white/50" />
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1 text-center">
+                      <span className={cn(gameState.isInAcceptWindow && "text-yellow-400 font-bold")}>
+                        {gameState.progressionGaugePercent.toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : null}
             
             {/* プレイヤーのHP表示とSPゲージ */}
@@ -1035,6 +1100,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
           <div>SP: {gameState.playerSp}</div>
+          {stage.mode === 'progression' && (
+            <>
+              <div className="mt-2 border-t pt-2">
+                <div className="font-bold">プログレッション詳細</div>
+                <div>進行: {gameState.currentQuestionIndex + 1}/{stage.chordProgression?.length || 0}</div>
+                <div>現在の問題: {gameState.currentProgressionQuestion?.chord?.displayName || 'なし'}</div>
+                <div>問題状態: {gameState.currentProgressionQuestion?.isActive ? 'アクティブ' : '非アクティブ'}</div>
+                <div>ゲージ: {gameState.progressionGaugePercent?.toFixed(1)}%</div>
+                <div>判定中: {gameState.isInAcceptWindow ? 'はい' : 'いいえ'}</div>
+                <div>M{currentMeasure} - B{currentBeat}</div>
+              </div>
+            </>
+          )}
           
           {/* ゲージ強制満タンテストボタン */}
           <button

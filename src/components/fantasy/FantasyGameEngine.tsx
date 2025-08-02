@@ -625,9 +625,9 @@ export const useFantasyGameEngine = ({
         startBeat: 2,
         startMeasure: 1,
         acceptStartBeat: 1,
-        acceptStartMeasure: 2,
+        acceptStartMeasure: 1,  // 最初の小節から判定可能に
         acceptEndBeat: 1,
-        acceptEndMeasure: 2,
+        acceptEndMeasure: 1,
         isActive: true,
         isAccepting: false
       };
@@ -902,11 +902,6 @@ export const useFantasyGameEngine = ({
         // 現在の拍の進行度（0-1）
         const beatProgress = (gameTime % msPerBeat) / msPerBeat;
         
-        // 95%が次の小節の1拍目になるようにゲージを計算
-        // 90%が-200ms、100%が+200msとなるように
-        const acceptWindowMs = 400; // ±200ms = 400ms
-        const acceptWindowRatio = acceptWindowMs / msPerBeat; // 判定ウィンドウが1拍に占める割合
-        
         // 各小節の1拍目を基準にゲージを計算
         let gaugePercent = 0;
         const beatsInMeasure = timeSignature;
@@ -926,7 +921,7 @@ export const useFantasyGameEngine = ({
         // 現在の問題を更新
         let currentQuestion = prevState.currentProgressionQuestion;
         
-        // 新しい問題を出題するタイミング（各小節の2拍目）
+        // 新しい問題を出題するタイミング（各小節の2拍目、かつ現在問題がない場合）
         if (currentBeatInMeasure === 2 && !currentQuestion?.isActive) {
           const progression = prevState.currentStage.chordProgression || [];
           if (progression.length > 0) {
@@ -957,41 +952,20 @@ export const useFantasyGameEngine = ({
           // 攻撃処理
           setTimeout(() => handleEnemyAttack(), 0);
           
-          // 3拍200ms前のタイミングを計算
-          const beatsBeforeNextMeasure = beatsInMeasure - currentBeatInMeasure;
-          const msToNextMeasure = beatsBeforeNextMeasure * msPerBeat;
-          const delayForNewQuestion = msToNextMeasure + (3 * msPerBeat) - 200;
-          
-          // 新しい問題の準備
-          const progression = prevState.currentStage.chordProgression || [];
-          const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-          const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
-          
-          // 3拍200ms前に新しい問題を設定
-          setTimeout(() => {
-            setGameState(state => ({
-              ...state,
-              currentProgressionQuestion: {
-                chord: nextChord,
-                startBeat: 2,
-                startMeasure: currentMeasure + 2, // 次の次の小節
-                acceptStartBeat: 1,
-                acceptStartMeasure: currentMeasure + 2,
-                acceptEndBeat: 1,
-                acceptEndMeasure: currentMeasure + 2,
-                isActive: true,
-                isAccepting: false
-              },
-              currentQuestionIndex: nextIndex,
-              currentChordTarget: nextChord
-            }));
-          }, Math.max(0, delayForNewQuestion));
-          
+          // 問題をクリアして次のインデックスに進める
           return {
             ...prevState,
-            currentProgressionQuestion: null,
-            progressionGaugePercent: 0,
-            isInAcceptWindow: false
+            currentProgressionQuestion: {
+              ...currentQuestion,
+              isActive: false,
+              isAccepting: false
+            },
+            progressionGaugePercent: gaugePercent,
+            isInAcceptWindow: false,
+            currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage.chordProgression?.length || 1),
+            // 互換性のため
+            enemyGauge: gaugePercent,
+            currentChordTarget: null
           };
         }
         
@@ -1119,45 +1093,9 @@ export const useFantasyGameEngine = ({
           // プログレッションモードでは敵を倒すことはないので、willBeDefeatedは常にfalse
           onChordCorrect(targetChord, isSpecialAttack, damageDealt, false, 'progression');
           
-          // 次の問題へ - 3拍200ms前に設定
+          // 次の問題へ
           const progression = currentStage.chordProgression || [];
           const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-          const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
-          
-          // タイミング計算
-          const timeState = useTimeStore.getState();
-          const { currentBeat, currentMeasure, bpm, timeSignature } = timeState;
-          const msPerBeat = 60000 / bpm;
-          const beatsInMeasure = timeSignature;
-          const currentTime = performance.now();
-          const gameTime = currentTime - (timeState.startAt || 0) - timeState.readyDuration;
-          const beatProgress = (gameTime % msPerBeat) / msPerBeat;
-          const currentBeatInMeasure = ((Math.floor(gameTime / msPerBeat) % beatsInMeasure) + 1);
-          const beatsBeforeNextMeasure = beatsInMeasure - currentBeatInMeasure + (1 - beatProgress);
-          const msToNextMeasure = beatsBeforeNextMeasure * msPerBeat;
-          const delayForNewQuestion = msToNextMeasure + (3 * msPerBeat) - 200;
-          
-          // 3拍200ms前に新しい問題を設定
-          setTimeout(() => {
-            setGameState(state => {
-              if (!state.isGameActive) return state;
-              return {
-                ...state,
-                currentProgressionQuestion: {
-                  chord: nextChord,
-                  startBeat: 2,
-                  startMeasure: currentMeasure + 2, // 次の次の小節
-                  acceptStartBeat: 1,
-                  acceptStartMeasure: currentMeasure + 2,
-                  acceptEndBeat: 1,
-                  acceptEndMeasure: currentMeasure + 2,
-                  isActive: true,
-                  isAccepting: false
-                },
-                currentChordTarget: nextChord
-              };
-            });
-          }, Math.max(0, delayForNewQuestion));
           
           return {
             ...prevState,
@@ -1165,12 +1103,13 @@ export const useFantasyGameEngine = ({
             correctAnswers: prevState.correctAnswers + 1,
             playerSp: isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5),
             currentQuestionIndex: nextIndex,
-            currentProgressionQuestion: null,
-            progressionGaugePercent: 0,
-            isInAcceptWindow: false,
+            currentProgressionQuestion: {
+              ...prevState.currentProgressionQuestion,
+              isActive: false,
+              isAccepting: false
+            },
             correctNotes: [],
             // 互換性のため
-            enemyGauge: 0,
             currentChordTarget: null
           };
         }
