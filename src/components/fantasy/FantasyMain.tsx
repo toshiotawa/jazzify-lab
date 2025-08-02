@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
+import RhythmGameScreen from './RhythmGameScreen';
 import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
@@ -561,6 +562,19 @@ const FantasyMain: React.FC = () => {
   
   // ゲーム画面
   if (currentStage) {
+    // リズムモードの場合は専用画面を表示
+    if (currentStage.mode === 'rhythm') {
+      return (
+        <RhythmGameScreen
+          key={gameKey}
+          stage={currentStage}
+          onGameComplete={handleGameComplete}
+          onBack={handleBackToStageSelect}
+        />
+      );
+    }
+    
+    // クイズモード（既存のファンタジーモード）
     return (
       <FantasyGameScreen
         // ▼▼▼ 追加 ▼▼▼

@@ -1,6 +1,8 @@
 /**
  * ファンタジーゲームメイン画面
  * UI/UX要件に従ったゲーム画面の実装
+ * 注：この画面はクイズモード（mode='single' | 'progression'）専用です
+ * リズムモード（mode='rhythm'）は RhythmGameScreen を使用してください
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
