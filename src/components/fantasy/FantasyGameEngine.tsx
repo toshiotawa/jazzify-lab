@@ -123,17 +123,24 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
     return null;
   }
 
+  // notesが存在しない場合のエラーハンドリング
+  if (!resolved.notes || !Array.isArray(resolved.notes)) {
+    console.warn(`⚠️ コードのnotes配列が無効: ${chordId}`, resolved);
+    return null;
+  }
+
   // notesをMIDIノート番号に変換
   const midiNotes = resolved.notes.map(noteName => {
+    if (!noteName) return 60; // noteNameがない場合はC4をデフォルトに
     const noteObj = parseNote(noteName + '4'); // オクターブ4を付加
     return noteObj && typeof noteObj.midi === 'number' ? noteObj.midi : 60; // デフォルトでC4
   });
 
   return {
     id: chordId,
-    displayName: resolved.displayName,
+    displayName: resolved.displayName || chordId, // displayNameがない場合はchordIdを使用
     notes: midiNotes,
-    noteNames: resolved.notes, // 理論的に正しい音名配列を追加
+    noteNames: resolved.notes.filter(note => note !== null && note !== undefined), // nullやundefinedを除外
     quality: resolved.quality,
     root: resolved.root
   };

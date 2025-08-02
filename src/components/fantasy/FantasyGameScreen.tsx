@@ -883,6 +883,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           // noteNamesが存在することを確認
                           monster.chordTarget?.noteNames ? (
                             monster.chordTarget.noteNames.map((noteName, index) => {
+                              // noteNameが存在しない場合はスキップ
+                              if (!noteName) {
+                                return (
+                                  <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                    ?
+                                  </span>
+                                );
+                              }
+                              
                               // 表示オプションを定義
                               const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
                               // 表示用の音名に変換
