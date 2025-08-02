@@ -660,12 +660,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  // プログレッションモードの場合は、activeMonsters が存在すればゲームは開始済みとみなす
+  const isGameStarted = gameState.isGameActive || 
+    (stage?.mode === 'progression' && gameState.activeMonsters && gameState.activeMonsters.length > 0);
+  
+  if (!overlay && !gameState.isCompleting && !isGameStarted) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
       stageName: stage.name,
-      hasOverlay: !!overlay
+      hasOverlay: !!overlay,
+      mode: stage?.mode,
+      activeMonsters: gameState.activeMonsters?.length || 0
     });
     
     return (
@@ -829,42 +835,54 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
                       {/* コードネーム */}
-                      <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                        monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                      }`}>
-                        {monster.chordTarget.displayName}
+                      <div className={cn(
+                        `font-bold text-center mb-1 truncate w-full`,
+                        monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl',
+                        // プログレッションモードで問題が出題されていない場合は薄く表示
+                        stage.mode === 'progression' && !monster.questionIssuedAt 
+                          ? 'text-gray-500' 
+                          : 'text-yellow-300'
+                      )}>
+                        {stage.mode === 'progression' && !monster.questionIssuedAt 
+                          ? '?' 
+                          : monster.chordTarget.displayName}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
-                          // 表示オプションを定義
-                          const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
-                          // 表示用の音名に変換
-                          const displayNoteName = toDisplayName(noteName, displayOpts);
-                          
-                          // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
-                          const noteObj = parseNote(noteName + '4'); // オクターブはダミー
-                          const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
-                          
-                          const isCorrect = monster.correctNotes.includes(noteMod12);
+                        {/* プログレッションモードで問題が出題されていない場合は表示しない */}
+                        {stage.mode === 'progression' && !monster.questionIssuedAt ? (
+                          <span className="text-gray-500">-</span>
+                        ) : (
+                          monster.chordTarget.noteNames.map((noteName, index) => {
+                            // 表示オプションを定義
+                            const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
+                            // 表示用の音名に変換
+                            const displayNoteName = toDisplayName(noteName, displayOpts);
+                            
+                            // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
+                            const noteObj = parseNote(noteName + '4'); // オクターブはダミー
+                            const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+                            
+                            const isCorrect = monster.correctNotes.includes(noteMod12);
 
-                          if (!stage.showGuide && !isCorrect) {
+                            if (!stage.showGuide && !isCorrect) {
+                              return (
+                                <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                  ?
+                                </span>
+                              );
+                            }
                             return (
-                              <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
-                                ?
+                              <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
+                                {displayNoteName}
+                                {isCorrect && '✓'}
                               </span>
                             );
-                          }
-                          return (
-                            <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                              {displayNoteName}
-                              {isCorrect && '✓'}
-                            </span>
-                          );
-                        })}
+                          })
+                        )}
                       </div>
                       
                       {/* 魔法名表示 */}
@@ -888,8 +906,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
+                          className={cn(
+                            "h-full transition-all duration-100",
+                            monster.gauge >= 90 
+                              ? "bg-gradient-to-r from-red-500 to-orange-500 animate-pulse" 
+                              : "bg-gradient-to-r from-purple-500 to-purple-700"
+                          )}
+                          style={{ 
+                            width: `${monster.gauge}%`,
+                            boxShadow: monster.gauge >= 90 ? '0 0 10px rgba(239, 68, 68, 0.6)' : 'none'
+                          }}
                         />
                       </div>
                       
