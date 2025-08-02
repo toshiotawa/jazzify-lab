@@ -598,7 +598,13 @@ export const useFantasyGameEngine = ({
       enemyHp,
       totalQuestions,
       simultaneousCount,
-      activeMonsters: activeMonsters.length
+      activeMonsters: activeMonsters.length,
+      firstMonster: activeMonsters[0] ? {
+        id: activeMonsters[0].id,
+        isQuestionVisible: activeMonsters[0].isQuestionVisible,
+        nextQuestionIndex: activeMonsters[0].nextQuestionIndex,
+        chordTarget: activeMonsters[0].chordTarget?.displayName
+      } : null
     });
   }, [onGameStateChange]);
   
@@ -787,6 +793,20 @@ export const useFantasyGameEngine = ({
     onEnemyAttack(attackingMonsterId);
   }, [onGameStateChange, onGameComplete, onEnemyAttack]);
   
+  // timeStoreのtick処理
+  useEffect(() => {
+    if (!gameState.isGameActive) return;
+    
+    // tick関数を定期的に呼び出す
+    const tickInterval = setInterval(() => {
+      useTimeStore.getState().tick();
+    }, 50); // 50ms間隔でtick
+    
+    return () => {
+      clearInterval(tickInterval);
+    };
+  }, [gameState.isGameActive]);
+  
   // プログレッションモードの出題タイミング管理
   useEffect(() => {
     if (!gameState.isGameActive || !gameState.currentStage || gameState.currentStage.mode !== 'progression') {
@@ -804,6 +824,18 @@ export const useFantasyGameEngine = ({
       const msPerMeasure = msPerBeat * timeState.timeSignature;
       const currentMeasureProgress = elapsed % msPerMeasure;
       const currentBeat = timeState.currentBeat;
+      
+      // デバッグログを追加
+      if (currentBeat === 2 || Math.random() < 0.01) { // 2拍目または1%の確率でログ出力
+        devLog.debug('⏰ タイミングチェック:', {
+          currentBeat,
+          currentMeasure: timeState.currentMeasure,
+          isCountIn: timeState.isCountIn,
+          elapsed,
+          currentMeasureProgress,
+          mode: gameState.currentStage?.mode
+        });
+      }
       
       // 判定タイミングが過ぎたかチェック（1拍目+200ms以降）
       if (currentMeasureProgress > msPerBeat + 200) {
