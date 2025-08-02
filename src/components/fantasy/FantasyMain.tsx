@@ -97,18 +97,23 @@ const FantasyMain: React.FC = () => {
             enemyHp: stage.enemy_hp,
             minDamage: stage.min_damage,
             maxDamage: stage.max_damage,
-            mode: stage.mode,
-            allowedChords: stage.allowed_chords,
+            mode: stage.mode as 'single' | 'progression' | 'rhythm',
+            allowedChords: stage.allowed_chords || [],
             chordProgression: stage.chord_progression,
-            showSheetMusic: stage.show_sheet_music,
-            showGuide: stage.show_guide,
-            simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+            showSheetMusic: stage.show_sheet_music ?? true,
+            showGuide: stage.show_guide ?? true,
             monsterIcon: stage.monster_icon || 'dragon',
+            bgmUrl: stage.bgm_url,
+            simultaneousMonsterCount: stage.simultaneous_monster_count ?? 1,
             bpm: stage.bpm || 120,
-            bgmUrl: stage.bgm_url || stage.mp3_url,
-            measureCount: stage.measure_count,
-            countInMeasures: stage.count_in_measures,
-            timeSignature: stage.time_signature
+            measureCount: stage.measure_count ?? 8,
+            countInMeasures: stage.count_in_measures ?? 0,
+            timeSignature: stage.time_signature ?? 4,
+            chordProgressionData: stage.chord_progression_data ? 
+              (typeof stage.chord_progression_data === 'string' ? 
+                JSON.parse(stage.chord_progression_data) : 
+                stage.chord_progression_data) : 
+              undefined
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
