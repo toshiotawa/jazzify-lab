@@ -46,6 +46,9 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
+  gameType?: 'quiz' | 'rhythm';
+  rhythmPattern?: 'random' | 'progression';
+  chordProgressionData?: Array<{ chord: string; measure: number; beat: number }>;
 }
 
 interface MonsterState {

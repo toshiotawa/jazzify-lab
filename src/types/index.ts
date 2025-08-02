@@ -648,6 +648,9 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  game_type?: 'quiz' | 'rhythm';
+  rhythm_pattern?: 'random' | 'progression';
+  chord_progression_data?: Array<{ chord: string; measure: number; beat: number }>;
 }
 
 export interface LessonContext {

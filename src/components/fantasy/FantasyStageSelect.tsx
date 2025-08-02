@@ -170,7 +170,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         bpm: stage.bpm || 120,
         measureCount: stage.measure_count,
         countInMeasures: stage.count_in_measures,
-        timeSignature: stage.time_signature
+        timeSignature: stage.time_signature,
+        gameType: stage.game_type as 'quiz' | 'rhythm',
+        rhythmPattern: stage.rhythm_pattern as 'random' | 'progression' | undefined,
+        chordProgressionData: Array.isArray(stage.chord_progression_data) ? stage.chord_progression_data : undefined
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -299,6 +302,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : "このステージはまだロックされています"}
           </div>
+          {unlocked && (
+            <div className="text-xs mt-1 text-gray-400">
+              {stage.gameType === 'rhythm'
+                ? `リズム（${stage.rhythmPattern === 'progression' ? 'コード進行' : 'ランダム'}）`
+                : 'クイズ'}
+            </div>
+          )}
         </div>
         
         {/* 右側のアイコン */}
