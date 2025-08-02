@@ -575,8 +575,7 @@ export const useFantasyGameEngine = ({
     const firstMonster = activeMonsters[0];
     const firstChord = firstMonster ? firstMonster.chordTarget : null;
 
-    // リズムモードの判定
-    const isRhythmMode = stage.mode === 'rhythm';
+    // 現在時刻を取得
     const now = Date.now();
 
     const newState: FantasyGameState = {
