@@ -665,30 +665,41 @@ export const useFantasyGameEngine = ({
           };
         }
         
-        // 判定ウィンドウを抜けた瞬間（1拍目+200ms後）
+        // 判定ウィンドウを抜けた瞬間（1拍目+201ms以降）
         if (!isInWindow && prevState.isInJudgmentWindow) {
           devLog.debug('⏰ 判定ウィンドウ終了', {
             beatOffset,
             currentChord: prevState.activeMonsters[0]?.chordTarget?.displayName
           });
           
-          // 1問目（currentQuestionIndex === 0）かつ、まだ一度も正解していない場合はNULLにしない
+          // 1問目（currentQuestionIndex === 0）かつ、まだ一度も正解していない場合は特別処理
           if (prevState.currentQuestionIndex === 0 && prevState.correctAnswers === 0) {
-            devLog.debug('📝 1問目はタイムオーバーでもNULLにしない');
-            return {
-              ...prevState,
-              isInJudgmentWindow: false
-            };
+            // 1問目は最初の判定チャンスが終わったらNULLにする
+            if (prevState.activeMonsters.some(m => m.chordTarget !== null)) {
+              const updatedMonsters = prevState.activeMonsters.map(m => ({
+                ...m,
+                chordTarget: null as any,
+                correctNotes: []
+              }));
+              
+              devLog.debug('📝 1問目の判定終了、NULLに設定');
+              
+              return {
+                ...prevState,
+                activeMonsters: updatedMonsters,
+                isInJudgmentWindow: false,
+                questionShowTime: null
+              };
+            }
           }
           
-          // タイムオーバー処理
+          // 通常のタイムオーバー処理
           if (prevState.activeMonsters.some(m => m.chordTarget !== null)) {
             // 判定が終わったらコードをNULLに
             const updatedMonsters = prevState.activeMonsters.map(m => ({
               ...m,
               chordTarget: null as any,
-              correctNotes: [],
-              gauge: 0 // ゲージもリセット
+              correctNotes: []
             }));
             
             return {
@@ -969,27 +980,34 @@ export const useFantasyGameEngine = ({
         const updatedMonsters = prevState.activeMonsters.map(monster => {
           const currentGauge = monster.gauge;
           
-          // 現在の小節の1拍目の時刻を計算
+          // 現在の小節の各拍の時刻を計算
           const currentMeasureNumber = Math.floor(elapsed / msPerMeasure);
           const currentMeasureStartTime = currentMeasureNumber * msPerMeasure;
-          const firstBeatTime = currentMeasureStartTime;
           
-          // 現在時刻から1拍目までの時間
+          // 各拍の時刻
+          const firstBeatTime = currentMeasureStartTime;
+          const secondBeatTime = currentMeasureStartTime + msPerBeat;
+          
+          // 現在時刻と各拍との関係
           const timeFromFirstBeat = elapsed - firstBeatTime;
+          const timeFromSecondBeat = elapsed - secondBeatTime;
           
           // 次の小節の1拍目の時刻
           const nextFirstBeatTime = firstBeatTime + msPerMeasure;
           const timeToNextFirstBeat = nextFirstBeatTime - elapsed;
           
-          // 判定ウィンドウ内かどうか
+          // 2拍目でリセット
+          if (timeFromSecondBeat >= 0 && timeFromSecondBeat < 100 && currentGauge >= 90) {
+            return {
+              ...monster,
+              gauge: 0
+            };
+          }
+          
+          // 判定ウィンドウ内かどうか（1拍目±200ms）
           const isInJudgmentWindow = timeFromFirstBeat >= -200 && timeFromFirstBeat <= 200;
           
-          // ゲージ計算
-          // 90%: 1拍目-200ms
-          // 95%: 1拍目ジャスト
-          // 100%: 1拍目+200ms
-          
-          if (isInJudgmentWindow) {
+          if (isInJudgmentWindow && currentGauge >= 85) {
             // 判定ウィンドウ内では線形補間
             // -200ms → 90%, 0ms → 95%, +200ms → 100%
             const progress = (timeFromFirstBeat + 200) / 400; // 0-1の範囲
@@ -997,18 +1015,12 @@ export const useFantasyGameEngine = ({
               ...monster,
               gauge: 90 + (progress * 10) // 90-100%の範囲
             };
-          } else if (currentGauge >= 100) {
-            // 100%に達したらリセット
-            return {
-              ...monster,
-              gauge: 0
-            };
           } else {
             // 通常時：次の判定ウィンドウ（90%）に向けて増加
             // 次の1拍目-200msに90%になるように計算
             const timeToNext90 = timeToNextFirstBeat - 200;
             
-            if (timeToNext90 > 0) {
+            if (timeToNext90 > 0 && currentGauge < 90) {
               const targetGauge = 90;
               const gaugeToAdd = targetGauge - currentGauge;
               const rateFor100ms = (gaugeToAdd / timeToNext90) * 100;
@@ -1018,12 +1030,8 @@ export const useFantasyGameEngine = ({
                 gauge: Math.min(currentGauge + rateFor100ms, 90)
               };
             } else {
-              // フォールバック
-              const defaultRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10);
-              return {
-                ...monster,
-                gauge: Math.min(currentGauge + defaultRate, 100)
-              };
+              // すでに90%以上の場合はそのまま
+              return monster;
             }
           }
         });
@@ -1221,7 +1229,7 @@ export const useFantasyGameEngine = ({
           if (completedMonsters.some(cm => cm.id === monster.id)) {
             // プログレッションモードの場合はNULLに設定（次のタイミングで出題）
             if (stateAfterAttack.currentStage?.mode === 'progression') {
-              return { ...monster, chordTarget: null as any, correctNotes: [], gauge: 0 };
+              return { ...monster, chordTarget: null as any, correctNotes: [] };
             } else {
               // シングルモードの場合は即座に新しい問題
               const nextChord = selectRandomChord(
