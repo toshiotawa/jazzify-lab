@@ -1,6 +1,8 @@
 /**
  * ファンタジーゲームエンジン
  * ゲームロジックとステート管理を担当
+ * 注：このエンジンはクイズモード（mode='single' | 'progression'）専用です
+ * リズムモード（mode='rhythm'）は RhythmGameScreen で処理されます
  */
 
 import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } from 'react';
