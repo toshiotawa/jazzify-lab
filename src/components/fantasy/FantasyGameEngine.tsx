@@ -1011,7 +1011,7 @@ export const useFantasyGameEngine = ({
     return () => {
       clearInterval(timer);
     };
-  }, [gameState.isGameActive, gameState.currentStage?.mode, onGameStateChange]);
+  }, [gameState.isGameActive, gameState.currentStage, onGameStateChange]);
   
   // ゲージタイマーの管理
   useEffect(() => {
