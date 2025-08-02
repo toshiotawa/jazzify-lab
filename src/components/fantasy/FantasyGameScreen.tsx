@@ -10,13 +10,15 @@ import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, getChordDefinition } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { useRhythmStore } from '@/stores/rhythmStore';
+import type { RhythmNote } from '@/stores/rhythmStore';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -60,6 +62,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
   
+  // リズムモード用のStore
+  const rhythmStore = useRhythmStore();
+  
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
   const { settings, updateSettings } = useGameStore();
@@ -72,9 +77,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   /* 毎 100 ms で時間ストア tick */
   useEffect(() => {
-    const id = setInterval(() => tick(), 100);
+    const id = setInterval(() => {
+      tick();
+      
+      // リズムモードの場合、ノーツ位置更新とクリーンアップ
+      if (stage.mode === 'rhythm' && startAt) {
+        const currentTime = performance.now();
+        rhythmStore.updateNotePositions(currentTime, 3000); // 3秒でスクロール
+        rhythmStore.cleanupOldNotes(currentTime);
+      }
+    }, 100);
     return () => clearInterval(id);
-  }, [tick]);
+  }, [tick, stage.mode, startAt, rhythmStore]);
 
   /* Ready → Start 判定 */
   const isReady =
@@ -115,6 +129,91 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume, startAt]);
+  
+  // リズムモード: ノーツ生成ロジック
+  useEffect(() => {
+    if (stage.mode !== 'rhythm' || !startAt || isReady) return;
+    
+    const bpm = stage.bpm || 120;
+    const beatDuration = 60000 / bpm; // 1拍のミリ秒
+    const measureDuration = beatDuration * (stage.timeSignature || 4);
+    const countInDuration = (stage.countInMeasures || 0) * measureDuration;
+    const totalMeasures = (stage.measureCount || 8) + (stage.countInMeasures || 0);
+    
+    // 次に生成すべきノーツの情報を追跡
+    let nextMeasureToGenerate = 1;
+    let lastGeneratedChord = '';
+    
+    const generateNotes = () => {
+      const currentTime = performance.now();
+      const elapsedFromStart = currentTime - startAt - readyDuration;
+      
+      // 先読み時間（3秒先まで生成）
+      const lookAheadTime = 3000;
+      const generateUntilTime = elapsedFromStart + lookAheadTime;
+      
+      // 生成すべき小節を計算
+      while (true) {
+        // ループを考慮した実際の経過小節数
+        const actualMeasure = nextMeasureToGenerate;
+        const measureStartTime = (actualMeasure - 1) * measureDuration;
+        
+        // 生成時刻を超えたら終了
+        if (measureStartTime > generateUntilTime) break;
+        
+        // ループ処理
+        let displayMeasure = actualMeasure;
+        if (actualMeasure > totalMeasures) {
+          // カウントイン後の小節番号に正規化
+          const loopPosition = ((actualMeasure - 1) % totalMeasures) + 1;
+          displayMeasure = loopPosition;
+        }
+        
+        // カウントイン中かメイン部分か判定
+        const isInCountIn = displayMeasure <= (stage.countInMeasures || 0);
+        
+        // コード選択
+        let chord = '';
+        if (stage.chordProgressionData && stage.chordProgressionData.chords.length > 0) {
+          // コード進行パターン
+          const progressionIndex = (displayMeasure - 1 - (stage.countInMeasures || 0)) % stage.chordProgressionData.chords.length;
+          if (progressionIndex >= 0) {
+            const chordData = stage.chordProgressionData.chords[progressionIndex];
+            chord = chordData.chord;
+            
+            // 拍の位置を考慮した時刻計算
+            const beatOffset = (chordData.beat - 1) * beatDuration;
+            const targetTime = startAt + readyDuration + measureStartTime + beatOffset;
+            
+            rhythmStore.addNote(chord, targetTime, displayMeasure, chordData.beat);
+          }
+        } else {
+          // ランダムパターン（1小節目の1拍目）
+          if (!isInCountIn) {
+            const availableChords = stage.allowedChords.filter(c => c !== lastGeneratedChord);
+            chord = availableChords[Math.floor(Math.random() * availableChords.length)] || stage.allowedChords[0];
+            lastGeneratedChord = chord;
+            
+            const targetTime = startAt + readyDuration + measureStartTime;
+            rhythmStore.addNote(chord, targetTime, displayMeasure, 1);
+          }
+        }
+        
+        nextMeasureToGenerate++;
+      }
+    };
+    
+    // 初回生成
+    generateNotes();
+    
+    // 定期的に新しいノーツを生成
+    const interval = setInterval(generateNotes, 500);
+    
+    return () => {
+      clearInterval(interval);
+      rhythmStore.reset();
+    };
+  }, [stage, startAt, isReady, readyDuration, rhythmStore]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -337,6 +436,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
+    onRhythmJudgment: (noteId, judgment) => {
+      devLog.debug('🎵 リズム判定:', { noteId, judgment });
+    },
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
   
@@ -369,6 +471,67 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInputBridge;
   }, [handleNoteInputBridge]);
+  
+  // リズムモード: 判定処理
+  useEffect(() => {
+    if (stage.mode !== 'rhythm' || !gameState.isGameActive) return;
+    
+    // 現在入力されているノートを追跡
+    const currentInputNotes = new Set<number>();
+    
+    // 判定チェック関数
+    const checkRhythmJudgment = () => {
+      const currentTime = performance.now();
+      
+      // アクティブな判定ウィンドウをチェック
+      for (const window of rhythmStore.judgmentWindows) {
+        if (window.judged) continue;
+        
+        // 判定ウィンドウ内かチェック
+        if (currentTime >= window.startTime && currentTime <= window.endTime) {
+          // 該当するコードの構成音を取得
+          const chordDef = getChordDefinition(window.chord, { lang: currentNoteNameLang, simple: currentSimpleNoteName });
+          if (!chordDef) continue;
+          
+          // 必要な音がすべて押されているかチェック
+          const requiredNotes = new Set(chordDef.notes.map(n => n % 12));
+          const allNotesPressed = Array.from(requiredNotes).every(note => 
+            gameState.activeMonsters.some(m => 
+              m.chordTarget.id === window.chord && m.correctNotes.includes(note)
+            )
+          );
+          
+                     if (allNotesPressed) {
+             // 成功判定
+             const judgment = rhythmStore.judgeNote(window.noteId, currentTime);
+             if (judgment === 'good') {
+               devLog.debug('🎵 リズム判定: GOOD', { noteId: window.noteId });
+              
+              // リズムモードでは敵に直接攻撃（モンスター紐付けなし）
+              const isSpecial = gameState.playerSp >= 5;
+              const damage = Math.floor(Math.random() * (stage.maxDamage - stage.minDamage + 1)) + stage.minDamage;
+              const damageDealt = damage * (isSpecial ? 2 : 1);
+              
+              // 最初のアクティブモンスターを攻撃対象とする
+              const targetMonster = gameState.activeMonsters[0];
+              if (targetMonster) {
+                handleChordCorrect(chordDef, isSpecial, damageDealt, false, targetMonster.id);
+              }
+            }
+          }
+        }
+        
+        // 判定ウィンドウを過ぎた場合はミス判定
+        if (currentTime > window.endTime && !window.judged) {
+          devLog.debug('🎵 リズム判定: MISS', { noteId: window.noteId });
+          handleEnemyAttack();
+        }
+      }
+    };
+    
+    const interval = setInterval(checkRhythmJudgment, 50);
+    return () => clearInterval(interval);
+  }, [stage.mode, gameState, rhythmStore, currentNoteNameLang, currentSimpleNoteName, handleChordCorrect, handleEnemyAttack]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -622,9 +785,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
   }, [gameState.enemyGauge]);
   
-  // NEXTコード表示（コード進行モード用）
+  // NEXTコード表示（クイズモード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    if (stage.mode !== 'quiz' || !stage.chordProgression) return null;
     
     const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
     return stage.chordProgression[nextIndex];
@@ -913,13 +1076,62 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
         </div>
         
-        {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
+        {/* NEXTコード表示（クイズモードのみ、サイズを縮小） */}
+        {stage.mode === 'quiz' && stage.chordProgression && getNextChord() && (
           <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">
               {getNextChord()}
             </div>
+          </div>
+        )}
+        
+        {/* リズムモード: 太鼓の達人風ノーツ表示 */}
+        {stage.mode === 'rhythm' && (
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-24 bg-black/30 border-y-2 border-yellow-400/50">
+            {/* 判定ライン */}
+            <div className="absolute left-32 top-0 bottom-0 w-1 bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.8)]" />
+            <div className="absolute left-28 top-1/2 -translate-y-1/2 text-yellow-400 text-sm font-bold">
+              判定
+            </div>
+            
+            {/* ノーツトラック */}
+            <div className="absolute inset-0 overflow-hidden">
+              {rhythmStore.activeNotes.map((note) => (
+                <div
+                  key={note.id}
+                  className="absolute top-1/2 -translate-y-1/2 transition-transform"
+                  style={{
+                    left: `${32 + (100 - 32) * note.position}%`,
+                    transform: `translateX(-50%) translateY(-50%)`,
+                  }}
+                >
+                  <div className={cn(
+                    "relative w-16 h-16 rounded-full flex items-center justify-center font-bold text-white shadow-lg",
+                    "bg-gradient-to-b from-red-500 to-red-700 border-2 border-red-800",
+                    note.judged && "opacity-50"
+                  )}>
+                    <span className="text-sm">{note.chord}</span>
+                    {/* リズムタイミング視覚補助 */}
+                    {!note.judged && note.position < 0.1 && (
+                      <div className="absolute inset-0 rounded-full animate-ping bg-yellow-400/50" />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* 判定結果表示 */}
+            {rhythmStore.lastJudgment && performance.now() - rhythmStore.lastJudgmentTime < 500 && (
+              <div className="absolute left-32 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                <div className={cn(
+                  "text-2xl font-bold animate-bounce",
+                  rhythmStore.lastJudgment === 'good' ? "text-yellow-400" : "text-red-500"
+                )}>
+                  {rhythmStore.lastJudgment === 'good' ? "GOOD!" : "MISS!"}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

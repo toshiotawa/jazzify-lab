@@ -381,7 +381,7 @@ const FantasyMain: React.FC = () => {
         enemyHp: nextStageData.enemy_hp,
         minDamage: nextStageData.min_damage,
         maxDamage: nextStageData.max_damage,
-        mode: nextStageData.mode as 'single' | 'progression',
+        mode: nextStageData.mode as 'quiz' | 'rhythm',
         allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
         chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
         showSheetMusic: nextStageData.show_sheet_music,
@@ -392,7 +392,8 @@ const FantasyMain: React.FC = () => {
         bpm: nextStageData.bpm || 120,
         measureCount: nextStageData.measure_count,
         countInMeasures: nextStageData.count_in_measures,
-        timeSignature: nextStageData.time_signature
+        timeSignature: nextStageData.time_signature,
+        chordProgressionData: nextStageData.chord_progression_data || undefined
       };
 
       setGameResult(null);
