@@ -14,6 +14,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import RhythmMode from './RhythmMode';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
@@ -654,10 +655,32 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ★ マウント時 autoStart なら即開始
   useEffect(() => {
-    if (autoStart) {
+    if (autoStart && stage.mode !== 'rhythm') {
       initializeGame(stage);
     }
   }, [autoStart, initializeGame, stage]);
+
+  // リズムモードの場合は専用コンポーネントを表示
+  if (stage.mode === 'rhythm') {
+    return (
+      <RhythmMode
+        stage={stage}
+        onNoteOn={handleNoteInputBridge}
+        onNoteOff={(note: number) => {
+          activeNotesRef.current.delete(note);
+        }}
+        onChordCorrect={handleChordCorrect}
+        onChordIncorrect={handleChordIncorrect}
+        onEnemyAttack={handleEnemyAttack}
+        onGameComplete={(result) => {
+          // リズムモードの完了処理
+          const finalScore = result === 'clear' ? 100 : 0;
+          onGameComplete(result, finalScore, 1, 1);
+        }}
+        displayOpts={{ lang: currentNoteNameLang, simple: currentSimpleNoteName }}
+      />
+    );
+  }
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
