@@ -105,7 +105,8 @@ export function toDisplayName(noteName: string, opts: DisplayOpts): string {
  * @returns 表示用コード名
  */
 export function toDisplayChordName(chordName: string, opts: DisplayOpts): string {
-  if (!chordName) return '';
+  // chordNameがundefined、null、空文字、または文字列でない場合は空文字を返す
+  if (!chordName || typeof chordName !== 'string') return '';
   
   // ルート音とサフィックスを分離
   const match = chordName.match(/^([A-G][#bx]*)(.*)/);

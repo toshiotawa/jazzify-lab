@@ -867,8 +867,26 @@ export const useFantasyGameEngine = ({
             if (!monster.isQuestionVisible && monster.nextQuestionIndex !== undefined) {
               // プログレッションモードではchordProgressionがある場合はそちらを優先
               const progression = prevState.currentStage.chordProgression || prevState.currentStage.allowedChords;
+              
+              // progressionが空の場合はスキップ
+              if (!progression || progression.length === 0) {
+                devLog.error('❌ プログレッション配列が空です');
+                return monster;
+              }
+              
               const currentIndex = monster.nextQuestionIndex % progression.length;
               const nextChordId = progression[currentIndex];
+              
+              // nextChordIdが存在しない場合はスキップ
+              if (!nextChordId) {
+                devLog.error('❌ 次のコードIDが見つかりません:', {
+                  currentIndex,
+                  progression,
+                  nextQuestionIndex: monster.nextQuestionIndex
+                });
+                return monster;
+              }
+              
               const nextChord = getChordDefinition(nextChordId, displayOpts);
               
               devLog.debug('🎵 プログレッション出題:', {
