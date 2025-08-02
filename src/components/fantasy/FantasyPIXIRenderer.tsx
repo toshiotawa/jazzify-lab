@@ -827,8 +827,10 @@ export class FantasyPIXIInstance {
     sprite.x = visualState.x + gameState.staggerOffset.x;
     sprite.y = visualState.y + gameState.staggerOffset.y;
     
-    sprite.scale.x = visualState.scale;
-    sprite.scale.y = visualState.scale;
+    if (sprite.scale) {
+      sprite.scale.x = visualState.scale;
+      sprite.scale.y = visualState.scale;
+    }
     
     sprite.rotation = visualState.rotation;
     sprite.tint = gameState.isHit ? gameState.hitColor : visualState.tint;

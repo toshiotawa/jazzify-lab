@@ -153,13 +153,20 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
     const blocks = [];
     
     for (let i = 0; i < 10; i++) {
+      const isJudgmentBlock = i >= 9; // 90%以上（9番目と10番目のブロック）
+      const isFilled = i < filledBlocks || (i === Math.floor(enemyGauge / 10) && enemyGauge % 10 > 0);
+      
       blocks.push(
         <div
           key={i}
           className={cn(
-            "flex-1 border border-gray-600 transition-all duration-100",
+            "flex-1 border transition-all duration-100",
             sizeConfig.gauge,
-            i < filledBlocks ? "bg-red-500" : "bg-gray-700"
+            // 判定受付ゾーン（90-100%）の色分け
+            isFilled && isJudgmentBlock ? "bg-yellow-500 animate-pulse border-yellow-400" :
+            isFilled ? "bg-red-500 border-red-600" :
+            isJudgmentBlock ? "bg-gray-600 border-gray-500" : // 判定ゾーン未到達時
+            "bg-gray-700 border-gray-600"
           )}
         />
       );
