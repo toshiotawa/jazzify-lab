@@ -692,12 +692,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  if (!overlay && !gameState.isCompleting && !gameState.isGameActive) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
       stageName: stage.name,
-      hasOverlay: !!overlay
+      hasOverlay: !!overlay,
+      activeMonsters: gameState.activeMonsters.length
     });
     
     return (

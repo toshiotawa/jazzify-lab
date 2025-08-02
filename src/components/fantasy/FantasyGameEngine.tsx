@@ -689,25 +689,56 @@ export const useFantasyGameEngine = ({
           
           return finalState;
         } else {
-          // 次の問題（ループ対応）
-          let nextChord;
-          if (prevState.currentStage?.mode === 'single') {
-            // ランダムモード：前回と異なるコードを選択
-            const previousChordId = prevState.currentChordTarget?.id;
-            nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId, displayOpts);
+          // プログレッションモードの場合は、攻撃したモンスターのcorrectNotesをリセット
+          let updatedMonsters = prevState.activeMonsters;
+          
+          if (prevState.currentStage?.mode === 'progression') {
+            updatedMonsters = prevState.activeMonsters.map(monster => {
+              // 攻撃したモンスターのみリセット
+              if (attackingMonsterId && monster.id === attackingMonsterId) {
+                return {
+                  ...monster,
+                  correctNotes: [], // バッファをリセット
+                  gauge: 0 // ゲージもリセット
+                };
+              }
+              return monster;
+            });
           } else {
-            // コード進行モード：ループさせる
-            const progression = prevState.currentStage?.chordProgression || [];
-            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            // 通常モードの場合は次の問題へ
+            let nextChord;
+            if (prevState.currentStage?.mode === 'single') {
+              // ランダムモード：前回と異なるコードを選択
+              const previousChordId = prevState.currentChordTarget?.id;
+              nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId, displayOpts);
+            } else {
+              // コード進行モード：ループさせる
+              const progression = prevState.currentStage?.chordProgression || [];
+              const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+              nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            }
+            
+            // 通常モードでは新しいコードを割り当て
+            updatedMonsters = prevState.activeMonsters.map(monster => ({
+              ...monster,
+              chordTarget: nextChord!,
+              correctNotes: [],
+              gauge: 0
+            }));
           }
           
           const nextState = {
             ...prevState,
             playerHp: newHp,
             playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
-            currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
-            currentChordTarget: nextChord,
+            activeMonsters: updatedMonsters,
+            // 互換性のためcurrentChordTargetを更新（通常モードの場合）
+            currentChordTarget: prevState.currentStage?.mode === 'progression' 
+              ? prevState.currentChordTarget // プログレッションモードでは維持
+              : updatedMonsters[0]?.chordTarget || prevState.currentChordTarget,
+            currentQuestionIndex: prevState.currentStage?.mode === 'progression'
+              ? prevState.currentQuestionIndex // プログレッションモードでは維持
+              : (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
             enemyGauge: 0,
             correctNotes: [] // 新しいコードでリセット
           };
@@ -735,7 +766,46 @@ export const useFantasyGameEngine = ({
       if (elapsed < 0) return; // Ready中はスキップ
       
       const msPerBeat = 60000 / timeState.bpm;
+      const msPerMeasure = msPerBeat * timeState.timeSignature;
+      const currentMeasureProgress = elapsed % msPerMeasure;
       const currentBeat = timeState.currentBeat;
+      
+      // 判定タイミングが過ぎたかチェック（1拍目+200ms以降）
+      if (currentMeasureProgress > msPerBeat + 200) {
+        setGameState(prevState => {
+          if (!prevState.currentStage || prevState.currentStage.mode !== 'progression') {
+            return prevState;
+          }
+          
+          // 判定タイミングが過ぎたら、すべてのモンスターのバッファをリセット
+          const hasAnyCorrectNotes = prevState.activeMonsters.some(m => m.correctNotes.length > 0);
+          
+          if (hasAnyCorrectNotes) {
+            const updatedMonsters = prevState.activeMonsters.map(monster => {
+              if (monster.correctNotes.length > 0) {
+                return {
+                  ...monster,
+                  correctNotes: [], // バッファをリセット
+                  // 問題が表示されていて、攻撃に失敗した場合は問題を非表示に
+                  isQuestionVisible: false
+                };
+              }
+              return monster;
+            });
+            
+            const nextState = {
+              ...prevState,
+              activeMonsters: updatedMonsters,
+              correctNotes: [] // 互換性のため
+            };
+            
+            onGameStateChange(nextState);
+            return nextState;
+          }
+          
+          return prevState;
+        });
+      }
       
       // 毎小節の2拍目で出題
       if (currentBeat === 2) {
