@@ -292,6 +292,18 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             {unlocked ? stage.name : "???"}
           </div>
           
+          {/* モード表示 */}
+          {unlocked && (
+            <div className="text-xs text-yellow-300 mb-1">
+              {stage.mode === 'rhythm' ? 'リズム' : 'クイズ'}
+              {stage.mode === 'rhythm' && (
+                <span className="ml-2">
+                  / {stage.chord_progression_data ? 'コード進行' : 'ランダム'}
+                </span>
+              )}
+            </div>
+          )}
+          
           {/* 説明文 */}
           <div className={cn(
             "text-sm leading-relaxed",
