@@ -324,6 +324,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const {
     gameState,
     handleNoteInput: engineHandleNoteInput,
+    handleRhythmNoteInput, // 追加
+    updateRhythmMode, // 追加
     initializeGame,
     stopGame,
     getCurrentEnemy,
@@ -361,15 +363,36 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       console.error('Failed to play note:', error);
     }
     
-    // ファンタジーゲームエンジンにのみ送信
-    engineHandleNoteInput(note);
-  }, [engineHandleNoteInput]);
+    // リズムモードとクイズモードで処理を分岐
+    if (stage.mode === 'rhythm') {
+      // リズムモードでは現在時刻を渡す
+      const currentTime = performance.now();
+      handleRhythmNoteInput(note, currentTime);
+    } else {
+      // クイズモード（既存の処理）
+      engineHandleNoteInput(note);
+    }
+  }, [engineHandleNoteInput, handleRhythmNoteInput, stage.mode]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInputBridge;
   }, [handleNoteInputBridge]);
   
+  // リズムモード用のアップデート処理
+  useEffect(() => {
+    if (stage.mode !== 'rhythm' || !gameState.isGameActive) {
+      return;
+    }
+    
+    // 60FPSでアップデート
+    const interval = setInterval(() => {
+      updateRhythmMode();
+    }, 16);
+    
+    return () => clearInterval(interval);
+  }, [stage.mode, gameState.isGameActive, updateRhythmMode]);
+
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
     devLog.debug('🎮 handlePixiReady called', { hasRenderer: !!renderer });
@@ -832,39 +855,76 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {stage.mode === 'rhythm' ? (
+                          // リズムモードでは現在のコードを表示
+                          gameState.rhythmCurrentChords?.get(monster.id)?.chord.displayName || ''
+                        ) : (
+                          // クイズモードでは通常通り表示
+                          monster.chordTarget.displayName
+                        )}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
-                          // 表示オプションを定義
-                          const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
-                          // 表示用の音名に変換
-                          const displayNoteName = toDisplayName(noteName, displayOpts);
-                          
-                          // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
-                          const noteObj = parseNote(noteName + '4'); // オクターブはダミー
-                          const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
-                          
-                          const isCorrect = monster.correctNotes.includes(noteMod12);
+                        {stage.mode === 'rhythm' ? (
+                          // リズムモードでのヒント表示
+                          (() => {
+                            const rhythmChord = gameState.rhythmCurrentChords?.get(monster.id);
+                            if (!rhythmChord) return null;
+                            
+                            return rhythmChord.chord.noteNames.map((noteName, index) => {
+                              const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
+                              const displayNoteName = toDisplayName(noteName, displayOpts);
+                              const noteObj = parseNote(noteName + '4');
+                              const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+                              const isCorrect = monster.correctNotes.includes(noteMod12);
 
-                          if (!stage.showGuide && !isCorrect) {
+                              if (!stage.showGuide && !isCorrect) {
+                                return (
+                                  <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                    ?
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
+                                  {displayNoteName}
+                                  {isCorrect && '✓'}
+                                </span>
+                              );
+                            });
+                          })()
+                        ) : (
+                          // クイズモードでの通常表示
+                          monster.chordTarget.noteNames.map((noteName, index) => {
+                            // 表示オプションを定義
+                            const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
+                            // 表示用の音名に変換
+                            const displayNoteName = toDisplayName(noteName, displayOpts);
+                            
+                            // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
+                            const noteObj = parseNote(noteName + '4'); // オクターブはダミー
+                            const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+                            
+                            const isCorrect = monster.correctNotes.includes(noteMod12);
+
+                            if (!stage.showGuide && !isCorrect) {
+                              return (
+                                <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                  ?
+                                </span>
+                              );
+                            }
                             return (
-                              <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
-                                ?
+                              <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
+                                {displayNoteName}
+                                {isCorrect && '✓'}
                               </span>
                             );
-                          }
-                          return (
-                            <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                              {displayNoteName}
-                              {isCorrect && '✓'}
-                            </span>
-                          );
-                        })}
+                          })
+                        )}
                       </div>
                       
                       {/* 魔法名表示 */}
@@ -887,10 +947,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         }}
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
-                        />
+                        {stage.mode === 'rhythm' ? (
+                          // リズムモードでは判定ウィンドウを表示
+                          <>
+                            <div
+                              className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                              style={{ width: `${monster.gauge}%` }}
+                            />
+                            {/* 判定ウィンドウ（90-100%の範囲） */}
+                            <div
+                              className="absolute top-0 h-full bg-yellow-400 opacity-30"
+                              style={{ 
+                                left: '90%',
+                                width: '10%'
+                              }}
+                            />
+                          </>
+                        ) : (
+                          // クイズモードでは通常のゲージ表示
+                          <div
+                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                            style={{ width: `${monster.gauge}%` }}
+                          />
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
