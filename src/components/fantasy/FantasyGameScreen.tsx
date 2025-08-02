@@ -14,6 +14,7 @@ import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, 
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { RhythmModeScreen } from './RhythmModeScreen';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
@@ -21,7 +22,7 @@ import { note as parseNote } from 'tonal';
 interface FantasyGameScreenProps {
   stage: FantasyStage;
   autoStart?: boolean;        // ★ 追加
-  onGameComplete: (result: 'clear' | 'gameover', score: number, correctAnswers: number, totalQuestions: number) => void;
+  onGameComplete: (result: 'clear' | 'gameover', score?: number, correctAnswers?: number, totalQuestions?: number) => void;
   onBackToStageSelect: () => void;
   noteNameLang?: DisplayOpts['lang'];     // 音名表示言語
   simpleNoteName?: boolean;                // 簡易表記
@@ -39,6 +40,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   simpleNoteName = false,
   lessonMode = false
 }) => {
+  // モード判定でエンジンを切り替え
+  const gameMode = stage.mode || 'quiz'; // デフォルトはクイズモード
+  
+  if (gameMode === 'rhythm') {
+    return (
+      <RhythmModeScreen
+        stage={stage}
+        onGameComplete={onGameComplete}
+        onBackToStageSelect={onBackToStageSelect}
+      />
+    );
+  }
+  
+  // 既存のクイズモード（以下変更なし）
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
   // エフェクト状態

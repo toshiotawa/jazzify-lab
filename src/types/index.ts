@@ -635,9 +635,10 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'quiz' | 'rhythm'; // 'quiz' | 'rhythm' を追加
   allowed_chords: string[];
   chord_progression?: string[];
+  chord_progression_data?: ChordProgressionData | null; // 新規追加
   show_sheet_music: boolean;
   show_guide: boolean;
   simultaneous_monster_count?: number;
@@ -648,6 +649,47 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+}
+
+// リズムモード用の新規型定義
+export interface ChordProgressionData {
+  chords: Array<{
+    beat: number;      // 拍位置（1.0, 1.5, 2.0など）
+    chord: string;     // コード名
+    measure: number;   // 小節番号
+  }>;
+}
+
+export interface RhythmNote {
+  id: string;
+  chord: string;
+  targetTime: number; // 秒
+  measure: number;
+  beat: number;
+  status: 'waiting' | 'active' | 'hit' | 'missed';
+  x?: number;         // 描画用X座標
+  y?: number;         // 描画用Y座標
+}
+
+export interface JudgmentResult {
+  type: 'hit' | 'miss';
+  rank?: 'perfect' | 'good'; // hit時のランク
+  timing?: number;           // タイミング誤差（ms）
+  note?: RhythmNote;         // 対象ノーツ
+  reason?: string;           // miss時の理由
+}
+
+export interface RhythmGameState {
+  notes: RhythmNote[];
+  currentTime: number;
+  score: number;
+  combo: number;
+  maxCombo: number;
+  hitCount: number;
+  missCount: number;
+  isPlaying: boolean;
+  playerHp: number;
+  enemyHp: number;
 }
 
 export interface LessonContext {
