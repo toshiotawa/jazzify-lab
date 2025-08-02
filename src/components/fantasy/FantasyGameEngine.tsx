@@ -439,7 +439,7 @@ export const useFantasyGameEngine = ({
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
   // ゲーム初期化
-  const initializeGame = useCallback((stage: FantasyStage) => {
+  const initializeGame = useCallback(async (stage: FantasyStage) => {
     devLog.debug('🎮 ゲーム初期化開始:', {
       stage: JSON.stringify(stage, null, 2)
     });
