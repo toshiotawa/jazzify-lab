@@ -5,6 +5,16 @@ interface TimeState {
   startAt: number | null
   /* Ready フェーズ長(ms) – デフォルト 2 秒 */
   readyDuration: number
+  /* Helper: get current beat timing info */
+  getBeatWindow: (nowMs?: number) => { 
+    barIndex: number; 
+    beatIndex: number; 
+    msIntoBeat: number; 
+    msIntoBar: number; 
+    barStartMs: number; 
+    msecPerBeat: number;
+    msecPerBar: number;
+  } | null
   /* 拍子(4=4/4, 3/4 なら 3) */
   timeSignature: number
   /* BPM */
@@ -39,6 +49,34 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  getBeatWindow: (nowMs = performance.now()) => {
+    const s = get()
+    if (s.startAt === null) return null
+    
+    const elapsed = nowMs - s.startAt
+    if (elapsed < s.readyDuration) return null
+    
+    const gameElapsed = elapsed - s.readyDuration
+    const msecPerBeat = 60000 / s.bpm
+    const msecPerBar = msecPerBeat * s.timeSignature
+    
+    const totalBars = Math.floor(gameElapsed / msecPerBar)
+    const barIndex = totalBars - s.countInMeasures
+    const msIntoBar = gameElapsed % msecPerBar
+    const beatIndex = Math.floor(msIntoBar / msecPerBeat)
+    const msIntoBeat = msIntoBar % msecPerBeat
+    const barStartMs = s.startAt + s.readyDuration + (totalBars * msecPerBar)
+    
+    return {
+      barIndex,
+      beatIndex,
+      msIntoBeat,
+      msIntoBar,
+      barStartMs,
+      msecPerBeat,
+      msecPerBar
+    }
+  },
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,

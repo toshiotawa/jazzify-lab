@@ -607,15 +607,46 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return hearts;
   }, [heartFlash]);
   
+  // Helper function to interpolate between two colors
+  const interpolateColor = (color1: string, color2: string, factor: number): string => {
+    // Convert hex to RGB if needed
+    const hexToRgb = (hex: string): [number, number, number] => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? [
+        parseInt(result[1], 16),
+        parseInt(result[2], 16),
+        parseInt(result[3], 16)
+      ] : [0, 0, 0];
+    };
+    
+    // For gradient colors, use the main color
+    const c1 = color1.includes('#') ? hexToRgb(color1) : [245, 158, 11]; // yellow-500
+    const c2 = color2.includes('#') ? hexToRgb(color2) : [239, 68, 68]; // red-500
+    
+    const r = Math.round(c1[0] + (c2[0] - c1[0]) * factor);
+    const g = Math.round(c1[1] + (c2[1] - c1[1]) * factor);
+    const b = Math.round(c1[2] + (c2[2] - c1[2]) * factor);
+    
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+  
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
+    const gaugePercent = gameState.enemyGauge;
+    const isHotZone = gaugePercent >= 90;
+    const hotness = isHotZone ? (gaugePercent - 90) / 10 : 0;
+    const gaugeColor = isHotZone 
+      ? interpolateColor('#f59e0b', '#ef4444', hotness) // yellow-500 to red-500
+      : undefined;
+    
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
+          className={`h-full ${!isHotZone ? 'bg-gradient-to-r from-yellow-500 to-orange-400' : ''} rounded-full transition-all duration-200 ease-out`}
           style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+            width: `${Math.min(gaugePercent, 100)}%`,
+            backgroundColor: gaugeColor,
+            boxShadow: gaugePercent > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
           }}
         />
       </div>
@@ -660,9 +691,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  const isInGame = gameState.isGameActive || gameState.isCompleting;
+  if (!overlay && !isInGame) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
+      isCompleting: gameState.isCompleting,
       hasCurrentChord: !!gameState.currentChordTarget,
       stageName: stage.name,
       hasOverlay: !!overlay
