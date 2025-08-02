@@ -43,7 +43,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
   // エフェクト状態
-  // const [damageShake, setDamageShake] = useState(false);
+  const [damageShake, setDamageShake] = useState(false);
   const [overlay, setOverlay] = useState<null | { text:string }>(null); // ★★★ add
   const [heartFlash, setHeartFlash] = useState(false); // ハートフラッシュ効果
   
@@ -333,13 +333,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     rhythmState
     // ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: null, // ★★★ change
+    stage: stage, // ★★★ change - Pass actual stage for rhythm mode
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
-    displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
+    displayOpts: { lang: 'ja', simple: false } // コードネーム表示は日本語、簡易表記OFF
   });
   
   // 現在の敵情報を取得

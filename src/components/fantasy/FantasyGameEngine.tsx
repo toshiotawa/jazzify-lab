@@ -1160,10 +1160,15 @@ export const useFantasyGameEngine = ({
   }, [gameState, onEnemyAttack, onGameComplete]);
   
   const handleRhythmChordChange = useCallback((chord: string) => {
+    devLog.debug('Rhythm chord change:', { chord, isActive: gameState.isGameActive, monsters: gameState.activeMonsters.length });
+    
     if (!gameState.isGameActive || gameState.activeMonsters.length === 0) return;
     
     const chordDef = getChordDefinition(chord, displayOpts);
-    if (!chordDef) return;
+    if (!chordDef) {
+      devLog.warn('Failed to get chord definition for:', chord);
+      return;
+    }
     
     // Update the current chord for all active monsters in rhythm mode
     setGameState(prev => ({
@@ -1188,15 +1193,27 @@ export const useFantasyGameEngine = ({
   // リズムモード用のノート入力ハンドラ
   const handleNoteInputWithRhythm = useCallback((note: number) => {
     if (stage?.mode === 'rhythm' && gameState.isGameActive) {
-      // リズムモードの場合、現在のコードが何かを判定
-      if (rhythmState.currentChord) {
-        // 入力されたノートから完成したコードを推測
-        const completedChord = rhythmState.currentChord;
-        const result = judgeChordInput(completedChord);
+      // リズムモードでも通常の入力処理を行う
+      handleNoteInput(note);
+      
+      // コードが完成したかチェック
+      if (gameState.activeMonsters.length > 0) {
+        const monster = gameState.activeMonsters[0];
+        const targetChord = monster.chordTarget;
         
-        if (!result) {
-          // 判定ウィンドウ外の入力は無視
-          return;
+        // 入力されたノートを含めて、コードが完成したかチェック
+        const inputNotes = [...monster.correctNotes, note % 12];
+        const targetNotes = [...new Set(targetChord.notes.map(n => n % 12))];
+        
+        if (inputNotes.length === targetNotes.length && 
+            inputNotes.every(n => targetNotes.includes(n))) {
+          // コードが完成した場合、判定を行う
+          const result = judgeChordInput(rhythmState.currentChord || '');
+          
+          if (!result) {
+            // 判定ウィンドウ外だった場合は通常通り処理
+            devLog.debug('Rhythm: Chord completed outside judgment window');
+          }
         }
       }
     } else {

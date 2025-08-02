@@ -3,9 +3,9 @@
  * リズムモード専用のゲームロジック
  */
 
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { devLog } from '@/utils/logger';
 import { useTimeStore } from '@/stores/timeStore';
-import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface ChordProgressionEntry {
   measure: number;
@@ -50,6 +50,7 @@ interface UseRhythmEngineProps {
 }
 
 const JUDGMENT_WINDOW_MS = 200; // 前後200ms
+const CHORD_APPEAR_ADVANCE_BEATS = 2; // コードを2拍前に表示
 
 export function useRhythmEngine({
   stage,
@@ -82,6 +83,7 @@ export function useRhythmEngine({
   // Initialize chord progression or random pattern
   useEffect(() => {
     if (stage.mode !== 'rhythm') return;
+    if (!startAt) return; // Wait until game actually starts
     
     const judgments: RhythmJudgment[] = [];
     
@@ -106,11 +108,18 @@ export function useRhythmEngine({
       });
     } else {
       // Random mode - generate chords for each measure
-      for (let measure = stage.countInMeasures + 1; measure <= stage.countInMeasures + stage.measureCount; measure++) {
-        const chord = stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)];
+      // First, generate initial chords for all measures
+      const chordPattern: string[] = [];
+      for (let i = 0; i < stage.measureCount; i++) {
+        chordPattern.push(stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)]);
+      }
+      
+      // Create judgments with proper timing
+      for (let i = 0; i < stage.measureCount; i++) {
+        const measure = stage.countInMeasures + 1 + i;
         const timing = getMsFromMeasureBeat(measure, 1);
         judgments.push({
-          chord,
+          chord: chordPattern[i],
           measure,
           beat: 1,
           windowStart: timing - JUDGMENT_WINDOW_MS,
@@ -132,7 +141,13 @@ export function useRhythmEngine({
     if (judgments[0]) {
       onChordChange(judgments[0].chord);
     }
-  }, [stage, getMsFromMeasureBeat, onChordChange]);
+    
+    devLog.debug('Rhythm judgments initialized:', { 
+      count: judgments.length, 
+      first: judgments[0],
+      mode: stage.mode
+    });
+  }, [stage, getMsFromMeasureBeat, onChordChange, startAt]);
 
   // Check for missed judgments and update current chord
   useEffect(() => {
