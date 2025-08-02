@@ -10,9 +10,12 @@ import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { useFantasyGameEngine } from './FantasyGameEngine';
+import type { ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
+import TaikoPIXIRenderer from './TaikoPIXIRenderer';
+import type { TaikoPIXIInstance } from './TaikoPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
@@ -138,6 +141,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         },
         onNoteOff: (note: number) => {
           devLog.debug('🎹 MIDI Note Off:', { note });
+          activeNotesRef.current.delete(note);
+          if (engineHandleNoteOffRef.current) {
+            engineHandleNoteOffRef.current(note);
+          }
         },
         playMidiSound: true // 通常プレイと同様に共通音声システムを有効化
       });
@@ -198,6 +205,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []); // 空の依存配列で一度だけ実行
   
+  // engineHandleNoteOffをRefに保存
+  const engineHandleNoteOffRef = useRef<typeof engineHandleNoteOff>();
+  useEffect(() => {
+    engineHandleNoteOffRef.current = engineHandleNoteOff;
+  }, [engineHandleNoteOff]);
+  
   // ★★★ 修正箇所 ★★★
   // gameStoreのデバイスIDを監視して接続/切断
   useEffect(() => {
@@ -234,6 +247,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
+  const [taikoPixiInstance, setTaikoPixiInstance] = useState<TaikoPIXIInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
@@ -324,6 +338,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const {
     gameState,
     handleNoteInput: engineHandleNoteInput,
+    handleNoteOff: engineHandleNoteOff,
     initializeGame,
     stopGame,
     getCurrentEnemy,
@@ -434,6 +449,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             const { stopNote } = await import('@/utils/MidiController');
             stopNote(note);
             activeNotesRef.current.delete(note);
+            if (engineHandleNoteOffRef.current) {
+              engineHandleNoteOffRef.current(note);
+            }
             devLog.debug('🎵 Stopped note via release:', note);
           } catch (error) {
             console.error('Failed to stop note:', error);
@@ -503,6 +521,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
     setFantasyPixiInstance(instance);
   }, []);
+  
+  // プログレッションモード: ノーツの管理
+  useEffect(() => {
+    if (stage.mode !== 'progression' || !taikoPixiInstance) return;
+    
+    // 新しいノーツが追加されたら太鼓UIに追加
+    if (gameState.currentProgressionNote && !gameState.currentProgressionNote.isJudged) {
+      taikoPixiInstance.addNote(
+        gameState.currentProgressionNote.chord,
+        gameState.currentProgressionNote.targetBeat,
+        gameState.currentProgressionNote.targetMeasure
+      );
+    }
+    
+    // ゲーム開始時にすべてのノーツをクリア
+    if (!gameState.isGameActive) {
+      taikoPixiInstance.clearAllNotes();
+    }
+  }, [gameState.currentProgressionNote, gameState.isGameActive, taikoPixiInstance, stage.mode]);
   
   // 魔法名表示ハンドラー
   const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
@@ -756,26 +793,60 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         
         {/* ===== モンスター＋エフェクト描画エリア ===== */}
         <div className="mb-2 text-center relative w-full">
-          <div
-            ref={monsterAreaRef}
-            className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
-            style={{ height: 'min(200px, 30vh)' }}
-          >
-            {/* 魔法名表示 - モンスターカード内に移動 */}
-            <FantasyPIXIRenderer
-              width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
-              height={200}
-              monsterIcon={currentEnemy.icon}
-    
-              enemyGauge={gameState.enemyGauge}
-              onReady={handleFantasyPixiReady}
-              onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
-              className="w-full h-full"
-              activeMonsters={gameState.activeMonsters}
-              imageTexturesRef={imageTexturesRef}
-            />
-          </div>
+          {stage.mode === 'progression' ? (
+            // プログレッションモード: モンスターと太鼓UIを横並び
+            <div className="flex gap-2 w-full" style={{ height: 'min(200px, 30vh)' }}>
+              {/* モンスターUI (左側) */}
+              <div
+                ref={monsterAreaRef}
+                className="relative flex-1 bg-black bg-opacity-20 rounded-lg overflow-hidden"
+              >
+                <FantasyPIXIRenderer
+                  width={Math.max(monsterAreaWidth / 2 - 4, 1)}   // 半分の幅
+                  height={200}
+                  monsterIcon={currentEnemy.icon}
+                  enemyGauge={gameState.enemyGauge}
+                  onReady={handleFantasyPixiReady}
+                  onMonsterDefeated={handleMonsterDefeated}
+                  onShowMagicName={handleShowMagicName}
+                  className="w-full h-full"
+                  activeMonsters={gameState.activeMonsters}
+                  imageTexturesRef={imageTexturesRef}
+                />
+              </div>
+              
+              {/* 太鼓UI (右側) */}
+              <div className="relative flex-1 bg-black bg-opacity-20 rounded-lg overflow-hidden">
+                <TaikoPIXIRenderer
+                  width={Math.max(monsterAreaWidth / 2 - 4, 1)}
+                  height={200}
+                  onReady={setTaikoPixiInstance}
+                  currentChord={gameState.currentProgressionNote?.chord || null}
+                  nextChordTime={gameState.nextNoteTime}
+                />
+              </div>
+            </div>
+          ) : (
+            // シングルモード: 従来通りモンスターUIのみ
+            <div
+              ref={monsterAreaRef}
+              className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
+              style={{ height: 'min(200px, 30vh)' }}
+            >
+              <FantasyPIXIRenderer
+                width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
+                height={200}
+                monsterIcon={currentEnemy.icon}
+                enemyGauge={gameState.enemyGauge}
+                onReady={handleFantasyPixiReady}
+                onMonsterDefeated={handleMonsterDefeated}
+                onShowMagicName={handleShowMagicName}
+                className="w-full h-full"
+                activeMonsters={gameState.activeMonsters}
+                imageTexturesRef={imageTexturesRef}
+              />
+            </div>
+          )}
           
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">

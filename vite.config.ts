@@ -27,12 +27,15 @@ export default defineConfig(({ mode }) => {
       minifyIdentifiers: isProduction,
       minifySyntax: isProduction,
       minifyWhitespace: isProduction,
-      legalComments: isProduction ? 'none' : 'eof',
+      legalComments: 'none',
+      banner: '',
       // プロダクション環境でコンソール関数とデバッガーを完全削除
       ...(isProduction && {
         // drop: ['console', 'debugger'],  // console.logを残すためコメントアウト
         dropLabels: ['DEBUG'],
       }),
+      // Prevent top-level variable mangling issues
+      keepNames: true,
     },
     build: {
       target: 'es2020',
