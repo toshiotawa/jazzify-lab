@@ -3,9 +3,8 @@ import { FantasyStage, ChordDefinition, JudgmentResult, RhythmGameState } from '
 import { useRhythmGameEngine } from './RhythmGameEngine';
 import { RhythmNotesRenderer } from './RhythmNotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
-import { BGMManager } from '@/lib/BGMManager';
+import { bgmManager as BGMManager } from '@/utils/BGMManager';
 import { Howl } from 'howler';
-import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useTimeStore } from '@/stores/timeStore';
 import { detectChords } from '@/utils/chord-detector';
@@ -293,15 +292,13 @@ export const RhythmModeScreen: React.FC<RhythmModeScreenProps> = ({
       {/* ヘッダー */}
       <div className="bg-gray-800 p-4 flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={onBackToStageSelect}
-            className="text-white hover:text-gray-300"
+            className="flex items-center gap-2 px-4 py-2 text-white hover:text-gray-300 hover:bg-gray-700 rounded transition-colors"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-4 h-4" />
             戻る
-          </Button>
+          </button>
           <h2 className="text-xl font-bold">
             Stage {stage.stage_number || stage.stageNumber} - {stage.name}
           </h2>
@@ -389,9 +386,12 @@ export const RhythmModeScreen: React.FC<RhythmModeScreenProps> = ({
               <div>Max Combo: {gameState.maxCombo}</div>
               <div>Accuracy: {Math.round((gameState.hitCount / (gameState.hitCount + gameState.missCount)) * 100)}%</div>
             </div>
-            <Button onClick={onBackToStageSelect}>
+            <button 
+              onClick={onBackToStageSelect}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
               ステージ選択へ戻る
-            </Button>
+            </button>
           </div>
         </div>
       )}
