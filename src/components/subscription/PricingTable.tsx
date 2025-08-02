@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
-import { loadStripe } from '@stripe/stripe-js';
+
 
 // Stripe Pricing Table用の型定義
 declare module 'react' {

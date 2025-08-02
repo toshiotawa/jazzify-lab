@@ -561,6 +561,47 @@ const FantasyMain: React.FC = () => {
   
   // ゲーム画面
   if (currentStage) {
+    // リズムモードの場合
+    if (currentStage.mode === 'rhythm') {
+      const RhythmGameScreen = React.lazy(() => import('../rhythm/RhythmGameScreen'));
+      return (
+        <React.Suspense fallback={<div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center"><div className="text-white">Loading...</div></div>}>
+          <RhythmGameScreen
+            key={gameKey}
+            stage={{
+              ...currentStage,
+              stage_number: currentStage.stageNumber,
+              max_hp: currentStage.maxHp,
+              enemy_gauge_seconds: currentStage.enemyGaugeSeconds,
+              enemy_count: currentStage.enemyCount,
+              enemy_hp: currentStage.enemyHp,
+              min_damage: currentStage.minDamage,
+              max_damage: currentStage.maxDamage,
+              allowed_chords: currentStage.allowedChords,
+              chord_progression: currentStage.chordProgression,
+              show_sheet_music: currentStage.showSheetMusic,
+              show_guide: currentStage.showGuide,
+              simultaneous_monster_count: currentStage.simultaneousMonsterCount,
+              monster_icon: currentStage.monsterIcon,
+              bgm_url: currentStage.bgmUrl,
+              mp3_url: currentStage.bgmUrl, // bgmUrlをmp3_urlとして使用
+              bpm: currentStage.bpm,
+              measure_count: currentStage.measureCount,
+              time_signature: currentStage.timeSignature,
+              count_in_measures: currentStage.countInMeasures
+            }}
+            autoStart={pendingAutoStart}
+            onGameComplete={handleGameComplete}
+            onBackToStageSelect={handleBackToStageSelect}
+            noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
+            simpleNoteName={settings.simpleDisplayMode}
+            lessonMode={isLessonMode}
+          />
+        </React.Suspense>
+      );
+    }
+    
+    // 通常のクイズモード
     return (
       <FantasyGameScreen
         // ▼▼▼ 追加 ▼▼▼
