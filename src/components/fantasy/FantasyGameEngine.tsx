@@ -203,7 +203,7 @@ const createMonsterFromQueue = (
     name: enemy.name,
     // プログレッションモード用の初期状態
     isQuestionVisible: stage?.mode === 'progression' ? false : true, // プログレッションモードでは初期非表示
-    nextQuestionIndex: stage?.mode === 'progression' ? 0 : undefined
+    nextQuestionIndex: stage?.mode === 'progression' ? 0 : undefined // 0から開始（最初の問題）
   };
 };
 
@@ -777,17 +777,21 @@ export const useFantasyGameEngine = ({
             return prevState;
           }
           
-          // 判定タイミングが過ぎたら、すべてのモンスターのバッファをリセット
+          // 判定タイミングが過ぎたら、すべてのモンスターのバッファをリセットし次の問題へ
           const hasAnyCorrectNotes = prevState.activeMonsters.some(m => m.correctNotes.length > 0);
           
           if (hasAnyCorrectNotes) {
             const updatedMonsters = prevState.activeMonsters.map(monster => {
-              if (monster.correctNotes.length > 0) {
+              if (monster.correctNotes.length > 0 && monster.isQuestionVisible) {
                 return {
                   ...monster,
                   correctNotes: [], // バッファをリセット
-                  // 問題が表示されていて、攻撃に失敗した場合は問題を非表示に
-                  isQuestionVisible: false
+                  // 問題が表示されていて、攻撃に失敗した場合は問題を非表示にして次へ
+                  isQuestionVisible: false,
+                  // 次の問題インデックスを進める（失敗しても次へ）
+                  nextQuestionIndex: monster.nextQuestionIndex !== undefined 
+                    ? monster.nextQuestionIndex + 1 
+                    : undefined
                 };
               }
               return monster;
@@ -818,8 +822,8 @@ export const useFantasyGameEngine = ({
             // まだ問題が表示されていないモンスターに問題を出題
             if (!monster.isQuestionVisible && monster.nextQuestionIndex !== undefined) {
               const progression = prevState.currentStage.allowedChords;
-              const nextIndex = monster.nextQuestionIndex % progression.length;
-              const nextChordId = progression[nextIndex];
+              const currentIndex = monster.nextQuestionIndex % progression.length;
+              const nextChordId = progression[currentIndex];
               const nextChord = getChordDefinition(nextChordId, displayOpts);
               
               if (nextChord) {
@@ -828,7 +832,7 @@ export const useFantasyGameEngine = ({
                   isQuestionVisible: true,
                   chordTarget: nextChord,
                   correctNotes: [],
-                  nextQuestionIndex: nextIndex + 1
+                  // インデックスはそのまま保持（判定後に更新される）
                 };
               }
             }
@@ -1110,8 +1114,11 @@ export const useFantasyGameEngine = ({
                 ...monster, 
                 correctNotes: [], 
                 gauge: 0,
-                isQuestionVisible: false // 問題を非表示にする
-                // nextQuestionIndexは保持（次の出題で使用）
+                isQuestionVisible: false, // 問題を非表示にする
+                // 次の問題インデックスを進める（成功時も次へ）
+                nextQuestionIndex: monster.nextQuestionIndex !== undefined 
+                  ? monster.nextQuestionIndex + 1 
+                  : undefined
               };
             } else {
               // 通常モードの場合は新しいコードを即座に割り当て
