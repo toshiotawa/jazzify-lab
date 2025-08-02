@@ -14,7 +14,7 @@ import * as PIXI from 'pixi.js';
 
 // ===== 型定義 =====
 
-interface ChordDefinition {
+export interface ChordDefinition {
   id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
   notes: number[];     // MIDIノート番号の配列
@@ -24,7 +24,7 @@ interface ChordDefinition {
 }
 
 // プログレッションモード用の追加型定義
-interface ProgressionNote {
+export interface ProgressionNote {
   id: string;
   chord: ChordDefinition;
   targetBeat: number; // 判定タイミングのビート
@@ -37,7 +37,7 @@ interface ProgressionNote {
 // 判定ウィンドウ定数
 const JUDGMENT_WINDOW_MS = 200; // ±200ms
 
-interface FantasyStage {
+export interface FantasyStage {
   id: string;
   stageNumber: string;
   name: string;
@@ -62,7 +62,7 @@ interface FantasyStage {
   timeSignature?: number;
 }
 
-interface MonsterState {
+export interface MonsterState {
   id: string;
   index: number; // モンスターリストのインデックス
   position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'; // 列位置（最大8体対応）
@@ -75,7 +75,7 @@ interface MonsterState {
   name: string;
 }
 
-interface FantasyGameState {
+export interface FantasyGameState {
   currentStage: FantasyStage | null;
   currentQuestionIndex: number;
   currentChordTarget: ChordDefinition | null; // 廃止予定（互換性のため残す）
@@ -111,7 +111,7 @@ interface FantasyGameState {
   currentProgressionNote: ProgressionNote | null; // 現在判定中のノーツ
 }
 
-interface FantasyGameEngineProps {
+export interface FantasyGameEngineProps {
   stage: FantasyStage | null;
   onGameStateChange: (state: FantasyGameState) => void;
   // ▼▼▼ 変更点 ▼▼▼
@@ -436,8 +436,8 @@ export const useFantasyGameEngine = ({
   // プログレッションモード用: アクティブノートの追跡
   const activeNotesRef = useRef<Set<number>>(new Set());
   
-  // プログレッションモード用: timeStoreの監視
-  useEffect(() => {
+  // プログレッションモード用: timeStoreの監視 - 順序を後ろに移動
+  const progressionTimeEffect = () => {
     if (gameState.currentStage?.mode !== 'progression' || !gameState.isGameActive) return;
     
     const unsubscribe = useTimeStore.subscribe((state) => {
@@ -486,26 +486,57 @@ export const useFantasyGameEngine = ({
       if (gameState.currentProgressionNote && !gameState.currentProgressionNote.isJudged) {
         const timeDiff = now - gameState.currentProgressionNote.judgmentTime;
         
-        // 判定ウィンドウ終了
-        if (timeDiff > JUDGMENT_WINDOW_MS) {
-          devLog.debug('⏰ 判定ウィンドウ終了 - MISS');
-          
-          // ミス判定（敵攻撃）
-          handleEnemyAttack();
-          
-          // 次のノーツの準備
-          setGameState(prev => ({
-            ...prev,
-            currentProgressionNote: null,
-            nextNoteTime: null,
-            currentQuestionIndex: (prev.currentQuestionIndex + 1) % (prev.currentStage?.chordProgression?.length || 1)
-          }));
-        }
+                  // 判定ウィンドウ終了
+          if (timeDiff > JUDGMENT_WINDOW_MS) {
+            devLog.debug('⏰ 判定ウィンドウ終了 - MISS');
+            
+            // ミス判定（敵攻撃を後で実行）
+            setTimeout(() => {
+              setGameState(prev => {
+                // 敵攻撃の処理をインライン化
+                const newHp = Math.max(0, prev.playerHp - 1);
+                const isGameOver = newHp <= 0;
+                
+                if (isGameOver) {
+                  const finalState = {
+                    ...prev,
+                    playerHp: 0,
+                    isGameActive: false,
+                    isGameOver: true,
+                    gameResult: 'gameover' as const,
+                    isCompleting: true,
+                    currentProgressionNote: null,
+                    nextNoteTime: null
+                  };
+                  
+                  setTimeout(() => {
+                    onGameComplete('gameover', finalState);
+                  }, 100);
+                  
+                  return finalState;
+                } else {
+                  // HP減少して次の問題へ
+                  return {
+                    ...prev,
+                    playerHp: newHp,
+                    playerSp: 0,
+                    currentProgressionNote: null,
+                    nextNoteTime: null,
+                    currentQuestionIndex: (prev.currentQuestionIndex + 1) % (prev.currentStage?.chordProgression?.length || 1),
+                    enemyGauge: 0
+                  };
+                }
+              });
+              
+              // 敵攻撃エフェクトの呼び出し
+              onEnemyAttack('progression');
+            }, 0);
+          }
       }
     });
     
-    return () => unsubscribe();
-  }, [gameState.currentStage, gameState.isGameActive, gameState.currentProgressionNote, gameState.nextNoteTime, gameState.currentQuestionIndex, displayOpts, handleEnemyAttack]);
+          return () => unsubscribe();
+    };
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
@@ -810,8 +841,11 @@ export const useFantasyGameEngine = ({
       }
     });
     
-    onEnemyAttack(attackingMonsterId);
-  }, [onGameStateChange, onGameComplete, onEnemyAttack]);
+      onEnemyAttack(attackingMonsterId);
+}, [onGameStateChange, onGameComplete, onEnemyAttack]);
+  
+  // プログレッションモード用: timeStoreの監視 (handleEnemyAttackが定義された後に配置)
+  useEffect(progressionTimeEffect, [gameState.currentStage, gameState.isGameActive, gameState.currentProgressionNote, gameState.nextNoteTime, gameState.currentQuestionIndex, gameState.playerHp, displayOpts, onGameComplete, onEnemyAttack]);
   
   // ゲージタイマーの管理
   useEffect(() => {
@@ -1246,5 +1280,4 @@ export const useFantasyGameEngine = ({
   };
 };
 
-export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState, ProgressionNote };
 export { ENEMY_LIST, getCurrentEnemy };

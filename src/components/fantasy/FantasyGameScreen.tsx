@@ -140,8 +140,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         onNoteOff: (note: number) => {
           devLog.debug('🎹 MIDI Note Off:', { note });
           activeNotesRef.current.delete(note);
-          if (engineHandleNoteOff) {
-            engineHandleNoteOff(note);
+          if (engineHandleNoteOffRef.current) {
+            engineHandleNoteOffRef.current(note);
           }
         },
         playMidiSound: true // 通常プレイと同様に共通音声システムを有効化
@@ -201,7 +201,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         midiControllerRef.current = null;
       }
     };
-  }, [engineHandleNoteOff]); // engineHandleNoteOffを依存配列に追加
+  }, []); // 空の依存配列で一度だけ実行
+  
+  // engineHandleNoteOffをRefに保存
+  const engineHandleNoteOffRef = useRef<typeof engineHandleNoteOff>();
+  useEffect(() => {
+    engineHandleNoteOffRef.current = engineHandleNoteOff;
+  }, [engineHandleNoteOff]);
   
   // ★★★ 修正箇所 ★★★
   // gameStoreのデバイスIDを監視して接続/切断
@@ -441,8 +447,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             const { stopNote } = await import('@/utils/MidiController');
             stopNote(note);
             activeNotesRef.current.delete(note);
-            if (engineHandleNoteOff) {
-              engineHandleNoteOff(note);
+            if (engineHandleNoteOffRef.current) {
+              engineHandleNoteOffRef.current(note);
             }
             devLog.debug('🎵 Stopped note via release:', note);
           } catch (error) {

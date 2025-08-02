@@ -263,4 +263,5 @@ const TaikoPIXIRenderer: React.FC<TaikoPIXIRendererProps> = ({
 };
 
 export default TaikoPIXIRenderer;
+export { TaikoPIXIRenderer };
 export type { TaikoPIXIInstance };
