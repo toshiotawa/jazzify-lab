@@ -612,10 +612,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
+          className={`h-full rounded-full transition-all duration-200 ease-out ${
+            gameState.enemyGauge >= 90 
+              ? 'bg-gradient-to-r from-red-500 to-red-700 shadow-[0_0_10px_rgba(239,68,68,0.6)]' 
+              : 'bg-gradient-to-r from-yellow-500 to-orange-400'
+          }`}
           style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+            width: `${Math.min(gameState.enemyGauge, 100)}%`
           }}
         />
       </div>
@@ -660,12 +663,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || (!gameState.currentChordTarget && gameState.currentStage?.mode !== 'progression'))) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
       stageName: stage.name,
-      hasOverlay: !!overlay
+      hasOverlay: !!overlay,
+      mode: gameState.currentStage?.mode
     });
     
     return (
@@ -832,14 +836,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {monster.chordTarget?.displayName || '?'}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
+                        {monster.chordTarget ? monster.chordTarget.noteNames.map((noteName, index) => {
                           // 表示オプションを定義
                           const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
                           // 表示用の音名に変換
@@ -864,7 +868,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                               {isCorrect && '✓'}
                             </span>
                           );
-                        })}
+                        }) : null}
                       </div>
                       
                       {/* 魔法名表示 */}
@@ -888,7 +892,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                          className={`h-full transition-all duration-100 ${
+                            monster.gauge >= 90
+                              ? 'bg-gradient-to-r from-red-500 to-red-700 shadow-[0_0_8px_rgba(239,68,68,0.6)]'
+                              : 'bg-gradient-to-r from-purple-500 to-purple-700'
+                          }`}
                           style={{ width: `${monster.gauge}%` }}
                         />
                       </div>
