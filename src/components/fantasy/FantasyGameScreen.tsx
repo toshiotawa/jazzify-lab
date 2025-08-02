@@ -946,7 +946,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       const isCorrect = gameState.correctNotes?.includes(noteMod12) || false;
 
                       if (!stage.showGuide && !isCorrect) {
-                        return <span key={index}>？{index < gameState.currentProgressionQuestion.chord.noteNames.length - 1 ? " " : ""}</span>;
+                        return <span key={index}>？{index < (gameState.currentProgressionQuestion?.chord?.noteNames.length ?? 0) - 1 ? " " : ""}</span>;
                       }
 
                       return (
@@ -957,7 +957,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           )}
                         >
                           {displayNoteName}
-                          {index < gameState.currentProgressionQuestion.chord.noteNames.length - 1 ? " " : ""}
+                          {index < (gameState.currentProgressionQuestion?.chord?.noteNames.length ?? 0) - 1 ? " " : ""}
                         </span>
                       );
                     })}

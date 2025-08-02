@@ -16,6 +16,12 @@ const ToastContainer: React.FC = () => {
 
 const ToastItem: React.FC<{ toast: Toast; onRemove: (id: string) => void }> = ({ toast, onRemove }) => {
   const [isExiting, setIsExiting] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    // 表示アニメーション開始
+    setIsVisible(true);
+  }, []);
 
   const handleRemove = useCallback(() => {
     setIsExiting(true);

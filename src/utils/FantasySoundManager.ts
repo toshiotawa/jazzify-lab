@@ -152,7 +152,7 @@ export class FantasySoundManager {
     this.loadedPromise = Promise.all(promises).then(async () => {
       // ─ BassSynth ─ - globalSamplerを上書きしない独自のsampler
       await this._initializeAudioSystem();
-      const Tone = window.Tone as typeof import('tone');
+      const Tone = window.Tone as any;
       this.bassSampler = new Tone.Sampler({
         urls: {
           "A1": "A1.mp3",
@@ -186,7 +186,7 @@ export class FantasySoundManager {
     return new Promise((resolve) => {
       const initializeAudioSystem = async () => {
         try {
-          const Tone = window.Tone as typeof import('tone');
+          const Tone = window.Tone as any;
           if (Tone.context.state !== 'running') {
             await Tone.context.resume();
           }
@@ -276,7 +276,7 @@ export class FantasySoundManager {
       await this.loadedPromise;
     }
     
-    const Tone = window.Tone as typeof import('tone');
+    const Tone = window.Tone as any;
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
     

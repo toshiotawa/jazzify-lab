@@ -468,70 +468,77 @@ export const useFantasyGameEngine = ({
     });
     
     // モンスターキューとアクティブモンスターを準備
-    const monsterIds = getStageMonsterIds(stage.stageNumber);
+    const monsterIds = getStageMonsterIds(parseInt(stage.stageNumber));
     const totalEnemies = Math.min(stage.enemyCount, monsterIds.length);
     const simultaneousCount = Math.min(stage.simultaneousMonsterCount || 1, totalEnemies);
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
     
-    // モンスターキューを作成（指定された敵数分）
-    const monsterQueue: number[] = [];
-    for (let i = simultaneousCount; i < totalEnemies; i++) {
-      monsterQueue.push(i);
+    // モンスターキューを作成（0からtotalEnemies-1までのインデックス）
+    const monsterIndexList = Array.from({ length: totalEnemies }, (_, i) => i);
+    // Fisher-Yates shuffle
+    for (let i = monsterIndexList.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [monsterIndexList[i], monsterIndexList[j]] = [monsterIndexList[j], monsterIndexList[i]];
     }
+    const monsterQueue = monsterIndexList;
     
     // 初期アクティブモンスターを生成
     const initialMonsters: MonsterState[] = [];
-    const positions: MonsterState['position'][] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const monsterPositions: MonsterState['position'][] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     
     // プログレッションモードでは単一モンスターのみ
     if (stage.mode === 'progression') {
       const initialChord = getProgressionChord(stage.chordProgression || [], 0, displayOpts);
       if (initialChord) {
         const monsterId = monsterIds[0];
-        const monsterData = MONSTERS[monsterId];
-        initialMonsters.push({
-          id: `monster_0`,
-          index: 0,
-          position: 'A',
-          currentHp: stage.enemyHp,
-          maxHp: stage.enemyHp,
-          gauge: 0,
-          chordTarget: initialChord,
-          correctNotes: [],
-          icon: monsterData.icon,
-          name: monsterData.name
-        });
+        const monsterData = MONSTERS[monsterId as keyof typeof MONSTERS];
+        if (monsterData && typeof monsterData === 'object' && 'icon' in monsterData && 'name' in monsterData) {
+          initialMonsters.push({
+            id: `monster_0`,
+            index: 0,
+            position: 'A',
+            currentHp: stage.enemyHp,
+            maxHp: stage.enemyHp,
+            gauge: 0,
+            chordTarget: initialChord,
+            correctNotes: [],
+            icon: monsterData.icon as string,
+            name: monsterData.name as string
+          });
+        }
       }
     } else {
       // singleモードの既存処理
       for (let i = 0; i < simultaneousCount && i < totalEnemies; i++) {
         const monsterId = monsterIds[i];
-        const monsterData = MONSTERS[monsterId];
+        const monsterData = MONSTERS[monsterId as keyof typeof MONSTERS];
         
-        let chord: ChordDefinition | null = null;
-        if (stage.mode === 'single') {
-          // ランダムモード：各モンスターに異なるコードを割り当て
-          const usedChordIds = initialMonsters.map(m => m.chordTarget.id);
-          chord = selectRandomChord(stage.allowedChords, undefined, displayOpts, usedChordIds);
-        } else {
-          // コード進行モード：最初のコードから開始
-          chord = getProgressionChord(stage.chordProgression || [], 0, displayOpts);
-        }
-        
-        if (chord) {
-          initialMonsters.push({
-            id: `monster_${i}`,
-            index: i,
-            position: positions[i],
-            currentHp: stage.enemyHp,
-            maxHp: stage.enemyHp,
-            gauge: 0,
-            chordTarget: chord,
-            correctNotes: [],
-            icon: monsterData.icon,
-            name: monsterData.name
-          });
+        if (monsterData && typeof monsterData === 'object' && 'icon' in monsterData && 'name' in monsterData) {
+          let chord: ChordDefinition | null = null;
+          if (stage.mode === 'single') {
+            // ランダムモード：各モンスターに異なるコードを割り当て
+            const usedChordIds = initialMonsters.map(m => m.chordTarget.id);
+            chord = selectRandomChord(stage.allowedChords, undefined, displayOpts, usedChordIds);
+          } else {
+            // コード進行モード：最初のコードから開始
+            chord = getProgressionChord(stage.chordProgression || [], 0, displayOpts);
+          }
+          
+          if (chord) {
+            initialMonsters.push({
+              id: `monster_${i}`,
+              index: i,
+              position: monsterPositions[i],
+              currentHp: stage.enemyHp,
+              maxHp: stage.enemyHp,
+              gauge: 0,
+              chordTarget: chord,
+              correctNotes: [],
+                              icon: monsterData.icon as string,
+                name: monsterData.name as string
+            });
+          }
         }
       }
     }
@@ -580,12 +587,11 @@ export const useFantasyGameEngine = ({
         const j = Math.floor(Math.random() * (i + 1));
         [monsterIndices[i], monsterIndices[j]] = [monsterIndices[j], monsterIndices[i]];
     }
-    const monsterQueue = monsterIndices;
+    const finalMonsterQueue = monsterIndices;
     
     // 初期モンスターを配置
     const initialMonsterCount = Math.min(simultaneousCount, totalEnemies);
-    const positions = assignPositions(initialMonsterCount);
-    const activeMonsters: MonsterState[] = [];
+    const assignedPositions = assignPositions(initialMonsterCount);
     const usedChordIds: string[] = [];
     
     // ▼▼▼ 修正点2: コードの重複を避けるロジックを追加 ▼▼▼
@@ -594,19 +600,19 @@ export const useFantasyGameEngine = ({
     // 既に同時出現数が 1 の場合に後続モンスターが "フェードアウト待ち" の間に
     // 追加生成されないよう、queue だけ作って最初の 1 体だけ生成する。
     for (let i = 0; i < initialMonsterCount; i++) {
-      const monsterIndex = monsterQueue.shift()!;
+      const monsterIndex = finalMonsterQueue.shift()!;
       // simultaneousMonsterCount === 1 のとき、0 番目のみ即生成。
       if (i === 0 || simultaneousCount > 1) {
         const monster = createMonsterFromQueue(
           monsterIndex,
-          positions[i],
+          assignedPositions[i],
           enemyHp,
           stage.allowedChords,
           lastChordId,
           displayOpts,
           monsterIds        // ✅ 今回作った配列
         );
-        activeMonsters.push(monster);
+        initialMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
         lastChordId = monster.chordTarget.id;
       }
@@ -659,7 +665,7 @@ export const useFantasyGameEngine = ({
       playerSp: 0,
       // マルチモンスター対応
       activeMonsters: initialMonsters,
-      monsterQueue,
+      monsterQueue: finalMonsterQueue,
       simultaneousMonsterCount: simultaneousCount,
       // ゲーム完了処理中フラグ
       isCompleting: false,
@@ -688,7 +694,7 @@ export const useFantasyGameEngine = ({
       enemyHp,
       totalQuestions,
       simultaneousCount,
-      activeMonsters: activeMonsters.length
+      activeMonsters: initialMonsters.length
     });
   }, [onGameStateChange]);
   
