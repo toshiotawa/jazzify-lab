@@ -837,47 +837,56 @@ export const useFantasyGameEngine = ({
         });
       }
       
-      // 判定タイミングが過ぎたかチェック（1拍目+200ms以降、かつ2拍目より前）
-      if (currentMeasureProgress > msPerBeat + 200 && currentMeasureProgress < msPerBeat * 2 - 100) {
+      // プログレッションモード：判定タイミング終了後の処理（1拍目+201ms）
+      if (currentStage.mode === 'progression' && 
+          currentMeasureProgress > msPerBeat + 201 && 
+          currentMeasureProgress < msPerBeat + 500) { // 処理は一度だけ
+        
         setGameState(prevState => {
           if (!prevState.currentStage || prevState.currentStage.mode !== 'progression') {
             return prevState;
           }
           
-          // 判定タイミングが過ぎたら、すべてのモンスターのバッファをリセットし次の問題へ
-          const hasAnyCorrectNotes = prevState.activeMonsters.some(m => m.correctNotes.length > 0);
+          // 問題が表示されていて、ゲージが100%になっているモンスターを処理
+          const timeoutMonsters = prevState.activeMonsters.filter(m => 
+            m.isQuestionVisible && m.gauge >= 100
+          );
           
-          if (hasAnyCorrectNotes) {
-            devLog.debug('⏰ 判定タイミング後の処理:', {
-              hasAnyCorrectNotes,
-              monsters: prevState.activeMonsters.map(m => ({
+          if (timeoutMonsters.length > 0) {
+            devLog.debug('⏰ 判定タイムアウト処理:', {
+              timeoutMonsters: timeoutMonsters.map(m => ({
                 id: m.id,
                 correctNotes: m.correctNotes,
-                isQuestionVisible: m.isQuestionVisible,
-                nextQuestionIndex: m.nextQuestionIndex
+                gauge: m.gauge,
+                chordTarget: m.chordTarget?.displayName
               }))
             });
             
+            // タイムアウトした各モンスターに対して敵の攻撃を発生させる
+            timeoutMonsters.forEach(monster => {
+              setTimeout(() => {
+                handleEnemyAttack(monster.id);
+              }, 100);
+            });
+            
             const updatedMonsters = prevState.activeMonsters.map(monster => {
-              if (monster.correctNotes.length > 0 && monster.isQuestionVisible) {
+              if (timeoutMonsters.some(m => m.id === monster.id)) {
                 const newIndex = monster.nextQuestionIndex !== undefined 
                   ? monster.nextQuestionIndex + 1 
                   : undefined;
                 
-                devLog.debug('⏰ 判定タイミング後のリセット:', {
+                devLog.debug('⏰ タイムアウトによるリセット:', {
                   monsterId: monster.id,
                   oldIndex: monster.nextQuestionIndex,
-                  newIndex,
-                  correctNotes: monster.correctNotes
+                  newIndex
                 });
                 
                 return {
                   ...monster,
                   correctNotes: [], // バッファをリセット
-                  // 問題が表示されていて、攻撃に失敗した場合は問題を非表示にして次へ
-                  isQuestionVisible: false,
-                  // 次の問題インデックスを進める（失敗しても次へ）
-                  nextQuestionIndex: newIndex
+                  isQuestionVisible: false, // 問題を非表示に
+                  gauge: 0, // ゲージリセット
+                  nextQuestionIndex: newIndex // 次の問題インデックスを進める
                 };
               }
               return monster;
@@ -897,11 +906,42 @@ export const useFantasyGameEngine = ({
         });
       }
       
-      // 毎小節の2拍目付近で出題（少し早めに）
-      const targetBeat = 1.8; // 2拍目の少し前
-      const beatProgress = currentMeasureProgress / msPerBeat;
+      // プログレッションモード：新しい問題の出題タイミング
+      // 通常：2拍目-200ms、判定後：3拍後
+      let shouldShowQuestion = false;
       
-      if (beatProgress >= targetBeat && beatProgress < targetBeat + 0.2) { // 1.8〜2.0拍の範囲
+      if (currentStage.mode === 'progression') {
+        // 問題が非表示のモンスターがいるかチェック
+        const hasHiddenQuestion = gameState.activeMonsters.some(m => !m.isQuestionVisible);
+        
+        if (hasHiddenQuestion) {
+          // 判定後の3拍後から出題（前の小節の1拍目から見て3拍後）
+          const afterJudgmentMs = msPerBeat * 3 + 200; // 3拍目+200ms
+          if (currentMeasureProgress >= afterJudgmentMs && 
+              currentMeasureProgress <= afterJudgmentMs + 50) {
+            shouldShowQuestion = true;
+            devLog.debug('📝 判定後の出題タイミング:', { 
+              currentMeasureProgress, 
+              afterJudgmentMs,
+              beatProgress: currentMeasureProgress / msPerBeat 
+            });
+          }
+        } else {
+          // 通常の出題タイミング（2拍目-200ms）
+          const normalQuestionMs = msPerBeat * 2 - 200;
+          if (currentMeasureProgress >= normalQuestionMs - 50 && 
+              currentMeasureProgress <= normalQuestionMs + 50) {
+            shouldShowQuestion = true;
+            devLog.debug('📝 通常の出題タイミング:', { 
+              currentMeasureProgress, 
+              normalQuestionMs,
+              beatProgress: currentMeasureProgress / msPerBeat 
+            });
+          }
+        }
+      }
+      
+      if (shouldShowQuestion) {
         setGameState(prevState => {
           if (!prevState.currentStage || prevState.currentStage.mode !== 'progression') {
             return prevState;
