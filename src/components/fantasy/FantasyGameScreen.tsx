@@ -832,7 +832,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {/* リズムモードでは、出題タイミングになったモンスターのみコードを表示 */}
+                        {stage.mode === 'rhythm' ? (
+                          gameState.rhythmQuestions?.some(q => q.monsterId === monster.id) ? 
+                            monster.chordTarget.displayName : 
+                            '？'
+                        ) : (
+                          monster.chordTarget.displayName
+                        )}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
@@ -887,10 +894,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         }}
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
-                        />
+                        {stage.mode === 'rhythm' ? (
+                          <>
+                            {/* リズムモード: 判定ウィンドウの視覚化 (90-100%) */}
+                            <div
+                              className="absolute h-full bg-yellow-600 opacity-30"
+                              style={{ 
+                                left: '90%',
+                                width: '10%',
+                                zIndex: 1
+                              }}
+                            />
+                            <div
+                              className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100 relative"
+                              style={{ width: `${monster.gauge}%` }}
+                            />
+                          </>
+                        ) : (
+                          <div
+                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                            style={{ width: `${monster.gauge}%` }}
+                          />
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
