@@ -331,7 +331,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: null, // ★★★ change
+    stage: stage, // stageを渡す
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
@@ -673,9 +673,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div>ゲーム状態: {gameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
               <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
               <div>許可コード数: {stage.allowedChords?.length || 0}</div>
-              <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>
-              <div>オーバーレイ: {overlay ? '表示中' : 'なし'}</div>
-              <div>完了処理中: {gameState.isCompleting ? 'はい' : 'いいえ'}</div>
+              <div>モード: {stage.mode}</div>
+              <div>コード進行: {stage.chordProgression ? JSON.stringify(stage.chordProgression) : 'なし'}</div>
             </div>
           )}
         </div>

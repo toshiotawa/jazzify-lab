@@ -120,6 +120,7 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
   const resolved = resolveChord(chordId, 4, displayOpts);
   if (!resolved) {
     console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
+    devLog.debug('❌ コード解決失敗:', { chordId, displayOpts });
     return null;
   }
 
@@ -416,94 +417,92 @@ export const useFantasyGameEngine = ({
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
-  // ゲーム初期化
-  const initializeGame = useCallback(async (stage: FantasyStage) => {
-    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
-
-    // 新しいステージ定義から値を取得
-    const totalEnemies = stage.enemyCount;
-    const enemyHp = stage.enemyHp;
-    const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.simultaneousMonsterCount || 1;
-
-    // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
-    const monsterIds = getStageMonsterIds(totalEnemies);
-    setStageMonsterIds(monsterIds);
-
-    // モンスター画像をプリロード
-    try {
-      // バンドルが既に存在する場合は削除
-      // PIXI v7では unloadBundle が失敗しても問題ないため、try-catchで保護
-      try {
-        await PIXI.Assets.unloadBundle('stageMonsters');
-      } catch {
-        // バンドルが存在しない場合は無視
-      }
-
-      // バンドル用のアセットマッピングを作成
-      const bundle: Record<string, string> = {};
-      monsterIds.forEach(id => {
-        // 一時的にPNG形式を使用（WebP変換ツールが利用できないため）
-        bundle[id] = `${import.meta.env.BASE_URL}monster_icons/${id}.png`;
-      });
-
-      // バンドルを追加してロード
-      PIXI.Assets.addBundle('stageMonsters', bundle);
-      await PIXI.Assets.loadBundle('stageMonsters');
-
-      // テクスチャをキャッシュに保管
-      const textureMap = imageTexturesRef.current;
-      textureMap.clear();
-      monsterIds.forEach(id => {
-        const texture = PIXI.Assets.get(id) as PIXI.Texture;
-        if (texture) {
-          textureMap.set(id, texture);
-        }
-      });
-
-      devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length });
-    } catch (error) {
-      devLog.error('❌ モンスター画像プリロード失敗:', error);
-    }
-
-    // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
-    // モンスターキューを作成（0からtotalEnemies-1までのインデックス）
-    const monsterIndices = Array.from({ length: totalEnemies }, (_, i) => i);
-    // Fisher-Yates shuffle
-    for (let i = monsterIndices.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [monsterIndices[i], monsterIndices[j]] = [monsterIndices[j], monsterIndices[i]];
-    }
-    const monsterQueue = monsterIndices;
+  // マルチモンスター対応版：初期化処理
+  const initializeGame = useCallback((stage: FantasyStage) => {
+    if (!stage) return;
     
-    // 初期モンスターを配置
-    const initialMonsterCount = Math.min(simultaneousCount, totalEnemies);
-    const positions = assignPositions(initialMonsterCount);
+    devLog.debug('🎮 ゲーム初期化開始:', { 
+      stage: stage.name,
+      mode: stage.mode,
+      chordProgression: stage.chordProgression,
+      allowedChords: stage.allowedChords
+    });
+    
+    // 通常プレイモードと同じ音源システムで初期化
+    const enemyStore = useEnemyStore.getState();
+    enemyStore.init();
+    
+    // ステージのモンスターIDリストを取得
+    const stageMonsterIds = getStageMonsterIds(stage.stageNumber);
+    const monstersToUse = stageMonsterIds.length > 0 ? stageMonsterIds : stage.enemyCount > 0
+      ? Array.from({ length: stage.enemyCount }, (_, i) => Object.keys(MONSTERS)[i % Object.keys(MONSTERS).length])
+      : ['devil']; // デフォルト
+
+    // 表示オプションを準備
+    const displayOpts: DisplayOpts = {
+      lang: 'en', // エンジンレイヤーでは常に英語
+      simple: false
+    };
+
+    // 総敵数と単体HPを計算
+    const totalEnemies = Math.max(1, stage.enemyCount);
+    const enemyHp = Math.max(1, stage.enemyHp);
+    const totalQuestions = Math.ceil(totalEnemies / stage.simultaneousMonsterCount) * enemyHp;
+    
+    // 同時表示数を決定（1〜8の範囲で制限）
+    const simultaneousCount = Math.max(1, Math.min(8, stage.simultaneousMonsterCount));
+    
+    // モンスターキューを作成
+    const monsterQueue = Array.from({ length: totalEnemies }, (_, i) => i).slice(simultaneousCount);
+    
+    // アクティブモンスターを作成
     const activeMonsters: MonsterState[] = [];
-    const usedChordIds: string[] = [];
+    const positions: MonsterState['position'][] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     
-    // ▼▼▼ 修正点2: コードの重複を避けるロジックを追加 ▼▼▼
-    let lastChordId: string | undefined = undefined; // 直前のコードIDを記録する変数を追加
-
-    // 既に同時出現数が 1 の場合に後続モンスターが "フェードアウト待ち" の間に
-    // 追加生成されないよう、queue だけ作って最初の 1 体だけ生成する。
-    for (let i = 0; i < initialMonsterCount; i++) {
-      const monsterIndex = monsterQueue.shift()!;
-      // simultaneousMonsterCount === 1 のとき、0 番目のみ即生成。
-      if (i === 0 || simultaneousCount > 1) {
-        const monster = createMonsterFromQueue(
-          monsterIndex,
-          positions[i],
-          enemyHp,
-          stage.allowedChords,
-          lastChordId,
-          displayOpts,
-          monsterIds        // ✅ 今回作った配列
-        );
-        activeMonsters.push(monster);
-        usedChordIds.push(monster.chordTarget.id);
-        lastChordId = monster.chordTarget.id;
+    // 既に使用したコードIDを追跡（重複を避けるため）
+    let lastChordId: string | undefined = undefined;
+    
+    // プログレッションモードの場合、最初のコードを取得
+    let firstProgressionChord: ChordDefinition | null = null;
+    if (stage.mode === 'progression' && stage.chordProgression && stage.chordProgression.length > 0) {
+      firstProgressionChord = getProgressionChord(stage.chordProgression, 0, displayOpts);
+      devLog.debug('🎮 プログレッションモード初期コード:', {
+        progression: stage.chordProgression,
+        firstChordId: stage.chordProgression[0],
+        firstProgressionChord: firstProgressionChord?.displayName
+      });
+    }
+    
+    for (let i = 0; i < Math.min(simultaneousCount, totalEnemies); i++) {
+      const monsterData = MONSTERS[monstersToUse[i % monstersToUse.length]];
+      const monster: MonsterState = {
+        id: `monster-${i}`,
+        index: i,
+        position: positions[i],
+        currentHp: enemyHp,
+        maxHp: enemyHp,
+        gauge: 0,
+        chordTarget: null,
+        correctNotes: [],
+        icon: monsterData?.icon || stage.monsterIcon,
+        name: monsterData?.name || `モンスター${i + 1}`,
+        nextQuestionBeat: undefined
+      };
+      
+      // コードを設定
+      if (stage.mode === 'progression') {
+        // プログレッションモードでは最初のコードを設定
+        monster.chordTarget = firstProgressionChord;
+      } else {
+        // 通常モードではランダムに選択
+        const chord = selectRandomChord(stage.allowedChords, lastChordId, displayOpts);
+        if (chord) {
+          monster.chordTarget = chord;
+          lastChordId = chord.id;
+        }
       }
+      
+      activeMonsters.push(monster);
     }
 
     // 互換性のため最初のモンスターの情報を設定
@@ -540,7 +539,7 @@ export const useFantasyGameEngine = ({
       // ゲーム完了処理中フラグ
       isCompleting: false,
       // プログレッションモード用
-      progressionStarted: false
+      progressionStarted: true // 初期化時点で開始済みに
     };
 
     setGameState(newState);
@@ -562,7 +561,9 @@ export const useFantasyGameEngine = ({
       enemyHp,
       totalQuestions,
       simultaneousCount,
-      activeMonsters: activeMonsters.length
+      activeMonsters: activeMonsters.length,
+      mode: stage.mode,
+      firstChord: firstChord?.displayName
     });
   }, [onGameStateChange]);
   
