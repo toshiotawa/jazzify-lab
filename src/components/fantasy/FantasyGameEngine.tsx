@@ -50,10 +50,13 @@ interface FantasyStage {
   timeSignature?: number;
 }
 
-interface MonsterState {
+/**
+ * モンスター状態
+ */
+export interface MonsterState {
   id: string;
-  index: number; // モンスターリストのインデックス
-  position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'; // 列位置（最大8体対応）
+  index: number; // モンスターのインデックス
+  position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
   currentHp: number;
   maxHp: number;
   gauge: number;
@@ -172,6 +175,13 @@ const ENEMY_LIST = [
 ];
 
 // ===== ヘルパー関数 =====
+
+/**
+ * ユニークなモンスターIDを生成
+ */
+const generateMonsterId = (): string => {
+  return `monster_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
 
 /**
  * キューからモンスターを生成
