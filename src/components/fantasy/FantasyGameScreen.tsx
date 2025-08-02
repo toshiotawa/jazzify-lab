@@ -125,6 +125,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 再生中のノートを追跡
   const activeNotesRef = useRef<Set<number>>(new Set());
   
+
+  
   // MIDIControllerの初期化と管理
   useEffect(() => {
     // MIDIControllerのインスタンスを作成（一度だけ）
@@ -138,6 +140,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         },
         onNoteOff: (note: number) => {
           devLog.debug('🎹 MIDI Note Off:', { note });
+          // リズムモードのnote off処理
+          if (engineHandleNoteOff) {
+            engineHandleNoteOff(note);
+          }
         },
         playMidiSound: true // 通常プレイと同様に共通音声システムを有効化
       });
@@ -324,6 +330,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const {
     gameState,
     handleNoteInput: engineHandleNoteInput,
+    handleNoteOff: engineHandleNoteOff,
     initializeGame,
     stopGame,
     getCurrentEnemy,
@@ -369,6 +376,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInputBridge;
   }, [handleNoteInputBridge]);
+  
+  // リズムモードのアニメーション更新
+  useEffect(() => {
+    if (stage.mode === 'rhythm' && gameState.isGameActive) {
+      const animationFrame = () => {
+        // 強制的に再レンダリングをトリガー
+        setDamageShake(prev => prev);
+      };
+      const intervalId = setInterval(animationFrame, 50); // 20FPS
+      return () => clearInterval(intervalId);
+    }
+  }, [stage.mode, gameState.isGameActive]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -437,6 +456,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             devLog.debug('🎵 Stopped note via release:', note);
           } catch (error) {
             console.error('Failed to stop note:', error);
+          }
+          // リズムモードのnote off処理
+          if (engineHandleNoteOff) {
+            engineHandleNoteOff(note);
           }
         }
       );
@@ -624,7 +647,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    if (stage.mode === 'rhythm') return null;
+    if (!stage.chordProgression) return null;
     
     const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
     return stage.chordProgression[nextIndex];
@@ -775,6 +799,45 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               activeMonsters={gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
             />
+            
+            {/* リズムモードのノーツフロー表示 */}
+            {stage.mode === 'rhythm' && (
+              <div className="absolute inset-0 pointer-events-none">
+                {/* 判定ライン */}
+                <div className="absolute left-20 top-0 bottom-0 w-1 bg-yellow-400 opacity-50" />
+                
+                {/* ノーツ表示 */}
+                {gameState.rhythmNotes
+                  .filter(note => note.state !== 'failure' && note.state !== 'success') // 成功/失敗は非表示
+                  .map(note => {
+                    const now = performance.now();
+                    const timeToTarget = (note.targetTime - now) / 1000; // 秒に変換
+                    const x = 80 + timeToTarget * 300; // 判定ライン位置を80px、速度を300px/秒に調整
+                    
+                    if (x < -100 || x > monsterAreaWidth + 100) return null; // 画面外は非表示
+                    
+                    return (
+                      <div
+                        key={note.id}
+                        className="absolute top-1/2 -translate-y-1/2 transform transition-transform"
+                        style={{ 
+                          left: `${x}px`,
+                          transform: `translateX(-50%) translateY(-50%)`
+                        }}
+                      >
+                        <div className={cn(
+                          "px-4 py-2 rounded-lg font-bold text-white shadow-lg transition-colors",
+                          note.state === 'judging' ? "bg-yellow-500 scale-110" :
+                          note.state === 'active' ? "bg-blue-500" :
+                          "bg-blue-400 opacity-70"
+                        )}>
+                          {note.chord.displayName}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
           
           {/* モンスターの UI オーバーレイ */}
@@ -828,17 +891,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
-                      {/* コードネーム */}
-                      <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                        monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                      }`}>
-                        {monster.chordTarget.displayName}
-                      </div>
+                      {/* コードネーム - リズムモードでは非表示 */}
+                      {stage.mode !== 'rhythm' && (
+                        <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                          monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                        }`}>
+                          {monster.chordTarget.displayName}
+                        </div>
+                      )}
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
-                      <div className={`mt-1 font-medium h-6 text-center ${
-                        monsterCount > 5 ? 'text-xs' : 'text-sm'
-                      }`}>
+                      {stage.mode !== 'rhythm' && (
+                        <div className={`mt-1 font-medium h-6 text-center ${
+                          monsterCount > 5 ? 'text-xs' : 'text-sm'
+                        }`}>
                         {monster.chordTarget.noteNames.map((noteName, index) => {
                           // 表示オプションを定義
                           const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
@@ -865,7 +931,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                             </span>
                           );
                         })}
-                      </div>
+                        </div>
+                      )}
                       
                       {/* 魔法名表示 */}
                       {magicName && magicName.monsterId === monster.id && (
@@ -880,18 +947,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         </div>
                       )}
                       
-                      {/* 行動ゲージ */}
-                      <div 
-                        ref={el => {
-                          if (el) gaugeRefs.current.set(monster.id, el);
-                        }}
-                        className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
-                      >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
-                        />
-                      </div>
+                      {/* 行動ゲージ - リズムモードでは非表示 */}
+                      {stage.mode !== 'rhythm' && (
+                        <div 
+                          ref={el => {
+                            if (el) gaugeRefs.current.set(monster.id, el);
+                          }}
+                          className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
+                        >
+                          <div
+                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                            style={{ width: `${monster.gauge}%` }}
+                          />
+                        </div>
+                      )}
                       
                       {/* HPゲージ */}
                       <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
@@ -914,7 +983,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
+        {stage.mode !== 'rhythm' && stage.chordProgression && getNextChord() && (
           <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">
