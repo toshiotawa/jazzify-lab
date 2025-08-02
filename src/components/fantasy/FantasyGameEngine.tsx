@@ -65,6 +65,8 @@ interface FantasyGameState {
   currentStage: FantasyStage | null;
   currentQuestionIndex: number;
   currentChordTarget: ChordDefinition | null; // 廃止予定（互換性のため残す）
+  nextChordAtMs: number | null; // When to show next chord
+  judgementWindowStart: number | null; // Start of acceptance window
   playerHp: number;
   enemyGauge: number; // 廃止予定（互換性のため残す）
   score: number;
@@ -382,6 +384,8 @@ export const useFantasyGameEngine = ({
     currentStage: null,
     currentQuestionIndex: 0,
     currentChordTarget: getChordDefinition('CM7', displayOpts) || null, // デフォルト値を設定
+    nextChordAtMs: null,
+    judgementWindowStart: null,
     playerHp: 5,
     enemyGauge: 0,
     score: 0,
@@ -506,37 +510,35 @@ export const useFantasyGameEngine = ({
     const firstChord = firstMonster ? firstMonster.chordTarget : null;
 
     const newState: FantasyGameState = {
+      ...gameState,
       currentStage: stage,
       currentQuestionIndex: 0,
       currentChordTarget: firstChord,
+      nextChordAtMs: null,
+      judgementWindowStart: null,
       playerHp: stage.maxHp,
       enemyGauge: 0,
       score: 0,
-      totalQuestions: totalQuestions,
+      totalQuestions,
       correctAnswers: 0,
       isGameActive: true,
       isGameOver: false,
       gameResult: null,
-      // 複数敵システム用（互換性維持）
       currentEnemyIndex: 0,
       currentEnemyHits: 0,
       enemiesDefeated: 0,
-      totalEnemies: totalEnemies,
-      // 敵のHP管理（互換性維持）
-      currentEnemyHp: firstMonster ? firstMonster.currentHp : enemyHp,
+      totalEnemies,
+      currentEnemyHp: enemyHp,
       maxEnemyHp: enemyHp,
-      correctNotes: firstMonster ? firstMonster.correctNotes : [],
-      playerSp: 0, // SPゲージ初期化
+      correctNotes: [],
       isWaitingForNextMonster: false,
-      // マルチモンスター対応
+      playerSp: 0,
       activeMonsters,
       monsterQueue,
       simultaneousMonsterCount: simultaneousCount,
-      // ゲーム完了処理中フラグ
       isCompleting: false
     };
-
-    setGameState(newState);
+    
     onGameStateChange(newState);
 
     /* ===== Ready + 時間ストア開始 ===== */
@@ -548,6 +550,24 @@ export const useFantasyGameEngine = ({
         stage.measureCount ?? 8,
         stage.countInMeasures ?? 0
       );
+    
+    // Schedule first chord display for beat 2 after Ready phase
+    setTimeout(() => {
+      const beatWindow = useTimeStore.getState().getBeatWindow();
+      if (beatWindow) {
+        // Schedule for beat 2 of the first bar
+        const firstChordMs = beatWindow.barStartMs + beatWindow.msecPerBeat;
+        setGameState(prev => {
+          const updatedState = {
+            ...prev,
+            currentChordTarget: null, // Hide chord initially
+            nextChordAtMs: firstChordMs
+          };
+          onGameStateChange(updatedState);
+          return updatedState;
+        });
+      }
+    }, 100); // Small delay to ensure time store is initialized
 
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
@@ -748,10 +768,53 @@ export const useFantasyGameEngine = ({
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中はゲージ停止 */
     const timeState = useTimeStore.getState();
-    if (timeState.startAt &&
-        performance.now() - timeState.startAt < timeState.readyDuration) {
+    const beatWindow = timeState.getBeatWindow();
+    if (!beatWindow) {
       return;
     }
+    
+    const now = performance.now();
+    
+    // Check for chord display timing (beat 2)
+    setGameState(prevState => {
+      // Display chord on beat 2 if scheduled
+      if (prevState.nextChordAtMs && now >= prevState.nextChordAtMs && !prevState.currentChordTarget) {
+        let chord: ChordDefinition | null = null;
+        
+        if (prevState.currentStage?.mode === 'progression') {
+          // Progression mode: use the current index
+          const progression = prevState.currentStage.chordProgression || [];
+          chord = getProgressionChord(progression, prevState.currentQuestionIndex, displayOpts);
+        } else {
+          // Random mode: pick a random chord
+          chord = selectRandomChord(prevState.currentStage?.allowedChords || [], undefined, displayOpts);
+        }
+        
+        if (chord) {
+          // Set judgement window for next bar's beat 1
+          const nextBarMs = beatWindow.barStartMs + beatWindow.msecPerBar;
+          
+          // Update all monsters to show the chord
+          const updatedMonsters = prevState.activeMonsters.map(monster => ({
+            ...monster,
+            chordTarget: chord,
+            correctNotes: []
+          }));
+          
+          const nextState = {
+            ...prevState,
+            currentChordTarget: chord,
+            activeMonsters: updatedMonsters,
+            nextChordAtMs: null,
+            judgementWindowStart: nextBarMs - 200,
+            correctNotes: []
+          };
+          onGameStateChange(nextState);
+          return nextState;
+        }
+      }
+      return prevState;
+    });
     
     setGameState(prevState => {
       if (!prevState.isGameActive || !prevState.currentStage) {
@@ -759,12 +822,29 @@ export const useFantasyGameEngine = ({
         return prevState;
       }
       
-      const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
+      // Calculate gauge based on musical time
+      const barProgress = beatWindow.msIntoBar / beatWindow.msecPerBar;
+      
+      // Map bar progress to gauge (95% = beat 1 of next bar)
+      let gaugePercent = barProgress * 95;
+      
+      // Handle the transition zone (95-100%)
+      if (barProgress >= 0.95) {
+        // We're very close to the next bar
+        const transitionProgress = (barProgress - 0.95) / 0.05;
+        gaugePercent = 95 + (transitionProgress * 5);
+      }
+      
+      // If we're past beat 1 (barProgress > 1.0), we're in the next bar
+      if (beatWindow.msIntoBar < 200) {
+        // We're within the first 200ms of the bar
+        gaugePercent = 95 + (beatWindow.msIntoBar / 200) * 5;
+      }
       
       // 各モンスターのゲージを更新
       const updatedMonsters = prevState.activeMonsters.map(monster => ({
         ...monster,
-        gauge: Math.min(monster.gauge + incrementRate, 100)
+        gauge: Math.min(gaugePercent, 100)
       }));
       
       // ゲージが満タンになったモンスターをチェック
@@ -815,6 +895,25 @@ export const useFantasyGameEngine = ({
     setGameState(prevState => {
       // ゲームがアクティブでない場合は何もしない
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
+        return prevState;
+      }
+      
+      // Check if we're in judgement window
+      const now = performance.now();
+      if (prevState.judgementWindowStart) {
+        const inWindow = now >= prevState.judgementWindowStart && 
+                        now <= prevState.judgementWindowStart + 400; // ±200ms window
+        if (!inWindow) {
+          devLog.debug('🎹 Input outside judgement window, ignoring', {
+            now,
+            windowStart: prevState.judgementWindowStart,
+            windowEnd: prevState.judgementWindowStart + 400
+          });
+          return prevState;
+        }
+      } else if (!prevState.currentChordTarget) {
+        // No chord is currently displayed
+        devLog.debug('🎹 No chord target, ignoring input');
         return prevState;
       }
 
@@ -933,6 +1032,17 @@ export const useFantasyGameEngine = ({
         // 互換性のためのレガシーな状態も更新
         stateAfterAttack.correctNotes = [];
         stateAfterAttack.enemyGauge = 0;
+        
+        // Schedule next chord for 3 beats + 200ms later
+        const beatWindow = useTimeStore.getState().getBeatWindow();
+        if (beatWindow) {
+          const nextChordMs = now + (beatWindow.msecPerBeat * 3) + 200;
+          stateAfterAttack.currentChordTarget = null; // Clear current chord
+          stateAfterAttack.nextChordAtMs = nextChordMs;
+          stateAfterAttack.judgementWindowStart = null;
+          stateAfterAttack.currentQuestionIndex = (stateAfterAttack.currentQuestionIndex + 1) % 
+            (stateAfterAttack.currentStage?.chordProgression?.length || 1);
+        }
 
         // ゲームクリア判定
         if (stateAfterAttack.enemiesDefeated >= stateAfterAttack.totalEnemies) {
