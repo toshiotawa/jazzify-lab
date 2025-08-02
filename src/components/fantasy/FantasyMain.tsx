@@ -97,18 +97,19 @@ const FantasyMain: React.FC = () => {
             enemyHp: stage.enemy_hp,
             minDamage: stage.min_damage,
             maxDamage: stage.max_damage,
-            mode: stage.mode,
+            mode: stage.mode,  // 'quiz' | 'rhythm' のまま使用
             allowedChords: stage.allowed_chords,
             chordProgression: stage.chord_progression,
             showSheetMusic: stage.show_sheet_music,
             showGuide: stage.show_guide,
             simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
-            monsterIcon: stage.monster_icon || 'dragon',
-            bpm: stage.bpm || 120,
+            monsterIcon: stage.monster_icon || 'slime_green',
             bgmUrl: stage.bgm_url || stage.mp3_url,
-            measureCount: stage.measure_count,
-            countInMeasures: stage.count_in_measures,
-            timeSignature: stage.time_signature
+            bpm: stage.bpm || 120,
+            measureCount: stage.measure_count || 8,
+            countInMeasures: stage.count_in_measures || 0,
+            timeSignature: stage.time_signature || 4,
+            chordProgressionData: stage.chord_progression_data  // 追加
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -381,7 +382,7 @@ const FantasyMain: React.FC = () => {
         enemyHp: nextStageData.enemy_hp,
         minDamage: nextStageData.min_damage,
         maxDamage: nextStageData.max_damage,
-        mode: nextStageData.mode as 'single' | 'progression',
+        mode: nextStageData.mode as 'quiz' | 'rhythm',
         allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
         chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
         showSheetMusic: nextStageData.show_sheet_music,
@@ -392,7 +393,8 @@ const FantasyMain: React.FC = () => {
         bpm: nextStageData.bpm || 120,
         measureCount: nextStageData.measure_count,
         countInMeasures: nextStageData.count_in_measures,
-        timeSignature: nextStageData.time_signature
+        timeSignature: nextStageData.time_signature,
+        chordProgressionData: nextStageData.chord_progression_data
       };
 
       setGameResult(null);

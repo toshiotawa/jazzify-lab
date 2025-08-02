@@ -624,6 +624,14 @@ export interface ClearConditions {
 }
 
 // ファンタジーモード関連の型定義
+export interface ChordProgressionData {
+  chords: Array<{
+    measure: number;
+    beat: number;
+    chord: string;
+  }>;
+}
+
 export interface FantasyStage {
   id: string;
   stage_number: string;
@@ -635,7 +643,7 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'quiz' | 'rhythm';  // 'single' | 'progression' から変更
   allowed_chords: string[];
   chord_progression?: string[];
   show_sheet_music: boolean;
@@ -648,6 +656,7 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  chord_progression_data?: ChordProgressionData | null;  // 追加
 }
 
 export interface LessonContext {

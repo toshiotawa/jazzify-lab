@@ -624,7 +624,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    if (stage.mode !== 'quiz' || !stage.chordProgression || stage.chordProgression.length === 0) return null;
     
     const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
     return stage.chordProgression[nextIndex];
@@ -774,12 +774,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               className="w-full h-full"
               activeMonsters={gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
+              // リズムモード用追加
+              isRhythmMode={gameState.isRhythmMode}
+              rhythmNotes={gameState.rhythmNotes}
+              currentTime={bgmManager.getCurrentTime()}
+              bpm={stage.bpm}
             />
           </div>
           
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
-            {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
+            {/* リズムモードではコード表示を非表示 */}
+            {!gameState.isRhythmMode && gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
               // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
               <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
                 {gameState.activeMonsters
@@ -914,7 +920,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
+        {stage.mode === 'quiz' && stage.chordProgression && stage.chordProgression.length > 0 && getNextChord() && (
           <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">
