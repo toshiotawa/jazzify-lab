@@ -1266,4 +1266,3 @@ export const useFantasyGameEngine = ({
 
 // エクスポート
 export type { ChordDefinition, FantasyStage, MonsterState, FantasyGameState };
-export { useFantasyGameEngine };
