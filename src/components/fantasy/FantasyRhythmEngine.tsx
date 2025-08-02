@@ -71,6 +71,8 @@ export function useRhythmEngine({
   // const lastProcessedMeasureRef = useRef<number>(0);
   // const lastProcessedBeatRef = useRef<number>(0);
   const judgmentsRef = useRef<RhythmJudgment[]>([]);
+  const lastUpdateRef = useRef<number>(0);
+  const currentIndexRef = useRef<number>(0);
 
   // Calculate timing in ms from start
   const getMsFromMeasureBeat = useCallback((measure: number, beat: number) => {
@@ -131,11 +133,13 @@ export function useRhythmEngine({
     }
     
     judgmentsRef.current = judgments;
+    currentIndexRef.current = 0;
     setRhythmState(prev => ({
       ...prev,
       judgments,
       currentChord: judgments[0]?.chord || null,
-      nextChord: judgments[1]?.chord || null
+      nextChord: judgments[1]?.chord || null,
+      currentJudgmentIndex: 0
     }));
     
     if (judgments[0]) {
@@ -160,7 +164,7 @@ export function useRhythmEngine({
       // Skip during count-in
       if (currentMs < 0) return;
       
-      let currentIndex = rhythmState.currentJudgmentIndex;
+      let currentIndex = currentIndexRef.current;
       let updated = false;
       
       // Check for missed judgments
@@ -189,7 +193,8 @@ export function useRhythmEngine({
         
         for (let i = 0; i < stage.measureCount; i++) {
           const chord = stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)];
-          const timing = baseMs + i * stage.timeSignature * (60000 / stage.bpm);
+          const measureOffset = i * stage.timeSignature;
+          const timing = baseMs + measureOffset * (60000 / stage.bpm);
           newJudgments.push({
             chord,
             measure: stage.countInMeasures + 1 + i,
@@ -204,12 +209,30 @@ export function useRhythmEngine({
         judgmentsRef.current = [...judgmentsRef.current, ...newJudgments];
         updated = true;
       } else if (currentIndex >= judgmentsRef.current.length && stage.chordProgressionData) {
-        // Progression mode - loop back to start
-        currentIndex = 0;
-        judgmentsRef.current.forEach(j => {
-          j.judged = false;
-          j.success = false;
+        // Progression mode - create new judgments for the next loop
+        const loopCount = Math.floor(currentIndex / judgmentsRef.current.length);
+        const msPerMeasure = (60000 / stage.bpm) * stage.timeSignature;
+        const loopStartMs = getMsFromMeasureBeat(stage.countInMeasures + 1, 1) + loopCount * stage.measureCount * msPerMeasure;
+        
+        const newJudgments: RhythmJudgment[] = [];
+        stage.chordProgressionData.chords.forEach(entry => {
+          // Calculate timing relative to the loop start
+          const measureOffset = (entry.measure - 1) * stage.timeSignature;
+          const beatOffset = entry.beat - 1;
+          const totalBeats = measureOffset + beatOffset;
+          const timing = loopStartMs + totalBeats * (60000 / stage.bpm);
+          newJudgments.push({
+            chord: entry.chord,
+            measure: entry.measure,
+            beat: entry.beat,
+            windowStart: timing - JUDGMENT_WINDOW_MS,
+            windowEnd: timing + JUDGMENT_WINDOW_MS,
+            judged: false,
+            success: false
+          });
         });
+        
+        judgmentsRef.current = [...judgmentsRef.current, ...newJudgments];
         updated = true;
       }
       
@@ -217,23 +240,30 @@ export function useRhythmEngine({
         const current = judgmentsRef.current[currentIndex];
         const next = judgmentsRef.current[currentIndex + 1];
         
-        setRhythmState(prev => ({
-          ...prev,
-          currentJudgmentIndex: currentIndex,
-          currentChord: current?.chord || null,
-          nextChord: next?.chord || null,
-          judgments: [...judgmentsRef.current]
-        }));
-        
-        if (current) {
-          onChordChange(current.chord);
+        // Prevent too frequent updates
+        const now = performance.now();
+        if (now - lastUpdateRef.current > 100) {
+          lastUpdateRef.current = now;
+          currentIndexRef.current = currentIndex;
+          
+          setRhythmState(prev => ({
+            ...prev,
+            currentJudgmentIndex: currentIndex,
+            currentChord: current?.chord || null,
+            nextChord: next?.chord || null,
+            judgments: [...judgmentsRef.current]
+          }));
+          
+          if (current) {
+            onChordChange(current.chord);
+          }
         }
       }
     };
     
     const interval = setInterval(checkJudgments, 50);
     return () => clearInterval(interval);
-  }, [stage, startAt, readyDuration, rhythmState.currentJudgmentIndex, getMsFromMeasureBeat, onChordMiss, onChordChange]);
+  }, [stage, startAt, readyDuration, getMsFromMeasureBeat, onChordMiss, onChordChange]);
 
   // Judge chord input
   const judgeChordInput = useCallback((inputChord: string) => {
@@ -242,7 +272,7 @@ export function useRhythmEngine({
     const currentTime = performance.now() - startAt;
     const currentMs = currentTime - readyDuration;
     
-    const currentJudgment = judgmentsRef.current[rhythmState.currentJudgmentIndex];
+    const currentJudgment = judgmentsRef.current[currentIndexRef.current];
     if (!currentJudgment || currentJudgment.judged) return false;
     
     // Check if within judgment window
@@ -253,53 +283,9 @@ export function useRhythmEngine({
         currentJudgment.success = true;
         onChordSuccess(inputChord);
         
-        // Move to next chord
-        const nextIndex = rhythmState.currentJudgmentIndex + 1;
-        let nextJudgment = judgmentsRef.current[nextIndex];
+        // Move to next chord - let the interval handle the actual update
+        // Just return success here
         
-        // Handle looping
-        if (!nextJudgment) {
-          if (!stage.chordProgressionData) {
-            // Random mode - generate new chord
-            const loopCount = Math.floor(nextIndex / stage.measureCount);
-            const measureInLoop = nextIndex % stage.measureCount;
-            const baseMs = getMsFromMeasureBeat(stage.countInMeasures + 1, 1) + loopCount * stage.measureCount * stage.timeSignature * (60000 / stage.bpm);
-            const timing = baseMs + measureInLoop * stage.timeSignature * (60000 / stage.bpm);
-            
-            const newChord = stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)];
-            nextJudgment = {
-              chord: newChord,
-              measure: stage.countInMeasures + 1 + measureInLoop,
-              beat: 1,
-              windowStart: timing - JUDGMENT_WINDOW_MS,
-              windowEnd: timing + JUDGMENT_WINDOW_MS,
-              judged: false,
-              success: false
-            };
-            judgmentsRef.current.push(nextJudgment);
-          } else {
-            // Progression mode - loop to start
-            judgmentsRef.current.forEach(j => {
-              j.judged = false;
-              j.success = false;
-            });
-            nextJudgment = judgmentsRef.current[0];
-          }
-        }
-        
-        const nextNext = judgmentsRef.current[nextIndex + 1] || judgmentsRef.current[0];
-        
-        setRhythmState(prev => ({
-          ...prev,
-          currentJudgmentIndex: stage.chordProgressionData && !judgmentsRef.current[nextIndex] ? 0 : nextIndex,
-          currentChord: nextJudgment?.chord || null,
-          nextChord: nextNext?.chord || null,
-          judgments: [...judgmentsRef.current]
-        }));
-        
-        if (nextJudgment) {
-          onChordChange(nextJudgment.chord);
-        }
         
         devLog.debug('Rhythm judgment success:', currentJudgment);
         return true;

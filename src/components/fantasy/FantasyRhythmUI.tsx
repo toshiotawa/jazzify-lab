@@ -21,14 +21,14 @@ export const FantasyRhythmUI: React.FC<FantasyRhythmUIProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // Debug logging
-  useEffect(() => {
-    console.log('RhythmUI state:', { 
-      currentChord: rhythmState.currentChord,
-      nextChord: rhythmState.nextChord,
-      judgmentCount: rhythmState.judgments.length,
-      currentIndex: rhythmState.currentJudgmentIndex
-    });
-  }, [rhythmState]);
+  // useEffect(() => {
+  //   console.log('RhythmUI state:', { 
+  //     currentChord: rhythmState.currentChord,
+  //     nextChord: rhythmState.nextChord,
+  //     judgmentCount: rhythmState.judgments.length,
+  //     currentIndex: rhythmState.currentJudgmentIndex
+  //   });
+  // }, [rhythmState]);
   
   // 判定ラインの位置（画面左から）
   const JUDGMENT_LINE_X = 150;
