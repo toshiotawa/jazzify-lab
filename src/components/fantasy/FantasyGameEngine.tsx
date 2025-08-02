@@ -91,6 +91,10 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  // progressionモード専用状態
+  gaugePhase: 'idle' | 'judging';
+  gaugeStartAt: number; // ゲージ開始時刻
+  hasShownProblem: boolean; // 現在小節で問題を表示済みか
 }
 
 interface FantasyGameEngineProps {
@@ -406,7 +410,11 @@ export const useFantasyGameEngine = ({
     monsterQueue: [],
     simultaneousMonsterCount: 1,
     // ゲーム完了処理中フラグ
-    isCompleting: false
+    isCompleting: false,
+    // progressionモード専用状態
+    gaugePhase: 'idle',
+    gaugeStartAt: 0,
+    hasShownProblem: false
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -533,7 +541,11 @@ export const useFantasyGameEngine = ({
       monsterQueue,
       simultaneousMonsterCount: simultaneousCount,
       // ゲーム完了処理中フラグ
-      isCompleting: false
+      isCompleting: false,
+      // progressionモード専用状態
+      gaugePhase: 'idle',
+      gaugeStartAt: 0,
+      hasShownProblem: false
     };
 
     setGameState(newState);
@@ -743,8 +755,121 @@ export const useFantasyGameEngine = ({
       }
     };
   }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
+
+  // progressionモード専用の拍監視ロジック
+  useEffect(() => {
+    if (!gameState.isGameActive || !gameState.currentStage || gameState.currentStage.mode !== 'progression') {
+      return;
+    }
+
+    const { currentBeat, tick } = useTimeStore.getState();
+    
+    // 出題：Beat 2
+    if (currentBeat === 2 && !gameState.hasShownProblem) {
+      devLog.debug('🎵 Progression mode: Beat 2 - showing next chord');
+      
+      setGameState(prevState => {
+        const progression = prevState.currentStage?.chordProgression || [];
+        const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+        const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+        
+        if (nextChord) {
+          // 各モンスターに新しいコードを割り当て
+          const updatedMonsters = prevState.activeMonsters.map(monster => ({
+            ...monster,
+            chordTarget: nextChord,
+            correctNotes: [],
+            gauge: 0
+          }));
+          
+          return {
+            ...prevState,
+            currentQuestionIndex: nextIndex,
+            activeMonsters: updatedMonsters,
+            // 互換性のため
+            currentChordTarget: nextChord,
+            gaugeStartAt: performance.now(),
+            hasShownProblem: true,
+            gaugePhase: 'idle'
+          };
+        }
+        return prevState;
+      });
+    }
+    
+    // 小節変わったらフラグを戻す
+    if (currentBeat === 1) {
+      setGameState(prevState => ({
+        ...prevState,
+        hasShownProblem: false
+      }));
+    }
+  }, [useTimeStore.getState().tick]); // timeStoreのtickを依存
+
+  // progressionモード専用のゲージ計算関数
+  const calcProgressionGauge = useCallback(() => {
+    if (!gameState.isGameActive || !gameState.currentStage || gameState.currentStage.mode !== 'progression') {
+      return 0;
+    }
+
+    const now = performance.now();
+    const { getMeasureStart } = useTimeStore.getState();
+    const nextMeasureStart = getMeasureStart() + (60000 / gameState.currentStage.bpm) * gameState.currentStage.timeSignature!;
+    
+    // 判定窓の計算
+    const t0 = gameState.gaugeStartAt; // 出題開始時刻
+    const t1 = nextMeasureStart - 200; // 判定開始 = 次小節開始 - 200ms
+    const t2 = t1 + 400; // 判定終了 = 判定開始 + 400ms
+    
+    // 係数計算
+    const s1 = 90 / (t1 - t0); // 90% / (t1 - t0) [%/ms]
+    const s2 = 0.025; // 10% / 400ms = 0.025 [%/ms]
+    
+    // ゲージ計算
+    if (now < t1) {
+      return Math.min(90, s1 * (now - t0));
+    } else if (now <= t2) {
+      return 90 + s2 * (now - t1);
+    } else {
+      return 0; // リセット
+    }
+  }, [gameState.isGameActive, gameState.currentStage, gameState.gaugeStartAt]);
+
+  // progressionモード専用のゲージ更新
+  useEffect(() => {
+    if (!gameState.isGameActive || !gameState.currentStage || gameState.currentStage.mode !== 'progression') {
+      return;
+    }
+
+    const updateProgressionGauge = () => {
+      const gauge = calcProgressionGauge();
+      
+      setGameState(prevState => {
+        // 各モンスターのゲージを更新
+        const updatedMonsters = prevState.activeMonsters.map(monster => ({
+          ...monster,
+          gauge: gauge
+        }));
+        
+        // ゲージが90-100%の範囲に入ったら判定フェーズに移行
+        const newPhase = (gauge >= 90 && gauge <= 100) ? 'judging' : 'idle';
+        
+        return {
+          ...prevState,
+          activeMonsters: updatedMonsters,
+          // 互換性のため
+          enemyGauge: gauge,
+          gaugePhase: newPhase
+        };
+      });
+    };
+
+    const timer = setInterval(updateProgressionGauge, 16); // 60fpsで更新
+    
+    return () => clearInterval(timer);
+  }, [gameState.isGameActive, gameState.currentStage, calcProgressionGauge]);
   
-  // 敵ゲージの更新（マルチモンスター対応）
+  // singleモード用の敵ゲージ更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中はゲージ停止 */
     const timeState = useTimeStore.getState();
@@ -754,8 +879,8 @@ export const useFantasyGameEngine = ({
     }
     
     setGameState(prevState => {
-      if (!prevState.isGameActive || !prevState.currentStage) {
-        devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
+      if (!prevState.isGameActive || !prevState.currentStage || prevState.currentStage.mode !== 'single') {
+        devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブまたはprogressionモード');
         return prevState;
       }
       
@@ -816,6 +941,15 @@ export const useFantasyGameEngine = ({
       // ゲームがアクティブでない場合は何もしない
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
         return prevState;
+      }
+
+      // progressionモード専用の判定窓チェック
+      if (prevState.currentStage?.mode === 'progression') {
+        const gauge = calcProgressionGauge();
+        if (gauge < 90 || gauge > 100) {
+          devLog.debug('🎹 Progression mode: Input ignored outside judgment window', { gauge });
+          return prevState; // 判定窓外の入力は無視
+        }
       }
 
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });

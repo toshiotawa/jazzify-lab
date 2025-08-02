@@ -692,7 +692,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 bg-black bg-opacity-50 text-white text-xs p-3 rounded">
               <div>ゲーム状態: {gameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
-              <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
+              <div>現在のコード: {gameState.currentChordTarget?.displayName || ''}</div>
               <div>許可コード数: {stage.allowedChords?.length || 0}</div>
               <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>
               <div>オーバーレイ: {overlay ? '表示中' : 'なし'}</div>
@@ -832,7 +832,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {monster.chordTarget ? monster.chordTarget.displayName : ''}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
@@ -888,7 +888,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                          className={cn(
+                            "h-full transition-all duration-100",
+                            monster.gauge >= 90 && monster.gauge <= 100
+                              ? "bg-red-500"
+                              : "bg-gradient-to-r from-purple-500 to-purple-700"
+                          )}
                           style={{ width: `${monster.gauge}%` }}
                         />
                       </div>
@@ -1018,7 +1023,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>
           <div>スコア: {gameState.score}</div>
           <div>正解数: {gameState.correctAnswers}</div>
-          <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
+          <div>現在のコード: {gameState.currentChordTarget?.displayName || ''}</div>
           <div>SP: {gameState.playerSp}</div>
           
           {/* ゲージ強制満タンテストボタン */}

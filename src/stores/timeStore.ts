@@ -27,6 +27,8 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* 現在小節の開始時刻を取得するAPI */
+  getMeasureStart: () => number
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -90,6 +92,36 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         currentMeasure: displayMeasure, // カウントイン後を1から表示
         isCountIn: false
       })
+    }
+  },
+  getMeasureStart: () => {
+    const s = get()
+    if (s.startAt === null) return 0
+    
+    const now = performance.now()
+    const elapsed = now - s.startAt
+    
+    /* Ready 中は開始時刻を返す */
+    if (elapsed < s.readyDuration) {
+      return s.startAt
+    }
+    
+    const msecPerBeat = 60000 / s.bpm
+    const measureLen = msecPerBeat * s.timeSignature
+    const beatsFromStart = Math.floor(
+      (elapsed - s.readyDuration) / msecPerBeat
+    )
+    const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
+    
+    /* カウントイン中かどうかを判定 */
+    if (totalMeasures < s.countInMeasures) {
+      // カウントイン中
+      return s.startAt + s.readyDuration + totalMeasures * measureLen
+    } else {
+      // メイン部分（カウントイン後）
+      const measuresAfterCountIn = totalMeasures - s.countInMeasures
+      const displayMeasure = measuresAfterCountIn % s.measureCount
+      return s.startAt + s.readyDuration + (s.countInMeasures + displayMeasure) * measureLen
     }
   }
 }))
