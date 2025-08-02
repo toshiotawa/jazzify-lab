@@ -1090,6 +1090,11 @@ export const useFantasyGameEngine = ({
 
       // 1. 今回の入力でどのモンスターが影響を受けるか判定し、新しい状態を作る
       const monstersAfterInput = prevState.activeMonsters.map(monster => {
+        // chordTargetがnullの場合はスキップ
+        if (!monster.chordTarget) {
+          return monster;
+        }
+        
         const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
         
         // 既に完成しているモンスターや、入力音と関係ないモンスターはスキップ
@@ -1158,7 +1163,7 @@ export const useFantasyGameEngine = ({
               // シングルモードの場合は即座に新しい問題
               const nextChord = selectRandomChord(
                 stateAfterAttack.currentStage!.allowedChords,
-                monster.chordTarget.id,
+                monster.chordTarget?.id,
                 displayOpts
               );
               return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
@@ -1178,7 +1183,7 @@ export const useFantasyGameEngine = ({
 
         if (monstersToAddCount > 0) {
                       const availablePositions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(pos => !remainingMonsters.some(m => m.position === pos));
-          const lastUsedChordId = completedMonsters.length > 0 ? completedMonsters[0].chordTarget.id : undefined;
+          const lastUsedChordId = completedMonsters.length > 0 ? completedMonsters[0].chordTarget?.id : undefined;
 
           for (let i = 0; i < monstersToAddCount; i++) {
             const monsterIndex = newMonsterQueue.shift()!;

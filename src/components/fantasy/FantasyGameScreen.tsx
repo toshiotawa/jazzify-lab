@@ -841,14 +841,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {monster.chordTarget ? monster.chordTarget.displayName : '？'}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
+                        {monster.chordTarget ? monster.chordTarget.noteNames.map((noteName, index) => {
                           // 表示オプションを定義
                           const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
                           // 表示用の音名に変換
@@ -873,7 +873,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                               {isCorrect && '✓'}
                             </span>
                           );
-                        })}
+                        }) : null}
                       </div>
                       
                       {/* 魔法名表示 */}
