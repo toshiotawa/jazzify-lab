@@ -38,7 +38,7 @@ const ToastItem: React.FC<{ toast: Toast; onRemove: (id: string) => void }> = ({
     const baseStyle = `
       relative px-4 py-3 rounded-lg shadow-lg text-white transition-all duration-300 transform
       ${isExiting ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}
-      ${isVisible ? 'animate-slide-in-right' : ''}
+      ${!isExiting ? 'animate-slide-in-right' : ''}
     `;
 
     switch (toast.type) {
