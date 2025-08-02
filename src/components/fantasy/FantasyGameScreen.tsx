@@ -11,9 +11,12 @@ import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { getChordDefinition } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { FantasyRhythmEngine, RhythmJudgment, RhythmChordSchedule } from './FantasyRhythmEngine';
+import { FantasyRhythmGauge } from './FantasyRhythmGauge';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
@@ -319,6 +322,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }, 2000);                             // 2 秒待ってから結果画面へ
   }, [onGameComplete]);
   
+  // リズムモード用ハンドラー
+  const handleRhythmJudgment = useCallback((judgment: RhythmJudgment) => {
+    devLog.debug('🎵 Rhythm judgment received:', judgment);
+    // 判定結果をPIXIに反映させる処理などを追加可能
+  }, []);
+  
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
   const {
@@ -329,7 +338,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     getCurrentEnemy,
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
-    ENEMY_LIST
+    ENEMY_LIST,
+    // リズムモード関連
+    isRhythmMode,
+    rhythmSchedule,
+    rhythmJudgments,
+    rhythmEngineRef,
+    updateRhythmMonsters
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
@@ -339,6 +354,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
   });
+  
+  // リズムスケジュールハンドラー（gameStateとisRhythmModeが利用可能になった後で定義）
+  const handleRhythmSchedule = useCallback((schedule: RhythmChordSchedule[]) => {
+    devLog.debug('🎵 Rhythm schedule updated:', schedule);
+    
+    // リズムモードでモンスターを更新
+    if (isRhythmMode && updateRhythmMonsters) {
+      updateRhythmMonsters(schedule);
+    }
+  }, [isRhythmMode, updateRhythmMonsters]);
+  
+  // 位置からモンスターIDを取得する関数
+  const getMonsterIdByPosition = useCallback((position: string) => {
+    const monster = gameState.activeMonsters.find(m => m.position === position);
+    return monster?.id;
+  }, [gameState.activeMonsters]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -464,39 +495,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       });
     }
   }, [handleNoteInputBridge, stage.showGuide]);
-
-  // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
-  useEffect(() => {
-    const linkMidiAndPixi = async () => {
-      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-        
-        // 1. 鍵盤ハイライト用のコールバックを設定
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRenderer.highlightKey(note, active);
-          if (active) {
-            pixiRenderer.triggerKeyPressEffect(note);
-          }
-        });
-        
-        // 2. デバイスに再接続して、設定したコールバックを有効化
-        devLog.debug(`🔧 Fantasy: Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        if (success) {
-          devLog.debug('✅ Fantasy: MIDI device successfully linked to renderer.');
-        } else {
-          devLog.debug('⚠️ Fantasy: Failed to link MIDI device to renderer.');
-        }
-      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-        // デバイス選択が解除された場合は切断
-        midiControllerRef.current.disconnect();
-        devLog.debug('🔌 Fantasy: MIDIデバイス切断');
-      }
-    };
-
-    linkMidiAndPixi();
-    
-  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
@@ -882,15 +880,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       
                       {/* 行動ゲージ */}
                       <div 
-                        ref={el => {
+                        ref={(el) => {
                           if (el) gaugeRefs.current.set(monster.id, el);
+                          else gaugeRefs.current.delete(monster.id);
                         }}
-                        className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
+                        className={`mt-1 bg-gray-700 rounded-full overflow-hidden ${
+                          monsterCount > 5 ? 'h-3' : 'h-4'
+                        }`}
+                        style={{ width: '90%' }}
                       >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
-                        />
+                        {/* リズムモードの場合は専用ゲージ、それ以外は通常ゲージ */}
+                        {isRhythmMode ? (
+                          <FantasyRhythmGauge
+                            schedule={rhythmSchedule}
+                            currentTime={performance.now() - (startAt || 0) - readyDuration}
+                            position={monster.position}
+                            chordId={monster.chordTarget.id}
+                          />
+                        ) : (
+                          <div
+                            className="h-full bg-gradient-to-r from-yellow-400 to-yellow-500 transition-all duration-100"
+                            style={{ width: `${(monster.gauge / 100) * 100}%` }}
+                          />
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
@@ -1107,6 +1119,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {overlay.text}
           </span>
         </div>
+      )}
+      
+      {/* リズムエンジン */}
+      {isRhythmMode && stage && (
+        <FantasyRhythmEngine
+          ref={rhythmEngineRef}
+          isActive={gameState.isGameActive}
+          bpm={stage.bpm || 120}
+          timeSignature={stage.timeSignature || 4}
+          measureCount={stage.measureCount || 8}
+          countInMeasures={stage.countInMeasures || 1}
+          chordProgressionData={stage.chordProgressionData}
+          allowedChords={stage.allowedChords}
+          simultaneousMonsterCount={stage.simultaneousMonsterCount}
+          onJudgment={handleRhythmJudgment}
+          onChordSchedule={handleRhythmSchedule}
+          onEnemyAttack={handleEnemyAttack}
+          getMonsterIdByPosition={getMonsterIdByPosition}
+        />
       )}
       
       {/* Ready オーバーレイ */}
