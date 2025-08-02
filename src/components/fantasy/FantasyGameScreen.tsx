@@ -723,9 +723,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <div className="text-sm font-bold">
               Stage {stage.stageNumber}
             </div>
-            <div className="text-xs text-gray-300">
-              敵の数: {stage.enemyCount}
-            </div>
+            {stage.mode === 'rhythm' ? (
+              <>
+                <div className="text-xs text-purple-300">
+                  🎵 リズムモード
+                </div>
+                <div className="text-xs text-gray-300">
+                  BPM: {stage.bpm || 120}
+                </div>
+              </>
+            ) : (
+              <div className="text-xs text-gray-300">
+                敵の数: {stage.enemyCount}
+              </div>
+            )}
           </div>
           
           {/* 戻るボタン */}
@@ -919,6 +930,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">
               {getNextChord()}
+            </div>
+          </div>
+        )}
+        
+        {/* リズムモード判定表示 */}
+        {stage.mode === 'rhythm' && (
+          <div className="mb-1 text-center">
+            <div className={cn(
+              "inline-block px-4 py-2 rounded-full text-sm font-bold transition-all",
+              gameState.acceptingInput 
+                ? "bg-green-500 text-white animate-pulse" 
+                : "bg-gray-700 text-gray-400"
+            )}>
+              {gameState.acceptingInput ? "タイミング!" : "待機中..."}
             </div>
           </div>
         )}

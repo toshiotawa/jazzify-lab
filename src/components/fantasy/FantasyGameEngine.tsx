@@ -34,9 +34,10 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';
   allowedChords: string[];
   chordProgression?: string[];
+  chordProgressionData?: any; // Rhythm mode: NULL for random, JSON for progression
   showSheetMusic: boolean;
   showGuide: boolean; // ガイド表示設定を追加
   monsterIcon: string;
@@ -91,6 +92,13 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  // リズムモード用
+  currentBeat: number; // 現在の拍
+  currentMeasure: number; // 現在の小節
+  rhythmStartTime: number; // リズムモード開始時刻
+  lastJudgmentTime: number; // 最後の判定時刻
+  acceptingInput: boolean; // 入力受付中フラグ
+  rhythmPattern: 'random' | 'progression'; // リズムパターン
 }
 
 interface FantasyGameEngineProps {
@@ -406,7 +414,14 @@ export const useFantasyGameEngine = ({
     monsterQueue: [],
     simultaneousMonsterCount: 1,
     // ゲーム完了処理中フラグ
-    isCompleting: false
+    isCompleting: false,
+    // リズムモード用
+    currentBeat: 0,
+    currentMeasure: 0,
+    rhythmStartTime: 0,
+    lastJudgmentTime: 0,
+    acceptingInput: false,
+    rhythmPattern: 'random'
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -419,7 +434,8 @@ export const useFantasyGameEngine = ({
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.simultaneousMonsterCount || 1;
+    // リズムモードは常に1体ずつ
+    const simultaneousCount = stage.mode === 'rhythm' ? 1 : (stage.simultaneousMonsterCount || 1);
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -480,24 +496,27 @@ export const useFantasyGameEngine = ({
     // ▼▼▼ 修正点2: コードの重複を避けるロジックを追加 ▼▼▼
     let lastChordId: string | undefined = undefined; // 直前のコードIDを記録する変数を追加
 
-    // 既に同時出現数が 1 の場合に後続モンスターが "フェードアウト待ち" の間に
-    // 追加生成されないよう、queue だけ作って最初の 1 体だけ生成する。
-    for (let i = 0; i < initialMonsterCount; i++) {
-      const monsterIndex = monsterQueue.shift()!;
-      // simultaneousMonsterCount === 1 のとき、0 番目のみ即生成。
-      if (i === 0 || simultaneousCount > 1) {
-        const monster = createMonsterFromQueue(
-          monsterIndex,
-          positions[i],
-          enemyHp,
-          stage.allowedChords,
-          lastChordId,
-          displayOpts,
-          monsterIds        // ✅ 今回作った配列
-        );
-        activeMonsters.push(monster);
-        usedChordIds.push(monster.chordTarget.id);
-        lastChordId = monster.chordTarget.id;
+    // リズムモードの場合は初期モンスターを生成しない
+    if (stage.mode !== 'rhythm') {
+      // 既に同時出現数が 1 の場合に後続モンスターが "フェードアウト待ち" の間に
+      // 追加生成されないよう、queue だけ作って最初の 1 体だけ生成する。
+      for (let i = 0; i < initialMonsterCount; i++) {
+        const monsterIndex = monsterQueue.shift()!;
+        // simultaneousMonsterCount === 1 のとき、0 番目のみ即生成。
+        if (i === 0 || simultaneousCount > 1) {
+          const monster = createMonsterFromQueue(
+            monsterIndex,
+            positions[i],
+            enemyHp,
+            stage.allowedChords,
+            lastChordId,
+            displayOpts,
+            monsterIds        // ✅ 今回作った配列
+          );
+          activeMonsters.push(monster);
+          usedChordIds.push(monster.chordTarget.id);
+          lastChordId = monster.chordTarget.id;
+        }
       }
     }
 
@@ -533,7 +552,14 @@ export const useFantasyGameEngine = ({
       monsterQueue,
       simultaneousMonsterCount: simultaneousCount,
       // ゲーム完了処理中フラグ
-      isCompleting: false
+      isCompleting: false,
+      // リズムモード用
+      currentBeat: 0,
+      currentMeasure: 0,
+      rhythmStartTime: Date.now(),
+      lastJudgmentTime: 0,
+      acceptingInput: false,
+      rhythmPattern: stage.chordProgressionData ? 'progression' : 'random'
     };
 
     setGameState(newState);
@@ -729,11 +755,20 @@ export const useFantasyGameEngine = ({
     
     // ゲームがアクティブな場合のみ新しいタイマーを開始
     if (gameState.isGameActive && gameState.currentStage) {
-      devLog.debug('⏰ 敵ゲージタイマー開始');
-      const timer = setInterval(() => {
-        updateEnemyGauge();
-      }, 100); // 100ms間隔で更新
-      setEnemyGaugeTimer(timer);
+      // リズムモードの場合は別のタイマー処理
+      if (gameState.currentStage.mode === 'rhythm') {
+        devLog.debug('🎵 リズムモードタイマー開始');
+        const timer = setInterval(() => {
+          updateRhythmMode();
+        }, 50); // 50ms間隔で更新（より精密なタイミング判定のため）
+        setEnemyGaugeTimer(timer);
+      } else {
+        devLog.debug('⏰ 敵ゲージタイマー開始');
+        const timer = setInterval(() => {
+          updateEnemyGauge();
+        }, 100); // 100ms間隔で更新
+        setEnemyGaugeTimer(timer);
+      }
     }
     
     // クリーンアップ
@@ -743,6 +778,94 @@ export const useFantasyGameEngine = ({
       }
     };
   }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
+  
+  // リズムモードの更新
+  const updateRhythmMode = useCallback(() => {
+    const timeState = useTimeStore.getState();
+    if (!timeState.startAt || !gameState.currentStage) return;
+    
+    const currentTime = performance.now() - timeState.startAt;
+    const msPerBeat = 60000 / (gameState.currentStage.bpm || 120);
+    const timeSignature = gameState.currentStage.timeSignature || 4;
+    const msPerMeasure = msPerBeat * timeSignature;
+    
+    // 現在の小節と拍を計算
+    const currentMeasure = Math.floor(currentTime / msPerMeasure);
+    const beatInMeasure = Math.floor((currentTime % msPerMeasure) / msPerBeat);
+    
+    setGameState(prevState => {
+      if (!prevState.isGameActive || !prevState.currentStage) return prevState;
+      
+      // 新しい小節の1拍目が近づいているかチェック（前後200ms）
+      const nextMeasureTime = (currentMeasure + 1) * msPerMeasure;
+      const timeTillNextMeasure = nextMeasureTime - currentTime;
+      
+      // 判定ウィンドウ内かチェック（-200ms ~ +200ms）
+      const isInWindow = timeTillNextMeasure <= 200 && timeTillNextMeasure >= -200;
+      
+      // 新しい小節の開始を検出
+      if (currentMeasure > prevState.currentMeasure && !prevState.acceptingInput) {
+        devLog.debug('🎵 新しい小節開始:', { measure: currentMeasure });
+        
+        // ランダムパターンの場合、新しいコードを生成
+        if (prevState.rhythmPattern === 'random' && prevState.activeMonsters.length === 0) {
+          const allowedChords = prevState.currentStage.allowedChords;
+          const randomChord = selectUniqueRandomChord(
+            allowedChords, 
+            prevState.currentChordTarget?.id,
+            displayOpts
+          );
+          
+          // 新しいモンスターを生成（1体のみ）
+          const monster: MonsterState = {
+            id: `rhythm_${Date.now()}`,
+            index: prevState.enemiesDefeated,
+            position: 'D', // 中央に配置
+            currentHp: prevState.currentStage.enemyHp,
+            maxHp: prevState.currentStage.enemyHp,
+            gauge: 0,
+            chordTarget: randomChord,
+            correctNotes: [],
+            icon: prevState.currentStage.monsterIcon,
+            name: 'リズムモンスター'
+          };
+          
+          return {
+            ...prevState,
+            activeMonsters: [monster],
+            currentChordTarget: randomChord,
+            currentMeasure,
+            currentBeat: beatInMeasure,
+            acceptingInput: true,
+            lastJudgmentTime: currentTime
+          };
+        }
+      }
+      
+      // 判定ウィンドウから外れたらミス判定
+      if (prevState.acceptingInput && !isInWindow && currentTime - prevState.lastJudgmentTime > 400) {
+        if (prevState.activeMonsters.length > 0) {
+          devLog.debug('❌ リズムモード：タイミングミス');
+          // ミスの場合、即座に攻撃
+          setTimeout(() => handleEnemyAttack(prevState.activeMonsters[0].id), 0);
+          
+          return {
+            ...prevState,
+            activeMonsters: [],
+            acceptingInput: false,
+            currentBeat: beatInMeasure
+          };
+        }
+      }
+      
+      return {
+        ...prevState,
+        currentMeasure,
+        currentBeat: beatInMeasure,
+        acceptingInput: isInWindow
+      };
+    });
+  }, [gameState.currentStage, handleEnemyAttack, displayOpts]);
   
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
@@ -816,6 +939,14 @@ export const useFantasyGameEngine = ({
       // ゲームがアクティブでない場合は何もしない
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
         return prevState;
+      }
+
+      // リズムモードの場合、タイミングチェック
+      if (prevState.currentStage?.mode === 'rhythm') {
+        if (!prevState.acceptingInput) {
+          devLog.debug('🎵 リズムモード：入力受付時間外');
+          return prevState;
+        }
       }
 
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
