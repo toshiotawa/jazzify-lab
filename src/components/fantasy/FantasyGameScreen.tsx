@@ -609,18 +609,30 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
+    const gauge = gameState.enemyGauge;
+    const isInJudgmentRange = stage?.mode === 'progression' && gauge >= 90 && gauge <= 100;
+    
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
+          className={cn(
+            "h-full rounded-full transition-all duration-200 ease-out",
+            isInJudgmentRange 
+              ? "bg-gradient-to-r from-red-500 to-pink-500" // 判定タイミングは赤系
+              : "bg-gradient-to-r from-yellow-500 to-orange-400" // 通常は黄色系
+          )}
           style={{ 
             width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+            boxShadow: isInJudgmentRange 
+              ? '0 0 15px rgba(239, 68, 68, 0.8)' // 赤く光る
+              : gameState.enemyGauge > 80 
+                ? '0 0 10px rgba(245, 158, 11, 0.6)' 
+                : 'none'
           }}
         />
       </div>
     );
-  }, [gameState.enemyGauge]);
+  }, [gameState.enemyGauge, stage?.mode]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -660,7 +672,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  if (!overlay && !gameState.isCompleting && !gameState.isGameActive) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
@@ -832,7 +844,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {monster.chordTarget?.displayName || (stage.mode === 'progression' ? '？' : '')}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
