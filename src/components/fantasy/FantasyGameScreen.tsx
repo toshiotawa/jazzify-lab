@@ -283,26 +283,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
-    devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // 敵の攻撃音を再生
     try {
+      // エフェクト表示
+      setDamageShake(true);
+      setHeartFlash(true);
+      setTimeout(() => {
+        setDamageShake(false);
+        setHeartFlash(false);
+      }, 500);
+      
+      // FantasySoundManagerで効果音再生
       const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
-      FantasySoundManager.playEnemyAttack();
+      FantasySoundManager.playSound('damage');
+      devLog.debug('🔊 ダメージ効果音再生');
     } catch (error) {
-      console.error('Failed to play enemy attack sound:', error);
+      console.error('敵の攻撃処理中のエラー:', error);
+      // エラーが発生してもゲームは続行する
     }
-    
-    // confetti削除 - 何もしない
-    
-    // ダメージ時の画面振動
-    setDamageShake(true);
-    setTimeout(() => setDamageShake(false), 500);
-    
-    // ハートフラッシュ効果
-    setHeartFlash(true);
-    setTimeout(() => setHeartFlash(false), 150);
-    
   }, []);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
@@ -888,9 +886,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                          className={cn(
+                            "h-full transition-all duration-100",
+                            // プログレッションモードで90%以上の場合は色を変更
+                            stage.mode === 'progression' && monster.gauge >= 90
+                              ? "bg-gradient-to-r from-yellow-400 to-orange-500 animate-pulse"
+                              : "bg-gradient-to-r from-purple-500 to-purple-700"
+                          )}
                           style={{ width: `${monster.gauge}%` }}
                         />
+                        {/* 90%と100%のマーカーを追加（プログレッションモードのみ） */}
+                        {stage.mode === 'progression' && (
+                          <>
+                            <div className="absolute top-0 bottom-0 w-px bg-yellow-300/50" style={{ left: '90%' }} />
+                            <div className="absolute top-0 bottom-0 w-px bg-red-500/50" style={{ left: '100%' }} />
+                          </>
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
