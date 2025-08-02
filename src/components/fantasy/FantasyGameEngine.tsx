@@ -14,6 +14,25 @@ import * as PIXI from 'pixi.js';
 
 // ===== 型定義 =====
 
+// リズムモード用のコードタイミング情報
+interface ChordTiming {
+  measure: number;
+  beat: number;
+  chord: string;
+}
+
+// リズムモード用の状態を拡張
+interface RhythmModeState {
+  chordTimings: ChordTiming[]; // コード進行データ
+  nextTimingIndex: number; // 次に出題するコードのインデックス
+  pendingChords: Map<string, {
+    timing: ChordTiming;
+    monsterId: string;
+    displayStartTime: number; // 表示開始時刻
+    judgmentTime: number; // 判定タイミング
+  }>; // 現在表示中のコード情報
+}
+
 interface ChordDefinition {
   id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
@@ -34,7 +53,7 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
@@ -46,6 +65,14 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
+  mp3Url?: string;
+  chordProgressionData?: {
+    chords: Array<{
+      measure: number;
+      beat: number;
+      chord: string;
+    }>;
+  }; // リズムモード用のコード進行データ
 }
 
 interface MonsterState {
@@ -91,6 +118,8 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  // リズムモード用
+  rhythmState?: RhythmModeState;
 }
 
 interface FantasyGameEngineProps {
@@ -160,6 +189,58 @@ const ENEMY_LIST = [
 ];
 
 // ===== ヘルパー関数 =====
+
+/**
+ * リズムモード: 現在の時刻から小節と拍を計算
+ */
+const getCurrentMeasureAndBeat = (timeState: any): { measure: number; beat: number } => {
+  const { currentMeasure, currentBeat, isCountIn, measureCount } = timeState;
+  
+  if (isCountIn) {
+    // カウントイン中は無効な値を返す
+    return { measure: -1, beat: -1 };
+  }
+  
+  // メイン部分の小節と拍（ループを考慮）
+  return { measure: currentMeasure, beat: currentBeat };
+};
+
+/**
+ * リズムモード: 判定タイミングまでの時間を計算（ミリ秒）
+ */
+const calculateTimeToJudgment = (
+  targetMeasure: number,
+  targetBeat: number,
+  currentMeasure: number,
+  currentBeat: number,
+  bpm: number,
+  timeSignature: number,
+  measureCount: number
+): number => {
+  const beatDuration = 60000 / bpm; // 1拍のミリ秒
+  
+  // 現在の総拍数（ループを考慮）
+  const currentTotalBeats = (currentMeasure - 1) * timeSignature + (currentBeat - 1);
+  
+  // ターゲットの総拍数（ループを考慮）
+  let targetTotalBeats = (targetMeasure - 1) * timeSignature + (targetBeat - 1);
+  
+  // ターゲットが現在より前の場合、次のループでの判定として計算
+  if (targetTotalBeats < currentTotalBeats) {
+    targetTotalBeats += measureCount * timeSignature;
+  }
+  
+  const beatDifference = targetTotalBeats - currentTotalBeats;
+  return beatDifference * beatDuration;
+};
+
+/**
+ * リズムモード: 判定ウィンドウ内かどうかチェック
+ */
+const isInJudgmentWindow = (judgmentTime: number, currentTime: number, windowMs: number = 200): boolean => {
+  const diff = Math.abs(judgmentTime - currentTime);
+  return diff <= windowMs;
+};
 
 /**
  * キューからモンスターを生成
@@ -419,7 +500,12 @@ export const useFantasyGameEngine = ({
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.simultaneousMonsterCount || 1;
+    
+    // リズムモードでは同時出現数を固定
+    let simultaneousCount = stage.simultaneousMonsterCount || 1;
+    if (stage.mode === 'rhythm') {
+      simultaneousCount = stage.chordProgressionData ? 4 : 1; // プログレッション:4体、ランダム:1体
+    }
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -486,24 +572,87 @@ export const useFantasyGameEngine = ({
       const monsterIndex = monsterQueue.shift()!;
       // simultaneousMonsterCount === 1 のとき、0 番目のみ即生成。
       if (i === 0 || simultaneousCount > 1) {
-        const monster = createMonsterFromQueue(
-          monsterIndex,
-          positions[i],
-          enemyHp,
-          stage.allowedChords,
-          lastChordId,
-          displayOpts,
-          monsterIds        // ✅ 今回作った配列
-        );
-        activeMonsters.push(monster);
-        usedChordIds.push(monster.chordTarget.id);
-        lastChordId = monster.chordTarget.id;
+        // リズムモードでは初期コードを空にする（タイミングで管理）
+        if (stage.mode === 'rhythm') {
+          const emptyChord: ChordDefinition = {
+            id: '',
+            displayName: '',
+            notes: [],
+            noteNames: [],
+            quality: '',
+            root: ''
+          };
+          const monster: MonsterState = {
+            id: `${monsterIds[monsterIndex]}_${Date.now()}_${positions[i]}`,
+            index: monsterIndex,
+            position: positions[i],
+            currentHp: enemyHp,
+            maxHp: enemyHp,
+            gauge: 0,
+            chordTarget: emptyChord,
+            correctNotes: [],
+            icon: monsterIds[monsterIndex],
+            name: ''
+          };
+          activeMonsters.push(monster);
+        } else {
+          const monster = createMonsterFromQueue(
+            monsterIndex,
+            positions[i],
+            enemyHp,
+            stage.allowedChords,
+            lastChordId,
+            displayOpts,
+            monsterIds        // ✅ 今回作った配列
+          );
+          activeMonsters.push(monster);
+          usedChordIds.push(monster.chordTarget.id);
+          lastChordId = monster.chordTarget.id;
+        }
       }
     }
 
     // 互換性のため最初のモンスターの情報を設定
     const firstMonster = activeMonsters[0];
     const firstChord = firstMonster ? firstMonster.chordTarget : null;
+
+    // リズムモードの初期化
+    let rhythmState: RhythmModeState | undefined;
+    if (stage.mode === 'rhythm') {
+      const chordTimings: ChordTiming[] = [];
+      
+      if (stage.chordProgressionData) {
+        // プログレッションパターン：JSONからタイミング情報を読み込む
+        const data = stage.chordProgressionData;
+        if (data.chords && Array.isArray(data.chords)) {
+          data.chords.forEach((item: { measure?: number; beat?: number; chord?: string }) => {
+            if (item.measure && item.beat && item.chord) {
+              chordTimings.push({
+                measure: item.measure,
+                beat: item.beat,
+                chord: item.chord
+              });
+            }
+          });
+        }
+      } else {
+        // ランダムパターン：各小節の1拍目に判定タイミングを設定
+        for (let measure = 1; measure <= (stage.measureCount || 8); measure++) {
+          const chord = stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)];
+          chordTimings.push({
+            measure,
+            beat: 1, // 1拍目固定
+            chord
+          });
+        }
+      }
+      
+      rhythmState = {
+        chordTimings,
+        nextTimingIndex: 0,
+        pendingChords: new Map()
+      };
+    }
 
     const newState: FantasyGameState = {
       currentStage: stage,
@@ -533,7 +682,9 @@ export const useFantasyGameEngine = ({
       monsterQueue,
       simultaneousMonsterCount: simultaneousCount,
       // ゲーム完了処理中フラグ
-      isCompleting: false
+      isCompleting: false,
+      // リズムモード
+      rhythmState
     };
 
     setGameState(newState);
@@ -744,6 +895,172 @@ export const useFantasyGameEngine = ({
     };
   }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
   
+  // リズムモードのタイミング管理
+  useEffect(() => {
+    if (!gameState.isGameActive || gameState.currentStage?.mode !== 'rhythm' || !gameState.rhythmState) {
+      return;
+    }
+    
+    const checkRhythmTiming = () => {
+      const timeState = useTimeStore.getState();
+      const currentTime = performance.now();
+      const stage = gameState.currentStage!;
+      
+      if (!timeState.startAt || timeState.isCountIn) {
+        return; // カウントイン中は何もしない
+      }
+      
+      const { measure: currentMeasure, beat: currentBeat } = getCurrentMeasureAndBeat(timeState);
+      const rhythmState = gameState.rhythmState!;
+      
+      // 出題タイミングのチェック（3拍前）
+      const beatsAhead = 3;
+      const leadTime = beatsAhead * (60000 / stage.bpm!);
+      
+      // 次に出題すべきコードを探す
+      for (let i = rhythmState.nextTimingIndex; i < rhythmState.chordTimings.length; i++) {
+        const timing = rhythmState.chordTimings[i];
+        const timeToJudgment = calculateTimeToJudgment(
+          timing.measure,
+          timing.beat,
+          currentMeasure,
+          currentBeat,
+          stage.bpm!,
+          stage.timeSignature || 4,
+          stage.measureCount || 8
+        );
+        
+        // 出題タイミング（判定の3拍前）に達したら
+        if (timeToJudgment <= leadTime && timeToJudgment > leadTime - 100) {
+          // 空いているモンスターを探す
+          const availableMonster = gameState.activeMonsters.find(m => 
+            !Array.from(rhythmState.pendingChords.values()).some(pc => pc.monsterId === m.id)
+          );
+          
+          if (availableMonster) {
+            const chordDef = getChordDefinition(timing.chord, displayOpts);
+            if (chordDef) {
+              setGameState(prev => {
+                if (!prev.rhythmState) return prev;
+                
+                const newPendingChords = new Map(prev.rhythmState.pendingChords);
+                const key = `${timing.measure}-${timing.beat}`;
+                newPendingChords.set(key, {
+                  timing,
+                  monsterId: availableMonster.id,
+                  displayStartTime: currentTime,
+                  judgmentTime: currentTime + timeToJudgment
+                });
+                
+                // モンスターにコードを割り当て
+                const updatedMonsters = prev.activeMonsters.map(m => {
+                  if (m.id === availableMonster.id) {
+                    return { ...m, chordTarget: chordDef, correctNotes: [] };
+                  }
+                  return m;
+                });
+                
+                return {
+                  ...prev,
+                  activeMonsters: updatedMonsters,
+                  rhythmState: {
+                    ...prev.rhythmState,
+                    nextTimingIndex: i + 1,
+                    pendingChords: newPendingChords
+                  }
+                };
+              });
+            }
+          }
+        }
+      }
+      
+      // 判定タイミングを過ぎたコードの処理
+      setGameState(prev => {
+        if (!prev.rhythmState) return prev;
+        
+        let shouldUpdate = false;
+        const newPendingChords = new Map(prev.rhythmState.pendingChords);
+        const updatedMonsters = [...prev.activeMonsters];
+        
+        prev.rhythmState.pendingChords.forEach((chord, key) => {
+          const timeSinceJudgment = currentTime - chord.judgmentTime;
+          
+          // 判定ウィンドウを過ぎたら失敗
+          if (timeSinceJudgment > 200) {
+            shouldUpdate = true;
+            newPendingChords.delete(key);
+            
+            // 該当モンスターを即座に攻撃状態にする
+            const monsterIndex = updatedMonsters.findIndex(m => m.id === chord.monsterId);
+            if (monsterIndex !== -1) {
+              updatedMonsters[monsterIndex] = {
+                ...updatedMonsters[monsterIndex],
+                gauge: 100
+              };
+              
+              // 攻撃処理を予約
+              setTimeout(() => handleEnemyAttack(chord.monsterId), 0);
+            }
+          }
+        });
+        
+        if (!shouldUpdate) return prev;
+        
+        return {
+          ...prev,
+          activeMonsters: updatedMonsters,
+          rhythmState: {
+            ...prev.rhythmState,
+            pendingChords: newPendingChords
+          }
+        };
+      });
+      
+      // ループ処理：最後のコードまで行ったら最初に戻る
+      if (rhythmState.nextTimingIndex >= rhythmState.chordTimings.length) {
+        setGameState(prev => {
+          if (!prev.rhythmState) return prev;
+          
+          // ランダムパターンの場合は新しいコードを生成
+          if (!stage.chordProgressionData) {
+            const newTimings: ChordTiming[] = [];
+            for (let measure = 1; measure <= (stage.measureCount || 8); measure++) {
+              const chord = stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)];
+              newTimings.push({
+                measure,
+                beat: 1,
+                chord
+              });
+            }
+            
+            return {
+              ...prev,
+              rhythmState: {
+                ...prev.rhythmState,
+                chordTimings: newTimings,
+                nextTimingIndex: 0
+              }
+            };
+          }
+          
+          // プログレッションパターンの場合はインデックスをリセット
+          return {
+            ...prev,
+            rhythmState: {
+              ...prev.rhythmState,
+              nextTimingIndex: 0
+            }
+          };
+        });
+      }
+    };
+    
+    const timer = setInterval(checkRhythmTiming, 50); // 50ms間隔でチェック
+    
+    return () => clearInterval(timer);
+  }, [gameState.isGameActive, gameState.currentStage?.mode, gameState.rhythmState, handleEnemyAttack, displayOpts]);
+  
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中はゲージ停止 */
@@ -756,6 +1073,11 @@ export const useFantasyGameEngine = ({
     setGameState(prevState => {
       if (!prevState.isGameActive || !prevState.currentStage) {
         devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
+        return prevState;
+      }
+      
+      // リズムモードではゲージを使わない
+      if (prevState.currentStage.mode === 'rhythm') {
         return prevState;
       }
       
@@ -816,6 +1138,26 @@ export const useFantasyGameEngine = ({
       // ゲームがアクティブでない場合は何もしない
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
         return prevState;
+      }
+
+      // リズムモードの場合は判定ウィンドウをチェック
+      if (prevState.currentStage?.mode === 'rhythm' && prevState.rhythmState) {
+        const timeState = useTimeStore.getState();
+        const currentTime = performance.now();
+        
+        // 判定ウィンドウ内のコードがあるかチェック
+        let inWindow = false;
+        prevState.rhythmState.pendingChords.forEach((chord, key) => {
+          if (isInJudgmentWindow(chord.judgmentTime, currentTime, 200)) {
+            inWindow = true;
+          }
+        });
+        
+        // 判定ウィンドウ外の場合は入力を無視
+        if (!inWindow) {
+          devLog.debug('🎹 判定ウィンドウ外の入力 - 無視');
+          return prevState;
+        }
       }
 
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
@@ -887,12 +1229,31 @@ export const useFantasyGameEngine = ({
         // 生き残ったモンスターのうち、今回攻撃したモンスターは問題をリセット
         remainingMonsters = remainingMonsters.map(monster => {
           if (completedMonsters.some(cm => cm.id === monster.id)) {
-            const nextChord = selectRandomChord(
-              stateAfterAttack.currentStage!.allowedChords,
-              monster.chordTarget.id,
-              displayOpts
-            );
-            return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
+            // リズムモードでは新しいコードを割り当てない（タイミングで管理）
+            if (stateAfterAttack.currentStage?.mode === 'rhythm') {
+              // リズムモードの場合、pendingChordsから削除
+              if (stateAfterAttack.rhythmState) {
+                const newPendingChords = new Map(stateAfterAttack.rhythmState.pendingChords);
+                Array.from(newPendingChords.entries()).forEach(([key, value]) => {
+                  if (value.monsterId === monster.id) {
+                    newPendingChords.delete(key);
+                  }
+                });
+                stateAfterAttack.rhythmState = {
+                  ...stateAfterAttack.rhythmState,
+                  pendingChords: newPendingChords
+                };
+              }
+              return { ...monster, chordTarget: monster.chordTarget, correctNotes: [], gauge: 0 };
+            } else {
+              // クイズモードの場合は新しいコードを選択
+              const nextChord = selectRandomChord(
+                stateAfterAttack.currentStage!.allowedChords,
+                monster.chordTarget.id,
+                displayOpts
+              );
+              return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
+            }
           }
           // SPアタックの場合は全ての敵のゲージをリセット
           if (isSpecialAttack) {

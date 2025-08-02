@@ -832,7 +832,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {/* リズムモードでは、空のコードの場合は表示しない */}
+                        {stage.mode === 'rhythm' && !monster.chordTarget.id ? '' : monster.chordTarget.displayName}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
@@ -891,6 +892,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
                           style={{ width: `${monster.gauge}%` }}
                         />
+                        {/* リズムモードの判定ウィンドウ表示 (90-100%) */}
+                        {stage.mode === 'rhythm' && (
+                          <div
+                            className="absolute top-0 h-full bg-yellow-400 opacity-30"
+                            style={{ 
+                              left: '90%',
+                              width: '10%' 
+                            }}
+                          />
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
