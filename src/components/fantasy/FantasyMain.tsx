@@ -341,11 +341,25 @@ const FantasyMain: React.FC = () => {
   
   // ステージ選択に戻る
   const handleBackToStageSelect = useCallback(() => {
-    setCurrentStage(null);
-    setGameResult(null);
-    setShowResult(false);
-    setPendingAutoStart(false); // pendingAutoStart もリセット
-  }, []);
+    try {
+      // レッスンモードの場合は特別な処理が必要
+      if (isLessonMode && lessonContext) {
+        devLog.debug('🎮 レッスンモードからの終了');
+        // レッスン詳細ページに戻る
+        window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+        return;
+      }
+      
+      setCurrentStage(null);
+      setGameResult(null);
+      setShowResult(false);
+      setPendingAutoStart(false); // pendingAutoStart もリセット
+    } catch (error) {
+      console.error('ステージ選択に戻る際のエラー:', error);
+      // エラーが発生した場合は安全にダッシュボードに戻る
+      window.location.hash = '#dashboard';
+    }
+  }, [isLessonMode, lessonContext]);
   
   // ★ 追加: 次のステージに待機画面で遷移
   const gotoNextStageWaiting = useCallback(async () => {
