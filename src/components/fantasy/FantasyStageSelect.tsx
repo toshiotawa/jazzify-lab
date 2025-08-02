@@ -299,6 +299,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : "このステージはまだロックされています"}
           </div>
+          
+          {/* リズムモード表示 */}
+          {unlocked && stage.mode === 'rhythm' && (
+            <div className="text-xs text-cyan-400 mt-2">
+              リズムモード / {stage.chordProgression ? '進行' : 'ランダム'}
+            </div>
+          )}
         </div>
         
         {/* 右側のアイコン */}
