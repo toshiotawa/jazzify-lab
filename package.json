@@ -19,6 +19,7 @@
     "preview:prod": "vite build --mode production && vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
+    "test": "jest",
     "clean": "rm -rf dist node_modules/.vite",
     "clean:all": "rm -rf dist node_modules/.vite node_modules && npm install"
   },
@@ -49,6 +50,7 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
@@ -60,10 +62,13 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
     "postcss": "^8.4.32",
     "stripe": "^14.25.0",
     "supabase": "^2.30.4",
     "tailwindcss": "^3.4.0",
+    "ts-jest": "^29.4.0",
     "ts-prune": "^0.10.3",
     "typescript": "^5.8.3",
     "vite": "^5.0.8"
