@@ -159,9 +159,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'single' | 'progression' | 'quiz' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+        chordProgressionData: stage.chord_progression_data,
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
@@ -299,6 +300,22 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : "このステージはまだロックされています"}
           </div>
+          
+          {/* モード表示 */}
+          {unlocked && (
+            <div className="mt-2">
+              <span className={cn(
+                "text-xs px-2 py-1 rounded",
+                stage.mode === 'rhythm' 
+                  ? "bg-purple-600 text-purple-100" 
+                  : "bg-blue-600 text-blue-100"
+              )}>
+                {stage.mode === 'rhythm' 
+                  ? `Rhythm / ${stage.chordProgressionData ? '進行' : 'ランダム'}` 
+                  : 'Quiz'}
+              </span>
+            </div>
+          )}
         </div>
         
         {/* 右側のアイコン */}

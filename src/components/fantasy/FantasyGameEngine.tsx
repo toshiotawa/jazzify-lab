@@ -34,9 +34,10 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'quiz' | 'rhythm';
   allowedChords: string[];
   chordProgression?: string[];
+  chordProgressionData?: any; // リズムモード用のコード進行データ
   showSheetMusic: boolean;
   showGuide: boolean; // ガイド表示設定を追加
   monsterIcon: string;
