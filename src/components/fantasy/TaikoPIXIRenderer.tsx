@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import * as PIXI from 'pixi.js';
+import type * as PIXI from 'pixi.js';
 import { useTimeStore } from '@/stores/timeStore';
 import type { ChordDefinition } from './FantasyGameEngine';
 import { devLog } from '@/utils/logger';
@@ -89,8 +89,10 @@ const TaikoPIXIRenderer: React.FC<TaikoPIXIRendererProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
     
-    // PIXIアプリケーション作成
-    const app = new PIXI.Application({
+    // 動的にPIXIをインポート
+    import('pixi.js').then((PIXI) => {
+      // PIXIアプリケーション作成
+      const app = new PIXI.Application({
       width,
       height,
       backgroundColor: 0x1a1a2e,
@@ -251,6 +253,7 @@ const TaikoPIXIRenderer: React.FC<TaikoPIXIRendererProps> = ({
       appRef.current = null;
       notesRef.current.clear();
     };
+    }); // End of PIXI import promise
   }, [width, height, onReady, calculateNotePosition]);
   
   return (

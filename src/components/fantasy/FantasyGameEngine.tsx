@@ -10,7 +10,8 @@ import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
-import * as PIXI from 'pixi.js';
+import { note as parseNote } from 'tonal';
+import type * as PIXI from 'pixi.js';
 
 // ===== 型定義 =====
 
@@ -131,7 +132,7 @@ export interface FantasyGameEngineProps {
  * @param displayOpts 表示オプション
  * @returns ChordDefinition
  */
-const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
+function getChordDefinition(chordId: string, displayOpts?: DisplayOpts): ChordDefinition | null {
   const resolved = resolveChord(chordId, 4, displayOpts);
   if (!resolved) {
     console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
@@ -152,10 +153,7 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
     quality: resolved.quality,
     root: resolved.root
   };
-};
-
-// parseNoteをインポート
-import { note as parseNote } from 'tonal';
+}
 
 // ===== 敵リスト定義 =====
 
@@ -372,12 +370,12 @@ const getProgressionChord = (progression: string[], questionIndex: number, displ
 /**
  * 現在の敵情報を取得
  */
-const getCurrentEnemy = (enemyIndex: number) => {
+function getCurrentEnemy(enemyIndex: number) {
   if (enemyIndex >= 0 && enemyIndex < ENEMY_LIST.length) {
     return ENEMY_LIST[enemyIndex];
   }
   return ENEMY_LIST[0]; // フォールバック
-};
+}
 
 // ===== メインコンポーネント =====
 
@@ -454,6 +452,8 @@ export const useFantasyGameEngine = ({
 
     // モンスター画像をプリロード
     try {
+      const PIXI = await import('pixi.js');
+      
       // バンドルが既に存在する場合は削除
       // PIXI v7では unloadBundle が失敗しても問題ないため、try-catchで保護
       try {
