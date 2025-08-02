@@ -103,7 +103,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (!isReady && startAt) {
       bgmManager.play(
-        stage.bgmUrl ?? '/demo-1.mp3',
+        stage.mp3Url || stage.bgmUrl || '/demo-1.mp3',
         stage.bpm || 120,
         stage.timeSignature || 4,
         stage.measureCount ?? 8,
@@ -722,6 +722,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div className="flex items-center space-x-4">
             <div className="text-sm font-bold">
               Stage {stage.stageNumber}
+              {gameState.isRhythmMode && (
+                <span className="ml-2 text-xs bg-purple-600 px-2 py-1 rounded">
+                  リズムモード
+                </span>
+              )}
             </div>
             <div className="text-xs text-gray-300">
               敵の数: {stage.enemyCount}
