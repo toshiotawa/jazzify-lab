@@ -1003,7 +1003,7 @@ export const useFantasyGameEngine = ({
         
         onGameStateChange(nextState);
         return nextState;
-      }
+      });
     };
     
     const timer = setInterval(checkQuestionTiming, 50); // 50ms間隔でチェック
