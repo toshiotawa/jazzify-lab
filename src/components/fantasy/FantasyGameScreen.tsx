@@ -888,9 +888,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                          className={cn(
+                            "h-full transition-all duration-100",
+                            gameState.isRhythmMode && monster.gauge >= 90
+                              ? "bg-gradient-to-r from-yellow-500 to-yellow-600" // 判定ウィンドウ内
+                              : "bg-gradient-to-r from-purple-500 to-purple-700" // 通常
+                          )}
                           style={{ width: `${monster.gauge}%` }}
                         />
+                        {/* リズムモード: 判定ウィンドウの視覚的表示 */}
+                        {gameState.isRhythmMode && (
+                          <div
+                            className="absolute h-full bg-white bg-opacity-20 right-0"
+                            style={{ width: '10%' }} // 90-100%の範囲
+                          />
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
