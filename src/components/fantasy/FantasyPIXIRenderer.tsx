@@ -226,7 +226,7 @@ export class FantasyPIXIInstance {
 
   
   private currentMagicType: string = 'fire';
-  // ★★★ MONSTER_EMOJI と loadEmojiTextures を削除、またはコメントアウト ★★★
+  // 
   /*
   private emojiTextures: Map<string, PIXI.Texture> = new Map();
   */
@@ -300,9 +300,9 @@ export class FantasyPIXIInstance {
     
     // 絵文字テクスチャの事前読み込み
     // this.loadEmojiTextures(); // ★ 削除
-    // this.loadMonsterTextures(); // ★★★ 遅延ロードに変更したためコメントアウト ★★★
+    // this.loadMonsterTextures(); // 
     
-    // ★★★ 修正点(1): 魔法エフェクトのテクスチャ読み込みを追加 ★★★
+    // 
     this.loadImageTextures(); // この行を追加して魔法画像をロードします
     
     // よく使われるモンスターアイコンのプリロード（非同期で実行）
@@ -314,7 +314,7 @@ export class FantasyPIXIInstance {
     devLog.debug('✅ ファンタジーPIXI初期化完了（状態機械対応）');
   }
 
-  // ★★★ 遅延ロードに変更したため、この関数は使用しない ★★★
+  // 
   // private async loadMonsterTextures(): Promise<void> {
   //   try {
   //     // ▼▼▼ 変更点 ▼▼▼
@@ -369,7 +369,7 @@ export class FantasyPIXIInstance {
     this.imageTextures.set('default_monster', fallbackTexture);
   }
 
-  // ★★★ 修正点(2): 画像読み込みパスを `public` ディレクトリ基準に修正 ★★★
+  // 
   private async loadImageTextures(): Promise<void> {
     try {
       // 魔法テクスチャのアセット定義
@@ -463,7 +463,7 @@ export class FantasyPIXIInstance {
         this.monsterSprite.texture.destroy(true);
       }
       
-      // ★★★ createMonsterSpriteForId を画像ベースに修正 ★★★
+      // 
       const sprite = await this.createMonsterSpriteForId('default', icon);
       if (sprite) {
         this.monsterSprite.texture = sprite.texture;
@@ -560,7 +560,7 @@ export class FantasyPIXIInstance {
       }
     }
     
-    // ★★★ 修正点: ソートしてから位置を計算 ★★★
+    // 
     const sortedMonsters = [...monsters].sort((a, b) => a.position.localeCompare(b.position));
 
     // 各モンスターのスプライトを作成または更新
