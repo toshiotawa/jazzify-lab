@@ -888,7 +888,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                          className={cn(
+                            "h-full transition-all duration-100",
+                            monster.gauge >= 90 
+                              ? "bg-gradient-to-r from-red-500 to-red-700 animate-pulse" 
+                              : "bg-gradient-to-r from-purple-500 to-purple-700"
+                          )}
                           style={{ width: `${monster.gauge}%` }}
                         />
                       </div>
