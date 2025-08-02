@@ -138,11 +138,15 @@ export const useRhythmStore = create<RhythmState>((set, get) => ({
     
     if (state.pattern === 'random' && nextPointer >= state.questions.length) {
       // ランダムパターンでループ時は新しく生成
-      devLog.debug('リズムモード: ループ検出、新規生成');
-      // 実際は再度generateを呼ぶ必要があるが、ここでは単純にポインタリセット
-      set({ currentPointer: state.countInMeasures || 0 }); // カウントイン後に戻る
+      devLog.debug('リズムモード: ループ検出、次の問題へ');
+      // カウントイン後の最初の問題に戻る
+      const countInQuestions = state.questions.filter(q => q.measure <= (state.countInMeasures || 1)).length;
+      set({ currentPointer: countInQuestions });
+    } else if (state.pattern === 'progression' && nextPointer >= state.questions.length) {
+      // 進行パターンでループ
+      set({ currentPointer: 0 });
     } else {
-      set({ currentPointer: nextPointer % state.questions.length });
+      set({ currentPointer: nextPointer });
     }
   },
   

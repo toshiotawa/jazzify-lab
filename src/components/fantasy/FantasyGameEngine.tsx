@@ -11,6 +11,7 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { FantasyStage } from '@/types';
 
 // ===== 型定義 =====
 
@@ -21,31 +22,6 @@ interface ChordDefinition {
   noteNames: string[]; // ★ 理論的に正しい音名配列を追加
   quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
   root: string;        // ルート音（例: 'C', 'G', 'A'）
-}
-
-interface FantasyStage {
-  id: string;
-  stageNumber: string;
-  name: string;
-  description: string;
-  maxHp: number;
-  enemyGaugeSeconds: number;
-  enemyCount: number;
-  enemyHp: number;
-  minDamage: number;
-  maxDamage: number;
-  mode: 'single' | 'progression';
-  allowedChords: string[];
-  chordProgression?: string[];
-  showSheetMusic: boolean;
-  showGuide: boolean; // ガイド表示設定を追加
-  monsterIcon: string;
-  bgmUrl?: string;
-  simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
-  bpm: number;
-  measureCount?: number;
-  countInMeasures?: number;
-  timeSignature?: number;
 }
 
 interface MonsterState {
@@ -1076,5 +1052,5 @@ export const useFantasyGameEngine = ({
   };
 };
 
-export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState };
+export type { ChordDefinition, FantasyGameState, FantasyGameEngineProps, MonsterState };
 export { ENEMY_LIST, getCurrentEnemy };

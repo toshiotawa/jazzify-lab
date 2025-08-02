@@ -6,7 +6,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
-import { FantasyStage } from './FantasyGameEngine';
+import RhythmGameScreen from './RhythmGameScreen';  // 追加
+import { FantasyStage } from '@/types';  // types/index.tsから取得
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
@@ -88,27 +89,29 @@ const FantasyMain: React.FC = () => {
           // FantasyStageの形式に変換
           const fantasyStage: FantasyStage = {
             id: stage.id,
-            stageNumber: stage.stage_number,
+            stage_number: stage.stage_number,
             name: stage.name,
             description: stage.description,
-            maxHp: stage.max_hp,
-            enemyGaugeSeconds: stage.enemy_gauge_seconds,
-            enemyCount: stage.enemy_count,
-            enemyHp: stage.enemy_hp,
-            minDamage: stage.min_damage,
-            maxDamage: stage.max_damage,
+            max_hp: stage.max_hp,
+            enemy_gauge_seconds: stage.enemy_gauge_seconds,
+            enemy_count: stage.enemy_count,
+            enemy_hp: stage.enemy_hp,
+            min_damage: stage.min_damage,
+            max_damage: stage.max_damage,
             mode: stage.mode,
-            allowedChords: stage.allowed_chords,
-            chordProgression: stage.chord_progression,
-            showSheetMusic: stage.show_sheet_music,
-            showGuide: stage.show_guide,
-            simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
-            monsterIcon: stage.monster_icon || 'dragon',
+            allowed_chords: stage.allowed_chords,
+            chord_progression: stage.chord_progression,
+            show_sheet_music: stage.show_sheet_music,
+            show_guide: stage.show_guide,
+            simultaneous_monster_count: stage.simultaneous_monster_count || 1,
+            monster_icon: stage.monster_icon || 'dragon',
             bpm: stage.bpm || 120,
-            bgmUrl: stage.bgm_url || stage.mp3_url,
-            measureCount: stage.measure_count,
-            countInMeasures: stage.count_in_measures,
-            timeSignature: stage.time_signature
+            bgm_url: stage.bgm_url || stage.mp3_url,
+            mp3_url: stage.mp3_url,
+            measure_count: stage.measure_count,
+            count_in_measures: stage.count_in_measures,
+            time_signature: stage.time_signature,
+            chord_progression_data: stage.chord_progression_data
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -372,27 +375,29 @@ const FantasyMain: React.FC = () => {
       // データベースの形式から FantasyStage 形式に変換
       const convertedStage: FantasyStage = {
         id: nextStageData.id,
-        stageNumber: nextStageData.stage_number,
+        stage_number: nextStageData.stage_number,  // DB側のスネークケース
         name: nextStageData.name,
         description: nextStageData.description || '',
-        maxHp: nextStageData.max_hp,
-        enemyGaugeSeconds: nextStageData.enemy_gauge_seconds,
-        enemyCount: nextStageData.enemy_count,
-        enemyHp: nextStageData.enemy_hp,
-        minDamage: nextStageData.min_damage,
-        maxDamage: nextStageData.max_damage,
-        mode: nextStageData.mode as 'single' | 'progression',
-        allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
-        chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
-        showSheetMusic: nextStageData.show_sheet_music,
-        showGuide: nextStageData.show_guide,
-        monsterIcon: nextStageData.monster_icon,
-        bgmUrl: nextStageData.bgm_url || nextStageData.mp3_url,
-        simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1,
-        bpm: nextStageData.bpm || 120,
-        measureCount: nextStageData.measure_count,
-        countInMeasures: nextStageData.count_in_measures,
-        timeSignature: nextStageData.time_signature
+        max_hp: nextStageData.max_hp,              // DB側のスネークケース
+        enemy_gauge_seconds: nextStageData.enemy_gauge_seconds,  // DB側のスネークケース
+        enemy_count: nextStageData.enemy_count,    // DB側のスネークケース
+        enemy_hp: nextStageData.enemy_hp,          // DB側のスネークケース
+        min_damage: nextStageData.min_damage,      // DB側のスネークケース
+        max_damage: nextStageData.max_damage,      // DB側のスネークケース
+        mode: nextStageData.mode,
+        allowed_chords: nextStageData.allowed_chords,
+        chord_progression: nextStageData.chord_progression,
+        show_sheet_music: nextStageData.show_sheet_music,  // DB側のスネークケース
+        show_guide: nextStageData.show_guide,      // DB側のスネークケース
+        simultaneous_monster_count: nextStageData.simultaneous_monster_count,  // DB側のスネークケース
+        monster_icon: nextStageData.monster_icon,  // DB側のスネークケース
+        bgm_url: nextStageData.bgm_url,            // DB側のスネークケース
+        mp3_url: nextStageData.mp3_url,            // DB側のスネークケース
+        bpm: nextStageData.bpm,
+        measure_count: nextStageData.measure_count,  // DB側のスネークケース
+        time_signature: nextStageData.time_signature,  // DB側のスネークケース
+        count_in_measures: nextStageData.count_in_measures,  // DB側のスネークケース
+        chord_progression_data: nextStageData.chord_progression_data  // 追加
       };
 
       setGameResult(null);
@@ -561,6 +566,22 @@ const FantasyMain: React.FC = () => {
   
   // ゲーム画面
   if (currentStage) {
+    // リズムモードの判定
+    if (currentStage.mode === 'rhythm') {
+      return (
+        <RhythmGameScreen
+          key={gameKey}
+          stage={currentStage}
+          autoStart={pendingAutoStart}
+          onGameComplete={handleGameComplete}
+          onBackToStageSelect={handleBackToStageSelect}
+          noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
+          simpleNoteName={settings.simpleDisplayMode}
+        />
+      );
+    }
+    
+    // クイズモード（既存）
     return (
       <FantasyGameScreen
         // ▼▼▼ 追加 ▼▼▼
