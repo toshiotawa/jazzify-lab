@@ -900,20 +900,29 @@ export const useFantasyGameEngine = ({
               // プログレッションモードではchordProgressionがある場合はそちらを優先
               const progression = prevState.currentStage.chordProgression || prevState.currentStage.allowedChords;
               
-              // progressionが空の場合はスキップ
-              if (!progression || progression.length === 0) {
-                devLog.error('❌ プログレッション配列が空です');
+              // progressionが空の場合はデフォルト値を使用
+              const effectiveProgression = (!progression || progression.length === 0) 
+                ? ['C', 'G', 'Am', 'F'] // デフォルトのコード進行
+                : progression;
+              
+              if (!effectiveProgression || effectiveProgression.length === 0) {
+                devLog.error('❌ プログレッション配列が空です:', {
+                  chordProgression: prevState.currentStage.chordProgression,
+                  allowedChords: prevState.currentStage.allowedChords,
+                  mode: prevState.currentStage.mode,
+                  stageName: prevState.currentStage.name
+                });
                 return monster;
               }
               
-              const currentIndex = monster.nextQuestionIndex % progression.length;
-              const nextChordId = progression[currentIndex];
+              const currentIndex = monster.nextQuestionIndex % effectiveProgression.length;
+              const nextChordId = effectiveProgression[currentIndex];
               
               // nextChordIdが存在しない場合はスキップ
               if (!nextChordId) {
                 devLog.error('❌ 次のコードIDが見つかりません:', {
                   currentIndex,
-                  progression,
+                  effectiveProgression,
                   nextQuestionIndex: monster.nextQuestionIndex
                 });
                 return monster;
@@ -926,9 +935,10 @@ export const useFantasyGameEngine = ({
                 nextQuestionIndex: monster.nextQuestionIndex,
                 currentIndex,
                 nextChordId,
-                progression,
+                effectiveProgression,
                 chordDisplayName: nextChord?.displayName,
-                hasChordProgression: !!prevState.currentStage.chordProgression
+                hasChordProgression: !!prevState.currentStage.chordProgression,
+                usingDefault: (!progression || progression.length === 0)
               });
               
               if (nextChord) {

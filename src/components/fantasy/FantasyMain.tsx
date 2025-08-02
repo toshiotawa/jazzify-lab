@@ -374,7 +374,7 @@ const FantasyMain: React.FC = () => {
         id: nextStageData.id,
         stageNumber: nextStageData.stage_number,
         name: nextStageData.name,
-        description: nextStageData.description || '',
+        description: nextStageData.description,
         maxHp: nextStageData.max_hp,
         enemyGaugeSeconds: nextStageData.enemy_gauge_seconds,
         enemyCount: nextStageData.enemy_count,
@@ -394,6 +394,15 @@ const FantasyMain: React.FC = () => {
         countInMeasures: nextStageData.count_in_measures,
         timeSignature: nextStageData.time_signature
       };
+      
+      // デバッグログを追加
+      console.log('📊 ステージデータ変換:', {
+        stageNumber: convertedStage.stageNumber,
+        mode: convertedStage.mode,
+        allowedChords: convertedStage.allowedChords,
+        chordProgression: convertedStage.chordProgression,
+        rawAllowedChords: nextStageData.allowed_chords
+      });
 
       setGameResult(null);
       setShowResult(false);
