@@ -982,9 +982,8 @@ export const useFantasyGameEngine = ({
             }
             return monster;
           });
-        }
-        
-        const nextState = {
+          
+          const nextState = {
           ...prevState,
           activeMonsters: updatedMonsters,
           // 互換性のため
