@@ -660,7 +660,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  if (!overlay && !gameState.isCompleting && !gameState.isGameActive) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
@@ -935,6 +935,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   pointer-events-none bg-black/40 rounded px-2 py-1">
         {renderSpGauge(gameState.playerSp)}
       </div>
+      
+      {/* Attack Gauge */}
+      {gameState.currentStage?.mode === 'progression' && (
+        <div className="absolute left-4 right-4 bottom-14 z-50">
+          <div className="h-6 bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className={cn(
+                "h-full transition-all duration-100",
+                gameState.playerGauge >= 90
+                  ? "bg-gradient-to-r from-lime-400 to-lime-600"
+                  : "bg-gradient-to-r from-purple-500 to-purple-700"
+              )}
+              style={{ width: `${gameState.playerGauge}%` }}
+            />
+          </div>
+        </div>
+      )}
       
       {/* ===== ピアノ鍵盤エリア ===== */}
       <div 

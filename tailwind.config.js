@@ -218,4 +218,10 @@ export default {
   	}
   },
   plugins: [require("tailwindcss-animate")],
+  safelist: [
+    'from-purple-500',
+    'to-purple-700',
+    'from-lime-400',
+    'to-lime-600'
+  ]
 } 
