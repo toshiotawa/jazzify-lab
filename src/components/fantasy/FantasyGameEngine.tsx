@@ -435,108 +435,8 @@ export const useFantasyGameEngine = ({
   
   // プログレッションモード用: アクティブノートの追跡
   const activeNotesRef = useRef<Set<number>>(new Set());
-  
-  // プログレッションモード用: timeStoreの監視 - 順序を後ろに移動
-  const progressionTimeEffect = () => {
-    if (gameState.currentStage?.mode !== 'progression' || !gameState.isGameActive) return;
-    
-    const unsubscribe = useTimeStore.subscribe((state) => {
-      const now = performance.now();
-      const msecPerBeat = 60000 / state.bpm;
-      const isFirstBeat = state.currentBeat === 1 && !state.isCountIn;
       
-      // 3拍前に出題
-      if (!gameState.currentProgressionNote && !gameState.nextNoteTime) {
-        const progression = gameState.currentStage.chordProgression || [];
-        if (progression.length === 0) return;
-        
-        const chordId = progression[gameState.currentQuestionIndex % progression.length];
-        const chord = getChordDefinition(chordId, displayOpts);
-        if (!chord) return;
-        
-        // 次の小節の1拍目を計算
-        const beatsUntilNextMeasure = (state.timeSignature - state.currentBeat + 1) % state.timeSignature || state.timeSignature;
-        const nextMeasure = beatsUntilNextMeasure === state.timeSignature ? state.currentMeasure + 1 : state.currentMeasure;
-        
-        const note: ProgressionNote = {
-          id: `${chord.id}_${nextMeasure}_${Date.now()}`,
-          chord,
-          targetBeat: 1,
-          targetMeasure: nextMeasure,
-          displayTime: now,
-          judgmentTime: now + (beatsUntilNextMeasure + 2) * msecPerBeat, // 3拍前から表示
-          isJudged: false
-        };
-        
-        setGameState(prev => ({
-          ...prev,
-          progressionNotes: [...prev.progressionNotes, note],
-          currentProgressionNote: note,
-          nextNoteTime: note.judgmentTime + JUDGMENT_WINDOW_MS
-        }));
-        
-        devLog.debug('🎵 プログレッションノーツ出題:', {
-          chord: chord.displayName,
-          targetMeasure: nextMeasure,
-          beatsUntilJudgment: beatsUntilNextMeasure + 2
-        });
-      }
-      
-      // 判定ウィンドウチェック
-      if (gameState.currentProgressionNote && !gameState.currentProgressionNote.isJudged) {
-        const timeDiff = now - gameState.currentProgressionNote.judgmentTime;
-        
-                  // 判定ウィンドウ終了
-          if (timeDiff > JUDGMENT_WINDOW_MS) {
-            devLog.debug('⏰ 判定ウィンドウ終了 - MISS');
-            
-            // ミス判定（敵攻撃を後で実行）
-            setTimeout(() => {
-              setGameState(prev => {
-                // 敵攻撃の処理をインライン化
-                const newHp = Math.max(0, prev.playerHp - 1);
-                const isGameOver = newHp <= 0;
-                
-                if (isGameOver) {
-                  const finalState = {
-                    ...prev,
-                    playerHp: 0,
-                    isGameActive: false,
-                    isGameOver: true,
-                    gameResult: 'gameover' as const,
-                    isCompleting: true,
-                    currentProgressionNote: null,
-                    nextNoteTime: null
-                  };
-                  
-                  setTimeout(() => {
-                    onGameComplete('gameover', finalState);
-                  }, 100);
-                  
-                  return finalState;
-                } else {
-                  // HP減少して次の問題へ
-                  return {
-                    ...prev,
-                    playerHp: newHp,
-                    playerSp: 0,
-                    currentProgressionNote: null,
-                    nextNoteTime: null,
-                    currentQuestionIndex: (prev.currentQuestionIndex + 1) % (prev.currentStage?.chordProgression?.length || 1),
-                    enemyGauge: 0
-                  };
-                }
-              });
-              
-              // 敵攻撃エフェクトの呼び出し
-              onEnemyAttack('progression');
-            }, 0);
-          }
-      }
-    });
-    
-          return () => unsubscribe();
-    };
+
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
@@ -844,8 +744,76 @@ export const useFantasyGameEngine = ({
       onEnemyAttack(attackingMonsterId);
 }, [onGameStateChange, onGameComplete, onEnemyAttack]);
   
-  // プログレッションモード用: timeStoreの監視 (handleEnemyAttackが定義された後に配置)
-  useEffect(progressionTimeEffect, [gameState.currentStage, gameState.isGameActive, gameState.currentProgressionNote, gameState.nextNoteTime, gameState.currentQuestionIndex, gameState.playerHp, displayOpts, onGameComplete, onEnemyAttack]);
+  // プログレッションモード用: timeStoreの監視
+  useEffect(() => {
+    if (gameState.currentStage?.mode !== 'progression' || !gameState.isGameActive) return;
+    
+    const unsubscribe = useTimeStore.subscribe((state) => {
+      const now = performance.now();
+      const msecPerBeat = 60000 / state.bpm;
+      const isFirstBeat = state.currentBeat === 1 && !state.isCountIn;
+      
+      // 3拍前に出題
+      if (!gameState.currentProgressionNote && !gameState.nextNoteTime) {
+        const progression = gameState.currentStage.chordProgression || [];
+        if (progression.length === 0) return;
+        
+        const chordId = progression[gameState.currentQuestionIndex % progression.length];
+        const chord = getChordDefinition(chordId, displayOpts);
+        if (!chord) return;
+        
+        // 次の小節の1拍目を計算
+        const beatsUntilNextMeasure = (state.timeSignature - state.currentBeat + 1) % state.timeSignature || state.timeSignature;
+        const nextMeasure = beatsUntilNextMeasure === state.timeSignature ? state.currentMeasure + 1 : state.currentMeasure;
+        
+        const note: ProgressionNote = {
+          id: `${chord.id}_${nextMeasure}_${Date.now()}`,
+          chord,
+          targetBeat: 1,
+          targetMeasure: nextMeasure,
+          displayTime: now,
+          judgmentTime: now + (beatsUntilNextMeasure + 2) * msecPerBeat, // 3拍前から表示
+          isJudged: false
+        };
+        
+        setGameState(prev => ({
+          ...prev,
+          progressionNotes: [...prev.progressionNotes, note],
+          currentProgressionNote: note,
+          nextNoteTime: note.judgmentTime + JUDGMENT_WINDOW_MS
+        }));
+        
+        devLog.debug('🎵 プログレッションノーツ出題:', {
+          chord: chord.displayName,
+          targetMeasure: nextMeasure,
+          beatsUntilJudgment: beatsUntilNextMeasure + 2
+        });
+      }
+      
+      // 判定ウィンドウチェック
+      if (gameState.currentProgressionNote && !gameState.currentProgressionNote.isJudged) {
+        const timeDiff = now - gameState.currentProgressionNote.judgmentTime;
+        
+        // 判定ウィンドウ終了
+        if (timeDiff > JUDGMENT_WINDOW_MS) {
+          devLog.debug('⏰ 判定ウィンドウ終了 - MISS');
+          
+          // ミス判定（handleEnemyAttackを直接呼び出し）
+          handleEnemyAttack('progression');
+          
+          // 次のノーツの準備
+          setGameState(prev => ({
+            ...prev,
+            currentProgressionNote: null,
+            nextNoteTime: null,
+            currentQuestionIndex: (prev.currentQuestionIndex + 1) % (prev.currentStage?.chordProgression?.length || 1)
+          }));
+        }
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [gameState.currentStage?.mode, gameState.isGameActive, gameState.currentProgressionNote, gameState.nextNoteTime, gameState.currentQuestionIndex, displayOpts, handleEnemyAttack]);
   
   // ゲージタイマーの管理
   useEffect(() => {

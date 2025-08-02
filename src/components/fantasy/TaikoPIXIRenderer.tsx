@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import * as PIXI from 'pixi.js';
 import { useTimeStore } from '@/stores/timeStore';
-import { ChordDefinition } from './FantasyGameEngine';
+import type { ChordDefinition } from './FantasyGameEngine';
 import { devLog } from '@/utils/logger';
 
 // 定数定義
@@ -263,5 +263,4 @@ const TaikoPIXIRenderer: React.FC<TaikoPIXIRendererProps> = ({
 };
 
 export default TaikoPIXIRenderer;
-export { TaikoPIXIRenderer };
 export type { TaikoPIXIInstance };
