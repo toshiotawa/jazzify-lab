@@ -5,12 +5,13 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/utils/cn';
-import { usePianoStore } from '@/stores/pianoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { Button } from '@/components/ui/button';
-import { Piano } from '@/components/Piano';
+import { PIXINotesRenderer } from '@/components/game/PIXINotesRenderer';
 import { RhythmGameEngine, type RhythmGameState, type RhythmStage, type ChordNote } from './RhythmGameEngine';
 import { devLog } from '@/utils/logger';
+import { MIDIController } from '@/utils/MidiController';
+import { resolveChord } from '@/utils/chord-utils';
 
 interface RhythmGameScreenProps {
   stage: RhythmStage;
@@ -27,8 +28,10 @@ export const RhythmGameScreen: React.FC<RhythmGameScreenProps> = ({
   const animationFrameRef = useRef<number>(0);
   const [gameState, setGameState] = useState<RhythmGameState | null>(null);
   const [isGameStarted, setIsGameStarted] = useState(false);
+  const [playingNotes, setPlayingNotes] = useState<Set<number>>(new Set());
+  const [playingChordIds, setPlayingChordIds] = useState<string[]>([]);
+  const midiControllerRef = useRef<MIDIController | null>(null);
   
-  const { playingChordIds } = usePianoStore();
   const { settings } = useSettingsStore();
 
   // Canvas描画
@@ -216,6 +219,81 @@ export const RhythmGameScreen: React.FC<RhythmGameScreenProps> = ({
     onGameEnd(result, score);
   }, [onGameEnd]);
 
+  // MIDI入力処理
+  const handleNoteInput = useCallback((note: number) => {
+    setPlayingNotes(prev => {
+      const newNotes = new Set(prev);
+      newNotes.add(note);
+      return newNotes;
+    });
+  }, []);
+
+  const handleNoteRelease = useCallback((note: number) => {
+    setPlayingNotes(prev => {
+      const newNotes = new Set(prev);
+      newNotes.delete(note);
+      return newNotes;
+    });
+  }, []);
+
+  // 演奏中のノートからコードを判定
+  useEffect(() => {
+    if (playingNotes.size === 0) {
+      setPlayingChordIds([]);
+      return;
+    }
+
+    // 演奏中のノートからコードを判定
+    const notesArray = Array.from(playingNotes).sort((a, b) => a - b);
+    const matchedChords: string[] = [];
+
+    // 許可されたコードと照合
+    for (const chordId of stage.allowedChords) {
+      const resolved = resolveChord(chordId);
+      if (!resolved) continue;
+
+      // コードのノートと演奏中のノートが一致するかチェック
+      const chordNotes = resolved.notes.sort((a, b) => a - b);
+      
+      // 完全一致または部分一致をチェック
+      if (chordNotes.length === notesArray.length) {
+        const isMatch = chordNotes.every((note, index) => {
+          // オクターブを無視して比較
+          return (note % 12) === (notesArray[index] % 12);
+        });
+        
+        if (isMatch) {
+          matchedChords.push(chordId);
+        }
+      }
+    }
+
+    setPlayingChordIds(matchedChords);
+  }, [playingNotes, stage.allowedChords]);
+
+  // MIDIコントローラーの初期化
+  useEffect(() => {
+    const initMidi = async () => {
+      const controller = new MIDIController();
+      midiControllerRef.current = controller;
+
+      controller.setNoteOnCallback(handleNoteInput);
+      controller.setNoteOffCallback(handleNoteRelease);
+
+      if (settings.selectedMidiDevice) {
+        await controller.connectDevice(settings.selectedMidiDevice);
+      }
+    };
+
+    initMidi();
+
+    return () => {
+      if (midiControllerRef.current) {
+        midiControllerRef.current.disconnect();
+      }
+    };
+  }, [handleNoteInput, handleNoteRelease, settings.selectedMidiDevice]);
+
   return (
     <div className="flex flex-col h-screen bg-gray-900">
       {/* ヘッダー */}
@@ -298,8 +376,23 @@ export const RhythmGameScreen: React.FC<RhythmGameScreenProps> = ({
       </div>
 
       {/* ピアノ */}
-      <div className="h-64 bg-gray-800 border-t border-gray-700">
-        <Piano />
+      <div className="h-48 bg-gray-800 border-t border-gray-700">
+        <PIXINotesRenderer
+          notes={[]}
+          currentTime={0}
+          viewportWidth={8000}
+          settings={{
+            noteNameStyle: settings.noteNameStyle || 'abc',
+            simpleDisplayMode: settings.simpleDisplayMode || false,
+            pianoHeight: 180,
+            transpose: 0,
+            transposingInstrument: 'concert_pitch',
+            practiceGuide: 'off',
+            selectedMidiDevice: settings.selectedMidiDevice
+          }}
+          onKeyPress={handleNoteInput}
+          onKeyRelease={handleNoteRelease}
+        />
       </div>
 
       {/* ゲームエンジン（非表示） */}
