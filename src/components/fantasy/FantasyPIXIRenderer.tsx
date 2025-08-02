@@ -188,12 +188,17 @@ export class FantasyPIXIInstance {
   private effectContainer: PIXI.Container;
   private uiContainer: PIXI.Container;
   private backgroundContainer: PIXI.Container;
+  private taikoContainer: PIXI.Container; // 太鼓UIレイヤー
   private onDefeated?: () => void;
   private onMonsterDefeated?: () => void;
   private onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
   
   // プリロードされたテクスチャへの参照を追加
   private imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>;
+  
+  // 太鼓ノーツ管理
+  private taikoNotes: Map<string, PIXI.Container> = new Map();
+  private judgeLineX: number = 150; // 判定ラインのX座標
   
   /** ────────────────────────────────────
    *  safe‑default で初期化しておく
@@ -287,6 +292,7 @@ export class FantasyPIXIInstance {
 
     this.effectContainer = new PIXI.Container();
     this.uiContainer = new PIXI.Container();
+    this.taikoContainer = new PIXI.Container(); // 太鼓UIレイヤー
     
     // ソート可能にする
     this.uiContainer.sortableChildren = true;
@@ -297,6 +303,7 @@ export class FantasyPIXIInstance {
 
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
+    this.app.stage.addChild(this.taikoContainer); // 太鼓UIレイヤー
     
     // 絵文字テクスチャの事前読み込み
     // this.loadEmojiTextures(); // ★ 削除
@@ -620,6 +627,11 @@ export class FantasyPIXIInstance {
       monsterData.visualState.x = this.getPositionX(i, sortedMonsters.length);
       
       this.updateMonsterSpriteData(monsterData);
+    }
+    
+    // 太鼓UIを初期化（プログレッションモードで初回のみ）
+    if (monsters.length > 0 && this.taikoContainer.children.length === 0) {
+      this.initializeTaikoUI();
     }
   }
   
@@ -1602,6 +1614,10 @@ export class FantasyPIXIInstance {
       this.updateDamageNumbers();
       this.updateScreenShake(); // 画面揺れの更新を追加
       
+      // 太鼓ノーツの更新
+      const now = performance.now();
+      this.updateTaikoNotes(now);
+      
       this.animationFrameId = requestAnimationFrame(animate);
     };
     
@@ -1908,6 +1924,12 @@ export class FantasyPIXIInstance {
       this.animationFrameId = null;
     }
     
+    // 太鼓UIのクリーンアップ
+    window.removeEventListener('spawnTaikoNote', this.handleSpawnTaikoNote.bind(this));
+    for (const [noteId, _] of this.taikoNotes) {
+      this.removeTaikoNote(noteId);
+    }
+    
     // マルチモンスターのクリーンアップ時に怒りエフェクトも削除
     this.monsterSprites.forEach(data => {
       if (data.outline) data.outline.destroy();
@@ -2034,6 +2056,136 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  /** これ１行で「壊れていたら return true」 */
+  private checkDestroyed(): boolean {
+    if (this.isDestroyed) return true;
+    return false;
+  }
+  
+  // ===== 太鼓UI関連メソッド =====
+  
+  /**
+   * 判定ラインを描画
+   */
+  private drawJudgeLine(): void {
+    const graphics = new PIXI.Graphics();
+    
+    // 外側の円（判定エリア）
+    graphics.beginFill(0x333333, 0.3);
+    graphics.drawCircle(this.judgeLineX, this.app.screen.height / 2, 60);
+    graphics.endFill();
+    
+    // 内側の円（ジャストタイミング）
+    graphics.beginFill(0xFFFFFF, 0.8);
+    graphics.drawCircle(this.judgeLineX, this.app.screen.height / 2, 40);
+    graphics.endFill();
+    
+    this.taikoContainer.addChild(graphics);
+  }
+  
+  /**
+   * 太鼓ノーツを生成
+   */
+  createTaikoNote(noteData: any): void {
+    const noteContainer = new PIXI.Container();
+    const noteId = noteData.id;
+    
+    // ノーツの背景円
+    const circle = new PIXI.Graphics();
+    circle.beginFill(0xFF6B35, 1);
+    circle.drawCircle(0, 0, 50);
+    circle.endFill();
+    
+    // コードネームテキスト
+    const text = new PIXI.Text(noteData.chordTarget.displayName, {
+      fontFamily: 'Arial',
+      fontSize: 24,
+      fill: 0xFFFFFF,
+      align: 'center'
+    });
+    text.anchor.set(0.5);
+    
+    noteContainer.addChild(circle);
+    noteContainer.addChild(text);
+    
+    // 初期位置（画面右端）
+    noteContainer.x = this.app.screen.width + 50;
+    noteContainer.y = this.app.screen.height / 2;
+    
+    // ユーザーデータとして判定時刻を保存
+    (noteContainer as any).userData = {
+      spawnAt: noteData.spawnAt,
+      judgeAt: noteData.judgeAt,
+      noteId: noteId
+    };
+    
+    this.taikoContainer.addChild(noteContainer);
+    this.taikoNotes.set(noteId, noteContainer);
+  }
+  
+  /**
+   * 太鼓ノーツの位置を更新
+   */
+  updateTaikoNotes(now: number): void {
+    for (const [noteId, noteContainer] of this.taikoNotes) {
+      const userData = (noteContainer as any).userData;
+      if (!userData) continue;
+      
+      const { spawnAt, judgeAt } = userData;
+      const totalDuration = judgeAt - spawnAt;
+      const elapsed = now - spawnAt;
+      const progress = Math.min(elapsed / totalDuration, 1);
+      
+      // 線形補間で位置を計算
+      const startX = this.app.screen.width + 50;
+      const endX = this.judgeLineX;
+      noteContainer.x = startX + (endX - startX) * progress;
+      
+      // 判定時刻を過ぎたノーツは削除
+      if (now > judgeAt + 1000) {
+        this.removeTaikoNote(noteId);
+      }
+    }
+  }
+  
+  /**
+   * 太鼓ノーツを削除
+   */
+  removeTaikoNote(noteId: string): void {
+    const noteContainer = this.taikoNotes.get(noteId);
+    if (noteContainer) {
+      this.taikoContainer.removeChild(noteContainer);
+      noteContainer.destroy({ children: true });
+      this.taikoNotes.delete(noteId);
+    }
+  }
+  
+  /**
+   * 太鼓UIを初期化
+   */
+  initializeTaikoUI(): void {
+    // 既存のノーツをクリア
+    for (const [noteId, _] of this.taikoNotes) {
+      this.removeTaikoNote(noteId);
+    }
+    
+    // 判定ラインを描画
+    this.drawJudgeLine();
+    
+    // ノーツ生成イベントをリッスン
+    window.addEventListener('spawnTaikoNote', this.handleSpawnTaikoNote.bind(this));
+  }
+  
+  /**
+   * ノーツ生成イベントハンドラ
+   */
+  private handleSpawnTaikoNote(event: Event): void {
+    const customEvent = event as CustomEvent;
+    const noteData = customEvent.detail;
+    if (noteData) {
+      this.createTaikoNote(noteData);
+    }
+  }
 
 }
 
