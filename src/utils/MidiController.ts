@@ -95,19 +95,17 @@ export const initializeAudioSystem = async (): Promise<void> => {
       }
     }
 
-    // 遅延最適化設定: "interactive" モード + lookAhead=0
-    const optimizedContext = new window.Tone.Context({
-      latencyHint: "interactive",   // Chrome/Edge なら20ms前後
-      lookAhead: 0                  // Tone の内部スケジューリングをオフ
+    // Tone.js の Context を作成（低レイテンシ設定）
+    const audioCtx = new window.Tone.Context({
+      latencyHint: 'interactive' // 低レイテンシ重視
     });
-    
-    // Tone.jsのコンテキストを最適化済みに切り替え
-    window.Tone.setContext(optimizedContext);
+    await audioCtx.resume();
+    window.Tone.setContext(audioCtx);
     
     console.log('✅ Tone.js context optimized for low latency');
 
     // Salamander サンプラーの初期化
-    globalSampler = new window.Tone.Sampler({
+    globalSampler = new (window.Tone.Sampler as any)({
       urls: {
         "A1": "A1.mp3",
         "C2": "C2.mp3",
@@ -156,7 +154,7 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
       await window.Tone.start();
     }
     
-    const noteName = window.Tone.Frequency(note, "midi").toNote();
+    const noteName = (window.Tone.Frequency as any)(note, "midi").toNote();
     const normalizedVelocity = velocity / 127; // 0〜1 に正規化
 
     // 既に再生中のノートがある場合は一旦停止
@@ -186,7 +184,7 @@ export const stopNote = (note: number): void => {
       return;
     }
 
-    const noteName = window.Tone.Frequency(note, "midi").toNote();
+    const noteName = (window.Tone.Frequency as any)(note, "midi").toNote();
     
     // アクティブノートから削除
     activeNotes.delete(noteName);

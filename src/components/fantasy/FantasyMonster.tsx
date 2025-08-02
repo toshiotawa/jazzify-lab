@@ -41,6 +41,8 @@ interface FantasyMonsterProps {
   enemyGauge: number;
   size?: 'small' | 'medium' | 'large';
   className?: string;
+  mode?: 'single' | 'progression';
+  isInAcceptWindow?: boolean;
 }
 
 // モンスターアイコンマッピング（FontAwesome）
@@ -125,7 +127,9 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   maxHp,
   enemyGauge,
   size = 'medium',  // 'large' から 'medium' に変更
-  className
+  className,
+  mode = 'single',
+  isInAcceptWindow = false
 }) => {
   const [isFloating, setIsFloating] = useState(false);
 
@@ -149,6 +153,39 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   
   // 敵ゲージのレンダリング
   const renderEnemyGauge = () => {
+    if (mode === 'progression') {
+      // プログレッションモード用のゲージ表示
+      const gaugeColor = isInAcceptWindow ? 
+        (enemyGauge >= 95 ? 'bg-red-500' : 'bg-yellow-500') : 
+        'bg-blue-500';
+      const gaugeGlow = isInAcceptWindow ? 
+        (enemyGauge >= 95 ? 'shadow-red-500/50' : 'shadow-yellow-500/50') : '';
+      
+      return (
+        <div className="mt-3 w-full">
+          <div className={cn("bg-gray-700 rounded-full overflow-hidden h-3 relative", 
+            isInAcceptWindow && "shadow-lg", gaugeGlow)}>
+            <div
+              className={cn(gaugeColor, "transition-all duration-100 h-full")}
+              style={{ width: `${Math.min(enemyGauge, 100)}%` }}
+            />
+            {/* 90%と100%のマーカー */}
+            <div className="absolute top-0 bottom-0 left-[90%] w-px bg-white/50" />
+            <div className="absolute top-0 bottom-0 left-[95%] w-px bg-white/70" />
+          </div>
+          <div className="text-center text-xs text-gray-300 mt-1 flex justify-between">
+            <span>攻撃ゲージ</span>
+            <span className={cn(
+              isInAcceptWindow ? "text-yellow-400 font-bold" : ""
+            )}>
+              {enemyGauge.toFixed(0)}%
+            </span>
+          </div>
+        </div>
+      );
+    }
+    
+    // 既存のsingleモード用のゲージ表示
     const filledBlocks = Math.floor(enemyGauge / 10);
     const blocks = [];
     

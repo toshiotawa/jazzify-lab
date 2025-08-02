@@ -63,12 +63,12 @@ export async function fetchWithCache<T>(
   const cached = cache.get(cacheKey);
   if (cached && cached.expires > now) {
     return { 
-      data: cached.data, 
+      data: cached.data as T[] | null, 
       error: null, 
       status: 200, 
       statusText: 'OK',
       count: null 
-    };
+    } as PostgrestResponse<T>;
   }
 
   const res = await executor();
@@ -111,15 +111,15 @@ export function subscribeRealtime<T = Record<string, unknown>>(
   };
   
   channel.on(
-    'postgres_changes',
+    'postgres_changes' as any,
     eventConfig,
-    (payload) => {
+    (payload: any) => {
       // 最適化: キャッシュクリアは必要な場合のみ
       if (options?.clearCache !== false) {
         clearCacheByPattern(`.*${tableName}.*`);
       }
       callback(payload);
-    },
+    }
   );
   channel.subscribe();
   return () => {
@@ -181,7 +181,7 @@ export function subscribeRealtimeOnce<T = Record<string, unknown>>(
 ) {
   // 既に同じチャンネルがアクティブな場合は何もしない
   if (activeSubscriptions.has(channelName)) {
-    log.debug(`Realtime subscription ${channelName} already active, skipping...`);
+    console.log(`Realtime subscription ${channelName} already active, skipping...`);
     return () => {}; // 空のクリーンアップ関数
   }
 
