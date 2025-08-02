@@ -557,11 +557,15 @@ export const useFantasyGameEngine = ({
       if (beatWindow) {
         // Schedule for beat 2 of the first bar
         const firstChordMs = beatWindow.barStartMs + beatWindow.msecPerBeat;
-        setGameState(prev => ({
-          ...prev,
-          currentChordTarget: null, // Hide chord initially
-          nextChordAtMs: firstChordMs
-        }));
+        setGameState(prev => {
+          const updatedState = {
+            ...prev,
+            currentChordTarget: null, // Hide chord initially
+            nextChordAtMs: firstChordMs
+          };
+          onGameStateChange(updatedState);
+          return updatedState;
+        });
       }
     }, 100); // Small delay to ensure time store is initialized
 
