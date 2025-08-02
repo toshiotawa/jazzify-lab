@@ -409,8 +409,8 @@ export const useFantasyGameEngine = ({
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
-    currentChordTarget: getChordDefinition('CM7', displayOpts) || null, // デフォルト値を設定
-    playerHp: 5,
+    currentChordTarget: null,
+    playerHp: 0,
     enemyGauge: 0,
     score: 0,
     totalQuestions: 0,
@@ -418,22 +418,20 @@ export const useFantasyGameEngine = ({
     isGameActive: false,
     isGameOver: false,
     gameResult: null,
-    // 複数敵システム用
+    // 複数敵システム用（互換性維持）
     currentEnemyIndex: 0,
     currentEnemyHits: 0,
     enemiesDefeated: 0,
-    totalEnemies: 5,
-    // 敵のHP管理を追加
-    currentEnemyHp: 5,
-    maxEnemyHp: 5,
+    totalEnemies: 0,
+    // 敵のHP管理（互換性維持）
+    currentEnemyHp: 0,
+    maxEnemyHp: 0,
     correctNotes: [],
     playerSp: 0, // SPゲージ初期化
     isWaitingForNextMonster: false,
-    // マルチモンスター対応
     activeMonsters: [],
     monsterQueue: [],
     simultaneousMonsterCount: 1,
-    // ゲーム完了処理中フラグ
     isCompleting: false,
     // プログレッションモード用
     currentProgressionQuestion: null,
@@ -441,7 +439,7 @@ export const useFantasyGameEngine = ({
     isInAcceptWindow: false, // 判定受付ウィンドウ内か
   });
   
-  const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+  const enemyGaugeTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
@@ -856,186 +854,219 @@ export const useFantasyGameEngine = ({
   useEffect(() => {
     devLog.debug('🎮 ゲージタイマー状態チェック:', { 
       isGameActive: gameState.isGameActive, 
-      hasTimer: !!enemyGaugeTimer,
+      hasTimer: !!enemyGaugeTimerRef.current,
       currentStage: gameState.currentStage?.stageNumber
     });
     
     // 既存のタイマーをクリア
-    if (enemyGaugeTimer) {
-      clearInterval(enemyGaugeTimer);
-      setEnemyGaugeTimer(null);
+    if (enemyGaugeTimerRef.current) {
+      clearInterval(enemyGaugeTimerRef.current);
+      enemyGaugeTimerRef.current = null;
     }
     
     // ゲームがアクティブな場合のみ新しいタイマーを開始
     if (gameState.isGameActive && gameState.currentStage) {
       devLog.debug('⏰ 敵ゲージタイマー開始');
+      
+      // 敵ゲージの更新関数
+      const updateEnemyGauge = () => {
+        /* Ready 中はゲージ停止 */
+        const timeState = useTimeStore.getState();
+        if (timeState.startAt &&
+            performance.now() - timeState.startAt < timeState.readyDuration) {
+          devLog.debug('⏰ ゲージ更新スキップ: Ready中');
+          return;
+        }
+        
+        setGameState(prevState => {
+          if (!prevState.isGameActive || !prevState.currentStage) {
+            devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
+            return prevState;
+          }
+          
+          // プログレッションモードの場合
+          if (prevState.currentStage.mode === 'progression') {
+            const { currentBeat, currentMeasure, bpm, timeSignature, isCountIn } = timeState;
+            
+            devLog.debug('🎯 プログレッションモード ゲージ更新:', {
+              currentBeat,
+              currentMeasure,
+              isCountIn,
+              bpm,
+              timeSignature,
+              startAt: timeState.startAt
+            });
+            
+            // カウントイン中はゲージを進めない
+            if (isCountIn) {
+              devLog.debug('⏰ ゲージ更新スキップ: カウントイン中');
+              return prevState;
+            }
+            
+            const msPerBeat = 60000 / bpm;
+            const currentTime = performance.now();
+            const gameTime = currentTime - (timeState.startAt || 0) - timeState.readyDuration;
+            
+            // カウントイン後の実際のゲーム時間を計算
+            const countInDuration = (prevState.currentStage.countInMeasures || 0) * timeSignature * msPerBeat;
+            const actualGameTime = gameTime - countInDuration;
+            
+            // カウントイン終了前はゲージを進めない
+            if (actualGameTime < 0) {
+              return prevState;
+            }
+            
+            // 現在の拍の進行度（0-1）
+            const beatProgress = (actualGameTime % msPerBeat) / msPerBeat;
+            
+            // 各小節の1拍目を基準にゲージを計算
+            let gaugePercent = 0;
+            const beatsInMeasure = timeSignature;
+            const totalBeatsElapsed = Math.floor(actualGameTime / msPerBeat);
+            const currentBeatInMeasure = (totalBeatsElapsed % beatsInMeasure) + 1;
+            const beatProgressInMeasure = (currentBeatInMeasure - 1 + beatProgress) / beatsInMeasure;
+            
+            // ゲージは0-100%を繰り返す（各小節ごと）
+            // 95%が次の小節の1拍目になるように調整
+            gaugePercent = beatProgressInMeasure * 105 - 5; // -5%から100%の範囲
+            if (gaugePercent < 0) gaugePercent += 105;
+            if (gaugePercent > 100) gaugePercent = 100;
+            
+            // 判定受付ウィンドウ内かチェック（90-100%）
+            const isInAcceptWindow = gaugePercent >= 90 && gaugePercent <= 100;
+            
+            // 現在の問題を更新
+            let currentQuestion = prevState.currentProgressionQuestion;
+            
+            // 新しい問題を出題するタイミング（各小節の2拍目、かつ現在問題がない場合）
+            if (currentBeatInMeasure === 2 && !currentQuestion?.isActive) {
+              const progression = prevState.currentStage.chordProgression || [];
+              if (progression.length > 0) {
+                const nextIndex = prevState.currentQuestionIndex % progression.length;
+                const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+                
+                currentQuestion = {
+                  chord: nextChord,
+                  startBeat: 2,
+                  startMeasure: currentMeasure,
+                  acceptStartBeat: 1,
+                  acceptStartMeasure: currentMeasure + 1,
+                  acceptEndBeat: 1,
+                  acceptEndMeasure: currentMeasure + 1,
+                  isActive: true,
+                  isAccepting: false
+                };
+              }
+            }
+            
+            // 判定受付状態を更新
+            if (currentQuestion?.isActive) {
+              currentQuestion.isAccepting = isInAcceptWindow;
+            }
+            
+            // ゲージが100%を超えた場合（タイムオーバー）
+            if (gaugePercent >= 100 && currentQuestion?.isActive && !prevState.isCompleting) {
+              // 攻撃処理
+              setTimeout(() => handleEnemyAttack(), 0);
+              
+              // 問題をクリアして次のインデックスに進める
+              return {
+                ...prevState,
+                currentProgressionQuestion: {
+                  ...currentQuestion,
+                  isActive: false,
+                  isAccepting: false
+                },
+                progressionGaugePercent: gaugePercent,
+                isInAcceptWindow: false,
+                currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage.chordProgression?.length || 1),
+                // 互換性のため
+                enemyGauge: gaugePercent,
+                currentChordTarget: null
+              };
+            }
+            
+            return {
+              ...prevState,
+              currentProgressionQuestion: currentQuestion,
+              progressionGaugePercent: gaugePercent,
+              isInAcceptWindow,
+              // 互換性のため
+              enemyGauge: gaugePercent,
+              currentChordTarget: currentQuestion?.chord || prevState.currentChordTarget
+            };
+          }
+          
+          // 既存のsingleモードの処理
+          // カウントイン中はsingleモードでもゲージを進めない
+          const { isCountIn } = timeState;
+          if (isCountIn) {
+            return prevState;
+          }
+          
+          const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
+          
+          // 各モンスターのゲージを更新
+          const updatedMonsters = prevState.activeMonsters.map(monster => ({
+            ...monster,
+            gauge: Math.min(monster.gauge + incrementRate, 100)
+          }));
+          
+          // ゲージが満タンになったモンスターをチェック
+          const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
+          
+          if (attackingMonster) {
+            console.log('🎲 Found attacking monster:', attackingMonster);
+            devLog.debug('💥 モンスターゲージ満タン！攻撃開始', { monster: attackingMonster.name });
+            
+            // 怒り状態をストアに通知
+            const { setEnrage } = useEnemyStore.getState();
+            setEnrage(attackingMonster.id, true);
+            setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
+            
+            // 攻撃したモンスターのゲージをリセット
+            const resetMonsters = updatedMonsters.map(m => 
+              m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
+            );
+            
+            // 攻撃処理を非同期で実行
+            console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
+            setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
+            
+            const nextState = { 
+              ...prevState, 
+              activeMonsters: resetMonsters,
+              // 互換性のため
+              enemyGauge: 0 
+            };
+            onGameStateChange(nextState);
+            return nextState;
+          } else {
+            const nextState = { 
+              ...prevState, 
+              activeMonsters: updatedMonsters,
+              // 互換性のため最初のモンスターのゲージを設定
+              enemyGauge: updatedMonsters[0]?.gauge || 0
+            };
+            onGameStateChange(nextState);
+            return nextState;
+          }
+        });
+      };
+      
       const timer = setInterval(() => {
         updateEnemyGauge();
       }, 100); // 100ms間隔で更新
-      setEnemyGaugeTimer(timer);
+      enemyGaugeTimerRef.current = timer;
     }
     
     // クリーンアップ
     return () => {
-      if (enemyGaugeTimer) {
-        clearInterval(enemyGaugeTimer);
+      if (enemyGaugeTimerRef.current) {
+        clearInterval(enemyGaugeTimerRef.current);
       }
     };
-  }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
-  
-  // 敵ゲージの更新（マルチモンスター対応）
-  const updateEnemyGauge = useCallback(() => {
-    /* Ready 中はゲージ停止 */
-    const timeState = useTimeStore.getState();
-    if (timeState.startAt &&
-        performance.now() - timeState.startAt < timeState.readyDuration) {
-      return;
-    }
-    
-    setGameState(prevState => {
-      if (!prevState.isGameActive || !prevState.currentStage) {
-        devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
-        return prevState;
-      }
-      
-      // プログレッションモードの場合
-      if (prevState.currentStage.mode === 'progression') {
-        const { currentBeat, currentMeasure, bpm, timeSignature } = timeState;
-        const msPerBeat = 60000 / bpm;
-        const currentTime = performance.now();
-        const gameTime = currentTime - (timeState.startAt || 0) - timeState.readyDuration;
-        
-        // 現在の拍の進行度（0-1）
-        const beatProgress = (gameTime % msPerBeat) / msPerBeat;
-        
-        // 各小節の1拍目を基準にゲージを計算
-        let gaugePercent = 0;
-        const beatsInMeasure = timeSignature;
-        const totalBeatsElapsed = Math.floor(gameTime / msPerBeat);
-        const currentBeatInMeasure = (totalBeatsElapsed % beatsInMeasure) + 1;
-        const beatProgressInMeasure = (currentBeatInMeasure - 1 + beatProgress) / beatsInMeasure;
-        
-        // ゲージは0-100%を繰り返す（各小節ごと）
-        // 95%が次の小節の1拍目になるように調整
-        gaugePercent = beatProgressInMeasure * 105 - 5; // -5%から100%の範囲
-        if (gaugePercent < 0) gaugePercent += 105;
-        if (gaugePercent > 100) gaugePercent = 100;
-        
-        // 判定受付ウィンドウ内かチェック（90-100%）
-        const isInAcceptWindow = gaugePercent >= 90 && gaugePercent <= 100;
-        
-        // 現在の問題を更新
-        let currentQuestion = prevState.currentProgressionQuestion;
-        
-        // 新しい問題を出題するタイミング（各小節の2拍目、かつ現在問題がない場合）
-        if (currentBeatInMeasure === 2 && !currentQuestion?.isActive) {
-          const progression = prevState.currentStage.chordProgression || [];
-          if (progression.length > 0) {
-            const nextIndex = prevState.currentQuestionIndex % progression.length;
-            const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
-            
-            currentQuestion = {
-              chord: nextChord,
-              startBeat: 2,
-              startMeasure: currentMeasure,
-              acceptStartBeat: 1,
-              acceptStartMeasure: currentMeasure + 1,
-              acceptEndBeat: 1,
-              acceptEndMeasure: currentMeasure + 1,
-              isActive: true,
-              isAccepting: false
-            };
-          }
-        }
-        
-        // 判定受付状態を更新
-        if (currentQuestion?.isActive) {
-          currentQuestion.isAccepting = isInAcceptWindow;
-        }
-        
-        // ゲージが100%を超えた場合（タイムオーバー）
-        if (gaugePercent >= 100 && currentQuestion?.isActive && !prevState.isCompleting) {
-          // 攻撃処理
-          setTimeout(() => handleEnemyAttack(), 0);
-          
-          // 問題をクリアして次のインデックスに進める
-          return {
-            ...prevState,
-            currentProgressionQuestion: {
-              ...currentQuestion,
-              isActive: false,
-              isAccepting: false
-            },
-            progressionGaugePercent: gaugePercent,
-            isInAcceptWindow: false,
-            currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage.chordProgression?.length || 1),
-            // 互換性のため
-            enemyGauge: gaugePercent,
-            currentChordTarget: null
-          };
-        }
-        
-        return {
-          ...prevState,
-          currentProgressionQuestion: currentQuestion,
-          progressionGaugePercent: gaugePercent,
-          isInAcceptWindow,
-          // 互換性のため
-          enemyGauge: gaugePercent,
-          currentChordTarget: currentQuestion?.chord || prevState.currentChordTarget
-        };
-      }
-      
-      // 既存のsingleモードの処理
-      const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
-      
-      // 各モンスターのゲージを更新
-      const updatedMonsters = prevState.activeMonsters.map(monster => ({
-        ...monster,
-        gauge: Math.min(monster.gauge + incrementRate, 100)
-      }));
-      
-      // ゲージが満タンになったモンスターをチェック
-      const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
-      
-      if (attackingMonster) {
-        console.log('🎲 Found attacking monster:', attackingMonster);
-        devLog.debug('💥 モンスターゲージ満タン！攻撃開始', { monster: attackingMonster.name });
-        
-        // 怒り状態をストアに通知
-        const { setEnrage } = useEnemyStore.getState();
-        setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
-        
-        // 攻撃したモンスターのゲージをリセット
-        const resetMonsters = updatedMonsters.map(m => 
-          m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
-        );
-        
-        // 攻撃処理を非同期で実行
-        console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
-        setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
-        
-        const nextState = { 
-          ...prevState, 
-          activeMonsters: resetMonsters,
-          // 互換性のため
-          enemyGauge: 0 
-        };
-        onGameStateChange(nextState);
-        return nextState;
-      } else {
-        const nextState = { 
-          ...prevState, 
-          activeMonsters: updatedMonsters,
-          // 互換性のため最初のモンスターのゲージを設定
-          enemyGauge: updatedMonsters[0]?.gauge || 0
-        };
-        onGameStateChange(nextState);
-        return nextState;
-      }
-    });
-  }, [handleEnemyAttack, onGameStateChange]);
+  }, [gameState.isGameActive, gameState.currentStage, onGameStateChange, handleEnemyAttack, displayOpts]); // 必要な依存関係を追加
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
@@ -1334,9 +1365,9 @@ export const useFantasyGameEngine = ({
     // ステージを抜けるたびにアイコン配列を初期化
     setStageMonsterIds([]);
     
-    if (enemyGaugeTimer) {
-      clearInterval(enemyGaugeTimer);
-      setEnemyGaugeTimer(null);
+    if (enemyGaugeTimerRef.current) {
+      clearInterval(enemyGaugeTimerRef.current);
+      enemyGaugeTimerRef.current = null;
     }
     
     // if (inputTimeout) { // 削除
@@ -1344,7 +1375,7 @@ export const useFantasyGameEngine = ({
     // } // 削除
     
     // setInputBuffer([]); // 削除
-  }, [enemyGaugeTimer]);
+  }, []);
   
   // ステージ変更時の初期化
   // useEffect(() => {
@@ -1356,9 +1387,9 @@ export const useFantasyGameEngine = ({
   // コンポーネント破棄時のクリーンアップ
   useEffect(() => {
     return () => {
-      if (enemyGaugeTimer) {
+      if (enemyGaugeTimerRef.current) {
         devLog.debug('⏰ 敵ゲージタイマー クリーンアップで停止');
-        clearInterval(enemyGaugeTimer);
+        clearInterval(enemyGaugeTimerRef.current);
       }
       // if (inputTimeout) { // 削除
       //   devLog.debug('⏰ 入力タイムアウト クリーンアップで停止'); // 削除
