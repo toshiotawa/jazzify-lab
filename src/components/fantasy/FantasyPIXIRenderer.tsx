@@ -10,6 +10,8 @@ import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
+import { RhythmScheduler, RhythmNote } from './RhythmScheduler';
+import { useTimeStore } from '@/stores/timeStore';
 
 // ===== 型定義 =====
 
@@ -27,6 +29,9 @@ interface FantasyPIXIRendererProps {
   className?: string;
   activeMonsters?: GameMonsterState[]; // マルチモンスター対応
   imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>; // プリロードされたテクスチャへの参照
+  rhythmScheduler?: RhythmScheduler; // リズムスケジューラー
+  useRhythmJudge?: boolean; // リズム判定を使用するか
+  stageMode?: 'single' | 'progression'; // ステージモード
 }
 
 // モンスターのビジュアル状態を不変に管理
@@ -195,6 +200,14 @@ export class FantasyPIXIInstance {
   // プリロードされたテクスチャへの参照を追加
   private imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>;
   
+  // 太鼓UI関連
+  private taikoContainer: PIXI.Container;
+  private rhythmScheduler?: RhythmScheduler;
+  private useRhythmJudge: boolean = false;
+  private stageMode: 'single' | 'progression' = 'single';
+  private rhythmNotes: Map<string, PIXI.Container> = new Map();
+  private judgementLine: PIXI.Graphics | null = null;
+  
   /** ────────────────────────────────────
    *  safe‑default で初期化しておく
    * ─────────────────────────────────── */
@@ -259,13 +272,19 @@ export class FantasyPIXIInstance {
     height: number, 
     onMonsterDefeated?: () => void, 
     onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void,
-    imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>
+    imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>,
+    rhythmScheduler?: RhythmScheduler,
+    useRhythmJudge?: boolean,
+    stageMode?: 'single' | 'progression'
   ) {
     // コールバックの保存
     this.onDefeated = onMonsterDefeated;
     this.onMonsterDefeated = onMonsterDefeated; // 状態機械用コールバック
     this.onShowMagicName = onShowMagicName; // 魔法名表示コールバック
     this.imageTexturesRef = imageTexturesRef; // プリロードされたテクスチャへの参照を保存
+    this.rhythmScheduler = rhythmScheduler;
+    this.useRhythmJudge = useRhythmJudge || false;
+    this.stageMode = stageMode || 'single';
     
     // PIXIの最適化設定
     PIXI.settings.ROUND_PIXELS = true; // transform演算コスト最小化&にじみ防止
@@ -284,19 +303,24 @@ export class FantasyPIXIInstance {
     // コンテナ初期化
     this.backgroundContainer = new PIXI.Container();
     this.monsterContainer = new PIXI.Container();
-
+    this.taikoContainer = new PIXI.Container();
     this.effectContainer = new PIXI.Container();
     this.uiContainer = new PIXI.Container();
     
     // ソート可能にする
     this.uiContainer.sortableChildren = true;
     
-    // z-indexの設定（背景→モンスター→パーティクル→エフェクト→UI）
+    // z-indexの設定（背景→モンスター→太鼓→パーティクル→エフェクト→UI）
     this.app.stage.addChild(this.backgroundContainer);
     this.app.stage.addChild(this.monsterContainer);
-
+    this.app.stage.addChild(this.taikoContainer); // モンスターの手前に太鼓UI
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
+    
+    // 太鼓UIの初期化（プログレッションモードかつリズム判定が有効な場合）
+    if (this.stageMode === 'progression' && this.useRhythmJudge) {
+      this.initTaikoUI();
+    }
     
     // 絵文字テクスチャの事前読み込み
     // this.loadEmojiTextures(); // ★ 削除
@@ -1602,6 +1626,11 @@ export class FantasyPIXIInstance {
       this.updateDamageNumbers();
       this.updateScreenShake(); // 画面揺れの更新を追加
       
+      // 太鼓UIの更新（リズム判定が有効な場合）
+      if (this.stageMode === 'progression' && this.useRhythmJudge) {
+        this.updateTaikoUI();
+      }
+      
       this.animationFrameId = requestAnimationFrame(animate);
     };
     
@@ -1899,6 +1928,167 @@ export class FantasyPIXIInstance {
     return this.app.view as HTMLCanvasElement;
   }
 
+  // ===== 太鼓UI関連メソッド =====
+  
+  // 太鼓UIの初期化
+  private initTaikoUI(): void {
+    if (!this.useRhythmJudge || this.stageMode !== 'progression') return;
+    
+    // 判定ラインの作成
+    const judgementLine = new PIXI.Graphics();
+    const lineX = this.app.screen.width * 0.2; // 画面左側20%の位置
+    const centerY = this.app.screen.height / 2;
+    
+    // 外側の円（判定ライン）
+    judgementLine.lineStyle(4, 0xFFFFFF, 0.8);
+    judgementLine.drawCircle(lineX, centerY, 50);
+    
+    // 内側の円
+    judgementLine.lineStyle(2, 0xFFFFFF, 0.4);
+    judgementLine.drawCircle(lineX, centerY, 35);
+    
+    this.judgementLine = judgementLine;
+    this.taikoContainer.addChild(judgementLine);
+    
+    devLog.debug('✅ 太鼓UI初期化完了');
+  }
+  
+  // 太鼓UIの更新
+  private updateTaikoUI(): void {
+    if (!this.rhythmScheduler) return;
+    
+    const now = useTimeStore.getState().getNow();
+    const msPerBeat = useTimeStore.getState().getMsPerBeat();
+    
+    // 新しいノーツの生成
+    const newNotes = this.rhythmScheduler.update(now);
+    for (const note of newNotes) {
+      this.createRhythmNote(note);
+    }
+    
+    // 既存ノーツの位置更新
+    const activeNotes = this.rhythmScheduler.getActiveNotes();
+    for (const note of activeNotes) {
+      this.updateRhythmNote(note, now, msPerBeat);
+    }
+    
+    // 判定窓を過ぎたノーツの処理
+    const missedNotes = this.rhythmScheduler.getMissedNotes(now);
+    for (const note of missedNotes) {
+      this.removeRhythmNote(note.id);
+      this.rhythmScheduler.removeNote(note.id);
+    }
+  }
+  
+  // リズムノーツの作成
+  private createRhythmNote(note: RhythmNote): void {
+    const container = new PIXI.Container();
+    
+    // ノーツの円
+    const circle = new PIXI.Graphics();
+    circle.beginFill(0x3498db, 0.9);
+    circle.lineStyle(3, 0xFFFFFF, 1);
+    circle.drawCircle(0, 0, 40);
+    circle.endFill();
+    
+    // コード名テキスト
+    const text = new PIXI.Text(note.chord.displayName, {
+      fontFamily: 'Arial',
+      fontSize: 24,
+      fill: 0xFFFFFF,
+      fontWeight: 'bold',
+      align: 'center'
+    });
+    text.anchor.set(0.5);
+    
+    container.addChild(circle);
+    container.addChild(text);
+    
+    // 初期位置（画面右端）
+    container.x = this.app.screen.width + 50;
+    container.y = this.app.screen.height / 2;
+    
+    this.rhythmNotes.set(note.id, container);
+    this.taikoContainer.addChild(container);
+  }
+  
+  // リズムノーツの位置更新
+  private updateRhythmNote(note: RhythmNote, now: number, msPerBeat: number): void {
+    const container = this.rhythmNotes.get(note.id);
+    if (!container) return;
+    
+    const judgeLineX = this.app.screen.width * 0.2;
+    const startX = this.app.screen.width + 50;
+    const travelDistance = startX - judgeLineX;
+    const travelTime = 3 * msPerBeat; // 3拍分の時間
+    
+    // 経過時間から位置を計算
+    const elapsed = now - note.spawnTime;
+    const progress = Math.min(elapsed / travelTime, 1);
+    
+    container.x = startX - (travelDistance * progress);
+    
+    // 判定窓内での視覚的フィードバック
+    const deltaFromJudge = Math.abs(now - note.judgeTime);
+    if (deltaFromJudge <= 200) {
+      const scale = 1 + (1 - deltaFromJudge / 200) * 0.2;
+      container.scale.set(scale);
+    }
+  }
+  
+  // リズムノーツの削除
+  private removeRhythmNote(noteId: string): void {
+    const container = this.rhythmNotes.get(noteId);
+    if (container) {
+      // フェードアウトアニメーション
+      const fadeOut = () => {
+        container.alpha -= 0.1;
+        if (container.alpha <= 0) {
+          this.taikoContainer.removeChild(container);
+          container.destroy({ children: true });
+          this.rhythmNotes.delete(noteId);
+        } else {
+          requestAnimationFrame(fadeOut);
+        }
+      };
+      fadeOut();
+    }
+  }
+  
+  // ノーツヒット時のエフェクト
+  public showNoteHitEffect(success: boolean): void {
+    if (!this.judgementLine) return;
+    
+    const effect = new PIXI.Graphics();
+    const lineX = this.app.screen.width * 0.2;
+    const centerY = this.app.screen.height / 2;
+    
+    // 成功時は青、失敗時は赤
+    const color = success ? 0x00FF00 : 0xFF0000;
+    effect.lineStyle(6, color, 0.8);
+    effect.drawCircle(lineX, centerY, 50);
+    
+    this.taikoContainer.addChild(effect);
+    
+    // エフェクトのアニメーション
+    let scale = 1;
+    let alpha = 0.8;
+    const animate = () => {
+      scale += 0.05;
+      alpha -= 0.02;
+      effect.scale.set(scale);
+      effect.alpha = alpha;
+      
+      if (alpha > 0) {
+        requestAnimationFrame(animate);
+      } else {
+        this.taikoContainer.removeChild(effect);
+        effect.destroy();
+      }
+    };
+    animate();
+  }
+
   // 破棄
   destroy(): void {
     this.isDestroyed = true;
@@ -2049,7 +2239,10 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   onShowMagicName,
   className,
   activeMonsters,
-  imageTexturesRef
+  imageTexturesRef,
+  rhythmScheduler,
+  useRhythmJudge,
+  stageMode
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pixiInstance, setPixiInstance] = useState<FantasyPIXIInstance | null>(null);
@@ -2058,7 +2251,16 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const instance = new FantasyPIXIInstance(width, height, onMonsterDefeated, onShowMagicName, imageTexturesRef);
+    const instance = new FantasyPIXIInstance(
+      width, 
+      height, 
+      onMonsterDefeated, 
+      onShowMagicName, 
+      imageTexturesRef,
+      rhythmScheduler,
+      useRhythmJudge,
+      stageMode
+    );
     containerRef.current.appendChild(instance.getCanvas());
     
     setPixiInstance(instance);
@@ -2067,7 +2269,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
     return () => {
       instance.destroy();
     };
-  }, [width, height, onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef]);
+  }, [width, height, onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef, rhythmScheduler, useRhythmJudge, stageMode]);
 
   // モンスターアイコン変更（状態機械による安全な生成）
   useEffect(() => {

@@ -329,6 +329,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     getCurrentEnemy,
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
+    rhythmScheduler, // 追加: リズムスケジューラー
     ENEMY_LIST
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
@@ -774,6 +775,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               className="w-full h-full"
               activeMonsters={gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
+              rhythmScheduler={rhythmScheduler}
+              useRhythmJudge={stage.useRhythmJudge}
+              stageMode={stage.mode}
             />
           </div>
           
