@@ -1,5 +1,5 @@
 import { useTimeStore } from '@/stores/timeStore';
-import { ChordDefinition } from './FantasyGameEngine';
+import type { ChordDefinition } from '@/types/fantasy';
 import { devLog } from '@/utils/logger';
 
 export interface RhythmEvent {
