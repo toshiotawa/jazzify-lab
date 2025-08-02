@@ -880,32 +880,37 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         {stage.mode === 'progression' && !monster.isQuestionVisible ? (
                           <span className="text-gray-500">- - -</span>
                         ) : (
-                          monster.chordTarget.noteNames.map((noteName, index) => {
-                            // 表示オプションを定義
-                            const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
-                            // 表示用の音名に変換
-                            const displayNoteName = toDisplayName(noteName, displayOpts);
-                            
-                            // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
-                            const noteObj = parseNote(noteName + '4'); // オクターブはダミー
-                            const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
-                            
-                            const isCorrect = monster.correctNotes.includes(noteMod12);
+                          // noteNamesが存在することを確認
+                          monster.chordTarget?.noteNames ? (
+                            monster.chordTarget.noteNames.map((noteName, index) => {
+                              // 表示オプションを定義
+                              const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
+                              // 表示用の音名に変換
+                              const displayNoteName = toDisplayName(noteName, displayOpts);
+                              
+                              // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
+                              const noteObj = parseNote(noteName + '4'); // オクターブはダミー
+                              const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+                              
+                              const isCorrect = monster.correctNotes.includes(noteMod12);
 
-                            if (!stage.showGuide && !isCorrect) {
+                              if (!stage.showGuide && !isCorrect) {
+                                return (
+                                  <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                    ?
+                                  </span>
+                                );
+                              }
                               return (
-                                <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
-                                  ?
+                                <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
+                                  {displayNoteName}
+                                  {isCorrect && '✓'}
                                 </span>
                               );
-                            }
-                            return (
-                              <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                                {displayNoteName}
-                                {isCorrect && '✓'}
-                              </span>
-                            );
-                          })
+                            })
+                          ) : (
+                            <span className="text-gray-500">- - -</span>
+                          )
                         )}
                       </div>
                       

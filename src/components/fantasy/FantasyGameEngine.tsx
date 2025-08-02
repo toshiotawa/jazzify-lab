@@ -189,13 +189,28 @@ const createMonsterFromQueue = (
   
   const enemy = { id: iconKey, icon: iconKey, name: '' }; // ← name は空文字
   
-  // プログレッションモードの場合は初期コードを設定しない（出題時に設定される）
+  // プログレッションモードの場合でも有効なコードを設定（表示されないが必要）
   let chord: ChordDefinition | null = null;
   if (stage?.mode !== 'progression') {
     chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
   } else {
-    // プログレッションモードではダミーのコードを設定（表示されないため問題ない）
-    chord = getChordDefinition(allowedChords[0], displayOpts);
+    // プログレッションモードでも最初のコードを設定（エラー防止のため）
+    if (allowedChords.length > 0) {
+      chord = getChordDefinition(allowedChords[0], displayOpts);
+    }
+  }
+  
+  // コードが取得できない場合はエラーを防ぐためデフォルト値を設定
+  if (!chord) {
+    devLog.error('❌ コード取得失敗:', { allowedChords, stage });
+    chord = {
+      id: 'C',
+      displayName: 'C',
+      notes: [60, 64, 67], // C major
+      noteNames: ['C', 'E', 'G'],
+      quality: 'maj',
+      root: 'C'
+    };
   }
   
   return {
@@ -205,7 +220,7 @@ const createMonsterFromQueue = (
     currentHp: enemyHp,
     maxHp: enemyHp,
     gauge: 0,
-    chordTarget: chord!,
+    chordTarget: chord,
     correctNotes: [],
     icon: enemy.icon,
     name: enemy.name,
