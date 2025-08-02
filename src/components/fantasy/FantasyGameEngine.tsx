@@ -870,8 +870,18 @@ export const useFantasyGameEngine = ({
       
       // 敵ゲージの更新関数
       const updateEnemyGauge = () => {
+        devLog.debug('⏰ updateEnemyGauge関数が呼ばれました');
+        
         /* Ready 中はゲージ停止 */
         const timeState = useTimeStore.getState();
+        devLog.debug('⏰ timeState:', {
+          startAt: timeState.startAt,
+          readyDuration: timeState.readyDuration,
+          isCountIn: timeState.isCountIn,
+          currentBeat: timeState.currentBeat,
+          currentMeasure: timeState.currentMeasure
+        });
+        
         if (timeState.startAt &&
             performance.now() - timeState.startAt < timeState.readyDuration) {
           devLog.debug('⏰ ゲージ更新スキップ: Ready中');
@@ -879,6 +889,12 @@ export const useFantasyGameEngine = ({
         }
         
         setGameState(prevState => {
+          devLog.debug('⏰ setGameState内:', {
+            isGameActive: prevState.isGameActive,
+            currentStage: prevState.currentStage?.name,
+            mode: prevState.currentStage?.mode
+          });
+          
           if (!prevState.isGameActive || !prevState.currentStage) {
             devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
             return prevState;
@@ -1055,9 +1071,11 @@ export const useFantasyGameEngine = ({
       };
       
       const timer = setInterval(() => {
+        devLog.debug('⏰ setInterval実行');
         updateEnemyGauge();
       }, 100); // 100ms間隔で更新
       enemyGaugeTimerRef.current = timer;
+      devLog.debug('⏰ タイマー設定完了:', timer);
     }
     
     // クリーンアップ
