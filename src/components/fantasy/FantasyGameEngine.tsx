@@ -1292,7 +1292,8 @@ export const useFantasyGameEngine = ({
                 monsterId: monster.id,
                 oldIndex: monster.nextQuestionIndex,
                 newIndex,
-                chordTarget: monster.chordTarget.displayName
+                chordTarget: monster.chordTarget.displayName,
+                isQuestionVisible: monster.isQuestionVisible
               });
               
               return { 

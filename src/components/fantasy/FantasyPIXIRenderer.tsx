@@ -800,6 +800,12 @@ export class FantasyPIXIInstance {
     containerHeight: number,
     simultaneousCount: number
   ): number {
+    // textureが無効な場合はデフォルト値を返す
+    if (!texture || !texture.width || !texture.height) {
+      console.warn('⚠️ calcSpriteScale: Invalid texture', texture);
+      return 0.5; // デフォルトスケール
+    }
+    
     // Calculate slot size with margin
     const slotWidth = (containerWidth / simultaneousCount) * 0.8; // 20% horizontal margin
     const slotHeight = containerHeight * 0.6; // 40% vertical margin (60% of container height)

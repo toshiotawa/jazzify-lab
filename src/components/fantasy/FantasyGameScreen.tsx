@@ -656,11 +656,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    if (stage.mode !== 'progression') return null;
     
-    const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
-    return stage.chordProgression[nextIndex];
-  }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
+    // プログレッションモードではchordProgressionがある場合はそちらを優先
+    const progression = stage.chordProgression || stage.allowedChords;
+    if (!progression || progression.length === 0) return null;
+    
+    // 最初のモンスターのnextQuestionIndexを使用
+    const firstMonster = gameState.activeMonsters?.[0];
+    if (!firstMonster) return null;
+    
+    const nextIndex = (firstMonster.nextQuestionIndex || 0) % progression.length;
+    return progression[nextIndex];
+  }, [stage.mode, stage.chordProgression, stage.allowedChords, gameState.activeMonsters]);
   
   // SPゲージ表示
   const renderSpGauge = useCallback((sp: number) => {
