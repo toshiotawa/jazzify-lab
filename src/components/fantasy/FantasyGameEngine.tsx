@@ -593,7 +593,7 @@ export const useFantasyGameEngine = ({
       // ゲーム完了処理中フラグ
       isCompleting: false,
       // プログレッションモード用のタイミング管理
-      questionShowTime: null,
+      questionShowTime: stage.mode === 'progression' ? performance.now() : null, // プログレッションモードの場合は初期時刻を設定
       isInJudgmentWindow: false,
       nextQuestionBeat: 0
     };
@@ -658,16 +658,32 @@ export const useFantasyGameEngine = ({
           devLog.debug('判定ウィンドウ状態変更:', { 
             isInWindow, 
             beatOffset,
-            gauge: prevState.activeMonsters[0]?.gauge 
+            gauge: prevState.activeMonsters[0]?.gauge,
+            currentChord: prevState.activeMonsters[0]?.chordTarget?.displayName
           });
         }
 
         // 判定ウィンドウを抜けた瞬間の処理
         if (!isInWindow && prevState.isInJudgmentWindow && prevState.activeMonsters.length > 0) {
+          // ゲーム開始直後（questionShowTimeがnull）の場合はタイムオーバー処理をスキップ
+          if (prevState.questionShowTime === null) {
+            devLog.debug('🎮 ゲーム開始直後のため、タイムオーバー処理をスキップ');
+            return {
+              ...prevState,
+              isInJudgmentWindow: false
+            };
+          }
+          
           // タイムオーバー処理（問題がNULLでない場合）
           const hasActiveQuestion = prevState.activeMonsters.some(m => m.chordTarget !== null);
           if (hasActiveQuestion) {
-            devLog.debug('⏰ タイムオーバー！判定ウィンドウ終了');
+            devLog.debug('⏰ タイムオーバー！判定ウィンドウ終了', {
+              elapsed,
+              beatOffset,
+              currentBeatTime,
+              hasActiveQuestion,
+              currentChord: prevState.activeMonsters[0]?.chordTarget?.displayName
+            });
             
             // モンスターのコードをNULLに設定
             const updatedMonsters = prevState.activeMonsters.map(m => ({
@@ -692,30 +708,28 @@ export const useFantasyGameEngine = ({
       }
 
       // 問題出題タイミング（2拍目または判定後3拍目）
+      const hasNullChord = prevState.activeMonsters.some(m => !m.chordTarget);
+      const hasActiveChord = prevState.activeMonsters.some(m => m.chordTarget !== null);
+      
+      // コードが既に設定されている場合は出題しない
+      if (hasActiveChord) {
+        return prevState;
+      }
+      
       const shouldShowNewQuestion = 
-        (beatInMeasure === 2 && !prevState.questionShowTime) || // 通常の2拍目
-        (prevState.questionShowTime === null && prevState.activeMonsters.some(m => !m.chordTarget)); // NULLになった後
+        (beatInMeasure === 2 && hasNullChord) || // 2拍目でコードがNULLの場合
+        (beatInMeasure === 4 && hasNullChord); // 4拍目でもチェック（3拍待機後）
 
       devLog.debug('🎵 問題出題チェック:', {
         beatInMeasure,
         questionShowTime: prevState.questionShowTime,
-        hasNullChord: prevState.activeMonsters.some(m => !m.chordTarget),
+        hasNullChord,
         shouldShowNewQuestion,
-        activeMonsters: prevState.activeMonsters.length
+        activeMonsters: prevState.activeMonsters.length,
+        currentChord: prevState.activeMonsters[0]?.chordTarget?.displayName
       });
 
       if (shouldShowNewQuestion && prevState.activeMonsters.length > 0) {
-        // NULLになってから3拍待つ必要がある場合
-        if (prevState.activeMonsters.some(m => !m.chordTarget)) {
-          // 判定終了から3拍-200ms待つ
-          const timeSinceJudgmentEnd = elapsed - (currentBeatTime - msPerBeat); // 前の1拍目からの時間
-          const waitTime = (msPerBeat * 3) - 200; // 3拍-200ms
-          
-          if (timeSinceJudgmentEnd < waitTime) {
-            return prevState; // まだ待機時間中
-          }
-        }
-        
         // 新しい問題を出題
         const progression = prevState.currentStage.chordProgression || [];
         if (progression.length === 0) return prevState;
