@@ -754,6 +754,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         */}
         
+        {/* プログレッションモード用の攻撃ゲージ */}
+        {stage.mode === 'progression' && (
+          <div className="mb-2 px-4">
+            <div className="text-xs text-gray-400 mb-1">攻撃ゲージ</div>
+            <div className="w-full h-6 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
+              <div
+                className={`h-full transition-all duration-100 ${
+                  gameState.attackGaugePercent >= 90 && gameState.attackGaugePercent <= 100
+                    ? 'bg-gradient-to-r from-yellow-500 to-orange-500 animate-pulse' // 90-100%の時は黄色系でアニメーション
+                    : 'bg-gradient-to-r from-blue-500 to-cyan-500' // 通常時は青系
+                }`}
+                style={{ width: `${gameState.attackGaugePercent}%` }}
+              />
+              {/* 90%と100%のマーカー */}
+              <div className="absolute top-0 left-[90%] w-0.5 h-full bg-white opacity-50" />
+              <div className="absolute top-0 left-[95%] w-0.5 h-full bg-yellow-300 opacity-75" />
+              {/* パーセンテージ表示 */}
+              <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">
+                {Math.round(gameState.attackGaugePercent)}%
+              </div>
+            </div>
+            {gameState.isInJudgementWindow && (
+              <div className="text-xs text-yellow-300 mt-1 animate-pulse">
+                判定受付中！
+              </div>
+            )}
+          </div>
+        )}
+        
         {/* ===== モンスター＋エフェクト描画エリア ===== */}
         <div className="mb-2 text-center relative w-full">
           <div

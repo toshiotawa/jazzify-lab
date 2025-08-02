@@ -91,6 +91,12 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  // プログレッションモード用の状態を追加
+  attackGaugePercent: number; // 攻撃ゲージのパーセンテージ (0-100)
+  currentChordIndex: number; // allowed_chordsのインデックス（プログレッションモード用）
+  nextQuestionTiming: number | null; // 次の問題出題タイミング（小節番号.拍番号）
+  isInJudgementWindow: boolean; // 判定ウィンドウ内かどうか
+  lastJudgementTime: number | null; // 最後の判定時刻
 }
 
 interface FantasyGameEngineProps {
@@ -378,6 +384,9 @@ export const useFantasyGameEngine = ({
   // プリロードしたテクスチャを保持
   const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
   
+  // タイムストアから時間情報を取得
+  const { currentBeat, currentMeasure, isCountIn, bpm, timeSignature } = useTimeStore();
+  
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
@@ -406,10 +415,150 @@ export const useFantasyGameEngine = ({
     monsterQueue: [],
     simultaneousMonsterCount: 1,
     // ゲーム完了処理中フラグ
-    isCompleting: false
+    isCompleting: false,
+    // プログレッションモード用の状態を初期化
+    attackGaugePercent: 0,
+    currentChordIndex: 0,
+    nextQuestionTiming: null,
+    isInJudgementWindow: false,
+    lastJudgementTime: null
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+  
+  // プログレッションモード用の攻撃ゲージ計算
+  const calculateAttackGauge = useCallback(() => {
+    if (!gameState.isGameActive || !gameState.currentStage || gameState.currentStage.mode !== 'progression') {
+      return 0;
+    }
+    
+    // BPMと拍子から1小節の長さ（ms）を計算
+    const msPerBeat = 60000 / bpm;
+    const msPerMeasure = msPerBeat * timeSignature;
+    
+    // 現在の小節内での経過時間を計算（currentBeatは1から始まる）
+    const currentBeatTime = (currentBeat - 1) * msPerBeat;
+    const progressInMeasure = currentBeatTime / msPerMeasure;
+    
+    // 1拍目(beat=1)で95%になるように調整
+    // 小節の進行度に応じて0-100%でマッピング
+    // 4/4拍子の場合：
+    // beat 1 (0%) → 95%
+    // beat 2 (25%) → 96.25%
+    // beat 3 (50%) → 97.5%
+    // beat 4 (75%) → 98.75%
+    // beat 1 of next measure (100%) → 100% → 95% (リセット)
+    
+    // 基本的には小節の進行度を5%の範囲(95-100%)にマッピング
+    const gaugePercent = 95 + (progressInMeasure * 5);
+    
+    return Math.min(100, gaugePercent);
+  }, [gameState.isGameActive, gameState.currentStage, bpm, timeSignature, currentBeat]);
+  
+  // 判定ウィンドウのチェック（毎小節の1拍目から前後200ms）
+  const checkJudgementWindow = useCallback(() => {
+    if (!gameState.isGameActive || !gameState.currentStage || gameState.currentStage.mode !== 'progression') {
+      return false;
+    }
+    
+    // 1拍目かどうかをチェック
+    if (currentBeat !== 1) {
+      return false;
+    }
+    
+    // 攻撃ゲージが90-100%の範囲内かチェック
+    const attackGauge = calculateAttackGauge();
+    return attackGauge >= 90 && attackGauge <= 100;
+  }, [gameState.isGameActive, gameState.currentStage, currentBeat, calculateAttackGauge]);
+  
+  // 問題出題タイミングのチェック（毎小節の2拍目）
+  const checkQuestionTiming = useCallback(() => {
+    if (!gameState.isGameActive || !gameState.currentStage || gameState.currentStage.mode !== 'progression') {
+      return false;
+    }
+    
+    // 2拍目かどうかをチェック
+    return currentBeat === 2;
+  }, [gameState.isGameActive, gameState.currentStage, currentBeat]);
+  
+  // プログレッションモードの状態更新
+  useEffect(() => {
+    if (!gameState.isGameActive || !gameState.currentStage || gameState.currentStage.mode !== 'progression') {
+      return;
+    }
+    
+    // 攻撃ゲージの更新
+    const newAttackGauge = calculateAttackGauge();
+    const isInWindow = checkJudgementWindow();
+    
+    setGameState(prevState => {
+      // 問題出題タイミングのチェック
+      if (checkQuestionTiming() && prevState.currentChordTarget === null) {
+        // allowed_chordsから順番に出題
+        const allowedChords = prevState.currentStage!.allowedChords;
+        const nextChordId = allowedChords[prevState.currentChordIndex % allowedChords.length];
+        const nextChord = getChordDefinition(nextChordId, displayOpts);
+        
+        if (nextChord) {
+          // 全てのアクティブモンスターに新しい問題を設定
+          const updatedMonsters = prevState.activeMonsters.map(monster => ({
+            ...monster,
+            chordTarget: nextChord,
+            correctNotes: [],
+            gauge: 0
+          }));
+          
+          return {
+            ...prevState,
+            attackGaugePercent: newAttackGauge,
+            isInJudgementWindow: isInWindow,
+            currentChordTarget: nextChord,
+            activeMonsters: updatedMonsters,
+            currentChordIndex: prevState.currentChordIndex + 1
+          };
+        }
+      }
+      
+      // 判定タイミングを過ぎたら現在のコードをNULLにする
+      if (prevState.isInJudgementWindow && !isInWindow && prevState.currentChordTarget !== null) {
+        // 全てのアクティブモンスターの問題をクリア
+        const clearedMonsters = prevState.activeMonsters.map(monster => ({
+          ...monster,
+          chordTarget: getChordDefinition('', displayOpts) || monster.chordTarget, // 一時的に空のコードを設定
+          correctNotes: []
+        }));
+        
+        return {
+          ...prevState,
+          attackGaugePercent: newAttackGauge,
+          isInJudgementWindow: isInWindow,
+          currentChordTarget: null,
+          activeMonsters: clearedMonsters,
+          nextQuestionTiming: currentMeasure + 0.75 // 3拍前（次の小節の2拍目）
+        };
+      }
+      
+      // 通常の状態更新
+      return {
+        ...prevState,
+        attackGaugePercent: newAttackGauge,
+        isInJudgementWindow: isInWindow
+      };
+    });
+    
+    onGameStateChange(gameState);
+  }, [
+    gameState.isGameActive,
+    gameState.currentStage,
+    currentBeat,
+    currentMeasure,
+    calculateAttackGauge,
+    checkJudgementWindow,
+    checkQuestionTiming,
+    displayOpts,
+    onGameStateChange,
+    gameState
+  ]);
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
@@ -533,7 +682,13 @@ export const useFantasyGameEngine = ({
       monsterQueue,
       simultaneousMonsterCount: simultaneousCount,
       // ゲーム完了処理中フラグ
-      isCompleting: false
+      isCompleting: false,
+      // プログレッションモード用の状態を初期化
+      attackGaugePercent: 0,
+      currentChordIndex: 0,
+      nextQuestionTiming: null,
+      isInJudgementWindow: false,
+      lastJudgementTime: null
     };
 
     setGameState(newState);
@@ -818,6 +973,15 @@ export const useFantasyGameEngine = ({
         return prevState;
       }
 
+      // プログレッションモードで判定ウィンドウ外の場合は無視
+      if (prevState.currentStage?.mode === 'progression' && !prevState.isInJudgementWindow) {
+        devLog.debug('🚫 判定ウィンドウ外のため入力を無視:', { 
+          attackGauge: prevState.attackGaugePercent,
+          isInWindow: prevState.isInJudgementWindow 
+        });
+        return prevState;
+      }
+
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
 
       const noteMod12 = note % 12;
@@ -1036,6 +1200,30 @@ export const useFantasyGameEngine = ({
     // setInputBuffer([]); // 削除
   }, [enemyGaugeTimer]);
   
+  // ゲーム開始（条件を緩和）
+  const startGame = useCallback(() => {
+    if (gameState.currentStage && !gameState.isGameActive) {
+      devLog.debug('🎮 ゲーム開始');
+      setGameState(prevState => {
+        const nextState = {
+          ...prevState,
+          isGameActive: true,
+          isGameOver: false,
+          gameResult: null
+        };
+        onGameStateChange(nextState);
+        return nextState;
+      });
+      
+      // 敵ゲージタイマーの開始
+      if (!enemyGaugeTimer) {
+        devLog.debug('⏰ 敵ゲージタイマー開始 (from startGame)');
+        const timer = setInterval(() => updateEnemyGauge(), 100);
+        setEnemyGaugeTimer(timer);
+      }
+    }
+  }, [gameState.currentStage, gameState.isGameActive, enemyGaugeTimer, updateEnemyGauge, onGameStateChange]);
+  
   // ステージ変更時の初期化
   // useEffect(() => {
   //   if (stage) {
@@ -1071,10 +1259,11 @@ export const useFantasyGameEngine = ({
     checkChordMatch,
     selectRandomChord,
     getProgressionChord,
-    getCurrentEnemy,
-    ENEMY_LIST
+    startGame,
+    calculateAttackGauge // 攻撃ゲージ計算関数を追加
   };
 };
 
-export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState };
-export { ENEMY_LIST, getCurrentEnemy };
+// エクスポート
+export type { ChordDefinition, FantasyStage, MonsterState, FantasyGameState };
+export { useFantasyGameEngine };
