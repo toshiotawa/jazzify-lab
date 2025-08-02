@@ -473,27 +473,6 @@ export const useFantasyGameEngine = ({
     return { judgmentTime, showTime };
   };
   
-  /**
-   * コードランダムパターン用のコードをランダムに選択
-   * @param allowedChords 許可されたコード配列
-   * @param previousChord 直前のコード（重複を避けるため）
-   * @returns 選択されたコード
-   */
-  const selectRandomChord = (allowedChords: string[], previousChord?: string): string => {
-    if (allowedChords.length === 0) return 'C'; // フォールバック
-    if (allowedChords.length === 1) return allowedChords[0];
-    
-    // 直前のコードと異なるコードを選択
-    let availableChords = allowedChords;
-    if (previousChord) {
-      availableChords = allowedChords.filter(chord => chord !== previousChord);
-      if (availableChords.length === 0) availableChords = allowedChords;
-    }
-    
-    const randomIndex = Math.floor(Math.random() * availableChords.length);
-    return availableChords[randomIndex];
-  };
-  
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
