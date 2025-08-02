@@ -635,7 +635,7 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';  // rhythm モードを追加
   allowed_chords: string[];
   chord_progression?: string[];
   show_sheet_music: boolean;
@@ -648,6 +648,18 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  chord_progression_data?: ChordProgressionData | null;  // リズムモード用のコード進行データ
+}
+
+// リズムモード用のコード進行データ
+export interface ChordProgressionData {
+  chords: ChordProgressionItem[];
+}
+
+export interface ChordProgressionItem {
+  measure: number;  // 小節番号
+  beat: number;     // 拍番号（1拍目の裏なら1.5、3拍目の16分音符4つ目なら3.75）
+  chord: string;    // コード名
 }
 
 export interface LessonContext {
