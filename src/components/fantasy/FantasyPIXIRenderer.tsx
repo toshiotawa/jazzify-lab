@@ -179,6 +179,7 @@ interface MonsterSpriteData {
   angerMark?: PIXI.Sprite | PIXI.Text; // 追加：怒りマーク（SVGスプライトまたはテキスト）
   outline?: PIXI.Graphics; // 追加：赤い輪郭
   lastAttackTime?: number; // 追加：最後に攻撃した時刻
+  chordLabel?: PIXI.Text; // 追加：リズムモード用のコードラベル
 }
 
 export class FantasyPIXIInstance {
@@ -556,6 +557,9 @@ export class FantasyPIXIInstance {
         if (monsterData.sprite && !monsterData.sprite.destroyed) {
             monsterData.sprite.destroy();
         }
+        if (monsterData.chordLabel && !monsterData.chordLabel.destroyed) {
+            monsterData.chordLabel.destroy();
+        }
         this.monsterSprites.delete(id);
       }
     }
@@ -605,6 +609,21 @@ export class FantasyPIXIInstance {
         
         this.monsterSprites.set(monster.id, monsterData);
         this.monsterContainer.addChild(sprite);
+        
+        // リズムモード用のコードラベルを作成
+        if (monster.hasQuestionShown && monster.chordTarget) {
+          const chordLabel = new PIXI.Text(monster.chordTarget.displayName, {
+            fontFamily: 'Arial',
+            fontSize: 20,
+            fill: 0xFFFFFF,
+            stroke: 0x000000,
+            strokeThickness: 3,
+            align: 'center'
+          });
+          chordLabel.anchor.set(0.5);
+          monsterData.chordLabel = chordLabel;
+          this.monsterContainer.addChild(chordLabel);
+        }
       }
       
       // ゲージ値を更新
@@ -618,6 +637,29 @@ export class FantasyPIXIInstance {
       
       // 位置を更新
       monsterData.visualState.x = this.getPositionX(i, sortedMonsters.length);
+      
+      // リズムモード用のコードラベル更新
+      if (monster.hasQuestionShown && monster.chordTarget) {
+        if (!monsterData.chordLabel) {
+          // ラベルがまだない場合は作成
+          const chordLabel = new PIXI.Text(monster.chordTarget.displayName, {
+            fontFamily: 'Arial',
+            fontSize: 20,
+            fill: 0xFFFFFF,
+            stroke: 0x000000,
+            strokeThickness: 3,
+            align: 'center'
+          });
+          chordLabel.anchor.set(0.5);
+          monsterData.chordLabel = chordLabel;
+          this.monsterContainer.addChild(chordLabel);
+        }
+      } else if (monsterData.chordLabel && (!monster.hasQuestionShown || monster.hasJudged)) {
+        // 問題がまだ表示されていないか、判定済みの場合はラベルを非表示
+        this.monsterContainer.removeChild(monsterData.chordLabel);
+        monsterData.chordLabel.destroy();
+        monsterData.chordLabel = undefined;
+      }
       
       this.updateMonsterSpriteData(monsterData);
     }
@@ -817,7 +859,7 @@ export class FantasyPIXIInstance {
    * モンスターデータのビジュアル更新
    */
   private updateMonsterSpriteData(monsterData: MonsterSpriteData): void {
-    const { sprite, visualState, gameState } = monsterData;
+    const { sprite, visualState, gameState, chordLabel } = monsterData;
     
     // transform nullチェックを追加
     if (sprite.destroyed || !(sprite as any).transform) {
@@ -834,6 +876,14 @@ export class FantasyPIXIInstance {
     sprite.tint = gameState.isHit ? gameState.hitColor : visualState.tint;
     sprite.alpha = visualState.alpha;
     sprite.visible = visualState.visible && gameState.state !== 'GONE';
+    
+    // コードラベルの位置更新
+    if (chordLabel && !chordLabel.destroyed) {
+      chordLabel.x = sprite.x;
+      chordLabel.y = sprite.y + (sprite.height * sprite.scale.y / 2) + 20; // モンスターの下に表示
+      chordLabel.alpha = sprite.alpha;
+      chordLabel.visible = sprite.visible;
+    }
   }
 
   // モンスタースプライトの属性を安全に更新
