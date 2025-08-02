@@ -374,7 +374,7 @@ const FantasyMain: React.FC = () => {
         id: nextStageData.id,
         stageNumber: nextStageData.stage_number,
         name: nextStageData.name,
-        description: nextStageData.description || '',
+        description: nextStageData.description,
         maxHp: nextStageData.max_hp,
         enemyGaugeSeconds: nextStageData.enemy_gauge_seconds,
         enemyCount: nextStageData.enemy_count,
@@ -383,7 +383,15 @@ const FantasyMain: React.FC = () => {
         maxDamage: nextStageData.max_damage,
         mode: nextStageData.mode as 'single' | 'progression',
         allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
-        chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
+        chordProgression: (() => {
+          if (Array.isArray(nextStageData.chord_progression)) {
+            return nextStageData.chord_progression;
+          } else if (typeof nextStageData.chord_progression === 'string') {
+            // 文字列の場合はスペースで分割
+            return nextStageData.chord_progression.split(' ').filter(chord => chord.length > 0);
+          }
+          return undefined;
+        })(),
         showSheetMusic: nextStageData.show_sheet_music,
         showGuide: nextStageData.show_guide,
         monsterIcon: nextStageData.monster_icon,
@@ -394,6 +402,15 @@ const FantasyMain: React.FC = () => {
         countInMeasures: nextStageData.count_in_measures,
         timeSignature: nextStageData.time_signature
       };
+      
+      // デバッグログを追加
+      console.log('📊 ステージデータ変換:', {
+        stageNumber: convertedStage.stageNumber,
+        mode: convertedStage.mode,
+        allowedChords: convertedStage.allowedChords,
+        chordProgression: convertedStage.chordProgression,
+        rawAllowedChords: nextStageData.allowed_chords
+      });
 
       setGameResult(null);
       setShowResult(false);

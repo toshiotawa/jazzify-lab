@@ -609,26 +609,66 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
+    // プログレッションモードで90%以上の場合は色を変更
+    const isProgressionMode = stage.mode === 'progression';
+    const gaugePercentage = Math.min(gameState.enemyGauge, 100);
+    const isInJudgmentRange = isProgressionMode && gaugePercentage >= 90 && gaugePercentage <= 100;
+    
+    // ゲージの色を判定範囲に応じて変更
+    const gaugeColorClass = isInJudgmentRange 
+      ? "bg-gradient-to-r from-red-500 to-pink-400" // 判定可能時は赤系
+      : "bg-gradient-to-r from-yellow-500 to-orange-400"; // 通常時は黄色系
+    
+    const glowEffect = gaugePercentage > 80 
+      ? isInJudgmentRange 
+        ? '0 0 15px rgba(239, 68, 68, 0.8)' // 赤い光
+        : '0 0 10px rgba(245, 158, 11, 0.6)' // 黄色い光
+      : 'none';
+    
     return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
+      <div className="relative w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
+          className={cn(
+            "h-full rounded-full transition-all duration-200 ease-out",
+            gaugeColorClass
+          )}
           style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+            width: `${gaugePercentage}%`,
+            boxShadow: glowEffect
           }}
         />
+        {/* 90%と100%のマーカーをプログレッションモードのみ表示 */}
+        {isProgressionMode && (
+          <>
+            <div 
+              className="absolute h-full w-0.5 bg-white opacity-50"
+              style={{ left: '90%' }}
+            />
+            <div 
+              className="absolute h-full w-0.5 bg-white opacity-75"
+              style={{ left: '95%' }}
+            />
+          </>
+        )}
       </div>
     );
-  }, [gameState.enemyGauge]);
+  }, [gameState.enemyGauge, stage.mode]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    if (stage.mode !== 'progression') return null;
     
-    const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
-    return stage.chordProgression[nextIndex];
-  }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
+    // プログレッションモードではchordProgressionがある場合はそちらを優先
+    const progression = stage.chordProgression || stage.allowedChords;
+    if (!progression || progression.length === 0) return null;
+    
+    // 最初のモンスターのnextQuestionIndexを使用
+    const firstMonster = gameState.activeMonsters?.[0];
+    if (!firstMonster) return null;
+    
+    const nextIndex = (firstMonster.nextQuestionIndex || 0) % progression.length;
+    return progression[nextIndex];
+  }, [stage.mode, stage.chordProgression, stage.allowedChords, gameState.activeMonsters]);
   
   // SPゲージ表示
   const renderSpGauge = useCallback((sp: number) => {
@@ -660,12 +700,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  if (!overlay && !gameState.isCompleting && !gameState.isGameActive) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
       stageName: stage.name,
-      hasOverlay: !!overlay
+      hasOverlay: !!overlay,
+      activeMonsters: gameState.activeMonsters.length
     });
     
     return (
@@ -832,39 +873,62 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {/* プログレッションモードで問題が非表示の場合は「？」を表示 */}
+                        {stage.mode === 'progression' && !monster.isQuestionVisible 
+                          ? '？？？' 
+                          : monster.chordTarget.displayName
+                        }
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
-                          // 表示オプションを定義
-                          const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
-                          // 表示用の音名に変換
-                          const displayNoteName = toDisplayName(noteName, displayOpts);
-                          
-                          // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
-                          const noteObj = parseNote(noteName + '4'); // オクターブはダミー
-                          const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
-                          
-                          const isCorrect = monster.correctNotes.includes(noteMod12);
+                        {/* プログレッションモードで問題が非表示の場合はヒントも非表示 */}
+                        {stage.mode === 'progression' && !monster.isQuestionVisible ? (
+                          <span className="text-gray-500">- - -</span>
+                        ) : (
+                          // noteNamesが存在することを確認
+                          monster.chordTarget?.noteNames ? (
+                            monster.chordTarget.noteNames.map((noteName, index) => {
+                              // noteNameが存在しない場合はスキップ
+                              if (!noteName) {
+                                return (
+                                  <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                    ?
+                                  </span>
+                                );
+                              }
+                              
+                              // 表示オプションを定義
+                              const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
+                              // 表示用の音名に変換
+                              const displayNoteName = toDisplayName(noteName, displayOpts);
+                              
+                              // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
+                              const noteObj = parseNote(noteName + '4'); // オクターブはダミー
+                              const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+                              
+                              const isCorrect = monster.correctNotes.includes(noteMod12);
 
-                          if (!stage.showGuide && !isCorrect) {
-                            return (
-                              <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
-                                ?
-                              </span>
-                            );
-                          }
-                          return (
-                            <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                              {displayNoteName}
-                              {isCorrect && '✓'}
-                            </span>
-                          );
-                        })}
+                              if (!stage.showGuide && !isCorrect) {
+                                return (
+                                  <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                    ?
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
+                                  {displayNoteName}
+                                  {isCorrect && '✓'}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span className="text-gray-500">- - -</span>
+                          )
+                        )}
                       </div>
                       
                       {/* 魔法名表示 */}
@@ -888,9 +952,34 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
+                          className={cn(
+                            "h-full transition-all duration-100",
+                            // プログレッションモードで90%以上の場合は色を変更
+                            stage.mode === 'progression' && monster.gauge >= 90 && monster.gauge <= 100
+                              ? "bg-gradient-to-r from-red-500 to-pink-400" // 判定可能時は赤系
+                              : "bg-gradient-to-r from-purple-500 to-purple-700" // 通常時は紫系
+                          )}
+                          style={{ 
+                            width: `${monster.gauge}%`,
+                            // 90%以上の時は光らせる
+                            boxShadow: stage.mode === 'progression' && monster.gauge >= 90 
+                              ? '0 0 8px rgba(239, 68, 68, 0.8)' 
+                              : 'none'
+                          }}
                         />
+                        {/* 90%と95%のマーカーをプログレッションモードのみ表示 */}
+                        {stage.mode === 'progression' && (
+                          <>
+                            <div 
+                              className="absolute h-full w-0.5 bg-white opacity-40"
+                              style={{ left: '90%' }}
+                            />
+                            <div 
+                              className="absolute h-full w-0.5 bg-white opacity-60"
+                              style={{ left: '95%' }}
+                            />
+                          </>
+                        )}
                       </div>
                       
                       {/* HPゲージ */}

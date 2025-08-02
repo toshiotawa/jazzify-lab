@@ -114,6 +114,12 @@ export function getFantasyChordNotes(chordId: string, octave: number = 4): numbe
  * @returns { root: string, quality: ChordQuality } | null
  */
 export function parseChordName(chordName: string): { root: string; quality: ChordQuality } | null {
+  // chordNameがundefined、null、空文字、または文字列でない場合はnullを返す
+  if (!chordName || typeof chordName !== 'string') {
+    console.warn('⚠️ parseChordName: 無効なコード名:', chordName);
+    return null;
+  }
+  
   // ルート音とサフィックスを分離（ダブルシャープ・ダブルフラットも対応）
   const match = chordName.match(/^([A-G](?:#{1,2}|b{1,2}|x)?)(.*)$/);
   if (!match) return null;
@@ -166,6 +172,12 @@ export function resolveChord(
   octave: number = 4,
   displayOpts?: DisplayOpts
 ): { id: string; root: string; quality: ChordQuality; notes: string[]; displayName: string } | null {
+  
+  // chordIdが無効な場合はnullを返す
+  if (!chordId || typeof chordId !== 'string') {
+    console.warn('⚠️ resolveChord: 無効なコードID:', chordId);
+    return null;
+  }
   
   // a) まずエイリアスを考慮してパース
   const parsed = parseChordName(chordId);
