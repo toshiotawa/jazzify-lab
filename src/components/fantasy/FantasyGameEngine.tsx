@@ -23,6 +23,17 @@ interface ChordDefinition {
   root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
 
+// リズムモード用ノーツ定義
+interface RhythmNote {
+  id: string;
+  chord: ChordDefinition;
+  measure: number;
+  beat: number; // 小数対応 (e.g., 1.0, 1.5, 3.75)
+  state: 'pending' | 'active' | 'judging' | 'success' | 'failure';
+  createTime: number;
+  targetTime: number; // 判定予定時刻 (ms)
+}
+
 interface FantasyStage {
   id: string;
   stageNumber: string;
@@ -34,9 +45,10 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'quiz' | 'rhythm'; // 変更: quizにリネーム
   allowedChords: string[];
   chordProgression?: string[];
+  chordProgressionData?: { chords: Array<{ measure: number; beat: number; chord: string }> }; // JSONデータ
   showSheetMusic: boolean;
   showGuide: boolean; // ガイド表示設定を追加
   monsterIcon: string;
@@ -91,6 +103,10 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  // リズムモード追加
+  rhythmNotes: RhythmNote[]; // アクティブノーツリスト
+  currentInputs: Set<number>; // 現在押されているノート
+  progressionIndex: number; // プログレッション時の現在のインデックス
 }
 
 interface FantasyGameEngineProps {
@@ -103,6 +119,7 @@ interface FantasyGameEngineProps {
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: (attackingMonsterId?: string) => void;
+  displayOpts?: DisplayOpts;
 }
 
 // ===== コード定義データ =====
@@ -406,14 +423,24 @@ export const useFantasyGameEngine = ({
     monsterQueue: [],
     simultaneousMonsterCount: 1,
     // ゲーム完了処理中フラグ
-    isCompleting: false
+    isCompleting: false,
+    rhythmNotes: [], // リズムモード追加
+    currentInputs: new Set<number>(),
+    progressionIndex: 0
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
+  // リズムモード用タイマー
+  const rhythmTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+
+    // モード判別
+    const isRhythmMode = stage.mode === 'rhythm';
+    const isProgression = isRhythmMode && stage.chordProgressionData !== null && stage.chordProgressionData !== undefined;
 
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;
@@ -533,7 +560,10 @@ export const useFantasyGameEngine = ({
       monsterQueue,
       simultaneousMonsterCount: simultaneousCount,
       // ゲーム完了処理中フラグ
-      isCompleting: false
+      isCompleting: false,
+      rhythmNotes: [],
+      currentInputs: new Set(),
+      progressionIndex: 0
     };
 
     setGameState(newState);
@@ -580,7 +610,7 @@ export const useFantasyGameEngine = ({
         // 各モンスターに新しいコードを割り当て
         const updatedMonsters = prevState.activeMonsters.map(monster => {
           let nextChord;
-          if (prevState.currentStage?.mode === 'single') {
+          if (prevState.currentStage?.mode === 'quiz') {
             // ランダムモード：前回と異なるコードを選択
             nextChord = selectRandomChord(prevState.currentStage.allowedChords, monster.chordTarget?.id, displayOpts);
           } else {
@@ -683,7 +713,7 @@ export const useFantasyGameEngine = ({
         } else {
           // 次の問題（ループ対応）
           let nextChord;
-          if (prevState.currentStage?.mode === 'single') {
+          if (prevState.currentStage?.mode === 'quiz') {
             // ランダムモード：前回と異なるコードを選択
             const previousChordId = prevState.currentChordTarget?.id;
             nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId, displayOpts);
@@ -809,6 +839,134 @@ export const useFantasyGameEngine = ({
     });
   }, [handleEnemyAttack, onGameStateChange]);
   
+  // リズムモード更新関数
+  const updateRhythm = useCallback(() => {
+    setGameState(prev => {
+      if (!prev.isGameActive || !prev.currentStage || prev.currentStage.mode !== 'rhythm') return prev;
+      
+      const now = performance.now();
+      let shouldTriggerFailure = false;
+      
+      const newNotes = prev.rhythmNotes.map(note => {
+        const windowStart = note.targetTime - 200;
+        const windowEnd = note.targetTime + 200;
+        const approachTime = note.targetTime - 2000; // 2秒前から表示
+        
+        if (now > windowEnd && note.state === 'judging') {
+          // 失敗処理をフラグで記録
+          shouldTriggerFailure = true;
+          return { ...note, state: 'failure' as const };
+        }
+        
+        if (now >= windowStart && now <= windowEnd && note.state === 'active') {
+          return { ...note, state: 'judging' as const };
+        }
+        
+        if (now >= approachTime && note.state === 'pending') {
+          return { ...note, state: 'active' as const };
+        }
+        
+        return note;
+      });
+      
+      if (shouldTriggerFailure) {
+        // 失敗処理を遅延実行
+        setTimeout(() => handleEnemyAttack(), 0);
+      }
+      
+      // 古いノーツを削除（画面外に出て3秒経過したもの）
+      const cleanedNotes = newNotes.filter(note => {
+        const isOld = now > note.targetTime + 3000;
+        return !isOld;
+      });
+      
+      return { ...prev, rhythmNotes: cleanedNotes };
+    });
+  }, [handleEnemyAttack]);
+  
+  // リズムモード: 次のノーツ生成
+  const generateNextRhythmNotes = useCallback(() => {
+    setGameState(prev => {
+      if (!prev.currentStage || prev.currentStage.mode !== 'rhythm') return prev;
+      
+      const isProgression = !!prev.currentStage.chordProgressionData;
+      const now = performance.now();
+      const secPerBeat = 60 / prev.currentStage.bpm;
+      const secPerMeasure = secPerBeat * (prev.currentStage.timeSignature || 4);
+      const msPerMeasure = secPerMeasure * 1000;
+      
+      // 最後のノーツのタイミングを基準に次のノーツを生成
+      const lastNote = prev.rhythmNotes[prev.rhythmNotes.length - 1];
+      const baseTime = lastNote ? lastNote.targetTime : now + 2000; // 初回は2秒後から
+      
+      let newNote: RhythmNote;
+      if (isProgression && prev.currentStage.chordProgressionData) {
+        const prog = prev.currentStage.chordProgressionData.chords[prev.progressionIndex];
+        const chord = getChordDefinition(prog.chord, displayOpts);
+        if (!chord) return prev;
+        
+        // プログレッションの場合は相対的な位置から計算
+        const targetTime = baseTime + msPerMeasure;
+        newNote = {
+          id: `note_${Date.now()}`,
+          chord,
+          measure: prog.measure,
+          beat: prog.beat,
+          state: 'pending',
+          createTime: now,
+          targetTime
+        };
+        
+        const newIndex = (prev.progressionIndex + 1) % prev.currentStage.chordProgressionData.chords.length;
+        return { ...prev, progressionIndex: newIndex, rhythmNotes: [...prev.rhythmNotes, newNote] };
+      } else {
+        // ランダム
+        const chordId = prev.currentStage.allowedChords[Math.floor(Math.random() * prev.currentStage.allowedChords.length)];
+        const chord = getChordDefinition(chordId, displayOpts);
+        if (!chord) return prev;
+        
+        const targetTime = baseTime + msPerMeasure; // 前のノーツから1小節後
+        const timeState = useTimeStore.getState();
+        const currentMeasure = timeState.currentMeasure || 1;
+        newNote = {
+          id: `note_${Date.now()}`,
+          chord,
+          measure: currentMeasure + 1,
+          beat: 1.0,
+          state: 'pending',
+          createTime: now,
+          targetTime
+        };
+        
+        return { ...prev, rhythmNotes: [...prev.rhythmNotes, newNote] };
+      }
+    });
+  }, [displayOpts]);
+  
+  // リズムモード: 成功処理
+  const handleRhythmSuccess = useCallback((note: RhythmNote) => {
+    setGameState(prev => {
+      if (!prev.currentStage) return prev;
+      const damage = Math.floor(Math.random() * (prev.currentStage.maxDamage - prev.currentStage.minDamage + 1)) + prev.currentStage.minDamage;
+      const monster = prev.activeMonsters[0]; // 1体固定
+      if (!monster) return prev;
+      const defeated = monster.currentHp - damage <= 0;
+      onChordCorrect(note.chord, prev.playerSp >= 5, damage, defeated, monster.id);
+      
+      if (defeated) {
+        // 撃破処理
+        const newEnemiesDefeated = prev.enemiesDefeated + 1;
+        if (newEnemiesDefeated >= prev.totalEnemies) {
+          onGameComplete('clear', prev);
+        }
+      }
+      
+      return prev;
+    });
+  }, [onChordCorrect, onGameComplete]);
+  
+
+  
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
     // updater関数の中でロジックを実行するように変更
@@ -819,6 +977,22 @@ export const useFantasyGameEngine = ({
       }
 
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
+
+      if (prevState.currentStage?.mode === 'rhythm') {
+        // リズムモード入力処理
+        const newInputs = new Set(prevState.currentInputs);
+        newInputs.add(note % 12);
+        
+        const judgingNotes = prevState.rhythmNotes.filter(n => n.state === 'judging');
+        judgingNotes.forEach(jn => {
+          if (checkChordMatch(Array.from(newInputs), jn.chord)) {
+            handleRhythmSuccess(jn);
+            generateNextRhythmNotes(); // 次ノーツ生成
+          }
+        });
+        
+        return { ...prevState, currentInputs: newInputs };
+      }
 
       const noteMod12 = note % 12;
       const completedMonsters: MonsterState[] = [];
@@ -987,7 +1161,7 @@ export const useFantasyGameEngine = ({
 
       // ★追加：次の問題もここで準備する
       let nextChord;
-      if (prevState.currentStage?.mode === 'single') {
+      if (prevState.currentStage?.mode === 'quiz') {
         nextChord = selectRandomChord(prevState.currentStage.allowedChords, prevState.currentChordTarget?.id, displayOpts);
       } else {
         const progression = prevState.currentStage?.chordProgression || [];
@@ -1028,6 +1202,10 @@ export const useFantasyGameEngine = ({
       clearInterval(enemyGaugeTimer);
       setEnemyGaugeTimer(null);
     }
+    if (rhythmTimerRef.current) {
+      clearInterval(rhythmTimerRef.current);
+      rhythmTimerRef.current = null;
+    }
     
     // if (inputTimeout) { // 削除
     //   clearTimeout(inputTimeout); // 削除
@@ -1037,11 +1215,39 @@ export const useFantasyGameEngine = ({
   }, [enemyGaugeTimer]);
   
   // ステージ変更時の初期化
-  // useEffect(() => {
-  //   if (stage) {
-  //     initializeGame(stage);
-  //   }
-  // }, [stage, initializeGame]);
+  useEffect(() => {
+    if (stage) {
+      initializeGame(stage);
+    }
+  }, [stage, initializeGame]);
+  
+  // リズムモード初期化
+  useEffect(() => {
+    if (gameState.isGameActive && gameState.currentStage?.mode === 'rhythm') {
+      setGameState(prev => ({ ...prev, simultaneousMonsterCount: 1 })); // 固定1
+      if (rhythmTimerRef.current) {
+        clearInterval(rhythmTimerRef.current);
+      }
+      rhythmTimerRef.current = setInterval(() => {
+        updateRhythm();
+        // ノーツが少なくなったら生成
+        setGameState(prev => {
+          if (prev.rhythmNotes.filter(n => n.state === 'pending' || n.state === 'active').length < 3) {
+            generateNextRhythmNotes();
+          }
+          return prev;
+        });
+      }, 50); // 20FPS更新
+      generateNextRhythmNotes(); // 初回ノーツ生成
+    }
+    
+    return () => {
+      if (rhythmTimerRef.current) {
+        clearInterval(rhythmTimerRef.current);
+        rhythmTimerRef.current = null;
+      }
+    };
+  }, [gameState.isGameActive, gameState.currentStage?.mode, updateRhythm, generateNextRhythmNotes]);
   
   // コンポーネント破棄時のクリーンアップ
   useEffect(() => {
@@ -1049,6 +1255,9 @@ export const useFantasyGameEngine = ({
       if (enemyGaugeTimer) {
         devLog.debug('⏰ 敵ゲージタイマー クリーンアップで停止');
         clearInterval(enemyGaugeTimer);
+      }
+      if (rhythmTimerRef.current) {
+        clearInterval(rhythmTimerRef.current);
       }
       // if (inputTimeout) { // 削除
       //   devLog.debug('⏰ 入力タイムアウト クリーンアップで停止'); // 削除
@@ -1059,9 +1268,22 @@ export const useFantasyGameEngine = ({
   
 
   
+  // ノートオフ処理（リズムモード用）
+  const handleNoteOff = useCallback((note: number) => {
+    setGameState(prevState => {
+      if (prevState.currentStage?.mode === 'rhythm') {
+        const newInputs = new Set(prevState.currentInputs);
+        newInputs.delete(note % 12);
+        return { ...prevState, currentInputs: newInputs };
+      }
+      return prevState;
+    });
+  }, []);
+
   return {
     gameState,
     handleNoteInput,
+    handleNoteOff,
     initializeGame,
     stopGame,
     proceedToNextEnemy,
@@ -1076,5 +1298,5 @@ export const useFantasyGameEngine = ({
   };
 };
 
-export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState };
+export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState, RhythmNote };
 export { ENEMY_LIST, getCurrentEnemy };

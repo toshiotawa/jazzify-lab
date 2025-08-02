@@ -635,9 +635,10 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'quiz' | 'rhythm'; // 変更: quizにリネーム、rhythmを追加
   allowed_chords: string[];
   chord_progression?: string[];
+  chord_progression_data?: { chords: Array<{ measure: number; beat: number; chord: string }> }; // 追加: JSONベースのコード進行データ
   show_sheet_music: boolean;
   show_guide: boolean;
   simultaneous_monster_count?: number;

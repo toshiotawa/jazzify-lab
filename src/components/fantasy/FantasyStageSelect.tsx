@@ -159,9 +159,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'quiz' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+        chordProgressionData: stage.chord_progression_data,
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
@@ -245,6 +246,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     return false;
   }, [userProgress, stageClears]);
   
+  // ステージタイプのテキストを取得
+  const getStageTypeText = (stage: FantasyStage) => {
+    if (stage.mode === 'rhythm') {
+      return stage.chordProgressionData ? 'リズム / コード進行' : 'リズム / ランダム';
+    }
+    return 'クイズモード';
+  };
+
   // ステージのクリア状況を取得
   const getStageClearInfo = useCallback((stage: FantasyStage) => {
     const clear = stageClears.find(c => c.stageId === stage.id);
@@ -291,6 +300,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.name : "???"}
           </div>
+          
+          {/* ステージタイプ */}
+          {unlocked && (
+            <div className="text-sm text-gray-300 mb-1">
+              {getStageTypeText(stage)}
+            </div>
+          )}
           
           {/* 説明文 */}
           <div className={cn(
