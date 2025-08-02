@@ -635,9 +635,11 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';
+  rhythmMode?: 'random' | 'progression'; // リズムモードのサブモード
   allowed_chords: string[];
   chord_progression?: string[];
+  chordProgressionData?: ChordProgressionEntry[]; // リズムモード用の詳細なコード進行データ
   show_sheet_music: boolean;
   show_guide: boolean;
   simultaneous_monster_count?: number;
@@ -648,6 +650,13 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+}
+
+// リズムモード用のコード進行エントリ
+export interface ChordProgressionEntry {
+  measure: number; // 1-based
+  beat: number;    // 小数 (1.0, 1.5, ...)
+  chord: string;
 }
 
 export interface LessonContext {

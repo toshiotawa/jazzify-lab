@@ -16,7 +16,11 @@ import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer'
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
-import { note as parseNote } from 'tonal';
+import { Midi, Note } from 'tonal';
+import { RhythmLane } from '../game/RhythmLane';
+import { useRhythmStore } from '@/stores/rhythmStore';
+import { useNoteScheduler } from '@/logic/noteScheduler';
+import { evaluateNote, findClosestNote } from '@/logic/rhythmJudge';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -59,6 +63,37 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
+  
+  // リズムモード関連
+  const rhythmStore = useRhythmStore();
+  const isRhythmMode = stage.mode === 'rhythm';
+  
+  // リズムモードの初期化
+  useEffect(() => {
+    if (isRhythmMode) {
+      rhythmStore.init({
+        mode: 'quiz', // FantasyStageには 'quiz' がないので、暫定的に設定
+        rhythmMode: stage.rhythmMode || 'random',
+        bpm: stage.bpm || 120,
+        timeSignature: stage.time_signature || 4,
+        measureCount: stage.measure_count || 8,
+        countInMeasures: stage.count_in_measures || 0,
+        allowedChords: stage.allowed_chords,
+        chordProgression: stage.chordProgressionData
+      });
+    }
+    
+    return () => {
+      if (isRhythmMode) {
+        rhythmStore.cleanup();
+      }
+    };
+  }, [isRhythmMode, stage]);
+  
+  // リズムモードのノートスケジューリング
+  if (isRhythmMode) {
+    useNoteScheduler();
+  }
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -343,6 +378,36 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
   
+  // リズムモードの入力処理
+  const handleRhythmNoteInput = useCallback((note: number) => {
+    if (!isRhythmMode) return;
+    
+    // 入力されたノートからコード名を取得（簡易的な実装）
+    const noteName = Midi.midiToNoteName(note);
+    const inputChord = noteName.replace(/[0-9]/g, ''); // オクターブを除去
+    
+    const currentTime = performance.now();
+    const { notes, activeNoteIds, registerSuccess, registerFail } = useRhythmStore.getState();
+    
+    // 最も近いノーツを探す
+    const closestNote = findClosestNote(notes, currentTime, activeNoteIds);
+    if (!closestNote) return;
+    
+    // 判定を実行
+    const judgeResult = evaluateNote(closestNote, inputChord, currentTime);
+    
+    if (judgeResult.result === 'success') {
+      registerSuccess(closestNote.id);
+      // プレイヤーの攻撃
+      handleChordCorrect({ displayName: inputChord } as ChordDefinition, false, 0, false, '');
+    } else if (judgeResult.result === 'miss') {
+      registerFail(closestNote.id);
+      // 敵の攻撃
+      handleEnemyAttack();
+    }
+    // too_early/too_late の場合は何もしない（まだ判定タイミングではない）
+  }, [isRhythmMode, rhythmStore, handleChordCorrect, handleEnemyAttack]);
+  
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
     // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
@@ -361,9 +426,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       console.error('Failed to play note:', error);
     }
     
-    // ファンタジーゲームエンジンにのみ送信
-    engineHandleNoteInput(note);
-  }, [engineHandleNoteInput]);
+    // リズムモードの場合は別処理
+    if (isRhythmMode) {
+      handleRhythmNoteInput(note);
+    } else {
+      // ファンタジーゲームエンジンにのみ送信
+      engineHandleNoteInput(note);
+    }
+  }, [engineHandleNoteInput, isRhythmMode]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
@@ -754,6 +824,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         */}
         
+        {/* リズムモードのレーン表示 */}
+        {isRhythmMode && !isCountIn && (
+          <div className="mb-4">
+            <RhythmLane
+              onAutoFail={(noteId) => {
+                // 自動失敗時は敵の攻撃
+                handleEnemyAttack();
+              }}
+            />
+          </div>
+        )}
+        
         {/* ===== モンスター＋エフェクト描画エリア ===== */}
         <div className="mb-2 text-center relative w-full">
           <div
@@ -828,25 +910,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
-                      {/* コードネーム */}
-                      <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                        monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                      }`}>
-                        {monster.chordTarget.displayName}
-                      </div>
+                      {/* コードネーム（リズムモードでは非表示） */}
+                      {!isRhythmMode && (
+                        <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                          monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                        }`}>
+                          {monster.chordTarget.displayName}
+                        </div>
+                      )}
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
-                      <div className={`mt-1 font-medium h-6 text-center ${
-                        monsterCount > 5 ? 'text-xs' : 'text-sm'
-                      }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
+                      {!isRhythmMode && (
+                        <div className={`mt-1 font-medium h-6 text-center ${
+                          monsterCount > 5 ? 'text-xs' : 'text-sm'
+                        }`}>
+                          {monster.chordTarget.noteNames.map((noteName, index) => {
                           // 表示オプションを定義
                           const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
                           // 表示用の音名に変換
                           const displayNoteName = toDisplayName(noteName, displayOpts);
                           
                           // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
-                          const noteObj = parseNote(noteName + '4'); // オクターブはダミー
+                          const noteObj = Note.get(noteName + '4'); // オクターブはダミー
                           const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
                           
                           const isCorrect = monster.correctNotes.includes(noteMod12);
@@ -865,7 +950,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                             </span>
                           );
                         })}
-                      </div>
+                        </div>
+                      )}
                       
                       {/* 魔法名表示 */}
                       {magicName && magicName.monsterId === monster.id && (
