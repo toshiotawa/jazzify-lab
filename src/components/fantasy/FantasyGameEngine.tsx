@@ -34,7 +34,7 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'quiz' | 'rhythm'; // ステージモード: クイズまたはリズム
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
@@ -46,6 +46,14 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
+  chordProgressionData?: { // リズムモード用のコード進行データ
+    chords: Array<{
+      chord: string;
+      measure: number;
+      beat: number;
+    }>;
+  } | null;
+  mp3Url?: string; // MP3ファイルのURL
 }
 
 interface MonsterState {
@@ -580,7 +588,7 @@ export const useFantasyGameEngine = ({
         // 各モンスターに新しいコードを割り当て
         const updatedMonsters = prevState.activeMonsters.map(monster => {
           let nextChord;
-          if (prevState.currentStage?.mode === 'single') {
+          if (prevState.currentStage?.mode === 'quiz') {
             // ランダムモード：前回と異なるコードを選択
             nextChord = selectRandomChord(prevState.currentStage.allowedChords, monster.chordTarget?.id, displayOpts);
           } else {
@@ -683,7 +691,7 @@ export const useFantasyGameEngine = ({
         } else {
           // 次の問題（ループ対応）
           let nextChord;
-          if (prevState.currentStage?.mode === 'single') {
+          if (prevState.currentStage?.mode === 'quiz') {
             // ランダムモード：前回と異なるコードを選択
             const previousChordId = prevState.currentChordTarget?.id;
             nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId, displayOpts);
@@ -929,6 +937,14 @@ export const useFantasyGameEngine = ({
         // 最終的なモンスターリストとキューを更新
         stateAfterAttack.activeMonsters = remainingMonsters;
         stateAfterAttack.monsterQueue = newMonsterQueue;
+
+        // --------- ★ BUG FIX : currentChordTarget が null になる問題 ----------
+        // 先頭モンスターのコードを常に保持しておく
+        stateAfterAttack.currentChordTarget =
+          remainingMonsters.length > 0
+            ? remainingMonsters[0].chordTarget
+            : stateAfterAttack.currentChordTarget;
+        // ----------------------------------------------------------------------
         
         // 互換性のためのレガシーな状態も更新
         stateAfterAttack.correctNotes = [];
@@ -987,7 +1003,7 @@ export const useFantasyGameEngine = ({
 
       // ★追加：次の問題もここで準備する
       let nextChord;
-      if (prevState.currentStage?.mode === 'single') {
+      if (prevState.currentStage?.mode === 'quiz') {
         nextChord = selectRandomChord(prevState.currentStage.allowedChords, prevState.currentChordTarget?.id, displayOpts);
       } else {
         const progression = prevState.currentStage?.chordProgression || [];
@@ -1065,6 +1081,8 @@ export const useFantasyGameEngine = ({
     initializeGame,
     stopGame,
     proceedToNextEnemy,
+    /* 外部から強制的に敵攻撃を発火させる - Rhythm モードのミス判定で使用 */
+    forceEnemyAttack: (monsterId?: string) => handleEnemyAttack(monsterId),
     imageTexturesRef, // プリロードされたテクスチャへの参照を追加
     
     // ヘルパー関数もエクスポート

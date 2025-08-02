@@ -11,6 +11,8 @@ import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { useFantasyRhythmGameEngine } from './FantasyRhythmGameEngine';
+import { FantasyRhythmLane } from './FantasyRhythmLane';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
@@ -59,6 +61,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 時間管理
   const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
+  
+  // リズムモードかどうかの判定
+  const isRhythmMode = stage.mode === 'rhythm';
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -328,6 +333,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
+    forceEnemyAttack: engineForceEnemyAttack,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
@@ -338,6 +344,44 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
+  });
+  
+  // リズムモードのエンジン
+  const rhythmEngine = useFantasyRhythmGameEngine({
+    stage: isRhythmMode ? {
+      bpm: stage.bpm || 120,
+      timeSignature: stage.timeSignature || 4,
+      measureCount: stage.measureCount || 8,
+      countInMeasures: stage.countInMeasures || 0,
+      allowedChords: stage.allowedChords,
+      chordProgressionData: stage.chordProgressionData
+    } : {
+      bpm: 120,
+      timeSignature: 4,
+      measureCount: 8,
+      countInMeasures: 0,
+      allowedChords: [],
+      chordProgressionData: null
+    },
+    onNoteHit: (chord: string, timing: 'perfect' | 'good') => {
+      devLog.debug('リズムモード: ノートヒット', { chord, timing });
+      // 既存のhandleChordCorrectを呼び出す（ダミーのChordDefinitionを作成）
+      const chordDef: ChordDefinition = {
+        id: chord,
+        displayName: chord,
+        notes: [],
+        noteNames: [],
+        quality: '',
+        root: chord[0]
+      };
+      handleChordCorrect(chordDef, timing === 'perfect', 1, false, 'rhythm');
+    },
+    onNoteMiss: (chord: string) => {
+      devLog.debug('リズムモード: ノートミス', { chord });
+      /* HP 減少も行うためエンジン本体の攻撃処理を直接呼ぶ */
+      engineForceEnemyAttack('rhythm');
+    },
+    displayOpts: { lang: currentNoteNameLang, simple: currentSimpleNoteName }
   });
   
   // 現在の敵情報を取得
@@ -361,9 +405,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       console.error('Failed to play note:', error);
     }
     
-    // ファンタジーゲームエンジンにのみ送信
-    engineHandleNoteInput(note);
-  }, [engineHandleNoteInput]);
+    if (isRhythmMode) {
+      // リズムモードの場合は、入力されたノートからコードを推測する必要がある
+      // 簡易実装として、現在の判定ウィンドウ内のコードを取得
+      const currentWindow = rhythmEngine.getCurrentJudgeWindow();
+      if (currentWindow) {
+        rhythmEngine.judgeInput(currentWindow.chordTarget.chord);
+      }
+    } else {
+      // ファンタジーゲームエンジンにのみ送信
+      engineHandleNoteInput(note);
+    }
+  }, [engineHandleNoteInput, isRhythmMode, rhythmEngine]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
@@ -624,7 +677,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    if (stage.mode === 'quiz' || !stage.chordProgression) return null;
     
     const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
     return stage.chordProgression[nextIndex];
@@ -914,7 +967,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
+        {stage.mode === 'rhythm' && getNextChord() && (
           <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">
@@ -936,73 +989,84 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         {renderSpGauge(gameState.playerSp)}
       </div>
       
-      {/* ===== ピアノ鍵盤エリア ===== */}
+      {/* ===== ピアノ鍵盤エリア / リズムレーン ===== */}
       <div 
         ref={gameAreaRef}
         className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
         style={{ height: '120px' }} // ★★★ 高さを120pxに固定 ★★★
       >
-        {(() => {
-          // スクロール判定ロジック（GameEngine.tsxと同様）
-          const VISIBLE_WHITE_KEYS = 14; // モバイル表示時の可視白鍵数
-          const TOTAL_WHITE_KEYS = 52; // 88鍵中の白鍵数
-          const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
-          const adjustedThreshold = 1100; // PC判定のしきい値
-          
-          let pixiWidth: number;
-          let needsScroll: boolean;
-          
-          if (gameAreaWidth >= adjustedThreshold) {
-            // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
-            pixiWidth = gameAreaWidth;
-            needsScroll = false;
-          } else {
-            // モバイル等、画面が狭い → 横スクロール表示
-            const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
-            pixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
-            needsScroll = true;
-          }
-          
-          if (needsScroll) {
-            // スクロールが必要な場合
-            return (
-              <div 
-                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
-                style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                  scrollSnapType: 'x proximity',
-                  scrollBehavior: 'smooth',
-                  width: '100%',
-                  touchAction: 'pan-x', // 横スクロールのみを許可
-                  overscrollBehavior: 'contain' // スクロールの境界を制限
-                }}
-              >
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          } else {
-            // スクロールが不要な場合（全画面表示）
-            return (
-              <div className="absolute inset-0 overflow-hidden">
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          }
-        })()}
+        {isRhythmMode ? (
+          // リズムモード: レーン表示
+          <FantasyRhythmLane
+            notes={rhythmEngine.gameState.laneNotes}
+            width={gameAreaRef.current?.clientWidth || window.innerWidth}
+            height={120}
+            className="absolute inset-0"
+          />
+        ) : (
+          // クイズモード: ピアノ鍵盤表示
+          (() => {
+            // スクロール判定ロジック（GameEngine.tsxと同様）
+            const VISIBLE_WHITE_KEYS = 14; // モバイル表示時の可視白鍵数
+            const TOTAL_WHITE_KEYS = 52; // 88鍵中の白鍵数
+            const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
+            const adjustedThreshold = 1100; // PC判定のしきい値
+            
+            let pixiWidth: number;
+            let needsScroll: boolean;
+            
+            if (gameAreaWidth >= adjustedThreshold) {
+              // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
+              pixiWidth = gameAreaWidth;
+              needsScroll = false;
+            } else {
+              // モバイル等、画面が狭い → 横スクロール表示
+              const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
+              pixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
+              needsScroll = true;
+            }
+            
+            if (needsScroll) {
+              // スクロールが必要な場合
+              return (
+                <div 
+                  className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
+                  style={{ 
+                    WebkitOverflowScrolling: 'touch',
+                    scrollSnapType: 'x proximity',
+                    scrollBehavior: 'smooth',
+                    width: '100%',
+                    touchAction: 'pan-x', // 横スクロールのみを許可
+                    overscrollBehavior: 'contain' // スクロールの境界を制限
+                  }}
+                >
+                  <PIXINotesRenderer
+                    activeNotes={[]}
+                    width={pixiWidth}
+                    height={120} // ★★★ 高さを120に固定 ★★★
+                    currentTime={0}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
+                </div>
+              );
+            } else {
+              // スクロールが不要な場合（全画面表示）
+              return (
+                <div className="absolute inset-0 overflow-hidden">
+                  <PIXINotesRenderer
+                    activeNotes={[]}
+                    width={pixiWidth}
+                    height={120} // ★★★ 高さを120に固定 ★★★
+                    currentTime={0}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
+                </div>
+              );
+            }
+          })()
+        )}
         
         {/* 入力中のノーツ表示 */}
         
