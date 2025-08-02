@@ -575,37 +575,44 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [pixiRenderer]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
-  const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
-    if (maxHp >= 6) {
+  const renderHearts = (current: number, max: number) => {
+    return Array.from({ length: max }, (_, i) => (
+      <span key={i} className={`text-sm sm:text-base ${i < current ? 'text-red-500' : 'text-gray-600'}`}>
+        {i < current ? '❤️' : '🖤'}
+      </span>
+    ));
+  };
+
+  // コードヒント表示関数
+  const renderChordHint = (noteNames: string[], correctNotes: number[], monsterId: string) => {
+    return noteNames.map((noteName, index) => {
+      // 表示オプションを定義
+      const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
+      // 表示用の音名に変換
+      const displayNoteName = toDisplayName(noteName, displayOpts);
+      
+      // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
+      const noteObj = parseNote(noteName + '4'); // オクターブはダミー
+      const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+      
+      const isCorrect = correctNotes.includes(noteMod12);
+      const monsterCount = gameState.activeMonsters.length;
+
+      if (!stage.showGuide && !isCorrect) {
+        return (
+          <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+            ?
+          </span>
+        );
+      }
       return (
-        <span className={cn(
-          "text-2xl text-red-500 font-bold transition-all duration-300",
-          heartFlash && isPlayer ? "animate-pulse brightness-150" : ""
-        )}>
-          ♥×{hp}
-        </span>
-      );                                    // ★★★ add
-    }
-    
-    const hearts = [];
-    // HP表示のデバッグログを追加
-    devLog.debug(`💖 ${isPlayer ? 'プレイヤー' : '敵'}HP表示:`, { current: hp, max: maxHp });
-    
-    for (let i = 0; i < maxHp; i++) {
-      hearts.push(
-        <span key={i} className={cn(
-          "text-2xl transition-all duration-300 drop-shadow-sm",
-          i < hp 
-            ? "text-red-500" // プレイヤーも敵も赤いハート
-            : "text-gray-400", // 空のハートは薄いグレー
-          heartFlash && isPlayer && i < hp ? "animate-pulse brightness-150" : ""
-        )}>
-          {i < hp ? "♥" : "♡"}
+        <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
+          {displayNoteName}
+          {isCorrect && '✓'}
         </span>
       );
-    }
-    return hearts;
-  }, [heartFlash]);
+    });
+  };
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
@@ -660,7 +667,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  if (!overlay && !gameState.isCompleting && !gameState.isGameActive) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
@@ -832,39 +839,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {monster.chordTarget ? monster.chordTarget.displayName : '？'}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
-                          // 表示オプションを定義
-                          const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
-                          // 表示用の音名に変換
-                          const displayNoteName = toDisplayName(noteName, displayOpts);
-                          
-                          // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
-                          const noteObj = parseNote(noteName + '4'); // オクターブはダミー
-                          const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
-                          
-                          const isCorrect = monster.correctNotes.includes(noteMod12);
-
-                          if (!stage.showGuide && !isCorrect) {
-                            return (
-                              <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
-                                ?
-                              </span>
-                            );
-                          }
-                          return (
-                            <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                              {displayNoteName}
-                              {isCorrect && '✓'}
-                            </span>
-                          );
-                        })}
+                        {monster.chordTarget && stage.showGuide && renderChordHint(
+                          monster.chordTarget.noteNames,
+                          monster.correctNotes,
+                          monster.id
+                        )}
                       </div>
                       
                       {/* 魔法名表示 */}
@@ -888,9 +874,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                          className={`h-full transition-all duration-100 ${
+                            monster.gauge >= 90 
+                              ? 'bg-gradient-to-r from-yellow-500 to-orange-500 animate-pulse' 
+                              : 'bg-gradient-to-r from-purple-500 to-purple-700'
+                          }`}
                           style={{ width: `${monster.gauge}%` }}
                         />
+                        {/* 90%と100%のマーカー */}
+                        {stage.mode === 'progression' && (
+                          <>
+                            <div 
+                              className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 opacity-50"
+                              style={{ left: '90%' }}
+                            />
+                            <div 
+                              className="absolute top-0 bottom-0 w-0.5 bg-orange-400 opacity-50"
+                              style={{ left: '100%' }}
+                            />
+                          </>
+                        )}
                       </div>
                       
                       {/* HPゲージ */}
