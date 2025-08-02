@@ -2059,12 +2059,19 @@ export class FantasyPIXIInstance {
   initRhythmMode(width: number, height: number): void {
     this.isRhythmMode = true;
     
-    // 判定ラインを作成
+    // 判定ラインを作成（より目立つように）
     this.judgmentLine = new PIXI.Graphics();
-    this.judgmentLine.lineStyle(2, 0xFFFFFF, 1);
+    this.judgmentLine.lineStyle(4, 0xFF0000, 0.8); // 赤色、太さ4px
     this.judgmentLine.moveTo(200, 0);
     this.judgmentLine.lineTo(200, height);
     this.rhythmContainer.addChild(this.judgmentLine);
+    
+    // 判定ラインの中心に丸を追加
+    const circle = new PIXI.Graphics();
+    circle.beginFill(0xFF0000, 0.3);
+    circle.drawCircle(200, height / 2, 50);
+    circle.endFill();
+    this.rhythmContainer.addChild(circle);
     
     // リズムコンテナをステージに追加
     this.app.stage.addChild(this.rhythmContainer);
@@ -2093,24 +2100,26 @@ export class FantasyPIXIInstance {
           // 新しいノーツを作成
           noteContainer = new PIXI.Container();
           
-          // 背景
+          // 背景（色分け）
           const bg = new PIXI.Graphics();
-          bg.beginFill(0x333333, 0.8);
-          bg.lineStyle(2, 0xFFFFFF, 1);
-          bg.drawRoundedRect(0, 0, 120, 40, 10);
+          const bgColor = note.state === 'active' ? 0x4444FF : 0x333333;
+          bg.beginFill(bgColor, 0.9);
+          bg.lineStyle(3, 0xFFFFFF, 1);
+          bg.drawRoundedRect(0, 0, 140, 50, 15);
           bg.endFill();
           noteContainer.addChild(bg);
           
-          // コード名テキスト
+          // コード名テキスト（大きく表示）
           const text = new PIXI.Text(note.displayName, {
             fontFamily: 'Arial',
-            fontSize: 20,
+            fontSize: 24,
             fill: 0xFFFFFF,
-            align: 'center'
+            align: 'center',
+            fontWeight: 'bold'
           });
           text.anchor.set(0.5);
-          text.x = 60;
-          text.y = 20;
+          text.x = 70;
+          text.y = 25;
           noteContainer.addChild(text);
           
           this.noteSprites.set(note.id, noteContainer);
@@ -2121,15 +2130,40 @@ export class FantasyPIXIInstance {
         const timeUntilJudgment = note.judgmentTime - currentTime;
         const x = 200 + timeUntilJudgment * this.scrollSpeed;
         noteContainer.x = x;
-        noteContainer.y = this.app.screen.height / 2 - 20;
+        noteContainer.y = this.app.screen.height / 2 - 25;
+        
+        // 判定ラインに近づいたら光らせる
+        if (Math.abs(x - 200) < 50) {
+          noteContainer.alpha = 0.8 + Math.sin(Date.now() * 0.01) * 0.2;
+        }
         
       } else if (note.state === 'success' || note.state === 'miss') {
         // 成功またはミスしたノーツを削除
         const noteContainer = this.noteSprites.get(note.id);
         if (noteContainer) {
-          this.rhythmContainer.removeChild(noteContainer);
-          noteContainer.destroy({ children: true });
-          this.noteSprites.delete(note.id);
+          // フェードアウトアニメーション
+          const fadeOut = () => {
+            noteContainer.alpha -= 0.1;
+            if (noteContainer.alpha <= 0) {
+              this.rhythmContainer.removeChild(noteContainer);
+              noteContainer.destroy({ children: true });
+              this.noteSprites.delete(note.id);
+            } else {
+              requestAnimationFrame(fadeOut);
+            }
+          };
+          
+          // 成功時は緑色、失敗時は赤色にする
+          const graphics = noteContainer.children[0] as PIXI.Graphics;
+          if (graphics) {
+            graphics.clear();
+            graphics.beginFill(note.state === 'success' ? 0x00FF00 : 0xFF0000, 0.9);
+            graphics.lineStyle(3, 0xFFFFFF, 1);
+            graphics.drawRoundedRect(0, 0, 140, 50, 15);
+            graphics.endFill();
+          }
+          
+          fadeOut();
         }
       }
     });

@@ -1026,6 +1026,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
           <div>SP: {gameState.playerSp}</div>
+          {gameState.isRhythmMode && (
+            <>
+              <div className="mt-2 border-t border-gray-600 pt-2">
+                <div className="font-bold text-yellow-300">リズムモード</div>
+                <div>アクティブノーツ: {gameState.rhythmNotes.filter(n => n.state === 'active').length}</div>
+                <div>入力中: {gameState.correctNotes.map(n => n % 12).join(', ') || 'なし'}</div>
+                <div>次のコード: {gameState.rhythmNotes.find(n => n.state === 'active')?.displayName || '-'}</div>
+              </div>
+            </>
+          )}
           
           {/* ゲージ強制満タンテストボタン */}
           <button
