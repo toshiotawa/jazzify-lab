@@ -837,8 +837,8 @@ export const useFantasyGameEngine = ({
         });
       }
       
-      // 判定タイミングが過ぎたかチェック（1拍目+200ms以降）
-      if (currentMeasureProgress > msPerBeat + 200) {
+      // 判定タイミングが過ぎたかチェック（1拍目+200ms以降、かつ2拍目より前）
+      if (currentMeasureProgress > msPerBeat + 200 && currentMeasureProgress < msPerBeat * 2 - 100) {
         setGameState(prevState => {
           if (!prevState.currentStage || prevState.currentStage.mode !== 'progression') {
             return prevState;
@@ -848,6 +848,16 @@ export const useFantasyGameEngine = ({
           const hasAnyCorrectNotes = prevState.activeMonsters.some(m => m.correctNotes.length > 0);
           
           if (hasAnyCorrectNotes) {
+            devLog.debug('⏰ 判定タイミング後の処理:', {
+              hasAnyCorrectNotes,
+              monsters: prevState.activeMonsters.map(m => ({
+                id: m.id,
+                correctNotes: m.correctNotes,
+                isQuestionVisible: m.isQuestionVisible,
+                nextQuestionIndex: m.nextQuestionIndex
+              }))
+            });
+            
             const updatedMonsters = prevState.activeMonsters.map(monster => {
               if (monster.correctNotes.length > 0 && monster.isQuestionVisible) {
                 const newIndex = monster.nextQuestionIndex !== undefined 
@@ -942,6 +952,14 @@ export const useFantasyGameEngine = ({
               });
               
               if (nextChord) {
+                devLog.debug('🎵 出題成功:', {
+                  monsterId: monster.id,
+                  oldQuestionVisible: monster.isQuestionVisible,
+                  oldChordTarget: monster.chordTarget?.displayName,
+                  newChordTarget: nextChord.displayName,
+                  willUpdateVisible: true
+                });
+                
                 return {
                   ...monster,
                   isQuestionVisible: true,
@@ -949,6 +967,12 @@ export const useFantasyGameEngine = ({
                   correctNotes: [],
                   // インデックスはそのまま保持（判定後に更新される）
                 };
+              } else {
+                devLog.error('❌ コード定義の取得に失敗:', {
+                  nextChordId,
+                  currentIndex,
+                  nextQuestionIndex: monster.nextQuestionIndex
+                });
               }
             }
             return monster;
@@ -960,6 +984,17 @@ export const useFantasyGameEngine = ({
             // 互換性のため
             currentChordTarget: updatedMonsters[0]?.chordTarget || prevState.currentChordTarget
           };
+          
+          // 状態変更をログ出力
+          const firstMonster = updatedMonsters[0];
+          if (firstMonster && firstMonster.isQuestionVisible) {
+            devLog.debug('📝 出題完了:', {
+              monsterId: firstMonster.id,
+              chord: firstMonster.chordTarget?.displayName,
+              nextQuestionIndex: firstMonster.nextQuestionIndex,
+              isQuestionVisible: firstMonster.isQuestionVisible
+            });
+          }
           
           onGameStateChange(nextState);
           return nextState;
