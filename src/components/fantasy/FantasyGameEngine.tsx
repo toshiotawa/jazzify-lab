@@ -897,15 +897,19 @@ export const useFantasyGameEngine = ({
         });
       }
       
-      // 毎小節の2拍目で出題
-      if (currentBeat === 2) {
+      // 毎小節の2拍目付近で出題（少し早めに）
+      const targetBeat = 1.8; // 2拍目の少し前
+      const beatProgress = currentMeasureProgress / msPerBeat;
+      
+      if (beatProgress >= targetBeat && beatProgress < targetBeat + 0.2) { // 1.8〜2.0拍の範囲
         setGameState(prevState => {
           if (!prevState.currentStage || prevState.currentStage.mode !== 'progression') {
             return prevState;
           }
           
+          // まだ問題が表示されていないモンスターに問題を出題
           const updatedMonsters = prevState.activeMonsters.map(monster => {
-            // まだ問題が表示されていないモンスターに問題を出題
+            // まだ問題が表示されていないモンスターのみ処理
             if (!monster.isQuestionVisible && monster.nextQuestionIndex !== undefined) {
               // プログレッションモードではchordProgressionがある場合はそちらを優先
               const progression = prevState.currentStage.chordProgression || prevState.currentStage.allowedChords;
@@ -948,7 +952,8 @@ export const useFantasyGameEngine = ({
                 effectiveProgression,
                 chordDisplayName: nextChord?.displayName,
                 hasChordProgression: !!prevState.currentStage.chordProgression,
-                usingDefault: (!progression || progression.length === 0)
+                usingDefault: (!progression || progression.length === 0),
+                beatProgress: Math.round(beatProgress * 10) / 10
               });
               
               if (nextChord) {
@@ -977,28 +982,28 @@ export const useFantasyGameEngine = ({
             }
             return monster;
           });
-          
-          const nextState = {
-            ...prevState,
-            activeMonsters: updatedMonsters,
-            // 互換性のため
-            currentChordTarget: updatedMonsters[0]?.chordTarget || prevState.currentChordTarget
-          };
-          
-          // 状態変更をログ出力
-          const firstMonster = updatedMonsters[0];
-          if (firstMonster && firstMonster.isQuestionVisible) {
-            devLog.debug('📝 出題完了:', {
-              monsterId: firstMonster.id,
-              chord: firstMonster.chordTarget?.displayName,
-              nextQuestionIndex: firstMonster.nextQuestionIndex,
-              isQuestionVisible: firstMonster.isQuestionVisible
-            });
-          }
-          
-          onGameStateChange(nextState);
-          return nextState;
-        });
+        }
+        
+        const nextState = {
+          ...prevState,
+          activeMonsters: updatedMonsters,
+          // 互換性のため
+          currentChordTarget: updatedMonsters[0]?.chordTarget || prevState.currentChordTarget
+        };
+        
+        // 状態変更をログ出力
+        const firstMonster = updatedMonsters[0];
+        if (firstMonster && firstMonster.isQuestionVisible) {
+          devLog.debug('📝 出題完了:', {
+            monsterId: firstMonster.id,
+            chord: firstMonster.chordTarget?.displayName,
+            nextQuestionIndex: firstMonster.nextQuestionIndex,
+            isQuestionVisible: firstMonster.isQuestionVisible
+          });
+        }
+        
+        onGameStateChange(nextState);
+        return nextState;
       }
     };
     
@@ -1069,52 +1074,45 @@ export const useFantasyGameEngine = ({
         // 現在の小節内での経過時間を計算
         const currentMeasureProgress = elapsed % msPerMeasure;
         
-        // 現在の小節の1拍目（0ms）を基準にした目標タイミング
-        // 現在の小節がすでに始まっている場合は、次の小節の1拍目を目標にする
-        let targetFirstBeatTime: number;
+        // 次の1拍目までの時間を計算
+        let timeToNextFirstBeat: number;
         
-        if (currentMeasureProgress < 200) {
-          // まだ現在の小節の1拍目付近（0-200ms）の場合は現在の小節を目標
-          targetFirstBeatTime = 0;
+        if (currentMeasureProgress < msPerBeat) {
+          // まだ現在の小節の1拍目を過ぎていない
+          timeToNextFirstBeat = 0 - currentMeasureProgress; // 負の値になる可能性あり
         } else {
-          // すでに1拍目を過ぎている場合は次の小節を目標
-          targetFirstBeatTime = msPerMeasure;
+          // すでに1拍目を過ぎている場合は次の小節の1拍目まで
+          timeToNextFirstBeat = msPerMeasure - currentMeasureProgress;
         }
-        
-        // 目標の1拍目までの時間
-        const timeToTargetFirstBeat = targetFirstBeatTime - currentMeasureProgress;
-        
-        // 目標タイミング:
-        // 90% = 目標の1拍目 - 200ms
-        // 95% = 目標の1拍目
-        // 100% = 目標の1拍目 + 200ms
         
         // 現在のゲージ値を取得
         const currentGauge = prevState.activeMonsters[0]?.gauge || 0;
         
+        // 目標タイミング（次の1拍目を基準に）:
+        // 90% = 次の1拍目 - 200ms
+        // 95% = 次の1拍目 (ジャスト)
+        // 100% = 次の1拍目 + 200ms
+        
         // 各目標に到達するまでの時間を計算
-        const timeTo90 = timeToTargetFirstBeat - 200;
-        const timeTo95 = timeToTargetFirstBeat;
-        const timeTo100 = timeToTargetFirstBeat + 200;
+        const timeTo90 = timeToNextFirstBeat - 200;
+        const timeTo95 = timeToNextFirstBeat;
+        const timeTo100 = timeToNextFirstBeat + 200;
         
         // 現在のゲージに応じて適切な目標を設定
         let targetTime: number;
         let targetGauge: number;
         
         if (currentGauge < 90) {
-          // 90%を目指す
           targetTime = timeTo90;
           targetGauge = 90;
         } else if (currentGauge < 95) {
-          // 95%を目指す
           targetTime = timeTo95;
           targetGauge = 95;
         } else if (currentGauge < 100) {
-          // 100%を目指す
           targetTime = timeTo100;
           targetGauge = 100;
         } else {
-          // すでに100%の場合
+          // すでに100%の場合はそのまま
           targetTime = 0;
           targetGauge = 100;
         }
@@ -1126,25 +1124,29 @@ export const useFantasyGameEngine = ({
           // 次の更新間隔（100ms）での増分を計算
           incrementRate = (remainingGauge / targetTime) * 100;
           // 最大値を制限（急激な変化を防ぐ）
-          incrementRate = Math.min(incrementRate, 10);
+          incrementRate = Math.min(incrementRate, 5); // より緩やかに
           // 最小値も設定（止まらないように）
           incrementRate = Math.max(incrementRate, 0.1);
         } else if (targetTime < 0) {
-          // すでに目標時刻を過ぎている場合は、ゆっくり進める
-          incrementRate = 0.5;
+          // 目標時刻を過ぎている場合は、素早く目標に到達
+          incrementRate = Math.min(Math.abs(remainingGauge) * 0.1, 5);
         } else {
           // デフォルトの計算にフォールバック
           incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10);
         }
         
-        devLog.debug('⏱️ ゲージ計算:', {
-          currentMeasureProgress,
-          timeToTargetFirstBeat,
-          currentGauge,
-          targetGauge,
-          targetTime,
-          incrementRate
-        });
+        // デバッグログを条件付きで出力（頻度を下げる）
+        if (Math.random() < 0.02 || (currentGauge >= 89 && currentGauge <= 91) || (currentGauge >= 94 && currentGauge <= 96)) {
+          devLog.debug('⏱️ ゲージ計算:', {
+            currentMeasureProgress: Math.round(currentMeasureProgress),
+            timeToNextFirstBeat: Math.round(timeToNextFirstBeat),
+            currentGauge: Math.round(currentGauge * 10) / 10,
+            targetGauge,
+            targetTime: Math.round(targetTime),
+            incrementRate: Math.round(incrementRate * 100) / 100,
+            currentBeat: timeState.currentBeat
+          });
+        }
       } else {
         // 通常モードの場合は従来の計算
         incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
