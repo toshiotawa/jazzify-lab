@@ -159,7 +159,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'quiz' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
@@ -170,7 +170,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         bpm: stage.bpm || 120,
         measureCount: stage.measure_count,
         countInMeasures: stage.count_in_measures,
-        timeSignature: stage.time_signature
+        timeSignature: stage.time_signature,
+        chord_progression_data: stage.chord_progression_data
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -299,6 +300,21 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : "このステージはまだロックされています"}
           </div>
+
+          {/* モード表示 */}
+          {unlocked && (
+            <div className="mt-2 text-xs">
+              {stage.mode === 'rhythm' ? (
+                <span className="bg-blue-500 text-white font-bold py-1 px-2 rounded">
+                  リズム / {stage.chord_progression_data ? 'コード進行' : 'ランダム'}
+                </span>
+              ) : (
+                <span className="bg-green-500 text-white font-bold py-1 px-2 rounded">
+                  クイズ
+                </span>
+              )}
+            </div>
+          )}
         </div>
         
         {/* 右側のアイコン */}

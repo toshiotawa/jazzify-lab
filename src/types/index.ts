@@ -635,7 +635,7 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'quiz' | 'rhythm';
   allowed_chords: string[];
   chord_progression?: string[];
   show_sheet_music: boolean;
@@ -648,6 +648,26 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  chord_progression_data?: {
+    chords: {
+      measure: number;
+      beat: number;
+      chord: string;
+    }[];
+  } | null;
+}
+
+// リズムモード用ノーツの型定義
+export interface RhythmNote {
+  id: string;
+  chord: {
+    id: string;
+    displayName: string;
+    notes: number[];
+  };
+  targetTime: number; // 判定ラインに到達すべき時刻 (秒単位、ゲーム開始からの経過時間)
+  status: 'waiting' | 'active' | 'judged' | 'missed';
+  positionY?: number; // 複数のレーンに対応する場合のY座標
 }
 
 export interface LessonContext {
