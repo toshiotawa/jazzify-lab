@@ -1160,10 +1160,9 @@ export const useFantasyGameEngine = ({
   }, [gameState, onEnemyAttack, onGameComplete]);
   
   const handleRhythmChordChange = useCallback((chord: string) => {
-    devLog.debug('Rhythm chord change:', { chord, isActive: gameState.isGameActive, monsters: gameState.activeMonsters.length });
+    devLog.debug('Rhythm chord change:', { chord });
     
-    if (!gameState.isGameActive || gameState.activeMonsters.length === 0) return;
-    
+    // Don't check game state here - we need to buffer the chord change
     const chordDef = getChordDefinition(chord, displayOpts);
     if (!chordDef) {
       devLog.warn('Failed to get chord definition for:', chord);
@@ -1171,16 +1170,20 @@ export const useFantasyGameEngine = ({
     }
     
     // Update the current chord for all active monsters in rhythm mode
-    setGameState(prev => ({
-      ...prev,
-      activeMonsters: prev.activeMonsters.map(monster => ({
-        ...monster,
-        chordTarget: chordDef,
-        correctNotes: []
-      })),
-      currentChordTarget: chordDef
-    }));
-  }, [gameState, displayOpts]);
+    setGameState(prev => {
+      if (!prev.isGameActive || prev.activeMonsters.length === 0) return prev;
+      
+      return {
+        ...prev,
+        activeMonsters: prev.activeMonsters.map(monster => ({
+          ...monster,
+          chordTarget: chordDef,
+          correctNotes: []
+        })),
+        currentChordTarget: chordDef
+      };
+    });
+  }, [displayOpts]);
   
   // リズムエンジンの初期化
   const { rhythmState, judgeChordInput } = useRhythmEngine({

@@ -59,6 +59,8 @@ export function useRhythmEngine({
   onChordChange
 }: UseRhythmEngineProps) {
   const { startAt, readyDuration } = useTimeStore();
+  
+  // State for UI display
   const [rhythmState, setRhythmState] = useState<RhythmGameState>({
     currentChord: null,
     nextChord: null,
@@ -68,35 +70,26 @@ export function useRhythmEngine({
     chordQueue: []
   });
   
-  // const lastProcessedMeasureRef = useRef<number>(0);
-  // const lastProcessedBeatRef = useRef<number>(0);
+  // Refs for internal tracking
   const judgmentsRef = useRef<RhythmJudgment[]>([]);
-  const lastUpdateRef = useRef<number>(0);
   const currentIndexRef = useRef<number>(0);
+  const lastChordRef = useRef<string | null>(null);
+  const loopCountRef = useRef<number>(0);
 
   // Calculate timing in ms from start
   const getMsFromMeasureBeat = useCallback((measure: number, beat: number) => {
-    if (!startAt) return 0;
     const msPerBeat = 60000 / stage.bpm;
     const beatsFromStart = (measure - 1) * stage.timeSignature + (beat - 1);
     return readyDuration + beatsFromStart * msPerBeat;
-  }, [stage.bpm, stage.timeSignature, startAt, readyDuration]);
+  }, [stage.bpm, stage.timeSignature, readyDuration]);
 
-  // Initialize chord progression or random pattern
-  useEffect(() => {
-    if (stage.mode !== 'rhythm') return;
-    if (!startAt) return; // Wait until game actually starts
-    
+  // Generate initial judgments
+  const generateInitialJudgments = useCallback(() => {
     const judgments: RhythmJudgment[] = [];
     
     if (stage.chordProgressionData) {
       // Progression mode
-      const sortedChords = [...stage.chordProgressionData.chords].sort((a, b) => {
-        if (a.measure !== b.measure) return a.measure - b.measure;
-        return a.beat - b.beat;
-      });
-      
-      sortedChords.forEach(entry => {
+      stage.chordProgressionData.chords.forEach(entry => {
         const timing = getMsFromMeasureBeat(entry.measure, entry.beat);
         judgments.push({
           chord: entry.chord,
@@ -109,19 +102,13 @@ export function useRhythmEngine({
         });
       });
     } else {
-      // Random mode - generate chords for each measure
-      // First, generate initial chords for all measures
-      const chordPattern: string[] = [];
+      // Random mode - pre-generate pattern
       for (let i = 0; i < stage.measureCount; i++) {
-        chordPattern.push(stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)]);
-      }
-      
-      // Create judgments with proper timing
-      for (let i = 0; i < stage.measureCount; i++) {
+        const chord = stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)];
         const measure = stage.countInMeasures + 1 + i;
         const timing = getMsFromMeasureBeat(measure, 1);
         judgments.push({
-          chord: chordPattern[i],
+          chord,
           measure,
           beat: 1,
           windowStart: timing - JUDGMENT_WINDOW_MS,
@@ -132,138 +119,141 @@ export function useRhythmEngine({
       }
     }
     
-    judgmentsRef.current = judgments;
-    currentIndexRef.current = 0;
-    setRhythmState(prev => ({
-      ...prev,
-      judgments,
-      currentChord: judgments[0]?.chord || null,
-      nextChord: judgments[1]?.chord || null,
-      currentJudgmentIndex: 0
-    }));
+    return judgments;
+  }, [stage, getMsFromMeasureBeat]);
+
+  // Initialize
+  useEffect(() => {
+    if (stage.mode !== 'rhythm' || !startAt) return;
     
-    if (judgments[0]) {
-      onChordChange(judgments[0].chord);
+    const initialJudgments = generateInitialJudgments();
+    judgmentsRef.current = initialJudgments;
+    currentIndexRef.current = 0;
+    loopCountRef.current = 0;
+    lastChordRef.current = null;
+    
+    // Set initial state
+    setRhythmState({
+      currentChord: initialJudgments[0]?.chord || null,
+      nextChord: initialJudgments[1]?.chord || null,
+      judgments: initialJudgments,
+      currentJudgmentIndex: 0,
+      isProgressionMode: !!stage.chordProgressionData,
+      chordQueue: []
+    });
+    
+    // Trigger initial chord change
+    if (initialJudgments[0]) {
+      onChordChange(initialJudgments[0].chord);
+      lastChordRef.current = initialJudgments[0].chord;
     }
     
-    devLog.debug('Rhythm judgments initialized:', { 
-      count: judgments.length, 
-      first: judgments[0],
-      mode: stage.mode
+    devLog.debug('Rhythm engine initialized', { 
+      judgmentCount: initialJudgments.length,
+      firstChord: initialJudgments[0]?.chord 
     });
-  }, [stage, getMsFromMeasureBeat, onChordChange, startAt]);
+  }, [stage, startAt, generateInitialJudgments, onChordChange]);
 
-  // Check for missed judgments and update current chord
+  // Main update loop
   useEffect(() => {
     if (!startAt || stage.mode !== 'rhythm') return;
     
-    const checkJudgments = () => {
+    const updateRhythmState = () => {
       const currentTime = performance.now() - startAt;
       const currentMs = currentTime - readyDuration;
       
-      // Skip during count-in
-      if (currentMs < 0) return;
+      if (currentMs < 0) return; // Still in ready phase
       
-      let currentIndex = currentIndexRef.current;
-      let updated = false;
+      const currentIndex = currentIndexRef.current;
+      const judgments = judgmentsRef.current;
       
-      // Check for missed judgments
-      while (currentIndex < judgmentsRef.current.length) {
-        const judgment = judgmentsRef.current[currentIndex];
+      // Check if we need to handle missed judgments
+      for (let i = currentIndex; i < judgments.length; i++) {
+        const judgment = judgments[i];
         
         if (!judgment.judged && currentMs > judgment.windowEnd) {
-          // Missed this judgment
+          // Missed judgment
           judgment.judged = true;
           judgment.success = false;
           onChordMiss(judgment.chord);
-          currentIndex++;
-          updated = true;
-          devLog.debug('Rhythm judgment missed:', judgment);
+          currentIndexRef.current = i + 1;
+          
+          devLog.debug('Judgment missed', { chord: judgment.chord, index: i });
         } else {
+          // Haven't reached this judgment yet
           break;
         }
       }
       
-      // Handle looping
-      if (currentIndex >= judgmentsRef.current.length && !stage.chordProgressionData) {
-        // Random mode - generate new chords for the loop
+      // Check if we need to generate more judgments for looping
+      const remainingJudgments = judgments.length - currentIndexRef.current;
+      if (remainingJudgments < 4) {
+        // Generate next loop's judgments
         const newJudgments: RhythmJudgment[] = [];
-        const loopCount = Math.floor(currentIndex / stage.measureCount);
-        const baseMs = getMsFromMeasureBeat(stage.countInMeasures + 1, 1) + loopCount * stage.measureCount * stage.timeSignature * (60000 / stage.bpm);
+        loopCountRef.current++;
         
-        for (let i = 0; i < stage.measureCount; i++) {
-          const chord = stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)];
-          const measureOffset = i * stage.timeSignature;
-          const timing = baseMs + measureOffset * (60000 / stage.bpm);
-          newJudgments.push({
-            chord,
-            measure: stage.countInMeasures + 1 + i,
-            beat: 1,
-            windowStart: timing - JUDGMENT_WINDOW_MS,
-            windowEnd: timing + JUDGMENT_WINDOW_MS,
-            judged: false,
-            success: false
+        const loopOffsetMs = loopCountRef.current * stage.measureCount * stage.timeSignature * (60000 / stage.bpm);
+        
+        if (stage.chordProgressionData) {
+          // Progression mode - repeat the pattern
+          stage.chordProgressionData.chords.forEach(entry => {
+            const timing = getMsFromMeasureBeat(entry.measure, entry.beat) + loopOffsetMs;
+            newJudgments.push({
+              chord: entry.chord,
+              measure: entry.measure + (loopCountRef.current * stage.measureCount),
+              beat: entry.beat,
+              windowStart: timing - JUDGMENT_WINDOW_MS,
+              windowEnd: timing + JUDGMENT_WINDOW_MS,
+              judged: false,
+              success: false
+            });
           });
-        }
-        
-        judgmentsRef.current = [...judgmentsRef.current, ...newJudgments];
-        updated = true;
-      } else if (currentIndex >= judgmentsRef.current.length && stage.chordProgressionData) {
-        // Progression mode - create new judgments for the next loop
-        const loopCount = Math.floor(currentIndex / judgmentsRef.current.length);
-        const msPerMeasure = (60000 / stage.bpm) * stage.timeSignature;
-        const loopStartMs = getMsFromMeasureBeat(stage.countInMeasures + 1, 1) + loopCount * stage.measureCount * msPerMeasure;
-        
-        const newJudgments: RhythmJudgment[] = [];
-        stage.chordProgressionData.chords.forEach(entry => {
-          // Calculate timing relative to the loop start
-          const measureOffset = (entry.measure - 1) * stage.timeSignature;
-          const beatOffset = entry.beat - 1;
-          const totalBeats = measureOffset + beatOffset;
-          const timing = loopStartMs + totalBeats * (60000 / stage.bpm);
-          newJudgments.push({
-            chord: entry.chord,
-            measure: entry.measure,
-            beat: entry.beat,
-            windowStart: timing - JUDGMENT_WINDOW_MS,
-            windowEnd: timing + JUDGMENT_WINDOW_MS,
-            judged: false,
-            success: false
-          });
-        });
-        
-        judgmentsRef.current = [...judgmentsRef.current, ...newJudgments];
-        updated = true;
-      }
-      
-      if (updated) {
-        const current = judgmentsRef.current[currentIndex];
-        const next = judgmentsRef.current[currentIndex + 1];
-        
-        // Prevent too frequent updates
-        const now = performance.now();
-        if (now - lastUpdateRef.current > 100) {
-          lastUpdateRef.current = now;
-          currentIndexRef.current = currentIndex;
-          
-          setRhythmState(prev => ({
-            ...prev,
-            currentJudgmentIndex: currentIndex,
-            currentChord: current?.chord || null,
-            nextChord: next?.chord || null,
-            judgments: [...judgmentsRef.current]
-          }));
-          
-          if (current) {
-            onChordChange(current.chord);
+        } else {
+          // Random mode - generate new random pattern
+          for (let i = 0; i < stage.measureCount; i++) {
+            const chord = stage.allowedChords[Math.floor(Math.random() * stage.allowedChords.length)];
+            const measure = stage.countInMeasures + 1 + i + (loopCountRef.current * stage.measureCount);
+            const timing = getMsFromMeasureBeat(measure, 1) + loopOffsetMs;
+            newJudgments.push({
+              chord,
+              measure,
+              beat: 1,
+              windowStart: timing - JUDGMENT_WINDOW_MS,
+              windowEnd: timing + JUDGMENT_WINDOW_MS,
+              judged: false,
+              success: false
+            });
           }
         }
+        
+        // Append new judgments
+        judgmentsRef.current = [...judgmentsRef.current, ...newJudgments];
+        devLog.debug('Generated new loop judgments', { count: newJudgments.length, loop: loopCountRef.current });
+      }
+      
+      // Update current/next chord display
+      const updatedCurrentIndex = currentIndexRef.current;
+      const currentJudgment = judgmentsRef.current[updatedCurrentIndex];
+      const nextJudgment = judgmentsRef.current[updatedCurrentIndex + 1];
+      
+      // Only update state if chord has changed
+      if (currentJudgment && currentJudgment.chord !== lastChordRef.current) {
+        lastChordRef.current = currentJudgment.chord;
+        onChordChange(currentJudgment.chord);
+        
+        setRhythmState(prev => ({
+          ...prev,
+          currentChord: currentJudgment.chord,
+          nextChord: nextJudgment?.chord || null,
+          judgments: [...judgmentsRef.current],
+          currentJudgmentIndex: updatedCurrentIndex
+        }));
       }
     };
     
-    const interval = setInterval(checkJudgments, 50);
+    const interval = setInterval(updateRhythmState, 50);
     return () => clearInterval(interval);
-  }, [stage, startAt, readyDuration, getMsFromMeasureBeat, onChordMiss, onChordChange]);
+  }, [stage, startAt, readyDuration, onChordMiss, onChordChange]);
 
   // Judge chord input
   const judgeChordInput = useCallback((inputChord: string) => {
@@ -272,7 +262,9 @@ export function useRhythmEngine({
     const currentTime = performance.now() - startAt;
     const currentMs = currentTime - readyDuration;
     
-    const currentJudgment = judgmentsRef.current[currentIndexRef.current];
+    const currentIndex = currentIndexRef.current;
+    const currentJudgment = judgmentsRef.current[currentIndex];
+    
     if (!currentJudgment || currentJudgment.judged) return false;
     
     // Check if within judgment window
@@ -281,19 +273,34 @@ export function useRhythmEngine({
         // Success!
         currentJudgment.judged = true;
         currentJudgment.success = true;
+        currentIndexRef.current++;
         onChordSuccess(inputChord);
         
-        // Move to next chord - let the interval handle the actual update
-        // Just return success here
+        // Update display immediately
+        const nextIndex = currentIndexRef.current;
+        const nextJudgment = judgmentsRef.current[nextIndex];
+        const nextNextJudgment = judgmentsRef.current[nextIndex + 1];
         
+        if (nextJudgment) {
+          lastChordRef.current = nextJudgment.chord;
+          onChordChange(nextJudgment.chord);
+          
+          setRhythmState(prev => ({
+            ...prev,
+            currentChord: nextJudgment.chord,
+            nextChord: nextNextJudgment?.chord || null,
+            judgments: [...judgmentsRef.current],
+            currentJudgmentIndex: nextIndex
+          }));
+        }
         
-        devLog.debug('Rhythm judgment success:', currentJudgment);
+        devLog.debug('Judgment success', { chord: inputChord });
         return true;
       }
     }
     
     return false;
-  }, [stage, startAt, readyDuration, rhythmState.currentJudgmentIndex, getMsFromMeasureBeat, onChordSuccess, onChordChange]);
+  }, [stage, startAt, readyDuration, onChordSuccess, onChordChange]);
 
   return {
     rhythmState,

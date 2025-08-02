@@ -68,8 +68,13 @@ export const FantasyRhythmUI: React.FC<FantasyRhythmUIProps> = ({
       
       const currentTime = performance.now() - startAt - readyDuration;
       
-      // Draw notes
-      rhythmState.judgments.forEach((judgment, index) => {
+      // Draw notes - only show recent and upcoming notes
+      const visibleJudgments = rhythmState.judgments.slice(
+        Math.max(0, rhythmState.currentJudgmentIndex - 2),
+        rhythmState.currentJudgmentIndex + 10
+      );
+      
+      visibleJudgments.forEach((judgment, relativeIndex) => {
         if (judgment.judged && judgment.success) return; // 成功した判定は表示しない
         
         const noteTime = (judgment.windowStart + judgment.windowEnd) / 2;
@@ -79,9 +84,10 @@ export const FantasyRhythmUI: React.FC<FantasyRhythmUIProps> = ({
         if (x > canvas.width || x < -NOTE_WIDTH) return;
         
         // Note color based on state
+        const absoluteIndex = Math.max(0, rhythmState.currentJudgmentIndex - 2) + relativeIndex;
         if (judgment.judged && !judgment.success) {
           ctx.fillStyle = '#666'; // Missed
-        } else if (index === rhythmState.currentJudgmentIndex) {
+        } else if (absoluteIndex === rhythmState.currentJudgmentIndex) {
           ctx.fillStyle = '#4ecdc4'; // Current
         } else {
           ctx.fillStyle = '#95e1d3'; // Future
@@ -101,7 +107,8 @@ export const FantasyRhythmUI: React.FC<FantasyRhythmUIProps> = ({
       requestAnimationFrame(draw);
     };
     
-    draw();
+    const animationId = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animationId);
   }, [rhythmState, startAt, readyDuration]);
   
   return (
