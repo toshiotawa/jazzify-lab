@@ -176,7 +176,9 @@ const createMonsterFromQueue = (
   previousChordId?: string,
   displayOpts?: DisplayOpts,
   stageMonsterIds?: string[],
-  mode?: 'single' | 'progression'
+  mode?: 'single' | 'progression',
+  isInitial?: boolean, // 初期状態かどうかのフラグを追加
+  initialChord?: ChordDefinition // プログレッションモードの場合の初期コードを追加
 ): MonsterState => {
   // stageMonsterIdsが提供されている場合は、それを使用
   let iconKey: string;
@@ -189,8 +191,10 @@ const createMonsterFromQueue = (
   }
   
   const enemy = { id: iconKey, icon: iconKey, name: '' }; // ← name は空文字
-  // プログレッションモードの場合はNULLから開始
-  const chord = mode === 'progression' ? null : selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
+  // プログレッションモードの場合、初期状態でない場合はNULLから開始
+  // initialChordが提供されている場合はそれを使用
+  const chord = initialChord ? initialChord : 
+                (mode === 'progression' && !isInitial ? null : selectUniqueRandomChord(allowedChords, previousChordId, displayOpts));
   
   return {
     id: `${enemy.id}_${Date.now()}_${position}`,
@@ -351,10 +355,23 @@ const selectRandomChord = (allowedChords: string[], previousChordId?: string, di
  * コード進行から次のコードを取得
  */
 const getProgressionChord = (progression: string[], questionIndex: number, displayOpts?: DisplayOpts): ChordDefinition | null => {
+  devLog.debug('📝 getProgressionChord called:', {
+    progression,
+    questionIndex,
+    progressionLength: progression.length
+  });
+  
   if (progression.length === 0) return null;
   
   const chordId = progression[questionIndex % progression.length];
-  return getChordDefinition(chordId, displayOpts) || null;
+  const result = getChordDefinition(chordId, displayOpts) || null;
+  
+  devLog.debug('📝 getProgressionChord result:', {
+    chordId,
+    result: result?.displayName
+  });
+  
+  return result;
 };
 
 /**
@@ -422,7 +439,16 @@ export const useFantasyGameEngine = ({
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
   // ゲーム初期化
-  const initializeGame = useCallback(async (stage: FantasyStage) => {
+  const initializeGame = useCallback((stage: FantasyStage) => {
+    devLog.debug('🎮 ゲーム初期化開始:', {
+      stage: JSON.stringify(stage, null, 2)
+    });
+    
+    if (!stage) {
+      console.error('⚠️ ステージ情報がありません');
+      return;
+    }
+
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
 
     // 新しいステージ定義から値を取得
@@ -496,6 +522,23 @@ export const useFantasyGameEngine = ({
       const monsterIndex = monsterQueue.shift()!;
       // simultaneousMonsterCount === 1 のとき、0 番目のみ即生成。
       if (i === 0 || simultaneousCount > 1) {
+        // プログレッションモードの場合、最初のコードを取得
+        let initialChord = undefined;
+        if (stage.mode === 'progression' && stage.chordProgression && stage.chordProgression.length > 0) {
+          devLog.debug('🎯 プログレッションモード初期化:', {
+            chordProgression: stage.chordProgression,
+            firstChordId: stage.chordProgression[0]
+          });
+          initialChord = getProgressionChord(stage.chordProgression, 0, displayOpts);
+        } else if (stage.mode === 'progression') {
+          devLog.debug('⚠️ プログレッションモードだがchordProgressionが空:', {
+            mode: stage.mode,
+            chordProgression: stage.chordProgression,
+            hasChordProgression: !!stage.chordProgression,
+            length: stage.chordProgression?.length
+          });
+        }
+        
         const monster = createMonsterFromQueue(
           monsterIndex,
           positions[i],
@@ -504,7 +547,9 @@ export const useFantasyGameEngine = ({
           lastChordId,
           displayOpts,
           monsterIds,        // ✅ 今回作った配列
-          stage.mode        // ステージモードを渡す
+          stage.mode,        // ステージモードを渡す
+          true, // これは初期状態のモンスターなので、isInitialをtrueに設定
+          initialChord // プログレッションモードの場合の初期コード
         );
         activeMonsters.push(monster);
         if (monster.chordTarget) {
@@ -568,6 +613,9 @@ export const useFantasyGameEngine = ({
 
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
+      mode: stage.mode,
+      chordProgression: stage.chordProgression,
+      firstChord: firstChord?.displayName,
       totalEnemies,
       enemyHp,
       totalQuestions,
@@ -577,12 +625,12 @@ export const useFantasyGameEngine = ({
   }, [onGameStateChange]);
   
   // プログレッションモードの問題出題とジャッジタイミング管理
+  const { currentBeat, currentMeasure, bpm, startAt, readyDuration, isCountIn } = useTimeStore();
+  
   useEffect(() => {
     if (!gameState.isGameActive || !gameState.currentStage || gameState.currentStage.mode !== 'progression') {
       return;
     }
-
-    const { currentBeat, currentMeasure, bpm, startAt, readyDuration, isCountIn } = useTimeStore.getState();
     
     // カウントイン中またはゲーム未開始の場合はスキップ
     if (!startAt || isCountIn || performance.now() - startAt < readyDuration) {
@@ -595,7 +643,7 @@ export const useFantasyGameEngine = ({
     const msPerBeat = 60000 / bpm;
     const currentBeatTime = Math.floor(elapsed / msPerBeat) * msPerBeat; // 現在の拍の開始時刻
     const nextBeatTime = currentBeatTime + msPerBeat; // 次の拍の開始時刻
-    const beatInMeasure = (currentBeat - 1) % 4 + 1; // 小節内の拍番号（1-4）
+    const beatInMeasure = currentBeat; // currentBeatは既に1-4の範囲なのでそのまま使用
 
     setGameState(prevState => {
       if (!prevState.isGameActive || !prevState.currentStage) return prevState;
@@ -648,6 +696,14 @@ export const useFantasyGameEngine = ({
         (beatInMeasure === 2 && !prevState.questionShowTime) || // 通常の2拍目
         (prevState.questionShowTime === null && prevState.activeMonsters.some(m => !m.chordTarget)); // NULLになった後
 
+      devLog.debug('🎵 問題出題チェック:', {
+        beatInMeasure,
+        questionShowTime: prevState.questionShowTime,
+        hasNullChord: prevState.activeMonsters.some(m => !m.chordTarget),
+        shouldShowNewQuestion,
+        activeMonsters: prevState.activeMonsters.length
+      });
+
       if (shouldShowNewQuestion && prevState.activeMonsters.length > 0) {
         // NULLになってから3拍待つ必要がある場合
         if (prevState.activeMonsters.some(m => !m.chordTarget)) {
@@ -694,7 +750,7 @@ export const useFantasyGameEngine = ({
 
       return prevState;
     });
-  }, [gameState.isGameActive, gameState.currentStage?.mode, displayOpts]);
+  }, [gameState.isGameActive, gameState.currentStage?.mode, displayOpts, currentBeat, currentMeasure, bpm, startAt, readyDuration, isCountIn]);
 
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
@@ -1196,7 +1252,8 @@ export const useFantasyGameEngine = ({
               lastUsedChordId, // 直前のコードを避ける
               displayOpts,
               stageMonsterIds, // stageMonsterIdsを渡す
-              stateAfterAttack.currentStage!.mode // ステージモードを渡す
+              stateAfterAttack.currentStage!.mode, // ステージモードを渡す
+              false // これは初期状態ではないので、isInitialをfalseに設定
             );
             remainingMonsters.push(newMonster);
           }
