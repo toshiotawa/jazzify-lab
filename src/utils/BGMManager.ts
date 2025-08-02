@@ -5,6 +5,7 @@ class BGMManager {
   private loopBegin = 0
   private loopEnd = 0
   private timeUpdateHandler: (() => void) | null = null
+  private playStartTime = 0  // 追加：再生開始時刻
 
   play(
     url: string,
@@ -30,6 +31,7 @@ class BGMManager {
 
     // 初回再生は最初から（カウントインを含む）
     this.audio.currentTime = 0
+    this.playStartTime = performance.now() / 1000  // 追加：秒単位で記録
     
     // timeupdate イベントハンドラを保存
     this.timeUpdateHandler = () => {
@@ -63,6 +65,17 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+  }
+
+  // 追加：現在の再生時刻を取得（秒単位）
+  getCurrentTime(): number {
+    if (!this.audio) return 0
+    return this.audio.currentTime
+  }
+
+  // 追加：再生中かどうかを確認
+  isPlaying(): boolean {
+    return this.audio !== null && !this.audio.paused
   }
 }
 
