@@ -94,7 +94,7 @@ export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
                   </div>
                   <div className="flex flex-wrap gap-2 mt-2">
                     <span className="text-xs px-2 py-1 bg-gray-100 rounded">
-                      モード: {stage.mode === 'single' ? 'シングル' : 'プログレッション'}
+                      モード: {stage.mode === 'quiz' ? 'クイズ' : stage.mode === 'rhythm' ? 'リズム' : stage.mode === 'single' ? 'シングル' : 'プログレッション'}
                     </span>
                     <span className="text-xs px-2 py-1 bg-gray-100 rounded">
                       敵数: {stage.enemy_count}

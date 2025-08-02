@@ -6,12 +6,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
-import { FantasyStage } from './FantasyGameEngine';
+import RhythmGameScreen from '../rhythm/RhythmGameScreen';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
 import type { DisplayLang } from '@/utils/display-note';
-import { LessonContext } from '@/types';
+import { LessonContext, FantasyStage } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 
@@ -36,7 +36,7 @@ interface GameResult {
 const FantasyMain: React.FC = () => {
   const { profile, isGuest } = useAuthStore();
   const { settings } = useGameStore();
-  const [currentStage, setCurrentStage] = useState<FantasyStage | null>(null);
+  const [currentStage, setCurrentStage] = useState<any | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
@@ -86,7 +86,7 @@ const FantasyMain: React.FC = () => {
         fetchFantasyStageById(stageId).then(stage => {
           devLog.debug('🎮 ファンタジーステージ取得成功:', stage);
           // FantasyStageの形式に変換
-          const fantasyStage: FantasyStage = {
+          const fantasyStage = {
             id: stage.id,
             stageNumber: stage.stage_number,
             name: stage.name,
@@ -97,7 +97,7 @@ const FantasyMain: React.FC = () => {
             enemyHp: stage.enemy_hp,
             minDamage: stage.min_damage,
             maxDamage: stage.max_damage,
-            mode: stage.mode,
+            mode: stage.mode as 'single' | 'progression' | 'quiz' | 'rhythm',
             allowedChords: stage.allowed_chords,
             chordProgression: stage.chord_progression,
             showSheetMusic: stage.show_sheet_music,
@@ -108,7 +108,8 @@ const FantasyMain: React.FC = () => {
             bgmUrl: stage.bgm_url || stage.mp3_url,
             measureCount: stage.measure_count,
             countInMeasures: stage.count_in_measures,
-            timeSignature: stage.time_signature
+            timeSignature: stage.time_signature,
+            chordProgressionData: stage.chord_progression_data
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -561,6 +562,14 @@ const FantasyMain: React.FC = () => {
   
   // ゲーム画面
   if (currentStage) {
+    if (currentStage.mode === 'rhythm') {
+      return (
+        <RhythmGameScreen
+          stage={currentStage}
+          onBack={handleBackToStageSelect}
+        />
+      );
+    }
     return (
       <FantasyGameScreen
         // ▼▼▼ 追加 ▼▼▼
