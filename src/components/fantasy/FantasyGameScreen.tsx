@@ -609,13 +609,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
+    const gaugePercent = Math.min(gameState.enemyGauge, 100);
+    const isInJudgmentRange = gaugePercent >= 90 && gaugePercent <= 100;
+    
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
+          className={cn(
+            "h-full rounded-full transition-all duration-200 ease-out",
+            isInJudgmentRange 
+              ? "bg-gradient-to-r from-red-500 to-red-700" // 90-100%は赤系
+              : "bg-gradient-to-r from-yellow-500 to-orange-400" // それ以外は黄色系
+          )}
           style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+            width: `${gaugePercent}%`,
+            boxShadow: isInJudgmentRange 
+              ? '0 0 15px rgba(239, 68, 68, 0.8)' // 赤い光
+              : gaugePercent > 80 
+                ? '0 0 10px rgba(245, 158, 11, 0.6)' // オレンジの光
+                : 'none'
           }}
         />
       </div>
@@ -888,8 +900,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
+                          className={cn(
+                            "h-full transition-all duration-100",
+                            stage.mode === 'progression' && monster.gauge >= 90 && monster.gauge <= 100
+                              ? "bg-gradient-to-r from-red-500 to-red-700" // プログレッションモードで90-100%は赤系
+                              : "bg-gradient-to-r from-purple-500 to-purple-700" // それ以外は紫系
+                          )}
+                          style={{ 
+                            width: `${monster.gauge}%`,
+                            boxShadow: stage.mode === 'progression' && monster.gauge >= 90 && monster.gauge <= 100
+                              ? '0 0 10px rgba(239, 68, 68, 0.6)' // 赤い光
+                              : 'none'
+                          }}
                         />
                       </div>
                       
