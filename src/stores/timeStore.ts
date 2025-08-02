@@ -27,6 +27,10 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* 現在の絶対時間位置（秒）を取得 */
+  getCurrentTime: () => number
+  /* 指定した小節・拍の絶対時間（秒）を取得 */
+  getMeasureBeatTime: (measure: number, beat: number) => number
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -91,5 +95,23 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         isCountIn: false
       })
     }
+  },
+  getCurrentTime: () => {
+    const s = get()
+    if (s.startAt === null) return 0
+    const elapsed = performance.now() - s.startAt - s.readyDuration
+    return Math.max(0, elapsed / 1000) // 秒単位で返す
+  },
+  getMeasureBeatTime: (measure: number, beat: number) => {
+    const s = get()
+    const msecPerBeat = 60000 / s.bpm
+    const msecPerMeasure = msecPerBeat * s.timeSignature
+    
+    // カウントイン考慮: measure 1 = カウントイン後の最初の小節
+    const totalMeasures = s.countInMeasures + measure - 1
+    const totalBeats = totalMeasures * s.timeSignature + (beat - 1)
+    const totalMsec = totalBeats * msecPerBeat
+    
+    return totalMsec / 1000 // 秒単位で返す
   }
 }))
