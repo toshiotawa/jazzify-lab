@@ -804,7 +804,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {stage.mode === 'rhythm' && (
               <div className="absolute inset-0 pointer-events-none">
                 {/* 判定ライン */}
-                <div className="absolute left-32 top-0 bottom-0 w-1 bg-yellow-400 opacity-50" />
+                <div className="absolute left-20 top-0 bottom-0 w-1 bg-yellow-400 opacity-50" />
                 
                 {/* ノーツ表示 */}
                 {gameState.rhythmNotes
@@ -812,7 +812,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   .map(note => {
                     const now = performance.now();
                     const timeToTarget = (note.targetTime - now) / 1000; // 秒に変換
-                    const x = 132 + timeToTarget * 200; // 1秒で200px移動
+                    const x = 80 + timeToTarget * 300; // 判定ライン位置を80px、速度を300px/秒に調整
                     
                     if (x < -100 || x > monsterAreaWidth + 100) return null; // 画面外は非表示
                     
@@ -947,18 +947,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         </div>
                       )}
                       
-                      {/* 行動ゲージ */}
-                      <div 
-                        ref={el => {
-                          if (el) gaugeRefs.current.set(monster.id, el);
-                        }}
-                        className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
-                      >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
-                        />
-                      </div>
+                      {/* 行動ゲージ - リズムモードでは非表示 */}
+                      {stage.mode !== 'rhythm' && (
+                        <div 
+                          ref={el => {
+                            if (el) gaugeRefs.current.set(monster.id, el);
+                          }}
+                          className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
+                        >
+                          <div
+                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                            style={{ width: `${monster.gauge}%` }}
+                          />
+                        </div>
+                      )}
                       
                       {/* HPゲージ */}
                       <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
