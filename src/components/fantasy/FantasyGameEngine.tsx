@@ -672,6 +672,15 @@ export const useFantasyGameEngine = ({
             currentChord: prevState.activeMonsters[0]?.chordTarget?.displayName
           });
           
+          // 1問目（currentQuestionIndex === 0）かつ、まだ一度も正解していない場合はNULLにしない
+          if (prevState.currentQuestionIndex === 0 && prevState.correctAnswers === 0) {
+            devLog.debug('📝 1問目はタイムオーバーでもNULLにしない');
+            return {
+              ...prevState,
+              isInJudgmentWindow: false
+            };
+          }
+          
           // タイムオーバー処理
           if (prevState.activeMonsters.some(m => m.chordTarget !== null)) {
             // 判定が終わったらコードをNULLに
@@ -956,53 +965,66 @@ export const useFantasyGameEngine = ({
         // 1小節の長さ（ms）
         const msPerMeasure = msPerBeat * timeSignature;
         
-        // 現在の小節内での経過時間
-        const currentMeasureElapsed = elapsed % msPerMeasure;
-        // 次の小節の1拍目までの時間
-        const timeToNextFirstBeat = msPerMeasure - currentMeasureElapsed;
-        
         // 各モンスターのゲージを個別に計算
         const updatedMonsters = prevState.activeMonsters.map(monster => {
-          // 判定受付開始（90%）は1拍目の200ms前
-          // 判定受付終了（100%）は1拍目の200ms後
-          // つまり90%から100%まで400msかかる
-          
-          // 95%が1拍目になるように調整
-          // 90%は1拍目-200ms、95%は1拍目、100%は1拍目+200ms
-          
-          // 目標: 次の1拍目で95%になるように
-          const targetGaugeAt95 = 95;
           const currentGauge = monster.gauge;
           
-          // 95%に到達するまでの必要ゲージ量
-          const gaugeToReach95 = targetGaugeAt95 - currentGauge;
+          // 現在の小節の1拍目の時刻を計算
+          const currentMeasureNumber = Math.floor(elapsed / msPerMeasure);
+          const currentMeasureStartTime = currentMeasureNumber * msPerMeasure;
+          const firstBeatTime = currentMeasureStartTime;
           
-          // 次の1拍目までの時間でゲージを調整
-          if (timeToNextFirstBeat > 0 && gaugeToReach95 > 0) {
-            // 100ms（更新間隔）あたりの増加量を計算
-            const rateFor100ms = (gaugeToReach95 / timeToNextFirstBeat) * 100;
-            
-            // ゲージが90%以上の場合は固定速度（判定受付中）
-            if (currentGauge >= 90) {
-              // 90%から100%まで400msで進む
-              return {
-                ...monster,
-                gauge: Math.min(currentGauge + 2.5, 100) // 100ms毎に2.5%増加
-              };
-            } else {
-              // 90%未満の場合は動的に速度調整
-              return {
-                ...monster,
-                gauge: Math.min(currentGauge + rateFor100ms, 90) // 90%で一旦停止
-              };
-            }
-          } else {
-            // デフォルトの増加率（フォールバック）
-            const defaultRate = prevState.currentStage ? 100 / (prevState.currentStage.enemyGaugeSeconds * 10) : 1;
+          // 現在時刻から1拍目までの時間
+          const timeFromFirstBeat = elapsed - firstBeatTime;
+          
+          // 次の小節の1拍目の時刻
+          const nextFirstBeatTime = firstBeatTime + msPerMeasure;
+          const timeToNextFirstBeat = nextFirstBeatTime - elapsed;
+          
+          // 判定ウィンドウ内かどうか
+          const isInJudgmentWindow = timeFromFirstBeat >= -200 && timeFromFirstBeat <= 200;
+          
+          // ゲージ計算
+          // 90%: 1拍目-200ms
+          // 95%: 1拍目ジャスト
+          // 100%: 1拍目+200ms
+          
+          if (isInJudgmentWindow) {
+            // 判定ウィンドウ内では線形補間
+            // -200ms → 90%, 0ms → 95%, +200ms → 100%
+            const progress = (timeFromFirstBeat + 200) / 400; // 0-1の範囲
             return {
               ...monster,
-              gauge: Math.min(monster.gauge + defaultRate, 100)
+              gauge: 90 + (progress * 10) // 90-100%の範囲
             };
+          } else if (currentGauge >= 100) {
+            // 100%に達したらリセット
+            return {
+              ...monster,
+              gauge: 0
+            };
+          } else {
+            // 通常時：次の判定ウィンドウ（90%）に向けて増加
+            // 次の1拍目-200msに90%になるように計算
+            const timeToNext90 = timeToNextFirstBeat - 200;
+            
+            if (timeToNext90 > 0) {
+              const targetGauge = 90;
+              const gaugeToAdd = targetGauge - currentGauge;
+              const rateFor100ms = (gaugeToAdd / timeToNext90) * 100;
+              
+              return {
+                ...monster,
+                gauge: Math.min(currentGauge + rateFor100ms, 90)
+              };
+            } else {
+              // フォールバック
+              const defaultRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10);
+              return {
+                ...monster,
+                gauge: Math.min(currentGauge + defaultRate, 100)
+              };
+            }
           }
         });
         

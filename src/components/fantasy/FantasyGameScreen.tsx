@@ -613,9 +613,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     return (
       <div className="relative w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
-        {/* 判定ウィンドウマーカー（90%と100%の位置） */}
-        <div className="absolute left-[90%] top-0 bottom-0 w-0.5 bg-white opacity-50 z-10" />
-        <div className="absolute left-[95%] top-0 bottom-0 w-0.5 bg-yellow-300 opacity-75 z-10" />
+        {/* 判定ウィンドウ領域の背景（90-100%） */}
+        <div className="absolute left-[90%] right-0 top-0 bottom-0 bg-purple-900 opacity-30" />
+        
+        {/* 判定ウィンドウマーカー */}
+        <div className="absolute left-[90%] top-0 bottom-0 w-1 bg-purple-400 opacity-80 z-10">
+          <span className="absolute -top-5 -left-2 text-xs text-purple-300">90%</span>
+        </div>
+        <div className="absolute left-[95%] top-0 bottom-0 w-1 bg-yellow-300 z-10">
+          <span className="absolute -top-5 -left-2 text-xs text-yellow-300">95%</span>
+        </div>
+        <div className="absolute right-0 top-0 bottom-0 w-1 bg-red-400 opacity-80 z-10">
+          <span className="absolute -top-5 -right-2 text-xs text-red-300">100%</span>
+        </div>
         
         {/* ゲージ本体 */}
         <div 
@@ -632,9 +642,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                        gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
           }}
         />
-        
-        {/* 判定ウィンドウ領域の背景（90-100%） */}
-        <div className="absolute left-[90%] right-0 top-0 bottom-0 bg-white opacity-10" />
       </div>
     );
   }, [gameState.enemyGauge]);
