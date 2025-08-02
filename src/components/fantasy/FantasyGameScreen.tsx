@@ -12,6 +12,7 @@ import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
+import RhythmNotesRenderer from './RhythmNotesRenderer'; // 新規インポート
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
@@ -58,7 +59,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
   // 時間管理
-  const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
+  const { currentTime, currentBeat, currentMeasure, isCountIn, updateTime: updateTimeStore } = useTimeStore();
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -70,15 +71,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
   const monsterAreaRef = useRef<HTMLDivElement>(null);
   
-  /* 毎 100 ms で時間ストア tick */
-  useEffect(() => {
-    const id = setInterval(() => tick(), 100);
-    return () => clearInterval(id);
-  }, [tick]);
 
-  /* Ready → Start 判定 */
-  const isReady =
-    startAt !== null && performance.now() - startAt < readyDuration;
   
   // ★★★ 追加: モンスターエリアのサイズ監視 ★★★
   useEffect(() => {
@@ -98,23 +91,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       window.removeEventListener('resize', update);
     };
   }, []);
-  
-  // Ready 終了時に BGM 再生
-  useEffect(() => {
-    if (!isReady && startAt) {
-      bgmManager.play(
-        stage.bgmUrl ?? '/demo-1.mp3',
-        stage.bpm || 120,
-        stage.timeSignature || 4,
-        stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0,
-        settings.bgmVolume ?? 0.7
-      );
-    } else {
-      bgmManager.stop();
-    }
-    return () => bgmManager.stop();
-  }, [isReady, stage, settings.bgmVolume, startAt]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -325,11 +301,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     gameState,
     handleNoteInput: engineHandleNoteInput,
     initializeGame,
-    stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
-    imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
-    ENEMY_LIST
+    imageTexturesRef // 追加: プリロードされたテクスチャへの参照
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
@@ -498,6 +472,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
   }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
 
+  // ゲーム開始時にBGM再生
+  useEffect(() => {
+    if (gameState.isGameActive && stage.mode === 'rhythm') {
+      bgmManager.play(
+        stage.bgmUrl ?? '/demo-1.mp3',
+        (bgmCurrentTime) => {
+          // BGMの再生時間でtimeStoreを更新
+          updateTimeStore(bgmCurrentTime);
+        },
+        stage.bpm || 120,
+        stage.timeSignature || 4,
+        stage.measureCount ?? 8,
+        stage.countInMeasures ?? 0,
+        settings.bgmVolume ?? 0.7
+      );
+    }
+
+    return () => {
+      bgmManager.stop();
+    };
+  }, [gameState.isGameActive, stage, settings.bgmVolume, updateTimeStore]);
+
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
@@ -608,6 +604,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [heartFlash]);
   
   // 敵のゲージ表示（黄色系）
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const renderEnemyGauge = useCallback(() => {
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
@@ -624,7 +621,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    if (stage.mode !== 'quiz' || !stage.chordProgression) return null;
     
     const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
     return stage.chordProgression[nextIndex];
@@ -914,7 +911,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
+        {stage.mode === 'quiz' && getNextChord() && (
           <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">
@@ -936,12 +933,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         {renderSpGauge(gameState.playerSp)}
       </div>
       
-      {/* ===== ピアノ鍵盤エリア ===== */}
-      <div 
-        ref={gameAreaRef}
-        className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
-        style={{ height: '120px' }} // ★★★ 高さを120pxに固定 ★★★
-      >
+      {/* ===== UI下部エリア（モードによって切り替え） ===== */}
+      {stage.mode === 'rhythm' ? (
+        // --- リズムモードUI ---
+        <div
+          className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
+          style={{ height: '120px' }}
+        >
+          <RhythmNotesRenderer
+            notes={gameState.activeNotes}
+            currentTime={currentTime}
+            bpm={stage.bpm ?? 120}
+            width={gameAreaSize.width}
+            height={120}
+          />
+        </div>
+      ) : (
+        // --- クイズモードUI (ピアノ鍵盤) ---
+        <div 
+          ref={gameAreaRef}
+          className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
+          style={{ height: '120px' }}
+        >
         {(() => {
           // スクロール判定ロジック（GameEngine.tsxと同様）
           const VISIBLE_WHITE_KEYS = 14; // モバイル表示時の可視白鍵数
@@ -1006,7 +1019,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         
         {/* 入力中のノーツ表示 */}
         
-      </div>
+        </div>
+      )}
       
       {/* エフェクト表示は削除 - PIXI側で処理 */}
       
@@ -1110,7 +1124,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       )}
       
       {/* Ready オーバーレイ */}
-      {isReady && (
+      {gameState.isGameActive && currentTime === 0 && (
         <div className="absolute inset-0 flex items-center justify-center z-[9998] bg-black/60">
           <span className="font-dotgothic16 text-7xl text-white animate-pulse">
             Ready
