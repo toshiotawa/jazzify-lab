@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
+import { ChordProgressionData } from '@/types/rhythm';
 import { devLog } from '@/utils/logger';
 
 // ===== 型定義 =====
@@ -301,8 +302,17 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           </div>
         </div>
         
-        {/* 右側のアイコン */}
-        <div className="flex-shrink-0">
+        {/* 右側のアイコンとモード表示 */}
+        <div className="flex-shrink-0 text-center">
+          {/* モード表示 */}
+          {unlocked && (
+            <div className="text-xs text-gray-400 mb-1">
+              {stage.mode === 'rhythm' ? (
+                stage.chordProgressionData ? 'コード進行' : 'ランダム'
+              ) : stage.mode === 'progression' ? 'コード進行' : '単体'}
+            </div>
+          )}
+          {/* ステータスアイコン */}
           {!unlocked && (
             <div className="text-2xl">
               <span>🔒</span>
@@ -311,6 +321,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           {isCleared && (
             <div className="text-yellow-400 text-2xl">
               ⭐
+            </div>
+          )}
+          {/* リズムモードアイコン */}
+          {unlocked && stage.mode === 'rhythm' && (
+            <div className="text-purple-400 text-lg mt-1">
+              🎵
             </div>
           )}
         </div>

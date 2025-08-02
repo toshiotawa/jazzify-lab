@@ -1,0 +1,129 @@
+/* リズムノーツのスタイル */
+
+.rhythm-notes-container {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  background-color: rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  border: 2px solid #333;
+  border-radius: 8px;
+}
+
+/* 判定ライン */
+.judgment-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: #ff6b6b;
+  box-shadow: 0 0 10px #ff6b6b;
+  z-index: 10;
+}
+
+/* レーン（ガイドライン） */
+.rhythm-lane {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-50%);
+}
+
+/* ノーツ */
+.rhythm-note {
+  position: absolute;
+  width: 120px;
+  height: 60px;
+  background-color: #4ecdc4;
+  border: 2px solid #45b7b8;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.rhythm-note.judged {
+  opacity: 0.3;
+  background-color: #95a5a6;
+  border-color: #7f8c8d;
+}
+
+.rhythm-note .chord-name {
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* HP表示 */
+.rhythm-hp-display {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.6);
+  border-radius: 8px;
+}
+
+.player-hp,
+.monster-hp {
+  flex: 1;
+  margin: 0 10px;
+}
+
+.player-hp span,
+.monster-hp span {
+  color: white;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.hp-bar {
+  width: 100%;
+  height: 20px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.hp-fill {
+  height: 100%;
+  background-color: #2ecc71;
+  transition: width 0.3s ease;
+}
+
+.hp-fill.enemy {
+  background-color: #e74c3c;
+}
+
+/* デバッグ情報 */
+.rhythm-debug {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+  font-family: monospace;
+  font-size: 12px;
+  z-index: 1000;
+}
+
+.rhythm-debug div {
+  margin: 2px 0;
+}
+
+/* メインコンテナ */
+.rhythm-mode {
+  padding: 20px;
+  min-height: 100vh;
+  background-color: #1a1a1a;
+}
