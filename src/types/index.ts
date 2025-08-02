@@ -5,6 +5,12 @@
 // ===== 基本的なゲーム状態 =====
 
 export type GameMode = 'practice' | 'performance';
+
+/* ───────── 新規追加 ──────────
+   リズムモードをゲーム種別に追加
+   (クイズモード＝既存ファンタジーは影響なし)
+────────────────────────────── */
+export type RhythmPlayMode = 'random' | 'progression';
 export type InstrumentMode = 'piano' | 'guitar';
 export type InputMode = 'midi' | 'audio' | 'both';
 
@@ -635,7 +641,8 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  /* quiz | rhythm の 2 モードを統合的に扱う */
+  mode: 'quiz' | 'rhythm';
   allowed_chords: string[];
   chord_progression?: string[];
   show_sheet_music: boolean;
@@ -648,6 +655,10 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  /* rhythm 用 – NULL なら random */
+  chord_progression_data?: {
+    chords: { measure: number; beat: number; chord: string }[];
+  } | null;
 }
 
 export interface LessonContext {
