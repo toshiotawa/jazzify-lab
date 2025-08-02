@@ -11,6 +11,7 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { RhythmScheduler } from '@/utils/RhythmScheduler';
 
 // ===== 型定義 =====
 
@@ -46,6 +47,7 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
+  useRhythmJudge?: boolean; // リズム判定モードを使用するかどうか
 }
 
 interface MonsterState {
@@ -378,6 +380,9 @@ export const useFantasyGameEngine = ({
   // プリロードしたテクスチャを保持
   const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
   
+  // リズムスケジューラーのインスタンス
+  const rhythmSchedulerRef = useRef<RhythmScheduler | null>(null);
+  
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     currentQuestionIndex: 0,
@@ -549,6 +554,15 @@ export const useFantasyGameEngine = ({
         stage.countInMeasures ?? 0
       );
 
+    // リズムスケジューラーの初期化
+    if (stage.mode === 'progression' && stage.useRhythmJudge) {
+      rhythmSchedulerRef.current = new RhythmScheduler();
+      // 最初のノーツをスケジュール
+      if (firstChord) {
+        rhythmSchedulerRef.current.planNext(firstChord.id, firstChord);
+      }
+    }
+
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
       totalEnemies,
@@ -607,6 +621,15 @@ export const useFantasyGameEngine = ({
           correctNotes: []
         };
         
+        // リズムモードの場合、次のノーツをスケジュール
+        const isRhythmMode = prevState.currentStage?.mode === 'progression' && prevState.currentStage?.useRhythmJudge;
+        if (isRhythmMode && rhythmSchedulerRef.current && updatedMonsters[0]?.chordTarget) {
+          rhythmSchedulerRef.current.planNext(
+            updatedMonsters[0].chordTarget.id,
+            updatedMonsters[0].chordTarget
+          );
+        }
+        
         onGameStateChange(nextState);
         return nextState;
       }
@@ -633,6 +656,25 @@ export const useFantasyGameEngine = ({
       });
       
       const isGameOver = newHp <= 0;
+      const isRhythmMode = prevState.currentStage?.mode === 'progression' && prevState.currentStage?.useRhythmJudge;
+      
+      // リズム判定モードの場合はゲームオーバーにせず、次の問題へ進む
+      if (isRhythmMode) {
+        const nextState = {
+          ...prevState,
+          playerHp: newHp,
+          // リズムモードでは攻撃後もゲームを継続
+          isGameActive: true,
+          isGameOver: false
+        };
+        
+        onGameStateChange(nextState);
+        
+        // 敵の攻撃エフェクトを通知
+        onEnemyAttack(attackingMonsterId);
+        
+        return nextState;
+      }
       
       if (isGameOver) {
         const finalState = {
@@ -718,13 +760,20 @@ export const useFantasyGameEngine = ({
     devLog.debug('🎮 ゲージタイマー状態チェック:', { 
       isGameActive: gameState.isGameActive, 
       hasTimer: !!enemyGaugeTimer,
-      currentStage: gameState.currentStage?.stageNumber
+      currentStage: gameState.currentStage?.stageNumber,
+      useRhythmJudge: gameState.currentStage?.useRhythmJudge
     });
     
     // 既存のタイマーをクリア
     if (enemyGaugeTimer) {
       clearInterval(enemyGaugeTimer);
       setEnemyGaugeTimer(null);
+    }
+    
+    // リズム判定モードの場合はタイマーを開始しない
+    if (gameState.currentStage?.mode === 'progression' && gameState.currentStage?.useRhythmJudge) {
+      devLog.debug('🎵 リズム判定モードのため敵ゲージタイマーは無効');
+      return;
     }
     
     // ゲームがアクティブな場合のみ新しいタイマーを開始
@@ -853,6 +902,27 @@ export const useFantasyGameEngine = ({
       // 2. コードが完成した場合の処理
       if (completedMonsters.length > 0) {
         devLog.debug(`🎯 ${completedMonsters.length}体のコードが完成しました！`, { ids: completedMonsters.map(m => m.id) });
+
+        // リズム判定モードの場合、判定窓内かチェック
+        const currentStage = prevState.currentStage;
+        const isRhythmMode = currentStage?.mode === 'progression' && currentStage?.useRhythmJudge;
+        const now = performance.now();
+        let isWithinWindow = true;
+
+        if (isRhythmMode && rhythmSchedulerRef.current) {
+          isWithinWindow = rhythmSchedulerRef.current.isInsideJudgementWindow(now);
+          if (!isWithinWindow) {
+            devLog.debug('❌ リズム判定窓外でのコード完成（無効）');
+            // 判定窓外なので攻撃は実行しない
+            const nextState = { ...prevState, activeMonsters: monstersAfterInput };
+            onGameStateChange(nextState);
+            return nextState;
+          } else {
+            devLog.debug('✅ リズム判定窓内でのコード完成！');
+            // 現在のノーツを解決済みにする
+            rhythmSchedulerRef.current.resolveCurrentNote();
+          }
+        }
 
         // ★ 攻撃処理後の状態を計算する
         let stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
@@ -1057,6 +1127,55 @@ export const useFantasyGameEngine = ({
     };
   }, []);
   
+  // リズムスケジューラーの更新とミス判定
+  useEffect(() => {
+    if (!gameState.isGameActive || !gameState.currentStage) return;
+    
+    const isRhythmMode = gameState.currentStage.mode === 'progression' && gameState.currentStage.useRhythmJudge;
+    if (!isRhythmMode || !rhythmSchedulerRef.current) return;
+    
+    let animationFrameId: number;
+    
+    const update = () => {
+      const now = performance.now();
+      const scheduler = rhythmSchedulerRef.current!;
+      
+      // スケジューラーを更新（新しいノーツの生成タイミングをチェック）
+      const spawnedNotes = scheduler.update(now);
+      if (spawnedNotes.length > 0) {
+        // PIXIレンダラーに通知するイベントを発火
+        window.dispatchEvent(new CustomEvent('spawnTaikoNote', { 
+          detail: spawnedNotes[0] 
+        }));
+      }
+      
+      // 現在のノーツが判定窓を過ぎたかチェック
+      const currentNote = scheduler.getCurrentNote();
+      if (currentNote && !currentNote.resolved && now > currentNote.judgeAt + 200) {
+        devLog.debug('⏰ 判定窓を過ぎました - ミス判定');
+        scheduler.resolveCurrentNote();
+        
+        // ミス処理（敵の攻撃）
+        const attackingMonster = gameState.activeMonsters[0];
+        if (attackingMonster) {
+          handleEnemyAttack(attackingMonster.id);
+        }
+        
+        // 次の問題へ
+        proceedToNextQuestion();
+      }
+      
+      animationFrameId = requestAnimationFrame(update);
+    };
+    
+    update();
+    
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [gameState.isGameActive, gameState.currentStage, handleEnemyAttack, proceedToNextQuestion]);
 
   
   return {
