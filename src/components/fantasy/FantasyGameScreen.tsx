@@ -102,8 +102,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // Ready 終了時に BGM 再生
   useEffect(() => {
     if (!isReady && startAt) {
+      // リズムモードの場合はmp3_urlを使用、それ以外はbgmUrlを使用
+      const audioUrl = stage.mode === 'rhythm' && stage.mp3Url
+        ? stage.mp3Url 
+        : (stage.bgmUrl ?? '/demo-1.mp3');
+        
       bgmManager.play(
-        stage.bgmUrl ?? '/demo-1.mp3',
+        audioUrl,
         stage.bpm || 120,
         stage.timeSignature || 4,
         stage.measureCount ?? 8,
@@ -622,10 +627,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
   }, [gameState.enemyGauge]);
   
-  // NEXTコード表示（コード進行モード用）
+  // 次のコードを表示するヘルパー関数
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
-    
+    if (!stage || !gameState.currentStage) return null;
+    if (stage.mode !== 'quiz' || !stage.chordProgression) return null;
     const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
     return stage.chordProgression[nextIndex];
   }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
@@ -774,6 +779,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               className="w-full h-full"
               activeMonsters={gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
+              // リズムモード用プロパティ
+              isRhythmMode={stage.mode === 'rhythm'}
+              rhythmNotes={gameState.rhythmNotes}
+              judgmentLinePosition={0.8}
             />
           </div>
           
@@ -913,8 +922,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           </div>
         </div>
         
-        {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
+                  {/* NEXTコード表示（クイズモードのコード進行パターン、サイズを縮小） */}
+          {stage.mode === 'quiz' && getNextChord() && (
           <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">
@@ -935,6 +944,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   pointer-events-none bg-black/40 rounded px-2 py-1">
         {renderSpGauge(gameState.playerSp)}
       </div>
+      
+      {/* リズムモード用タイミング表示 */}
+      {stage.mode === 'rhythm' && (
+        <div className="absolute left-1/2 bottom-2 transform -translate-x-1/2 z-50
+                    pointer-events-none bg-black/60 rounded px-3 py-1">
+          <div className="text-white text-sm font-mono">
+            {isCountIn ? (
+              <span>M / - B {currentBeat}</span>
+            ) : (
+              <span>M {currentMeasure} - B {currentBeat}</span>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* ===== ピアノ鍵盤エリア ===== */}
       <div 
