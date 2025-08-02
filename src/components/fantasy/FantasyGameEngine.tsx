@@ -11,17 +11,12 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { RhythmScheduler } from './RhythmScheduler';
+import type { ChordDefinition } from '@/types/fantasy';
 
-// ===== 型定義 =====
+// ===== 型定義 ===== 
 
-interface ChordDefinition {
-  id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
-  displayName: string; // 表示名（言語・簡易化設定に応じて変更）
-  notes: number[];     // MIDIノート番号の配列
-  noteNames: string[]; // ★ 理論的に正しい音名配列を追加
-  quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
-  root: string;        // ルート音（例: 'C', 'G', 'A'）
-}
+// ChordDefinitionはfantasy.tsに移動
 
 interface FantasyStage {
   id: string;
@@ -46,6 +41,7 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
+  useRhythmJudge?: boolean; // リズム判定を使用するか
 }
 
 interface MonsterState {
@@ -410,6 +406,16 @@ export const useFantasyGameEngine = ({
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+  const rhythmSchedulerRef = useRef<RhythmScheduler | null>(null);
+  const rhythmUpdateTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // RhythmSchedulerの遅延初期化
+  const getRhythmScheduler = useCallback(() => {
+    if (!rhythmSchedulerRef.current) {
+      rhythmSchedulerRef.current = new RhythmScheduler();
+    }
+    return rhythmSchedulerRef.current;
+  }, []);
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
@@ -549,15 +555,83 @@ export const useFantasyGameEngine = ({
         stage.countInMeasures ?? 0
       );
 
+    // リズムスケジューラーの初期化（プログレッションモードかつリズム判定が有効な場合）
+    if (stage.mode === 'progression' && stage.useRhythmJudge) {
+      const scheduler = getRhythmScheduler();
+      scheduler.clear();
+      
+      // 最初のコードをスケジュール
+      if (firstChord) {
+        scheduler.planNext(firstChord.id, firstChord);
+      }
+      
+      // リズム更新タイマーを開始
+      if (rhythmUpdateTimerRef.current) {
+        clearInterval(rhythmUpdateTimerRef.current);
+      }
+      rhythmUpdateTimerRef.current = setInterval(() => {
+        const now = performance.now();
+        const missedNotes = scheduler.getMissedNotes(now);
+        
+        // ミスした場合の処理
+                  if (missedNotes.length > 0) {
+            devLog.debug('❌ リズム判定ミス:', { count: missedNotes.length });
+            for (const note of missedNotes) {
+              scheduler.removeNote(note.id);
+              // 敵の攻撃を直接実行
+              setGameState(prevState => {
+                const newHp = Math.max(0, prevState.playerHp - 1);
+                devLog.debug('💥 リズム判定ミスによる敵の攻撃！HP更新:', {
+                  oldHp: prevState.playerHp,
+                  newHp: newHp
+                });
+                
+                const isGameOver = newHp <= 0;
+                
+                if (isGameOver) {
+                  const finalState = {
+                    ...prevState,
+                    playerHp: 0,
+                    isGameActive: false,
+                    isGameOver: true,
+                    gameResult: 'gameover' as const,
+                    isCompleting: true
+                  };
+                  
+                  setTimeout(() => {
+                    try {
+                      onGameComplete('gameover', finalState);
+                    } catch (error) {
+                      devLog.debug('❌ ゲームオーバーコールバックエラー:', error);
+                    }
+                  }, 100);
+                  
+                  return finalState;
+                } else {
+                  return {
+                    ...prevState,
+                    playerHp: newHp,
+                    playerSp: 0
+                  };
+                }
+              });
+              
+              onEnemyAttack();
+            }
+          }
+      }, 50); // 50ms間隔でチェック
+    }
+
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
       totalEnemies,
       enemyHp,
       totalQuestions,
       simultaneousCount,
-      activeMonsters: activeMonsters.length
+      activeMonsters: activeMonsters.length,
+      useRhythmJudge: stage.useRhythmJudge
     });
-  }, [onGameStateChange]);
+  }, [onGameStateChange, getRhythmScheduler, onGameComplete, onEnemyAttack]);
   
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
@@ -728,7 +802,9 @@ export const useFantasyGameEngine = ({
     }
     
     // ゲームがアクティブな場合のみ新しいタイマーを開始
-    if (gameState.isGameActive && gameState.currentStage) {
+    // ただし、リズム判定モードの場合は敵ゲージタイマーを使用しない
+    if (gameState.isGameActive && gameState.currentStage && 
+        !(gameState.currentStage.mode === 'progression' && gameState.currentStage.useRhythmJudge)) {
       devLog.debug('⏰ 敵ゲージタイマー開始');
       const timer = setInterval(() => {
         updateEnemyGauge();
@@ -854,6 +930,28 @@ export const useFantasyGameEngine = ({
       if (completedMonsters.length > 0) {
         devLog.debug(`🎯 ${completedMonsters.length}体のコードが完成しました！`, { ids: completedMonsters.map(m => m.id) });
 
+        // リズム判定モードの場合、判定窓内かチェック
+        if (prevState.currentStage?.mode === 'progression' && prevState.currentStage?.useRhythmJudge) {
+          const now = performance.now();
+          const scheduler = getRhythmScheduler();
+          const judgeableChord = scheduler.getCurrentJudgeableChord(now);
+          
+          if (!judgeableChord) {
+            devLog.debug('⏰ リズム判定: 判定窓外です');
+            // 判定窓外の場合は何もしない
+            return { ...prevState, activeMonsters: monstersAfterInput };
+          }
+          
+          // 判定窓内なので攻撃成功
+          devLog.debug('✅ リズム判定: 判定成功！');
+          
+          // 現在のノーツを削除
+          const notesInWindow = scheduler.getNotesInJudgementWindow(now);
+          for (const note of notesInWindow) {
+            scheduler.removeNote(note.id);
+          }
+        }
+
         // ★ 攻撃処理後の状態を計算する
         let stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
         
@@ -941,6 +1039,37 @@ export const useFantasyGameEngine = ({
             return finalState;
         }
         
+        // リズム判定モードの場合、次のコードをスケジュール
+        if (stateAfterAttack.currentStage?.mode === 'progression' && stateAfterAttack.currentStage?.useRhythmJudge) {
+          // 現在のコードをnullにする
+          stateAfterAttack.currentChordTarget = null;
+          
+          // 次のコードをスケジュール
+          setTimeout(() => {
+            setGameState(prevState => {
+              if (!prevState.isGameActive) return prevState;
+              
+              const progression = prevState.currentStage?.chordProgression || [];
+              const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+              const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+              
+              if (nextChord) {
+                const scheduler = getRhythmScheduler();
+                scheduler.planNext(nextChord.id, nextChord);
+                
+                return {
+                  ...prevState,
+                  currentQuestionIndex: nextIndex,
+                  currentChordTarget: nextChord,
+                  correctNotes: []
+                };
+              }
+              
+              return prevState;
+            });
+          }, 100); // 少し遅延を入れる
+        }
+        
         onGameStateChange(stateAfterAttack);
         return stateAfterAttack;
 
@@ -951,7 +1080,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange, getRhythmScheduler, displayOpts]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
@@ -1029,6 +1158,17 @@ export const useFantasyGameEngine = ({
       setEnemyGaugeTimer(null);
     }
     
+    // リズム更新タイマーをクリア
+    if (rhythmUpdateTimerRef.current) {
+      clearInterval(rhythmUpdateTimerRef.current);
+      rhythmUpdateTimerRef.current = null;
+    }
+    
+    // リズムスケジューラーをクリア
+    if (rhythmSchedulerRef.current) {
+      rhythmSchedulerRef.current.clear();
+    }
+    
     // if (inputTimeout) { // 削除
     //   clearTimeout(inputTimeout); // 削除
     // } // 削除
@@ -1066,6 +1206,7 @@ export const useFantasyGameEngine = ({
     stopGame,
     proceedToNextEnemy,
     imageTexturesRef, // プリロードされたテクスチャへの参照を追加
+    rhythmScheduler: rhythmSchedulerRef.current, // リズムスケジューラーを追加
     
     // ヘルパー関数もエクスポート
     checkChordMatch,

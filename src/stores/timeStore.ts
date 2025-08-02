@@ -27,6 +27,10 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* 拍ベースの時間計算メソッド */
+  getMsPerBeat: () => number
+  getAbsoluteTimeOfBeat: (measure: number, beat: number) => number
+  getNow: () => number
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -91,5 +95,23 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         isCountIn: false
       })
     }
+  },
+  /* 拍ベースの時間計算メソッド */
+  getMsPerBeat: () => {
+    const s = get()
+    return 60000 / s.bpm
+  },
+  getAbsoluteTimeOfBeat: (measure: number, beat: number) => {
+    const s = get()
+    if (s.startAt === null) return 0
+    
+    // カウントイン込みでの絶対的な拍数を計算
+    const totalBeats = (measure - 1) * s.timeSignature + (beat - 1)
+    const msPerBeat = 60000 / s.bpm
+    
+    return s.startAt + s.readyDuration + totalBeats * msPerBeat
+  },
+  getNow: () => {
+    return performance.now()
   }
 }))
