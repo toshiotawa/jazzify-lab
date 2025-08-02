@@ -10,7 +10,7 @@ import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
-import type { DisplayLang } from '@/utils/display-note';
+// import type { DisplayLang } from '@/utils/display-note';
 import { LessonContext } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
@@ -381,18 +381,20 @@ const FantasyMain: React.FC = () => {
         enemyHp: nextStageData.enemy_hp,
         minDamage: nextStageData.min_damage,
         maxDamage: nextStageData.max_damage,
-        mode: nextStageData.mode as 'single' | 'progression',
+        mode: nextStageData.mode as 'single' | 'progression' | 'rhythm',
         allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
         chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
         showSheetMusic: nextStageData.show_sheet_music,
         showGuide: nextStageData.show_guide,
         monsterIcon: nextStageData.monster_icon,
         bgmUrl: nextStageData.bgm_url || nextStageData.mp3_url,
+        mp3Url: nextStageData.mp3_url,
         simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1,
         bpm: nextStageData.bpm || 120,
         measureCount: nextStageData.measure_count,
         countInMeasures: nextStageData.count_in_measures,
-        timeSignature: nextStageData.time_signature
+        timeSignature: nextStageData.time_signature,
+        chordProgressionData: nextStageData.chord_progression_data
       };
 
       setGameResult(null);

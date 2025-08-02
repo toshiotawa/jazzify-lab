@@ -40,10 +40,10 @@ const WIZARD_RANKS = [
   'F', 'F+', 'E', 'E+', 'D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S', 'S+'
 ];
 
-const getRankFromClearedStages = (clearedStages: number): string => {
+/* const getRankFromClearedStages = (clearedStages: number): string => {
   const rankIndex = Math.floor(clearedStages / 10);
   return WIZARD_RANKS[Math.min(rankIndex, WIZARD_RANKS.length - 1)];
-};
+}; */
 
 // ===== ステージグルーピング =====
 const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
@@ -148,7 +148,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       }
       
       //// データの変換とセット
-      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: Record<string, any>) => ({
         id: stage.id,
         stageNumber: stage.stage_number,
         name: stage.name,
@@ -159,18 +159,20 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'single' | 'progression' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
         bgmUrl: stage.bgm_url || stage.mp3_url,
+        mp3Url: stage.mp3_url,
         simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
         bpm: stage.bpm || 120,
         measureCount: stage.measure_count,
         countInMeasures: stage.count_in_measures,
-        timeSignature: stage.time_signature
+        timeSignature: stage.time_signature,
+        chordProgressionData: stage.chord_progression_data
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -181,7 +183,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         totalClearedStages: userProgressData.total_cleared_stages
       };
       
-      const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: any) => ({
+      const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: Record<string, any>) => ({
         id: clear.id,
         userId: clear.user_id,
         stageId: clear.stage_id,
@@ -299,6 +301,21 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : "このステージはまだロックされています"}
           </div>
+          
+          {/* リズムモード情報 */}
+          {unlocked && stage.mode === 'rhythm' && (
+            <div className="mt-2 flex gap-3 text-xs">
+              <span className="px-2 py-1 bg-purple-600 bg-opacity-50 rounded text-purple-200">
+                リズムモード
+              </span>
+              <span className={cn(
+                "px-2 py-1 rounded",
+                stage.chordProgressionData ? "bg-blue-600 bg-opacity-50 text-blue-200" : "bg-orange-600 bg-opacity-50 text-orange-200"
+              )}>
+                {stage.chordProgressionData ? "コード進行" : "ランダム"}
+              </span>
+            </div>
+          )}
         </div>
         
         {/* 右側のアイコン */}
@@ -359,8 +376,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   
   // メイン画面
   const groupedStages = groupStagesByRank(stages);
-  const currentWizardRank = userProgress ? userProgress.wizardRank : 'F';
-  const totalCleared = userProgress ? userProgress.totalClearedStages : 0;
+      // const currentWizardRank = userProgress ? userProgress.wizardRank : 'F';
+    // const totalCleared = userProgress ? userProgress.totalClearedStages : 0;
   
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto fantasy-game-screen">
