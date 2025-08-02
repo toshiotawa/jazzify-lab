@@ -784,7 +784,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
                 {gameState.activeMonsters
                   .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
-                  .map((monster) => {
+                  .map((monster, monsterIndex) => {
                     // モンスター数に応じて幅を動的に計算
                     const monsterCount = gameState.activeMonsters.length;
                     let widthPercent: string;
@@ -828,14 +828,71 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
-                      {/* コードネーム */}
-                      <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                        monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                      }`}>
+                      {/* コード名 */}
+                      <div className={`font-bold ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} mb-0.5`}>
                         {monster.chordTarget.displayName}
                       </div>
                       
-                      {/* ★★★ ここにヒント表示を追加 ★★★ */}
+                      {/* リズムモード用の判定サークル */}
+                      {stage.mode === 'rhythm' && gameState.rhythmChords && gameState.currentRhythmIndex !== undefined && (
+                        (() => {
+                          // 現在のリズムコードインデックスを取得
+                          const rhythmIndex = gameState.currentRhythmIndex + monsterIndex;
+                          const rhythmChord = gameState.rhythmChords[rhythmIndex % gameState.rhythmChords.length];
+                          
+                          if (!rhythmChord) return null;
+                          
+                          // 現在時刻と判定タイミングまでの時間を計算
+                          const currentTime = performance.now() - (startAt || 0);
+                          const timeUntilJudgment = rhythmChord.timing - currentTime;
+                          
+                          // 判定ウィンドウ内かどうか
+                          const inWindow = Math.abs(timeUntilJudgment) <= 200;
+                          
+                          // サークルのサイズとアニメーション（1秒前から表示開始）
+                          const showCircle = timeUntilJudgment <= 1000 && timeUntilJudgment >= -200;
+                          const circleScale = showCircle ? Math.max(0, 1 - (timeUntilJudgment / 1000)) : 0;
+                          
+                          return showCircle ? (
+                            <div className="absolute pointer-events-none" style={{
+                              top: '70%',  // コード名の下に配置
+                              left: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              zIndex: 10
+                            }}>
+                              {/* 外側のサークル（アプローチサークル） */}
+                              <div 
+                                className={`absolute rounded-full border-2 ${
+                                  inWindow ? 'border-green-400' : 'border-blue-400'
+                                } transition-all duration-100`}
+                                style={{
+                                  width: `${60 + (1 - circleScale) * 40}px`,
+                                  height: `${60 + (1 - circleScale) * 40}px`,
+                                  left: '50%',
+                                  top: '50%',
+                                  transform: 'translate(-50%, -50%)',
+                                  opacity: circleScale
+                                }}
+                              />
+                              {/* 内側のサークル（判定サークル） */}
+                              <div 
+                                className={`absolute rounded-full border-2 ${
+                                  inWindow ? 'border-green-400 bg-green-400/20' : 'border-gray-400'
+                                }`}
+                                style={{
+                                  width: '60px',
+                                  height: '60px',
+                                  left: '50%',
+                                  top: '50%',
+                                  transform: 'translate(-50%, -50%)'
+                                }}
+                              />
+                            </div>
+                          ) : null;
+                        })()
+                      )}
+                      
+                      {/* コード構成音表示 */}
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
@@ -881,17 +938,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       )}
                       
                       {/* 行動ゲージ */}
-                      <div 
-                        ref={el => {
-                          if (el) gaugeRefs.current.set(monster.id, el);
-                        }}
-                        className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
-                      >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
-                        />
-                      </div>
+                      {stage.mode !== 'rhythm' && (
+                        <div 
+                          ref={el => {
+                            if (el) gaugeRefs.current.set(monster.id, el);
+                          }}
+                          className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
+                        >
+                          <div
+                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                            style={{ width: `${monster.gauge}%` }}
+                          />
+                        </div>
+                      )}
                       
                       {/* HPゲージ */}
                       <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
