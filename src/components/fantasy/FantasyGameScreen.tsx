@@ -774,6 +774,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               className="w-full h-full"
               activeMonsters={gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
+              isRhythmMode={gameState.isRhythmMode}
+              rhythmStartTime={gameState.rhythmStartTime}
+              bpm={stage.bpm}
+              timeSignature={stage.timeSignature}
             />
           </div>
           

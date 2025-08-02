@@ -34,7 +34,7 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';
   allowedChords: string[];
   chordProgression?: string[];
   showSheetMusic: boolean;
@@ -59,6 +59,9 @@ interface MonsterState {
   correctNotes: number[]; // このモンスター用の正解済み音
   icon: string;
   name: string;
+  // リズムモード用
+  targetMeasure?: number; // 演奏すべき小節
+  targetBeat?: number; // 演奏すべき拍（1拍目）
 }
 
 interface FantasyGameState {
@@ -91,6 +94,12 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  // リズムモード用
+  isRhythmMode: boolean;
+  currentBeat: number; // 現在の拍数
+  currentMeasure: number; // 現在の小節数
+  lastInputTime: number; // 最後の入力時刻
+  rhythmStartTime: number; // リズムモード開始時刻
 }
 
 interface FantasyGameEngineProps {
@@ -171,7 +180,9 @@ const createMonsterFromQueue = (
   allowedChords: string[],
   previousChordId?: string,
   displayOpts?: DisplayOpts,
-  stageMonsterIds?: string[]
+  stageMonsterIds?: string[],
+  isRhythmMode?: boolean,
+  currentMeasure?: number
 ): MonsterState => {
   // stageMonsterIdsが提供されている場合は、それを使用
   let iconKey: string;
@@ -186,7 +197,7 @@ const createMonsterFromQueue = (
   const enemy = { id: iconKey, icon: iconKey, name: '' }; // ← name は空文字
   const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
   
-  return {
+  const monster: MonsterState = {
     id: `${enemy.id}_${Date.now()}_${position}`,
     index: monsterIndex,
     position,
@@ -198,6 +209,14 @@ const createMonsterFromQueue = (
     icon: enemy.icon,
     name: enemy.name
   };
+
+  // リズムモードの場合、タイミング情報を追加
+  if (isRhythmMode && currentMeasure !== undefined) {
+    monster.targetMeasure = currentMeasure;
+    monster.targetBeat = 1; // 1拍目頭に固定
+  }
+
+  return monster;
 };
 
 /**
@@ -361,6 +380,53 @@ const getCurrentEnemy = (enemyIndex: number) => {
   return ENEMY_LIST[0]; // フォールバック
 };
 
+/**
+ * リズムモード：現在の小節と拍を計算
+ */
+const calculateBeatInfo = (elapsedMs: number, bpm: number, timeSignature: number = 4) => {
+  const beatDurationMs = 60000 / bpm; // 1拍の長さ（ミリ秒）
+  const measureDurationMs = beatDurationMs * timeSignature; // 1小節の長さ
+  
+  const totalBeats = Math.floor(elapsedMs / beatDurationMs);
+  const currentMeasure = Math.floor(totalBeats / timeSignature);
+  const currentBeat = (totalBeats % timeSignature) + 1; // 1-based
+  const beatProgress = (elapsedMs % beatDurationMs) / beatDurationMs; // 0.0 - 1.0
+  
+  return {
+    currentMeasure,
+    currentBeat,
+    beatProgress,
+    measureProgress: (elapsedMs % measureDurationMs) / measureDurationMs
+  };
+};
+
+/**
+ * リズムモード：タイミング判定（±200ms）
+ */
+const isWithinTimingWindow = (inputTime: number, targetTime: number, windowMs: number = 200): boolean => {
+  const diff = Math.abs(inputTime - targetTime);
+  return diff <= windowMs;
+};
+
+/**
+ * リズムモード：次の拍のタイミングを計算
+ */
+const getNextBeatTime = (startTime: number, currentTime: number, bpm: number, targetBeat: number = 1, timeSignature: number = 4) => {
+  const beatDurationMs = 60000 / bpm;
+  const measureDurationMs = beatDurationMs * timeSignature;
+  const elapsedMs = currentTime - startTime;
+  
+  const currentMeasure = Math.floor(elapsedMs / measureDurationMs);
+  const nextTargetTime = startTime + (currentMeasure * measureDurationMs) + ((targetBeat - 1) * beatDurationMs);
+  
+  // すでに過ぎている場合は次の小節の同じ拍
+  if (nextTargetTime < currentTime) {
+    return nextTargetTime + measureDurationMs;
+  }
+  
+  return nextTargetTime;
+};
+
 // ===== メインコンポーネント =====
 
 export const useFantasyGameEngine = ({
@@ -419,7 +485,9 @@ export const useFantasyGameEngine = ({
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.simultaneousMonsterCount || 1;
+    // リズムモードの場合は同時出現数を1に固定
+    const isRhythmMode = stage.mode === 'rhythm';
+    const simultaneousCount = isRhythmMode ? 1 : (stage.simultaneousMonsterCount || 1);
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -493,7 +561,9 @@ export const useFantasyGameEngine = ({
           stage.allowedChords,
           lastChordId,
           displayOpts,
-          monsterIds        // ✅ 今回作った配列
+          monsterIds,        // ✅ 今回作った配列
+          isRhythmMode,
+          i  // 最初のモンスターは0小節目に対応
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -504,6 +574,10 @@ export const useFantasyGameEngine = ({
     // 互換性のため最初のモンスターの情報を設定
     const firstMonster = activeMonsters[0];
     const firstChord = firstMonster ? firstMonster.chordTarget : null;
+
+    // リズムモードの判定
+    const isRhythmMode = stage.mode === 'rhythm';
+    const now = Date.now();
 
     const newState: FantasyGameState = {
       currentStage: stage,
@@ -533,7 +607,13 @@ export const useFantasyGameEngine = ({
       monsterQueue,
       simultaneousMonsterCount: simultaneousCount,
       // ゲーム完了処理中フラグ
-      isCompleting: false
+      isCompleting: false,
+      // リズムモード用
+      isRhythmMode,
+      currentBeat: 0,
+      currentMeasure: 0,
+      lastInputTime: 0,
+      rhythmStartTime: now
     };
 
     setGameState(newState);
@@ -816,6 +896,30 @@ export const useFantasyGameEngine = ({
       // ゲームがアクティブでない場合は何もしない
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
         return prevState;
+      }
+
+      // リズムモードの場合、タイミングをチェック
+      if (prevState.isRhythmMode && prevState.currentStage) {
+        const now = Date.now();
+        const elapsedMs = now - prevState.rhythmStartTime;
+        const bpm = prevState.currentStage.bpm || 120;
+        const timeSignature = prevState.currentStage.timeSignature || 4;
+        
+        // 現在の拍情報を計算
+        const beatInfo = calculateBeatInfo(elapsedMs, bpm, timeSignature);
+        
+        // 次の1拍目のタイミングを計算
+        const nextBeatTime = getNextBeatTime(prevState.rhythmStartTime, now, bpm, 1, timeSignature);
+        
+        // タイミングウィンドウ外の場合は入力を無視
+        if (!isWithinTimingWindow(now, nextBeatTime, 200)) {
+          devLog.debug('🎹 リズムモード: タイミングウィンドウ外の入力を無視', {
+            currentMeasure: beatInfo.currentMeasure,
+            currentBeat: beatInfo.currentBeat,
+            nextBeatTime: new Date(nextBeatTime).toISOString()
+          });
+          return prevState;
+        }
       }
 
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });

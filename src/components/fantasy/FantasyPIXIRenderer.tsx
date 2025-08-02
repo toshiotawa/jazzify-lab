@@ -27,6 +27,10 @@ interface FantasyPIXIRendererProps {
   className?: string;
   activeMonsters?: GameMonsterState[]; // マルチモンスター対応
   imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>; // プリロードされたテクスチャへの参照
+  isRhythmMode?: boolean; // リズムモードかどうか
+  rhythmStartTime?: number; // リズムモード開始時刻
+  bpm?: number; // テンポ
+  timeSignature?: number; // 拍子
 }
 
 // モンスターのビジュアル状態を不変に管理
@@ -188,12 +192,20 @@ export class FantasyPIXIInstance {
   private effectContainer: PIXI.Container;
   private uiContainer: PIXI.Container;
   private backgroundContainer: PIXI.Container;
+  private rhythmContainer: PIXI.Container; // リズムモード用コンテナ
   private onDefeated?: () => void;
   private onMonsterDefeated?: () => void;
   private onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
   
   // プリロードされたテクスチャへの参照を追加
   private imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>;
+  
+  // リズムモード用
+  private isRhythmMode: boolean = false;
+  private rhythmStartTime: number = 0;
+  private bpm: number = 120;
+  private timeSignature: number = 4;
+  private rhythmNotes: Map<string, PIXI.Text> = new Map(); // コードネーム表示
   
   /** ────────────────────────────────────
    *  safe‑default で初期化しておく
@@ -284,16 +296,17 @@ export class FantasyPIXIInstance {
     // コンテナ初期化
     this.backgroundContainer = new PIXI.Container();
     this.monsterContainer = new PIXI.Container();
-
+    this.rhythmContainer = new PIXI.Container();
     this.effectContainer = new PIXI.Container();
     this.uiContainer = new PIXI.Container();
     
     // ソート可能にする
     this.uiContainer.sortableChildren = true;
     
-    // z-indexの設定（背景→モンスター→パーティクル→エフェクト→UI）
+    // z-indexの設定（背景→モンスター→リズム→パーティクル→エフェクト→UI）
     this.app.stage.addChild(this.backgroundContainer);
     this.app.stage.addChild(this.monsterContainer);
+    this.app.stage.addChild(this.rhythmContainer);
 
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
@@ -1899,6 +1912,109 @@ export class FantasyPIXIInstance {
     return this.app.view as HTMLCanvasElement;
   }
 
+  // リズムモード設定
+  setRhythmMode(isRhythm: boolean, startTime?: number, bpm?: number, timeSignature?: number): void {
+    this.isRhythmMode = isRhythm;
+    if (isRhythm && startTime !== undefined) {
+      this.rhythmStartTime = startTime;
+      this.bpm = bpm || 120;
+      this.timeSignature = timeSignature || 4;
+      
+      // 判定ラインを追加
+      this.setupRhythmJudgeLine();
+    } else {
+      // リズムモードを解除
+      this.rhythmContainer.removeChildren();
+      this.rhythmNotes.clear();
+    }
+  }
+  
+  // 判定ラインのセットアップ
+  private setupRhythmJudgeLine(): void {
+    // 既存の要素をクリア
+    this.rhythmContainer.removeChildren();
+    
+    // 判定ライン（左端）
+    const judgeLine = new PIXI.Graphics();
+    judgeLine.beginFill(0xFFFFFF, 0.8);
+    judgeLine.drawRect(50, 0, 2, this.app.screen.height);
+    judgeLine.endFill();
+    
+    this.rhythmContainer.addChild(judgeLine);
+  }
+  
+  // リズムモード：コードノートの更新
+  updateRhythmNotes(activeMonsters: GameMonsterState[]): void {
+    if (!this.isRhythmMode) return;
+    
+    const now = Date.now();
+    const elapsedMs = now - this.rhythmStartTime;
+    const beatDurationMs = 60000 / this.bpm;
+    const measureDurationMs = beatDurationMs * this.timeSignature;
+    
+    // 現在の小節を計算
+    const currentMeasure = Math.floor(elapsedMs / measureDurationMs);
+    
+    activeMonsters.forEach(monster => {
+      let chordText = this.rhythmNotes.get(monster.id);
+      
+      if (!chordText) {
+        // 新しいコードテキストを作成
+        chordText = new PIXI.Text(monster.chordTarget.displayName, {
+          fontFamily: 'Arial, sans-serif',
+          fontSize: 32,
+          fill: 0xFFFFFF,
+          align: 'center',
+          fontWeight: 'bold',
+          dropShadow: true,
+          dropShadowColor: 0x000000,
+          dropShadowDistance: 2
+        });
+        
+        this.rhythmNotes.set(monster.id, chordText);
+        this.rhythmContainer.addChild(chordText);
+      }
+      
+      // 位置を計算（右から左に流れる）
+      const targetMeasure = monster.targetMeasure || currentMeasure;
+      const measureDiff = targetMeasure - currentMeasure;
+      const progress = (elapsedMs % measureDurationMs) / measureDurationMs;
+      
+      // 画面の右端から判定ライン（左端）まで流れる
+      const startX = this.app.screen.width;
+      const endX = 50; // 判定ラインの位置
+      const totalDistance = startX - endX;
+      
+      // 位置を計算（次の小節の1拍目に判定ラインに到達するように）
+      const x = endX + totalDistance * (measureDiff + 1 - progress);
+      
+      chordText.x = x;
+      chordText.y = this.app.screen.height / 2;
+      chordText.anchor.set(0.5);
+      
+      // 画面外に出たら非表示
+      chordText.visible = x > -50 && x < this.app.screen.width + 50;
+      
+      // 判定ウィンドウ内の場合は色を変える
+      const distanceFromJudgeLine = Math.abs(x - endX);
+      const windowSize = totalDistance * 0.2; // ±200msに相当する距離
+      
+      if (distanceFromJudgeLine < windowSize) {
+        chordText.tint = 0xFFFF00; // 黄色
+      } else {
+        chordText.tint = 0xFFFFFF; // 白
+      }
+    });
+    
+    // 画面外のコードテキストを削除
+    this.rhythmNotes.forEach((text, id) => {
+      if (!activeMonsters.find(m => m.id === id)) {
+        this.rhythmContainer.removeChild(text);
+        this.rhythmNotes.delete(id);
+      }
+    });
+  }
+
   // 破棄
   destroy(): void {
     this.isDestroyed = true;
@@ -2049,7 +2165,11 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   onShowMagicName,
   className,
   activeMonsters,
-  imageTexturesRef
+  imageTexturesRef,
+  isRhythmMode,
+  rhythmStartTime,
+  bpm,
+  timeSignature
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pixiInstance, setPixiInstance] = useState<FantasyPIXIInstance | null>(null);
@@ -2083,7 +2203,29 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
     }
   }, [pixiInstance, monsterIcon, activeMonsters]);
 
+  // リズムモード設定
+  useEffect(() => {
+    if (pixiInstance) {
+      pixiInstance.setRhythmMode(isRhythmMode || false, rhythmStartTime, bpm, timeSignature);
+    }
+  }, [pixiInstance, isRhythmMode, rhythmStartTime, bpm, timeSignature]);
 
+  // リズムノートの更新
+  useEffect(() => {
+    if (pixiInstance && isRhythmMode && activeMonsters) {
+      const updateRhythm = () => {
+        pixiInstance.updateRhythmNotes(activeMonsters);
+      };
+      
+      // 初回実行
+      updateRhythm();
+      
+      // 定期的に更新（60fps）
+      const intervalId = setInterval(updateRhythm, 16);
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [pixiInstance, isRhythmMode, activeMonsters]);
 
   // サイズ変更
   useEffect(() => {
