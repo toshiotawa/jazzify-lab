@@ -612,10 +612,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const isJudgmentZone = gameState.enemyGauge >= 90;
     
     return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
+      <div className="relative w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
+        {/* 判定ウィンドウマーカー（90%と100%の位置） */}
+        <div className="absolute left-[90%] top-0 bottom-0 w-0.5 bg-white opacity-50 z-10" />
+        <div className="absolute left-[95%] top-0 bottom-0 w-0.5 bg-yellow-300 opacity-75 z-10" />
+        
+        {/* ゲージ本体 */}
         <div 
           className={cn(
-            "h-full rounded-full transition-all duration-200 ease-out",
+            "h-full rounded-full transition-all duration-200 ease-out relative",
             // 判定受付ゾーン（90-100%）の色分け
             isJudgmentZone 
               ? "bg-gradient-to-r from-purple-500 to-pink-500 animate-pulse" 
@@ -627,6 +632,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                        gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
           }}
         />
+        
+        {/* 判定ウィンドウ領域の背景（90-100%） */}
+        <div className="absolute left-[90%] right-0 top-0 bottom-0 bg-white opacity-10" />
       </div>
     );
   }, [gameState.enemyGauge]);

@@ -642,56 +642,46 @@ export const useFantasyGameEngine = ({
     const elapsed = now - startAt - readyDuration;
     const msPerBeat = 60000 / bpm;
     const currentBeatTime = Math.floor(elapsed / msPerBeat) * msPerBeat; // 現在の拍の開始時刻
-    const nextBeatTime = currentBeatTime + msPerBeat; // 次の拍の開始時刻
-    const beatInMeasure = currentBeat; // currentBeatは既に1-4の範囲なのでそのまま使用
-
+    
     setGameState(prevState => {
       if (!prevState.isGameActive || !prevState.currentStage) return prevState;
 
-      // 判定ウィンドウの管理（1拍目の±200ms）
-      if (beatInMeasure === 1) {
+      // 1拍目の処理
+      if (currentBeat === 1) {
         const beatOffset = elapsed - currentBeatTime;
         const isInWindow = beatOffset >= -200 && beatOffset <= 200;
         
-        // 判定ウィンドウの状態が変わった場合
-        if (isInWindow !== prevState.isInJudgmentWindow) {
-          devLog.debug('判定ウィンドウ状態変更:', { 
-            isInWindow, 
+        // 判定ウィンドウに入った瞬間
+        if (isInWindow && !prevState.isInJudgmentWindow) {
+          devLog.debug('⏰ 判定ウィンドウ開始', { 
             beatOffset,
             gauge: prevState.activeMonsters[0]?.gauge,
             currentChord: prevState.activeMonsters[0]?.chordTarget?.displayName
           });
-        }
-
-        // 判定ウィンドウを抜けた瞬間の処理
-        if (!isInWindow && prevState.isInJudgmentWindow && prevState.activeMonsters.length > 0) {
-          // ゲーム開始直後（questionShowTimeがnull）の場合はタイムオーバー処理をスキップ
-          if (prevState.questionShowTime === null) {
-            devLog.debug('🎮 ゲーム開始直後のため、タイムオーバー処理をスキップ');
-            return {
-              ...prevState,
-              isInJudgmentWindow: false
-            };
-          }
           
-          // タイムオーバー処理（問題がNULLでない場合）
-          const hasActiveQuestion = prevState.activeMonsters.some(m => m.chordTarget !== null);
-          if (hasActiveQuestion) {
-            devLog.debug('⏰ タイムオーバー！判定ウィンドウ終了', {
-              elapsed,
-              beatOffset,
-              currentBeatTime,
-              hasActiveQuestion,
-              currentChord: prevState.activeMonsters[0]?.chordTarget?.displayName
-            });
-            
-            // モンスターのコードをNULLに設定
+          return {
+            ...prevState,
+            isInJudgmentWindow: true
+          };
+        }
+        
+        // 判定ウィンドウを抜けた瞬間（1拍目+200ms後）
+        if (!isInWindow && prevState.isInJudgmentWindow) {
+          devLog.debug('⏰ 判定ウィンドウ終了', {
+            beatOffset,
+            currentChord: prevState.activeMonsters[0]?.chordTarget?.displayName
+          });
+          
+          // タイムオーバー処理
+          if (prevState.activeMonsters.some(m => m.chordTarget !== null)) {
+            // 判定が終わったらコードをNULLに
             const updatedMonsters = prevState.activeMonsters.map(m => ({
               ...m,
-              chordTarget: null as any, // 一時的にNULLに
-              correctNotes: []
+              chordTarget: null as any,
+              correctNotes: [],
+              gauge: 0 // ゲージもリセット
             }));
-
+            
             return {
               ...prevState,
               activeMonsters: updatedMonsters,
@@ -699,66 +689,47 @@ export const useFantasyGameEngine = ({
               questionShowTime: null
             };
           }
-        }
-
-        return {
-          ...prevState,
-          isInJudgmentWindow: isInWindow
-        };
-      }
-
-      // 問題出題タイミング（2拍目または判定後3拍目）
-      const hasNullChord = prevState.activeMonsters.some(m => !m.chordTarget);
-      const hasActiveChord = prevState.activeMonsters.some(m => m.chordTarget !== null);
-      
-      // コードが既に設定されている場合は出題しない
-      if (hasActiveChord) {
-        return prevState;
-      }
-      
-      const shouldShowNewQuestion = 
-        (beatInMeasure === 2 && hasNullChord) || // 2拍目でコードがNULLの場合
-        (beatInMeasure === 4 && hasNullChord); // 4拍目でもチェック（3拍待機後）
-
-      devLog.debug('🎵 問題出題チェック:', {
-        beatInMeasure,
-        questionShowTime: prevState.questionShowTime,
-        hasNullChord,
-        shouldShowNewQuestion,
-        activeMonsters: prevState.activeMonsters.length,
-        currentChord: prevState.activeMonsters[0]?.chordTarget?.displayName
-      });
-
-      if (shouldShowNewQuestion && prevState.activeMonsters.length > 0) {
-        // 新しい問題を出題
-        const progression = prevState.currentStage.chordProgression || [];
-        if (progression.length === 0) return prevState;
-
-        const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-        const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
-
-        if (nextChord) {
-          const updatedMonsters = prevState.activeMonsters.map(m => ({
-            ...m,
-            chordTarget: nextChord,
-            correctNotes: []
-          }));
-
-          devLog.debug('📝 新しい問題を出題:', {
-            chord: nextChord.id,
-            index: nextIndex,
-            beat: beatInMeasure,
-            measure: currentMeasure
-          });
-
+          
           return {
             ...prevState,
-            activeMonsters: updatedMonsters,
-            currentChordTarget: nextChord, // 互換性のため
-            currentQuestionIndex: nextIndex,
-            questionShowTime: now,
-            nextQuestionBeat: 2 // 次も2拍目に出題
+            isInJudgmentWindow: false
           };
+        }
+      }
+      
+      // 2拍目：新しい問題を出題
+      if (currentBeat === 2) {
+        const hasNullChord = prevState.activeMonsters.some(m => !m.chordTarget);
+        
+        if (hasNullChord) {
+          const progression = prevState.currentStage.chordProgression || [];
+          if (progression.length === 0) return prevState;
+
+          const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+          const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+
+          if (nextChord) {
+            const updatedMonsters = prevState.activeMonsters.map(m => ({
+              ...m,
+              chordTarget: nextChord,
+              correctNotes: []
+            }));
+
+            devLog.debug('📝 新しい問題を出題（2拍目）:', {
+              chord: nextChord.displayName,
+              index: nextIndex,
+              beat: currentBeat,
+              measure: currentMeasure
+            });
+
+            return {
+              ...prevState,
+              activeMonsters: updatedMonsters,
+              currentChordTarget: nextChord,
+              currentQuestionIndex: nextIndex,
+              questionShowTime: now
+            };
+          }
         }
       }
 
