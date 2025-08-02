@@ -16,13 +16,13 @@ export const loadSettingsFromStorage = (): Partial<GameSettings> | null => {
     
     // 基本的な検証
     if (typeof parsed !== 'object' || parsed === null) {
-      console.warn('Invalid settings data in localStorage');
+      // console.warn('Invalid settings data in localStorage');
       return null;
     }
     
     return parsed;
   } catch (error) {
-    console.error('Failed to load settings from localStorage:', error);
+    // console.error('Failed to load settings from localStorage:', error);
     return null;
   }
 };
@@ -38,7 +38,7 @@ export const saveSettingsToStorage = (settings: GameSettings): void => {
     
     localStorage.setItem(STORAGE_KEYS.GAME_SETTINGS, JSON.stringify(settingsToSave));
   } catch (error) {
-    console.error('Failed to save settings to localStorage:', error);
+    // console.error('Failed to save settings to localStorage:', error);
   }
 };
 
@@ -49,7 +49,7 @@ export const clearSettingsFromStorage = (): void => {
   try {
     localStorage.removeItem(STORAGE_KEYS.GAME_SETTINGS);
   } catch (error) {
-    console.error('Failed to clear settings from localStorage:', error);
+    // console.error('Failed to clear settings from localStorage:', error);
   }
 };
 
@@ -60,7 +60,7 @@ export const hasStoredSettings = (): boolean => {
   try {
     return localStorage.getItem(STORAGE_KEYS.GAME_SETTINGS) !== null;
   } catch (error) {
-    console.error('Failed to check stored settings:', error);
+    // console.error('Failed to check stored settings:', error);
     return false;
   }
 }; 

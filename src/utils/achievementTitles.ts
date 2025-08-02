@@ -32,7 +32,7 @@ export const getUserAchievementTitles = async (userId?: string) => {
       lessonCompletedCount: stats.lessonCompletedCount
     };
   } catch (error) {
-    console.error('Failed to fetch user achievement titles:', error);
+    // console.error('Failed to fetch user achievement titles:', error);
     return {
       missionTitles: [] as MissionTitle[],
       lessonTitles: [] as LessonTitle[],

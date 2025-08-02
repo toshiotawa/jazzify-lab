@@ -2,7 +2,7 @@
 /* eslint-disable */
 export function alloc(size: number): number;
 export function free(ptr: number, size: number): void;
-export function get_memory(): any;
+export function get_memory(): unknown;
 export function init_pitch_detector(sample_rate: number): void;
 export function get_ring_buffer_ptr(): number;
 export function get_ring_buffer_size(): number;

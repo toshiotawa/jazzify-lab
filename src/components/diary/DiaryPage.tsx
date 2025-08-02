@@ -90,7 +90,7 @@ const DiaryPage: React.FC = () => {
       setDiaries(result.diaries);
       setProfile(result.profile);
       setUserStats(stats);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || 'データの読み込みに失敗しました');
     } finally {
       setLoading(false);
@@ -162,7 +162,7 @@ const DiaryPage: React.FC = () => {
   // 称号の種類を判定する関数
   const getTitleType = (title: string): 'level' | 'mission' | 'lesson' => {
     // レベル称号の判定
-    if (TITLES.includes(title as any)) {
+    if (TITLES.includes(title as unknown)) {
       return 'level';
     }
     // ミッション称号の判定

@@ -148,7 +148,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       }
       
       //// データの変換とセット
-      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: unknown) => ({
         id: stage.id,
         stageNumber: stage.stage_number,
         name: stage.name,
@@ -181,7 +181,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         totalClearedStages: userProgressData.total_cleared_stages
       };
       
-      const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: any) => ({
+      const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: unknown) => ({
         id: clear.id,
         userId: clear.user_id,
         stageId: clear.stage_id,
@@ -206,7 +206,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '不明なエラーが発生しました';
       setError(errorMessage);
-      console.error('❌ ファンタジーデータ読み込みエラー:', err);
+      // console.error('❌ ファンタジーデータ読み込みエラー:', err);
     } finally {
       setLoading(false);
     }

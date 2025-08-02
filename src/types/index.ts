@@ -357,7 +357,7 @@ export interface Effect {
   y: number;
   startTime: number;
   duration: number;
-  data?: any;
+  data?: unknown;
 }
 
 // ===== 設定パネル =====
@@ -373,12 +373,12 @@ export interface SettingsItem {
   id: string;
   type: 'slider' | 'select' | 'toggle' | 'button';
   label: string;
-  value: any;
-  options?: Array<{ label: string; value: any }>;
+  value: unknown;
+  options?: Array<{ label: string; value: unknown }>;
   min?: number;
   max?: number;
   step?: number;
-  onChange: (value: any) => void;
+  onChange: (value: unknown) => void;
 }
 
 // ===== エラーハンドリング =====
@@ -386,7 +386,7 @@ export interface SettingsItem {
 export interface GameError {
   code: string;
   message: string;
-  details?: any;
+  details?: unknown;
   timestamp: number;
   recoverable: boolean;
 }
@@ -477,10 +477,10 @@ export interface LegacyGameInstance {
 
 // 既存のインターフェースとの互換性
 export interface CompatibilityLayer {
-  audioController: any;
-  midiController: any;
-  piano: any;
-  guitar: any;
+  audioController: unknown;
+  midiController: unknown;
+  piano: unknown;
+  guitar: unknown;
 }
 
 export type JudgmentEvent = JudgmentResult;
@@ -498,15 +498,15 @@ export interface MidiInput {
   manufacturer?: string;
   state: string;
   connection: string;
-  addEventListener: (type: string, listener: (event: any) => void) => void;
-  removeEventListener: (type: string, listener: (event: any) => void) => void;
+  addEventListener: (type: string, listener: (event: unknown) => void) => void;
+  removeEventListener: (type: string, listener: (event: unknown) => void) => void;
   onmidimessage: ((event: { data: Uint8Array }) => void) | null;
 }
 
 export interface MidiAccess {
   inputs: Map<string, MidiInput>;
   outputs: Map<string, any>;
-  onstatechange: ((event: any) => void) | null;
+  onstatechange: ((event: unknown) => void) | null;
   sysexEnabled: boolean;
 }
 
@@ -514,7 +514,7 @@ export interface ToneSampler {
   toDestination(): ToneSampler;
   triggerAttack(note: string | number, time?: number, velocity?: number): void;
   triggerRelease(note: string | number, time?: number): void;
-  connect(destination: any): void;
+  connect(destination: unknown): void;
   dispose(): void;
 }
 
@@ -523,9 +523,9 @@ export interface ToneFrequency {
 }
 
 export interface ToneStatic {
-  Sampler: new (options: any) => ToneSampler;
+  Sampler: new (options: unknown) => ToneSampler;
   Frequency: new (note: string | number) => ToneFrequency;
-  context: any;
+  context: unknown;
 }
 
 export interface MidiControllerOptions {

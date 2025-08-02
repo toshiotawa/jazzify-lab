@@ -116,7 +116,7 @@ export async function fetchMissionRanking(missionId: string, limit = 100): Promi
     .order('clear_count', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return (data ?? []).map((d: any) => ({
+  return (data ?? []).map((d: unknown) => ({
     user_id: d.user_id,
     clear_count: d.clear_count,
     nickname: d.profiles.nickname,

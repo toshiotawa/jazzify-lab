@@ -69,7 +69,7 @@ const ResultModal: React.FC = () => {
           // ローカルで詳細計算
           const detailed = calculateXPDetailed({
             membershipRank: profile.rank,
-            scoreRank: score.rank as any,
+            scoreRank: score.rank as unknown,
             playbackSpeed: settings.playbackSpeed,
             transposed: settings.transpose !== 0,
             lessonBonusMultiplier: 1, // レッスンボーナスを削除（2→1）
@@ -223,7 +223,7 @@ const ResultModal: React.FC = () => {
                 score.rank,
                 lessonContext.clearConditions
               );
-              const newCount = typeof result === 'object' && result !== null ? (result as any).clear_count || 0 : 0;
+              const newCount = typeof result === 'object' && result !== null ? (result as unknown).clear_count || 0 : 0;
               setClearStats({ 
                 current: newCount, 
                 goal: lessonContext.clearConditions.count || 1 

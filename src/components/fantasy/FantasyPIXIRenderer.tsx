@@ -820,7 +820,7 @@ export class FantasyPIXIInstance {
     const { sprite, visualState, gameState } = monsterData;
     
     // transform nullチェックを追加
-    if (sprite.destroyed || !(sprite as any).transform) {
+    if (sprite.destroyed || !(sprite as unknown).transform) {
       return;
     }
     
@@ -844,7 +844,7 @@ export class FantasyPIXIInstance {
       !this.monsterSprite ||
       this.monsterSprite.destroyed ||
       // transform が null になると PIXI 内部で x 代入時にエラーになるため
-      !(this.monsterSprite as any).transform ||
+      !(this.monsterSprite as unknown).transform ||
       !this.monsterSprite.texture ||
       this.monsterSprite.texture.destroyed
     ) {
@@ -880,7 +880,7 @@ export class FantasyPIXIInstance {
         FantasySoundManager.playMyAttack();
         devLog.debug('🔊 攻撃効果音再生(triggerAttackSuccessOnMonster)');
       } catch (error) {
-        console.error('攻撃効果音再生エラー:', error);
+        // console.error('攻撃効果音再生エラー:', error);
       }
 
       // 常に黄色（サンダーの色）を使用
@@ -949,7 +949,7 @@ export class FantasyPIXIInstance {
         FantasySoundManager.playMyAttack();
         devLog.debug('🔊 攻撃効果音再生(triggerAttackSuccess)');
       } catch (error) {
-        console.error('攻撃効果音再生エラー:', error);
+        // console.error('攻撃効果音再生エラー:', error);
       }
 
       // 常に黄色（サンダーの色）を使用
@@ -1150,7 +1150,7 @@ export class FantasyPIXIInstance {
               life -= 16;
               const progress = 1 - (life / 800);
               
-              if (!magicSprite.destroyed && (magicSprite as any).transform) {
+              if (!magicSprite.destroyed && (magicSprite as unknown).transform) {
                 // 放物線を描いて敵に向かう
                 const easeProgress = 1 - Math.pow(1 - progress, 3); // easeOutCubic
                 magicSprite.x = startX + (targetX - startX) * easeProgress;
@@ -1566,9 +1566,9 @@ export class FantasyPIXIInstance {
     if (!tex) return;
 
     // 既に付いているアイコンがあれば一旦消す
-    if ((monsterData as any).attackIcon && !(monsterData as any).attackIcon.destroyed) {
-      monsterData.sprite.removeChild((monsterData as any).attackIcon);
-      (monsterData as any).attackIcon.destroy();
+    if ((monsterData as unknown).attackIcon && !(monsterData as unknown).attackIcon.destroyed) {
+      monsterData.sprite.removeChild((monsterData as unknown).attackIcon);
+      (monsterData as unknown).attackIcon.destroy();
     }
 
     const texture = tex as PIXI.Texture;
@@ -1585,7 +1585,7 @@ export class FantasyPIXIInstance {
       icon.destroy();
     }, 1000);
 
-    (monsterData as any).attackIcon = icon; // 再利用できるよう保持
+    (monsterData as unknown).attackIcon = icon; // 再利用できるよう保持
   }
 
 
@@ -2011,16 +2011,16 @@ export class FantasyPIXIInstance {
       /* ✨ 追加 ✨ : モンスターが去ったらエフェクトを全部掃除 */
       this.effectContainer.children.forEach(child => {
         if (child.parent) child.parent.removeChild(child);
-        if (!child.destroyed && typeof (child as any).destroy === 'function') {
-          (child as any).destroy();
+        if (!child.destroyed && typeof (child as unknown).destroy === 'function') {
+          (child as unknown).destroy();
         }
       });
 
       // 親コンポーネント通知の直前で片付け
       this.monsterSprite.visible = false;
       // 二度アクセスしない様に null‑out
-      (this.monsterSprite as any) = null;
-      (this.monsterGameState as any) = null;
+      (this.monsterSprite as unknown) = null;
+      (this.monsterGameState as unknown) = null;
       
       // 親コンポーネントに通知
       // isDestroyedフラグをチェックして、インスタンス破棄後のコールバック呼び出しを防ぐ
@@ -2032,7 +2032,7 @@ export class FantasyPIXIInstance {
   
   /** これ１行で「壊れていたら return true」 */
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
-    !s || (s as any).destroyed || !(s as any).transform;
+    !s || (s as unknown).destroyed || !(s as unknown).transform;
 
 
 }

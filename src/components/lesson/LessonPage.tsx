@@ -47,7 +47,7 @@ const LessonPage: React.FC = () => {
       
       // レッスン詳細から戻ってきた場合は強制再読み込み
       if (isLessonsPage && !wasOpen && profile && selectedCourse) {
-        console.log('レッスン詳細から戻ってきたため、データを強制再読み込み');
+        // console.log('レッスン詳細から戻ってきたため、データを強制再読み込み');
         // ナビゲーションキャッシュをクリア
         clearNavigationCacheForCourse(selectedCourse.id);
         loadLessons(selectedCourse.id);
@@ -85,8 +85,8 @@ const LessonPage: React.FC = () => {
       'lesson-changes',
       'lessons',
       '*',
-      (payload: any) => {
-        console.log('Lesson data changed, reloading...', payload);
+      (payload: unknown) => {
+        // console.log('Lesson data changed, reloading...', payload);
         // データが変更されたら現在のコースのレッスンを再読み込み
         if (selectedCourse) {
           loadLessons(selectedCourse.id);
@@ -100,8 +100,8 @@ const LessonPage: React.FC = () => {
       'lesson-songs-changes',
       'lesson_songs',
       '*',
-      (payload: any) => {
-        console.log('Lesson songs data changed, reloading...', payload);
+      (payload: unknown) => {
+        // console.log('Lesson songs data changed, reloading...', payload);
         if (selectedCourse) {
           loadLessons(selectedCourse.id);
         }
@@ -148,7 +148,7 @@ const LessonPage: React.FC = () => {
               
               return [course.id, completionRate];
             } catch (error) {
-              console.error(`Failed to load progress for course ${course.id}:`, error);
+              // console.error(`Failed to load progress for course ${course.id}:`, error);
               return [course.id, 0];
             }
           });
@@ -157,22 +157,17 @@ const LessonPage: React.FC = () => {
           const progressMap = Object.fromEntries(courseProgressResults) as Record<string, number>;
           setAllCoursesProgress(progressMap);
         } catch (error) {
-          console.error('Error loading course progress data:', error);
-        }
-      }
-      
-      // アクセス可能な最初のコースを選択
-      const firstAccessibleCourse = sortedCourses.find(course => {
-        const courseUnlockFlag = unlockStatus[course.id] !== undefined ? unlockStatus[course.id] : null;
+          // console.error(        const courseUnlockFlag = unlockStatus[course.id] !== undefined ? unlockStatus[course.id] : null;
         const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourses, courseUnlockFlag);
         return accessResult.canAccess;
-      });
+       {
+// });
       if (firstAccessibleCourse) {
         setSelectedCourse(firstAccessibleCourse);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error('コースの読み込みに失敗しました');
-      console.error('Error loading courses:', e);
+      // console.error('Error loading courses:', e);
     } finally {
       setLoading(false);
     }
@@ -186,7 +181,7 @@ const LessonPage: React.FC = () => {
 
   const loadLessons = async (courseId: string) => {
     try {
-      console.log(`Loading lessons for course: ${courseId}`);
+      // console.log(`Loading lessons for course: ${courseId}`);
       
       // レッスンデータ、進捗データ、要件進捗を並行取得
       const [lessonsData, progressData, requirementsMap] = await Promise.all([
@@ -198,14 +193,14 @@ const LessonPage: React.FC = () => {
         })
       ]);
       
-      console.log(`Loaded ${lessonsData.length} lessons`);
+      // console.log(`Loaded ${lessonsData.length} lessons`);
       
       setLessonRequirementsProgress(requirementsMap);
       setLessons(lessonsData);
       
       // レッスンデータが空で、以前にレッスンがあった場合は強制再読み込み
       if (lessonsData.length === 0 && lessons.length > 0) {
-        console.log('Empty lessons detected, forcing cache bypass and reload...');
+        // console.log('Empty lessons detected, forcing cache bypass and reload...');
         // キャッシュをクリアしてもう一度読み込み
         const { clearSupabaseCache } = await import('@/platform/supabaseClient');
         clearSupabaseCache();
@@ -214,7 +209,7 @@ const LessonPage: React.FC = () => {
         setTimeout(async () => {
           try {
             const retryLessonsData = await fetchLessonsByCourse(courseId);
-            console.log(`Retry loaded ${retryLessonsData.length} lessons`);
+            // console.log(`Retry loaded ${retryLessonsData.length} lessons`);
             
             // Requirements progress も再取得
             const retryLessonIds = retryLessonsData.map(lesson => lesson.id);
@@ -231,7 +226,7 @@ const LessonPage: React.FC = () => {
             });
             setProgress(retryProgressMap);
           } catch (retryError) {
-            console.error('Retry loading failed:', retryError);
+            // console.error('Retry loading failed:', retryError);
           }
         }, 100);
         return;
@@ -255,7 +250,7 @@ const LessonPage: React.FC = () => {
             // ブロック1のレッスンは自動的に解放
             await unlockLesson(lesson.id, courseId);
           } catch (e) {
-            console.error('Failed to auto-unlock block 1 lesson:', e);
+            // console.error('Failed to auto-unlock block 1 lesson:', e);
           }
         }
       }
@@ -278,9 +273,9 @@ const LessonPage: React.FC = () => {
           [courseId]: completionRate
         }));
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast.error('レッスンデータの読み込みに失敗しました');
-      console.error('Error loading lessons:', e);
+      // console.error('Error loading lessons:', e);
     }
   };
 

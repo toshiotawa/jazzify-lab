@@ -112,7 +112,7 @@ export async function updateLessonProgress(
     try {
       await unlockDependentCourses(userId);
     } catch (error) {
-      console.error('Error unlocking dependent courses:', error);
+      // console.error('Error unlocking dependent courses:', error);
       // コース解放エラーはレッスン完了を妨げない
     }
     
@@ -340,7 +340,7 @@ export async function fetchUserLessonStats(): Promise<{
     .reverse();
 
   let currentStreak = 0;
-  let today = new Date();
+  const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   for (const dateStr of completedDates) {

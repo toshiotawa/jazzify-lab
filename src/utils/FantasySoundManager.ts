@@ -70,7 +70,7 @@ export class FantasySoundManager {
 
   // ─────────────────────────────────────────────
   // ベース音関連フィールド - globalSamplerを上書きしない独自のsampler
-  private bassSampler: any | null = null;
+  private bassSampler: unknown | null = null;
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
@@ -134,7 +134,7 @@ export class FantasySoundManager {
         res();
       });
       a.addEventListener('error', (e) => {
-        console.warn(`[FantasySoundManager] failed to load ${file}`, e);
+        // console.warn(`[FantasySoundManager] failed to load ${file}`, e);
         // エラーでも resolve – 再生時にフォールバック
         res();
       });
@@ -192,21 +192,13 @@ export class FantasySoundManager {
           }
           resolve();
         } catch (error) {
-          console.warn('[FantasySoundManager] Audio system initialization failed:', error);
-          resolve(); // エラーでも続行
-        }
-      };
-      initializeAudioSystem();
-    });
-  }
-
-  private _setVolume(v: number) {
-    // clamp 0‑1
+          // console.warn(    // clamp 0‑1
     this._volume = Math.max(0, Math.min(1, v));
     // すでにロード済みの base にも反映
     Object.values(this.audioMap).forEach(obj => {
       obj.base.volume = this._volume;
-    });
+     {
+// });
   }
 
   private _playMagic(type: MagicSeType) {
@@ -221,20 +213,20 @@ export class FantasySoundManager {
     
     const entry = this.audioMap[key];
     if (!entry) {
-      console.warn(`[FantasySoundManager] Audio entry not found for key: ${key}`);
+      // console.warn(`[FantasySoundManager] Audio entry not found for key: ${key}`);
       return;
     }
 
     const base = entry.base;
     if (!entry.ready) {
       // 未ロード or 失敗時は何もしない（ユーザー体験阻害しない）
-      console.warn(`[FantasySoundManager] Audio not ready for key: ${key}`);
-      console.warn(`[FantasySoundManager] Audio state:`, {
-        src: base.src,
+      // console.warn(`[FantasySoundManager] Audio not ready for key: ${key}`);
+      // console.warn(        src: base.src,
         readyState: base.readyState,
         networkState: base.networkState,
         error: base.error
-      });
+       {
+// });
       return;
     }
 
@@ -256,13 +248,13 @@ export class FantasySoundManager {
           console.debug(`[FantasySoundManager] Successfully played ${key}`);
         })
         .catch((error) => {
-          console.warn(`[FantasySoundManager] Failed to play ${key}:`, error);
-          console.warn(`[FantasySoundManager] Audio state:`, {
-            src: node.src,
+          // console.warn(`[FantasySoundManager] Failed to play ${key}:`, error);
+          // console.warn(            src: node.src,
             readyState: node.readyState,
             networkState: node.networkState,
             error: node.error
-          });
+           {
+// });
         });
     }
   }
@@ -297,7 +289,7 @@ export class FantasySoundManager {
   private _setRootVolume(v: number) {
     this.bassVolume = v;
     if (this.bassSampler) {
-      (this.bassSampler.volume as any).value =
+      (this.bassSampler.volume as unknown).value =
         v === 0 ? -Infinity : Math.log10(v) * 20;
     }
   }

@@ -41,8 +41,7 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
     : 0;
   
   // デバッグログを追加
-  console.log('ChallengeCard render:', { 
-    missionId: mission.id, 
+  // console.log(    missionId: mission.id, 
     currentSongProgressLength: currentSongProgress.length,
     allSongsCompleted,
     progress: progress,
@@ -52,7 +51,8 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
     isRewardClaimed: isRewardClaimed,
     cleared: cleared,
     total: total,
-    songProgress: currentSongProgress.map(s => ({ id: s.song_id, title: s.song?.title, completed: s.is_completed }))
+    songProgress: currentSongProgress.map(s => ({ id: s.song_id, title: s.song?.title, completed: s.is_completed  {
+// }))
   });
   
   // ミッションタイプアイコンの決定
@@ -82,7 +82,7 @@ const ChallengeCard: React.FC<Props> = ({ mission, progress }) => {
   const remainingDays = getRemainingDays();
 
   // クリア条件の表示用ヘルパー関数
-  const getClearConditionText = (song: any) => {
+  const getClearConditionText = (song: unknown) => {
     const conditions = [];
     
     if (song.min_rank) {

@@ -408,7 +408,7 @@ const validateSettings = (settings: Partial<GameSettings>): { valid: boolean; er
 
 // ===== 新機能: 状態遷移バリデーション =====
 
-const validateStateTransition = (currentState: GameState, action: string, params?: any): { valid: boolean; error?: string } => {
+const validateStateTransition = (currentState: GameState, action: string, params?: unknown): { valid: boolean; error?: string } => {
   switch (action) {
     case 'play':
       if (!currentState.currentSong || currentState.notes.length === 0) {
@@ -453,7 +453,7 @@ const validateStateTransition = (currentState: GameState, action: string, params
 
 interface GameStoreState extends GameState {
   // Phase 2: ゲームエンジン統合
-  gameEngine: any | null; // GameEngine型は動的インポートで使用
+  gameEngine: unknown | null; // GameEngine型は動的インポートで使用
   engineActiveNotes: ActiveNote[];
   
   // 練習モードガイド: キーハイライト情報
@@ -657,7 +657,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const engine = new GameEngine({ ...state.settings });
           
           // エンジンの更新コールバック設定
-          engine.setUpdateCallback((data: any) => {
+          engine.setUpdateCallback((data: unknown) => {
             set((state) => {
               // currentTime は AudioContext 同期ループで更新する
               state.engineActiveNotes = data.activeNotes;
@@ -668,7 +668,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               const { abRepeat } = state;
               if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
                 if (state.currentTime >= abRepeat.endTime) {
-                  console.log(`🔄 ABリピート(Store): ${state.currentTime.toFixed(2)}s → ${abRepeat.startTime.toFixed(2)}s`);
+                  // console.log(`🔄 ABリピート(Store): ${state.currentTime.toFixed(2)}s → ${abRepeat.startTime.toFixed(2)}s`);
                   // 🔧 修正: get()の代わりにuseGameStore.getState()を使用
                   const seekTime = abRepeat.startTime;
                   setTimeout(() => {
@@ -769,7 +769,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 
                 // HTMLが返されている場合の検出（XML読み込み時）
                 if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
-                  console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
+                  // console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
                   throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
                 }
                 
@@ -779,7 +779,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 // XML解析エラーのチェック
                 const parseError = xmlDoc.querySelector('parsererror');
                 if (parseError) {
-                  console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
+                  // console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
                   throw new Error('MusicXMLファイルの解析に失敗しました');
                 }
                 
@@ -792,10 +792,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
                 finalChords = extractChordProgressions(xmlDoc, notes);
                 
-                console.log(`🎵 MusicXML音名マージ完了: ${noteNames.length}音名 → ${finalNotes.length}ノーツ`);
-                console.log(`🎵 コードネーム抽出完了: ${finalChords.length}コード`);
+                // console.log(`🎵 MusicXML音名マージ完了: ${noteNames.length}音名 → ${finalNotes.length}ノーツ`);
+                // console.log(`🎵 コードネーム抽出完了: ${finalChords.length}コード`);
               } catch (error) {
-                console.warn('⚠️ MusicXML音名抽出に失敗:', error);
+                // console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                 finalXml = null; // エラー時はnullに
               }
             }
@@ -859,7 +859,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // GameEngineに楽曲ロード
             if (state.gameEngine) {
               state.gameEngine.loadSong(finalNotes);
-              console.log(`🎵 GameEngine に楽曲ロード: ${finalNotes.length}ノーツ`);
+              // console.log(`🎵 GameEngine に楽曲ロード: ${finalNotes.length}ノーツ`);
             }
           });
         },
@@ -918,15 +918,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           // GameEngineにもシーク処理を伝達
           if (state.gameEngine) {
             state.gameEngine.seek(newTime);
-            console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
+            // console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
           }
           
           // 🔧 追加: 再生中の音声を即座にシーク
           // グローバルにアクセス可能な音声要素とbaseOffsetRefを更新
-          if (state.isPlaying && (window as any).__gameAudioRef) {
-            const audioRef = (window as any).__gameAudioRef;
-            const audioContextRef = (window as any).__gameAudioContextRef;
-            const baseOffsetRef = (window as any).__gameBaseOffsetRef;
+          if (state.isPlaying && (window as unknown).__gameAudioRef) {
+            const audioRef = (window as unknown).__gameAudioRef;
+            const audioContextRef = (window as unknown).__gameAudioContextRef;
+            const baseOffsetRef = (window as unknown).__gameBaseOffsetRef;
             const settings = state.settings;
             
             if (audioRef.current && audioContextRef.current && baseOffsetRef) {
@@ -937,7 +937,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               const realTimeElapsed = newTime / settings.playbackSpeed;
               baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
               
-              console.log(`🎵 Audio seek to ${newTime.toFixed(2)}s (再生中)`);
+              // console.log(`🎵 Audio seek to ${newTime.toFixed(2)}s (再生中)`);
             }
           }
         },
@@ -992,6 +992,17 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           if (state.abRepeat.startTime !== null && state.abRepeat.endTime !== null) {
             state.abRepeat.enabled = !state.abRepeat.enabled;
           }
+        }),
+        
+        transpose: (semitones: number) => {
+          const { settings, setTranspose } = get();
+          const nextValue = settings.transpose + semitones;
+          setTranspose(nextValue);
+        },
+        
+        setTranspose: (semitones: number) => set((state) => {
+          const clamped = Math.max(-12, Math.min(12, semitones));
+          state.settings.transpose = clamped;
         }),
         
         // ノーツ管理
@@ -1074,7 +1085,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             
             // 課題条件に関連する設定変更を無効化
             if ('transpose' in filteredSettings && clearConditions.key !== undefined) {
-              console.warn('⚠️ 本番モード時はキー設定（transpose）を変更できません');
+              // console.warn('⚠️ 本番モード時はキー設定（transpose）を変更できません');
               delete filteredSettings.transpose;
             }
             
@@ -1082,10 +1093,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               const newSpeed = filteredSettings.playbackSpeed!;
               const minSpeed = clearConditions.speed;
               if (newSpeed < minSpeed) {
-                console.warn(`⚠️ 本番モード時は速度設定を${minSpeed}倍速未満に変更できません`);
+                // console.warn(`⚠️ 本番モード時は速度設定を${minSpeed}倍速未満に変更できません`);
                 delete filteredSettings.playbackSpeed;
               } else {
-                console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
+                // console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
               }
             }
           }
@@ -1096,7 +1107,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             
             // 課題条件に関連する設定変更を無効化
             if ('transpose' in filteredSettings && clearConditions.key !== undefined) {
-              console.warn('⚠️ 本番モード時はキー設定（transpose）を変更できません');
+              // console.warn('⚠️ 本番モード時はキー設定（transpose）を変更できません');
               delete filteredSettings.transpose;
             }
             
@@ -1104,21 +1115,21 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               const newSpeed = filteredSettings.playbackSpeed!;
               const minSpeed = clearConditions.speed;
               if (newSpeed < minSpeed) {
-                console.warn(`⚠️ 本番モード時は速度設定を${minSpeed}倍速未満に変更できません`);
+                // console.warn(`⚠️ 本番モード時は速度設定を${minSpeed}倍速未満に変更できません`);
                 delete filteredSettings.playbackSpeed;
               } else {
-                console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
+                // console.log(`✅ 本番モード速度変更: ${newSpeed}倍速（最低${minSpeed}倍速以上のため許可）`);
               }
             }
             
             // レッスンコンテキストでの楽譜表示制限
             if (clearConditions.notation_setting) {
               if ('showSheetMusic' in filteredSettings) {
-                console.warn('⚠️ 本番モード時は楽譜表示設定（showSheetMusic）を変更できません');
+                // console.warn('⚠️ 本番モード時は楽譜表示設定（showSheetMusic）を変更できません');
                 delete filteredSettings.showSheetMusic;
               }
               if ('sheetMusicChordsOnly' in filteredSettings) {
-                console.warn('⚠️ 本番モード時は楽譜表示設定（sheetMusicChordsOnly）を変更できません');
+                // console.warn('⚠️ 本番モード時は楽譜表示設定（sheetMusicChordsOnly）を変更できません');
                 delete filteredSettings.sheetMusicChordsOnly;
               }
             }
@@ -1130,11 +1141,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             
             if (clearConditions.notation_setting) {
               if ('showSheetMusic' in filteredSettings) {
-                console.warn('⚠️ 本番モード時は楽譜表示設定（showSheetMusic）を変更できません');
+                // console.warn('⚠️ 本番モード時は楽譜表示設定（showSheetMusic）を変更できません');
                 delete filteredSettings.showSheetMusic;
               }
               if ('sheetMusicChordsOnly' in filteredSettings) {
-                console.warn('⚠️ 本番モード時は楽譜表示設定（sheetMusicChordsOnly）を変更できません');
+                // console.warn('⚠️ 本番モード時は楽譜表示設定（sheetMusicChordsOnly）を変更できません');
                 delete filteredSettings.sheetMusicChordsOnly;
               }
             }
@@ -1143,7 +1154,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           // 制限された設定がある場合はログ出力
           const restrictedKeys = Object.keys(newSettings).filter(key => !(key in filteredSettings));
           if (restrictedKeys.length > 0) {
-            console.log(`🎯 本番モード課題条件制限: ${restrictedKeys.join(', ')} の変更がブロックされました`);
+            // console.log(`🎯 本番モード課題条件制限: ${restrictedKeys.join(', ')} の変更がブロックされました`);
           }
           
           // まず Immer の set でストアの設定値を更新（フィルタ後の設定を使用）
@@ -1175,7 +1186,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 set((state) => {
                   state.engineActiveNotes = engineState.activeNotes;
                 });
-                console.log(`🔄 停止中の移調設定変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
+                // console.log(`🔄 停止中の移調設定変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
               }, 0);
             }
           }
@@ -1206,7 +1217,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   
                   // HTMLが返されている場合の検出（XML読み込み時）
                   if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
-                    console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
+                    // console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
                     throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
                   }
                   
@@ -1216,7 +1227,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   // XML解析エラーのチェック
                   const parseError = xmlDoc.querySelector('parsererror');
                   if (parseError) {
-                    console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
+                    // console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
                     throw new Error('MusicXMLファイルの解析に失敗しました');
                   }
                   
@@ -1229,7 +1240,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
                   finalChords = extractChordProgressions(xmlDoc, notes);
                 } catch (error) {
-                  console.warn('⚠️ MusicXML音名抽出に失敗:', error);
+                  // console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                   finalXml = null;
                 }
               }
@@ -1246,11 +1257,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               // GameEngineにも更新を通知
               if (state.gameEngine) {
                 state.gameEngine.loadSong(finalNotes);
-                console.log(`🎵 GameEngineに移調楽器用のノートを再ロード: ${finalNotes.length}ノーツ`);
+                // console.log(`🎵 GameEngineに移調楽器用のノートを再ロード: ${finalNotes.length}ノーツ`);
               }
             });
             
-            console.log(`🎵 移調楽器設定変更により楽譜を再処理: ${settings.transposingInstrument} (+${transposingInstrumentSemitones}半音)`);
+            // console.log(`🎵 移調楽器設定変更により楽譜を再処理: ${settings.transposingInstrument} (+${transposingInstrumentSemitones}半音)`);
           }
         },
         
@@ -1284,7 +1295,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // 🆕 レッスンモード時：本番モードで課題条件を強制適用
             if (state.lessonContext) {
               const { clearConditions } = state.lessonContext;
-              console.log('🎯 本番モード切り替え: レッスン課題条件を適用', clearConditions);
+              // console.log('🎯 本番モード切り替え: レッスン課題条件を適用', clearConditions);
               
               // キー（移調）設定
               if (clearConditions.key !== undefined) {
@@ -1314,592 +1325,577 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 }
               }
               
-              console.log('✅ 本番モード課題条件適用完了:', {
-                transpose: state.settings.transpose,
-                playbackSpeed: state.settings.playbackSpeed,
-                showSheetMusic: state.settings.showSheetMusic,
-                sheetMusicChordsOnly: state.settings.sheetMusicChordsOnly
-              });
-            }
-            
-            // 🆕 ミッションモード時：本番モードで課題条件を強制適用
-            if (state.missionContext?.clearConditions) {
-              const { clearConditions } = state.missionContext;
-              console.log('🎯 本番モード切り替え: ミッション課題条件を適用', clearConditions);
-              
-              // キー（移調）設定
-              if (clearConditions.key !== undefined) {
-                state.settings.transpose = clearConditions.key;
-              }
-              
-              // 速度設定
-              if (clearConditions.speed !== undefined) {
-                state.settings.playbackSpeed = clearConditions.speed;
-              }
-              
-              // 楽譜表示設定
-              if (clearConditions.notation_setting) {
-                switch (clearConditions.notation_setting) {
-                  case 'notes_chords':
-                    state.settings.showSheetMusic = true;
-                    state.settings.sheetMusicChordsOnly = false;
-                    break;
-                  case 'chords_only':
-                    state.settings.showSheetMusic = true;
-                    state.settings.sheetMusicChordsOnly = true;
-                    break;
-                  case 'both':
-                    state.settings.showSheetMusic = true;
-                    state.settings.sheetMusicChordsOnly = false;
-                    break;
-                }
-              }
-              
-              console.log('✅ 本番モード課題条件適用完了:', {
-                transpose: state.settings.transpose,
-                playbackSpeed: state.settings.playbackSpeed,
-                showSheetMusic: state.settings.showSheetMusic,
-                sheetMusicChordsOnly: state.settings.sheetMusicChordsOnly
-              });
-            }
-          }
-          
-          // モード切り替え時に再生停止するが、時刻はリセットしない
-          state.isPlaying = false;
-          state.isPaused = false;
-          // 時刻とアクティブノーツを完全リセット
-          state.currentTime = 0;
-          state.activeNotes.clear();
-          
-          // GameEngine 側にもシークを伝達
-          if (state.gameEngine) {
-            state.gameEngine.seek(0);
-          }
-          
-          // スコアリセット
-          const totalNotes = state.score.totalNotes;
-          state.score = { ...defaultScore, totalNotes };
-          state.judgmentHistory = [];
-          
-          console.log(`🔄 モード切り替え: ${previousMode} → ${mode} - 再生停止・リセット完了`);
-        }),
-        
-        setInstrumentMode: (mode) => set((state) => {
-          state.settings.instrumentMode = mode;
-        }),
-        
-        // UI制御
-        setCurrentTab: (tab) => set((state) => {
-          const previousTab = state.currentTab;
-          state.currentTab = tab;
-          
-          // タブ変更時にゲームモードも同期
-          if (tab === 'practice') {
-            state.mode = 'practice';
-            // 練習モードに戻った時は保存した設定を復元
-            state.settings.practiceGuide = state.practiceModeSettings.practiceGuide ?? 'key';
-          } else if (tab === 'performance') {
-            state.mode = 'performance';
-            // 本番モードに切り替える前に練習モード設定を保存
-            if (previousTab === 'practice') {
-              state.practiceModeSettings.practiceGuide = state.settings.practiceGuide ?? 'key';
-            }
-            // 本番モードでは練習モードガイドを無効化
-            state.settings.practiceGuide = 'off';
-          }
-          
-          // 練習・本番モード間の切り替え時は再生停止するが、時刻はリセットしない
-          if ((previousTab === 'practice' && tab === 'performance') || 
-              (previousTab === 'performance' && tab === 'practice')) {
-            state.isPlaying = false;
-            state.isPaused = false;
-            // 時刻とアクティブノーツを完全リセット
-            state.currentTime = 0;
-            state.activeNotes.clear();
-            
-            // GameEngine 側にもシークを伝達
-            if (state.gameEngine) {
-              state.gameEngine.seek(0);
-            }
-            
-            // スコアリセット
-            const totalNotes = state.score.totalNotes;
-            state.score = { ...defaultScore, totalNotes };
-            state.judgmentHistory = [];
-            
-            console.log(`🔄 タブ切り替え: ${previousTab} → ${tab} - 再生停止・リセット完了`);
-          }
-        }),
-        
-        toggleSettings: () => set((state) => {
-          state.isSettingsOpen = !state.isSettingsOpen;
-        }),
-        
-        setSettingsOpen: (open) => set((state) => {
-          state.isSettingsOpen = open;
-        }),
-        
-        // デバッグ
-        updateDebugInfo: (info) => set((state) => {
-          Object.assign(state.debug, info);
-        }),
-        
-        // エラーハンドリング
-        handleError: (error) => {
-          console.error('Game Error:', error);
-          // エラーログ記録やユーザー通知の実装
-          // 必要に応じてゲーム状態のリセットなど
-        },
-        
-        // リセット
-        resetGame: () => set(() => ({ ...defaultState })),
-        
-        // 新規追加: 時間制御とループ機能
-        skipForward: (seconds: number) => {
-          const state = get();
-          const maxTime = state.currentSong?.duration || 0;
-          const newTime = Math.min(state.currentTime + seconds, maxTime);
-          
-          // seekメソッドを再利用（音声シーク処理も含まれる）
-          state.seek(newTime);
-          console.log(`⏩ Skip forward to ${newTime.toFixed(2)}s`);
-        },
-        
-        skipBackward: (seconds: number) => {
-          const state = get();
-          const newTime = Math.max(0, state.currentTime - seconds);
-          
-          // seekメソッドを再利用（音声シーク処理も含まれる）
-          state.seek(newTime);
-          console.log(`⏪ Skip backward to ${newTime.toFixed(2)}s`);
-        },
-        
-        // 新規追加: 移調制御
-        transpose: (semitones: number) => {
-          const { settings, setTranspose } = get();
-          const nextValue = settings.transpose + semitones;
-          setTranspose(nextValue);
-        },
+  //  // console.log('✅ 本番モード課題条件適用完了:', {
 
-        setTranspose: async (semitones: number) => {
-          const { updateEngineSettings, currentSong, rawNotes, settings } = get();
-          const clamped = Math.max(-12, Math.min(12, semitones));
+  //  
+  //  // log
 
-          // 処理がなければ早期リターン
-          if (!currentSong || rawNotes.length === 0) {
-            set(state => { state.settings.transpose = clamped; });
-            updateEngineSettings();
-            return;
-          }
+  //  
+  //  // transpose: state.settings.transpose,
+  // playbackSpeed: state.settings.playbackSpeed,
+  // showSheetMusic: state.settings.showSheetMusic,
+  // sheetMusicChordsOnly: state.settings.sheetMusicChordsOnly
 
-          // 楽曲データ処理ロジック
-          const _processSongData = async (targetSong: SongMetadata, notes: NoteData[], transpose: number) => {
-             let finalNotes = notes;
-             let finalXml: string | null = null;
-             let finalChords: ChordInfo[] = [];
-             
-             if (targetSong.musicXmlFile) {
-               try {
-                 const { transposeMusicXml } = await import('@/utils/musicXmlTransposer');
-                 const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
-                 
-                 const xmlResponse = await fetch(targetSong.musicXmlFile);
-                 if (!xmlResponse.ok) {
-                   throw new Error(`MusicXMLファイルの読み込みに失敗: ${xmlResponse.status} ${xmlResponse.statusText}`);
-                 }
-                 
-                 const xmlString = await xmlResponse.text();
-                 
-                 // HTMLが返されている場合の検出（XML読み込み時）
-                 if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
-                   console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
-                   throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
-                 }
-                 
-                 finalXml = transposeMusicXml(xmlString, transpose);
-                 const xmlDoc = new DOMParser().parseFromString(finalXml, 'application/xml');
-                 
-                 // XML解析エラーのチェック
-                 const parseError = xmlDoc.querySelector('parsererror');
-                 if (parseError) {
-                   console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
-                   throw new Error('MusicXMLファイルの解析に失敗しました');
-                 }
-                 
-                 const noteNames = extractPlayableNoteNames(xmlDoc);
-                 finalNotes = mergeJsonWithNames(notes, noteNames);
-                 
-                 // ノーツ時間を小節ベースで再計算（プレイヘッド精度向上）
-                 finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
-                 
-                 // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
-                 finalChords = extractChordProgressions(xmlDoc, notes);
-               } catch (error) {
-                 console.warn('⚠️ MusicXML音名抽出に失敗:', error);
-                 finalXml = null;
-               }
-             }
-             return { finalNotes, finalXml, finalChords };
-          };
-          
-          // 移調楽器の設定を考慮した移調量を計算
-          const { getTransposingInstrumentSemitones } = await import('@/utils/musicXmlTransposer');
-          const transposingInstrumentSemitones = getTransposingInstrumentSemitones(settings.transposingInstrument);
-          const totalTranspose = clamped + transposingInstrumentSemitones;
-          
-          const { finalNotes, finalXml, finalChords } = await _processSongData(currentSong, rawNotes, totalTranspose);
+  // }
+  //  
+  //  // 🆕 ミッションモード時：本番モードで課題条件を強制適用
+  // if (state.missionContext?.clearConditions) {
+  // const { clearConditions } = state.missionContext;
+  //  // console.log('🎯 本番モード切り替え: ミッション課題条件を適用', clearConditions);
+  //  
+  //  // キー（移調）設定
+  // if (clearConditions.key !== undefined) {
+  // state.settings.transpose = clearConditions.key;
+  // }
+  //  
+  //  // 速度設定
+  // if (clearConditions.speed !== undefined) {
+  // state.settings.playbackSpeed = clearConditions.speed;
+  // }
+  //  
+  //  // 楽譜表示設定
+  // if (clearConditions.notation_setting) {
+  // switch (clearConditions.notation_setting) {
+  // case 'notes_chords':
+  // state.settings.showSheetMusic = true;
+  // state.settings.sheetMusicChordsOnly = false;
+  // break;
+  // case 'chords_only':
+  // state.settings.showSheetMusic = true;
+  // state.settings.sheetMusicChordsOnly = true;
+  // break;
+  // case 'both':
+  // state.settings.showSheetMusic = true;
+  // state.settings.sheetMusicChordsOnly = false;
+  // break;
+  // }
+  // }
+  //  
+  //  // console.log('✅ 本番モード課題条件適用完了:', {
 
-          set((state) => {
-            state.settings.transpose = clamped;
-            state.notes = finalNotes;
-            state.musicXml = finalXml;
-            state.chords = finalChords;
-            
-            // GameEngineにも更新を通知
-            if (state.gameEngine) {
-              state.gameEngine.loadSong(finalNotes);
-              console.log(`🎵 GameEngineに移調後のノートを再ロード: ${finalNotes.length}ノーツ`);
-              
-              // 🔧 停止中の移調変更対応: 停止中でも強制的にengineActiveNotesを更新
-              if (!state.isPlaying) {
-                const engineState = state.gameEngine.getState();
-                state.engineActiveNotes = engineState.activeNotes;
-                console.log(`🔄 停止中の移調変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
-              }
-            }
-          });
-          
-          updateEngineSettings();
-          console.log(`🎵 Transpose changed to ${clamped}, song re-processed without playback interruption.`);
-        },
-        
-        // 練習モードガイド制御
-        setLastKeyHighlight: (pitch: number, timestamp: number) => set((state) => {
-          state.lastKeyHighlight = { pitch, timestamp };
-        }),
-        clearLastKeyHighlight: () => set((state) => {
-          state.lastKeyHighlight = undefined;
-        }),
-        
-        // ===== 新機能: 拡張状態管理 =====
-        
-        // 初期化状態
-        initialization: defaultInitialization,
-        
-        // 設定プリセット
-        settingsPresets: defaultPresets,
-        
-        // セッション管理
-        currentSession: null,
-        sessionHistory: [],
-        
-        // パフォーマンス監視
-        performance: defaultPerformanceMetrics,
-        
-        // エラー状態管理強化
-        errors: {
-          settings: [],
-          gameEngine: [],
-          audio: [],
-          midi: [],
-          general: [],
-        },
-        
-        // 設定（強化版）
-        updateSettingsSafe: (settings) => {
-          const state = get();
-          const validation = validateStateTransition(state, 'updateSettings', { settings });
-          
-          if (!validation.valid) {
-            set((draft) => {
-              draft.errors.settings.push(validation.error || '設定の更新に失敗しました');
-            });
-            return { success: false, errors: [validation.error || '設定の更新に失敗しました'] };
-          }
-          
-          const settingsValidation = validateSettings(settings);
-          
-          if (!settingsValidation.valid) {
-            set((draft) => {
-              draft.errors.settings.push(...settingsValidation.errors);
-            });
-            return { success: false, errors: settingsValidation.errors };
-          }
-          
-          // 設定を正規化して適用
-          set((state) => {
-            state.settings = { ...state.settings, ...settingsValidation.normalized };
-            // ゲームエンジンにも反映
-            if (state.gameEngine) {
-              state.gameEngine.updateSettings(state.settings);
-            }
-          });
-          
-          return { success: true, errors: [] };
-        },
-        
-        // ===== 新機能: 設定プリセット管理 =====
-        applySettingsPreset: (presetId) => set((state) => {
-          const preset = state.settingsPresets.find(p => p.id === presetId);
-          if (!preset) {
-            state.errors.settings.push(`プリセット '${presetId}' が見つかりません`);
-            return;
-          }
-          
-          const validation = validateSettings(preset.settings);
-          state.settings = { ...state.settings, ...validation.normalized };
-          
-          // 練習モードでpracticeGuideが含まれている場合は保存
-          if (state.mode === 'practice' && 'practiceGuide' in preset.settings) {
-            state.practiceModeSettings.practiceGuide = preset.settings.practiceGuide ?? 'key';
-          }
-          
-          // 本番モードでは練習モードガイドを無効化
-          if (state.mode === 'performance') {
-            state.settings.practiceGuide = 'off';
-          }
-          
-          if (state.gameEngine) {
-            state.gameEngine.updateSettings(state.settings);
-          }
-        }),
-        
-        saveSettingsPreset: (name, description, settings) => set((state) => {
-          const presetSettings = settings || state.settings;
-          const newPreset: SettingsPreset = {
-            id: `preset-${Date.now()}`,
-            name,
-            description,
-            settings: presetSettings,
-            createdAt: Date.now()
-          };
-          state.settingsPresets.push(newPreset);
-        }),
-        
-        deleteSettingsPreset: (presetId) => set((state) => {
-          const index = state.settingsPresets.findIndex(p => p.id === presetId);
-          if (index !== -1) {
-            state.settingsPresets.splice(index, 1);
-          }
-        }),
-        
-        updateSettingsPreset: (presetId, updates) => set((state) => {
-          const preset = state.settingsPresets.find(p => p.id === presetId);
-          if (preset) {
-            Object.assign(preset, updates);
-          }
-        }),
-        
-        // ===== 新機能: 初期化状態管理 =====
-        setInitializationState: (updates) => set((state) => {
-          Object.assign(state.initialization, updates);
-        }),
-        
-        addInitializationError: (error) => set((state) => {
-          state.initialization.errors.push(error);
-        }),
-        
-        clearInitializationErrors: () => set((state) => {
-          state.initialization.errors = [];
-        }),
-        
-        // ===== 新機能: セッション管理 =====
-        startPlaySession: () => set((state) => {
-          const session: PlaySession = {
-            id: `session-${Date.now()}`,
-            songId: state.currentSong?.id || null,
-            startTime: Date.now(),
-            endTime: null,
-            score: { ...state.score },
-            judgments: [],
-            settings: { ...state.settings }
-          };
-          state.currentSession = session;
-        }),
-        
-        endPlaySession: () => set((state) => {
-          if (state.currentSession) {
-            state.currentSession.endTime = Date.now();
-            state.currentSession.score = { ...state.score };
-            state.currentSession.judgments = [...state.judgmentHistory];
-          }
-        }),
-        
-        saveCurrentSession: () => set((state) => {
-          if (state.currentSession) {
-            state.sessionHistory.push({ ...state.currentSession });
-            state.currentSession = null;
-          }
-        }),
-        
-        loadSessionFromHistory: (sessionId) => set((state) => {
-          const session = state.sessionHistory.find(s => s.id === sessionId);
-          if (session) {
-            state.score = { ...session.score };
-            state.judgmentHistory = [...session.judgments];
-            state.settings = { ...session.settings };
-          }
-        }),
-        
-        clearSessionHistory: () => set((state) => {
-          state.sessionHistory = [];
-        }),
-        
-        // ===== 新機能: パフォーマンス監視 =====
-        updatePerformanceMetrics: (metrics) => set((state) => {
-          Object.assign(state.performance, metrics);
-        }),
-        
-        recordFrameTime: (frameTime) => set((state) => {
-          state.performance.lastFrameTime = frameTime;
-          // 移動平均を計算
-          state.performance.averageFrameTime = 
-            (state.performance.averageFrameTime * 0.9) + (frameTime * 0.1);
-          // FPS計算
-          state.performance.fps = Math.round(1000 / state.performance.averageFrameTime);
-          
-          // フレームドロップ検出（33ms = 30fps以下）
-          if (frameTime > 33) {
-            state.performance.frameDrops++;
-          }
-        }),
-        
-        incrementFrameDrops: () => set((state) => {
-          state.performance.frameDrops++;
-        }),
-        
-        resetPerformanceMetrics: () => set((state) => {
-          state.performance = { ...defaultPerformanceMetrics };
-        }),
-        
-        // ===== 新機能: エフェクト統計管理 =====
-        recordEffectGenerated: () => set((state) => {
-          state.performance.effects.totalGenerated++;
-        }),
-        
-        recordEffectSuccess: (processTime: number) => set((state) => {
-          state.performance.effects.successCount++;
-          state.performance.effects.lastProcessTime = processTime;
-          // 移動平均で平均処理時間を更新
-          const currentAvg = state.performance.effects.averageProcessTime;
-          state.performance.effects.averageProcessTime = 
-            currentAvg === 0 ? processTime : (currentAvg * 0.9) + (processTime * 0.1);
-        }),
-        
-        recordEffectSkipped: (reason: 'performance' | 'proximity' | 'note_not_found') => set((state) => {
-          state.performance.effects.skippedCount++;
-          switch (reason) {
-            case 'proximity':
-              state.performance.effects.proximityRejectCount++;
-              break;
-            case 'note_not_found':
-              state.performance.effects.noteNotFoundRejectCount++;
-              break;
-            // 'performance' はカウンターなし（skippedCountに含まれる）
-          }
-        }),
-        
-        resetEffectStats: () => set((state) => {
-          state.performance.effects = {
-            totalGenerated: 0,
-            successCount: 0,
-            skippedCount: 0,
-            proximityRejectCount: 0,
-            noteNotFoundRejectCount: 0,
-            averageProcessTime: 0,
-            lastProcessTime: 0
-          };
-        }),
-        
-        getEffectStats: () => {
-          const state = get();
-          return state.performance.effects;
-        },
-        
-        // ===== 新機能: エラー管理強化 =====
-        addError: (category: keyof GameStoreState['errors'], error: string) =>
-          set((state: GameStoreState) => {
-            state.errors[category].push(error);
-          }),
-        
-        clearErrors: (category?: keyof GameStoreState['errors']) =>
-          set((state: GameStoreState) => {
-            if (category) {
-              state.errors[category] = [];
-            } else {
-              Object.keys(state.errors).forEach(key => {
-                state.errors[key as keyof typeof state.errors] = [];
-              });
-            }
-          }),
-        
-        hasErrors: () => {
-          const state = get();
-          return Object.values(state.errors).some(
-            (errors: string[]) => errors.length > 0
-          );
-        },
-        
-        getErrorSummary: () => {
-          const state = get();
-          const summary: string[] = [];
-          Object.entries(state.errors).forEach(([category, errors]) => {
-            const list = errors as string[];
-            if (list.length > 0) {
-              summary.push(`${category}: ${list.length}件のエラー`);
-            }
-          });
-          return summary;
-        },
-        
-        // リザルトモーダル
-        openResultModal: () =>
-          set((state: GameStoreState) => {
-            state.resultModalOpen = true;
-          }),
-        closeResultModal: () =>
-          set((state: GameStoreState) => {
-            state.resultModalOpen = false;
-          }),
-        
-        // 音名情報更新
-        updateNoteNames: (noteNamesMap: Record<string, string>) =>
-          set((state: GameStoreState) => {
-            // notesに音名情報を追加
-            state.notes = state.notes.map(note => ({
-              ...note,
-              noteName: noteNamesMap[note.id] || note.noteName
-            }));
-          }),
-        
-        // レッスンコンテキスト
-        setLessonContext: (lessonId: string, clearConditions: ClearConditions) =>
-          set((state: GameStoreState) => {
-            state.lessonContext = {
-              lessonId,
-              clearConditions
-            };
-          }),
-        
-        clearLessonContext: () =>
-          set((state: GameStoreState) => {
-            state.lessonContext = undefined;
-          }),
-        
-        // ミッションコンテキスト
-        setMissionContext: (missionId: string, songId: string, clearConditions?: ClearConditions) =>
-          set((state: GameStoreState) => {
-            state.missionContext = {
-              missionId,
-              songId,
-              clearConditions
-            };
-          }),
+  //  
+  //  // log
+
+  //  
+  //  // transpose: state.settings.transpose,
+  // playbackSpeed: state.settings.playbackSpeed,
+  // showSheetMusic: state.settings.showSheetMusic,
+  // sheetMusicChordsOnly: state.settings.sheetMusicChordsOnly
+
+  // }
+  // }
+  //  
+  //  // モード切り替え時に再生停止するが、時刻はリセットしない
+  // state.isPlaying = false;
+  // state.isPaused = false;
+  //  // 時刻とアクティブノーツを完全リセット
+  // state.currentTime = 0;
+  // state.activeNotes.clear();
+  //  
+  //  // GameEngine 側にもシークを伝達
+  // if (state.gameEngine) {
+  // state.gameEngine.seek(0);
+  // }
+  //  
+  //  // スコアリセット
+  // const totalNotes = state.score.totalNotes;
+  // state.score = { ...defaultScore, totalNotes };
+  // state.judgmentHistory = [];
+  //  
+  //  // console.log(`🔄 モード切り替え: ${previousMode} → ${mode} - 再生停止・リセット完了`);
+  // }),
+  //  
+  // setInstrumentMode: (mode) => set((state) => {
+  // state.settings.instrumentMode = mode;
+  // }),
+  //  
+  //  // UI制御
+  // setCurrentTab: (tab) => set((state) => {
+  // const previousTab = state.currentTab;
+  // state.currentTab = tab;
+  //  
+  //  // タブ変更時にゲームモードも同期
+  // if (tab === 'practice') {
+  // state.mode = 'practice';
+  //  // 練習モードに戻った時は保存した設定を復元
+  // state.settings.practiceGuide = state.practiceModeSettings.practiceGuide ?? 'key';
+  // } else if (tab === 'performance') {
+  // state.mode = 'performance';
+  //  // 本番モードに切り替える前に練習モード設定を保存
+  // if (previousTab === 'practice') {
+  // state.practiceModeSettings.practiceGuide = state.settings.practiceGuide ?? 'key';
+  // }
+  //  // 本番モードでは練習モードガイドを無効化
+  // state.settings.practiceGuide = 'off';
+  // }
+  //  
+  //  // 練習・本番モード間の切り替え時は再生停止するが、時刻はリセットしない
+  // if ((previousTab === 'practice' && tab === 'performance') || 
+  // (previousTab === 'performance' && tab === 'practice')) {
+  // state.isPlaying = false;
+  // state.isPaused = false;
+  //  // 時刻とアクティブノーツを完全リセット
+  // state.currentTime = 0;
+  // state.activeNotes.clear();
+  //  
+  //  // GameEngine 側にもシークを伝達
+  // if (state.gameEngine) {
+  // state.gameEngine.seek(0);
+  // }
+  //  
+  //  // スコアリセット
+  // const totalNotes = state.score.totalNotes;
+  // state.score = { ...defaultScore, totalNotes };
+  // state.judgmentHistory = [];
+  //  
+  //  // console.log(`🔄 タブ切り替え: ${previousTab} → ${tab} - 再生停止・リセット完了`);
+  // }
+  // }),
+  //  
+  // toggleSettings: () => set((state) => {
+  // state.isSettingsOpen = !state.isSettingsOpen;
+  // }),
+  //  
+  // setSettingsOpen: (open) => set((state) => {
+  // state.isSettingsOpen = open;
+  // }),
+  //  
+  //  // デバッグ
+  // updateDebugInfo: (info) => set((state) => {
+  // Object.assign(state.debug, info);
+  // }),
+  //  
+  //  // エラーハンドリング
+  // handleError: (error) => {
+  //  // console.error('Game Error:', error);
+  //  // エラーログ記録やユーザー通知の実装
+  //  // 必要に応じてゲーム状態のリセットなど
+  // },
+  //  
+  //  // リセット
+  // resetGame: () => set(() => ({ ...defaultState })),
+  //  
+  //  // 新規追加: 時間制御とループ機能
+  // skipForward: (seconds: number) => {
+  // const state = get();
+  // const maxTime = state.currentSong?.duration || 0;
+  // const newTime = Math.min(state.currentTime + seconds, maxTime);
+  //  
+  //  // seekメソッドを再利用（音声シーク処理も含まれる）
+  // state.seek(newTime);
+  //  // console.log(`⏩ Skip forward to ${newTime.toFixed(2)}s`);
+  // },
+  //  
+  // skipBackward: (seconds: number) => {
+  // const state = get();
+  // const newTime = Math.max(0, state.currentTime - seconds);
+  //  
+  //  // seekメソッドを再利用（音声シーク処理も含まれる）
+  // state.seek(newTime);
+  //  // console.log(`⏪ Skip backward to ${newTime.toFixed(2)}s`);
+  // },
+  //  
+  //  // 新規追加: 移調制御
+  // transpose: (semitones: number) => {
+  // const { settings, setTranspose } = get();
+  // const nextValue = settings.transpose + semitones;
+  // setTranspose(nextValue);
+  // },
+
+  // setTranspose: async (semitones: number) => {
+  // const { updateEngineSettings, currentSong, rawNotes, settings } = get();
+  // const clamped = Math.max(-12, Math.min(12, semitones));
+
+  //  // 処理がなければ早期リターン
+  // if (!currentSong || rawNotes.length === 0) {
+  // set(state => { state.settings.transpose = clamped; });
+  // updateEngineSettings();
+  // return;
+  // }
+
+  //  // 楽曲データ処理ロジック
+  // const _processSongData = async (targetSong: SongMetadata, notes: NoteData[], transpose: number) => {
+  // let finalNotes = notes;
+  // let finalXml: string | null = null;
+  // let finalChords: ChordInfo[] = [];
+  //  
+  // if (targetSong.musicXmlFile) {
+  // try {
+  // const { transposeMusicXml } = await import('@/utils/musicXmlTransposer');
+  // const { extractPlayableNoteNames, mergeJsonWithNames, extractChordProgressions, recalculateNotesWithMeasureTime } = await import('@/utils/musicXmlMapper');
+  //  
+  // const xmlResponse = await fetch(targetSong.musicXmlFile);
+  // if (!xmlResponse.ok) {
+  // throw new Error(`MusicXMLファイルの読み込みに失敗: ${xmlResponse.status} ${xmlResponse.statusText}`);
+  // }
+  //  
+  // const xmlString = await xmlResponse.text();
+  //  
+  //  // HTMLが返されている場合の検出（XML読み込み時）
+  // if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
+  //  // console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
+  // throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
+  // }
+  //  
+  // finalXml = transposeMusicXml(xmlString, transpose);
+  // const xmlDoc = new DOMParser().parseFromString(finalXml, 'application/xml');
+  //  
+  //  // XML解析エラーのチェック
+  // const parseError = xmlDoc.querySelector('parsererror');
+  // if (parseError) {
+  //  // console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
+  // throw new Error('MusicXMLファイルの解析に失敗しました');
+  // }
+  //  
+  // const noteNames = extractPlayableNoteNames(xmlDoc);
+  // finalNotes = mergeJsonWithNames(notes, noteNames);
+  //  
+  //  // ノーツ時間を小節ベースで再計算（プレイヘッド精度向上）
+  // finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+  //  
+  //  // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
+  // finalChords = extractChordProgressions(xmlDoc, notes);
+  // } catch (error) {
+  //  // console.warn('⚠️ MusicXML音名抽出に失敗:', error);
+  // finalXml = null;
+  // }
+  // }
+  // return { finalNotes, finalXml, finalChords };
+  // };
+  //  
+  //  // 移調楽器の設定を考慮した移調量を計算
+  // const { getTransposingInstrumentSemitones } = await import('@/utils/musicXmlTransposer');
+  // const transposingInstrumentSemitones = getTransposingInstrumentSemitones(settings.transposingInstrument);
+  // const totalTranspose = clamped + transposingInstrumentSemitones;
+  //  
+  // const { finalNotes, finalXml, finalChords } = await _processSongData(currentSong, rawNotes, totalTranspose);
+
+  // set((state) => {
+  // state.settings.transpose = clamped;
+  // state.notes = finalNotes;
+  // state.musicXml = finalXml;
+  // state.chords = finalChords;
+  //  
+  //  // GameEngineにも更新を通知
+  // if (state.gameEngine) {
+  // state.gameEngine.loadSong(finalNotes);
+  //  // console.log(`🎵 GameEngineに移調後のノートを再ロード: ${finalNotes.length}ノーツ`);
+  //  
+  //  // 🔧 停止中の移調変更対応: 停止中でも強制的にengineActiveNotesを更新
+  // if (!state.isPlaying) {
+  // const engineState = state.gameEngine.getState();
+  // state.engineActiveNotes = engineState.activeNotes;
+  //  // console.log(`🔄 停止中の移調変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
+  // }
+  // }
+//   // });
+//         
+// 
+//         
+//         // 設定（強化版）
+//         // updateSettingsSafe: (settings) => {
+//           const state = get();
+//           const validation = validateStateTransition(state, 'updateSettings', { settings });
+//           
+//           if (!validation.valid) {
+//             set((draft) => {
+//               draft.errors.settings.push(validation.error || '設定の更新に失敗しました');
+//             });
+//             return { success: false, errors: [validation.error || '設定の更新に失敗しました'] };
+//           }
+//           
+//           const settingsValidation = validateSettings(settings);
+//           
+//           if (!settingsValidation.valid) {
+//             set((draft) => {
+//               draft.errors.settings.push(...settingsValidation.errors);
+//             });
+//             return { success: false, errors: settingsValidation.errors };
+//           }
+//           
+//           // 設定を正規化して適用
+//           set((state) => {
+//             state.settings = { ...state.settings, ...settingsValidation.normalized };
+//             // ゲームエンジンにも反映
+//             if (state.gameEngine) {
+//               state.gameEngine.updateSettings(state.settings);
+//             }
+//           });
+//           
+//           return { success: true, errors: [] };
+//         },
+//         
+//         // ===== 新機能: 設定プリセット管理 =====
+//         applySettingsPreset: (presetId: string) => set((state) => {
+//           const preset = state.settingsPresets.find(p => p.id === presetId);
+//           if (!preset) {
+//             state.errors.settings.push(`プリセット '${presetId}' が見つかりません`);
+//             return;
+//           }
+//           
+//           const validation = validateSettings(preset.settings);
+//           state.settings = { ...state.settings, ...validation.normalized };
+//           
+//           // 練習モードでpracticeGuideが含まれている場合は保存
+//           if (state.mode === 'practice' && 'practiceGuide' in preset.settings) {
+//             state.practiceModeSettings.practiceGuide = preset.settings.practiceGuide ?? 'key';
+//           }
+//           
+//           // 本番モードでは練習モードガイドを無効化
+//           if (state.mode === 'performance') {
+//             state.settings.practiceGuide = 'off';
+//           }
+//           
+//           if (state.gameEngine) {
+//             state.gameEngine.updateSettings(state.settings);
+//           }
+//         }),
+//         
+//         saveSettingsPreset: (name, description, settings) => set((state) => {
+//           const presetSettings = settings || state.settings;
+//           const newPreset: SettingsPreset = {
+//             id: `preset-${Date.now()}`,
+//             name,
+//             description,
+//             settings: presetSettings,
+//             createdAt: Date.now()
+//           };
+//           state.settingsPresets.push(newPreset);
+//         }),
+//         
+//         deleteSettingsPreset: (presetId) => set((state) => {
+//           const index = state.settingsPresets.findIndex(p => p.id === presetId);
+//           if (index !== -1) {
+//             state.settingsPresets.splice(index, 1);
+//           }
+//         }),
+//         
+//         updateSettingsPreset: (presetId, updates) => set((state) => {
+//           const preset = state.settingsPresets.find(p => p.id === presetId);
+//           if (preset) {
+//             Object.assign(preset, updates);
+//           }
+//         }),
+//         
+//         // ===== 新機能: 初期化状態管理 =====
+//         setInitializationState: (updates) => set((state) => {
+//           Object.assign(state.initialization, updates);
+//         }),
+//         
+//         addInitializationError: (error) => set((state) => {
+//           state.initialization.errors.push(error);
+//         }),
+//         
+//         clearInitializationErrors: () => set((state) => {
+//           state.initialization.errors = [];
+//         }),
+//         
+//         // ===== 新機能: セッション管理 =====
+//         startPlaySession: () => set((state) => {
+//           const session: PlaySession = {
+//             id: `session-${Date.now()}`,
+//             songId: state.currentSong?.id || null,
+//             startTime: Date.now(),
+//             endTime: null,
+//             score: { ...state.score },
+//             judgments: [],
+//             settings: { ...state.settings }
+//           };
+//           state.currentSession = session;
+//         }),
+//         
+//         endPlaySession: () => set((state) => {
+//           if (state.currentSession) {
+//             state.currentSession.endTime = Date.now();
+//             state.currentSession.score = { ...state.score };
+//             state.currentSession.judgments = [...state.judgmentHistory];
+//           }
+//         }),
+//         
+//         saveCurrentSession: () => set((state) => {
+//           if (state.currentSession) {
+//             state.sessionHistory.push({ ...state.currentSession });
+//             state.currentSession = null;
+//           }
+//         }),
+//         
+//         loadSessionFromHistory: (sessionId) => set((state) => {
+//           const session = state.sessionHistory.find(s => s.id === sessionId);
+//           if (session) {
+//             state.score = { ...session.score };
+//             state.judgmentHistory = [...session.judgments];
+//             state.settings = { ...session.settings };
+//           }
+//         }),
+//         
+//         clearSessionHistory: () => set((state) => {
+//           state.sessionHistory = [];
+//         }),
+//         
+//         // ===== 新機能: パフォーマンス監視 =====
+//         updatePerformanceMetrics: (metrics) => set((state) => {
+//           Object.assign(state.performance, metrics);
+//         }),
+//         
+//         recordFrameTime: (frameTime) => set((state) => {
+//           state.performance.lastFrameTime = frameTime;
+//           // 移動平均を計算
+//           state.performance.averageFrameTime = 
+//             (state.performance.averageFrameTime * 0.9) + (frameTime * 0.1);
+//           // FPS計算
+//           state.performance.fps = Math.round(1000 / state.performance.averageFrameTime);
+//           
+//           // フレームドロップ検出（33ms = 30fps以下）
+//           if (frameTime > 33) {
+//             state.performance.frameDrops++;
+//           }
+//         }),
+//         
+//         incrementFrameDrops: () => set((state) => {
+//           state.performance.frameDrops++;
+//         }),
+//         
+//         resetPerformanceMetrics: () => set((state) => {
+//           state.performance = { ...defaultPerformanceMetrics };
+//         }),
+//         
+//         // ===== 新機能: エフェクト統計管理 =====
+//         recordEffectGenerated: () => set((state) => {
+//           state.performance.effects.totalGenerated++;
+//         }),
+//         
+//         recordEffectSuccess: (processTime: number) => set((state) => {
+//           state.performance.effects.successCount++;
+//           state.performance.effects.lastProcessTime = processTime;
+//           // 移動平均で平均処理時間を更新
+//           const currentAvg = state.performance.effects.averageProcessTime;
+//           state.performance.effects.averageProcessTime = 
+//             currentAvg === 0 ? processTime : (currentAvg * 0.9) + (processTime * 0.1);
+//         }),
+//         
+//         recordEffectSkipped: (reason: 'performance' | 'proximity' | 'note_not_found') => set((state) => {
+//           state.performance.effects.skippedCount++;
+//           switch (reason) {
+//             case 'proximity':
+//               state.performance.effects.proximityRejectCount++;
+//               break;
+//             case 'note_not_found':
+//               state.performance.effects.noteNotFoundRejectCount++;
+//               break;
+//             // 'performance' はカウンターなし（skippedCountに含まれる）
+//           }
+//         }),
+//         
+//         resetEffectStats: () => set((state) => {
+//           state.performance.effects = {
+//             totalGenerated: 0,
+//             successCount: 0,
+//             skippedCount: 0,
+//             proximityRejectCount: 0,
+//             noteNotFoundRejectCount: 0,
+//             averageProcessTime: 0,
+//             lastProcessTime: 0
+//           };
+//         }),
+//         
+//         getEffectStats: () => {
+//           const state = get();
+//           return state.performance.effects;
+//         },
+//         
+//         // ===== 新機能: エラー管理強化 =====
+//         addError: (category: keyof GameStoreState['errors'], error: string) =>
+//           set((state: GameStoreState) => {
+//             state.errors[category].push(error);
+//           }),
+//         
+//         clearErrors: (category?: keyof GameStoreState['errors']) =>
+//           set((state: GameStoreState) => {
+//             if (category) {
+//               state.errors[category] = [];
+//             } else {
+//               Object.keys(state.errors).forEach(key => {
+//                 state.errors[key as keyof typeof state.errors] = [];
+//               });
+//             }
+//           }),
+//         
+//         hasErrors: () => {
+//           const state = get();
+//           return Object.values(state.errors).some(
+//             (errors: string[]) => errors.length > 0
+//           );
+//         },
+//         
+//         getErrorSummary: () => {
+//           const state = get();
+//           const summary: string[] = [];
+//           Object.entries(state.errors).forEach(([category, errors]) => {
+//             const list = errors as string[];
+//             if (list.length > 0) {
+//               summary.push(`${category}: ${list.length}件のエラー`);
+//             }
+//           });
+//           return summary;
+//         },
+//         
+//         // リザルトモーダル
+//         openResultModal: () =>
+//           set((state: GameStoreState) => {
+//             state.resultModalOpen = true;
+//           }),
+//         closeResultModal: () =>
+//           set((state: GameStoreState) => {
+//             state.resultModalOpen = false;
+//           }),
+//         
+//         // 練習モードガイド制御
+//         setLastKeyHighlight: (pitch: number, timestamp: number) => set((state) => {
+//           state.lastKeyHighlight = { pitch, timestamp };
+//         }),
+//         
+//         clearLastKeyHighlight: () => set((state) => {
+//           state.lastKeyHighlight = undefined;
+//         }),
+//         
+//         // 音名情報更新
+//         updateNoteNames: (noteNamesMap: Record<string, string>) =>
+//           set((state: GameStoreState) => {
+//             // notesに音名情報を追加
+//             state.notes = state.notes.map(note => ({
+//               ...note,
+//               noteName: noteNamesMap[note.id] || note.noteName
+//             }));
+//           }),
+//         
+//         // レッスンコンテキスト
+//         setLessonContext: (lessonId: string, clearConditions: ClearConditions) =>
+//           set((state: GameStoreState) => {
+//             state.lessonContext = {
+//               lessonId,
+//               clearConditions
+//             };
+//           }),
+//         
+//         clearLessonContext: () =>
+//           set((state: GameStoreState) => {
+//             state.lessonContext = undefined;
+//           }),
+//         
+//         // ミッションコンテキスト
+//         setMissionContext: (missionId: string, songId: string, clearConditions?: ClearConditions) =>
+//           set((state: GameStoreState) => {
+//             state.missionContext = {
+//               missionId,
+//               songId,
+//               clearConditions
+//             };
+//           }),
         
         clearMissionContext: () =>
           set((state: GameStoreState) => {
             state.missionContext = undefined;
-          }),
+          })
       }))
     ),
     {
@@ -2082,7 +2078,7 @@ if (typeof window !== 'undefined') {
       useGameStore.getState().updateSettings(parsed);
     }
   } catch (e) {
-    console.warn('Failed to load settings from localStorage', e);
+    // console.warn('Failed to load settings from localStorage', e);
   }
 
   useGameStore.subscribe(
@@ -2093,7 +2089,7 @@ if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('gameSettings', JSON.stringify(persist));
       } catch (e) {
-        console.warn('Failed to save settings to localStorage', e);
+        // console.warn('Failed to save settings to localStorage', e);
       }
     }
   );

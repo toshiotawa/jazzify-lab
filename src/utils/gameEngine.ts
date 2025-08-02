@@ -188,9 +188,9 @@ export class GameEngine {
       // シーク位置より後のノートの処理済みフラグとappearTimeをクリア
       this.notes.forEach(note => {
         if (note.time >= safeTime) {
-          delete (note as any)._wasProcessed;
+          delete (note as unknown)._wasProcessed;
           // Fix: Reset appearTime to force recalculation based on new seek position
-          delete (note as any).appearTime;
+          delete (note as unknown).appearTime;
         }
       });
       
@@ -389,7 +389,7 @@ export class GameEngine {
     const outputLatency = this.audioContext.outputLatency || 0;
 
     // 任意の追加補正値（ユーザー設定で微調整可能）
-    const manualCompensation = (this.settings as any).latencyAdjustment ?? 0; // 秒
+    const manualCompensation = (this.settings as unknown).latencyAdjustment ?? 0; // 秒
 
     // 合計レイテンシ
     this.latencyOffset = baseLatency + outputLatency + manualCompensation;
@@ -483,7 +483,7 @@ export class GameEngine {
       const alreadyActive = this.activeNotes.has(note.id);
       
       // 一度削除されたノートは二度と生成しない
-      const wasProcessed = (note as any)._wasProcessed;
+      const wasProcessed = (note as unknown)._wasProcessed;
       
       if (shouldAppear && !alreadyActive && !wasProcessed) {
         const activeNote: ActiveNote = {
@@ -495,7 +495,7 @@ export class GameEngine {
         this.activeNotes.set(note.id, activeNote);
         // デバッグログを条件付きで表示
         // if (Math.abs(currentTime - note.time) < 4.0) { // 判定時間の±4秒以内のみログ
-        //   console.log(`🎵 新しいノート出現: ${note.id} (pitch=${note.pitch}, time=${note.time}, y=${activeNote.y?.toFixed(1) || 'undefined'})`);
+        //   // console.log(`🎵 新しいノート出現: ${note.id} (pitch=${note.pitch}, time=${note.time}, y=${activeNote.y?.toFixed(1) || 'undefined'})`);
         // }
       }
     }
@@ -578,7 +578,7 @@ export class GameEngine {
         // 削除時に元ノートにフラグを設定
         const originalNote = this.notes.find(n => n.id === noteId);
         if (originalNote) {
-          (originalNote as any)._wasProcessed = true;
+          (originalNote as unknown)._wasProcessed = true;
         }
         
         if (isRecentNote) {

@@ -41,7 +41,7 @@ export async function getSongPlayProgress(
         // No rows found
         return null;
       }
-      console.error('Error fetching song play progress:', error);
+      // console.error('Error fetching song play progress:', error);
       return null;
     }
 
@@ -56,7 +56,7 @@ export async function getSongPlayProgress(
       lastClearedAt: data.last_cleared_at,
     };
   } catch (error) {
-    console.error('Error fetching song play progress:', error);
+    // console.error('Error fetching song play progress:', error);
     return null;
   }
 }
@@ -110,13 +110,13 @@ export async function updateSongPlayProgress(
       });
 
     if (error) {
-      console.error('Error updating song play progress:', error);
+      // console.error('Error updating song play progress:', error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Error updating song play progress:', error);
+    // console.error('Error updating song play progress:', error);
     return false;
   }
 }
@@ -143,12 +143,7 @@ export async function getContextSongProgress(
       .eq('context_id', contextId);
 
     if (error) {
-      console.error('Error fetching context song progress:', error);
-      return [];
-    }
-
-    return data.map(row => ({
-      userId: row.user_id,
+      // console.error(      userId: row.user_id,
       songId: row.song_id,
       contextType: row.context_type,
       contextId: row.context_id,
@@ -156,9 +151,10 @@ export async function getContextSongProgress(
       bestRank: row.best_rank,
       bestScore: row.best_score,
       lastClearedAt: row.last_cleared_at,
-    }));
+     {
+// }));
   } catch (error) {
-    console.error('Error fetching context song progress:', error);
+    // console.error('Error fetching context song progress:', error);
     return [];
   }
 }
@@ -179,7 +175,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
       .eq('user_id', userId);
     
     if (songError) {
-      console.error('Error fetching user song progress:', songError);
+      // console.error('Error fetching user song progress:', songError);
       return;
     }
 
@@ -190,7 +186,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
       .eq('user_id', userId);
     
     if (lessonError) {
-      console.error('Error fetching user lesson progress:', lessonError);
+      // console.error('Error fetching user lesson progress:', lessonError);
       return;
     }
 
@@ -201,14 +197,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
       .eq('user_id', userId);
     
     if (statsError) {
-      console.error('Error fetching user song stats:', statsError);
-      return;
-    }
-
-    const migratedProgress = [
-      // Mission progress
-      ...songProgress.map(progress => ({
-        user_id: progress.user_id,
+      // console.error(        user_id: progress.user_id,
         song_id: progress.song_id,
         context_type: 'mission',
         context_id: null, // We'll need to determine this from challenge data
@@ -216,7 +205,8 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
         best_rank: progress.best_rank,
         best_score: null,
         last_cleared_at: progress.last_cleared_at,
-      })),
+       {
+// })),
       // Lesson progress
       ...lessonProgress.map(progress => ({
         user_id: progress.user_id,
@@ -242,7 +232,7 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
     ];
 
     if (dryRun) {
-      console.log('Dry run - would migrate:', migratedProgress.length, 'progress records for user', userId);
+      // console.log('Dry run - would migrate:', migratedProgress.length, 'progress records for user', userId);
       return;
     }
 
@@ -252,12 +242,12 @@ export async function migrateUserProgress(userId: string, dryRun: boolean = true
       .insert(migratedProgress);
 
     if (insertError) {
-      console.error('Error inserting migrated progress:', insertError);
+      // console.error('Error inserting migrated progress:', insertError);
       return;
     }
 
-    console.log('Successfully migrated', migratedProgress.length, 'progress records for user', userId);
+    // console.log('Successfully migrated', migratedProgress.length, 'progress records for user', userId);
   } catch (error) {
-    console.error('Error during migration:', error);
+    // console.error('Error during migration:', error);
   }
 }

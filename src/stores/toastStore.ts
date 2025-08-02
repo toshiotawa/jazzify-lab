@@ -89,7 +89,7 @@ export function getValidationMessage(field: string, error: string): string {
 }
 
 // エラーハンドリング統一関数
-export function handleApiError(error: any, context: string = ''): string {
+export function handleApiError(error: Error | unknown, context: string = ''): string {
   if (error?.message) {
     return error.message;
   }

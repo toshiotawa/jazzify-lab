@@ -113,11 +113,11 @@ const FantasyMain: React.FC = () => {
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
         }).catch(err => {
-          console.error('Failed to load fantasy stage:', err);
+          // console.error('Failed to load fantasy stage:', err);
           devLog.error('🎮 ファンタジーステージ取得エラー:', err);
         });
       } catch (e) {
-        console.error('Failed to parse clear conditions:', e);
+        // console.error('Failed to parse clear conditions:', e);
         devLog.error('🎮 clear conditions パースエラー:', e);
       }
     }
@@ -182,7 +182,7 @@ const FantasyMain: React.FC = () => {
           
           devLog.debug('✅ レッスン課題進捗を更新しました');
         } catch (error) {
-          console.error('レッスン課題進捗更新エラー:', error);
+          // console.error('レッスン課題進捗更新エラー:', error);
           devLog.error('🎮 レッスン進捗更新エラー詳細:', error);
         }
       }
@@ -233,7 +233,7 @@ const FantasyMain: React.FC = () => {
               });
           
           if (clearError) {
-            console.error('ファンタジークリア記録保存エラー:', clearError);
+            // console.error('ファンタジークリア記録保存エラー:', clearError);
             devLog.debug('クリア記録保存失敗:', {
               error: clearError,
               data: {
@@ -250,7 +250,7 @@ const FantasyMain: React.FC = () => {
               devLog.debug('✅ ファンタジークリア記録保存完了');
             }
           } catch (clearSaveError) {
-            console.error('ファンタジークリア記録保存例外:', clearSaveError);
+            // console.error('ファンタジークリア記録保存例外:', clearSaveError);
           }
         }
         
@@ -293,11 +293,10 @@ const FantasyMain: React.FC = () => {
                 .eq('user_id', profile.id);
 
               if (updateError) {
-                console.error('ファンタジー進捗更新エラー:', updateError);
-              } else {
-                devLog.debug('✅ ファンタジー進捗更新完了:', {
+                // console.error(                devLog.debug('✅ ファンタジー進捗更新完了:', {
                   nextStageNumber, newRank, newClearedStages
-                });
+                 {
+// });
               }
             }
           }
@@ -331,11 +330,11 @@ const FantasyMain: React.FC = () => {
           });
           
         } catch (xpError) {
-          console.error('ファンタジーモードXP付与エラー:', xpError);
+          // console.error('ファンタジーモードXP付与エラー:', xpError);
         }
       }
     } catch (error) {
-      console.error('ファンタジーモード結果保存エラー:', error);
+      // console.error('ファンタジーモード結果保存エラー:', error);
     }
   }, [isGuest, profile, currentStage, isLessonMode, lessonContext]);
   
@@ -402,7 +401,7 @@ const FantasyMain: React.FC = () => {
       
       devLog.debug('✅ 次のステージに遷移:', convertedStage);
     } catch (err) {
-      console.error('次のステージ読み込みエラー:', err);
+      // console.error('次のステージ読み込みエラー:', err);
       alert('次のステージの読み込みに失敗しました');
     }
   }, [currentStage]);

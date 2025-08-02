@@ -100,7 +100,7 @@ const UserManager: React.FC = () => {
       const unlockStatus = await fetchUserCourseUnlockStatus(user.id);
       setUserCourseUnlockStatus(unlockStatus);
     } catch (error) {
-      console.error('Failed to load course unlock status:', error);
+      // console.error('Failed to load course unlock status:', error);
       setUserCourseUnlockStatus({});
     }
     
@@ -119,7 +119,7 @@ const UserManager: React.FC = () => {
       const progress = await fetchUserLessonProgress(courseId, userId, { forceRefresh });
       setUserLessonProgress(progress);
     } catch (e) {
-      console.error('Failed to load progress:', e);
+      // console.error('Failed to load progress:', e);
       setUserLessonProgress([]);
     }
   };
@@ -266,7 +266,7 @@ const UserManager: React.FC = () => {
       
       toast.success(`コースを${shouldUnlock ? 'アンロック' : 'ロック'}しました`);
     } catch (error) {
-      console.error('Course lock/unlock failed:', error);
+      // console.error('Course lock/unlock failed:', error);
       toast.error('コースのロック/アンロックに失敗しました');
       
       // エラー時はロールバック
@@ -521,7 +521,7 @@ const UserManager: React.FC = () => {
                             
                             toast.success('通常の前提条件に戻しました');
                           } catch (error) {
-                            console.error('Failed to reset course unlock status:', error);
+                            // console.error('Failed to reset course unlock status:', error);
                             toast.error('リセットに失敗しました');
                             
                             // エラー時はロールバック

@@ -40,12 +40,12 @@ export const useMidiDevices = () => {
       });
 
       setDevices(deviceList);
-      console.log(`🎹 Found ${deviceList.length} MIDI devices:`, deviceList);
+      // console.log(`🎹 Found ${deviceList.length} MIDI devices:`, deviceList);
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
-      console.error('❌ MIDI device refresh failed:', err);
+      // console.error('❌ MIDI device refresh failed:', err);
       setDevices([]);
     } finally {
       setIsRefreshing(false);
@@ -67,11 +67,11 @@ export const useMidiDevices = () => {
         
         // デバイス状態変更時に一覧を更新
         midiAccess.onstatechange = (event) => {
-          console.log('🎹 MIDI device state changed:', event);
+          // console.log('🎹 MIDI device state changed:', event);
           refreshDevices();
         };
       } catch (err) {
-        console.warn('⚠️ MIDI state monitoring setup failed:', err);
+        // console.warn('⚠️ MIDI state monitoring setup failed:', err);
       }
     };
 
@@ -126,12 +126,12 @@ export const useAudioDevices = () => {
         }));
 
       setDevices(audioInputs);
-      console.log(`🎤 Found ${audioInputs.length} audio input devices:`, audioInputs);
+      // console.log(`🎤 Found ${audioInputs.length} audio input devices:`, audioInputs);
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
-      console.error('❌ Audio device refresh failed:', err);
+      // console.error('❌ Audio device refresh failed:', err);
       setDevices([]);
     } finally {
       setIsRefreshing(false);
@@ -174,7 +174,7 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
   const handleDeviceChange = (newDeviceId: string | null) => {
     // 同じデバイスを選択した場合は一度切断してから再接続
     if (newDeviceId && newDeviceId === value) {
-      console.log('🔄 同じデバイスが選択されました。再接続を試みます...');
+      // console.log('🔄 同じデバイスが選択されました。再接続を試みます...');
       // 一度nullを設定してから再度設定することで再接続を強制
       onChange(null);
       setTimeout(() => {

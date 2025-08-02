@@ -252,7 +252,7 @@ export class PerformanceMonitor {
     // 初期化フェーズの判定（最初の15秒間に延長）
     if (this.isInitializationPhase && (this.frameStartTime - this.initializationTime) > 15000) {
       this.isInitializationPhase = false;
-      console.log('🎯 パフォーマンス監視開始 - 初期化フェーズ完了');
+      // console.log('🎯 パフォーマンス監視開始 - 初期化フェーズ完了');
     }
   }
   
@@ -333,7 +333,7 @@ export class PerformanceMonitor {
   private warnOnce(key: string, message: string): void {
     if (!this.optimizationWarnings.has(key)) {
       // 軽量なワーニング出力
-      console.warn(message);
+      // console.warn(message);
       this.optimizationWarnings.add(key);
       
       // 警告のリセット時間を延長（10分後）
@@ -537,20 +537,20 @@ export const performanceUtils = {
   /**
    * デバウンス処理
    */
-  debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+  debounce<T extends (...args: unknown[]) => unknown>(func: T, wait: number): T {
     let timeout: NodeJS.Timeout;
-    return ((...args: any[]) => {
+    return ((...args: unknown[]) => {
       clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(null, args), wait);
+      timeout = setTimeout(() => func(...args), wait);
     }) as T;
   },
   
   /**
    * スロットル処理
    */
-  throttle<T extends (...args: any[]) => any>(func: T, limit: number): T {
+  throttle<T extends (...args: unknown[]) => any>(func: T, limit: number): T {
     let inThrottle: boolean;
-    return ((...args: any[]) => {
+    return ((...args: unknown[]) => {
       if (!inThrottle) {
         func.apply(null, args);
         inThrottle = true;

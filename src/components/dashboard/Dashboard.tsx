@@ -64,12 +64,12 @@ const Dashboard: React.FC = () => {
     
     try {
       // すべてのデータを並行読み込み
-      const promises: Promise<any>[] = [];
+      const promises: Promise<unknown>[] = [];
       
       // ミッションのロード
       promises.push(
-        loadMissions().catch((missionError: any) => {
-          console.error('Mission loading error:', missionError);
+        loadMissions().catch((missionError: unknown) => {
+          // console.error('Mission loading error:', missionError);
           toast.error('ミッションの読み込みに失敗しました');
         })
       );
@@ -90,23 +90,23 @@ const Dashboard: React.FC = () => {
             
             const latestData = sortedAnnouncements.length > 0 ? sortedAnnouncements[0] : null;
             
-            console.log('Dashboard: Latest announcement data:', latestData);
-            console.log('Dashboard: All active announcements:', announcementsData);
-            console.log('Dashboard: Sorted announcements:', sortedAnnouncements);
-            console.log('Dashboard: Total active announcements count:', announcementsData.length);
+            // console.log('Dashboard: Latest announcement data:', latestData);
+            // console.log('Dashboard: All active announcements:', announcementsData);
+            // console.log('Dashboard: Sorted announcements:', sortedAnnouncements);
+            // console.log('Dashboard: Total active announcements count:', announcementsData.length);
             
             setLatestAnnouncement(latestData);
             
             if (!latestData) {
-              console.log('Dashboard: No active announcements found');
+              // console.log('Dashboard: No active announcements found');
               if (announcementsData.length === 0) {
-                console.log('Dashboard: No announcements exist at all');
+                // console.log('Dashboard: No announcements exist at all');
               } else {
-                console.log('Dashboard: Active announcements exist but latestData is null');
+                // console.log('Dashboard: Active announcements exist but latestData is null');
               }
             }
-          }).catch((announcementError: any) => {
-            console.error('Announcement loading error:', announcementError);
+          }).catch((announcementError: unknown) => {
+            // console.error('Announcement loading error:', announcementError);
             toast.error(`お知らせの読み込みに失敗しました: ${announcementError.message}`, {
               title: 'お知らせエラー',
               duration: 5000,
@@ -118,8 +118,8 @@ const Dashboard: React.FC = () => {
       // ユーザー統計のロード（ゲスト以外）- 他のデータと完全に並行実行
       if (!isGuest && profile) {
         promises.push(
-          fetchStats(profile.id).catch((statsError: any) => {
-            console.error('User stats loading error:', statsError);
+          fetchStats(profile.id).catch((statsError: unknown) => {
+            // console.error('User stats loading error:', statsError);
             // 統計の読み込み失敗は致命的ではないので、エラーログのみ
           })
         );
@@ -128,7 +128,7 @@ const Dashboard: React.FC = () => {
       // すべてのプロミスを並行実行
       await Promise.all(promises);
     } catch (error) {
-      console.error('Dashboard data loading error:', error);
+      // console.error('Dashboard data loading error:', error);
     } finally {
       setLoading(false);
     }
@@ -141,7 +141,7 @@ const Dashboard: React.FC = () => {
   // 称号の種類を判定する関数
   const getTitleType = (title: string): 'level' | 'mission' | 'lesson' => {
     // レベル称号の判定
-    if (TITLES.includes(title as any)) {
+    if (TITLES.includes(title as unknown)) {
       return 'level';
     }
     // ミッション称号の判定

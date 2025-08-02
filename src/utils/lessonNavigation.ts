@@ -150,7 +150,7 @@ export async function getLessonNavigationInfo(
     return navigationInfo;
     
   } catch (error) {
-    console.error('Navigation info loading error:', error);
+    // console.error('Navigation info loading error:', error);
     throw error;
   }
 }

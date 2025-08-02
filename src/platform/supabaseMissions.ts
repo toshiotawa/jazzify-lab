@@ -63,15 +63,8 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
       .lte('start_date', today)  // 開始日が今日以前（今日を含む）
       .gte('end_date', today);   // 終了日が今日以降（今日を含む）
     
-    console.log('fetchActiveMonthlyMissions raw data:', result);
-    return result;
-  }, 1000 * 60 * 3); // 最適化: 3分キャッシュ（短いTTLで最新情報を確保）
-  if (error) throw error;
-  
-  // データを正しくマッピング
-  const missions = data.map((mission: any) => ({
-    ...mission,
-    songs: mission.challenge_tracks?.map((track: any) => ({
+    // console.log(    ...mission,
+    songs: mission.challenge_tracks?.map((track: unknown) => ({
       song_id: track.song_id,
       key_offset: track.key_offset || 0,
       min_speed: track.min_speed || 1.0,
@@ -79,10 +72,11 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
       clears_required: track.clears_required || 1,
       notation_setting: track.notation_setting || 'both',
       songs: track.songs
-    })) || []
+     {
+// })) || []
   }));
   
-  console.log('fetchActiveMonthlyMissions processed missions:', missions);
+  // console.log('fetchActiveMonthlyMissions processed missions:', missions);
   return missions as Mission[];
 }
 
@@ -145,7 +139,7 @@ export async function fetchMissionSongProgress(missionId: string): Promise<Missi
   // 進捗データをマップ化
   const progressMap = new Map();
   if (progressData) {
-    progressData.forEach((item: any) => {
+    progressData.forEach((item: unknown) => {
       progressMap.set(item.song_id, item.clear_count);
     });
   }
@@ -190,7 +184,7 @@ export async function fetchMissionSongProgressAll(missionIds: string[]): Promise
     if (songsError) throw songsError;
     
     // 曲IDのリストを作成
-    const songIds = songsData.map((song: any) => song.song_id);
+    const songIds = songsData.map((song: unknown) => song.song_id);
     
     // 一括で進捗を取得
     const { data: progressData } = await supabase
@@ -202,7 +196,7 @@ export async function fetchMissionSongProgressAll(missionIds: string[]): Promise
     // 進捗データをマップ化
     const progressMap = new Map();
     if (progressData) {
-      progressData.forEach((item: any) => {
+      progressData.forEach((item: unknown) => {
         progressMap.set(item.song_id, item.clear_count);
       });
     }
@@ -210,7 +204,7 @@ export async function fetchMissionSongProgressAll(missionIds: string[]): Promise
     // ミッションIDごとにグループ化
     const result: Record<string, MissionSongProgress[]> = {};
     
-    songsData.forEach((song: any) => {
+    songsData.forEach((song: unknown) => {
       const clearCount = progressMap.get(song.song_id) || 0;
       const requiredCount = song.clears_required || 1;
       
@@ -235,7 +229,7 @@ export async function fetchMissionSongProgressAll(missionIds: string[]): Promise
     
     return result;
   } catch (error) {
-    console.error('一括ミッション進捗取得エラー:', error);
+    // console.error('一括ミッション進捗取得エラー:', error);
     return {};
   }
 }
@@ -424,7 +418,7 @@ export async function claimReward(missionId: string) {
     if (progressError) {
       // reward_claimed列が存在しない場合のエラー
       if (progressError.code === '42703') {
-        console.warn('reward_claimed列が存在しません。マイグレーションが必要です。');
+        // console.warn('reward_claimed列が存在しません。マイグレーションが必要です。');
         // 代替手段：completed列のみでチェック
         const { data: fallbackProgress, error: fallbackError } = await supabase
           .from('user_challenge_progress')
@@ -511,7 +505,7 @@ export async function claimReward(missionId: string) {
           }
         }
       }
-    } catch (updateError: any) {
+    } catch (updateError: unknown) {
       if (updateError.code === '42703') {
         // reward_claimed列が存在しない場合はcompletedをtrueに設定
         const { error: fallbackUpdateError } = await supabase
@@ -561,7 +555,7 @@ export async function claimReward(missionId: string) {
       levelUp: xpResult.level > (currentProfile?.level || 1)
     };
   } catch (error) {
-    console.error('claimReward error:', error);
+    // console.error('claimReward error:', error);
     throw error;
   }
 }

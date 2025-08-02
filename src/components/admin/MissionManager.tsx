@@ -76,7 +76,7 @@ const MissionManager: React.FC = () => {
         progress.forEach(p=>{ map[p.challenge_id] = {clear_count:p.clear_count, completed:p.completed}; });
         setProgressMap(map);
       } catch (e) {
-        console.error('progress fetch failed', e);
+        // console.error('progress fetch failed', e);
       }
     } finally {
       setLoading(false);
@@ -214,7 +214,7 @@ const MissionManager: React.FC = () => {
   const fetchSongInfo = async (songId: string) => {
     try {
       const songs = await fetchSongs();
-      const song = songs.find((s: any) => s.id === songId);
+      const song = songs.find((s: unknown) => s.id === songId);
       if (song) {
         setSongInfo(prev => ({
           ...prev,
@@ -222,7 +222,7 @@ const MissionManager: React.FC = () => {
         }));
       }
     } catch (error) {
-      console.error('楽曲情報取得エラー:', error);
+      // console.error('楽曲情報取得エラー:', error);
     }
   };
 
@@ -776,7 +776,7 @@ const SongSelectorModal: React.FC<{
 
 const SongConditionsModal: React.FC<{
   song: ChallengeSong;
-  onSave: (songId: string, conditions: any) => void;
+  onSave: (songId: string, conditions: unknown) => void;
   onCancel: () => void;
 }> = ({ song, onSave, onCancel }) => {
   const [conditions, setConditions] = useState({

@@ -62,7 +62,7 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
 
     return result;
   } catch (error) {
-    console.error('ユーザー統計の取得に失敗:', error);
+    // console.error('ユーザー統計の取得に失敗:', error);
     return {
       missionCompletedCount: 0,
       lessonCompletedCount: 0,

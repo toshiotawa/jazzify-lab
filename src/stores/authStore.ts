@@ -24,41 +24,38 @@ function getValidRedirectUrl(): string | null {
   // 環境変数から取得を試行
   const envRedirectUrl = import.meta.env.VITE_SUPABASE_REDIRECT_URL;
   
-  console.log('🔍 Magic Link リダイレクトURL検証開始');
-  console.log('環境変数 VITE_SUPABASE_REDIRECT_URL:', envRedirectUrl);
-  
   if (envRedirectUrl) {
     try {
       const url = new URL(envRedirectUrl);
-      console.log('解析されたURL:', {
-        protocol: url.protocol,
-        hostname: url.hostname,
-        port: url.port,
-        pathname: url.pathname
-      });
+      // console.log('解析されたURL:', {
+      //   protocol: url.protocol,
+      //   hostname: url.hostname,
+      //   port: url.port,
+      //   pathname: url.pathname
+      // });
       
       // HTTPSまたはlocalhostの場合のみ許可
       if (url.protocol === 'https:' || url.hostname === 'localhost') {
-        console.log('✅ 有効なリダイレクトURL:', envRedirectUrl);
+        // console.log('✅ 有効なリダイレクトURL:', envRedirectUrl);
         return envRedirectUrl;
       } else {
-        console.warn('❌ 無効なプロトコル:', url.protocol);
+        // console.warn('❌ 無効なプロトコル:', url.protocol);
       }
     } catch (error) {
-      console.warn('❌ 無効なURL形式:', envRedirectUrl, error);
+      // console.warn('❌ 無効なURL形式:', envRedirectUrl, error);
     }
   } else {
-    console.warn('⚠️ 環境変数 VITE_SUPABASE_REDIRECT_URL が設定されていません');
+    // console.warn('⚠️ 環境変数 VITE_SUPABASE_REDIRECT_URL が設定されていません');
   }
 
   // フォールバック: 現在のorigin
   if (typeof location !== 'undefined') {
     const currentOrigin = location.origin;
-    console.log('🔄 フォールバック: 現在のoriginを使用:', currentOrigin);
+    // console.log('🔄 フォールバック: 現在のoriginを使用:', currentOrigin);
     return currentOrigin;
   }
 
-  console.error('❌ リダイレクトURLを取得できませんでした');
+  // console.error('❌ リダイレクトURLを取得できませんでした');
   return null;
 }
 
@@ -130,13 +127,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       // URLからマジックリンク情報を解析
       const magicLinkInfo = parseMagicLinkFromUrl();
       
-      console.group('🔐 認証初期化開始');
-      console.log('🌐 現在のURL:', typeof location !== 'undefined' ? location.href : 'N/A');
-      console.log('🔍 マジックリンク検出:', magicLinkInfo.hasMagicLink);
-      if (magicLinkInfo.hasMagicLink) {
-        console.log('📋 マジックリンク詳細:', magicLinkInfo);
-      }
-      console.groupEnd();
+      // console.group('🔐 認証初期化開始');
+      // console.log('🌐 現在のURL:', typeof location !== 'undefined' ? location.href : 'N/A');
+      // console.log('🔍 マジックリンク検出:', magicLinkInfo.hasMagicLink);
+      // if (magicLinkInfo.hasMagicLink) {
+      //   console.log('📋 マジックリンク詳細:', magicLinkInfo);
+      // }
+      // console.groupEnd();
       
       set(state => {
         state.loading = true;
@@ -144,7 +141,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       
       // マジックリンクが検出された場合、セッションを確立
       if (magicLinkInfo.hasMagicLink && magicLinkInfo.tokenHash) {
-        console.log('🔐 マジックリンクトークンでセッション確立を試行');
+        // console.log('🔐 マジックリンクトークンでセッション確立を試行');
         try {
           const { data, error } = await supabase.auth.verifyOtp({
             token_hash: magicLinkInfo.tokenHash,
@@ -152,27 +149,34 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           });
           
           if (error) {
-            console.error('❌ マジックリンク検証エラー:', error);
+            // console.error('❌ マジックリンク検証エラー:', error);
             set(state => {
               state.error = `認証エラー: ${error.message}`;
             });
           } else if (data.session) {
-            console.log('✅ マジックリンクセッション確立成功');
+            // console.log('✅ マジックリンクセッション確立成功');
             logMagicLinkSuccess(data.user?.email || 'unknown', data.session);
             
             // URLパラメータをクリア（セキュリティのため）
             if (typeof window !== 'undefined' && window.history.replaceState) {
-              const url = new URL(window.location.href);
-              url.searchParams.delete('token_hash');
-              url.searchParams.delete('type');
-              url.searchParams.delete('access_token');
-              url.searchParams.delete('refresh_token');
-              window.history.replaceState({}, '', url.toString());
-              console.log('🧹 URLパラメータをクリアしました');
+              try {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('token_hash');
+                url.searchParams.delete('type');
+                url.searchParams.delete('access_token');
+                url.searchParams.delete('refresh_token');
+                window.history.replaceState({}, '', url.toString());
+                // console.log('🔍 マジックリンクのクエリパラメータをクリア');
+              } catch (error) {
+                // console.error('❌ マジックリンク処理エラー:', error);
+                set(state => {
+                  state.error = '認証処理中にエラーが発生しました';
+                });
+              }
             }
           }
         } catch (error) {
-          console.error('❌ マジックリンク処理エラー:', error);
+          // console.error('❌ マジックリンク認証エラー:', error);
           set(state => {
             state.error = '認証処理中にエラーが発生しました';
           });
@@ -181,13 +185,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       
       const { data: { session } } = await supabase.auth.getSession();
       
-      console.log('🔑 セッション取得結果:', {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        userEmail: session?.user?.email,
-        sessionCreated: session ? '存在します' : 'なし',
-        sessionExpires: session ? '存在します' : 'なし'
-      });
+      // console.log('🔑 セッション取得結果:', {
+      //   hasSession: !!session,
+      //   userId: session?.user?.id,
+      //   userEmail: session?.user?.email,
+      //   sessionCreated: session ? '存在します' : 'なし',
+      //   sessionExpires: session ? '存在します' : 'なし'
+      //  {
+// });
       
       set(state => {
         state.session = session ?? null;
@@ -222,7 +227,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           }
         };
       } catch (error) {
-        console.warn('BroadcastChannel not supported, falling back to localStorage events');
+        // console.warn('BroadcastChannel not supported, falling back to localStorage events');
         // フォールバック: localStorage イベント
         window.addEventListener('storage', (e) => {
           if (e.key === 'supabase-auth') {
@@ -244,7 +249,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                 });
               }
             } catch (error) {
-              console.error('Error parsing auth storage event:', error);
+              // console.error('Error parsing auth storage event:', error);
             }
           }
         });
@@ -255,11 +260,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         const previousUser = get().user;
         
         console.group('🔄 認証状態変化');
-        console.log('📝 イベント:', event);
-        console.log('👤 前のユーザー:', previousUser?.id);
-        console.log('👤 新しいユーザー:', session?.user?.id);
-        console.log('📧 ユーザーメール:', session?.user?.email);
-        console.log('🔑 セッション存在:', !!session);
+        // console.log('📝 イベント:', event);
+        // console.log('👤 前のユーザー:', previousUser?.id);
+        // console.log('👤 新しいユーザー:', session?.user?.id);
+        // console.log('📧 ユーザーメール:', session?.user?.email);
+        // console.log('🔑 セッション存在:', !!session);
         console.groupEnd();
         
         set(state => {
@@ -277,10 +282,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           (event === 'INITIAL_SESSION'  && session?.user) ||
           (event === 'TOKEN_REFRESHED'  && session?.user)
         ) {
-          console.log('✅ プロフィール取得開始');
-          get().fetchProfile().catch(error => {
-            console.error('❌ プロフィール取得エラー:', error);
-          });
+          // console.log(            // console.error('❌ プロフィール取得エラー:', error);
+           {
+// });
         }
 
         // メールアドレス変更完了の検出とStripe同期
@@ -289,7 +293,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           const newEmail = session.user.email;
           
           if (oldEmail && newEmail && oldEmail !== newEmail) {
-            console.log('Email change detected, syncing with Stripe...', { oldEmail, newEmail });
+            // console.log('Email change detected, syncing with Stripe...', { oldEmail, newEmail });
             
             // Stripe Customer emailを同期
             try {
@@ -304,7 +308,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
               if (response.ok) {
                 const result = await response.json();
-                console.log('Stripe email sync successful:', result);
+                // console.log('Stripe email sync successful:', result);
                 
                 // プロフィール情報を再取得してUIに反映
                 await get().fetchProfile();
@@ -318,7 +322,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                   };
                 });
               } else {
-                console.error('Failed to sync email with Stripe:', await response.text());
+                // console.error('Failed to sync email with Stripe:', await response.text());
                 
                 // 警告状態をセット
                 set(state => {
@@ -330,7 +334,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                 });
               }
             } catch (error) {
-              console.error('Error syncing email with Stripe:', error);
+              // console.error('Error syncing email with Stripe:', error);
               
               // ネットワークエラー等の警告状態をセット
               set(state => {
@@ -353,7 +357,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             localStorage.setItem('supabase-auth', JSON.stringify({ event, session }));
             localStorage.removeItem('supabase-auth'); // 即座に削除してイベントをトリガー
           } catch (error) {
-            console.warn('localStorage not available for auth sync');
+            // console.warn('localStorage not available for auth sync');
           }
         }
       });
@@ -376,7 +380,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       try {
         if (useOtp) {
           // OTPモードの場合: 6桁のコードを送信
-          console.log('🔐 OTP送信モード');
+          // console.log('🔐 OTP送信モード');
           
           const { error } = await supabase.auth.signInWithOtp({
             email,
@@ -388,7 +392,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           if (error) {
             // サインアップ無効エラーの特別処理
             if (error.message.includes('Signups not allowed') || error.message.includes('signups not allowed')) {
-              console.warn('⚠️ サインアップが無効です。ログインモードで再試行します。');
+              // console.warn('⚠️ サインアップが無効です。ログインモードで再試行します。');
               
               // ログインモードで再試行
               const { error: loginError } = await supabase.auth.signInWithOtp({
@@ -408,7 +412,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             }
           }
 
-          console.log('✅ OTP送信成功');
+          // console.log('✅ OTP送信成功');
         } else {
           // マジックリンクモードの場合: リダイレクトURLを含めて送信
           // リダイレクトURLの検証と設定
@@ -429,7 +433,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             emailRedirectTo: callbackUrl,
           };
 
-          console.log('🔐 Magic Link 送信オプション:', options);
+          // console.log('🔐 Magic Link 送信オプション:', options);
 
           // メールベースのMagic Link送信
           const { error } = await supabase.auth.signInWithOtp({
@@ -440,7 +444,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           if (error) {
             // サインアップ無効エラーの特別処理
             if (error.message.includes('Signups not allowed') || error.message.includes('signups not allowed')) {
-              console.warn('⚠️ サインアップが無効です。ログインモードで再試行します。');
+              // console.warn('⚠️ サインアップが無効です。ログインモードで再試行します。');
               
               // ログインモードで再試行
                               const { error: loginError } = await supabase.auth.signInWithOtp({
@@ -461,13 +465,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             }
           }
 
-          console.log('✅ Magic Link 送信成功');
-        }
-
-        set(state => {
-          state.loading = false;
+          // console.log(          state.loading = false;
           state.error = null;
-        });
+         {
+// });
 
       } catch (error) {
         logMagicLinkError(error, useOtp ? 'OTP送信処理エラー' : 'Magic Link送信処理エラー');
@@ -528,7 +529,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
 
       } catch (error) {
-        console.error('OTP検証エラー:', error);
+        // console.error('OTP検証エラー:', error);
         let errorMessage = 'OTP検証に失敗しました';
         
         if (error instanceof Error) {
@@ -588,11 +589,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       const supabase = getSupabaseClient();
       const { user } = get();
       if (!user) {
-        console.log('❌ fetchProfile: ユーザーが存在しません');
+        // console.log('❌ fetchProfile: ユーザーが存在しません');
         return;
       }
       
-      console.log('🔍 fetchProfile: プロフィール取得開始', { userId: user.id, userEmail: user.email });
+      // console.log('🔍 fetchProfile: プロフィール取得開始', { userId: user.id, userEmail: user.email });
       
       try {
         const { data, error } = await supabase
@@ -601,7 +602,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           .eq('id', user.id)
           .maybeSingle(); // singleの代わりにmaybeSingleを使用してNot Found エラーを防ぐ
         
-        console.log('📊 fetchProfile: 取得結果', { data, error, hasData: !!data, hasError: !!error });
+        // console.log('📊 fetchProfile: 取得結果', { data, error, hasData: !!data, hasError: !!error });
         
         set(state => {
           state.hasProfile = !!data && !error;
@@ -633,21 +634,19 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
         // プロフィール取得成功後、ユーザー統計も並行で取得
         if (data && !error) {
-          console.log('✅ fetchProfile: プロフィール取得成功', { nickname: data.nickname, rank: data.rank });
+          // console.log('✅ fetchProfile: プロフィール取得成功', { nickname: data.nickname, rank: data.rank });
           const { fetchStats } = useUserStatsStore.getState();
           fetchStats(user.id).catch(console.error); // エラーは無視（統計は重要ではない）
         } else if (error) {
-          console.log('❌ fetchProfile: プロフィール取得エラー', { error });
+          // console.log('❌ fetchProfile: プロフィール取得エラー', { error });
         } else {
-          console.log('⚠️ fetchProfile: プロフィールが見つかりません（新規ユーザー）');
-        }
-      } catch (err) {
-        console.error('Profile fetch error:', err);
+          // console.log(        // console.error('Profile fetch error:', err);
         
         // ネットワークエラーや一時的なエラーの場合は hasProfile を変更しない
         const errorMessage = err instanceof Error ? err.message : String(err);
         if (errorMessage.includes('network') || errorMessage.includes('timeout') || errorMessage.includes('fetch')) {
-          console.log('🌐 fetchProfile: ネットワークエラー', { errorMessage });
+          // console.log('🌐 fetchProfile: ネットワークエラー', { errorMessage  {
+// });
           set(state => {
             state.error = '一時的なネットワークエラーです。しばらくしてから再試行してください。';
           });
@@ -655,7 +654,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
         
         // その他のエラーの場合のみ hasProfile を false にする
-        console.log('💥 fetchProfile: 致命的エラー', { errorMessage });
+        // console.log('💥 fetchProfile: 致命的エラー', { errorMessage });
         set(state => {
           state.hasProfile = false;
           state.profile = null;
@@ -729,11 +728,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         });
         
       } catch (error) {
-        console.error('Profile creation error:', error);
-        set(state => { 
-          state.loading = false;
+        // console.error(          state.loading = false;
           state.error = (error instanceof Error ? error.message : String(error)) || 'プロフィールの作成に失敗しました';
-        });
+         {
+// });
       }
     },
 
@@ -781,12 +779,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         };
 
       } catch (error) {
-        console.error('Email update error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'メールアドレスの更新に失敗しました';
-        set(state => {
-          state.loading = false;
+        // console.error(          state.loading = false;
           state.error = errorMessage;
-        });
+         {
+// });
         
         return { 
           success: false, 

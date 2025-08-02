@@ -16,7 +16,7 @@ autoLogMagicLinkInfo();
 // 本番環境でもデバッグ情報を表示する関数
 const showDebugInfo = (message: string, isError = false) => {
   const timestamp = new Date().toLocaleTimeString();
-  console.log(`🎵 [${timestamp}] ${message}`);
+  // console.log(`🎵 [${timestamp}] ${message}`);
   
   // 画面にも表示
   const debugDiv = document.getElementById('debug-info') || document.createElement('div');
@@ -56,7 +56,7 @@ const hideLoading = () => {
 };
 
 // エラー表示関数（簡素化）
-const showError = (error: any) => {
+const showError = (error: Error | unknown) => {
   const loadingElement = document.getElementById('loading');
   if (loadingElement) {
     loadingElement.innerHTML = `
@@ -90,7 +90,7 @@ window.addEventListener('error', (event) => {
 window.addEventListener('unhandledrejection', (event) => {
   // JSON読み込みエラーの場合は特別な処理
   if (event.reason && event.reason.message && event.reason.message.includes('Unexpected token')) {
-    console.error('🎵 JSON読み込みエラー:', event.reason.message);
+    // console.error('🎵 JSON読み込みエラー:', event.reason.message);
     showDebugInfo(`JSON読み込みエラー: ${event.reason.message}`, true);
     
     // より分かりやすいエラーメッセージ
@@ -137,7 +137,7 @@ const initializeApp = async () => {
     // Tone.js を動的にロードして初期化（遅延ロード）
     try {
       const Tone = await import('tone');
-      (window as any).Tone = Tone;
+      (window as unknown).Tone = Tone;
       showDebugInfo('Tone.js loaded and attached to window');
     } catch (toneError) {
       showDebugInfo(`Tone.js loading failed: ${toneError}`, true);

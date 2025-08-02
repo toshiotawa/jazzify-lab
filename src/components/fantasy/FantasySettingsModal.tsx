@@ -104,7 +104,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   }, [rootSoundVolume]);
 
   // 設定変更ハンドラー
-  const handleSettingChange = (key: keyof FantasySettings, value: any) => {
+  const handleSettingChange = (key: keyof FantasySettings, value: unknown) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     onSettingsChange?.(newSettings);

@@ -16,13 +16,13 @@ export const getUserTitle = async (userId: string): Promise<Title> => {
       .single();
 
     if (error) {
-      console.error('称号取得エラー:', error);
+      // console.error('称号取得エラー:', error);
       return DEFAULT_TITLE;
     }
 
     return (data?.selected_title as Title) || DEFAULT_TITLE;
   } catch (error) {
-    console.error('称号取得エラー:', error);
+    // console.error('称号取得エラー:', error);
     return DEFAULT_TITLE;
   }
 };
@@ -42,13 +42,13 @@ export const updateUserTitle = async (userId: string, title: Title): Promise<boo
       .eq('id', userId);
 
     if (error) {
-      console.error('称号更新エラー:', error);
+      // console.error('称号更新エラー:', error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('称号更新エラー:', error);
+    // console.error('称号更新エラー:', error);
     return false;
   }
 };
@@ -67,18 +67,18 @@ export const getUserTitles = async (userIds: string[]): Promise<Record<string, T
       .in('id', userIds);
 
     if (error) {
-      console.error('称号一括取得エラー:', error);
+      // console.error('称号一括取得エラー:', error);
       return {};
     }
 
     const titleMap: Record<string, Title> = {};
-    data?.forEach((profile: any) => {
+    data?.forEach((profile: unknown) => {
       titleMap[profile.id] = (profile.selected_title as Title) || DEFAULT_TITLE;
     });
 
     return titleMap;
   } catch (error) {
-    console.error('称号一括取得エラー:', error);
+    // console.error('称号一括取得エラー:', error);
     return {};
   }
 };
@@ -98,7 +98,7 @@ export const getProfileWithTitle = async (userId: string) => {
       .single();
 
     if (error) {
-      console.error('プロフィール取得エラー:', error);
+      // console.error('プロフィール取得エラー:', error);
       return null;
     }
 
@@ -107,7 +107,7 @@ export const getProfileWithTitle = async (userId: string) => {
       selected_title: (data?.selected_title as Title) || DEFAULT_TITLE,
     };
   } catch (error) {
-    console.error('プロフィール取得エラー:', error);
+    // console.error('プロフィール取得エラー:', error);
     return null;
   }
 }; 

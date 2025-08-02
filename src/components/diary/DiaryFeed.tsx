@@ -149,7 +149,7 @@ const DiaryFeed: React.FC = () => {
                     await deleteDiary(d.id);
                     toast.success('日記を削除しました');
                   } catch(e:any){ 
-                    console.error('日記削除エラー:', e);
+                    // console.error('日記削除エラー:', e);
                     toast.error(e.message || '日記の削除に失敗しました');
                   }
                 }}
@@ -169,7 +169,7 @@ const DiaryFeed: React.FC = () => {
                 }
                 try {
                   await like(d.id);
-                } catch (e: any) {
+                } catch (e: unknown) {
                   toast.error(e.message || 'いいねに失敗しました');
                 }
               }}
@@ -247,8 +247,8 @@ const DiaryFeed: React.FC = () => {
                     try {
                       await addComment(d.id, text);
                       setCommentText(prev => ({ ...prev, [d.id]: '' }));
-                    } catch (e: any) {
-                      console.error('コメント追加エラー:', e);
+                    } catch (e: unknown) {
+                      // console.error('コメント追加エラー:', e);
                       toast.error(e.message || 'コメントの追加に失敗しました');
                     }
                   }}

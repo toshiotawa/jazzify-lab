@@ -111,12 +111,12 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
               
               <button
                 onClick={() => {
-                  console.log('🎯 ミッション曲プレイボタンクリック:', {
-                    songId: song.song_id,
+                  // console.log(                    songId: song.song_id,
                     songTitle: song.song?.title,
                     missionId,
                     isCompleted: song.is_completed
-                  });
+                   {
+// });
                   handlePlaySong(song.song_id, song);
                 }}
                 className={cn(
