@@ -635,7 +635,7 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'rhythm';  // 'rhythm' を追加
   allowed_chords: string[];
   chord_progression?: string[];
   show_sheet_music: boolean;
@@ -648,6 +648,22 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  chord_progression_data?: {  // 新規追加
+    chords: Array<{
+      measure: number;
+      beat: number;
+      chord: string;
+    }>;
+  } | null;
+}
+
+// リズムモード用の型定義
+export interface RhythmQuestion {
+  id: string;
+  chord: string;
+  measure: number;
+  beat: number;
+  targetMs: number; // 判定基準時刻（BGM開始からのms）
 }
 
 export interface LessonContext {
