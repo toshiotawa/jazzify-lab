@@ -832,7 +832,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {/* リズムモードの場合はchordVisibleがtrueの時のみ表示 */}
+                        {(gameState.rhythmMode?.isRhythm && !monster.chordVisible) ? '' : monster.chordTarget.displayName}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
@@ -887,10 +888,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         }}
                         className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                       >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
-                        />
+                        {gameState.rhythmMode?.isRhythm ? (
+                          <>
+                            {/* リズムモード：判定ウィンドウ表示（90-100%） */}
+                            <div
+                              className="absolute inset-y-0 bg-yellow-400/30 border-x border-yellow-400 z-10"
+                              style={{ left: '90%', width: '10%' }}
+                            />
+                            {/* ゲージ自体は使用しない（判定ウィンドウの視覚化のみ） */}
+                          </>
+                        ) : (
+                          /* 通常モード：通常のゲージ表示 */
+                          <div
+                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                            style={{ width: `${monster.gauge}%` }}
+                          />
+                        )}
                       </div>
                       
                       {/* HPゲージ */}

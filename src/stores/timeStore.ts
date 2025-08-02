@@ -27,6 +27,10 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* リズムモード用: 指定された小節・拍の時刻を取得 (ms) */
+  getTimingForMeasureBeat: (measure: number, beat: number) => number | null
+  /* リズムモード用: 現在時刻から最も近い判定タイミングを取得 */
+  getNearestJudgmentTiming: (currentTime: number, timings: Array<{measure: number, beat: number}>) => {timing: {measure: number, beat: number}, timeMs: number} | null
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -91,5 +95,56 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         isCountIn: false
       })
     }
+  },
+  getTimingForMeasureBeat: (measure, beat) => {
+    const s = get()
+    if (s.startAt === null) return null
+    
+    const msecPerBeat = 60000 / s.bpm
+    
+    // カウントイン考慮した実際の小節番号を計算
+    // measure は表示小節番号（カウントイン後を1とする）
+    const actualMeasure = s.countInMeasures + measure - 1
+    
+    // その小節・拍までの総拍数
+    const totalBeats = actualMeasure * s.timeSignature + (beat - 1)
+    
+    // 時刻を計算
+    return s.startAt + s.readyDuration + totalBeats * msecPerBeat
+  },
+  getNearestJudgmentTiming: (currentTime, timings) => {
+    const s = get()
+    if (s.startAt === null || timings.length === 0) return null
+    
+    let nearestTiming = null
+    let nearestTimeMs = 0
+    let minDiff = Infinity
+    
+    // 現在のループ回数を計算
+    const elapsed = currentTime - s.startAt - s.readyDuration
+    const msecPerBeat = 60000 / s.bpm
+    const msecPerMeasure = msecPerBeat * s.timeSignature
+    const totalMsec = s.measureCount * msecPerMeasure
+    const currentLoop = Math.floor(elapsed / totalMsec)
+    
+    // 現在のループと次のループで最も近いタイミングを探す
+    for (let loop = currentLoop; loop <= currentLoop + 1; loop++) {
+      for (const timing of timings) {
+        const timeMs = s.getTimingForMeasureBeat(timing.measure, timing.beat)
+        if (timeMs === null) continue
+        
+        // ループを考慮した実際の時刻
+        const actualTimeMs = timeMs + loop * totalMsec
+        const diff = Math.abs(actualTimeMs - currentTime)
+        
+        if (diff < minDiff) {
+          minDiff = diff
+          nearestTiming = timing
+          nearestTimeMs = actualTimeMs
+        }
+      }
+    }
+    
+    return nearestTiming ? { timing: nearestTiming, timeMs: nearestTimeMs } : null
   }
 }))
