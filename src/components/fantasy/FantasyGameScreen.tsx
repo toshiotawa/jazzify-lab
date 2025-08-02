@@ -343,11 +343,31 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
   
-  // MIDI/音声入力のハンドリング
+  // MIDI/音声入力のハンドリング（判定ウィンドウ制限付き）
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
     // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
     if (source === 'mouse' && activeNotesRef.current.has(note)) {
       devLog.debug('🎵 Note already playing, skipping:', note);
+      return;
+    }
+    
+    // 判定ウィンドウチェック（ゲージ90-100% && 1拍目±200ms）
+    const { currentBeat, bpm } = useTimeStore.getState();
+    const secPerBeat = 60 / bpm;
+    const now = performance.now();
+    const beatStart = now - (currentBeat - 1) * secPerBeat * 1000; // 1拍目の開始時間
+    const isInWindow = Math.abs(now - beatStart) <= 200; // ±200ms
+    
+    // ゲージ90-100%のチェック
+    const isGaugeInRange = gameState.activeMonsters.some(m => m.gauge >= 90 && m.gauge <= 100);
+    
+    if (!isInWindow || !isGaugeInRange) {
+      devLog.debug('🎵 Input ignored: outside judgment window', { 
+        isInWindow, 
+        isGaugeInRange, 
+        currentBeat, 
+        gauge: gameState.activeMonsters.map(m => m.gauge) 
+      });
       return;
     }
     
@@ -363,7 +383,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // ファンタジーゲームエンジンにのみ送信
     engineHandleNoteInput(note);
-  }, [engineHandleNoteInput]);
+  }, [engineHandleNoteInput, gameState.activeMonsters]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
@@ -607,12 +627,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return hearts;
   }, [heartFlash]);
   
-  // 敵のゲージ表示（黄色系）
+  // 敵のゲージ表示（90-100%で色変更）
   const renderEnemyGauge = useCallback(() => {
+    const gaugeColor = gameState.enemyGauge >= 90 ? 'from-red-500 to-red-400' : 'from-yellow-500 to-orange-400';
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
+          className={`h-full bg-gradient-to-r ${gaugeColor} rounded-full transition-all duration-200 ease-out`}
           style={{ 
             width: `${Math.min(gameState.enemyGauge, 100)}%`,
             boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
@@ -1013,7 +1034,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         
       </div>
       
-      {/* エフェクト表示は削除 - PIXI側で処理 */}
+      {/* NULL状態のオーバーレイ表示 */}
+      {gameState.currentChordTarget === null && gameState.isGameActive && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-30">
+          <div className="bg-gray-800 text-white p-6 rounded-lg text-center">
+            <div className="text-2xl mb-2">⏳</div>
+            <div className="text-lg font-bold mb-2">次の問題を準備中...</div>
+            <div className="text-sm text-gray-300">3拍後に新しいコードが表示されます</div>
+          </div>
+        </div>
+      )}
       
       {/* デバッグ情報（FPSモニター削除済み） */}
       {process.env.NODE_ENV === 'development' && (
