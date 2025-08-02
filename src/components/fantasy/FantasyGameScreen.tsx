@@ -609,18 +609,41 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
+    // プログレッションモードの場合は拍同期でゲージを計算
+    let gaugePercent = gameState.enemyGauge;
+    let isHot = false;
+    
+    if (stage.mode === 'progression') {
+      const { currentBeat, currentBeatStartAt } = useTimeStore.getState();
+      const now = performance.now();
+      const dt = now - currentBeatStartAt;
+      
+      // 1拍目のみゲージを表示
+      if (currentBeat === 1 && Math.abs(dt) <= 200) {
+        gaugePercent = 95 + (dt * 5 / 200); // 90-100%の範囲
+        isHot = gaugePercent >= 90;
+      } else {
+        gaugePercent = 0;
+      }
+    }
+    
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
+          className={cn(
+            "h-full rounded-full transition-all duration-200 ease-out",
+            isHot 
+              ? "bg-gradient-to-r from-red-500 to-red-600" // 90-100%は赤
+              : "bg-gradient-to-r from-yellow-500 to-orange-400" // 通常は黄色
+          )}
           style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+            width: `${Math.min(Math.max(0, gaugePercent), 100)}%`,
+            boxShadow: gaugePercent > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
           }}
         />
       </div>
     );
-  }, [gameState.enemyGauge]);
+  }, [gameState.enemyGauge, stage.mode]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -660,7 +683,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  // プログレッションモードではcurrentChordTargetがnullでも正常なので、isGameActiveのみで判定
+  if (!overlay && !gameState.isGameActive && !gameState.isCompleting) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,

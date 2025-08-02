@@ -12,6 +12,13 @@ import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
 
+// ===== 定数 =====
+const LEAD_MS = 200;   // 表示／判定の前倒し量
+const JUDGE_MS = 200;  // ±判定幅
+const GAUGE_MIN_PCT = 90;  // 判定開始時
+const GAUGE_MAX_PCT = 100; // 判定終了時
+const GAUGE_CENTER = 95;   // 拍ちょうど
+
 // ===== 型定義 =====
 
 interface ChordDefinition {
@@ -411,6 +418,10 @@ export const useFantasyGameEngine = ({
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
+  // 拍同期用のstate
+  const [judgeWindow, setJudgeWindow] = useState(false);
+  const [nextChordIdx, setNextChordIdx] = useState(0);
+  
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
@@ -577,19 +588,28 @@ export const useFantasyGameEngine = ({
         onGameComplete('clear', finalState);
         return finalState;
       } else {
-        // 各モンスターに新しいコードを割り当て
-        const updatedMonsters = prevState.activeMonsters.map(monster => {
-          let nextChord;
-          if (prevState.currentStage?.mode === 'single') {
-            // ランダムモード：前回と異なるコードを選択
-            nextChord = selectRandomChord(prevState.currentStage.allowedChords, monster.chordTarget?.id, displayOpts);
-          } else {
-            // コード進行モード：ループさせる
-            const progression = prevState.currentStage?.chordProgression || [];
-            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
-          }
+        // プログレッションモードの場合は拍同期で出題されるので、ここでは新しいコードを割り当てない
+        if (prevState.currentStage?.mode === 'progression') {
+          const nextState = {
+            ...prevState,
+            currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
+            activeMonsters: prevState.activeMonsters.map(monster => ({
+              ...monster,
+              correctNotes: [],
+              gauge: 0
+            })),
+            currentChordTarget: null, // プログレッションモードではnullにする
+            enemyGauge: 0,
+            correctNotes: []
+          };
           
+          onGameStateChange(nextState);
+          return nextState;
+        }
+        
+        // singleモードの場合は従来通り新しいコードを割り当て
+        const updatedMonsters = prevState.activeMonsters.map(monster => {
+          const nextChord = selectRandomChord(prevState.currentStage!.allowedChords, monster.chordTarget?.id, displayOpts);
           return {
             ...monster,
             chordTarget: nextChord!,
@@ -599,7 +619,6 @@ export const useFantasyGameEngine = ({
         
         const nextState = {
           ...prevState,
-          currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
           activeMonsters: updatedMonsters,
           // 互換性維持
           currentChordTarget: updatedMonsters[0]?.chordTarget || prevState.currentChordTarget,
@@ -744,6 +763,71 @@ export const useFantasyGameEngine = ({
     };
   }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
   
+  // 拍同期タイマー（プログレッションモード用）
+  useEffect(() => {
+    // プログレッションモードでない場合は何もしない
+    if (!gameState.isGameActive || gameState.currentStage?.mode !== 'progression') {
+      return;
+    }
+    
+    const BEAT_MS = 60000 / gameState.currentStage.bpm;
+    
+    const id = setInterval(() => {
+      const { currentBeat, currentBeatStartAt } = useTimeStore.getState();
+      const now = performance.now();
+      const beatOffset = now - currentBeatStartAt; // 現在の拍の開始からの経過時間
+      
+      // 判定窓の開閉チェック（1拍目の±200ms）
+      const inJudge = currentBeat === 1 && Math.abs(beatOffset) <= JUDGE_MS;
+      
+      if (inJudge && !judgeWindow) {
+        setJudgeWindow(true); // 判定窓を開く
+      } else if (!inJudge && judgeWindow) {
+        // 判定窓を閉じる
+        setJudgeWindow(false);
+        
+        // 判定失敗時の処理（まだコードが残っている場合）
+        if (gameState.currentChordTarget) {
+          // 全モンスターで判定失敗 → 攻撃処理
+          const attackingMonster = gameState.activeMonsters.find(m => m.chordTarget.id === gameState.currentChordTarget?.id);
+          if (attackingMonster) {
+            handleEnemyAttack(attackingMonster.id);
+          }
+        }
+        
+        // currentChordTargetをnullにする
+        setGameState(s => ({ ...s, currentChordTarget: null }));
+      }
+      
+      // 出題タイミング（2拍目-200ms）
+      if (currentBeat === 2 && beatOffset >= -LEAD_MS && beatOffset <= 0 && !gameState.currentChordTarget) {
+        const prog = gameState.currentStage.chordProgression || [];
+        if (prog.length > 0) {
+          const chordId = prog[nextChordIdx % prog.length];
+          const chord = getChordDefinition(chordId, displayOpts);
+          
+          if (chord) {
+            setNextChordIdx(idx => idx + 1);
+            
+            // 全モンスターに同じコードをセット
+            setGameState(s => ({
+              ...s,
+              currentChordTarget: chord,
+              activeMonsters: s.activeMonsters.map(m => ({
+                ...m,
+                chordTarget: chord,
+                correctNotes: [],
+                gauge: 0
+              }))
+            }));
+          }
+        }
+      }
+    }, 10); // 10ms精度で実行
+    
+    return () => clearInterval(id);
+  }, [gameState.isGameActive, gameState.currentStage, judgeWindow, nextChordIdx, gameState.currentChordTarget, handleEnemyAttack, displayOpts]);
+  
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中はゲージ停止 */
@@ -759,16 +843,36 @@ export const useFantasyGameEngine = ({
         return prevState;
       }
       
-      const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
+      let updatedMonsters;
       
-      // 各モンスターのゲージを更新
-      const updatedMonsters = prevState.activeMonsters.map(monster => ({
-        ...monster,
-        gauge: Math.min(monster.gauge + incrementRate, 100)
-      }));
+      // プログレッションモードの場合は拍同期でゲージを計算
+      if (prevState.currentStage.mode === 'progression') {
+        const { currentBeat, currentBeatStartAt } = useTimeStore.getState();
+        const now = performance.now();
+        const dt = now - currentBeatStartAt; // 現在の拍の開始からの経過時間
+        
+        // 1拍目のみゲージを表示（他の拍では0）
+        let gaugePct = 0;
+        if (currentBeat === 1 && Math.abs(dt) <= JUDGE_MS) {
+          gaugePct = GAUGE_CENTER + (dt * 5 / JUDGE_MS); // 90-100%の範囲
+        }
+        
+        updatedMonsters = prevState.activeMonsters.map(monster => ({
+          ...monster,
+          gauge: Math.max(0, Math.min(100, gaugePct))
+        }));
+      } else {
+        // 従来のゲージ更新（singleモード）
+        const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
+        
+        updatedMonsters = prevState.activeMonsters.map(monster => ({
+          ...monster,
+          gauge: Math.min(monster.gauge + incrementRate, 100)
+        }));
+      }
       
-      // ゲージが満タンになったモンスターをチェック
-      const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
+      // ゲージが満タンになったモンスターをチェック（singleモードのみ）
+      const attackingMonster = prevState.currentStage.mode === 'single' ? updatedMonsters.find(m => m.gauge >= 100) : null;
       
       if (attackingMonster) {
         console.log('🎲 Found attacking monster:', attackingMonster);
@@ -816,6 +920,20 @@ export const useFantasyGameEngine = ({
       // ゲームがアクティブでない場合は何もしない
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
         return prevState;
+      }
+
+      // プログレッションモードの判定窓チェック
+      if (prevState.currentStage?.mode === 'progression') {
+        const { currentBeat, currentBeatStartAt } = useTimeStore.getState();
+        const now = performance.now();
+        const dt = now - currentBeatStartAt;
+        const gaugePct = GAUGE_CENTER + (dt * 5 / JUDGE_MS);
+        
+        // 判定窓外の場合は無視
+        if (!judgeWindow || gaugePct < GAUGE_MIN_PCT || gaugePct > GAUGE_MAX_PCT) {
+          devLog.debug('🎹 ノート入力無視: 判定窓外', { judgeWindow, gaugePct });
+          return prevState;
+        }
       }
 
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });

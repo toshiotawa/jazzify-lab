@@ -18,6 +18,8 @@ interface TimeState {
   currentMeasure: number
   /* カウントイン中かどうか */
   isCountIn: boolean
+  /* 現在の拍の開始時刻 (ms) */
+  currentBeatStartAt: number
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -39,6 +41,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  currentBeatStartAt: 0,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -48,7 +51,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       countInMeasures: ci,
       currentBeat: 1,
       currentMeasure: 1,
-      isCountIn: false
+      isCountIn: false,
+      currentBeatStartAt: now
     }),
   tick: () => {
     const s = get()
@@ -59,7 +63,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (elapsed < s.readyDuration) {
       set({
         currentBeat: 1,
-        currentMeasure: 1
+        currentMeasure: 1,
+        currentBeatStartAt: s.startAt + s.readyDuration
       })
       return
     }
@@ -72,13 +77,17 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
     
+    // 現在の拍の開始時刻を計算
+    const beatStartAbsolute = s.startAt + s.readyDuration + (beatsFromStart * msecPerBeat)
+    
     /* カウントイン中かどうかを判定 */
     if (totalMeasures < s.countInMeasures) {
       // カウントイン中
       set({
         currentBeat: currentBeatInMeasure,
         currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
-        isCountIn: true
+        isCountIn: true,
+        currentBeatStartAt: beatStartAbsolute
       })
     } else {
       // メイン部分（カウントイン後）
@@ -88,7 +97,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       set({
         currentBeat: currentBeatInMeasure,
         currentMeasure: displayMeasure, // カウントイン後を1から表示
-        isCountIn: false
+        isCountIn: false,
+        currentBeatStartAt: beatStartAbsolute
       })
     }
   }
