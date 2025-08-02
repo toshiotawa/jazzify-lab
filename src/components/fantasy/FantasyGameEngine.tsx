@@ -178,9 +178,33 @@ const ENEMY_LIST = [
 // ===== ヘルパー関数 =====
 
 /**
+ * 既に使用されているコードを除外してランダムにコードを選択
+ * 修正版：ユーザーの要望に基づき、直前のコードを避けることを最優先とする
+ */
+function selectUniqueRandomChord(
+  allowedChords: string[],
+  previousChordId?: string,
+  displayOpts?: DisplayOpts
+): ChordDefinition | null {
+  // まずは単純に全候補
+  let availableChords = allowedChords
+    .map(id => getChordDefinition(id, displayOpts))
+    .filter(Boolean) as ChordDefinition[];
+
+  // ---- 同じ列の直前コードだけは除外 ----
+  if (previousChordId && availableChords.length > 1) {
+    const tmp = availableChords.filter(c => c.id !== previousChordId);
+    if (tmp.length) availableChords = tmp;
+  }
+
+  const i = Math.floor(Math.random() * availableChords.length);
+  return availableChords[i] ?? null;
+}
+
+/**
  * キューからモンスターを生成
  */
-const createMonsterFromQueue = (
+function createMonsterFromQueue(
   monsterIndex: number,
   position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
   enemyHp: number,
@@ -188,7 +212,7 @@ const createMonsterFromQueue = (
   previousChordId?: string,
   displayOpts?: DisplayOpts,
   stageMonsterIds?: string[]
-): MonsterState => {
+): MonsterState {
   // stageMonsterIdsが提供されている場合は、それを使用
   let iconKey: string;
   if (stageMonsterIds && stageMonsterIds[monsterIndex]) {
@@ -214,12 +238,12 @@ const createMonsterFromQueue = (
     icon: enemy.icon,
     name: enemy.name
   };
-};
+}
 
 /**
  * 位置を割り当て（A-H列に均等配置）
  */
-const assignPositions = (count: number): ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] => {
+function assignPositions(count: number): ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] {
   const allPositions: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   
   if (count === 1) return ['D']; // 1体の場合は中央寄り
@@ -230,40 +254,15 @@ const assignPositions = (count: number): ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G
   if (count === 6) return ['A', 'B', 'C', 'E', 'F', 'G']; // 6体の場合
   if (count === 7) return ['A', 'B', 'C', 'D', 'E', 'F', 'G']; // 7体の場合
   return allPositions.slice(0, count); // 8体以上の場合は全列使用
-};
+}
 
-/**
- * 既に使用されているコードを除外してランダムにコードを選択
- */
-/**
- * 既に使用されているコードを除外してランダムにコードを選択
- * 修正版：ユーザーの要望に基づき、直前のコードを避けることを最優先とする
- */
-const selectUniqueRandomChord = (
-  allowedChords: string[],
-  previousChordId?: string,
-  displayOpts?: DisplayOpts
-): ChordDefinition | null => {
-  // まずは単純に全候補
-  let availableChords = allowedChords
-    .map(id => getChordDefinition(id, displayOpts))
-    .filter(Boolean) as ChordDefinition[];
 
-  // ---- 同じ列の直前コードだけは除外 ----
-  if (previousChordId && availableChords.length > 1) {
-    const tmp = availableChords.filter(c => c.id !== previousChordId);
-    if (tmp.length) availableChords = tmp;
-  }
-
-  const i = Math.floor(Math.random() * availableChords.length);
-  return availableChords[i] ?? null;
-};
 
 /**
  * 部分一致判定関数
  * 入力された音がコードの構成音の一部であるかチェック
  */
-const isPartialMatch = (inputNotes: number[], targetChord: ChordDefinition): boolean => {
+function isPartialMatch(inputNotes: number[], targetChord: ChordDefinition): boolean {
   if (inputNotes.length === 0) return false;
   
   const inputNotesMod12 = inputNotes.map(note => note % 12);
@@ -273,13 +272,13 @@ const isPartialMatch = (inputNotes: number[], targetChord: ChordDefinition): boo
   return inputNotesMod12.every(inputNote => 
     targetNotesMod12.includes(inputNote)
   );
-};
+}
 
 /**
  * コード判定関数
  * 構成音が全て押されていれば正解（順番・オクターブ不問、転回形も正解、余分な音があっても構成音が含まれていれば正解）
  */
-const checkChordMatch = (inputNotes: number[], targetChord: ChordDefinition): boolean => {
+function checkChordMatch(inputNotes: number[], targetChord: ChordDefinition): boolean {
   if (inputNotes.length === 0) {
     devLog.debug('❌ 入力なし - 不正解');
     return false;
@@ -314,12 +313,12 @@ const checkChordMatch = (inputNotes: number[], targetChord: ChordDefinition): bo
   });
   
   return hasAllTargetNotes;
-};
+}
 
 /**
  * 部分的なコードマッチ判定（正解した音を返す）
  */
-const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): number[] => {
+function getCorrectNotes(inputNotes: number[], targetChord: ChordDefinition): number[] {
   if (inputNotes.length === 0) {
     return [];
   }
@@ -332,12 +331,12 @@ const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): nu
   const correctNotes = inputNotesMod12.filter(note => targetNotesMod12.includes(note));
   
   return correctNotes;
-};
+}
 
 /**
  * ランダムコード選択（allowedChordsから）
  */
-const selectRandomChord = (allowedChords: string[], previousChordId?: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
+function selectRandomChord(allowedChords: string[], previousChordId?: string, displayOpts?: DisplayOpts): ChordDefinition | null {
   let availableChords = allowedChords
     .map(chordId => getChordDefinition(chordId, displayOpts))
     .filter(Boolean) as ChordDefinition[];
@@ -355,17 +354,17 @@ const selectRandomChord = (allowedChords: string[], previousChordId?: string, di
   
   const randomIndex = Math.floor(Math.random() * availableChords.length);
   return availableChords[randomIndex];
-};
+}
 
 /**
  * コード進行から次のコードを取得
  */
-const getProgressionChord = (progression: string[], questionIndex: number, displayOpts?: DisplayOpts): ChordDefinition | null => {
+function getProgressionChord(progression: string[], questionIndex: number, displayOpts?: DisplayOpts): ChordDefinition | null {
   if (progression.length === 0) return null;
   
   const chordId = progression[questionIndex % progression.length];
   return getChordDefinition(chordId, displayOpts) || null;
-};
+}
 
 /**
  * 現在の敵情報を取得
