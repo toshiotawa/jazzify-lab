@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
 import { devLog } from '@/utils/logger';
+import { MusicalNoteIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
 
 // ===== 型定義 =====
 
@@ -159,7 +160,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'single' | 'progression' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
@@ -170,7 +171,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         bpm: stage.bpm || 120,
         measureCount: stage.measure_count,
         countInMeasures: stage.count_in_measures,
-        timeSignature: stage.time_signature
+        timeSignature: stage.time_signature,
+        mp3Url: stage.mp3_url,
+        chordProgressionData: stage.chord_progression_data
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -284,21 +287,55 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         
         {/* コンテンツ部分 */}
         <div className="flex-grow">
-          {/* ステージ名 */}
-          <div className={cn(
-            "text-lg font-medium mb-1",
-            unlocked ? "text-white" : "text-gray-400"
-          )}>
+          {/* ステージ名と説明 */}
+          <h3 className="text-lg font-bold mb-1">
             {unlocked ? stage.name : "???"}
-          </div>
-          
-          {/* 説明文 */}
-          <div className={cn(
-            "text-sm leading-relaxed",
-            unlocked ? "text-gray-300" : "text-gray-500"
-          )}>
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
             {unlocked ? stage.description : "このステージはまだロックされています"}
-          </div>
+          </p>
+          
+          {/* モード表示（アンロック時のみ） */}
+          {unlocked && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {stage.mode === 'rhythm' ? (
+                <>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                    <MusicalNoteIcon className="w-3 h-3 mr-1" />
+                    リズムモード
+                  </span>
+                  {stage.chordProgressionData ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                      コード進行
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                      ランダム
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                  <ClipboardDocumentCheckIcon className="w-3 h-3 mr-1" />
+                  クイズモード
+                </span>
+              )}
+            </div>
+          )}
+          
+          {/* ステージ詳細情報（アンロック時のみ） */}
+          {unlocked && (
+            <div className="text-sm text-gray-300 grid grid-cols-2 gap-1">
+              <p>HP: {stage.maxHp}</p>
+              <p>敵数: {stage.enemyCount}</p>
+              {stage.mode === 'rhythm' && (
+                <>
+                  <p>BPM: {stage.bpm}</p>
+                  <p>拍子: {stage.timeSignature}/4</p>
+                </>
+              )}
+            </div>
+          )}
         </div>
         
         {/* 右側のアイコン */}
