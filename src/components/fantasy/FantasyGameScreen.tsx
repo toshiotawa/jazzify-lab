@@ -465,39 +465,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [handleNoteInputBridge, stage.showGuide]);
 
-  // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
-  useEffect(() => {
-    const linkMidiAndPixi = async () => {
-      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-        
-        // 1. 鍵盤ハイライト用のコールバックを設定
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRenderer.highlightKey(note, active);
-          if (active) {
-            pixiRenderer.triggerKeyPressEffect(note);
-          }
-        });
-        
-        // 2. デバイスに再接続して、設定したコールバックを有効化
-        devLog.debug(`🔧 Fantasy: Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        if (success) {
-          devLog.debug('✅ Fantasy: MIDI device successfully linked to renderer.');
-        } else {
-          devLog.debug('⚠️ Fantasy: Failed to link MIDI device to renderer.');
-        }
-      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-        // デバイス選択が解除された場合は切断
-        midiControllerRef.current.disconnect();
-        devLog.debug('🔌 Fantasy: MIDIデバイス切断');
-      }
-    };
-
-    linkMidiAndPixi();
-    
-  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
-
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
@@ -609,6 +576,43 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
+    if (stage.mode === 'progression') {
+      // プログレッションモード用のゲージ表示
+      const gaugePercent = gameState.progressionGaugePercent || gameState.enemyGauge;
+      const isInAccept = gameState.isInAcceptWindow;
+      const gaugeColor = isInAccept ? 
+        (gaugePercent >= 95 ? 'from-red-500 to-red-600' : 'from-yellow-500 to-orange-400') : 
+        'from-blue-500 to-blue-600';
+      const gaugeGlow = isInAccept ? 
+        (gaugePercent >= 95 ? '0 0 20px rgba(239, 68, 68, 0.8)' : '0 0 15px rgba(245, 158, 11, 0.6)') : 
+        'none';
+      
+      return (
+        <div className="relative">
+          <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden relative">
+            <div 
+              className={cn("h-full bg-gradient-to-r rounded-full transition-all duration-200 ease-out", gaugeColor)}
+              style={{ 
+                width: `${Math.min(gaugePercent, 100)}%`,
+                boxShadow: gaugeGlow
+              }}
+            />
+            {/* 90%と95%のマーカー */}
+            <div className="absolute top-0 bottom-0 left-[90%] w-0.5 bg-white/30" />
+            <div className="absolute top-0 bottom-0 left-[95%] w-0.5 bg-white/50" />
+          </div>
+          {/* ゲージの説明 */}
+          <div className="text-xs text-gray-400 mt-1 text-center">
+            <span className={cn(isInAccept && "text-yellow-400 font-bold")}>
+              攻撃ゲージ {gaugePercent.toFixed(0)}%
+            </span>
+            {isInAccept && <span className="ml-2 text-yellow-300">判定中！</span>}
+          </div>
+        </div>
+      );
+    }
+    
+    // 既存のsingleモード用のゲージ表示
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
@@ -620,7 +624,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         />
       </div>
     );
-  }, [gameState.enemyGauge]);
+  }, [gameState.enemyGauge, gameState.progressionGaugePercent, gameState.isInAcceptWindow, stage.mode]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -660,12 +664,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [autoStart, initializeGame, stage]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
-  if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
+  if (!overlay && !gameState.isCompleting && !gameState.isGameActive) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
       isGameActive: gameState.isGameActive,
       hasCurrentChord: !!gameState.currentChordTarget,
+      hasProgressionQuestion: !!gameState.currentProgressionQuestion,
       stageName: stage.name,
-      hasOverlay: !!overlay
+      hasOverlay: !!overlay,
+      stageMode: stage.mode
     });
     
     return (
@@ -697,6 +703,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>
               <div>オーバーレイ: {overlay ? '表示中' : 'なし'}</div>
               <div>完了処理中: {gameState.isCompleting ? 'はい' : 'いいえ'}</div>
+              <div>モード: {stage.mode}</div>
+              {stage.mode === 'progression' && (
+                <>
+                  <div>進行: {gameState.currentQuestionIndex + 1}/{stage.chordProgression?.length || 0}</div>
+                  <div>現在の問題: {gameState.currentProgressionQuestion?.chord?.displayName || 'なし'}</div>
+                  <div>ゲージ: {gameState.progressionGaugePercent?.toFixed(1)}%</div>
+                  <div>判定中: {gameState.isInAcceptWindow ? 'はい' : 'いいえ'}</div>
+                </>
+              )}
             </div>
           )}
         </div>
