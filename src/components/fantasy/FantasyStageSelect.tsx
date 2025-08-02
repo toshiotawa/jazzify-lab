@@ -159,9 +159,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'single' | 'progression' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+        chordProgressionData: stage.chord_progression_data || undefined,
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
@@ -299,6 +300,32 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : "このステージはまだロックされています"}
           </div>
+          
+          {/* モード表示 */}
+          {unlocked && (
+            <div className="flex gap-2 mt-2">
+              {stage.mode === 'rhythm' && (
+                <>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-500 text-white">
+                    🎵 リズムモード
+                  </span>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-500 text-white">
+                    {stage.chordProgressionData ? 'コード進行' : 'ランダム'}
+                  </span>
+                </>
+              )}
+              {stage.mode === 'single' && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-500 text-white">
+                  🎯 クイズモード
+                </span>
+              )}
+              {stage.mode === 'progression' && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500 text-white">
+                  🎼 進行モード
+                </span>
+              )}
+            </div>
+          )}
         </div>
         
         {/* 右側のアイコン */}
