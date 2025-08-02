@@ -331,7 +331,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
-    stage: null, // ★★★ change
+    stage: stage, // stageを渡す
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
@@ -465,39 +465,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [handleNoteInputBridge, stage.showGuide]);
 
-  // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
-  useEffect(() => {
-    const linkMidiAndPixi = async () => {
-      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-        
-        // 1. 鍵盤ハイライト用のコールバックを設定
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRenderer.highlightKey(note, active);
-          if (active) {
-            pixiRenderer.triggerKeyPressEffect(note);
-          }
-        });
-        
-        // 2. デバイスに再接続して、設定したコールバックを有効化
-        devLog.debug(`🔧 Fantasy: Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        if (success) {
-          devLog.debug('✅ Fantasy: MIDI device successfully linked to renderer.');
-        } else {
-          devLog.debug('⚠️ Fantasy: Failed to link MIDI device to renderer.');
-        }
-      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-        // デバイス選択が解除された場合は切断
-        midiControllerRef.current.disconnect();
-        devLog.debug('🔌 Fantasy: MIDIデバイス切断');
-      }
-    };
-
-    linkMidiAndPixi();
-    
-  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
-
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
@@ -609,13 +576,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
+    const gaugePercentage = Math.min(gameState.enemyGauge, 100);
+    const isInJudgmentRange = gaugePercentage >= 90 && gaugePercentage <= 100;
+    
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
+          className={cn(
+            "h-full rounded-full transition-all duration-200 ease-out",
+            isInJudgmentRange 
+              ? "bg-gradient-to-r from-red-500 to-red-600" // 90-100%は赤色
+              : "bg-gradient-to-r from-yellow-500 to-orange-400" // 通常は黄色
+          )}
           style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+            width: `${gaugePercentage}%`,
+            boxShadow: isInJudgmentRange 
+              ? '0 0 15px rgba(239, 68, 68, 0.8)' // 赤い光
+              : gameState.enemyGauge > 80 
+                ? '0 0 10px rgba(245, 158, 11, 0.6)' // 黄色い光
+                : 'none'
           }}
         />
       </div>
@@ -694,9 +673,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div>ゲーム状態: {gameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
               <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
               <div>許可コード数: {stage.allowedChords?.length || 0}</div>
-              <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>
-              <div>オーバーレイ: {overlay ? '表示中' : 'なし'}</div>
-              <div>完了処理中: {gameState.isCompleting ? 'はい' : 'いいえ'}</div>
+              <div>モード: {stage.mode}</div>
+              <div>コード進行: {stage.chordProgression ? JSON.stringify(stage.chordProgression) : 'なし'}</div>
             </div>
           )}
         </div>

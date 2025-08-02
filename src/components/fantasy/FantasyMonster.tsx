@@ -151,15 +151,23 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   const renderEnemyGauge = () => {
     const filledBlocks = Math.floor(enemyGauge / 10);
     const blocks = [];
+    const isInJudgmentRange = enemyGauge >= 90 && enemyGauge <= 100;
     
     for (let i = 0; i < 10; i++) {
+      const isFilled = i < filledBlocks;
+      const isJudgmentBlock = i >= 9; // 9番目と10番目のブロック（90-100%）
+      
       blocks.push(
         <div
           key={i}
           className={cn(
             "flex-1 border border-gray-600 transition-all duration-100",
             sizeConfig.gauge,
-            i < filledBlocks ? "bg-red-500" : "bg-gray-700"
+            isFilled ? (
+              isJudgmentBlock && isInJudgmentRange 
+                ? "bg-orange-500 shadow-[0_0_8px_rgba(251,146,60,0.8)]" // 判定範囲は明るいオレンジ
+                : "bg-red-500"
+            ) : "bg-gray-700"
           )}
         />
       );
