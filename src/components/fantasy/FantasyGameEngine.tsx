@@ -574,13 +574,51 @@ export const useFantasyGameEngine = ({
         const missedNotes = scheduler.getMissedNotes(now);
         
         // ミスした場合の処理
-        if (missedNotes.length > 0) {
-          devLog.debug('❌ リズム判定ミス:', { count: missedNotes.length });
-          for (const note of missedNotes) {
-            scheduler.removeNote(note.id);
-            handleEnemyAttack(); // 敵の攻撃
+                  if (missedNotes.length > 0) {
+            devLog.debug('❌ リズム判定ミス:', { count: missedNotes.length });
+            for (const note of missedNotes) {
+              scheduler.removeNote(note.id);
+              // 敵の攻撃を直接実行
+              setGameState(prevState => {
+                const newHp = Math.max(0, prevState.playerHp - 1);
+                devLog.debug('💥 リズム判定ミスによる敵の攻撃！HP更新:', {
+                  oldHp: prevState.playerHp,
+                  newHp: newHp
+                });
+                
+                const isGameOver = newHp <= 0;
+                
+                if (isGameOver) {
+                  const finalState = {
+                    ...prevState,
+                    playerHp: 0,
+                    isGameActive: false,
+                    isGameOver: true,
+                    gameResult: 'gameover' as const,
+                    isCompleting: true
+                  };
+                  
+                  setTimeout(() => {
+                    try {
+                      onGameComplete('gameover', finalState);
+                    } catch (error) {
+                      devLog.debug('❌ ゲームオーバーコールバックエラー:', error);
+                    }
+                  }, 100);
+                  
+                  return finalState;
+                } else {
+                  return {
+                    ...prevState,
+                    playerHp: newHp,
+                    playerSp: 0
+                  };
+                }
+              });
+              
+              onEnemyAttack();
+            }
           }
-        }
       }, 50); // 50ms間隔でチェック
     }
 
@@ -593,7 +631,7 @@ export const useFantasyGameEngine = ({
       activeMonsters: activeMonsters.length,
       useRhythmJudge: stage.useRhythmJudge
     });
-  }, [onGameStateChange, getRhythmScheduler, handleEnemyAttack]);
+  }, [onGameStateChange, getRhythmScheduler, onGameComplete, onEnemyAttack]);
   
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
@@ -1042,7 +1080,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange, getRhythmScheduler, displayOpts]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {

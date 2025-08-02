@@ -8,3 +8,12 @@ export interface ChordDefinition {
   quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
   root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
+
+export interface RhythmNote {
+  id: string;
+  chord: ChordDefinition;
+  spawnTime: number;
+  judgeTime: number;
+  x: number;
+  y: number;
+}

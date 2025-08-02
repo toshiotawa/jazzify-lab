@@ -776,8 +776,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               activeMonsters={gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
               rhythmScheduler={rhythmScheduler}
-              useRhythmJudge={stage.useRhythmJudge}
-              stageMode={stage.mode}
+              useRhythmJudge={stage?.useRhythmJudge || false}
+              stageMode={stage?.mode || 'single'}
             />
           </div>
           

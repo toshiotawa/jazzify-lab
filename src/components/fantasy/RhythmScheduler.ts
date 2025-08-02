@@ -1,5 +1,5 @@
 import { useTimeStore } from '@/stores/timeStore';
-import type { ChordDefinition } from '@/types/fantasy';
+import type { ChordDefinition, RhythmNote } from '@/types/fantasy';
 import { devLog } from '@/utils/logger';
 
 export interface RhythmEvent {
@@ -8,15 +8,6 @@ export interface RhythmEvent {
   chordId: string;    // 出題するコードID
   chord?: ChordDefinition; // コードの詳細情報
   spawned?: boolean;  // 既に生成済みか
-}
-
-export interface RhythmNote {
-  id: string;
-  chord: ChordDefinition;
-  spawnTime: number;
-  judgeTime: number;
-  x: number;
-  y: number;
 }
 
 export class RhythmScheduler {

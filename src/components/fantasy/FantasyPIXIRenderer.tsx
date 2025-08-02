@@ -10,7 +10,8 @@ import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
-import type { RhythmScheduler, RhythmNote } from './RhythmScheduler';
+import type { RhythmScheduler } from './RhythmScheduler';
+import type { RhythmNote } from '@/types/fantasy';
 import { useTimeStore } from '@/stores/timeStore';
 
 // ===== 型定義 =====
