@@ -329,7 +329,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     getCurrentEnemy,
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
-    ENEMY_LIST
+    ENEMY_LIST,
+    getChordDefinition
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
@@ -609,6 +610,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 敵のゲージ表示（黄色系）
   const renderEnemyGauge = useCallback(() => {
+    if (stage.mode === 'rhythm') {
+      // リズムモードの場合、判定ウィンドウを可視化
+      return (
+        <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden relative">
+          {/* 攻撃ゲージ（通常） */}
+          <div 
+            className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
+            style={{ 
+              width: `${Math.min(gameState.enemyGauge, 100)}%`,
+              boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+            }}
+          />
+          {/* 判定ウィンドウ（90-100%部分） */}
+          <div 
+            className="absolute right-0 top-0 h-full w-[10%] bg-gradient-to-r from-transparent to-red-500 opacity-50"
+            style={{ 
+              borderLeft: '2px solid rgba(255, 255, 255, 0.5)'
+            }}
+          />
+        </div>
+      );
+    }
+    
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
@@ -620,7 +644,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         />
       </div>
     );
-  }, [gameState.enemyGauge]);
+  }, [gameState.enemyGauge, stage.mode]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -720,9 +744,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         <div className="flex justify-between items-center">
           {/* ステージ情報と敵の数 */}
           <div className="flex items-center space-x-4">
-            <div className="text-sm font-bold">
-              Stage {stage.stageNumber}
-            </div>
+                      <div className="text-sm font-bold">
+            Stage {stage.stageNumber}
+            {stage.mode === 'rhythm' && (
+              <span className="ml-2 text-xs text-purple-400">[リズム]</span>
+            )}
+          </div>
             <div className="text-xs text-gray-300">
               敵の数: {stage.enemyCount}
             </div>
@@ -832,14 +859,30 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {stage.mode === 'rhythm' 
+                          ? (() => {
+                              // リズムモードの場合、現在の判定ウィンドウからコードを取得
+                              const window = gameState.currentJudgmentWindows?.find(w => 
+                                w.monsterId === monster.id && !w.judged
+                              );
+                              return window ? getChordDefinition(window.chord, { lang: currentNoteNameLang, simple: currentSimpleNoteName })?.displayName || '' : '';
+                            })()
+                          : monster.chordTarget.displayName
+                        }
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
                       <div className={`mt-1 font-medium h-6 text-center ${
                         monsterCount > 5 ? 'text-xs' : 'text-sm'
                       }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
+                        {stage.mode === 'rhythm' 
+                          ? (() => {
+                              // リズムモードの場合、現在の判定ウィンドウからコードを取得
+                              const window = gameState.currentJudgmentWindows?.find(w => 
+                                w.monsterId === monster.id && !w.judged
+                              );
+                              const chordDef = window ? getChordDefinition(window.chord, { lang: currentNoteNameLang, simple: currentSimpleNoteName }) : null;
+                              return chordDef ? chordDef.noteNames.map((noteName, index) => {
                           // 表示オプションを定義
                           const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
                           // 表示用の音名に変換
@@ -864,7 +907,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                               {isCorrect && '✓'}
                             </span>
                           );
-                        })}
+                        }) : null;
+                      })()
+                      : monster.chordTarget.noteNames.map((noteName, index) => {
+                          // 表示オプションを定義
+                          const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
+                          // 表示用の音名に変換
+                          const displayNoteName = toDisplayName(noteName, displayOpts);
+                          
+                          // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
+                          const noteObj = parseNote(noteName + '4'); // オクターブはダミー
+                          const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+                          
+                          const isCorrect = monster.correctNotes.includes(noteMod12);
+
+                          if (!stage.showGuide && !isCorrect) {
+                            return (
+                              <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                ?
+                              </span>
+                            );
+                          }
+                          return (
+                            <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
+                              {displayNoteName}
+                              {isCorrect && '✓'}
+                            </span>
+                          );
+                        })
+                      }
                       </div>
                       
                       {/* 魔法名表示 */}
