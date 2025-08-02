@@ -45,6 +45,14 @@ const getRankFromClearedStages = (clearedStages: number): string => {
   return WIZARD_RANKS[Math.min(rankIndex, WIZARD_RANKS.length - 1)];
 };
 
+// ステージカードにリズムタイプを表示する関数
+const getStageTypeText = (stage: FantasyStage) => {
+  if (stage.mode === 'rhythm') {
+    return stage.chordProgressionData ? 'リズム / コード進行' : 'リズム / ランダム';
+  }
+  return 'クイズモード';
+};
+
 // ===== ステージグルーピング =====
 const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
   return stages.reduce((groups, stage) => {
@@ -159,9 +167,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'quiz' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+        chordProgressionData: stage.chord_progression_data || undefined,
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
@@ -291,6 +300,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.name : "???"}
           </div>
+          
+          {/* ステージタイプ */}
+          {unlocked && (
+            <div className="text-sm text-gray-300 mb-2">
+              {getStageTypeText(stage)}
+            </div>
+          )}
           
           {/* 説明文 */}
           <div className={cn(
