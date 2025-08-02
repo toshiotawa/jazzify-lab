@@ -385,7 +385,12 @@ export const useFantasyGameEngine = ({
   const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
   
   // タイムストアから時間情報を取得
-  const { currentBeat, currentMeasure, isCountIn, bpm, timeSignature } = useTimeStore();
+  const timeStore = useTimeStore();
+  const currentBeat = timeStore?.currentBeat || 1;
+  const currentMeasure = timeStore?.currentMeasure || 1;
+  const isCountIn = timeStore?.isCountIn || false;
+  const bpm = timeStore?.bpm || 120;
+  const timeSignature = timeStore?.timeSignature || 4;
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -1260,9 +1265,12 @@ export const useFantasyGameEngine = ({
     selectRandomChord,
     getProgressionChord,
     startGame,
-    calculateAttackGauge // 攻撃ゲージ計算関数を追加
+    calculateAttackGauge, // 攻撃ゲージ計算関数を追加
+    getCurrentEnemy,
+    ENEMY_LIST
   };
 };
 
 // エクスポート
 export type { ChordDefinition, FantasyStage, MonsterState, FantasyGameState };
+export { getCurrentEnemy, ENEMY_LIST };
