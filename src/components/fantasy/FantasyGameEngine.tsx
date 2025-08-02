@@ -428,7 +428,12 @@ export const useFantasyGameEngine = ({
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
-    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+    devLog.debug('🎮 ファンタジーゲーム初期化:', { 
+      stage: stage.name,
+      mode: stage.mode,
+      allowedChords: stage.allowedChords,
+      chordProgression: stage.chordProgression
+    });
 
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;
@@ -838,7 +843,8 @@ export const useFantasyGameEngine = ({
           const updatedMonsters = prevState.activeMonsters.map(monster => {
             // まだ問題が表示されていないモンスターに問題を出題
             if (!monster.isQuestionVisible && monster.nextQuestionIndex !== undefined) {
-              const progression = prevState.currentStage.allowedChords;
+              // プログレッションモードではchordProgressionがある場合はそちらを優先
+              const progression = prevState.currentStage.chordProgression || prevState.currentStage.allowedChords;
               const currentIndex = monster.nextQuestionIndex % progression.length;
               const nextChordId = progression[currentIndex];
               const nextChord = getChordDefinition(nextChordId, displayOpts);
@@ -849,7 +855,8 @@ export const useFantasyGameEngine = ({
                 currentIndex,
                 nextChordId,
                 progression,
-                chordDisplayName: nextChord?.displayName
+                chordDisplayName: nextChord?.displayName,
+                hasChordProgression: !!prevState.currentStage.chordProgression
               });
               
               if (nextChord) {
@@ -945,21 +952,33 @@ export const useFantasyGameEngine = ({
         // 現在の小節内での経過時間を計算
         const currentMeasureProgress = elapsed % msPerMeasure;
         
-        // 次の小節の1拍目までの時間を計算
-        const timeToNextMeasureFirstBeat = msPerMeasure - currentMeasureProgress;
+        // 現在の小節の1拍目（0ms）を基準にした目標タイミング
+        // 現在の小節がすでに始まっている場合は、次の小節の1拍目を目標にする
+        let targetFirstBeatTime: number;
+        
+        if (currentMeasureProgress < 200) {
+          // まだ現在の小節の1拍目付近（0-200ms）の場合は現在の小節を目標
+          targetFirstBeatTime = 0;
+        } else {
+          // すでに1拍目を過ぎている場合は次の小節を目標
+          targetFirstBeatTime = msPerMeasure;
+        }
+        
+        // 目標の1拍目までの時間
+        const timeToTargetFirstBeat = targetFirstBeatTime - currentMeasureProgress;
         
         // 目標タイミング:
-        // 90% = 次の小節の1拍目 - 200ms
-        // 95% = 次の小節の1拍目
-        // 100% = 次の小節の1拍目 + 200ms
+        // 90% = 目標の1拍目 - 200ms
+        // 95% = 目標の1拍目
+        // 100% = 目標の1拍目 + 200ms
         
         // 現在のゲージ値を取得
         const currentGauge = prevState.activeMonsters[0]?.gauge || 0;
         
         // 各目標に到達するまでの時間を計算
-        const timeTo90 = timeToNextMeasureFirstBeat - 200;
-        const timeTo95 = timeToNextMeasureFirstBeat;
-        const timeTo100 = timeToNextMeasureFirstBeat + 200;
+        const timeTo90 = timeToTargetFirstBeat - 200;
+        const timeTo95 = timeToTargetFirstBeat;
+        const timeTo100 = timeToTargetFirstBeat + 200;
         
         // 現在のゲージに応じて適切な目標を設定
         let targetTime: number;
@@ -991,10 +1010,24 @@ export const useFantasyGameEngine = ({
           incrementRate = (remainingGauge / targetTime) * 100;
           // 最大値を制限（急激な変化を防ぐ）
           incrementRate = Math.min(incrementRate, 10);
+          // 最小値も設定（止まらないように）
+          incrementRate = Math.max(incrementRate, 0.1);
+        } else if (targetTime < 0) {
+          // すでに目標時刻を過ぎている場合は、ゆっくり進める
+          incrementRate = 0.5;
         } else {
           // デフォルトの計算にフォールバック
           incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10);
         }
+        
+        devLog.debug('⏱️ ゲージ計算:', {
+          currentMeasureProgress,
+          timeToTargetFirstBeat,
+          currentGauge,
+          targetGauge,
+          targetTime,
+          incrementRate
+        });
       } else {
         // 通常モードの場合は従来の計算
         incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
