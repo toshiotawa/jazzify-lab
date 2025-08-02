@@ -159,7 +159,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
+        mode: stage.mode as 'single' | 'progression' | 'rhythm',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         showSheetMusic: stage.show_sheet_music,
@@ -170,7 +170,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         bpm: stage.bpm || 120,
         measureCount: stage.measure_count,
         countInMeasures: stage.count_in_measures,
-        timeSignature: stage.time_signature
+        timeSignature: stage.time_signature,
+        chordProgressionData: stage.chord_progression_data
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -299,6 +300,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : "このステージはまだロックされています"}
           </div>
+          
+          {/* リズムモードのラベル */}
+          {stage.mode === 'rhythm' && unlocked && (
+            <div className="text-xs text-yellow-300 mt-1">
+              Rhythm / {stage.chordProgressionData ? '進行' : 'ランダム'}
+            </div>
+          )}
         </div>
         
         {/* 右側のアイコン */}
