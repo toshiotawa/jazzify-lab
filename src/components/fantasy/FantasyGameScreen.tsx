@@ -78,7 +78,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         timeSignature: stage.time_signature || 4,
         measureCount: stage.measure_count || 8,
         countInMeasures: stage.count_in_measures || 0,
-        allowedChords: stage.allowed_chords,
+        allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: stage.chordProgressionData
       });
     }
