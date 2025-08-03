@@ -11,6 +11,8 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private animationFrameId: number | null = null
+  private onLoopCallback: (() => void) | null = null
 
   play(
     url: string,
@@ -43,25 +45,54 @@ class BGMManager {
     // 初回再生は最初から（カウントインを含む）
     this.audio.currentTime = 0
     
-    // timeupdate イベントハンドラを保存
-    this.timeUpdateHandler = () => {
-      if (!this.audio) return
-      if (this.audio.currentTime >= this.loopEnd) {
-        // ループ時はカウントイン後から再生
+    // requestAnimationFrameでループ制御
+    const checkLoop = () => {
+      if (!this.audio || !this.isPlaying) return
+      
+      const currentTime = this.audio.currentTime
+      const timeToEnd = this.loopEnd - currentTime
+      
+      // ループ終端に近づいたら（50ms前）、正確なタイミングでループ
+      if (timeToEnd > 0 && timeToEnd < 0.05) {
+        // 正確なループ終端まで待つ
+        setTimeout(() => {
+          if (this.audio && this.isPlaying) {
+            this.audio.currentTime = this.loopBegin
+            // ループコールバックを実行
+            if (this.onLoopCallback) {
+              this.onLoopCallback()
+            }
+          }
+        }, timeToEnd * 1000)
+      } else if (currentTime >= this.loopEnd) {
+        // 既に終端を過ぎていたら即座にループ
         this.audio.currentTime = this.loopBegin
+        if (this.onLoopCallback) {
+          this.onLoopCallback()
+        }
+      }
+      
+      if (this.isPlaying) {
+        this.animationFrameId = requestAnimationFrame(checkLoop)
       }
     }
-    
-    this.audio.addEventListener('timeupdate', this.timeUpdateHandler)
     
     // 再生開始時刻を記録
     this.startTime = performance.now()
     this.isPlaying = true
     
-    this.audio.play().catch((error) => {
+    this.audio.play().then(() => {
+      // 再生開始後にループチェックを開始
+      checkLoop()
+    }).catch((error) => {
       console.warn('BGM playback failed:', error)
       this.isPlaying = false
     })
+  }
+
+  // ループ時のコールバックを設定
+  setOnLoopCallback(callback: (() => void) | null) {
+    this.onLoopCallback = callback
   }
 
   setVolume(v: number) {
@@ -72,6 +103,10 @@ class BGMManager {
 
   stop() {
     this.isPlaying = false
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId)
+      this.animationFrameId = null
+    }
     if (this.audio) {
       if (this.timeUpdateHandler) {
         this.audio.removeEventListener('timeupdate', this.timeUpdateHandler)
@@ -81,6 +116,7 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    this.onLoopCallback = null
   }
   
   // タイミング管理用の新しいメソッド
