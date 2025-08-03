@@ -3,6 +3,7 @@
 ## エラー内容
 ```
 ReferenceError: Cannot access 'y' before initialization
+ReferenceError: Cannot access 'w' before initialization
 ```
 
 プロダクションビルドで変数の初期化前アクセスエラーが発生。
@@ -40,6 +41,11 @@ esbuild: {
 + keepNames: true, // 関数名を保持して初期化エラーを防ぐ
 }
 ```
+
+### 5. FantasyGameEngine.tsxの関数定義順序を修正
+- `handleProgressionAutoAdvance`を`checkProgressionTiming`より前に移動
+- useEffectでの参照前に関数を定義
+- displayOptsパラメータを簡素化
 
 ## 効果
 - プロダクションビルドでの変数巻き上げエラーを防止
