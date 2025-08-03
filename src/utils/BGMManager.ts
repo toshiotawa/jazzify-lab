@@ -88,7 +88,6 @@ class BGMManager {
   /**
    * 現在の音楽的時間を取得（秒単位）
    * カウントイン終了時を0秒とする
-   * ループを考慮して常に0〜ループ長の範囲で返す
    */
   getCurrentMusicTime(): number {
     if (!this.isPlaying || !this.audio) return 0
@@ -97,15 +96,7 @@ class BGMManager {
     const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
     
     // カウントイン中は負の値を返す
-    const musicTime = audioTime - countInDuration
-    
-    // ループを考慮：音楽時間が正の場合、ループ長で剰余を取る
-    if (musicTime >= 0) {
-      const loopLength = this.measureCount * (60 / this.bpm) * this.timeSignature
-      return musicTime % loopLength
-    }
-    
-    return musicTime
+    return audioTime - countInDuration
   }
   
   /**

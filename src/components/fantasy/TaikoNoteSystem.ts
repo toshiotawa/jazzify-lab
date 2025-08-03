@@ -88,21 +88,28 @@ export function generateBasicProgressionNotes(
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   const countInTime = countInMeasures * secPerMeasure; // カウントイン分の時間
+  const loopLength = measureCount * secPerMeasure; // ループの長さ
   
-  for (let measure = 1; measure <= measureCount; measure++) {
-    const chordIndex = (measure - 1) % chordProgression.length;
+  // 複数ループ分のノーツを生成（最低3ループ分）
+  const totalLoops = 3;
+  const totalMeasures = measureCount * totalLoops;
+  
+  for (let absoluteMeasure = 0; absoluteMeasure < totalMeasures; absoluteMeasure++) {
+    const loopNumber = Math.floor(absoluteMeasure / measureCount);
+    const measureInLoop = absoluteMeasure % measureCount;
+    const chordIndex = measureInLoop % chordProgression.length;
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      // カウントイン分の時間を追加
-      const hitTime = countInTime + (measure - 1) * secPerMeasure + 0; // 小節の頭（Beat 1）
+      // カウントイン分の時間 + ループ番号 * ループ長 + ループ内の小節位置
+      const hitTime = countInTime + loopNumber * loopLength + measureInLoop * secPerMeasure;
       
       notes.push({
-        id: `note_${measure}_1`,
+        id: `note_${loopNumber}_${measureInLoop + 1}_1`,
         chord,
         hitTime,
-        measure,
+        measure: measureInLoop + 1, // 表示用（1始まり）
         beat: 1,
         isHit: false,
         isMissed: false
@@ -119,36 +126,45 @@ export function generateBasicProgressionNotes(
  * @param bpm BPM
  * @param timeSignature 拍子
  * @param countInMeasures カウントイン小節数
+ * @param measureCount 総小節数（ループ用）
  */
 export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
   getChordDefinition: (chordId: string) => ChordDefinition | null,
-  countInMeasures: number = 0
+  countInMeasures: number = 0,
+  measureCount: number = 8
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   const countInTime = countInMeasures * secPerMeasure; // カウントイン分の時間
+  const loopLength = measureCount * secPerMeasure; // ループの長さ
   
-  progressionData.forEach((item, index) => {
-    const chord = getChordDefinition(item.chord);
-    if (chord) {
-      // bar（小節）とbeats（拍）から実際の時刻を計算、カウントイン分の時間を追加
-      const hitTime = countInTime + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
-      
-      notes.push({
-        id: `note_${item.bar}_${item.beats}_${index}`,
-        chord,
-        hitTime,
-        measure: item.bar,
-        beat: item.beats,
-        isHit: false,
-        isMissed: false
-      });
-    }
-  });
+  // 複数ループ分のノーツを生成（最低3ループ分）
+  const totalLoops = 3;
+  
+  for (let loopNumber = 0; loopNumber < totalLoops; loopNumber++) {
+    progressionData.forEach((item, index) => {
+      const chord = getChordDefinition(item.chord);
+      if (chord) {
+        // bar（小節）とbeats（拍）から実際の時刻を計算、カウントイン分とループ分の時間を追加
+        const baseTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+        const hitTime = countInTime + loopNumber * loopLength + baseTime;
+        
+        notes.push({
+          id: `note_${loopNumber}_${item.bar}_${item.beats}_${index}`,
+          chord,
+          hitTime,
+          measure: item.bar,
+          beat: item.beats,
+          isHit: false,
+          isMissed: false
+        });
+      }
+    });
+  }
   
   // 時間順にソート
   notes.sort((a, b) => a.hitTime - b.hitTime);
