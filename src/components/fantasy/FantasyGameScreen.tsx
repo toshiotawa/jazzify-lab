@@ -11,6 +11,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { TaikoNote, getVisibleNotes, calculateNotePosition } from './TaikoNoteSystem';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
@@ -564,6 +565,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
   
+  // 太鼓の達人モードのノーツ表示更新
+  useEffect(() => {
+    if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
+    
+    const updateTaikoNotes = () => {
+      const currentTime = bgmManager.getCurrentMusicTime();
+      const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
+      const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
+      
+      const notesData = visibleNotes.map(note => ({
+        id: note.id,
+        chord: note.chord.displayName,
+        x: calculateNotePosition(note, currentTime, judgeLinePos.x)
+      }));
+      
+      fantasyPixiInstance.updateTaikoNotes(notesData);
+    };
+    
+    const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
+    
+    return () => clearInterval(intervalId);
+  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+  
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
     if (pixiRenderer) {
@@ -828,17 +852,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
-                      {/* コードネーム */}
-                      <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                        monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                      }`}>
-                        {monster.chordTarget.displayName}
-                      </div>
+                      {/* コードネーム（太鼓の達人モードでは非表示） */}
+                      {!gameState.isTaikoMode && (
+                        <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                          monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                        }`}>
+                          {monster.chordTarget.displayName}
+                        </div>
+                      )}
                       
-                      {/* ★★★ ここにヒント表示を追加 ★★★ */}
-                      <div className={`mt-1 font-medium h-6 text-center ${
-                        monsterCount > 5 ? 'text-xs' : 'text-sm'
-                      }`}>
+                      {/* ★★★ ここにヒント表示を追加（太鼓の達人モードでは非表示） ★★★ */}
+                      {!gameState.isTaikoMode && (
+                        <div className={`mt-1 font-medium h-6 text-center ${
+                          monsterCount > 5 ? 'text-xs' : 'text-sm'
+                        }`}>
                         {monster.chordTarget.noteNames.map((noteName, index) => {
                           // 表示オプションを定義
                           const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
@@ -865,7 +892,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                             </span>
                           );
                         })}
-                      </div>
+                        </div>
+                      )}
                       
                       {/* 魔法名表示 */}
                       {magicName && magicName.monsterId === monster.id && (
