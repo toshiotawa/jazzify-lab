@@ -638,6 +638,7 @@ export interface FantasyStage {
   mode: 'single' | 'progression';
   allowed_chords: string[];
   chord_progression?: string[];
+  chord_progression_data?: ChordProgressionTiming[]; // JSONタイミングデータ
   show_sheet_music: boolean;
   show_guide: boolean;
   simultaneous_monster_count?: number;
@@ -648,6 +649,13 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+}
+
+// コード進行のタイミングデータ型
+export interface ChordProgressionTiming {
+  bar: number;    // 小節番号（1から始まる）
+  beats: number;  // 拍位置（1-4、小数点可能）
+  chord: string;  // コード名
 }
 
 export interface LessonContext {

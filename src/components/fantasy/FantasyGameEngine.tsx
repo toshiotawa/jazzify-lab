@@ -11,6 +11,7 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { FantasyStage, ChordProgressionTiming } from '@/types';
 
 // ===== 型定義 =====
 
@@ -21,36 +22,6 @@ interface ChordDefinition {
   noteNames: string[]; // ★ 理論的に正しい音名配列を追加
   quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
   root: string;        // ルート音（例: 'C', 'G', 'A'）
-}
-
-interface FantasyStage {
-  id: string;
-  stageNumber: string;
-  name: string;
-  description: string;
-  maxHp: number;
-  enemyGaugeSeconds: number;
-  enemyCount: number;
-  enemyHp: number;
-  minDamage: number;
-  maxDamage: number;
-  mode: 'single' | 'progression';
-  allowedChords: string[];
-  chordProgression?: string[];
-  chordProgressionData?: Array<{
-    bar: number;
-    beats: number;
-    chord: string;
-  }>;
-  showSheetMusic: boolean;
-  showGuide: boolean; // ガイド表示設定を追加
-  monsterIcon: string;
-  bgmUrl?: string;
-  simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
-  bpm: number;
-  measureCount?: number;
-  countInMeasures?: number;
-  timeSignature?: number;
 }
 
 interface MonsterState {
@@ -363,7 +334,7 @@ const getProgressionChord = (progression: string[], questionIndex: number, displ
  * プログレッションモード用のタイミングベースコード選択
  */
 const getProgressionChordWithTiming = (
-  progressionData: Array<{bar: number, beats: number, chord: string}>,
+  progressionData: ChordProgressionTiming[],
   currentMeasure: number,
   currentBeat: number,
   displayOpts?: DisplayOpts
@@ -394,21 +365,89 @@ const getProgressionChordWithTiming = (
 
 /**
  * プログレッションモード用のタイミング判定
+ * @param currentBeat 現在の拍位置
+ * @param timeSignature 拍子（デフォルト4）
+ * @returns 判定受付中かどうか
  */
-const isProgressionInputTiming = (currentBeat: number, tolerance: number = 0.5): boolean => {
-  // 4拍目のウラ（4.5）から次の出題（4.5）までの間で判定受付
-  const inputStart = 4.0; // 4拍目から
-  const inputEnd = 4.49;  // 4拍目のウラの直前まで
+const isProgressionInputTiming = (currentBeat: number, timeSignature: number = 4): boolean => {
+  // 判定受付開始: 出題タイミングから
+  // 判定受付終了: 次の出題タイミングの0.01拍前（4拍子なら4.49）
+  const questionTiming = timeSignature + 0.5; // 出題タイミング（4拍子なら4.5）
+  const acceptanceEnd = questionTiming - 0.01; // 判定受付終了（4拍子なら4.49）
   
-  return currentBeat >= inputStart && currentBeat <= inputEnd;
+  // 現在の拍を正規化（拍子の範囲内に収める）
+  const normalizedBeat = ((currentBeat - 1) % timeSignature) + 1;
+  
+  // 前の小節の出題タイミング後から、現在の小節の判定受付終了まで
+  if (normalizedBeat <= acceptanceEnd) {
+    return true;
+  }
+  
+  return false;
 };
 
 /**
  * プログレッションモード用の出題タイミング判定
+ * @param currentBeat 現在の拍位置
+ * @param timeSignature 拍子（デフォルト4）
+ * @param tolerance 許容誤差（デフォルト0.01）
+ * @returns 出題タイミングかどうか
  */
-const isProgressionQuestionTiming = (currentBeat: number, tolerance: number = 0.01): boolean => {
-  // 4拍目のウラ（4.5）で出題
-  return Math.abs(currentBeat - 4.5) <= tolerance;
+const isProgressionQuestionTiming = (currentBeat: number, timeSignature: number = 4, tolerance: number = 0.01): boolean => {
+  // 最後の拍のウラで出題（4拍子なら4.5）
+  const questionTiming = timeSignature + 0.5;
+  const normalizedBeat = ((currentBeat - 1) % timeSignature) + 1;
+  
+  return Math.abs(normalizedBeat - questionTiming) <= tolerance;
+};
+
+/**
+ * chord_progression_dataから現在のタイミングに該当するコードを取得
+ * @param progressionData タイミング付きコード進行データ
+ * @param currentMeasure 現在の小節（1から始まる）
+ * @param currentBeat 現在の拍（1-4）
+ * @param acceptanceEnd 判定受付終了タイミング
+ * @returns 現在有効なコード、またはnull（NULL時間）
+ */
+const getCurrentProgressionChord = (
+  progressionData: ChordProgressionTiming[],
+  currentMeasure: number,
+  currentBeat: number,
+  acceptanceEnd: number = 0.49
+): string | null => {
+  if (progressionData.length === 0) return null;
+  
+  const currentTiming = (currentMeasure - 1) + (currentBeat - 1) / 4; // 0ベースのタイミング
+  
+  // 現在のタイミング以前で最も近いコードを探す
+  let activeChord: string | null = null;
+  let activeChordTiming = -Infinity;
+  
+  for (const item of progressionData) {
+    const itemTiming = (item.bar - 1) + (item.beats - 1) / 4;
+    
+    if (itemTiming <= currentTiming && itemTiming > activeChordTiming) {
+      activeChord = item.chord;
+      activeChordTiming = itemTiming;
+    }
+  }
+  
+  // 次のコードのタイミングを確認
+  let nextChordTiming = Infinity;
+  for (const item of progressionData) {
+    const itemTiming = (item.bar - 1) + (item.beats - 1) / 4;
+    if (itemTiming > activeChordTiming && itemTiming < nextChordTiming) {
+      nextChordTiming = itemTiming;
+    }
+  }
+  
+  // 判定受付終了タイミングを過ぎている場合はNULL
+  const acceptanceEndTiming = nextChordTiming - acceptanceEnd / 4;
+  if (currentTiming >= acceptanceEndTiming) {
+    return null; // NULL時間
+  }
+  
+  return activeChord;
 };
 
 /*
@@ -846,69 +885,28 @@ export const useFantasyGameEngine = ({
       }
       
       // プログレッションモードのタイミング制御
-      if (prevState.currentStage.mode === 'progression') {
+      if (prevState.currentStage?.mode === 'progression') {
         const { currentBeatDecimal, currentMeasure } = timeState;
+        const timeSignature = prevState.currentStage.time_signature || 4;
         
-        // 出題タイミング（4拍目のウラ）
-        if (isProgressionQuestionTiming(currentBeatDecimal) && !prevState.isQuestionPresented) {
-          devLog.debug('🎯 プログレッション出題タイミング:', { currentBeat: currentBeatDecimal });
-          
-          // 新しいコードを出題
-          let nextChord;
-          if (prevState.currentStage.chordProgressionData) {
-            // JSON-likeタイミング指定がある場合
-            nextChord = getProgressionChordWithTiming(
-              prevState.currentStage.chordProgressionData,
-              currentMeasure,
-              currentBeatDecimal,
-              displayOpts
-            );
-          } else {
-            // 従来の配列ベース
-            const progression = prevState.currentStage.chordProgression || [];
-            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
-          }
-          
-          if (nextChord) {
-            // 全モンスターに新しいコードを設定
-            const updatedMonsters = prevState.activeMonsters.map(monster => ({
-              ...monster,
-              chordTarget: nextChord!,
-              correctNotes: [],
-              gauge: 0
-            }));
-            
-            const nextState = {
-              ...prevState,
-              activeMonsters: updatedMonsters,
-              currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage.chordProgression?.length || 1),
-              isQuestionPresented: true,
-              isNullPhase: false,
-              // 互換性のため
-              currentChordTarget: nextChord,
-              correctNotes: [],
-              enemyGauge: 0
-            };
-            
-            onGameStateChange(nextState);
-            return nextState;
-          }
-        }
-        
-        // 判定終了タイミング（4.49まで）
-        if (currentBeatDecimal >= 4.49 && prevState.isQuestionPresented) {
-          devLog.debug('⏰ プログレッション判定終了:', { currentBeat: currentBeatDecimal });
-          
-          // 正解していない場合はNULL時間を挟んで次へ
-          const hasCorrectAnswer = prevState.activeMonsters.some(monster => 
-            monster.correctNotes.length > 0
+        // chord_progression_dataがある場合の処理
+        if (prevState.currentStage.chord_progression_data && prevState.currentStage.chord_progression_data.length > 0) {
+          // 現在のコードを取得（NULL時間も考慮）
+          const currentChordName = getCurrentProgressionChord(
+            prevState.currentStage.chord_progression_data,
+            currentMeasure,
+            currentBeatDecimal,
+            0.49 // 判定受付終了タイミング（次コードの0.49拍前）
           );
           
-          if (!hasCorrectAnswer) {
-            devLog.debug('❌ プログレッション失敗 - NULL時間へ');
+          // NULL時間の判定
+          if (currentChordName === null && prevState.isQuestionPresented) {
+            // NULL時間に入った
+            devLog.debug('🔄 プログレッション NULL時間突入:', { 
+              currentMeasure, 
+              currentBeat: currentBeatDecimal 
+            });
             
-            // NULL時間を設定
             const nullState = {
               ...prevState,
               isNullPhase: true,
@@ -917,21 +915,119 @@ export const useFantasyGameEngine = ({
             
             onGameStateChange(nullState);
             return nullState;
+          } else if (currentChordName !== null && prevState.isNullPhase) {
+            // NULL時間から抜けて新しいコードを出題
+            const nextChord = getChordDefinition(currentChordName, displayOpts);
+            
+            if (nextChord) {
+              devLog.debug('🎯 プログレッション 新コード出題:', { 
+                chord: currentChordName,
+                currentMeasure, 
+                currentBeat: currentBeatDecimal 
+              });
+              
+              // 全モンスターに新しいコードを設定
+              const updatedMonsters = prevState.activeMonsters.map(monster => ({
+                ...monster,
+                chordTarget: nextChord!,
+                correctNotes: [],
+                gauge: 0
+              }));
+              
+              const nextState = {
+                ...prevState,
+                activeMonsters: updatedMonsters,
+                currentQuestionIndex: prevState.currentQuestionIndex + 1,
+                isQuestionPresented: true,
+                isNullPhase: false,
+                // 互換性のため
+                currentChordTarget: nextChord,
+                correctNotes: [],
+                enemyGauge: 0
+              };
+              
+              onGameStateChange(nextState);
+              return nextState;
+            }
           }
-        }
-        
-        // NULL時間から次の出題タイミングへ
-        if (prevState.isNullPhase && isProgressionQuestionTiming(currentBeatDecimal)) {
-          devLog.debug('🔄 プログレッションNULL時間終了 - 次出題へ');
+        } else {
+          // 従来の配列ベースのプログレッション処理
+          // 出題タイミング（最後の拍のウラ）
+          if (isProgressionQuestionTiming(currentBeatDecimal, timeSignature) && !prevState.isQuestionPresented) {
+            devLog.debug('🎯 プログレッション出題タイミング:', { currentBeat: currentBeatDecimal });
+            
+            // 新しいコードを出題
+            const progression = prevState.currentStage.chord_progression || [];
+            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+            const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            
+            if (nextChord) {
+              // 全モンスターに新しいコードを設定
+              const updatedMonsters = prevState.activeMonsters.map(monster => ({
+                ...monster,
+                chordTarget: nextChord!,
+                correctNotes: [],
+                gauge: 0
+              }));
+              
+              const nextState = {
+                ...prevState,
+                activeMonsters: updatedMonsters,
+                currentQuestionIndex: nextIndex,
+                isQuestionPresented: true,
+                isNullPhase: false,
+                // 互換性のため
+                currentChordTarget: nextChord,
+                correctNotes: [],
+                enemyGauge: 0
+              };
+              
+              onGameStateChange(nextState);
+              return nextState;
+            }
+          }
           
-          const nextState = {
-            ...prevState,
-            isNullPhase: false,
-            isQuestionPresented: false
-          };
+          // 判定終了タイミング（最後の拍のウラの直前）
+          const acceptanceEnd = timeSignature + 0.49;
+          const normalizedBeat = ((currentBeatDecimal - 1) % timeSignature) + 1;
           
-          onGameStateChange(nextState);
-          return nextState;
+          if (normalizedBeat >= acceptanceEnd && prevState.isQuestionPresented) {
+            devLog.debug('⏰ プログレッション判定終了:', { currentBeat: currentBeatDecimal });
+            
+            // 正解していない場合はNULL時間を挟んで次へ
+            const hasCorrectAnswer = prevState.activeMonsters.some(monster => 
+              monster.correctNotes.length === [...new Set(monster.chordTarget.notes.map(n => n % 12))].length
+            );
+            
+            if (!hasCorrectAnswer) {
+              devLog.debug('❌ プログレッション失敗 - NULL時間へ');
+              
+              // 失敗の場合、自動で次の問題へ進む
+              // NULL時間を設定
+              const nullState = {
+                ...prevState,
+                isNullPhase: true,
+                isQuestionPresented: false
+              };
+              
+              onGameStateChange(nullState);
+              return nullState;
+            }
+          }
+          
+          // NULL時間から次の出題タイミングへ
+          if (prevState.isNullPhase && isProgressionQuestionTiming(currentBeatDecimal, timeSignature)) {
+            devLog.debug('🔄 プログレッションNULL時間終了 - 次出題へ');
+            
+            const nextState = {
+              ...prevState,
+              isNullPhase: false,
+              isQuestionPresented: false
+            };
+            
+            onGameStateChange(nextState);
+            return nextState;
+          }
         }
       }
       
@@ -998,6 +1094,7 @@ export const useFantasyGameEngine = ({
       // プログレッションモードのタイミング制御
       if (prevState.currentStage?.mode === 'progression') {
         const { currentBeatDecimal } = useTimeStore.getState();
+        const timeSignature = prevState.currentStage.time_signature || 4;
         
         // NULL時間中は入力を無効化
         if (prevState.isNullPhase) {
@@ -1006,7 +1103,7 @@ export const useFantasyGameEngine = ({
         }
         
         // 判定受付タイミングチェック
-        if (!isProgressionInputTiming(currentBeatDecimal)) {
+        if (!isProgressionInputTiming(currentBeatDecimal, timeSignature)) {
           devLog.debug('⏰ プログレッション判定タイミング外 - 入力無効:', { currentBeat: currentBeatDecimal });
           return prevState;
         }

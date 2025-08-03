@@ -100,6 +100,7 @@ const FantasyMain: React.FC = () => {
             mode: stage.mode,
             allowedChords: stage.allowed_chords,
             chordProgression: stage.chord_progression,
+            chordProgressionData: stage.chord_progression_data,
             showSheetMusic: stage.show_sheet_music,
             showGuide: stage.show_guide,
             simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
