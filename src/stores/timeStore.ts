@@ -18,6 +18,8 @@ interface TimeState {
   currentMeasure: number
   /* カウントイン中かどうか */
   isCountIn: boolean
+  /* プログレッションモード用の精密タイミング */
+  currentBeatDecimal: number // 小数での拍位置（例: 4.50）
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -27,6 +29,9 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* プログレッションモード用のヘルパー関数 */
+  getCurrentBeatDecimal: () => number
+  isProgressionTiming: (targetBeat: number, tolerance?: number) => boolean
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -39,6 +44,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  currentBeatDecimal: 1.0,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -48,7 +54,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       countInMeasures: ci,
       currentBeat: 1,
       currentMeasure: 1,
-      isCountIn: false
+      isCountIn: false,
+      currentBeatDecimal: 1.0
     }),
   tick: () => {
     const s = get()
@@ -59,15 +66,14 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (elapsed < s.readyDuration) {
       set({
         currentBeat: 1,
-        currentMeasure: 1
+        currentMeasure: 1,
+        currentBeatDecimal: 1.0
       })
       return
     }
 
     const msecPerBeat = 60000 / s.bpm
-    const beatsFromStart = Math.floor(
-      (elapsed - s.readyDuration) / msecPerBeat
-    )
+    const beatsFromStart = (elapsed - s.readyDuration) / msecPerBeat
 
     const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
@@ -76,9 +82,10 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (totalMeasures < s.countInMeasures) {
       // カウントイン中
       set({
-        currentBeat: currentBeatInMeasure,
+        currentBeat: Math.floor(currentBeatInMeasure),
         currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
-        isCountIn: true
+        isCountIn: true,
+        currentBeatDecimal: currentBeatInMeasure
       })
     } else {
       // メイン部分（カウントイン後）
@@ -86,10 +93,20 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
       
       set({
-        currentBeat: currentBeatInMeasure,
+        currentBeat: Math.floor(currentBeatInMeasure),
         currentMeasure: displayMeasure, // カウントイン後を1から表示
-        isCountIn: false
+        isCountIn: false,
+        currentBeatDecimal: currentBeatInMeasure
       })
     }
+  },
+  getCurrentBeatDecimal: () => {
+    const s = get()
+    return s.currentBeatDecimal
+  },
+  isProgressionTiming: (targetBeat: number, tolerance: number = 0.01) => {
+    const s = get()
+    const current = s.currentBeatDecimal
+    return Math.abs(current - targetBeat) <= tolerance
   }
 }))
