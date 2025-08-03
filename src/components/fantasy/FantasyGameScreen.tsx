@@ -607,8 +607,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return hearts;
   }, [heartFlash]);
   
-  // 敵のゲージ表示（黄色系）
+  // 敵のゲージ表示（黄色系）- プログレッションモードでは非表示
   const renderEnemyGauge = useCallback(() => {
+    // プログレッションモードの場合は非表示
+    if (stage.mode === 'progression') {
+      return null;
+    }
+    
     return (
       <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
         <div 
@@ -620,7 +625,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         />
       </div>
     );
-  }, [gameState.enemyGauge]);
+  }, [gameState.enemyGauge, stage.mode]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -768,6 +773,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               monsterIcon={currentEnemy.icon}
     
               enemyGauge={gameState.enemyGauge}
+              hideGauge={stage.mode === 'progression'}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
               onShowMagicName={handleShowMagicName}

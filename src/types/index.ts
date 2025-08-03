@@ -638,6 +638,7 @@ export interface FantasyStage {
   mode: 'single' | 'progression';
   allowed_chords: string[];
   chord_progression?: string[];
+  chord_progression_data?: any; // JSONBフィールド（詳細タイミングデータ）
   show_sheet_music: boolean;
   show_guide: boolean;
   simultaneous_monster_count?: number;

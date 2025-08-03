@@ -24,7 +24,8 @@
     "@typescript-eslint",
     "react",
     "react-hooks",
-    "jsx-a11y"
+    "jsx-a11y",
+    "import"
   ],
   "rules": {
     // TypeScript関連
@@ -32,6 +33,11 @@
     "@typescript-eslint/no-explicit-any": "error",
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/explicit-module-boundary-types": "off",
+    "@typescript-eslint/no-use-before-define": "error",
+    
+    // JavaScript関連
+    "no-use-before-define": ["error", { "functions": false, "classes": true }],
+    "import/first": "error",
     
     // React関連
     "react/prop-types": "off",
