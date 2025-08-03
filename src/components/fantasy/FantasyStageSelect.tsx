@@ -162,6 +162,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         mode: stage.mode as 'single' | 'progression',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+        chordProgressionData: stage.chord_progression_data || null,
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,

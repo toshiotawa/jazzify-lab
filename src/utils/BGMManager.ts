@@ -5,6 +5,15 @@ class BGMManager {
   private loopBegin = 0
   private loopEnd = 0
   private timeUpdateHandler: (() => void) | null = null
+  private secPerBeat = 0
+  private bpm = 120
+
+  getCurrentBeat(now?: number): number {
+    if (!this.audio || this.secPerBeat === 0) return 0
+    const currentTime = now ?? this.audio.currentTime
+    // ループ開始位置を考慮した拍数を返す
+    return (currentTime - this.loopBegin) / this.secPerBeat
+  }
 
   play(
     url: string,
@@ -21,10 +30,11 @@ class BGMManager {
     
     this.audio = new Audio(url)
     this.audio.volume = volume
+    this.bpm = bpm
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
-    const secPerBeat = 60 / bpm
-    const secPerMeas = secPerBeat * timeSig
+    this.secPerBeat = 60 / bpm
+    const secPerMeas = this.secPerBeat * timeSig
     this.loopBegin = countIn * secPerMeas
     this.loopEnd = (countIn + measureCount) * secPerMeas
 
@@ -63,6 +73,7 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    this.secPerBeat = 0
   }
 }
 
