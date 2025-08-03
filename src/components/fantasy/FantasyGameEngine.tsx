@@ -37,10 +37,12 @@ interface FantasyStage {
   mode: 'single' | 'progression';
   allowedChords: string[];
   chordProgression?: string[];
+  chordProgressionData?: any; // 拡張タイミングデータ
   showSheetMusic: boolean;
   showGuide: boolean; // ガイド表示設定を追加
   monsterIcon: string;
   bgmUrl?: string;
+  mp3Url?: string; // mp3_urlフィールド
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
   bpm: number;
   measureCount?: number;

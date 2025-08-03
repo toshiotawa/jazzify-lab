@@ -162,10 +162,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         mode: stage.mode as 'single' | 'progression',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+        chordProgressionData: stage.chord_progression_data || undefined, // 追加
         showSheetMusic: stage.show_sheet_music,
         showGuide: stage.show_guide,
         monsterIcon: stage.monster_icon,
         bgmUrl: stage.bgm_url || stage.mp3_url,
+        mp3Url: stage.mp3_url, // 追加
         simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
         bpm: stage.bpm || 120,
         measureCount: stage.measure_count,
