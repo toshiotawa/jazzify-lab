@@ -2,8 +2,6 @@
  * プログレッションパターンのタイミング管理ユーティリティ
  */
 
-import { useTimeStore } from '@/stores/timeStore';
-
 export interface ChordTiming {
   bar: number;
   beats: number;
