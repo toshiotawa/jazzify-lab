@@ -107,9 +107,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     const s = get()
     if (s.startAt === null || s.isCountIn) return 0
     
-    // 現在の小節内でのビート位置を計算
-    const beatInMeasure = (s.currentBeats % s.timeSignature) + 1
-    return s.currentMeasure + (beatInMeasure - 1) / 10 // 例: 2小節目の3拍目 = 2.3
+    // カウントイン後の経過ビート数を返す
+    return s.currentBeats
   },
   getTimeToNextQuestion: (timeSignature: number) => {
     const s = get()
