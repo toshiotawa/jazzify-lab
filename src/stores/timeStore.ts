@@ -27,6 +27,10 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* 現在の連続的なbeats値を取得 */
+  getCurrentBeats: () => number
+  /* 任意の時刻でのbeats値を計算 */
+  calculateBeats: (now: number) => number
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -90,6 +94,37 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         currentMeasure: displayMeasure, // カウントイン後を1から表示
         isCountIn: false
       })
+    }
+  },
+  getCurrentBeats: () => {
+    const s = get()
+    return s.calculateBeats(performance.now())
+  },
+  calculateBeats: (now: number) => {
+    const s = get()
+    if (s.startAt === null) return 0
+    
+    const elapsed = now - s.startAt
+    
+    /* Ready 中は 0 を返す */
+    if (elapsed < s.readyDuration) {
+      return 0
+    }
+    
+    const msecPerBeat = 60000 / s.bpm
+    const beatsFromStart = (elapsed - s.readyDuration) / msecPerBeat
+    
+    /* カウントイン分を差し引いて返す（メインループのbeats） */
+    const countInBeats = s.countInMeasures * s.timeSignature
+    const mainBeats = beatsFromStart - countInBeats
+    
+    // ループを考慮
+    const totalLoopBeats = s.measureCount * s.timeSignature
+    if (mainBeats >= 0) {
+      return (mainBeats % totalLoopBeats) + 1 // 1ベースで返す
+    } else {
+      // カウントイン中はマイナス値
+      return mainBeats
     }
   }
 }))

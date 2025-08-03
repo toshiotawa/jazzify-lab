@@ -648,6 +648,18 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  chord_progression_data?: ChordProgressionData; // JSONデータ用
+}
+
+// 新しいインターフェースを追加
+export interface ChordProgressionData {
+  chords: ChordTimingData[];
+}
+
+export interface ChordTimingData {
+  bar: number;
+  beats: number;
+  chord: string;
 }
 
 export interface LessonContext {
