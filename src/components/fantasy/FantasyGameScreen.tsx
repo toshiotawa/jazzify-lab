@@ -767,7 +767,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               height={200}
               monsterIcon={currentEnemy.icon}
     
-              enemyGauge={gameState.enemyGauge}
+              enemyGauge={stage.mode === 'progression' && stage.chord_progression_data ? 0 : gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
               onShowMagicName={handleShowMagicName}
