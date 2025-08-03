@@ -170,7 +170,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         bpm: stage.bpm || 120,
         measureCount: stage.measure_count,
         countInMeasures: stage.count_in_measures,
-        timeSignature: stage.time_signature
+        timeSignature: stage.time_signature,
+        chordProgressionData: stage.chord_progression_data // 新規: JSONタイミングデータ
       }));
       
       const convertedProgress: FantasyUserProgress = {

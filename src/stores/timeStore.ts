@@ -18,6 +18,8 @@ interface TimeState {
   currentMeasure: number
   /* カウントイン中かどうか */
   isCountIn: boolean
+  /* 小数点を含む現在のbeat（例: 3.5 = 3拍目のウラ） */
+  currentBeatWithDecimal: number
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -27,6 +29,8 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* 現在の正確なbeat位置を取得（小数点込み） */
+  getCurrentBeatWithDecimal: () => number
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -39,6 +43,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  currentBeatWithDecimal: 1,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -48,7 +53,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       countInMeasures: ci,
       currentBeat: 1,
       currentMeasure: 1,
-      isCountIn: false
+      isCountIn: false,
+      currentBeatWithDecimal: 1
     }),
   tick: () => {
     const s = get()
@@ -59,18 +65,21 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (elapsed < s.readyDuration) {
       set({
         currentBeat: 1,
-        currentMeasure: 1
+        currentMeasure: 1,
+        currentBeatWithDecimal: 1
       })
       return
     }
 
     const msecPerBeat = 60000 / s.bpm
-    const beatsFromStart = Math.floor(
-      (elapsed - s.readyDuration) / msecPerBeat
-    )
+    const beatsFromStart = (elapsed - s.readyDuration) / msecPerBeat
+    const totalBeats = Math.floor(beatsFromStart)
+    
+    // 小数点を含むbeat位置を計算
+    const currentBeatWithDecimal = (beatsFromStart % s.timeSignature) + 1
 
-    const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
-    const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
+    const totalMeasures = Math.floor(totalBeats / s.timeSignature)
+    const currentBeatInMeasure = (totalBeats % s.timeSignature) + 1
     
     /* カウントイン中かどうかを判定 */
     if (totalMeasures < s.countInMeasures) {
@@ -78,7 +87,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       set({
         currentBeat: currentBeatInMeasure,
         currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
-        isCountIn: true
+        isCountIn: true,
+        currentBeatWithDecimal
       })
     } else {
       // メイン部分（カウントイン後）
@@ -88,8 +98,24 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       set({
         currentBeat: currentBeatInMeasure,
         currentMeasure: displayMeasure, // カウントイン後を1から表示
-        isCountIn: false
+        isCountIn: false,
+        currentBeatWithDecimal
       })
     }
+  },
+  getCurrentBeatWithDecimal: () => {
+    const s = get()
+    if (s.startAt === null) return 1
+    
+    const elapsed = performance.now() - s.startAt
+    if (elapsed < s.readyDuration) return 1
+    
+    const msecPerBeat = 60000 / s.bpm
+    const beatsFromStart = (elapsed - s.readyDuration) / msecPerBeat
+    
+    // カウントイン分も考慮した総beat数
+    const totalBeats = beatsFromStart + (s.countInMeasures * s.timeSignature)
+    
+    return totalBeats
   }
 }))

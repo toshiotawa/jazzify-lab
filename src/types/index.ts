@@ -648,6 +648,7 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  chord_progression_data?: Array<{bar: number, beats: number, chord: string}>; // 新規: JSONタイミングデータ
 }
 
 export interface LessonContext {
