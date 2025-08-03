@@ -171,9 +171,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 devLog.debug('🔊 ファンタジーモード効果音初期化完了');
               }).catch(error => {
                 console.error('Failed to initialize FantasySoundManager:', error);
+                devLog.error('❌ FantasySoundManager初期化エラー:', error);
               });
             }).catch(error => {
               console.error('Failed to import FantasySoundManager:', error);
+              devLog.error('❌ FantasySoundManagerインポートエラー:', error);
             });
           }).catch(error => {
             console.error('Audio system initialization failed:', error);
@@ -717,13 +719,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <>M {currentMeasure} - B {currentBeat}</>
           )}
           {/* プログレッションモードのタイミング表示 */}
-          {stage.mode === 'progression' && gameState.timingData.length > 0 && (
+          {stage.mode === 'progression' && gameState.timingData && Array.isArray(gameState.timingData) && gameState.timingData.length > 0 && (
             <span className="ml-2 text-xs">
               {gameState.isNullPhase ? (
                 <span className="text-gray-500">[NULL]</span>
               ) : (
                 <span className="text-green-400">
-                  [{gameState.timingData[gameState.currentProgressionIndex]?.chord || '-'}]
+                  [{(gameState.timingData[gameState.currentProgressionIndex] && gameState.timingData[gameState.currentProgressionIndex].chord) || '-'}]
                 </span>
               )}
             </span>

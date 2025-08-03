@@ -83,11 +83,23 @@ const showError = (error: any) => {
 
 // グローバルエラーハンドリング
 window.addEventListener('error', (event) => {
+  console.error('Global Error Details:', {
+    message: event.error?.message || event.message,
+    error: event.error,
+    stack: event.error?.stack
+  });
   showDebugInfo(`Global Error: ${event.error?.message || event.message}`, true);
   showError(event.error || new Error(event.message));
 });
 
 window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled Promise Rejection Details:', {
+    reason: event.reason,
+    promise: event.promise,
+    stack: event.reason?.stack,
+    type: typeof event.reason
+  });
+  
   // JSON読み込みエラーの場合は特別な処理
   if (event.reason && event.reason.message && event.reason.message.includes('Unexpected token')) {
     console.error('🎵 JSON読み込みエラー:', event.reason.message);
