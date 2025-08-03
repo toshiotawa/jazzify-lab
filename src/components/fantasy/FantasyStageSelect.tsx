@@ -148,30 +148,54 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       }
       
       //// データの変換とセット
-      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
-        id: stage.id,
-        stageNumber: stage.stage_number,
-        name: stage.name,
-        description: stage.description || '',
-        maxHp: stage.max_hp,
-        enemyGaugeSeconds: stage.enemy_gauge_seconds,
-        enemyCount: stage.enemy_count,
-        enemyHp: stage.enemy_hp,
-        minDamage: stage.min_damage,
-        maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression',
-        allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
-        chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
-        showSheetMusic: stage.show_sheet_music,
-        showGuide: stage.show_guide,
-        monsterIcon: stage.monster_icon,
-        bgmUrl: stage.bgm_url || stage.mp3_url,
-        simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
-        bpm: stage.bpm || 120,
-        measureCount: stage.measure_count,
-        countInMeasures: stage.count_in_measures,
-        timeSignature: stage.time_signature
-      }));
+      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => {
+        // chord_progression_dataのデバッグログ
+        if (stage.chord_progression_data !== undefined && stage.chord_progression_data !== null) {
+          devLog.debug('📊 Stage chord_progression_data:', {
+            stageNumber: stage.stage_number,
+            data: stage.chord_progression_data,
+            type: typeof stage.chord_progression_data,
+            isArray: Array.isArray(stage.chord_progression_data)
+          });
+          
+          // JSONBデータの場合、文字列として格納されている可能性がある
+          if (typeof stage.chord_progression_data === 'string') {
+            try {
+              const parsed = JSON.parse(stage.chord_progression_data);
+              devLog.debug('📊 Parsed chord_progression_data:', parsed);
+              stage.chord_progression_data = parsed;
+            } catch (e) {
+              devLog.error('❌ Failed to parse chord_progression_data:', e);
+            }
+          }
+        }
+        
+        return {
+          id: stage.id,
+          stageNumber: stage.stage_number,
+          name: stage.name,
+          description: stage.description || '',
+          maxHp: stage.max_hp,
+          enemyGaugeSeconds: stage.enemy_gauge_seconds,
+          enemyCount: stage.enemy_count,
+          enemyHp: stage.enemy_hp,
+          minDamage: stage.min_damage,
+          maxDamage: stage.max_damage,
+          mode: stage.mode as 'single' | 'progression',
+          allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
+          chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+          showSheetMusic: stage.show_sheet_music,
+          showGuide: stage.show_guide,
+          monsterIcon: stage.monster_icon,
+          bgmUrl: stage.bgm_url || stage.mp3_url,
+          simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+          bpm: stage.bpm || 120,
+          measureCount: stage.measure_count,
+          countInMeasures: stage.count_in_measures,
+          timeSignature: stage.time_signature,
+          chordProgressionData: stage.chord_progression_data // 新規: JSONタイミングデータ
+        };
+      });
       
       const convertedProgress: FantasyUserProgress = {
         id: userProgressData.id,
