@@ -108,6 +108,7 @@ interface FantasyGameState {
   } | null;
   nextChordTiming: number | null; // 次のコード出題タイミング（beats）
   progressionIndex: number;       // プログレッションデータのインデックス
+  isProcessingAttack?: boolean;   // 攻撃処理中フラグ（重複防止）
 }
 
 interface FantasyGameEngineProps {
@@ -427,7 +428,8 @@ export const useFantasyGameEngine = ({
     // プログレッションタイミング関連
     currentChordInfo: null,
     nextChordTiming: null,
-    progressionIndex: 0
+    progressionIndex: 0,
+    isProcessingAttack: false
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -570,7 +572,8 @@ export const useFantasyGameEngine = ({
       // プログレッションタイミング関連
       currentChordInfo: initialChordInfo,
       nextChordTiming: null,
-      progressionIndex: 0
+      progressionIndex: 0,
+      isProcessingAttack: false
     };
 
     setGameState(newState);
@@ -638,6 +641,7 @@ export const useFantasyGameEngine = ({
           ...prevState,
           currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
           activeMonsters: updatedMonsters,
+          isProcessingAttack: false, // 攻撃フラグをリセット
           // 互換性維持
           currentChordTarget: updatedMonsters[0]?.chordTarget || prevState.currentChordTarget,
           enemyGauge: 0,
@@ -676,6 +680,7 @@ export const useFantasyGameEngine = ({
         currentQuestionIndex: progressionIndex,
         activeMonsters: updatedMonsters,
         progressionIndex: progressionIndex,
+        isProcessingAttack: false, // 攻撃フラグをリセット
         // 互換性維持
         currentChordTarget: updatedMonsters[0]?.chordTarget || prevState.currentChordTarget,
         enemyGauge: 0,
@@ -755,7 +760,21 @@ export const useFantasyGameEngine = ({
           
           return finalState;
         } else {
-          // 次の問題（ループ対応）
+          // プログレッションモードの場合は、タイミングシステムに任せる
+          if (prevState.currentStage?.mode === 'progression') {
+            const nextState = {
+              ...prevState,
+              playerHp: newHp,
+              playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
+              isProcessingAttack: false, // 攻撃フラグをリセット
+              // 問題は進めない（タイミングシステムに任せる）
+            };
+            
+            onGameStateChange(nextState);
+            return nextState;
+          }
+          
+          // シングルモードの場合のみ次の問題へ
           let nextChord;
           if (prevState.currentStage?.mode === 'single') {
             // ランダムモード：前回と異なるコードを選択
@@ -874,7 +893,8 @@ export const useFantasyGameEngine = ({
           // 現在が判定終了タイミングを過ぎているかチェック
           if (currentBeatInMeasure >= acceptEndBeat && currentChordInfo && currentChordInfo.chord !== null) {
             // 判定受付時間を過ぎた場合
-            if (prevState.activeMonsters.some(m => m.correctNotes.length < m.chordTarget.notes.length)) {
+            if (prevState.activeMonsters.some(m => m.correctNotes.length < m.chordTarget.notes.length) &&
+                !prevState.isProcessingAttack) {
               // まだ完成していないモンスターがいる場合、攻撃処理
               devLog.debug('⏰ 判定時間切れ！攻撃開始');
               
@@ -883,17 +903,32 @@ export const useFantasyGameEngine = ({
                 m.correctNotes.length < m.chordTarget.notes.length
               );
               if (incompleteMonster) {
+                // 攻撃処理中フラグを立てる
                 setTimeout(() => handleEnemyAttack(incompleteMonster.id), 0);
+                
+                // 状態を更新して攻撃フラグを立てる
+                return {
+                  ...prevState,
+                  isProcessingAttack: true,
+                  currentChordInfo: {
+                    chord: null,
+                    startBeats: currentMeasure * timeSignature + acceptEndBeat - timeSignature,
+                    endBeats: currentMeasure * timeSignature + questionStartBeat - timeSignature,
+                    acceptEndBeats: currentMeasure * timeSignature + acceptEndBeat - timeSignature
+                  }
+                };
               }
             }
             
-            // 現在のコードをNULLに
-            currentChordInfo = {
-              chord: null,
-              startBeats: currentMeasure * timeSignature + acceptEndBeat - timeSignature,
-              endBeats: currentMeasure * timeSignature + questionStartBeat - timeSignature,
-              acceptEndBeats: currentMeasure * timeSignature + acceptEndBeat - timeSignature
-            };
+            // すでに攻撃処理中またはコードが完成している場合は、NULLに設定のみ
+            if (currentChordInfo.chord !== null) {
+              currentChordInfo = {
+                chord: null,
+                startBeats: currentMeasure * timeSignature + acceptEndBeat - timeSignature,
+                endBeats: currentMeasure * timeSignature + questionStartBeat - timeSignature,
+                acceptEndBeats: currentMeasure * timeSignature + acceptEndBeat - timeSignature
+              };
+            }
           }
           
           // 次の出題タイミングをチェック（4拍目のウラ = 4.5拍目）
