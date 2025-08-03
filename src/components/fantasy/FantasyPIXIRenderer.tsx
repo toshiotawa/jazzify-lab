@@ -184,7 +184,8 @@ interface MonsterSpriteData {
 export class FantasyPIXIInstance {
   private app: PIXI.Application;
   private monsterContainer: PIXI.Container;
-
+  private notesContainer: PIXI.Container; // 太鼓の達人風ノーツ用
+  private judgeLineContainer: PIXI.Container; // 判定ライン用
   private effectContainer: PIXI.Container;
   private uiContainer: PIXI.Container;
   private backgroundContainer: PIXI.Container;
@@ -233,6 +234,11 @@ export class FantasyPIXIInstance {
   private imageTextures: Map<string, PIXI.Texture> = new Map(); // ★ imageTextures は残す
   private fukidashiTexture: PIXI.Texture | null = null;  // 吹き出しテクスチャを追加
   private activeFukidashi: Map<string, PIXI.Sprite> = new Map();  // アクティブな吹き出しを管理
+  
+  // 太鼓の達人風ノーツ関連
+  private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
+  private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
+  private judgeLineX: number = 100; // 判定ラインのX座標
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
@@ -284,17 +290,20 @@ export class FantasyPIXIInstance {
     // コンテナ初期化
     this.backgroundContainer = new PIXI.Container();
     this.monsterContainer = new PIXI.Container();
-
+    this.notesContainer = new PIXI.Container(); // 太鼓の達人風ノーツ
+    this.judgeLineContainer = new PIXI.Container(); // 判定ライン
     this.effectContainer = new PIXI.Container();
     this.uiContainer = new PIXI.Container();
     
     // ソート可能にする
     this.uiContainer.sortableChildren = true;
+    this.notesContainer.sortableChildren = true;
     
-    // z-indexの設定（背景→モンスター→パーティクル→エフェクト→UI）
+    // z-indexの設定（背景→モンスター→ノーツ→判定ライン→エフェクト→UI）
     this.app.stage.addChild(this.backgroundContainer);
     this.app.stage.addChild(this.monsterContainer);
-
+    this.app.stage.addChild(this.notesContainer);
+    this.app.stage.addChild(this.judgeLineContainer);
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
     
@@ -310,6 +319,9 @@ export class FantasyPIXIInstance {
     
     // アニメーションループ開始
     this.startAnimationLoop();
+    
+    // 判定ラインを初期化
+    this.initializeJudgeLine();
     
     devLog.debug('✅ ファンタジーPIXI初期化完了（状態機械対応）');
   }
@@ -1894,6 +1906,133 @@ export class FantasyPIXIInstance {
     }
   }
 
+  // 判定ラインの初期化
+  private initializeJudgeLine(): void {
+    if (this.judgeLineGraphics) {
+      this.judgeLineGraphics.destroy();
+    }
+    
+    const graphics = new PIXI.Graphics();
+    const centerY = this.app.screen.height / 2;
+    
+    // 外側の円（判定エリア）
+    graphics.lineStyle(3, 0xFFD700, 0.8);
+    graphics.drawCircle(this.judgeLineX, centerY, 40);
+    
+    // 内側の円（中心）
+    graphics.lineStyle(0);
+    graphics.beginFill(0xFFD700, 0.6);
+    graphics.drawCircle(this.judgeLineX, centerY, 10);
+    graphics.endFill();
+    
+    this.judgeLineGraphics = graphics;
+    this.judgeLineContainer.addChild(graphics);
+  }
+  
+  // 太鼓の達人風ノーツを作成
+  createTaikoNote(noteId: string, chordName: string, x: number): PIXI.Container {
+    const noteContainer = new PIXI.Container();
+    
+    // ノーツの円を作成
+    const noteCircle = new PIXI.Graphics();
+    noteCircle.lineStyle(3, 0xFFFFFF, 1);
+    noteCircle.beginFill(0xFF6B6B, 0.8);
+    noteCircle.drawCircle(0, 0, 35);
+    noteCircle.endFill();
+    
+    // コード名のテキスト
+    const chordText = new PIXI.Text(chordName, {
+      fontFamily: 'Arial',
+      fontSize: 24,
+      fontWeight: 'bold',
+      fill: 0xFFFFFF,
+      align: 'center'
+    });
+    chordText.anchor.set(0.5);
+    
+    noteContainer.addChild(noteCircle);
+    noteContainer.addChild(chordText);
+    noteContainer.x = x;
+    noteContainer.y = this.app.screen.height / 2;
+    
+    // 半透明にする
+    noteContainer.alpha = 0.85;
+    
+    return noteContainer;
+  }
+  
+  // ノーツを更新（太鼓の達人風）
+  updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
+    // 既存のノーツをクリア
+    this.activeNotes.forEach((note, id) => {
+      if (!notes.find(n => n.id === id)) {
+        note.destroy();
+        this.activeNotes.delete(id);
+      }
+    });
+    
+    // 新しいノーツを追加・更新
+    notes.forEach(noteData => {
+      let note = this.activeNotes.get(noteData.id);
+      
+      if (!note) {
+        // 新しいノーツを作成
+        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+        this.notesContainer.addChild(note);
+        this.activeNotes.set(noteData.id, note);
+      } else {
+        // 既存のノーツの位置を更新
+        note.x = noteData.x;
+      }
+    });
+  }
+  
+  // ノーツヒット時のエフェクト
+  createNoteHitEffect(x: number, y: number, isSuccess: boolean): void {
+    const effectGraphics = new PIXI.Graphics();
+    
+    if (isSuccess) {
+      // 成功時：金色の爆発エフェクト
+      effectGraphics.lineStyle(4, 0xFFD700, 1);
+      effectGraphics.drawCircle(0, 0, 40);
+    } else {
+      // 失敗時：赤い×マーク
+      effectGraphics.lineStyle(4, 0xFF0000, 1);
+      effectGraphics.moveTo(-20, -20);
+      effectGraphics.lineTo(20, 20);
+      effectGraphics.moveTo(20, -20);
+      effectGraphics.lineTo(-20, 20);
+    }
+    
+    effectGraphics.x = x;
+    effectGraphics.y = y;
+    
+    this.effectContainer.addChild(effectGraphics);
+    
+    // フェードアウトアニメーション
+    const fadeOut = () => {
+      effectGraphics.alpha -= 0.05;
+      effectGraphics.scale.x += 0.05;
+      effectGraphics.scale.y += 0.05;
+      
+      if (effectGraphics.alpha <= 0) {
+        effectGraphics.destroy();
+      } else {
+        requestAnimationFrame(fadeOut);
+      }
+    };
+    
+    requestAnimationFrame(fadeOut);
+  }
+  
+  // 判定ラインの位置を取得
+  getJudgeLinePosition(): { x: number, y: number } {
+    return {
+      x: this.judgeLineX,
+      y: this.app.screen.height / 2
+    };
+  }
+  
   // Canvas要素取得
   getCanvas(): HTMLCanvasElement {
     return this.app.view as HTMLCanvasElement;
