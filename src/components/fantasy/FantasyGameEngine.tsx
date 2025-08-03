@@ -51,16 +51,13 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
-  // リズムモード関連フィールドを追加
-  game_type?: 'quiz' | 'rhythm';
-  rhythm_pattern?: 'random' | 'progression';
+  // リズムモード関連フィールド（既存のテーブル構造に合わせる）
+  mp3_url?: string;
   chord_progression_data?: Array<{
     chord: string;
     measure: number;
     beat: number;
   }>;
-  mp3_url?: string;
-  rhythm_data?: string;
 }
 
 interface MonsterState {
@@ -549,7 +546,7 @@ export const useFantasyGameEngine = ({
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
 
     // リズムモードの判定
-    const isRhythmMode = stage.game_type === 'rhythm' && stage.rhythm_pattern === 'progression';
+    const isRhythmMode = stage.mode === 'progression' && stage.chord_progression_data !== undefined;
     
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;
@@ -628,7 +625,7 @@ export const useFantasyGameEngine = ({
     let lastChordId: string | undefined = undefined; // 直前のコードIDを記録する変数を追加
 
     // リズムモードprogressionの場合は初期配置をスキップ（beats同期で生成される）
-    if (!isRhythmMode || stage.rhythm_pattern !== 'progression') {
+    if (!isRhythmMode || stage.chord_progression_data === undefined) {
       // 既に同時出現数が 1 の場合に後続モンスターが "フェードアウト待ち" の間に
       // 追加生成されないよう、queue だけ作って最初の 1 体だけ生成する。
       for (let i = 0; i < initialMonsterCount; i++) {
