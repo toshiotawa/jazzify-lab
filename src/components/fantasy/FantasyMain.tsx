@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
+import FantasyGameScreenExtended from './FantasyGameScreenExtended';
 import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
@@ -100,12 +101,14 @@ const FantasyMain: React.FC = () => {
             mode: stage.mode,
             allowedChords: stage.allowed_chords,
             chordProgression: stage.chord_progression,
+            chordProgressionData: stage.chord_progression_data || undefined, // 追加
             showSheetMusic: stage.show_sheet_music,
             showGuide: stage.show_guide,
             simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
             monsterIcon: stage.monster_icon || 'dragon',
             bpm: stage.bpm || 120,
             bgmUrl: stage.bgm_url || stage.mp3_url,
+            mp3Url: stage.mp3_url, // 追加
             measureCount: stage.measure_count,
             countInMeasures: stage.count_in_measures,
             timeSignature: stage.time_signature
@@ -384,10 +387,12 @@ const FantasyMain: React.FC = () => {
         mode: nextStageData.mode as 'single' | 'progression',
         allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
         chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
+        chordProgressionData: nextStageData.chord_progression_data || undefined, // 追加
         showSheetMusic: nextStageData.show_sheet_music,
         showGuide: nextStageData.show_guide,
         monsterIcon: nextStageData.monster_icon,
         bgmUrl: nextStageData.bgm_url || nextStageData.mp3_url,
+        mp3Url: nextStageData.mp3_url, // 追加
         simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1,
         bpm: nextStageData.bpm || 120,
         measureCount: nextStageData.measure_count,
@@ -561,6 +566,25 @@ const FantasyMain: React.FC = () => {
   
   // ゲーム画面
   if (currentStage) {
+    // chord_progression_dataが存在し、かつprogressionモードの場合は拡張版を使用
+    const useExtendedVersion = currentStage.mode === 'progression' && 
+                              currentStage.chordProgressionData !== undefined;
+    
+    if (useExtendedVersion) {
+      return (
+        <FantasyGameScreenExtended
+          key={gameKey}
+          stage={currentStage as any} // ExtendedはprogressionモードのStageを期待
+          autoStart={pendingAutoStart}
+          onGameComplete={handleGameComplete}
+          onBackToStageSelect={handleBackToStageSelect}
+          noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}
+          simpleNoteName={settings.simpleDisplayMode}
+          lessonMode={isLessonMode}
+        />
+      );
+    }
+    
     return (
       <FantasyGameScreen
         // ▼▼▼ 追加 ▼▼▼
