@@ -11,9 +11,11 @@ import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { getCurrentBeatPosition } from '@/utils/progression-timing';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import { ProgressionTimingIndicator } from './ProgressionTimingIndicator';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
@@ -920,6 +922,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <div className="text-blue-300 text-sm font-bold">
               {getNextChord()}
             </div>
+          </div>
+        )}
+        
+        {/* プログレッションタイミングインジケーター */}
+        {stage.mode === 'progression' && gameState.isGameActive && (
+          <div className="mb-1">
+            <ProgressionTimingIndicator
+              stage={stage}
+              isInNullPeriod={gameState.isInNullPeriod || false}
+            />
           </div>
         )}
       </div>

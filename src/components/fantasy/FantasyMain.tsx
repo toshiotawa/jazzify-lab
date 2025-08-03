@@ -392,7 +392,8 @@ const FantasyMain: React.FC = () => {
         bpm: nextStageData.bpm || 120,
         measureCount: nextStageData.measure_count,
         countInMeasures: nextStageData.count_in_measures,
-        timeSignature: nextStageData.time_signature
+        timeSignature: nextStageData.time_signature,
+        chordProgressionData: nextStageData.chord_progression_data
       };
 
       setGameResult(null);

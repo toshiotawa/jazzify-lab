@@ -28,6 +28,7 @@ export default defineConfig(({ mode }) => {
       minifySyntax: isProduction,
       minifyWhitespace: isProduction,
       legalComments: isProduction ? 'none' : 'eof',
+      keepNames: true, // 関数名を保持して初期化エラーを防ぐ
       // プロダクション環境でコンソール関数とデバッガーを完全削除
       ...(isProduction && {
         // drop: ['console', 'debugger'],  // console.logを残すためコメントアウト

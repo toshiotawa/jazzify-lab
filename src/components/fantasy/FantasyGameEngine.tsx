@@ -11,6 +11,12 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { 
+  getCurrentBeatPosition, 
+  getAbsoluteBeatPosition,
+  parseProgressionData,
+  ChordTiming
+} from '@/utils/progression-timing';
 
 // ===== 型定義 =====
 
@@ -46,6 +52,7 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
+  chordProgressionData?: any; // JSON data for advanced progression timing
 }
 
 interface MonsterState {
@@ -91,6 +98,10 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  // プログレッションタイミング管理
+  progressionStartTime?: number; // プログレッション開始時刻
+  lastProgressionIndex?: number; // 最後に処理したプログレッションインデックス
+  isInNullPeriod?: boolean; // NULL期間中かどうか
 }
 
 interface FantasyGameEngineProps {
@@ -369,9 +380,10 @@ export const useFantasyGameEngine = ({
   onChordCorrect,
   onChordIncorrect,
   onGameComplete,
-  onEnemyAttack,
-  displayOpts = { lang: 'en', simple: false }
-}: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
+  onEnemyAttack
+}: FantasyGameEngineProps) => {
+  // Display options with default values
+  const displayOpts: DisplayOpts = { lang: 'en', simple: false };
   
   // ステージで使用するモンスターIDを保持
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
@@ -410,6 +422,7 @@ export const useFantasyGameEngine = ({
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+  const [progressionTimer, setProgressionTimer] = useState<NodeJS.Timeout | null>(null);
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
@@ -743,7 +756,164 @@ export const useFantasyGameEngine = ({
       }
     };
   }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
+
+  // プログレッション自動進行処理
+  const handleProgressionAutoAdvance = useCallback(() => {
+    devLog.debug('⏰ プログレッション自動進行');
+    
+    setGameState(prevState => {
+      if (!prevState.currentStage || prevState.currentStage.mode !== 'progression') {
+        return prevState;
+      }
+
+      // 未完成のモンスターを次の問題に進める
+      const updatedMonsters = prevState.activeMonsters.map(monster => {
+        const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
+        
+        if (monster.correctNotes.length < targetNotes.length) {
+          // 未完成の場合、次のコードへ
+          let nextChord;
+          if (prevState.currentStage.chordProgression) {
+            const nextIndex = (prevState.currentQuestionIndex + 1) % prevState.currentStage.chordProgression.length;
+            nextChord = getProgressionChord(prevState.currentStage.chordProgression, nextIndex, displayOpts);
+          } else {
+            nextChord = selectRandomChord(prevState.currentStage.allowedChords, monster.chordTarget?.id, displayOpts);
+          }
+          
+          return {
+            ...monster,
+            chordTarget: nextChord!,
+            correctNotes: [],
+            gauge: 0 // ゲージもリセット
+          };
+        }
+        
+        return monster;
+      });
+
+      const nextState = {
+        ...prevState,
+        currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage.chordProgression?.length || 1),
+        activeMonsters: updatedMonsters,
+        // 互換性維持
+        currentChordTarget: updatedMonsters[0]?.chordTarget || prevState.currentChordTarget,
+        enemyGauge: 0,
+        correctNotes: []
+      };
+
+      onGameStateChange(nextState);
+      return nextState;
+    });
+  }, [onGameStateChange, displayOpts]);
   
+  // プログレッションタイミングチェック
+  const checkProgressionTiming = useCallback(() => {
+    const state = gameState;
+    if (!state.currentStage || state.currentStage.mode !== 'progression') {
+      return;
+    }
+
+    const timeState = useTimeStore.getState();
+    if (!timeState.startAt) return;
+
+    // chord_progression_dataがある場合は細かいタイミング制御
+    if (state.currentStage.chordProgressionData) {
+      const absoluteBeat = getAbsoluteBeatPosition(
+        timeState.startAt,
+        state.currentStage.bpm,
+        timeState.readyDuration,
+        state.currentStage.countInMeasures || 0,
+        state.currentStage.timeSignature || 4
+      );
+
+      const progressionData = state.currentStage.chordProgressionData as ChordTiming[];
+      const { currentChord, isAcceptingInput } = parseProgressionData(
+        progressionData,
+        timeState.currentMeasure,
+        timeState.currentBeat,
+        state.currentStage.timeSignature || 4
+      );
+
+      // NULL期間の処理
+      if (currentChord === null && !state.isInNullPeriod) {
+        setGameState(prev => ({ ...prev, isInNullPeriod: true }));
+      } else if (currentChord !== null && state.isInNullPeriod) {
+        setGameState(prev => ({ ...prev, isInNullPeriod: false }));
+      }
+
+      // 判定受付終了時の自動進行
+      if (!isAcceptingInput && !state.isInNullPeriod) {
+        // モンスターの中で未完成のものがあれば自動で次へ
+        const incompleteMonsters = state.activeMonsters.filter(m => {
+          const targetNotes = [...new Set(m.chordTarget.notes.map(n => n % 12))];
+          return m.correctNotes.length < targetNotes.length;
+        });
+
+        if (incompleteMonsters.length > 0) {
+          // 自動進行処理
+          handleProgressionAutoAdvance();
+        }
+      }
+    } else {
+      // デフォルトのタイミング処理（4拍子なら4.5拍目から出題）
+      const currentBeat = getCurrentBeatPosition(
+        timeState.startAt,
+        state.currentStage.bpm,
+        state.currentStage.timeSignature || 4,
+        timeState.readyDuration,
+        state.currentStage.countInMeasures || 0
+      );
+
+      const timeSignature = state.currentStage.timeSignature || 4;
+      const questionBeat = timeSignature + 0.5;
+      const judgmentDeadline = timeSignature + 0.49;
+
+      // 判定受付終了チェック
+      if (currentBeat >= judgmentDeadline && currentBeat < questionBeat) {
+        // 未完成のモンスターがあれば自動進行
+        const incompleteMonsters = state.activeMonsters.filter(m => {
+          const targetNotes = [...new Set(m.chordTarget.notes.map(n => n % 12))];
+          return m.correctNotes.length < targetNotes.length;
+        });
+
+        if (incompleteMonsters.length > 0 && !state.isInNullPeriod) {
+          setGameState(prev => ({ ...prev, isInNullPeriod: true }));
+          handleProgressionAutoAdvance();
+        }
+      }
+
+      // 新しい問題の出現タイミング
+      if ((currentBeat >= questionBeat || currentBeat < 1) && state.isInNullPeriod) {
+        setGameState(prev => ({ ...prev, isInNullPeriod: false }));
+      }
+    }
+  }, [gameState, handleProgressionAutoAdvance]);
+
+  // プログレッションタイミングタイマーの管理
+  useEffect(() => {
+    // 既存のタイマーをクリア
+    if (progressionTimer) {
+      clearInterval(progressionTimer);
+      setProgressionTimer(null);
+    }
+    
+    // プログレッションモードでゲームがアクティブな場合のみタイマーを開始
+    if (gameState.isGameActive && gameState.currentStage?.mode === 'progression') {
+      devLog.debug('⏰ プログレッションタイマー開始');
+      const timer = setInterval(() => {
+        checkProgressionTiming();
+      }, 50); // 50ms間隔で更新（より精密なタイミング制御のため）
+      setProgressionTimer(timer);
+    }
+    
+    // クリーンアップ
+    return () => {
+      if (progressionTimer) {
+        clearInterval(progressionTimer);
+      }
+    };
+  }, [gameState.isGameActive, gameState.currentStage?.mode, checkProgressionTiming, progressionTimer]);
+
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中はゲージ停止 */
@@ -815,6 +985,12 @@ export const useFantasyGameEngine = ({
     setGameState(prevState => {
       // ゲームがアクティブでない場合は何もしない
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
+        return prevState;
+      }
+
+      // プログレッションモードでNULL期間中の場合は入力を無視
+      if (prevState.currentStage?.mode === 'progression' && prevState.isInNullPeriod) {
+        devLog.debug('🚫 NULL期間中のため入力を無視');
         return prevState;
       }
 
@@ -1029,12 +1205,17 @@ export const useFantasyGameEngine = ({
       setEnemyGaugeTimer(null);
     }
     
+    if (progressionTimer) {
+      clearInterval(progressionTimer);
+      setProgressionTimer(null);
+    }
+    
     // if (inputTimeout) { // 削除
     //   clearTimeout(inputTimeout); // 削除
     // } // 削除
     
     // setInputBuffer([]); // 削除
-  }, [enemyGaugeTimer]);
+  }, [enemyGaugeTimer, progressionTimer]);
   
   // ステージ変更時の初期化
   // useEffect(() => {
@@ -1049,6 +1230,10 @@ export const useFantasyGameEngine = ({
       if (enemyGaugeTimer) {
         devLog.debug('⏰ 敵ゲージタイマー クリーンアップで停止');
         clearInterval(enemyGaugeTimer);
+      }
+      if (progressionTimer) {
+        devLog.debug('⏰ プログレッションタイマー クリーンアップで停止');
+        clearInterval(progressionTimer);
       }
       // if (inputTimeout) { // 削除
       //   devLog.debug('⏰ 入力タイムアウト クリーンアップで停止'); // 削除
