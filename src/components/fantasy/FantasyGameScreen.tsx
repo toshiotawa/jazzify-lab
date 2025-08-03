@@ -10,13 +10,15 @@ import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, getChordDefinition } from './FantasyGameEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { TaikoUIStrategy } from './taiko/TaikoUIStrategy';
+import type { UIStrategy } from './taiko/UIStrategy';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -237,6 +239,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
+  // Taiko UI戦略
+  const [uiStrategy, setUiStrategy] = useState<UIStrategy | null>(null);
+  const uiStrategyRef = useRef<UIStrategy | null>(null);
+  
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
     devLog.debug('🎮 ファンタジーゲーム状態更新:', {
@@ -351,19 +357,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return;
     }
     
-    // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
-    try {
-      const { playNote } = await import('@/utils/MidiController');
-      await playNote(note, 80); // velocity 80で再生
+    // 追加：MIDI音の管理（マウス時のみ）
+    if (source === 'mouse') {
       activeNotesRef.current.add(note);
-      devLog.debug('🎵 Played note via click:', note);
-    } catch (error) {
-      console.error('Failed to play note:', error);
     }
     
-    // ファンタジーゲームエンジンにのみ送信
+    // Taiko UIモードの場合は専用の入力処理
+    if (stage.mode === 'progression' && uiStrategyRef.current) {
+      uiStrategyRef.current.onPlayerInput(note, performance.now());
+      return;
+    }
+    
+    // 通常モードの入力処理
     engineHandleNoteInput(note);
-  }, [engineHandleNoteInput]);
+  }, [engineHandleNoteInput, stage.mode]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
   useEffect(() => {
@@ -502,7 +509,49 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
     setFantasyPixiInstance(instance);
-  }, []);
+    
+    // Taiko UIの初期化（progressionモードの場合）
+    if (stage.mode === 'progression' && stage.chordProgression) {
+      devLog.debug('🥁 Taiko UIモードで初期化開始', { 
+        stage: stage.name,
+        chordProgression: stage.chordProgression,
+        hasChordProgressionData: !!stage.chordProgressionData
+      });
+      
+      const container = instance.getMonsterContainer();
+      const stageWidth = instance.getStageWidth();
+      
+      const taikoUI = new TaikoUIStrategy({
+        container,
+        stageWidth,
+        onPlayerHit: (chordId: string) => {
+          devLog.debug('🥁 Taiko UI: プレイヤーヒット', { chordId });
+          // プレイヤーのヒット処理（既存のhandleChordCorrectに繋げる）
+          const chordDef = getChordDefinition(chordId, { lang: 'en', simple: false });
+          if (chordDef && gameState.activeMonsters.length > 0) {
+            const monster = gameState.activeMonsters[0]; // Taiko UIでは敵は常に1体
+            handleChordCorrect(chordDef, false, 1, monster.currentHp <= 1, monster.id);
+          }
+        },
+        onEnemyAttack: () => {
+          devLog.debug('🥁 Taiko UI: 敵の攻撃');
+          // 敵の攻撃処理
+          if (gameState.activeMonsters.length > 0) {
+            handleEnemyAttack(gameState.activeMonsters[0].id);
+          }
+        },
+        getChordDefinition: (id: string) => getChordDefinition(id, { lang: 'en', simple: false })
+      });
+      
+      taikoUI.init(stage);
+      setUiStrategy(taikoUI);
+      uiStrategyRef.current = taikoUI;
+      
+      devLog.debug('🥁 Taiko UIモード初期化完了');
+    } else {
+      devLog.debug('🎮 通常モードで動作', { mode: stage.mode });
+    }
+  }, [stage, gameState, handleChordCorrect, handleEnemyAttack]);
   
   // 魔法名表示ハンドラー
   const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
@@ -563,6 +612,38 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       });
     }
   }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
+  
+  // Taiko UIの更新ループ
+  useEffect(() => {
+    if (!uiStrategyRef.current || !gameState.isGameActive) return;
+    
+    let animationFrameId: number;
+    
+    const update = () => {
+      if (uiStrategyRef.current) {
+        uiStrategyRef.current.update(performance.now());
+      }
+      animationFrameId = requestAnimationFrame(update);
+    };
+    
+    animationFrameId = requestAnimationFrame(update);
+    
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [gameState.isGameActive]);
+  
+  // Taiko UIのクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (uiStrategyRef.current) {
+        uiStrategyRef.current.destroy();
+        uiStrategyRef.current = null;
+      }
+    };
+  }, []);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -828,17 +909,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
-                      {/* コードネーム */}
-                      <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                        monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                      }`}>
-                        {monster.chordTarget.displayName}
-                      </div>
-                      
-                      {/* ★★★ ここにヒント表示を追加 ★★★ */}
-                      <div className={`mt-1 font-medium h-6 text-center ${
-                        monsterCount > 5 ? 'text-xs' : 'text-sm'
-                      }`}>
+                      {/* コードネーム（Taiko UIモードでは非表示） */}
+                      {stage.mode !== 'progression' && (
+                        <>
+                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                          }`}>
+                            {monster.chordTarget.displayName}
+                          </div>
+                          
+                          {/* ★★★ ここにヒント表示を追加 ★★★ */}
+                          <div className={`mt-1 font-medium h-6 text-center ${
+                            monsterCount > 5 ? 'text-xs' : 'text-sm'
+                          }`}>
                         {monster.chordTarget.noteNames.map((noteName, index) => {
                           // 表示オプションを定義
                           const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
@@ -866,6 +949,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           );
                         })}
                       </div>
+                        </>
+                      )}
                       
                       {/* 魔法名表示 */}
                       {magicName && magicName.monsterId === monster.id && (

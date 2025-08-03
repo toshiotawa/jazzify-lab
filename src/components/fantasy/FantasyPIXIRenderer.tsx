@@ -2034,7 +2034,19 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  /**
+   * 太鼓の達人モード用：monsterContainerを取得
+   */
+  getMonsterContainer(): PIXI.Container {
+    return this.monsterContainer;
+  }
 
+  /**
+   * 太鼓の達人モード用：ステージ幅を取得
+   */
+  getStageWidth(): number {
+    return this.app.screen.width;
+  }
 }
 
 // ===== Reactコンポーネント =====
