@@ -18,6 +18,8 @@ interface TimeState {
   currentMeasure: number
   /* カウントイン中かどうか */
   isCountIn: boolean
+  /* 小節内の拍位置（1.00〜timeSignature+1、0.01精度） */
+  currentBeatFloat: number
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -39,6 +41,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  currentBeatFloat: 1.00,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -48,7 +51,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       countInMeasures: ci,
       currentBeat: 1,
       currentMeasure: 1,
-      isCountIn: false
+      isCountIn: false,
+      currentBeatFloat: 1.00
     }),
   tick: () => {
     const s = get()
@@ -59,18 +63,18 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (elapsed < s.readyDuration) {
       set({
         currentBeat: 1,
-        currentMeasure: 1
+        currentMeasure: 1,
+        currentBeatFloat: 1.00
       })
       return
     }
 
     const msecPerBeat = 60000 / s.bpm
-    const beatsFromStart = Math.floor(
-      (elapsed - s.readyDuration) / msecPerBeat
-    )
-
+    const beatsFromStart = (elapsed - s.readyDuration) / msecPerBeat
+    const beatFloat = (beatsFromStart % s.timeSignature) + 1
+    
     const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
-    const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
+    const currentBeatInMeasure = (Math.floor(beatsFromStart) % s.timeSignature) + 1
     
     /* カウントイン中かどうかを判定 */
     if (totalMeasures < s.countInMeasures) {
@@ -78,7 +82,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       set({
         currentBeat: currentBeatInMeasure,
         currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
-        isCountIn: true
+        isCountIn: true,
+        currentBeatFloat: +beatFloat.toFixed(2)
       })
     } else {
       // メイン部分（カウントイン後）
@@ -88,7 +93,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       set({
         currentBeat: currentBeatInMeasure,
         currentMeasure: displayMeasure, // カウントイン後を1から表示
-        isCountIn: false
+        isCountIn: false,
+        currentBeatFloat: +beatFloat.toFixed(2)
       })
     }
   }

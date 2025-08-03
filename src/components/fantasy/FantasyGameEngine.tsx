@@ -11,6 +11,7 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { note as parseNote } from 'tonal';
 
 // ===== 型定義 =====
 
@@ -37,6 +38,7 @@ interface FantasyStage {
   mode: 'single' | 'progression';
   allowedChords: string[];
   chordProgression?: string[];
+  chordProgressionData?: any; // JSONBフィールド（コード進行とタイミング情報）
   showSheetMusic: boolean;
   showGuide: boolean; // ガイド表示設定を追加
   monsterIcon: string;
@@ -59,6 +61,20 @@ interface MonsterState {
   correctNotes: number[]; // このモンスター用の正解済み音
   icon: string;
   name: string;
+}
+
+// Progression モード用の型定義
+interface ProgressionData {
+  bar: number;
+  beat: number;
+  chord: string;
+}
+
+interface ProgressionEvent {
+  chordId: string;
+  appearBeat: number;
+  acceptFrom: number;
+  acceptTo: number;
 }
 
 interface FantasyGameState {
@@ -91,6 +107,13 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  // Progression モード用
+  progressionTimeline?: ProgressionEvent[];
+  progressionIndex?: number;
+  acceptWindowFrom?: number;
+  acceptWindowTo?: number;
+  activeChord?: ChordDefinition | null;
+  activeChordCompleted?: boolean;
 }
 
 interface FantasyGameEngineProps {
@@ -135,9 +158,6 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
     root: resolved.root
   };
 };
-
-// parseNoteをインポート
-import { note as parseNote } from 'tonal';
 
 // ===== 敵リスト定義 =====
 
@@ -505,6 +525,39 @@ export const useFantasyGameEngine = ({
     const firstMonster = activeMonsters[0];
     const firstChord = firstMonster ? firstMonster.chordTarget : null;
 
+    // Progressionモード用のタイムラインを作成
+    let progressionTimeline: ProgressionEvent[] | undefined;
+    let progressionIndex: number | undefined;
+    let acceptWindowFrom: number | undefined;
+    let acceptWindowTo: number | undefined;
+    let activeChord: ChordDefinition | null | undefined;
+    let activeChordCompleted: boolean | undefined;
+
+    if (stage.mode === 'progression') {
+      const raw = stage.chordProgressionData as ProgressionData[] | null;
+      const timeSig = stage.timeSignature ?? 4;
+
+      const timeline: ProgressionEvent[] = (raw ?? stage.chordProgression!.map((c, i) => ({
+        bar: i + 1,
+        beat: 4.5,
+        chord: c
+      }))).map((e, i, arr) => {
+        const appearBeat = (e.bar - 1) * timeSig + e.beat; // 絶対拍
+        const next = arr[i + 1] ?? { bar: e.bar + 1, beat: e.beat, chord: e.chord }; // last→dummy
+        return {
+          chordId: e.chord,
+          appearBeat: appearBeat,
+          acceptFrom: appearBeat - 0.5,
+          acceptTo: (next.bar - 1) * timeSig + next.beat - 0.5
+        };
+      });
+
+      progressionTimeline = timeline;
+      progressionIndex = 0;
+      activeChord = null;
+      activeChordCompleted = false;
+    }
+
     const newState: FantasyGameState = {
       currentStage: stage,
       currentQuestionIndex: 0,
@@ -533,7 +586,14 @@ export const useFantasyGameEngine = ({
       monsterQueue,
       simultaneousMonsterCount: simultaneousCount,
       // ゲーム完了処理中フラグ
-      isCompleting: false
+      isCompleting: false,
+      // Progressionモード用
+      progressionTimeline,
+      progressionIndex,
+      acceptWindowFrom,
+      acceptWindowTo,
+      activeChord,
+      activeChordCompleted
     };
 
     setGameState(newState);
@@ -818,6 +878,29 @@ export const useFantasyGameEngine = ({
         return prevState;
       }
 
+      // Progressionモード時の受付ウインドウチェック
+      if (prevState.currentStage?.mode === 'progression') {
+        const { currentBeatFloat, currentMeasure, timeSignature, isCountIn } = useTimeStore.getState();
+        
+        // カウントイン中は無視
+        if (isCountIn) {
+          return prevState;
+        }
+        
+        const totalBeat = (currentMeasure - 1) * timeSignature + currentBeatFloat;
+        
+        // 受付ウインドウ外の場合は無視
+        if (prevState.acceptWindowFrom !== undefined && prevState.acceptWindowTo !== undefined) {
+          if (totalBeat < prevState.acceptWindowFrom || totalBeat >= prevState.acceptWindowTo) {
+            devLog.debug('🚫 受付ウインドウ外の入力を無視:', {
+              totalBeat,
+              acceptWindow: [prevState.acceptWindowFrom, prevState.acceptWindowTo]
+            });
+            return prevState;
+          }
+        }
+      }
+
       devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
 
       const noteMod12 = note % 12;
@@ -941,6 +1024,18 @@ export const useFantasyGameEngine = ({
             return finalState;
         }
         
+        // Progressionモード：コード完成時にNULL区間へ
+        if (stateAfterAttack.currentStage?.mode === 'progression') {
+          stateAfterAttack.activeChord = null;
+          stateAfterAttack.activeChordCompleted = true;
+          // activeChordがnullになったので、モンスターのchordTargetもクリア（UIでは?を表示しない）
+          stateAfterAttack.activeMonsters = stateAfterAttack.activeMonsters.map(monster => ({
+            ...monster,
+            chordTarget: null as any, // NULL区間では表示しない
+            correctNotes: []
+          }));
+        }
+        
         onGameStateChange(stateAfterAttack);
         return stateAfterAttack;
 
@@ -1056,6 +1151,97 @@ export const useFantasyGameEngine = ({
       // } // 削除
     };
   }, []);
+
+  // Progressionモード用のビート駆動ループ
+  useEffect(() => {
+    if (gameState.currentStage?.mode !== 'progression' || !gameState.isGameActive) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      const { currentBeatFloat, currentMeasure, timeSignature, isCountIn } = useTimeStore.getState();
+      
+      // カウントイン中は何もしない
+      if (isCountIn) return;
+      
+      const totalBeat = (currentMeasure - 1) * timeSignature + currentBeatFloat; // 1.00-始まり
+
+      setGameState((prevState) => {
+        if (!prevState.progressionTimeline || prevState.progressionIndex === undefined) {
+          return prevState;
+        }
+
+        let newState = { ...prevState };
+        const timeline = prevState.progressionTimeline;
+
+        // ① 受付終了を超えたのに未完成 → 失敗として次へ
+        const currentEvent = prevState.progressionIndex > 0 ? timeline[prevState.progressionIndex - 1] : null;
+        if (currentEvent && totalBeat >= currentEvent.acceptTo && !prevState.activeChordCompleted) {
+          // HP減少処理
+          const newHp = Math.max(0, prevState.playerHp - 1);
+          devLog.debug('💥 時間切れ！HP更新:', {
+            prevHp: prevState.playerHp,
+            newHp,
+            chord: currentEvent.chordId
+          });
+
+          if (newHp === 0) {
+            // ゲームオーバー
+            newState = {
+              ...newState,
+              playerHp: 0,
+              isGameActive: false,
+              isGameOver: true,
+              gameResult: 'gameover' as const,
+              isCompleting: true
+            };
+            onGameComplete('gameover', newState);
+          } else {
+            // 次の問題へ
+            newState = {
+              ...newState,
+              playerHp: newHp,
+              activeChord: null,
+              activeChordCompleted: false
+            };
+          }
+        }
+
+        // ② 出題ビート到達 → chord をアクティブに
+        const nextEvent = timeline[prevState.progressionIndex];
+        if (nextEvent && totalBeat >= nextEvent.appearBeat && !prevState.activeChord) {
+          const chordDef = getChordDefinition(nextEvent.chordId, displayOpts);
+          
+          newState = {
+            ...newState,
+            activeChord: chordDef,
+            acceptWindowFrom: nextEvent.acceptFrom,
+            acceptWindowTo: nextEvent.acceptTo,
+            activeChordCompleted: false,
+            progressionIndex: prevState.progressionIndex + 1,
+            // 互換性のため
+            currentChordTarget: chordDef,
+            currentQuestionIndex: prevState.progressionIndex
+          };
+          
+          // モンスターのコードも更新
+          if (newState.activeMonsters.length > 0) {
+            newState.activeMonsters = newState.activeMonsters.map(monster => ({
+              ...monster,
+              chordTarget: chordDef!,
+              correctNotes: []
+            }));
+          }
+          
+          onGameStateChange(newState);
+        }
+
+        return newState;
+      });
+    }, 100); // 100ms間隔
+
+    return () => clearInterval(intervalId);
+  }, [gameState.isGameActive, gameState.currentStage?.mode, onGameStateChange, onGameComplete]);
   
 
   
