@@ -566,9 +566,8 @@ const FantasyMain: React.FC = () => {
   
   // ゲーム画面
   if (currentStage) {
-    // chord_progression_dataが存在し、かつprogressionモードの場合は拡張版を使用
-    const useExtendedVersion = currentStage.mode === 'progression' && 
-                              currentStage.chordProgressionData !== undefined;
+    // progressionモードの場合は常に拡張版を使用（シングルモードには影響しない）
+    const useExtendedVersion = currentStage.mode === 'progression';
     
     if (useExtendedVersion) {
       return (
