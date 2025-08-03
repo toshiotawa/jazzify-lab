@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-interface TimeState {
+export interface TimeState {
   /* ゲーム開始＝モンスター描画完了時刻 (ms) */
   startAt: number | null
   /* Ready フェーズ長(ms) – デフォルト 2 秒 */
@@ -27,6 +27,7 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  getAbsoluteBeat: () => number
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -91,5 +92,14 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         isCountIn: false
       })
     }
+  },
+  /* 現在の経過拍を小数で取得（count-in 後基準）*/
+  getAbsoluteBeat: () => {
+    const s = get()
+    if (s.startAt === null) return 0
+    const elapsed = performance.now() - s.startAt - s.readyDuration
+    const beat = elapsed / (60000 / s.bpm)
+    const beatsInCountIn = s.countInMeasures * s.timeSignature
+    return Math.max(0, beat - beatsInCountIn) // count-in 分を引く
   }
 }))

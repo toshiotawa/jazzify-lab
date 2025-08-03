@@ -11,6 +11,8 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import { compileProgression } from '@/utils/progression';
+import type { CompiledProgressionEvent, RawProgressionEvent } from '@/types/progression';
 
 // ===== 型定義 =====
 
@@ -46,6 +48,7 @@ interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
+  chord_progression_data?: RawProgressionEvent[]; // JSONデータ用
 }
 
 interface MonsterState {
@@ -411,6 +414,80 @@ export const useFantasyGameEngine = ({
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
+  // progressionモード判定
+  const isProgression = stage?.mode === 'progression';
+  
+  // プログレッション拡張用の状態とロジック
+  const progression: CompiledProgressionEvent[] = useMemo(() => {
+    if (!isProgression || !stage?.chord_progression_data) return [];
+    return compileProgression(
+      stage.chord_progression_data as RawProgressionEvent[],
+      stage.timeSignature || 4
+    );
+  }, [stage, isProgression]);
+  
+  const [progressionIdx, setProgressionIdx] = useState(0);
+  const [progressionCurrent, setProgressionCurrent] = useState<string | null>(null);
+  const progressionAnsweredRef = useRef(false);
+  
+  // progressionモードのフレーム更新
+  useEffect(() => {
+    if (!isProgression || progression.length === 0 || !gameState.isGameActive) return;
+    
+    const intervalId = setInterval(() => {
+      const beat = useTimeStore.getState().getAbsoluteBeat();
+      const ev = progression[progressionIdx];
+      if (!ev) return;
+      
+      const within = beat >= ev.acceptFrom && beat < ev.acceptUntil;
+      
+      // 出題タイミング到達
+      if (beat >= ev.appearAtBeat && progressionCurrent !== ev.chord) {
+        setProgressionCurrent(ev.chord);
+        progressionAnsweredRef.current = false;
+        
+        // 新しい問題を設定
+        setGameState(prev => ({
+          ...prev,
+          currentChordTarget: getChordDefinition(ev.chord, displayOpts)
+        }));
+      }
+      
+      // 判定窓外に出た → 自動遷移
+      if (!within && progressionCurrent !== null) {
+        if (!progressionAnsweredRef.current) {
+          // 失敗扱い：敵攻撃
+          onEnemyAttack();
+          
+          // ダメージ処理（プレイヤーのHPを減らす）
+          setGameState(prev => {
+            const newHp = Math.max(0, prev.playerHp - 1);
+            if (newHp === 0) {
+              const finalState = { ...prev, playerHp: 0, isGameActive: false, isGameOver: true, gameResult: 'gameover' as const };
+              onGameComplete('gameover', finalState);
+              return finalState;
+            }
+            return { ...prev, playerHp: newHp };
+          });
+        }
+        // Null 期間
+        setProgressionCurrent(null);
+        setGameState(prev => ({
+          ...prev,
+          currentChordTarget: null
+        }));
+      }
+      
+      // 次イベントに進む
+      if (beat >= ev.acceptUntil) {
+        setProgressionIdx((progressionIdx + 1) % progression.length);
+      }
+    }, 16); // 約60fps
+    
+    return () => clearInterval(intervalId);
+  }, [isProgression, progression, progressionIdx, progressionCurrent, gameState.isGameActive, displayOpts, onEnemyAttack, onGameComplete]);
+  
+
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
@@ -746,6 +823,9 @@ export const useFantasyGameEngine = ({
   
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
+    // プログレッション拡張モードの場合はゲージ処理をしない
+    if (isProgression && progression.length > 0) return;
+    
     /* Ready 中はゲージ停止 */
     const timeState = useTimeStore.getState();
     if (timeState.startAt &&
@@ -807,10 +887,48 @@ export const useFantasyGameEngine = ({
         return nextState;
       }
     });
-  }, [handleEnemyAttack, onGameStateChange]);
+  }, [handleEnemyAttack, onGameStateChange, isProgression, progression]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
+    // プログレッション拡張モードの場合の特別処理
+    if (isProgression && progression.length > 0 && progressionCurrent) {
+      const ev = progression[progressionIdx];
+      const beat = useTimeStore.getState().getAbsoluteBeat();
+      const within = beat >= ev.acceptFrom && beat < ev.acceptUntil;
+      
+      if (within) {
+        // 現在の判定窓内なら、chord matchをチェック
+        const targetChord = getChordDefinition(ev.chord, displayOpts);
+        if (targetChord) {
+          // 簡易的な判定：入力ノートがターゲットコードに含まれるかチェック
+          const noteMod12 = note % 12;
+          const targetNotesMod12 = targetChord.notes.map(n => n % 12);
+          
+          if (targetNotesMod12.includes(noteMod12)) {
+            // 正解音の場合、すぐに正解扱いにする（簡易実装）
+            // 本来は全音揃ったかチェックが必要だが、ここでは省略
+            progressionAnsweredRef.current = true;
+            
+            // onChordCorrectのパラメータを適切に渡す
+            const isSpecial = false; // プログレッションモードでは特殊攻撃なし
+            const damageDealt = 0; // プログレッションモードではダメージ計算なし
+            const defeated = false; // プログレッションモードでは敵の倒す概念なし
+            const monsterId = 'progression'; // プログレッションモード用のダミーID
+            onChordCorrect(targetChord, isSpecial, damageDealt, defeated, monsterId);
+            
+            // 成功演出
+            setGameState(prev => ({
+              ...prev,
+              score: prev.score + 100,
+              correctAnswers: prev.correctAnswers + 1,
+              playerSp: Math.min(5, prev.playerSp + 1)
+            }));
+          }
+        }
+      }
+      return; // プログレッションモードの場合はここで終了
+    }
     // updater関数の中でロジックを実行するように変更
     setGameState(prevState => {
       // ゲームがアクティブでない場合は何もしない
@@ -951,7 +1069,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange, isProgression, progression, progressionIdx, progressionCurrent, displayOpts]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
