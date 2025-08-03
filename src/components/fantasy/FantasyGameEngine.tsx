@@ -520,7 +520,7 @@ export const useFantasyGameEngine = ({
         
         if (newMonsterQueue.length > 0) {
           const monsterIndex = newMonsterQueue.shift()!;
-          const nextNote = prevState.taikoNotes[nextNoteIndex];
+                      const nextNote = prevState.taikoNotes[nextNoteIndex];
           
           if (nextNote) {
             const newMonster = createMonsterFromQueue(
@@ -709,7 +709,9 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
+          (chordId) => getChordDefinition(chordId, displayOpts),
+          stage.countInMeasures || 0,
+          stage.measureCount || 8
         );
       } else if (stage.chordProgression) {
         // 基本版：小節の頭でコード出題
@@ -718,7 +720,8 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
+          (chordId) => getChordDefinition(chordId, displayOpts),
+          stage.countInMeasures || 0
         );
       }
       
@@ -989,6 +992,12 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
+        
+        // currentNoteIndexが範囲外の場合は何もしない
+        if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
+          return prevState;
+        }
+        
         const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
         
         if (currentNote && currentTime > currentNote.hitTime + 0.3) {
