@@ -58,7 +58,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
   // 時間管理
-  const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
+  const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn, isNullPhase } = useTimeStore();
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -828,41 +828,42 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
-                      {/* コードネーム */}
-                      <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                        monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                      }`}>
+                      {/* コード名 */}
+                      <div className={cn(
+                        "mb-1 text-center font-bold text-white text-base",
+                        damageShake && "animate-shake",
+                        // NULL時間中はグレーアウト
+                        isNullPhase && "opacity-40"
+                      )}>
                         {monster.chordTarget.displayName}
                       </div>
                       
-                      {/* ★★★ ここにヒント表示を追加 ★★★ */}
-                      <div className={`mt-1 font-medium h-6 text-center ${
-                        monsterCount > 5 ? 'text-xs' : 'text-sm'
-                      }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
-                          // 表示オプションを定義
-                          const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
-                          // 表示用の音名に変換
-                          const displayNoteName = toDisplayName(noteName, displayOpts);
-                          
-                          // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
-                          const noteObj = parseNote(noteName + '4'); // オクターブはダミー
-                          const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
-                          
-                          const isCorrect = monster.correctNotes.includes(noteMod12);
-
-                          if (!stage.showGuide && !isCorrect) {
-                            return (
-                              <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
-                                ?
-                              </span>
-                            );
-                          }
+                      {/* 構成音表示 */}
+                      <div className={cn(
+                        "flex flex-wrap justify-center gap-1 mb-1 h-8",
+                        // NULL時間中は薄く表示
+                        isNullPhase && "opacity-30"
+                      )}>
+                        {monster.chordTarget.noteNames.map((noteName, idx) => {
+                          const isPlayed = monster.correctNotes.includes(monster.chordTarget.notes[idx] % 12);
                           return (
-                            <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                              {displayNoteName}
-                              {isCorrect && '✓'}
-                            </span>
+                            <div
+                              key={idx}
+                              className={cn(
+                                "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300",
+                                isPlayed 
+                                  ? "bg-green-500 text-white scale-110 shadow-lg" 
+                                  : "bg-gray-700 text-gray-400"
+                              )}
+                            >
+                              {toDisplayName(
+                                noteName,
+                                {
+                                  lang: currentNoteNameLang,
+                                  simple: currentSimpleNoteName
+                                }
+                              )}
+                            </div>
                           );
                         })}
                       </div>
