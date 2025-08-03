@@ -160,6 +160,8 @@ export const FantasyProgressionEngine: React.FC<FantasyProgressionEngineProps> =
 
   const animationFrameRef = useRef<number | null>(null);
   const lastBeatRef = useRef<number>(0);
+  const handleStageClearRef = useRef<() => void>();
+  const handleGameOverRef = useRef<() => void>();
 
   // タイミング情報の監視
   const timeState = useTimeStoreExtended();
@@ -170,7 +172,9 @@ export const FantasyProgressionEngine: React.FC<FantasyProgressionEngineProps> =
     isCountIn,
     nextChordBeat,
     judgmentDeadlineBeat,
-    currentChord
+    currentChord,
+    setStart,
+    updateFromBGM
   } = timeState;
 
   // コード進行データの解析
@@ -216,7 +220,7 @@ export const FantasyProgressionEngine: React.FC<FantasyProgressionEngineProps> =
         progressionData || undefined,
         (timing) => {
           // BGMからのタイミング更新をストアに反映
-          timeState.updateFromBGM(
+          updateFromBGM(
             timing.currentBeat,
             timing.beatInMeasure,
             timing.currentMeasure,
@@ -230,7 +234,7 @@ export const FantasyProgressionEngine: React.FC<FantasyProgressionEngineProps> =
     }
     
     // timeStoreの初期化
-    timeState.setStart(
+    setStart(
       stage.bpm,
       stage.timeSignature || 4,
       stage.measureCount || 8,
@@ -281,7 +285,7 @@ export const FantasyProgressionEngine: React.FC<FantasyProgressionEngineProps> =
     });
     
     devLog.debug('🎮 プログレッションゲーム初期化完了');
-  }, [stage, onGameStateChange, onMonsterReady, timeState, parseChordProgressionData]);
+  }, [stage, onGameStateChange, onMonsterReady, setStart, updateFromBGM, parseChordProgressionData]);
 
   // 初期モンスター作成
   const createInitialMonsters = (stage: FantasyProgressionStage, queue: number[]): MonsterState[] => {
@@ -412,7 +416,7 @@ export const FantasyProgressionEngine: React.FC<FantasyProgressionEngineProps> =
       
       // ゲームオーバーチェック
       if (newHp <= 0) {
-        handleGameOver();
+        handleGameOverRef.current?.();
         return;
       }
     });
@@ -552,7 +556,7 @@ export const FantasyProgressionEngine: React.FC<FantasyProgressionEngineProps> =
     
     // 全モンスター撃破チェック
     if (remainingMonsters.length === 0 && gameState.monsterQueue.length === 0) {
-      handleStageClear();
+      handleStageClearRef.current?.();
     }
   }, [gameState, onPlayerAttack, onMonsterDamage, onMonsterComplete, onScoreUpdate, onSPGaugeUpdate]);
 
@@ -581,6 +585,12 @@ export const FantasyProgressionEngine: React.FC<FantasyProgressionEngineProps> =
     bgmManagerExtended.stop();
     if (onGameComplete) onGameComplete();
   }, [onGameComplete]);
+  
+  // Refに設定
+  useEffect(() => {
+    handleStageClearRef.current = handleStageClear;
+    handleGameOverRef.current = handleGameOver;
+  }, [handleStageClear, handleGameOver]);
 
   // ステージ変更時の初期化
   useEffect(() => {

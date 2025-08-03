@@ -81,7 +81,7 @@ const FantasyGameScreenExtended: React.FC<FantasyGameScreenExtendedProps> = ({
   
   // 時間管理（拡張版）
   const timeState = useTimeStoreExtended();
-  const { currentBeat, currentMeasure, beatInMeasure, isCountIn, totalBeats, currentChord } = timeState;
+  const { currentBeat, currentMeasure, beatInMeasure, isCountIn, totalBeats, currentChord, setStart } = timeState;
   
   // gameStore設定
   const { settings, updateSettings } = useGameStore();
@@ -354,14 +354,14 @@ const FantasyGameScreenExtended: React.FC<FantasyGameScreenExtendedProps> = ({
       width: monsterAreaWidth,
       height: 300,
       pixiNoteRenderer: pixiRenderer,
-      stage: stage,
+      stage: stage as any, // FantasyStageの型の違いを回避
       isCountIn: isCountIn
     });
     
     setFantasyPixiInstance(instance);
     
     return () => {
-      if (instance) {
+      if (instance && typeof instance.cleanup === 'function') {
         instance.cleanup();
       }
     };
@@ -370,14 +370,14 @@ const FantasyGameScreenExtended: React.FC<FantasyGameScreenExtendedProps> = ({
   // ゲームの自動開始
   useEffect(() => {
     if (autoStart && stage) {
-      timeState.setStart(
+      setStart(
         stage.bpm,
         stage.timeSignature || 4,
         stage.measureCount || 8,
         stage.countInMeasures || 0
       );
     }
-  }, [autoStart, stage, timeState]);
+  }, [autoStart, stage, setStart]);
   
   return (
     <>
