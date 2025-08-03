@@ -648,6 +648,7 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  chord_progression_data?: any; // JSON data for advanced progression timing
 }
 
 export interface LessonContext {
