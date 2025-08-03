@@ -432,8 +432,14 @@ export const useFantasyGameEngine = ({
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
     if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
-      // すべてのノーツ処理済み
-      return prevState;
+      // すべてのノーツ処理済み - リピート処理
+      devLog.debug('🔁 太鼓モード：全ノーツ処理済み、リピート処理');
+      
+      // 音楽がループしているので、currentNoteIndexを0に戻す
+      return {
+        ...prevState,
+        currentNoteIndex: 0
+      };
     }
     
     const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
@@ -500,6 +506,9 @@ export const useFantasyGameEngine = ({
       // 次のノーツへ進む
       const nextNoteIndex = prevState.currentNoteIndex + 1;
       
+      // 次のノーツが範囲外の場合は0に戻す（リピート）
+      const finalNoteIndex = nextNoteIndex >= prevState.taikoNotes.length ? 0 : nextNoteIndex;
+      
       // モンスター更新
       const updatedMonsters = prevState.activeMonsters.map(m => {
         if (m.id === currentMonster.id) {
@@ -520,7 +529,7 @@ export const useFantasyGameEngine = ({
         
         if (newMonsterQueue.length > 0) {
           const monsterIndex = newMonsterQueue.shift()!;
-          const nextNote = prevState.taikoNotes[nextNoteIndex];
+          const nextNote = prevState.taikoNotes[finalNoteIndex];
           
           if (nextNote) {
             const newMonster = createMonsterFromQueue(
@@ -559,7 +568,7 @@ export const useFantasyGameEngine = ({
           activeMonsters: remainingMonsters,
           monsterQueue: newMonsterQueue,
           playerSp: newSp,
-          currentNoteIndex: nextNoteIndex,
+          currentNoteIndex: finalNoteIndex,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated
@@ -570,7 +579,7 @@ export const useFantasyGameEngine = ({
         ...prevState,
         activeMonsters: updatedMonsters,
         playerSp: newSp,
-        currentNoteIndex: nextNoteIndex,
+        currentNoteIndex: finalNoteIndex,
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage
       };
@@ -709,7 +718,8 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
+          (chordId) => getChordDefinition(chordId, displayOpts),
+          stage.countInMeasures || 0
         );
       } else if (stage.chordProgression) {
         // 基本版：小節の頭でコード出題
@@ -718,7 +728,8 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
+          (chordId) => getChordDefinition(chordId, displayOpts),
+          stage.countInMeasures || 0
         );
       }
       
@@ -989,6 +1000,16 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
+        
+        // currentNoteIndexが範囲外の場合はリピート処理
+        if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
+          devLog.debug('🔁 太鼓モード：全ノーツ処理済み（タイマー内）、リピート処理');
+          return {
+            ...prevState,
+            currentNoteIndex: 0
+          };
+        }
+        
         const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
         
         if (currentNote && currentTime > currentNote.hitTime + 0.3) {
@@ -1002,9 +1023,12 @@ export const useFantasyGameEngine = ({
           handleEnemyAttack();
           
           // 次のノーツへ進む
+          const nextIndex = prevState.currentNoteIndex + 1;
+          
+          // 次のインデックスが範囲外の場合は0に戻す
           return {
             ...prevState,
-            currentNoteIndex: prevState.currentNoteIndex + 1,
+            currentNoteIndex: nextIndex >= prevState.taikoNotes.length ? 0 : nextIndex,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
