@@ -11,6 +11,8 @@ import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
+import type { ChordProgressionDatum } from '@/types';
+import { bgmManager } from '@/utils/BGMManager';
 
 // ===== 型定義 =====
 
@@ -37,6 +39,7 @@ interface FantasyStage {
   mode: 'single' | 'progression';
   allowedChords: string[];
   chordProgression?: string[];
+  chordProgressionData?: ChordProgressionDatum[] | null;
   showSheetMusic: boolean;
   showGuide: boolean; // ガイド表示設定を追加
   monsterIcon: string;
@@ -91,6 +94,12 @@ interface FantasyGameState {
   simultaneousMonsterCount: number; // 同時表示数
   // ゲーム完了処理中フラグ
   isCompleting: boolean;
+  // progressionモード用フラグ
+  nullHolding: boolean;
+  chordCompleted: boolean;
+  lastChordCompletedBeat?: number;
+  // ゲージ更新用の前回拍位置
+  lastGaugeUpdateBeat: number;
 }
 
 interface FantasyGameEngineProps {
@@ -160,6 +169,22 @@ const ENEMY_LIST = [
 ];
 
 // ===== ヘルパー関数 =====
+
+/**
+ * デフォルトのコード進行タイミングを生成
+ * @param bars 小節数
+ * @param ts 拍子（デフォルト4）
+ * @returns ChordProgressionDatum[]
+ */
+const makeDefaultProgressionPattern = (bars: number, ts = 4): ChordProgressionDatum[] => {
+  const arr: ChordProgressionDatum[] = [];
+  for (let bar = 1; bar <= bars; bar++) {
+    arr.push(
+      { bar, beat: ts - 0.5, chord: null } // 4.50 で出題（実際のコードはnull）
+    );
+  }
+  return arr;
+};
 
 /**
  * キューからモンスターを生成
@@ -406,7 +431,13 @@ export const useFantasyGameEngine = ({
     monsterQueue: [],
     simultaneousMonsterCount: 1,
     // ゲーム完了処理中フラグ
-    isCompleting: false
+    isCompleting: false,
+    // progressionモード用フラグ
+    nullHolding: false,
+    chordCompleted: false,
+    lastChordCompletedBeat: undefined,
+    // ゲージ更新用の前回拍位置
+    lastGaugeUpdateBeat: 0
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -505,6 +536,19 @@ export const useFantasyGameEngine = ({
     const firstMonster = activeMonsters[0];
     const firstChord = firstMonster ? firstMonster.chordTarget : null;
 
+    /* ===== Ready + 時間ストア開始 ===== */
+    useTimeStore
+      .getState()
+      .setStart(
+        stage.bpm || 120,
+        stage.timeSignature || 4, // デフォルトは4/4拍子
+        stage.measureCount ?? 8,
+        stage.countInMeasures ?? 0
+      );
+    
+    // 現在の拍を取得して初期化
+    const currentBeat = useTimeStore.getState().currentBeatFloat;
+
     const newState: FantasyGameState = {
       currentStage: stage,
       currentQuestionIndex: 0,
@@ -533,21 +577,17 @@ export const useFantasyGameEngine = ({
       monsterQueue,
       simultaneousMonsterCount: simultaneousCount,
       // ゲーム完了処理中フラグ
-      isCompleting: false
+      isCompleting: false,
+      // progressionモード用フラグ
+      nullHolding: false,
+      chordCompleted: false,
+      lastChordCompletedBeat: undefined,
+      // ゲージ更新用の前回拍位置
+      lastGaugeUpdateBeat: currentBeat
     };
 
     setGameState(newState);
     onGameStateChange(newState);
-
-    /* ===== Ready + 時間ストア開始 ===== */
-    useTimeStore
-      .getState()
-      .setStart(
-        stage.bpm || 120,
-        stage.timeSignature || 4, // デフォルトは4/4拍子
-        stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0
-      );
 
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
@@ -584,10 +624,40 @@ export const useFantasyGameEngine = ({
             // ランダムモード：前回と異なるコードを選択
             nextChord = selectRandomChord(prevState.currentStage.allowedChords, monster.chordTarget?.id, displayOpts);
           } else {
-            // コード進行モード：ループさせる
-            const progression = prevState.currentStage?.chordProgression || [];
-            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            // コード進行モード
+            if (prevState.currentStage?.chordProgressionData) {
+              // chord_progression_dataがある場合は拍ベースで選択
+              const timeState = useTimeStore.getState();
+              const currentBeat = timeState.currentBeatFloat;
+              const currentBar = Math.floor(currentBeat / timeState.timeSignature) + 1;
+              
+              // 現在の小節と拍に最も近いコードを探す
+              let closestChord = null;
+              let closestDistance = Infinity;
+              
+              for (const datum of prevState.currentStage.chordProgressionData) {
+                const datumBeat = (datum.bar - 1) * timeState.timeSignature + datum.beat;
+                const distance = Math.abs(datumBeat - currentBeat);
+                if (distance < closestDistance) {
+                  closestDistance = distance;
+                  closestChord = datum.chord;
+                }
+              }
+              
+              if (closestChord) {
+                nextChord = getChordDefinition(closestChord, displayOpts);
+              } else {
+                // フォールバック
+                const progression = prevState.currentStage?.chordProgression || [];
+                const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+                nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+              }
+            } else {
+              // 従来のコード進行モード：ループさせる
+              const progression = prevState.currentStage?.chordProgression || [];
+              const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+              nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            }
           }
           
           return {
@@ -694,14 +764,32 @@ export const useFantasyGameEngine = ({
             nextChord = getProgressionChord(progression, nextIndex, displayOpts);
           }
           
+          // 攻撃したモンスターに新しい問題を割り当てる
+          const updatedMonsters = prevState.activeMonsters.map(monster => {
+            if (attackingMonsterId && monster.id === attackingMonsterId) {
+              // 攻撃したモンスターに新しいコードを割り当て
+              return {
+                ...monster,
+                chordTarget: nextChord!,
+                correctNotes: [],
+                gauge: 0
+              };
+            }
+            return monster;
+          });
+          
           const nextState = {
             ...prevState,
             playerHp: newHp,
             playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
             currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
             currentChordTarget: nextChord,
+            activeMonsters: updatedMonsters,
             enemyGauge: 0,
-            correctNotes: [] // 新しいコードでリセット
+            correctNotes: [], // 新しいコードでリセット
+            // progressionモードの場合、フラグをリセット
+            nullHolding: false,
+            chordCompleted: false
           };
           
           onGameStateChange(nextState);
@@ -759,12 +847,25 @@ export const useFantasyGameEngine = ({
         return prevState;
       }
       
-      const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
+      // 現在の拍を取得
+      const currentBeatFloat = timeState.currentBeatFloat;
+      const currentBeatInt = Math.floor(currentBeatFloat);
+      const previousBeatInt = Math.floor(prevState.lastGaugeUpdateBeat);
+      
+      // 拍が変わった時だけゲージを更新
+      if (currentBeatInt === previousBeatInt) {
+        return prevState;
+      }
+      
+      // 拍ごとにゲージを増加
+      const enemyGaugeBeats = 16; // デフォルト16拍でゲージ満タン
+      const incrementPerBeat = 100 / enemyGaugeBeats;
+      const beatsPassed = currentBeatInt - previousBeatInt;
       
       // 各モンスターのゲージを更新
       const updatedMonsters = prevState.activeMonsters.map(monster => ({
         ...monster,
-        gauge: Math.min(monster.gauge + incrementRate, 100)
+        gauge: Math.min(monster.gauge + (incrementPerBeat * beatsPassed), 100)
       }));
       
       // ゲージが満タンになったモンスターをチェック
@@ -791,6 +892,7 @@ export const useFantasyGameEngine = ({
         const nextState = { 
           ...prevState, 
           activeMonsters: resetMonsters,
+          lastGaugeUpdateBeat: currentBeatFloat,
           // 互換性のため
           enemyGauge: 0 
         };
@@ -800,6 +902,7 @@ export const useFantasyGameEngine = ({
         const nextState = { 
           ...prevState, 
           activeMonsters: updatedMonsters,
+          lastGaugeUpdateBeat: currentBeatFloat,
           // 互換性のため最初のモンスターのゲージを設定
           enemyGauge: updatedMonsters[0]?.gauge || 0
         };
@@ -815,6 +918,11 @@ export const useFantasyGameEngine = ({
     setGameState(prevState => {
       // ゲームがアクティブでない場合は何もしない
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
+        return prevState;
+      }
+
+      // progressionモードでNULL期間中は入力を無視
+      if (prevState.currentStage?.mode === 'progression' && prevState.nullHolding) {
         return prevState;
       }
 
@@ -856,6 +964,13 @@ export const useFantasyGameEngine = ({
 
         // ★ 攻撃処理後の状態を計算する
         let stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
+        
+        // progressionモードの場合、コード完成フラグを立てる
+        if (prevState.currentStage?.mode === 'progression') {
+          stateAfterAttack.chordCompleted = true;
+          const timeState = useTimeStore.getState();
+          stateAfterAttack.lastChordCompletedBeat = timeState.currentBeatFloat;
+        }
         
         const isSpecialAttack = stateAfterAttack.playerSp >= 5;
         
@@ -1043,6 +1158,59 @@ export const useFantasyGameEngine = ({
   //   }
   // }, [stage, initializeGame]);
   
+  // progressionモード用の拍チェック処理
+  useEffect(() => {
+    // progressionモードでない場合は何もしない
+    if (!gameState.isGameActive || gameState.currentStage?.mode !== 'progression') {
+      return;
+    }
+
+    const checkBeatInterval = setInterval(() => {
+      const timeState = useTimeStore.getState();
+      const beat = timeState.currentBeatFloat;
+      const ts = timeState.timeSignature;
+      
+      // 小節内の位置を計算（0-ts）
+      const beatInBar = (beat % ts + ts) % ts;
+      
+      // 出題タイミング (beat 4.50)
+      if (Math.abs(beatInBar - (ts - 0.5)) < 0.02 && !gameState.nullHolding) {
+        // 前の問題が未完成の場合、敵の攻撃を実行
+        if (!gameState.chordCompleted && gameState.currentQuestionIndex > 0) {
+          // 4.49で失敗判定
+          const attackingMonster = gameState.activeMonsters[0];
+          if (attackingMonster) {
+            handleEnemyAttack(attackingMonster.id);
+          }
+        }
+        
+        // 次の問題へ進む
+        proceedToNextQuestion();
+        
+        // フラグとゲージ更新用の拍位置をリセット
+        setGameState(prev => ({
+          ...prev,
+          nullHolding: false,
+          chordCompleted: false,
+          lastGaugeUpdateBeat: beat
+        }));
+      }
+      
+      // 判定受付終了タイミング (beat 4.49)
+      if (Math.abs(beatInBar - (ts - 0.51)) < 0.02) {
+        // コードが完成していたらNULL期間へ
+        if (gameState.chordCompleted && !gameState.nullHolding) {
+          setGameState(prev => ({
+            ...prev,
+            nullHolding: true
+          }));
+        }
+      }
+    }, 10); // 10ms間隔でチェック
+
+    return () => clearInterval(checkBeatInterval);
+  }, [gameState.isGameActive, gameState.currentStage?.mode, gameState.chordCompleted, gameState.nullHolding, gameState.currentQuestionIndex, gameState.activeMonsters, handleEnemyAttack, proceedToNextQuestion]);
+
   // コンポーネント破棄時のクリーンアップ
   useEffect(() => {
     return () => {

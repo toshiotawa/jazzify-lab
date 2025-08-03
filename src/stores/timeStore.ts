@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { bgmManager } from '../utils/BGMManager'
 
 interface TimeState {
   /* ゲーム開始＝モンスター描画完了時刻 (ms) */
@@ -18,6 +19,8 @@ interface TimeState {
   currentMeasure: number
   /* カウントイン中かどうか */
   isCountIn: boolean
+  /* 現在の拍（小数点含む） */
+  currentBeatFloat: number
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -39,6 +42,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  currentBeatFloat: 0,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -48,7 +52,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       countInMeasures: ci,
       currentBeat: 1,
       currentMeasure: 1,
-      isCountIn: false
+      isCountIn: false,
+      currentBeatFloat: 0
     }),
   tick: () => {
     const s = get()
@@ -59,18 +64,30 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (elapsed < s.readyDuration) {
       set({
         currentBeat: 1,
-        currentMeasure: 1
+        currentMeasure: 1,
+        currentBeatFloat: 0
       })
       return
     }
 
-    const msecPerBeat = 60000 / s.bpm
-    const beatsFromStart = Math.floor(
-      (elapsed - s.readyDuration) / msecPerBeat
-    )
-
+    // BGMManager を使用して現在の拍を取得
+    const nowBeat = bgmManager.getCurrentBeat()
+    
+    // BGMManagerが使用できない場合は従来の計算方法を使用
+    let beatsFromStartFloat: number
+    if (nowBeat > 0) {
+      beatsFromStartFloat = nowBeat
+    } else {
+      const msecPerBeat = 60000 / s.bpm
+      beatsFromStartFloat = (elapsed - s.readyDuration) / msecPerBeat
+    }
+    
+    const beatsFromStart = Math.floor(beatsFromStartFloat)
     const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
+    
+    // 小数点の拍を計算（0始まり）
+    const currentBeatFloat = beatsFromStartFloat % s.timeSignature
     
     /* カウントイン中かどうかを判定 */
     if (totalMeasures < s.countInMeasures) {
@@ -78,7 +95,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       set({
         currentBeat: currentBeatInMeasure,
         currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
-        isCountIn: true
+        isCountIn: true,
+        currentBeatFloat
       })
     } else {
       // メイン部分（カウントイン後）
@@ -88,7 +106,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       set({
         currentBeat: currentBeatInMeasure,
         currentMeasure: displayMeasure, // カウントイン後を1から表示
-        isCountIn: false
+        isCountIn: false,
+        currentBeatFloat
       })
     }
   }

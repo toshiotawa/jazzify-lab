@@ -624,6 +624,12 @@ export interface ClearConditions {
 }
 
 // ファンタジーモード関連の型定義
+export interface ChordProgressionDatum {
+  bar: number;
+  beat: number;     // 小数(例 4.50)
+  chord: string | null;
+}
+
 export interface FantasyStage {
   id: string;
   stage_number: string;
@@ -638,6 +644,7 @@ export interface FantasyStage {
   mode: 'single' | 'progression';
   allowed_chords: string[];
   chord_progression?: string[];
+  chord_progression_data?: ChordProgressionDatum[] | null;
   show_sheet_music: boolean;
   show_guide: boolean;
   simultaneous_monster_count?: number;
