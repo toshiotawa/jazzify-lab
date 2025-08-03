@@ -19,7 +19,7 @@ describe('FantasyGameEngine - Rhythm Mode Progression Pattern', () => {
     enemyHp: 2,
     minDamage: 1,
     maxDamage: 2,
-    mode: 'progression',
+    mode: 'rhythm',  // リズムモードを指定
     allowedChords: ['C', 'F', 'G', 'C'],
     chordProgression: ['C', 'F', 'G', 'C'],
     showSheetMusic: false,
@@ -29,9 +29,7 @@ describe('FantasyGameEngine - Rhythm Mode Progression Pattern', () => {
     bpm: 120,
     measureCount: 4,
     countInMeasures: 0,
-    timeSignature: 4,
-    gameType: 'rhythm',
-    rhythmPattern: 'progression'
+    timeSignature: 4
   };
 
   const mockCallbacks = {
@@ -69,7 +67,7 @@ describe('FantasyGameEngine - Rhythm Mode Progression Pattern', () => {
     (useTimeStore as any).getState = vi.fn(() => mockTimeState);
   });
 
-  it('should initialize rhythm mode with empty monsters for progression pattern', async () => {
+  it('should initialize rhythm mode with empty monsters', async () => {
     const { result } = renderHook(() => useFantasyGameEngine({
       stage: null,
       ...mockCallbacks
@@ -80,7 +78,6 @@ describe('FantasyGameEngine - Rhythm Mode Progression Pattern', () => {
     });
 
     expect(result.current.gameState.isRhythmMode).toBe(true);
-    expect(result.current.gameState.rhythmPattern).toBe('progression');
     expect(result.current.gameState.activeMonsters).toHaveLength(0); // No initial monsters
     expect(result.current.gameState.hasCompletedChordInMeasure).toBe(false);
     expect(result.current.gameState.isInNullPeriod).toBe(false);
