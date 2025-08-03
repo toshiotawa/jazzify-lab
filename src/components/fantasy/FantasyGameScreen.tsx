@@ -697,6 +697,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>
               <div>オーバーレイ: {overlay ? '表示中' : 'なし'}</div>
               <div>完了処理中: {gameState.isCompleting ? 'はい' : 'いいえ'}</div>
+              <div>NULL時間: {gameState.isNullPhase ? 'はい' : 'いいえ'}</div>
+              <div>問題提示: {gameState.isQuestionPresented ? 'はい' : 'いいえ'}</div>
             </div>
           )}
         </div>
@@ -832,7 +834,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                         monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                       }`}>
-                        {monster.chordTarget.displayName}
+                        {gameState.isNullPhase && stage.mode === 'progression' ? '---' : monster.chordTarget.displayName}
                       </div>
                       
                       {/* ★★★ ここにヒント表示を追加 ★★★ */}
