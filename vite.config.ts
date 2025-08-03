@@ -27,7 +27,8 @@ export default defineConfig(({ mode }) => {
       minifyIdentifiers: isProduction,
       minifySyntax: isProduction,
       minifyWhitespace: isProduction,
-      legalComments: isProduction ? 'none' : 'eof',
+      legalComments: 'none',  // ファイル先頭に 'use strict' を二重に入れない
+      banner: '',  // 追加のバナーを防ぐ
       // プロダクション環境でコンソール関数とデバッガーを完全削除
       ...(isProduction && {
         // drop: ['console', 'debugger'],  // console.logを残すためコメントアウト

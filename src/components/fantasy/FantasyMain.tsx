@@ -10,10 +10,18 @@ import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
+import { fantasyRecordsApi } from '@/platform/api/fantasyRecordsApi';
 import type { DisplayLang } from '@/utils/display-note';
 import { LessonContext } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
+
+// コード進行データの型定義
+interface ChordProgressionDataItem {
+  bar: number;      // 小節番号
+  beats: number;    // 拍位置（1.0 = 1拍目、2.5 = 2拍目のウラ）
+  chord: string;    // コード名（例: 'C', 'F', 'G7'）
+}
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -24,6 +32,47 @@ function getNextStageNumber(current: string): string {
   const nextNum = num >= COURSE_LENGTH ? 1 : num + 1;
   const nextRank = num >= COURSE_LENGTH ? rank + 1 : rank;
   return `${nextRank}-${nextNum}`;
+}
+
+// chord_progression_dataのパース関数
+function parseChordProgressionData(data: any): ChordProgressionDataItem[] | undefined {
+  if (!data) return undefined;
+  
+  // JSONBとして保存されている場合
+  if (Array.isArray(data)) {
+    return data;
+  }
+  
+  // 文字列として保存されている場合
+  if (typeof data === 'string') {
+    try {
+      // JSON形式の場合
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // 簡易テキスト形式の場合をパース
+      // 例: "bar 1 beats 3 chord C \nbar 2 beats 1 chord F"
+      const lines = data.split('\n').filter(line => line.trim());
+      const result: ChordProgressionDataItem[] = [];
+      
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 6 && parts[0] === 'bar' && parts[2] === 'beats' && parts[4] === 'chord') {
+          result.push({
+            bar: parseInt(parts[1]),
+            beats: parseFloat(parts[3]),
+            chord: parts[5]
+          });
+        }
+      }
+      
+      return result.length > 0 ? result : undefined;
+    }
+  }
+  
+  return undefined;
 }
 
 interface GameResult {
@@ -100,6 +149,7 @@ const FantasyMain: React.FC = () => {
             mode: stage.mode,
             allowedChords: stage.allowed_chords,
             chordProgression: stage.chord_progression,
+            chordProgressionData: stage.chord_progression_data ? parseChordProgressionData(stage.chord_progression_data) : undefined,
             showSheetMusic: stage.show_sheet_music,
             showGuide: stage.show_guide,
             simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
@@ -384,6 +434,7 @@ const FantasyMain: React.FC = () => {
         mode: nextStageData.mode as 'single' | 'progression',
         allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
         chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
+        chordProgressionData: nextStageData.chord_progression_data ? parseChordProgressionData(nextStageData.chord_progression_data) : undefined,
         showSheetMusic: nextStageData.show_sheet_music,
         showGuide: nextStageData.show_guide,
         monsterIcon: nextStageData.monster_icon,

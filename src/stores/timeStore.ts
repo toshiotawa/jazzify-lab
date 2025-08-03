@@ -18,6 +18,8 @@ interface TimeState {
   currentMeasure: number
   /* カウントイン中かどうか */
   isCountIn: boolean
+  /* 現在のビート位置（小数点含む） */
+  currentBeats: number
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -27,6 +29,10 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  /* 現在のビート位置を取得（小節番号.拍位置） */
+  getCurrentBeats: () => number
+  /* 次の出題タイミングまでの時間（ms）を取得 */
+  getTimeToNextQuestion: (timeSignature: number) => number
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -39,6 +45,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  currentBeats: 0,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -48,7 +55,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       countInMeasures: ci,
       currentBeat: 1,
       currentMeasure: 1,
-      isCountIn: false
+      isCountIn: false,
+      currentBeats: 0
     }),
   tick: () => {
     const s = get()
@@ -59,37 +67,66 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (elapsed < s.readyDuration) {
       set({
         currentBeat: 1,
-        currentMeasure: 1
+        currentMeasure: 1,
+        currentBeats: 0
       })
       return
     }
 
     const msecPerBeat = 60000 / s.bpm
-    const beatsFromStart = Math.floor(
-      (elapsed - s.readyDuration) / msecPerBeat
-    )
+    const beatsFromStart = (elapsed - s.readyDuration) / msecPerBeat
 
     const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
+    const currentBeatFloored = Math.floor(currentBeatInMeasure)
     
     /* カウントイン中かどうかを判定 */
     if (totalMeasures < s.countInMeasures) {
       // カウントイン中
       set({
-        currentBeat: currentBeatInMeasure,
+        currentBeat: currentBeatFloored,
         currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
-        isCountIn: true
+        isCountIn: true,
+        currentBeats: beatsFromStart
       })
     } else {
       // メイン部分（カウントイン後）
       const measuresAfterCountIn = totalMeasures - s.countInMeasures
       const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
+      const beatsAfterCountIn = beatsFromStart - (s.countInMeasures * s.timeSignature)
       
       set({
-        currentBeat: currentBeatInMeasure,
+        currentBeat: currentBeatFloored,
         currentMeasure: displayMeasure, // カウントイン後を1から表示
-        isCountIn: false
+        isCountIn: false,
+        currentBeats: beatsAfterCountIn
       })
+    }
+  },
+  getCurrentBeats: () => {
+    const s = get()
+    if (s.startAt === null || s.isCountIn) return 0
+    
+    // 現在の小節内でのビート位置を計算
+    const beatInMeasure = (s.currentBeats % s.timeSignature) + 1
+    return s.currentMeasure + (beatInMeasure - 1) / 10 // 例: 2小節目の3拍目 = 2.3
+  },
+  getTimeToNextQuestion: (timeSignature: number) => {
+    const s = get()
+    if (s.startAt === null) return 0
+    
+    const msecPerBeat = 60000 / s.bpm
+    const currentBeatInMeasure = (s.currentBeats % timeSignature) + 1
+    const nextQuestionBeat = timeSignature + 0.5 // 4拍子なら4.5拍目
+    
+    if (currentBeatInMeasure >= nextQuestionBeat) {
+      // 次の小節の出題タイミングまで
+      const beatsToNext = (timeSignature - currentBeatInMeasure) + nextQuestionBeat
+      return beatsToNext * msecPerBeat
+    } else {
+      // 今の小節の出題タイミングまで
+      const beatsToNext = nextQuestionBeat - currentBeatInMeasure
+      return beatsToNext * msecPerBeat
     }
   }
 }))

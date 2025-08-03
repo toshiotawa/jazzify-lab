@@ -21,6 +21,7 @@ interface FantasyPIXIRendererProps {
   height: number;
   monsterIcon: string;
   enemyGauge: number;
+  hideGauge?: boolean; // 追加: ゲージ非表示オプション
   onReady?: (instance: FantasyPIXIInstance) => void;
   onMonsterDefeated?: () => void; // 状態機械用コールバック
   onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
@@ -2044,6 +2045,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   height,
   monsterIcon,
   enemyGauge,
+  hideGauge,
   onReady,
   onMonsterDefeated,
   onShowMagicName,

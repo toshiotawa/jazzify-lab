@@ -41,6 +41,7 @@ interface FantasyMonsterProps {
   enemyGauge: number;
   size?: 'small' | 'medium' | 'large';
   className?: string;
+  hideGauge?: boolean; // 追加: ゲージ非表示オプション
 }
 
 // モンスターアイコンマッピング（FontAwesome）
@@ -125,7 +126,8 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   maxHp,
   enemyGauge,
   size = 'medium',  // 'large' から 'medium' に変更
-  className
+  className,
+  hideGauge
 }) => {
   const [isFloating, setIsFloating] = useState(false);
 
@@ -149,6 +151,8 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   
   // 敵ゲージのレンダリング
   const renderEnemyGauge = () => {
+    if (hideGauge) return null;
+
     const filledBlocks = Math.floor(enemyGauge / 10);
     const blocks = [];
     
