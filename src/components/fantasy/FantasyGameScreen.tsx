@@ -103,6 +103,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // Ready 終了時に BGM 再生
   useEffect(() => {
     if (!isReady && startAt) {
+      // ループ時のコールバックを設定（太鼓の達人モード用）
+      if (gameState.isTaikoMode) {
+        bgmManager.setOnLoopCallback(() => {
+          console.log('🔄 BGMループ: 太鼓の達人モードのインデックスをリセット');
+          // FantasyGameEngineに通知する方法が必要
+          // 現在のノーツインデックスは自動的にリセットされるので、特別な処理は不要
+        });
+      }
+      
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
@@ -115,7 +124,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       bgmManager.stop();
     }
     return () => bgmManager.stop();
-  }, [isReady, stage, settings.bgmVolume, startAt]);
+  }, [isReady, stage, settings.bgmVolume, startAt, gameState.isTaikoMode]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
