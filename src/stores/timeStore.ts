@@ -31,21 +31,21 @@ interface TimeState {
 
 export const useTimeStore = create<TimeState>((set, get) => ({
   startAt: null,
-  readyDuration: 2000,
+  readyDuration: 0, // 変更: カウントインを排除
   timeSignature: 4,
   bpm: 120,
   measureCount: 8,
-  countInMeasures: 0,
+  countInMeasures: 0, // 変更: 常に0
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
-  setStart: (bpm, ts, mc, ci, now = performance.now()) =>
+  setStart: (bpm, ts, measure, countIn, now = performance.now()) =>
     set({
       startAt: now,
       bpm,
       timeSignature: ts,
-      measureCount: mc,
-      countInMeasures: ci,
+      measureCount: measure,
+      countInMeasures: 0, // 変更: countInを無視
       currentBeat: 1,
       currentMeasure: 1,
       isCountIn: false
@@ -55,42 +55,21 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (s.startAt === null) return
     const elapsed = performance.now() - s.startAt
 
-    /* Ready 中は beat/measure を初期値に固定 */
-    if (elapsed < s.readyDuration) {
-      set({
-        currentBeat: 1,
-        currentMeasure: 1,
-        isCountIn: false // Ready中はカウントインでもない
-      })
-      return
-    }
+    // Ready中処理を削除（即座にメイン開始）
 
     const msecPerBeat = 60000 / s.bpm
-    const beatsFromStart = Math.floor(
-      (elapsed - s.readyDuration) / msecPerBeat
-    )
+    const beatsFromStart = Math.floor(elapsed / msecPerBeat)
 
     const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
-    
-    /* カウントイン中かどうかを判定 */
-    if (totalMeasures < s.countInMeasures) {
-      // カウントイン中
-      set({
-        currentBeat: currentBeatInMeasure,
-        currentMeasure: -(s.countInMeasures - totalMeasures), // 負の値でカウントイン表示
-        isCountIn: true
-      })
-    } else {
-      // メイン部分（カウントイン後）
-      const measuresAfterCountIn = totalMeasures - s.countInMeasures
-      const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
-      
-      set({
-        currentBeat: currentBeatInMeasure,
-        currentMeasure: displayMeasure, // カウントイン後を1から表示
-        isCountIn: false
-      })
-    }
+
+    // カウントインなしで直接メイン小節を計算（M1から開始）
+    const displayMeasure = (totalMeasures % s.measureCount) + 1
+
+    set({
+      currentBeat: currentBeatInMeasure,
+      currentMeasure: displayMeasure,
+      isCountIn: false
+    })
   }
 }))
