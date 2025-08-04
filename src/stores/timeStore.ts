@@ -18,6 +18,9 @@ interface TimeState {
   currentMeasure: number
   /* カウントイン中かどうか */
   isCountIn: boolean
+  /* 一時停止管理 */
+  pausedAt: number | null
+  totalPausedTime: number
   /* setter 群 */
   setStart: (
     bpm: number,
@@ -27,6 +30,8 @@ interface TimeState {
     now?: number
   ) => void
   tick: () => void
+  pause: () => void
+  resume: () => void
 }
 
 export const useTimeStore = create<TimeState>((set, get) => ({
@@ -39,6 +44,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   currentBeat: 1,
   currentMeasure: 1,
   isCountIn: false,
+  pausedAt: null,
+  totalPausedTime: 0,
   setStart: (bpm, ts, mc, ci, now = performance.now()) =>
     set({
       startAt: now,
@@ -48,12 +55,15 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       countInMeasures: ci,
       currentBeat: 1,
       currentMeasure: 1,
-      isCountIn: false
+      isCountIn: false,
+      pausedAt: null,
+      totalPausedTime: 0
     }),
   tick: () => {
     const s = get()
-    if (s.startAt === null) return
-    const elapsed = performance.now() - s.startAt
+    if (s.startAt === null || s.pausedAt !== null) return
+    const now = performance.now()
+    const elapsed = now - s.startAt - s.totalPausedTime
 
     /* Ready 中は beat/measure を初期値に固定 */
     if (elapsed < s.readyDuration) {
@@ -61,6 +71,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         currentBeat: 1,
         currentMeasure: 1
       })
+      requestAnimationFrame(s.tick)  // RAFでループ
       return
     }
 
@@ -90,6 +101,18 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         currentMeasure: displayMeasure, // カウントイン後を1から表示
         isCountIn: false
       })
+    }
+    requestAnimationFrame(s.tick)  // RAFでループ
+  },
+  pause: () => set({ pausedAt: performance.now() }),
+  resume: () => {
+    const s = get()
+    if (s.pausedAt) {
+      set({
+        totalPausedTime: s.totalPausedTime + (performance.now() - s.pausedAt),
+        pausedAt: null
+      })
+      requestAnimationFrame(s.tick)  // 再開時にtickループも再開
     }
   }
 }))

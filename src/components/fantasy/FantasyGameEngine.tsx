@@ -105,6 +105,9 @@ interface FantasyGameState {
   isTaikoMode: boolean; // 太鼓の達人モードかどうか
   taikoNotes: any[]; // 太鼓の達人用のノーツ配列
   currentNoteIndex: number; // 現在判定中のノーツインデックス
+  // ループ検知用
+  isLooping: boolean;
+  currentMeasure: number;
 }
 
 interface FantasyGameEngineProps {
@@ -391,6 +394,8 @@ export const useFantasyGameEngine = ({
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
   // プリロードしたテクスチャを保持
   const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
+  // 状態永続化用
+  const [persistentState, setPersistentState] = useState({ hp: 5, sp: 0 });
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -424,7 +429,10 @@ export const useFantasyGameEngine = ({
     // 太鼓の達人モード用
     isTaikoMode: false,
     taikoNotes: [],
-    currentNoteIndex: 0
+    currentNoteIndex: 0,
+    // ループ検知用
+    isLooping: false,
+    currentMeasure: 1
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -454,7 +462,7 @@ export const useFantasyGameEngine = ({
     
     // 入力されたノートがコードの構成音かチェック
     const noteMod12 = note % 12;
-    const targetNotesMod12 = [...new Set(currentNote.chord.notes.map(n => n % 12))];
+    const targetNotesMod12 = [...new Set(currentNote.chord.notes.map((n: number) => n % 12))];
     
     if (!targetNotesMod12.includes(noteMod12)) {
       // 構成音ではない
@@ -470,7 +478,7 @@ export const useFantasyGameEngine = ({
     );
     
     // コードが完成したかチェック
-    const isChordComplete = targetNotesMod12.every(targetNote => 
+    const isChordComplete = targetNotesMod12.every((targetNote: number) => 
       newCorrectNotes.includes(targetNote)
     );
     
@@ -718,6 +726,7 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0,
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       }
@@ -760,7 +769,10 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モード用
       isTaikoMode,
       taikoNotes,
-      currentNoteIndex: 0
+      currentNoteIndex: 0,
+      // ループ検知用
+      isLooping: false,
+      currentMeasure: 1
     };
 
     setGameState(newState);
@@ -939,6 +951,64 @@ export const useFantasyGameEngine = ({
     
     onEnemyAttack(attackingMonsterId);
   }, [onGameStateChange, onGameComplete, onEnemyAttack]);
+  
+  // ループ処理
+  const handleLoop = useCallback(() => {
+    setGameState(prev => {
+      // persistentStateから復元
+      const nextState = { 
+        ...prev, 
+        playerHp: persistentState.hp, 
+        playerSp: persistentState.sp, 
+        currentMeasure: 1,
+        isLooping: false
+      };
+      
+      // ループ前に次コード生成
+      if (prev.currentStage?.mode === 'progression' && prev.currentStage?.chordProgression) {
+        const progression = prev.currentStage.chordProgression;
+        const nextIndex = 0; // ループ時は最初のコードから
+        const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+        return { ...nextState, currentChordTarget: nextChord };
+      }
+      
+      return nextState;
+    });
+  }, [persistentState, displayOpts]);
+  
+  // persistentStateの更新を監視
+  useEffect(() => {
+    if (gameState.isGameActive) {
+      setPersistentState({
+        hp: gameState.playerHp,
+        sp: gameState.playerSp
+      });
+    }
+  }, [gameState.playerHp, gameState.playerSp, gameState.isGameActive]);
+  
+  // ループ検知（timeStoreのcurrentMeasureを監視）
+  useEffect(() => {
+    if (gameState.isGameActive && gameState.isTaikoMode) {
+      const interval = setInterval(() => {
+        const timeState = useTimeStore.getState();
+        // メイン部分でかつ1小節目に戻った場合（カウントイン中は除外）
+        if (!timeState.isCountIn && timeState.currentMeasure === 1 && timeState.currentBeat === 1) {
+          setGameState(prev => {
+            // 前回が最終小節だった場合のみループと判定
+            if (prev.currentMeasure === (prev.currentStage?.measureCount || 8)) {
+              devLog.debug('🔄 ループ検知！');
+              return { ...prev, isLooping: true };
+            }
+            return { ...prev, currentMeasure: timeState.currentMeasure };
+          });
+        } else {
+          setGameState(prev => ({ ...prev, currentMeasure: timeState.currentMeasure || 1 }));
+        }
+      }, 100);
+      
+      return () => clearInterval(interval);
+    }
+  }, [gameState.isGameActive, gameState.isTaikoMode]);
   
   // ゲージタイマーの管理
   useEffect(() => {
@@ -1328,6 +1398,7 @@ export const useFantasyGameEngine = ({
     initializeGame,
     stopGame,
     proceedToNextEnemy,
+    handleLoop,
     imageTexturesRef, // プリロードされたテクスチャへの参照を追加
     
     // ヘルパー関数もエクスポート

@@ -329,6 +329,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
+    handleLoop,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
@@ -587,6 +588,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     return () => clearInterval(intervalId);
   }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+  
+  // ループ検知
+  useEffect(() => {
+    if (gameState.isLooping) {
+      handleLoop();
+    }
+  }, [gameState.isLooping, handleLoop]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
