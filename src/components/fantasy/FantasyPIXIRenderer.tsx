@@ -239,6 +239,9 @@ export class FantasyPIXIInstance {
   private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
   private judgeLineX: number = 100; // 判定ラインのX座標
+  private taikoNotesPool: PIXI.Container[] = []; // ノーツのオブジェクトプール
+  private lastUpdateTime = 0;
+  private updateInterval = 1000 / 30; // 30fpsに制限
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
@@ -1961,29 +1964,79 @@ export class FantasyPIXIInstance {
     return noteContainer;
   }
   
-  // ノーツを更新（太鼓の達人風）
+  // ノーツプールから取得または新規作成
+  private getTaikoNoteFromPool(noteId: string, chordName: string): PIXI.Container {
+    let note = this.taikoNotesPool.pop();
+    
+    if (!note) {
+      note = this.createTaikoNote(noteId, chordName, 0);
+    } else {
+      // 既存のノーツを再利用
+      const text = note.children[1] as PIXI.Text;
+      text.text = chordName;
+      note.name = noteId;
+    }
+    
+    return note;
+  }
+  
+  // ノーツをプールに返却
+  private returnTaikoNoteToPool(note: PIXI.Container): void {
+    note.visible = false;
+    if (this.taikoNotesPool.length < 20) { // プールサイズ制限
+      this.taikoNotesPool.push(note);
+    } else {
+      note.destroy({ children: true });
+    }
+  }
+  
+  // ノーツを更新（太鼓の達人風・最適化版）
   updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
+    const currentTime = performance.now();
+    
+    // フレームレート制限
+    if (currentTime - this.lastUpdateTime < this.updateInterval) {
+      return;
+    }
+    this.lastUpdateTime = currentTime;
+    
+    // 表示中のノーツIDセット
+    const visibleNoteIds = new Set(notes.map(n => n.id));
+    
+    // 既存のノーツを更新または削除
+    const toRemove: string[] = [];
     this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
-        note.destroy();
+      if (!visibleNoteIds.has(id)) {
+        toRemove.push(id);
+      }
+    });
+    
+    // 不要なノーツを削除
+    toRemove.forEach(id => {
+      const note = this.activeNotes.get(id);
+      if (note) {
+        this.notesContainer.removeChild(note);
+        this.returnTaikoNoteToPool(note);
         this.activeNotes.delete(id);
       }
     });
     
-    // 新しいノーツを追加・更新
+    // 新規または更新
     notes.forEach(noteData => {
       let note = this.activeNotes.get(noteData.id);
       
       if (!note) {
         // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+        note = this.getTaikoNoteFromPool(noteData.id, noteData.chord);
+        note.visible = true;
         this.notesContainer.addChild(note);
         this.activeNotes.set(noteData.id, note);
-      } else {
-        // 既存のノーツの位置を更新
-        note.x = noteData.x;
       }
+      
+      // 位置を更新（スムーズな移動のため補間を使用）
+      const targetX = noteData.x;
+      const currentX = note.x;
+      note.x = currentX + (targetX - currentX) * 0.3; // 30%ずつ移動
     });
   }
   
@@ -2111,6 +2164,12 @@ export class FantasyPIXIInstance {
     } catch (error) {
       devLog.debug('⚠️ テクスチャクリーンアップエラー:', error);
     }
+    
+    // ノーツプールを破棄
+    this.taikoNotesPool.forEach(note => {
+      note.destroy({ children: true });
+    });
+    this.taikoNotesPool = [];
     
     // PIXIアプリケーションの破棄
     if (this.app) {

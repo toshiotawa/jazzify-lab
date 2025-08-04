@@ -70,35 +70,42 @@ export function judgeTimingWindow(
 
 /**
  * 基本版progression用：小節の頭(Beat 1)でコードを配置
+ * カウントインを考慮して正しいタイミングを計算
  * @param chordProgression コード進行配列
  * @param measureCount 総小節数
  * @param bpm BPM
  * @param timeSignature 拍子
+ * @param getChordDefinition コード定義取得関数
+ * @param countInMeasures カウントイン小節数
  */
 export function generateBasicProgressionNotes(
   chordProgression: string[],
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
+  const countInDuration = countInMeasures * secPerMeasure; // カウントインの総時間
   
+  // カウントイン後の小節のみでノーツを生成
   for (let measure = 1; measure <= measureCount; measure++) {
     const chordIndex = (measure - 1) % chordProgression.length;
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      const hitTime = (measure - 1) * secPerMeasure + 0; // 小節の頭（Beat 1 = 0秒目）
+      // カウントイン時間を加算して実際のヒットタイミングを計算
+      const hitTime = countInDuration + (measure - 1) * secPerMeasure;
       
       notes.push({
         id: `note_${measure}_1`,
         chord,
         hitTime,
-        measure,
+        measure, // 表示用の小節番号（カウントイン後を1とする）
         beat: 1,
         isHit: false,
         isMissed: false
@@ -111,31 +118,36 @@ export function generateBasicProgressionNotes(
 
 /**
  * 拡張版progression用：chord_progression_dataのJSONを解析
+ * カウントインを考慮
  * @param progressionData JSON配列
  * @param bpm BPM
  * @param timeSignature 拍子
+ * @param getChordDefinition コード定義取得関数
+ * @param countInMeasures カウントイン小節数
  */
 export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
+  const countInDuration = countInMeasures * secPerMeasure;
   
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
     if (chord) {
-      // bar（小節）とbeats（拍）から実際の時刻を計算
-      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      // カウントイン時間を加算
+      const hitTime = countInDuration + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
         id: `note_${item.bar}_${item.beats}_${index}`,
         chord,
         hitTime,
-        measure: item.bar,
+        measure: item.bar, // 表示用の小節番号
         beat: item.beats,
         isHit: false,
         isMissed: false
