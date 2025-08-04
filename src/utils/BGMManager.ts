@@ -184,6 +184,25 @@ class BGMManager {
   getTimeSignature(): number {
     return this.timeSignature
   }
+  
+  /* ループ長(秒)と現在のループ番号を取得出来る API を追加 */
+  getLoopLength(): number {
+    return (this.measureCount * this.timeSignature) * (60 / this.bpm);
+  }
+  
+  getLoopIndex(): number {
+    const t = this.getCurrentMusicTime();
+    const len = this.getLoopLength();
+    return len === 0 ? 0 : Math.floor(t / len);
+  }
+  
+  /* 実際にゲームで使う "位相時間" を返す */
+  getPhaseTime(): number {
+    const len = this.getLoopLength();
+    if (len === 0) return 0;
+    const t = this.getCurrentMusicTime();
+    return ((t % len) + len) % len;     // 0-loopLen の範囲に正規化
+  }
 }
 
 export const bgmManager = new BGMManager()
