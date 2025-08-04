@@ -2037,6 +2037,18 @@ export class FantasyPIXIInstance {
   getCanvas(): HTMLCanvasElement {
     return this.app.view as HTMLCanvasElement;
   }
+  
+  // ループ時のノーツクリア
+  clearNotes(): void {
+    if (this.notesContainer) {
+      this.notesContainer.removeChildren().forEach(child => {
+        if (child && typeof child.destroy === 'function') {
+          child.destroy();
+        }
+      });
+    }
+    this.activeNotes.clear();
+  }
 
   // 破棄
   destroy(): void {
@@ -2045,6 +2057,15 @@ export class FantasyPIXIInstance {
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
+    }
+    
+    // ノーツコンテナのクリーンアップ
+    if (this.notesContainer) {
+      this.notesContainer.removeChildren().forEach(child => {
+        if (child && typeof child.destroy === 'function') {
+          child.destroy();
+        }
+      });
     }
     
     // マルチモンスターのクリーンアップ時に怒りエフェクトも削除

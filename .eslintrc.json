@@ -47,6 +47,7 @@
     "prefer-const": "error",
     "no-var": "error",
     "no-unused-expressions": "error",
+    "no-use-before-define": ["error", { "functions": false, "classes": true, "variables": true }],
     
     // アクセシビリティ（音楽ゲームのUI/UX重要）
     "jsx-a11y/alt-text": "warn",

@@ -9,6 +9,7 @@ import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { useTimeStore } from '@/stores/timeStore';
+import { useGameStore } from '@/stores/gameStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
 import { 
@@ -1391,6 +1392,40 @@ export const useFantasyGameEngine = ({
     // setInputBuffer([]); // 削除
   }, [enemyGaugeTimer]);
   
+  // ループ時のリセット処理
+  const resetForLoop = useCallback(() => {
+    devLog.debug('🔄 ENGINE: ループリセット処理開始');
+    
+    setGameState(prevState => {
+      if (!prevState.currentStage) return prevState;
+      
+      // ノーツをリセット
+      const newTaikoNotes: TaikoNote[] = [];
+      
+      // モンスターの状態をリセット（攻撃クールダウンなど）
+      const resetMonsters = prevState.activeMonsters.map(monster => ({
+        ...monster,
+        correctNotes: [],
+        gauge: 0
+      }));
+      
+      // SPゲージの処理（設定により異なる）
+      const { settings } = useGameStore.getState();
+      const newSp = settings.carryOverSp ? prevState.playerSp : 0;
+      
+      const newState = {
+        ...prevState,
+        taikoNotes: newTaikoNotes,
+        activeMonsters: resetMonsters,
+        currentQuestionIndex: 0,
+        playerSp: newSp
+      };
+      
+      onGameStateChange(newState);
+      return newState;
+    });
+  }, [onGameStateChange]);
+  
   // ステージ変更時の初期化
   // useEffect(() => {
   //   if (stage) {
@@ -1488,6 +1523,7 @@ export const useFantasyGameEngine = ({
     initializeGame,
     stopGame,
     proceedToNextEnemy,
+    resetForLoop, // ループリセット関数を追加
     imageTexturesRef, // プリロードされたテクスチャへの参照を追加
     
     // ヘルパー関数もエクスポート

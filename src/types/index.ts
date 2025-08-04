@@ -137,6 +137,7 @@ export interface GameSettings {
   // ファンタジーモード設定
   playRootSound?: boolean;      // ルート音を鳴らすか
   rootSoundVolume?: number;     // ルート音量(0-1)
+  carryOverSp?: boolean;        // ループ時にSPゲージを引き継ぐか
   
   // ゲーム設定
   notesSpeed: number;          // 0.5-3.0

@@ -1,19 +1,77 @@
 /* HTMLAudio ベースの簡易 BGM ルーパー */
 
-class BGMManager {
+import { EventEmitter } from 'events';
+
+export interface TimePos {
+  bar: number;
+  beat: number;
+  tick: number;
+}
+
+export class BGMManager extends EventEmitter {
   private audio: HTMLAudioElement | null = null
   private loopBegin = 0
   private loopEnd = 0
   private timeUpdateHandler: (() => void) | null = null
   private startTime = 0  // BGM開始時刻（performance.now()）
   private bpm = 120
-  private timeSignature = 4
+  private beatsPerBar = 4
   private measureCount = 8
-  private countInMeasures = 0
+  private countInBars = 0
   private isPlaying = false
   private loopScheduled = false
   private nextLoopTime = 0
   private loopTimeoutId: number | null = null // タイムアウトIDを保持
+  private readonly ticksPerBeat = 480;
+
+  constructor() {
+    super();
+  }
+
+  private barDur(): number {
+    return 60 / this.bpm * this.beatsPerBar;
+  }
+
+  private beatDur(): number {
+    return 60 / this.bpm;
+  }
+
+  getTimePos(): TimePos {
+    if (!this.audio) {
+      return { bar: 0, beat: 0, tick: 0 };
+    }
+    
+    const t = this.audio.currentTime - this.barDur() * this.countInBars;
+    if (t < 0) {
+      return { bar: 0, beat: 0, tick: 0 };
+    }
+    
+    const bar = Math.floor(t / this.barDur()) + 1;
+    const beatT = t % this.barDur();
+    const beat = Math.floor(beatT / this.beatDur()) + 1;
+    const tick = Math.round((beatT % this.beatDur()) / this.beatDur() * this.ticksPerBeat);
+    
+    return { bar, beat, tick };
+  }
+
+  get bar(): number {
+    return this.getTimePos().bar;
+  }
+
+  get beat(): number {
+    return this.getTimePos().beat;
+  }
+
+  update(dt: number): void {
+    if (!this.audio || !this.isPlaying) return;
+    
+    // ループチェック（updateメソッドでも確認）
+    if (this.audio.currentTime >= this.loopEnd) {
+      this.audio.currentTime = this.loopBegin;
+      this.emit('loop');
+      console.log(`🔄 BGM Loop (update): → ${this.loopBegin.toFixed(2)}s`);
+    }
+  }
 
   play(
     url: string,
@@ -30,9 +88,9 @@ class BGMManager {
     
     // パラメータを保存
     this.bpm = bpm
-    this.timeSignature = timeSig
+    this.beatsPerBar = timeSig
     this.measureCount = measureCount
-    this.countInMeasures = countIn
+    this.countInBars = countIn
     
     this.audio = new Audio(url)
     this.audio.preload = 'auto'
@@ -68,6 +126,7 @@ class BGMManager {
           if (this.audio && this.isPlaying) {
             this.audio.currentTime = this.nextLoopTime
             console.log(`🔄 BGM Loop (scheduled): → ${this.nextLoopTime.toFixed(2)}s`)
+            this.emit('loop'); // ループイベントを発行
           }
           this.loopScheduled = false
           this.loopTimeoutId = null
@@ -162,7 +221,7 @@ class BGMManager {
     if (!this.isPlaying || !this.audio) return 0
     
     const audioTime = this.audio.currentTime
-    const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+    const countInDuration = this.countInBars * this.barDur()
     
     // カウントイン後の時間を返す（カウントイン中は負の値）
     return audioTime - countInDuration
@@ -176,7 +235,7 @@ class BGMManager {
     const musicTime = this.getCurrentMusicTime()
     if (musicTime < 0) return 0 // カウントイン中
     
-    const secPerMeasure = (60 / this.bpm) * this.timeSignature
+    const secPerMeasure = this.barDur()
     const measure = Math.floor(musicTime / secPerMeasure) + 1
     
     // ループを考慮
@@ -190,9 +249,9 @@ class BGMManager {
     if (!this.isPlaying) return 1
     
     const audioTime = this.audio?.currentTime || 0
-    const secPerBeat = 60 / this.bpm
+    const secPerBeat = this.beatDur()
     const totalBeats = Math.floor(audioTime / secPerBeat)
-    const beatInMeasure = (totalBeats % this.timeSignature) + 1
+    const beatInMeasure = (totalBeats % this.beatsPerBar) + 1
     return beatInMeasure
   }
   
@@ -204,8 +263,8 @@ class BGMManager {
     if (!this.isPlaying || !this.audio) return 0
     
     const audioTime = this.audio.currentTime
-    const secPerBeat = 60 / this.bpm
-    const beatPosition = (audioTime / secPerBeat) % this.timeSignature
+    const secPerBeat = this.beatDur()
+    const beatPosition = (audioTime / secPerBeat) % this.beatsPerBar
     return beatPosition
   }
   
@@ -215,9 +274,9 @@ class BGMManager {
    * @param beat 拍番号（1始まり、小数可）
    */
   getMusicTimeAt(measure: number, beat: number): number {
-    const secPerBeat = 60 / this.bpm
-    const secPerMeasure = secPerBeat * this.timeSignature
-    const countInDuration = this.countInMeasures * secPerMeasure
+    const secPerBeat = this.beatDur()
+    const secPerMeasure = this.barDur()
+    const countInDuration = this.countInBars * secPerMeasure
     
     // カウントイン + 指定小節までの時間 + 拍の時間
     return countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
@@ -230,7 +289,7 @@ class BGMManager {
     if (!this.isPlaying || !this.audio) return 0
     
     const audioTime = this.audio.currentTime
-    const secPerBeat = 60 / this.bpm
+    const secPerBeat = this.beatDur()
     const nextBeatTime = Math.ceil(audioTime / secPerBeat) * secPerBeat
     return (nextBeatTime - audioTime) * 1000
   }
@@ -265,7 +324,7 @@ class BGMManager {
    * 拍子を取得
    */
   getTimeSignature(): number {
-    return this.timeSignature
+    return this.beatsPerBar
   }
   
   /**
@@ -279,8 +338,9 @@ class BGMManager {
    * カウントイン小節数を取得
    */
   getCountInMeasures(): number {
-    return this.countInMeasures
+    return this.countInBars
   }
 }
 
-export const bgmManager = new BGMManager()
+export const bgmManager = new BGMManager();
+export default bgmManager;
