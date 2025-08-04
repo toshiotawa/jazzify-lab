@@ -151,7 +151,13 @@ export function parseChordProgressionData(
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   
+  // 最大小節数を取得
+  const maxBar = Math.max(...progressionData.map(item => item.bar), 0);
+  
   progressionData.forEach((item, index) => {
+    // M1と最終小節をスキップ
+    if (item.bar === 1 || item.bar === maxBar) return;
+    
     const chord = getChordDefinition(item.chord);
     if (chord) {
       // カウントイン時間を加算

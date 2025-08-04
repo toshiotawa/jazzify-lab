@@ -8,7 +8,6 @@ import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
-import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { TaikoNote } from './TaikoNoteSystem';
@@ -62,6 +61,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [currentBeat, setCurrentBeat] = useState(1);
   const [currentMeasure, setCurrentMeasure] = useState(1);
   const [isReady, setIsReady] = useState(true);
+  const readyStartTimeRef = useRef<number>(performance.now());
+  
+  // コンポーネントマウント時にReady開始時刻を記録
+  useEffect(() => {
+    readyStartTimeRef.current = performance.now();
+  }, []);
   
   // BGMManagerからタイミング情報を定期的に取得
   useEffect(() => {
@@ -69,7 +74,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       setCurrentBeat(bgmManager.getCurrentBeat());
       setCurrentMeasure(bgmManager.getCurrentMeasure());
       // Ready状態は2秒後に自動的に解除
-      if (isReady && performance.now() > 2000) {
+      if (isReady && performance.now() - readyStartTimeRef.current > 2000) {
         setIsReady(false);
       }
     }, 50); // 50ms間隔で更新
