@@ -5,6 +5,8 @@ type EnemyStore = {
   enraged: Record<string, boolean>;
   /** 怒りフラグを立てる / 消す */
   setEnrage: (id: string, value: boolean) => void;
+  /** 全ての怒り状態をクリア */
+  reset: () => void;
 };
 
 export const useEnemyStore = create<EnemyStore>(set => ({
@@ -12,5 +14,6 @@ export const useEnemyStore = create<EnemyStore>(set => ({
   setEnrage: (id, value) =>
     set(state => ({
       enraged: { ...state.enraged, [id]: value }
-    }))
+    })),
+  reset: () => set({ enraged: {} })
 }));
