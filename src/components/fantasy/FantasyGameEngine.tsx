@@ -672,7 +672,7 @@ export const useFantasyGameEngine = ({
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.simultaneousMonsterCount || 1;
+    const simultaneousCount = stage.mode === 'progression' ? 1 : (stage.simultaneousMonsterCount || 1);
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -855,14 +855,8 @@ export const useFantasyGameEngine = ({
     setGameState(newState);
     onGameStateChange(newState);
 
-    /* ===== Ready + 時間ストア開始 ===== */
-    useTimeStore
-      .getState()
-      .setStart(
-        stage.bpm || 120,
-        stage.timeSignature || 4, // デフォルトは4/4拍子
-        stage.measureCount ?? 8
-      );
+    /* ===== BGMManagerがタイミング管理を担当 ===== */
+    // timeStore.setStartは削除（BGMManagerに統合）
 
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,

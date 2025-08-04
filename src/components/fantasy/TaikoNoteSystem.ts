@@ -106,21 +106,21 @@ export function generateBasicProgressionNotes(
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   
-  // カウントイン後の小節のみでノーツを生成
-  for (let measure = 1; measure <= measureCount; measure++) {
-    const chordIndex = (measure - 1) % chordProgression.length;
+  // M2から(measureCount-1)まで出題（M1と最終小節は休み）
+  for (let measure = 2; measure <= measureCount - 1; measure++) {
+    const chordIndex = (measure - 2) % chordProgression.length; // M2を0番目としてインデックス
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      // カウントイン時間を加算して実際のヒットタイミングを計算
+      // M1の時間を0として計算
       const hitTime = (measure - 1) * secPerMeasure;
       
       notes.push({
         id: `note_${measure}_1`,
         chord,
         hitTime,
-        measure, // 表示用の小節番号（カウントイン後を1とする）
+        measure, // 表示用の小節番号
         beat: 1,
         isHit: false,
         isMissed: false

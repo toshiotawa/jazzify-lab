@@ -274,6 +274,13 @@ class BGMManager {
   getCountInMeasures(): number {
     return 0 // カウントイン小節数は削除
   }
+  
+  /**
+   * カウントイン中かどうか（廃止のため常にfalse）
+   */
+  getIsCountIn(): boolean {
+    return false
+  }
 }
 
 export const bgmManager = new BGMManager()
