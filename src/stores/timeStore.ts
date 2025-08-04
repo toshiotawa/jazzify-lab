@@ -59,7 +59,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (elapsed < s.readyDuration) {
       set({
         currentBeat: 1,
-        currentMeasure: 1
+        currentMeasure: 1,
+        isCountIn: false // Ready中はカウントインでもない
       })
       return
     }
@@ -77,7 +78,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       // カウントイン中
       set({
         currentBeat: currentBeatInMeasure,
-        currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
+        currentMeasure: -(s.countInMeasures - totalMeasures), // 負の値でカウントイン表示
         isCountIn: true
       })
     } else {
@@ -87,7 +88,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       
       set({
         currentBeat: currentBeatInMeasure,
-        currentMeasure: displayMeasure, // カウントイン後を1から表示
+        currentMeasure: displayMeasure,
         isCountIn: false
       })
     }

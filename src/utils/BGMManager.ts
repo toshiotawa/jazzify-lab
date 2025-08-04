@@ -11,6 +11,8 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private loopScheduled = false
+  private nextLoopTime = 0
 
   play(
     url: string,
@@ -37,18 +39,40 @@ class BGMManager {
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
+    
+    // ループ範囲を正しく設定（カウントイン後からループ終了まで）
     this.loopBegin = countIn * secPerMeas
     this.loopEnd = (countIn + measureCount) * secPerMeas
 
     // 初回再生は最初から（カウントインを含む）
     this.audio.currentTime = 0
     
-    // timeupdate イベントハンドラを保存
+    // より精密なループ処理
     this.timeUpdateHandler = () => {
       if (!this.audio) return
-      if (this.audio.currentTime >= this.loopEnd) {
-        // ループ時はカウントイン後から再生
+      
+      const currentTime = this.audio.currentTime
+      const timeToEnd = this.loopEnd - currentTime
+      
+      // ループの事前スケジューリング（100ms前に準備）
+      if (timeToEnd < 0.1 && timeToEnd > 0 && !this.loopScheduled) {
+        this.loopScheduled = true
+        this.nextLoopTime = this.loopBegin
+        
+        // Web Audio APIを使用した精密なタイミング制御
+        setTimeout(() => {
+          if (this.audio && this.isPlaying) {
+            this.audio.currentTime = this.nextLoopTime
+            this.loopScheduled = false
+            console.log(`🔄 BGM Loop: ${this.loopEnd.toFixed(2)}s → ${this.nextLoopTime.toFixed(2)}s`)
+          }
+        }, timeToEnd * 1000 - 50) // 50ms早めに実行
+      }
+      
+      // ループポイントを超えた場合の保険
+      if (currentTime >= this.loopEnd) {
         this.audio.currentTime = this.loopBegin
+        this.loopScheduled = false
       }
     }
     
@@ -108,8 +132,10 @@ class BGMManager {
     if (musicTime < 0) return 0 // カウントイン中
     
     const secPerMeasure = (60 / this.bpm) * this.timeSignature
-    const measure = Math.floor(musicTime / secPerMeasure) % this.measureCount + 1
-    return measure
+    const measure = Math.floor(musicTime / secPerMeasure) + 1
+    
+    // ループを考慮
+    return ((measure - 1) % this.measureCount) + 1
   }
   
   /**
@@ -162,6 +188,18 @@ class BGMManager {
     const secPerBeat = 60 / this.bpm
     const nextBeatTime = Math.ceil(audioTime / secPerBeat) * secPerBeat
     return (nextBeatTime - audioTime) * 1000
+  }
+  
+  /**
+   * 次のループまでの時間を取得（ミリ秒）
+   */
+  getTimeToLoop(): number {
+    if (!this.isPlaying || !this.audio) return Infinity
+    
+    const currentTime = this.audio.currentTime
+    const timeToEnd = this.loopEnd - currentTime
+    
+    return timeToEnd > 0 ? timeToEnd * 1000 : 0
   }
   
   /**
