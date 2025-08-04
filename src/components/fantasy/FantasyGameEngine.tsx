@@ -68,6 +68,7 @@ interface MonsterState {
   chordTarget: ChordDefinition;
   correctNotes: number[]; // このモンスター用の正解済み音
   icon: string;
+  nextChord?: ChordDefinition; // 次のコード（ループ時の表示用）
   name: string;
 }
 
@@ -431,9 +432,21 @@ export const useFantasyGameEngine = ({
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
-    if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
-      // すべてのノーツ処理済み
-      return prevState;
+    // 全てのノーツを処理済みでループする場合の処理を追加
+    if (prevState.currentNoteIndex >= prevState.taikoNotes.length && prevState.taikoNotes.length > 0) {
+      // ループ: 最初に戻る
+      return {
+        ...prevState,
+        currentNoteIndex: 0,
+        activeMonsters: prevState.activeMonsters.map(m => ({
+          ...m,
+          correctNotes: [],
+          gauge: 0,
+          // 最初のノーツのコードを設定
+          chordTarget: prevState.taikoNotes[0].chord,
+          nextChord: prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1].chord : undefined
+        }))
+      };
     }
     
     const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
@@ -500,14 +513,24 @@ export const useFantasyGameEngine = ({
       // 次のノーツへ進む
       const nextNoteIndex = prevState.currentNoteIndex + 1;
       
-      // モンスター更新
+      // 次のノーツの情報を取得（ループ対応）
+      const nextNote = nextNoteIndex < prevState.taikoNotes.length 
+        ? prevState.taikoNotes[nextNoteIndex]
+        : prevState.taikoNotes[0]; // ループ時は最初に戻る
+      const nextNextNote = (nextNoteIndex + 1) < prevState.taikoNotes.length
+        ? prevState.taikoNotes[nextNoteIndex + 1]
+        : prevState.taikoNotes[nextNoteIndex < prevState.taikoNotes.length ? 1 : 0];
+      
+      // モンスター更新時に次のコードも設定
       const updatedMonsters = prevState.activeMonsters.map(m => {
         if (m.id === currentMonster.id) {
           return {
             ...m,
             currentHp: newHp,
             correctNotes: [],
-            gauge: 0
+            gauge: 0,
+            chordTarget: newHp === 0 && nextNote ? nextNote.chord : m.chordTarget,
+            nextChord: newHp === 0 && nextNextNote ? nextNextNote.chord : undefined
           };
         }
         return m;
@@ -705,26 +728,37 @@ export const useFantasyGameEngine = ({
           progressionData = stage.chordProgressionData as ChordProgressionDataItem[];
         }
         
-        taikoNotes = parseChordProgressionData(
-          progressionData,
-          stage.bpm || 120,
-          stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
-        );
+              taikoNotes = parseChordProgressionData(
+        progressionData,
+        stage.bpm || 120,
+        stage.timeSignature || 4,
+        (chordId) => getChordDefinition(chordId, displayOpts),
+        stage.countInMeasures || 0
+      );
       } else if (stage.chordProgression) {
         // 基本版：小節の頭でコード出題
-        taikoNotes = generateBasicProgressionNotes(
-          stage.chordProgression,
-          stage.measureCount || 8,
-          stage.bpm || 120,
-          stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
-        );
+              taikoNotes = generateBasicProgressionNotes(
+        stage.chordProgression,
+        stage.measureCount || 8,
+        stage.bpm || 120,
+        stage.timeSignature || 4,
+        (chordId) => getChordDefinition(chordId, displayOpts),
+        stage.countInMeasures || 0
+      );
+      }
+      
+      // ループ対応：最初のモンスターに次のコードを設定
+      if (taikoNotes.length > 0 && activeMonsters.length > 0) {
+        const firstNote = taikoNotes[0];
+        const secondNote = taikoNotes.length > 1 ? taikoNotes[1] : firstNote;
+        activeMonsters[0].chordTarget = firstNote.chord;
+        activeMonsters[0].nextChord = secondNote.chord;
       }
       
       devLog.debug('🥁 太鼓の達人モード初期化:', {
         noteCount: taikoNotes.length,
-        firstNote: taikoNotes[0]
+        firstNote: taikoNotes[0],
+        countInMeasures: stage.countInMeasures
       });
     }
 
@@ -989,26 +1023,54 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
+        
+        // ループ処理
+        if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
+          // 最初に戻る
+          return {
+            ...prevState,
+            currentNoteIndex: 0,
+            activeMonsters: prevState.activeMonsters.map(m => ({
+              ...m,
+              correctNotes: [],
+              gauge: 0,
+              chordTarget: prevState.taikoNotes[0].chord,
+              nextChord: prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1].chord : prevState.taikoNotes[0].chord
+            }))
+          };
+        }
+        
         const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
         
         if (currentNote && currentTime > currentNote.hitTime + 0.3) {
           // 判定時間を過ぎた（+300ms以上）
           devLog.debug('💥 太鼓の達人：ミス！', {
             noteId: currentNote.id,
-            chord: currentNote.chord.displayName
+            chord: currentNote.chord.displayName,
+            timeDiff: currentTime - currentNote.hitTime
           });
           
           // 敵の攻撃を発動
           handleEnemyAttack();
           
           // 次のノーツへ進む
+          const nextNoteIndex = prevState.currentNoteIndex + 1;
+          const nextNote = nextNoteIndex < prevState.taikoNotes.length 
+            ? prevState.taikoNotes[nextNoteIndex]
+            : prevState.taikoNotes[0];
+          const nextNextNote = (nextNoteIndex + 1) < prevState.taikoNotes.length
+            ? prevState.taikoNotes[nextNoteIndex + 1]
+            : prevState.taikoNotes[nextNoteIndex < prevState.taikoNotes.length ? 1 : 0];
+          
           return {
             ...prevState,
-            currentNoteIndex: prevState.currentNoteIndex + 1,
+            currentNoteIndex: nextNoteIndex,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
-              gauge: 0
+              gauge: 0,
+              chordTarget: nextNote ? nextNote.chord : m.chordTarget,
+              nextChord: nextNextNote ? nextNextNote.chord : undefined
             }))
           };
         }

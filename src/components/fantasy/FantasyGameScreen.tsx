@@ -569,24 +569,64 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
     
+    let animationId: number;
+    
     const updateTaikoNotes = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
-      const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
+      const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime, 4); // 先読み時間を4秒に拡大
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       
-      const notesData = visibleNotes.map(note => ({
-        id: note.id,
-        chord: note.chord.displayName,
-        x: calculateNotePosition(note, currentTime, judgeLinePos.x)
-      }));
+      // ループ対応：最後のノーツが近い場合は最初のノーツも表示
+      const timeToLoop = bgmManager.getTimeToLoop();
+      if (timeToLoop < 4000 && gameState.taikoNotes.length > 0) { // 4秒以内にループ
+        // ループ後の最初のノーツを仮想的に追加
+        const firstNote = gameState.taikoNotes[0];
+        const loopDuration = (gameState.currentStage?.measureCount || 8) * 
+                            (60 / (gameState.currentStage?.bpm || 120)) * 
+                            (gameState.currentStage?.timeSignature || 4);
+        
+        const virtualNote: TaikoNote = {
+          ...firstNote,
+          id: `${firstNote.id}_loop`,
+          hitTime: firstNote.hitTime + loopDuration
+        };
+        
+        // 仮想ノーツも含めて表示
+        const allNotes = [...visibleNotes];
+        if (currentTime + 4 > loopDuration - (gameState.currentStage?.countInMeasures || 0) * 
+                                             (60 / (gameState.currentStage?.bpm || 120)) * 
+                                             (gameState.currentStage?.timeSignature || 4)) {
+          allNotes.push(virtualNote);
+        }
+        
+        const notesData = allNotes.map(note => ({
+          id: note.id,
+          chord: note.chord.displayName,
+          x: calculateNotePosition(note, currentTime, judgeLinePos.x, 400) // 速度を400に調整
+        }));
+        
+        fantasyPixiInstance.updateTaikoNotes(notesData);
+      } else {
+        const notesData = visibleNotes.map(note => ({
+          id: note.id,
+          chord: note.chord.displayName,
+          x: calculateNotePosition(note, currentTime, judgeLinePos.x, 400)
+        }));
+        
+        fantasyPixiInstance.updateTaikoNotes(notesData);
+      }
       
-      fantasyPixiInstance.updateTaikoNotes(notesData);
+      animationId = requestAnimationFrame(updateTaikoNotes);
     };
     
-    const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
+    updateTaikoNotes();
     
-    return () => clearInterval(intervalId);
-  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance, gameState.currentStage]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -736,8 +776,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
           {isCountIn ? (
-            <>M / - B {currentBeat}</>
+            // カウントイン中は特別な表示
+            <>Count In - M {Math.abs(currentMeasure)} B {currentBeat}</>
           ) : (
+            // 通常の表示
             <>M {currentMeasure} - B {currentBeat}</>
           )}
         </div>
@@ -852,8 +894,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
-                      {/* コードネーム（太鼓の達人モードでは非表示） */}
-                      {!gameState.isTaikoMode && (
+                      {/* 太鼓の達人モードでは現在のコードと次のコードを表示 */}
+                      {gameState.isTaikoMode ? (
+                        <>
+                          {/* 現在のコード */}
+                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                          }`}>
+                            {monster.chordTarget.displayName}
+                          </div>
+                          
+                          {/* 次のコード（小さく表示） */}
+                          {monster.nextChord && (
+                            <div className={`text-blue-300 text-center truncate w-full ${
+                              monsterCount > 5 ? 'text-xs' : 'text-sm'
+                            }`}>
+                              Next: {monster.nextChord.displayName}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        // 通常モードの表示
                         <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
                           monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                         }`}>
