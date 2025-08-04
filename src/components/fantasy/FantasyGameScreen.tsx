@@ -69,6 +69,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const midiControllerRef = useRef<MIDIController | null>(null);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   const bgmManager = BGMManager.getInstance();
+  const [isBgmPlaying, setIsBgmPlaying] = useState(false);
   
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
@@ -106,18 +107,44 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // Ready 終了時に BGM 再生
   useEffect(() => {
     if (!isReady && startAt) {
+      // BGM再生を非同期で実行し、エラーをキャッチ
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
         stage.timeSignature || 4,
         stage.measureCount ?? 8,
         settings.bgmVolume ?? 0.7
-      );
-    } else {
+      ).catch(error => {
+        console.error('BGM再生に失敗しました:', error);
+        // 再試行
+        setTimeout(() => {
+          bgmManager.play(
+            stage.bgmUrl ?? '/demo-1.mp3',
+            stage.bpm || 120,
+            stage.timeSignature || 4,
+            stage.measureCount ?? 8,
+            settings.bgmVolume ?? 0.7
+          ).catch(retryError => {
+            console.error('BGM再生の再試行も失敗:', retryError);
+          });
+        }, 500);
+      });
+    } else if (!startAt) {
+      // ゲームがまだ開始されていない場合のみ停止
       bgmManager.stop();
     }
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume, startAt]);
+  
+  // BGMの再生状態を監視
+  useEffect(() => {
+    const checkBgmStatus = setInterval(() => {
+      const playing = bgmManager.getIsPlaying();
+      setIsBgmPlaying(playing);
+    }, 100); // 100msごとにチェック
+    
+    return () => clearInterval(checkBgmStatus);
+  }, [bgmManager]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -538,6 +565,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
     
+    // BGMが開始されているか確認
+    if (!isBgmPlaying) {
+      console.warn('BGMがまだ開始されていないため、ノーツ表示をスキップ');
+      return;
+    }
+    
+    console.log('🎼 太鼓の達人モード：ノーツ表示開始', {
+      noteCount: gameState.taikoNotes.length,
+      currentNoteIndex: gameState.currentNoteIndex,
+      bgmPlaying: isBgmPlaying
+    });
+    
     let animationId: number;
     let lastUpdateTime = 0;
     const updateInterval = 1000 / 60; // 60fps
@@ -616,7 +655,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         cancelAnimationFrame(animationId);
       }
     };
-  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage]);
+  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage, isBgmPlaying]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {

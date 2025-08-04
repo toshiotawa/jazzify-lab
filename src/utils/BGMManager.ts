@@ -47,13 +47,22 @@ export default class BGMManager {
     this.pauseTime = 0
 
     try {
-      if (!this.audioContext) {
+      // AudioContextを作成または再利用
+      if (!this.audioContext || this.audioContext.state === 'closed') {
         this.audioContext = new AudioContext()
+      }
+      
+      // AudioContextがsuspended状態の場合は再開
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume()
       }
 
       // URLが既存のbufferと同じで、かつbufferが存在する場合は再利用
       if (!this.buffer || this.buffer.length === 0) {
         const response = await fetch(url)
+        if (!response.ok) {
+          throw new Error(`Failed to fetch BGM: ${response.status} ${response.statusText}`)
+        }
         const arrayBuffer = await response.arrayBuffer()
         this.buffer = await this.audioContext.decodeAudioData(arrayBuffer)
       }
@@ -77,8 +86,17 @@ export default class BGMManager {
       this.source.start(contextTime, this.pauseTime)
       this.startTime = contextTime - this.pauseTime
       this.isPlaying = true
+      
+      console.log('🎵 BGM再生開始:', {
+        url,
+        bpm,
+        loopBegin: this.loopBegin,
+        loopEnd: this.loopEnd,
+        audioContextState: this.audioContext.state
+      })
     } catch (error) {
       console.error('BGM再生エラー:', error)
+      this.isPlaying = false
       throw error
     }
   }
@@ -118,6 +136,7 @@ export default class BGMManager {
         this.source.disconnect()
       } catch (e) {
         // 既に停止している場合は無視
+        console.warn('BGM停止時の警告（無視可）:', e)
       }
       this.source = null
     }
@@ -127,9 +146,12 @@ export default class BGMManager {
       this.gainNode = null
     }
 
+    // bufferはキャッシュとして保持（再利用のため）
     this.startTime = 0
     this.pauseTime = 0
     this.isPlaying = false
+    
+    console.log('🔇 BGM停止')
   }
 
   setVolume(volume: number): void {

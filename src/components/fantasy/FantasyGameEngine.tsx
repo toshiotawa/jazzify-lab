@@ -1059,27 +1059,47 @@ export const useFantasyGameEngine = ({
           return prevState;
         }
         
-        const loopDuration = (prevState.currentStage.measureCount || 8) * 
-                            (60 / (prevState.currentStage.bpm || 120)) * 
-                            (prevState.currentStage.timeSignature || 4);
+        const secPerMeasure = (60 / (prevState.currentStage.bpm || 120)) * (prevState.currentStage.timeSignature || 4);
+        const loopDuration = (prevState.currentStage.measureCount || 8) * secPerMeasure;
         
         // 現在のノーツインデックスの検証
         let currentNoteIndex = prevState.currentNoteIndex;
         
-        // ループ処理
+        // ループ処理：インデックスが配列の長さ以上になったら0に戻す
         if (currentNoteIndex >= prevState.taikoNotes.length) {
           currentNoteIndex = 0;
+          
+          // ループ直後はM1に入るはずなので、判定をスキップ
+          if (currentMeasure === 1) {
+            return {
+              ...prevState,
+              currentNoteIndex: 0
+            };
+          }
         }
         
         const currentNote = prevState.taikoNotes[currentNoteIndex];
         if (!currentNote) return prevState;
         
-        // ミス判定（判定ウィンドウを過ぎた場合）
-        let timeDiff = currentTime - currentNote.hitTime;
+        // 現在の音楽時間をループ内の時間に正規化
+        const normalizedCurrentTime = currentTime % loopDuration;
+        const normalizedNoteTime = currentNote.hitTime % loopDuration;
         
-        // ループ境界の考慮
+        // ミス判定（判定ウィンドウを過ぎた場合）
+        let timeDiff = normalizedCurrentTime - normalizedNoteTime;
+        
+        // ループ境界をまたぐ場合の補正
+        // 例: 現在時間が0.5秒、ノート時間が7.5秒の場合
         if (timeDiff < -loopDuration / 2) {
           timeDiff += loopDuration;
+        } else if (timeDiff > loopDuration / 2) {
+          timeDiff -= loopDuration;
+        }
+        
+        // M2のノーツがM8の終わりで誤判定されないようにする
+        // currentNoteがM2（measure=2）で、現在がループ終盤（最終小節）の場合はスキップ
+        if (currentNote.measure === 2 && currentMeasure === prevState.currentStage.measureCount) {
+          return prevState;
         }
         
         if (timeDiff > 0.3) { // +300ms以上経過
@@ -1088,8 +1108,11 @@ export const useFantasyGameEngine = ({
             chord: currentNote.chord.displayName,
             timeDiff: timeDiff.toFixed(3),
             currentTime: currentTime.toFixed(3),
+            normalizedCurrentTime: normalizedCurrentTime.toFixed(3),
             targetTime: currentNote.hitTime.toFixed(3),
-            currentMeasure
+            normalizedNoteTime: normalizedNoteTime.toFixed(3),
+            currentMeasure,
+            currentNoteIndex
           });
           
           // 敵の攻撃を発動（非同期）
