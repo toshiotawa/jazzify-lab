@@ -74,14 +74,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
     
     /* カウントイン中かどうかを判定 */
-    if (totalMeasures < s.countInMeasures) {
-      // カウントイン中
-      set({
-        currentBeat: currentBeatInMeasure,
-        currentMeasure: -(s.countInMeasures - totalMeasures), // 負の値でカウントイン表示
-        isCountIn: true
-      })
-    } else {
+    // 修正: カウントインが0小節の場合は常にカウントイン終了、それ以外は <= で判定
+    if (s.countInMeasures === 0 || totalMeasures > s.countInMeasures - 1) {
       // メイン部分（カウントイン後）
       const measuresAfterCountIn = totalMeasures - s.countInMeasures
       const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
@@ -90,6 +84,13 @@ export const useTimeStore = create<TimeState>((set, get) => ({
         currentBeat: currentBeatInMeasure,
         currentMeasure: displayMeasure, // カウントイン後を1から表示
         isCountIn: false
+      })
+    } else {
+      // カウントイン中
+      set({
+        currentBeat: currentBeatInMeasure,
+        currentMeasure: -(s.countInMeasures - totalMeasures), // 負の値でカウントイン表示
+        isCountIn: true
       })
     }
   }
