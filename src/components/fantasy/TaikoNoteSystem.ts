@@ -5,15 +5,16 @@
 
 import { ChordDefinition } from './FantasyGameEngine';
 
-// ノーツの型定義
+/**
+ * 太鼓の達人用ノーツ
+ */
 export interface TaikoNote {
   id: string;
+  hitTime: number; // ヒットタイミング（秒）
   chord: ChordDefinition;
-  hitTime: number; // ヒットすべきタイミング（音楽時間、秒）
   measure: number; // 小節番号（1始まり）
   beat: number; // 拍番号（1始まり、小数可）
-  isHit: boolean; // 既にヒットされたか
-  isMissed: boolean; // ミスしたか
+  displayMeasure: number; // 表示用の小節番号（カウントイン後の番号）
 }
 
 // chord_progression_data のJSON形式
@@ -118,24 +119,31 @@ export function generateBasicProgressionNotes(
       const hitTime = countInDuration + (measure - 1) * secPerMeasure;
       
       notes.push({
-        id: `note_${measure}_1`,
-        chord,
+        id: `basic_m${measure}`,
         hitTime,
-        measure, // 表示用の小節番号（カウントイン後を1とする）
+        chord,
+        measure: measure, // カウントイン後の小節番号（1始まり）
         beat: 1,
-        isHit: false,
-        isMissed: false
+        displayMeasure: measure // 表示用の小節番号もカウントイン後の番号
       });
+    } else {
+      console.warn(`⚠️ コード定義が見つかりません: ${chordId}`);
     }
   }
+  
+  console.log(`🎵 基本版ノーツ生成完了: ${notes.length}個`, {
+    countInMeasures,
+    countInDuration: countInDuration.toFixed(2) + '秒',
+    measureCount,
+    firstNote: notes[0]
+  });
   
   return notes;
 }
 
 /**
- * 拡張版progression用：chord_progression_dataのJSONを解析
- * カウントインを考慮
- * @param progressionData JSON配列
+ * 拡張版progression用：JSON形式のデータを解析してノーツを生成
+ * @param progressionData 進行データ配列
  * @param bpm BPM
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
@@ -155,24 +163,32 @@ export function parseChordProgressionData(
   
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
-    if (chord) {
-      // カウントイン時間を加算
-      const hitTime = countInDuration + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
-      
-      notes.push({
-        id: `note_${item.bar}_${item.beats}_${index}`,
-        chord,
-        hitTime,
-        measure: item.bar, // 表示用の小節番号
-        beat: item.beats,
-        isHit: false,
-        isMissed: false
-      });
+    if (!chord) {
+      console.warn(`⚠️ コード定義が見つかりません: ${item.chord}`);
+      return;
     }
+    
+    // カウントイン時間を加算して実際のヒットタイミングを計算
+    const hitTime = countInDuration + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+    
+    notes.push({
+      id: `ext_m${item.bar}b${item.beats}_${index}`,
+      hitTime,
+      chord,
+      measure: item.bar, // カウントイン後の小節番号
+      beat: item.beats,
+      displayMeasure: item.bar // 表示用もカウントイン後の番号
+    });
   });
   
-  // 時間順にソート
+  // ヒットタイムでソート
   notes.sort((a, b) => a.hitTime - b.hitTime);
+  
+  console.log(`🎵 拡張版ノーツ生成完了: ${notes.length}個`, {
+    countInMeasures,
+    countInDuration: countInDuration.toFixed(2) + '秒',
+    firstNote: notes[0]
+  });
   
   return notes;
 }

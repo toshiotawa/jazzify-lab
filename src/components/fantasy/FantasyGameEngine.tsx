@@ -107,6 +107,7 @@ interface FantasyGameState {
   isTaikoMode: boolean; // 太鼓の達人モードかどうか
   taikoNotes: any[]; // 太鼓の達人用のノーツ配列
   currentNoteIndex: number; // 現在判定中のノーツインデックス
+  lastMissCheckTime: number; // ループ処理時にミスチェック時刻をリセット
 }
 
 interface FantasyGameEngineProps {
@@ -426,7 +427,8 @@ export const useFantasyGameEngine = ({
     // 太鼓の達人モード用
     isTaikoMode: false,
     taikoNotes: [],
-    currentNoteIndex: 0
+    currentNoteIndex: 0,
+    lastMissCheckTime: 0 // 追加
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -436,7 +438,11 @@ export const useFantasyGameEngine = ({
     // 全てのノーツを処理済みでループする場合の処理を追加
     if (prevState.currentNoteIndex >= prevState.taikoNotes.length && prevState.taikoNotes.length > 0) {
       // ループ: 最初に戻る
-      devLog.debug('🔄 太鼓の達人：ループ処理開始');
+      devLog.debug('🔄 太鼓の達人：ループ処理開始', {
+        currentNoteIndex: prevState.currentNoteIndex,
+        totalNotes: prevState.taikoNotes.length,
+        currentTime: bgmManager.getCurrentMusicTime()
+      });
       
       const firstNote = prevState.taikoNotes[0];
       const nextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : firstNote;
@@ -444,6 +450,7 @@ export const useFantasyGameEngine = ({
       return {
         ...prevState,
         currentNoteIndex: 0,
+        lastMissCheckTime: bgmManager.getCurrentMusicTime(), // ループ時にミスチェック時刻をリセット
         activeMonsters: prevState.activeMonsters.map(m => ({
           ...m,
           correctNotes: [],
@@ -595,16 +602,17 @@ export const useFantasyGameEngine = ({
           return finalState;
         }
         
-        return {
-          ...prevState,
-          activeMonsters: remainingMonsters,
-          monsterQueue: newMonsterQueue,
-          playerSp: newSp,
-          currentNoteIndex: nextNoteIndex,
-          correctAnswers: prevState.correctAnswers + 1,
-          score: prevState.score + 100 * actualDamage,
-          enemiesDefeated: newEnemiesDefeated
-        };
+              return {
+        ...prevState,
+        activeMonsters: remainingMonsters,
+        monsterQueue: newMonsterQueue,
+        playerSp: newSp,
+        currentNoteIndex: nextNoteIndex,
+        lastMissCheckTime: currentTime, // 正解時もミスチェック時刻を更新
+        correctAnswers: prevState.correctAnswers + 1,
+        score: prevState.score + 100 * actualDamage,
+        enemiesDefeated: newEnemiesDefeated
+      };
       }
       
       return {
@@ -612,6 +620,7 @@ export const useFantasyGameEngine = ({
         activeMonsters: updatedMonsters,
         playerSp: newSp,
         currentNoteIndex: nextNoteIndex,
+        lastMissCheckTime: currentTime, // 正解時もミスチェック時刻を更新
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage
       };
@@ -816,7 +825,8 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モード用
       isTaikoMode,
       taikoNotes,
-      currentNoteIndex: 0
+      currentNoteIndex: 0,
+      lastMissCheckTime: 0 // 追加
     };
 
     setGameState(newState);
@@ -1068,6 +1078,20 @@ export const useFantasyGameEngine = ({
           timeDiff += loopDuration;
         }
         
+        // ループ直後の猶予時間（500ms）を設ける
+        const timeSinceLastMissCheck = currentTime - prevState.lastMissCheckTime;
+        const loopGracePeriod = 0.5; // 500ms
+        
+        // ループ直後の場合はミス判定をスキップ
+        if (currentNoteIndex === 0 && timeSinceLastMissCheck < loopGracePeriod) {
+          devLog.debug('⏳ 太鼓の達人：ループ猶予期間中、ミス判定スキップ', {
+            currentNoteIndex,
+            timeSinceLastMissCheck: timeSinceLastMissCheck.toFixed(3),
+            loopGracePeriod
+          });
+          return prevState;
+        }
+        
         if (timeDiff > 0.3) { // +300ms以上経過
           devLog.debug('💥 太鼓の達人：ミス判定', {
             noteId: currentNote.id,
@@ -1077,8 +1101,16 @@ export const useFantasyGameEngine = ({
             targetTime: currentNote.hitTime.toFixed(3)
           });
           
+          // 敵の怒り状態を設定（太鼓モードでは常に最初のモンスター）
+          const firstMonster = prevState.activeMonsters[0];
+          if (firstMonster) {
+            const { setEnrage } = useEnemyStore.getState();
+            setEnrage(firstMonster.id, true);
+            setTimeout(() => setEnrage(firstMonster.id, false), 500); // 0.5秒後にOFF
+          }
+          
           // 敵の攻撃を発動（非同期）
-          setTimeout(() => handleEnemyAttack(), 0);
+          setTimeout(() => handleEnemyAttack(firstMonster?.id), 0);
           
           // 次のノーツへ進む
           const nextIndex = currentNoteIndex + 1;
@@ -1093,6 +1125,7 @@ export const useFantasyGameEngine = ({
           return {
             ...prevState,
             currentNoteIndex: nextIndex,
+            lastMissCheckTime: currentTime, // ミスチェック時刻を更新
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
@@ -1371,24 +1404,22 @@ export const useFantasyGameEngine = ({
   
   // ゲーム停止
   const stopGame = useCallback(() => {
-    setGameState(prevState => ({
-      ...prevState,
-      isGameActive: false
-    }));
-    
-    // ステージを抜けるたびにアイコン配列を初期化
-    setStageMonsterIds([]);
-    
+    devLog.debug('🛑 ゲーム停止');
     if (enemyGaugeTimer) {
       clearInterval(enemyGaugeTimer);
       setEnemyGaugeTimer(null);
     }
-    
-    // if (inputTimeout) { // 削除
-    //   clearTimeout(inputTimeout); // 削除
-    // } // 削除
-    
-    // setInputBuffer([]); // 削除
+    bgmManager.stop();
+    setGameState(prev => ({
+      ...prev,
+      isGameActive: false,
+      enemyGauge: 0,
+      taikoNotes: [],
+      currentNoteIndex: 0,
+      lastMissCheckTime: 0
+    }));
+    // ステージを抜けるたびにアイコン配列を初期化
+    setStageMonsterIds([]);
   }, [enemyGaugeTimer]);
   
   // ステージ変更時の初期化
