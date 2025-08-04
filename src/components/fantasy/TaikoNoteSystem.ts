@@ -150,24 +150,76 @@ export function parseChordProgressionData(
 }
 
 /**
- * 現在の時間で表示すべきノーツを取得
+ * 現在の時間で表示すべきノーツを取得（ループ対応版）
  * @param notes 全ノーツ
  * @param currentTime 現在の音楽時間（秒）
  * @param lookAheadTime 先読み時間（秒）デフォルト3秒
+ * @param loopDuration ループの長さ（秒）。0の場合はループなし
+ * @param loopCount 現在のループ回数
  */
 export function getVisibleNotes(
   notes: TaikoNote[],
   currentTime: number,
-  lookAheadTime: number = 3
+  lookAheadTime: number = 3,
+  loopDuration: number = 0,
+  loopCount: number = 0
 ): TaikoNote[] {
-  return notes.filter(note => {
-    // 既にヒットまたはミスしたノーツは表示しない
-    if (note.isHit || note.isMissed) return false;
+  if (notes.length === 0) return [];
+  
+  // ループなしの場合は従来の処理
+  if (loopDuration === 0) {
+    return notes.filter(note => {
+      // 既にヒットまたはミスしたノーツは表示しない
+      if (note.isHit || note.isMissed) return false;
+      
+      // 現在時刻から lookAheadTime 秒先までのノーツを表示
+      const timeUntilHit = note.hitTime - currentTime;
+      return timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime;
+    });
+  }
+  
+  // ループありの場合
+  const visibleNotes: TaikoNote[] = [];
+  
+  // 現在のループでの表示
+  notes.forEach(note => {
+    const adjustedHitTime = note.hitTime + loopCount * loopDuration;
+    const timeUntilHit = adjustedHitTime - currentTime;
     
-    // 現在時刻から lookAheadTime 秒先までのノーツを表示
-    const timeUntilHit = note.hitTime - currentTime;
-    return timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime;
+    if (timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime) {
+      // ループでリセットされたノーツとして扱う
+      visibleNotes.push({
+        ...note,
+        hitTime: adjustedHitTime,
+        isHit: false,
+        isMissed: false
+      });
+    }
   });
+  
+  // 次のループの先頭ノーツも確認（ループ境界での表示のため）
+  if (loopDuration > 0) {
+    const nextLoopTime = (loopCount + 1) * loopDuration;
+    const timeToNextLoop = nextLoopTime - currentTime;
+    
+    if (timeToNextLoop <= lookAheadTime) {
+      notes.forEach(note => {
+        const adjustedHitTime = note.hitTime + (loopCount + 1) * loopDuration;
+        const timeUntilHit = adjustedHitTime - currentTime;
+        
+        if (timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime) {
+          visibleNotes.push({
+            ...note,
+            hitTime: adjustedHitTime,
+            isHit: false,
+            isMissed: false
+          });
+        }
+      });
+    }
+  }
+  
+  return visibleNotes;
 }
 
 /**
