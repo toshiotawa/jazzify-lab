@@ -240,6 +240,11 @@ export class FantasyPIXIInstance {
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
   private judgeLineX: number = 100; // 判定ラインのX座標
   
+  // オブジェクトプール
+  private taikoNotesPool: PIXI.Container[] = [];
+  private maxPoolSize = 30; // プールサイズを増やす
+  private poolCleanupInterval: number | null = null;
+  
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
   
@@ -313,6 +318,11 @@ export class FantasyPIXIInstance {
     
     // ★★★ 修正点(1): 魔法エフェクトのテクスチャ読み込みを追加 ★★★
     this.loadImageTextures(); // この行を追加して魔法画像をロードします
+    
+    // 定期的なプールクリーンアップ（10秒ごと）
+    this.poolCleanupInterval = window.setInterval(() => {
+      this.cleanupNotesPool();
+    }, 10000);
     
     // よく使われるモンスターアイコンのプリロード（非同期で実行）
     this.preloadCommonMonsters();
@@ -1906,7 +1916,7 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // 判定ラインの初期化
+  // 判定ラインの視覚的改善
   private initializeJudgeLine(): void {
     if (this.judgeLineGraphics) {
       this.judgeLineGraphics.destroy();
@@ -1915,21 +1925,98 @@ export class FantasyPIXIInstance {
     const graphics = new PIXI.Graphics();
     const centerY = this.app.screen.height / 2;
     
+    // グロー効果のための複数の円
+    for (let i = 3; i >= 1; i--) {
+      graphics.lineStyle(i, 0xFFD700, 0.3 * i);
+      graphics.drawCircle(this.judgeLineX, centerY, 40 + (3 - i) * 5);
+    }
+    
     // 外側の円（判定エリア）
-    graphics.lineStyle(3, 0xFFD700, 0.8);
+    graphics.lineStyle(3, 0xFFD700, 1.0);
     graphics.drawCircle(this.judgeLineX, centerY, 40);
     
     // 内側の円（中心）
     graphics.lineStyle(0);
-    graphics.beginFill(0xFFD700, 0.6);
-    graphics.drawCircle(this.judgeLineX, centerY, 10);
+    graphics.beginFill(0xFFD700, 0.8);
+    graphics.drawCircle(this.judgeLineX, centerY, 12);
     graphics.endFill();
+    
+    // 縦線（ガイド）
+    graphics.lineStyle(1, 0xFFD700, 0.5);
+    graphics.moveTo(this.judgeLineX, centerY - 60);
+    graphics.lineTo(this.judgeLineX, centerY + 60);
     
     this.judgeLineGraphics = graphics;
     this.judgeLineContainer.addChild(graphics);
+    
+    // パルスアニメーション
+    let pulsePhase = 0;
+    const animatePulse = () => {
+      if (this.isDestroyed || !this.judgeLineGraphics) return;
+      
+      pulsePhase += 0.05;
+      const scale = 1.0 + Math.sin(pulsePhase) * 0.05;
+      this.judgeLineGraphics.scale.set(scale);
+      
+      requestAnimationFrame(animatePulse);
+    };
+    animatePulse();
   }
   
   // 太鼓の達人風ノーツを作成
+  // プールのクリーンアップ
+  private cleanupNotesPool(): void {
+    if (this.taikoNotesPool.length > this.maxPoolSize / 2) {
+      const toRemove = this.taikoNotesPool.length - Math.floor(this.maxPoolSize / 2);
+      const removed = this.taikoNotesPool.splice(0, toRemove);
+      
+      removed.forEach(note => {
+        note.destroy({ children: true, texture: false }); // テクスチャは破棄しない
+      });
+      
+      devLog.debug(`🧹 ノーツプールクリーンアップ: ${toRemove}個削除`);
+    }
+  }
+  
+  // ノーツプールから取得または新規作成（最適化版）
+  private getTaikoNoteFromPool(noteId: string, chordName: string): PIXI.Container {
+    let note = this.taikoNotesPool.pop();
+    
+    if (!note) {
+      note = this.createTaikoNote(noteId, chordName, 0);
+    } else {
+      // 既存のノーツを再利用
+      note.name = noteId;
+      
+      // テキストの更新（子要素を直接参照）
+      const chordText = note.getChildAt(1) as PIXI.Text;
+      if (chordText && chordText instanceof PIXI.Text) {
+        chordText.text = chordName;
+      }
+      
+      // 状態をリセット
+      note.visible = true;
+      note.alpha = 0.85;
+      note.scale.set(1.0);
+    }
+    
+    return note;
+  }
+  
+  // ノーツをプールに返却（最適化版）
+  private returnTaikoNoteToPool(note: PIXI.Container): void {
+    // 状態をリセット
+    note.visible = false;
+    note.x = -100; // 画面外に移動
+    
+    if (this.taikoNotesPool.length < this.maxPoolSize) {
+      this.taikoNotesPool.push(note);
+    } else {
+      // プールが満杯の場合は破棄
+      note.destroy({ children: true, texture: false });
+    }
+  }
+
   createTaikoNote(noteId: string, chordName: string, x: number): PIXI.Container {
     const noteContainer = new PIXI.Container();
     
@@ -1961,28 +2048,71 @@ export class FantasyPIXIInstance {
     return noteContainer;
   }
   
-  // ノーツを更新（太鼓の達人風）
+  // ノーツを更新（スムージング改善版）
   updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
+    // 表示中のノーツIDセット
+    const visibleNoteIds = new Set(notes.map(n => n.id));
+    
+    // 既存のノーツを更新または削除
+    const toRemove: string[] = [];
     this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
-        note.destroy();
+      if (!visibleNoteIds.has(id)) {
+        // 画面外に出たノーツは即座に削除
+        const noteX = note.x;
+        if (noteX < -50 || noteX > this.app.screen.width + 50) {
+          toRemove.push(id);
+        }
+      }
+    });
+    
+    // 不要なノーツを削除
+    toRemove.forEach(id => {
+      const note = this.activeNotes.get(id);
+      if (note) {
+        this.notesContainer.removeChild(note);
+        this.returnTaikoNoteToPool(note);
         this.activeNotes.delete(id);
       }
     });
     
-    // 新しいノーツを追加・更新
+    // 新規または更新
     notes.forEach(noteData => {
       let note = this.activeNotes.get(noteData.id);
       
       if (!note) {
         // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+        note = this.getTaikoNoteFromPool(noteData.id, noteData.chord);
+        note.visible = true;
+        note.x = noteData.x; // 初期位置は即座に設定
         this.notesContainer.addChild(note);
         this.activeNotes.set(noteData.id, note);
       } else {
-        // 既存のノーツの位置を更新
-        note.x = noteData.x;
+        // 既存ノーツの位置を更新（線形補間を使用）
+        const targetX = noteData.x;
+        const currentX = note.x;
+        const diff = targetX - currentX;
+        
+        // 距離に応じて補間率を調整
+        let lerpFactor = 0.15; // デフォルト15%
+        if (Math.abs(diff) > 200) {
+          // 大きな差がある場合は即座に移動
+          lerpFactor = 1.0;
+        } else if (Math.abs(diff) > 100) {
+          // 中程度の差
+          lerpFactor = 0.3;
+        }
+        
+        note.x = currentX + diff * lerpFactor;
+      }
+      
+      // 判定ライン付近のノーツは強調表示
+      const distanceToJudgeLine = Math.abs(note.x - this.judgeLineX);
+      if (distanceToJudgeLine < 50) {
+        note.scale.set(1.0 + (50 - distanceToJudgeLine) / 100);
+        note.alpha = 0.85 + (50 - distanceToJudgeLine) / 250;
+      } else {
+        note.scale.set(1.0);
+        note.alpha = 0.85;
       }
     });
   }
@@ -2038,20 +2168,36 @@ export class FantasyPIXIInstance {
     return this.app.view as HTMLCanvasElement;
   }
 
-  // 破棄
+  // 破棄処理の強化
   destroy(): void {
     this.isDestroyed = true;
     
+    // 定期クリーンアップの停止
+    if (this.poolCleanupInterval !== null) {
+      clearInterval(this.poolCleanupInterval);
+      this.poolCleanupInterval = null;
+    }
+    
+    // アニメーションフレームの停止
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
     
-    // マルチモンスターのクリーンアップ時に怒りエフェクトも削除
+    // すべてのアクティブエフェクトをクリア
+    this.clearAllActiveEffects();
+    
+    // モンスタースプライトのクリーンアップ
     this.monsterSprites.forEach(data => {
-      if (data.outline) data.outline.destroy();
-      if (data.angerMark) data.angerMark.destroy();
-      data.sprite.destroy();
+      if (data.outline && !data.outline.destroyed) {
+        data.outline.destroy();
+      }
+      if (data.angerMark && !data.angerMark.destroyed) {
+        data.angerMark.destroy();
+      }
+      if (data.sprite && !data.sprite.destroyed) {
+        data.sprite.destroy({ children: true, texture: false });
+      }
     });
     this.monsterSprites.clear();
     
@@ -2090,38 +2236,94 @@ export class FantasyPIXIInstance {
       devLog.debug('⚠️ エフェクト削除エラー:', error);
     }
     
-    // ▼▼▼ 追加 ▼▼▼
+    // ノーツのクリーンアップ
+    this.activeNotes.forEach(note => {
+      if (note && !note.destroyed) {
+        note.destroy({ children: true, texture: false });
+      }
+    });
+    this.activeNotes.clear();
+    
+    // ノーツプールの破棄
+    this.taikoNotesPool.forEach(note => {
+      if (note && !note.destroyed) {
+        note.destroy({ children: true, texture: false });
+      }
+    });
+    this.taikoNotesPool = [];
+    
+    // エフェクトのクリーンアップ
+    this.effectContainer.children.forEach(child => {
+      if (child && !child.destroyed) {
+        child.destroy({ children: true, texture: false });
+      }
+    });
+    
+    // コンテナの破棄
+    [
+      this.backgroundContainer,
+      this.monsterContainer,
+      this.notesContainer,
+      this.judgeLineContainer,
+      this.effectContainer,
+      this.uiContainer
+    ].forEach(container => {
+      if (container && !container.destroyed) {
+        container.destroy({ children: true, texture: false });
+      }
+    });
+    
     // バンドルされたアセットをアンロード
     PIXI.Assets.unloadBundle('monsterTextures').catch(e => devLog.debug("monsterTextures unload error", e));
     PIXI.Assets.unloadBundle('magicTextures').catch(e => devLog.debug("magicTextures unload error", e));
-    // ▲▲▲ ここまで ▲▲▲
-    
-    // テクスチャクリーンアップ
-    try {
-      this.imageTextures.forEach((texture: PIXI.Texture) => {
-        try {
-          if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
-            texture.destroy(true);
-          }
-        } catch (error) {
-          devLog.debug('⚠️ 画像テクスチャ削除エラー:', error);
-        }
-      });
-      this.imageTextures.clear();
-    } catch (error) {
-      devLog.debug('⚠️ テクスチャクリーンアップエラー:', error);
-    }
     
     // PIXIアプリケーションの破棄
     if (this.app) {
       try {
-        this.app.destroy(true, { children: true });
+        // すべての子要素を削除
+        this.app.stage.removeChildren();
+        
+        // レンダラーとステージの破棄
+        this.app.destroy(true, {
+          children: true,
+          texture: false, // 共有テクスチャは破棄しない
+          baseTexture: false
+        });
       } catch (error) {
         devLog.debug('⚠️ PIXI破棄エラー:', error);
       }
     }
     
-    devLog.debug('🗑️ FantasyPIXI破棄完了');
+    devLog.debug('🗑️ FantasyPIXI完全破棄完了');
+  }
+  
+  // アクティブエフェクトのクリア
+  private clearAllActiveEffects(): void {
+    // 魔法陣
+    this.magicCircles.forEach((circle, id) => {
+      if (circle && !circle.destroyed) {
+        circle.destroy();
+      }
+    });
+    this.magicCircles.clear();
+    this.magicCircleData.clear();
+    
+    // ダメージ数値
+    this.damageNumbers.forEach((text, id) => {
+      if (text && !text.destroyed) {
+        text.destroy();
+      }
+    });
+    this.damageNumbers.clear();
+    this.damageData.clear();
+    
+    // 吹き出し
+    this.activeFukidashi.forEach((fukidashi, id) => {
+      if (fukidashi && !fukidashi.destroyed) {
+        fukidashi.destroy();
+      }
+    });
+    this.activeFukidashi.clear();
   }
 
   // 状態機械: モンスターの状態を安全に遷移させる
