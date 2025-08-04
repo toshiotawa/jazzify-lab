@@ -11,6 +11,8 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private readyDuration = 2000  // Ready期間（ms）
+  private actualStartTime = 0  // 実際のBGM再生開始時刻
 
   play(
     url: string,
@@ -18,7 +20,8 @@ class BGMManager {
     timeSig: number,
     measureCount: number,
     countIn: number,
-    volume = 0.7
+    volume = 0.7,
+    readyDuration = 2000
   ) {
     if (!url) return
     
@@ -30,6 +33,7 @@ class BGMManager {
     this.timeSignature = timeSig
     this.measureCount = measureCount
     this.countInMeasures = countIn
+    this.readyDuration = readyDuration
     
     this.audio = new Audio(url)
     this.audio.volume = volume
@@ -56,12 +60,20 @@ class BGMManager {
     
     // 再生開始時刻を記録
     this.startTime = performance.now()
+    this.actualStartTime = this.startTime + this.readyDuration // Ready期間後の実際の開始時刻
     this.isPlaying = true
     
-    this.audio.play().catch((error) => {
-      console.warn('BGM playback failed:', error)
-      this.isPlaying = false
-    })
+    // Ready期間後に実際に再生開始
+    setTimeout(() => {
+      if (this.audio && this.isPlaying) {
+        this.audio.play().catch((error) => {
+          console.warn('BGM playback failed:', error)
+          this.isPlaying = false
+        })
+      }
+    }, this.readyDuration)
+    
+    // isPlayingフラグは即座にtrueにする（タイミング計算のため）
   }
 
   setVolume(v: number) {
@@ -81,6 +93,9 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    // タイミング関連のプロパティもリセット
+    this.startTime = 0
+    this.actualStartTime = 0
   }
   
   // タイミング管理用の新しいメソッド
@@ -90,20 +105,35 @@ class BGMManager {
    * カウントイン終了時を0秒とする
    */
   getCurrentMusicTime(): number {
-    if (!this.isPlaying || !this.audio) return 0
+    if (!this.isPlaying) return 0
     
-    let audioTime = this.audio.currentTime
+    const now = performance.now()
+    const elapsedSinceStart = now - this.startTime
     
-    // ループ時の仮想時間計算（ずれ蓄積防止）
-    if (audioTime >= this.loopEnd) {
-      const loopDuration = this.loopEnd - this.loopBegin
-      audioTime = this.loopBegin + ((audioTime - this.loopBegin) % loopDuration)
+    // Ready期間中
+    if (elapsedSinceStart < this.readyDuration) {
+      const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+      return -countInDuration - (this.readyDuration - elapsedSinceStart) / 1000
     }
     
-    const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+    // Audioが再生中の場合
+    if (this.audio && this.audio.currentTime > 0) {
+      let audioTime = this.audio.currentTime
+      
+      // ループ時の仮想時間計算（ずれ蓄積防止）
+      if (audioTime >= this.loopEnd) {
+        const loopDuration = this.loopEnd - this.loopBegin
+        audioTime = this.loopBegin + ((audioTime - this.loopBegin) % loopDuration)
+      }
+      
+      const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+      
+      // カウントイン中は負の値を返す
+      return audioTime - countInDuration
+    }
     
-    // カウントイン中は負の値を返す
-    return audioTime - countInDuration
+    // Audioがまだ開始していない場合（Ready直後）
+    return 0
   }
   
   /**
