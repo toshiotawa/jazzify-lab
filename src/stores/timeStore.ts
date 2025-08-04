@@ -83,7 +83,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     } else {
       // メイン部分（カウントイン後）
       const measuresAfterCountIn = totalMeasures - s.countInMeasures
-      const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
+      const displayMeasure = Math.max(1, (measuresAfterCountIn % s.measureCount) + 1)
       
       set({
         currentBeat: currentBeatInMeasure,
