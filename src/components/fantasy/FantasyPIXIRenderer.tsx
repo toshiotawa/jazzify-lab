@@ -1692,9 +1692,19 @@ export class FantasyPIXIInstance {
           
           // 怒りエフェクトを削除
           if (monsterData.angerMark) {
-            sprite.removeChild(monsterData.angerMark);
-            monsterData.angerMark.destroy();
-            monsterData.angerMark = undefined;
+            // フェードアウトアニメーション
+            const angerMark = monsterData.angerMark;
+            const fadeOut = () => {
+              if (angerMark.alpha > 0) {
+                angerMark.alpha -= 0.05;
+                requestAnimationFrame(fadeOut);
+              } else {
+                sprite.removeChild(angerMark);
+                angerMark.destroy();
+                monsterData.angerMark = undefined;
+              }
+            };
+            fadeOut();
           }
         }
         
