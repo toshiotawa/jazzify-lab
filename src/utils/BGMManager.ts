@@ -1,6 +1,13 @@
 /* HTMLAudio ベースの簡易 BGM ルーパー */
 
+export interface TimePos {
+  bar: number;
+  beat: number;
+  tick: number;
+}
+
 class BGMManager {
+  private listeners: Map<string, Array<(...args: any[]) => void>> = new Map();
   private audio: HTMLAudioElement | null = null
   private loopBegin = 0
   private loopEnd = 0
@@ -14,6 +21,10 @@ class BGMManager {
   private loopScheduled = false
   private nextLoopTime = 0
   private loopTimeoutId: number | null = null // タイムアウトIDを保持
+  
+  // 定数として countInBars を定義
+  readonly countInBars = 1;
+  readonly ticksPerBeat = 480;
 
   play(
     url: string,
@@ -68,6 +79,8 @@ class BGMManager {
           if (this.audio && this.isPlaying) {
             this.audio.currentTime = this.nextLoopTime
             console.log(`🔄 BGM Loop (scheduled): → ${this.nextLoopTime.toFixed(2)}s`)
+            // ループイベントを発行
+            this.emit('loop');
           }
           this.loopScheduled = false
           this.loopTimeoutId = null
@@ -154,6 +167,62 @@ class BGMManager {
   
   // タイミング管理用の新しいメソッド
   
+  /**
+   * 1小節の長さを秒単位で取得
+   */
+  private barDur(): number {
+    return 60 / this.bpm * this.timeSignature;
+  }
+  
+  /**
+   * 1拍の長さを秒単位で取得
+   */
+  private beatDur(): number {
+    return 60 / this.bpm;
+  }
+  
+  /**
+   * 現在の譜面位置を取得
+   * @returns TimePos オブジェクト（bar: 小節番号, beat: 拍番号, tick: ティック）
+   */
+  getTimePos(): TimePos {
+    if (!this.audio) return { bar: 0, beat: 0, tick: 0 };
+    
+    const t = this.audio.currentTime - this.barDur() * this.countInBars;
+    if (t < 0) return { bar: 0, beat: 0, tick: 0 };
+    
+    const bar = Math.floor(t / this.barDur()) + 1;
+    const beatT = t % this.barDur();
+    const beat = Math.floor(beatT / this.beatDur()) + 1;
+    const tick = Math.round((beatT % this.beatDur()) / this.beatDur() * this.ticksPerBeat);
+    
+    return { bar, beat, tick };
+  }
+  
+  /**
+   * 現在の小節番号を取得（カウントインを除外した譜面上の小節）
+   */
+  get bar(): number {
+    if (!this.audio) return 0;
+    const t = this.audio.currentTime - this.barDur() * this.countInBars;
+    return t < 0 ? 0 : Math.floor(t / this.barDur()) + 1;
+  }
+  
+  /**
+   * フレーム更新時に呼ぶメソッド
+   * ループチェックとイベント発行を行う
+   */
+  update(dt: number): void {
+    if (!this.audio || !this.isPlaying) return;
+    
+    // ループチェック（timeUpdateHandlerとは別に、より精密な制御のため）
+    if (this.audio.currentTime >= this.loopEnd) {
+      this.audio.currentTime = this.loopBegin;
+      this.emit('loop');
+      console.log('🔄 BGM Loop (update): → ' + this.loopBegin.toFixed(2) + 's');
+    }
+  }
+
   /**
    * 現在の音楽的時間を取得（秒単位）
    * カウントイン終了時を0秒とする
@@ -280,6 +349,50 @@ class BGMManager {
    */
   getCountInMeasures(): number {
     return this.countInMeasures
+  }
+  
+  /**
+   * イベントリスナーを追加
+   */
+  on(event: string, listener: (...args: any[]) => void): void {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, []);
+    }
+    this.listeners.get(event)!.push(listener);
+  }
+  
+  /**
+   * イベントリスナーを削除
+   */
+  off(event: string, listener: (...args: any[]) => void): void {
+    const listeners = this.listeners.get(event);
+    if (listeners) {
+      const index = listeners.indexOf(listener);
+      if (index !== -1) {
+        listeners.splice(index, 1);
+      }
+    }
+  }
+  
+  /**
+   * 全てのイベントリスナーを削除
+   */
+  removeAllListeners(event?: string): void {
+    if (event) {
+      this.listeners.delete(event);
+    } else {
+      this.listeners.clear();
+    }
+  }
+  
+  /**
+   * イベントを発行
+   */
+  emit(event: string, ...args: any[]): void {
+    const listeners = this.listeners.get(event);
+    if (listeners) {
+      listeners.forEach(listener => listener(...args));
+    }
   }
 }
 
