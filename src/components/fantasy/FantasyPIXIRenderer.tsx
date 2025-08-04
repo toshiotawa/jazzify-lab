@@ -393,7 +393,7 @@ export class FantasyPIXIInstance {
       }
       
       // 怒りマークSVGを追加
-      magicAssets['angerMark'] = `${import.meta.env.BASE_URL}data/anger.svg`;
+      magicAssets['angerMark'] = new URL('/data/anger.svg', import.meta.url).href;
       
       // 音符吹き出しを追加
       magicAssets['fukidashi'] = `${import.meta.env.BASE_URL}attack_icons/fukidashi_onpu_white.png`;
@@ -1656,6 +1656,21 @@ export class FantasyPIXIInstance {
               );
               sprite.addChild(angerMark);
               monsterData.angerMark = angerMark;
+              
+              // フェードアウトアニメーションを追加
+              gsap.to(angerMark, {
+                alpha: 0,
+                duration: 0.8,
+                delay: 0.5,
+                ease: "power2.out",
+                onComplete: () => {
+                  if (monsterData.angerMark === angerMark) {
+                    sprite.removeChild(angerMark);
+                    angerMark.destroy();
+                    monsterData.angerMark = undefined;
+                  }
+                }
+              });
             } else {
               // テクスチャが無い場合は絵文字でフォールバック
               const angerMark = new PIXI.Text('💢', {
@@ -1672,6 +1687,21 @@ export class FantasyPIXIInstance {
               );
               sprite.addChild(angerMark);
               monsterData.angerMark = angerMark;
+              
+              // フェードアウトアニメーションを追加
+              gsap.to(angerMark, {
+                alpha: 0,
+                duration: 0.8,
+                delay: 0.5,
+                ease: "power2.out",
+                onComplete: () => {
+                  if (monsterData.angerMark === angerMark) {
+                    sprite.removeChild(angerMark);
+                    angerMark.destroy();
+                    monsterData.angerMark = undefined;
+                  }
+                }
+              });
             }
           }
           
