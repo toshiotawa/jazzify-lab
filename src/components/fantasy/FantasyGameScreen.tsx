@@ -8,7 +8,6 @@ import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
-import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { TaikoNote } from './TaikoNoteSystem';
@@ -59,7 +58,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
   // 時間管理
-  const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
+  const [currentBeat, setCurrentBeat] = useState(1);
+  const [currentMeasure, setCurrentMeasure] = useState(1);
+  const [isCountIn, setIsCountIn] = useState(false);
+
+  // intervalでBGMManagerからタイミング取得
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentBeat(bgmManager.getCurrentBeat());
+      setCurrentMeasure(bgmManager.getCurrentMeasure());
+      setIsCountIn(bgmManager.getIsCountIn());
+    }, 50);  // 50ms更新でスムーズ
+
+    return () => clearInterval(interval);
+  }, []);
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -71,15 +83,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
   const monsterAreaRef = useRef<HTMLDivElement>(null);
   
-  /* 毎 100 ms で時間ストア tick */
-  useEffect(() => {
-    const id = setInterval(() => tick(), 100);
-    return () => clearInterval(id);
-  }, [tick]);
-
-  /* Ready → Start 判定 */
-  const isReady =
-    startAt !== null && performance.now() - startAt < readyDuration;
+  /* Ready → Start 判定は削除（BGM即開始のため不要） */
   
   // ★★★ 追加: モンスターエリアのサイズ監視 ★★★
   useEffect(() => {
@@ -100,22 +104,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []);
   
-  // Ready 終了時に BGM 再生
+  // BGM再生（即開始、カウントインなし）
   useEffect(() => {
-    if (!isReady && startAt) {
-      bgmManager.play(
-        stage.bgmUrl ?? '/demo-1.mp3',
-        stage.bpm || 120,
-        stage.timeSignature || 4,
-        stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0,
-        settings.bgmVolume ?? 0.7
-      );
-    } else {
-      bgmManager.stop();
-    }
+    bgmManager.play(
+      stage.bgmUrl ?? '/demo-1.mp3',
+      stage.bpm || 120,
+      stage.timeSignature || 4,
+      stage.measureCount ?? 8,
+      0,  // countIn=0
+      settings.bgmVolume ?? 0.7
+    );
     return () => bgmManager.stop();
-  }, [isReady, stage, settings.bgmVolume, startAt]);
+  }, [stage, settings.bgmVolume]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -886,16 +886,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       {/* 太鼓の達人モードでは現在のコードと次のコードを表示 */}
                       {gameState.isTaikoMode ? (
                         <>
-                          {/* 現在のコード */}
-                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                          }`}>
-                            {monster.chordTarget.displayName}
-                          </div>
-                          
-                          {/* 次のコード（小さく表示） */}
+                          {/* 太鼓の達人モードの表示 */}
+                          {/* コード名とガイドは表示しない */}
                           {monster.nextChord && (
-                            <div className={`text-blue-300 text-center truncate w-full ${
+                            <div className={`text-blue-300 font-medium mt-2 ${
                               monsterCount > 5 ? 'text-xs' : 'text-sm'
                             }`}>
                               Next: {monster.nextChord.displayName}
@@ -1188,13 +1182,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       )}
       
       {/* Ready オーバーレイ */}
-      {isReady && (
-        <div className="absolute inset-0 flex items-center justify-center z-[9998] bg-black/60">
-          <span className="font-dotgothic16 text-7xl text-white animate-pulse">
-            Ready
-          </span>
-        </div>
-      )}
+      {/* isReady && ( */}
+      {/* このブロックは削除されました */}
+      {/* ) */}
     </div>
   );
 };
