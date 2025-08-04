@@ -432,8 +432,11 @@ export const useFantasyGameEngine = ({
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
     if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
-      // すべてのノーツ処理済み
-      return prevState;
+      // ループ処理: 最初に戻る
+      return {
+        ...prevState,
+        currentNoteIndex: 0
+      };
     }
     
     const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
@@ -498,7 +501,10 @@ export const useFantasyGameEngine = ({
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
       
       // 次のノーツへ進む
-      const nextNoteIndex = prevState.currentNoteIndex + 1;
+      let nextNoteIndex = prevState.currentNoteIndex + 1;
+      if (nextNoteIndex >= prevState.taikoNotes.length) {
+        nextNoteIndex = 0; // ループ
+      }
       
       // モンスター更新
       const updatedMonsters = prevState.activeMonsters.map(m => {
@@ -709,6 +715,7 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0,
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       } else if (stage.chordProgression) {
@@ -718,6 +725,7 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0,
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       }
@@ -986,6 +994,31 @@ export const useFantasyGameEngine = ({
         return prevState;
       }
       
+      // ループ時のリセット判定用に現在の音楽時間を取得
+      const currentMusicTime = bgmManager.getCurrentMusicTime();
+      const lastMusicTime = (prevState as any).lastMusicTime || 0;
+      
+      // ループ検出：音楽時間が巻き戻った場合
+      if (currentMusicTime < lastMusicTime - 1) { // 1秒以上の巻き戻しでループと判定
+        devLog.debug('🔄 ループ検出！ゲージリセット', {
+          currentTime: currentMusicTime,
+          lastTime: lastMusicTime
+        });
+        
+        // 全モンスターのゲージをリセット
+        const resetMonsters = prevState.activeMonsters.map(m => ({
+          ...m,
+          gauge: 0
+        }));
+        
+        return {
+          ...prevState,
+          activeMonsters: resetMonsters,
+          enemyGauge: 0,
+          lastMusicTime: currentMusicTime
+        } as any;
+      }
+      
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
@@ -1050,8 +1083,9 @@ export const useFantasyGameEngine = ({
           ...prevState, 
           activeMonsters: resetMonsters,
           // 互換性のため
-          enemyGauge: 0 
-        };
+          enemyGauge: 0,
+          lastMusicTime: currentMusicTime
+        } as any;
         onGameStateChange(nextState);
         return nextState;
       } else {
@@ -1059,8 +1093,9 @@ export const useFantasyGameEngine = ({
           ...prevState, 
           activeMonsters: updatedMonsters,
           // 互換性のため最初のモンスターのゲージを設定
-          enemyGauge: updatedMonsters[0]?.gauge || 0
-        };
+          enemyGauge: updatedMonsters[0]?.gauge || 0,
+          lastMusicTime: currentMusicTime
+        } as any;
         onGameStateChange(nextState);
         return nextState;
       }
