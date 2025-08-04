@@ -2173,6 +2173,168 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  // 攻撃成功エフェクトを発動（マルチモンスター対応）
+  triggerAttackSuccessForMonster(monsterId: string, chordName: string, isSpecial: boolean, damageDealt: number, defeated: boolean): void {
+    const monsterData = this.monsterSprites.get(monsterId);
+    if (!monsterData || this.isDestroyed) return;
+    
+    try {
+      // 魔法効果音を再生（統一）
+      try {
+        FantasySoundManager.playMyAttack();
+        devLog.debug('🔊 攻撃効果音再生(triggerAttackSuccessForMonster)');
+      } catch (error) {
+        console.error('攻撃効果音再生エラー:', error);
+      }
+
+      // 常に黄色（サンダーの色）を使用
+      const magicColor = 0xFFD700; // 黄色（ゴールド）
+      
+      // HTMLでの表示のためコールバックを呼び出す（無効化）
+      // if (this.onShowMagicName) {
+      //   this.onShowMagicName(magicName, isSpecial, monsterId);
+      // }
+
+      monsterData.gameState.isHit = true;
+      monsterData.gameState.hitColor = magicColor;
+
+      // よろめきエフェクト
+      monsterData.gameState.staggerOffset = {
+        x: (Math.random() - 0.5) * 20,
+        y: (Math.random() - 0.5) * 10
+      };
+
+      // ダメージ数値を表示（モンスターの位置に）
+      this.createDamageNumberAt(damageDealt, magicColor, monsterData.visualState.x, monsterData.visualState.y - 50);
+
+      // エフェクトをモンスターの位置に作成（サンダーのエフェクトを使用）
+      // this.createImageMagicEffectAt('thunder.png', magicColor, isSpecial, monsterData.visualState.x, monsterData.visualState.y);
+
+      // 音符吹き出しを表示
+      // this.showMusicNoteFukidashi(monsterId, monsterData.visualState.x, monsterData.visualState.y);
+      
+      // 攻撃成功時の音符アイコンを表示
+      this.showAttackIcon(monsterData);
+
+      // SPアタック時の特殊エフェクト
+      this.triggerSpecialEffects(isSpecial);
+
+      // 状態を更新
+      monsterData.gameState.hitCount++;
+
+      if (defeated) {
+        monsterData.gameState.state = 'FADING_OUT';
+        monsterData.gameState.isFadingOut = true;
+
+      }
+
+      // ヒット状態を解除
+      setTimeout(() => {
+        if (monsterData.gameState) {
+          monsterData.gameState.isHit = false;
+        }
+      }, 300);
+
+    } catch (error) {
+      devLog.debug('❌ 攻撃成功エフェクトエラー:', error);
+    }
+  }
+
+  // 敵の攻撃アニメーションを再生
+  playEnemyAttackAnimation(monsterId?: string): void {
+    try {
+      devLog.debug('🔥 敵の攻撃アニメーション開始', { monsterId });
+      
+      // シングルモンスターモード
+      if (!monsterId || monsterId === 'default') {
+        // 怒りアイコンを表示
+        const angerIcon = new PIXI.Text('💢', {
+          fontSize: 48,
+          fontFamily: 'Arial',
+        });
+        angerIcon.anchor.set(0.5);
+        angerIcon.position.set(
+          this.monsterVisualState.x + 50,
+          this.monsterVisualState.y - 80
+        );
+        this.effectsContainer.addChild(angerIcon);
+        
+        // 攻撃エフェクト（赤いフラッシュ）
+        const attackEffect = new PIXI.Graphics();
+        attackEffect.beginFill(0xFF0000, 0.3);
+        attackEffect.drawCircle(this.monsterVisualState.x, this.monsterVisualState.y, 100);
+        attackEffect.endFill();
+        this.effectsContainer.addChild(attackEffect);
+        
+        // 振動エフェクト
+        const originalX = this.monsterVisualState.x;
+        const shakeAnimation = () => {
+          this.monsterVisualState.x = originalX + (Math.random() - 0.5) * 20;
+        };
+        
+        const shakeInterval = setInterval(shakeAnimation, 50);
+        
+        // エフェクトを削除
+        setTimeout(() => {
+          clearInterval(shakeInterval);
+          this.monsterVisualState.x = originalX;
+          if (angerIcon.parent) {
+            angerIcon.parent.removeChild(angerIcon);
+          }
+          if (attackEffect.parent) {
+            attackEffect.parent.removeChild(attackEffect);
+          }
+        }, 500);
+        
+      } else {
+        // マルチモンスターモード
+        const monsterData = this.multiMonstersData.get(monsterId);
+        if (monsterData) {
+          // 怒りアイコンを表示
+          const angerIcon = new PIXI.Text('💢', {
+            fontSize: 48,
+            fontFamily: 'Arial',
+          });
+          angerIcon.anchor.set(0.5);
+          angerIcon.position.set(
+            monsterData.visualState.x + 50,
+            monsterData.visualState.y - 80
+          );
+          this.effectsContainer.addChild(angerIcon);
+          
+          // 攻撃エフェクト（赤いフラッシュ）
+          const attackEffect = new PIXI.Graphics();
+          attackEffect.beginFill(0xFF0000, 0.3);
+          attackEffect.drawCircle(monsterData.visualState.x, monsterData.visualState.y, 100);
+          attackEffect.endFill();
+          this.effectsContainer.addChild(attackEffect);
+          
+          // 振動エフェクト
+          const originalX = monsterData.visualState.x;
+          const shakeAnimation = () => {
+            monsterData.visualState.x = originalX + (Math.random() - 0.5) * 20;
+          };
+          
+          const shakeInterval = setInterval(shakeAnimation, 50);
+          
+          // エフェクトを削除
+          setTimeout(() => {
+            clearInterval(shakeInterval);
+            monsterData.visualState.x = originalX;
+            if (angerIcon.parent) {
+              angerIcon.parent.removeChild(angerIcon);
+            }
+            if (attackEffect.parent) {
+              attackEffect.parent.removeChild(attackEffect);
+            }
+          }, 500);
+        }
+      }
+      
+    } catch (error) {
+      devLog.debug('❌ 敵の攻撃アニメーションエラー:', error);
+    }
+  }
 
 }
 

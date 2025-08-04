@@ -107,6 +107,15 @@ export function generateBasicProgressionNotes(
   const secPerMeasure = secPerBeat * timeSignature;
   const countInDuration = countInMeasures * secPerMeasure; // カウントインの総時間
   
+  console.log('🥁 基本版ノーツ生成:', {
+    chordProgression,
+    measureCount,
+    bpm,
+    countInMeasures,
+    countInDuration: countInDuration.toFixed(2),
+    firstNoteTime: countInDuration.toFixed(2)
+  });
+  
   // カウントイン後の小節のみでノーツを生成
   for (let measure = 1; measure <= measureCount; measure++) {
     const chordIndex = (measure - 1) % chordProgression.length;
@@ -126,6 +135,8 @@ export function generateBasicProgressionNotes(
         isHit: false,
         isMissed: false
       });
+      
+      console.log(`🎵 ノーツ生成: M${measure} beat 1, chord: ${chord.displayName}, time: ${hitTime.toFixed(2)}s`);
     }
   }
   
@@ -153,6 +164,13 @@ export function parseChordProgressionData(
   const secPerMeasure = secPerBeat * timeSignature;
   const countInDuration = countInMeasures * secPerMeasure;
   
+  console.log('🥁 拡張版ノーツ生成:', {
+    progressionDataCount: progressionData.length,
+    bpm,
+    countInMeasures,
+    countInDuration: countInDuration.toFixed(2)
+  });
+  
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
     if (chord) {
@@ -168,6 +186,8 @@ export function parseChordProgressionData(
         isHit: false,
         isMissed: false
       });
+      
+      console.log(`🎵 ノーツ生成: M${item.bar} beat ${item.beats}, chord: ${chord.displayName}, time: ${hitTime.toFixed(2)}s`);
     }
   });
   

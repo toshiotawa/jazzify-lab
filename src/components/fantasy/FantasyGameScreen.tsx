@@ -470,8 +470,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
     setFantasyPixiInstance(instance);
+    // グローバルインスタンスとして設定
+    window.fantasyPixiInstance = instance;
   }, []);
-  
+
   // 魔法名表示ハンドラー
   const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
     setMagicName({ monsterId, name, isSpecial });
@@ -616,6 +618,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
     };
   }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage]);
+  
+  // クリーンアップ処理
+  useEffect(() => {
+    return () => {
+      // コンポーネントアンマウント時にグローバルインスタンスをクリア
+      if (window.fantasyPixiInstance === fantasyPixiInstance) {
+        window.fantasyPixiInstance = undefined;
+      }
+    };
+  }, [fantasyPixiInstance]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
