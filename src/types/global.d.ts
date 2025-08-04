@@ -1,20 +1,22 @@
+import { FantasyPIXIInstance } from '@/components/fantasy/FantasyPIXIRenderer';
+
 declare global {
   interface Window {
+    fantasyPixiInstance?: FantasyPIXIInstance;
     Tone: {
       Context: typeof AudioContext;
       Sampler: unknown;
-      Frequency: unknown;
-      setContext: (context: AudioContext) => void;
-      loaded: () => Promise<void>;
-      start: () => Promise<void>;
-      context: {
-        state: string;
+      Transport: {
+        start: (time?: number | string, offset?: number | string) => void;
+        stop: (time?: number | string) => void;
+        pause: (time?: number | string) => void;
+        cancel: (time?: number | string) => void;
+        [key: string]: unknown;
       };
-    };
-    webkitAudioContext?: typeof AudioContext;
-    performanceMonitor?: {
-      getFPS(): number;
-      stopMonitoring(): void;
+      Destination: {
+        mute: boolean;
+      };
+      [key: string]: unknown;
     };
   }
   
