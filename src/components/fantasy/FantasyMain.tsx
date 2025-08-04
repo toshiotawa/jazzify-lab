@@ -526,6 +526,7 @@ const FantasyMain: React.FC = () => {
               // ▼▼▼ 修正 ▼▼▼
               onClick={() => {
                 setShowResult(false);
+                setGameResult(null); // ゲーム結果もリセット
                 setGameKey(prevKey => prevKey + 1);
                 setPendingAutoStart(true);   // ★ useState を 1 つ用意
               }}
