@@ -748,7 +748,10 @@ export const useFantasyGameEngine = ({
       
       devLog.debug('🥁 太鼓の達人モード初期化:', {
         noteCount: taikoNotes.length,
-        firstNote: taikoNotes[0]
+        firstNote: taikoNotes[0],
+        countInMeasures: stage.countInMeasures,
+        measureCount: stage.measureCount || 8,
+        bpm: stage.bpm || 120
       });
     }
 

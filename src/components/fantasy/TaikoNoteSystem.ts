@@ -94,9 +94,8 @@ export function generateBasicProgressionNotes(
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      // カウントインを考慮した実際の小節番号
-      const actualMeasure = measure + countInMeasures;
-      const hitTime = (actualMeasure - 1) * secPerMeasure; // カウントインを含む時間
+      // 仮想時間で計算（カウントイン後を0秒とする）
+      const hitTime = (measure - 1) * secPerMeasure; // カウントインは含まない
       
       notes.push({
         id: `note_${measure}_1`,
@@ -134,10 +133,8 @@ export function parseChordProgressionData(
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
     if (chord) {
-      // カウントインを考慮してbar（小節）をずらす
-      const actualBar = item.bar + countInMeasures;
-      // bar（小節）とbeats（拍）から実際の時刻を計算
-      const hitTime = (actualBar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      // 仮想時間で計算（カウントイン後を0秒とする）
+      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
         id: `note_${item.bar}_${item.beats}_${index}`,

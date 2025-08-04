@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { bgmManager } from '@/utils/BGMManager'
 
 interface TimeState {
   /* ゲーム開始＝モンスター描画完了時刻 (ms) */
@@ -53,15 +54,29 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   tick: () => {
     const s = get()
     if (s.startAt === null) return
-    const elapsed = performance.now() - s.startAt
+    let elapsed = performance.now() - s.startAt
 
     /* Ready 中は beat/measure を初期値に固定 */
     if (elapsed < s.readyDuration) {
       set({
         currentBeat: 1,
-        currentMeasure: 1
+        currentMeasure: 1,
+        isCountIn: true
       })
       return
+    }
+
+    // Audio時間との補正（ずれが5ms超えたら調整）
+    if (bgmManager.getIsPlaying()) {
+      const countInDuration = s.countInMeasures * (60 / s.bpm) * s.timeSignature
+      const audioTime = bgmManager.getCurrentMusicTime() + countInDuration
+      const elapsedSec = (elapsed - s.readyDuration) / 1000
+      const diff = Math.abs(elapsedSec - audioTime)
+      
+      if (diff > 0.005) {
+        // Audio時間を優先
+        elapsed = s.readyDuration + audioTime * 1000
+      }
     }
 
     const msecPerBeat = 60000 / s.bpm
@@ -72,22 +87,24 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
     
+    // 仮想小節計算: カウントイン除外
+    const virtualMeasure = totalMeasures - s.countInMeasures
+    
     /* カウントイン中かどうかを判定 */
-    if (totalMeasures < s.countInMeasures) {
-      // カウントイン中
+    if (virtualMeasure < 0) {
+      // カウントイン中（負の小節番号として表示）
       set({
         currentBeat: currentBeatInMeasure,
-        currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
+        currentMeasure: virtualMeasure, // 例: -1, 0
         isCountIn: true
       })
     } else {
       // メイン部分（カウントイン後）
-      const measuresAfterCountIn = totalMeasures - s.countInMeasures
-      const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
+      const displayMeasure = (virtualMeasure % s.measureCount) + 1
       
       set({
         currentBeat: currentBeatInMeasure,
-        currentMeasure: displayMeasure, // カウントイン後を1から表示
+        currentMeasure: displayMeasure, // 1から表示
         isCountIn: false
       })
     }

@@ -92,7 +92,14 @@ class BGMManager {
   getCurrentMusicTime(): number {
     if (!this.isPlaying || !this.audio) return 0
     
-    const audioTime = this.audio.currentTime
+    let audioTime = this.audio.currentTime
+    
+    // ループ時の仮想時間計算（ずれ蓄積防止）
+    if (audioTime >= this.loopEnd) {
+      const loopDuration = this.loopEnd - this.loopBegin
+      audioTime = this.loopBegin + ((audioTime - this.loopBegin) % loopDuration)
+    }
+    
     const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
     
     // カウントイン中は負の値を返す
@@ -101,11 +108,15 @@ class BGMManager {
   
   /**
    * 現在の小節番号を取得（1始まり）
-   * カウントイン中は0を返す
+   * カウントイン中は負の値を返す
    */
   getCurrentMeasure(): number {
     const musicTime = this.getCurrentMusicTime()
-    if (musicTime < 0) return 0 // カウントイン中
+    if (musicTime < 0) {
+      // カウントイン中は負の小節番号を返す
+      const secPerMeasure = (60 / this.bpm) * this.timeSignature
+      return Math.floor(musicTime / secPerMeasure)
+    }
     
     const secPerMeasure = (60 / this.bpm) * this.timeSignature
     const measure = Math.floor(musicTime / secPerMeasure) % this.measureCount + 1
@@ -140,19 +151,18 @@ class BGMManager {
   
   /**
    * 指定した小節・拍の時刻を取得（秒単位）
-   * @param measure 小節番号（1始まり）
+   * @param measure 小節番号（1始まり、カウントイン後を1とする）
    * @param beat 拍番号（1始まり、小数可）
    */
   getMusicTimeAt(measure: number, beat: number): number {
     const secPerBeat = 60 / this.bpm
     const secPerMeasure = secPerBeat * this.timeSignature
-    const countInDuration = this.countInMeasures * secPerMeasure
     
     // ループを考慮して小節番号を調整
     const measureInLoop = (measure - 1) % this.measureCount
     
-    // カウントイン + 指定小節までの時間 + 拍の時間
-    return countInDuration + measureInLoop * secPerMeasure + (beat - 1) * secPerBeat
+    // 仮想時間で計算（カウントイン後を0秒とする）
+    return measureInLoop * secPerMeasure + (beat - 1) * secPerBeat
   }
   
   /**
