@@ -886,21 +886,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       {/* 太鼓の達人モードでは現在のコードと次のコードを表示 */}
                       {gameState.isTaikoMode ? (
                         <>
-                          {/* 現在のコード */}
-                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                          }`}>
-                            {monster.chordTarget.displayName}
-                          </div>
-                          
-                          {/* 次のコード（小さく表示） */}
-                          {monster.nextChord && (
-                            <div className={`text-blue-300 text-center truncate w-full ${
-                              monsterCount > 5 ? 'text-xs' : 'text-sm'
-                            }`}>
-                              Next: {monster.nextChord.displayName}
-                            </div>
-                          )}
+                          {/* 太鼓モードではコード表示を削除 - 敵のビジュアルのみ */}
                         </>
                       ) : (
                         <>

@@ -107,6 +107,13 @@ export function generateBasicProgressionNotes(
   const secPerMeasure = secPerBeat * timeSignature;
   const countInDuration = countInMeasures * secPerMeasure; // カウントインの総時間
   
+  console.log('📝 generateBasicProgressionNotes:', {
+    countInMeasures,
+    countInDuration: countInDuration.toFixed(3),
+    secPerMeasure: secPerMeasure.toFixed(3),
+    firstNoteTime: countInDuration.toFixed(3)
+  });
+  
   // カウントイン後の小節のみでノーツを生成
   for (let measure = 1; measure <= measureCount; measure++) {
     const chordIndex = (measure - 1) % chordProgression.length;
@@ -128,6 +135,13 @@ export function generateBasicProgressionNotes(
       });
     }
   }
+  
+  console.log('✅ 生成されたノーツ:', notes.map(n => ({
+    id: n.id,
+    chord: n.chord.displayName,
+    hitTime: n.hitTime.toFixed(3),
+    measure: n.measure
+  })));
   
   return notes;
 }

@@ -1933,30 +1933,46 @@ export class FantasyPIXIInstance {
   createTaikoNote(noteId: string, chordName: string, x: number): PIXI.Container {
     const noteContainer = new PIXI.Container();
     
-    // ノーツの円を作成
+    // 外側の円（グロー効果用）
+    const glowCircle = new PIXI.Graphics();
+    glowCircle.beginFill(0xFFAA00, 0.2);
+    glowCircle.drawCircle(0, 0, 45);
+    glowCircle.endFill();
+    
+    // ノーツの円を作成（半透明）
     const noteCircle = new PIXI.Graphics();
-    noteCircle.lineStyle(3, 0xFFFFFF, 1);
-    noteCircle.beginFill(0xFF6B6B, 0.8);
+    noteCircle.lineStyle(3, 0xFFFFFF, 0.9);
+    noteCircle.beginFill(0xFF6B6B, 0.6); // より透明に
     noteCircle.drawCircle(0, 0, 35);
     noteCircle.endFill();
     
+    // 内側の円（アクセント）
+    const innerCircle = new PIXI.Graphics();
+    innerCircle.beginFill(0xFFFFFF, 0.3);
+    innerCircle.drawCircle(0, 0, 25);
+    innerCircle.endFill();
+    
     // コード名のテキスト
     const chordText = new PIXI.Text(chordName, {
-      fontFamily: 'Arial',
-      fontSize: 24,
+      fontFamily: 'DotGothic16, Arial',
+      fontSize: 22,
       fontWeight: 'bold',
       fill: 0xFFFFFF,
+      stroke: 0x000000,
+      strokeThickness: 3,
       align: 'center'
     });
     chordText.anchor.set(0.5);
     
+    noteContainer.addChild(glowCircle);
     noteContainer.addChild(noteCircle);
+    noteContainer.addChild(innerCircle);
     noteContainer.addChild(chordText);
     noteContainer.x = x;
     noteContainer.y = this.app.screen.height / 2;
     
-    // 半透明にする
-    noteContainer.alpha = 0.85;
+    // 全体を半透明にする
+    noteContainer.alpha = 0.9;
     
     return noteContainer;
   }
