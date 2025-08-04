@@ -441,8 +441,16 @@ export const useFantasyGameEngine = ({
       const firstNote = prevState.taikoNotes[0];
       const nextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : firstNote;
       
+      // ノーツのヒット状態をリセット（新しいループのため）
+      const resetNotes = prevState.taikoNotes.map(note => ({
+        ...note,
+        isHit: false,
+        isMissed: false
+      }));
+      
       return {
         ...prevState,
+        taikoNotes: resetNotes,
         currentNoteIndex: 0,
         activeMonsters: prevState.activeMonsters.map(m => ({
           ...m,
@@ -637,6 +645,11 @@ export const useFantasyGameEngine = ({
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+
+    // BGMとタイムストアをリセット
+    bgmManager.stop();
+    useTimeStore.getState().reset();
+    useEnemyStore.getState().reset();
 
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;
@@ -1064,7 +1077,11 @@ export const useFantasyGameEngine = ({
         let timeDiff = currentTime - currentNote.hitTime;
         
         // ループ境界の考慮
-        if (timeDiff < -loopDuration / 2) {
+        // 最初のノーツで、現在時刻がループ後半にある場合
+        if (currentNoteIndex === 0 && currentTime > loopDuration - 1) {
+          // 次のループでのヒット時刻として計算
+          timeDiff = currentTime - (currentNote.hitTime + loopDuration);
+        } else if (timeDiff < -loopDuration / 2) {
           timeDiff += loopDuration;
         }
         
@@ -1115,49 +1132,39 @@ export const useFantasyGameEngine = ({
         gauge: Math.min(monster.gauge + incrementRate, 100)
       }));
       
-      // ゲージが満タンになったモンスターをチェック
-      const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
+      // ゲージが満タンになったモンスターをチェック（1体のみ攻撃）
+      let attackProcessed = false;
+      const finalMonsters = updatedMonsters.map(monster => {
+        if (!attackProcessed && monster.gauge >= 100) {
+          attackProcessed = true;
+          
+          console.log('🎲 Found attacking monster:', monster);
+          devLog.debug('💥 モンスターゲージ満タン！攻撃開始', { 
+            monsterId: monster.id,
+            monsterName: monster.name 
+          });
+          
+          // 怒り状態をストアに通知
+          const { setEnrage } = useEnemyStore.getState();
+          setEnrage(monster.id, true);
+          setTimeout(() => setEnrage(monster.id, false), 1500); // 1.5秒後にOFF
+          
+          // 攻撃処理を非同期で実行
+          console.log('🚀 Calling handleEnemyAttack with id:', monster.id);
+          setTimeout(() => handleEnemyAttack(monster.id), 0);
+          
+          // このモンスターのゲージをリセット
+          return { ...monster, gauge: 0 };
+        }
+        return monster;
+      });
       
-      if (attackingMonster) {
-        console.log('🎲 Found attacking monster:', attackingMonster);
-        devLog.debug('💥 モンスターゲージ満タン！攻撃開始', { 
-          monsterId: attackingMonster.id,
-          monsterName: attackingMonster.name 
-        });
-        
-        // 怒り状態をストアに通知
-        const { setEnrage } = useEnemyStore.getState();
-        setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
-        
-        // 攻撃したモンスターのゲージをリセット
-        const resetMonsters = updatedMonsters.map(m => 
-          m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
-        );
-        
-        // 攻撃処理を非同期で実行
-        console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
-        setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
-        
-        const nextState = { 
-          ...prevState, 
-          activeMonsters: resetMonsters,
-          // 互換性のため
-          enemyGauge: 0 
-        };
-        onGameStateChange(nextState);
-        return nextState;
-      } else {
-        const nextState = { 
-          ...prevState, 
-          activeMonsters: updatedMonsters,
-          // 互換性のため（最初のモンスターのゲージを代表値として使用）
-          enemyGauge: updatedMonsters[0]?.gauge || 0 
-        };
-        return nextState;
-      }
+      return {
+        ...prevState,
+        activeMonsters: finalMonsters
+      };
     });
-  }, [handleEnemyAttack, onGameStateChange]);
+  }, [bgmManager, handleEnemyAttack]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
