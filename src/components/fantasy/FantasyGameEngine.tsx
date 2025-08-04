@@ -8,7 +8,6 @@ import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
-import { useTimeStore } from '@/stores/timeStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import * as PIXI from 'pixi.js';
 import { 
@@ -510,16 +509,16 @@ export const useFantasyGameEngine = ({
       });
       
       // 次のノーツインデックス
-      const nextNoteIndex = prevState.currentNoteIndex + 1;
+      let nextNoteIndex = prevState.currentNoteIndex + 1;
+      if (nextNoteIndex >= prevState.taikoNotes.length) {
+        nextNoteIndex = 0;  // ループ
+      }
       
       // 次のノーツ情報（ループ対応）
-      const nextNote = nextNoteIndex < prevState.taikoNotes.length 
-        ? prevState.taikoNotes[nextNoteIndex]
-        : prevState.taikoNotes[0];
+      const nextNote = prevState.taikoNotes[nextNoteIndex];
       
-      const nextNextNote = nextNoteIndex + 1 < prevState.taikoNotes.length
-        ? prevState.taikoNotes[nextNoteIndex + 1]
-        : prevState.taikoNotes[(nextNoteIndex < prevState.taikoNotes.length) ? 1 : 0];
+      const nextNextNoteIndex = nextNoteIndex + 1 >= prevState.taikoNotes.length ? 0 : nextNoteIndex + 1;
+      const nextNextNote = prevState.taikoNotes[nextNextNoteIndex];
       
       // ダメージ計算
       const stage = prevState.currentStage!;
@@ -642,7 +641,7 @@ export const useFantasyGameEngine = ({
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.simultaneousMonsterCount || 1;
+    const simultaneousCount = 1; // 常に1に固定（指示通り）
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -751,7 +750,7 @@ export const useFantasyGameEngine = ({
           stage.bpm || 120,
           stage.timeSignature || 4,
           (chordId) => getChordDefinition(chordId, displayOpts),
-          stage.countInMeasures || 0 // カウントインを渡す
+          0  // countInMeasures=0
         );
       } else if (stage.chordProgression) {
         // 基本版：小節の頭でコード出題
@@ -761,7 +760,7 @@ export const useFantasyGameEngine = ({
           stage.bpm || 120,
           stage.timeSignature || 4,
           (chordId) => getChordDefinition(chordId, displayOpts),
-          stage.countInMeasures || 0 // カウントインを渡す
+          0  // countInMeasures=0
         );
       }
       
@@ -823,14 +822,14 @@ export const useFantasyGameEngine = ({
     onGameStateChange(newState);
 
     /* ===== Ready + 時間ストア開始 ===== */
-    useTimeStore
-      .getState()
-      .setStart(
-        stage.bpm || 120,
-        stage.timeSignature || 4, // デフォルトは4/4拍子
-        stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0
-      );
+    // useTimeStore
+    //   .getState()
+    //   .setStart(
+    //     stage.bpm || 120,
+    //     stage.timeSignature || 4, // デフォルトは4/4拍子
+    //     stage.measureCount ?? 8,
+    //     stage.countInMeasures ?? 0
+    //   );
 
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
@@ -1030,11 +1029,11 @@ export const useFantasyGameEngine = ({
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中はゲージ停止 */
-    const timeState = useTimeStore.getState();
-    if (timeState.startAt &&
-        performance.now() - timeState.startAt < timeState.readyDuration) {
-      return;
-    }
+    // const timeState = useTimeStore.getState(); // 削除
+    // if (timeState.startAt && // 削除
+    //     performance.now() - timeState.startAt < timeState.readyDuration) { // 削除
+    //   return; // 削除
+    // } // 削除
     
     setGameState(prevState => {
       if (!prevState.isGameActive || !prevState.currentStage) {
@@ -1063,9 +1062,13 @@ export const useFantasyGameEngine = ({
         // ミス判定（判定ウィンドウを過ぎた場合）
         let timeDiff = currentTime - currentNote.hitTime;
         
-        // ループ境界の考慮
-        if (timeDiff < -loopDuration / 2) {
-          timeDiff += loopDuration;
+        // ループ境界の考慮（両方向）
+        if (loopDuration > 0) {
+          if (timeDiff < -loopDuration / 2) {
+            timeDiff += loopDuration;
+          } else if (timeDiff > loopDuration / 2) {
+            timeDiff -= loopDuration;
+          }
         }
         
         if (timeDiff > 0.3) { // +300ms以上経過
@@ -1081,14 +1084,11 @@ export const useFantasyGameEngine = ({
           setTimeout(() => handleEnemyAttack(), 0);
           
           // 次のノーツへ進む
-          const nextIndex = currentNoteIndex + 1;
-          const nextNote = nextIndex < prevState.taikoNotes.length 
-            ? prevState.taikoNotes[nextIndex]
-            : prevState.taikoNotes[0];
+          const nextIndex = (currentNoteIndex + 1) % prevState.taikoNotes.length;
           
-          const nextNextNote = (nextIndex + 1) < prevState.taikoNotes.length
-            ? prevState.taikoNotes[nextIndex + 1]
-            : prevState.taikoNotes[(nextIndex < prevState.taikoNotes.length) ? 1 : 0];
+          const nextNote = prevState.taikoNotes[nextIndex];
+          const nextNextIndex = (nextIndex + 1) % prevState.taikoNotes.length;
+          const nextNextNote = prevState.taikoNotes[nextNextIndex];
           
           return {
             ...prevState,

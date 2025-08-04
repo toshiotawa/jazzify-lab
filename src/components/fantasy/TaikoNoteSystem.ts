@@ -69,10 +69,10 @@ export function judgeTimingWindow(
 }
 
 /**
- * 基本版progression用：小節の頭(Beat 1)でコードを配置
- * カウントインを考慮して正しいタイミングを計算
- * @param chordProgression コード進行配列
- * @param measureCount 総小節数
+ * 基本版progression用：各小節の頭拍にコードを配置
+ * カウントインを考慮し、カウントイン後の小節のみノーツを生成
+ * @param chordProgression コード進行の配列
+ * @param measureCount 総小節数（カウントインを除く）
  * @param bpm BPM
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
@@ -84,7 +84,7 @@ export function generateBasicProgressionNotes(
   bpm: number,
   timeSignature: number,
   getChordDefinition: (chordId: string) => ChordDefinition | null,
-  countInMeasures: number = 0
+  countInMeasures: number = 0  // 未使用（互換性維持）
 ): TaikoNote[] {
   // 入力検証
   if (!chordProgression || chordProgression.length === 0) {
@@ -105,23 +105,21 @@ export function generateBasicProgressionNotes(
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  const countInDuration = countInMeasures * secPerMeasure; // カウントインの総時間
   
-  // カウントイン後の小節のみでノーツを生成
-  for (let measure = 1; measure <= measureCount; measure++) {
-    const chordIndex = (measure - 1) % chordProgression.length;
+  // 出題をM2〜(measureCount-1)に限定（M1と最終小節休み）
+  for (let measure = 2; measure <= measureCount - 1; measure++) {
+    const chordIndex = (measure - 2) % chordProgression.length;  // M2を0番目としてインデックス
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      // カウントイン時間を加算して実際のヒットタイミングを計算
-      const hitTime = countInDuration + (measure - 1) * secPerMeasure;
+      const hitTime = (measure - 1) * secPerMeasure;  // M1の時間を0として計算
       
       notes.push({
         id: `note_${measure}_1`,
         chord,
         hitTime,
-        measure, // 表示用の小節番号（カウントイン後を1とする）
+        measure,
         beat: 1,
         isHit: false,
         isMissed: false
@@ -146,17 +144,17 @@ export function parseChordProgressionData(
   bpm: number,
   timeSignature: number,
   getChordDefinition: (chordId: string) => ChordDefinition | null,
-  countInMeasures: number = 0
+  countInMeasures: number = 0  // 未使用
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  const countInDuration = countInMeasures * secPerMeasure;
+  const countInDuration = 0;  // カウントイン廃止
   
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
     if (chord) {
-      // カウントイン時間を加算
+      // カウントインなしでタイミング計算
       const hitTime = countInDuration + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
@@ -264,27 +262,17 @@ export function judgeTimingWindowWithLoop(
 ): TimingJudgment {
   let diffMs = (currentTime - targetTime) * 1000;
   
-  // ループを考慮した判定
   if (loopDuration !== undefined && loopDuration > 0) {
-    // ループ境界をまたぐ可能性を考慮
-    const halfLoop = loopDuration * 500; // ミリ秒に変換して半分
-    
-    // 時間差が大きすぎる場合、ループを考慮
-    if (diffMs > halfLoop) {
-      // 現在時刻が次のループにいる
-      diffMs -= loopDuration * 1000;
-    } else if (diffMs < -halfLoop) {
-      // ターゲットが次のループにいる
+    const halfLoop = (loopDuration * 1000) / 2;
+    if (diffMs < -halfLoop) {
       diffMs += loopDuration * 1000;
+    } else if (diffMs > halfLoop) {
+      diffMs -= loopDuration * 1000;
     }
   }
   
   if (Math.abs(diffMs) > windowMs) {
-    return {
-      isHit: false,
-      timing: 'miss',
-      timingDiff: diffMs
-    };
+    return { isHit: false, timing: 'miss', timingDiff: diffMs };
   }
   
   let timing: 'early' | 'perfect' | 'late';
@@ -296,11 +284,7 @@ export function judgeTimingWindowWithLoop(
     timing = 'late';
   }
   
-  return {
-    isHit: true,
-    timing,
-    timingDiff: diffMs
-  };
+  return { isHit: true, timing, timingDiff: diffMs };
 }
 
 /**

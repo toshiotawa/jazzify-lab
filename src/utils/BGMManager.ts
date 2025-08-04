@@ -9,7 +9,7 @@ class BGMManager {
   private bpm = 120
   private timeSignature = 4
   private measureCount = 8
-  private countInMeasures = 0
+  private countInMeasures = 0  // カウントイン廃止のため常に0
   private isPlaying = false
   private loopScheduled = false
   private nextLoopTime = 0
@@ -20,7 +20,7 @@ class BGMManager {
     bpm: number,
     timeSig: number,
     measureCount: number,
-    countIn: number,
+    countIn: number,  // 未使用（互換性維持）
     volume = 0.7
   ) {
     if (!url) return
@@ -28,11 +28,11 @@ class BGMManager {
     // 既存のオーディオをクリーンアップ
     this.stop()
     
-    // パラメータを保存
+    // パラメータを保存（カウントイン固定0）
     this.bpm = bpm
     this.timeSignature = timeSig
     this.measureCount = measureCount
-    this.countInMeasures = countIn
+    this.countInMeasures = 0  // 廃止
     
     this.audio = new Audio(url)
     this.audio.preload = 'auto'
@@ -41,8 +41,8 @@ class BGMManager {
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
-    this.loopBegin = countIn * secPerMeas
-    this.loopEnd = (countIn + measureCount) * secPerMeas
+    this.loopBegin = 0  // カウントインなし
+    this.loopEnd = measureCount * secPerMeas
 
     // 初回再生は最初から（カウントインを含む）
     this.audio.currentTime = 0
@@ -156,30 +156,23 @@ class BGMManager {
   
   /**
    * 現在の音楽的時間を取得（秒単位）
-   * カウントイン終了時を0秒とする
+   * 開始時を0秒とする（カウントイン廃止）
    */
   getCurrentMusicTime(): number {
     if (!this.isPlaying || !this.audio) return 0
-    
-    const audioTime = this.audio.currentTime
-    const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
-    
-    // カウントイン後の時間を返す（カウントイン中は負の値）
-    return audioTime - countInDuration
+    return this.audio.currentTime
   }
   
   /**
    * 現在の小節番号を取得（1始まり）
-   * カウントイン中は0を返す
+   * カウントイン廃止のため常に正の値
    */
   getCurrentMeasure(): number {
     const musicTime = this.getCurrentMusicTime()
-    if (musicTime < 0) return 0 // カウントイン中
-    
     const secPerMeasure = (60 / this.bpm) * this.timeSignature
     const measure = Math.floor(musicTime / secPerMeasure) + 1
     
-    // ループを考慮
+    // ループを考慮（1〜measureCountの範囲）
     return ((measure - 1) % this.measureCount) + 1
   }
   
@@ -189,9 +182,9 @@ class BGMManager {
   getCurrentBeat(): number {
     if (!this.isPlaying) return 1
     
-    const audioTime = this.audio?.currentTime || 0
+    const musicTime = this.getCurrentMusicTime()
     const secPerBeat = 60 / this.bpm
-    const totalBeats = Math.floor(audioTime / secPerBeat)
+    const totalBeats = Math.floor(musicTime / secPerBeat)
     const beatInMeasure = (totalBeats % this.timeSignature) + 1
     return beatInMeasure
   }
@@ -210,6 +203,13 @@ class BGMManager {
   }
   
   /**
+   * カウントイン中かどうか（廃止のため常にfalse）
+   */
+  getIsCountIn(): boolean {
+    return false
+  }
+  
+  /**
    * 指定した小節・拍の時刻を取得（秒単位）
    * @param measure 小節番号（1始まり）
    * @param beat 拍番号（1始まり、小数可）
@@ -217,10 +217,9 @@ class BGMManager {
   getMusicTimeAt(measure: number, beat: number): number {
     const secPerBeat = 60 / this.bpm
     const secPerMeasure = secPerBeat * this.timeSignature
-    const countInDuration = this.countInMeasures * secPerMeasure
     
-    // カウントイン + 指定小節までの時間 + 拍の時間
-    return countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
+    // 指定小節までの時間 + 拍の時間（カウントインなし）
+    return (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
   }
   
   /**
@@ -279,7 +278,7 @@ class BGMManager {
    * カウントイン小節数を取得
    */
   getCountInMeasures(): number {
-    return this.countInMeasures
+    return 0  // 廃止のため常に0
   }
 }
 
