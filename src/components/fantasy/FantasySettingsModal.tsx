@@ -111,9 +111,10 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     
     // BGM音量即時反映
     if (key === 'bgmVolume') {
-      import('@/utils/BGMManager').then(({ bgmManager }) =>
-        bgmManager.setVolume(value)
-      );
+                import('@/utils/BGMManager').then((module) => {
+            const bgmManager = module.default.getInstance();
+            bgmManager.setVolume(value);
+          });
     }
   };
 

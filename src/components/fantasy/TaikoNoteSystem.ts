@@ -70,21 +70,19 @@ export function judgeTimingWindow(
 
 /**
  * 基本版progression用：小節の頭(Beat 1)でコードを配置
- * カウントインを考慮して正しいタイミングを計算
+ * M1は常に休みとして、M2から問題を出題
  * @param chordProgression コード進行配列
  * @param measureCount 総小節数
  * @param bpm BPM
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
- * @param countInMeasures カウントイン小節数
  */
 export function generateBasicProgressionNotes(
   chordProgression: string[],
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null,
-  countInMeasures: number = 0
+  getChordDefinition: (chordId: string) => ChordDefinition | null
 ): TaikoNote[] {
   // 入力検証
   if (!chordProgression || chordProgression.length === 0) {
@@ -105,23 +103,22 @@ export function generateBasicProgressionNotes(
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  const countInDuration = countInMeasures * secPerMeasure; // カウントインの総時間
   
-  // カウントイン後の小節のみでノーツを生成
-  for (let measure = 1; measure <= measureCount; measure++) {
-    const chordIndex = (measure - 1) % chordProgression.length;
+  // M2から開始（M1は休み）
+  for (let measure = 2; measure <= measureCount; measure++) {
+    const chordIndex = (measure - 2) % chordProgression.length; // M2を0番目として扱う
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      // カウントイン時間を加算して実際のヒットタイミングを計算
-      const hitTime = countInDuration + (measure - 1) * secPerMeasure;
+      // M1を休みとして、M2から実際のヒットタイミングを計算
+      const hitTime = (measure - 1) * secPerMeasure;
       
       notes.push({
         id: `note_${measure}_1`,
         chord,
         hitTime,
-        measure, // 表示用の小節番号（カウントイン後を1とする）
+        measure, // 実際の小節番号（M2, M3, ...）
         beat: 1,
         isHit: false,
         isMissed: false
@@ -134,45 +131,41 @@ export function generateBasicProgressionNotes(
 
 /**
  * 拡張版progression用：chord_progression_dataのJSONを解析
- * カウントインを考慮
+ * M1は常に休みとして扱う
  * @param progressionData JSON配列
  * @param bpm BPM
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
- * @param countInMeasures カウントイン小節数
  */
 export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null,
-  countInMeasures: number = 0
+  getChordDefinition: (chordId: string) => ChordDefinition | null
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  const countInDuration = countInMeasures * secPerMeasure;
   
   progressionData.forEach((item, index) => {
+    // M1（小節1）はスキップ
+    if (item.bar === 1) return;
+    
     const chord = getChordDefinition(item.chord);
     if (chord) {
-      // カウントイン時間を加算
-      const hitTime = countInDuration + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
         id: `note_${item.bar}_${item.beats}_${index}`,
         chord,
         hitTime,
-        measure: item.bar, // 表示用の小節番号
+        measure: item.bar,
         beat: item.beats,
         isHit: false,
         isMissed: false
       });
     }
   });
-  
-  // 時間順にソート
-  notes.sort((a, b) => a.hitTime - b.hitTime);
   
   return notes;
 }
