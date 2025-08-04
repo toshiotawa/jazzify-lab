@@ -435,6 +435,12 @@ export const useFantasyGameEngine = ({
     
     // ループ時の処理：全てのノーツを処理済みでループした場合
     if (currentNoteIndex >= prevState.taikoNotes.length) {
+      // bgmManagerの存在チェック
+      if (typeof bgmManager === 'undefined' || !bgmManager) {
+        devLog.debug('⚠️ bgmManager is not available');
+        return prevState;
+      }
+      
       const currentTime = bgmManager.getCurrentMusicTime();
       const firstNote = prevState.taikoNotes[0];
       
@@ -449,6 +455,13 @@ export const useFantasyGameEngine = ({
     }
     
     const currentNote = prevState.taikoNotes[currentNoteIndex];
+    
+    // bgmManagerの存在チェック
+    if (typeof bgmManager === 'undefined' || !bgmManager) {
+      devLog.debug('⚠️ bgmManager is not available');
+      return prevState;
+    }
+    
     const currentTime = bgmManager.getCurrentMusicTime();
     const judgment = judgeTimingWindow(currentTime, currentNote.hitTime);
     
@@ -1022,6 +1035,12 @@ export const useFantasyGameEngine = ({
       
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
+        // bgmManagerの存在チェック
+        if (typeof bgmManager === 'undefined' || !bgmManager) {
+          devLog.debug('⚠️ bgmManager is not available in checkTaikoMiss');
+          return prevState;
+        }
+        
         const currentTime = bgmManager.getCurrentMusicTime();
         let currentNoteIndex = prevState.currentNoteIndex;
         

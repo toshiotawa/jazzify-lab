@@ -580,6 +580,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       lastTime = timestamp;
       
+      // bgmManagerの存在チェック
+      if (typeof bgmManager === 'undefined' || !bgmManager) {
+        devLog.debug('⚠️ bgmManager is not available in updateTaikoNotes');
+        animationFrameId = requestAnimationFrame(updateTaikoNotes);
+        return;
+      }
+      
       const currentTime = bgmManager.getCurrentMusicTime();
       const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
