@@ -497,8 +497,23 @@ export const useFantasyGameEngine = ({
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
       
-      // 次のノーツへ進む
-      const nextNoteIndex = prevState.currentNoteIndex + 1;
+      // 次のノーツへ進む（ループ対応）
+      const nextNoteIndexRaw = prevState.currentNoteIndex + 1;
+      const nextNoteIndex = nextNoteIndexRaw % prevState.taikoNotes.length;
+      const isNewLoop = nextNoteIndex === 0;
+
+      // ノート状態を更新（ヒットフラグ & ループ時のリセット）
+      const updatedTaikoNotes = prevState.taikoNotes.map((n, idx) => {
+        if (idx === prevState.currentNoteIndex) {
+          // 今ヒットしたノート
+          return { ...n, isHit: true, isMissed: false };
+        }
+        if (isNewLoop) {
+          // 新しいループ開始時にフラグをリセット
+          return { ...n, isHit: false, isMissed: false };
+        }
+        return n;
+      });
       
       // モンスター更新
       const updatedMonsters = prevState.activeMonsters.map(m => {
@@ -560,6 +575,7 @@ export const useFantasyGameEngine = ({
           monsterQueue: newMonsterQueue,
           playerSp: newSp,
           currentNoteIndex: nextNoteIndex,
+          taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated
@@ -571,6 +587,7 @@ export const useFantasyGameEngine = ({
         activeMonsters: updatedMonsters,
         playerSp: newSp,
         currentNoteIndex: nextNoteIndex,
+        taikoNotes: updatedTaikoNotes,
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage
       };
@@ -1001,10 +1018,27 @@ export const useFantasyGameEngine = ({
           // 敵の攻撃を発動
           handleEnemyAttack();
           
-          // 次のノーツへ進む
+          // 次のノーツへ進む（ループ対応）
+          const nextNoteIndexRaw = prevState.currentNoteIndex + 1;
+          const nextNoteIndex = nextNoteIndexRaw % prevState.taikoNotes.length;
+          const isNewLoop = nextNoteIndex === 0;
+
+          const updatedTaikoNotes = prevState.taikoNotes.map((n, idx) => {
+            if (idx === prevState.currentNoteIndex) {
+              // 今ミスしたノート
+              return { ...n, isMissed: true };
+            }
+            if (isNewLoop) {
+              // ループ開始時にフラグをリセット
+              return { ...n, isHit: false, isMissed: false };
+            }
+            return n;
+          });
+
           return {
             ...prevState,
-            currentNoteIndex: prevState.currentNoteIndex + 1,
+            currentNoteIndex: nextNoteIndex,
+            taikoNotes: updatedTaikoNotes,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
