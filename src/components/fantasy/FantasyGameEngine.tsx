@@ -69,6 +69,7 @@ interface MonsterState {
   correctNotes: number[]; // このモンスター用の正解済み音
   icon: string;
   name: string;
+  processed?: boolean; // 処理済みフラグ（多段ヒット防止用）
 }
 
 interface FantasyGameState {
@@ -105,6 +106,7 @@ interface FantasyGameState {
   isTaikoMode: boolean; // 太鼓の達人モードかどうか
   taikoNotes: any[]; // 太鼓の達人用のノーツ配列
   currentNoteIndex: number; // 現在判定中のノーツインデックス
+  lastInputTime: number; // 最後の入力時刻（多段ヒット防止用）
 }
 
 interface FantasyGameEngineProps {
@@ -424,13 +426,21 @@ export const useFantasyGameEngine = ({
     // 太鼓の達人モード用
     isTaikoMode: false,
     taikoNotes: [],
-    currentNoteIndex: 0
+    currentNoteIndex: 0,
+    lastInputTime: 0
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
+    // デバウンスチェック（100ms以内の連続入力を防ぐ）
+    const now = performance.now();
+    if (now - prevState.lastInputTime < 100) {
+      devLog.debug('🚫 太鼓の達人：入力デバウンス中');
+      return prevState;
+    }
+    
     if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
       // すべてのノーツ処理済み
       return prevState;
@@ -562,7 +572,8 @@ export const useFantasyGameEngine = ({
           currentNoteIndex: nextNoteIndex,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
-          enemiesDefeated: newEnemiesDefeated
+          enemiesDefeated: newEnemiesDefeated,
+          lastInputTime: now
         };
       }
       
@@ -572,7 +583,8 @@ export const useFantasyGameEngine = ({
         playerSp: newSp,
         currentNoteIndex: nextNoteIndex,
         correctAnswers: prevState.correctAnswers + 1,
-        score: prevState.score + 100 * actualDamage
+        score: prevState.score + 100 * actualDamage,
+        lastInputTime: now
       };
     } else {
       // まだコード未完成、構成音を記録
@@ -588,7 +600,8 @@ export const useFantasyGameEngine = ({
       
       return {
         ...prevState,
-        activeMonsters: updatedMonsters
+        activeMonsters: updatedMonsters,
+        lastInputTime: now
       };
     }
   }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
@@ -709,6 +722,7 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0,
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       } else if (stage.chordProgression) {
@@ -718,6 +732,7 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0,
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       }
@@ -760,7 +775,8 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モード用
       isTaikoMode,
       taikoNotes,
-      currentNoteIndex: 0
+      currentNoteIndex: 0,
+      lastInputTime: 0
     };
 
     setGameState(newState);
@@ -884,6 +900,11 @@ export const useFantasyGameEngine = ({
       } else {
         // HP減少して次の問題へ（回答数ベース、ループ対応）
         const isComplete = prevState.correctAnswers >= prevState.totalQuestions;
+        
+        // 太鼓モードでループする場合に備えて状態を保存
+        if (prevState.isTaikoMode) {
+          bgmManager.saveLastState(newHp, prevState.enemyGauge);
+        }
         
         if (isComplete) {
           // 必要な回答数に到達済みでHP残りありならクリア
@@ -1320,8 +1341,32 @@ export const useFantasyGameEngine = ({
     };
   }, []);
   
+  // BGMループイベントの処理（太鼓モード）
+  useEffect(() => {
+    if (gameState.isTaikoMode && gameState.isGameActive) {
+      const handleLoop = () => {
+        devLog.debug('🎵 BGMループイベント発生');
+        const savedState = bgmManager.restoreLastState();
+        if (savedState) {
+          setGameState(prevState => ({
+            ...prevState,
+            playerHp: savedState.hp,
+            enemyGauge: savedState.gauge
+          }));
+          devLog.debug('🔄 ループ時の状態復元:', savedState);
+        }
+      };
+      
+      bgmManager.setOnLoop(handleLoop);
+      
+      return () => {
+        bgmManager.setOnLoop(null);
+      };
+    }
+  }, [gameState.isTaikoMode, gameState.isGameActive]);
 
   
+
   return {
     gameState,
     handleNoteInput,
