@@ -11,6 +11,23 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private animationFrameId: number | null = null  // 追加
+  
+  // 高精度ループチェック用のメソッドを追加
+  private checkLoop = () => {
+    if (!this.audio || !this.isPlaying) return
+    
+    const currentTime = this.audio.currentTime
+    if (currentTime >= this.loopEnd) {
+      // ループポイントを超えた分を計算
+      const overflow = currentTime - this.loopEnd
+      // オーバーフロー分を考慮してループ開始位置に戻す
+      this.audio.currentTime = this.loopBegin + overflow
+    }
+    
+    // 次のフレームでも継続
+    this.animationFrameId = requestAnimationFrame(this.checkLoop)
+  }
 
   play(
     url: string,
@@ -46,8 +63,22 @@ class BGMManager {
     // timeupdate イベントハンドラを保存
     this.timeUpdateHandler = () => {
       if (!this.audio) return
-      if (this.audio.currentTime >= this.loopEnd) {
-        // ループ時はカウントイン後から再生
+      
+      // より正確なループ処理
+      const currentTime = this.audio.currentTime
+      const remainingTime = this.loopEnd - currentTime
+      
+      // ループポイントに近づいたら、より頻繁にチェック
+      if (remainingTime < 0.1 && remainingTime > 0) {
+        // 10ms後に再チェック
+        setTimeout(() => {
+          if (this.audio && this.audio.currentTime >= this.loopEnd) {
+            // ループ時はカウントイン後から再生
+            this.audio.currentTime = this.loopBegin
+          }
+        }, 10)
+      } else if (currentTime >= this.loopEnd) {
+        // 既にループポイントを超えている場合は即座にループ
         this.audio.currentTime = this.loopBegin
       }
     }
@@ -58,7 +89,10 @@ class BGMManager {
     this.startTime = performance.now()
     this.isPlaying = true
     
-    this.audio.play().catch((error) => {
+    this.audio.play().then(() => {
+      // 再生開始後、高精度ループチェックを開始
+      this.animationFrameId = requestAnimationFrame(this.checkLoop)
+    }).catch((error) => {
       console.warn('BGM playback failed:', error)
       this.isPlaying = false
     })
@@ -72,6 +106,13 @@ class BGMManager {
 
   stop() {
     this.isPlaying = false
+    
+    // アニメーションフレームをキャンセル
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId)
+      this.animationFrameId = null
+    }
+    
     if (this.audio) {
       if (this.timeUpdateHandler) {
         this.audio.removeEventListener('timeupdate', this.timeUpdateHandler)
