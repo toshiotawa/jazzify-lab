@@ -105,7 +105,6 @@ export function generateBasicProgressionNotes(
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  const countInDuration = countInMeasures * secPerMeasure; // カウントインの総時間
   
   // カウントイン後の小節のみでノーツを生成
   for (let measure = 1; measure <= measureCount; measure++) {
@@ -115,7 +114,7 @@ export function generateBasicProgressionNotes(
     
     if (chord) {
       // カウントイン時間を加算して実際のヒットタイミングを計算
-      const hitTime = countInDuration + (measure - 1) * secPerMeasure;
+      const hitTime = (measure - 1) * secPerMeasure;
       
       notes.push({
         id: `note_${measure}_1`,
@@ -151,13 +150,12 @@ export function parseChordProgressionData(
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  const countInDuration = countInMeasures * secPerMeasure;
   
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
     if (chord) {
       // カウントイン時間を加算
-      const hitTime = countInDuration + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
         id: `note_${item.bar}_${item.beats}_${index}`,
@@ -257,50 +255,21 @@ export function parseSimpleProgressionText(text: string): ChordProgressionDataIt
  * @param loopDuration ループの総時間（秒）
  */
 export function judgeTimingWindowWithLoop(
-  currentTime: number,
-  targetTime: number,
-  windowMs: number = 300,
-  loopDuration?: number
+  current: number,
+  target: number,
+  win = 300,
+  loop?: number
 ): TimingJudgment {
-  let diffMs = (currentTime - targetTime) * 1000;
-  
-  // ループを考慮した判定
-  if (loopDuration !== undefined && loopDuration > 0) {
-    // ループ境界をまたぐ可能性を考慮
-    const halfLoop = loopDuration * 500; // ミリ秒に変換して半分
-    
-    // 時間差が大きすぎる場合、ループを考慮
-    if (diffMs > halfLoop) {
-      // 現在時刻が次のループにいる
-      diffMs -= loopDuration * 1000;
-    } else if (diffMs < -halfLoop) {
-      // ターゲットが次のループにいる
-      diffMs += loopDuration * 1000;
-    }
+  let diff = (current - target) * 1000
+  if (loop) {
+    if (diff >  loop * 500) diff -= loop * 1000
+    if (diff < -loop * 500) diff += loop * 1000
   }
-  
-  if (Math.abs(diffMs) > windowMs) {
-    return {
-      isHit: false,
-      timing: 'miss',
-      timingDiff: diffMs
-    };
-  }
-  
-  let timing: 'early' | 'perfect' | 'late';
-  if (Math.abs(diffMs) <= 50) {
-    timing = 'perfect';
-  } else if (diffMs < 0) {
-    timing = 'early';
-  } else {
-    timing = 'late';
-  }
-  
-  return {
-    isHit: true,
-    timing,
-    timingDiff: diffMs
-  };
+  if (Math.abs(diff) > win)
+    return { isHit:false, timing:'miss', timingDiff:diff }
+  const timing =
+    Math.abs(diff) <= 50 ? 'perfect' : diff < 0 ? 'early' : 'late'
+  return { isHit:true, timing, timingDiff:diff }
 }
 
 /**

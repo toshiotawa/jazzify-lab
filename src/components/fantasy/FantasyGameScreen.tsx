@@ -108,7 +108,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.bpm || 120,
         stage.timeSignature || 4,
         stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0,
+        0,
         settings.bgmVolume ?? 0.7
       );
     } else {
@@ -543,7 +543,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // ループ情報を事前計算
     const stage = gameState.currentStage!;
     const loopDuration = stage.measureCount * (60 / stage.bpm) * stage.timeSignature;
-    const countInDuration = (stage.countInMeasures || 0) * (60 / stage.bpm) * stage.timeSignature;
+    const countInDuration = 0;
     
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御

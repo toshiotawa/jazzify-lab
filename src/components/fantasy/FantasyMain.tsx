@@ -107,7 +107,7 @@ const FantasyMain: React.FC = () => {
             bpm: stage.bpm || 120,
             bgmUrl: stage.bgm_url || stage.mp3_url,
             measureCount: stage.measure_count,
-            countInMeasures: stage.count_in_measures,
+            countInMeasures: 0,
             timeSignature: stage.time_signature
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
@@ -391,7 +391,7 @@ const FantasyMain: React.FC = () => {
         simultaneousMonsterCount: nextStageData.simultaneous_monster_count || 1,
         bpm: nextStageData.bpm || 120,
         measureCount: nextStageData.measure_count,
-        countInMeasures: nextStageData.count_in_measures,
+                      countInMeasures: 0,
         timeSignature: nextStageData.time_signature
       };
 

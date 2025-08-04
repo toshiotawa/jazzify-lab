@@ -169,7 +169,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
         bpm: stage.bpm || 120,
         measureCount: stage.measure_count,
-        countInMeasures: stage.count_in_measures,
+                      countInMeasures: 0,
         timeSignature: stage.time_signature
       }));
       
