@@ -571,13 +571,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     const updateTaikoNotes = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
-      const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
+      
+      // ループ時間を計算
+      const loopDuration = stage.measureCount ? 
+        (stage.measureCount * (stage.timeSignature || 4) * 60 / (stage.bpm || 120)) : 
+        undefined;
+      
+      // ループ時間をmodで正規化
+      const normalizedTime = loopDuration ? currentTime % loopDuration : currentTime;
+      
+      const visibleNotes = getVisibleNotes(gameState.taikoNotes, normalizedTime, 3, loopDuration);
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       
       const notesData = visibleNotes.map(note => ({
         id: note.id,
         chord: note.chord.displayName,
-        x: calculateNotePosition(note, currentTime, judgeLinePos.x)
+        x: calculateNotePosition(note, normalizedTime, judgeLinePos.x)
       }));
       
       fantasyPixiInstance.updateTaikoNotes(notesData);
