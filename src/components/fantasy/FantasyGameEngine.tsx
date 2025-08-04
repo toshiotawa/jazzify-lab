@@ -709,6 +709,7 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0, // カウントイン小節数を追加
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       } else if (stage.chordProgression) {
@@ -718,6 +719,7 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0, // カウントイン小節数を追加
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       }

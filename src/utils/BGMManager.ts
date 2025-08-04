@@ -11,6 +11,8 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private audioContext: AudioContext | null = null // AudioContext for high-precision timing
+  private audioStartTime = 0 // AudioContext時間での開始時刻
 
   play(
     url: string,
@@ -30,6 +32,11 @@ class BGMManager {
     this.timeSignature = timeSig
     this.measureCount = measureCount
     this.countInMeasures = countIn
+    
+    // AudioContextを作成（高精度タイミング用）
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    }
     
     this.audio = new Audio(url)
     this.audio.volume = volume
@@ -56,6 +63,7 @@ class BGMManager {
     
     // 再生開始時刻を記録
     this.startTime = performance.now()
+    this.audioStartTime = this.audioContext.currentTime
     this.isPlaying = true
     
     this.audio.play().catch((error) => {
@@ -81,6 +89,7 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    // AudioContextはそのまま保持（使い回すため）
   }
   
   // タイミング管理用の新しいメソッド
@@ -92,7 +101,22 @@ class BGMManager {
   getCurrentMusicTime(): number {
     if (!this.isPlaying || !this.audio) return 0
     
-    const audioTime = this.audio.currentTime
+    // AudioContextが利用可能な場合は高精度タイマーを使用
+    let audioTime: number
+    if (this.audioContext && this.audioStartTime > 0) {
+      const elapsed = this.audioContext.currentTime - this.audioStartTime
+      // ループを考慮
+      if (elapsed >= this.loopEnd) {
+        const loopDuration = this.loopEnd - this.loopBegin
+        const loopsCompleted = Math.floor((elapsed - this.loopBegin) / loopDuration)
+        audioTime = this.loopBegin + ((elapsed - this.loopBegin) % loopDuration)
+      } else {
+        audioTime = elapsed
+      }
+    } else {
+      audioTime = this.audio.currentTime
+    }
+    
     const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
     
     // カウントイン中は負の値を返す
@@ -148,8 +172,11 @@ class BGMManager {
     const secPerMeasure = secPerBeat * this.timeSignature
     const countInDuration = this.countInMeasures * secPerMeasure
     
+    // ループに対応: measureをループ内の小節番号に変換
+    const measureInLoop = ((measure - 1) % this.measureCount)
+    
     // カウントイン + 指定小節までの時間 + 拍の時間
-    return countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
+    return countInDuration + measureInLoop * secPerMeasure + (beat - 1) * secPerBeat
   }
   
   /**

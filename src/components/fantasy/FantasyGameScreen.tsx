@@ -581,12 +581,31 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }));
       
       fantasyPixiInstance.updateTaikoNotes(notesData);
+      
+      // ループ処理: BGMが終端に達したかチェック
+      const loopEnd = (stage.measureCount || 8) * (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
+      const loopBegin = 0; // カウントイン後から
+      
+      if (currentTime >= loopEnd && gameState.isGameActive) {
+        // ループ時に状態を維持（correctNotesなどはリセットしない）
+        devLog.debug('🔄 太鼓の達人モード: ループ処理実行', { currentTime, loopEnd });
+        
+        // ノーツの状態をリセット（ヒット/ミス状態をクリア）
+        const resetNotes = gameState.taikoNotes.map(note => ({
+          ...note,
+          isHit: false,
+          isMissed: false
+        }));
+        
+        // ゲーム状態を更新（状態は維持）
+        engineHandleNoteInput(0); // ダミー入力でゲーム状態を更新トリガー
+      }
     };
     
     const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
     
     return () => clearInterval(intervalId);
-  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.isGameActive, fantasyPixiInstance, stage, engineHandleNoteInput]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -648,11 +667,48 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    // 太鼓の達人モードの場合
+    if (gameState.isTaikoMode && gameState.taikoNotes.length > 0) {
+      const currentTime = bgmManager.getCurrentMusicTime();
+      const lookAheadTime = 3; // 3秒先を見る
+      
+      // 現在時刻から見て次に来るノーツを探す
+      const futureNotes = gameState.taikoNotes.filter(note => {
+        const timeUntilHit = note.hitTime - currentTime;
+        return timeUntilHit > 0 && timeUntilHit <= lookAheadTime && !note.isHit;
+      });
+      
+      if (futureNotes.length > 0) {
+        return futureNotes[0].chord.displayName;
+      }
+      
+      // ループ時: 最後まで到達したら最初のノーツを表示
+      const loopDuration = (stage.measureCount || 8) * (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
+      if (currentTime >= loopDuration - lookAheadTime) {
+        // ループ後の最初のノーツを探す
+        const firstNote = gameState.taikoNotes.find(note => !note.isHit);
+        if (firstNote) {
+          return `${firstNote.chord.displayName} (ループ)`;
+        }
+      }
+    }
     
-    const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
-    return stage.chordProgression[nextIndex];
-  }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
+    // 従来のコード進行モード
+    if (stage.mode === 'progression' && stage.chordProgression) {
+      const progression = stage.chordProgression;
+      const currentIndex = gameState.currentQuestionIndex % progression.length;
+      const nextIndex = (currentIndex + 1) % progression.length;
+      
+      // ループ境界の判定
+      if (nextIndex === 0 && currentIndex === progression.length - 1) {
+        return `${progression[nextIndex]} (ループ)`;
+      }
+      
+      return progression[nextIndex];
+    }
+    
+    return null;
+  }, [stage, gameState, bgmManager]);
   
   // SPゲージ表示
   const renderSpGauge = useCallback((sp: number) => {
@@ -942,7 +998,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
+        {getNextChord() && (
           <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">

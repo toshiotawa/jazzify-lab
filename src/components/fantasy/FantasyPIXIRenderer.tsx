@@ -2144,7 +2144,8 @@ export class FantasyPIXIInstance {
     } else if (newState === 'GONE') {
       devLog.debug('💀 モンスター完全消滅、親コンポーネントに通知', {
         hasCallback: !!this.onDefeated,
-        isDestroyed: this.isDestroyed
+        isDestroyed: this.isDestroyed,
+        hasMonsterDefeated: !!this.onMonsterDefeated
       });
 
       /* ✨ 追加 ✨ : モンスターが去ったらエフェクトを全部掃除 */
@@ -2155,17 +2156,26 @@ export class FantasyPIXIInstance {
         }
       });
 
-      // 親コンポーネント通知の直前で片付け
-      this.monsterSprite.visible = false;
-      // 二度アクセスしない様に null‑out
-      (this.monsterSprite as any) = null;
-      (this.monsterGameState as any) = null;
-      
-      // 親コンポーネントに通知
-      // isDestroyedフラグをチェックして、インスタンス破棄後のコールバック呼び出しを防ぐ
-      if (!this.isDestroyed) {
-        this.onDefeated?.();
-      } 
+      // マルチモンスターモードの場合は、個別のモンスター削除のみ
+      if (this.onMonsterDefeated) {
+        // モンスター撃破通知を送信（状態機械対応）
+        if (!this.isDestroyed) {
+          this.onMonsterDefeated();
+        }
+      } else {
+        // 従来の単体モンスターモード
+        // 親コンポーネント通知の直前で片付け
+        this.monsterSprite.visible = false;
+        // 二度アクセスしない様に null‑out
+        (this.monsterSprite as any) = null;
+        (this.monsterGameState as any) = null;
+        
+        // 親コンポーネントに通知
+        // isDestroyedフラグをチェックして、インスタンス破棄後のコールバック呼び出しを防ぐ
+        if (!this.isDestroyed) {
+          this.onDefeated?.();
+        }
+      }
     }
   }
   
