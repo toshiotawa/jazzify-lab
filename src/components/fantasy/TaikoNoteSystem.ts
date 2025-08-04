@@ -74,25 +74,30 @@ export function judgeTimingWindow(
  * @param measureCount 総小節数
  * @param bpm BPM
  * @param timeSignature 拍子
+ * @param countInMeasures カウントイン小節数（追加）
  */
 export function generateBasicProgressionNotes(
   chordProgression: string[],
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0 // カウントイン小節数を追加
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   
+  // カウントイン後の小節のみでノーツを生成
   for (let measure = 1; measure <= measureCount; measure++) {
     const chordIndex = (measure - 1) % chordProgression.length;
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      const hitTime = (measure - 1) * secPerMeasure + 0; // 小節の頭（Beat 1 = 0秒目）
+      // カウントインを考慮せず、メイン部分の時間で計算
+      // measure 1 = 0秒（カウントイン終了時）
+      const hitTime = (measure - 1) * secPerMeasure;
       
       notes.push({
         id: `note_${measure}_1`,
@@ -114,12 +119,14 @@ export function generateBasicProgressionNotes(
  * @param progressionData JSON配列
  * @param bpm BPM
  * @param timeSignature 拍子
+ * @param countInMeasures カウントイン小節数（追加）
  */
 export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0 // カウントイン小節数を追加
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
@@ -128,18 +135,25 @@ export function parseChordProgressionData(
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
     if (chord) {
-      // bar（小節）とbeats（拍）から実際の時刻を計算
-      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      // カウントイン後の小節番号に調整
+      // item.bar がカウントインを含む場合、それを差し引く
+      const actualBar = item.bar - countInMeasures;
       
-      notes.push({
-        id: `note_${item.bar}_${item.beats}_${index}`,
-        chord,
-        hitTime,
-        measure: item.bar,
-        beat: item.beats,
-        isHit: false,
-        isMissed: false
-      });
+      // カウントイン中のノーツは除外
+      if (actualBar > 0) {
+        // actualBar（カウントイン後の小節）を基準に時刻を計算
+        const hitTime = (actualBar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+        
+        notes.push({
+          id: `note_${actualBar}_${item.beats}_${index}`,
+          chord,
+          hitTime,
+          measure: actualBar, // カウントイン後の小節番号を記録
+          beat: item.beats,
+          isHit: false,
+          isMissed: false
+        });
+      }
     }
   });
   

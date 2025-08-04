@@ -11,6 +11,7 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private countInDuration = 0 // カウントインの総時間（秒）を追加
 
   play(
     url: string,
@@ -37,6 +38,7 @@ class BGMManager {
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
+    this.countInDuration = countIn * secPerMeas // カウントインの総時間を保存
     this.loopBegin = countIn * secPerMeas
     this.loopEnd = (countIn + measureCount) * secPerMeas
 
@@ -93,7 +95,7 @@ class BGMManager {
     if (!this.isPlaying || !this.audio) return 0
     
     const audioTime = this.audio.currentTime
-    const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+    const countInDuration = this.countInDuration
     
     // カウントイン中は負の値を返す
     return audioTime - countInDuration
@@ -146,7 +148,7 @@ class BGMManager {
   getMusicTimeAt(measure: number, beat: number): number {
     const secPerBeat = 60 / this.bpm
     const secPerMeasure = secPerBeat * this.timeSignature
-    const countInDuration = this.countInMeasures * secPerMeasure
+    const countInDuration = this.countInDuration
     
     // カウントイン + 指定小節までの時間 + 拍の時間
     return countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat

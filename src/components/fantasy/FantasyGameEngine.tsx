@@ -431,12 +431,24 @@ export const useFantasyGameEngine = ({
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
-    if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
-      // すべてのノーツ処理済み
-      return prevState;
+    let currentNoteIndex = prevState.currentNoteIndex;
+    
+    // ループ時の処理：全てのノーツを処理済みでループした場合
+    if (currentNoteIndex >= prevState.taikoNotes.length) {
+      const currentTime = bgmManager.getCurrentMusicTime();
+      const firstNote = prevState.taikoNotes[0];
+      
+      if (firstNote && currentTime < firstNote.hitTime - 1) {
+        // ループしたと判断、インデックスをリセット
+        currentNoteIndex = 0;
+        devLog.debug('🔄 太鼓の達人入力：ループ検出、インデックスリセット');
+      } else {
+        // まだループしていない場合は処理をスキップ
+        return prevState;
+      }
     }
     
-    const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
+    const currentNote = prevState.taikoNotes[currentNoteIndex];
     const currentTime = bgmManager.getCurrentMusicTime();
     const judgment = judgeTimingWindow(currentTime, currentNote.hitTime);
     
@@ -457,8 +469,27 @@ export const useFantasyGameEngine = ({
     const targetNotesMod12 = [...new Set(currentNote.chord.notes.map(n => n % 12))];
     
     if (!targetNotesMod12.includes(noteMod12)) {
-      // 構成音ではない
-      return prevState;
+      // 構成音ではない - ミス判定として扱う
+      devLog.debug('❌ 太鼓の達人：構成音外の入力', {
+        input: noteMod12,
+        expected: targetNotesMod12
+      });
+      
+      // 敵の攻撃を発動
+      handleEnemyAttack();
+      
+      // 次のノーツへ進む
+      const nextNoteIndex = currentNoteIndex + 1;
+      
+      return {
+        ...prevState,
+        currentNoteIndex: nextNoteIndex,
+        activeMonsters: prevState.activeMonsters.map(m => ({
+          ...m,
+          correctNotes: [],
+          gauge: 0
+        }))
+      };
     }
     
     // 現在のモンスターの正解済み音を更新
@@ -498,7 +529,7 @@ export const useFantasyGameEngine = ({
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
       
       // 次のノーツへ進む
-      const nextNoteIndex = prevState.currentNoteIndex + 1;
+      const nextNoteIndex = currentNoteIndex + 1;
       
       // モンスター更新
       const updatedMonsters = prevState.activeMonsters.map(m => {
@@ -709,7 +740,8 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
+          (chordId) => getChordDefinition(chordId, displayOpts),
+          stage.countInMeasures || 0 // カウントイン小節数を追加
         );
       } else if (stage.chordProgression) {
         // 基本版：小節の頭でコード出題
@@ -718,13 +750,15 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
+          (chordId) => getChordDefinition(chordId, displayOpts),
+          stage.countInMeasures || 0 // カウントイン小節数を追加
         );
       }
       
       devLog.debug('🥁 太鼓の達人モード初期化:', {
         noteCount: taikoNotes.length,
-        firstNote: taikoNotes[0]
+        firstNote: taikoNotes[0],
+        countInMeasures: stage.countInMeasures || 0
       });
     }
 
@@ -989,7 +1023,21 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
-        const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
+        let currentNoteIndex = prevState.currentNoteIndex;
+        
+        // ループ時の処理：全てのノーツを処理済みでループした場合
+        if (currentNoteIndex >= prevState.taikoNotes.length) {
+          // 音楽がループした場合（時間が戻った場合）、インデックスをリセット
+          const firstNote = prevState.taikoNotes[0];
+          if (firstNote && currentTime < firstNote.hitTime - 1) {
+            // ループしたと判断
+            currentNoteIndex = 0;
+            devLog.debug('🔄 太鼓の達人：ループ検出、インデックスリセット');
+          }
+        }
+        
+        // 現在のノーツを取得
+        const currentNote = prevState.taikoNotes[currentNoteIndex];
         
         if (currentNote && currentTime > currentNote.hitTime + 0.3) {
           // 判定時間を過ぎた（+300ms以上）
@@ -1002,14 +1050,29 @@ export const useFantasyGameEngine = ({
           handleEnemyAttack();
           
           // 次のノーツへ進む
+          const nextIndex = currentNoteIndex + 1;
+          
+          // 最後のノーツに到達した場合、ループに備える
+          if (nextIndex >= prevState.taikoNotes.length) {
+            devLog.debug('🔄 太鼓の達人：最後のノーツに到達、ループ待機');
+          }
+          
           return {
             ...prevState,
-            currentNoteIndex: prevState.currentNoteIndex + 1,
+            currentNoteIndex: nextIndex,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
               gauge: 0
             }))
+          };
+        }
+        
+        // インデックスが変更された場合のみ更新
+        if (currentNoteIndex !== prevState.currentNoteIndex) {
+          return {
+            ...prevState,
+            currentNoteIndex
           };
         }
         
