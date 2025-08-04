@@ -153,37 +153,48 @@ export function parseChordProgressionData(
  * 現在の時間で表示すべきノーツを取得
  * @param notes 全ノーツ
  * @param currentTime 現在の音楽時間（秒）
+ * @param loopDuration トラックのループ時間（秒）
  * @param lookAheadTime 先読み時間（秒）デフォルト3秒
  */
 export function getVisibleNotes(
   notes: TaikoNote[],
   currentTime: number,
+  loopDuration: number,
   lookAheadTime: number = 3
 ): TaikoNote[] {
   return notes.filter(note => {
     // 既にヒットまたはミスしたノーツは表示しない
     if (note.isHit || note.isMissed) return false;
     
-    // 現在時刻から lookAheadTime 秒先までのノーツを表示
-    const timeUntilHit = note.hitTime - currentTime;
+    // 可視判定にループを考慮する。
+    let timeUntilHit = note.hitTime - currentTime;
+    if (timeUntilHit < -0.5) {
+      // ループを跨ぐ場合は 1 周分進める
+      timeUntilHit += loopDuration;
+    }
     return timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime;
   });
 }
 
 /**
- * ノーツの画面上のX位置を計算（太鼓の達人風）
+ * ノーツの画面上のX位置を計算（太鼓の達人風、ループ対応版）
  * @param note ノーツ
  * @param currentTime 現在の音楽時間（秒）
  * @param judgeLineX 判定ラインのX座標
+ * @param loopDuration トラックのループ時間（秒）
  * @param speed ノーツの移動速度（ピクセル/秒）
  */
 export function calculateNotePosition(
   note: TaikoNote,
   currentTime: number,
   judgeLineX: number,
+  loopDuration: number,
   speed: number = 300
 ): number {
-  const timeUntilHit = note.hitTime - currentTime;
+  let timeUntilHit = note.hitTime - currentTime;
+  if (timeUntilHit < -0.5) {
+    timeUntilHit += loopDuration;
+  }
   return judgeLineX + timeUntilHit * speed;
 }
 

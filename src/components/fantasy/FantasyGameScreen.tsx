@@ -571,13 +571,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     const updateTaikoNotes = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
-      const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
+      const loopDuration = (stage.measureCount ?? 8) * (60 / stage.bpm) * (stage.timeSignature ?? 4);
+      const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime, loopDuration);
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       
       const notesData = visibleNotes.map(note => ({
         id: note.id,
         chord: note.chord.displayName,
-        x: calculateNotePosition(note, currentTime, judgeLinePos.x)
+        x: calculateNotePosition(note, currentTime, judgeLinePos.x, loopDuration)
       }));
       
       fantasyPixiInstance.updateTaikoNotes(notesData);
@@ -586,7 +587,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
     
     return () => clearInterval(intervalId);
-  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance, stage.measureCount, stage.bpm, stage.timeSignature]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
