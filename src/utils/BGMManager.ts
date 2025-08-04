@@ -11,6 +11,7 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private loopCount = 0  // ループ回数を追跡
 
   play(
     url: string,
@@ -30,6 +31,7 @@ class BGMManager {
     this.timeSignature = timeSig
     this.measureCount = measureCount
     this.countInMeasures = countIn
+    this.loopCount = 0
     
     this.audio = new Audio(url)
     this.audio.volume = volume
@@ -49,6 +51,7 @@ class BGMManager {
       if (this.audio.currentTime >= this.loopEnd) {
         // ループ時はカウントイン後から再生
         this.audio.currentTime = this.loopBegin
+        this.loopCount++
       }
     }
     
@@ -94,9 +97,12 @@ class BGMManager {
     
     const audioTime = this.audio.currentTime
     const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+    const loopDuration = this.measureCount * (60 / this.bpm) * this.timeSignature
     
-    // カウントイン中は負の値を返す
-    return audioTime - countInDuration
+    // ループ回数分の時間を加算して、全体の音楽的時間を計算
+    const totalMusicTime = audioTime - countInDuration + (this.loopCount * loopDuration)
+    
+    return totalMusicTime
   }
   
   /**

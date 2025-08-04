@@ -74,17 +74,20 @@ export function judgeTimingWindow(
  * @param measureCount 総小節数
  * @param bpm BPM
  * @param timeSignature 拍子
+ * @param countInMeasures カウントイン小節数
  */
 export function generateBasicProgressionNotes(
   chordProgression: string[],
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
+  const countInDuration = countInMeasures * secPerMeasure;
   
   for (let measure = 1; measure <= measureCount; measure++) {
     const chordIndex = (measure - 1) % chordProgression.length;
@@ -92,7 +95,8 @@ export function generateBasicProgressionNotes(
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      const hitTime = (measure - 1) * secPerMeasure + 0; // 小節の頭（Beat 1 = 0秒目）
+      // カウントイン時間を加算して、音楽的な0秒（カウントイン終了時）からの時間を計算
+      const hitTime = countInDuration + (measure - 1) * secPerMeasure;
       
       notes.push({
         id: `note_${measure}_1`,
@@ -114,22 +118,26 @@ export function generateBasicProgressionNotes(
  * @param progressionData JSON配列
  * @param bpm BPM
  * @param timeSignature 拍子
+ * @param countInMeasures カウントイン小節数
  */
 export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
+  const countInDuration = countInMeasures * secPerMeasure;
   
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
     if (chord) {
       // bar（小節）とbeats（拍）から実際の時刻を計算
-      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      // カウントイン時間を加算
+      const hitTime = countInDuration + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
         id: `note_${item.bar}_${item.beats}_${index}`,
@@ -150,40 +158,80 @@ export function parseChordProgressionData(
 }
 
 /**
- * 現在の時間で表示すべきノーツを取得
+ * 現在の時間で表示すべきノーツを取得（ループ対応版）
  * @param notes 全ノーツ
  * @param currentTime 現在の音楽時間（秒）
  * @param lookAheadTime 先読み時間（秒）デフォルト3秒
+ * @param loopDuration ループの長さ（秒）。ループする場合に指定
  */
 export function getVisibleNotes(
   notes: TaikoNote[],
   currentTime: number,
-  lookAheadTime: number = 3
+  lookAheadTime: number = 3,
+  loopDuration?: number
 ): TaikoNote[] {
   return notes.filter(note => {
     // 既にヒットまたはミスしたノーツは表示しない
     if (note.isHit || note.isMissed) return false;
     
+    let timeUntilHit = note.hitTime - currentTime;
+    
+    // ループ処理がある場合
+    if (loopDuration && loopDuration > 0) {
+      // 現在の位置をループ内での位置に正規化
+      const currentPosInLoop = currentTime % loopDuration;
+      const notePosInLoop = note.hitTime % loopDuration;
+      
+      // 基本的な時間差
+      timeUntilHit = notePosInLoop - currentPosInLoop;
+      
+      // ループ境界を越える場合の処理
+      if (timeUntilHit < -loopDuration / 2) {
+        // ノーツが次のループにある場合
+        timeUntilHit += loopDuration;
+      } else if (timeUntilHit > loopDuration / 2) {
+        // ノーツが前のループにある場合
+        timeUntilHit -= loopDuration;
+      }
+    }
+    
     // 現在時刻から lookAheadTime 秒先までのノーツを表示
-    const timeUntilHit = note.hitTime - currentTime;
     return timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime;
   });
 }
 
 /**
- * ノーツの画面上のX位置を計算（太鼓の達人風）
+ * ノーツの画面上のX位置を計算（太鼓の達人風、ループ対応版）
  * @param note ノーツ
  * @param currentTime 現在の音楽時間（秒）
  * @param judgeLineX 判定ラインのX座標
  * @param speed ノーツの移動速度（ピクセル/秒）
+ * @param loopDuration ループの長さ（秒）。ループする場合に指定
  */
 export function calculateNotePosition(
   note: TaikoNote,
   currentTime: number,
   judgeLineX: number,
-  speed: number = 300
+  speed: number = 300,
+  loopDuration?: number
 ): number {
-  const timeUntilHit = note.hitTime - currentTime;
+  let timeUntilHit = note.hitTime - currentTime;
+  
+  // ループ処理がある場合
+  if (loopDuration && loopDuration > 0) {
+    const currentPosInLoop = currentTime % loopDuration;
+    const notePosInLoop = note.hitTime % loopDuration;
+    
+    timeUntilHit = notePosInLoop - currentPosInLoop;
+    
+    // ループ境界を越える場合の処理
+    if (timeUntilHit < -loopDuration / 2) {
+      timeUntilHit += loopDuration;
+    } else if (timeUntilHit > loopDuration / 2) {
+      timeUntilHit -= loopDuration;
+    }
+  }
+  
   return judgeLineX + timeUntilHit * speed;
 }
 
