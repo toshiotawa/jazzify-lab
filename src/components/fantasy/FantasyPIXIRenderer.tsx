@@ -10,6 +10,7 @@ import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
+import BGMManager from '@/utils/BGMManager';
 
 // ===== 型定義 =====
 
@@ -2042,36 +2043,44 @@ export class FantasyPIXIInstance {
   destroy(): void {
     this.isDestroyed = true;
     
+    // BGMマネージャーの停止
+    const bgmManager = new BGMManager();
+    bgmManager.stop();
+    
+    // モンスタースプライトのクリーンアップ
+    for (const [id, data] of this.monsterSprites) {
+      if (data.outline) data.outline.destroy();
+      if (data.angerMark) data.angerMark.destroy();
+      data.sprite.destroy();
+    }
+    this.monsterSprites.clear();
+    
+    // 太鼓ノーツのクリーンアップ
+    this.activeNotes.forEach(note => {
+      note.destroy();
+    });
+    this.activeNotes.clear();
+    
+    // 魔法陣のクリーンアップ
+    this.magicCircles.forEach(circle => {
+      if (circle && typeof circle.destroy === 'function' && !circle.destroyed) {
+        try {
+          circle.removeFromParent();
+          circle.destroy();
+        } catch (e) {
+          console.warn('魔法陣削除エラー:', e);
+        }
+      }
+    });
+    this.magicCircles.clear();
+    
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
     
-    // マルチモンスターのクリーンアップ時に怒りエフェクトも削除
-    this.monsterSprites.forEach(data => {
-      if (data.outline) data.outline.destroy();
-      if (data.angerMark) data.angerMark.destroy();
-      data.sprite.destroy();
-    });
-    this.monsterSprites.clear();
-    
     // エフェクトの安全な削除
     try {
-      this.magicCircles.forEach((circle, id) => {
-        try {
-          if (circle && typeof circle.destroy === 'function' && !circle.destroyed) {
-            if (circle.parent) {
-              circle.parent.removeChild(circle);
-            }
-            circle.destroy();
-          }
-        } catch (error) {
-          devLog.debug(`⚠️ 魔法陣削除エラー ${id}:`, error);
-        }
-      });
-      this.magicCircles.clear();
-      this.magicCircleData.clear();
-      
       this.damageNumbers.forEach((text, id) => {
         try {
           if (text && typeof text.destroy === 'function' && !text.destroyed) {

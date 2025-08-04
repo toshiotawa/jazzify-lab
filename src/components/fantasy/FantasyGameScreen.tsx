@@ -712,6 +712,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [autoStart, initializeGame, stage]);
 
+  // ステージ初期化時の処理
+  useEffect(() => {
+    if (stage) {
+      devLog.debug('🎮 ファンタジーゲーム画面: ステージ初期化', { stage: stage.name });
+      
+      // PIXIレンダラーが存在する場合、太鼓ノーツをクリア
+      if (fantasyPixiInstance && fantasyPixiInstance.updateTaikoNotes) {
+        fantasyPixiInstance.updateTaikoNotes([]);
+      }
+      
+      initializeGame(stage);
+    }
+  }, [stage?.id]); // stage.id でのみ再初期化
+
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
