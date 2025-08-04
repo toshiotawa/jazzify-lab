@@ -11,6 +11,9 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private loopScheduled = false
+  private nextLoopTime = 0
+  private loopTimeoutId: number | null = null // タイムアウトIDを保持
 
   play(
     url: string,
@@ -32,7 +35,8 @@ class BGMManager {
     this.countInMeasures = countIn
     
     this.audio = new Audio(url)
-    this.audio.volume = volume
+    this.audio.preload = 'auto'
+    this.audio.volume = Math.max(0, Math.min(1, volume))
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -43,12 +47,31 @@ class BGMManager {
     // 初回再生は最初から（カウントインを含む）
     this.audio.currentTime = 0
     
-    // timeupdate イベントハンドラを保存
+    // エラーハンドリング
+    this.audio.addEventListener('error', this.handleError)
+    this.audio.addEventListener('ended', this.handleEnded)
+    
+    // timeupdate イベントハンドラを保存（より精密なループ処理）
     this.timeUpdateHandler = () => {
-      if (!this.audio) return
-      if (this.audio.currentTime >= this.loopEnd) {
-        // ループ時はカウントイン後から再生
-        this.audio.currentTime = this.loopBegin
+      if (!this.audio || !this.isPlaying) return
+      
+      const currentTime = this.audio.currentTime
+      const timeToEnd = this.loopEnd - currentTime
+      
+      // ループの事前スケジューリング（100ms前に準備）
+      if (timeToEnd < 0.1 && timeToEnd > 0 && !this.loopScheduled) {
+        this.loopScheduled = true
+        this.nextLoopTime = this.loopBegin
+        
+        // タイムアウトIDを保持
+        this.loopTimeoutId = window.setTimeout(() => {
+          if (this.audio && this.isPlaying) {
+            this.audio.currentTime = this.nextLoopTime
+            console.log(`🔄 BGM Loop (scheduled): → ${this.nextLoopTime.toFixed(2)}s`)
+          }
+          this.loopScheduled = false
+          this.loopTimeoutId = null
+        }, Math.max(0, timeToEnd * 1000 - 50)) // 50ms早めに実行
       }
     }
     
@@ -58,10 +81,18 @@ class BGMManager {
     this.startTime = performance.now()
     this.isPlaying = true
     
-    this.audio.play().catch((error) => {
-      console.warn('BGM playback failed:', error)
-      this.isPlaying = false
-    })
+    // 再生開始
+    const playPromise = this.audio.play()
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log('🎵 BGM再生開始:', { url, bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd })
+        })
+        .catch((error) => {
+          console.warn('BGM playback failed:', error)
+          this.isPlaying = false
+        })
+    }
   }
 
   setVolume(v: number) {
@@ -72,14 +103,52 @@ class BGMManager {
 
   stop() {
     this.isPlaying = false
+    this.loopScheduled = false
+    
+    // タイムアウトのクリア
+    if (this.loopTimeoutId !== null) {
+      clearTimeout(this.loopTimeoutId)
+      this.loopTimeoutId = null
+    }
+    
     if (this.audio) {
+      // イベントリスナーの削除
       if (this.timeUpdateHandler) {
         this.audio.removeEventListener('timeupdate', this.timeUpdateHandler)
         this.timeUpdateHandler = null
       }
-      this.audio.pause()
-      this.audio.src = ''
+      
+      // その他のイベントリスナーも削除
+      this.audio.removeEventListener('ended', this.handleEnded)
+      this.audio.removeEventListener('error', this.handleError)
+      
+      // オーディオの停止と解放
+      try {
+        this.audio.pause()
+        this.audio.currentTime = 0
+        this.audio.src = '' // srcをクリアしてメモリを解放
+        this.audio.load() // 明示的にリソースを解放
+      } catch (e) {
+        console.warn('Audio cleanup error:', e)
+      }
+      
       this.audio = null
+    }
+    
+    console.log('🔇 BGM停止・クリーンアップ完了')
+  }
+  
+  // エラーハンドリング
+  private handleError = (e: Event) => {
+    console.error('BGM playback error:', e)
+    this.isPlaying = false
+  }
+  
+  // 終了ハンドリング
+  private handleEnded = () => {
+    if (this.loopEnd > 0) {
+      this.audio!.currentTime = this.loopBegin
+      this.audio!.play().catch(console.error)
     }
   }
   
@@ -95,7 +164,7 @@ class BGMManager {
     const audioTime = this.audio.currentTime
     const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
     
-    // カウントイン中は負の値を返す
+    // カウントイン後の時間を返す（カウントイン中は負の値）
     return audioTime - countInDuration
   }
   
@@ -108,8 +177,10 @@ class BGMManager {
     if (musicTime < 0) return 0 // カウントイン中
     
     const secPerMeasure = (60 / this.bpm) * this.timeSignature
-    const measure = Math.floor(musicTime / secPerMeasure) % this.measureCount + 1
-    return measure
+    const measure = Math.floor(musicTime / secPerMeasure) + 1
+    
+    // ループを考慮
+    return ((measure - 1) % this.measureCount) + 1
   }
   
   /**
@@ -165,6 +236,18 @@ class BGMManager {
   }
   
   /**
+   * 次のループまでの時間を取得（ミリ秒）
+   */
+  getTimeToLoop(): number {
+    if (!this.isPlaying || !this.audio) return Infinity
+    
+    const currentTime = this.audio.currentTime
+    const timeToEnd = this.loopEnd - currentTime
+    
+    return timeToEnd > 0 ? timeToEnd * 1000 : 0
+  }
+  
+  /**
    * 音楽再生中かどうか
    */
   getIsPlaying(): boolean {
@@ -183,6 +266,20 @@ class BGMManager {
    */
   getTimeSignature(): number {
     return this.timeSignature
+  }
+  
+  /**
+   * 総小節数を取得
+   */
+  getMeasureCount(): number {
+    return this.measureCount
+  }
+  
+  /**
+   * カウントイン小節数を取得
+   */
+  getCountInMeasures(): number {
+    return this.countInMeasures
   }
 }
 
