@@ -428,6 +428,14 @@ export const useFantasyGameEngine = ({
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+
+  /**
+   * BGM がループしたかどうかを検出するための前回音楽時間
+   * ・ bgmManager.getCurrentMusicTime() はカウントイン終了時を 0 とし、
+   *   ループ後は再び 0 付近から始まる。
+   * ・ currentTime が前回より十分小さくなった場合にループが発生したとみなす。
+   */
+  const lastMusicTimeRef = useRef<number>(0);
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
@@ -595,6 +603,8 @@ export const useFantasyGameEngine = ({
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
+    // ループ検知用タイマーをリセット
+    lastMusicTimeRef.current = 0;
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
 
     // 新しいステージ定義から値を取得
@@ -986,9 +996,43 @@ export const useFantasyGameEngine = ({
         return prevState;
       }
       
-      // 太鼓の達人モードの場合は専用のミス判定を行う
+      // 太鼓の達人モードの場合はループ検知とミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
+
+        /*
+         * ループ検出：
+         * 直前の音楽時間より 50ms 以上小さい値になった場合、
+         * オーディオが loopEnd → loopBegin に巻き戻ったと判断。
+         */
+        if (lastMusicTimeRef.current - currentTime > 0.05) {
+          devLog.debug('🔁 BGM loop detected – resetting Taiko state');
+
+          // nextState を返して setState
+          const resetState: FantasyGameState = {
+            ...prevState,
+            currentNoteIndex: 0,
+            // ノーツのヒット／ミス状態をクリア
+            taikoNotes: prevState.taikoNotes.map(n => ({
+              ...n,
+              isHit: false,
+              isMissed: false
+            })),
+            // 各モンスターの正解音をリセット（HP やゲージは維持）
+            activeMonsters: prevState.activeMonsters.map(m => ({
+              ...m,
+              correctNotes: [],
+              gauge: 0
+            }))
+          };
+
+          lastMusicTimeRef.current = currentTime;
+          return resetState;
+        }
+
+        // 前回値を更新（ミス判定より前に）
+        lastMusicTimeRef.current = currentTime;
+ 
         const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
         
         if (currentNote && currentTime > currentNote.hitTime + 0.3) {
