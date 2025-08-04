@@ -554,6 +554,7 @@ export class FantasyPIXIInstance {
   
   /**
    * アクティブなモンスター配列に基づいてスプライトを更新
+   * ループ時にモンスターを維持するため、状態のコピーを行う
    */
   async updateActiveMonsters(monsters: GameMonsterState[]): Promise<void> {
     if (this.isDestroyed) return;
@@ -562,13 +563,16 @@ export class FantasyPIXIInstance {
     
     const currentIds = new Set(monsters.map(m => m.id));
     
-    // 削除されたモンスターをクリーンアップ
-    for (const [id, monsterData] of this.monsterSprites) {
-      if (!currentIds.has(id)) {
-        if (monsterData.sprite && !monsterData.sprite.destroyed) {
-            monsterData.sprite.destroy();
+    // 削除されたモンスターをクリーンアップ（ループ時は削除しない）
+    const isLooping = bgmManager.getCurrentMusicTime() < 0.1 && bgmManager.getIsPlaying();
+    if (!isLooping) {
+      for (const [id, monsterData] of this.monsterSprites) {
+        if (!currentIds.has(id)) {
+          if (monsterData.sprite && !monsterData.sprite.destroyed) {
+              monsterData.sprite.destroy();
+          }
+          this.monsterSprites.delete(id);
         }
-        this.monsterSprites.delete(id);
       }
     }
     

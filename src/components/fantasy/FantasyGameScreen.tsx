@@ -569,6 +569,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
     
+    let animationFrameId: number;
+    
     const updateTaikoNotes = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
       const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
@@ -581,11 +583,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }));
       
       fantasyPixiInstance.updateTaikoNotes(notesData);
+      
+      // requestAnimationFrameでスムーズな更新
+      animationFrameId = requestAnimationFrame(updateTaikoNotes);
     };
     
-    const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
+    // 初回実行
+    animationFrameId = requestAnimationFrame(updateTaikoNotes);
     
-    return () => clearInterval(intervalId);
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
