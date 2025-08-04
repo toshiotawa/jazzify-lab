@@ -536,6 +536,33 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
     
+    // ゲームが非アクティブでも初期ノーツを表示
+    if (!gameState.isGameActive && !bgmManager.getIsPlaying()) {
+      // 初期状態のノーツを表示
+      const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
+      const lookAheadTime = 4; // 4秒先まで表示
+      const noteSpeed = 400; // ピクセル/秒
+      const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+      
+      // 最初の数個のノーツを表示
+      const maxInitialNotes = Math.min(3, gameState.taikoNotes.length);
+      for (let i = 0; i < maxInitialNotes; i++) {
+        const note = gameState.taikoNotes[i];
+        const timeUntilHit = note.hitTime; // カウントイン込みの時間
+        if (timeUntilHit <= lookAheadTime) {
+          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          notesToDisplay.push({
+            id: note.id,
+            chord: note.chord.displayName,
+            x
+          });
+        }
+      }
+      
+      fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+      return;
+    }
+    
     let animationId: number;
     let lastUpdateTime = 0;
     const updateInterval = 1000 / 60; // 60fps
@@ -615,7 +642,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         cancelAnimationFrame(animationId);
       }
     };
-  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage]);
+  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage, gameState.isGameActive]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
