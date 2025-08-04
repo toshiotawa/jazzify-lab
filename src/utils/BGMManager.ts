@@ -11,6 +11,9 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private lastState: { hp: number; gauge: number } | null = null
+  private offset = 0
+  private onLoopCallback: (() => void) | null = null
 
   play(
     url: string,
@@ -49,6 +52,10 @@ class BGMManager {
       if (this.audio.currentTime >= this.loopEnd) {
         // ループ時はカウントイン後から再生
         this.audio.currentTime = this.loopBegin
+        // ループイベントを発火
+        if (this.onLoopCallback) {
+          this.onLoopCallback()
+        }
       }
     }
     
@@ -81,6 +88,8 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    this.lastState = null
+    this.onLoopCallback = null
   }
   
   // タイミング管理用の新しいメソッド
@@ -96,7 +105,7 @@ class BGMManager {
     const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
     
     // カウントイン中は負の値を返す
-    return audioTime - countInDuration
+    return audioTime - countInDuration - this.offset
   }
   
   /**
@@ -183,6 +192,34 @@ class BGMManager {
    */
   getTimeSignature(): number {
     return this.timeSignature
+  }
+
+  /**
+   * 状態を保存（ループ時に使用）
+   */
+  saveLastState(hp: number, gauge: number): void {
+    this.lastState = { hp, gauge }
+  }
+
+  /**
+   * 保存された状態を取得
+   */
+  restoreLastState(): { hp: number; gauge: number } | null {
+    return this.lastState
+  }
+
+  /**
+   * タイミングオフセットを設定（ラグ調整用）
+   */
+  setOffset(offset: number): void {
+    this.offset = offset
+  }
+
+  /**
+   * ループ時のコールバックを設定
+   */
+  setOnLoop(callback: () => void): void {
+    this.onLoopCallback = callback
   }
 }
 

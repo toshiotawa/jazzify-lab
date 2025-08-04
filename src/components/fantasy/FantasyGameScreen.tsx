@@ -569,6 +569,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
     
+    // ラグ調整用のオフセット設定（必要に応じて調整）
+    bgmManager.setOffset(0);
+    
     const updateTaikoNotes = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
       const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
