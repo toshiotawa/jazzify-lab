@@ -11,13 +11,16 @@ import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
-import { TaikoNote, getVisibleNotes, calculateNotePosition } from './TaikoNoteSystem';
+import { TaikoNote, getVisibleNotes, calculateNotePosition, getVirtualHitTime } from './TaikoNoteSystem';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+// import { DAMAGE_CONFIG, COMBAT_FEEDBACK } from './FantasyGameSettings';
+// import { StateMachine, GameStateType } from './FantasyStateMachine';
+// import type { GameState } from './FantasyGameEngine';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -466,39 +469,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [handleNoteInputBridge, stage.showGuide]);
 
-  // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
-  useEffect(() => {
-    const linkMidiAndPixi = async () => {
-      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-        
-        // 1. 鍵盤ハイライト用のコールバックを設定
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRenderer.highlightKey(note, active);
-          if (active) {
-            pixiRenderer.triggerKeyPressEffect(note);
-          }
-        });
-        
-        // 2. デバイスに再接続して、設定したコールバックを有効化
-        devLog.debug(`🔧 Fantasy: Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        if (success) {
-          devLog.debug('✅ Fantasy: MIDI device successfully linked to renderer.');
-        } else {
-          devLog.debug('⚠️ Fantasy: Failed to link MIDI device to renderer.');
-        }
-      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-        // デバイス選択が解除された場合は切断
-        midiControllerRef.current.disconnect();
-        devLog.debug('🔌 Fantasy: MIDIデバイス切断');
-      }
-    };
-
-    linkMidiAndPixi();
-    
-  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
-
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
@@ -565,28 +535,33 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
   
-  // 太鼓の達人モードのノーツ表示更新
+  // 太鼓の達人モードのノーツ表示更新（requestAnimationFrame駆動）
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
-    
-    const updateTaikoNotes = () => {
-      const currentTime = bgmManager.getCurrentMusicTime();
-      const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
-      const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
-      
-      const notesData = visibleNotes.map(note => ({
-        id: note.id,
-        chord: note.chord.displayName,
-        x: calculateNotePosition(note, currentTime, judgeLinePos.x)
+
+    let rafId: number;
+    const loopLen = bgmManager.getLoopLength();
+
+    const tick = () => {
+      const phaseTime = bgmManager.getPhaseTime();
+      const loopIdx = bgmManager.getLoopIndex();
+      const judgePos = fantasyPixiInstance.getJudgeLinePosition();
+
+      const notesWithLoop = gameState.taikoNotes.map(n => ({
+        id: `${n.id}_${loopIdx}`,               // 衝突しないユニークID
+        chord: n.chord.displayName,
+        x: calculateNotePosition(
+              { ...n, hitTime: getVirtualHitTime(n, loopIdx, loopLen) },
+              phaseTime,
+              judgePos.x
+            )
       }));
-      
-      fantasyPixiInstance.updateTaikoNotes(notesData);
+      fantasyPixiInstance.updateTaikoNotes(notesWithLoop);
+      rafId = requestAnimationFrame(tick);
     };
-    
-    const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
-    
-    return () => clearInterval(intervalId);
-  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+    tick();
+    return () => cancelAnimationFrame(rafId);
+  }, [fantasyPixiInstance, gameState.taikoNotes, gameState.isTaikoMode]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
