@@ -11,6 +11,9 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private loopScheduled = false
+  private nextLoopTime = 0
+  private loopTimeoutId: number | null = null
 
   play(
     url: string,
@@ -54,7 +57,30 @@ class BGMManager {
     
     this.audio.addEventListener('timeupdate', this.timeUpdateHandler)
     
-    // 再生開始時刻を記録
+    // ループ終了時の処理
+    this.audio.addEventListener('timeupdate', () => {
+      if (!this.audio) return
+      
+      const currentTime = this.audio.currentTime
+      const timeToEnd = this.loopEnd - currentTime
+      
+      // ループの事前スケジューリング（100ms前に準備）
+      if (timeToEnd < 0.1 && timeToEnd > 0 && !this.loopScheduled) {
+        this.loopScheduled = true
+        this.nextLoopTime = this.loopBegin
+        
+        // Web Audio APIを使用した精密なタイミング制御
+        this.loopTimeoutId = window.setTimeout(() => {
+          if (this.audio && this.isPlaying) {
+            this.audio.currentTime = this.nextLoopTime
+            this.loopScheduled = false
+            // devLog.debug(`🔄 BGM Loop (scheduled): → ${this.nextLoopTime.toFixed(2)}s`) // devLog is not defined
+          }
+          this.loopTimeoutId = null
+        }, Math.max(0, timeToEnd * 1000 - 50)) // 50ms早めに実行
+      }
+    })
+    
     this.startTime = performance.now()
     this.isPlaying = true
     
@@ -72,18 +98,27 @@ class BGMManager {
 
   stop() {
     this.isPlaying = false
+    this.loopScheduled = false
+    
+    // タイムアウトのクリア
+    if (this.loopTimeoutId !== null) {
+      clearTimeout(this.loopTimeoutId)
+      this.loopTimeoutId = null
+    }
+    
     if (this.audio) {
+      this.audio.pause()
+      this.audio.currentTime = 0
+      
       if (this.timeUpdateHandler) {
         this.audio.removeEventListener('timeupdate', this.timeUpdateHandler)
         this.timeUpdateHandler = null
       }
-      this.audio.pause()
-      this.audio.src = ''
+      
       this.audio = null
     }
+    console.log('🔇 BGM停止')
   }
-  
-  // タイミング管理用の新しいメソッド
   
   /**
    * 現在の音楽的時間を取得（秒単位）
@@ -183,6 +218,18 @@ class BGMManager {
    */
   getTimeSignature(): number {
     return this.timeSignature
+  }
+
+  /**
+   * 次のループまでの時間を取得（ミリ秒）
+   */
+  getTimeToLoop(): number {
+    if (!this.isPlaying || !this.audio) return Infinity
+    
+    const currentTime = this.audio.currentTime
+    const timeToEnd = this.loopEnd - currentTime
+    
+    return timeToEnd > 0 ? timeToEnd * 1000 : 0
   }
 }
 
