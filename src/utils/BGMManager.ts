@@ -11,6 +11,8 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private pausedTime = 0  // 一時停止時の音楽時間
+  private audioCtx: AudioContext | null = null  // AudioContext追加
 
   play(
     url: string,
@@ -58,6 +60,9 @@ class BGMManager {
     this.startTime = performance.now()
     this.isPlaying = true
     
+    // AudioContextで同期強化
+    this.audioCtx = new AudioContext()
+
     this.audio.play().catch((error) => {
       console.warn('BGM playback failed:', error)
       this.isPlaying = false
@@ -81,6 +86,27 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    if (this.audioCtx) {
+      this.audioCtx.close()
+      this.audioCtx = null
+    }
+  }
+
+  pause() {
+    if (this.audio && this.isPlaying) {
+      this.pausedTime = this.getCurrentMusicTime()
+      this.audio.pause()
+      this.isPlaying = false
+    }
+  }
+
+  resume() {
+    if (this.audio && !this.isPlaying) {
+      this.audio.currentTime = this.pausedTime + this.loopBegin  // ループ考慮
+      this.audio.play()
+      this.startTime = performance.now() - (this.pausedTime * 1000)
+      this.isPlaying = true
+    }
   }
   
   // タイミング管理用の新しいメソッド
@@ -90,9 +116,9 @@ class BGMManager {
    * カウントイン終了時を0秒とする
    */
   getCurrentMusicTime(): number {
-    if (!this.isPlaying || !this.audio) return 0
+    if (!this.isPlaying || !this.audio || !this.audioCtx) return 0
     
-    const audioTime = this.audio.currentTime
+    const audioTime = this.audioCtx.currentTime
     const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
     
     // カウントイン中は負の値を返す
@@ -118,7 +144,7 @@ class BGMManager {
   getCurrentBeat(): number {
     if (!this.isPlaying) return 1
     
-    const audioTime = this.audio?.currentTime || 0
+    const audioTime = this.audioCtx?.currentTime || 0
     const secPerBeat = 60 / this.bpm
     const totalBeats = Math.floor(audioTime / secPerBeat)
     const beatInMeasure = (totalBeats % this.timeSignature) + 1
@@ -130,9 +156,9 @@ class BGMManager {
    * 例: 4/4拍子で2拍目の真ん中なら2.5
    */
   getCurrentBeatPosition(): number {
-    if (!this.isPlaying || !this.audio) return 0
+    if (!this.isPlaying || !this.audioCtx) return 0
     
-    const audioTime = this.audio.currentTime
+    const audioTime = this.audioCtx.currentTime
     const secPerBeat = 60 / this.bpm
     const beatPosition = (audioTime / secPerBeat) % this.timeSignature
     return beatPosition
@@ -156,9 +182,9 @@ class BGMManager {
    * 次の拍タイミングまでの時間を取得（ミリ秒）
    */
   getTimeToNextBeat(): number {
-    if (!this.isPlaying || !this.audio) return 0
+    if (!this.isPlaying || !this.audioCtx) return 0
     
-    const audioTime = this.audio.currentTime
+    const audioTime = this.audioCtx.currentTime
     const secPerBeat = 60 / this.bpm
     const nextBeatTime = Math.ceil(audioTime / secPerBeat) * secPerBeat
     return (nextBeatTime - audioTime) * 1000
