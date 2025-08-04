@@ -431,6 +431,11 @@ export const useFantasyGameEngine = ({
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
+    // ノーツが存在しない場合は何もしない
+    if (prevState.taikoNotes.length === 0) {
+      return prevState;
+    }
+    
     // ループ処理：currentNoteIndexがノーツ配列の長さを超えた場合、リセット
     let adjustedNoteIndex = prevState.currentNoteIndex;
     if (prevState.taikoNotes.length > 0 && adjustedNoteIndex >= prevState.taikoNotes.length) {
@@ -443,11 +448,17 @@ export const useFantasyGameEngine = ({
     }
     
     const currentNote = prevState.taikoNotes[adjustedNoteIndex];
+    if (!currentNote) {
+      // ノーツが存在しない場合は何もしない
+      return prevState;
+    }
+    
     const currentTime = bgmManager.getCurrentMusicTime();
     
     // ループした場合の時間調整
-    const loopDuration = prevState.taikoNotes[prevState.taikoNotes.length - 1].hitTime + 2; // 最後のノーツ + バッファ
-    let adjustedHitTime = currentNote.hitTime;
+    const lastNote = prevState.taikoNotes[prevState.taikoNotes.length - 1];
+    const loopDuration = lastNote ? lastNote.hitTime + 2 : 0; // 最後のノーツ + バッファ
+    let adjustedHitTime = currentNote ? currentNote.hitTime : 0;
     if (currentTime < 0 && adjustedNoteIndex < prevState.currentNoteIndex) {
       // ループして最初に戻った場合
       adjustedHitTime -= loopDuration;
@@ -749,8 +760,23 @@ export const useFantasyGameEngine = ({
       devLog.debug('🥁 太鼓の達人モード初期化:', {
         noteCount: taikoNotes.length,
         firstNote: taikoNotes[0],
-        firstMonsterChord: activeMonsters[0]?.chordTarget?.displayName
+        firstMonsterChord: activeMonsters[0]?.chordTarget?.displayName,
+        stage: {
+          mode: stage.mode,
+          chordProgression: stage.chordProgression,
+          chordProgressionData: stage.chordProgressionData,
+          allowedChords: stage.allowedChords
+        }
       });
+      
+      // ノーツが生成されなかった場合の警告
+      if (taikoNotes.length === 0) {
+        devLog.error('❌ 太鼓の達人モード：ノーツが生成されませんでした', {
+          stage: stage.name,
+          hasChordProgression: !!stage.chordProgression,
+          hasChordProgressionData: !!stage.chordProgressionData
+        });
+      }
     }
 
     const newState: FantasyGameState = {
@@ -1017,6 +1043,11 @@ export const useFantasyGameEngine = ({
         // ループを考慮したインデックス
         const adjustedNoteIndex = prevState.currentNoteIndex % prevState.taikoNotes.length;
         const currentNote = prevState.taikoNotes[adjustedNoteIndex];
+        
+        if (!currentNote) {
+          // ノーツが存在しない場合はスキップ
+          return prevState;
+        }
         
         // ループを考慮した判定時間の計算
         const loopCount = Math.floor(prevState.currentNoteIndex / prevState.taikoNotes.length);
@@ -1367,7 +1398,9 @@ export const useFantasyGameEngine = ({
       
       const secPerMeasure = (60 / stage.bpm) * stage.timeSignature;
       const loopDuration = stage.measureCount * secPerMeasure;
-      const currentLoopCount = Math.floor(gameState.currentNoteIndex / gameState.taikoNotes.length);
+      const currentLoopCount = gameState.taikoNotes.length > 0 
+        ? Math.floor(gameState.currentNoteIndex / gameState.taikoNotes.length) 
+        : 0;
       const expectedLoopCount = Math.floor(currentTime / loopDuration);
       
       // 音楽のループと内部状態のループが同期していない場合
