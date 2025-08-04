@@ -20,7 +20,7 @@ import {
   parseChordProgressionData,
   parseSimpleProgressionText
 } from './TaikoNoteSystem';
-import { bgmManager } from '@/utils/BGMManager';
+import BGMManager from '@/utils/BGMManager';
 
 // ===== 型定義 =====
 
@@ -433,6 +433,16 @@ export const useFantasyGameEngine = ({
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
+    const bgmManager = BGMManager.getInstance();
+    const currentTime = bgmManager.getMusicTime();
+    const currentMeasure = bgmManager.getCurrentMeasure();
+    
+    // M1（休み小節）の間は判定を行わない
+    if (currentMeasure === 1) {
+      devLog.debug('🚫 太鼓の達人：M1（休み小節）のため判定スキップ');
+      return prevState;
+    }
+    
     // 全てのノーツを処理済みでループする場合の処理を追加
     if (prevState.currentNoteIndex >= prevState.taikoNotes.length && prevState.taikoNotes.length > 0) {
       // ループ: 最初に戻る
@@ -457,7 +467,6 @@ export const useFantasyGameEngine = ({
     const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
     if (!currentNote) return prevState;
     
-    const currentTime = bgmManager.getCurrentMusicTime();
     const loopDuration = (prevState.currentStage?.measureCount || 8) * 
                         (60 / (prevState.currentStage?.bpm || 120)) * 
                         (prevState.currentStage?.timeSignature || 4);
@@ -471,7 +480,8 @@ export const useFantasyGameEngine = ({
       timing: judgment.timing,
       timingDiff: judgment.timingDiff,
       currentTime: currentTime.toFixed(3),
-      targetTime: currentNote.hitTime.toFixed(3)
+      targetTime: currentNote.hitTime.toFixed(3),
+      currentMeasure
     });
     
     if (!judgment.isHit) {
@@ -750,8 +760,7 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts),
-          stage.countInMeasures || 0 // カウントインを渡す
+          (chordId) => getChordDefinition(chordId, displayOpts)
         );
       } else if (stage.chordProgression) {
         // 基本版：小節の頭でコード出題
@@ -760,8 +769,7 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts),
-          stage.countInMeasures || 0 // カウントインを渡す
+          (chordId) => getChordDefinition(chordId, displayOpts)
         );
       }
       
@@ -779,8 +787,7 @@ export const useFantasyGameEngine = ({
       
       devLog.debug('🥁 太鼓の達人モード初期化:', {
         noteCount: taikoNotes.length,
-        firstNote: taikoNotes[0],
-        countInMeasures: stage.countInMeasures
+        firstNote: taikoNotes[0]
       });
     }
 
@@ -828,8 +835,7 @@ export const useFantasyGameEngine = ({
       .setStart(
         stage.bpm || 120,
         stage.timeSignature || 4, // デフォルトは4/4拍子
-        stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0
+        stage.measureCount ?? 8
       );
 
     devLog.debug('✅ ゲーム初期化完了:', {
@@ -1044,7 +1050,15 @@ export const useFantasyGameEngine = ({
       
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
-        const currentTime = bgmManager.getCurrentMusicTime();
+        const bgmManager = BGMManager.getInstance();
+        const currentTime = bgmManager.getMusicTime();
+        const currentMeasure = bgmManager.getCurrentMeasure();
+        
+        // M1（休み小節）の間は判定を行わない
+        if (currentMeasure === 1) {
+          return prevState;
+        }
+        
         const loopDuration = (prevState.currentStage.measureCount || 8) * 
                             (60 / (prevState.currentStage.bpm || 120)) * 
                             (prevState.currentStage.timeSignature || 4);
@@ -1074,7 +1088,8 @@ export const useFantasyGameEngine = ({
             chord: currentNote.chord.displayName,
             timeDiff: timeDiff.toFixed(3),
             currentTime: currentTime.toFixed(3),
-            targetTime: currentNote.hitTime.toFixed(3)
+            targetTime: currentNote.hitTime.toFixed(3),
+            currentMeasure
           });
           
           // 敵の攻撃を発動（非同期）
@@ -1128,7 +1143,7 @@ export const useFantasyGameEngine = ({
         // 怒り状態をストアに通知
         const { setEnrage } = useEnemyStore.getState();
         setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
+        setTimeout(() => setEnrage(attackingMonster.id, false), 1500); // 1.5秒後にOFF
         
         // 攻撃したモンスターのゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 
@@ -1408,7 +1423,8 @@ export const useFantasyGameEngine = ({
       setGameState(prevState => {
         if (prevState.isGameActive) {
           // ゲームが進行中の場合は停止
-          bgmManager.stop();
+          const bgmManager = BGMManager.getInstance();
+    bgmManager.stop();
         }
         return {
           ...prevState,
