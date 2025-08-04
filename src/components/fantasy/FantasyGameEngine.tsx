@@ -447,6 +447,13 @@ export const useFantasyGameEngine = ({
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
+    const currentTime = bgmManager.getCurrentMusicTime();
+    
+    // カウントイン期間中（負の時間）は入力を無視
+    if (currentTime < 0) {
+      return prevState;
+    }
+    
     if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
       // すべてのノーツ処理済み、ループして最初に戻る
       return {
@@ -457,7 +464,6 @@ export const useFantasyGameEngine = ({
     }
     
     const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
-    const currentTime = bgmManager.getCurrentMusicTime();
     const judgment = judgeTimingWindow(currentTime, currentNote.hitTime);
     
     devLog.debug('🥁 太鼓の達人判定:', {
@@ -1017,6 +1023,14 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
+        
+        // カウントイン期間中（負の時間）または開始直後はミス判定をスキップ
+        // 最初のノーツの0.5秒前まではミス判定しない
+        const firstNote = prevState.taikoNotes[0];
+        if (currentTime < 0 || (firstNote && currentTime < firstNote.hitTime - 0.5)) {
+          return prevState;
+        }
+        
         // ループ処理：インデックスが範囲外の場合は0に戻す
         let noteIndex = prevState.currentNoteIndex;
         if (noteIndex >= prevState.taikoNotes.length) {
@@ -1030,8 +1044,8 @@ export const useFantasyGameEngine = ({
           const loopDuration = prevState.currentStage ? 
             (prevState.currentStage.measureCount || 8) * (60 / (prevState.currentStage.bpm || 120)) * (prevState.currentStage.timeSignature || 4) : 0;
           
-          // 現在のループ回数を計算
-          const currentLoop = Math.floor(currentTime / loopDuration);
+          // 現在のループ回数を計算（負の時間では0とする）
+          const currentLoop = Math.max(0, Math.floor(currentTime / loopDuration));
           const noteTimeInCurrentLoop = currentNote.hitTime + (currentLoop * loopDuration);
           
           if (currentTime > noteTimeInCurrentLoop + 0.3) {
