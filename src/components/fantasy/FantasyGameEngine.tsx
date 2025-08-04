@@ -14,7 +14,8 @@ import * as PIXI from 'pixi.js';
 import { 
   TaikoNote, 
   ChordProgressionDataItem,
-  judgeTimingWindow, 
+  judgeTimingWindow,
+  getCurrentNoteIndex, 
   generateBasicProgressionNotes,
   parseChordProgressionData,
   parseSimpleProgressionText
@@ -709,6 +710,7 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.measureCount || 8,
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       } else if (stage.chordProgression) {
@@ -989,29 +991,8 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
-        const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
-        
-        if (currentNote && currentTime > currentNote.hitTime + 0.3) {
-          // 判定時間を過ぎた（+300ms以上）
-          devLog.debug('💥 太鼓の達人：ミス！', {
-            noteId: currentNote.id,
-            chord: currentNote.chord.displayName
-          });
-          
-          // 敵の攻撃を発動
-          handleEnemyAttack();
-          
-          // 次のノーツへ進む
-          return {
-            ...prevState,
-            currentNoteIndex: prevState.currentNoteIndex + 1,
-            activeMonsters: prevState.activeMonsters.map(m => ({
-              ...m,
-              correctNotes: [],
-              gauge: 0
-            }))
-          };
-        }
+        const currentNoteIndex = getCurrentNoteIndex(prevState.taikoNotes, currentTime);
+        const currentNote = prevState.taikoNotes[currentNoteIndex];
         
         // 太鼓モードではゲージを更新しない
         return prevState;
@@ -1080,7 +1061,125 @@ export const useFantasyGameEngine = ({
       
       // 太鼓の達人モードの場合は専用の処理を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
-        return handleTaikoModeInput(prevState, note);
+        const currentTime = bgmManager.getCurrentMusicTime();
+        const currentNoteIndex = getCurrentNoteIndex(prevState.taikoNotes, currentTime);
+        const currentNote = prevState.taikoNotes[currentNoteIndex];
+        
+        if (!currentNote || currentNote.isHit || currentNote.isMissed) {
+          return prevState; // 処理するノーツがない
+        }
+        
+        // タイミング判定
+        const judgment = judgeTimingWindow(currentTime, currentNote.hitTime);
+        
+        if (!judgment.isHit) {
+          // 判定ウィンドウ外
+          devLog.debug('🎵 太鼓の達人：判定ウィンドウ外', {
+            timingDiff: judgment.timingDiff,
+            noteId: currentNote.id
+          });
+          return prevState;
+        }
+        
+        // 入力されたノートがターゲットコードに含まれているかチェック
+        const noteMod12 = note % 12;
+        const targetNotes = [...new Set(currentNote.chord.notes.map(n => n % 12))];
+        
+        if (!targetNotes.includes(noteMod12)) {
+          // ターゲットコードに含まれていない
+          return prevState;
+        }
+        
+        // 正しいノートを記録
+        const newCorrectNotes = [...(prevState.activeMonsters[0]?.correctNotes || [])];
+        if (!newCorrectNotes.includes(noteMod12)) {
+          newCorrectNotes.push(noteMod12);
+        }
+        
+        // コードが完成したかチェック
+        const isChordComplete = targetNotes.every(n => newCorrectNotes.includes(n));
+        
+        if (isChordComplete) {
+          // コード完成！
+          devLog.debug('✅ 太鼓の達人：コード完成！', {
+            chord: currentNote.chord.displayName,
+            timing: judgment.timing
+          });
+          
+          // ノーツをヒット状態にする
+          const updatedNotes = [...prevState.taikoNotes];
+          updatedNotes[currentNoteIndex] = { ...currentNote, isHit: true };
+          
+          // 敵にダメージを与える
+          const damage = 10; // 基本ダメージ
+          const updatedMonsters = prevState.activeMonsters.map(monster => ({
+            ...monster,
+            currentHp: Math.max(0, monster.currentHp - damage),
+            correctNotes: [], // リセット
+            gauge: 0 // ゲージリセット
+          }));
+          
+          // コールバック呼び出し
+          onChordCorrect(damage, prevState.activeMonsters[0]?.id || '');
+          
+          // モンスターが倒されたかチェック
+          const defeatedMonster = updatedMonsters.find(m => m.currentHp <= 0);
+          if (defeatedMonster) {
+            devLog.debug('💀 太鼓の達人：モンスター撃破！', {
+              monster: defeatedMonster.name,
+              enemiesDefeated: prevState.enemiesDefeated + 1
+            });
+            
+            // ゲームクリアチェック
+            const isGameClear = prevState.enemiesDefeated + 1 >= prevState.totalEnemies;
+            
+            if (isGameClear) {
+              const finalState = {
+                ...prevState,
+                taikoNotes: updatedNotes,
+                activeMonsters: updatedMonsters,
+                score: prevState.score + 100,
+                correctAnswers: prevState.correctAnswers + 1,
+                enemiesDefeated: prevState.enemiesDefeated + 1,
+                isGameActive: false,
+                isGameOver: true,
+                gameResult: 'clear' as const
+              };
+              
+              onGameStateChange(finalState);
+              setTimeout(() => onGameComplete('clear', finalState), 100);
+              return finalState;
+            }
+          }
+          
+          const newState = {
+            ...prevState,
+            taikoNotes: updatedNotes,
+            currentNoteIndex: currentNoteIndex + 1,
+            activeMonsters: updatedMonsters,
+            score: prevState.score + 100,
+            correctAnswers: prevState.correctAnswers + 1,
+            playerSp: Math.min(prevState.playerSp + 1, 5),
+            currentEnemyHp: updatedMonsters[0]?.currentHp || 0,
+            enemiesDefeated: defeatedMonster ? prevState.enemiesDefeated + 1 : prevState.enemiesDefeated
+          };
+          
+          onGameStateChange(newState);
+          return newState;
+        } else {
+          // まだコードが未完成
+          const updatedMonsters = prevState.activeMonsters.map((monster, idx) => 
+            idx === 0 ? { ...monster, correctNotes: newCorrectNotes } : monster
+          );
+          
+          const newState = {
+            ...prevState,
+            activeMonsters: updatedMonsters
+          };
+          
+          onGameStateChange(newState);
+          return newState;
+        }
       }
 
       const noteMod12 = note % 12;

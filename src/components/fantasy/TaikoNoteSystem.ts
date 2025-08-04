@@ -4,6 +4,7 @@
  */
 
 import { ChordDefinition } from './FantasyGameEngine';
+import { bgmManager } from '@/utils/BGMManager';
 
 // ノーツの型定義
 export interface TaikoNote {
@@ -14,6 +15,7 @@ export interface TaikoNote {
   beat: number; // 拍番号（1始まり、小数可）
   isHit: boolean; // 既にヒットされたか
   isMissed: boolean; // ミスしたか
+  loopIndex: number; // ループインデックス（何回目のループで出現するか）
 }
 
 // chord_progression_data のJSON形式
@@ -30,6 +32,9 @@ export interface TimingJudgment {
   timingDiff: number; // ミリ秒単位の差
 }
 
+// 判定ウィンドウの定義（±300ms）
+export const JUDGMENT_WINDOW_MS = 300;
+
 /**
  * タイミング判定を行う
  * @param currentTime 現在の音楽時間（秒）
@@ -39,7 +44,7 @@ export interface TimingJudgment {
 export function judgeTimingWindow(
   currentTime: number,
   targetTime: number,
-  windowMs: number = 300
+  windowMs: number = JUDGMENT_WINDOW_MS
 ): TimingJudgment {
   const diffMs = (currentTime - targetTime) * 1000;
   
@@ -70,39 +75,47 @@ export function judgeTimingWindow(
 
 /**
  * 基本版progression用：小節の頭(Beat 1)でコードを配置
+ * ループを考慮して複数周分のノーツを生成
  * @param chordProgression コード進行配列
  * @param measureCount 総小節数
  * @param bpm BPM
  * @param timeSignature 拍子
+ * @param maxLoops 最大ループ数（デフォルト: 10）
  */
 export function generateBasicProgressionNotes(
   chordProgression: string[],
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  maxLoops: number = 10
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   
-  for (let measure = 1; measure <= measureCount; measure++) {
-    const chordIndex = (measure - 1) % chordProgression.length;
-    const chordId = chordProgression[chordIndex];
-    const chord = getChordDefinition(chordId);
-    
-    if (chord) {
-      const hitTime = (measure - 1) * secPerMeasure + 0; // 小節の頭（Beat 1 = 0秒目）
+  // maxLoops回分のノーツを生成
+  for (let loopIndex = 0; loopIndex < maxLoops; loopIndex++) {
+    for (let measure = 1; measure <= measureCount; measure++) {
+      const chordIndex = (measure - 1) % chordProgression.length;
+      const chordId = chordProgression[chordIndex];
+      const chord = getChordDefinition(chordId);
       
-      notes.push({
-        id: `note_${measure}_1`,
-        chord,
-        hitTime,
-        measure,
-        beat: 1,
-        isHit: false,
-        isMissed: false
-      });
+      if (chord) {
+        // ループを考慮した連続的な時間計算
+        const hitTime = (loopIndex * measureCount + measure - 1) * secPerMeasure;
+        
+        notes.push({
+          id: `note_${loopIndex}_${measure}_1`,
+          chord,
+          hitTime,
+          measure: measure + (loopIndex * measureCount), // 連続的な小節番号
+          beat: 1,
+          isHit: false,
+          isMissed: false,
+          loopIndex
+        });
+      }
     }
   }
   
@@ -111,37 +124,48 @@ export function generateBasicProgressionNotes(
 
 /**
  * 拡張版progression用：chord_progression_dataのJSONを解析
+ * ループを考慮して複数周分のノーツを生成
  * @param progressionData JSON配列
  * @param bpm BPM
  * @param timeSignature 拍子
+ * @param measureCount 総小節数
+ * @param maxLoops 最大ループ数（デフォルト: 10）
  */
 export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  measureCount: number,
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  maxLoops: number = 10
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
+  const loopDuration = measureCount * secPerMeasure;
   
-  progressionData.forEach((item, index) => {
-    const chord = getChordDefinition(item.chord);
-    if (chord) {
-      // bar（小節）とbeats（拍）から実際の時刻を計算
-      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
-      
-      notes.push({
-        id: `note_${item.bar}_${item.beats}_${index}`,
-        chord,
-        hitTime,
-        measure: item.bar,
-        beat: item.beats,
-        isHit: false,
-        isMissed: false
-      });
-    }
-  });
+  // maxLoops回分のノーツを生成
+  for (let loopIndex = 0; loopIndex < maxLoops; loopIndex++) {
+    progressionData.forEach((item, index) => {
+      const chord = getChordDefinition(item.chord);
+      if (chord) {
+        // bar（小節）とbeats（拍）から実際の時刻を計算
+        const baseTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+        const hitTime = baseTime + (loopIndex * loopDuration);
+        
+        notes.push({
+          id: `note_${loopIndex}_${item.bar}_${item.beats}_${index}`,
+          chord,
+          hitTime,
+          measure: item.bar + (loopIndex * measureCount), // 連続的な小節番号
+          beat: item.beats,
+          isHit: false,
+          isMissed: false,
+          loopIndex
+        });
+      }
+    });
+  }
   
   // 時間順にソート
   notes.sort((a, b) => a.hitTime - b.hitTime);
@@ -185,6 +209,52 @@ export function calculateNotePosition(
 ): number {
   const timeUntilHit = note.hitTime - currentTime;
   return judgeLineX + timeUntilHit * speed;
+}
+
+/**
+ * 判定ウィンドウを過ぎたノーツを自動的にミス判定する
+ * @param notes 全ノーツ
+ * @param currentTime 現在の音楽時間（秒）
+ * @returns 新しくミスになったノーツのリスト
+ */
+export function updateMissedNotes(
+  notes: TaikoNote[],
+  currentTime: number
+): TaikoNote[] {
+  const newlyMissed: TaikoNote[] = [];
+  
+  notes.forEach(note => {
+    if (!note.isHit && !note.isMissed) {
+      const timeDiff = (currentTime - note.hitTime) * 1000;
+      if (timeDiff > JUDGMENT_WINDOW_MS) {
+        note.isMissed = true;
+        newlyMissed.push(note);
+      }
+    }
+  });
+  
+  return newlyMissed;
+}
+
+/**
+ * 現在のノーツインデックスを取得（ループを考慮）
+ * @param notes 全ノーツ
+ * @param currentTime 現在の音楽時間（秒）
+ * @returns 現在のノーツインデックス
+ */
+export function getCurrentNoteIndex(
+  notes: TaikoNote[],
+  currentTime: number
+): number {
+  // 次に来るノーツを探す
+  for (let i = 0; i < notes.length; i++) {
+    if (!notes[i].isHit && !notes[i].isMissed && notes[i].hitTime >= currentTime - JUDGMENT_WINDOW_MS / 1000) {
+      return i;
+    }
+  }
+  
+  // 見つからない場合は最後のインデックス
+  return Math.max(0, notes.length - 1);
 }
 
 /**

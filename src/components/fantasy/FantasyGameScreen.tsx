@@ -11,7 +11,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
-import { TaikoNote, getVisibleNotes, calculateNotePosition } from './TaikoNoteSystem';
+import { TaikoNote, getVisibleNotes, calculateNotePosition, updateMissedNotes, judgeTimingWindow, JUDGMENT_WINDOW_MS } from './TaikoNoteSystem';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
@@ -565,28 +565,64 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
   
-  // 太鼓の達人モードのノーツ表示更新
+  // 太鼓の達人モードのノーツ表示更新とタイミング処理
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
+    
+    // 太鼓モードの初期化
+    fantasyPixiInstance.initTaikoMode();
     
     const updateTaikoNotes = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
       const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
-      const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       
-      const notesData = visibleNotes.map(note => ({
-        id: note.id,
-        chord: note.chord.displayName,
-        x: calculateNotePosition(note, currentTime, judgeLinePos.x)
-      }));
+      // ノーツの表示更新
+      const judgeLineX = 100; // 判定ラインのX座標（固定値）
+      const screenHeight = 600; // 画面高さ（固定値）
       
-      fantasyPixiInstance.updateTaikoNotes(notesData);
+      visibleNotes.forEach(note => {
+        const x = calculateNotePosition(note, currentTime, judgeLineX);
+        const y = screenHeight / 2;
+        
+        // 新しいノーツを作成または更新
+        fantasyPixiInstance.createTaikoNote(note.id, note.chord.displayName, x, y);
+      });
+      
+      // 表示されていないノーツを削除
+      const visibleNoteIds = new Set(visibleNotes.map(n => n.id));
+      const allNoteIds = Array.from(fantasyPixiInstance.taikoNotes?.keys() || []);
+      
+      allNoteIds.forEach(noteId => {
+        if (!visibleNoteIds.has(noteId)) {
+          fantasyPixiInstance.removeTaikoNote(noteId);
+        }
+      });
+      
+      // 判定ウィンドウを過ぎたノーツを自動的にミス判定
+      const newlyMissed = updateMissedNotes(gameState.taikoNotes, currentTime);
+      if (newlyMissed.length > 0) {
+        newlyMissed.forEach(note => {
+          devLog.debug('❌ ノーツミス:', note.id);
+          // ミスエフェクト表示
+          fantasyPixiInstance.createNoteHitEffect(
+            judgeLineX,
+            screenHeight / 2,
+            'miss'
+          );
+          // 敵の攻撃処理
+          handleChordIncorrect();
+        });
+      }
     };
     
     const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
     
-    return () => clearInterval(intervalId);
-  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+    return () => {
+      clearInterval(intervalId);
+      // クリーンアップ時に太鼓ノーツをクリア
+      fantasyPixiInstance.clearAllTaikoNotes();
+    };
+  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance, handleChordIncorrect]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -682,6 +718,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       initializeGame(stage);
     }
   }, [autoStart, initializeGame, stage]);
+  
+  // BGMループ時の処理
+  useEffect(() => {
+    if (!gameState.isGameActive) return;
+    
+    // ループコールバックを設定
+    bgmManager.setOnLoopCallback(() => {
+      devLog.debug('🔄 BGMループ検出');
+      
+      // 太鼓モードの場合、ノーツインデックスをリセットしない（連続的に処理）
+      if (gameState.isTaikoMode) {
+        // 特に何もしない（ノーツは連続的に生成されている）
+        return;
+      }
+    });
+    
+    return () => {
+      bgmManager.setOnLoopCallback(null);
+    };
+  }, [gameState.isGameActive, gameState.isTaikoMode]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {

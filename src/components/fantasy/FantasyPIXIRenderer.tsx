@@ -196,6 +196,13 @@ export class FantasyPIXIInstance {
   // プリロードされたテクスチャへの参照を追加
   private imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>;
   
+  // 太鼓の達人モード用
+  private taikoJudgeLine: PIXI.Graphics | null = null;
+  private taikoNotes: Map<string, PIXI.Container> = new Map();
+  private noteRadius = 40; // ノーツの半径
+  private judgeLineX = 100; // 判定ラインのX座標
+  private noteSpeed = 300; // ノーツの移動速度（ピクセル/秒）
+  
   /** ────────────────────────────────────
    *  safe‑default で初期化しておく
    * ─────────────────────────────────── */
@@ -302,8 +309,8 @@ export class FantasyPIXIInstance {
     // z-indexの設定（背景→モンスター→ノーツ→判定ライン→エフェクト→UI）
     this.app.stage.addChild(this.backgroundContainer);
     this.app.stage.addChild(this.monsterContainer);
-    this.app.stage.addChild(this.notesContainer);
-    this.app.stage.addChild(this.judgeLineContainer);
+    this.app.stage.addChild(this.judgeLineContainer); // 判定ラインはノーツの後ろ
+    this.app.stage.addChild(this.notesContainer); // ノーツは判定ラインの前
     this.app.stage.addChild(this.effectContainer);
     this.app.stage.addChild(this.uiContainer);
     
@@ -2172,6 +2179,229 @@ export class FantasyPIXIInstance {
   /** これ１行で「壊れていたら return true」 */
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
+
+  // ========== 太鼓の達人モード用メソッド ==========
+  
+  /**
+   * 太鼓の達人モードの初期化
+   */
+  initTaikoMode(): void {
+    if (this.isDestroyed) return;
+    
+    devLog.debug('🥁 太鼓の達人モード初期化開始');
+    
+    // 判定ライン作成
+    this.createJudgeLine();
+    
+    // モンスター下のコードガイドを削除
+    this.clearChordGuides();
+  }
+  
+  /**
+   * 判定ラインの作成
+   */
+  private createJudgeLine(): void {
+    if (this.taikoJudgeLine) {
+      this.judgeLineContainer.removeChild(this.taikoJudgeLine);
+      this.taikoJudgeLine.destroy();
+    }
+    
+    this.taikoJudgeLine = new PIXI.Graphics();
+    
+    // 判定ラインの円を描画
+    this.taikoJudgeLine.lineStyle(4, 0xFFFFFF, 1);
+    this.taikoJudgeLine.beginFill(0x333333, 0.8);
+    this.taikoJudgeLine.drawCircle(0, 0, this.noteRadius);
+    this.taikoJudgeLine.endFill();
+    
+    // 内側の白い円
+    this.taikoJudgeLine.lineStyle(2, 0xFFFFFF, 1);
+    this.taikoJudgeLine.beginFill(0x666666, 0.5);
+    this.taikoJudgeLine.drawCircle(0, 0, this.noteRadius - 10);
+    this.taikoJudgeLine.endFill();
+    
+    // 位置設定（左端）
+    this.taikoJudgeLine.x = this.judgeLineX;
+    this.taikoJudgeLine.y = this.app.screen.height / 2;
+    
+    this.judgeLineContainer.addChild(this.taikoJudgeLine);
+    
+    devLog.debug('✅ 判定ライン作成完了');
+  }
+  
+  /**
+   * モンスター下のコードガイドを削除
+   */
+  private clearChordGuides(): void {
+    // モンスターのコードガイド表示を無効化
+    this.monsterSprites.forEach((sprite, id) => {
+      const chordText = this.chordTexts.get(id);
+      if (chordText) {
+        chordText.visible = false;
+      }
+    });
+  }
+  
+  /**
+   * 太鼓ノーツの作成
+   * @param noteId ノーツID
+   * @param chordName コード名
+   * @param x X座標
+   * @param y Y座標
+   */
+  createTaikoNote(noteId: string, chordName: string, x: number, y: number): void {
+    if (this.isDestroyed) return;
+    
+    // 既存のノーツを削除
+    const existingNote = this.taikoNotes.get(noteId);
+    if (existingNote) {
+      this.notesContainer.removeChild(existingNote);
+      existingNote.destroy();
+    }
+    
+    // ノーツコンテナ作成
+    const noteContainer = new PIXI.Container();
+    noteContainer.x = x;
+    noteContainer.y = y;
+    
+    // ノーツの円を描画（半透明）
+    const noteGraphics = new PIXI.Graphics();
+    noteGraphics.lineStyle(3, 0xFFD700, 0.8);
+    noteGraphics.beginFill(0xFF6B35, 0.6);
+    noteGraphics.drawCircle(0, 0, this.noteRadius);
+    noteGraphics.endFill();
+    
+    // コード名テキスト
+    const chordText = new PIXI.Text(chordName, {
+      fontFamily: 'DotGothic16, Arial, sans-serif',
+      fontSize: 24,
+      fontWeight: 'bold',
+      fill: 0xFFFFFF,
+      stroke: 0x000000,
+      strokeThickness: 3,
+      align: 'center'
+    });
+    chordText.anchor.set(0.5);
+    
+    // ノーツコンテナに追加
+    noteContainer.addChild(noteGraphics);
+    noteContainer.addChild(chordText);
+    
+    // ノーツコンテナをメインコンテナに追加
+    this.notesContainer.addChild(noteContainer);
+    this.taikoNotes.set(noteId, noteContainer);
+  }
+  
+  /**
+   * 太鼓ノーツの更新
+   * @param noteId ノーツID
+   * @param x 新しいX座標
+   * @param y 新しいY座標
+   */
+  updateTaikoNote(noteId: string, x: number, y: number): void {
+    const note = this.taikoNotes.get(noteId);
+    if (note && !this.isDestroyed) {
+      note.x = x;
+      note.y = y;
+    }
+  }
+  
+  /**
+   * 太鼓ノーツの削除
+   * @param noteId ノーツID
+   */
+  removeTaikoNote(noteId: string): void {
+    const note = this.taikoNotes.get(noteId);
+    if (note) {
+      this.notesContainer.removeChild(note);
+      note.destroy();
+      this.taikoNotes.delete(noteId);
+    }
+  }
+  
+  /**
+   * すべての太鼓ノーツをクリア
+   */
+  clearAllTaikoNotes(): void {
+    this.taikoNotes.forEach((note, id) => {
+      this.notesContainer.removeChild(note);
+      note.destroy();
+    });
+    this.taikoNotes.clear();
+  }
+  
+  /**
+   * ノーツヒット時のエフェクト
+   * @param x X座標
+   * @param y Y座標
+   * @param timing タイミング判定結果
+   */
+  createNoteHitEffect(x: number, y: number, timing: 'perfect' | 'good' | 'miss'): void {
+    if (this.isDestroyed) return;
+    
+    // タイミングに応じた色とテキスト
+    let color: number;
+    let text: string;
+    
+    switch (timing) {
+      case 'perfect':
+        color = 0xFFD700; // ゴールド
+        text = 'PERFECT!';
+        break;
+      case 'good':
+        color = 0x00FF00; // グリーン
+        text = 'GOOD!';
+        break;
+      case 'miss':
+        color = 0xFF0000; // レッド
+        text = 'MISS...';
+        break;
+    }
+    
+    // エフェクトテキスト作成
+    const effectText = new PIXI.Text(text, {
+      fontFamily: 'DotGothic16, Arial, sans-serif',
+      fontSize: 32,
+      fontWeight: 'bold',
+      fill: color,
+      stroke: 0x000000,
+      strokeThickness: 4,
+      dropShadow: true,
+      dropShadowBlur: 4,
+      dropShadowDistance: 2
+    });
+    
+    effectText.anchor.set(0.5);
+    effectText.x = x;
+    effectText.y = y - 60;
+    
+    this.effectContainer.addChild(effectText);
+    
+    // アニメーション
+    const startTime = Date.now();
+    const duration = 1000;
+    const startY = effectText.y;
+    
+    const animate = () => {
+      if (this.isDestroyed || !effectText.parent) return;
+      
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // 上に移動しながらフェードアウト
+      effectText.y = startY - progress * 30;
+      effectText.alpha = 1 - progress;
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        this.effectContainer.removeChild(effectText);
+        effectText.destroy();
+      }
+    };
+    
+    animate();
+  }
 
 
 }
