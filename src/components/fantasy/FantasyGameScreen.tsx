@@ -571,13 +571,43 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     const updateTaikoNotes = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
+      
+      // ループ検出: 最後のノーツの時間を過ぎて、次のループに入ったかチェック
+      if (gameState.taikoNotes.length > 0) {
+        const lastNote = gameState.taikoNotes[gameState.taikoNotes.length - 1];
+        const loopDuration = (stage.measureCount || 8) * (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
+        
+        // 現在の時間が最後のノーツを過ぎてループ時間に達した場合
+        if (currentTime >= lastNote.hitTime + 0.5 && currentTime >= loopDuration - 0.1) {
+          // ループ処理は FantasyGameEngine 側で処理される
+        }
+      }
+      
       const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
+      
+      // ループプレビュー: 最後のノーツが見えているときは、最初のノーツも表示
+      const loopDuration = (stage.measureCount || 8) * (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
+      const enhancedVisibleNotes = [...visibleNotes];
+      
+      if (currentTime > loopDuration - 3) { // 3秒前からループプレビュー
+        const loopedNotes = gameState.taikoNotes
+          .filter(note => note.hitTime < 3) // 最初の3秒分
+          .map(note => ({
+            ...note,
+            id: `${note.id}_loop`,
+            hitTime: note.hitTime + loopDuration,
+            isLoopPreview: true
+          }));
+        enhancedVisibleNotes.push(...loopedNotes);
+      }
+      
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       
-      const notesData = visibleNotes.map(note => ({
+      const notesData = enhancedVisibleNotes.map(note => ({
         id: note.id,
         chord: note.chord.displayName,
-        x: calculateNotePosition(note, currentTime, judgeLinePos.x)
+        x: calculateNotePosition(note, currentTime, judgeLinePos.x),
+        isLoopPreview: (note as any).isLoopPreview || false
       }));
       
       fantasyPixiInstance.updateTaikoNotes(notesData);
@@ -586,7 +616,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
     
     return () => clearInterval(intervalId);
-  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance, stage]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -651,7 +681,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (stage.mode !== 'progression' || !stage.chordProgression) return null;
     
     const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
-    return stage.chordProgression[nextIndex];
+    const isLooping = (gameState.currentQuestionIndex + 1) >= stage.chordProgression.length;
+    
+    return {
+      chord: stage.chordProgression[nextIndex],
+      isLooping: isLooping
+    };
   }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
   
   // SPゲージ表示
@@ -944,9 +979,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
         {stage.mode === 'progression' && getNextChord() && (
           <div className="mb-1 text-right">
-            <div className="text-white text-xs">NEXT:</div>
-            <div className="text-blue-300 text-sm font-bold">
-              {getNextChord()}
+            <div className="text-white text-xs">
+              NEXT{getNextChord()?.isLooping ? ' (Loop →)' : ':'}
+            </div>
+            <div className={cn(
+              "text-sm font-bold",
+              getNextChord()?.isLooping ? "text-yellow-300" : "text-blue-300"
+            )}>
+              {getNextChord()?.chord}
             </div>
           </div>
         )}

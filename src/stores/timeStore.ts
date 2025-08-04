@@ -59,7 +59,8 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     if (elapsed < s.readyDuration) {
       set({
         currentBeat: 1,
-        currentMeasure: 1
+        currentMeasure: 1,
+        isCountIn: false
       })
       return
     }
@@ -83,11 +84,12 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     } else {
       // メイン部分（カウントイン後）
       const measuresAfterCountIn = totalMeasures - s.countInMeasures
+      // ループ時の小節番号（1からリスタート）
       const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
       
       set({
         currentBeat: currentBeatInMeasure,
-        currentMeasure: displayMeasure, // カウントイン後を1から表示
+        currentMeasure: displayMeasure,
         isCountIn: false
       })
     }
