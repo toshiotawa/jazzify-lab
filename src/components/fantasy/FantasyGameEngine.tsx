@@ -441,13 +441,14 @@ export const useFantasyGameEngine = ({
       const firstNote = prevState.taikoNotes[0];
       const nextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : firstNote;
       
+      // ループ時は敵のゲージをリセットしてダメージを防ぐ
       return {
         ...prevState,
         currentNoteIndex: 0,
         activeMonsters: prevState.activeMonsters.map(m => ({
           ...m,
           correctNotes: [],
-          gauge: 0,
+          gauge: 0, // ゲージをリセット
           chordTarget: firstNote.chord,
           nextChord: nextNote.chord
         }))
@@ -636,6 +637,24 @@ export const useFantasyGameEngine = ({
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
+    devLog.debug('🎮 ゲーム初期化開始:', { stage: stage.name });
+    
+    // 前のゲーム状態をクリーンアップ
+    bgmManager.stop();
+    if (enemyGaugeTimer) {
+      clearInterval(enemyGaugeTimer);
+      setEnemyGaugeTimer(null);
+    }
+    
+    // 時間ストアをリセット
+    const { setStart } = useTimeStore.getState();
+    setStart(
+      stage.bpm || 120,
+      stage.timeSignature || 4,
+      stage.measureCount ?? 8,
+      stage.countInMeasures ?? 0
+    );
+
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
 
     // 新しいステージ定義から値を取得
@@ -821,16 +840,6 @@ export const useFantasyGameEngine = ({
 
     setGameState(newState);
     onGameStateChange(newState);
-
-    /* ===== Ready + 時間ストア開始 ===== */
-    useTimeStore
-      .getState()
-      .setStart(
-        stage.bpm || 120,
-        stage.timeSignature || 4, // デフォルトは4/4拍子
-        stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0
-      );
 
     devLog.debug('✅ ゲーム初期化完了:', {
       stage: stage.name,
@@ -1054,7 +1063,8 @@ export const useFantasyGameEngine = ({
         
         // ループ処理
         if (currentNoteIndex >= prevState.taikoNotes.length) {
-          currentNoteIndex = 0;
+          // ループ時はゲージリセット済みなので、ここでは処理しない
+          return prevState;
         }
         
         const currentNote = prevState.taikoNotes[currentNoteIndex];
@@ -1077,18 +1087,48 @@ export const useFantasyGameEngine = ({
             targetTime: currentNote.hitTime.toFixed(3)
           });
           
+          // 怒り状態を設定（太鼓モード）
+          if (prevState.activeMonsters.length > 0) {
+            const attackingMonster = prevState.activeMonsters[0];
+            const { setEnrage } = useEnemyStore.getState();
+            console.log('🔥 Taiko miss - Setting enrage for monster:', attackingMonster.id);
+            setEnrage(attackingMonster.id, true);
+            setTimeout(() => {
+              console.log('🔥 Taiko miss - Clearing enrage for monster:', attackingMonster.id);
+              setEnrage(attackingMonster.id, false);
+            }, 500);
+          }
+          
           // 敵の攻撃を発動（非同期）
           setTimeout(() => handleEnemyAttack(), 0);
           
           // 次のノーツへ進む
           const nextIndex = currentNoteIndex + 1;
-          const nextNote = nextIndex < prevState.taikoNotes.length 
-            ? prevState.taikoNotes[nextIndex]
-            : prevState.taikoNotes[0];
           
+          // ループの場合
+          if (nextIndex >= prevState.taikoNotes.length) {
+            // ループ開始
+            const firstNote = prevState.taikoNotes[0];
+            const secondNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : firstNote;
+            
+            return {
+              ...prevState,
+              currentNoteIndex: 0,
+              activeMonsters: prevState.activeMonsters.map(m => ({
+                ...m,
+                correctNotes: [],
+                gauge: 0, // ゲージをリセット
+                chordTarget: firstNote.chord,
+                nextChord: secondNote.chord
+              }))
+            };
+          }
+          
+          // 通常の次のノーツ
+          const nextNote = prevState.taikoNotes[nextIndex];
           const nextNextNote = (nextIndex + 1) < prevState.taikoNotes.length
             ? prevState.taikoNotes[nextIndex + 1]
-            : prevState.taikoNotes[(nextIndex < prevState.taikoNotes.length) ? 1 : 0];
+            : prevState.taikoNotes[0];
           
           return {
             ...prevState,
@@ -1127,8 +1167,12 @@ export const useFantasyGameEngine = ({
         
         // 怒り状態をストアに通知
         const { setEnrage } = useEnemyStore.getState();
+        console.log('🔥 Setting enrage for monster:', attackingMonster.id);
         setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
+        setTimeout(() => {
+          console.log('🔥 Clearing enrage for monster:', attackingMonster.id);
+          setEnrage(attackingMonster.id, false);
+        }, 500);
         
         // 攻撃したモンスターのゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 

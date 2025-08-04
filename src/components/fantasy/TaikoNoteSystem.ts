@@ -129,6 +129,18 @@ export function generateBasicProgressionNotes(
     }
   }
   
+  console.log('📝 generateBasicProgressionNotes:', {
+    noteCount: notes.length,
+    countInMeasures,
+    countInDuration: countInDuration.toFixed(3),
+    firstNote: notes[0] ? {
+      id: notes[0].id,
+      chord: notes[0].chord.displayName,
+      hitTime: notes[0].hitTime.toFixed(3),
+      measure: notes[0].measure
+    } : null
+  });
+  
   return notes;
 }
 
@@ -173,6 +185,18 @@ export function parseChordProgressionData(
   
   // 時間順にソート
   notes.sort((a, b) => a.hitTime - b.hitTime);
+  
+  console.log('📝 parseChordProgressionData:', {
+    noteCount: notes.length,
+    countInMeasures,
+    countInDuration: countInDuration.toFixed(3),
+    firstNote: notes[0] ? {
+      id: notes[0].id,
+      chord: notes[0].chord.displayName,
+      hitTime: notes[0].hitTime.toFixed(3),
+      measure: notes[0].measure
+    } : null
+  });
   
   return notes;
 }

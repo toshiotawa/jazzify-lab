@@ -103,39 +103,25 @@ class BGMManager {
 
   stop() {
     this.isPlaying = false
-    this.loopScheduled = false
-    
-    // タイムアウトのクリア
-    if (this.loopTimeoutId !== null) {
-      clearTimeout(this.loopTimeoutId)
-      this.loopTimeoutId = null
-    }
-    
     if (this.audio) {
-      // イベントリスナーの削除
-      if (this.timeUpdateHandler) {
-        this.audio.removeEventListener('timeupdate', this.timeUpdateHandler)
-        this.timeUpdateHandler = null
-      }
-      
-      // その他のイベントリスナーも削除
-      this.audio.removeEventListener('ended', this.handleEnded)
+      // イベントリスナーを削除
       this.audio.removeEventListener('error', this.handleError)
+      this.audio.removeEventListener('ended', this.handleEnded)
       
-      // オーディオの停止と解放
-      try {
-        this.audio.pause()
-        this.audio.currentTime = 0
-        this.audio.src = '' // srcをクリアしてメモリを解放
-        this.audio.load() // 明示的にリソースを解放
-      } catch (e) {
-        console.warn('Audio cleanup error:', e)
-      }
-      
+      this.audio.pause()
+      this.audio.currentTime = 0
+      this.audio.src = '' // ソースをクリア
+      this.audio.load() // リロードして完全にリセット
       this.audio = null
     }
-    
-    console.log('🔇 BGM停止・クリーンアップ完了')
+    // 状態をリセット
+    this.currentUrl = ''
+    this.bpm = 120
+    this.timeSignature = 4
+    this.measureCount = 8
+    this.countInMeasures = 0
+    this.loopBegin = 0
+    this.loopEnd = 0
   }
   
   // エラーハンドリング
