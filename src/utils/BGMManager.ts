@@ -32,7 +32,7 @@ class BGMManager {
     this.bpm = bpm
     this.timeSignature = timeSig
     this.measureCount = measureCount
-    this.countInMeasures = countIn
+    this.countInMeasures = 0 // 変更: カウントインを無視
     
     this.audio = new Audio(url)
     this.audio.preload = 'auto'
@@ -41,8 +41,8 @@ class BGMManager {
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
-    this.loopBegin = countIn * secPerMeas
-    this.loopEnd = (countIn + measureCount) * secPerMeas
+    this.loopBegin = 0 // 変更: カウントインなし
+    this.loopEnd = measureCount * secPerMeas
 
     // 初回再生は最初から（カウントインを含む）
     this.audio.currentTime = 0
@@ -161,11 +161,7 @@ class BGMManager {
   getCurrentMusicTime(): number {
     if (!this.isPlaying || !this.audio) return 0
     
-    const audioTime = this.audio.currentTime
-    const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
-    
-    // カウントイン後の時間を返す（カウントイン中は負の値）
-    return audioTime - countInDuration
+    return this.audio.currentTime // 変更: カウントイン調整なし
   }
   
   /**
