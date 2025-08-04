@@ -74,20 +74,24 @@ export function judgeTimingWindow(
  * @param measureCount 総小節数
  * @param bpm BPM
  * @param timeSignature 拍子
+ * @param countIn カウントイン小節数
+ * @param getChordDefinition コード定義取得関数
  */
 export function generateBasicProgressionNotes(
   chordProgression: string[],
   measureCount: number,
   bpm: number,
   timeSignature: number,
+  countIn: number,
   getChordDefinition: (chordId: string) => ChordDefinition | null
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   
-  for (let measure = 1; measure <= measureCount; measure++) {
-    const chordIndex = (measure - 1) % chordProgression.length;
+  // カウントイン除外: measure = countIn + 1 から開始
+  for (let measure = countIn + 1; measure <= measureCount + countIn; measure++) {
+    const chordIndex = (measure - countIn - 1) % chordProgression.length;
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
@@ -95,10 +99,10 @@ export function generateBasicProgressionNotes(
       const hitTime = (measure - 1) * secPerMeasure + 0; // 小節の頭（Beat 1 = 0秒目）
       
       notes.push({
-        id: `note_${measure}_1`,
+        id: `note_${measure - countIn}_1`,
         chord,
         hitTime,
-        measure,
+        measure: measure - countIn,
         beat: 1,
         isHit: false,
         isMissed: false
@@ -114,11 +118,14 @@ export function generateBasicProgressionNotes(
  * @param progressionData JSON配列
  * @param bpm BPM
  * @param timeSignature 拍子
+ * @param countIn カウントイン小節数
+ * @param getChordDefinition コード定義取得関数
  */
 export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
+  countIn: number,
   getChordDefinition: (chordId: string) => ChordDefinition | null
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
@@ -126,16 +133,19 @@ export function parseChordProgressionData(
   const secPerMeasure = secPerBeat * timeSignature;
   
   progressionData.forEach((item, index) => {
+    // カウントイン小節はスキップ
+    if (item.bar <= countIn) return;
+    
     const chord = getChordDefinition(item.chord);
     if (chord) {
       // bar（小節）とbeats（拍）から実際の時刻を計算
       const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
-        id: `note_${item.bar}_${item.beats}_${index}`,
+        id: `note_${item.bar - countIn}_${item.beats}_${index}`,
         chord,
         hitTime,
-        measure: item.bar,
+        measure: item.bar - countIn,
         beat: item.beats,
         isHit: false,
         isMissed: false

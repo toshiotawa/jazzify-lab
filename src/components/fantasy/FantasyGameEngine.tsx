@@ -105,6 +105,9 @@ interface FantasyGameState {
   isTaikoMode: boolean; // 太鼓の達人モードかどうか
   taikoNotes: any[]; // 太鼓の達人用のノーツ配列
   currentNoteIndex: number; // 現在判定中のノーツインデックス
+  currentMeasure?: number; // 現在の小節番号
+  isLooping?: boolean; // ループ中かどうか
+  nextChordBuffer?: ChordDefinition; // 次のコードバッファ
 }
 
 interface FantasyGameEngineProps {
@@ -429,11 +432,14 @@ export const useFantasyGameEngine = ({
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
+  // 永続化する状態（ループ時に維持）
+  const [persistentState, setPersistentState] = useState({ hp: 5, sp: 0 });
+  
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
     if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
-      // すべてのノーツ処理済み
-      return prevState;
+      // すべてのノーツ処理済み - ループ発動
+      return { ...prevState, isLooping: true };
     }
     
     const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
@@ -709,6 +715,7 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0,
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       } else if (stage.chordProgression) {
@@ -718,6 +725,7 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0,
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       }
@@ -728,6 +736,9 @@ export const useFantasyGameEngine = ({
       });
     }
 
+    // 永続状態を初期化
+    setPersistentState({ hp: stage.maxHp, sp: 0 });
+    
     const newState: FantasyGameState = {
       currentStage: stage,
       currentQuestionIndex: 0,
@@ -939,6 +950,39 @@ export const useFantasyGameEngine = ({
     
     onEnemyAttack(attackingMonsterId);
   }, [onGameStateChange, onGameComplete, onEnemyAttack]);
+  
+  // ループ処理（太鼓の達人モード用）
+  const handleLoop = useCallback(() => {
+    setGameState(prev => {
+      // persistentStateから復元
+      const nextState = { 
+        ...prev, 
+        playerHp: persistentState.hp, 
+        playerSp: persistentState.sp, 
+        currentMeasure: 1,
+        currentNoteIndex: 0,
+        isLooping: false
+      };
+      
+      // ループ前に次コード生成（必要に応じて）
+      if (prev.isTaikoMode && prev.taikoNotes.length > 0) {
+        // 最初のノーツのコードを次コードバッファに設定
+        const firstNote = prev.taikoNotes[0];
+        if (firstNote) {
+          return { ...nextState, nextChordBuffer: firstNote.chord };
+        }
+      }
+      
+      return nextState;
+    });
+  }, [persistentState]);
+  
+  // 永続状態の更新
+  useEffect(() => {
+    if (gameState.isGameActive) {
+      setPersistentState({ hp: gameState.playerHp, sp: gameState.playerSp });
+    }
+  }, [gameState.playerHp, gameState.playerSp, gameState.isGameActive]);
   
   // ゲージタイマーの管理
   useEffect(() => {
@@ -1328,6 +1372,7 @@ export const useFantasyGameEngine = ({
     initializeGame,
     stopGame,
     proceedToNextEnemy,
+    handleLoop,
     imageTexturesRef, // プリロードされたテクスチャへの参照を追加
     
     // ヘルパー関数もエクスポート

@@ -71,11 +71,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
   const monsterAreaRef = useRef<HTMLDivElement>(null);
   
-  /* 毎 100 ms で時間ストア tick */
+  /* RAFで時間ストア tick */
   useEffect(() => {
-    const id = setInterval(() => tick(), 100);
-    return () => clearInterval(id);
-  }, [tick]);
+    if (gameState.isGameActive) {
+      tick(); // 初回呼び出しでRAFループ開始
+    }
+  }, [tick, gameState.isGameActive]);
 
   /* Ready → Start 判定 */
   const isReady =
@@ -329,6 +330,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
+    handleLoop,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
@@ -597,6 +599,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       devLog.debug('🎮 PIXIレンダラー設定更新: 鍵盤ハイライト無効化');
     }
   }, [pixiRenderer]);
+  
+  // ループ検知と処理
+  useEffect(() => {
+    if (gameState.isLooping) {
+      handleLoop();
+    }
+  }, [gameState.isLooping, handleLoop]);
+  
+  // 小節によるループ検知（progression mode）
+  useEffect(() => {
+    if (gameState.isTaikoMode && !isCountIn && currentMeasure === stage.measureCount && currentBeat === stage.timeSignature) {
+      // 最後の小節の最後の拍に到達 - handleLoopを呼び出す
+      handleLoop();
+    }
+  }, [gameState.isTaikoMode, isCountIn, currentMeasure, currentBeat, stage.measureCount, stage.timeSignature, handleLoop]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
