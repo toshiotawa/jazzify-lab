@@ -11,6 +11,7 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private countInDuration = 0 // カウントインの総時間（秒）
 
   play(
     url: string,
@@ -37,8 +38,9 @@ class BGMManager {
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
-    this.loopBegin = countIn * secPerMeas
-    this.loopEnd = (countIn + measureCount) * secPerMeas
+    this.countInDuration = countIn * secPerMeas
+    this.loopBegin = this.countInDuration
+    this.loopEnd = this.countInDuration + (measureCount * secPerMeas)
 
     // 初回再生は最初から（カウントインを含む）
     this.audio.currentTime = 0
@@ -47,7 +49,7 @@ class BGMManager {
     this.timeUpdateHandler = () => {
       if (!this.audio) return
       if (this.audio.currentTime >= this.loopEnd) {
-        // ループ時はカウントイン後から再生
+        // ループ時はカウントイン後から再生（メイン部分のみ）
         this.audio.currentTime = this.loopBegin
       }
     }
@@ -93,10 +95,9 @@ class BGMManager {
     if (!this.isPlaying || !this.audio) return 0
     
     const audioTime = this.audio.currentTime
-    const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
     
     // カウントイン中は負の値を返す
-    return audioTime - countInDuration
+    return audioTime - this.countInDuration
   }
   
   /**
@@ -140,16 +141,15 @@ class BGMManager {
   
   /**
    * 指定した小節・拍の時刻を取得（秒単位）
-   * @param measure 小節番号（1始まり）
+   * @param measure 小節番号（1始まり、カウントイン後の小節）
    * @param beat 拍番号（1始まり、小数可）
    */
   getMusicTimeAt(measure: number, beat: number): number {
     const secPerBeat = 60 / this.bpm
     const secPerMeasure = secPerBeat * this.timeSignature
-    const countInDuration = this.countInMeasures * secPerMeasure
     
     // カウントイン + 指定小節までの時間 + 拍の時間
-    return countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
+    return this.countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
   }
   
   /**
@@ -183,6 +183,28 @@ class BGMManager {
    */
   getTimeSignature(): number {
     return this.timeSignature
+  }
+  
+  /**
+   * カウントイン中かどうかを判定
+   */
+  isInCountIn(): boolean {
+    return this.isPlaying && this.getCurrentMusicTime() < 0
+  }
+  
+  /**
+   * カウントインの総時間を取得（秒）
+   */
+  getCountInDuration(): number {
+    return this.countInDuration
+  }
+  
+  /**
+   * メイン部分の総時間を取得（秒）
+   */
+  getMainDuration(): number {
+    const secPerMeasure = (60 / this.bpm) * this.timeSignature
+    return this.measureCount * secPerMeasure
   }
 }
 
