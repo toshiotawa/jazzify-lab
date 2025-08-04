@@ -1675,6 +1675,15 @@ export class FantasyPIXIInstance {
             }
           }
           
+          // エフェクト: 赤い輪郭
+          if (!monsterData.outline) {
+            const outline = new PIXI.Graphics();
+            outline.lineStyle(4, 0xFF0000, 1);
+            outline.drawCircle(0, 0, 60);
+            monsterData.outline = outline;
+            sprite.addChild(outline);
+          }
+          
           // パルスアニメーション（怒りの脈動）
           const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
           sprite.scale.set(visualState.scale * pulse);
@@ -1695,6 +1704,11 @@ export class FantasyPIXIInstance {
             sprite.removeChild(monsterData.angerMark);
             monsterData.angerMark.destroy();
             monsterData.angerMark = undefined;
+          }
+          if (monsterData.outline) {
+            sprite.removeChild(monsterData.outline);
+            monsterData.outline.destroy();
+            monsterData.outline = undefined;
           }
         }
         
