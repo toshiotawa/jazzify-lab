@@ -148,8 +148,11 @@ class BGMManager {
     const secPerMeasure = secPerBeat * this.timeSignature
     const countInDuration = this.countInMeasures * secPerMeasure
     
+    // ループを考慮して小節番号を調整
+    const measureInLoop = (measure - 1) % this.measureCount
+    
     // カウントイン + 指定小節までの時間 + 拍の時間
-    return countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
+    return countInDuration + measureInLoop * secPerMeasure + (beat - 1) * secPerBeat
   }
   
   /**

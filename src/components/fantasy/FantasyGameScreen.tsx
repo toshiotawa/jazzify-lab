@@ -861,6 +861,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         </div>
                       )}
                       
+                      {/* 太鼓モードでループ先のコード表示 */}
+                      {gameState.isTaikoMode && gameState.nextLoopChord && (
+                        <div className="text-blue-300 font-bold text-center mb-1 truncate w-full text-base">
+                          次: {gameState.nextLoopChord.displayName}
+                        </div>
+                      )}
+                      
                       {/* ★★★ ここにヒント表示を追加（太鼓の達人モードでは非表示） ★★★ */}
                       {!gameState.isTaikoMode && (
                         <div className={`mt-1 font-medium h-6 text-center ${
