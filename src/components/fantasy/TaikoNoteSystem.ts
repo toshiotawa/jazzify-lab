@@ -80,7 +80,8 @@ export function generateBasicProgressionNotes(
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures = 0  // 追加：count-in小節数（デフォルト0）
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
@@ -92,7 +93,8 @@ export function generateBasicProgressionNotes(
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      const hitTime = (measure - 1) * secPerMeasure + 0; // 小節の頭（Beat 1 = 0秒目）
+      // count-in終了後を0秒とする時間計算
+      const hitTime = (measure - 1) * secPerMeasure;
       
       notes.push({
         id: `note_${measure}_1`,
@@ -119,7 +121,8 @@ export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures = 0  // 追加：count-in小節数（デフォルト0）
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
@@ -129,6 +132,7 @@ export function parseChordProgressionData(
     const chord = getChordDefinition(item.chord);
     if (chord) {
       // bar（小節）とbeats（拍）から実際の時刻を計算
+      // count-in終了後を0秒とする時間計算
       const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
