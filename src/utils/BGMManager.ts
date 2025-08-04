@@ -11,6 +11,9 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private loopCount = 0  // ループ回数を追跡
+  private onLoopCallback: (() => void) | null = null  // ループ時のコールバック
+  private lastLoopTime = 0  // 最後のループ処理時刻
 
   play(
     url: string,
@@ -30,6 +33,7 @@ class BGMManager {
     this.timeSignature = timeSig
     this.measureCount = measureCount
     this.countInMeasures = countIn
+    this.loopCount = 0
     
     this.audio = new Audio(url)
     this.audio.volume = volume
@@ -43,12 +47,23 @@ class BGMManager {
     // 初回再生は最初から（カウントインを含む）
     this.audio.currentTime = 0
     
-    // timeupdate イベントハンドラを保存
+    // timeupdate イベントハンドラを保存（より高精度な処理）
     this.timeUpdateHandler = () => {
       if (!this.audio) return
-      if (this.audio.currentTime >= this.loopEnd) {
-        // ループ時はカウントイン後から再生
-        this.audio.currentTime = this.loopBegin
+      
+      // ループエンドに近づいたら、より頻繁にチェック
+      const timeToEnd = this.loopEnd - this.audio.currentTime
+      
+      if (timeToEnd <= 0.05 && timeToEnd > 0) {
+        // ループエンドまで50ms以内なら高頻度でチェック
+        requestAnimationFrame(() => {
+          if (!this.audio) return
+          if (this.audio.currentTime >= this.loopEnd) {
+            this.handleLoop()
+          }
+        })
+      } else if (this.audio.currentTime >= this.loopEnd) {
+        this.handleLoop()
       }
     }
     
@@ -62,6 +77,35 @@ class BGMManager {
       console.warn('BGM playback failed:', error)
       this.isPlaying = false
     })
+  }
+  
+  /**
+   * ループ処理を実行
+   */
+  private handleLoop() {
+    if (!this.audio) return
+    
+    // 二重ループ防止のため、最後のループ処理から一定時間経過していることを確認
+    const now = performance.now()
+    if (now - this.lastLoopTime < 100) return
+    
+    this.lastLoopTime = now
+    this.loopCount++
+    
+    // ループ時はカウントイン後から再生
+    this.audio.currentTime = this.loopBegin
+    
+    // ループコールバックを実行
+    if (this.onLoopCallback) {
+      this.onLoopCallback()
+    }
+  }
+  
+  /**
+   * ループ時のコールバックを設定
+   */
+  setOnLoopCallback(callback: (() => void) | null) {
+    this.onLoopCallback = callback
   }
 
   setVolume(v: number) {
@@ -81,6 +125,8 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    this.onLoopCallback = null
+    this.loopCount = 0
   }
   
   // タイミング管理用の新しいメソッド
@@ -88,22 +134,42 @@ class BGMManager {
   /**
    * 現在の音楽的時間を取得（秒単位）
    * カウントイン終了時を0秒とする
+   * ループを考慮した連続的な時間を返す
    */
   getCurrentMusicTime(): number {
     if (!this.isPlaying || !this.audio) return 0
     
     const audioTime = this.audio.currentTime
     const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+    const loopDuration = this.measureCount * (60 / this.bpm) * this.timeSignature
     
     // カウントイン中は負の値を返す
-    return audioTime - countInDuration
+    if (audioTime < countInDuration) {
+      return audioTime - countInDuration
+    }
+    
+    // ループを考慮した連続的な時間
+    return (audioTime - countInDuration) + (this.loopCount * loopDuration)
   }
   
   /**
    * 現在の小節番号を取得（1始まり）
    * カウントイン中は0を返す
+   * ループを考慮した連続的な小節番号を返す
    */
   getCurrentMeasure(): number {
+    const musicTime = this.getCurrentMusicTime()
+    if (musicTime < 0) return 0 // カウントイン中
+    
+    const secPerMeasure = (60 / this.bpm) * this.timeSignature
+    return Math.floor(musicTime / secPerMeasure) + 1
+  }
+  
+  /**
+   * 現在の表示用小節番号を取得（1始まり、ループを考慮）
+   * カウントイン中は0を返す
+   */
+  getCurrentDisplayMeasure(): number {
     const musicTime = this.getCurrentMusicTime()
     if (musicTime < 0) return 0 // カウントイン中
     
@@ -142,14 +208,24 @@ class BGMManager {
    * 指定した小節・拍の時刻を取得（秒単位）
    * @param measure 小節番号（1始まり）
    * @param beat 拍番号（1始まり、小数可）
+   * @param ignoreLoop ループを無視するかどうか
    */
-  getMusicTimeAt(measure: number, beat: number): number {
+  getMusicTimeAt(measure: number, beat: number, ignoreLoop = false): number {
     const secPerBeat = 60 / this.bpm
     const secPerMeasure = secPerBeat * this.timeSignature
     const countInDuration = this.countInMeasures * secPerMeasure
     
     // カウントイン + 指定小節までの時間 + 拍の時間
-    return countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
+    let time = countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
+    
+    // ループを考慮しない場合、実際のオーディオタイムに変換
+    if (!ignoreLoop && time >= this.loopEnd) {
+      const loopDuration = this.loopEnd - this.loopBegin
+      const loops = Math.floor((time - this.loopBegin) / loopDuration)
+      time = this.loopBegin + ((time - this.loopBegin) % loopDuration)
+    }
+    
+    return time
   }
   
   /**
@@ -183,6 +259,27 @@ class BGMManager {
    */
   getTimeSignature(): number {
     return this.timeSignature
+  }
+  
+  /**
+   * ループ回数を取得
+   */
+  getLoopCount(): number {
+    return this.loopCount
+  }
+  
+  /**
+   * 総小節数を取得
+   */
+  getMeasureCount(): number {
+    return this.measureCount
+  }
+  
+  /**
+   * カウントイン小節数を取得
+   */
+  getCountInMeasures(): number {
+    return this.countInMeasures
   }
 }
 
