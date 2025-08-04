@@ -2,10 +2,13 @@
 
 class BGMManager {
   private audio: HTMLAudioElement | null = null
+  private audioContext: AudioContext | null = null
+  private source: MediaElementAudioSourceNode | null = null
   private loopBegin = 0
   private loopEnd = 0
   private timeUpdateHandler: (() => void) | null = null
   private startTime = 0  // BGM開始時刻（performance.now()）
+  private audioStartTime = 0  // AudioContext開始時刻
   private bpm = 120
   private timeSignature = 4
   private measureCount = 8
@@ -31,8 +34,19 @@ class BGMManager {
     this.measureCount = measureCount
     this.countInMeasures = countIn
     
+    // AudioContextを初期化（より正確なタイミングのため）
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    }
+    
     this.audio = new Audio(url)
     this.audio.volume = volume
+    
+    // MediaElementSourceNodeを作成してAudioContextに接続
+    if (this.audioContext && !this.source) {
+      this.source = this.audioContext.createMediaElementSource(this.audio)
+      this.source.connect(this.audioContext.destination)
+    }
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -56,6 +70,7 @@ class BGMManager {
     
     // 再生開始時刻を記録
     this.startTime = performance.now()
+    this.audioStartTime = this.audioContext ? this.audioContext.currentTime : 0
     this.isPlaying = true
     
     this.audio.play().catch((error) => {
@@ -81,6 +96,11 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    if (this.source) {
+      this.source.disconnect()
+      this.source = null
+    }
+    // AudioContextは再利用のため破棄しない
   }
   
   // タイミング管理用の新しいメソッド
@@ -148,8 +168,11 @@ class BGMManager {
     const secPerMeasure = secPerBeat * this.timeSignature
     const countInDuration = this.countInMeasures * secPerMeasure
     
+    // ループを考慮した小節番号に変換
+    const measureInLoop = (measure - 1) % this.measureCount
+    
     // カウントイン + 指定小節までの時間 + 拍の時間
-    return countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
+    return countInDuration + measureInLoop * secPerMeasure + (beat - 1) * secPerBeat
   }
   
   /**
@@ -183,6 +206,32 @@ class BGMManager {
    */
   getTimeSignature(): number {
     return this.timeSignature
+  }
+
+  /**
+   * 高精度な現在の音楽的時間を取得（秒単位）
+   * AudioContextを使用して正確なタイミングを計算
+   */
+  getPreciseMusicTime(): number {
+    if (!this.isPlaying || !this.audio) return 0
+    
+    // AudioContextが利用可能な場合は高精度タイミングを使用
+    if (this.audioContext && this.audioStartTime > 0) {
+      const elapsed = this.audioContext.currentTime - this.audioStartTime
+      const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+      
+      // ループを考慮
+      const loopDuration = this.loopEnd - this.loopBegin
+      if (elapsed > this.loopEnd) {
+        const loopedTime = this.loopBegin + ((elapsed - this.loopEnd) % loopDuration)
+        return loopedTime - countInDuration
+      }
+      
+      return elapsed - countInDuration
+    }
+    
+    // フォールバック: HTMLAudioElementの時間を使用
+    return this.getCurrentMusicTime()
   }
 }
 

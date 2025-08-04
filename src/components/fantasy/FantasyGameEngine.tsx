@@ -431,13 +431,27 @@ export const useFantasyGameEngine = ({
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
+    // ループチェック: BGMがループして最初に戻った場合
+    const currentTime = bgmManager.getCurrentMusicTime();
+    const loopDuration = (prevState.currentStage?.measureCount || 8) * 
+                         (60 / (prevState.currentStage?.bpm || 120)) * 
+                         (prevState.currentStage?.timeSignature || 4);
+    
+    // 現在のノートインデックスが最後まで到達し、BGMがループした場合
+    if (prevState.currentNoteIndex >= prevState.taikoNotes.length && currentTime < loopDuration * 0.1) {
+      // ループ: インデックスをリセットするが、他の状態は維持
+      return {
+        ...prevState,
+        currentNoteIndex: 0
+      };
+    }
+    
     if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
-      // すべてのノーツ処理済み
+      // すべてのノーツ処理済みでループ前
       return prevState;
     }
     
     const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
-    const currentTime = bgmManager.getCurrentMusicTime();
     const judgment = judgeTimingWindow(currentTime, currentNote.hitTime);
     
     devLog.debug('🥁 太鼓の達人判定:', {
@@ -545,12 +559,18 @@ export const useFantasyGameEngine = ({
           const finalState = {
             ...prevState,
             activeMonsters: [],
-            isGameActive: false,
-            isGameOver: true,
-            gameResult: 'clear' as const,
-            enemiesDefeated: newEnemiesDefeated
+            isGameActive: true, // まだアクティブにしておく
+            isGameOver: false, // まだゲームオーバーではない
+            gameResult: null,
+            enemiesDefeated: newEnemiesDefeated,
+            isCompleting: true // 完了処理中フラグを立てる
           };
-          onGameComplete('clear', finalState);
+          
+          // 少し遅延してから完了処理
+          setTimeout(() => {
+            onGameComplete('clear', finalState);
+          }, 500);
+          
           return finalState;
         }
         
@@ -709,6 +729,7 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0,
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       } else if (stage.chordProgression) {
@@ -718,6 +739,7 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
+          stage.countInMeasures || 0,
           (chordId) => getChordDefinition(chordId, displayOpts)
         );
       }
@@ -795,13 +817,16 @@ export const useFantasyGameEngine = ({
         // ゲームクリア
         const finalState = {
           ...prevState,
-          isGameActive: false,
-          isGameOver: true,
-          gameResult: 'clear' as const,
-          isCompleting: true // 追加
+          isGameActive: true, // まだアクティブ
+          isGameOver: false,
+          gameResult: null,
+          isCompleting: true
         };
         
-        onGameComplete('clear', finalState);
+        setTimeout(() => {
+          onGameComplete('clear', finalState);
+        }, 500);
+        
         return finalState;
       } else {
         // 各モンスターに新しいコードを割り当て
@@ -891,10 +916,10 @@ export const useFantasyGameEngine = ({
             ...prevState,
             playerHp: newHp,
             playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
-            isGameActive: false,
-            isGameOver: true,
-            gameResult: 'clear' as const,
-            isCompleting: true // 追加
+            isGameActive: true, // まだアクティブ
+            isGameOver: false,
+            gameResult: null,
+            isCompleting: true
           };
           
           // クリアコールバックを安全に呼び出し
@@ -904,7 +929,7 @@ export const useFantasyGameEngine = ({
             } catch (error) {
               devLog.debug('❌ クリアコールバックエラー:', error);
             }
-          }, 100);
+          }, 500);
           
           return finalState;
         } else {
@@ -989,28 +1014,46 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
-        const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
         
-        if (currentNote && currentTime > currentNote.hitTime + 0.3) {
-          // 判定時間を過ぎた（+300ms以上）
-          devLog.debug('💥 太鼓の達人：ミス！', {
-            noteId: currentNote.id,
-            chord: currentNote.chord.displayName
-          });
-          
-          // 敵の攻撃を発動
-          handleEnemyAttack();
-          
-          // 次のノーツへ進む
+        // ループチェック
+        const loopDuration = (prevState.currentStage?.measureCount || 8) * 
+                             (60 / (prevState.currentStage?.bpm || 120)) * 
+                             (prevState.currentStage?.timeSignature || 4);
+        
+        // BGMがループした場合
+        if (prevState.currentNoteIndex >= prevState.taikoNotes.length && currentTime < loopDuration * 0.1) {
+          // ループ: インデックスをリセット
           return {
             ...prevState,
-            currentNoteIndex: prevState.currentNoteIndex + 1,
-            activeMonsters: prevState.activeMonsters.map(m => ({
-              ...m,
-              correctNotes: [],
-              gauge: 0
-            }))
+            currentNoteIndex: 0
           };
+        }
+        
+        // 通常のミス判定
+        if (prevState.currentNoteIndex < prevState.taikoNotes.length) {
+          const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
+          
+          if (currentNote && currentTime > currentNote.hitTime + 0.3) {
+            // 判定時間を過ぎた（+300ms以上）
+            devLog.debug('💥 太鼓の達人：ミス！', {
+              noteId: currentNote.id,
+              chord: currentNote.chord.displayName
+            });
+            
+            // 敵の攻撃を発動
+            handleEnemyAttack();
+            
+            // 次のノーツへ進む
+            return {
+              ...prevState,
+              currentNoteIndex: prevState.currentNoteIndex + 1,
+              activeMonsters: prevState.activeMonsters.map(m => ({
+                ...m,
+                correctNotes: [],
+                gauge: 0
+              }))
+            };
+          }
         }
         
         // 太鼓モードではゲージを更新しない
@@ -1199,8 +1242,21 @@ export const useFantasyGameEngine = ({
 
         // ゲームクリア判定
         if (stateAfterAttack.enemiesDefeated >= stateAfterAttack.totalEnemies) {
-            const finalState = { ...stateAfterAttack, isGameActive: false, isGameOver: true, gameResult: 'clear' as const, activeMonsters: [] };
-            onGameComplete('clear', finalState);
+            // 最後の敵を倒してもゲームはまだアクティブ（最後の判定を受け付けるため）
+            const finalState = { 
+                ...stateAfterAttack, 
+                isGameActive: true, // まだアクティブにしておく
+                isGameOver: false, // まだゲームオーバーではない
+                gameResult: null,
+                activeMonsters: [],
+                isCompleting: true // 完了処理中フラグを立てる
+            };
+            
+            // 少し遅延してから完了処理を行う
+            setTimeout(() => {
+                onGameComplete('clear', finalState);
+            }, 500);
+            
             return finalState;
         }
         

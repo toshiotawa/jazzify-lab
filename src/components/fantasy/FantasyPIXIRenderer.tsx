@@ -1908,81 +1908,82 @@ export class FantasyPIXIInstance {
 
   // 判定ラインの初期化
   private initializeJudgeLine(): void {
-    if (this.judgeLineGraphics) {
-      this.judgeLineGraphics.destroy();
-    }
-    
-    const graphics = new PIXI.Graphics();
-    const centerY = this.app.screen.height / 2;
-    
-    // 外側の円（判定エリア）
-    graphics.lineStyle(3, 0xFFD700, 0.8);
-    graphics.drawCircle(this.judgeLineX, centerY, 40);
-    
-    // 内側の円（中心）
-    graphics.lineStyle(0);
-    graphics.beginFill(0xFFD700, 0.6);
-    graphics.drawCircle(this.judgeLineX, centerY, 10);
-    graphics.endFill();
-    
-    this.judgeLineGraphics = graphics;
-    this.judgeLineContainer.addChild(graphics);
-  }
-  
-  // 太鼓の達人風ノーツを作成
-  createTaikoNote(noteId: string, chordName: string, x: number): PIXI.Container {
-    const noteContainer = new PIXI.Container();
-    
-    // ノーツの円を作成
-    const noteCircle = new PIXI.Graphics();
-    noteCircle.lineStyle(3, 0xFFFFFF, 1);
-    noteCircle.beginFill(0xFF6B6B, 0.8);
-    noteCircle.drawCircle(0, 0, 35);
-    noteCircle.endFill();
-    
-    // コード名のテキスト
-    const chordText = new PIXI.Text(chordName, {
-      fontFamily: 'Arial',
-      fontSize: 24,
-      fontWeight: 'bold',
-      fill: 0xFFFFFF,
-      align: 'center'
-    });
-    chordText.anchor.set(0.5);
-    
-    noteContainer.addChild(noteCircle);
-    noteContainer.addChild(chordText);
-    noteContainer.x = x;
-    noteContainer.y = this.app.screen.height / 2;
-    
-    // 半透明にする
-    noteContainer.alpha = 0.85;
-    
-    return noteContainer;
+    this.judgeLineGraphics = new PIXI.Graphics();
+    this.judgeLineGraphics.lineStyle(4, 0xff0000, 1);
+    this.judgeLineGraphics.moveTo(this.judgeLineX, 0);
+    this.judgeLineGraphics.lineTo(this.judgeLineX, this.app.screen.height);
+    this.judgeLineContainer.addChild(this.judgeLineGraphics);
   }
   
   // ノーツを更新（太鼓の達人風）
-  updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
-    this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
-        note.destroy();
+  updateTaikoNotes(notes: Array<{id: string, chord: string, x: number, isLoopPreview?: boolean}>): void {
+    if (this.isDestroyed) return;
+    
+    // 表示されなくなったノーツを削除
+    const noteIds = new Set(notes.map(n => n.id));
+    this.activeNotes.forEach((container, id) => {
+      if (!noteIds.has(id)) {
+        container.destroy();
         this.activeNotes.delete(id);
       }
     });
     
-    // 新しいノーツを追加・更新
+    // ノーツを更新または作成
     notes.forEach(noteData => {
-      let note = this.activeNotes.get(noteData.id);
+      let container = this.activeNotes.get(noteData.id);
       
-      if (!note) {
+      if (!container) {
         // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-        this.notesContainer.addChild(note);
-        this.activeNotes.set(noteData.id, note);
-      } else {
-        // 既存のノーツの位置を更新
-        note.x = noteData.x;
+        container = new PIXI.Container();
+        
+        // ノーツの背景（円形）
+        const bg = new PIXI.Graphics();
+        const bgColor = noteData.isLoopPreview ? 0x666666 : 0x333333; // ループプレビューは薄い色
+        const bgAlpha = noteData.isLoopPreview ? 0.5 : 0.8;
+        bg.beginFill(bgColor, bgAlpha);
+        bg.drawCircle(0, 0, 30);
+        bg.endFill();
+        
+        // コード名テキスト
+        const text = new PIXI.Text(noteData.chord, {
+          fontFamily: 'Arial',
+          fontSize: 16,
+          fill: noteData.isLoopPreview ? 0xcccccc : 0xffffff,
+          align: 'center'
+        });
+        text.anchor.set(0.5);
+        
+        container.addChild(bg);
+        container.addChild(text);
+        
+        // ループプレビューノーツは点線で囲む
+        if (noteData.isLoopPreview) {
+          const outline = new PIXI.Graphics();
+          outline.lineStyle(2, 0xffff00, 0.5);
+          
+          // 点線効果（簡易版）
+          const segments = 8;
+          const angleStep = (Math.PI * 2) / segments;
+          for (let i = 0; i < segments; i += 2) {
+            const startAngle = i * angleStep;
+            const endAngle = (i + 1) * angleStep;
+            outline.arc(0, 0, 35, startAngle, endAngle);
+          }
+          
+          container.addChild(outline);
+        }
+        
+        container.y = this.app.screen.height / 2;
+        this.notesContainer.addChild(container);
+        this.activeNotes.set(noteData.id, container);
+      }
+      
+      // 位置を更新
+      container.x = noteData.x;
+      
+      // ループプレビューノーツは少し透明に
+      if (noteData.isLoopPreview) {
+        container.alpha = 0.6;
       }
     });
   }
