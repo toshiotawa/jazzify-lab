@@ -11,12 +11,12 @@ interface TimeState {
   bpm: number
   /* 全小節数(ループ終端) */
   measureCount: number
-  /* イントロ/カウントイン小節数(Ready → Start 迄) */
+  /* イントロ/カウントイン小節数(互換性のため残すが使用しない) */
   countInMeasures: number
   /* 現在の拍(1-timeSignature) と小節(1-measureCount) */
   currentBeat: number
   currentMeasure: number
-  /* カウントイン中かどうか */
+  /* カウントイン中かどうか（常にfalse） */
   isCountIn: boolean
   /* setter 群 */
   setStart: (
@@ -45,7 +45,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       bpm,
       timeSignature: ts,
       measureCount: mc,
-      countInMeasures: ci,
+      countInMeasures: 0, // カウントインは常に0として扱う
       currentBeat: 1,
       currentMeasure: 1,
       isCountIn: false
@@ -60,7 +60,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
       set({
         currentBeat: 1,
         currentMeasure: 1,
-        isCountIn: false // Ready中はカウントインでもない
+        isCountIn: false
       })
       return
     }
@@ -73,24 +73,13 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
     
-    /* カウントイン中かどうかを判定 */
-    if (totalMeasures < s.countInMeasures) {
-      // カウントイン中
-      set({
-        currentBeat: currentBeatInMeasure,
-        currentMeasure: -(s.countInMeasures - totalMeasures), // 負の値でカウントイン表示
-        isCountIn: true
-      })
-    } else {
-      // メイン部分（カウントイン後）
-      const measuresAfterCountIn = totalMeasures - s.countInMeasures
-      const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
-      
-      set({
-        currentBeat: currentBeatInMeasure,
-        currentMeasure: displayMeasure, // カウントイン後を1から表示
-        isCountIn: false
-      })
-    }
+    // カウントインなしで直接メイン部分
+    const displayMeasure = (totalMeasures % s.measureCount) + 1
+    
+    set({
+      currentBeat: currentBeatInMeasure,
+      currentMeasure: displayMeasure,
+      isCountIn: false
+    })
   }
 }))

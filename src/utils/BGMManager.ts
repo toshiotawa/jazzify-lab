@@ -41,10 +41,11 @@ class BGMManager {
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
-    this.loopBegin = countIn * secPerMeas
-    this.loopEnd = (countIn + measureCount) * secPerMeas
+    // カウントインは無視し、常に0から全長までループ
+    this.loopBegin = 0
+    this.loopEnd = measureCount * secPerMeas
 
-    // 初回再生は最初から（カウントインを含む）
+    // 初回再生は最初から
     this.audio.currentTime = 0
     
     // エラーハンドリング
@@ -156,26 +157,21 @@ class BGMManager {
   
   /**
    * 現在の音楽的時間を取得（秒単位）
-   * カウントイン終了時を0秒とする
+   * BGM開始時を0秒とする（カウントインの概念を排除）
    */
   getCurrentMusicTime(): number {
     if (!this.isPlaying || !this.audio) return 0
     
-    const audioTime = this.audio.currentTime
-    const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
-    
-    // カウントイン後の時間を返す（カウントイン中は負の値）
-    return audioTime - countInDuration
+    // そのままのオーディオ時間を返す
+    return this.audio.currentTime
   }
   
   /**
    * 現在の小節番号を取得（1始まり）
-   * カウントイン中は0を返す
+   * ループを考慮した実際の小節番号
    */
   getCurrentMeasure(): number {
     const musicTime = this.getCurrentMusicTime()
-    if (musicTime < 0) return 0 // カウントイン中
-    
     const secPerMeasure = (60 / this.bpm) * this.timeSignature
     const measure = Math.floor(musicTime / secPerMeasure) + 1
     
