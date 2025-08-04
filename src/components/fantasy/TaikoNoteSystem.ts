@@ -107,6 +107,14 @@ export function generateBasicProgressionNotes(
   const secPerMeasure = secPerBeat * timeSignature;
   const countInDuration = countInMeasures * secPerMeasure; // カウントインの総時間
   
+  console.log('🥁 基本版ノーツ生成:', {
+    measureCount,
+    countInMeasures,
+    countInDuration,
+    secPerMeasure,
+    totalDuration: countInDuration + measureCount * secPerMeasure
+  });
+  
   // カウントイン後の小節のみでノーツを生成
   for (let measure = 1; measure <= measureCount; measure++) {
     const chordIndex = (measure - 1) % chordProgression.length;
@@ -117,7 +125,7 @@ export function generateBasicProgressionNotes(
       // カウントイン時間を加算して実際のヒットタイミングを計算
       const hitTime = countInDuration + (measure - 1) * secPerMeasure;
       
-      notes.push({
+      const note = {
         id: `note_${measure}_1`,
         chord,
         hitTime,
@@ -125,9 +133,19 @@ export function generateBasicProgressionNotes(
         beat: 1,
         isHit: false,
         isMissed: false
-      });
+      };
+      
+      notes.push(note);
+      
+      console.log(`🎵 ノーツ生成: M${measure} - ${chord.displayName} @ ${hitTime.toFixed(2)}s`);
     }
   }
+  
+  console.log('🥁 基本版ノーツ生成完了:', {
+    noteCount: notes.length,
+    firstNote: notes[0],
+    lastNote: notes[notes.length - 1]
+  });
   
   return notes;
 }
@@ -153,26 +171,43 @@ export function parseChordProgressionData(
   const secPerMeasure = secPerBeat * timeSignature;
   const countInDuration = countInMeasures * secPerMeasure;
   
+  console.log('🥁 拡張版ノーツ生成:', {
+    itemCount: progressionData.length,
+    countInMeasures,
+    countInDuration,
+    secPerMeasure
+  });
+  
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
     if (chord) {
       // カウントイン時間を加算
       const hitTime = countInDuration + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
-      notes.push({
+      const note = {
         id: `note_${item.bar}_${item.beats}_${index}`,
         chord,
         hitTime,
-        measure: item.bar, // 表示用の小節番号
+        measure: item.bar, // 表示用の小節番号（JSON指定通り）
         beat: item.beats,
         isHit: false,
         isMissed: false
-      });
+      };
+      
+      notes.push(note);
+      
+      console.log(`🎵 拡張版ノーツ生成: M${item.bar}:${item.beats} - ${chord.displayName} @ ${hitTime.toFixed(2)}s`);
     }
   });
   
   // 時間順にソート
   notes.sort((a, b) => a.hitTime - b.hitTime);
+  
+  console.log('🥁 拡張版ノーツ生成完了:', {
+    noteCount: notes.length,
+    firstNote: notes[0],
+    lastNote: notes[notes.length - 1]
+  });
   
   return notes;
 }

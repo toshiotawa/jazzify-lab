@@ -5,11 +5,13 @@
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import * as PIXI from 'pixi.js';
-import { cn } from '@/utils/cn';
-import { devLog } from '@/utils/logger';
-import { MonsterState as GameMonsterState } from './FantasyGameEngine';
+import { cn } from '@/lib/utils';
+import { devLog } from '@/utils/devLog';
+import { MonsterState as GameMonsterState, FantasyGameState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
+import gsap from 'gsap';
+import { settings } from '@/utils/audioEngine';
 
 // ===== 型定義 =====
 
@@ -17,16 +19,21 @@ import FantasySoundManager from '@/utils/FantasySoundManager';
 type MonsterState = 'IDLE' | 'HITTING' | 'DEFEATED' | 'FADING_OUT' | 'GONE';
 
 interface FantasyPIXIRendererProps {
-  width: number;
-  height: number;
-  monsterIcon: string;
-  enemyGauge: number;
+  gameState: FantasyGameState;
+  screenWidth: number;
+  screenHeight: number;
+  onMagicEffectComplete?: () => void;
+  imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>;
+  onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void;
+  // 以下は互換性のために残す（使用しない）
+  width?: number;
+  height?: number;
+  monsterIcon?: string;
+  enemyGauge?: number;
   onReady?: (instance: FantasyPIXIInstance) => void;
-  onMonsterDefeated?: () => void; // 状態機械用コールバック
-  onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void; // 魔法名表示コールバック
+  onMonsterDefeated?: () => void;
   className?: string;
-  activeMonsters?: GameMonsterState[]; // マルチモンスター対応
-  imageTexturesRef?: React.MutableRefObject<Map<string, PIXI.Texture>>; // プリロードされたテクスチャへの参照
+  activeMonsters?: GameMonsterState[];
 }
 
 // モンスターのビジュアル状態を不変に管理
@@ -2179,16 +2186,21 @@ export class FantasyPIXIInstance {
 // ===== Reactコンポーネント =====
 
 export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
+  gameState,
+  screenWidth,
+  screenHeight,
+  onMagicEffectComplete,
+  imageTexturesRef,
+  onShowMagicName,
+  // 以下は互換性のために残す（使用しない）
   width,
   height,
   monsterIcon,
   enemyGauge,
   onReady,
   onMonsterDefeated,
-  onShowMagicName,
   className,
   activeMonsters,
-  imageTexturesRef
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pixiInstance, setPixiInstance] = useState<FantasyPIXIInstance | null>(null);
@@ -2197,7 +2209,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const instance = new FantasyPIXIInstance(width, height, onMonsterDefeated, onShowMagicName, imageTexturesRef);
+    const instance = new FantasyPIXIInstance(screenWidth, screenHeight, onMonsterDefeated, onShowMagicName, imageTexturesRef);
     containerRef.current.appendChild(instance.getCanvas());
     
     setPixiInstance(instance);
@@ -2206,7 +2218,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
     return () => {
       instance.destroy();
     };
-  }, [width, height, onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef]);
+  }, [screenWidth, screenHeight, onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef]);
 
   // モンスターアイコン変更（状態機械による安全な生成）
   useEffect(() => {
@@ -2222,20 +2234,28 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
     }
   }, [pixiInstance, monsterIcon, activeMonsters]);
 
+  // モンスター更新（gameStateから）
+  useEffect(() => {
+    if (pixiInstance && gameState) {
+      // gameStateから直接モンスター情報を取得
+      pixiInstance.updateActiveMonsters(gameState.activeMonsters);
+    }
+  }, [pixiInstance, gameState]);
 
+  // ゲージ更新は不要（モンスター情報に含まれている）
 
   // サイズ変更
   useEffect(() => {
     if (pixiInstance) {
-      pixiInstance.resize(width, height);
+      pixiInstance.resize(screenWidth, screenHeight);
     }
-  }, [pixiInstance, width, height]);
+  }, [pixiInstance, screenWidth, screenHeight]);
 
   return (
     <div
       ref={containerRef}
       className={cn("relative", className)}
-      style={{ width, height }}
+      style={{ width: screenWidth, height: screenHeight }}
     />
   );
 };

@@ -18,6 +18,8 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { motion } from 'framer-motion';
+import { TaikoNoteDisplay } from './TaikoNoteDisplay';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -71,6 +73,30 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
   const monsterAreaRef = useRef<HTMLDivElement>(null);
   
+  // PIXIの幅を状態として管理
+  const [pixiWidth, setPixiWidth] = useState(window.innerWidth);
+  
+  // 画面サイズ変更時にPIXI幅を更新
+  useEffect(() => {
+    const handleResize = () => {
+      const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
+      const adjustedThreshold = 1100;
+      
+      if (gameAreaWidth >= adjustedThreshold) {
+        setPixiWidth(gameAreaWidth);
+      } else {
+        const VISIBLE_WHITE_KEYS = 14;
+        const TOTAL_WHITE_KEYS = 52;
+        const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
+        setPixiWidth(Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth));
+      }
+    };
+    
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   /* 毎 100 ms で時間ストア tick */
   useEffect(() => {
     const id = setInterval(() => tick(), 100);
@@ -111,11 +137,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.countInMeasures ?? 0,
         settings.bgmVolume ?? 0.7
       );
+      
+      // ループイベントリスナーを登録
+      const unsubscribe = bgmManager.onLoop((loopCount, loopStartTime) => {
+        devLog.debug('🔄 BGMループ検出:', { 
+          loopCount, 
+          loopStartTime,
+          isTaikoMode: gameState.isTaikoMode
+        });
+        
+        // ループ時の追加処理が必要な場合はここに記述
+        // 現在はGameEngine側でループ処理を管理しているため、
+        // ここでは特別な処理は不要
+      });
+      
+      return () => {
+        bgmManager.stop();
+        unsubscribe();
+      };
     } else {
       bgmManager.stop();
     }
     return () => bgmManager.stop();
-  }, [isReady, stage, settings.bgmVolume, startAt]);
+  }, [isReady, stage, settings.bgmVolume, startAt, gameState.isTaikoMode]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -809,186 +853,69 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         */}
         
-        {/* ===== モンスター＋エフェクト描画エリア ===== */}
-        <div className="mb-2 text-center relative w-full">
-          <div
-            ref={monsterAreaRef}
-            className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
-            style={{ height: 'min(200px, 30vh)' }}
+        {/* エネミー＆PIXI表示 */}
+        <div className="relative flex-1 overflow-hidden rounded-xl shadow-lg bg-gradient-to-b from-gray-700 to-gray-800 mx-2">
+          <motion.div
+            animate={damageShake ? { x: [0, -10, 10, -10, 10, 0] } : {}}
+            transition={{ duration: 0.5 }}
+            className="relative w-full h-full"
           >
-            {/* 魔法名表示 - モンスターカード内に移動 */}
-            <FantasyPIXIRenderer
-              width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
-              height={200}
-              monsterIcon={currentEnemy.icon}
-    
-              enemyGauge={gameState.enemyGauge}
-              onReady={handleFantasyPixiReady}
-              onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
-              className="w-full h-full"
-              activeMonsters={gameState.activeMonsters}
-              imageTexturesRef={imageTexturesRef}
-            />
+            {/* 既存のPIXIレンダラー */}
+            <div className="absolute inset-0">
+              <FantasyPIXIRenderer
+                gameState={gameState}
+                screenWidth={pixiWidth}
+                screenHeight={300}
+                onMagicEffectComplete={() => {}}
+                imageTexturesRef={imageTexturesRef}
+                onShowMagicName={(name, isSpecial, monsterId) => {
+                  devLog.debug('🎯 onShowMagicName called:', { name, isSpecial, monsterId });
+                }}
+              />
+            </div>
+            
+            {/* 太鼓の達人モードのノーツ表示 */}
+            {gameState.isTaikoMode && (
+              <div className="absolute inset-0 pointer-events-none">
+                <TaikoNoteDisplay
+                  gameState={gameState}
+                  width={pixiWidth}
+                  height={300}
+                />
+              </div>
+            )}
+          </motion.div>
+          
+          {/* 画面下部の小節情報等 */}
+          <div className="absolute bottom-2 right-2 text-white text-sm bg-black bg-opacity-50 rounded px-2 py-1">
+            <div className="text-xs">
+              M{currentMeasure || 1} B{currentBeat || 1}
+            </div>
           </div>
           
-          {/* モンスターの UI オーバーレイ */}
-          <div className="mt-2">
-            {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
-              // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
-              <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
-                {gameState.activeMonsters
-                  .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
-                  .map((monster) => {
-                    // モンスター数に応じて幅を動的に計算
-                    const monsterCount = gameState.activeMonsters.length;
-                    let widthPercent: string;
-                    let maxWidth: string;
-                    
-                    // モバイル判定（768px未満）
-                    const isMobile = window.innerWidth < 768;
-                    
-                    if (isMobile) {
-                      // モバイルの場合
-                      if (monsterCount <= 3) {
-                        widthPercent = '30%';
-                        maxWidth = '120px';
-                      } else if (monsterCount <= 5) {
-                        widthPercent = '18%';
-                        maxWidth = '80px';
-                      } else {
-                        // 6体以上
-                        widthPercent = '12%';
-                        maxWidth = '60px';
-                      }
-                    } else {
-                      // デスクトップの場合
-                      if (monsterCount <= 3) {
-                        widthPercent = '30%';
-                        maxWidth = '220px';
-                      } else if (monsterCount <= 5) {
-                        widthPercent = '18%';
-                        maxWidth = '150px';
-                      } else {
-                        // 6体以上
-                        widthPercent = '12%';
-                        maxWidth = '120px';
-                      }
-                    }
-                    
-                    return (
-                      <div 
-                        key={monster.id}
-                        // ★★★ 修正点: flexアイテムとして定義、幅を設定 ★★★
-                        className="flex-shrink-0 flex flex-col items-center"
-                        style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
-                      >
-                      {/* 太鼓の達人モードでは現在のコードと次のコードを表示 */}
-                      {gameState.isTaikoMode ? (
-                        <>
-                          {/* 現在のコード */}
-                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                          }`}>
-                            {monster.chordTarget.displayName}
-                          </div>
-                          
-                          {/* 次のコード（小さく表示） */}
-                          {monster.nextChord && (
-                            <div className={`text-blue-300 text-center truncate w-full ${
-                              monsterCount > 5 ? 'text-xs' : 'text-sm'
-                            }`}>
-                              Next: {monster.nextChord.displayName}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          {/* 通常モードの表示 */}
-                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                          }`}>
-                            {monster.chordTarget.displayName}
-                          </div>
-                          
-                          {/* ヒント表示 */}
-                          <div className={`mt-1 font-medium h-6 text-center ${
-                            monsterCount > 5 ? 'text-xs' : 'text-sm'
-                          }`}>
-                          {monster.chordTarget.noteNames.map((noteName, index) => {
-                            // 表示オプションを定義
-                            const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
-                            // 表示用の音名に変換
-                            const displayNoteName = toDisplayName(noteName, displayOpts);
-                            
-                            // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
-                            const noteObj = parseNote(noteName + '4'); // オクターブはダミー
-                            const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
-                            
-                            const isCorrect = monster.correctNotes.includes(noteMod12);
-
-                            if (!stage.showGuide && !isCorrect) {
-                              return (
-                                <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
-                                  ?
-                                </span>
-                              );
-                            }
-                            return (
-                              <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                                {displayNoteName}
-                                {isCorrect && '✓'}
-                              </span>
-                            );
-                          })}
-                          </div>
-                        </>
-                      )}
-                      
-                      {/* 魔法名表示 */}
-                      {magicName && magicName.monsterId === monster.id && (
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                          {/* ▼▼▼ 変更点 ▼▼▼ */}
-                          <div className={`font-bold font-dotgothic16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
-                            magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                          }`}>
-                          {/* ▲▲▲ ここまで ▲▲▲ */}
-                            {magicName.name}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* 行動ゲージ */}
-                      <div 
-                        ref={el => {
-                          if (el) gaugeRefs.current.set(monster.id, el);
-                        }}
-                        className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
-                      >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
-                        />
-                      </div>
-                      
-                      {/* HPゲージ */}
-                      <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
-                        <div
-                          className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
-                          style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
-                          {monster.currentHp}/{monster.maxHp}
-                        </div>
-                      </div>
-                    </div>
-                    );
-                  })}
-              </div>
-            ) : null}
-            
-            {/* プレイヤーのHP表示とSPゲージ */}
+          {/* プレイヤーのHP表示とSPゲージ */}
+          <div className="absolute bottom-2 left-2 text-white text-sm bg-black bg-opacity-50 rounded px-2 py-1">
+            <div className="flex space-x-0.5">
+              {renderHearts(gameState.playerHp, stage.maxHp)}
+            </div>
+            <div className="mt-1">
+              {renderSpGauge(gameState.playerSp)}
+            </div>
           </div>
+          
+          {/* 敵のコード表示（プログレッションモードのみ） */}
+          {!gameState.isTaikoMode && gameState.activeMonsters.length > 0 && (
+            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 rounded px-4 py-2">
+              <div className="text-yellow-300 font-bold text-xl">
+                {gameState.activeMonsters[0].chordTarget.displayName}
+              </div>
+              {stage.showGuide && (
+                <div className="text-xs text-gray-300 mt-1">
+                  {gameState.activeMonsters[0].chordTarget.noteNames.join(' ')}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
@@ -1027,17 +954,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
           const adjustedThreshold = 1100; // PC判定のしきい値
           
-          let pixiWidth: number;
+          let localPixiWidth: number;
           let needsScroll: boolean;
           
           if (gameAreaWidth >= adjustedThreshold) {
             // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
-            pixiWidth = gameAreaWidth;
+            localPixiWidth = gameAreaWidth;
             needsScroll = false;
           } else {
             // モバイル等、画面が狭い → 横スクロール表示
             const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
-            pixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
+            localPixiWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
             needsScroll = true;
           }
           
@@ -1057,7 +984,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               >
                 <PIXINotesRenderer
                   activeNotes={[]}
-                  width={pixiWidth}
+                  width={localPixiWidth}
                   height={120} // ★★★ 高さを120に固定 ★★★
                   currentTime={0}
                   onReady={handlePixiReady}
@@ -1071,7 +998,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div className="absolute inset-0 overflow-hidden">
                 <PIXINotesRenderer
                   activeNotes={[]}
-                  width={pixiWidth}
+                  width={localPixiWidth}
                   height={120} // ★★★ 高さを120に固定 ★★★
                   currentTime={0}
                   onReady={handlePixiReady}
