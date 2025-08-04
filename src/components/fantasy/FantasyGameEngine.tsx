@@ -69,6 +69,7 @@ interface MonsterState {
   correctNotes: number[]; // このモンスター用の正解済み音
   icon: string;
   name: string;
+  nextChord?: ChordDefinition; // 太鼓の達人モードで次のコードを記録
 }
 
 interface FantasyGameState {
@@ -431,24 +432,54 @@ export const useFantasyGameEngine = ({
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
-    if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
-      // すべてのノーツ処理済み
-      return prevState;
+    // ▼▼▼ 追加: ループ処理 ▼▼▼
+    if (prevState.currentNoteIndex >= prevState.taikoNotes.length && prevState.taikoNotes.length > 0) {
+      // ループ: 最初に戻る
+      devLog.debug('🔄 太鼓の達人：ループ処理');
+      const firstNote = prevState.taikoNotes[0];
+      const nextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : firstNote;
+      
+      return {
+        ...prevState,
+        currentNoteIndex: 0,
+        activeMonsters: prevState.activeMonsters.map(m => ({
+          ...m,
+          correctNotes: [],
+          gauge: 0,
+          chordTarget: firstNote.chord,
+          nextChord: nextNote.chord
+        }))
+      };
     }
     
     const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
+    if (!currentNote) return prevState;
+    
     const currentTime = bgmManager.getCurrentMusicTime();
-    const judgment = judgeTimingWindow(currentTime, currentNote.hitTime);
+    const loopDuration = (prevState.currentStage?.measureCount || 8) * 
+                        (60 / (prevState.currentStage?.bpm || 120)) * 
+                        (prevState.currentStage?.timeSignature || 4);
+    
+    // ▼▼▼ 改善: ループ対応の判定を使用 ▼▼▼
+    const judgment = judgeTimingWindowWithLoop(currentTime, currentNote.hitTime, 300, loopDuration);
     
     devLog.debug('🥁 太鼓の達人判定:', {
       noteId: currentNote.id,
       chord: currentNote.chord.displayName,
       timing: judgment.timing,
-      timingDiff: judgment.timingDiff
+      timingDiff: judgment.timingDiff,
+      currentTime: currentTime.toFixed(3),
+      targetTime: currentNote.hitTime.toFixed(3)
     });
     
     if (!judgment.isHit) {
       // 判定ウィンドウ外
+      return prevState;
+    }
+    
+    // ▼▼▼ 追加: 既にヒット済みのノーツは無視（多段ヒット防止） ▼▼▼
+    if (currentNote.isHit) {
+      devLog.debug('⚠️ 太鼓の達人：既にヒット済みのノーツ');
       return prevState;
     }
     
@@ -465,9 +496,7 @@ export const useFantasyGameEngine = ({
     const currentMonster = prevState.activeMonsters[0];
     if (!currentMonster) return prevState;
     
-    const newCorrectNotes = [...currentMonster.correctNotes, noteMod12].filter(
-      (v, i, a) => a.indexOf(v) === i // 重複除去
-    );
+    const newCorrectNotes = [...new Set([...currentMonster.correctNotes, noteMod12])]; // Set使用で重複除去
     
     // コードが完成したかチェック
     const isChordComplete = targetNotesMod12.every(targetNote => 
@@ -500,6 +529,20 @@ export const useFantasyGameEngine = ({
       // 次のノーツへ進む
       const nextNoteIndex = prevState.currentNoteIndex + 1;
       
+      // ▼▼▼ 追加: 次のノーツ情報（ループ対応） ▼▼▼
+      const nextNote = nextNoteIndex < prevState.taikoNotes.length 
+        ? prevState.taikoNotes[nextNoteIndex]
+        : prevState.taikoNotes[0]; // ループ時は最初に戻る
+      
+      const nextNextNote = nextNoteIndex + 1 < prevState.taikoNotes.length
+        ? prevState.taikoNotes[nextNoteIndex + 1]
+        : prevState.taikoNotes[(nextNoteIndex < prevState.taikoNotes.length) ? 1 : 0];
+      
+      // ▼▼▼ 追加: 現在のノーツをヒット済みにマーク ▼▼▼
+      const updatedTaikoNotes = prevState.taikoNotes.map((n, idx) => 
+        idx === prevState.currentNoteIndex ? { ...n, isHit: true } : n
+      );
+      
       // モンスター更新
       const updatedMonsters = prevState.activeMonsters.map(m => {
         if (m.id === currentMonster.id) {
@@ -507,7 +550,9 @@ export const useFantasyGameEngine = ({
             ...m,
             currentHp: newHp,
             correctNotes: [],
-            gauge: 0
+            gauge: 0,
+            chordTarget: nextNote.chord,
+            nextChord: nextNextNote.chord
           };
         }
         return m;
@@ -520,23 +565,21 @@ export const useFantasyGameEngine = ({
         
         if (newMonsterQueue.length > 0) {
           const monsterIndex = newMonsterQueue.shift()!;
-          const nextNote = prevState.taikoNotes[nextNoteIndex];
           
-          if (nextNote) {
-            const newMonster = createMonsterFromQueue(
-              monsterIndex,
-              'D' as const, // 中央に配置
-              stage.enemyHp,
-              stage.allowedChords,
-              undefined,
-              displayOpts,
-              stageMonsterIds
-            );
-            
-            // 次のノーツのコードを設定
-            newMonster.chordTarget = nextNote.chord;
-            remainingMonsters.push(newMonster);
-          }
+          const newMonster = createMonsterFromQueue(
+            monsterIndex,
+            'D' as const, // 中央に配置
+            stage.enemyHp,
+            stage.allowedChords,
+            undefined,
+            displayOpts,
+            stageMonsterIds
+          );
+          
+          // 次のノーツのコードを設定
+          newMonster.chordTarget = nextNote.chord;
+          newMonster.nextChord = nextNextNote.chord;
+          remainingMonsters.push(newMonster);
         }
         
         // ゲームクリア判定
@@ -548,7 +591,8 @@ export const useFantasyGameEngine = ({
             isGameActive: false,
             isGameOver: true,
             gameResult: 'clear' as const,
-            enemiesDefeated: newEnemiesDefeated
+            enemiesDefeated: newEnemiesDefeated,
+            taikoNotes: updatedTaikoNotes
           };
           onGameComplete('clear', finalState);
           return finalState;
@@ -562,7 +606,8 @@ export const useFantasyGameEngine = ({
           currentNoteIndex: nextNoteIndex,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
-          enemiesDefeated: newEnemiesDefeated
+          enemiesDefeated: newEnemiesDefeated,
+          taikoNotes: updatedTaikoNotes
         };
       }
       
@@ -572,7 +617,8 @@ export const useFantasyGameEngine = ({
         playerSp: newSp,
         currentNoteIndex: nextNoteIndex,
         correctAnswers: prevState.correctAnswers + 1,
-        score: prevState.score + 100 * actualDamage
+        score: prevState.score + 100 * actualDamage,
+        taikoNotes: updatedTaikoNotes
       };
     } else {
       // まだコード未完成、構成音を記録
@@ -596,6 +642,13 @@ export const useFantasyGameEngine = ({
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+
+    // ▼▼▼ 追加: BGMとタイマーを確実に停止 ▼▼▼
+    bgmManager.stop();
+    if (enemyGaugeTimer) {
+      clearInterval(enemyGaugeTimer);
+      setEnemyGaugeTimer(null);
+    }
 
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;
@@ -709,7 +762,8 @@ export const useFantasyGameEngine = ({
           progressionData,
           stage.bpm || 120,
           stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
+          (chordId) => getChordDefinition(chordId, displayOpts),
+          stage.countInMeasures || 0  // ▼▼▼ 追加: カウントイン小節数を渡す ▼▼▼
         );
       } else if (stage.chordProgression) {
         // 基本版：小節の頭でコード出題
@@ -718,13 +772,23 @@ export const useFantasyGameEngine = ({
           stage.measureCount || 8,
           stage.bpm || 120,
           stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
+          (chordId) => getChordDefinition(chordId, displayOpts),
+          stage.countInMeasures || 0  // ▼▼▼ 追加: カウントイン小節数を渡す ▼▼▼
         );
+      }
+      
+      // ▼▼▼ 追加: 太鼓の達人モードでは最初のモンスターにノーツ情報を設定 ▼▼▼
+      if (activeMonsters.length > 0 && taikoNotes.length > 0) {
+        activeMonsters[0].chordTarget = taikoNotes[0].chord;
+        if (taikoNotes.length > 1) {
+          activeMonsters[0].nextChord = taikoNotes[1].chord;
+        }
       }
       
       devLog.debug('🥁 太鼓の達人モード初期化:', {
         noteCount: taikoNotes.length,
-        firstNote: taikoNotes[0]
+        firstNote: taikoNotes[0],
+        countInMeasures: stage.countInMeasures || 0
       });
     }
 
@@ -989,26 +1053,58 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
-        const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
+        const loopDuration = (prevState.currentStage.measureCount || 8) * 
+                            (60 / (prevState.currentStage.bpm || 120)) * 
+                            (prevState.currentStage.timeSignature || 4);
         
-        if (currentNote && currentTime > currentNote.hitTime + 0.3) {
-          // 判定時間を過ぎた（+300ms以上）
+        // ▼▼▼ 追加: ループ処理 ▼▼▼
+        let currentNoteIndex = prevState.currentNoteIndex;
+        if (currentNoteIndex >= prevState.taikoNotes.length) {
+          currentNoteIndex = 0;
+        }
+        
+        const currentNote = prevState.taikoNotes[currentNoteIndex];
+        if (!currentNote) return prevState;
+        
+        // ミス判定（判定ウィンドウを過ぎた場合）
+        let timeDiff = currentTime - currentNote.hitTime;
+        
+        // ループ境界の考慮
+        if (timeDiff < -loopDuration / 2) {
+          timeDiff += loopDuration;
+        }
+        
+        if (timeDiff > 0.3) { // +300ms以上経過
           devLog.debug('💥 太鼓の達人：ミス！', {
             noteId: currentNote.id,
-            chord: currentNote.chord.displayName
+            chord: currentNote.chord.displayName,
+            timeDiff: timeDiff.toFixed(3),
+            currentTime: currentTime.toFixed(3),
+            targetTime: currentNote.hitTime.toFixed(3)
           });
           
-          // 敵の攻撃を発動
-          handleEnemyAttack();
+          // 敵の攻撃を発動（非同期）
+          setTimeout(() => handleEnemyAttack(), 0);
           
           // 次のノーツへ進む
+          const nextIndex = currentNoteIndex + 1;
+          const nextNote = nextIndex < prevState.taikoNotes.length 
+            ? prevState.taikoNotes[nextIndex]
+            : prevState.taikoNotes[0];
+          
+          const nextNextNote = (nextIndex + 1) < prevState.taikoNotes.length
+            ? prevState.taikoNotes[nextIndex + 1]
+            : prevState.taikoNotes[(nextIndex < prevState.taikoNotes.length) ? 1 : 0];
+          
           return {
             ...prevState,
-            currentNoteIndex: prevState.currentNoteIndex + 1,
+            currentNoteIndex: nextIndex,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
-              gauge: 0
+              gauge: 0,
+              chordTarget: nextNote.chord,
+              nextChord: nextNextNote.chord
             }))
           };
         }
@@ -1035,37 +1131,32 @@ export const useFantasyGameEngine = ({
         // 怒り状態をストアに通知
         const { setEnrage } = useEnemyStore.getState();
         setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
+        setTimeout(() => setEnrage(attackingMonster.id, false), 500);
         
-        // 攻撃したモンスターのゲージをリセット
+        // ゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 
           m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
         );
         
-        // 攻撃処理を非同期で実行
-        console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
-        setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
+        // 攻撃処理を呼び出し
+        handleEnemyAttack(attackingMonster.id);
         
-        const nextState = { 
+        return { 
           ...prevState, 
           activeMonsters: resetMonsters,
-          // 互換性のため
+          // 互換性維持（最初のモンスターのゲージ）
           enemyGauge: 0 
         };
-        onGameStateChange(nextState);
-        return nextState;
-      } else {
-        const nextState = { 
-          ...prevState, 
-          activeMonsters: updatedMonsters,
-          // 互換性のため最初のモンスターのゲージを設定
-          enemyGauge: updatedMonsters[0]?.gauge || 0
-        };
-        onGameStateChange(nextState);
-        return nextState;
       }
+      
+      return { 
+        ...prevState, 
+        activeMonsters: updatedMonsters,
+        // 互換性維持（最初のモンスターのゲージ）
+        enemyGauge: updatedMonsters[0]?.gauge || 0
+      };
     });
-  }, [handleEnemyAttack, onGameStateChange]);
+  }, [handleEnemyAttack]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
