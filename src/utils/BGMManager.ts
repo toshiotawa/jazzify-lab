@@ -11,6 +11,8 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  private readyDuration = 2000  // Ready期間（ms）
+  private actualStartTime = 0  // 実際のBGM再生開始時刻
 
   play(
     url: string,
@@ -18,7 +20,8 @@ class BGMManager {
     timeSig: number,
     measureCount: number,
     countIn: number,
-    volume = 0.7
+    volume = 0.7,
+    readyDuration = 2000
   ) {
     if (!url) return
     
@@ -30,6 +33,7 @@ class BGMManager {
     this.timeSignature = timeSig
     this.measureCount = measureCount
     this.countInMeasures = countIn
+    this.readyDuration = readyDuration
     
     this.audio = new Audio(url)
     this.audio.volume = volume
@@ -56,12 +60,20 @@ class BGMManager {
     
     // 再生開始時刻を記録
     this.startTime = performance.now()
+    this.actualStartTime = this.startTime + this.readyDuration // Ready期間後の実際の開始時刻
     this.isPlaying = true
     
-    this.audio.play().catch((error) => {
-      console.warn('BGM playback failed:', error)
-      this.isPlaying = false
-    })
+    // Ready期間後に実際に再生開始
+    setTimeout(() => {
+      if (this.audio && this.isPlaying) {
+        this.audio.play().catch((error) => {
+          console.warn('BGM playback failed:', error)
+          this.isPlaying = false
+        })
+      }
+    }, this.readyDuration)
+    
+    // isPlayingフラグは即座にtrueにする（タイミング計算のため）
   }
 
   setVolume(v: number) {
@@ -81,6 +93,9 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    // タイミング関連のプロパティもリセット
+    this.startTime = 0
+    this.actualStartTime = 0
   }
   
   // タイミング管理用の新しいメソッド
@@ -90,22 +105,48 @@ class BGMManager {
    * カウントイン終了時を0秒とする
    */
   getCurrentMusicTime(): number {
-    if (!this.isPlaying || !this.audio) return 0
+    if (!this.isPlaying) return 0
     
-    const audioTime = this.audio.currentTime
-    const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+    const now = performance.now()
+    const elapsedSinceStart = now - this.startTime
     
-    // カウントイン中は負の値を返す
-    return audioTime - countInDuration
+    // Ready期間中
+    if (elapsedSinceStart < this.readyDuration) {
+      const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+      return -countInDuration - (this.readyDuration - elapsedSinceStart) / 1000
+    }
+    
+    // Audioが再生中の場合
+    if (this.audio && this.audio.currentTime > 0) {
+      let audioTime = this.audio.currentTime
+      
+      // ループ時の仮想時間計算（ずれ蓄積防止）
+      if (audioTime >= this.loopEnd) {
+        const loopDuration = this.loopEnd - this.loopBegin
+        audioTime = this.loopBegin + ((audioTime - this.loopBegin) % loopDuration)
+      }
+      
+      const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
+      
+      // カウントイン中は負の値を返す
+      return audioTime - countInDuration
+    }
+    
+    // Audioがまだ開始していない場合（Ready直後）
+    return 0
   }
   
   /**
    * 現在の小節番号を取得（1始まり）
-   * カウントイン中は0を返す
+   * カウントイン中は負の値を返す
    */
   getCurrentMeasure(): number {
     const musicTime = this.getCurrentMusicTime()
-    if (musicTime < 0) return 0 // カウントイン中
+    if (musicTime < 0) {
+      // カウントイン中は負の小節番号を返す
+      const secPerMeasure = (60 / this.bpm) * this.timeSignature
+      return Math.floor(musicTime / secPerMeasure)
+    }
     
     const secPerMeasure = (60 / this.bpm) * this.timeSignature
     const measure = Math.floor(musicTime / secPerMeasure) % this.measureCount + 1
@@ -140,16 +181,18 @@ class BGMManager {
   
   /**
    * 指定した小節・拍の時刻を取得（秒単位）
-   * @param measure 小節番号（1始まり）
+   * @param measure 小節番号（1始まり、カウントイン後を1とする）
    * @param beat 拍番号（1始まり、小数可）
    */
   getMusicTimeAt(measure: number, beat: number): number {
     const secPerBeat = 60 / this.bpm
     const secPerMeasure = secPerBeat * this.timeSignature
-    const countInDuration = this.countInMeasures * secPerMeasure
     
-    // カウントイン + 指定小節までの時間 + 拍の時間
-    return countInDuration + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
+    // ループを考慮して小節番号を調整
+    const measureInLoop = (measure - 1) % this.measureCount
+    
+    // 仮想時間で計算（カウントイン後を0秒とする）
+    return measureInLoop * secPerMeasure + (beat - 1) * secPerBeat
   }
   
   /**

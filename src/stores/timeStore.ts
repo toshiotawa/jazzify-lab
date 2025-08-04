@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { bgmManager } from '@/utils/BGMManager'
 
 interface TimeState {
   /* ゲーム開始＝モンスター描画完了時刻 (ms) */
@@ -53,43 +54,92 @@ export const useTimeStore = create<TimeState>((set, get) => ({
   tick: () => {
     const s = get()
     if (s.startAt === null) return
-    const elapsed = performance.now() - s.startAt
-
-    /* Ready 中は beat/measure を初期値に固定 */
-    if (elapsed < s.readyDuration) {
-      set({
-        currentBeat: 1,
-        currentMeasure: 1
-      })
-      return
-    }
-
-    const msecPerBeat = 60000 / s.bpm
-    const beatsFromStart = Math.floor(
-      (elapsed - s.readyDuration) / msecPerBeat
-    )
-
-    const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
-    const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
     
-    /* カウントイン中かどうかを判定 */
-    if (totalMeasures < s.countInMeasures) {
-      // カウントイン中
-      set({
-        currentBeat: currentBeatInMeasure,
-        currentMeasure: totalMeasures + 1, // カウントイン中の実際の小節番号
-        isCountIn: true
-      })
-    } else {
-      // メイン部分（カウントイン後）
-      const measuresAfterCountIn = totalMeasures - s.countInMeasures
-      const displayMeasure = (measuresAfterCountIn % s.measureCount) + 1
+    // BGMManagerの音楽時間を基準とする
+    if (bgmManager.getIsPlaying()) {
+      const musicTime = bgmManager.getCurrentMusicTime();
+      const countInDuration = s.countInMeasures * (60 / s.bpm) * s.timeSignature;
+      const totalTime = musicTime + countInDuration; // 実際の経過時間
       
-      set({
-        currentBeat: currentBeatInMeasure,
-        currentMeasure: displayMeasure, // カウントイン後を1から表示
-        isCountIn: false
-      })
+      // Ready期間中
+      if (totalTime < 0) {
+        set({
+          currentBeat: 1,
+          currentMeasure: 1,
+          isCountIn: true
+        })
+        return
+      }
+      
+      const secPerBeat = 60 / s.bpm
+      const beatsFromStart = Math.floor(totalTime / secPerBeat)
+      const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
+      const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
+      
+      // 仮想小節計算: カウントイン除外
+      const virtualMeasure = totalMeasures - s.countInMeasures
+      
+      /* カウントイン中かどうかを判定 */
+      if (virtualMeasure < 0) {
+        // カウントイン中（負の小節番号として表示）
+        set({
+          currentBeat: currentBeatInMeasure,
+          currentMeasure: virtualMeasure, // 例: -1, 0
+          isCountIn: true
+        })
+      } else {
+        // メイン部分（カウントイン後）
+        const displayMeasure = (virtualMeasure % s.measureCount) + 1
+        
+        set({
+          currentBeat: currentBeatInMeasure,
+          currentMeasure: displayMeasure, // 1から表示
+          isCountIn: false
+        })
+      }
+    } else {
+      // BGMが再生されていない場合は、従来のperformance.now()ベース
+      const elapsed = performance.now() - s.startAt
+
+      /* Ready 中は beat/measure を初期値に固定 */
+      if (elapsed < s.readyDuration) {
+        set({
+          currentBeat: 1,
+          currentMeasure: 1,
+          isCountIn: true
+        })
+        return
+      }
+
+      const msecPerBeat = 60000 / s.bpm
+      const beatsFromStart = Math.floor(
+        (elapsed - s.readyDuration) / msecPerBeat
+      )
+
+      const totalMeasures = Math.floor(beatsFromStart / s.timeSignature)
+      const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
+      
+      // 仮想小節計算: カウントイン除外
+      const virtualMeasure = totalMeasures - s.countInMeasures
+      
+      /* カウントイン中かどうかを判定 */
+      if (virtualMeasure < 0) {
+        // カウントイン中（負の小節番号として表示）
+        set({
+          currentBeat: currentBeatInMeasure,
+          currentMeasure: virtualMeasure, // 例: -1, 0
+          isCountIn: true
+        })
+      } else {
+        // メイン部分（カウントイン後）
+        const displayMeasure = (virtualMeasure % s.measureCount) + 1
+        
+        set({
+          currentBeat: currentBeatInMeasure,
+          currentMeasure: displayMeasure, // 1から表示
+          isCountIn: false
+        })
+      }
     }
   }
 }))

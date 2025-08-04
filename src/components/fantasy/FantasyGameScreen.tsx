@@ -109,7 +109,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.timeSignature || 4,
         stage.measureCount ?? 8,
         stage.countInMeasures ?? 0,
-        settings.bgmVolume ?? 0.7
+        settings.bgmVolume ?? 0.7,
+        2000 // Ready期間
       );
     } else {
       bgmManager.stop();
@@ -567,7 +568,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 太鼓の達人モードのノーツ表示更新
   useEffect(() => {
-    if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
+    if (!fantasyPixiInstance || !gameState.isTaikoMode || !gameState.isGameActive) return;
     
     const updateTaikoNotes = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
@@ -585,8 +586,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
     
-    return () => clearInterval(intervalId);
-  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+    return () => {
+      clearInterval(intervalId);
+      // ゲーム終了時にノーツをクリア
+      if (fantasyPixiInstance) {
+        fantasyPixiInstance.updateTaikoNotes([]);
+      }
+    };
+  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.isGameActive, fantasyPixiInstance]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -858,6 +865,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
                         }`}>
                           {monster.chordTarget.displayName}
+                        </div>
+                      )}
+                      
+                      {/* 太鼓モードでループ先のコード表示 */}
+                      {gameState.isTaikoMode && gameState.nextLoopChord && (
+                        <div className="text-blue-300 font-bold text-center mb-1 truncate w-full text-base">
+                          次: {gameState.nextLoopChord.displayName}
                         </div>
                       )}
                       
