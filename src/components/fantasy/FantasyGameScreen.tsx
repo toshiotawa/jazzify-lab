@@ -73,7 +73,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   /* 毎 100 ms で時間ストア tick */
   useEffect(() => {
-    const id = setInterval(() => tick(), 100);
+    const id = setInterval(() => {
+      tick();
+      // BGMManagerのupdate処理も実行
+      bgmManager.update(0.1); // 100ms = 0.1秒
+    }, 100);
     return () => clearInterval(id);
   }, [tick]);
 
@@ -111,6 +115,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.countInMeasures ?? 0,
         settings.bgmVolume ?? 0.7
       );
+      
+      // ループイベントのリスナーを追加
+      const handleLoop = () => {
+        console.log('🔄 BGM Loop detected in FantasyGameScreen');
+        // ループ時の処理
+        resetForLoop();
+      };
+      
+      bgmManager.on('loop', handleLoop);
+      
+      return () => {
+        bgmManager.off('loop', handleLoop);
+        bgmManager.stop();
+      };
     } else {
       bgmManager.stop();
     }
@@ -329,6 +347,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stopGame,
     getCurrentEnemy,
     proceedToNextEnemy,
+    resetForLoop, // 追加: ループリセット関数
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
   } = useFantasyGameEngine({
