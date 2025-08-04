@@ -59,7 +59,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
   // 時間管理
-  const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
+  const { currentBeat, currentMeasure, tick, startAt, readyDuration } = useTimeStore();
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -108,7 +108,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.bpm || 120,
         stage.timeSignature || 4,
         stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0,
+        0,
         settings.bgmVolume ?? 0.7
       );
     } else {
@@ -543,7 +543,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // ループ情報を事前計算
     const stage = gameState.currentStage!;
     const loopDuration = stage.measureCount * (60 / stage.bpm) * stage.timeSignature;
-    const countInDuration = (stage.countInMeasures || 0) * (60 / stage.bpm) * stage.timeSignature;
     
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
@@ -764,13 +763,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
-          {isCountIn ? (
-            // カウントイン中は特別な表示
-            <>Count In - M {Math.abs(currentMeasure)} B {currentBeat}</>
-          ) : (
-            // 通常の表示
-            <>M {currentMeasure} - B {currentBeat}</>
-          )}
+          <>M {currentMeasure} - B {currentBeat}</>
         </div>
         <div className="flex justify-between items-center">
           {/* ステージ情報と敵の数 */}
