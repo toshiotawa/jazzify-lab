@@ -80,25 +80,45 @@ export function generateBasicProgressionNotes(
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0 // カウントイン小節数を追加
 ): TaikoNote[] {
+  // 入力検証
+  if (!chordProgression || chordProgression.length === 0) {
+    console.warn('⚠️ コード進行が空です');
+    return [];
+  }
+  
+  if (measureCount <= 0) {
+    console.warn('⚠️ 無効な小節数:', measureCount);
+    return [];
+  }
+  
+  if (bpm <= 0 || bpm > 300) {
+    console.warn('⚠️ 無効なBPM:', bpm);
+    return [];
+  }
+
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
+  const countInDuration = countInMeasures * secPerMeasure; // カウントインの総時間
   
+  // カウントイン後の小節のみでノーツを生成
   for (let measure = 1; measure <= measureCount; measure++) {
     const chordIndex = (measure - 1) % chordProgression.length;
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      const hitTime = (measure - 1) * secPerMeasure + 0; // 小節の頭（Beat 1 = 0秒目）
+      // カウントイン時間を加算して実際のヒットタイミングを計算
+      const hitTime = countInDuration + (measure - 1) * secPerMeasure;
       
       notes.push({
         id: `note_${measure}_1`,
         chord,
         hitTime,
-        measure,
+        measure, // 表示用の小節番号（カウントイン後を1とする）
         beat: 1,
         isHit: false,
         isMissed: false
@@ -119,23 +139,31 @@ export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0 // カウントイン小節数を追加
 ): TaikoNote[] {
+  // 入力検証
+  if (!progressionData || progressionData.length === 0) {
+    console.warn('⚠️ プログレッションデータが空です');
+    return [];
+  }
+
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
+  const countInDuration = countInMeasures * secPerMeasure;
   
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
     if (chord) {
-      // bar（小節）とbeats（拍）から実際の時刻を計算
-      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      // カウントイン時間を加算
+      const hitTime = countInDuration + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
         id: `note_${item.bar}_${item.beats}_${index}`,
         chord,
         hitTime,
-        measure: item.bar,
+        measure: item.bar, // 表示用の小節番号
         beat: item.beats,
         isHit: false,
         isMissed: false
@@ -145,7 +173,6 @@ export function parseChordProgressionData(
   
   // 時間順にソート
   notes.sort((a, b) => a.hitTime - b.hitTime);
-  
   return notes;
 }
 
@@ -192,17 +219,29 @@ export function calculateNotePosition(
  * 簡易形式：各行が "bar X beats Y chord Z" の形式
  */
 export function parseSimpleProgressionText(text: string): ChordProgressionDataItem[] {
-  const lines = text.trim().split('\n');
+  if (!text || typeof text !== 'string') {
+    console.warn('⚠️ 無効なプログレッションテキスト');
+    return [];
+  }
+  
+  const lines = text.trim().split('\n').filter(line => line.trim());
   const result: ChordProgressionDataItem[] = [];
   
   for (const line of lines) {
     const match = line.match(/bar\s+(\d+)\s+beats\s+([\d.]+)\s+chord\s+(\S+)/);
     if (match) {
-      result.push({
-        bar: parseInt(match[1]),
-        beats: parseFloat(match[2]),
-        chord: match[3]
-      });
+      const bar = parseInt(match[1]);
+      const beats = parseFloat(match[2]);
+      const chord = match[3];
+      
+      // 検証
+      if (bar > 0 && beats > 0 && beats <= 16 && chord) {
+        result.push({ bar, beats, chord });
+      } else {
+        console.warn('⚠️ 無効な行をスキップ:', line);
+      }
+    } else {
+      console.warn('⚠️ パース失敗:', line);
     }
   }
   
