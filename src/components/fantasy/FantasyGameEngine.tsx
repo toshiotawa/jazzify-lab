@@ -431,12 +431,12 @@ export const useFantasyGameEngine = ({
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
-    if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
-      // すべてのノーツ処理済み
+    if (prevState.taikoNotes.length === 0) {
       return prevState;
     }
-    
-    const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
+    // 現在のノートインデックスをループ長でラップ
+    const curIndex = prevState.currentNoteIndex % prevState.taikoNotes.length;
+    const currentNote = prevState.taikoNotes[curIndex];
     const currentTime = bgmManager.getCurrentMusicTime();
     const judgment = judgeTimingWindow(currentTime, currentNote.hitTime);
     
@@ -497,8 +497,12 @@ export const useFantasyGameEngine = ({
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
       
-      // 次のノーツへ進む
-      const nextNoteIndex = prevState.currentNoteIndex + 1;
+      // 次のノーツへ進む（ループ対応）
+      const nextRawIndex = prevState.currentNoteIndex + 1;
+      const wrappedIndex = nextRawIndex % prevState.taikoNotes.length;
+      const resetNotes = wrappedIndex === 0
+        ? prevState.taikoNotes.map(n => ({ ...n, isHit: false, isMissed: false }))
+        : prevState.taikoNotes;
       
       // モンスター更新
       const updatedMonsters = prevState.activeMonsters.map(m => {
@@ -520,7 +524,7 @@ export const useFantasyGameEngine = ({
         
         if (newMonsterQueue.length > 0) {
           const monsterIndex = newMonsterQueue.shift()!;
-          const nextNote = prevState.taikoNotes[nextNoteIndex];
+          const nextNote = prevState.taikoNotes[wrappedIndex];
           
           if (nextNote) {
             const newMonster = createMonsterFromQueue(
@@ -559,7 +563,7 @@ export const useFantasyGameEngine = ({
           activeMonsters: remainingMonsters,
           monsterQueue: newMonsterQueue,
           playerSp: newSp,
-          currentNoteIndex: nextNoteIndex,
+          currentNoteIndex: wrappedIndex,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated
@@ -570,7 +574,8 @@ export const useFantasyGameEngine = ({
         ...prevState,
         activeMonsters: updatedMonsters,
         playerSp: newSp,
-        currentNoteIndex: nextNoteIndex,
+        currentNoteIndex: wrappedIndex,
+        taikoNotes: resetNotes,
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage
       };
@@ -1001,10 +1006,15 @@ export const useFantasyGameEngine = ({
           // 敵の攻撃を発動
           handleEnemyAttack();
           
-          // 次のノーツへ進む
+          // 次のノーツへ進む（ループ対応）
+          const newIndex = (prevState.currentNoteIndex + 1) % prevState.taikoNotes.length;
+          const resetNotes = newIndex === 0
+            ? prevState.taikoNotes.map(n => ({ ...n, isHit: false, isMissed: false }))
+            : prevState.taikoNotes;
           return {
             ...prevState,
-            currentNoteIndex: prevState.currentNoteIndex + 1,
+            currentNoteIndex: newIndex,
+            taikoNotes: resetNotes,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
