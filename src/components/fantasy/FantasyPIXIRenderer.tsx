@@ -1642,6 +1642,15 @@ export class FantasyPIXIInstance {
           visualState.scale = baseScale * 1.25; // 巨大化（25%増し）
           sprite.tint = 0xFFCCCC;
           
+          // 怒りエフェクト: 赤い輪郭
+          if (!monsterData.outline) {
+            const outline = new PIXI.Graphics();
+            outline.lineStyle(4, 0xFF0000, 1);
+            outline.drawCircle(0, 0, 60);
+            sprite.addChildAt(outline, 0); // 背面に追加
+            monsterData.outline = outline;
+          }
+          
           // 怒りマークを追加（まだない場合）
           if (!monsterData.angerMark) {
             const angerTexture = this.imageTextures.get('angerMark');
@@ -1691,6 +1700,11 @@ export class FantasyPIXIInstance {
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
           
           // 怒りエフェクトを削除
+          if (monsterData.outline) {
+            sprite.removeChild(monsterData.outline);
+            monsterData.outline.destroy();
+            monsterData.outline = undefined;
+          }
           if (monsterData.angerMark) {
             sprite.removeChild(monsterData.angerMark);
             monsterData.angerMark.destroy();

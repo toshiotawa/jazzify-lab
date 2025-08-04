@@ -829,7 +829,7 @@ export const useFantasyGameEngine = ({
         stage.bpm || 120,
         stage.timeSignature || 4, // デフォルトは4/4拍子
         stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0
+        0 // 変更: countInを常に0に
       );
 
     devLog.debug('✅ ゲーム初期化完了:', {
@@ -1048,6 +1048,14 @@ export const useFantasyGameEngine = ({
         const loopDuration = (prevState.currentStage.measureCount || 8) * 
                             (60 / (prevState.currentStage.bpm || 120)) * 
                             (prevState.currentStage.timeSignature || 4);
+        
+        // ループ境界検知（ループ終端近くでゲージリセット）
+        if (currentTime > loopDuration - 0.1) {
+          return {
+            ...prevState,
+            activeMonsters: prevState.activeMonsters.map(m => ({ ...m, gauge: 0 }))
+          };
+        }
         
         // 現在のノーツインデックスの検証
         let currentNoteIndex = prevState.currentNoteIndex;
