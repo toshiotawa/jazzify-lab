@@ -11,7 +11,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
-import { TaikoNote, getVisibleNotes, calculateNotePosition } from './TaikoNoteSystem';
+import { TaikoNote } from './TaikoNoteSystem';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
@@ -466,39 +466,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [handleNoteInputBridge, stage.showGuide]);
 
-  // ファンタジーモード用MIDIとPIXIの連携を管理する専用のuseEffect
-  useEffect(() => {
-    const linkMidiAndPixi = async () => {
-      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-        
-        // 1. 鍵盤ハイライト用のコールバックを設定
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRenderer.highlightKey(note, active);
-          if (active) {
-            pixiRenderer.triggerKeyPressEffect(note);
-          }
-        });
-        
-        // 2. デバイスに再接続して、設定したコールバックを有効化
-        devLog.debug(`🔧 Fantasy: Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        if (success) {
-          devLog.debug('✅ Fantasy: MIDI device successfully linked to renderer.');
-        } else {
-          devLog.debug('⚠️ Fantasy: Failed to link MIDI device to renderer.');
-        }
-      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-        // デバイス選択が解除された場合は切断
-        midiControllerRef.current.disconnect();
-        devLog.debug('🔌 Fantasy: MIDIデバイス切断');
-      }
-    };
-
-    linkMidiAndPixi();
-    
-  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
-
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
@@ -565,28 +532,90 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
   
-  // 太鼓の達人モードのノーツ表示更新
+  // 太鼓の達人モードのノーツ表示更新（最適化版）
   useEffect(() => {
-    if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
+    if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
     
-    const updateTaikoNotes = () => {
+    let animationId: number;
+    let lastUpdateTime = 0;
+    const updateInterval = 1000 / 60; // 60fps
+    
+    // ループ情報を事前計算
+    const stage = gameState.currentStage!;
+    const loopDuration = stage.measureCount * (60 / stage.bpm) * stage.timeSignature;
+    const countInDuration = (stage.countInMeasures || 0) * (60 / stage.bpm) * stage.timeSignature;
+    
+    const updateTaikoNotes = (timestamp: number) => {
+      // フレームレート制御
+      if (timestamp - lastUpdateTime < updateInterval) {
+        animationId = requestAnimationFrame(updateTaikoNotes);
+        return;
+      }
+      lastUpdateTime = timestamp;
+      
       const currentTime = bgmManager.getCurrentMusicTime();
-      const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
+      const lookAheadTime = 4; // 4秒先まで表示
+      const noteSpeed = 400; // ピクセル/秒
       
-      const notesData = visibleNotes.map(note => ({
-        id: note.id,
-        chord: note.chord.displayName,
-        x: calculateNotePosition(note, currentTime, judgeLinePos.x)
-      }));
+      // 表示するノーツを収集
+      const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
       
-      fantasyPixiInstance.updateTaikoNotes(notesData);
+      // 通常のノーツ
+      gameState.taikoNotes.forEach((note, index) => {
+        // スキップ済みのノーツは表示しない
+        if (index < gameState.currentNoteIndex - 1) return;
+        
+        const timeUntilHit = note.hitTime - currentTime;
+        
+        // 表示範囲内のノーツ
+        if (timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime) {
+          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          notesToDisplay.push({
+            id: note.id,
+            chord: note.chord.displayName,
+            x
+          });
+        }
+      });
+      
+      // ループ対応：最後に近づいたら最初のノーツも仮想的に表示
+      const timeToLoop = loopDuration - currentTime;
+      if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
+        // ループ後の最初のノーツを仮想的に追加
+        const numNotesToShow = Math.min(3, gameState.taikoNotes.length); // 最大3つまで
+        
+        for (let i = 0; i < numNotesToShow; i++) {
+          const note = gameState.taikoNotes[i];
+          const virtualHitTime = note.hitTime + loopDuration;
+          const timeUntilHit = virtualHitTime - currentTime;
+          
+          if (timeUntilHit <= lookAheadTime) {
+            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+            notesToDisplay.push({
+              id: `${note.id}_loop`,
+              chord: note.chord.displayName,
+              x
+            });
+          }
+        }
+      }
+      
+      // PIXIレンダラーに更新を送信
+      fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+      
+      animationId = requestAnimationFrame(updateTaikoNotes);
     };
     
-    const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
+    // 初回実行
+    animationId = requestAnimationFrame(updateTaikoNotes);
     
-    return () => clearInterval(intervalId);
-  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -736,8 +765,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
           {isCountIn ? (
-            <>M / - B {currentBeat}</>
+            // カウントイン中は特別な表示
+            <>Count In - M {Math.abs(currentMeasure)} B {currentBeat}</>
           ) : (
+            // 通常の表示
             <>M {currentMeasure} - B {currentBeat}</>
           )}
         </div>
@@ -852,47 +883,66 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
-                      {/* コードネーム（太鼓の達人モードでは非表示） */}
-                      {!gameState.isTaikoMode && (
-                        <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                          monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                        }`}>
-                          {monster.chordTarget.displayName}
-                        </div>
-                      )}
-                      
-                      {/* ★★★ ここにヒント表示を追加（太鼓の達人モードでは非表示） ★★★ */}
-                      {!gameState.isTaikoMode && (
-                        <div className={`mt-1 font-medium h-6 text-center ${
-                          monsterCount > 5 ? 'text-xs' : 'text-sm'
-                        }`}>
-                        {monster.chordTarget.noteNames.map((noteName, index) => {
-                          // 表示オプションを定義
-                          const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
-                          // 表示用の音名に変換
-                          const displayNoteName = toDisplayName(noteName, displayOpts);
+                      {/* 太鼓の達人モードでは現在のコードと次のコードを表示 */}
+                      {gameState.isTaikoMode ? (
+                        <>
+                          {/* 現在のコード */}
+                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                          }`}>
+                            {monster.chordTarget.displayName}
+                          </div>
                           
-                          // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
-                          const noteObj = parseNote(noteName + '4'); // オクターブはダミー
-                          const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+                          {/* 次のコード（小さく表示） */}
+                          {monster.nextChord && (
+                            <div className={`text-blue-300 text-center truncate w-full ${
+                              monsterCount > 5 ? 'text-xs' : 'text-sm'
+                            }`}>
+                              Next: {monster.nextChord.displayName}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {/* 通常モードの表示 */}
+                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                          }`}>
+                            {monster.chordTarget.displayName}
+                          </div>
                           
-                          const isCorrect = monster.correctNotes.includes(noteMod12);
+                          {/* ヒント表示 */}
+                          <div className={`mt-1 font-medium h-6 text-center ${
+                            monsterCount > 5 ? 'text-xs' : 'text-sm'
+                          }`}>
+                          {monster.chordTarget.noteNames.map((noteName, index) => {
+                            // 表示オプションを定義
+                            const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
+                            // 表示用の音名に変換
+                            const displayNoteName = toDisplayName(noteName, displayOpts);
+                            
+                            // 正解判定用にMIDI番号を計算 (tonal.jsを使用)
+                            const noteObj = parseNote(noteName + '4'); // オクターブはダミー
+                            const noteMod12 = noteObj.midi !== null ? noteObj.midi % 12 : -1;
+                            
+                            const isCorrect = monster.correctNotes.includes(noteMod12);
 
-                          if (!stage.showGuide && !isCorrect) {
+                            if (!stage.showGuide && !isCorrect) {
+                              return (
+                                <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                  ?
+                                </span>
+                              );
+                            }
                             return (
-                              <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
-                                ?
+                              <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
+                                {displayNoteName}
+                                {isCorrect && '✓'}
                               </span>
                             );
-                          }
-                          return (
-                            <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                              {displayNoteName}
-                              {isCorrect && '✓'}
-                            </span>
-                          );
-                        })}
-                        </div>
+                          })}
+                          </div>
+                        </>
                       )}
                       
                       {/* 魔法名表示 */}
