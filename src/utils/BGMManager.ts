@@ -1,63 +1,77 @@
 /* HTMLAudio ベースの簡易 BGM ルーパー */
 
-class BGMManager {
+export class BGMManager {
   private audio: HTMLAudioElement | null = null
-  private loopBegin = 0
-  private loopEnd = 0
+  private isPlaying = false
+  private startTime = 0
+  private pauseTime = 0
   private timeUpdateHandler: (() => void) | null = null
-  private startTime = 0  // BGM開始時刻（performance.now()）
+  private animationFrameId: number | null = null // 追加
+  
   private bpm = 120
   private timeSignature = 4
-  private measureCount = 8
   private countInMeasures = 0
-  private isPlaying = false
+  private measureCount = 8
+  private loopBegin = 0
+  private loopEnd = 0
 
-  play(
-    url: string,
+  init(
+    audioSrc: string,
     bpm: number,
-    timeSig: number,
+    timeSignature: number,
     measureCount: number,
     countIn: number,
-    volume = 0.7
-  ) {
-    if (!url) return
+    volume = 0.5
+  ): void {
+    this.cleanup()
     
-    // 既存のオーディオをクリーンアップ
-    this.stop()
+    this.audio = new Audio(audioSrc)
+    this.audio.volume = volume
+    this.audio.preload = 'auto'
     
-    // パラメータを保存
     this.bpm = bpm
-    this.timeSignature = timeSig
+    this.timeSignature = timeSignature
     this.measureCount = measureCount
     this.countInMeasures = countIn
     
-    this.audio = new Audio(url)
-    this.audio.volume = volume
-    
-    /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
-    const secPerBeat = 60 / bpm
-    const secPerMeas = secPerBeat * timeSig
+    const secPerMeas = (60 / bpm) * timeSignature
     this.loopBegin = countIn * secPerMeas
     this.loopEnd = (countIn + measureCount) * secPerMeas
 
     // 初回再生は最初から（カウントインを含む）
     this.audio.currentTime = 0
     
-    // timeupdate イベントハンドラを保存
-    this.timeUpdateHandler = () => {
-      if (!this.audio) return
-      if (this.audio.currentTime >= this.loopEnd) {
-        // ループ時はカウントイン後から再生
-        this.audio.currentTime = this.loopBegin
+    // requestAnimationFrameによる精密なループ処理
+    const checkLoop = () => {
+      if (!this.audio || !this.isPlaying) return
+      
+      const currentTime = this.audio.currentTime
+      const remaining = this.loopEnd - currentTime
+      
+      // ループポイントに近づいたら（50ms以内）
+      if (remaining < 0.05 && remaining > 0) {
+        // 次フレームでループ処理
+        setTimeout(() => {
+          if (this.audio && this.isPlaying) {
+            this.audio.currentTime = this.loopBegin + (currentTime - this.loopEnd)
+          }
+        }, remaining * 1000)
+      } else if (currentTime >= this.loopEnd) {
+        // 既に超えている場合は即座にループ
+        this.audio.currentTime = this.loopBegin + (currentTime - this.loopEnd)
       }
+      
+      this.animationFrameId = requestAnimationFrame(checkLoop)
     }
-    
-    this.audio.addEventListener('timeupdate', this.timeUpdateHandler)
     
     // 再生開始時刻を記録
     this.startTime = performance.now()
     this.isPlaying = true
     
+    // ループチェック開始
+    this.animationFrameId = requestAnimationFrame(checkLoop)
+    
+    // オーディオを再生
     this.audio.play().catch((error) => {
       console.warn('BGM playback failed:', error)
       this.isPlaying = false
@@ -70,8 +84,7 @@ class BGMManager {
     }
   }
 
-  stop() {
-    this.isPlaying = false
+  cleanup(): void {
     if (this.audio) {
       if (this.timeUpdateHandler) {
         this.audio.removeEventListener('timeupdate', this.timeUpdateHandler)
@@ -81,6 +94,16 @@ class BGMManager {
       this.audio.src = ''
       this.audio = null
     }
+    
+    // アニメーションフレームもクリーンアップ
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId)
+      this.animationFrameId = null
+    }
+    
+    this.isPlaying = false
+    this.startTime = 0
+    this.pauseTime = 0
   }
   
   // タイミング管理用の新しいメソッド

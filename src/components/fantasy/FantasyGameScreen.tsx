@@ -103,7 +103,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // Ready 終了時に BGM 再生
   useEffect(() => {
     if (!isReady && startAt) {
-      bgmManager.play(
+      bgmManager.init(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
         stage.timeSignature || 4,
@@ -112,9 +112,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         settings.bgmVolume ?? 0.7
       );
     } else {
-      bgmManager.stop();
+      bgmManager.cleanup();
     }
-    return () => bgmManager.stop();
+    return () => bgmManager.cleanup();
   }, [isReady, stage, settings.bgmVolume, startAt]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
@@ -565,13 +565,49 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
   
+  // ループ時間の計算をメモ化
+  const loopDuration = useMemo(() => {
+    const totalMeasures = stage.measureCount || 8;
+    const measureDuration = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
+    return totalMeasures * measureDuration;
+  }, [stage.measureCount, stage.bpm, stage.timeSignature]);
+  
   // 太鼓の達人モードのノーツ表示更新
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
     
     const updateTaikoNotes = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
-      const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
+      
+      // ループを考慮したノーツを取得
+      
+      // 現在のループ回数を計算
+      const currentLoopCount = Math.floor(gameState.currentNoteIndex / gameState.taikoNotes.length);
+      
+      // 表示用のノーツリストを作成（現在のループと次のループのノーツを含む）
+      const extendedNotes: TaikoNote[] = [];
+      
+      // 現在のループのノーツ
+      gameState.taikoNotes.forEach((note, index) => {
+        const adjustedNote = {
+          ...note,
+          hitTime: note.hitTime + (currentLoopCount * loopDuration),
+          id: `${note.id}_loop${currentLoopCount}`
+        };
+        extendedNotes.push(adjustedNote);
+      });
+      
+      // 次のループのノーツ（先読み表示用）
+      gameState.taikoNotes.forEach((note, index) => {
+        const adjustedNote = {
+          ...note,
+          hitTime: note.hitTime + ((currentLoopCount + 1) * loopDuration),
+          id: `${note.id}_loop${currentLoopCount + 1}`
+        };
+        extendedNotes.push(adjustedNote);
+      });
+      
+      const visibleNotes = getVisibleNotes(extendedNotes, currentTime);
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       
       const notesData = visibleNotes.map(note => ({
@@ -586,7 +622,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
     
     return () => clearInterval(intervalId);
-  }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
+  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, loopDuration, fantasyPixiInstance]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
@@ -648,11 +684,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    if (stage.mode !== 'progression') return null;
     
-    const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
-    return stage.chordProgression[nextIndex];
-  }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
+    // 太鼓の達人モードの場合
+    if (gameState.isTaikoMode && gameState.taikoNotes.length > 0) {
+      let nextNoteIndex = gameState.currentNoteIndex + 1;
+      // ループ対応：最後の場合は最初に戻る
+      if (nextNoteIndex >= gameState.taikoNotes.length) {
+        nextNoteIndex = 0;
+      }
+      const nextNote = gameState.taikoNotes[nextNoteIndex];
+      return nextNote ? nextNote.chord.displayName : null;
+    }
+    
+    // 通常のプログレッションモード
+    if (stage.chordProgression) {
+      const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
+      return stage.chordProgression[nextIndex];
+    }
+    
+    return null;
+  }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex]);
   
   // SPゲージ表示
   const renderSpGauge = useCallback((sp: number) => {

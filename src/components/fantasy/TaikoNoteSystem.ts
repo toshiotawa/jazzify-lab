@@ -80,25 +80,28 @@ export function generateBasicProgressionNotes(
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0 // カウントイン小節数を追加
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   
+  // カウントイン後から問題を生成（1から開始）
   for (let measure = 1; measure <= measureCount; measure++) {
     const chordIndex = (measure - 1) % chordProgression.length;
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      const hitTime = (measure - 1) * secPerMeasure + 0; // 小節の頭（Beat 1 = 0秒目）
+      // hitTimeはカウントイン分を加算
+      const hitTime = (countInMeasures + measure - 1) * secPerMeasure + 0; // 小節の頭（Beat 1 = 0秒目）
       
       notes.push({
         id: `note_${measure}_1`,
         chord,
         hitTime,
-        measure,
+        measure: countInMeasures + measure, // 実際の小節番号
         beat: 1,
         isHit: false,
         isMissed: false
@@ -119,7 +122,8 @@ export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0 // カウントイン小節数を追加
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
@@ -128,14 +132,14 @@ export function parseChordProgressionData(
   progressionData.forEach((item, index) => {
     const chord = getChordDefinition(item.chord);
     if (chord) {
-      // bar（小節）とbeats（拍）から実際の時刻を計算
-      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      // hitTimeはカウントイン分を加算
+      const hitTime = (countInMeasures + item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
         id: `note_${item.bar}_${item.beats}_${index}`,
         chord,
         hitTime,
-        measure: item.bar,
+        measure: countInMeasures + item.bar, // 実際の小節番号
         beat: item.beats,
         isHit: false,
         isMissed: false
