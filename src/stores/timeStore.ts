@@ -74,7 +74,7 @@ export const useTimeStore = create<TimeState>((set, get) => ({
     const currentBeatInMeasure = (beatsFromStart % s.timeSignature) + 1
     
     /* カウントイン中かどうかを判定 */
-    if (totalMeasures < s.countInMeasures) {
+    if (s.countInMeasures === 0 || totalMeasures < s.countInMeasures) {
       // カウントイン中
       set({
         currentBeat: currentBeatInMeasure,

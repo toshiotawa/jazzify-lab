@@ -438,11 +438,19 @@ export const useFantasyGameEngine = ({
       // ループ: 最初に戻る
       devLog.debug('🔄 太鼓の達人：ループ処理開始');
       
-      const firstNote = prevState.taikoNotes[0];
-      const nextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : firstNote;
+      // ノーツの状態をリセット
+      const resetNotes = prevState.taikoNotes.map(note => ({
+        ...note,
+        isHit: false,
+        isMissed: false
+      }));
+      
+      const firstNote = resetNotes[0];
+      const nextNote = resetNotes.length > 1 ? resetNotes[1] : firstNote;
       
       return {
         ...prevState,
+        taikoNotes: resetNotes,
         currentNoteIndex: 0,
         activeMonsters: prevState.activeMonsters.map(m => ({
           ...m,
@@ -508,6 +516,9 @@ export const useFantasyGameEngine = ({
         timing: judgment.timing,
         noteIndex: prevState.currentNoteIndex
       });
+      
+      // 現在のノーツにヒットフラグを設定
+      currentNote.isHit = true;
       
       // 次のノーツインデックス
       const nextNoteIndex = prevState.currentNoteIndex + 1;
@@ -1080,18 +1091,24 @@ export const useFantasyGameEngine = ({
           // 敵の攻撃を発動（非同期）
           setTimeout(() => handleEnemyAttack(), 0);
           
+          // ノーツにミスフラグを設定
+          const updatedNotes = prevState.taikoNotes.map((note, idx) => 
+            idx === currentNoteIndex ? { ...note, isMissed: true } : note
+          );
+          
           // 次のノーツへ進む
           const nextIndex = currentNoteIndex + 1;
-          const nextNote = nextIndex < prevState.taikoNotes.length 
-            ? prevState.taikoNotes[nextIndex]
-            : prevState.taikoNotes[0];
+          const nextNote = nextIndex < updatedNotes.length 
+            ? updatedNotes[nextIndex]
+            : updatedNotes[0];
           
-          const nextNextNote = (nextIndex + 1) < prevState.taikoNotes.length
-            ? prevState.taikoNotes[nextIndex + 1]
-            : prevState.taikoNotes[(nextIndex < prevState.taikoNotes.length) ? 1 : 0];
+          const nextNextNote = (nextIndex + 1) < updatedNotes.length
+            ? updatedNotes[nextIndex + 1]
+            : updatedNotes[(nextIndex < updatedNotes.length) ? 1 : 0];
           
           return {
             ...prevState,
+            taikoNotes: updatedNotes,
             currentNoteIndex: nextIndex,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
@@ -1128,7 +1145,7 @@ export const useFantasyGameEngine = ({
         // 怒り状態をストアに通知
         const { setEnrage } = useEnemyStore.getState();
         setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
+        setTimeout(() => setEnrage(attackingMonster.id, false), 800); // 0.8秒後にOFF
         
         // 攻撃したモンスターのゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 
@@ -1373,7 +1390,9 @@ export const useFantasyGameEngine = ({
   const stopGame = useCallback(() => {
     setGameState(prevState => ({
       ...prevState,
-      isGameActive: false
+      isGameActive: false,
+      taikoNotes: [],
+      currentNoteIndex: 0
     }));
     
     // ステージを抜けるたびにアイコン配列を初期化

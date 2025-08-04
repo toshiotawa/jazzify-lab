@@ -393,7 +393,7 @@ export class FantasyPIXIInstance {
       }
       
       // 怒りマークSVGを追加
-      magicAssets['angerMark'] = `${import.meta.env.BASE_URL}data/anger.svg`;
+      magicAssets['angerMark'] = new URL('/data/anger.svg', import.meta.url).href;
       
       // 音符吹き出しを追加
       magicAssets['fukidashi'] = `${import.meta.env.BASE_URL}attack_icons/fukidashi_onpu_white.png`;
@@ -1692,9 +1692,30 @@ export class FantasyPIXIInstance {
           
           // 怒りエフェクトを削除
           if (monsterData.angerMark) {
-            sprite.removeChild(monsterData.angerMark);
-            monsterData.angerMark.destroy();
-            monsterData.angerMark = undefined;
+            // フェードアウトアニメーション
+            const fadeOutDuration = 300; // 300ms
+            const startAlpha = monsterData.angerMark.alpha;
+            const startTime = Date.now();
+            
+            const fadeOut = () => {
+              const elapsed = Date.now() - startTime;
+              const progress = Math.min(elapsed / fadeOutDuration, 1);
+              
+              if (monsterData.angerMark) {
+                monsterData.angerMark.alpha = startAlpha * (1 - progress);
+                
+                if (progress >= 1) {
+                  // フェードアウト完了後に削除
+                  sprite.removeChild(monsterData.angerMark);
+                  monsterData.angerMark.destroy();
+                  monsterData.angerMark = undefined;
+                } else {
+                  requestAnimationFrame(fadeOut);
+                }
+              }
+            };
+            
+            requestAnimationFrame(fadeOut);
           }
         }
         
@@ -2057,7 +2078,7 @@ export class FantasyPIXIInstance {
     
     // エフェクトの安全な削除
     try {
-      this.magicCircles.forEach((circle, id) => {
+      for (const [id, circle] of this.magicCircles) {
         try {
           if (circle && typeof circle.destroy === 'function' && !circle.destroyed) {
             if (circle.parent) {
@@ -2068,11 +2089,11 @@ export class FantasyPIXIInstance {
         } catch (error) {
           devLog.debug(`⚠️ 魔法陣削除エラー ${id}:`, error);
         }
-      });
+      }
       this.magicCircles.clear();
       this.magicCircleData.clear();
       
-      this.damageNumbers.forEach((text, id) => {
+      for (const [id, text] of this.damageNumbers) {
         try {
           if (text && typeof text.destroy === 'function' && !text.destroyed) {
             if (text.parent) {
@@ -2083,7 +2104,7 @@ export class FantasyPIXIInstance {
         } catch (error) {
           devLog.debug(`⚠️ ダメージ数値削除エラー ${id}:`, error);
         }
-      });
+      }
       this.damageNumbers.clear();
       this.damageData.clear();
     } catch (error) {
