@@ -69,6 +69,60 @@ export function judgeTimingWindow(
 }
 
 /**
+ * ループを考慮したタイミング判定
+ * @param currentTime 現在の音楽時間（秒）
+ * @param targetTime ターゲットの音楽時間（秒）
+ * @param windowMs 判定ウィンドウ（ミリ秒）
+ * @param loopDuration ループの総時間（秒）
+ */
+export function judgeTimingWindowWithLoop(
+  currentTime: number,
+  targetTime: number,
+  windowMs: number = 300,
+  loopDuration?: number
+): TimingJudgment {
+  let diffMs = (currentTime - targetTime) * 1000;
+  
+  // ループを考慮した判定
+  if (loopDuration !== undefined && loopDuration > 0) {
+    // ループ境界をまたぐ可能性を考慮
+    const halfLoop = loopDuration * 500; // ミリ秒に変換して半分
+    
+    // 時間差が大きすぎる場合、ループを考慮
+    if (diffMs > halfLoop) {
+      // 現在時刻が次のループにいる
+      diffMs -= loopDuration * 1000;
+    } else if (diffMs < -halfLoop) {
+      // ターゲットが次のループにいる
+      diffMs += loopDuration * 1000;
+    }
+  }
+  
+  if (Math.abs(diffMs) > windowMs) {
+    return {
+      isHit: false,
+      timing: 'miss',
+      timingDiff: diffMs
+    };
+  }
+  
+  let timing: 'early' | 'perfect' | 'late';
+  if (Math.abs(diffMs) <= 50) {
+    timing = 'perfect';
+  } else if (diffMs < 0) {
+    timing = 'early';
+  } else {
+    timing = 'late';
+  }
+  
+  return {
+    isHit: true,
+    timing,
+    timingDiff: diffMs
+  };
+}
+
+/**
  * 基本版progression用：小節の頭(Beat 1)でコードを配置
  * @param chordProgression コード進行配列
  * @param measureCount 総小節数
@@ -171,6 +225,39 @@ export function getVisibleNotes(
 }
 
 /**
+ * 可視ノーツの取得（ループ対応版）
+ */
+export function getVisibleNotesWithLoop(
+  notes: TaikoNote[],
+  currentTime: number,
+  lookAheadTime: number = 3,
+  loopDuration?: number
+): TaikoNote[] {
+  const visibleNotes: TaikoNote[] = [];
+  
+  notes.forEach(note => {
+    if (note.isHit || note.isMissed) return;
+    
+    let timeUntilHit = note.hitTime - currentTime;
+    
+    // ループを考慮
+    if (loopDuration !== undefined && loopDuration > 0) {
+      // ループ終端に近い場合、次のループのノーツも考慮
+      if (currentTime + lookAheadTime > loopDuration && note.hitTime < lookAheadTime) {
+        // 仮想的に次のループの位置として扱う
+        timeUntilHit = (note.hitTime + loopDuration) - currentTime;
+      }
+    }
+    
+    if (timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime) {
+      visibleNotes.push(note);
+    }
+  });
+  
+  return visibleNotes;
+}
+
+/**
  * ノーツの画面上のX位置を計算（太鼓の達人風）
  * @param note ノーツ
  * @param currentTime 現在の音楽時間（秒）
@@ -207,4 +294,58 @@ export function parseSimpleProgressionText(text: string): ChordProgressionDataIt
   }
   
   return result;
+}
+
+// パフォーマンス最適化のための設定
+export const PERFORMANCE_CONFIG = {
+  // ノーツ表示設定
+  MAX_VISIBLE_NOTES: 20,        // 同時表示最大ノーツ数
+  LOOK_AHEAD_TIME: 4,           // 先読み時間（秒）
+  NOTE_UPDATE_INTERVAL: 16,     // 更新間隔（ms）
+  
+  // 判定設定
+  JUDGMENT_WINDOW: 300,         // 判定ウィンドウ（ms）
+  PERFECT_WINDOW: 50,           // Perfect判定ウィンドウ（ms）
+  
+  // アニメーション設定
+  LERP_FACTOR: 0.15,           // 位置補間係数
+  FADE_DURATION: 300,          // フェード時間（ms）
+  
+  // メモリ管理
+  POOL_SIZE: 30,               // オブジェクトプールサイズ
+  CLEANUP_INTERVAL: 10000,     // クリーンアップ間隔（ms）
+};
+
+// 設定を使用した最適化
+export function getVisibleNotesOptimized(
+  notes: TaikoNote[],
+  currentTime: number,
+  lookAheadTime: number = PERFORMANCE_CONFIG.LOOK_AHEAD_TIME,
+  loopDuration?: number
+): TaikoNote[] {
+  const visibleNotes: TaikoNote[] = [];
+  let visibleCount = 0;
+  
+  for (const note of notes) {
+    // 最大表示数に達したら終了
+    if (visibleCount >= PERFORMANCE_CONFIG.MAX_VISIBLE_NOTES) break;
+    
+    if (note.isHit || note.isMissed) continue;
+    
+    let timeUntilHit = note.hitTime - currentTime;
+    
+    // ループを考慮
+    if (loopDuration !== undefined && loopDuration > 0) {
+      if (currentTime + lookAheadTime > loopDuration && note.hitTime < lookAheadTime) {
+        timeUntilHit = (note.hitTime + loopDuration) - currentTime;
+      }
+    }
+    
+    if (timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime) {
+      visibleNotes.push(note);
+      visibleCount++;
+    }
+  }
+  
+  return visibleNotes;
 }
