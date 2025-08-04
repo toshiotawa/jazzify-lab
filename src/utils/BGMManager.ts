@@ -11,6 +11,10 @@ class BGMManager {
   private measureCount = 8
   private countInMeasures = 0
   private isPlaying = false
+  // 状態管理とオフセット用の新しいプロパティ
+  private lastState: { hp: number; gauge: number } | null = null
+  private offset = 0
+  private onLoop: (() => void) | null = null
 
   play(
     url: string,
@@ -49,6 +53,10 @@ class BGMManager {
       if (this.audio.currentTime >= this.loopEnd) {
         // ループ時はカウントイン後から再生
         this.audio.currentTime = this.loopBegin
+        // ループコールバックを呼ぶ
+        if (this.onLoop) {
+          this.onLoop()
+        }
       }
     }
     
@@ -68,6 +76,23 @@ class BGMManager {
     if (this.audio) {
       this.audio.volume = Math.max(0, Math.min(1, v))
     }
+  }
+
+  // 状態管理用の新しいメソッド
+  saveLastState(hp: number, gauge: number) {
+    this.lastState = { hp, gauge }
+  }
+
+  restoreLastState() {
+    return this.lastState
+  }
+
+  setOffset(o: number) {
+    this.offset = o
+  }
+
+  setOnLoop(callback: () => void) {
+    this.onLoop = callback
   }
 
   stop() {
@@ -95,8 +120,8 @@ class BGMManager {
     const audioTime = this.audio.currentTime
     const countInDuration = this.countInMeasures * (60 / this.bpm) * this.timeSignature
     
-    // カウントイン中は負の値を返す
-    return audioTime - countInDuration
+    // カウントイン中は負の値を返す（オフセット適用）
+    return audioTime - countInDuration - this.offset
   }
   
   /**

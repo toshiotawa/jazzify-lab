@@ -69,6 +69,7 @@ interface MonsterState {
   correctNotes: number[]; // このモンスター用の正解済み音
   icon: string;
   name: string;
+  processed?: boolean; // 多段ヒット防止用フラグ
 }
 
 interface FantasyGameState {
@@ -594,8 +595,8 @@ export const useFantasyGameEngine = ({
   }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
   
   // ゲーム初期化
-  const initializeGame = useCallback(async (stage: FantasyStage) => {
-    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+  const initializeGame = useCallback(async (stage: FantasyStage, keepNotes: boolean = false) => {
+    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name, keepNotes });
 
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;
@@ -692,40 +693,50 @@ export const useFantasyGameEngine = ({
     let taikoNotes: TaikoNote[] = [];
     
     if (isTaikoMode) {
-      // 太鼓の達人モードのノーツ生成
-      if (stage.chordProgressionData) {
-        // 拡張版：JSON形式のデータを解析
-        let progressionData: ChordProgressionDataItem[];
-        
-        if (typeof stage.chordProgressionData === 'string') {
-          // 簡易テキスト形式の場合
-          progressionData = parseSimpleProgressionText(stage.chordProgressionData);
-        } else {
-          // JSON配列の場合
-          progressionData = stage.chordProgressionData as ChordProgressionDataItem[];
+      // keepNotesがtrueの場合は既存のノーツを保持
+      if (keepNotes && gameState.taikoNotes && gameState.taikoNotes.length > 0) {
+        taikoNotes = gameState.taikoNotes;
+        devLog.debug('🥁 太鼓の達人モード：既存ノーツを保持', {
+          noteCount: taikoNotes.length
+        });
+      } else {
+        // 太鼓の達人モードのノーツ生成
+        if (stage.chordProgressionData) {
+          // 拡張版：JSON形式のデータを解析
+          let progressionData: ChordProgressionDataItem[];
+          
+          if (typeof stage.chordProgressionData === 'string') {
+            // 簡易テキスト形式の場合
+            progressionData = parseSimpleProgressionText(stage.chordProgressionData);
+          } else {
+            // JSON配列の場合
+            progressionData = stage.chordProgressionData as ChordProgressionDataItem[];
+          }
+          
+          taikoNotes = parseChordProgressionData(
+            progressionData,
+            stage.bpm || 120,
+            stage.timeSignature || 4,
+            stage.countInMeasures || 0,
+            (chordId) => getChordDefinition(chordId, displayOpts)
+          );
+        } else if (stage.chordProgression) {
+          // 基本版：小節の頭でコード出題
+          taikoNotes = generateBasicProgressionNotes(
+            stage.chordProgression,
+            stage.measureCount || 8,
+            stage.bpm || 120,
+            stage.timeSignature || 4,
+            stage.countInMeasures || 0,
+            (chordId) => getChordDefinition(chordId, displayOpts)
+          );
         }
         
-        taikoNotes = parseChordProgressionData(
-          progressionData,
-          stage.bpm || 120,
-          stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
-        );
-      } else if (stage.chordProgression) {
-        // 基本版：小節の頭でコード出題
-        taikoNotes = generateBasicProgressionNotes(
-          stage.chordProgression,
-          stage.measureCount || 8,
-          stage.bpm || 120,
-          stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts)
-        );
+        devLog.debug('🥁 太鼓の達人モード初期化:', {
+          noteCount: taikoNotes.length,
+          firstNote: taikoNotes[0]
+        });
       }
-      
-      devLog.debug('🥁 太鼓の達人モード初期化:', {
-        noteCount: taikoNotes.length,
-        firstNote: taikoNotes[0]
-      });
     }
 
     const newState: FantasyGameState = {
@@ -785,6 +796,30 @@ export const useFantasyGameEngine = ({
       activeMonsters: activeMonsters.length
     });
   }, [onGameStateChange]);
+  
+  // BGMループ時の状態復元ハンドラ
+  const handleLoop = useCallback(() => {
+    const lastState = bgmManager.restoreLastState();
+    if (lastState) {
+      setGameState(prev => ({
+        ...prev,
+        playerHp: lastState.hp,
+        enemyGauge: lastState.gauge,
+        playerSp: prev.playerSp, // SPは維持
+        score: prev.score, // スコアは維持
+        isGameActive: true // ゲームをアクティブに保つ
+      }));
+    }
+  }, []);
+
+  // BGMのループイベントをリッスン
+  useEffect(() => {
+    bgmManager.setOnLoop(handleLoop);
+    
+    return () => {
+      bgmManager.setOnLoop(null);
+    };
+  }, [handleLoop]);
   
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
@@ -919,6 +954,11 @@ export const useFantasyGameEngine = ({
             const progression = prevState.currentStage?.chordProgression || [];
             const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
             nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+          }
+          
+          // 太鼓の達人モードで状態を保存
+          if (prevState.isTaikoMode) {
+            bgmManager.saveLastState(newHp, prevState.enemyGauge);
           }
           
           const nextState = {
@@ -1067,8 +1107,19 @@ export const useFantasyGameEngine = ({
     });
   }, [handleEnemyAttack, onGameStateChange]);
   
+  // デバウンス用の最終入力時刻を保持
+  const lastInputTimeRef = useRef<number>(0);
+  
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
+    // デバウンスチェック（100ms以内の連続入力を防ぐ）
+    const now = Date.now();
+    if (now - lastInputTimeRef.current < 100) {
+      devLog.debug('🎹 入力デバウンス中:', { timeDiff: now - lastInputTimeRef.current });
+      return;
+    }
+    lastInputTimeRef.current = now;
+    
     // updater関数の中でロジックを実行するように変更
     setGameState(prevState => {
       // ゲームがアクティブでない場合は何もしない
@@ -1091,8 +1142,8 @@ export const useFantasyGameEngine = ({
       const monstersAfterInput = prevState.activeMonsters.map(monster => {
         const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
         
-        // 既に完成しているモンスターや、入力音と関係ないモンスターはスキップ
-        if (!targetNotes.includes(noteMod12) || monster.correctNotes.includes(noteMod12)) {
+        // 既に処理済み、完成しているモンスター、入力音と関係ないモンスターはスキップ
+        if (monster.processed || !targetNotes.includes(noteMod12) || monster.correctNotes.includes(noteMod12)) {
             return monster;
         }
         
@@ -1133,6 +1184,7 @@ export const useFantasyGameEngine = ({
           
           onChordCorrect(completed.chordTarget, isSpecialAttack, damageDealt, willBeDefeated, completed.id);
           monsterToUpdate.currentHp -= damageDealt;
+          monsterToUpdate.processed = true; // 処理済みフラグを設定
         });
 
         // プレイヤーの状態更新
@@ -1155,7 +1207,7 @@ export const useFantasyGameEngine = ({
               monster.chordTarget.id,
               displayOpts
             );
-            return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
+            return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0, processed: false };
           }
           // SPアタックの場合は全ての敵のゲージをリセット
           if (isSpecialAttack) {

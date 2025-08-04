@@ -569,6 +569,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
     
+    // ラグ補正用のオフセットを設定
+    bgmManager.setOffset(0.05);
+    
     const updateTaikoNotes = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
       const visibleNotes = getVisibleNotes(gameState.taikoNotes, currentTime);
@@ -585,7 +588,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     const intervalId = setInterval(updateTaikoNotes, 16); // 60fps
     
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      bgmManager.setOffset(0); // クリーンアップ時にオフセットをリセット
+    };
   }, [gameState.isTaikoMode, gameState.taikoNotes, fantasyPixiInstance]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）

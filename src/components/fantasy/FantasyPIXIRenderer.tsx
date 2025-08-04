@@ -1956,7 +1956,7 @@ export class FantasyPIXIInstance {
     noteContainer.y = this.app.screen.height / 2;
     
     // 半透明にする
-    noteContainer.alpha = 0.85;
+    noteContainer.alpha = 0.5;
     
     return noteContainer;
   }
