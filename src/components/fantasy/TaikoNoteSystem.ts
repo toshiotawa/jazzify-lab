@@ -30,18 +30,35 @@ export interface TimingJudgment {
   timingDiff: number; // ミリ秒単位の差
 }
 
+/* 新ユーティリティ：現在の loopIndex に合わせて hitTime を拡張 */
+export function getVirtualHitTime(
+  note: TaikoNote,
+  loopIndex: number,
+  loopLength: number
+): number {
+  return note.hitTime + loopIndex * loopLength;
+}
+
 /**
  * タイミング判定を行う
  * @param currentTime 現在の音楽時間（秒）
  * @param targetTime ターゲットの音楽時間（秒）
  * @param windowMs 判定ウィンドウ（ミリ秒）
+ * @param loopLength ループ長（秒）- オプショナル
  */
 export function judgeTimingWindow(
   currentTime: number,
   targetTime: number,
-  windowMs: number = 300
+  windowMs: number = 300,
+  loopLength?: number
 ): TimingJudgment {
-  const diffMs = (currentTime - targetTime) * 1000;
+  let diffMs = (currentTime - targetTime) * 1000;
+  
+  if (loopLength) {
+    /* 周期ループの場合は最小絶対差に折り畳む */
+    const loopMs = loopLength * 1000;
+    diffMs = ((diffMs + loopMs/2) % loopMs) - loopMs/2;
+  }
   
   if (Math.abs(diffMs) > windowMs) {
     return {

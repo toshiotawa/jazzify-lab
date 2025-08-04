@@ -432,13 +432,17 @@ export const useFantasyGameEngine = ({
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
     if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
-      // すべてのノーツ処理済み
-      return prevState;
+      // ループ時は0に戻す
+      return {
+        ...prevState,
+        currentNoteIndex: 0
+      };
     }
     
     const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
     const currentTime = bgmManager.getCurrentMusicTime();
-    const judgment = judgeTimingWindow(currentTime, currentNote.hitTime);
+    const loopLength = bgmManager.getLoopLength();
+    const judgment = judgeTimingWindow(currentTime, currentNote.hitTime, 300, loopLength);
     
     devLog.debug('🥁 太鼓の達人判定:', {
       noteId: currentNote.id,
@@ -454,7 +458,7 @@ export const useFantasyGameEngine = ({
     
     // 入力されたノートがコードの構成音かチェック
     const noteMod12 = note % 12;
-    const targetNotesMod12 = [...new Set(currentNote.chord.notes.map(n => n % 12))];
+    const targetNotesMod12 = [...new Set(currentNote.chord.notes.map((n: number) => n % 12))];
     
     if (!targetNotesMod12.includes(noteMod12)) {
       // 構成音ではない
@@ -470,7 +474,7 @@ export const useFantasyGameEngine = ({
     );
     
     // コードが完成したかチェック
-    const isChordComplete = targetNotesMod12.every(targetNote => 
+    const isChordComplete = targetNotesMod12.every((targetNote: number) => 
       newCorrectNotes.includes(targetNote)
     );
     
@@ -541,7 +545,8 @@ export const useFantasyGameEngine = ({
         
         // ゲームクリア判定
         const newEnemiesDefeated = prevState.enemiesDefeated + 1;
-        if (newEnemiesDefeated >= prevState.totalEnemies) {
+        const allEnemiesGone = remainingMonsters.length === 0 && prevState.monsterQueue.length === 0;
+        if (allEnemiesGone) {
           const finalState = {
             ...prevState,
             activeMonsters: [],
@@ -789,9 +794,10 @@ export const useFantasyGameEngine = ({
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
     setGameState(prevState => {
-      const isComplete = prevState.enemiesDefeated >= prevState.totalEnemies;
+      const allEnemiesGone = prevState.activeMonsters.length === 0 
+                             && prevState.monsterQueue.length === 0;
       
-      if (isComplete) {
+      if (allEnemiesGone) {
         // ゲームクリア
         const finalState = {
           ...prevState,
@@ -1198,10 +1204,19 @@ export const useFantasyGameEngine = ({
         stateAfterAttack.enemyGauge = 0;
 
         // ゲームクリア判定
-        if (stateAfterAttack.enemiesDefeated >= stateAfterAttack.totalEnemies) {
-            const finalState = { ...stateAfterAttack, isGameActive: false, isGameOver: true, gameResult: 'clear' as const, activeMonsters: [] };
-            onGameComplete('clear', finalState);
-            return finalState;
+        const newEnemiesDefeated = prevState.enemiesDefeated + 1;
+        const allEnemiesGone = remainingMonsters.length === 0 && prevState.monsterQueue.length === 0;
+        if (allEnemiesGone) {
+          const finalState = {
+            ...prevState,
+            activeMonsters: [],
+            isGameActive: false,
+            isGameOver: true,
+            gameResult: 'clear' as const,
+            enemiesDefeated: newEnemiesDefeated
+          };
+          onGameComplete('clear', finalState);
+          return finalState;
         }
         
         onGameStateChange(stateAfterAttack);
@@ -1225,7 +1240,9 @@ export const useFantasyGameEngine = ({
       const newEnemiesDefeated = prevState.enemiesDefeated + 1;
 
       // ゲームクリア判定
-      if (newEnemiesDefeated >= prevState.totalEnemies) {
+      const allEnemiesGone = prevState.activeMonsters.length === 0 
+                             && prevState.monsterQueue.length === 0;
+      if (allEnemiesGone) {
         const finalState = {
           ...prevState,
           isGameActive: false,
