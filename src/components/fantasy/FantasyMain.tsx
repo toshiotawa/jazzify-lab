@@ -14,6 +14,10 @@ import type { DisplayLang } from '@/utils/display-note';
 import { LessonContext } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
+import { supabase } from '@/lib/supabase';
+import { useGuestMode } from '@/providers/GuestModeProvider';
+import { useSubscriptionInfo } from '@/platform/billing/useSubscriptionInfo';
+import { getFantasyRankByStages } from '@/constants/fantasyRanks';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -416,9 +420,8 @@ const FantasyMain: React.FC = () => {
   
   // ランク計算ヘルパー
   const getRankFromClearedStages = (clearedStages: number): string => {
-    const WIZARD_RANKS = ['F', 'F+', 'E', 'E+', 'D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S', 'S+'];
-    const rankIndex = Math.floor(clearedStages / 10);
-    return WIZARD_RANKS[Math.min(rankIndex, WIZARD_RANKS.length - 1)];
+    const rank = getFantasyRankByStages(clearedStages);
+    return rank.id;
   };
   
   // プレミアムプラン未加入の場合
