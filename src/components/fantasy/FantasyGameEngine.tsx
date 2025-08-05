@@ -16,6 +16,7 @@ import {
   judgeTimingWindow,
   judgeTimingWindowWithLoop,
   generateBasicProgressionNotes,
+  generateRandomProgressionNotes,
   parseChordProgressionData,
   parseSimpleProgressionText
 } from './TaikoNoteSystem';
@@ -43,7 +44,7 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
   allowedChords: string[];
   chordProgression?: string[];
   chordProgressionData?: any; // 拡張版progression用のJSONデータ
@@ -660,7 +661,7 @@ export const useFantasyGameEngine = ({
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.mode === 'progression' ? 1 : (stage.simultaneousMonsterCount || 1);
+    const simultaneousCount = stage.mode.startsWith('progression_') ? 1 : (stage.simultaneousMonsterCount || 1);
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -747,40 +748,59 @@ export const useFantasyGameEngine = ({
     const firstChord = firstMonster ? firstMonster.chordTarget : null;
 
     // 太鼓の達人モードの判定
-    const isTaikoMode = stage.mode === 'progression';
+    const isTaikoMode = stage.mode.startsWith('progression_');
     let taikoNotes: TaikoNote[] = [];
     
     if (isTaikoMode) {
       // 太鼓の達人モードのノーツ生成
-      if (stage.chordProgressionData) {
-        // 拡張版：JSON形式のデータを解析
-        let progressionData: ChordProgressionDataItem[];
-        
-        if (typeof stage.chordProgressionData === 'string') {
-          // 簡易テキスト形式の場合
-          progressionData = parseSimpleProgressionText(stage.chordProgressionData);
-        } else {
-          // JSON配列の場合
-          progressionData = stage.chordProgressionData as ChordProgressionDataItem[];
-        }
-        
-        taikoNotes = parseChordProgressionData(
-          progressionData,
-          stage.bpm || 120,
-          stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts),
-          0 // カウントインを渡す
-        );
-      } else if (stage.chordProgression) {
-        // 基本版：小節の頭でコード出題
-        taikoNotes = generateBasicProgressionNotes(
-          stage.chordProgression,
-          stage.measureCount || 8,
-          stage.bpm || 120,
-          stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts),
-          0 // カウントインを渡す
-        );
+      switch (stage.mode) {
+        case 'progression_order':
+          // 基本版：小節の頭でコード出題（固定順）
+          if (stage.chordProgression) {
+            taikoNotes = generateBasicProgressionNotes(
+              stage.chordProgression,
+              stage.measureCount || 8,
+              stage.bpm || 120,
+              stage.timeSignature || 4,
+              (chordId) => getChordDefinition(chordId, displayOpts),
+              0 // カウントインを渡す
+            );
+          }
+          break;
+          
+        case 'progression_random':
+          // ランダム版：allowed_chordsから毎小節ランダム選択
+          taikoNotes = generateRandomProgressionNotes(
+            stage.allowedChords,
+            stage.measureCount || 8,
+            stage.bpm || 120,
+            stage.timeSignature || 4,
+            (chordId) => getChordDefinition(chordId, displayOpts)
+          );
+          break;
+          
+        case 'progression_timing':
+          // 拡張版：JSON形式のデータを解析
+          if (stage.chordProgressionData) {
+            let progressionData: ChordProgressionDataItem[];
+            
+            if (typeof stage.chordProgressionData === 'string') {
+              // 簡易テキスト形式の場合
+              progressionData = parseSimpleProgressionText(stage.chordProgressionData);
+            } else {
+              // JSON配列の場合
+              progressionData = stage.chordProgressionData as ChordProgressionDataItem[];
+            }
+            
+            taikoNotes = parseChordProgressionData(
+              progressionData,
+              stage.bpm || 120,
+              stage.timeSignature || 4,
+              (chordId) => getChordDefinition(chordId, displayOpts),
+              0 // カウントインを渡す
+            );
+          }
+          break;
       }
       
       // ループ対応：最初のノーツの情報を設定

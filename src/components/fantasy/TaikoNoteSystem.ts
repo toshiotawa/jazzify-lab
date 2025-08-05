@@ -69,6 +69,65 @@ export function judgeTimingWindow(
 }
 
 /**
+ * ランダムprogression用：allowed_chordsから毎小節ランダムに選択
+ * @param allowedChords 使用可能なコードIDの配列
+ * @param measureCount 総小節数
+ * @param bpm BPM
+ * @param timeSignature 拍子
+ * @param getChordDefinition コード定義取得関数
+ */
+export function generateRandomProgressionNotes(
+  allowedChords: string[],
+  measureCount: number,
+  bpm: number,
+  timeSignature: number,
+  getChordDefinition: (chordId: string) => ChordDefinition | null
+): TaikoNote[] {
+  // 入力検証
+  if (!allowedChords || allowedChords.length === 0) {
+    console.warn('⚠️ 使用可能なコードが空です');
+    return [];
+  }
+  
+  if (measureCount <= 0) {
+    console.warn('⚠️ 無効な小節数:', measureCount);
+    return [];
+  }
+  
+  if (bpm <= 0 || bpm > 300) {
+    console.warn('⚠️ 無効なBPM:', bpm);
+    return [];
+  }
+
+  const notes: TaikoNote[] = [];
+  const secPerBeat = 60 / bpm;
+  const secPerMeasure = secPerBeat * timeSignature;
+  
+  // M2から(measureCount-1)まで出題（M1と最終小節は休み）
+  for (let measure = 2; measure <= measureCount - 1; measure++) {
+    const chordId = allowedChords[Math.floor(Math.random() * allowedChords.length)];
+    const chord = getChordDefinition(chordId);
+    
+    if (chord) {
+      // M1の時間を0として計算
+      const hitTime = (measure - 1) * secPerMeasure;
+      
+      notes.push({
+        id: `note_${measure}_1`,
+        chord,
+        hitTime,
+        measure, // 表示用の小節番号
+        beat: 1,
+        isHit: false,
+        isMissed: false
+      });
+    }
+  }
+  
+  return notes;
+}
+
+/**
  * 基本版progression用：小節の頭(Beat 1)でコードを配置
  * カウントインを考慮して正しいタイミングを計算
  * @param chordProgression コード進行配列
