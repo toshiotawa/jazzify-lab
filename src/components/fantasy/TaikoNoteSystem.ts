@@ -139,6 +139,7 @@ export function generateBasicProgressionNotes(
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
  * @param countInMeasures カウントイン小節数
+ * @param previousLastChordId 前回の最後のコードID（連続を避けるため）
  */
 export function generateRandomProgressionNotes(
   chordProgression: string[],
@@ -146,7 +147,8 @@ export function generateRandomProgressionNotes(
   bpm: number,
   timeSignature: number,
   getChordDefinition: (chordId: string) => ChordDefinition | null,
-  countInMeasures: number = 0
+  countInMeasures: number = 0,
+  previousLastChordId?: string
 ): TaikoNote[] {
   // 入力検証
   if (!chordProgression || chordProgression.length === 0) {
@@ -168,11 +170,27 @@ export function generateRandomProgressionNotes(
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   
+  // 前回の最後のコードIDを初期値として設定（ループ時の連続を避けるため）
+  let lastChordId: string | null = previousLastChordId || null;
+  
   // M2から(measureCount-1)まで出題（M1と最終小節は休み）
   for (let measure = 2; measure <= measureCount - 1; measure++) {
-    // ランダムにコードを選択
-    const chordIndex = Math.floor(Math.random() * chordProgression.length);
-    const chordId = chordProgression[chordIndex];
+    // 前回と異なるコードを選択
+    let chordId: string;
+    let attempts = 0;
+    const maxAttempts = 100; // 無限ループ防止
+    
+    do {
+      const chordIndex = Math.floor(Math.random() * chordProgression.length);
+      chordId = chordProgression[chordIndex];
+      attempts++;
+      
+      // コードが1つしかない場合、または試行回数が上限に達した場合は諦める
+      if (chordProgression.length === 1 || attempts >= maxAttempts) {
+        break;
+      }
+    } while (chordId === lastChordId);
+    
     const chord = getChordDefinition(chordId);
     
     if (chord) {
@@ -188,6 +206,8 @@ export function generateRandomProgressionNotes(
         isHit: false,
         isMissed: false
       });
+      
+      lastChordId = chordId;
     }
   }
   

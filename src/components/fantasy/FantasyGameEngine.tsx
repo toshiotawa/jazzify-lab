@@ -450,7 +450,11 @@ export const useFantasyGameEngine = ({
             stage.bpm || 120,
             stage.timeSignature || 4,
             (chordId) => getChordDefinition(chordId, displayOpts),
-            0
+            0,
+            // 前回の最後のコードIDを渡す（連続を避けるため）
+            prevState.taikoNotes.length > 0 
+              ? prevState.taikoNotes[prevState.taikoNotes.length - 1].chord.id 
+              : undefined
           )
         : prevState.taikoNotes.map(note => ({
             ...note,
@@ -784,7 +788,8 @@ export const useFantasyGameEngine = ({
               stage.bpm || 120,
               stage.timeSignature || 4,
               (chordId) => getChordDefinition(chordId, displayOpts),
-              0 // カウントインを渡す
+              0, // カウントインを渡す
+              undefined // 初回生成時は前回のコードIDなし
             );
           }
           break;
