@@ -703,7 +703,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
-    if (stage.mode !== 'progression' || !stage.chordProgression) return null;
+    const isProgressionMode = stage.mode !== 'single';
+    const isRandomMode = stage.mode === 'progression_random';
+    
+    // ランダムモードでは次のコードを表示しない
+    if (!isProgressionMode || isRandomMode || !stage.chordProgression) return null;
     
     const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
     return stage.chordProgression[nextIndex];
@@ -994,7 +998,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-        {stage.mode === 'progression' && getNextChord() && (
+        {stage.mode !== 'single' && getNextChord() && (
           <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">

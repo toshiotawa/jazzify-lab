@@ -625,19 +625,21 @@ export interface ClearConditions {
 
 // ファンタジーモード関連の型定義
 export interface FantasyStage {
-  id: string;
-  stage_number: string;
+  id: number;
   name: string;
-  description: string;
-  max_hp: number;
-  enemy_gauge_seconds: number;
+  name_en?: string;
+  description?: string;
+  description_en?: string;
+  display_order: number;
+  difficulty: number;
   enemy_count: number;
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing';
   allowed_chords: string[];
   chord_progression?: string[];
+  chord_progression_data?: any; // JSON形式のコード進行データ
   show_sheet_music: boolean;
   show_guide: boolean;
   simultaneous_monster_count?: number;
