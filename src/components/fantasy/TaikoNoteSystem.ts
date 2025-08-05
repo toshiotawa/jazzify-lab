@@ -132,6 +132,89 @@ export function generateBasicProgressionNotes(
 }
 
 /**
+ * ランダム版progression用：毎小節でランダムにコードを選択
+ * @param chordProgression 使用可能なコードのリスト
+ * @param measureCount 総小節数
+ * @param bpm BPM
+ * @param timeSignature 拍子
+ * @param getChordDefinition コード定義取得関数
+ * @param countInMeasures カウントイン小節数
+ * @param previousLastChordId 前回の最後のコードID（連続を避けるため）
+ */
+export function generateRandomProgressionNotes(
+  chordProgression: string[],
+  measureCount: number,
+  bpm: number,
+  timeSignature: number,
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0,
+  previousLastChordId?: string
+): TaikoNote[] {
+  // 入力検証
+  if (!chordProgression || chordProgression.length === 0) {
+    console.warn('⚠️ コード進行が空です');
+    return [];
+  }
+  
+  if (measureCount <= 0) {
+    console.warn('⚠️ 無効な小節数:', measureCount);
+    return [];
+  }
+  
+  if (bpm <= 0 || bpm > 300) {
+    console.warn('⚠️ 無効なBPM:', bpm);
+    return [];
+  }
+
+  const notes: TaikoNote[] = [];
+  const secPerBeat = 60 / bpm;
+  const secPerMeasure = secPerBeat * timeSignature;
+  
+  // 前回の最後のコードIDを初期値として設定（ループ時の連続を避けるため）
+  let lastChordId: string | null = previousLastChordId || null;
+  
+  // M2から(measureCount-1)まで出題（M1と最終小節は休み）
+  for (let measure = 2; measure <= measureCount - 1; measure++) {
+    // 前回と異なるコードを選択
+    let chordId: string;
+    let attempts = 0;
+    const maxAttempts = 100; // 無限ループ防止
+    
+    do {
+      const chordIndex = Math.floor(Math.random() * chordProgression.length);
+      chordId = chordProgression[chordIndex];
+      attempts++;
+      
+      // コードが1つしかない場合、または試行回数が上限に達した場合は諦める
+      if (chordProgression.length === 1 || attempts >= maxAttempts) {
+        break;
+      }
+    } while (chordId === lastChordId);
+    
+    const chord = getChordDefinition(chordId);
+    
+    if (chord) {
+      // M1の時間を0として計算
+      const hitTime = (measure - 1) * secPerMeasure;
+      
+      notes.push({
+        id: `rnd_${measure}_1`,
+        chord,
+        hitTime,
+        measure, // 表示用の小節番号
+        beat: 1,
+        isHit: false,
+        isMissed: false
+      });
+      
+      lastChordId = chordId;
+    }
+  }
+  
+  return notes;
+}
+
+/**
  * 拡張版progression用：chord_progression_dataのJSONを解析
  * カウントインを考慮
  * @param progressionData JSON配列
