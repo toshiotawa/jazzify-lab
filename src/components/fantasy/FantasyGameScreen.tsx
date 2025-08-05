@@ -125,6 +125,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         0,
         settings.bgmVolume ?? 0.7
       );
+      
+      // ★ 追加: 初期化時にBGMを確実に0秒からスタート
+      bgmManager.resetToStart();
     }
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume]);

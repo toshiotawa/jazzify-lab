@@ -437,6 +437,9 @@ export const useFantasyGameEngine = ({
       // ループ: 最初に戻る
       devLog.debug('🔄 太鼓の達人：ループ処理（input時）');
       
+      // ★ 追加: BGMをリセット
+      bgmManager.resetToStart();
+      
       // 全てのノーツのisHit/isMissedをリセット
       const resetNotes = prevState.taikoNotes.map(note => ({
         ...note,
@@ -1068,6 +1071,9 @@ export const useFantasyGameEngine = ({
             isHit: false,
             isMissed: false
           }));
+          
+          // ★ 追加: BGMをリセット
+          bgmManager.resetToStart();
           
           devLog.debug('🔄 太鼓の達人：ループ処理（tick）');
           
