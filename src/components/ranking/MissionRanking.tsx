@@ -134,7 +134,7 @@ const MissionRanking: React.FC = () => {
                   <thead>
                     <tr className="bg-slate-700 border-b border-slate-600">
                       <th className="py-3 px-4 text-left font-medium min-w-[4rem]">順位</th>
-                      <th className="py-3 px-4 text-left font-medium min-w-[12rem] sm:min-w-[10rem]">ユーザー</th>
+                      <th className="py-3 px-4 text-left font-medium min-w-[12rem] sm:min-w-[10rem]">ユーザー(タップで詳細)</th>
                       <th className="py-3 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">クリア回数</th>
                       <th className="py-3 px-4 text-left font-medium min-w-[4rem]">レベル</th>
                       <th className="py-3 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">ランク</th>
@@ -150,14 +150,17 @@ const MissionRanking: React.FC = () => {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <div className="flex items-center space-x-3 min-w-0">
+                          <button
+                            onClick={() => {window.location.hash = `#diary-user?id=${entry.user_id}`;}}
+                            className="flex items-center space-x-3 min-w-0 w-full text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                          >
                             <img 
                               src={entry.avatar_url || DEFAULT_AVATAR_URL} 
                               className="w-8 h-8 rounded-full border-2 border-slate-600 flex-shrink-0"
                               alt="アバター"
                             />
-                            <span className="font-medium truncate min-w-0 flex-1">{entry.nickname}</span>
-                          </div>
+                            <span className="font-medium truncate min-w-0 flex-1 underline">{entry.nickname}</span>
+                          </button>
                         </td>
                         <td className="py-3 px-4">
                           <span className="font-mono text-primary-400">{entry.clear_count}</span>
