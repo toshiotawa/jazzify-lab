@@ -43,7 +43,10 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression';
+  mode: 'single'
+      | 'progression_order'
+      | 'progression_random'
+      | 'progression_timing';
   allowedChords: string[];
   chordProgression?: string[];
   chordProgressionData?: any; // 拡張版progression用のJSONデータ
@@ -660,7 +663,7 @@ export const useFantasyGameEngine = ({
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.mode === 'progression' ? 1 : (stage.simultaneousMonsterCount || 1);
+    const simultaneousCount = stage.mode === 'progression_timing' ? 1 : (stage.simultaneousMonsterCount || 1);
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -744,10 +747,34 @@ export const useFantasyGameEngine = ({
 
     // 互換性のため最初のモンスターの情報を設定
     const firstMonster = activeMonsters[0];
-    const firstChord = firstMonster ? firstMonster.chordTarget : null;
+    let firstChord: ChordDefinition | null;
+    if (stage.mode === 'progression_order') {
+      firstChord = getOrderedProgressionChord(
+        stage.chordProgression ?? [],
+        0,
+        displayOpts
+      );
+    } else if (stage.mode === 'progression_random') {
+      firstChord = getRandomProgressionChord(
+        stage.chordProgression ?? [],
+        undefined,
+        displayOpts
+      );
+    } else {
+      // timing モード or single
+      firstChord = firstMonster ? firstMonster.chordTarget : null;
+    }
+    
+    if (firstMonster && firstChord) firstMonster.chordTarget = firstChord;
+
+    // フォールバック処理
+    if (stage.mode === 'progression_timing' && !stage.chordProgressionData) {
+      console.warn('progression_timing だけど JSON が無い → order へフォールバック');
+      stage.mode = 'progression_order';
+    }
 
     // 太鼓の達人モードの判定
-    const isTaikoMode = stage.mode === 'progression';
+    const isTaikoMode = stage.mode === 'progression_timing';
     let taikoNotes: TaikoNote[] = [];
     
     if (isTaikoMode) {
@@ -878,15 +905,41 @@ export const useFantasyGameEngine = ({
       } else {
         // 各モンスターに新しいコードを割り当て
         const updatedMonsters = prevState.activeMonsters.map(monster => {
-          let nextChord;
-          if (prevState.currentStage?.mode === 'single') {
-            // ランダムモード：前回と異なるコードを選択
-            nextChord = selectRandomChord(prevState.currentStage.allowedChords, monster.chordTarget?.id, displayOpts);
-          } else {
-            // コード進行モード：ループさせる
-            const progression = prevState.currentStage?.chordProgression || [];
-            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+          let nextChord: ChordDefinition | null;
+          switch (prevState.currentStage?.mode) {
+            case 'single':
+              nextChord = selectRandomChord(
+                prevState.currentStage.allowedChords,
+                monster.chordTarget?.id,
+                displayOpts
+              );
+              break;
+            case 'progression_order': {
+              const p = prevState.currentStage?.chordProgression ?? [];
+              nextChord = getOrderedProgressionChord(
+                p,
+                prevState.currentQuestionIndex + 1,
+                displayOpts
+              );
+              break;
+            }
+            case 'progression_random': {
+              const p = prevState.currentStage?.chordProgression ?? [];
+              nextChord = getRandomProgressionChord(
+                p,
+                monster.chordTarget?.id,
+                displayOpts
+              );
+              break;
+            }
+            case 'progression_timing': {
+              /* timing モードは太鼓ノーツが nextChord を持っているので
+                 Taiko ループ内で差し替える。ここではフォールバックのみ */
+              nextChord = monster.chordTarget;
+              break;
+            }
+            default:
+              nextChord = monster.chordTarget;
           }
           
           return {
@@ -981,16 +1034,40 @@ export const useFantasyGameEngine = ({
           return finalState;
         } else {
           // 次の問題（ループ対応）
-          let nextChord;
-          if (prevState.currentStage?.mode === 'single') {
-            // ランダムモード：前回と異なるコードを選択
-            const previousChordId = prevState.currentChordTarget?.id;
-            nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId, displayOpts);
-          } else {
-            // コード進行モード：ループさせる
-            const progression = prevState.currentStage?.chordProgression || [];
-            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+          let nextChord: ChordDefinition | null;
+          switch (prevState.currentStage?.mode) {
+            case 'single': {
+              // ランダムモード：前回と異なるコードを選択
+              const previousChordId = prevState.currentChordTarget?.id;
+              nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId, displayOpts);
+              break;
+            }
+            case 'progression_order': {
+              const p = prevState.currentStage?.chordProgression ?? [];
+              nextChord = getOrderedProgressionChord(
+                p,
+                prevState.currentQuestionIndex + 1,
+                displayOpts
+              );
+              break;
+            }
+            case 'progression_random': {
+              const p = prevState.currentStage?.chordProgression ?? [];
+              nextChord = getRandomProgressionChord(
+                p,
+                prevState.currentChordTarget?.id,
+                displayOpts
+              );
+              break;
+            }
+            case 'progression_timing': {
+              /* timing モードは太鼓ノーツが nextChord を持っているので
+                 Taiko ループ内で差し替える。ここではフォールバックのみ */
+              nextChord = prevState.currentChordTarget;
+              break;
+            }
+            default:
+              nextChord = prevState.currentChordTarget;
           }
           
           const nextState = {
@@ -1521,6 +1598,35 @@ export const useFantasyGameEngine = ({
       return () => clearInterval(intervalId);
     }
   }, [gameState]);
+  
+  /**
+   * progression_random 用 : 前回と異なるコードをランダムで返す
+   */
+  const getRandomProgressionChord = (
+    progression: string[],
+    prevChordId: string | undefined,
+    displayOpts?: DisplayOpts
+  ): ChordDefinition | null => {
+    if (progression.length === 0) return null;
+
+    const pool = progression.filter(id => id !== prevChordId);
+    const chordId = pool.length > 0 
+      ? pool[Math.floor(Math.random() * pool.length)]
+      : progression[Math.floor(Math.random() * progression.length)];
+    return getChordDefinition(chordId, displayOpts);
+  };
+
+  /**
+   * progression_order 用 : インデックスで返す
+   */
+  const getOrderedProgressionChord = (
+    progression: string[],
+    index: number,
+    displayOpts?: DisplayOpts
+  ): ChordDefinition | null =>
+    progression.length === 0
+      ? null
+      : getChordDefinition(progression[index % progression.length], displayOpts);
   
   return {
     gameState,
