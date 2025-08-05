@@ -501,6 +501,63 @@ export const LESSON_TITLES = [
 ] as const;
 
 /**
+ * 魔法使い称号の定義（ファンタジーモード10ステージクリアごとに獲得）
+ */
+export const WIZARD_TITLES = [
+  'マナの芽吹き',           // 0-9
+  '魔法学徒',               // 10-19
+  '神秘への憧憬',           // 20-29
+  '魔法使いの卵',           // 30-39
+  '魔力感知',               // 40-49
+  '見習い書士',             // 50-59
+  '星の囁き',               // 60-69
+  'スペルキャスター',       // 70-79
+  '魔力溜まり',             // 80-89
+  'リサーチャー',           // 90-99
+  'オラクル',               // 100-109
+  'メイジ',                 // 110-119
+  'マナシード',             // 120-129
+  'スチューデント',         // 130-139
+  'ミスティック',           // 140-149
+  'ソーサラー',             // 150-159
+  'エーテルライト',         // 160-169
+  'セカンドクラス',         // 170-179
+  'アストラル・チャイルド', // 180-189
+  'ウィザード・アプレンティス', // 190-199
+  '魔力循環',               // 200-209
+  '魔法学者',               // 210-219
+  'チャネラー',             // 220-229
+  'コンジュラー',           // 230-239
+  'ルーンの刻印',           // 240-249
+  '上級書記官',             // 250-259
+  'ディヴァイナー',         // 260-269
+  'ウォーロック',           // 270-279
+  'マナストーン',           // 280-289
+  'プロフェッサー',         // 290-299
+  '聖なる語り部',           // 300-309
+  'ハイ・ウィザード',       // 310-319
+  '魔力の奔流',             // 320-329
+  'マスター',               // 330-339
+  'アストラル・ウォーカー', // 340-349
+  'マスター・ソーサラー',   // 350-359
+  'エーテルフロー',         // 360-369
+  'ファーストクラス',       // 370-379
+  'ミスティック・マスター', // 380-389
+  'アークメイジ'            // 390-399
+] as const;
+
+/**
+ * ファンタジーモードクリア数から利用可能な魔法使い称号を取得
+ * @param clearedStages クリア済みステージ数
+ * @returns 利用可能な魔法使い称号の配列
+ */
+export function getAvailableWizardTitles(clearedStages: number): string[] {
+  // 最初の称号は0クリアから使用可能
+  const maxIndex = Math.floor(clearedStages / 10);
+  return WIZARD_TITLES.slice(0, Math.min(maxIndex + 1, WIZARD_TITLES.length));
+}
+
+/**
  * レベルから利用可能な称号のインデックスを取得
  * @param level ユーザーのレベル
  * @returns 利用可能な称号のインデックス配列
@@ -600,6 +657,47 @@ export const getTitleConditionText = (titleName: string): string => {
   
   return '';
 };
+
+/**
+ * 称号の取得条件テキストを生成（魔法使い称号含む）
+ * @param titleName 称号名
+ * @returns 取得条件テキスト
+ */
+export function getTitleRequirement(titleName: string): string {
+  // ミッション称号の条件をチェック
+  const missionTitle = MISSION_TITLES.find(t => t.name === titleName);
+  if (missionTitle) {
+    return `ミッション${missionTitle.threshold}個完了で獲得`;
+  }
+  
+  // レッスン称号の条件をチェック
+  const lessonTitle = LESSON_TITLES.find(t => t.name === titleName);
+  if (lessonTitle) {
+    return `レッスン${lessonTitle.threshold}個完了で獲得`;
+  }
+  
+  // 魔法使い称号の条件をチェック
+  const wizardIndex = WIZARD_TITLES.indexOf(titleName as any);
+  if (wizardIndex !== -1) {
+    const minClears = wizardIndex * 10;
+    if (wizardIndex === 0) {
+      return 'ファンタジーモード初期称号';
+    }
+    return `ファンタジーモード${minClears}ステージクリアで獲得`;
+  }
+  
+  // レベル称号の条件をチェック
+  const levelIndex = TITLES.indexOf(titleName as any);
+  if (levelIndex !== -1) {
+    const level = levelIndex * 10;
+    if (level === 0) {
+      return '初期称号';
+    }
+    return `レベル${level}で獲得`;
+  }
+  
+  return '条件不明';
+}
 
 /**
  * デフォルト称号

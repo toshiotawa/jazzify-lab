@@ -20,14 +20,15 @@ import {
   FaGem,
   FaStar,
   FaMedal,
-  FaMagic
+  FaMagic,
+  FaHatWizard
 } from 'react-icons/fa';
 import { Mission } from '@/platform/supabaseMissions';
 import GameHeader from '@/components/ui/GameHeader';
 import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES } from '@/utils/titleConstants';
+import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES } from '@/utils/titleConstants';
 
 /**
  * ダッシュボード画面
@@ -139,7 +140,7 @@ const Dashboard: React.FC = () => {
   };
 
   // 称号の種類を判定する関数
-  const getTitleType = (title: string): 'level' | 'mission' | 'lesson' => {
+  const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
     // レベル称号の判定
     if (TITLES.includes(title as any)) {
       return 'level';
@@ -151,6 +152,10 @@ const Dashboard: React.FC = () => {
     // レッスン称号の判定
     if (LESSON_TITLES.some(lt => lt.name === title)) {
       return 'lesson';
+    }
+    // 魔法使い称号の判定
+    if (WIZARD_TITLES.includes(title as any)) {
+      return 'wizard';
     }
     // デフォルトはレベル称号
     return 'level';
@@ -166,6 +171,8 @@ const Dashboard: React.FC = () => {
         return <FaTrophy className="text-purple-400 text-sm" />;
       case 'lesson':
         return <FaGraduationCap className="text-blue-400 text-sm" />;
+      case 'wizard':
+        return <FaHatWizard className="text-green-400 text-sm" />;
       default:
         return <FaCrown className="text-yellow-400 text-sm" />;
     }

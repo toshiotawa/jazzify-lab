@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal } from 'react-icons/fa';
+import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal, FaHatWizard } from 'react-icons/fa';
 import DiaryFeed from './DiaryFeed';
 import { useAuthStore } from '@/stores/authStore';
 import DiaryEditor from './DiaryEditor';
@@ -8,7 +8,7 @@ import { useDiaryStore } from '@/stores/diaryStore';
 import { useToast } from '@/stores/toastStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES } from '@/utils/titleConstants';
+import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES } from '@/utils/titleConstants';
 import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
 
 interface UserDiary {
@@ -160,7 +160,7 @@ const DiaryPage: React.FC = () => {
   }
 
   // 称号の種類を判定する関数
-  const getTitleType = (title: string): 'level' | 'mission' | 'lesson' => {
+  const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
     // レベル称号の判定
     if (TITLES.includes(title as any)) {
       return 'level';
@@ -173,6 +173,10 @@ const DiaryPage: React.FC = () => {
     if (LESSON_TITLES.some(lt => lt.name === title)) {
       return 'lesson';
     }
+    // 魔法使い称号の判定
+    if (WIZARD_TITLES.includes(title as any)) {
+      return 'wizard';
+    }
     // デフォルトはレベル称号
     return 'level';
   };
@@ -182,13 +186,15 @@ const DiaryPage: React.FC = () => {
     const titleType = getTitleType(title);
     switch (titleType) {
       case 'level':
-        return <FaCrown className="text-yellow-400 text-sm" />;
+        return <FaCrown className="text-xs flex-shrink-0 text-yellow-400" />;
       case 'mission':
-        return <FaTrophy className="text-purple-400 text-sm" />;
+        return <FaTrophy className="text-xs flex-shrink-0 text-purple-400" />;
       case 'lesson':
-        return <FaGraduationCap className="text-blue-400 text-sm" />;
+        return <FaGraduationCap className="text-xs flex-shrink-0 text-blue-400" />;
+      case 'wizard':
+        return <FaHatWizard className="text-xs flex-shrink-0 text-green-400" />;
       default:
-        return <FaCrown className="text-yellow-400 text-sm" />;
+        return <FaCrown className="text-xs flex-shrink-0 text-yellow-400" />;
     }
   };
 
