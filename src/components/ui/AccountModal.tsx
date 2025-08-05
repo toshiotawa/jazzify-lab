@@ -43,7 +43,14 @@ const AccountPage: React.FC = () => {
     lessonCompletedCount: number;
     wizardTitles: string[];
     fantasyClearedCount: number;
-  }>({ missionTitles: [], lessonTitles: [], missionCompletedCount: 0, lessonCompletedCount: 0, wizardTitles: [], fantasyClearedCount: 0 });
+  }>({ 
+    missionTitles: [], 
+    lessonTitles: [], 
+    missionCompletedCount: 0, 
+    lessonCompletedCount: 0, 
+    wizardTitles: ['マナの芽吹き'], // 初期称号を含める
+    fantasyClearedCount: 0 
+  });
 
   // ハッシュ変更で開閉
   useEffect(() => {
@@ -61,14 +68,28 @@ const AccountPage: React.FC = () => {
   useEffect(() => {
     const loadAchievementTitles = async () => {
       if (profile?.id) {
-        const titles = await getUserAchievementTitles(profile.id);
-        const fantasyClearedCount = await fetchFantasyClearedStageCount(profile.id);
-        const wizardTitles = getAvailableWizardTitles(fantasyClearedCount);
-        setAchievementTitles({
-          ...titles,
-          wizardTitles,
-          fantasyClearedCount
-        });
+        try {
+          const titles = await getUserAchievementTitles(profile.id);
+          const fantasyClearedCount = await fetchFantasyClearedStageCount(profile.id);
+          const wizardTitles = getAvailableWizardTitles(fantasyClearedCount);
+          console.log('Fantasy cleared count:', fantasyClearedCount);
+          console.log('Available wizard titles:', wizardTitles);
+          setAchievementTitles({
+            ...titles,
+            wizardTitles,
+            fantasyClearedCount
+          });
+        } catch (error) {
+          console.error('Failed to load achievement titles:', error);
+          setAchievementTitles({
+            missionTitles: [],
+            lessonTitles: [],
+            missionCompletedCount: 0,
+            lessonCompletedCount: 0,
+            wizardTitles: [],
+            fantasyClearedCount: 0
+          });
+        }
       }
     };
     loadAchievementTitles();
@@ -180,7 +201,7 @@ const AccountPage: React.FC = () => {
                   disabled={titleSaving}
                 >
                   {/* 魔法使い称号カテゴリ */}
-                  {achievementTitles.wizardTitles.length > 0 && (
+                  {achievementTitles.wizardTitles && achievementTitles.wizardTitles.length > 0 && (
                     <optgroup label="魔法使い称号">
                       {achievementTitles.wizardTitles.map((title) => {
                         const conditionText = getTitleRequirement(title);

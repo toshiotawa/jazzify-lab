@@ -691,7 +691,7 @@ export function getTitleRequirement(titleName: string): string {
   if (levelIndex !== -1) {
     const level = levelIndex * 10;
     if (level === 0) {
-      return '初期称号';
+      return 'レベル0で獲得（初期称号）';
     }
     return `レベル${level}で獲得`;
   }

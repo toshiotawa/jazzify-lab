@@ -112,7 +112,14 @@ export async function fetchFantasyUserProgress(userId: string): Promise<{
     throw error;
   }
   
-  return data;
+  if (!data) return null;
+  
+  // snake_caseからcamelCaseに変換
+  return {
+    currentStageNumber: data.current_stage_number,
+    totalClearedStages: data.total_cleared_stages || 0,
+    wizardRank: data.wizard_rank
+  };
 }
 
 /**

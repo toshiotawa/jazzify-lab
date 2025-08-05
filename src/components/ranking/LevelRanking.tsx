@@ -252,7 +252,7 @@ const LevelRanking: React.FC = () => {
                           }}
                         >
                           <div className="relative">
-                            {getTitleRequirement((e.selected_title as Title) || DEFAULT_TITLE)}
+                            <div>{getTitleRequirement((e.selected_title as Title) || DEFAULT_TITLE)}</div>
                             {/* 下向き矢印 */}
                             <div 
                               className="absolute w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"
