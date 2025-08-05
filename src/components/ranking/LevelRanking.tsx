@@ -189,7 +189,7 @@ const LevelRanking: React.FC = () => {
             <thead>
               <tr className="border-b border-slate-700 text-left">
                 <th className="py-2 px-2 min-w-[3rem]">#</th>
-                <th className="py-2 px-2 min-w-[12rem] sm:min-w-[10rem]">ユーザー</th>
+                <th className="py-2 px-2 min-w-[12rem] sm:min-w-[10rem]">ユーザー(タップで詳細)</th>
                 <th className="py-2 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">称号</th>
                 <th className="py-2 px-2 min-w-[3rem]">Lv</th>
                 <th className="py-2 px-2 min-w-[4rem]">レッスン</th>
@@ -210,8 +210,8 @@ const LevelRanking: React.FC = () => {
                   <td className="py-1 px-2">
                     <button
                       onClick={()=>{window.location.hash=`#diary-user?id=${e.id}`;}}
-                      className={`flex items-center gap-2 hover:text-blue-400 transition-colors w-full ${
-                        isCurrentUser ? 'text-primary-400 font-bold' : ''
+                      className={`flex items-center gap-2 text-blue-400 hover:text-blue-300 hover:underline transition-colors w-full ${
+                        isCurrentUser ? 'font-bold' : ''
                       }`}
                     >
                       <img 
@@ -219,7 +219,7 @@ const LevelRanking: React.FC = () => {
                         alt="avatar"
                         className="w-6 h-6 rounded-full object-cover flex-shrink-0"
                       />
-                      <span className="truncate min-w-0 flex-1">{e.nickname}</span>
+                      <span className="truncate min-w-0 flex-1 underline">{e.nickname}</span>
                     </button>
                   </td>
                   <td className="py-1 px-2 whitespace-nowrap">
