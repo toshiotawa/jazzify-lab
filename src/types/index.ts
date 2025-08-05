@@ -635,7 +635,7 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
   allowed_chords: string[];
   chord_progression?: string[];
   show_sheet_music: boolean;
