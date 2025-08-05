@@ -624,6 +624,12 @@ export interface ClearConditions {
 }
 
 // ファンタジーモード関連の型定義
+export type FantasyStageMode =
+  | 'single'
+  | 'progression_order'
+  | 'progression_random'
+  | 'progression_timing';
+
 export interface FantasyStage {
   id: string;
   stage_number: string;
@@ -635,7 +641,7 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: FantasyStageMode;
   allowed_chords: string[];
   chord_progression?: string[];
   show_sheet_music: boolean;

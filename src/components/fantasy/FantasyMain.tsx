@@ -11,7 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
 import type { DisplayLang } from '@/utils/display-note';
-import { LessonContext } from '@/types';
+import { LessonContext, FantasyStageMode } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 
@@ -381,7 +381,7 @@ const FantasyMain: React.FC = () => {
         enemyHp: nextStageData.enemy_hp,
         minDamage: nextStageData.min_damage,
         maxDamage: nextStageData.max_damage,
-        mode: nextStageData.mode as 'single' | 'progression',
+                        mode: nextStageData.mode as FantasyStageMode,
         allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
         chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
         showSheetMusic: nextStageData.show_sheet_music,
