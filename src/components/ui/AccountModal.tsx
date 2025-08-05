@@ -5,11 +5,12 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import { uploadAvatar } from '@/platform/supabaseStorage';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { getAvailableTitles, DEFAULT_TITLE, getTitleConditionText } from '@/utils/titleConstants';
+import { getAvailableTitles, DEFAULT_TITLE, getTitleConditionText, getAvailableWizardTitles, getTitleRequirement } from '@/utils/titleConstants';
 import type { Title } from '@/utils/titleConstants';
 import { getUserAchievementTitles } from '@/utils/achievementTitles';
 import { updateUserTitle } from '@/platform/supabaseTitles';
 import { compressProfileImage } from '@/utils/imageCompression';
+import { fetchFantasyClearedStageCount } from '@/platform/supabaseFantasyStages';
 
 const RANK_LABEL: Record<string, string> = {
   free: 'フリー',
@@ -40,7 +41,16 @@ const AccountPage: React.FC = () => {
     lessonTitles: string[];
     missionCompletedCount: number;
     lessonCompletedCount: number;
-  }>({ missionTitles: [], lessonTitles: [], missionCompletedCount: 0, lessonCompletedCount: 0 });
+    wizardTitles: string[];
+    fantasyClearedCount: number;
+  }>({ 
+    missionTitles: [], 
+    lessonTitles: [], 
+    missionCompletedCount: 0, 
+    lessonCompletedCount: 0, 
+    wizardTitles: ['マナの芽吹き'], // 初期称号を含める
+    fantasyClearedCount: 0 
+  });
 
   // ハッシュ変更で開閉
   useEffect(() => {
@@ -58,8 +68,28 @@ const AccountPage: React.FC = () => {
   useEffect(() => {
     const loadAchievementTitles = async () => {
       if (profile?.id) {
-        const titles = await getUserAchievementTitles(profile.id);
-        setAchievementTitles(titles);
+        try {
+          const titles = await getUserAchievementTitles(profile.id);
+          const fantasyClearedCount = await fetchFantasyClearedStageCount(profile.id);
+          const wizardTitles = getAvailableWizardTitles(fantasyClearedCount);
+          console.log('Fantasy cleared count:', fantasyClearedCount);
+          console.log('Available wizard titles:', wizardTitles);
+          setAchievementTitles({
+            ...titles,
+            wizardTitles,
+            fantasyClearedCount
+          });
+        } catch (error) {
+          console.error('Failed to load achievement titles:', error);
+          setAchievementTitles({
+            missionTitles: [],
+            lessonTitles: [],
+            missionCompletedCount: 0,
+            lessonCompletedCount: 0,
+            wizardTitles: [],
+            fantasyClearedCount: 0
+          });
+        }
       }
     };
     loadAchievementTitles();
@@ -170,6 +200,20 @@ const AccountPage: React.FC = () => {
                   }}
                   disabled={titleSaving}
                 >
+                  {/* 魔法使い称号カテゴリ */}
+                  {achievementTitles.wizardTitles && achievementTitles.wizardTitles.length > 0 && (
+                    <optgroup label="魔法使い称号">
+                      {achievementTitles.wizardTitles.map((title) => {
+                        const conditionText = getTitleRequirement(title);
+                        return (
+                          <option key={title} value={title}>
+                            {title} - {conditionText}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  )}
+                  
                   {/* レッスンクリア称号カテゴリ */}
                   {achievementTitles.lessonTitles.length > 0 && (
                     <optgroup label="レッスンクリア称号">
