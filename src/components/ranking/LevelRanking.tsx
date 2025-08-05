@@ -13,8 +13,8 @@ const LevelRanking: React.FC = () => {
   const [entries, setEntries] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('level');
-  const [hoveredTitle, setHoveredTitle] = useState<string | null>(null);
-  const [clickedTitle, setClickedTitle] = useState<string | null>(null);
+  const [hoveredUserId, setHoveredUserId] = useState<string | null>(null);
+  const [clickedUserId, setClickedUserId] = useState<string | null>(null);
   const { user, isGuest } = useAuthStore();
 
   useEffect(() => {
@@ -226,12 +226,11 @@ const LevelRanking: React.FC = () => {
                     <div className="relative">
                       <div 
                         className="flex items-center gap-1 text-yellow-400 cursor-help"
-                        onMouseEnter={() => setHoveredTitle((e.selected_title as Title) || DEFAULT_TITLE)}
-                        onMouseLeave={() => setHoveredTitle(null)}
+                        onMouseEnter={() => setHoveredUserId(e.id)}
+                        onMouseLeave={() => setHoveredUserId(null)}
                         onClick={(event) => {
                           event.stopPropagation();
-                          const title = (e.selected_title as Title) || DEFAULT_TITLE;
-                          setClickedTitle(clickedTitle === title ? null : title);
+                          setClickedUserId(clickedUserId === e.id ? null : e.id);
                         }}
                       >
                         {getTitleIcon((e.selected_title as Title) || DEFAULT_TITLE)}
@@ -240,8 +239,7 @@ const LevelRanking: React.FC = () => {
                         </span>
                       </div>
                       {/* ツールチップ */}
-                      {(hoveredTitle === ((e.selected_title as Title) || DEFAULT_TITLE) || 
-                        clickedTitle === ((e.selected_title as Title) || DEFAULT_TITLE)) && (
+                      {(hoveredUserId === e.id || clickedUserId === e.id) && (
                         <div 
                           className="absolute z-50 bg-gray-900 text-white text-xs p-2 rounded shadow-lg whitespace-nowrap"
                           style={{ 
