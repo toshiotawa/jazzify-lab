@@ -291,6 +291,16 @@ class BGMManager {
     
     try {
       this.audio.currentTime = 0;
+      // startTimeも現在時刻にリセット（getCurrentMusicTime()が正しく0を返すように）
+      this.startTime = performance.now();
+      
+      // ループスケジューリングもリセット
+      this.loopScheduled = false;
+      if (this.loopTimeoutId !== null) {
+        clearTimeout(this.loopTimeoutId);
+        this.loopTimeoutId = null;
+      }
+      
       console.log('🔄 BGMを0秒にリセット');
     } catch (error) {
       console.warn('BGMリセットエラー:', error);

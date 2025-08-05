@@ -117,6 +117,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // Ready 終了時に BGM 再生
   useEffect(() => {
     if (!isReady) {
+
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
