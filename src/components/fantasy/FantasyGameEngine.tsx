@@ -44,7 +44,7 @@ interface FantasyStage {
   enemyHp: number;
   minDamage: number;
   maxDamage: number;
-  mode: 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
+  mode: 'single' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing';
   allowedChords: string[];
   chordProgression?: string[];
   chordProgressionData?: any; // 拡張版progression用のJSONデータ
@@ -661,7 +661,7 @@ export const useFantasyGameEngine = ({
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.mode.startsWith('progression_') ? 1 : (stage.simultaneousMonsterCount || 1);
+    const simultaneousCount = (stage.mode === 'progression' || stage.mode.startsWith('progression_')) ? 1 : (stage.simultaneousMonsterCount || 1);
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -748,12 +748,13 @@ export const useFantasyGameEngine = ({
     const firstChord = firstMonster ? firstMonster.chordTarget : null;
 
     // 太鼓の達人モードの判定
-    const isTaikoMode = stage.mode.startsWith('progression_');
+    const isTaikoMode = stage.mode === 'progression' || stage.mode.startsWith('progression_');
     let taikoNotes: TaikoNote[] = [];
     
     if (isTaikoMode) {
       // 太鼓の達人モードのノーツ生成
       switch (stage.mode) {
+        case 'progression':  // 後方互換性のため
         case 'progression_order':
           // 基本版：小節の頭でコード出題（固定順）
           if (stage.chordProgression) {

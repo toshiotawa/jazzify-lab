@@ -994,7 +994,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
         
         {/* NEXTコード表示（コード進行モード、サイズを縮小） */}
-                    {stage.mode.startsWith('progression_') && getNextChord() && (
+                    {(stage.mode === 'progression' || stage.mode.startsWith('progression_')) && getNextChord() && (
           <div className="mb-1 text-right">
             <div className="text-white text-xs">NEXT:</div>
             <div className="text-blue-300 text-sm font-bold">
