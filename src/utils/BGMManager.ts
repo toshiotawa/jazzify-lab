@@ -281,6 +281,21 @@ class BGMManager {
   getIsCountIn(): boolean {
     return false
   }
+  
+  /**
+   * BGMを即座に開始地点（0秒）にリセット
+   * ゲームの小節ループと同期するために使用
+   */
+  resetToStart() {
+    if (!this.audio || !this.isPlaying) return;
+    
+    try {
+      this.audio.currentTime = 0;
+      console.log('🔄 BGMを0秒にリセット');
+    } catch (error) {
+      console.warn('BGMリセットエラー:', error);
+    }
+  }
 }
 
 export const bgmManager = new BGMManager()
