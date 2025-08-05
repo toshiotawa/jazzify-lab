@@ -132,6 +132,60 @@ export function generateBasicProgressionNotes(
 }
 
 /**
+ * ランダムプログレッション用：各小節ごとにランダムでコードを決定（直前と同じコードは禁止）
+ * @param chordPool 選択可能なコードのプール（allowedChords or chordProgression）
+ * @param measureCount 総小節数
+ * @param bpm BPM
+ * @param timeSignature 拍子
+ * @param getChordDefinition コード定義取得関数
+ * @param countInMeasures カウントイン小節数
+ */
+export function generateRandomProgressionNotes(
+  chordPool: string[],
+  measureCount: number,
+  bpm: number,
+  timeSignature: number,
+  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  countInMeasures: number = 0
+): TaikoNote[] {
+  if (chordPool.length === 0) return [];
+
+  const notes: TaikoNote[] = [];
+  const secPerBeat = 60 / bpm;
+  const secPerMeasure = secPerBeat * timeSignature;
+  const safeRandom = () => Math.floor(Math.random() * chordPool.length);
+
+  let lastChordId = '';
+
+  // M2から(measureCount-1)まで出題（M1と最終小節は休み）
+  for (let measure = 2; measure <= measureCount - 1; measure++) {
+    // 直前と同じコードは避ける
+    let nextId = chordPool[safeRandom()];
+    if (chordPool.length > 1) {
+      while (nextId === lastChordId) {
+        nextId = chordPool[safeRandom()];
+      }
+    }
+    lastChordId = nextId;
+
+    const chord = getChordDefinition(nextId);
+    if (!chord) continue;
+
+    notes.push({
+      id: `note_${measure}_1`,
+      chord,
+      hitTime: (measure - 1) * secPerMeasure, // M1基準
+      measure,
+      beat: 1,
+      isHit: false,
+      isMissed: false
+    });
+  }
+  
+  return notes;
+}
+
+/**
  * 拡張版progression用：chord_progression_dataのJSONを解析
  * カウントインを考慮
  * @param progressionData JSON配列
