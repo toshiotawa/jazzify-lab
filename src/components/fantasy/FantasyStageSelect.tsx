@@ -6,7 +6,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
-import { devLog } from '@/utils/logger';
+import devLog from '@/utils/devLog';
+import { useGlobalNotification } from '@/components/notifications/GlobalNotificationProvider';
+import { FantasyPixiApp } from './pixiUtils/FantasyPixiApp';
+import { getFantasyRankByStages, getFantasyRankById, getNextFantasyRank, getFantasyRankProgress } from '@/constants/fantasyRanks';
 
 // ===== 型定義 =====
 
@@ -36,13 +39,9 @@ interface FantasyStageSelectProps {
 }
 
 // ===== ランクシステム定義 =====
-const WIZARD_RANKS = [
-  'F', 'F+', 'E', 'E+', 'D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S', 'S+'
-];
-
 const getRankFromClearedStages = (clearedStages: number): string => {
-  const rankIndex = Math.floor(clearedStages / 10);
-  return WIZARD_RANKS[Math.min(rankIndex, WIZARD_RANKS.length - 1)];
+  const rank = getFantasyRankByStages(clearedStages);
+  return rank.id;
 };
 
 // ===== ステージグルーピング =====
@@ -380,7 +379,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           <div>
             <h1 className="text-3xl font-bold mb-2">🧙‍♂️ ファンタジーモード</h1>
             <div className="flex items-center space-x-6 text-sm">
-              <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber}</span></div>
+              <div>現在地: <span className="text-blue-300 font-bold">ステージ {userProgress?.currentStageNumber}</span></div>
+              <div>クリアステージ数: <span className="text-green-300 font-bold">{totalCleared}</span></div>
             </div>
           </div>
           
@@ -391,25 +391,71 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             メニューに戻る
           </button>
         </div>
+
+        {/* 現在のランク情報 */}
+        {(() => {
+          const currentRankData = getFantasyRankById(currentWizardRank);
+          const nextRankData = getNextFantasyRank(currentWizardRank);
+          const progress = getFantasyRankProgress(totalCleared, currentWizardRank);
+          
+          return currentRankData ? (
+            <div className="mt-6 p-4 bg-black bg-opacity-30 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl font-bold" style={{ color: currentRankData.color }}>
+                      {currentRankData.id}
+                    </span>
+                    <h2 className="text-xl font-semibold">{currentRankData.name}</h2>
+                  </div>
+                  <p className="text-sm text-gray-300 mt-1">{currentRankData.description}</p>
+                </div>
+                {nextRankData && (
+                  <div className="text-right">
+                    <p className="text-sm text-gray-400">次のランクまで</p>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <div className="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-400">{progress}%</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {nextRankData.name} (ステージ {nextRankData.requiredStages})
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null;
+        })()}
       </div>
       
       {/* ランク選択タブ */}
       <div className="px-6 mb-6">
         <div className="flex space-x-2 overflow-x-auto">
-          {Object.keys(groupedStages).map(rank => (
-            <button
-              key={rank}
-              onClick={() => setSelectedRank(rank)}
-              className={cn(
-                "px-6 py-3 rounded-lg font-medium whitespace-nowrap transition-colors",
-                selectedRank === rank
-                  ? "bg-white text-purple-900"
-                  : "bg-white bg-opacity-20 text-white hover:bg-opacity-30"
-              )}
-            >
-              ランク {rank}
-            </button>
-          ))}
+          {Object.keys(groupedStages).map(rank => {
+            const rankData = getFantasyRankById(rank);
+            return (
+              <button
+                key={rank}
+                onClick={() => setSelectedRank(rank)}
+                className={cn(
+                  "px-6 py-3 rounded-lg font-medium whitespace-nowrap transition-colors",
+                  selectedRank === rank
+                    ? "bg-white text-purple-900"
+                    : "bg-white bg-opacity-20 text-white hover:bg-opacity-30"
+                )}
+              >
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg font-bold">{rank}</span>
+                  {rankData && <span className="text-sm">{rankData.name}</span>}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
       
