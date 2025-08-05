@@ -8,7 +8,6 @@ import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
-import { useTimeStore } from '@/stores/timeStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { TaikoNote } from './TaikoNoteSystem';
@@ -58,8 +57,30 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
-  // 時間管理
-  const { currentBeat, currentMeasure, tick, startAt, readyDuration, isCountIn } = useTimeStore();
+  // 時間管理 - BGMManagerから取得
+  const [currentBeat, setCurrentBeat] = useState(1);
+  const [currentMeasure, setCurrentMeasure] = useState(1);
+  const [isReady, setIsReady] = useState(true);
+  const readyStartTimeRef = useRef<number>(performance.now());
+  
+  // コンポーネントマウント時にReady開始時刻を記録
+  useEffect(() => {
+    readyStartTimeRef.current = performance.now();
+  }, []);
+  
+  // BGMManagerからタイミング情報を定期的に取得
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentBeat(bgmManager.getCurrentBeat());
+      setCurrentMeasure(bgmManager.getCurrentMeasure());
+      // Ready状態は2秒後に自動的に解除
+      if (isReady && performance.now() - readyStartTimeRef.current > 2000) {
+        setIsReady(false);
+      }
+    }, 50); // 50ms間隔で更新
+    
+    return () => clearInterval(interval);
+  }, [isReady]);
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -71,15 +92,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
   const monsterAreaRef = useRef<HTMLDivElement>(null);
   
-  /* 毎 100 ms で時間ストア tick */
-  useEffect(() => {
-    const id = setInterval(() => tick(), 100);
-    return () => clearInterval(id);
-  }, [tick]);
-
   /* Ready → Start 判定 */
-  const isReady =
-    startAt !== null && performance.now() - startAt < readyDuration;
+  // isReadyはローカルstateで管理済み
   
   // ★★★ 追加: モンスターエリアのサイズ監視 ★★★
   useEffect(() => {
@@ -102,20 +116,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // Ready 終了時に BGM 再生
   useEffect(() => {
-    if (!isReady && startAt) {
+    if (!isReady) {
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
         stage.timeSignature || 4,
         stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0,
+        0,
         settings.bgmVolume ?? 0.7
       );
-    } else {
-      bgmManager.stop();
     }
     return () => bgmManager.stop();
-  }, [isReady, stage, settings.bgmVolume, startAt]);
+  }, [isReady, stage, settings.bgmVolume]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -543,7 +555,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // ループ情報を事前計算
     const stage = gameState.currentStage!;
     const loopDuration = stage.measureCount * (60 / stage.bpm) * stage.timeSignature;
-    const countInDuration = (stage.countInMeasures || 0) * (60 / stage.bpm) * stage.timeSignature;
     
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
@@ -764,13 +775,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
-          {isCountIn ? (
-            // カウントイン中は特別な表示
-            <>Count In - M {Math.abs(currentMeasure)} B {currentBeat}</>
-          ) : (
-            // 通常の表示
-            <>M {currentMeasure} - B {currentBeat}</>
-          )}
+          <>M {currentMeasure} - B {currentBeat}</>
         </div>
         <div className="flex justify-between items-center">
           {/* ステージ情報と敵の数 */}
@@ -883,26 +888,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         className="flex-shrink-0 flex flex-col items-center"
                         style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
                       >
-                      {/* 太鼓の達人モードでは現在のコードと次のコードを表示 */}
-                      {gameState.isTaikoMode ? (
-                        <>
-                          {/* 現在のコード */}
-                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                          }`}>
-                            {monster.chordTarget.displayName}
-                          </div>
-                          
-                          {/* 次のコード（小さく表示） */}
-                          {monster.nextChord && (
-                            <div className={`text-blue-300 text-center truncate w-full ${
-                              monsterCount > 5 ? 'text-xs' : 'text-sm'
-                            }`}>
-                              Next: {monster.nextChord.displayName}
-                            </div>
-                          )}
-                        </>
-                      ) : (
+                      {/* 太鼓の達人モードでは敵の下に何も表示しない */}
+                      {!gameState.isTaikoMode && (
                         <>
                           {/* 通常モードの表示 */}
                           <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${

@@ -105,23 +105,22 @@ export function generateBasicProgressionNotes(
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  const countInDuration = countInMeasures * secPerMeasure; // カウントインの総時間
   
-  // カウントイン後の小節のみでノーツを生成
-  for (let measure = 1; measure <= measureCount; measure++) {
-    const chordIndex = (measure - 1) % chordProgression.length;
+  // M2から(measureCount-1)まで出題（M1と最終小節は休み）
+  for (let measure = 2; measure <= measureCount - 1; measure++) {
+    const chordIndex = (measure - 2) % chordProgression.length; // M2を0番目としてインデックス
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      // カウントイン時間を加算して実際のヒットタイミングを計算
-      const hitTime = countInDuration + (measure - 1) * secPerMeasure;
+      // M1の時間を0として計算
+      const hitTime = (measure - 1) * secPerMeasure;
       
       notes.push({
         id: `note_${measure}_1`,
         chord,
         hitTime,
-        measure, // 表示用の小節番号（カウントイン後を1とする）
+        measure, // 表示用の小節番号
         beat: 1,
         isHit: false,
         isMissed: false
@@ -151,13 +150,18 @@ export function parseChordProgressionData(
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  const countInDuration = countInMeasures * secPerMeasure;
+  
+  // 最大小節数を取得
+  const maxBar = Math.max(...progressionData.map(item => item.bar), 0);
   
   progressionData.forEach((item, index) => {
+    // M1と最終小節をスキップ
+    if (item.bar === 1 || item.bar === maxBar) return;
+    
     const chord = getChordDefinition(item.chord);
     if (chord) {
       // カウントイン時間を加算
-      const hitTime = countInDuration + (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
         id: `note_${item.bar}_${item.beats}_${index}`,
