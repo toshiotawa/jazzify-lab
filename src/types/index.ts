@@ -635,9 +635,10 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing';
   allowed_chords: string[];
   chord_progression?: string[];
+  chord_progression_data?: any; // 拡張版progression用のJSONデータ
   show_sheet_music: boolean;
   show_guide: boolean;
   simultaneous_monster_count?: number;

@@ -16,6 +16,7 @@ import {
   judgeTimingWindow,
   judgeTimingWindowWithLoop,
   generateBasicProgressionNotes,
+  generateRandomProgressionNotes,
   parseChordProgressionData,
   parseSimpleProgressionText
 } from './TaikoNoteSystem';
@@ -656,11 +657,17 @@ export const useFantasyGameEngine = ({
     // 旧 BGM を確実に殺す
     bgmManager.stop();
 
+    // 太鼓の達人モードの判定
+    const isTaikoMode = stage.mode === 'progression' || 
+                       stage.mode === 'progression_order' || 
+                       stage.mode === 'progression_random' || 
+                       stage.mode === 'progression_timing';
+    
     // 新しいステージ定義から値を取得
     const totalEnemies = stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = totalEnemies * enemyHp;
-    const simultaneousCount = stage.mode === 'progression' ? 1 : (stage.simultaneousMonsterCount || 1);
+    const simultaneousCount = isTaikoMode ? 1 : (stage.simultaneousMonsterCount || 1);
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = getStageMonsterIds(totalEnemies);
@@ -746,14 +753,13 @@ export const useFantasyGameEngine = ({
     const firstMonster = activeMonsters[0];
     const firstChord = firstMonster ? firstMonster.chordTarget : null;
 
-    // 太鼓の達人モードの判定
-    const isTaikoMode = stage.mode === 'progression';
+    // 太鼓の達人モードのノーツ生成
     let taikoNotes: TaikoNote[] = [];
     
     if (isTaikoMode) {
       // 太鼓の達人モードのノーツ生成
-      if (stage.chordProgressionData) {
-        // 拡張版：JSON形式のデータを解析
+      if (stage.mode === 'progression_timing' && stage.chordProgressionData) {
+        // progression_timing: JSONデータがある場合のみ使用
         let progressionData: ChordProgressionDataItem[];
         
         if (typeof stage.chordProgressionData === 'string') {
@@ -772,15 +778,28 @@ export const useFantasyGameEngine = ({
           0 // カウントインを渡す
         );
       } else if (stage.chordProgression) {
-        // 基本版：小節の頭でコード出題
-        taikoNotes = generateBasicProgressionNotes(
-          stage.chordProgression,
-          stage.measureCount || 8,
-          stage.bpm || 120,
-          stage.timeSignature || 4,
-          (chordId) => getChordDefinition(chordId, displayOpts),
-          0 // カウントインを渡す
-        );
+        // progression_orderまたはprogression_randomモード
+        if (stage.mode === 'progression_random') {
+          // ランダム順序でコード出題
+          taikoNotes = generateRandomProgressionNotes(
+            stage.chordProgression,
+            stage.measureCount || 8,
+            stage.bpm || 120,
+            stage.timeSignature || 4,
+            (chordId) => getChordDefinition(chordId, displayOpts),
+            0 // カウントインを渡す
+          );
+        } else {
+          // progression_orderまたは旧progression（順番通り）
+          taikoNotes = generateBasicProgressionNotes(
+            stage.chordProgression,
+            stage.measureCount || 8,
+            stage.bpm || 120,
+            stage.timeSignature || 4,
+            (chordId) => getChordDefinition(chordId, displayOpts),
+            0 // カウントインを渡す
+          );
+        }
       }
       
       // ループ対応：最初のノーツの情報を設定
