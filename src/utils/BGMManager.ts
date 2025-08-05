@@ -13,6 +13,7 @@ class BGMManager {
   private loopScheduled = false
   private nextLoopTime = 0
   private loopTimeoutId: number | null = null // タイムアウトIDを保持
+  private monitorId: number | null = null // requestAnimationFrameのID
 
   play(
     url: string,
@@ -65,6 +66,8 @@ class BGMManager {
         this.loopTimeoutId = window.setTimeout(() => {
           if (this.audio && this.isPlaying) {
             this.audio.currentTime = this.nextLoopTime
+            // ★ ループした瞬間のデバイス時刻を取り直す
+            this.startTime = performance.now()
             console.log(`🔄 BGM Loop (scheduled): → ${this.nextLoopTime.toFixed(2)}s`)
           }
           this.loopScheduled = false
@@ -85,6 +88,8 @@ class BGMManager {
       playPromise
         .then(() => {
           console.log('🎵 BGM再生開始:', { url, bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd })
+          // requestAnimationFrameによる監視を開始（iOS/Safari対策）
+          this.monitorId = requestAnimationFrame(this.monitorLoop)
         })
         .catch((error) => {
           console.warn('BGM playback failed:', error)
@@ -107,6 +112,12 @@ class BGMManager {
     if (this.loopTimeoutId !== null) {
       clearTimeout(this.loopTimeoutId)
       this.loopTimeoutId = null
+    }
+    
+    // requestAnimationFrameのクリア
+    if (this.monitorId !== null) {
+      cancelAnimationFrame(this.monitorId)
+      this.monitorId = null
     }
     
     if (this.audio) {
@@ -146,6 +157,8 @@ class BGMManager {
   private handleEnded = () => {
     if (this.loopEnd > 0) {
       this.audio!.currentTime = this.loopBegin
+      // ★ ループした瞬間のデバイス時刻を取り直す
+      this.startTime = performance.now()
       this.audio!.play().catch(console.error)
     }
   }
@@ -280,6 +293,30 @@ class BGMManager {
    */
   getIsCountIn(): boolean {
     return false
+  }
+  
+  /**
+   * requestAnimationFrameによるループ監視（iOS/Safari対策）
+   * timeupdateイベントの精度が低い環境でも確実にループさせる
+   */
+  private monitorLoop = () => {
+    if (this.audio && this.isPlaying) {
+      const currentTime = this.audio.currentTime
+      const timeToEnd = this.loopEnd - currentTime
+      
+      // ループポイントに近づいたら（30ms前）
+      if (timeToEnd > 0 && timeToEnd < 0.03 && !this.loopScheduled) {
+        this.audio.currentTime = this.loopBegin
+        // ★ ループした瞬間のデバイス時刻を取り直す
+        this.startTime = performance.now()
+        console.log(`🔄 BGM Loop (monitor): → ${this.loopBegin.toFixed(2)}s`)
+      }
+      
+      // 継続的に監視
+      if (this.isPlaying) {
+        this.monitorId = requestAnimationFrame(this.monitorLoop)
+      }
+    }
   }
 }
 
