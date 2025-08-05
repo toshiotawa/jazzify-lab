@@ -13,6 +13,8 @@ class BGMManager {
   private loopScheduled = false
   private nextLoopTime = 0
   private loopTimeoutId: number | null = null // タイムアウトIDを保持
+  private hasJustLooped = false // ループ直後かどうかのフラグ
+  private lastLoopTime = 0 // 最後にループした時刻
 
   play(
     url: string,
@@ -56,6 +58,11 @@ class BGMManager {
       const currentTime = this.audio.currentTime
       const timeToEnd = this.loopEnd - currentTime
       
+      // ループ判定のリセット（ループ後100ms経過したらフラグをリセット）
+      if (this.hasJustLooped && performance.now() - this.lastLoopTime > 100) {
+        this.hasJustLooped = false
+      }
+      
       // ループの事前スケジューリング（100ms前に準備）
       if (timeToEnd < 0.1 && timeToEnd > 0 && !this.loopScheduled) {
         this.loopScheduled = true
@@ -65,6 +72,8 @@ class BGMManager {
         this.loopTimeoutId = window.setTimeout(() => {
           if (this.audio && this.isPlaying) {
             this.audio.currentTime = this.nextLoopTime
+            this.hasJustLooped = true
+            this.lastLoopTime = performance.now()
             console.log(`🔄 BGM Loop (scheduled): → ${this.nextLoopTime.toFixed(2)}s`)
           }
           this.loopScheduled = false
@@ -102,6 +111,8 @@ class BGMManager {
   stop() {
     this.isPlaying = false
     this.loopScheduled = false
+    this.hasJustLooped = false
+    this.lastLoopTime = 0
     
     // タイムアウトのクリア
     if (this.loopTimeoutId !== null) {
@@ -159,6 +170,11 @@ class BGMManager {
   getCurrentMusicTime(): number {
     if (!this.isPlaying || !this.audio) return 0
     
+    // ループ直後は強制的に0を返す
+    if (this.hasJustLooped) {
+      return 0
+    }
+    
     // オーディオの現在時間をそのまま返す（カウントインが無いため）
     return this.audio.currentTime
   }
@@ -169,6 +185,11 @@ class BGMManager {
    */
   getCurrentMeasure(): number {
     const musicTime = this.getCurrentMusicTime()
+    
+    // ループ直後は確実に1を返す
+    if (this.hasJustLooped) {
+      return 1
+    }
     
     const secPerMeasure = (60 / this.bpm) * this.timeSignature
     const measure = Math.floor(musicTime / secPerMeasure) + 1
@@ -183,6 +204,11 @@ class BGMManager {
   getCurrentBeat(): number {
     if (!this.isPlaying) return 1
     
+    // ループ直後は確実に1を返す
+    if (this.hasJustLooped) {
+      return 1
+    }
+    
     const audioTime = this.audio?.currentTime || 0
     const secPerBeat = 60 / this.bpm
     const totalBeats = Math.floor(audioTime / secPerBeat)
@@ -196,6 +222,11 @@ class BGMManager {
    */
   getCurrentBeatPosition(): number {
     if (!this.isPlaying || !this.audio) return 0
+    
+    // ループ直後は確実に0を返す
+    if (this.hasJustLooped) {
+      return 0
+    }
     
     const audioTime = this.audio.currentTime
     const secPerBeat = 60 / this.bpm
