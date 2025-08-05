@@ -748,6 +748,8 @@ export const useFantasyGameEngine = ({
     const isProgressionMode = stage.mode !== 'single';
     const isTaikoMode = stage.mode === 'progression_timing';
     const isRandomMode = stage.mode === 'progression_random';
+    // 後方互換性: progressionモードは progression_order として扱う
+    const isOrderMode = stage.mode === 'progression_order' || stage.mode === 'progression';
     let taikoNotes: TaikoNote[] = [];
     
     if (isProgressionMode) {
