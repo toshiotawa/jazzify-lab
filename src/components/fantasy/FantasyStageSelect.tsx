@@ -267,6 +267,15 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         )}
         onClick={() => handleStageSelect(stage)}
       >
+        {/* ステージアイコン */}
+        <div className="flex-shrink-0">
+          <img 
+            src={`/stage_icons/${stage.stageNumber}.png`}
+            alt={`Stage ${stage.stageNumber} icon`}
+            className="w-12 h-12 object-contain"
+          />
+        </div>
+        
         {/* ステージ番号 */}
         <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
           {stage.stageNumber}
