@@ -63,7 +63,16 @@ const RANK_COLORS: Record<string, string> = {
   '2': 'from-blue-700 to-blue-900',
   '3': 'from-purple-700 to-purple-900',
   '4': 'from-red-700 to-red-900',
-  '5': 'from-yellow-700 to-yellow-900'
+  '5': 'from-orange-700 to-orange-900',
+};
+
+// ===== ランク名称 =====
+const RANK_NAMES: Record<string, string> = {
+  '1': '初心者の世界',
+  '2': '中級者の世界',
+  '3': '上級者の世界',
+  '4': '達人の世界',
+  '5': '伝説の世界',
 };
 
 const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
@@ -412,7 +421,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             RANK_COLORS[selectedRank] || "from-gray-700 to-gray-900"
           )}>
             <h2 className="text-white text-xl font-bold mb-4">
-              ランク {selectedRank} - {groupedStages[selectedRank][0]?.name.includes('森') ? '初心者の世界' : '上級者の世界'}
+              ランク {selectedRank} - {RANK_NAMES[selectedRank] || `ランク${selectedRank}の世界`}
             </h2>
             
             <div className="space-y-3">
