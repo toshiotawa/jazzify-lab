@@ -418,7 +418,7 @@ const Dashboard: React.FC = () => {
                 </button>
                 <button
                   onClick={() => { window.location.hash = '#login'; }}
-                  className="btn btn-outline"
+                  className="btn btn-secondary"
                 >
                   ログイン / 会員登録
                 </button>
