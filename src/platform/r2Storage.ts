@@ -44,10 +44,13 @@ export async function uploadAvatar(file: File, userId: string): Promise<string> 
   const ext = file.type.includes('png') ? 'png' : 'jpg';
   const key = `avatars/${userId}.${ext}`;
   
+  // FileをArrayBufferに変換
+  const arrayBuffer = await file.arrayBuffer();
+  
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
-    Body: file,
+    Body: new Uint8Array(arrayBuffer),
     ContentType: file.type,
     CacheControl: 'public, max-age=31536000', // 1年間キャッシュ
   });
@@ -87,10 +90,13 @@ export async function uploadSongFile(
   
   const key = `song-files/${songId}/${fileType}.${ext}`;
   
+  // FileをArrayBufferに変換
+  const arrayBuffer = await file.arrayBuffer();
+  
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
-    Body: file,
+    Body: new Uint8Array(arrayBuffer),
     ContentType: contentType,
     CacheControl: 'public, max-age=31536000', // 1年間キャッシュ
   });
@@ -128,10 +134,13 @@ export async function uploadDiaryImage(file: File, userId: string, diaryId: stri
   const ext = file.name.split('.').pop() || 'webp';
   const key = `diary-images/${userId}/${diaryId}.${ext}`;
   
+  // FileをArrayBufferに変換
+  const arrayBuffer = await file.arrayBuffer();
+  
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
-    Body: file,
+    Body: new Uint8Array(arrayBuffer),
     ContentType: file.type || 'image/webp',
     CacheControl: 'public, max-age=31536000', // 1年間キャッシュ
   });
