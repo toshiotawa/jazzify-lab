@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { addSongWithFiles, fetchSongs, deleteSong, Song, SongFiles, SongUsageType } from '@/platform/supabaseSongs';
-import { createSongFilesBucket } from '@/platform/supabaseStorage';
 import { useToast } from '@/stores/toastStore';
 
 interface SongFormData {
@@ -47,9 +46,7 @@ const SongManager: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    createSongFilesBucket().catch(e => console.warn('バケット作成済み:', e));
-  }, []);
+
 
   useEffect(() => {
     loadSongs(activeListTab);

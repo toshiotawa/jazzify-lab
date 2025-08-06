@@ -18,6 +18,7 @@ interface UserDiary {
   created_at: string;
   likes: number;
   comment_count: number;
+  image_url?: string;
 }
 
 interface UserProfile {
@@ -337,7 +338,19 @@ const DiaryPage: React.FC = () => {
                               </div>
                             </>
                           ) : (
-                            <p className="text-gray-100 leading-relaxed whitespace-pre-wrap">{diary.content}</p>
+                            <>
+                              <p className="text-gray-100 leading-relaxed whitespace-pre-wrap">{diary.content}</p>
+                              {diary.image_url && (
+                                <div className="mt-3">
+                                  <img 
+                                    src={diary.image_url} 
+                                    alt="日記画像" 
+                                    className="rounded-lg max-w-full h-auto"
+                                    style={{ maxHeight: '400px' }}
+                                  />
+                                </div>
+                              )}
+                            </>
                           )}
 
                           {/* Owner controls */}

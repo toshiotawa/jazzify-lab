@@ -4,7 +4,7 @@ import { useToast, getValidationMessage, handleApiError } from '@/stores/toastSt
 import { useAuthStore } from '@/stores/authStore';
 import { Diary } from '@/platform/supabaseDiary';
 import { compressDiaryImage } from '@/utils/imageCompression';
-import { uploadDiaryImage, createDiaryImagesBucket } from '@/platform/supabaseStorage';
+import { uploadDiaryImage } from '@/platform/r2Storage';
 
 const MAX_LEN = 1000;
 const MIN_LEN = 10;
@@ -112,7 +112,6 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
           if (selectedImage) {
             // 新しい画像をアップロード
             try {
-              await createDiaryImagesBucket();
               finalImageUrl = await uploadDiaryImage(selectedImage, profile!.id, diary.id);
             } catch (uploadError) {
               console.error('画像アップロードエラー:', uploadError);
@@ -136,9 +135,6 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
         // 日記作成後に画像をアップロード
         if (selectedImage) {
           try {
-            // バケットを作成（初回のみ）
-            await createDiaryImagesBucket();
-            
             // 実際の日記IDを使用してアップロード
             const imageUrl = await uploadDiaryImage(selectedImage, profile!.id, result.diaryId);
             
