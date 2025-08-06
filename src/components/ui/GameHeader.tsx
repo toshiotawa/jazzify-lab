@@ -32,6 +32,7 @@ const GameHeader: React.FC = () => {
             onClick={() => {
               gameActions.setCurrentTab?.('songs');
             }}
+            disabled={isGuest}
           >
             曲選択
           </HashButton>
