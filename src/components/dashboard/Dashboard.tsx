@@ -405,6 +405,12 @@ const Dashboard: React.FC = () => {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button
+                  onClick={() => { window.location.hash = '#fantasy'; }}
+                  className="btn btn-primary"
+                >
+                  コードを覚える
+                </button>
+                <button
                   onClick={() => { window.location.hash = '#songs'; }}
                   className="btn btn-primary"
                 >
