@@ -14,6 +14,7 @@ import {
   getRankColor,
   getRankFromClearedStages as getRankFromClearedStagesUtil 
 } from '@/utils/fantasyRankConstants';
+import { useAuthStore } from '@/stores/authStore';
 
 // ===== 型定義 =====
 
@@ -78,11 +79,11 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       const supabase = getSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) {
-        throw new Error('ユーザーがログインしていません');
-      }
+      // authStoreから情報を取得
+      const authStore = useAuthStore.getState();
+      const isGuest = authStore.isGuest;
       
-      // ステージマスタデータの読み込み
+      // ステージマスタデータの読み込み（ゲストユーザーも読み込み可能）
       const { data: stagesData, error: stagesError } = await supabase
         .from('fantasy_stages')
         .select('*')
@@ -90,6 +91,32 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       
       if (stagesError) {
         throw new Error(`ステージデータの読み込みに失敗: ${stagesError.message}`);
+      }
+      
+      // ゲストユーザーの場合は進捗データを読み込まない
+      if (isGuest || !user) {
+        // ステージデータの変換
+        const convertedStages: FantasyStage[] = stagesData.map((stage: any) => ({
+          id: stage.id,
+          stageNumber: stage.stage_number,
+          name: stage.name,
+          description: stage.description,
+          maxHp: stage.max_hp,
+          enemyCount: stage.enemy_count,
+          enemyHp: stage.enemy_hp,
+          minDamage: stage.min_damage,
+          maxDamage: stage.max_damage,
+          enemyGaugeSeconds: stage.enemy_gauge_seconds,
+          mode: stage.mode,
+          allowedChords: stage.allowed_chords,
+          monsterIcon: stage.monster_icon
+        }));
+        
+        setStages(convertedStages);
+        setUserProgress(null);
+        setStageClears([]);
+        devLog.debug('🎮 ゲストユーザーのためステージマスタデータのみ読み込みました');
+        return;
       }
       
       // ユーザー進捗の読み込み
@@ -218,6 +245,42 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
+    const authStore = useAuthStore.getState();
+    const profile = authStore.profile;
+    const isGuest = authStore.isGuest;
+    
+    const [r, s] = stage.stageNumber.split('-').map(Number);
+    
+    // フリープランまたはゲストユーザーの場合、1-1, 1-2, 1-3のみアンロック
+    if (isGuest || !profile || profile.rank === 'free') {
+      if (r === 1 && s <= 3) {
+        // 1-1から順番にアンロック
+        if (s === 1) return true;
+        if (s === 2) {
+          // 1-1をクリアしていれば1-2をアンロック
+          const stage1_1 = stages.find(st => st.stageNumber === '1-1');
+          if (stage1_1) {
+            const cleared1_1 = stageClears.some(
+              c => c.stageId === stage1_1.id && c.clearType === 'clear'
+            );
+            return cleared1_1;
+          }
+        }
+        if (s === 3) {
+          // 1-2をクリアしていれば1-3をアンロック
+          const stage1_2 = stages.find(st => st.stageNumber === '1-2');
+          if (stage1_2) {
+            const cleared1_2 = stageClears.some(
+              c => c.stageId === stage1_2.id && c.clearType === 'clear'
+            );
+            return cleared1_2;
+          }
+        }
+      }
+      return false; // 1-4以降は常にロック
+    }
+    
+    // 通常ユーザーの場合は、progressが必要
     if (!userProgress) return false;
 
     /* 1) すでにクリア記録があれば無条件でアンロック */
@@ -228,12 +291,11 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
 
     /* 2) progress に記録されている現在地より前ならアンロック */
     const [currR, currS] = userProgress.currentStageNumber.split('-').map(Number);
-    const [r, s] = stage.stageNumber.split('-').map(Number);
     if (r < currR) return true;
     if (r === currR && s <= currS) return true;
 
     return false;
-  }, [userProgress, stageClears]);
+  }, [userProgress, stageClears, stages]);
   
   // ステージのクリア状況を取得
   const getStageClearInfo = useCallback((stage: FantasyStage) => {
@@ -433,6 +495,25 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           </button>
         </div>
       </div>
+      
+      {/* フリープラン・ゲストユーザーへの注意 */}
+      {(() => {
+        const authStore = useAuthStore.getState();
+        const profile = authStore.profile;
+        const isGuest = authStore.isGuest;
+        
+        if (isGuest || (profile && profile.rank === 'free')) {
+          return (
+            <div className="mx-6 mb-4 p-4 bg-yellow-900 bg-opacity-30 border border-yellow-600 rounded-lg">
+              <p className="text-yellow-300 text-sm font-dotgothic16">
+                {isGuest ? 'ゲストユーザー' : 'フリープラン'}のため、ステージ1-3までプレイ可能です。
+                {!isGuest && ' プレミアムプラン以上にアップグレードすると、全ステージが解放されます。'}
+              </p>
+            </div>
+          );
+        }
+        return null;
+      })()}
       
       {/* ランク選択タブ */}
       <div className="px-6 mb-6">
