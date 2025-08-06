@@ -9,6 +9,7 @@ import { FaHome, FaUserCircle } from 'react-icons/fa';
  */
 const GameHeader: React.FC = () => {
   const gameActions = useGameActions();
+  const { isGuest } = useAuthStore();
 
   return (
     <header className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]">
@@ -35,12 +36,12 @@ const GameHeader: React.FC = () => {
             曲選択
           </HashButton>
 
-          <HashButton hash="#lessons">レッスン</HashButton>
+          <HashButton hash="#lessons" disabled={isGuest}>レッスン</HashButton>
           <HashButton hash="#fantasy">ファンタジー</HashButton>
-          <HashButton hash="#ranking">ランキング</HashButton>
-          <HashButton hash="#missions">ミッション</HashButton>
-          <HashButton hash="#diary">日記</HashButton>
-          <HashButton hash="#information">お知らせ</HashButton>
+          <HashButton hash="#ranking" disabled={isGuest}>ランキング</HashButton>
+          <HashButton hash="#missions" disabled={isGuest}>ミッション</HashButton>
+          <HashButton hash="#diary" disabled={isGuest}>日記</HashButton>
+          <HashButton hash="#information" disabled={isGuest}>お知らせ</HashButton>
         </div>
 
         {/* 右側のコントロール */}
@@ -55,9 +56,10 @@ interface HashButtonProps {
   hash: string;
   children: React.ReactNode;
   onClick?: () => void;
+  disabled?: boolean;
 }
 
-const HashButton: React.FC<HashButtonProps> = ({ hash, children, onClick }) => {
+const HashButton: React.FC<HashButtonProps> = ({ hash, children, onClick, disabled }) => {
   const [currentHash, setCurrentHash] = useState(window.location.hash);
 
   useEffect(() => {
@@ -71,10 +73,13 @@ const HashButton: React.FC<HashButtonProps> = ({ hash, children, onClick }) => {
   return (
     <button
       onClick={() => {
-        window.location.hash = hash;
-        onClick?.();
+        if (!disabled) {
+          window.location.hash = hash;
+          onClick?.();
+        }
       }}
-      className={`tab-xs ${active ? 'tab-active' : 'tab-inactive'}`}
+      className={`tab-xs ${active ? 'tab-active' : 'tab-inactive'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      disabled={disabled}
     >
       {children}
     </button>
