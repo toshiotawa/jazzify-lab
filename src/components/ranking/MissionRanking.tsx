@@ -133,42 +133,42 @@ const MissionRanking: React.FC = () => {
                 <table className="w-full text-sm min-w-[600px] sm:min-w-full">
                   <thead>
                     <tr className="bg-slate-700 border-b border-slate-600">
-                      <th className="py-3 px-4 text-left font-medium min-w-[4rem]">順位</th>
-                      <th className="py-3 px-4 text-left font-medium min-w-[12rem] sm:min-w-[10rem]">ユーザー(タップで詳細)</th>
-                      <th className="py-3 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">クリア回数</th>
-                      <th className="py-3 px-4 text-left font-medium min-w-[4rem]">レベル</th>
-                      <th className="py-3 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">ランク</th>
+                      <th className="py-4 px-4 text-left font-medium min-w-[4rem]">順位</th>
+                      <th className="py-4 px-4 text-left font-medium min-w-[12rem] sm:min-w-[10rem]">ユーザー(タップで詳細)</th>
+                      <th className="py-4 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">クリア回数</th>
+                      <th className="py-4 px-4 text-left font-medium min-w-[4rem]">レベル</th>
+                      <th className="py-4 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">ランク</th>
                     </tr>
                   </thead>
                   <tbody>
                     {entries.map((entry, idx) => (
                       <tr key={entry.user_id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
-                        <td className="py-3 px-4">
+                        <td className="py-4 px-4">
                           <div className="flex items-center space-x-2">
                             {getRankIcon(idx)}
                             <span className="font-medium">{idx + 1}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-4 px-4">
                           <button
                             onClick={() => {window.location.hash = `#diary-user?id=${entry.user_id}`;}}
                             className="flex items-center space-x-3 min-w-0 w-full text-blue-400 hover:text-blue-300 hover:underline transition-colors"
                           >
                             <img 
                               src={entry.avatar_url || DEFAULT_AVATAR_URL} 
-                              className="w-8 h-8 rounded-full border-2 border-slate-600 flex-shrink-0"
+                              className="w-12 h-12 rounded-full border-2 border-slate-600 flex-shrink-0"
                               alt="アバター"
                             />
                             <span className="font-medium truncate min-w-0 flex-1 underline">{entry.nickname}</span>
                           </button>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-4 px-4">
                           <span className="font-mono text-primary-400">{entry.clear_count}</span>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-4 px-4">
                           <span className="text-blue-400">Lv.{entry.level}</span>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-4 px-4">
                           <div className="flex items-center space-x-1">
                             {getUserRankIcon(entry.rank)}
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
