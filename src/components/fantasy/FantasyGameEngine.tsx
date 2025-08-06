@@ -1085,6 +1085,11 @@ export const useFantasyGameEngine = ({
         return prevState;
       }
       
+      // modeがsingle以外の場合はゲージを更新しない
+      if (prevState.currentStage.mode !== 'single') {
+        return prevState;
+      }
+      
       // 太鼓の達人モードの場合は専用のミス判定を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
