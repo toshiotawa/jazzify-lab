@@ -196,6 +196,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.isGuest = false;
       });
 
+      // セッションがある場合はプロフィールも取得
+      if (session?.user) {
+        console.log('🔍 init: プロフィール取得開始');
+        await get().fetchProfile();
+      }
+
       // BroadcastChannel でタブ間認証同期
       let authChannel: BroadcastChannel | null = null;
       try {
