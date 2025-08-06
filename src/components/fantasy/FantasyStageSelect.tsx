@@ -299,7 +299,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           <img 
             src={`/stage_icons/${iconNumber}.png`}
             alt={`Stage ${stage.stageNumber} icon`}
-            className="w-12 h-12 object-contain"
+            className="w-20 h-20 object-contain"
           />
         </div>
         
