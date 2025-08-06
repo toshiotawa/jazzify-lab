@@ -8,12 +8,21 @@ import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
 import BackButton from '../ui/BackButton';
 import { devLog } from '@/utils/logger';
+import { useAuthStore } from '@/stores/authStore';
 import { 
   getFantasyRankInfo, 
   getRankFromStageNumber, 
   getRankColor,
   getRankFromClearedStages as getRankFromClearedStagesUtil 
 } from '@/utils/fantasyRankConstants';
+import { 
+  getGuestFantasyProgress, 
+  getGuestFantasyClears, 
+  isStageUnlockedForGuest,
+  isStageUnlockedForFreeUser,
+  LocalFantasyProgress,
+  LocalFantasyClear
+} from '@/utils/fantasyLocalStorage';
 
 // ===== 型定義 =====
 
@@ -59,6 +68,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   onStageSelect,
   onBackToMenu
 }) => {
+  // 認証情報の取得
+  const { profile, isGuest } = useAuthStore();
+  
   // 状態管理
   const [stages, setStages] = useState<FantasyStage[]>([]);
   const [userProgress, setUserProgress] = useState<FantasyUserProgress | null>(null);
@@ -76,6 +88,84 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       // Supabaseクライアントの動的インポート
       const { getSupabaseClient } = await import('@/platform/supabaseClient');
       const supabase = getSupabaseClient();
+      
+      // ゲストユーザーの場合の処理
+      if (isGuest) {
+        // ステージマスタデータの読み込み（ゲストでもDBから読む）
+        const { data: stagesData, error: stagesError } = await supabase
+          .from('fantasy_stages')
+          .select('*')
+          .order('stage_number');
+        
+        if (stagesError) {
+          throw new Error(`ステージデータの読み込みに失敗: ${stagesError.message}`);
+        }
+        
+        // ローカルストレージから進捗とクリア記録を読み込み
+        const guestProgress = getGuestFantasyProgress();
+        const guestClears = getGuestFantasyClears();
+        
+        // データの変換とセット
+        const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+          id: stage.id,
+          stageNumber: stage.stage_number,
+          name: stage.name,
+          description: stage.description || '',
+          maxHp: stage.max_hp,
+          enemyGaugeSeconds: stage.enemy_gauge_seconds,
+          enemyCount: stage.enemy_count,
+          enemyHp: stage.enemy_hp,
+          minDamage: stage.min_damage,
+          maxDamage: stage.max_damage,
+          mode: stage.mode as 'single' | 'progression_order' | 'progression_random' | 'progression_timing',
+          allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
+          chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+          chordProgressionData: stage.chord_progression_data,
+          showSheetMusic: stage.show_sheet_music,
+          showGuide: stage.show_guide,
+          monsterIcon: stage.monster_icon,
+          bgmUrl: stage.bgm_url || stage.mp3_url,
+          simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+          bpm: stage.bpm || 120,
+          measureCount: stage.measure_count,
+          countInMeasures: stage.count_in_measures,
+          timeSignature: stage.time_signature
+        }));
+        
+        const convertedProgress: FantasyUserProgress = {
+          id: 'guest',
+          userId: 'guest',
+          currentStageNumber: guestProgress.currentStageNumber,
+          wizardRank: guestProgress.wizardRank,
+          totalClearedStages: guestProgress.totalClearedStages
+        };
+        
+        const convertedClears: FantasyStageClear[] = guestClears.map(clear => ({
+          id: clear.stageId,
+          userId: 'guest',
+          stageId: clear.stageId,
+          clearedAt: clear.clearedAt,
+          score: clear.score,
+          clearType: clear.clearType as 'clear' | 'gameover',
+          remainingHp: clear.remainingHp,
+          totalQuestions: clear.totalQuestions,
+          correctAnswers: clear.correctAnswers
+        }));
+        
+        setStages(convertedStages);
+        setUserProgress(convertedProgress);
+        setStageClears(convertedClears);
+        
+        devLog.debug('🎮 ゲストファンタジーデータ読み込み完了:', {
+          stages: convertedStages.length,
+          progress: convertedProgress,
+          clears: convertedClears.length
+        });
+        
+        return;
+      }
+      
+      // 通常のユーザーの処理
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -200,7 +290,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isGuest]);
   
   // 初期読み込み
   useEffect(() => {
@@ -218,6 +308,25 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
+    // ゲストユーザーの場合
+    if (isGuest) {
+      return isStageUnlockedForGuest(stage.stageNumber);
+    }
+    
+    // フリーユーザーの場合
+    if (profile && profile.rank === 'free') {
+      // stageNumberを含むクリア情報を渡す
+      const clearsWithStageNumber = stageClears.map(clear => {
+        const stageData = stages.find(s => s.id === clear.stageId);
+        return {
+          ...clear,
+          stageNumber: stageData?.stageNumber || ''
+        };
+      });
+      return isStageUnlockedForFreeUser(stage.stageNumber, userProgress, clearsWithStageNumber);
+    }
+    
+    // プレミアム以上のユーザーの通常処理
     if (!userProgress) return false;
 
     /* 1) すでにクリア記録があれば無条件でアンロック */
@@ -233,7 +342,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     if (r === currR && s <= currS) return true;
 
     return false;
-  }, [userProgress, stageClears]);
+  }, [userProgress, stageClears, isGuest, profile, stages]);
   
   // ステージのクリア状況を取得
   const getStageClearInfo = useCallback((stage: FantasyStage) => {
@@ -464,6 +573,25 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             <h2 className="text-white text-xl font-bold mb-4">
               ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank)).title}
             </h2>
+            
+            {/* ランク2以降のロックメッセージ */}
+            {parseInt(selectedRank) >= 2 && (isGuest || (profile && profile.rank === 'free')) && (
+              <div className="mb-6 p-4 bg-black bg-opacity-30 rounded-lg">
+                <div className="flex items-center space-x-3 text-yellow-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <div>
+                    <p className="font-bold">
+                      {isGuest ? 'ゲストプレイではランク1のみプレイ可能です' : 'フリープランではランク1のみプレイ可能です'}
+                    </p>
+                    <p className="text-sm text-yellow-300 mt-1">
+                      {isGuest ? 'アカウントを作成してより多くのステージをプレイしましょう！' : 'プレミアムプラン以上で全てのステージが解放されます'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             
             <div className="space-y-3">
               {groupedStages[selectedRank]

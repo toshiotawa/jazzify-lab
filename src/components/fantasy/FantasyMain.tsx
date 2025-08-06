@@ -17,6 +17,10 @@ import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequir
 import { getWizardRankString } from '@/utils/fantasyRankConstants';
 import { currentLevelXP, xpToNextLevel } from '@/utils/xpCalculator';
 import { useToast } from '@/stores/toastStore';
+import { 
+  addGuestFantasyClear, 
+  updateGuestNextStage
+} from '@/utils/fantasyLocalStorage';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -208,7 +212,30 @@ const FantasyMain: React.FC = () => {
     // 通常のファンタジーモードの処理
     // データベースに結果を保存
     try {
-      if (!isGuest && profile && currentStage) {
+      // ゲストユーザーの場合の処理
+      if (isGuest && currentStage) {
+        if (result === 'clear') {
+          // クリア記録を保存
+          addGuestFantasyClear({
+            stageId: currentStage.id,
+            stageNumber: currentStage.stageNumber,
+            clearedAt: new Date().toISOString(),
+            score: score,
+            clearType: 'clear',
+            remainingHp: Math.max(1, 5 - (totalQuestions - correctAnswers)),
+            totalQuestions: totalQuestions,
+            correctAnswers: correctAnswers
+          });
+          
+          // 次のステージ番号を更新（ランク1内のみ）
+          const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
+          updateGuestNextStage(nextStageNumber);
+          
+          devLog.debug('✅ ゲストファンタジー進捗保存完了');
+        }
+      }
+      // 通常のユーザーの場合の処理
+      else if (!isGuest && profile && currentStage) {
         const { getSupabaseClient } = await import('@/platform/supabaseClient');
         const supabase = getSupabaseClient();
         
