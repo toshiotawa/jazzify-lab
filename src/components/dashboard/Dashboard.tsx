@@ -397,7 +397,9 @@ const Dashboard: React.FC = () => {
           {/* ゲストプレイ時の専用メッセージ */}
           {isGuest && (
             <div className="bg-slate-800 rounded-lg p-8 border border-slate-700 text-center">
-              <div className="text-6xl mb-4">🎵</div>
+              <div className="mb-4">
+                <img src="/stage_icons/6.png" alt="Stage Icon" className="w-24 h-24 mx-auto" />
+              </div>
               <h3 className="text-xl font-semibold mb-4">ゲストプレイ中</h3>
               <p className="text-gray-300 mb-6">
                 現在ゲストとしてプレイしています。<br />
