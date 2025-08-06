@@ -249,11 +249,38 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     onStageSelect(stage);
   }, [isStageUnlocked, onStageSelect]);
   
+  // 全ステージのグローバルインデックスを計算
+  const getStageGlobalIndex = useCallback((stage: FantasyStage) => {
+    let globalIndex = 0;
+    const [targetMajor, targetMinor] = stage.stageNumber.split('-').map(Number);
+    
+    // 全ステージをソートしてインデックスを見つける
+    const allStages = stages.slice().sort((a, b) => {
+      const [aMajor, aMinor] = a.stageNumber.split('-').map(Number);
+      const [bMajor, bMinor] = b.stageNumber.split('-').map(Number);
+      if (aMajor !== bMajor) return aMajor - bMajor;
+      return aMinor - bMinor;
+    });
+    
+    for (let i = 0; i < allStages.length; i++) {
+      if (allStages[i].id === stage.id) {
+        globalIndex = i;
+        break;
+      }
+    }
+    
+    return globalIndex;
+  }, [stages]);
+  
   // ステージカードのレンダリング
-  const renderStageCard = useCallback((stage: FantasyStage) => {
+  const renderStageCard = useCallback((stage: FantasyStage, index: number) => {
     const unlocked = isStageUnlocked(stage);
     const clearInfo = getStageClearInfo(stage);
     const isCleared = clearInfo && clearInfo.clearType === 'clear';
+    
+    // グローバルインデックスを基にアイコン番号を計算（1-10の範囲）
+    const globalIndex = getStageGlobalIndex(stage);
+    const iconNumber = (globalIndex % 10) + 1;
     
     return (
       <div
@@ -270,7 +297,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         {/* ステージアイコン */}
         <div className="flex-shrink-0">
           <img 
-            src={`/stage_icons/${stage.stageNumber.split('-')[0]}.png`}
+            src={`/stage_icons/${iconNumber}.png`}
             alt={`Stage ${stage.stageNumber} icon`}
             className="w-12 h-12 object-contain"
           />
@@ -315,7 +342,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         </div>
       </div>
     );
-  }, [isStageUnlocked, getStageClearInfo, handleStageSelect]);
+  }, [isStageUnlocked, getStageClearInfo, handleStageSelect, getStageGlobalIndex]);
   
   // ローディング画面
   if (loading) {
@@ -423,7 +450,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
                   const [, bStage] = b.stageNumber.split('-').map(Number);
                   return aStage - bStage;
                 })
-                .map(renderStageCard)
+                .map((stage, index) => renderStageCard(stage, index))
               }
             </div>
             
