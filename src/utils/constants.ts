@@ -3,4 +3,4 @@
  */
 
 // デフォルトアバター
-export const DEFAULT_AVATAR_URL = "/default_avater/default-avater.png"; 
+export const DEFAULT_AVATAR_URL = "/default_avater/default-avater.svg"; 
