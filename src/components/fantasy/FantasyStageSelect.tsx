@@ -14,6 +14,7 @@ import {
   getRankColor,
   getRankFromClearedStages as getRankFromClearedStagesUtil 
 } from '@/utils/fantasyRankConstants';
+import { useAuthStore } from '@/stores/authStore';
 
 // ===== 型定義 =====
 
@@ -57,15 +58,19 @@ const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[
 
 const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   onStageSelect,
-  onBackToMenu
+  onBackToMenu,
+  lessonContext
 }) => {
-  // 状態管理
+  const { profile, isGuest } = useAuthStore();
+  const [loading, setLoading] = useState(true);
   const [stages, setStages] = useState<FantasyStage[]>([]);
   const [userProgress, setUserProgress] = useState<FantasyUserProgress | null>(null);
   const [stageClears, setStageClears] = useState<FantasyStageClear[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRank, setSelectedRank] = useState<string>('1');
+  
+  // フリープラン・ゲストユーザーかどうかの確認
+  const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
   
   // データ読み込み
   const loadFantasyData = useCallback(async () => {
@@ -78,8 +83,42 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       const supabase = getSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) {
-        throw new Error('ユーザーがログインしていません');
+      // ゲストユーザーの場合、またはユーザーが存在しない場合は、ステージデータのみ読み込む
+      if (!user || isGuest) {
+        // ステージマスタデータの読み込み
+        const { data: stagesData, error: stagesError } = await supabase
+          .from('fantasy_stages')
+          .select('*')
+          .order('stage_number');
+        
+        if (stagesError) {
+          throw new Error(`ステージデータの読み込みに失敗: ${stagesError.message}`);
+        }
+        
+        const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+          id: stage.id,
+          stageNumber: stage.stage_number,
+          name: stage.name,
+          description: stage.description,
+          maxHp: stage.max_hp,
+          enemyCount: stage.enemy_count,
+          enemyHp: stage.enemy_hp,
+          minDamage: stage.min_damage,
+          maxDamage: stage.max_damage,
+          enemyGaugeSeconds: stage.enemy_gauge_seconds,
+          mode: stage.mode,
+          allowedChords: stage.allowed_chords,
+          monsterIcon: stage.monster_icon,
+          chordProgression: stage.chord_progression,
+          simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+          showGuide: stage.show_guide || false
+        }));
+        
+        setStages(convertedStages);
+        setUserProgress(null); // ゲストユーザーは進捗データなし
+        setStageClears([]); // ゲストユーザーはクリア記録なし
+        setLoading(false);
+        return;
       }
       
       // ステージマスタデータの読み込み
@@ -200,7 +239,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isGuest]);
   
   // 初期読み込み
   useEffect(() => {
@@ -213,11 +252,20 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       const currentRank = userProgress.currentStageNumber.split('-')[0];
       setSelectedRank(currentRank);
       devLog.debug('🎮 現在のランクを設定:', currentRank);
+    } else if (isFreeOrGuest) {
+      // ゲストユーザーまたはフリープランの場合はランク1をデフォルトに設定
+      setSelectedRank('1');
     }
-  }, [userProgress]);
+  }, [userProgress, isFreeOrGuest]);
   
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
+    // フリープラン・ゲストユーザーの場合は1-1, 1-2, 1-3のみアンロック
+    if (isFreeOrGuest) {
+      const allowedStages = ['1-1', '1-2', '1-3'];
+      return allowedStages.includes(stage.stageNumber);
+    }
+    
     if (!userProgress) return false;
 
     /* 1) すでにクリア記録があれば無条件でアンロック */
@@ -233,7 +281,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     if (r === currR && s <= currS) return true;
 
     return false;
-  }, [userProgress, stageClears]);
+  }, [userProgress, stageClears, isFreeOrGuest]);
   
   // ステージのクリア状況を取得
   const getStageClearInfo = useCallback((stage: FantasyStage) => {
@@ -345,7 +393,11 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             "text-sm leading-relaxed",
             unlocked ? "text-gray-300" : "text-gray-500"
           )}>
-            {unlocked ? stage.description : "このステージはまだロックされています"}
+            {unlocked ? stage.description : (
+              isFreeOrGuest && stage.stageNumber >= '1-4' 
+                ? "プレミアムプラン以上で利用可能です" 
+                : "このステージはまだロックされています"
+            )}
           </div>
         </div>
         
@@ -364,7 +416,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         </div>
       </div>
     );
-  }, [isStageUnlocked, getStageClearInfo, handleStageSelect, getStageGlobalIndex]);
+  }, [isStageUnlocked, getStageClearInfo, handleStageSelect, getStageGlobalIndex, isFreeOrGuest]);
   
   // ローディング画面
   if (loading) {
@@ -421,7 +473,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               ファンタジーモード
             </h1>
             <div className="flex items-center space-x-6 text-lg">
-              <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber}</span></div>
+              <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber || '1-1'}</span></div>
             </div>
           </div>
           
@@ -433,6 +485,17 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           </button>
         </div>
       </div>
+      
+      {/* フリープラン・ゲストユーザー向けのメッセージ */}
+      {isFreeOrGuest && (
+        <div className="mx-6 mb-4 p-4 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
+          <p className="text-yellow-200 text-center">
+            {isGuest ? 'ゲストプレイ中です。' : 'フリープランでご利用中です。'}
+            ステージ1-1〜1-3までプレイ可能です。
+            {isGuest && 'クリア記録は保存されません。'}
+          </p>
+        </div>
+      )}
       
       {/* ランク選択タブ */}
       <div className="px-6 mb-6">

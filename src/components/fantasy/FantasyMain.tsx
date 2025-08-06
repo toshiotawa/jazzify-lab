@@ -64,8 +64,8 @@ const FantasyMain: React.FC = () => {
     leveledUp: boolean;
   } | null>(null);
   
-  // プレミアムプラン以上の確認
-  const isPremiumOrHigher = profile && ['premium', 'platinum'].includes(profile.rank);
+  // フリープラン・ゲストユーザーかどうかの確認
+  const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
   
   // URLパラメータからレッスンコンテキストを取得
   useEffect(() => {
@@ -208,7 +208,8 @@ const FantasyMain: React.FC = () => {
     // 通常のファンタジーモードの処理
     // データベースに結果を保存
     try {
-      if (!isGuest && profile && currentStage) {
+      // フリープラン・ゲストユーザーはデータベースに保存しない
+      if (!isFreeOrGuest && profile && currentStage) {
         const { getSupabaseClient } = await import('@/platform/supabaseClient');
         const supabase = getSupabaseClient();
         
@@ -377,7 +378,7 @@ const FantasyMain: React.FC = () => {
     } catch (error) {
       console.error('ファンタジーモード結果保存エラー:', error);
     }
-  }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast]);
+  }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest]);
   
   // ステージ選択に戻る
   const handleBackToStageSelect = useCallback(() => {
@@ -393,6 +394,15 @@ const FantasyMain: React.FC = () => {
     if (!currentStage) return;
     
     const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
+    
+    // フリープラン・ゲストユーザーの場合、1-4以降には進めない
+    if (isFreeOrGuest && nextStageNumber >= '1-4') {
+      toast.error('フリープラン・ゲストプレイでは、ステージ1-3までプレイ可能です。', {
+        duration: 5000
+      });
+      handleBackToStageSelect();
+      return;
+    }
 
     try {
       // DB から実データを読み直す
@@ -447,68 +457,20 @@ const FantasyMain: React.FC = () => {
       console.error('次のステージ読み込みエラー:', err);
       alert('次のステージの読み込みに失敗しました');
     }
-  }, [currentStage]);
+  }, [currentStage, isFreeOrGuest, handleBackToStageSelect]);
   
   // メニューに戻る
   const handleBackToMenu = useCallback(() => {
     window.location.hash = '#dashboard';
   }, []);
   
-  // プレミアムプラン未加入の場合
-  if (isGuest || !isPremiumOrHigher) {
+  // ステージ選択画面
+  if (!currentStage && !gameResult) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center overflow-y-auto">
-        <div className="text-white text-center max-w-md p-4">
-          <div className="mb-6">
-            <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-24 h-24 mx-auto" />
-          </div>
-          <h2 className="text-3xl font-bold mb-4">ファンタジーモード</h2>
-          
-          {isGuest ? (
-            <>
-              <p className="text-indigo-200 mb-6">
-                ファンタジーモードはログイン後にご利用いただけます。
-              </p>
-              <div className="space-y-4">
-                <button
-                  onClick={() => window.location.hash = '#login'}
-                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
-                >
-                  ログイン
-                </button>
-                <button
-                  onClick={handleBackToMenu}
-                  className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
-                >
-                  メニューに戻る
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-indigo-200 mb-6">
-                ファンタジーモードはプレミアムプラン以上でご利用いただけます。
-                <br />
-                現在のプラン: <span className="text-yellow-300 font-bold capitalize">{profile?.rank}</span>
-              </p>
-              <div className="space-y-4">
-                <button
-                  onClick={() => window.location.hash = '#pricing'}
-                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
-                >
-                  プランをアップグレード
-                </button>
-                <button
-                  onClick={handleBackToMenu}
-                  className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
-                >
-                  メニューに戻る
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      <FantasyStageSelect
+        onStageSelect={handleStageSelect}
+        onBackToMenu={handleBackToMenu}
+      />
     );
   }
   
