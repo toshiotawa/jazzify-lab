@@ -2115,7 +2115,22 @@ export class FantasyPIXIInstance {
     // PIXIアプリケーションの破棄
     if (this.app) {
       try {
-        this.app.destroy(true, { children: true });
+        // ステージから全ての子要素を削除（PIXIの内部エラーを防ぐため）
+        if (this.app.stage) {
+          // Remove all event listeners first to prevent null reference errors
+          this.app.stage.removeAllListeners?.();
+          
+          // Remove all children safely
+          while (this.app.stage.children.length > 0) {
+            const child = this.app.stage.children[0];
+            if (child) {
+              this.app.stage.removeChild(child);
+            }
+          }
+        }
+        
+        // Destroy the app
+        this.app.destroy(true, { children: true, texture: true, baseTexture: true });
       } catch (error) {
         devLog.debug('⚠️ PIXI破棄エラー:', error);
       }
