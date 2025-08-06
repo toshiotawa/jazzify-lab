@@ -755,6 +755,7 @@ export const useFantasyGameEngine = ({
 
     // 太鼓の達人モードの判定
     const isTaikoMode = 
+      stage.mode === 'progression' ||  // Changed from specific progression types
       stage.mode === 'progression_order' ||
       stage.mode === 'progression_random' ||
       stage.mode === 'progression_timing';
