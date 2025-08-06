@@ -15,7 +15,7 @@ const AuthLanding: React.FC = () => {
   const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [signupDisabled, setSignupDisabled] = useState(false);
   const [useOtp, setUseOtp] = useState(false); // OTPモードの切り替え
-  const { loginWithMagicLink, enterGuestMode, loading, error } = useAuthStore();
+  const { loginWithMagicLink, enterGuestMode, loading, error, user, isGuest } = useAuthStore();
   const toast = useToast();
 
   // 開発環境でのみデバッグ情報を表示
@@ -24,6 +24,15 @@ const AuthLanding: React.FC = () => {
       setShowDebugInfo(true);
     }
   }, []);
+
+  // ログイン済みユーザーをリダイレクト
+  useEffect(() => {
+    // ユーザーがログイン済みで、かつゲストモードでない場合のみリダイレクト
+    if (user && !isGuest) {
+      console.log('🔄 ログイン済みユーザーを /main へリダイレクト');
+      navigate('/main', { replace: true });
+    }
+  }, [user, isGuest, navigate]);
 
   const handleSendLink = async (mode: 'signup' | 'login') => {
     // バリデーション
