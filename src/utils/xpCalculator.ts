@@ -124,9 +124,9 @@ export function calculateXPDetailed(params: XPCalcParams): XPDetailed {
 
 // 次レベル到達に必要な XP
 export function xpToNextLevel(currentLevel: number): number {
-  if (currentLevel <= 10) return 2000;
-  if (currentLevel <= 50) return 50000;
-  return 100000;
+  if (currentLevel < 10) return 2000;   // レベル1-9 → 次のレベルまで2000XP
+  if (currentLevel < 50) return 50000;  // レベル10-49 → 次のレベルまで50000XP
+  return 100000;                        // レベル50+ → 次のレベルまで100000XP
 }
 
 // 現在のレベルでの経験値の余り（繰り上がらない分）を計算
