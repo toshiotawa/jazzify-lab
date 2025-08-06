@@ -1,5 +1,5 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platform/supabaseClient';
-import { uploadSongFile, deleteSongFiles } from '@/platform/supabaseStorage';
+import { uploadSongFile, deleteSongFiles } from '@/platform/r2Storage';
 
 export type SongUsageType = 'general' | 'lesson';
 

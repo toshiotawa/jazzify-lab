@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
-import { uploadAvatar } from '@/platform/supabaseStorage';
+import { uploadAvatar } from '@/platform/r2Storage';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { getAvailableTitles, DEFAULT_TITLE, getTitleConditionText, getAvailableWizardTitles, getTitleRequirement } from '@/utils/titleConstants';
