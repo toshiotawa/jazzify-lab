@@ -255,6 +255,22 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     const clearInfo = getStageClearInfo(stage);
     const isCleared = clearInfo && clearInfo.clearType === 'clear';
     
+    // モードの詳細テキスト
+    const getModeText = (mode: string) => {
+      switch (mode) {
+        case 'single':
+          return 'クイズ';
+        case 'progression_order':
+          return 'リズム・順番';
+        case 'progression_random':
+          return 'リズム・ランダム';
+        case 'progression_timing':
+          return 'リズム・カスタム';
+        default:
+          return mode;
+      }
+    };
+    
     return (
       <div
         key={stage.id}
@@ -267,9 +283,25 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         )}
         onClick={() => handleStageSelect(stage)}
       >
-        {/* ステージ番号 */}
-        <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
-          {stage.stageNumber}
+        {/* ステージアイコン */}
+        <div className="flex-shrink-0 w-20 h-20">
+          <img 
+            src={`/stage_icons/${stage.stageNumber}.png`}
+            alt={`Stage ${stage.stageNumber}`}
+            className={cn(
+              "w-full h-full object-cover rounded-lg",
+              !unlocked && "opacity-50 grayscale"
+            )}
+            onError={(e) => {
+              // アイコンがない場合はステージ番号を表示
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              const parent = target.parentElement;
+              if (parent) {
+                parent.innerHTML = `<div class="w-full h-full bg-gray-700 rounded-lg flex items-center justify-center text-white text-2xl font-bold">${stage.stageNumber}</div>`;
+              }
+            }}
+          />
         </div>
         
         {/* コンテンツ部分 */}
@@ -280,6 +312,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             unlocked ? "text-white" : "text-gray-400"
           )}>
             {unlocked ? stage.name : "???"}
+          </div>
+          
+          {/* モード表示 */}
+          <div className={cn(
+            "text-sm font-medium mb-1",
+            unlocked ? "text-blue-300" : "text-gray-500"
+          )}>
+            {unlocked ? getModeText(stage.mode) : "???"}
           </div>
           
           {/* 説明文 */}
