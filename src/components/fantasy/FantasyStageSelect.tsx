@@ -6,7 +6,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
+import BackButton from '../ui/BackButton';
 import { devLog } from '@/utils/logger';
+import { 
+  getFantasyRankInfo, 
+  getRankFromStageNumber, 
+  getRankColor,
+  getRankFromClearedStages as getRankFromClearedStagesUtil 
+} from '@/utils/fantasyRankConstants';
 
 // ===== 型定義 =====
 
@@ -35,15 +42,8 @@ interface FantasyStageSelectProps {
   onBackToMenu: () => void;
 }
 
-// ===== ランクシステム定義 =====
-const WIZARD_RANKS = [
-  'F', 'F+', 'E', 'E+', 'D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S', 'S+'
-];
-
-const getRankFromClearedStages = (clearedStages: number): string => {
-  const rankIndex = Math.floor(clearedStages / 10);
-  return WIZARD_RANKS[Math.min(rankIndex, WIZARD_RANKS.length - 1)];
-};
+// ===== 定数 =====
+// WIZARD_RANKS, getRankFromClearedStages, RANK_COLORS, RANK_NAMESの定義を削除
 
 // ===== ステージグルーピング =====
 const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
@@ -53,26 +53,6 @@ const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[
     groups[rank].push(stage);
     return groups;
   }, {} as Record<string, FantasyStage[]>);
-};
-
-
-
-// ===== ランク背景色 =====
-const RANK_COLORS: Record<string, string> = {
-  '1': 'from-green-700 to-green-900',
-  '2': 'from-blue-700 to-blue-900',
-  '3': 'from-purple-700 to-purple-900',
-  '4': 'from-red-700 to-red-900',
-  '5': 'from-orange-700 to-orange-900',
-};
-
-// ===== ランク名称 =====
-const RANK_NAMES: Record<string, string> = {
-  '1': '初心者の世界',
-  '2': '中級者の世界',
-  '3': '上級者の世界',
-  '4': '達人の世界',
-  '5': '伝説の世界',
 };
 
 const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
@@ -418,10 +398,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         {selectedRank && groupedStages[selectedRank] && (
           <div className={cn(
             "rounded-xl p-6 bg-gradient-to-br",
-            RANK_COLORS[selectedRank] || "from-gray-700 to-gray-900"
+            getRankColor(parseInt(selectedRank))
           )}>
             <h2 className="text-white text-xl font-bold mb-4">
-              ランク {selectedRank} - {RANK_NAMES[selectedRank] || `ランク${selectedRank}の世界`}
+              ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank)).title}
             </h2>
             
             <div className="space-y-3">
@@ -438,15 +418,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             {/* ランク説明 */}
             <div className="mt-6 bg-black bg-opacity-30 rounded-lg p-4">
               <div className="text-white text-sm">
-                {selectedRank === '1' && (
-                  <p>基本的なメジャー・マイナーコードから7thコードまで学習します。音楽理論の基礎を身につけましょう。</p>
-                )}
-                {selectedRank === '2' && (
-                  <p>メジャー7thやテンション系コード、ii-V-I進行など、ジャズの基本的なハーモニーを学習します。</p>
-                )}
-                {selectedRank === '3' && (
-                  <p>より複雑なコード進行と高度なテンション、代理コードなどを学習します。</p>
-                )}
+                <p className="font-semibold mb-2">{getFantasyRankInfo(parseInt(selectedRank)).stageName}</p>
+                <p>{getFantasyRankInfo(parseInt(selectedRank)).description}</p>
               </div>
             </div>
           </div>

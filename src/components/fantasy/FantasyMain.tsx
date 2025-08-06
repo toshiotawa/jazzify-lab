@@ -14,6 +14,7 @@ import type { DisplayLang } from '@/utils/display-note';
 import { LessonContext } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
+import { getWizardRankString } from '@/utils/fantasyRankConstants';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -281,7 +282,7 @@ const FantasyMain: React.FC = () => {
             // total_cleared_stages は "新規クリアのときだけ" 増やす
             const newClearedStages =
               currentProgress.total_cleared_stages + (isFirstTimeClear ? 1 : 0);
-            const newRank = getRankFromClearedStages(newClearedStages);
+            const newRank = getWizardRankString(newClearedStages);
 
             if (clearedIsFurther) {
               const { error: updateError } = await supabase
@@ -413,13 +414,6 @@ const FantasyMain: React.FC = () => {
   const handleBackToMenu = useCallback(() => {
     window.location.hash = '#dashboard';
   }, []);
-  
-  // ランク計算ヘルパー
-  const getRankFromClearedStages = (clearedStages: number): string => {
-    const WIZARD_RANKS = ['F', 'F+', 'E', 'E+', 'D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S', 'S+'];
-    const rankIndex = Math.floor(clearedStages / 10);
-    return WIZARD_RANKS[Math.min(rankIndex, WIZARD_RANKS.length - 1)];
-  };
   
   // プレミアムプラン未加入の場合
   if (isGuest || !isPremiumOrHigher) {
