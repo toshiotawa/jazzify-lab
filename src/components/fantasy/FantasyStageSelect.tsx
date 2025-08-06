@@ -420,7 +420,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-16 h-16" />
               ファンタジーモード
             </h1>
-            <div className="flex items-center space-x-6 text-base">
+            <div className="flex items-center space-x-6 text-lg">
               <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber}</span></div>
             </div>
           </div>
