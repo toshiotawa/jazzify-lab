@@ -411,12 +411,6 @@ const Dashboard: React.FC = () => {
                   コードを覚える
                 </button>
                 <button
-                  onClick={() => { window.location.hash = '#songs'; }}
-                  className="btn btn-primary"
-                >
-                  曲を練習する
-                </button>
-                <button
                   onClick={() => { window.location.hash = '#login'; }}
                   className="btn btn-secondary"
                 >
