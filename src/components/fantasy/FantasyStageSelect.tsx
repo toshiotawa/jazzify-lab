@@ -14,6 +14,7 @@ import {
   getRankColor,
   getRankFromClearedStages as getRankFromClearedStagesUtil 
 } from '@/utils/fantasyRankConstants';
+import { useAuthStore } from '@/stores/authStore';
 
 // ===== 型定義 =====
 
@@ -59,6 +60,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   onStageSelect,
   onBackToMenu
 }) => {
+  // 認証情報を取得
+  const { profile, isGuest } = useAuthStore();
+  
   // 状態管理
   const [stages, setStages] = useState<FantasyStage[]>([]);
   const [userProgress, setUserProgress] = useState<FantasyUserProgress | null>(null);
@@ -78,9 +82,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       const supabase = getSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) {
-        throw new Error('ユーザーがログインしていません');
-      }
+      // ゲストユーザーまたはフリープランの場合は、ステージデータのみ読み込む
+      const isRestrictedUser = isGuest || !user || profile?.rank === 'free';
       
       // ステージマスタデータの読み込み
       const { data: stagesData, error: stagesError } = await supabase
@@ -92,48 +95,54 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         throw new Error(`ステージデータの読み込みに失敗: ${stagesError.message}`);
       }
       
-      // ユーザー進捗の読み込み
-      let userProgressData;
-      const { data: existingProgress, error: progressError } = await supabase
-        .from('fantasy_user_progress')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      // ユーザー進捗の読み込み（制限ユーザーの場合はスキップ）
+      let userProgressData = null;
+      let clearsData = [];
       
-      if (progressError && progressError.code !== 'PGRST116') { // PGRST116 = レコードが見つからない
-        throw new Error(`ユーザー進捗の読み込みに失敗: ${progressError.message}`);
-      }
-      
-      if (!existingProgress) {
-        // 初回アクセス時は進捗レコードを作成
-        const { data: newProgress, error: createError } = await supabase
+      if (!isRestrictedUser && user) {
+        const { data: existingProgress, error: progressError } = await supabase
           .from('fantasy_user_progress')
-          .insert({
-            user_id: user.id,
-            current_stage_number: '1-1',
-            wizard_rank: 'F',
-            total_cleared_stages: 0
-          })
-          .select()
+          .select('*')
+          .eq('user_id', user.id)
           .single();
         
-        if (createError) {
-          throw new Error(`ユーザー進捗の作成に失敗: ${createError.message}`);
+        if (progressError && progressError.code !== 'PGRST116') { // PGRST116 = レコードが見つからない
+          throw new Error(`ユーザー進捗の読み込みに失敗: ${progressError.message}`);
         }
         
-        userProgressData = newProgress;
-      } else {
-        userProgressData = existingProgress;
-      }
-      
-      // クリア記録の読み込み
-      const { data: clearsData, error: clearsError } = await supabase
-        .from('fantasy_stage_clears')
-        .select('*')
-        .eq('user_id', user.id);
-      
-      if (clearsError) {
-        throw new Error(`クリア記録の読み込みに失敗: ${clearsError.message}`);
+        if (!existingProgress) {
+          // 初回アクセス時は進捗レコードを作成
+          const { data: newProgress, error: createError } = await supabase
+            .from('fantasy_user_progress')
+            .insert({
+              user_id: user.id,
+              current_stage_number: '1-1',
+              wizard_rank: 'F',
+              total_cleared_stages: 0
+            })
+            .select()
+            .single();
+          
+          if (createError) {
+            throw new Error(`ユーザー進捗の作成に失敗: ${createError.message}`);
+          }
+          
+          userProgressData = newProgress;
+        } else {
+          userProgressData = existingProgress;
+        }
+        
+        // クリア記録の読み込み
+        const { data: clears, error: clearsError } = await supabase
+          .from('fantasy_stage_clears')
+          .select('*')
+          .eq('user_id', user.id);
+        
+        if (clearsError) {
+          throw new Error(`クリア記録の読み込みに失敗: ${clearsError.message}`);
+        }
+        
+        clearsData = clears || [];
       }
       
       //// データの変換とセット
@@ -163,12 +172,19 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         timeSignature: stage.time_signature
       }));
       
-      const convertedProgress: FantasyUserProgress = {
+      // 制限ユーザーの場合はデフォルト進捗を設定
+      const convertedProgress: FantasyUserProgress = userProgressData ? {
         id: userProgressData.id,
         userId: userProgressData.user_id,
         currentStageNumber: userProgressData.current_stage_number,
         wizardRank: userProgressData.wizard_rank,
         totalClearedStages: userProgressData.total_cleared_stages
+      } : {
+        id: 'guest',
+        userId: 'guest',
+        currentStageNumber: '1-4', // 制限ユーザーは1-3までアクセス可能なので1-4に設定
+        wizardRank: 'F',
+        totalClearedStages: 0
       };
       
       const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: any) => ({
@@ -219,6 +235,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
     if (!userProgress) return false;
+    
+    // 制限ユーザー（ゲスト・フリープラン）の場合は1-1, 1-2, 1-3のみアンロック
+    const isRestrictedUser = isGuest || profile?.rank === 'free';
+    if (isRestrictedUser) {
+      const allowedStages = ['1-1', '1-2', '1-3'];
+      return allowedStages.includes(stage.stageNumber);
+    }
 
     /* 1) すでにクリア記録があれば無条件でアンロック */
     const cleared = stageClears.some(
@@ -233,7 +256,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     if (r === currR && s <= currS) return true;
 
     return false;
-  }, [userProgress, stageClears]);
+  }, [userProgress, stageClears, isGuest, profile]);
   
   // ステージのクリア状況を取得
   const getStageClearInfo = useCallback((stage: FantasyStage) => {
@@ -345,7 +368,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             "text-sm leading-relaxed",
             unlocked ? "text-gray-300" : "text-gray-500"
           )}>
-            {unlocked ? stage.description : "このステージはまだロックされています"}
+            {unlocked ? stage.description : 
+              (isGuest || profile?.rank === 'free') && ['1-4', '1-5', '1-6', '1-7', '1-8', '1-9', '1-10'].includes(stage.stageNumber) 
+                ? "スタンダードプラン以上で解放されます" 
+                : "このステージはまだロックされています"}
           </div>
         </div>
         
@@ -432,6 +458,16 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             メニューに戻る
           </button>
         </div>
+        
+        {/* フリープラン/ゲストユーザー向けメッセージ */}
+        {(isGuest || profile?.rank === 'free') && (
+          <div className="mt-4 p-4 bg-yellow-900/50 border border-yellow-600 rounded-lg">
+            <p className="text-yellow-200">
+              {isGuest ? 'ゲストプレイ' : 'フリープラン'}では、ステージ1-1〜1-3までプレイ可能です。
+              すべてのステージをプレイするには、{isGuest ? 'ログイン後に' : ''}スタンダードプラン以上へのアップグレードが必要です。
+            </p>
+          </div>
+        )}
       </div>
       
       {/* ランク選択タブ */}
