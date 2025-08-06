@@ -270,7 +270,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         {/* ステージアイコン */}
         <div className="flex-shrink-0">
           <img 
-            src={`/stage_icons/${stage.stageNumber}.png`}
+            src={`/stage_icons/${stage.stageNumber.split('-')[0]}.png`}
             alt={`Stage ${stage.stageNumber} icon`}
             className="w-12 h-12 object-contain"
           />
