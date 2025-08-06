@@ -64,9 +64,6 @@ const FantasyMain: React.FC = () => {
     leveledUp: boolean;
   } | null>(null);
   
-  // プレミアムプラン以上の確認
-  const isPremiumOrHigher = profile && ['premium', 'platinum'].includes(profile.rank);
-  
   // URLパラメータからレッスンコンテキストを取得
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
@@ -206,9 +203,11 @@ const FantasyMain: React.FC = () => {
     }
     
     // 通常のファンタジーモードの処理
-    // データベースに結果を保存
+    // データベースに結果を保存（ゲスト・フリープランの場合はスキップ）
+    const isRestrictedUser = isGuest || profile?.rank === 'free';
+    
     try {
-      if (!isGuest && profile && currentStage) {
+      if (!isRestrictedUser && profile && currentStage) {
         const { getSupabaseClient } = await import('@/platform/supabaseClient');
         const supabase = getSupabaseClient();
         
@@ -319,59 +318,73 @@ const FantasyMain: React.FC = () => {
           }
         }
         
-        // 経験値付与（addXp関数を使用）
-        const xpGain = result === 'clear' ? 1000 : 200;
-        const reason = `ファンタジーモード${currentStage.stageNumber}${result === 'clear' ? 'クリア' : 'チャレンジ'}`;
-        
-        try {
-          // addXp関数をインポートして使用
-          const { addXp } = await import('@/platform/supabaseXp');
+        // 経験値付与（制限ユーザーの場合はスキップ）
+        if (!isRestrictedUser && profile) {
+          const xpGain = result === 'clear' ? 1000 : 200;
+          const reason = `ファンタジーモード${currentStage.stageNumber}${result === 'clear' ? 'クリア' : 'チャレンジ'}`;
           
-          // 会員ランクによる倍率を適用
-          const membershipMultiplier = profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1;
-          
-          const xpResult = await addXp({
-            songId: null, // ファンタジーモードなので曲IDはnull
-            baseXp: xpGain,
-            speedMultiplier: 1,
-            rankMultiplier: 1,
-            transposeMultiplier: 1,
-            membershipMultiplier: membershipMultiplier, // 契約ランクによる倍率を適用
-            reason: reason
-          });
-          
-          devLog.debug('✅ ファンタジーモードXP付与完了:', {
-            gained: xpResult.gainedXp,
-            total: xpResult.totalXp,
-            level: xpResult.level
-          });
-          
-          // XP情報を保存
-          const previousLevel = profile.level || 1;
-          const leveledUp = xpResult.level > previousLevel;
-          const currentLvXp = currentLevelXP(xpResult.level, xpResult.totalXp);
-          const nextLvXp = xpToNextLevel(xpResult.level);
-          
-          setXpInfo({
-            gained: xpResult.gainedXp,
-            total: xpResult.totalXp,
-            level: xpResult.level,
-            previousLevel: previousLevel,
-            nextLevelXp: nextLvXp,
-            currentLevelXp: currentLvXp,
-            leveledUp: leveledUp
-          });
-          
-          // レベルアップした場合はトーストを表示
-          if (leveledUp) {
-            toast.success(`レベルアップ！ Lv.${previousLevel} → Lv.${xpResult.level}`, {
-              duration: 5000,
-              title: 'おめでとうございます！'
+          try {
+            // addXp関数をインポートして使用
+            const { addXp } = await import('@/platform/supabaseXp');
+            
+            // 会員ランクによる倍率を適用
+            const membershipMultiplier = profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1;
+            
+            const xpResult = await addXp({
+              songId: null, // ファンタジーモードなので曲IDはnull
+              baseXp: xpGain,
+              speedMultiplier: 1,
+              rankMultiplier: 1,
+              transposeMultiplier: 1,
+              membershipMultiplier: membershipMultiplier, // 契約ランクによる倍率を適用
+              reason: reason
             });
+            
+            devLog.debug('✅ ファンタジーモードXP付与完了:', {
+              gained: xpResult.gainedXp,
+              total: xpResult.totalXp,
+              level: xpResult.level
+            });
+            
+            // XP情報を保存
+            const previousLevel = profile.level || 1;
+            const leveledUp = xpResult.level > previousLevel;
+            const currentLvXp = currentLevelXP(xpResult.level, xpResult.totalXp);
+            const nextLvXp = xpToNextLevel(xpResult.level);
+            
+            setXpInfo({
+              gained: xpResult.gainedXp,
+              total: xpResult.totalXp,
+              level: xpResult.level,
+              previousLevel: previousLevel,
+              nextLevelXp: nextLvXp,
+              currentLevelXp: currentLvXp,
+              leveledUp: leveledUp
+            });
+            
+            // レベルアップした場合はトーストを表示
+            if (leveledUp) {
+              toast.success(`レベルアップ！ Lv.${previousLevel} → Lv.${xpResult.level}`, {
+                duration: 5000,
+                title: 'おめでとうございます！'
+              });
+            }
+            
+          } catch (xpError) {
+            console.error('ファンタジーモードXP付与エラー:', xpError);
           }
-          
-        } catch (xpError) {
-          console.error('ファンタジーモードXP付与エラー:', xpError);
+        } else if (isRestrictedUser) {
+          // 制限ユーザーの場合は仮のXP情報を表示
+          const xpGain = result === 'clear' ? 1000 : 200;
+          setXpInfo({
+            gained: xpGain,
+            total: 0,
+            level: 1,
+            previousLevel: 1,
+            nextLevelXp: 1000,
+            currentLevelXp: 0,
+            leveledUp: false
+          });
         }
       }
     } catch (error) {
@@ -455,7 +468,7 @@ const FantasyMain: React.FC = () => {
   }, []);
   
   // プレミアムプラン未加入の場合
-  if (isGuest || !isPremiumOrHigher) {
+  if (isGuest) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center overflow-y-auto">
         <div className="text-white text-center max-w-md p-4">
@@ -464,49 +477,23 @@ const FantasyMain: React.FC = () => {
           </div>
           <h2 className="text-3xl font-bold mb-4">ファンタジーモード</h2>
           
-          {isGuest ? (
-            <>
-              <p className="text-indigo-200 mb-6">
-                ファンタジーモードはログイン後にご利用いただけます。
-              </p>
-              <div className="space-y-4">
-                <button
-                  onClick={() => window.location.hash = '#login'}
-                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
-                >
-                  ログイン
-                </button>
-                <button
-                  onClick={handleBackToMenu}
-                  className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
-                >
-                  メニューに戻る
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-indigo-200 mb-6">
-                ファンタジーモードはプレミアムプラン以上でご利用いただけます。
-                <br />
-                現在のプラン: <span className="text-yellow-300 font-bold capitalize">{profile?.rank}</span>
-              </p>
-              <div className="space-y-4">
-                <button
-                  onClick={() => window.location.hash = '#pricing'}
-                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
-                >
-                  プランをアップグレード
-                </button>
-                <button
-                  onClick={handleBackToMenu}
-                  className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
-                >
-                  メニューに戻る
-                </button>
-              </div>
-            </>
-          )}
+          <p className="text-indigo-200 mb-6">
+            ファンタジーモードはログイン後にご利用いただけます。
+          </p>
+          <div className="space-y-4">
+            <button
+              onClick={() => window.location.hash = '#login'}
+              className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
+            >
+              ログイン
+            </button>
+            <button
+              onClick={handleBackToMenu}
+              className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
+            >
+              メニューに戻る
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -531,23 +518,36 @@ const FantasyMain: React.FC = () => {
             
             {/* 経験値獲得 */}
             <div className="mt-4 pt-4 border-t border-gray-600 font-dotgothic16">
-              <div className="text-blue-300">
-                基本経験値: {gameResult.result === 'clear' ? 1000 : 200} XP
-              </div>
-              {profile && (profile.rank === 'premium' || profile.rank === 'platinum') && (
-                <div className="text-yellow-300 text-sm mt-1">
-                  ランクボーナス {profile.rank === 'premium' ? 'プレミアム1.5x' : 'プラチナ2.0x'}
+              {(isGuest || profile?.rank === 'free') ? (
+                <div className="text-yellow-300">
+                  <div className="text-sm mb-2">
+                    {isGuest ? 'ゲストプレイ' : 'フリープラン'}では経験値は保存されません
+                  </div>
+                  <div className="text-gray-400">
+                    獲得予定: +{gameResult.result === 'clear' ? 1000 : 200} XP
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <div className="text-blue-300">
+                    基本経験値: {gameResult.result === 'clear' ? 1000 : 200} XP
+                  </div>
+                  {profile && (profile.rank === 'premium' || profile.rank === 'platinum') && (
+                    <div className="text-yellow-300 text-sm mt-1">
+                      ランクボーナス {profile.rank === 'premium' ? 'プレミアム1.5x' : 'プラチナ2.0x'}
+                    </div>
+                  )}
+                  <div className="text-green-300 font-bold text-xl mt-2">
+                    獲得: +{gameResult.result === 'clear' ? 
+                      (profile?.rank === 'platinum' ? 2000 : profile?.rank === 'premium' ? 1500 : 1000) : 
+                      (profile?.rank === 'platinum' ? 400 : profile?.rank === 'premium' ? 300 : 200)
+                    } XP
+                  </div>
+                </>
               )}
-              <div className="text-green-300 font-bold text-xl mt-2">
-                獲得: +{gameResult.result === 'clear' ? 
-                  (profile?.rank === 'platinum' ? 2000 : profile?.rank === 'premium' ? 1500 : 1000) : 
-                  (profile?.rank === 'platinum' ? 400 : profile?.rank === 'premium' ? 300 : 200)
-                } XP
-              </div>
               
               {/* 次レベルまでの経験値表示 */}
-              {xpInfo && (
+              {xpInfo && !(isGuest || profile?.rank === 'free') && (
                 <div className="mt-3 pt-3 border-t border-gray-600">
                   {xpInfo.leveledUp && (
                     <div className="text-yellow-400 font-bold mb-2">
