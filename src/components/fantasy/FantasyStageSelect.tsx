@@ -282,6 +282,16 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     const globalIndex = getStageGlobalIndex(stage);
     const iconNumber = (globalIndex % 10) + 1;
     
+    // モード表示のマッピング
+    const modeDisplayMap: Record<string, { label: string; color: string }> = {
+      'single': { label: 'クイズ', color: 'bg-blue-500' },
+      'progression_order': { label: 'リズム・順番', color: 'bg-green-500' },
+      'progression_random': { label: 'リズム・ランダム', color: 'bg-purple-500' },
+      'progression_timing': { label: 'リズム・カスタム', color: 'bg-orange-500' }
+    };
+    
+    const modeDisplay = modeDisplayMap[stage.mode] || { label: stage.mode, color: 'bg-gray-500' };
+    
     return (
       <div
         key={stage.id}
@@ -317,6 +327,18 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.name : "???"}
           </div>
+          
+          {/* モードタグ */}
+          {unlocked && (
+            <div className="mb-2">
+              <span className={cn(
+                "inline-block px-3 py-1 text-xs font-semibold text-white rounded-full",
+                modeDisplay.color
+              )}>
+                {modeDisplay.label}
+              </span>
+            </div>
+          )}
           
           {/* 説明文 */}
           <div className={cn(
@@ -395,10 +417,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-              <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-10 h-10" />
+              <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-16 h-16" />
               ファンタジーモード
             </h1>
-            <div className="flex items-center space-x-6 text-sm">
+            <div className="flex items-center space-x-6 text-base">
               <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber}</span></div>
             </div>
           </div>
