@@ -485,7 +485,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
     devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
     setFantasyPixiInstance(instance);
-  }, []);
+    // 初期状態の太鼓モードを設定
+    instance.updateTaikoMode(gameState.isTaikoMode);
+  }, [gameState.isTaikoMode]);
   
   // 魔法名表示ハンドラー
   const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
@@ -546,6 +548,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       });
     }
   }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
+  
+  // 太鼓モードの切り替えを監視
+  useEffect(() => {
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.updateTaikoMode(gameState.isTaikoMode);
+    }
+  }, [fantasyPixiInstance, gameState.isTaikoMode]);
   
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   useEffect(() => {

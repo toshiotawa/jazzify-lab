@@ -295,6 +295,9 @@ export class FantasyPIXIInstance {
     this.effectContainer = new PIXI.Container();
     this.uiContainer = new PIXI.Container();
     
+    // 判定ラインはデフォルトで非表示（シングルモードがデフォルト）
+    this.judgeLineContainer.visible = false;
+    
     // ソート可能にする
     this.uiContainer.sortableChildren = true;
     this.notesContainer.sortableChildren = true;
@@ -320,8 +323,8 @@ export class FantasyPIXIInstance {
     // アニメーションループ開始
     this.startAnimationLoop();
     
-    // 判定ラインを初期化
-    this.initializeJudgeLine();
+    // 判定ラインの初期化は太鼓モード時のみ行うように変更
+    // this.initializeJudgeLine(); // 削除: updateTaikoModeで制御
     
     devLog.debug('✅ ファンタジーPIXI初期化完了（状態機械対応）');
   }
@@ -1985,6 +1988,23 @@ export class FantasyPIXIInstance {
         note.x = noteData.x;
       }
     });
+  }
+
+  // 太鼓モードの切り替え
+  updateTaikoMode(isTaikoMode: boolean): void {
+    if (isTaikoMode) {
+      // 太鼓モードの場合、判定ラインを表示
+      if (!this.judgeLineGraphics) {
+        this.initializeJudgeLine();
+      }
+      this.judgeLineContainer.visible = true;
+    } else {
+      // シングルモードの場合、判定ラインを非表示
+      this.judgeLineContainer.visible = false;
+      // ノーツもクリア
+      this.activeNotes.forEach(note => note.destroy());
+      this.activeNotes.clear();
+    }
   }
   
   // ノーツヒット時のエフェクト
