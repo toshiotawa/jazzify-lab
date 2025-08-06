@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
 import BackButton from '../ui/BackButton';
-import { devLog } from '@/utils/devLog';
+import { devLog } from '@/utils/logger';
 import { 
   getFantasyRankInfo, 
   getRankFromStageNumber, 
