@@ -21,10 +21,10 @@ const LandingPage: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white p-4 space-y-6 text-center">
       <Helmet>
-        <title>Jazz Learning Game</title>
-        <meta name="description" content="Jazz Learning Game - Learn jazz piano and guitar through interactive gameplay" />
+        <title>Jazzify</title>
+        <meta name="description" content="Jazzify - Learn jazz piano and guitar through interactive gameplay" />
       </Helmet>
-      <h1 className="text-4xl font-bold">Jazz Learning Game</h1>
+      <h1 className="text-4xl font-bold">Jazzify</h1>
       <p className="max-w-xl">インタラクティブな学習体験でジャズの世界へ。</p>
       <div className="flex space-x-4">
         {/* リンク先を /login に修正 */}

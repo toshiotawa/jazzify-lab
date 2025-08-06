@@ -12,7 +12,7 @@ interface LoadingScreenProps {
  */
 const LoadingScreen: React.FC<LoadingScreenProps> = ({
   progress = 0,
-  message = 'Jazz Learning Game を読み込み中...',
+  message = 'Jazzify を読み込み中...',
   error,
   onRetry
 }) => {
@@ -61,7 +61,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
         {/* タイトル */}
         <h1 className="text-3xl font-bold text-white mb-2 text-gradient">
-          Jazz Learning Game
+          Jazzify
         </h1>
 
         {/* ローディングメッセージ */}
