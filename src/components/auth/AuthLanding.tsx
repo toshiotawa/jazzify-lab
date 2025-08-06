@@ -15,8 +15,25 @@ const AuthLanding: React.FC = () => {
   const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [signupDisabled, setSignupDisabled] = useState(false);
   const [useOtp, setUseOtp] = useState(false); // OTPモードの切り替え
-  const { loginWithMagicLink, enterGuestMode, loading, error } = useAuthStore();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const { loginWithMagicLink, enterGuestMode, loading, error, user, session, init } = useAuthStore();
   const toast = useToast();
+
+  // 初回マウント時に認証状態を初期化
+  useEffect(() => {
+    const checkAuth = async () => {
+      await init();
+      setIsCheckingAuth(false);
+    };
+    checkAuth();
+  }, [init]);
+
+  // ログイン済みユーザーを/mainにリダイレクト
+  useEffect(() => {
+    if (!isCheckingAuth && session && user) {
+      navigate('/main', { replace: true });
+    }
+  }, [isCheckingAuth, session, user, navigate]);
 
   // 開発環境でのみデバッグ情報を表示
   useEffect(() => {
@@ -93,6 +110,18 @@ const AuthLanding: React.FC = () => {
   const validation = validateMagicLinkConfig();
   const diagnosis = diagnoseMagicLinkIssues();
   const urlMagicLinkInfo = parseMagicLinkFromUrl();
+
+  // 認証状態をチェック中はローディング表示
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white">
+        <div className="text-center">
+          <div className="loading loading-spinner loading-lg"></div>
+          <p className="mt-4">認証状態を確認中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white p-4">
