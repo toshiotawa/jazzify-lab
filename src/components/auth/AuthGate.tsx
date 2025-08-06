@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import AuthLanding from '@/components/auth/AuthLanding';
 import { cn } from '@/utils/cn';
@@ -14,20 +14,10 @@ interface AuthGateProps {
  * - ゲストプレイボタンも提供
  */
 export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
-  const { user, loading, init, error, isGuest, hasProfile, createProfile, fetchProfile } = useAuthStore();
-  const [initializing, setInitializing] = useState(true);
+  const { user, loading, error, isGuest, hasProfile, createProfile, fetchProfile } = useAuthStore();
 
-  useEffect(() => {
-    const initializeAuth = async () => {
-      await init();
-      setInitializing(false);
-    };
-    
-    void initializeAuth();
-  }, [init]);
-
-  // 初期化中またはローディング中
-  if (initializing || loading) {
+  // ローディング中
+  if (loading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-black/70 text-white text-xl">
         <div className="flex flex-col items-center space-y-4">

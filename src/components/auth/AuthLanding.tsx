@@ -15,20 +15,8 @@ const AuthLanding: React.FC = () => {
   const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [signupDisabled, setSignupDisabled] = useState(false);
   const [useOtp, setUseOtp] = useState(false); // OTPモードの切り替え
-  const [initialized, setInitialized] = useState(false);
-  const { loginWithMagicLink, enterGuestMode, loading, error, user, isGuest, init } = useAuthStore();
+  const { loginWithMagicLink, enterGuestMode, loading, error, user, isGuest } = useAuthStore();
   const toast = useToast();
-
-  // 認証状態の初期化
-  useEffect(() => {
-    const initialize = async () => {
-      console.log('🔍 AuthLanding: 初期化開始');
-      await init();
-      console.log('🔍 AuthLanding: 初期化完了');
-      setInitialized(true);
-    };
-    initialize();
-  }, [init]);
 
   // 開発環境でのみデバッグ情報を表示
   useEffect(() => {
@@ -40,35 +28,23 @@ const AuthLanding: React.FC = () => {
   // ログイン済みユーザーをリダイレクト
   useEffect(() => {
     console.log('🔍 AuthLanding: リダイレクトチェック', {
-      initialized,
       user: !!user,
       userEmail: user?.email,
       isGuest,
-      shouldRedirect: initialized && user && !isGuest
+      shouldRedirect: user && !isGuest
     });
     
-    // 初期化が完了し、ユーザーがログイン済みで、かつゲストモードでない場合のみリダイレクト
-    if (initialized && user && !isGuest) {
+    // ユーザーがログイン済みで、かつゲストモードでない場合のみリダイレクト
+    if (user && !isGuest) {
       console.log('🔄 ログイン済みユーザーを /main へリダイレクト', {
-        initialized,
         user: user?.email,
         isGuest
       });
       navigate('/main', { replace: true });
     }
-  }, [initialized, user, isGuest, navigate]);
+  }, [user, isGuest, navigate]);
 
-  // 初期化中はローディング表示
-  if (!initialized || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-          <div>Loading...</div>
-        </div>
-      </div>
-    );
-  }
+
 
   const handleSendLink = async (mode: 'signup' | 'login') => {
     // バリデーション
