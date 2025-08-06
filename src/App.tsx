@@ -6,6 +6,7 @@ import AuthCallback from '@/components/auth/AuthCallback';
 import VerifyOtpPage from '@/components/auth/VerifyOtpPage';
 import AuthGate from '@/components/auth/AuthGate';
 import ToastContainer from '@/components/ui/ToastContainer';
+import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
 
 // LegacyApp はバンドルサイズが大きいため遅延読み込みする
 const LegacyApp = React.lazy(() => import('./LegacyApp'));
@@ -40,6 +41,7 @@ const App: React.FC = () => {
         </Routes>
       </Suspense>
       <ToastContainer />
+      <EnvironmentBadge />
     </>
   );
 };

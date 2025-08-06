@@ -6,6 +6,14 @@
   NODE_VERSION = "20"
   NPM_VERSION = "10"
 
+# ステージングブランチ用の設定
+[context.stg]
+  command = "npm ci && npm run build"
+  
+[context.stg.environment]
+  NODE_ENV = "staging"
+  VITE_APP_ENV = "staging"
+
 [[headers]]
   for = "/*"
   [headers.values]
