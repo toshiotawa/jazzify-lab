@@ -1,0 +1,44 @@
+# Robots.txt for jazzify.jp
+# Block AI training bots
+
+# OpenAI GPTBot
+User-agent: GPTBot
+Disallow: /
+
+# Google Bard
+User-agent: Google-Extended
+Disallow: /
+
+# Common AI Crawlers
+User-agent: CCBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: GPTBot-User
+Disallow: /
+
+# Anthropic Claude
+User-agent: Claude-Web
+Disallow: /
+
+# Allow regular search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# Default rule for other bots
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://jazzify.jp/sitemap.xml
