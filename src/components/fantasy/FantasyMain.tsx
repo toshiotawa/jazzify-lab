@@ -208,7 +208,8 @@ const FantasyMain: React.FC = () => {
     // 通常のファンタジーモードの処理
     // データベースに結果を保存
     try {
-      if (!isGuest && profile && currentStage) {
+      // ゲストユーザーとフリープランユーザーはクリア記録を保存しない
+      if (!isGuest && profile && currentStage && profile.rank !== 'free') {
         const { getSupabaseClient } = await import('@/platform/supabaseClient');
         const supabase = getSupabaseClient();
         
@@ -393,6 +394,19 @@ const FantasyMain: React.FC = () => {
     if (!currentStage) return;
     
     const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
+    
+    // フリープラン・ゲストユーザーのチェック
+    if (isGuest || (profile && profile.rank === 'free')) {
+      const [nextRank, nextStage] = nextStageNumber.split('-').map(Number);
+      if (nextRank > 1 || (nextRank === 1 && nextStage > 3)) {
+        toast.error('フリープラン・ゲストユーザーはステージ1-3までしかプレイできません。');
+        // ステージ選択画面に戻る
+        setCurrentStage(null);
+        setGameResult(null);
+        setShowResult(false);
+        return;
+      }
+    }
 
     try {
       // DB から実データを読み直す
@@ -447,7 +461,7 @@ const FantasyMain: React.FC = () => {
       console.error('次のステージ読み込みエラー:', err);
       alert('次のステージの読み込みに失敗しました');
     }
-  }, [currentStage]);
+  }, [currentStage, isGuest, profile]);
   
   // メニューに戻る
   const handleBackToMenu = useCallback(() => {
@@ -455,6 +469,8 @@ const FantasyMain: React.FC = () => {
   }, []);
   
   // プレミアムプラン未加入の場合
+  // フリープランとゲストユーザーにもアクセスを許可するため、この制限を削除
+  /*
   if (isGuest || !isPremiumOrHigher) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center overflow-y-auto">
@@ -511,6 +527,7 @@ const FantasyMain: React.FC = () => {
       </div>
     );
   }
+  */
   
   // ゲーム結果画面
   if (showResult && gameResult) {
@@ -571,16 +588,35 @@ const FantasyMain: React.FC = () => {
             </div>
           </div>
           
+          {/* フリープラン・ゲストユーザーへの注意 */}
+          {(isGuest || (profile && profile.rank === 'free')) && (
+            <div className="mt-4 p-4 bg-yellow-900 bg-opacity-30 border border-yellow-600 rounded-lg">
+              <p className="text-yellow-300 text-sm font-dotgothic16">
+                {isGuest ? 'ゲストユーザー' : 'フリープラン'}のため、クリア記録は保存されません。
+                {!isGuest && ' プレミアムプラン以上にアップグレードすると、全ステージが解放され、進捗が保存されます。'}
+              </p>
+            </div>
+          )}
+          
           {/* アクションボタン */}
           <div className="space-y-4">
-            {gameResult.result === 'clear' && !isLessonMode && (
-              <button
-                onClick={gotoNextStageWaiting}
-                className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-dotgothic16"
-              >
-                次のステージへ
-              </button>
-            )}
+            {gameResult.result === 'clear' && !isLessonMode && (() => {
+              // フリープラン・ゲストユーザーが1-3をクリアした場合は次のステージボタンを表示しない
+              if (isGuest || (profile && profile.rank === 'free')) {
+                const [rank, stageNum] = currentStage.stageNumber.split('-').map(Number);
+                if (rank === 1 && stageNum === 3) {
+                  return null;
+                }
+              }
+              return (
+                <button
+                  onClick={gotoNextStageWaiting}
+                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-dotgothic16"
+                >
+                  次のステージへ
+                </button>
+              );
+            })()}
             
             <button
               // ▼▼▼ 修正 ▼▼▼
