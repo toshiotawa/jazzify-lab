@@ -481,63 +481,8 @@ const FantasyMain: React.FC = () => {
     window.location.hash = '#dashboard';
   }, []);
   
-  // プレミアムプラン未加入の場合
-  if (isGuest || !isPremiumOrHigher) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center overflow-y-auto">
-        <div className="text-white text-center max-w-md p-4">
-          <div className="mb-6">
-            <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-24 h-24 mx-auto" />
-          </div>
-          <h2 className="text-3xl font-bold mb-4">ファンタジーモード</h2>
-          
-          {isGuest ? (
-            <>
-              <p className="text-indigo-200 mb-6">
-                ファンタジーモードはログイン後にご利用いただけます。
-              </p>
-              <div className="space-y-4">
-                <button
-                  onClick={() => window.location.hash = '#login'}
-                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
-                >
-                  ログイン
-                </button>
-                <button
-                  onClick={handleBackToMenu}
-                  className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
-                >
-                  メニューに戻る
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-indigo-200 mb-6">
-                ファンタジーモードはプレミアムプラン以上でご利用いただけます。
-                <br />
-                現在のプラン: <span className="text-yellow-300 font-bold capitalize">{profile?.rank}</span>
-              </p>
-              <div className="space-y-4">
-                <button
-                  onClick={() => window.location.hash = '#pricing'}
-                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
-                >
-                  プランをアップグレード
-                </button>
-                <button
-                  onClick={handleBackToMenu}
-                  className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
-                >
-                  メニューに戻る
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // ゲストとフリーユーザーはランク1のみプレイ可能なので、ここでは制限しない
+  // ランク2以降の制限はFantasyStageSelectコンポーネント内で行う
   
   // ゲーム結果画面
   if (showResult && gameResult) {
