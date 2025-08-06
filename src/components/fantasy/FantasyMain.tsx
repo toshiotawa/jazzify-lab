@@ -57,6 +57,9 @@ const FantasyMain: React.FC = () => {
   const [pendingAutoStart, setPendingAutoStart] = useState(false);
   // ▲▲▲ ここまで ▲▲▲
   
+  // ランクロックモーダルの表示フラグ
+  const [showRankLockModal, setShowRankLockModal] = useState(false);
+  
   // 経験値情報を保存するための state を追加
   const [xpInfo, setXpInfo] = useState<{
     gained: number;
@@ -420,6 +423,14 @@ const FantasyMain: React.FC = () => {
     if (!currentStage) return;
     
     const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
+    const [nextRank] = nextStageNumber.split('-').map(Number);
+    
+    // ゲストユーザーまたはフリーユーザーがランク2以降に進もうとした場合
+    if ((isGuest || (profile && profile.rank === 'free')) && nextRank >= 2) {
+      // モーダル表示用のステートを設定
+      setShowRankLockModal(true);
+      return;
+    }
 
     try {
       // DB から実データを読み直す
@@ -474,7 +485,7 @@ const FantasyMain: React.FC = () => {
       console.error('次のステージ読み込みエラー:', err);
       alert('次のステージの読み込みに失敗しました');
     }
-  }, [currentStage]);
+  }, [currentStage, isGuest, profile]);
   
   // メニューに戻る
   const handleBackToMenu = useCallback(() => {
@@ -483,6 +494,72 @@ const FantasyMain: React.FC = () => {
   
   // ゲストとフリーユーザーはランク1のみプレイ可能なので、ここでは制限しない
   // ランク2以降の制限はFantasyStageSelectコンポーネント内で行う
+  
+  // ランクロックモーダル
+  if (showRankLockModal) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
+        <div className="bg-black bg-opacity-50 rounded-xl p-8 max-w-md w-full text-white">
+          <div className="text-center">
+            <div className="mb-6 flex justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            
+            <h2 className="text-2xl font-bold mb-4">ランク2以降はロックされています</h2>
+            
+            {isGuest ? (
+              <>
+                <p className="text-gray-300 mb-6">
+                  おめでとうございます！ランク1を完全クリアしました。<br />
+                  ランク2以降をプレイするには、アカウントの作成が必要です。
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => window.location.hash = '#signup'}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg font-medium transition-colors"
+                  >
+                    無料でアカウントを作成
+                  </button>
+                  <button
+                    onClick={() => window.location.hash = '#login'}
+                    className="w-full px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
+                  >
+                    ログイン
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-gray-300 mb-6">
+                  おめでとうございます！ランク1を完全クリアしました。<br />
+                  ランク2以降をプレイするには、プレミアムプラン以上へのアップグレードが必要です。
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => window.location.hash = '#pricing'}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg font-medium transition-colors"
+                  >
+                    プランをアップグレード
+                  </button>
+                </div>
+              </>
+            )}
+            
+            <div className="mt-6 pt-6 border-t border-gray-700">
+              <button
+                onClick={() => setShowRankLockModal(false)}
+                className="w-full px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
+              >
+                ステージ選択に戻る
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   // ゲーム結果画面
   if (showResult && gameResult) {
