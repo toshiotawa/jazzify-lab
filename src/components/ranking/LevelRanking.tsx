@@ -188,15 +188,15 @@ const LevelRanking: React.FC = () => {
             <table className="w-full text-sm border-collapse min-w-[900px] sm:min-w-full">
             <thead>
               <tr className="border-b border-slate-700 text-left">
-                <th className="py-2 px-2 min-w-[3rem]">#</th>
-                <th className="py-2 px-2 min-w-[12rem] sm:min-w-[10rem]">ユーザー(タップで詳細)</th>
-                <th className="py-2 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">称号</th>
-                <th className="py-2 px-2 min-w-[3rem]">Lv</th>
-                <th className="py-2 px-2 min-w-[4rem]">レッスン</th>
-                <th className="py-2 px-2 min-w-[4rem]">ミッション</th>
-                <th className="py-2 px-2 min-w-[4rem]">ファンタジー</th>
-                <th className="py-2 px-2 min-w-[5rem] sm:min-w-[4rem]">ランク</th>
-                <th className="py-2 px-2 min-w-[8rem] sm:min-w-[6rem]">Twitter</th>
+                <th className="py-3 px-2 min-w-[3rem]">#</th>
+                <th className="py-3 px-2 min-w-[12rem] sm:min-w-[10rem]">ユーザー(タップで詳細)</th>
+                <th className="py-3 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">称号</th>
+                <th className="py-3 px-2 min-w-[3rem]">Lv</th>
+                <th className="py-3 px-2 min-w-[4rem]">レッスン</th>
+                <th className="py-3 px-2 min-w-[4rem]">ミッション</th>
+                <th className="py-3 px-2 min-w-[4rem]">ファンタジー</th>
+                <th className="py-3 px-2 min-w-[5rem] sm:min-w-[4rem]">ランク</th>
+                <th className="py-3 px-2 min-w-[8rem] sm:min-w-[6rem]">Twitter</th>
               </tr>
             </thead>
             <tbody>
@@ -206,8 +206,8 @@ const LevelRanking: React.FC = () => {
                 <tr key={e.id} className={`border-b border-slate-800 hover:bg-slate-800/50 ${
                   isCurrentUser ? 'bg-primary-900/20 border-primary-500/30' : ''
                 }`}>
-                  <td className="py-1 px-2">{idx + 1}</td>
-                  <td className="py-1 px-2">
+                  <td className="py-3 px-2">{idx + 1}</td>
+                  <td className="py-3 px-2">
                     <button
                       onClick={()=>{window.location.hash=`#diary-user?id=${e.id}`;}}
                       className={`flex items-center gap-2 text-blue-400 hover:text-blue-300 hover:underline transition-colors w-full ${
@@ -217,12 +217,12 @@ const LevelRanking: React.FC = () => {
                       <img 
                         src={e.avatar_url || DEFAULT_AVATAR_URL}
                         alt="avatar"
-                        className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                       />
                       <span className="truncate min-w-0 flex-1 underline">{e.nickname}</span>
                     </button>
                   </td>
-                  <td className="py-1 px-2 whitespace-nowrap">
+                  <td className="py-3 px-2 whitespace-nowrap">
                     <div className="relative">
                       <div 
                         className="flex items-center gap-1 text-yellow-400 cursor-help"
@@ -265,17 +265,17 @@ const LevelRanking: React.FC = () => {
                       )}
                     </div>
                   </td>
-                  <td className="py-1 px-2">{e.level}</td>
-                  <td className="py-1 px-2">{e.lessons_cleared}</td>
-                  <td className="py-1 px-2">{e.missions_completed || 0}</td>
-                  <td className="py-1 px-2 text-purple-300">{e.fantasy_current_stage || '-'}</td>
-                  <td className="py-1 px-2">
+                  <td className="py-3 px-2">{e.level}</td>
+                  <td className="py-3 px-2">{e.lessons_cleared}</td>
+                  <td className="py-3 px-2">{e.missions_completed || 0}</td>
+                  <td className="py-3 px-2 text-purple-300">{e.fantasy_current_stage || '-'}</td>
+                  <td className="py-3 px-2">
                     <div className="flex items-center space-x-1">
                       {getRankIcon(e.rank)}
                       <span className="capitalize text-xs">{e.rank}</span>
                     </div>
                   </td>
-                  <td className="py-1 px-2">
+                  <td className="py-3 px-2">
                     {e.twitter_handle ? (
                       <a 
                         href={`https://twitter.com/${e.twitter_handle}`} 
