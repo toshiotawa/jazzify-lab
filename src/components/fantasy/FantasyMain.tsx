@@ -17,6 +17,10 @@ import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequir
 import { getWizardRankString } from '@/utils/fantasyRankConstants';
 import { currentLevelXP, xpToNextLevel } from '@/utils/xpCalculator';
 import { useToast } from '@/stores/toastStore';
+import { 
+  addGuestFantasyClear, 
+  updateGuestNextStage
+} from '@/utils/fantasyLocalStorage';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -52,6 +56,9 @@ const FantasyMain: React.FC = () => {
   // 再挑戦時の自動開始フラグ
   const [pendingAutoStart, setPendingAutoStart] = useState(false);
   // ▲▲▲ ここまで ▲▲▲
+  
+  // ランクロックモーダルの表示フラグ
+  const [showRankLockModal, setShowRankLockModal] = useState(false);
   
   // 経験値情報を保存するための state を追加
   const [xpInfo, setXpInfo] = useState<{
@@ -208,7 +215,30 @@ const FantasyMain: React.FC = () => {
     // 通常のファンタジーモードの処理
     // データベースに結果を保存
     try {
-      if (!isGuest && profile && currentStage) {
+      // ゲストユーザーの場合の処理
+      if (isGuest && currentStage) {
+        if (result === 'clear') {
+          // クリア記録を保存
+          addGuestFantasyClear({
+            stageId: currentStage.id,
+            stageNumber: currentStage.stageNumber,
+            clearedAt: new Date().toISOString(),
+            score: score,
+            clearType: 'clear',
+            remainingHp: Math.max(1, 5 - (totalQuestions - correctAnswers)),
+            totalQuestions: totalQuestions,
+            correctAnswers: correctAnswers
+          });
+          
+          // 次のステージ番号を更新（ランク1内のみ）
+          const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
+          updateGuestNextStage(nextStageNumber);
+          
+          devLog.debug('✅ ゲストファンタジー進捗保存完了');
+        }
+      }
+      // 通常のユーザーの場合の処理
+      else if (!isGuest && profile && currentStage) {
         const { getSupabaseClient } = await import('@/platform/supabaseClient');
         const supabase = getSupabaseClient();
         
@@ -393,6 +423,14 @@ const FantasyMain: React.FC = () => {
     if (!currentStage) return;
     
     const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
+    const [nextRank] = nextStageNumber.split('-').map(Number);
+    
+    // ゲストユーザーまたはフリーユーザーがランク2以降に進もうとした場合
+    if ((isGuest || (profile && profile.rank === 'free')) && nextRank >= 2) {
+      // モーダル表示用のステートを設定
+      setShowRankLockModal(true);
+      return;
+    }
 
     try {
       // DB から実データを読み直す
@@ -447,66 +485,77 @@ const FantasyMain: React.FC = () => {
       console.error('次のステージ読み込みエラー:', err);
       alert('次のステージの読み込みに失敗しました');
     }
-  }, [currentStage]);
+  }, [currentStage, isGuest, profile]);
   
   // メニューに戻る
   const handleBackToMenu = useCallback(() => {
     window.location.hash = '#dashboard';
   }, []);
   
-  // プレミアムプラン未加入の場合
-  if (isGuest || !isPremiumOrHigher) {
+  // ゲストとフリーユーザーはランク1のみプレイ可能なので、ここでは制限しない
+  // ランク2以降の制限はFantasyStageSelectコンポーネント内で行う
+  
+  // ランクロックモーダル
+  if (showRankLockModal) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center overflow-y-auto">
-        <div className="text-white text-center max-w-md p-4">
-          <div className="mb-6">
-            <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-24 h-24 mx-auto" />
+      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
+        <div className="bg-black bg-opacity-50 rounded-xl p-8 max-w-md w-full text-white">
+          <div className="text-center">
+            <div className="mb-6 flex justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            
+            <h2 className="text-2xl font-bold mb-4">ランク2以降はロックされています</h2>
+            
+            {isGuest ? (
+              <>
+                <p className="text-gray-300 mb-6">
+                  おめでとうございます！ランク1を完全クリアしました。<br />
+                  ランク2以降をプレイするには、アカウントの作成が必要です。
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => window.location.hash = '#signup'}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg font-medium transition-colors"
+                  >
+                    無料でアカウントを作成
+                  </button>
+                  <button
+                    onClick={() => window.location.hash = '#login'}
+                    className="w-full px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
+                  >
+                    ログイン
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-gray-300 mb-6">
+                  おめでとうございます！ランク1を完全クリアしました。<br />
+                  ランク2以降をプレイするには、プレミアムプラン以上へのアップグレードが必要です。
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => window.location.hash = '#pricing'}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg font-medium transition-colors"
+                  >
+                    プランをアップグレード
+                  </button>
+                </div>
+              </>
+            )}
+            
+            <div className="mt-6 pt-6 border-t border-gray-700">
+              <button
+                onClick={() => setShowRankLockModal(false)}
+                className="w-full px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
+              >
+                ステージ選択に戻る
+              </button>
+            </div>
           </div>
-          <h2 className="text-3xl font-bold mb-4">ファンタジーモード</h2>
-          
-          {isGuest ? (
-            <>
-              <p className="text-indigo-200 mb-6">
-                ファンタジーモードはログイン後にご利用いただけます。
-              </p>
-              <div className="space-y-4">
-                <button
-                  onClick={() => window.location.hash = '#login'}
-                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
-                >
-                  ログイン
-                </button>
-                <button
-                  onClick={handleBackToMenu}
-                  className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
-                >
-                  メニューに戻る
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-indigo-200 mb-6">
-                ファンタジーモードはプレミアムプラン以上でご利用いただけます。
-                <br />
-                現在のプラン: <span className="text-yellow-300 font-bold capitalize">{profile?.rank}</span>
-              </p>
-              <div className="space-y-4">
-                <button
-                  onClick={() => window.location.hash = '#pricing'}
-                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
-                >
-                  プランをアップグレード
-                </button>
-                <button
-                  onClick={handleBackToMenu}
-                  className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
-                >
-                  メニューに戻る
-                </button>
-              </div>
-            </>
-          )}
         </div>
       </div>
     );
