@@ -378,7 +378,9 @@ const Dashboard: React.FC = () => {
                   onClick={() => { window.location.hash = '#fantasy'; }}
                   className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg p-6 border border-purple-600 hover:border-purple-400 transition-colors text-left relative overflow-hidden"
                 >
-                  <div className="absolute top-0 right-0 text-6xl opacity-20">🧙‍♂️</div>
+                  <div className="absolute top-0 right-0 opacity-20">
+                    <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-24 h-24" />
+                  </div>
                   <div className="flex items-center space-x-3 mb-3 relative z-10">
                     <FaMagic className="w-6 h-6 text-yellow-400" />
                     <h3 className="text-lg font-semibold text-white">ファンタジーモード</h3>

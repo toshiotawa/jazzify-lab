@@ -420,7 +420,9 @@ const FantasyMain: React.FC = () => {
     return (
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center overflow-y-auto">
         <div className="text-white text-center max-w-md p-4">
-          <div className="text-6xl mb-6">🧙‍♂️</div>
+          <div className="mb-6">
+            <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-24 h-24 mx-auto" />
+          </div>
           <h2 className="text-3xl font-bold mb-4">ファンタジーモード</h2>
           
           {isGuest ? (
