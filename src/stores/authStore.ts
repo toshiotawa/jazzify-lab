@@ -3,64 +3,6 @@ import { immer } from 'zustand/middleware/immer';
 import { Session, User } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { useUserStatsStore } from './userStatsStore';
-import { 
-  logMagicLinkDebugInfo, 
-  logMagicLinkLoginProcess, 
-  logMagicLinkError, 
-  logMagicLinkSuccess,
-  parseMagicLinkFromUrl
-} from '@/utils/magicLinkConfig';
-
-/**
- * 有効なリダイレクトURLを取得・検証する
- * @returns 有効なリダイレクトURL、またはnull
- */
-function getValidRedirectUrl(): string | null {
-  // 開発環境でデバッグ情報を出力
-  if (import.meta.env.DEV) {
-    logMagicLinkDebugInfo();
-  }
-
-  // 環境変数から取得を試行
-  const envRedirectUrl = import.meta.env.VITE_SUPABASE_REDIRECT_URL;
-  
-  console.log('🔍 Magic Link リダイレクトURL検証開始');
-  console.log('環境変数 VITE_SUPABASE_REDIRECT_URL:', envRedirectUrl);
-  
-  if (envRedirectUrl) {
-    try {
-      const url = new URL(envRedirectUrl);
-      console.log('解析されたURL:', {
-        protocol: url.protocol,
-        hostname: url.hostname,
-        port: url.port,
-        pathname: url.pathname
-      });
-      
-      // HTTPSまたはlocalhostの場合のみ許可
-      if (url.protocol === 'https:' || url.hostname === 'localhost') {
-        console.log('✅ 有効なリダイレクトURL:', envRedirectUrl);
-        return envRedirectUrl;
-      } else {
-        console.warn('❌ 無効なプロトコル:', url.protocol);
-      }
-    } catch (error) {
-      console.warn('❌ 無効なURL形式:', envRedirectUrl, error);
-    }
-  } else {
-    console.warn('⚠️ 環境変数 VITE_SUPABASE_REDIRECT_URL が設定されていません');
-  }
-
-  // フォールバック: 現在のorigin
-  if (typeof location !== 'undefined') {
-    const currentOrigin = location.origin;
-    console.log('🔄 フォールバック: 現在のoriginを使用:', currentOrigin);
-    return currentOrigin;
-  }
-
-  console.error('❌ リダイレクトURLを取得できませんでした');
-  return null;
-}
 
 interface AuthState {
   user: User | null;
@@ -99,7 +41,7 @@ interface AuthState {
 
 interface AuthActions {
   init: () => Promise<void>;
-  loginWithMagicLink: (email: string, mode?: 'signup' | 'login', useOtp?: boolean) => Promise<void>;
+  sendOtp: (email: string, mode?: 'signup' | 'login') => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<void>;
   logout: () => Promise<void>;
   enterGuestMode: () => void;
@@ -127,57 +69,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     init: async () => {
       const supabase = getSupabaseClient();
       
-      // URLからマジックリンク情報を解析
-      const magicLinkInfo = parseMagicLinkFromUrl();
-      
       console.group('🔐 認証初期化開始');
       console.log('🌐 現在のURL:', typeof location !== 'undefined' ? location.href : 'N/A');
-      console.log('🔍 マジックリンク検出:', magicLinkInfo.hasMagicLink);
-      if (magicLinkInfo.hasMagicLink) {
-        console.log('📋 マジックリンク詳細:', magicLinkInfo);
-      }
       console.groupEnd();
       
       set(state => {
         state.loading = true;
       });
-      
-      // マジックリンクが検出された場合、セッションを確立
-      if (magicLinkInfo.hasMagicLink && magicLinkInfo.tokenHash) {
-        console.log('🔐 マジックリンクトークンでセッション確立を試行');
-        try {
-          const { data, error } = await supabase.auth.verifyOtp({
-            token_hash: magicLinkInfo.tokenHash,
-            type: 'email'
-          });
-          
-          if (error) {
-            console.error('❌ マジックリンク検証エラー:', error);
-            set(state => {
-              state.error = `認証エラー: ${error.message}`;
-            });
-          } else if (data.session) {
-            console.log('✅ マジックリンクセッション確立成功');
-            logMagicLinkSuccess(data.user?.email || 'unknown', data.session);
-            
-            // URLパラメータをクリア（セキュリティのため）
-            if (typeof window !== 'undefined' && window.history.replaceState) {
-              const url = new URL(window.location.href);
-              url.searchParams.delete('token_hash');
-              url.searchParams.delete('type');
-              url.searchParams.delete('access_token');
-              url.searchParams.delete('refresh_token');
-              window.history.replaceState({}, '', url.toString());
-              console.log('🧹 URLパラメータをクリアしました');
-            }
-          }
-        } catch (error) {
-          console.error('❌ マジックリンク処理エラー:', error);
-          set(state => {
-            state.error = '認証処理中にエラーが発生しました';
-          });
-        }
-      }
       
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -370,9 +268,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     },
 
     /**
-     * Magic Link でのログイン（修正前はマジックリンクもOTPも同じ処理）
+     * OTP送信
      */
-    loginWithMagicLink: async (email: string, mode: 'signup' | 'login' = 'login', useOtp: boolean = false) => {
+    sendOtp: async (email: string, mode: 'signup' | 'login' = 'login') => {
       const supabase = getSupabaseClient();
       set(state => {
         state.loading = true;
@@ -380,95 +278,39 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       });
 
       try {
-        if (useOtp) {
-          // OTPモードの場合: 6桁のコードを送信
-          console.log('🔐 OTP送信モード');
-          
-          const { error } = await supabase.auth.signInWithOtp({
-            email,
-            options: {
-              shouldCreateUser: mode === 'signup',
-            },
-          });
-
-          if (error) {
-            // サインアップ無効エラーの特別処理
-            if (error.message.includes('Signups not allowed') || error.message.includes('signups not allowed')) {
-              console.warn('⚠️ サインアップが無効です。ログインモードで再試行します。');
-              
-              // ログインモードで再試行
-              const { error: loginError } = await supabase.auth.signInWithOtp({
-                email,
-                options: {
-                  shouldCreateUser: false,
-                },
-              });
-
-              if (loginError) {
-                logMagicLinkError(loginError, 'ログインモード再試行失敗');
-                throw new Error(`ログインに失敗しました: ${loginError.message}`);
-              }
-            } else {
-              logMagicLinkError(error, 'OTP送信失敗');
-              throw error;
-            }
-          }
-
-          console.log('✅ OTP送信成功');
-        } else {
-          // マジックリンクモードの場合: リダイレクトURLを含めて送信
-          // リダイレクトURLの検証と設定
-          const redirectUrl = getValidRedirectUrl();
-          
-          if (!redirectUrl) {
-            throw new Error('リダイレクトURLの設定が不正です。環境変数 VITE_SUPABASE_REDIRECT_URL を確認してください。');
-          }
-
-          // 詳細ログ出力
-          logMagicLinkLoginProcess(email, mode, redirectUrl);
-
-          // コールバックページへのリダイレクトURLを設定
-          const callbackUrl = new URL('/auth/callback', redirectUrl).toString();
-          
-          const options: { shouldCreateUser: boolean; emailRedirectTo?: string } = {
+        console.log('🔐 OTP送信モード');
+        
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
             shouldCreateUser: mode === 'signup',
-            emailRedirectTo: callbackUrl,
-          };
+          },
+        });
 
-          console.log('🔐 Magic Link 送信オプション:', options);
+        if (error) {
+          // サインアップ無効エラーの特別処理
+          if (error.message.includes('Signups not allowed') || error.message.includes('signups not allowed')) {
+            console.warn('⚠️ サインアップが無効です。ログインモードで再試行します。');
+            
+            // ログインモードで再試行
+            const { error: loginError } = await supabase.auth.signInWithOtp({
+              email,
+              options: {
+                shouldCreateUser: false,
+              },
+            });
 
-          // メールベースのMagic Link送信
-          const { error } = await supabase.auth.signInWithOtp({
-            email,
-            options,
-          });
-
-          if (error) {
-            // サインアップ無効エラーの特別処理
-            if (error.message.includes('Signups not allowed') || error.message.includes('signups not allowed')) {
-              console.warn('⚠️ サインアップが無効です。ログインモードで再試行します。');
-              
-              // ログインモードで再試行
-                              const { error: loginError } = await supabase.auth.signInWithOtp({
-                  email,
-                  options: {
-                    shouldCreateUser: false,
-                    emailRedirectTo: callbackUrl,
-                  },
-                });
-
-              if (loginError) {
-                logMagicLinkError(loginError, 'ログインモード再試行失敗');
-                throw new Error(`ログインに失敗しました: ${loginError.message}`);
-              }
-            } else {
-              logMagicLinkError(error, 'Magic Link送信失敗');
-              throw error;
+            if (loginError) {
+              console.error('❌ ログインモード再試行失敗:', loginError);
+              throw new Error(`ログインに失敗しました: ${loginError.message}`);
             }
+          } else {
+            console.error('❌ OTP送信失敗:', error);
+            throw error;
           }
-
-          console.log('✅ Magic Link 送信成功');
         }
+
+        console.log('✅ OTP送信成功');
 
         set(state => {
           state.loading = false;
@@ -476,9 +318,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         });
 
       } catch (error) {
-        logMagicLinkError(error, useOtp ? 'OTP送信処理エラー' : 'Magic Link送信処理エラー');
+        console.error('❌ OTP送信処理エラー:', error);
         
-        let errorMessage = useOtp ? 'OTP送信に失敗しました' : 'Magic Link送信に失敗しました';
+        let errorMessage = 'OTP送信に失敗しました';
         
         if (error instanceof Error) {
           if (error.message.includes('Signups not allowed')) {

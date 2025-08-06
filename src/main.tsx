@@ -5,13 +5,12 @@ import './index.css';
 import { enableMapSet } from 'immer';
 import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
-import { autoLogMagicLinkInfo } from '@/utils/magicLinkConfig';
 
 // ImmerでMap/Setを使用できるようにする
 enableMapSet();
 
 // 開発環境でマジックリンクログを自動出力
-autoLogMagicLinkInfo();
+// autoLogMagicLinkInfo(); // Removed as per edit hint
 
 // 本番環境でもデバッグ情報を表示する関数
 const showDebugInfo = (message: string, isError = false) => {
