@@ -1,13 +1,17 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
+import { 
+  uploadAvatarToR2, 
+  uploadDiaryImageToR2, 
+  uploadSongFileToR2,
+  deleteAvatarFromR2,
+  deleteDiaryImageFromR2,
+  deleteSongFilesFromR2
+} from '@/platform/r2Storage';
 
+// Avatar upload function - now uses R2
 export async function uploadAvatar(file: File, userId: string): Promise<string> {
-  const supabase = getSupabaseClient();
-  const ext = file.type.includes('png') ? 'png' : 'jpg';
-  const path = `${userId}.${ext}`;
-  const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
-  if (error) throw error;
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  return data.publicUrl;
+  // Upload to R2 instead of Supabase
+  return uploadAvatarToR2(file, userId);
 }
 
 // 曲ファイルアップロード用の定数
@@ -18,36 +22,62 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const DIARY_IMAGES_BUCKET = 'diary-images';
 const MAX_DIARY_IMAGE_SIZE = 1 * 1024 * 1024; // 1MB
 
-// バケットの作成（初回のみ必要）
+// バケットの作成（初回のみ必要）- R2では不要なのでダミー実装
 export async function createSongFilesBucket() {
-  const supabase = getSupabaseClient();
-  
-  try {
-    // バケットが存在するか確認
-    const { data: buckets } = await supabase.storage.listBuckets();
-    const exists = buckets?.some(bucket => bucket.name === SONG_FILES_BUCKET);
-    
-    if (!exists) {
-      // バケットを作成（publicバケットとして作成）
-      const { error } = await supabase.storage.createBucket(SONG_FILES_BUCKET, {
-        public: true,
-        fileSizeLimit: MAX_FILE_SIZE
-      });
-      
-      if (error) {
-        console.error('バケット作成エラー:', error);
-        throw error;
-      }
-      
-      console.log('song-filesバケットを作成しました');
-    }
-  } catch (error) {
-    console.error('バケット確認/作成エラー:', error);
-  }
+  // R2 buckets are created manually through Cloudflare dashboard
+  // This function is kept for compatibility
+  console.log('Using R2 bucket - no need to create');
 }
 
-// 曲ファイルのアップロード
+// 曲ファイルのアップロード - now uses R2
 export async function uploadSongFile(
+  file: File, 
+  songId: string, 
+  fileType: 'audio' | 'xml' | 'json'
+): Promise<string> {
+  // Upload to R2 instead of Supabase
+  return uploadSongFileToR2(file, songId, fileType);
+}
+
+// 曲ファイルの削除 - now uses R2
+export async function deleteSongFiles(songId: string): Promise<void> {
+  // Delete from R2 instead of Supabase
+  return deleteSongFilesFromR2(songId);
+}
+
+// 日記画像用バケットの作成 - R2では不要なのでダミー実装
+export async function createDiaryImagesBucket() {
+  // R2 buckets are created manually through Cloudflare dashboard
+  // This function is kept for compatibility
+  console.log('Using R2 bucket - no need to create');
+}
+
+// 日記画像のアップロード - now uses R2
+export async function uploadDiaryImage(file: File, userId: string, diaryId: string): Promise<string> {
+  // Upload to R2 instead of Supabase
+  return uploadDiaryImageToR2(file, userId, diaryId);
+}
+
+// 日記画像の削除 - now uses R2
+export async function deleteDiaryImage(userId: string, diaryId: string): Promise<void> {
+  // Delete from R2 instead of Supabase
+  return deleteDiaryImageFromR2(userId, diaryId);
+}
+
+// Legacy Supabase storage functions below (kept for potential migration needs)
+// These are not used anymore but kept for reference
+
+async function uploadAvatarToSupabase(file: File, userId: string): Promise<string> {
+  const supabase = getSupabaseClient();
+  const ext = file.type.includes('png') ? 'png' : 'jpg';
+  const path = `${userId}.${ext}`;
+  const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+  if (error) throw error;
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+async function uploadSongFileToSupabase(
   file: File, 
   songId: string, 
   fileType: 'audio' | 'xml' | 'json'
@@ -92,8 +122,7 @@ export async function uploadSongFile(
   return data.publicUrl;
 }
 
-// 曲ファイルの削除
-export async function deleteSongFiles(songId: string): Promise<void> {
+async function deleteSongFilesFromSupabase(songId: string): Promise<void> {
   const supabase = getSupabaseClient();
   
   // 該当する曲のファイルをすべて削除
@@ -113,36 +142,7 @@ export async function deleteSongFiles(songId: string): Promise<void> {
   }
 }
 
-// 日記画像用バケットの作成
-export async function createDiaryImagesBucket() {
-  const supabase = getSupabaseClient();
-  
-  try {
-    // バケットが存在するか確認
-    const { data: buckets } = await supabase.storage.listBuckets();
-    const exists = buckets?.some(bucket => bucket.name === DIARY_IMAGES_BUCKET);
-    
-    if (!exists) {
-      // バケットを作成（publicバケットとして作成）
-      const { error } = await supabase.storage.createBucket(DIARY_IMAGES_BUCKET, {
-        public: true,
-        fileSizeLimit: MAX_DIARY_IMAGE_SIZE
-      });
-      
-      if (error) {
-        console.error('バケット作成エラー:', error);
-        throw error;
-      }
-      
-      console.log('diary-imagesバケットを作成しました');
-    }
-  } catch (error) {
-    console.error('バケット確認/作成エラー:', error);
-  }
-}
-
-// 日記画像のアップロード
-export async function uploadDiaryImage(file: File, userId: string, diaryId: string): Promise<string> {
+async function uploadDiaryImageToSupabase(file: File, userId: string, diaryId: string): Promise<string> {
   const supabase = getSupabaseClient();
   
   // ファイルパス（userId/diaryId.webp形式）
@@ -170,8 +170,7 @@ export async function uploadDiaryImage(file: File, userId: string, diaryId: stri
   return data.publicUrl;
 }
 
-// 日記画像の削除
-export async function deleteDiaryImage(userId: string, diaryId: string): Promise<void> {
+async function deleteDiaryImageFromSupabase(userId: string, diaryId: string): Promise<void> {
   const supabase = getSupabaseClient();
   
   // 画像を削除（拡張子を問わず削除）
