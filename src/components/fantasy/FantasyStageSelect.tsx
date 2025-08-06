@@ -100,16 +100,26 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           id: stage.id,
           stageNumber: stage.stage_number,
           name: stage.name,
-          description: stage.description,
+          description: stage.description || '',
           maxHp: stage.max_hp,
           enemyCount: stage.enemy_count,
           enemyHp: stage.enemy_hp,
           minDamage: stage.min_damage,
           maxDamage: stage.max_damage,
           enemyGaugeSeconds: stage.enemy_gauge_seconds,
-          mode: stage.mode,
-          allowedChords: stage.allowed_chords,
-          monsterIcon: stage.monster_icon
+          mode: stage.mode as 'single' | 'progression_order' | 'progression_random' | 'progression_timing',
+          allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
+          chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
+          chordProgressionData: stage.chord_progression_data,
+          showSheetMusic: stage.show_sheet_music || false,
+          showGuide: stage.show_guide || false,
+          monsterIcon: stage.monster_icon,
+          bgmUrl: stage.bgm_url || stage.mp3_url,
+          simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+          bpm: stage.bpm || 120,
+          measureCount: stage.measure_count,
+          countInMeasures: stage.count_in_measures,
+          timeSignature: stage.time_signature
         }));
         
         setStages(convertedStages);
