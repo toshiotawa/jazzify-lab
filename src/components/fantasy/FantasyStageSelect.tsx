@@ -45,6 +45,22 @@ interface FantasyStageSelectProps {
 // ===== 定数 =====
 // WIZARD_RANKS, getRankFromClearedStages, RANK_COLORS, RANK_NAMESの定義を削除
 
+// モード名を日本語に変換する関数
+const getModeDisplayName = (mode: string): string => {
+  switch (mode) {
+    case 'single':
+      return 'クイズ';
+    case 'progression_order':
+      return 'リズム・順番';
+    case 'progression_random':
+      return 'リズム・ランダム';
+    case 'progression_timing':
+      return 'リズム・カスタム';
+    default:
+      return mode;
+  }
+};
+
 // ===== ステージグルーピング =====
 const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
   return stages.reduce((groups, stage) => {
@@ -254,6 +270,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     const unlocked = isStageUnlocked(stage);
     const clearInfo = getStageClearInfo(stage);
     const isCleared = clearInfo && clearInfo.clearType === 'clear';
+    const rank = stage.stageNumber.split('-')[0];
     
     return (
       <div
@@ -267,6 +284,19 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         )}
         onClick={() => handleStageSelect(stage)}
       >
+        {/* アイコン画像 */}
+        <div className="flex-shrink-0">
+          <img 
+            src={`/stage_icons/${rank}.png`} 
+            alt={`ランク${rank}アイコン`}
+            className="w-16 h-16 rounded-lg object-cover"
+            onError={(e) => {
+              // 画像が読み込めない場合はデフォルト画像を使用
+              (e.target as HTMLImageElement).src = '/default_avater/default-avater.png';
+            }}
+          />
+        </div>
+        
         {/* ステージ番号 */}
         <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
           {stage.stageNumber}
@@ -281,6 +311,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.name : "???"}
           </div>
+          
+          {/* モード詳細 */}
+          {unlocked && (
+            <div className="text-sm text-blue-300 mb-1">
+              {getModeDisplayName(stage.mode)}
+            </div>
+          )}
           
           {/* 説明文 */}
           <div className={cn(
