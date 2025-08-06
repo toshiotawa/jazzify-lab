@@ -782,7 +782,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div>ゲーム状態: {gameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
               <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
               <div>許可コード数: {stage.allowedChords?.length || 0}</div>
-              <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>
+              {stage.mode === 'single' && <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>}
               <div>オーバーレイ: {overlay ? '表示中' : 'なし'}</div>
               <div>完了処理中: {gameState.isCompleting ? 'はい' : 'いいえ'}</div>
             </div>
@@ -969,18 +969,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         </div>
                       )}
                       
-                      {/* 行動ゲージ */}
-                      <div 
-                        ref={el => {
-                          if (el) gaugeRefs.current.set(monster.id, el);
-                        }}
-                        className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
-                      >
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
-                          style={{ width: `${monster.gauge}%` }}
-                        />
-                      </div>
+                      {/* 行動ゲージ (singleモードのみ表示) */}
+                      {stage.mode === 'single' && (
+                        <div 
+                          ref={el => {
+                            if (el) gaugeRefs.current.set(monster.id, el);
+                          }}
+                          className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
+                        >
+                          <div
+                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                            style={{ width: `${monster.gauge}%` }}
+                          />
+                        </div>
+                      )}
                       
                       {/* HPゲージ */}
                       <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
@@ -1104,7 +1106,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         <div className="fixed bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs p-2 rounded z-40">
           <div>Q: {gameState.currentQuestionIndex + 1}/{gameState.totalQuestions}</div>
           <div>HP: {gameState.playerHp}/{stage.maxHp}</div>
-          <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>
+          {stage.mode === 'single' && <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>}
           <div>スコア: {gameState.score}</div>
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
