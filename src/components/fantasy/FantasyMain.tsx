@@ -15,6 +15,8 @@ import { LessonContext } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { getWizardRankString } from '@/utils/fantasyRankConstants';
+import { currentLevelXP, xpToNextLevel } from '@/utils/xpCalculator';
+import { useToast } from '@/stores/toastStore';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -37,6 +39,7 @@ interface GameResult {
 const FantasyMain: React.FC = () => {
   const { profile, isGuest } = useAuthStore();
   const { settings } = useGameStore();
+  const toast = useToast();
   const [currentStage, setCurrentStage] = useState<FantasyStage | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -49,6 +52,17 @@ const FantasyMain: React.FC = () => {
   // 再挑戦時の自動開始フラグ
   const [pendingAutoStart, setPendingAutoStart] = useState(false);
   // ▲▲▲ ここまで ▲▲▲
+  
+  // 経験値情報を保存するための state を追加
+  const [xpInfo, setXpInfo] = useState<{
+    gained: number;
+    total: number;
+    level: number;
+    previousLevel: number;
+    nextLevelXp: number;
+    currentLevelXp: number;
+    leveledUp: boolean;
+  } | null>(null);
   
   // プレミアムプラン以上の確認
   const isPremiumOrHigher = profile && ['premium', 'platinum'].includes(profile.rank);
@@ -332,6 +346,30 @@ const FantasyMain: React.FC = () => {
             level: xpResult.level
           });
           
+          // XP情報を保存
+          const previousLevel = profile.level || 1;
+          const leveledUp = xpResult.level > previousLevel;
+          const currentLvXp = currentLevelXP(xpResult.level, xpResult.totalXp);
+          const nextLvXp = xpToNextLevel(xpResult.level);
+          
+          setXpInfo({
+            gained: xpResult.gainedXp,
+            total: xpResult.totalXp,
+            level: xpResult.level,
+            previousLevel: previousLevel,
+            nextLevelXp: nextLvXp,
+            currentLevelXp: currentLvXp,
+            leveledUp: leveledUp
+          });
+          
+          // レベルアップした場合はトーストを表示
+          if (leveledUp) {
+            toast.success(`レベルアップ！ Lv.${previousLevel} → Lv.${xpResult.level}`, {
+              duration: 5000,
+              title: 'おめでとうございます！'
+            });
+          }
+          
         } catch (xpError) {
           console.error('ファンタジーモードXP付与エラー:', xpError);
         }
@@ -339,14 +377,15 @@ const FantasyMain: React.FC = () => {
     } catch (error) {
       console.error('ファンタジーモード結果保存エラー:', error);
     }
-  }, [isGuest, profile, currentStage, isLessonMode, lessonContext]);
+  }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast]);
   
   // ステージ選択に戻る
   const handleBackToStageSelect = useCallback(() => {
     setCurrentStage(null);
     setGameResult(null);
     setShowResult(false);
-    setPendingAutoStart(false); // pendingAutoStart もリセット
+    setXpInfo(null); // XP情報もリセット
+    setPendingAutoStart(false); // pendingAutoStartもリセット
   }, []);
   
   // ★ 追加: 次のステージに待機画面で遷移
@@ -506,6 +545,29 @@ const FantasyMain: React.FC = () => {
                   (profile?.rank === 'platinum' ? 400 : profile?.rank === 'premium' ? 300 : 200)
                 } XP
               </div>
+              
+              {/* 次レベルまでの経験値表示 */}
+              {xpInfo && (
+                <div className="mt-3 pt-3 border-t border-gray-600">
+                  {xpInfo.leveledUp && (
+                    <div className="text-yellow-400 font-bold mb-2">
+                      レベルアップ！ Lv.{xpInfo.previousLevel} → Lv.{xpInfo.level}
+                    </div>
+                  )}
+                  <div className="text-sm text-gray-300">
+                    現在のレベル: Lv.{xpInfo.level}
+                  </div>
+                  <div className="text-sm text-gray-300">
+                    次のレベルまで: {xpInfo.currentLevelXp.toLocaleString()} / {xpInfo.nextLevelXp.toLocaleString()} XP
+                  </div>
+                  <div className="mt-2 bg-gray-700 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-blue-400 to-purple-400 h-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, (xpInfo.currentLevelXp / xpInfo.nextLevelXp) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           
