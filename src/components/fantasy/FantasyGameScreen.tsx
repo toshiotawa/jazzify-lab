@@ -575,6 +575,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       const currentTime = bgmManager.getCurrentMusicTime();
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
+      const lookAheadTime = 4; // 4秒先まで表示
+      const noteSpeed = 400; // ピクセル/秒
       
       // カウントイン中はM1の1拍目のノーツだけ先行表示
       if (currentTime < 0) {
@@ -591,8 +593,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         animationId = requestAnimationFrame(updateTaikoNotes);
         return;
       }
-      const lookAheadTime = 4; // 4秒先まで表示
-      const noteSpeed = 400; // ピクセル/秒
       
       // 表示するノーツを収集
       const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
