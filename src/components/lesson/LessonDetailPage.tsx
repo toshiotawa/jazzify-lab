@@ -258,7 +258,12 @@ const LessonDetailPage: React.FC = () => {
   };
 
   const handleBackToCourse = () => {
-    window.location.hash = '#lessons';
+    // コースIDがある場合はURLパラメータとして渡す
+    if (lesson?.course_id) {
+      window.location.hash = `#lessons?courseId=${lesson.course_id}`;
+    } else {
+      window.location.hash = '#lessons';
+    }
   };
 
   const getBunnyEmbedUrl = (vimeoUrl: string): string => {
