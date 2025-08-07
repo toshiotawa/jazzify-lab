@@ -31,12 +31,13 @@ type StageMode =
   | 'progression_timing';
 
 interface ChordDefinition {
-  id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
+  id: string;          // コードのID（例: 'CM7', 'G7', 'Am', 'C/E'）
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
   notes: number[];     // MIDIノート番号の配列
   noteNames: string[]; // ★ 理論的に正しい音名配列を追加
   quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
   root: string;        // ルート音（例: 'C', 'G', 'A'）
+  bass?: string;       // ベース音（オンコードの場合）
 }
 
 interface FantasyStage {
@@ -136,6 +137,14 @@ interface FantasyGameEngineProps {
  * @returns ChordDefinition
  */
 const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
+  // オンコードの場合の処理
+  const slashIndex = chordId.indexOf('/');
+  let bassNote: string | undefined;
+  
+  if (slashIndex !== -1) {
+    bassNote = chordId.substring(slashIndex + 1);
+  }
+  
   const resolved = resolveChord(chordId, 4, displayOpts);
   if (!resolved) {
     console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
@@ -154,7 +163,8 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
     notes: midiNotes,
     noteNames: resolved.notes, // 理論的に正しい音名配列を追加
     quality: resolved.quality,
-    root: resolved.root
+    root: resolved.root,
+    bass: bassNote
   };
 };
 
@@ -266,24 +276,38 @@ const selectUniqueRandomChord = (
 };
 
 /**
- * 部分一致判定関数
- * 入力された音がコードの構成音の一部であるかチェック
+ * 部分的なコードマッチ判定（いずれかの構成音が押されているか）
  */
 const isPartialMatch = (inputNotes: number[], targetChord: ChordDefinition): boolean => {
-  if (inputNotes.length === 0) return false;
+  if (inputNotes.length === 0) {
+    return false;
+  }
   
-  const inputNotesMod12 = inputNotes.map(note => note % 12);
-  const targetNotesMod12 = targetChord.notes.map(note => note % 12);
+  // 重複を除去し、mod 12で正規化（オクターブ無視）
+  const inputNotesMod12 = [...new Set(inputNotes.map(note => note % 12))];
   
-  // 全ての入力音がターゲットコードの構成音に含まれているかチェック
-  return inputNotesMod12.every(inputNote => 
-    targetNotesMod12.includes(inputNote)
+  // オンコードの場合の特別処理
+  if (targetChord.bass) {
+    const bassNoteObj = parseNote(targetChord.bass);
+    if (bassNoteObj && typeof bassNoteObj.chroma === 'number') {
+      const bassMod12 = bassNoteObj.chroma;
+      return inputNotesMod12.includes(bassMod12);
+    }
+  }
+  
+  // 通常のコード判定
+  const targetNotesMod12 = [...new Set(targetChord.notes.map(note => note % 12))];
+  
+  // いずれかの構成音が含まれているかチェック
+  return targetNotesMod12.some(targetNote => 
+    inputNotesMod12.includes(targetNote)
   );
 };
 
 /**
  * コード判定関数
  * 構成音が全て押されていれば正解（順番・オクターブ不問、転回形も正解、余分な音があっても構成音が含まれていれば正解）
+ * オンコードの場合は分母の音（ベース音）が押されていれば正解
  */
 const checkChordMatch = (inputNotes: number[], targetChord: ChordDefinition): boolean => {
   if (inputNotes.length === 0) {
@@ -293,6 +317,29 @@ const checkChordMatch = (inputNotes: number[], targetChord: ChordDefinition): bo
   
   // 重複を除去し、mod 12で正規化（オクターブ無視）
   const inputNotesMod12 = [...new Set(inputNotes.map(note => note % 12))]; // 重複除去も追加
+  
+  // オンコードの場合の特別処理
+  if (targetChord.bass) {
+    // ベース音のMIDIノート番号を取得
+    const bassNoteObj = parseNote(targetChord.bass);
+    if (bassNoteObj && typeof bassNoteObj.chroma === 'number') {
+      const bassMod12 = bassNoteObj.chroma;
+      const hasBassNote = inputNotesMod12.includes(bassMod12);
+      
+      devLog.debug('🎸 オンコード判定:', {
+        targetChord: targetChord.displayName,
+        bassNote: targetChord.bass,
+        bassMod12,
+        inputNotesMod12,
+        hasBassNote
+      });
+      
+      // ベース音が押されていれば正解
+      return hasBassNote;
+    }
+  }
+  
+  // 通常のコード判定
   const targetNotesMod12 = [...new Set(targetChord.notes.map(note => note % 12))]; // 重複除去も追加
   
   // 転回形も考慮：すべての構成音が含まれているかチェック
@@ -332,6 +379,21 @@ const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): nu
   
   // 重複を除去し、mod 12で正規化（オクターブ無視）
   const inputNotesMod12 = [...new Set(inputNotes.map(note => note % 12))];
+  
+  // オンコードの場合の特別処理
+  if (targetChord.bass) {
+    const bassNoteObj = parseNote(targetChord.bass);
+    if (bassNoteObj && typeof bassNoteObj.chroma === 'number') {
+      const bassMod12 = bassNoteObj.chroma;
+      // ベース音が押されていればそれを返す
+      if (inputNotesMod12.includes(bassMod12)) {
+        return [bassMod12];
+      }
+      return [];
+    }
+  }
+  
+  // 通常のコード判定
   const targetNotesMod12 = [...new Set(targetChord.notes.map(note => note % 12))];
   
   // 正解した音を見つける

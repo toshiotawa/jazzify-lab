@@ -8,54 +8,66 @@ import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP, CHORD_ALIASES } from 
 import { type DisplayOpts, toDisplayChordName } from './display-note';
 
 /**
- * 任意ルートのコードから実音配列を取得（オクターブなし）
- * @param root ルート音名（英語表記: C, C#, Db, D#, Fx など）
- * @param quality コードクオリティ
- * @param octave 基準オクターブ（デフォルト: 4）- 内部計算用
- * @returns 実音配列（音名のみ、オクターブなし）
+ * コードテンプレートから実音配列を生成
+ * @param root ルート音（例: 'C', 'F#', 'Bb'）
+ * @param quality コードの性質（例: 'maj', 'm7', '7'）
+ * @param octave 基準オクターブ（デフォルト: 4）
+ * @param bass ベース音（オンコードの場合）
+ * @returns 音名配列（例: ['C', 'E', 'G']）
  */
-export function buildChordNotes(root: string, quality: ChordQuality, octave: number = 4): string[] {
-  const intervals = CHORD_TEMPLATES[quality];
-  if (!intervals) {
+export function buildChordNotes(root: string, quality: ChordQuality, octave: number = 4, bass?: string): string[] {
+  const template = CHORD_TEMPLATES[quality];
+  if (!template) {
     console.warn(`⚠️ 未定義のコードクオリティ: ${quality}`);
     return [];
   }
-
-  // ルートにオクターブを付加（内部計算用）
-  const rootWithOctave = `${root}${octave}`;
   
-  // 各インターバルを移調して実音を生成
-  return intervals.map(interval => {
-    const note = transpose(rootWithOctave, interval);
-    if (!note) {
-      console.warn(`⚠️ 移調失敗: ${rootWithOctave} + ${interval}`);
-      return root;
-    }
-    
-    // オクターブを削除して音名のみを返す
-    const noteNameOnly = note.replace(/\d+$/, '');
-    // ダブルシャープをxに変換（表示用）
-    return noteNameOnly.replace(/##/g, 'x');
+  // インターバルから実音に変換
+  const notes = template.map(interval => {
+    return transpose(root, interval);
   });
+  
+  // オンコードの場合、最初にベース音を追加
+  if (bass) {
+    // ベース音がすでにコード内にある場合は重複を避ける
+    const bassIndex = notes.findIndex(note => 
+      note && noteToMidi(note + octave) === noteToMidi(bass + octave)
+    );
+    
+    if (bassIndex !== -1) {
+      // ベース音がすでにある場合は、その音を最初に移動
+      const [bassNote] = notes.splice(bassIndex, 1);
+      return [bassNote, ...notes];
+    } else {
+      // ベース音がない場合は最初に追加
+      return [bass, ...notes];
+    }
+  }
+  
+  return notes;
 }
 
 /**
- * 任意ルートのコードからMIDIノート番号配列を取得
- * @param root ルート音名（英語表記: C, C#, Db, D#, Fx など）
- * @param quality コードクオリティ
+ * コードテンプレートからMIDIノート番号配列を生成
+ * @param root ルート音（例: 'C', 'F#', 'Bb'）
+ * @param quality コードの性質（例: 'maj', 'm7', '7'）
  * @param octave 基準オクターブ（デフォルト: 4）
+ * @param bass ベース音（オンコードの場合）
  * @returns MIDIノート番号配列
  */
-export function buildChordMidiNotes(root: string, quality: ChordQuality, octave: number = 4): number[] {
-  const notes = buildChordNotes(root, quality, octave);
+export function buildChordMidiNotes(root: string, quality: ChordQuality, octave: number = 4, bass?: string): number[] {
+  const notes = buildChordNotes(root, quality, octave, bass);
   
-  return notes.map(noteName => {
-    const note = parseNote(noteName);
-    if (!note || typeof note.midi !== 'number') {
-      console.warn(`⚠️ MIDI変換失敗: ${noteName}`);
+  // 音名をMIDIノート番号に変換
+  return notes.map((noteName, index) => {
+    // オンコードで最初の音（ベース音）の場合は、1オクターブ下げる
+    const noteOctave = (bass && index === 0) ? octave - 1 : octave;
+    const midi = noteToMidi(noteName + noteOctave);
+    if (typeof midi !== 'number') {
+      console.warn(`⚠️ MIDI変換失敗: ${noteName}${noteOctave}`);
       return 60; // デフォルトでC4
     }
-    return note.midi;
+    return midi;
   });
 }
 
@@ -94,7 +106,7 @@ export function transposeKey(currentKey: string, semitones: number): string {
 
 /**
  * ファンタジーモード用: 既存のコードIDから実音配列を取得
- * @param chordId 既存のコードID（例: 'CM7', 'G7', 'Am'）
+ * @param chordId 既存のコードID（例: 'CM7', 'G7', 'Am', 'C/E'）
  * @param octave 基準オクターブ（デフォルト: 4）
  * @returns MIDIノート番号配列
  */
@@ -105,17 +117,33 @@ export function getFantasyChordNotes(chordId: string, octave: number = 4): numbe
     return [];
   }
   
-  return buildChordMidiNotes(mapping.root, mapping.quality, octave);
+  return buildChordMidiNotes(mapping.root, mapping.quality, octave, mapping.bass);
 }
 
 /**
  * コード名のパース（ルートとクオリティに分割）
- * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7'）
- * @returns { root: string, quality: ChordQuality } | null
+ * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7', 'C/E', 'F/G'）
+ * @returns { root: string, quality: ChordQuality, bass?: string } | null
  */
-export function parseChordName(chordName: string): { root: string; quality: ChordQuality } | null {
+export function parseChordName(chordName: string): { root: string; quality: ChordQuality; bass?: string } | null {
+  // オンコード（分数コード）の処理
+  const slashIndex = chordName.indexOf('/');
+  let bassNote: string | undefined;
+  let mainChord = chordName;
+  
+  if (slashIndex !== -1) {
+    mainChord = chordName.substring(0, slashIndex);
+    bassNote = chordName.substring(slashIndex + 1);
+    
+    // ベース音の検証
+    if (!bassNote.match(/^[A-G](?:#{1,2}|b{1,2}|x)?$/)) {
+      console.warn(`⚠️ 無効なベース音: ${bassNote} in ${chordName}`);
+      return null;
+    }
+  }
+  
   // ルート音とサフィックスを分離（ダブルシャープ・ダブルフラットも対応）
-  const match = chordName.match(/^([A-G](?:#{1,2}|b{1,2}|x)?)(.*)$/);
+  const match = mainChord.match(/^([A-G](?:#{1,2}|b{1,2}|x)?)(.*)$/);
   if (!match) return null;
   
   const [, root, suffix] = match;
@@ -150,7 +178,7 @@ export function parseChordName(chordName: string): { root: string; quality: Chor
     return null;
   }
   
-  return { root, quality };
+  return { root, quality, bass: bassNote };
 }
 
 /**
@@ -172,7 +200,7 @@ export function resolveChord(
   if (!parsed) return null;
 
   // b) インターバル → 実音配列
-  const notes = buildChordNotes(parsed.root, parsed.quality, octave);
+  const notes = buildChordNotes(parsed.root, parsed.quality, octave, parsed.bass);
 
   return {
     id: chordId,
