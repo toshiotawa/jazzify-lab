@@ -648,6 +648,9 @@ export interface FantasyStage {
   measure_count?: number;
   time_signature?: number;
   count_in_measures?: number;
+  // 追加: 拍間隔（DBとクライアント両方のキーを許容）
+  note_interval_beats?: number;
+  noteIntervalBeats?: number;
 }
 
 export interface LessonContext {

@@ -124,7 +124,9 @@ const FantasyMain: React.FC = () => {
             bgmUrl: stage.bgm_url || stage.mp3_url,
             measureCount: stage.measure_count,
             countInMeasures: stage.count_in_measures,
-            timeSignature: stage.time_signature
+            timeSignature: stage.time_signature,
+            // 追加: 拍間隔（存在すれば）
+            noteIntervalBeats: (stage as any).note_interval_beats
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -444,7 +446,9 @@ const FantasyMain: React.FC = () => {
         bpm: nextStageData.bpm || 120,
         measureCount: nextStageData.measure_count,
         countInMeasures: nextStageData.count_in_measures,
-        timeSignature: nextStageData.time_signature
+        timeSignature: nextStageData.time_signature,
+        // 追加: 拍間隔（存在すれば）
+        noteIntervalBeats: (nextStageData as any).note_interval_beats
       };
 
       setGameResult(null);

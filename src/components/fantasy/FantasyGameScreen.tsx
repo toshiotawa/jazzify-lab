@@ -756,7 +756,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ★ マウント時 autoStart なら即開始
   useEffect(() => {
     if (autoStart) {
-      initializeGame(stage);
+      initializeGame({
+        ...stage,
+        // 互換性：Supabaseのカラム note_interval_beats を noteIntervalBeats にマップ（存在する場合）
+        noteIntervalBeats: (stage as any).note_interval_beats ?? (stage as any).noteIntervalBeats
+      } as any);
     }
   }, [autoStart, initializeGame, stage]);
 
@@ -782,11 +786,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <button
             onClick={() => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
-              initializeGame(stage);
+              initializeGame({
+                ...stage,
+                // 互換性：Supabaseのカラム note_interval_beats を noteIntervalBeats にマップ（存在する場合）
+                noteIntervalBeats: (stage as any).note_interval_beats ?? (stage as any).noteIntervalBeats
+              } as any);
             }}
             className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
           >
-            🎮 ゲーム開始！
+            Start
           </button>
           
           {/* デバッグ情報 */}

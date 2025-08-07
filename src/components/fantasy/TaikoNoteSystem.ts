@@ -39,7 +39,7 @@ export interface TimingJudgment {
 export function judgeTimingWindow(
   currentTime: number,
   targetTime: number,
-  windowMs: number = 300
+  windowMs: number = 150
 ): TimingJudgment {
   const diffMs = (currentTime - targetTime) * 1000;
   
@@ -84,7 +84,8 @@ export function generateBasicProgressionNotes(
   bpm: number,
   timeSignature: number,
   getChordDefinition: (chordId: string) => ChordDefinition | null,
-  countInMeasures: number = 0
+  countInMeasures: number = 0,
+  intervalBeats: number = timeSignature
 ): TaikoNote[] {
   // 入力検証
   if (!chordProgression || chordProgression.length === 0) {
@@ -102,29 +103,41 @@ export function generateBasicProgressionNotes(
     return [];
   }
 
+  if (intervalBeats <= 0) {
+    intervalBeats = timeSignature; // フォールバック
+  }
+
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
+
+  // ノートごとの進行インデックス
+  let noteIndex = 0;
   
-  // 本来仕様：Measure 1〜Measure Count の各小節の1拍目に出題
+  // 各小節に対して intervalBeats おきに配置（1拍目から）
   for (let measure = 1; measure <= measureCount; measure++) {
-    const chordIndex = (measure - 1) % chordProgression.length;
-    const chordId = chordProgression[chordIndex];
-    const chord = getChordDefinition(chordId);
-    
-    if (chord) {
+    for (let beat = 1; beat <= timeSignature; beat += intervalBeats) {
+      const chordId = chordProgression[noteIndex % chordProgression.length];
+      const chord = getChordDefinition(chordId);
+      if (!chord) {
+        noteIndex++;
+        continue;
+      }
+
       // Measure 1 開始を0秒として計算（countInはBGM側でオフセット管理）
-      const hitTime = (measure - 1) * secPerMeasure;
-      
+      const hitTime = (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat;
+
       notes.push({
-        id: `note_${measure}_1`,
+        id: `note_${measure}_${beat}`,
         chord,
         hitTime,
         measure,
-        beat: 1,
+        beat,
         isHit: false,
         isMissed: false
       });
+
+      noteIndex++;
     }
   }
   
@@ -146,9 +159,14 @@ export function generateRandomProgressionNotes(
   bpm: number,
   timeSignature: number,
   getChordDefinition: (chordId: string) => ChordDefinition | null,
-  countInMeasures: number = 0
+  countInMeasures: number = 0,
+  intervalBeats: number = timeSignature
 ): TaikoNote[] {
   if (chordPool.length === 0) return [];
+
+  if (intervalBeats <= 0) {
+    intervalBeats = timeSignature; // フォールバック
+  }
 
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
@@ -157,29 +175,33 @@ export function generateRandomProgressionNotes(
 
   let lastChordId = '';
 
-  // 本来仕様：Measure 1〜Measure Count の各小節の1拍目に出題
+  // 各小節に対して intervalBeats おきに配置（1拍目から）
   for (let measure = 1; measure <= measureCount; measure++) {
-    // 直前と同じコードは避ける
-    let nextId = chordPool[safeRandom()];
-    if (chordPool.length > 1) {
-      while (nextId === lastChordId) {
-        nextId = chordPool[safeRandom()];
+    for (let beat = 1; beat <= timeSignature; beat += intervalBeats) {
+      // 直前と同じコードは避ける
+      let nextId = chordPool[safeRandom()];
+      if (chordPool.length > 1) {
+        let guard = 0;
+        while (nextId === lastChordId && guard < 10) {
+          nextId = chordPool[safeRandom()];
+          guard++;
+        }
       }
+      lastChordId = nextId;
+
+      const chord = getChordDefinition(nextId);
+      if (!chord) continue;
+
+      notes.push({
+        id: `note_${measure}_${beat}`,
+        chord,
+        hitTime: (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat,
+        measure,
+        beat,
+        isHit: false,
+        isMissed: false
+      });
     }
-    lastChordId = nextId;
-
-    const chord = getChordDefinition(nextId);
-    if (!chord) continue;
-
-    notes.push({
-      id: `note_${measure}_1`,
-      chord,
-      hitTime: (measure - 1) * secPerMeasure, // M1基準
-      measure,
-      beat: 1,
-      isHit: false,
-      isMissed: false
-    });
   }
   
   return notes;
@@ -315,7 +337,7 @@ export function parseSimpleProgressionText(text: string): ChordProgressionDataIt
 export function judgeTimingWindowWithLoop(
   currentTime: number,
   targetTime: number,
-  windowMs: number = 300,
+  windowMs: number = 150,
   loopDuration?: number
 ): TimingJudgment {
   let diffMs = (currentTime - targetTime) * 1000;
@@ -397,7 +419,7 @@ export const PERFORMANCE_CONFIG = {
   NOTE_UPDATE_INTERVAL: 16,     // 更新間隔（ms）
   
   // 判定設定
-  JUDGMENT_WINDOW: 300,         // 判定ウィンドウ（ms）
+  JUDGMENT_WINDOW: 150,         // 判定ウィンドウ（ms）
   PERFECT_WINDOW: 50,           // Perfect判定ウィンドウ（ms）
   
   // アニメーション設定
