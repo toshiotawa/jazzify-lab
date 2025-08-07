@@ -1,18 +1,24 @@
 [build]
-  command = "npm ci && npm run build"
+  command = "(npm ci --no-audit --no-fund || (sleep 10 && npm ci --no-audit --no-fund)) && npm run build"
   publish = "dist"
   
 [build.environment]
   NODE_VERSION = "20"
   NPM_VERSION = "10"
+  NPM_CONFIG_FETCH_RETRIES = "5"
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT = "20000"
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT = "120000"
 
 # ステージングブランチ用の設定
 [context.stg]
-  command = "npm ci && npm run build"
+  command = "(npm ci --no-audit --no-fund || (sleep 10 && npm ci --no-audit --no-fund)) && npm run build"
   
 [context.stg.environment]
   NODE_ENV = "staging"
   VITE_APP_ENV = "staging"
+  NPM_CONFIG_FETCH_RETRIES = "5"
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT = "20000"
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT = "120000"
 
 [[headers]]
   for = "/*"
