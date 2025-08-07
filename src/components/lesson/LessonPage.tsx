@@ -412,29 +412,29 @@ const LessonPage: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-gradient-game text-white">
+    <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col">
+      {/* GameHeaderを追加 */}
       <GameHeader />
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col">
-          {/* ヘッダー */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-700">
-            <button
-              onClick={handleClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-              aria-label="戻る"
-            >
-              <FaArrowLeft />
-            </button>
-            <h1 className="text-xl font-bold">レッスン</h1>
-            <div className="w-8" /> {/* スペーサー */}
-          </div>
+      
+      {/* ヘッダー */}
+      <div className="flex items-center justify-between p-4 border-b border-slate-700">
+        <button
+          onClick={handleClose}
+          className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+          aria-label="戻る"
+        >
+          <FaArrowLeft />
+        </button>
+        <h1 className="text-xl font-bold">レッスン</h1>
+        <div className="w-8" /> {/* スペーサー */}
+      </div>
 
-          {loading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-gray-400">読み込み中...</p>
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-gray-400">読み込み中...</p>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
               {/* コース一覧サイドバー */}
               <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col">
                 <div className="p-4 border-b border-slate-700">
@@ -460,6 +460,8 @@ const LessonPage: React.FC = () => {
                         }`}
                         onClick={() => {
                           if (accessible) {
+                            console.log('Course selected:', course.title, course.id);
+                            console.log('Course details:', course);
                             setSelectedCourse(course);
                           } else {
                             toast.warning(accessResult.reason || 'このコースにはアクセスできません');
@@ -555,6 +557,7 @@ const LessonPage: React.FC = () => {
               <div className="flex-1 flex flex-col overflow-hidden">
                 {selectedCourse ? (
                   <>
+                    {console.log('Rendering selected course:', selectedCourse.title, selectedCourse.description)}
                     <div className="p-6 border-b border-slate-700">
                       <h2 className="text-2xl font-bold mb-2">{selectedCourse.title}</h2>
                       {selectedCourse.description && (
@@ -687,9 +690,7 @@ const LessonPage: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-};
+      );
+    };
 
 export default LessonPage; 
