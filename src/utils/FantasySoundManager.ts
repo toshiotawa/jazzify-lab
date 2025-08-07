@@ -61,6 +61,17 @@ export class FantasySoundManager {
     my_attack:     { base: new Audio(), ready: false }
   };
 
+  /** Web Audio (SE用) */
+  private seAudioContext: AudioContext | null = null;
+  private seGainNode: GainNode | null = null;
+  private seBuffers: Record<string, AudioBuffer | null> = {
+    enemy_attack: null,
+    fire: null,
+    ice: null,
+    thunder: null,
+    my_attack: null,
+  };
+
   /** マスターボリューム (0‑1) */
   private _volume = 0.8;
   /** 初期化済みフラグ */
@@ -152,6 +163,10 @@ export class FantasySoundManager {
     this.loadedPromise = Promise.all(promises).then(async () => {
       // ─ BassSynth ─ - globalSamplerを上書きしない独自のsampler
       await this._initializeAudioSystem();
+
+      // 低遅延SE用 Web Audio セットアップ + デコード
+      await this._setupSeContextAndBuffers(baseUrl);
+
       const Tone = window.Tone as typeof import('tone');
       this.bassSampler = new Tone.Sampler({
         urls: {
@@ -186,9 +201,36 @@ export class FantasySoundManager {
     return new Promise((resolve) => {
       const initializeAudioSystem = async () => {
         try {
-          const Tone = window.Tone as typeof import('tone');
-          if (Tone.context.state !== 'running') {
-            await Tone.context.resume();
+          // Tone を確実にロードし、低遅延設定を適用
+          let Tone: typeof import('tone');
+          if (!(window as any).Tone) {
+            try {
+              Tone = await import('tone');
+              (window as any).Tone = Tone;
+            } catch (e) {
+              console.warn('[FantasySoundManager] Failed to dynamic import tone:', e);
+            }
+          }
+          Tone = (window as any).Tone;
+
+          if (Tone) {
+            // まだ lookAhead が有効なら、最小化した新しい Context に切り替える
+            try {
+              const currentContext: any = (Tone as any).getContext ? (Tone as any).getContext() : (Tone as any).context;
+              const currentLookAhead = currentContext?.lookAhead ?? 0.1;
+              if (!currentContext || currentLookAhead > 0) {
+                const optimizedContext = new (Tone as any).Context({
+                  latencyHint: 'interactive',
+                  lookAhead: 0,
+                });
+                (Tone as any).setContext(optimizedContext);
+              }
+              if ((Tone as any).context?.state !== 'running') {
+                await (Tone as any).context.resume();
+              }
+            } catch (e) {
+              console.warn('[FantasySoundManager] Tone context optimization failed:', e);
+            }
           }
           resolve();
         } catch (error) {
@@ -207,6 +249,10 @@ export class FantasySoundManager {
     Object.values(this.audioMap).forEach(obj => {
       obj.base.volume = this._volume;
     });
+    // Web Audio の SE ゲインにも反映
+    if (this.seGainNode) {
+      this.seGainNode.gain.setValueAtTime(this._volume, this.seAudioContext!.currentTime);
+    }
   }
 
   private _playMagic(type: MagicSeType) {
@@ -218,6 +264,26 @@ export class FantasySoundManager {
 
   private _playSe(key: keyof typeof this.audioMap) {
     console.debug(`[FantasySoundManager] _playSe called with key: ${key}`);
+
+    // 低遅延: Web Audio での即時再生（フォールバックあり）
+    if (this.seAudioContext && this.seBuffers[key]) {
+      try {
+        const ctx = this.seAudioContext;
+        if (ctx.state !== 'running') {
+          void ctx.resume();
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = this.seBuffers[key]!;
+        src.connect(this.seGainNode!);
+        src.start(0);
+        src.addEventListener('ended', () => {
+          try { src.disconnect(); } catch {}
+        });
+        return;
+      } catch (e) {
+        console.warn('[FantasySoundManager] WebAudio SE playback failed. Falling back to HTMLAudio.', e);
+      }
+    }
     
     const entry = this.audioMap[key];
     if (!entry) {
@@ -238,17 +304,15 @@ export class FantasySoundManager {
       return;
     }
 
-    console.debug(`[FantasySoundManager] Playing sound: ${key} at volume: ${this._volume}`);
+    console.debug(`[FantasySoundManager] Playing sound (fallback): ${key} at volume: ${this._volume}`);
 
     // 同時再生のため cloneNode()
     const node = base.cloneNode() as HTMLAudioElement;
     node.volume = this._volume;
     // onended で解放
     node.addEventListener('ended', () => {
-      // Safari では remove() のみで OK、Chrome は detach で GC 対象
       node.src = '';
     });
-    // play() は Promise—but 例外無視
     const playPromise = node.play();
     if (playPromise !== undefined) {
       playPromise
@@ -304,6 +368,41 @@ export class FantasySoundManager {
 
   private _enableRootSound(enabled: boolean) {
     this.bassEnabled = enabled;
+  }
+
+  // ─────────────────────────────────────────────
+  // Web Audio (SE) setup
+  private async _setupSeContextAndBuffers(baseUrl: string): Promise<void> {
+    try {
+      if (!this.seAudioContext) {
+        this.seAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
+        this.seGainNode = this.seAudioContext.createGain();
+        this.seGainNode.gain.setValueAtTime(this._volume, this.seAudioContext.currentTime);
+        this.seGainNode.connect(this.seAudioContext.destination);
+      }
+
+      const seFiles: Array<[keyof typeof this.seBuffers, string]> = [
+        ['enemy_attack', 'enemy_attack.mp3'],
+        ['fire', 'fire.mp3'],
+        ['ice', 'ice.mp3'],
+        ['thunder', 'thunder.mp3'],
+        ['my_attack', 'my_attack.mp3'],
+      ];
+
+      await Promise.all(seFiles.map(async ([key, file]) => {
+        try {
+          const url = `${baseUrl}sounds/${file}`;
+          const resp = await fetch(url);
+          const arr = await resp.arrayBuffer();
+          const buf = await this.seAudioContext!.decodeAudioData(arr.slice(0));
+          this.seBuffers[key] = buf;
+        } catch (e) {
+          console.warn(`[FantasySoundManager] Failed to decode SE buffer: ${key}`, e);
+        }
+      }));
+    } catch (e) {
+      console.warn('[FantasySoundManager] SE AudioContext setup failed:', e);
+    }
   }
 }
 
