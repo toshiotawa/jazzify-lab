@@ -4,7 +4,7 @@
  */
 
 import { transpose, note as parseNote, distance } from 'tonal';
-import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP, CHORD_ALIASES } from './chord-templates';
+import { CHORD_TEMPLATES, CHORD_INVERSIONS, ChordQuality, ChordQualityWithInversion, FANTASY_CHORD_MAP, CHORD_ALIASES } from './chord-templates';
 import { type DisplayOpts, toDisplayChordName } from './display-note';
 
 /**
@@ -40,6 +40,37 @@ export function buildChordNotes(root: string, quality: ChordQuality, octave: num
 }
 
 /**
+ * 転回形を含むコードから実音配列を取得（オクターブなし）
+ * @param root ルート音名
+ * @param qualityWithInversion コードクオリティまたは転回形指定（例: 'maj(A)', '7(B)'）
+ * @param octave 基準オクターブ
+ * @returns 実音配列（音名のみ、オクターブなし）
+ */
+export function buildChordNotesWithInversion(root: string, qualityWithInversion: ChordQualityWithInversion, octave: number = 4): string[] {
+  // 転回形かどうかチェック
+  const inversionIntervals = CHORD_INVERSIONS[qualityWithInversion as keyof typeof CHORD_INVERSIONS];
+  
+  if (inversionIntervals) {
+    // 転回形の場合
+    const rootWithOctave = `${root}${octave}`;
+    
+    return inversionIntervals.map(interval => {
+      const note = transpose(rootWithOctave, interval);
+      if (!note) {
+        console.warn(`⚠️ 転回形の移調失敗: ${rootWithOctave} + ${interval}`);
+        return root;
+      }
+      
+      const noteNameOnly = note.replace(/\d+$/, '');
+      return noteNameOnly.replace(/##/g, 'x');
+    });
+  } else {
+    // 通常のコードの場合
+    return buildChordNotes(root, qualityWithInversion as ChordQuality, octave);
+  }
+}
+
+/**
  * 任意ルートのコードからMIDIノート番号配列を取得
  * @param root ルート音名（英語表記: C, C#, Db, D#, Fx など）
  * @param quality コードクオリティ
@@ -57,6 +88,41 @@ export function buildChordMidiNotes(root: string, quality: ChordQuality, octave:
     }
     return note.midi;
   });
+}
+
+/**
+ * 転回形を含むコードからMIDIノート番号配列を取得
+ * @param root ルート音名
+ * @param qualityWithInversion コードクオリティまたは転回形指定
+ * @param octave 基準オクターブ
+ * @returns MIDIノート番号配列
+ */
+export function buildChordMidiNotesWithInversion(root: string, qualityWithInversion: ChordQualityWithInversion, octave: number = 4): number[] {
+  const inversionIntervals = CHORD_INVERSIONS[qualityWithInversion as keyof typeof CHORD_INVERSIONS];
+  
+  if (inversionIntervals) {
+    // 転回形の場合、オクターブを考慮してMIDIノートを生成
+    const rootWithOctave = `${root}${octave}`;
+    
+    return inversionIntervals.map(interval => {
+      const note = transpose(rootWithOctave, interval);
+      if (!note) {
+        console.warn(`⚠️ 転回形のMIDI変換失敗: ${rootWithOctave} + ${interval}`);
+        return 60;
+      }
+      
+      const parsed = parseNote(note);
+      if (!parsed || typeof parsed.midi !== 'number') {
+        console.warn(`⚠️ MIDI変換失敗: ${note}`);
+        return 60;
+      }
+      
+      return parsed.midi;
+    });
+  } else {
+    // 通常のコードの場合
+    return buildChordMidiNotes(root, qualityWithInversion as ChordQuality, octave);
+  }
 }
 
 /**
@@ -99,13 +165,40 @@ export function transposeKey(currentKey: string, semitones: number): string {
  * @returns MIDIノート番号配列
  */
 export function getFantasyChordNotes(chordId: string, octave: number = 4): number[] {
+  // まず転回形対応のマップを確認
+  const { FANTASY_CHORD_MAP_WITH_INVERSIONS } = require('./chord-templates');
+  const inversionMapping = FANTASY_CHORD_MAP_WITH_INVERSIONS[chordId];
+  if (inversionMapping) {
+    return buildChordMidiNotesWithInversion(inversionMapping.root, inversionMapping.quality, octave);
+  }
+  
+  // 既存のFANTASY_CHORD_MAPから探す
   const mapping = FANTASY_CHORD_MAP[chordId];
   if (!mapping) {
-    console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
+    console.warn(`⚠️ 未定義のコードID: ${chordId}`);
     return [];
   }
   
   return buildChordMidiNotes(mapping.root, mapping.quality, octave);
+}
+
+/**
+ * ファンタジーモード用: 転回形を含むコードIDから実音配列を取得（同期版）
+ * @param chordId コードID（例: 'C(A)', 'G7(B)', 'Am'）
+ * @param octave 基準オクターブ
+ * @returns MIDIノート番号配列
+ */
+export function getFantasyChordNotesWithInversions(chordId: string, octave: number = 4): number[] {
+  // FANTASY_CHORD_MAP_WITH_INVERSIONSをインポート
+  const { FANTASY_CHORD_MAP_WITH_INVERSIONS } = require('./chord-templates');
+  
+  const mapping = FANTASY_CHORD_MAP_WITH_INVERSIONS[chordId];
+  if (!mapping) {
+    console.warn(`⚠️ 未定義のコードID: ${chordId}`);
+    return [];
+  }
+  
+  return buildChordMidiNotesWithInversion(mapping.root, mapping.quality, octave);
 }
 
 /**
