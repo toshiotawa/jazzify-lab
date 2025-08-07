@@ -31,12 +31,13 @@ type StageMode =
   | 'progression_timing';
 
 interface ChordDefinition {
-  id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
+  id: string;          // コードのID（例: 'CM7', 'G7', 'Am', 'C/E'）
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
   notes: number[];     // MIDIノート番号の配列
   noteNames: string[]; // ★ 理論的に正しい音名配列を追加
   quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
   root: string;        // ルート音（例: 'C', 'G', 'A'）
+  bass?: string;       // オンコードのベース音（例: 'E', 'G'）
 }
 
 interface FantasyStage {
@@ -154,7 +155,8 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
     notes: midiNotes,
     noteNames: resolved.notes, // 理論的に正しい音名配列を追加
     quality: resolved.quality,
-    root: resolved.root
+    root: resolved.root,
+    bass: resolved.bass // オンコードのベース音を追加
   };
 };
 
