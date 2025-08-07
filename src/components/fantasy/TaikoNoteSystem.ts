@@ -320,18 +320,15 @@ export function judgeTimingWindowWithLoop(
 ): TimingJudgment {
   let diffMs = (currentTime - targetTime) * 1000;
   
-  // ループを考慮した判定
+  // ループを考慮した判定（多周回でも安定するように正規化）
   if (loopDuration !== undefined && loopDuration > 0) {
-    // ループ境界をまたぐ可能性を考慮
-    const halfLoop = loopDuration * 500; // ミリ秒に変換して半分
-    
-    // 時間差が大きすぎる場合、ループを考慮
-    if (diffMs > halfLoop) {
-      // 現在時刻が次のループにいる
-      diffMs -= loopDuration * 1000;
-    } else if (diffMs < -halfLoop) {
-      // ターゲットが次のループにいる
-      diffMs += loopDuration * 1000;
+    const loopMs = loopDuration * 1000;
+    // diffMs を [-loopMs/2, +loopMs/2] に収める
+    while (diffMs > loopMs / 2) {
+      diffMs -= loopMs;
+    }
+    while (diffMs < -loopMs / 2) {
+      diffMs += loopMs;
     }
   }
   
