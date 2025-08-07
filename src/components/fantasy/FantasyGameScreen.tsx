@@ -563,7 +563,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // ループ情報を事前計算
     const stage = gameState.currentStage!;
-    const loopDuration = stage.measureCount * (60 / stage.bpm) * stage.timeSignature;
+          const loopDuration = (stage.measureCount || 8) * (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
     
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
@@ -575,6 +575,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       const currentTime = bgmManager.getCurrentMusicTime();
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
+      
+      // カウントイン中は出題を表示しない
+      if (currentTime < 0) {
+        fantasyPixiInstance.updateTaikoNotes([]);
+        animationId = requestAnimationFrame(updateTaikoNotes);
+        return;
+      }
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
       
