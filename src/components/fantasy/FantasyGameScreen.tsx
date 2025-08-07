@@ -578,15 +578,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
       
-      // カウントイン中はM1の1拍目のノーツだけ先行表示
+      // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
         const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
-        const first = gameState.taikoNotes[0];
-        if (first) {
-          const timeUntilHit = -currentTime; // hitTime=0 までの残り秒
-          if (timeUntilHit <= lookAheadTime) {
+        const maxPreCountNotes = 6;
+        for (let i = 0; i < gameState.taikoNotes.length; i++) {
+          const note = gameState.taikoNotes[i];
+          const timeUntilHit = note.hitTime - currentTime; // currentTime は負値
+          if (timeUntilHit > lookAheadTime) break;
+          if (timeUntilHit >= -0.5) {
             const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-            notesToDisplay.push({ id: first.id, chord: first.chord.displayName, x });
+            notesToDisplay.push({ id: note.id, chord: note.chord.displayName, x });
+            if (notesToDisplay.length >= maxPreCountNotes) break;
           }
         }
         fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
@@ -627,25 +630,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }
       });
       
-      // ループ対応：最後に近づいたら最初のノーツも仮想的に表示
+      // ループ対応：最後に近づいたら最初から複数ノーツを仮想的に追加
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
-        // ループ後の最初のノーツを仮想的に追加
-        const numNotesToShow = Math.min(3, gameState.taikoNotes.length); // 最大3つまで
-        
-        for (let i = 0; i < numNotesToShow; i++) {
+        const maxLoopPreview = 6;
+        for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
-          
-          if (timeUntilHit <= lookAheadTime) {
-            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-            notesToDisplay.push({
-              id: `${note.id}_loop`,
-              chord: note.chord.displayName,
-              x
-            });
-          }
+          if (timeUntilHit > lookAheadTime) break;
+          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          notesToDisplay.push({
+            id: `${note.id}_loop`,
+            chord: note.chord.displayName,
+            x
+          });
+          if (i + 1 >= maxLoopPreview) break;
         }
       }
       
