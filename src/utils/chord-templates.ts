@@ -95,7 +95,7 @@ export const CHORD_ALIASES: Record<string, ChordQuality> = {
  * ファンタジーモード用コードマッピング
  * 既存のコードIDとの互換性を保つ
  */
-export const FANTASY_CHORD_MAP: Record<string, { root: string; quality: ChordQuality }> = {
+export const FANTASY_CHORD_MAP: Record<string, { root: string; quality: ChordQuality; bass?: string }> = {
   // メジャートライアド
   'C': { root: 'C', quality: 'maj' },
   'F': { root: 'F', quality: 'maj' },
@@ -131,5 +131,30 @@ export const FANTASY_CHORD_MAP: Record<string, { root: string; quality: ChordQua
   'C9': { root: 'C', quality: '9' },
   'Cm9': { root: 'C', quality: 'm9' },
   'C11': { root: 'C', quality: '11' },
-  'C13': { root: 'C', quality: '13' }
+  'C13': { root: 'C', quality: '13' },
+  
+  // オンコード（分数コード）
+  'C/E': { root: 'C', quality: 'maj', bass: 'E' },
+  'C/G': { root: 'C', quality: 'maj', bass: 'G' },
+  'F/A': { root: 'F', quality: 'maj', bass: 'A' },
+  'F/C': { root: 'F', quality: 'maj', bass: 'C' },
+  'F/G': { root: 'F', quality: 'maj', bass: 'G' },
+  'G/B': { root: 'G', quality: 'maj', bass: 'B' },
+  'G/D': { root: 'G', quality: 'maj', bass: 'D' },
+  'Am/C': { root: 'A', quality: 'min', bass: 'C' },
+  'Am/E': { root: 'A', quality: 'min', bass: 'E' },
+  'Dm/F': { root: 'D', quality: 'min', bass: 'F' },
+  'Dm/A': { root: 'D', quality: 'min', bass: 'A' },
+  'Em/G': { root: 'E', quality: 'min', bass: 'G' },
+  'Em/B': { root: 'E', quality: 'min', bass: 'B' },
+  'G7/B': { root: 'G', quality: '7', bass: 'B' },
+  'G7/D': { root: 'G', quality: '7', bass: 'D' },
+  'G7/F': { root: 'G', quality: '7', bass: 'F' },
+  'C7/E': { root: 'C', quality: '7', bass: 'E' },
+  'C7/G': { root: 'C', quality: '7', bass: 'G' },
+  'C7/Bb': { root: 'C', quality: '7', bass: 'Bb' },
+  'D/F#': { root: 'D', quality: 'maj', bass: 'F#' },
+  'D7/F#': { root: 'D', quality: '7', bass: 'F#' },
+  'A/C#': { root: 'A', quality: 'maj', bass: 'C#' },
+  'E/G#': { root: 'E', quality: 'maj', bass: 'G#' }
 };
