@@ -444,9 +444,6 @@ export const useFantasyGameEngine = ({
       // ループ: 最初に戻る
       devLog.debug('🔄 太鼓の達人：ループ処理（input時）');
       
-      // ★ 追加: BGMをリセット
-      bgmManager.resetToStart();
-      
       // 全てのノーツのisHit/isMissedをリセット
       const resetNotes = prevState.taikoNotes.map(note => ({
         ...note,
@@ -474,6 +471,7 @@ export const useFantasyGameEngine = ({
     const currentTime = bgmManager.getCurrentMusicTime();
     const stage = prevState.currentStage;
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
+    // M1開始を0sとした1周の長さ
     const loopDuration = (stage?.measureCount || 8) * secPerMeasure;
     
     // ループ対応の判定を使用
@@ -801,7 +799,7 @@ export const useFantasyGameEngine = ({
 
         case 'progression_order':
         default:
-          // 基本版：小節の頭でコード出題
+          // 基本版：小節の頭でコード出題（Measure 1 から）
           if (stage.chordProgression) {
             taikoNotes = generateBasicProgressionNotes(
               stage.chordProgression,
@@ -809,7 +807,7 @@ export const useFantasyGameEngine = ({
               stage.bpm || 120,
               stage.timeSignature || 4,
               (chordId) => getChordDefinition(chordId, displayOpts),
-              0 // カウントインを渡す
+              0
             );
           }
           break;
@@ -818,16 +816,10 @@ export const useFantasyGameEngine = ({
       // ループ対応：最初のノーツの情報を設定
       if (taikoNotes.length > 0) {
         // 最初のモンスターのコードを設定（M2から開始）
-        if (activeMonsters.length > 0 && taikoNotes.length > 0) { // 修正：taikoNotes.length > 1ではなく > 0
-          // 基本版の場合、最初のノーツ（インデックス0）がM2
-          activeMonsters[0].chordTarget = taikoNotes[0].chord; // 最初のノーツ（M2）
-          // 2番目のノーツがある場合は次のコードとして設定
-          if (taikoNotes.length > 1) {
-            activeMonsters[0].nextChord = taikoNotes[1].chord;
-          } else {
-            // ループする場合は最初に戻る
-            activeMonsters[0].nextChord = taikoNotes[0].chord;
-          }
+        if (activeMonsters.length > 0 && taikoNotes.length > 0) {
+          // 最初のノーツ（Measure 1）を現在コード、次をnextに設定
+          activeMonsters[0].chordTarget = taikoNotes[0].chord;
+          activeMonsters[0].nextChord = taikoNotes.length > 1 ? taikoNotes[1].chord : taikoNotes[0].chord;
         }
       }
       
@@ -1085,12 +1077,7 @@ export const useFantasyGameEngine = ({
         return prevState;
       }
       
-      // modeがsingle以外の場合はゲージを更新しない
-      if (prevState.currentStage.mode !== 'single') {
-        return prevState;
-      }
-      
-      // 太鼓の達人モードの場合は専用のミス判定を行う
+      // 太鼓の達人モードの場合は専用のミス判定を行う（single以外）
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
         const stage = prevState.currentStage;
@@ -1109,15 +1096,26 @@ export const useFantasyGameEngine = ({
             isMissed: false
           }));
           
-          // ★ 追加: BGMをリセット
-          bgmManager.resetToStart();
-          
           devLog.debug('🔄 太鼓の達人：ループ処理（tick）');
+          
+          // 先頭と次のノーツ
+          const firstNote = resetNotes[0];
+          const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
+
+          // モンスターの表示コードもループ先頭に合わせて更新
+          const refreshedMonsters = prevState.activeMonsters.map(m => ({
+            ...m,
+            correctNotes: [],
+            gauge: 0,
+            chordTarget: firstNote?.chord || m.chordTarget,
+            nextChord: secondNote?.chord || firstNote?.chord || m.nextChord
+          }));
           
           return {
             ...prevState,
             currentNoteIndex: 0,
-            taikoNotes: resetNotes
+            taikoNotes: resetNotes,
+            activeMonsters: refreshedMonsters
           };
         }
         
@@ -1136,6 +1134,10 @@ export const useFantasyGameEngine = ({
           timeDiff += loopDuration;
         }
         
+        // カウントイン中はミス判定しない
+        if (currentTime < 0) {
+          return prevState;
+        }
         // ミス判定：+300ms以上経過した場合
         if (timeDiff > 0.3) {
           devLog.debug('💥 太鼓の達人：ミス判定', {
@@ -1180,8 +1182,7 @@ export const useFantasyGameEngine = ({
           };
         }
         
-        // 太鼓モードではゲージを更新しない
-        return prevState;
+              return prevState;
       }
       
       const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新

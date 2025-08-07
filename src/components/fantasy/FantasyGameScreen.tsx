@@ -122,12 +122,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.bpm || 120,
         stage.timeSignature || 4,
         stage.measureCount ?? 8,
-        0,
+        stage.countInMeasures ?? 0,
         settings.bgmVolume ?? 0.7
       );
-      
-      // ★ 追加: 初期化時にBGMを確実に0秒からスタート
-      bgmManager.resetToStart();
     }
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume]);
@@ -566,7 +563,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // ループ情報を事前計算
     const stage = gameState.currentStage!;
-    const loopDuration = stage.measureCount * (60 / stage.bpm) * stage.timeSignature;
+          const loopDuration = (stage.measureCount || 8) * (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
     
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
@@ -581,11 +578,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
       
+      // カウントイン中はM1の1拍目のノーツだけ先行表示
+      if (currentTime < 0) {
+        const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+        const first = gameState.taikoNotes[0];
+        if (first) {
+          const timeUntilHit = -currentTime; // hitTime=0 までの残り秒
+          if (timeUntilHit <= lookAheadTime) {
+            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+            notesToDisplay.push({ id: first.id, chord: first.chord.displayName, x });
+          }
+        }
+        fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+        animationId = requestAnimationFrame(updateTaikoNotes);
+        return;
+      }
+      
       // 表示するノーツを収集
       const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
       
-      // 現在の時間をループ内の時間に正規化
-      const normalizedTime = currentTime % loopDuration;
+      // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
+      const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
       // 通常のノーツ
       gameState.taikoNotes.forEach((note, index) => {
@@ -799,7 +812,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
-          <>M {currentMeasure} - B {currentBeat}</>
+          <>{bgmManager.getIsCountIn() ? 'Measure /' : `Measure ${currentMeasure}`} - B {currentBeat}</>
         </div>
         <div className="flex justify-between items-center">
           {/* ステージ情報と敵の数 */}

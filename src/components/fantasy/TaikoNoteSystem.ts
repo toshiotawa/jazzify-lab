@@ -106,21 +106,21 @@ export function generateBasicProgressionNotes(
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   
-  // M2から(measureCount-1)まで出題（M1と最終小節は休み）
-  for (let measure = 2; measure <= measureCount - 1; measure++) {
-    const chordIndex = (measure - 2) % chordProgression.length; // M2を0番目としてインデックス
+  // 本来仕様：Measure 1〜Measure Count の各小節の1拍目に出題
+  for (let measure = 1; measure <= measureCount; measure++) {
+    const chordIndex = (measure - 1) % chordProgression.length;
     const chordId = chordProgression[chordIndex];
     const chord = getChordDefinition(chordId);
     
     if (chord) {
-      // M1の時間を0として計算
+      // Measure 1 開始を0秒として計算（countInはBGM側でオフセット管理）
       const hitTime = (measure - 1) * secPerMeasure;
       
       notes.push({
         id: `note_${measure}_1`,
         chord,
         hitTime,
-        measure, // 表示用の小節番号
+        measure,
         beat: 1,
         isHit: false,
         isMissed: false
@@ -157,8 +157,8 @@ export function generateRandomProgressionNotes(
 
   let lastChordId = '';
 
-  // M2から(measureCount-1)まで出題（M1と最終小節は休み）
-  for (let measure = 2; measure <= measureCount - 1; measure++) {
+  // 本来仕様：Measure 1〜Measure Count の各小節の1拍目に出題
+  for (let measure = 1; measure <= measureCount; measure++) {
     // 直前と同じコードは避ける
     let nextId = chordPool[safeRandom()];
     if (chordPool.length > 1) {
@@ -209,19 +209,17 @@ export function parseChordProgressionData(
   const maxBar = Math.max(...progressionData.map(item => item.bar), 0);
   
   progressionData.forEach((item, index) => {
-    // M1と最終小節をスキップ
-    if (item.bar === 1 || item.bar === maxBar) return;
-    
+    // 本来仕様：Measure 1〜maxBar すべて許可
     const chord = getChordDefinition(item.chord);
     if (chord) {
-      // カウントイン時間を加算
+      // Measure 1 開始を0秒として計算
       const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       notes.push({
         id: `note_${item.bar}_${item.beats}_${index}`,
         chord,
         hitTime,
-        measure: item.bar, // 表示用の小節番号
+        measure: item.bar,
         beat: item.beats,
         isHit: false,
         isMissed: false
