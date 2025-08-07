@@ -21,8 +21,8 @@ import * as PIXI from 'pixi.js';
 
 export const JUDGMENT_TIMING: JudgmentTiming = {
   perfectMs: 0,   // Perfect判定は使用しない
-  goodMs: 500,    // ±500ms = Good (more forgiving)
-  missMs: 500     // 判定ライン通過後500ms = Miss (user request)
+  goodMs: 150,    // ±150ms = Good
+  missMs: 150     // 判定ライン通過後150ms = Miss
 };
 
 export const LOOKAHEAD_TIME = 5.0; // 5秒先まで表示（より長く表示）

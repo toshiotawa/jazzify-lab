@@ -475,7 +475,7 @@ export const useFantasyGameEngine = ({
     const loopDuration = (stage?.measureCount || 8) * secPerMeasure;
     
     // ループ対応の判定を使用
-    const judgment = judgeTimingWindowWithLoop(currentTime, currentNote.hitTime, 300, loopDuration);
+    const judgment = judgeTimingWindowWithLoop(currentTime, currentNote.hitTime, 150, loopDuration);
     
     devLog.debug('🥁 太鼓の達人判定:', {
       noteId: currentNote.id,
@@ -793,7 +793,8 @@ export const useFantasyGameEngine = ({
             stage.bpm || 120,
             stage.timeSignature || 4,
             (chordId) => getChordDefinition(chordId, displayOpts),
-            0
+            0,
+            (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
           );
           break;
 
@@ -807,7 +808,8 @@ export const useFantasyGameEngine = ({
               stage.bpm || 120,
               stage.timeSignature || 4,
               (chordId) => getChordDefinition(chordId, displayOpts),
-              0
+              0,
+              (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
             );
           }
           break;
@@ -938,21 +940,31 @@ export const useFantasyGameEngine = ({
   
   // 敵の攻撃処理
   const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
-    // 攻撃時に入力バッファをリセット
-    // setInputBuffer([]); // 削除
-    // if (inputTimeout) { // 削除
-    //   clearTimeout(inputTimeout); // 削除
-    //   setInputTimeout(null); // 削除
-    // } // 削除
+    // 攻撃時に入力バッファをリセット（削除済み）
+    
+    // 怒り状態のトグル（IDがわかる場合）
+    if (attackingMonsterId) {
+      const { setEnrage } = useEnemyStore.getState();
+      setEnrage(attackingMonsterId, true);
+      setTimeout(() => setEnrage(attackingMonsterId!, false), 500);
+    }
     
     setGameState(prevState => {
+      // ID未指定だった場合はここで先頭モンスターを適用
+      if (!attackingMonsterId && prevState.activeMonsters?.length) {
+        const { setEnrage } = useEnemyStore.getState();
+        const fallbackId = prevState.activeMonsters[0].id;
+        setEnrage(fallbackId, true);
+        setTimeout(() => setEnrage(fallbackId, false), 500);
+      }
+
       const newHp = Math.max(0, prevState.playerHp - 1); // 確実に1減らす
       
       devLog.debug('💥 敵の攻撃！HP更新:', {
         oldHp: prevState.playerHp,
         newHp: newHp,
         damage: 1,
-        attackingMonsterId
+        attackingMonsterId: attackingMonsterId || prevState.activeMonsters?.[0]?.id
       });
       
       const isGameOver = newHp <= 0;
@@ -1138,8 +1150,8 @@ export const useFantasyGameEngine = ({
         if (currentTime < 0) {
           return prevState;
         }
-        // ミス判定：+300ms以上経過した場合
-        if (timeDiff > 0.3) {
+        // ミス判定：+150ms以上経過した場合
+        if (timeDiff > 0.15) {
           devLog.debug('💥 太鼓の達人：ミス判定', {
             noteId: currentNote.id,
             measure: currentNote.measure,
@@ -1148,8 +1160,9 @@ export const useFantasyGameEngine = ({
             hitTime: currentNote.hitTime.toFixed(3)
           });
           
-          // 敵の攻撃を発動（非同期）
-          setTimeout(() => handleEnemyAttack(), 0);
+          // 敵の攻撃を発動（先頭モンスターを指定）
+          const attackerId = prevState.activeMonsters?.[0]?.id;
+          setTimeout(() => handleEnemyAttack(attackerId), 0);
           
           // 次のノーツへ進む
           const nextIndex = currentNoteIndex + 1;
