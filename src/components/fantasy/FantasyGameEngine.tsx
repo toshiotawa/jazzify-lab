@@ -474,6 +474,7 @@ export const useFantasyGameEngine = ({
     const currentTime = bgmManager.getCurrentMusicTime();
     const stage = prevState.currentStage;
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
+    // M1開始を0sとした1周の長さ
     const loopDuration = (stage?.measureCount || 8) * secPerMeasure;
     
     // ループ対応の判定を使用

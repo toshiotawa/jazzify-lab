@@ -5,10 +5,11 @@ class BGMManager {
   private loopBegin = 0
   private loopEnd = 0
   private timeUpdateHandler: (() => void) | null = null
-  private startTime = 0  // BGM開始時刻（performance.now()）
+  private startTime = 0  // BGM開始時刻（performance.now）
   private bpm = 120
   private timeSignature = 4
   private measureCount = 8
+  private countInMeasures = 0
   private isPlaying = false
   private loopScheduled = false
   private nextLoopTime = 0
@@ -31,6 +32,7 @@ class BGMManager {
     this.bpm = bpm
     this.timeSignature = timeSig
     this.measureCount = measureCount
+    this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     
     this.audio = new Audio(url)
     this.audio.preload = 'auto'
@@ -39,10 +41,11 @@ class BGMManager {
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
-    this.loopBegin = 0 // 0 秒からループ
-    this.loopEnd = measureCount * secPerMeas
+    // ループ区間は「カウントイン直後（=Measure 1 の開始）」〜「Measure Count 演奏後」
+    this.loopBegin = this.countInMeasures * secPerMeas
+    this.loopEnd = (this.countInMeasures + measureCount) * secPerMeas
 
-    // 初回再生は最初から（カウントインを含む）
+    // 初回再生は0秒から（カウントインを含む）
     this.audio.currentTime = 0
     
     // エラーハンドリング
@@ -84,7 +87,7 @@ class BGMManager {
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
-          console.log('🎵 BGM再生開始:', { url, bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd })
+          console.log('🎵 BGM再生開始:', { url, bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
         })
         .catch((error) => {
           console.warn('BGM playback failed:', error)
@@ -154,26 +157,29 @@ class BGMManager {
   
   /**
    * 現在の音楽的時間を取得（秒単位）
-   * カウントイン終了時を0秒とする
+   * カウントイン終了時（Measure 1 開始）を0秒とする。
+   * カウントイン中は負の値を返す。
    */
   getCurrentMusicTime(): number {
     if (!this.isPlaying || !this.audio) return 0
     
-    // オーディオの現在時間をそのまま返す（カウントインが無いため）
-    return this.audio.currentTime
+    const t = this.audio.currentTime - this.loopBegin
+    return t
   }
   
   /**
    * 現在の小節番号を取得（1始まり）
-   * カウントイン中は0を返す
+   * カウントイン中は0を返す（UI側で"/"表記）
    */
   getCurrentMeasure(): number {
     const musicTime = this.getCurrentMusicTime()
     
     const secPerMeasure = (60 / this.bpm) * this.timeSignature
+    if (musicTime < 0) return 0
+
     const measure = Math.floor(musicTime / secPerMeasure) + 1
     
-    // ループを考慮
+    // ループを考慮（Measure 1..measureCount）
     return ((measure - 1) % this.measureCount) + 1
   }
   
@@ -181,9 +187,9 @@ class BGMManager {
    * 現在の拍番号を取得（1始まり）
    */
   getCurrentBeat(): number {
-    if (!this.isPlaying) return 1
+    if (!this.isPlaying || !this.audio) return 1
     
-    const audioTime = this.audio?.currentTime || 0
+    const audioTime = this.audio.currentTime
     const secPerBeat = 60 / this.bpm
     const totalBeats = Math.floor(audioTime / secPerBeat)
     const beatInMeasure = (totalBeats % this.timeSignature) + 1
@@ -204,7 +210,8 @@ class BGMManager {
   }
   
   /**
-   * 指定した小節・拍の時刻を取得（秒単位）
+   * 指定した小節・拍の実時間（秒）を取得。
+   * Measure 1 の開始を this.loopBegin として、そこからのオフセットを返す。
    * @param measure 小節番号（1始まり）
    * @param beat 拍番号（1始まり、小数可）
    */
@@ -212,8 +219,8 @@ class BGMManager {
     const secPerBeat = 60 / this.bpm
     const secPerMeasure = secPerBeat * this.timeSignature
     
-    // 指定小節までの時間 + 拍の時間
-    return (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
+    // 指定小節までの時間 + 拍の時間（M1基準）にループ開始位置を加算
+    return this.loopBegin + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
   }
   
   /**
@@ -248,6 +255,14 @@ class BGMManager {
   }
   
   /**
+   * カウントイン中かどうか
+   */
+  getIsCountIn(): boolean {
+    if (!this.audio) return false
+    return this.audio.currentTime < this.loopBegin
+  }
+  
+  /**
    * BPMを取得
    */
   getBPM(): number {
@@ -262,7 +277,7 @@ class BGMManager {
   }
   
   /**
-   * 総小節数を取得
+   * 総小節数（カウントイン除く）を取得
    */
   getMeasureCount(): number {
     return this.measureCount
@@ -272,28 +287,21 @@ class BGMManager {
    * カウントイン小節数を取得
    */
   getCountInMeasures(): number {
-    return 0 // カウントイン小節数は削除
+    return this.countInMeasures
   }
   
   /**
-   * カウントイン中かどうか（廃止のため常にfalse）
-   */
-  getIsCountIn(): boolean {
-    return false
-  }
-  
-  /**
-   * BGMを即座に開始地点（0秒）にリセット
+   * BGMをMeasure 1の開始位置（ループ先頭）にリセット
    * ゲームの小節ループと同期するために使用
    */
   resetToStart() {
-    if (!this.audio || !this.isPlaying) return;
+    if (!this.audio || !this.isPlaying) return
     
     try {
-      this.audio.currentTime = 0;
-      console.log('🔄 BGMを0秒にリセット');
+      this.audio.currentTime = this.loopBegin
+      console.log('🔄 BGMをMeasure 1の開始へリセット')
     } catch (error) {
-      console.warn('BGMリセットエラー:', error);
+      console.warn('BGMリセットエラー:', error)
     }
   }
 }
