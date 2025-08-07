@@ -845,11 +845,13 @@ export class PIXINotesRendererInstance {
       graphics.beginFill(0x000000, 0);
       graphics.drawRect(-width / 2, -height / 2, width, height);
       graphics.endFill();
+      graphics.alpha = 0;
       return;
     }
 
     // より美しいグラデーション効果を再現（平らなノーツ対応）
     if (state === 'visible') {
+      graphics.alpha = 1; // デフォルトで明るく
       if (isBlackKey) {
         // 黒鍵ノーツ（紫系のグラデーション）- 平らなノーツ用に調整
         const steps = Math.max(2, Math.min(4, Math.floor(height / 2))); // 高さに応じて段数を調整
@@ -2292,6 +2294,8 @@ export class PIXINotesRendererInstance {
         noteSprite.sprite.texture = isBlackNote
           ? this.noteTextures.blackVisible
           : this.noteTextures.whiteVisible;
+        // 明るさ維持のため、visible 状態の初期αをやや高くする
+        noteSprite.sprite.alpha = 1;
       }
     }
     
