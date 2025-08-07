@@ -249,7 +249,7 @@ export function parseChordName(chordName: string): { root: string; quality: Chor
 /**
  * 任意のコードから実音配列を取得する汎用関数
  * FANTASY_CHORD_MAPを使わずに動的にコードを解決
- * @param chordId コードID（例: 'CM7', 'DbM7', 'D#7'）
+ * @param chordId コードID（例: 'CM7', 'DbM7', 'D#7', 'C(A)', 'G7(B)'）
  * @param octave 基準オクターブ（デフォルト: 4）
  * @param displayOpts 表示オプション
  * @returns コード情報オブジェクト | null
@@ -258,13 +258,37 @@ export function resolveChord(
   chordId: string,
   octave: number = 4,
   displayOpts?: DisplayOpts
-): { id: string; root: string; quality: ChordQuality; notes: string[]; displayName: string } | null {
+): { id: string; root: string; quality: ChordQuality | ChordQualityWithInversion; notes: string[]; displayName: string } | null {
   
-  // a) まずエイリアスを考慮してパース
+  // 転回形の表記をチェック（例: C(A), G7(B)）
+  const inversionMatch = chordId.match(/^([A-G](?:#{1,2}|b{1,2}|x)?(?:maj|m|dim|aug|sus[24]|add9|6|7|9|11|13|M7|m7|maj7|m9|maj9|m11|m13)?)\(([ABC])\)$/);
+  
+  if (inversionMatch) {
+    const [, baseChord, inversionType] = inversionMatch;
+    const parsed = parseChordName(baseChord);
+    if (!parsed) return null;
+    
+    // 転回形のクオリティを構築（例: 'maj(A)', '7(B)'）
+    const inversionQuality = `${parsed.quality}(${inversionType})` as ChordQualityWithInversion;
+    
+    // 転回形が定義されているかチェック
+    if (inversionQuality in CHORD_INVERSIONS) {
+      const notes = buildChordNotesWithInversion(parsed.root, inversionQuality, octave);
+      
+      return {
+        id: chordId,
+        root: parsed.root,
+        quality: inversionQuality,
+        notes,
+        displayName: displayOpts ? toDisplayChordName(chordId, displayOpts) : chordId
+      };
+    }
+  }
+  
+  // 通常のコードとして処理
   const parsed = parseChordName(chordId);
   if (!parsed) return null;
 
-  // b) インターバル → 実音配列
   const notes = buildChordNotes(parsed.root, parsed.quality, octave);
 
   return {
