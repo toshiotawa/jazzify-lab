@@ -576,9 +576,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const currentTime = bgmManager.getCurrentMusicTime();
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       
-      // カウントイン中は出題を表示しない
+      // カウントイン中はM1の1拍目のノーツだけ先行表示
       if (currentTime < 0) {
-        fantasyPixiInstance.updateTaikoNotes([]);
+        const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+        const first = gameState.taikoNotes[0];
+        if (first) {
+          const timeUntilHit = -currentTime; // hitTime=0 までの残り秒
+          if (timeUntilHit <= lookAheadTime) {
+            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+            notesToDisplay.push({ id: first.id, chord: first.chord.displayName, x });
+          }
+        }
+        fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
         animationId = requestAnimationFrame(updateTaikoNotes);
         return;
       }
