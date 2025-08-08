@@ -959,6 +959,9 @@ export class PIXINotesRendererInstance {
       uvs: false,
       alpha: true
     });
+    (this.whiteNotes as any).eventMode = 'none';
+    (this.whiteNotes as any).interactiveChildren = false;
+    (this.whiteNotes as any).interactive = false;
     this.whiteNotes.zIndex = 12;
     this.container.addChild(this.whiteNotes);
 
@@ -969,22 +972,30 @@ export class PIXINotesRendererInstance {
       uvs: false,
       alpha: true
     });
+    (this.blackNotes as any).eventMode = 'none';
+    (this.blackNotes as any).interactiveChildren = false;
+    (this.blackNotes as any).interactive = false;
     this.blackNotes.zIndex = 13;
     this.container.addChild(this.blackNotes);
 
     // ラベル専用コンテナ（通常のContainer）
     this.labelsContainer = new PIXI.Container();
+    this.labelsContainer.eventMode = 'none';
     this.labelsContainer.zIndex = 14;
     this.container.addChild(this.labelsContainer);
 
     // エフェクト用コンテナ
     this.effectsContainer = new PIXI.Container();
+    this.effectsContainer.eventMode = 'none';
     this.effectsContainer.zIndex = 16;
     this.container.addChild(this.effectsContainer);
 
     // ヒットライン用コンテナ
     this.hitLineContainer = new PIXI.Container();
     this.hitLineContainer.zIndex = 20;
+    this.hitLineContainer.eventMode = 'none';
+    ;(this.hitLineContainer as any).interactive = false;
+    ;(this.hitLineContainer as any).interactiveChildren = false;
     this.container.addChild(this.hitLineContainer);
 
     // ピアノコンテナ（最上層）- 横スクロール機能を追加
@@ -1063,17 +1074,13 @@ export class PIXINotesRendererInstance {
   
   private setupHitLine(): void {
     const hitLine = new PIXI.Graphics();
-    hitLine.lineStyle(3, 0xFBBF24); // amber-400
-    hitLine.moveTo(0, this.settings.hitLineY);
-    hitLine.lineTo(this.app.screen.width, this.settings.hitLineY);
+    // 1px のヘアラインをピアノ上端に完全一致で描画（アンチエイリアス対策で -0.5）
+    hitLine.lineStyle(1, 0xFBBF24, 1.0); // amber-400
+    const y = this.settings.hitLineY - 0.5;
+    hitLine.moveTo(0, y);
+    hitLine.lineTo(this.app.screen.width, y);
     
-    // グロー効果
-    const glowLine = new PIXI.Graphics();
-    glowLine.lineStyle(6, 0xFBBF24, 0.5);
-    glowLine.moveTo(0, this.settings.hitLineY);
-    glowLine.lineTo(this.app.screen.width, this.settings.hitLineY);
-    
-    this.hitLineContainer.addChild(glowLine);
+    // 余計なグローは除去（位置ズレの原因になるため）
     this.hitLineContainer.addChild(hitLine);
     this.hitLineContainer.visible = this.settings.showHitLine;
   }
@@ -1333,6 +1340,7 @@ export class PIXINotesRendererInstance {
     
     // ピアノ背景のイベントを透過
     background.eventMode = 'none';
+    background.interactive = false;
     
     this.pianoContainer.addChild(background);
   }
@@ -2098,6 +2106,10 @@ export class PIXINotesRendererInstance {
     
     // メインノートスプライト（位置は後でupdateNotesで設定）
     const sprite = new PIXI.Sprite(texture);
+    // ノーツスプライトは完全にイベント非対象（クリック透過）
+    ;(sprite as any).eventMode = 'none';
+    ;(sprite as any).interactive = false;
+    ;(sprite as any).interactiveChildren = false;
     sprite.anchor.set(0.5, 0.5);
     sprite.x = x;
     sprite.y = 0; // 後で設定
@@ -2352,6 +2364,10 @@ export class PIXINotesRendererInstance {
     if (state === 'hit') {
       return;
     }
+    // ミス時は拡大したグローを描かない
+    if (state === 'missed') {
+      return;
+    }
 
     const color = this.getStateColor(state, pitch);
     const { noteWidth, noteHeight } = this.settings;
@@ -2382,6 +2398,7 @@ export class PIXINotesRendererInstance {
     
     // ===== 1. 縦レーンライト（新機能） =====
     const laneLight = new PIXI.Graphics();
+    (laneLight as any).eventMode = 'none';
     
     // レーンライトの幅とグラデーション
     const laneWidth = 8; // レーンライト幅
