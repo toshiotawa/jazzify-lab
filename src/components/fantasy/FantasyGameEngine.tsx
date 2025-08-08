@@ -437,6 +437,26 @@ export const useFantasyGameEngine = ({
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
+  // 怒り演出のトグルを安定させるためのタイマー管理（モンスターIDごと）
+  const enrageTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+  const triggerEnrageFor = useCallback((monsterId: string) => {
+    const { setEnrage } = useEnemyStore.getState();
+    // 既存の解除タイマーがあればクリア
+    const prev = enrageTimeoutsRef.current.get(monsterId);
+    if (prev) {
+      clearTimeout(prev);
+    }
+    // 怒りON
+    setEnrage(monsterId, true);
+    // 最後のトリガから500ms後に確実にOFF（重ねがけ対応）
+    const timeoutId = setTimeout(() => {
+      setEnrage(monsterId, false);
+      enrageTimeoutsRef.current.delete(monsterId);
+    }, 500);
+    enrageTimeoutsRef.current.set(monsterId, timeoutId);
+  }, []);
+
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
     // 全てのノーツを処理済みでループする場合の処理
@@ -950,18 +970,14 @@ export const useFantasyGameEngine = ({
     
     // 怒り状態のトグル（IDがわかる場合）
     if (attackingMonsterId) {
-      const { setEnrage } = useEnemyStore.getState();
-      setEnrage(attackingMonsterId, true);
-      setTimeout(() => setEnrage(attackingMonsterId!, false), 500);
+      triggerEnrageFor(attackingMonsterId);
     }
     
     setGameState(prevState => {
       // ID未指定だった場合はここで先頭モンスターを適用
       if (!attackingMonsterId && prevState.activeMonsters?.length) {
-        const { setEnrage } = useEnemyStore.getState();
         const fallbackId = prevState.activeMonsters[0].id;
-        setEnrage(fallbackId, true);
-        setTimeout(() => setEnrage(fallbackId, false), 500);
+        triggerEnrageFor(fallbackId);
       }
 
       const newHp = Math.max(0, prevState.playerHp - 1); // 確実に1減らす
@@ -1052,7 +1068,7 @@ export const useFantasyGameEngine = ({
     });
     
     onEnemyAttack(attackingMonsterId);
-  }, [onGameStateChange, onGameComplete, onEnemyAttack]);
+  }, [onGameStateChange, onGameComplete, onEnemyAttack, triggerEnrageFor]);
   
   // ゲージタイマーの管理
   useEffect(() => {
@@ -1166,9 +1182,13 @@ export const useFantasyGameEngine = ({
             hitTime: currentNote.hitTime.toFixed(3)
           });
           
-          // 敵の攻撃を発動（先頭モンスターを指定）
+          // 先頭モンスターを攻撃者として指定
           const attackerId = prevState.activeMonsters?.[0]?.id;
-          setTimeout(() => handleEnemyAttack(attackerId), 0);
+
+          // ミスしたノーツにフラグを立てる
+          const taikoNotesAfterMiss = prevState.taikoNotes.map((n, i) =>
+            i === currentNoteIndex ? { ...n, isMissed: true } : n
+          );
           
           // 次のノーツへ進む
           const nextIndex = currentNoteIndex + 1;
@@ -1188,9 +1208,17 @@ export const useFantasyGameEngine = ({
               : prevState.taikoNotes[0];
           }
           
+          // 攻撃処理は描画の後に非同期で実行
+          if (attackerId) {
+            setTimeout(() => handleEnemyAttack(attackerId), 0);
+          } else {
+            setTimeout(() => handleEnemyAttack(undefined), 0);
+          }
+          
           return {
             ...prevState,
             currentNoteIndex: nextIndex,
+            taikoNotes: taikoNotesAfterMiss,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
@@ -1222,10 +1250,8 @@ export const useFantasyGameEngine = ({
           monsterName: attackingMonster.name 
         });
         
-        // 怒り状態をストアに通知
-        const { setEnrage } = useEnemyStore.getState();
-        setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
+        // 怒り状態をストアに通知（重ねがけ安定化）
+        triggerEnrageFor(attackingMonster.id);
         
         // 攻撃したモンスターのゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 
@@ -1254,7 +1280,7 @@ export const useFantasyGameEngine = ({
         return nextState;
       }
     });
-  }, [handleEnemyAttack, onGameStateChange]);
+  }, [handleEnemyAttack, onGameStateChange, triggerEnrageFor]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
@@ -1518,6 +1544,12 @@ export const useFantasyGameEngine = ({
       
       // モンスターアイコン配列のクリア
       setStageMonsterIds([]);
+      
+      // 怒りタイマーをクリア
+      try {
+        enrageTimeoutsRef.current.forEach(t => clearTimeout(t));
+        enrageTimeoutsRef.current.clear();
+      } catch {}
       
       // プリロードしたテクスチャのクリア（参照のみクリア、実体はPIXI側で管理）
       imageTexturesRef.current.clear();
