@@ -625,8 +625,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
         
+        // ループリセット直後（currentNoteIndex===0）は負の許容をやめ、直前ノーツの復活を防ぐ
+        const lowerBound = gameState.currentNoteIndex === 0 ? 0 : -0.5;
+        
         // 表示範囲内のノーツ（現在ループのみ）
-        if (timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime) {
+        if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
             id: note.id,
