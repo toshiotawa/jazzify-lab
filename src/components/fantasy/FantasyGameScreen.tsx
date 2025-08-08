@@ -304,12 +304,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // 敵の攻撃音を再生
-    try {
-      const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
-      FantasySoundManager.playEnemyAttack();
-    } catch (error) {
-      console.error('Failed to play enemy attack sound:', error);
+    // 敵の攻撃音を再生（single クイズモードのみ）
+    if (stage.mode === 'single') {
+      try {
+        const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
+        FantasySoundManager.playEnemyAttack();
+      } catch (error) {
+        console.error('Failed to play enemy attack sound:', error);
+      }
     }
     
     // confetti削除 - 何もしない
@@ -322,7 +324,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setHeartFlash(true);
     setTimeout(() => setHeartFlash(false), 150);
     
-  }, []);
+  }, [stage.mode]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
@@ -650,7 +652,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // ループ対応：最後に近づいたら最初から複数ノーツを仮想的に追加（次ループのプレビュー）
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
-        const maxLoopPreview = 6;
+        // 次ループの全ノーツをプレビュー対象にする（上限なし、lookAheadTimeで制限）
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
           
@@ -669,7 +671,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             chord: note.chord.displayName,
             x
           });
-          if (i + 1 >= maxLoopPreview) break;
         }
       }
       

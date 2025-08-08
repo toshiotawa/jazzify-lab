@@ -1936,17 +1936,17 @@ export class FantasyPIXIInstance {
   createTaikoNote(noteId: string, chordName: string, x: number): PIXI.Container {
     const noteContainer = new PIXI.Container();
     
-    // ノーツの円を作成
+    // ノーツの円を作成（全て同じ明るい赤）
     const noteCircle = new PIXI.Graphics();
     noteCircle.lineStyle(3, 0xFFFFFF, 1);
-    noteCircle.beginFill(0xFF6B6B, 0.8);
+    noteCircle.beginFill(0xFF6B6B, 0.85);
     noteCircle.drawCircle(0, 0, 35);
     noteCircle.endFill();
     
-    // コード名のテキスト
+    // コード名のテキスト（全て同じ見た目）
     const chordText = new PIXI.Text(chordName, {
       fontFamily: 'Arial',
-      fontSize: 24,
+      fontSize: 22,
       fontWeight: 'bold',
       fill: 0xFFFFFF,
       align: 'center'
@@ -1958,7 +1958,7 @@ export class FantasyPIXIInstance {
     noteContainer.x = x;
     noteContainer.y = this.app.screen.height / 2;
     
-    // 半透明にする
+    // 全ノーツで同一の不透明度
     noteContainer.alpha = 0.85;
     
     return noteContainer;
@@ -1966,26 +1966,40 @@ export class FantasyPIXIInstance {
   
   // ノーツを更新（太鼓の達人風）
   updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
-    this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
-        note.destroy();
+    // 受信ノーツをマップ化
+    const incomingMap = new Map<string, {id: string, chord: string, x: number}>(notes.map(n => [n.id, n]));
+    const reusedIds = new Set<string>();
+
+    // 既存のノーツをクリーンアップ or リユース
+    this.activeNotes.forEach((container, id) => {
+      if (incomingMap.has(id)) return; // 継続表示
+      // 対応するプレビュー/通常IDを算出
+      const counterpartId = id.endsWith('_loop') ? id.slice(0, -5) : `${id}_loop`;
+      if (incomingMap.has(counterpartId)) {
+        // リユース: コンテナはそのまま、IDを差し替える
+        const next = incomingMap.get(counterpartId)!;
+        container.x = next.x;
+        this.activeNotes.delete(id);
+        this.activeNotes.set(counterpartId, container);
+        reusedIds.add(counterpartId);
+      } else {
+        // 完全に不要になったノーツのみ破棄
+        container.destroy();
         this.activeNotes.delete(id);
       }
     });
     
-    // 新しいノーツを追加・更新
+    // 新しいノーツを追加・既存ノーツの位置を更新
     notes.forEach(noteData => {
-      let note = this.activeNotes.get(noteData.id);
-      
-      if (!note) {
+      if (this.activeNotes.has(noteData.id)) {
+        // 既存のノーツの位置を更新
+        const note = this.activeNotes.get(noteData.id)!;
+        note.x = noteData.x;
+      } else if (!reusedIds.has(noteData.id)) {
         // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+        const note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
         this.notesContainer.addChild(note);
         this.activeNotes.set(noteData.id, note);
-      } else {
-        // 既存のノーツの位置を更新
-        note.x = noteData.x;
       }
     });
   }
@@ -2071,7 +2085,9 @@ export class FantasyPIXIInstance {
     this.monsterSprites.forEach(data => {
       if (data.outline) data.outline.destroy();
       if (data.angerMark) data.angerMark.destroy();
-      data.sprite.destroy();
+      if (data.sprite && !data.sprite.destroyed) {
+        data.sprite.destroy({ children: true });
+      }
     });
     this.monsterSprites.clear();
     
@@ -2111,46 +2127,38 @@ export class FantasyPIXIInstance {
     }
     
     // ▼▼▼ 追加 ▼▼▼
-    // バンドルされたアセットをアンロード
+    // バンドルされたアセットをアンロード（テクスチャはPIXI側の参照に任せる）
     PIXI.Assets.unloadBundle('monsterTextures').catch(e => devLog.debug("monsterTextures unload error", e));
     PIXI.Assets.unloadBundle('magicTextures').catch(e => devLog.debug("magicTextures unload error", e));
     // ▲▲▲ ここまで ▲▲▲
     
-    // テクスチャクリーンアップ
+    // テクスチャクリーンアップ（参照だけクリア）
     try {
       this.imageTextures.forEach((texture: PIXI.Texture) => {
-        try {
-          if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
-            texture.destroy(true);
-          }
-        } catch (error) {
-          devLog.debug('⚠️ 画像テクスチャ削除エラー:', error);
-        }
+        // ここでは destroy(true) は呼ばず、参照のみ破棄する
       });
       this.imageTextures.clear();
     } catch (error) {
       devLog.debug('⚠️ テクスチャクリーンアップエラー:', error);
     }
     
-    // PIXIアプリケーションの破棄
+    // PIXIアプリケーションの破棄（テクスチャは破棄しない）
     if (this.app) {
       try {
-        // ステージから全ての子要素を削除（PIXIの内部エラーを防ぐため）
         if (this.app.stage) {
-          // Remove all event listeners first to prevent null reference errors
           this.app.stage.removeAllListeners?.();
-          
-          // Remove all children safely
           while (this.app.stage.children.length > 0) {
             const child = this.app.stage.children[0];
             if (child) {
               this.app.stage.removeChild(child);
+              if (typeof (child as any).destroy === 'function') {
+                (child as any).destroy({ children: true });
+              }
             }
           }
         }
-        
-        // Destroy the app
-        this.app.destroy(true, { children: true, texture: true, baseTexture: true });
+        // Destroy the app without nuking textures/baseTextures to avoid null uvsFloat32
+        this.app.destroy(true, { children: true });
       } catch (error) {
         devLog.debug('⚠️ PIXI破棄エラー:', error);
       }
@@ -2191,13 +2199,15 @@ export class FantasyPIXIInstance {
       });
 
       // 親コンポーネント通知の直前で片付け
-      this.monsterSprite.visible = false;
-      // 二度アクセスしない様に null‑out
-      (this.monsterSprite as any) = null;
-      (this.monsterGameState as any) = null;
+      if (this.monsterSprite) {
+        this.monsterSprite.visible = false;
+        // 破棄は行わず、参照は保持したまま
+      }
+      // 二度アクセスしない様に null‑out はしない
+      // (this.monsterSprite as any) = null;
+      // (this.monsterGameState as any) = null;
       
       // 親コンポーネントに通知
-      // isDestroyedフラグをチェックして、インスタンス破棄後のコールバック呼び出しを防ぐ
       if (!this.isDestroyed) {
         this.onDefeated?.();
       } 
