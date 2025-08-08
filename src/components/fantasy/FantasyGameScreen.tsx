@@ -247,6 +247,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
+  const isTaikoModeRef = useRef(false);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
@@ -271,6 +272,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     if (fantasyPixiInstance) {
       fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
+      // 太鼓progressionモード時は判定ライン上に小さなヒットエフェクトを表示
+      if (isTaikoModeRef.current) {
+        const pos = fantasyPixiInstance.getJudgeLinePosition();
+        fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, true);
+      }
     }
 
     // ルート音を再生（非同期対応）
@@ -484,6 +490,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setFantasyPixiInstance(instance);
     // 初期状態の太鼓モードを設定
     instance.updateTaikoMode(gameState.isTaikoMode);
+    isTaikoModeRef.current = gameState.isTaikoMode;
   }, [gameState.isTaikoMode]);
   
   // 魔法名表示ハンドラー
@@ -550,6 +557,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (fantasyPixiInstance) {
       fantasyPixiInstance.updateTaikoMode(gameState.isTaikoMode);
+      isTaikoModeRef.current = gameState.isTaikoMode;
     }
   }, [fantasyPixiInstance, gameState.isTaikoMode]);
   
@@ -608,8 +616,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 2週目以降は全てのノーツを表示対象とする
         const loopCount = Math.floor(currentTime / loopDuration);
         
-        // 1週目のみ、処理済みのノーツをスキップ
-        if (loopCount === 0 && index < gameState.currentNoteIndex - 1) return;
+        // 1週目のみ、処理済みのノーツをスキップ（直前にヒットしたノーツも含めて非表示）
+        if (loopCount === 0 && index < gameState.currentNoteIndex) return;
         
         // ループを考慮した時間差計算
         let timeUntilHit = note.hitTime - normalizedTime;
