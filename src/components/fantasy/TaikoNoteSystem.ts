@@ -14,6 +14,7 @@ export interface TaikoNote {
   beat: number; // 拍番号（1始まり、小数可）
   isHit: boolean; // 既にヒットされたか
   isMissed: boolean; // ミスしたか
+  missedAt?: number; // ミスした音楽時間（秒）
 }
 
 // chord_progression_data のJSON形式
@@ -134,7 +135,8 @@ export function generateBasicProgressionNotes(
         measure,
         beat,
         isHit: false,
-        isMissed: false
+        isMissed: false,
+        missedAt: undefined
       });
 
       noteIndex++;
@@ -199,7 +201,8 @@ export function generateRandomProgressionNotes(
         measure,
         beat,
         isHit: false,
-        isMissed: false
+        isMissed: false,
+        missedAt: undefined
       });
     }
   }
@@ -244,7 +247,8 @@ export function parseChordProgressionData(
         measure: item.bar,
         beat: item.beats,
         isHit: false,
-        isMissed: false
+        isMissed: false,
+        missedAt: undefined
       });
     }
   });
