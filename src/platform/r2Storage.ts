@@ -176,3 +176,38 @@ export async function deleteDiaryImage(userId: string, diaryId: string): Promise
     }
   }
 }
+
+export async function uploadFantasyBgm(file: File, bgmId: string): Promise<string> {
+  checkFileSize(file, MAX_SONG_FILE_SIZE, 'BGMファイル');
+
+  const client = getR2Client();
+  const key = `fantasy-bgm/${bgmId}.mp3`;
+
+  const arrayBuffer = await file.arrayBuffer();
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: new Uint8Array(arrayBuffer),
+    ContentType: 'audio/mpeg',
+    CacheControl: 'public, max-age=31536000',
+  });
+
+  await client.send(command);
+
+  return `${PUBLIC_URL}/${key}`;
+}
+
+export async function deleteFantasyBgm(bgmId: string): Promise<void> {
+  const client = getR2Client();
+  const key = `fantasy-bgm/${bgmId}.mp3`;
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    });
+    await client.send(command);
+  } catch (error) {
+    console.log(`BGM ${key} の削除をスキップしました`);
+  }
+}
