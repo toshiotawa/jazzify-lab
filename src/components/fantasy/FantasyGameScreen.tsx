@@ -1012,16 +1012,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
                             if (!stage.showGuide && !isCorrect) {
                               return (
-                                <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                <span
+                                  key={index}
+                                  className={`mx-0.5 opacity-0 ${monsterCount > 5 ? '' : 'text-xs'}`}
+                                  style={monsterCount > 5 ? { fontSize: '10px' } : undefined}
+                                >
                                   ?
                                 </span>
                               );
                             }
                             return (
-                              <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                                {displayNoteName}
-                                {isCorrect && '✓'}
-                              </span>
+                                                              <span
+                                  key={index}
+                                  className={`mx-0.5 ${monsterCount > 5 ? '' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}
+                                  style={monsterCount > 5 ? { fontSize: '10px' } : undefined}
+                                >
+                                  {displayNoteName}
+                                  {isCorrect && '✓'}
+                                </span>
                             );
                           })}
                           </div>
