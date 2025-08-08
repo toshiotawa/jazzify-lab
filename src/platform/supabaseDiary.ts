@@ -563,6 +563,17 @@ export async function likeComment(commentId: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
 
+  // 自分のコメントはいいね不可
+  const { data: commentRow, error: commentErr } = await supabase
+    .from('diary_comments')
+    .select('user_id')
+    .eq('id', commentId)
+    .maybeSingle();
+  if (commentErr) throw commentErr;
+  if (commentRow && commentRow.user_id === user.id) {
+    throw new Error('自分のコメントにはいいねできません');
+  }
+
   // 既にいいね済みかチェック
   const { data: existing } = await supabase
     .from('comment_likes')

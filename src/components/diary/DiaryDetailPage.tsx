@@ -89,7 +89,7 @@ const DiaryDetailPage: React.FC = () => {
                     <img src={c.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
                     <span className="font-semibold">{c.nickname}</span>
                     <p className="flex-1 break-words">{c.content}</p>
-                    <button className="text-pink-400 hover:text-pink-300" onClick={()=>likeComment(c.id, diary.id)}>
+                    <button className="text-pink-400 hover:text-pink-300 disabled:opacity-50" onClick={()=>likeComment(c.id, diary.id)} disabled={c.user_id===user?.id} title={c.user_id===user?.id ? '自分のコメントにはいいねできません' : 'いいね'}>
                       <FaHeart className="inline mr-1"/> {c.likes ?? 0}
                     </button>
                   </div>

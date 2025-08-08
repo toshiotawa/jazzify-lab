@@ -398,9 +398,10 @@ const DiaryPage: React.FC = () => {
                                   <span className="font-semibold">{c.nickname}</span>
                                   <p className="flex-1 break-words">{c.content}</p>
                                   <button
-                                    className="text-pink-400 hover:text-pink-300"
+                                    className="text-pink-400 hover:text-pink-300 disabled:opacity-50"
                                     onClick={async ()=>{ try{ await likeComment(c.id, diary.id); }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); } }}
-                                    title="いいね"
+                                    title={c.user_id===user?.id ? '自分のコメントにはいいねできません' : 'いいね'}
+                                    disabled={c.user_id===user?.id}
                                   >
                                     <FaHeart className="inline mr-1" /> {c.likes ?? 0}
                                   </button>
