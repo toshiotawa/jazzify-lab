@@ -555,6 +555,11 @@ export const useFantasyGameEngine = ({
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
       
+      // 現在ヒットしたノーツにフラグを立てる
+      const updatedTaikoNotes = prevState.taikoNotes.map((n, i) =>
+        i === prevState.currentNoteIndex ? { ...n, isHit: true } : n
+      );
+      
       // モンスター更新
       const updatedMonsters = prevState.activeMonsters.map(m => {
         if (m.id === currentMonster.id) {
@@ -607,7 +612,8 @@ export const useFantasyGameEngine = ({
             playerSp: newSp,
             enemiesDefeated: newEnemiesDefeated,
             correctAnswers: prevState.correctAnswers + 1,
-            currentNoteIndex: nextNoteIndex
+            currentNoteIndex: nextNoteIndex,
+            taikoNotes: updatedTaikoNotes
           };
           onGameComplete('clear', finalState);
           return finalState;
@@ -618,8 +624,8 @@ export const useFantasyGameEngine = ({
           activeMonsters: remainingMonsters,
           monsterQueue: newMonsterQueue,
           playerSp: newSp,
-                      currentNoteIndex: nextNoteIndex,
-            taikoNotes: prevState.taikoNotes,
+          currentNoteIndex: nextNoteIndex,
+          taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated
@@ -631,7 +637,7 @@ export const useFantasyGameEngine = ({
         activeMonsters: updatedMonsters,
         playerSp: newSp,
         currentNoteIndex: nextNoteIndex,
-        taikoNotes: prevState.taikoNotes,
+        taikoNotes: updatedTaikoNotes,
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage
       };

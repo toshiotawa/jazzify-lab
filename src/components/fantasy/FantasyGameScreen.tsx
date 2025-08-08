@@ -616,8 +616,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 2週目以降は全てのノーツを表示対象とする
         const loopCount = Math.floor(currentTime / loopDuration);
         
-        // 1週目のみ、処理済みのノーツをスキップ（直前にヒットしたノーツも含めて非表示）
-        if (loopCount === 0 && index < gameState.currentNoteIndex) return;
+        // 処理済みのノーツをスキップ（直前にヒットしたノーツも含めて非表示）
+        if (index < gameState.currentNoteIndex) return;
+        
+        // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
+        if (note.isHit) return;
         
         // ループを考慮した時間差計算
         let timeUntilHit = note.hitTime - normalizedTime;
@@ -648,6 +651,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           const timeUntilHit = virtualHitTime - normalizedTime;
           if (timeUntilHit > lookAheadTime) break;
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          // 次ループのプレビュー用には表示（idに _loop を付与）
           notesToDisplay.push({
             id: `${note.id}_loop`,
             chord: note.chord.displayName,
