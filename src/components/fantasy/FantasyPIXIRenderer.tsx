@@ -1966,26 +1966,40 @@ export class FantasyPIXIInstance {
   
   // ノーツを更新（太鼓の達人風）
   updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
-    this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
-        note.destroy();
+    // 受信ノーツをマップ化
+    const incomingMap = new Map<string, {id: string, chord: string, x: number}>(notes.map(n => [n.id, n]));
+    const reusedIds = new Set<string>();
+
+    // 既存のノーツをクリーンアップ or リユース
+    this.activeNotes.forEach((container, id) => {
+      if (incomingMap.has(id)) return; // 継続表示
+      // 対応するプレビュー/通常IDを算出
+      const counterpartId = id.endsWith('_loop') ? id.slice(0, -5) : `${id}_loop`;
+      if (incomingMap.has(counterpartId)) {
+        // リユース: コンテナはそのまま、IDを差し替える
+        const next = incomingMap.get(counterpartId)!;
+        container.x = next.x;
+        this.activeNotes.delete(id);
+        this.activeNotes.set(counterpartId, container);
+        reusedIds.add(counterpartId);
+      } else {
+        // 完全に不要になったノーツのみ破棄
+        container.destroy();
         this.activeNotes.delete(id);
       }
     });
     
-    // 新しいノーツを追加・更新
+    // 新しいノーツを追加・既存ノーツの位置を更新
     notes.forEach(noteData => {
-      let note = this.activeNotes.get(noteData.id);
-      
-      if (!note) {
+      if (this.activeNotes.has(noteData.id)) {
+        // 既存のノーツの位置を更新
+        const note = this.activeNotes.get(noteData.id)!;
+        note.x = noteData.x;
+      } else if (!reusedIds.has(noteData.id)) {
         // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+        const note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
         this.notesContainer.addChild(note);
         this.activeNotes.set(noteData.id, note);
-      } else {
-        // 既存のノーツの位置を更新
-        note.x = noteData.x;
       }
     });
   }
