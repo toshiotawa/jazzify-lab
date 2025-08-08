@@ -1936,22 +1936,34 @@ export class FantasyPIXIInstance {
   createTaikoNote(noteId: string, chordName: string, x: number): PIXI.Container {
     const noteContainer = new PIXI.Container();
     
-    // ノーツの円を作成（赤）
+    const isPreview = noteId.endsWith('_loop');
+    
+    // ノーツの円を作成
     const noteCircle = new PIXI.Graphics();
-    noteCircle.lineStyle(3, 0xFFFFFF, 1);
-    noteCircle.beginFill(0xFF6B6B, 0.8);
-    noteCircle.drawCircle(0, 0, 35);
-    noteCircle.endFill();
+    if (isPreview) {
+      // 次ループプレビュー: 輪郭線のみ（中塗り無し）
+      noteCircle.lineStyle(2, 0xFF6B6B, 1);
+      noteCircle.drawCircle(0, 0, 35);
+    } else {
+      // 通常ノーツ: 赤塗り＋白フチ
+      noteCircle.lineStyle(3, 0xFFFFFF, 1);
+      noteCircle.beginFill(0xFF6B6B, 0.8);
+      noteCircle.drawCircle(0, 0, 35);
+      noteCircle.endFill();
+    }
     
     // コード名のテキスト
     const chordText = new PIXI.Text(chordName, {
       fontFamily: 'Arial',
       fontSize: 22,
       fontWeight: 'bold',
-      fill: 0xFFFFFF,
+      fill: isPreview ? 0xFF6B6B : 0xFFFFFF,
       align: 'center'
     });
     chordText.anchor.set(0.5);
+    if (isPreview) {
+      chordText.alpha = 0.6; // プレビューはやや薄く
+    }
     
     noteContainer.addChild(noteCircle);
     noteContainer.addChild(chordText);
