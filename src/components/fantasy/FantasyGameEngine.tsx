@@ -570,6 +570,11 @@ export const useFantasyGameEngine = ({
         return m;
       });
       
+      // ★ 完了ノーツを isHit=true に更新（表示から除外）
+      const updatedTaikoNotes = prevState.taikoNotes.map((n, i) =>
+        i === prevState.currentNoteIndex ? { ...n, isHit: true } : n
+      );
+      
       // 敵を倒した場合、新しいモンスターを補充
       if (isDefeated) {
         const remainingMonsters = updatedMonsters.filter(m => m.id !== currentMonster.id);
@@ -618,8 +623,8 @@ export const useFantasyGameEngine = ({
           activeMonsters: remainingMonsters,
           monsterQueue: newMonsterQueue,
           playerSp: newSp,
-                      currentNoteIndex: nextNoteIndex,
-            taikoNotes: prevState.taikoNotes,
+          currentNoteIndex: nextNoteIndex,
+          taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated
@@ -631,7 +636,7 @@ export const useFantasyGameEngine = ({
         activeMonsters: updatedMonsters,
         playerSp: newSp,
         currentNoteIndex: nextNoteIndex,
-        taikoNotes: prevState.taikoNotes,
+        taikoNotes: updatedTaikoNotes,
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage
       };
