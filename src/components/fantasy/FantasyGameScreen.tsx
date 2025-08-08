@@ -340,6 +340,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // ハートフラッシュ効果
     setHeartFlash(true);
     setTimeout(() => setHeartFlash(false), 150);
+
+    // 怒りマーク（ランダム位置で数個）を表示
+    try {
+      if (fantasyPixiInstance) {
+        // 2〜4個の怒りマークを出す
+        const count = 2 + Math.floor(Math.random() * 3);
+        fantasyPixiInstance.spawnAngerBurst(attackingMonsterId, count);
+      }
+    } catch (e) {
+      // 失敗してもゲーム続行
+    }
     
   }, [stage.mode]);
   
@@ -644,8 +655,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
         
-        // ループリセット直後（currentNoteIndex===0）は負の許容をやめ、直前ノーツの復活を防ぐ
-        const lowerBound = gameState.currentNoteIndex === 0 ? 0 : -0.5;
+        // 負方向にも少し残すことで、判定ライン通過後もしばらく表示
+        const lowerBound = -0.5;
         
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
