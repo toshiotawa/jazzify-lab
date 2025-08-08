@@ -227,6 +227,7 @@ const App: React.FC = () => {
       MainContent = <PricingTable />;
       break;
     case '#admin-songs':
+    case '#admin-fantasy-bgm':
     case '#admin-lessons':
     case '#admin-challenges':
     case '#admin-users':

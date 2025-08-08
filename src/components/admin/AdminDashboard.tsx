@@ -7,6 +7,7 @@ import { LessonManager } from './LessonManager';
 import MissionManager from './MissionManager';
 import UserManager from './UserManager';
 import AnnouncementManager from './AnnouncementManager';
+import FantasyBgmManager from './FantasyBgmManager';
 
 /**
  * 管理画面ゲート – is_admin フラグを持つユーザーのみアクセス許可
@@ -54,14 +55,15 @@ const AdminDashboard: React.FC = () => {
       {/* デスクトップ: サイドバー */}
       <aside className="hidden md:flex w-60 bg-slate-800 border-r border-slate-700 p-4 space-y-4 flex-col">
         <h2 className="text-lg font-bold">Admin</h2>
-        <nav className="space-y-2 flex-1">
-          <SidebarLink hash="#admin-songs" label="曲管理" />
-          <SidebarLink hash="#admin-courses" label="コース管理" />
-          <SidebarLink hash="#admin-lessons" label="レッスン管理" />
-          <SidebarLink hash="#admin-challenges" label="ミッション管理" />
-          <SidebarLink hash="#admin-users" label="会員管理" />
-          <SidebarLink hash="#admin-announcements" label="お知らせ管理" />
-        </nav>
+                 <nav className="space-y-2 flex-1">
+           <SidebarLink hash="#admin-songs" label="曲管理" />
+           <SidebarLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
+           <SidebarLink hash="#admin-courses" label="コース管理" />
+           <SidebarLink hash="#admin-lessons" label="レッスン管理" />
+           <SidebarLink hash="#admin-challenges" label="ミッション管理" />
+           <SidebarLink hash="#admin-users" label="会員管理" />
+           <SidebarLink hash="#admin-announcements" label="お知らせ管理" />
+         </nav>
         <button className="btn btn-sm btn-outline w-full" onClick={() => { window.location.href = '/main#dashboard'; }}>
           閉じる
         </button>
@@ -75,14 +77,15 @@ const AdminDashboard: React.FC = () => {
             閉じる
           </button>
         </div>
-        <nav className="flex space-x-2 overflow-x-auto">
-          <MobileTabLink hash="#admin-songs" label="曲管理" />
-          <MobileTabLink hash="#admin-courses" label="コース" />
-          <MobileTabLink hash="#admin-lessons" label="レッスン" />
-          <MobileTabLink hash="#admin-challenges" label="ミッション" />
-          <MobileTabLink hash="#admin-users" label="会員" />
-          <MobileTabLink hash="#admin-announcements" label="お知らせ" />
-        </nav>
+                 <nav className="flex space-x-2 overflow-x-auto">
+           <MobileTabLink hash="#admin-songs" label="曲管理" />
+           <MobileTabLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
+           <MobileTabLink hash="#admin-courses" label="コース" />
+           <MobileTabLink hash="#admin-lessons" label="レッスン" />
+           <MobileTabLink hash="#admin-challenges" label="ミッション" />
+           <MobileTabLink hash="#admin-users" label="会員" />
+           <MobileTabLink hash="#admin-announcements" label="お知らせ" />
+         </nav>
       </div>
 
       {/* メインコンテンツ */}
@@ -130,12 +133,13 @@ const DashboardContent: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  if (currentHash.startsWith('#admin-songs')) return <SongManager />;
-  if (currentHash.startsWith('#admin-courses')) return <CourseManager />;
-  if (currentHash.startsWith('#admin-lessons')) return <LessonManager />;
-  if (currentHash.startsWith('#admin-challenges')) return <MissionManager />;
-  if (currentHash.startsWith('#admin-users')) return <UserManager />;
-  if (currentHash.startsWith('#admin-announcements')) return <AnnouncementManager />;
+     if (currentHash.startsWith('#admin-songs')) return <SongManager />;
+   if (currentHash.startsWith('#admin-fantasy-bgm')) return <FantasyBgmManager />;
+   if (currentHash.startsWith('#admin-courses')) return <CourseManager />;
+   if (currentHash.startsWith('#admin-lessons')) return <LessonManager />;
+   if (currentHash.startsWith('#admin-challenges')) return <MissionManager />;
+   if (currentHash.startsWith('#admin-users')) return <UserManager />;
+   if (currentHash.startsWith('#admin-announcements')) return <AnnouncementManager />;
   return (
     <div className="flex items-center justify-center h-full">
       <p className="text-gray-400 text-center px-4">
