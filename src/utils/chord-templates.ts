@@ -48,7 +48,7 @@ export const CHORD_TEMPLATES: Record<ChordQuality, string[]> = {
   'aug7':   ['1P', '3M', '5A', '7m'],
   'm7b5':   ['1P', '3m', '5d', '7m'],  // ハーフディミニッシュ
   
-  // シックスス
+  // シックス
   '6':      ['1P', '3M', '5P', '6M'],
   'm6':     ['1P', '3m', '5P', '6M'],
   
@@ -57,19 +57,50 @@ export const CHORD_TEMPLATES: Record<ChordQuality, string[]> = {
   'm9':     ['1P', '3m', '5P', '7m', '9M'],
   'maj9':   ['1P', '3M', '5P', '7M', '9M'],
   
-  // エレブンス・サーティーンス
+  // イレブンス
   '11':     ['1P', '3M', '5P', '7m', '9M', '11P'],
   'm11':    ['1P', '3m', '5P', '7m', '9M', '11P'],
+  
+  // サーティーンス
   '13':     ['1P', '3M', '5P', '7m', '9M', '11P', '13M'],
   'm13':    ['1P', '3m', '5P', '7m', '9M', '11P', '13M'],
   
-  // サスペンド・アド
+  // サスペンド
   'sus2':   ['1P', '2M', '5P'],
   'sus4':   ['1P', '4P', '5P'],
   '7sus4':  ['1P', '4P', '5P', '7m'],
+  
+  // アドナインス
   'add9':   ['1P', '3M', '5P', '9M'],
   'madd9':  ['1P', '3m', '5P', '9M']
 };
+
+// 転回形のテンプレートを追加
+export const CHORD_INVERSIONS: Record<string, string[]> = {
+  // メジャートライアドの転回形
+  'maj(A)':  ['3M', '5P', '8P'],      // 第1転回形（Aフォーム）
+  'maj(B)':  ['5P', '8P', '10M'],     // 第2転回形（Bフォーム）
+  
+  // マイナートライアドの転回形
+  'min(A)':  ['3m', '5P', '8P'],      // 第1転回形
+  'min(B)':  ['5P', '8P', '10m'],     // 第2転回形
+  
+  // セブンスコードの転回形
+  '7(A)':    ['3M', '5P', '7m', '8P'],     // 第1転回形
+  '7(B)':    ['5P', '7m', '8P', '10M'],    // 第2転回形
+  '7(C)':    ['7m', '8P', '10M', '12P'],   // 第3転回形
+  
+  'maj7(A)': ['3M', '5P', '7M', '8P'],     // 第1転回形
+  'maj7(B)': ['5P', '7M', '8P', '10M'],    // 第2転回形
+  'maj7(C)': ['7M', '8P', '10M', '12P'],   // 第3転回形
+  
+  'm7(A)':   ['3m', '5P', '7m', '8P'],     // 第1転回形
+  'm7(B)':   ['5P', '7m', '8P', '10m'],    // 第2転回形
+  'm7(C)':   ['7m', '8P', '10m', '12P']    // 第3転回形
+};
+
+// ChordQualityタイプを拡張して転回形も含める
+export type ChordQualityWithInversion = ChordQuality | keyof typeof CHORD_INVERSIONS;
 
 /**
  * コード表記のエイリアス（よく使われる別名）
@@ -132,4 +163,45 @@ export const FANTASY_CHORD_MAP: Record<string, { root: string; quality: ChordQua
   'Cm9': { root: 'C', quality: 'm9' },
   'C11': { root: 'C', quality: '11' },
   'C13': { root: 'C', quality: '13' }
+};
+
+// 転回形対応のFANTASY_CHORD_MAPを追加
+export const FANTASY_CHORD_MAP_WITH_INVERSIONS: Record<string, { root: string; quality: ChordQualityWithInversion }> = {
+  // 既存のコードをすべて含む
+  ...Object.entries(FANTASY_CHORD_MAP).reduce((acc, [key, value]) => ({
+    ...acc,
+    [key]: value
+  }), {}),
+  
+  // メジャートライアドの転回形
+  'C(A)': { root: 'C', quality: 'maj(A)' },
+  'C(B)': { root: 'C', quality: 'maj(B)' },
+  'F(A)': { root: 'F', quality: 'maj(A)' },
+  'F(B)': { root: 'F', quality: 'maj(B)' },
+  'G(A)': { root: 'G', quality: 'maj(A)' },
+  'G(B)': { root: 'G', quality: 'maj(B)' },
+  
+  // マイナートライアドの転回形
+  'Am(A)': { root: 'A', quality: 'min(A)' },
+  'Am(B)': { root: 'A', quality: 'min(B)' },
+  'Dm(A)': { root: 'D', quality: 'min(A)' },
+  'Dm(B)': { root: 'D', quality: 'min(B)' },
+  'Em(A)': { root: 'E', quality: 'min(A)' },
+  'Em(B)': { root: 'E', quality: 'min(B)' },
+  
+  // ドミナント7thの転回形
+  'G7(A)': { root: 'G', quality: '7(A)' },
+  'G7(B)': { root: 'G', quality: '7(B)' },
+  'G7(C)': { root: 'G', quality: '7(C)' },
+  'C7(A)': { root: 'C', quality: '7(A)' },
+  'C7(B)': { root: 'C', quality: '7(B)' },
+  'C7(C)': { root: 'C', quality: '7(C)' },
+  
+  // メジャー7thの転回形
+  'CM7(A)': { root: 'C', quality: 'maj7(A)' },
+  'CM7(B)': { root: 'C', quality: 'maj7(B)' },
+  'CM7(C)': { root: 'C', quality: 'maj7(C)' },
+  'FM7(A)': { root: 'F', quality: 'maj7(A)' },
+  'FM7(B)': { root: 'F', quality: 'maj7(B)' },
+  'FM7(C)': { root: 'F', quality: 'maj7(C)' }
 };
