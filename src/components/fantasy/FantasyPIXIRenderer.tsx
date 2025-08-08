@@ -1597,11 +1597,11 @@ export class FantasyPIXIInstance {
     icon.y = -monsterData.sprite.height * 0.45;
     monsterData.sprite.addChild(icon);
 
-    // 1 秒後に自動削除（ずっと残すなら setTimeout を外す）
+    // 0.5 秒後に自動削除（過密時の視認性改善）
     setTimeout(() => {
       if (!icon.destroyed && icon.parent) icon.parent.removeChild(icon);
       icon.destroy();
-    }, 1000);
+    }, 500);
 
     (monsterData as any).attackIcon = icon; // 再利用できるよう保持
   }
@@ -2069,20 +2069,24 @@ export class FantasyPIXIInstance {
     
     this.effectContainer.addChild(effectGraphics);
     
-    // フェードアウトアニメーション
-    const fadeOut = () => {
-      effectGraphics.alpha -= 0.05;
-      effectGraphics.scale.x += 0.05;
-      effectGraphics.scale.y += 0.05;
-      
-      if (effectGraphics.alpha <= 0) {
-        effectGraphics.destroy();
+    // 140msで確実に終了する時間制御フェード
+    const start = performance.now();
+    const duration = 140;
+    const startScaleX = effectGraphics.scale.x;
+    const startScaleY = effectGraphics.scale.y;
+    const animate = (t: number) => {
+      const elapsed = t - start;
+      const p = Math.min(1, elapsed / duration);
+      effectGraphics.alpha = 1 - p;
+      const s = 1 + p * 0.25;
+      effectGraphics.scale.set(startScaleX * s, startScaleY * s);
+      if (p < 1) {
+        requestAnimationFrame(animate);
       } else {
-        requestAnimationFrame(fadeOut);
+        if (!effectGraphics.destroyed) effectGraphics.destroy();
       }
     };
-    
-    requestAnimationFrame(fadeOut);
+    requestAnimationFrame(animate);
   }
   
   // 判定ラインの位置を取得
