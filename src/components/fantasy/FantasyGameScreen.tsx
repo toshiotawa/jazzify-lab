@@ -1057,14 +1057,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       )}
                       
                       {/* HPゲージ */}
-                      <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
-                        <div
-                          className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
-                          style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
-                          {monster.currentHp}/{monster.maxHp}
-                        </div>
+                      {(() => {
+                        const isLandscape = window.innerWidth > window.innerHeight;
+                        // 横画面のモバイルではUI圧縮中だが、バーは従来より大きめに
+                        const gaugeHeightClass = (isMobile && isLandscape)
+                          ? (monsterCount > 5 ? 'h-4' : 'h-5')
+                          : (monsterCount > 5 ? 'h-5' : 'h-6');
+                        const textSizeClass = (isMobile && isLandscape)
+                          ? (monsterCount > 5 ? 'text-[12px]' : 'text-xs')
+                          : (monsterCount > 5 ? 'text-xs' : 'text-sm');
+                        return (
+                          <div className={cn("w-full bg-gray-700 rounded-full overflow-hidden relative border-2 border-gray-600", gaugeHeightClass)}>
+                            <div
+                              className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
+                              style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
+                            />
+                            <div className={cn("absolute inset-0 flex items-center justify-center font-bold text-white drop-shadow", textSizeClass)}>
+                              {monster.currentHp}/{monster.maxHp}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       </div>
                     </div>
                     );
