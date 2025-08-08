@@ -1943,20 +1943,25 @@ export class FantasyPIXIInstance {
     
     // ノーツの円を作成
     const noteCircle = new PIXI.Graphics();
+    const NOTE_RADIUS = 35;
     noteCircle.lineStyle(3, 0xFFFFFF, 1);
     noteCircle.beginFill(0xFF6B6B, 0.8);
-    noteCircle.drawCircle(0, 0, 35);
+    noteCircle.drawCircle(0, 0, NOTE_RADIUS);
     noteCircle.endFill();
     
-    // コード名のテキスト
+    // コード名のテキスト（ノーツの上に表示）
     const chordText = new PIXI.Text(chordName, {
       fontFamily: 'Arial',
-      fontSize: 24,
+      fontSize: 18,
       fontWeight: 'bold',
       fill: 0xFFFFFF,
-      align: 'center'
+      stroke: 0x000000,
+      strokeThickness: 4,
+      align: 'center',
+      wordWrap: false,
     });
     chordText.anchor.set(0.5);
+    chordText.y = -(NOTE_RADIUS + 10); // ノーツの上に配置
     
     noteContainer.addChild(noteCircle);
     noteContainer.addChild(chordText);
