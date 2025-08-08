@@ -91,6 +91,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
   const monsterAreaRef = useRef<HTMLDivElement>(null);
+  // スマホ横画面でのモンスターエリア高さを動的に調整
+  const [monsterAreaHeight, setMonsterAreaHeight] = useState<number>(200);
   
   /* Ready → Start 判定 */
   // isReadyはローカルstateで管理済み
@@ -100,6 +102,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const update = () => {
       if (monsterAreaRef.current) {
         setMonsterAreaWidth(monsterAreaRef.current.clientWidth);
+        // 端末の向き・サイズに応じて高さを決定
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const isLandscape = vw > vh;
+        const isMobile = vw < 900; // タブレット未満をモバイル扱い
+        if (isMobile && isLandscape) {
+          // 横画面ではUIを圧縮し、描画コンテナを拡大
+          // 画面高の約48%を上限に、最大280pxまで拡大
+          const h = Math.min(280, Math.max(200, Math.floor(vh * 0.48)));
+          setMonsterAreaHeight(h);
+        } else {
+          // 縦 or デスクトップは従来相当
+          const h = Math.min(220, Math.max(180, Math.floor(vh * 0.30)));
+          setMonsterAreaHeight(h);
+        }
       }
     };
     update(); // 初期化時
@@ -890,12 +907,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div
             ref={monsterAreaRef}
             className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
-            style={{ height: 'min(200px, 30vh)' }}
+            style={{ height: `${monsterAreaHeight}px` }}
           >
             {/* 魔法名表示 - モンスターカード内に移動 */}
             <FantasyPIXIRenderer
               width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
-              height={200}
+              height={monsterAreaHeight}
               monsterIcon={currentEnemy.icon}
     
               enemyGauge={gameState.enemyGauge}
@@ -912,7 +929,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div className="mt-2">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
               // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
-              <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
+              <div
+                className="flex justify-center items-start w-full mx-auto gap-0"
+                style={{
+                  // スマホ横画面ではUIエリアを圧縮
+                  height: (window.innerWidth > window.innerHeight && window.innerWidth < 900)
+                    ? 'min(80px,16vw)'
+                    : 'min(120px,22vw)'
+                }}
+              >
                 {gameState.activeMonsters
                   .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
                   .map((monster) => {
@@ -987,16 +1012,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
                             if (!stage.showGuide && !isCorrect) {
                               return (
-                                <span key={index} className={`mx-0.5 opacity-0 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'}`}>
+                                <span
+                                  key={index}
+                                  className={`mx-0.5 opacity-0 ${monsterCount > 5 ? '' : 'text-xs'}`}
+                                  style={monsterCount > 5 ? { fontSize: '10px' } : undefined}
+                                >
                                   ?
                                 </span>
                               );
                             }
                             return (
-                              <span key={index} className={`mx-0.5 ${monsterCount > 5 ? 'text-[10px]' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}>
-                                {displayNoteName}
-                                {isCorrect && '✓'}
-                              </span>
+                                                              <span
+                                  key={index}
+                                  className={`mx-0.5 ${monsterCount > 5 ? '' : 'text-xs'} ${isCorrect ? 'text-green-400 font-bold' : 'text-gray-300'}`}
+                                  style={monsterCount > 5 ? { fontSize: '10px' } : undefined}
+                                >
+                                  {displayNoteName}
+                                  {isCorrect && '✓'}
+                                </span>
                             );
                           })}
                           </div>
@@ -1032,18 +1065,30 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       )}
                       
                       {/* HPゲージ */}
-                      <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
-                        <div
-                          className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
-                          style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
-                          {monster.currentHp}/{monster.maxHp}
-                        </div>
-                      </div>
-                    </div>
-                    );
-                  })}
+                      {(() => {
+                        const isLandscape = window.innerWidth > window.innerHeight;
+                        // 横画面のモバイルではUI圧縮中だが、バーは従来より大きめに
+                        const gaugeHeightClass = (isMobile && isLandscape)
+                          ? (monsterCount > 5 ? 'h-4' : 'h-5')
+                          : (monsterCount > 5 ? 'h-5' : 'h-6');
+                        const textSizeClass = (isMobile && isLandscape)
+                          ? (monsterCount > 5 ? 'text-xs' : 'text-sm')
+                          : (monsterCount > 5 ? 'text-sm' : 'text-base');
+                        return (
+                          <div className={cn("w-full bg-gray-700 rounded-full overflow-hidden relative border-2 border-gray-600", gaugeHeightClass)}>
+                            <div
+                              className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
+                              style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
+                            />
+                            <div className={cn("absolute inset-0 flex items-center justify-center font-bold text-white drop-shadow", textSizeClass)}>
+                              {monster.currentHp}/{monster.maxHp}
+                            </div>
+                          </div>
+                        );
+                                             })()}
+                     </div>
+                     );
+                   })}
               </div>
             ) : null}
             

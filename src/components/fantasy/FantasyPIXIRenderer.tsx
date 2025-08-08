@@ -499,7 +499,7 @@ export class FantasyPIXIInstance {
         alpha: 1.0,
         visible: true,
         tint: 0xFFFFFF,
-        scale: this.calcSpriteScale(this.monsterSprite.texture, this.app.screen.width, 200, 1) // 動的スケール計算
+        scale: this.calcSpriteScale(this.monsterSprite.texture, this.app.screen.width, this.app.screen.height, 1) // 動的スケール計算
       };
       
       // ゲーム状態をリセット
@@ -546,7 +546,7 @@ export class FantasyPIXIInstance {
         alpha: 1.0,
         visible: true,
         tint: 0xFFFFFF,
-        scale: this.calcSpriteScale(texture, this.app.screen.width, 200, 1) // 動的スケール計算
+        scale: this.calcSpriteScale(texture, this.app.screen.width, this.app.screen.height, 1) // 動的スケール計算
       };
       
       // スプライトの属性を更新
@@ -595,8 +595,8 @@ export class FantasyPIXIInstance {
         
         const visualState: MonsterVisualState = {
           x: this.getPositionX(i, sortedMonsters.length),
-          y: 100, // Y座標を100pxに固定（200px高さの中央）
-          scale: this.calcSpriteScale(sprite.texture, this.app.screen.width, 200, sortedMonsters.length),
+          y: this.app.screen.height / 2, // コンテナ高さの中央
+          scale: this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, sortedMonsters.length),
           rotation: 0,
           tint: 0xFFFFFF,
           alpha: 1.0,
@@ -723,7 +723,7 @@ export class FantasyPIXIInstance {
             const targetScale = this.calcSpriteScale(
               loadedTexture,
               this.app.screen.width,
-              200,
+              this.app.screen.height,
               this.monsterSprites.size || 1
             );
 
@@ -755,7 +755,7 @@ export class FantasyPIXIInstance {
       // ▼▼▼ 修正箇所 ▼▼▼
       // 実際のモンスター表示エリアのサイズに基づいてサイズを決定
       const CONTAINER_WIDTH = this.app.screen.width;
-      const CONTAINER_HEIGHT = 200; // FantasyGameScreen.tsxで定義されている固定高さ
+      const CONTAINER_HEIGHT = this.app.screen.height; // 実コンテナ高さに追従
 
       // モバイル判定
       const isMobile = CONTAINER_WIDTH < 768;
@@ -1646,7 +1646,7 @@ export class FantasyPIXIInstance {
         
         if (enragedTable[id]) {
           // ---- 怒り演出 ----
-          const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, 200, this.monsterSprites.size);
+          const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
           visualState.scale = baseScale * 1.25; // 巨大化（25%増し）
           sprite.tint = 0xFFCCCC;
           
@@ -1694,7 +1694,7 @@ export class FantasyPIXIInstance {
           
         } else {
           // ---- 通常状態 ----
-          const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, 200, this.monsterSprites.size);
+          const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
           visualState.scale = baseScale;
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
           
@@ -1894,13 +1894,13 @@ export class FantasyPIXIInstance {
       for (let i = 0; i < sortedEntries.length; i++) {
         const [id, monsterData] = sortedEntries[i];
         monsterData.visualState.x = this.getPositionX(i, sortedEntries.length);
-        monsterData.visualState.y = 100; // Y座標を100pxに固定（200px高さの中央）
+        monsterData.visualState.y = this.app.screen.height / 2; // コンテナ高さの中央
         // ▼▼▼ 修正箇所 ▼▼▼
         // 動的スケール計算を使用
         const dynamicScale = this.calcSpriteScale(
           monsterData.sprite.texture,
           width,
-          200, // FantasyGameScreen.tsxで定義されている固定高さ
+          this.app.screen.height, // 実コンテナ高さ
           sortedEntries.length
         );
         
