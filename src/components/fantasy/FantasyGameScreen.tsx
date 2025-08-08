@@ -652,11 +652,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
         const maxLoopPreview = 6;
+        const minPreviewLeadTime = 1.2;
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
           if (timeUntilHit > lookAheadTime) break;
+          // ループ直後0.4秒未満のものは、直前ループの残像と紛らわしいので抑制
+          if (timeUntilHit < minPreviewLeadTime) continue;
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           // 次ループのプレビューは、同じベースIDが既に通常ノーツで表示されている場合は重ね表示しない
           if (!baseIdsPresent.has(note.id)) {
