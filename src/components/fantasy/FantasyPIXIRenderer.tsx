@@ -1936,10 +1936,10 @@ export class FantasyPIXIInstance {
   createTaikoNote(noteId: string, chordName: string, x: number): PIXI.Container {
     const noteContainer = new PIXI.Container();
     
-    // ノーツの円を作成（デフォルト暗めに）
+    // ノーツの円を作成（赤）
     const noteCircle = new PIXI.Graphics();
-    noteCircle.lineStyle(2, 0xAAAAAA, 0.8);
-    noteCircle.beginFill(0x444444, 0.8);
+    noteCircle.lineStyle(3, 0xFFFFFF, 1);
+    noteCircle.beginFill(0xFF6B6B, 0.8);
     noteCircle.drawCircle(0, 0, 35);
     noteCircle.endFill();
     
@@ -1948,7 +1948,7 @@ export class FantasyPIXIInstance {
       fontFamily: 'Arial',
       fontSize: 22,
       fontWeight: 'bold',
-      fill: 0xDDDDDD,
+      fill: 0xFFFFFF,
       align: 'center'
     });
     chordText.anchor.set(0.5);
@@ -1958,7 +1958,7 @@ export class FantasyPIXIInstance {
     noteContainer.x = x;
     noteContainer.y = this.app.screen.height / 2;
     
-    // 半透明だがより暗く（明るくならない）
+    // 半透明（暗すぎない程度に固定）
     noteContainer.alpha = 0.6;
     
     return noteContainer;
