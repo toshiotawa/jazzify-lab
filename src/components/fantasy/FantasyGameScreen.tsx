@@ -60,6 +60,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 時間管理 - BGMManagerから取得
   const [currentBeat, setCurrentBeat] = useState(1);
   const [currentMeasure, setCurrentMeasure] = useState(1);
+  const [hasStarted, setHasStarted] = useState(false);
   const [isReady, setIsReady] = useState(true);
   const readyStartTimeRef = useRef<number>(performance.now());
   
@@ -74,13 +75,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       setCurrentBeat(bgmManager.getCurrentBeat());
       setCurrentMeasure(bgmManager.getCurrentMeasure());
       // Ready状態は2秒後に自動的に解除
-      if (isReady && performance.now() - readyStartTimeRef.current > 2000) {
+      if (!hasStarted && isReady && performance.now() - readyStartTimeRef.current > 2000) {
         setIsReady(false);
       }
     }, 50); // 50ms間隔で更新
     
     return () => clearInterval(interval);
-  }, [isReady]);
+  }, [isReady, hasStarted]);
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -114,9 +115,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []);
   
-  // Ready 終了時に BGM 再生
+  // ゲーム開始時のみ BGM 再生（ステージ選択段階では鳴らさない）
   useEffect(() => {
-    if (!isReady) {
+    if (hasStarted) {
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
@@ -127,7 +128,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       );
     }
     return () => bgmManager.stop();
-  }, [isReady, stage, settings.bgmVolume]);
+  }, [hasStarted, stage, settings.bgmVolume]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -304,15 +305,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // 敵の攻撃音を再生
-    try {
-      const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
-      FantasySoundManager.playEnemyAttack();
-    } catch (error) {
-      console.error('Failed to play enemy attack sound:', error);
+    // 敵の攻撃音は single モードのみ再生（progression系ではミュート）
+    if (stage.mode === 'single') {
+      try {
+        const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
+        FantasySoundManager.playEnemyAttack();
+      } catch (error) {
+        console.error('Failed to play enemy attack sound:', error);
+      }
     }
-    
-    // confetti削除 - 何もしない
     
     // ダメージ時の画面振動
     setDamageShake(true);
@@ -322,7 +323,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setHeartFlash(true);
     setTimeout(() => setHeartFlash(false), 150);
     
-  }, []);
+  }, [stage.mode]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
@@ -780,6 +781,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ★ マウント時 autoStart なら即開始
   useEffect(() => {
     if (autoStart) {
+      setHasStarted(true);
       initializeGame({
         ...stage,
         // 互換性：Supabaseのカラム note_interval_beats を noteIntervalBeats にマップ（存在する場合）
@@ -810,6 +812,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <button
             onClick={() => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
+              setHasStarted(true);
               initializeGame({
                 ...stage,
                 // 互換性：Supabaseのカラム note_interval_beats を noteIntervalBeats にマップ（存在する場合）
@@ -842,18 +845,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen"
     )}>
       {/* ===== ヘッダー ===== */}
-      <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
-        <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
+            <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '56px' }}>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16 pointer-events-none">
           <>{bgmManager.getIsCountIn() ? 'Measure /' : `Measure ${currentMeasure}`} - B {currentBeat}</>
         </div>
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center pt-5">
           {/* ステージ情報と敵の数 */}
           <div className="flex items-center space-x-4">
             <div className="text-sm font-bold">
               Stage {stage.stageNumber}
             </div>
             <div className="text-xs text-gray-300">
-              敵の数: {stage.enemyCount}
+              敵の数: {Math.max(0, gameState.totalEnemies - gameState.enemiesDefeated)} / {gameState.totalEnemies}
             </div>
           </div>
           

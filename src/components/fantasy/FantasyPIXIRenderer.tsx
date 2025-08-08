@@ -473,10 +473,10 @@ export class FantasyPIXIInstance {
     try {
       devLog.debug('👾 モンスタースプライト作成開始:', { icon });
       
-      // 既存のテクスチャをクリア
-      if (this.monsterSprite.texture && this.monsterSprite.texture !== PIXI.Texture.EMPTY) {
-        this.monsterSprite.texture.destroy(true);
-      }
+      // 既存のテクスチャの destroy はしない（共有資源のため）
+      // if (this.monsterSprite.texture && this.monsterSprite.texture !== PIXI.Texture.EMPTY) {
+      //   this.monsterSprite.texture.destroy(true);
+      // }
       
       // ★★★ createMonsterSpriteForId を画像ベースに修正 ★★★
       const sprite = await this.createMonsterSpriteForId('default', icon);
@@ -2149,8 +2149,8 @@ export class FantasyPIXIInstance {
           }
         }
         
-        // Destroy the app
-        this.app.destroy(true, { children: true, texture: true, baseTexture: true });
+        // Destroy the app (keep textures to avoid null uvs)
+        this.app.destroy(true, { children: true, texture: false, baseTexture: false });
       } catch (error) {
         devLog.debug('⚠️ PIXI破棄エラー:', error);
       }
