@@ -639,6 +639,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
       const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
       
+      // 直前に消化したノーツのインデックス（復活させない）
+      const lastCompletedIndex = gameState.taikoNotes.length > 0
+        ? (gameState.currentNoteIndex - 1 + gameState.taikoNotes.length) % gameState.taikoNotes.length
+        : -1;
+      
       // ループ対応：最後に近づいたら最初から複数ノーツを仮想的に追加（次ループのプレビュー）
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
@@ -646,8 +651,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
           
-          // 現在ループでヒット済みのノーツは、次ループのプレビューでも直前復活させない
-          if (note.isHit) continue;
+          // 直前に消化した最後のノーツはプレビューで復活させない
+          if (i === lastCompletedIndex) continue;
           
           // すでに通常ノーツに含まれている場合はプレビュー重複を避ける
           if (displayedBaseIds.has(note.id)) continue;
