@@ -1064,8 +1064,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           ? (monsterCount > 5 ? 'h-4' : 'h-5')
                           : (monsterCount > 5 ? 'h-5' : 'h-6');
                         const textSizeClass = (isMobile && isLandscape)
-                          ? (monsterCount > 5 ? 'text-[12px]' : 'text-xs')
-                          : (monsterCount > 5 ? 'text-xs' : 'text-sm');
+                          ? (monsterCount > 5 ? 'text-xs' : 'text-sm')
+                          : (monsterCount > 5 ? 'text-sm' : 'text-base');
                         return (
                           <div className={cn("w-full bg-gray-700 rounded-full overflow-hidden relative border-2 border-gray-600", gaugeHeightClass)}>
                             <div
