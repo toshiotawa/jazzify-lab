@@ -611,7 +611,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
-      // 通常のノーツ
+      // 通常のノーツ（現在ループのみ表示）
       gameState.taikoNotes.forEach((note, index) => {
         // 2週目以降は全てのノーツを表示対象とする
         const loopCount = Math.floor(currentTime / loopDuration);
@@ -622,16 +622,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
         if (note.isHit) return;
         
-        // ループを考慮した時間差計算
-        let timeUntilHit = note.hitTime - normalizedTime;
+        // 現在ループ基準の時間差
+        const timeUntilHit = note.hitTime - normalizedTime;
         
-        // 負の値の場合、次のループでの表示を考慮
-        if (timeUntilHit < -loopDuration / 2) {
-          timeUntilHit += loopDuration;
-        }
+        // ループリセット直後（currentNoteIndex===0）は負の許容をやめ、直前ノーツの復活を防ぐ
+        const lowerBound = gameState.currentNoteIndex === 0 ? 0 : -0.5;
         
-        // 表示範囲内のノーツ
-        if (timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime) {
+        // 表示範囲内のノーツ（現在ループのみ）
+        if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
             id: note.id,
@@ -641,17 +639,31 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }
       });
       
-      // ループ対応：最後に近づいたら最初から複数ノーツを仮想的に追加
+      // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
+      const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
+      
+      // 直前に消化したノーツのインデックス（復活させない）
+      const lastCompletedIndex = gameState.taikoNotes.length > 0
+        ? (gameState.currentNoteIndex - 1 + gameState.taikoNotes.length) % gameState.taikoNotes.length
+        : -1;
+      
+      // ループ対応：最後に近づいたら最初から複数ノーツを仮想的に追加（次ループのプレビュー）
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
         const maxLoopPreview = 6;
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
-          const virtualHitTime = note.hitTime + loopDuration;
+          
+          // 直前に消化した最後のノーツはプレビューで復活させない
+          if (i === lastCompletedIndex) continue;
+          
+          // すでに通常ノーツに含まれている場合はプレビュー重複を避ける
+          if (displayedBaseIds.has(note.id)) continue;
+          
+          const virtualHitTime = note.hitTime + loopDuration; // 次ループのヒット時刻
           const timeUntilHit = virtualHitTime - normalizedTime;
           if (timeUntilHit > lookAheadTime) break;
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          // 次ループのプレビュー用には表示（idに _loop を付与）
           notesToDisplay.push({
             id: `${note.id}_loop`,
             chord: note.chord.displayName,
