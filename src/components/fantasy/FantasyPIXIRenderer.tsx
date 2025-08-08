@@ -475,7 +475,12 @@ export class FantasyPIXIInstance {
       
       // 既存のテクスチャをクリア
       if (this.monsterSprite.texture && this.monsterSprite.texture !== PIXI.Texture.EMPTY) {
-        this.monsterSprite.texture.destroy(true);
+        // Avoid destroying baseTexture to prevent uvsFloat32 null issues on reuse
+        try {
+          if (!this.monsterSprite.texture.destroyed) {
+            this.monsterSprite.texture.destroy(false);
+          }
+        } catch {}
       }
       
       // ★★★ createMonsterSpriteForId を画像ベースに修正 ★★★
@@ -2110,18 +2115,13 @@ export class FantasyPIXIInstance {
       devLog.debug('⚠️ エフェクト削除エラー:', error);
     }
     
-    // ▼▼▼ 追加 ▼▼▼
-    // バンドルされたアセットをアンロード
-    PIXI.Assets.unloadBundle('monsterTextures').catch(e => devLog.debug("monsterTextures unload error", e));
-    PIXI.Assets.unloadBundle('magicTextures').catch(e => devLog.debug("magicTextures unload error", e));
-    // ▲▲▲ ここまで ▲▲▲
-    
     // テクスチャクリーンアップ
     try {
       this.imageTextures.forEach((texture: PIXI.Texture) => {
         try {
+          // Do not destroy base textures shared by PIXI asset cache
           if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
-            texture.destroy(true);
+            texture.destroy(false);
           }
         } catch (error) {
           devLog.debug('⚠️ 画像テクスチャ削除エラー:', error);
@@ -2149,8 +2149,8 @@ export class FantasyPIXIInstance {
           }
         }
         
-        // Destroy the app
-        this.app.destroy(true, { children: true, texture: true, baseTexture: true });
+        // Destroy the app without touching shared textures/baseTextures
+        this.app.destroy(true, { children: true, texture: false, baseTexture: false });
       } catch (error) {
         devLog.debug('⚠️ PIXI破棄エラー:', error);
       }
