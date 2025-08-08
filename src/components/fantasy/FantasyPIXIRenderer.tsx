@@ -1943,29 +1943,66 @@ export class FantasyPIXIInstance {
     
     // ノーツの円を作成
     const noteCircle = new PIXI.Graphics();
+    const NOTE_RADIUS = 35;
     noteCircle.lineStyle(3, 0xFFFFFF, 1);
     noteCircle.beginFill(0xFF6B6B, 0.8);
-    noteCircle.drawCircle(0, 0, 35);
+    noteCircle.drawCircle(0, 0, NOTE_RADIUS);
     noteCircle.endFill();
-    
-    // コード名のテキスト
+    noteCircle.alpha = 0.85; // ノーツのみ半透明に
+
+    // ラベル（コード名）のベース設定
+    const BASE_FONT_SIZE = 20;
+    const MAX_LABEL_WIDTH = 140; // ラベル最大幅
+    const LABEL_GAP = 12; // ノーツ上との間隔
+    const LABEL_Y = -(NOTE_RADIUS + LABEL_GAP);
+
     const chordText = new PIXI.Text(chordName, {
       fontFamily: 'Arial',
-      fontSize: 24,
+      fontSize: BASE_FONT_SIZE,
       fontWeight: 'bold',
       fill: 0xFFFFFF,
-      align: 'center'
+      stroke: 0x000000,
+      strokeThickness: 3,
+      align: 'center',
+      wordWrap: false,
     });
     chordText.anchor.set(0.5);
-    
+
+    // 長いコード名は横幅に収まるまで等比縮小（下限0.6）
+    if (chordText.width > MAX_LABEL_WIDTH) {
+      const scaleFactor = Math.max(0.6, MAX_LABEL_WIDTH / chordText.width);
+      chordText.scale.set(scaleFactor);
+    }
+
+    // 背景バッジ（角丸 + ポインタ）
+    const PADDING_X = 10;
+    const PADDING_Y = 6;
+    const badgeWidth = Math.max(24, chordText.width) + PADDING_X * 2;
+    const badgeHeight = chordText.height + PADDING_Y * 2;
+
+    const badge = new PIXI.Graphics();
+    badge.beginFill(0x000000, 0.6);
+    badge.drawRoundedRect(-badgeWidth / 2, LABEL_Y - badgeHeight / 2, badgeWidth, badgeHeight, 8);
+    // ポインタ（三角形）
+    const pointerHeight = 8;
+    const pointerHalf = 6;
+    badge.moveTo(0, LABEL_Y + badgeHeight / 2);
+    badge.lineTo(-pointerHalf, LABEL_Y + badgeHeight / 2 + pointerHeight);
+    badge.lineTo(pointerHalf, LABEL_Y + badgeHeight / 2 + pointerHeight);
+    badge.closePath();
+    badge.endFill();
+
+    // テキスト位置（バッジ中央）
+    chordText.position.set(0, LABEL_Y);
+
+    // 追加順: 円 → バッジ → テキスト（テキストが最前面）
     noteContainer.addChild(noteCircle);
+    noteContainer.addChild(badge);
     noteContainer.addChild(chordText);
+
     noteContainer.x = x;
     noteContainer.y = this.app.screen.height / 2;
-    
-    // 半透明にする
-    noteContainer.alpha = 0.85;
-    
+
     return noteContainer;
   }
   
