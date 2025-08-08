@@ -268,6 +268,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
+  // 直近の Taiko ノーツ進行監視用（ミス検出に使用）
+  const lastNoteIndexRef = useRef<number>(0);
+  
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
     devLog.debug('🎮 ファンタジーゲーム状態更新:', {
@@ -380,6 +383,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
+  
+  // 太鼓ノーツループリセット時のインデックス追従
+  useEffect(() => {
+    if (!gameState.isTaikoMode) return;
+    if (gameState.currentNoteIndex === 0 && lastNoteIndexRef.current !== 0) {
+      lastNoteIndexRef.current = 0;
+    }
+  }, [gameState.isTaikoMode, gameState.currentNoteIndex]);
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
@@ -579,6 +590,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       isTaikoModeRef.current = gameState.isTaikoMode;
     }
   }, [fantasyPixiInstance, gameState.isTaikoMode]);
+
+  // 太鼓ミス時に判定ラインへ赤×エフェクトを表示
+  useEffect(() => {
+    if (!fantasyPixiInstance) return;
+    if (!gameState.isTaikoMode) return;
+
+    // currentNoteIndex が進んだのに、直前ノーツが isHit でもなかった場合をミスとみなす
+    const prevIndex = lastNoteIndexRef.current;
+    const currIndex = gameState.currentNoteIndex;
+
+    if (currIndex !== prevIndex) {
+      const justCompletedIndex = prevIndex; // 直前インデックス
+      const note = gameState.taikoNotes[justCompletedIndex];
+      if (note && note.isMissed) {
+        const pos = fantasyPixiInstance.getJudgeLinePosition();
+        fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, false);
+      }
+      lastNoteIndexRef.current = currIndex;
+    }
+  }, [fantasyPixiInstance, gameState.currentNoteIndex, gameState.isTaikoMode, gameState.taikoNotes]);
   
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   useEffect(() => {
