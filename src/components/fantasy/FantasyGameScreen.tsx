@@ -647,7 +647,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
         const maxLoopPreview = 6;
-        for (let i = 0; i < gameState.taikoNotes.length; i++) {
+        // 直前に処理済みのノーツ（currentNoteIndex より前）はプレビューしない
+        for (let i = gameState.currentNoteIndex; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
