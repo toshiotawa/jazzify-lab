@@ -304,10 +304,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // 敵の攻撃音を再生
+    // 敵の攻撃音を再生（single クイズモードのみ）
     try {
-      const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
-      FantasySoundManager.playEnemyAttack();
+      if (stage.mode === 'single') {
+        const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
+        FantasySoundManager.playEnemyAttack();
+      }
     } catch (error) {
       console.error('Failed to play enemy attack sound:', error);
     }
@@ -322,7 +324,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setHeartFlash(true);
     setTimeout(() => setHeartFlash(false), 150);
     
-  }, []);
+  }, [stage.mode]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
@@ -843,35 +845,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     )}>
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
-        <div className="absolute left-1/2 -translate-x-1/2 text-sm text-yellow-300 font-dotgothic16">
-          <>{bgmManager.getIsCountIn() ? 'Measure /' : `Measure ${currentMeasure}`} - B {currentBeat}</>
-        </div>
-        <div className="flex justify-between items-center">
-          {/* ステージ情報と敵の数 */}
+        <div className="flex items-center justify-between">
+          {/* 左: Measure/Beat 表示 */}
+          <div className="text-sm text-yellow-300 font-dotgothic16">
+            <>{bgmManager.getIsCountIn() ? 'Measure /' : `Measure ${currentMeasure}`} - B {currentBeat}</>
+          </div>
+          {/* 中: ステージ情報とモンスター数（残り） */}
           <div className="flex items-center space-x-4">
             <div className="text-sm font-bold">
               Stage {stage.stageNumber}
             </div>
             <div className="text-xs text-gray-300">
-              敵の数: {stage.enemyCount}
+              モンスター数: {Math.max(0, (gameState.totalEnemies || stage.enemyCount || 0) - (gameState.enemiesDefeated || 0))}
             </div>
           </div>
-          
-          {/* 戻るボタン */}
-          <button
-            onClick={onBackToStageSelect}
-            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
-          >
-            ステージ選択に戻る
-          </button>
-          
-          {/* 設定ボタン */}
-          <button
-            onClick={() => setIsSettingsModalOpen(true)}
-            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors ml-2"
-          >
-            ⚙️ 設定
-          </button>
+          {/* 右: 戻る/設定ボタン */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={onBackToStageSelect}
+              className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
+            >
+              ステージ選択に戻る
+            </button>
+            <button
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors"
+            >
+              ⚙️ 設定
+            </button>
+          </div>
         </div>
       </div>
       
