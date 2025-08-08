@@ -22,6 +22,17 @@ const DiaryFeed: React.FC = () => {
   const [editingId, setEditingId] = useState<string|null>(null);
   const [editText, setEditText] = useState<string>('');
   const toast = useToast();
+  
+  const [currentDate, setCurrentDate] = useState<string>(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#diary')) {
+      const params = new URLSearchParams(hash.split('?')[1] || '');
+      const date = params.get('date');
+      if (date) return date;
+    }
+    // default to today in JST
+    return new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
+  });
 
   // ランクに応じたアイコンを取得する関数
   const getRankIcon = (rank: string) => {
@@ -39,7 +50,49 @@ const DiaryFeed: React.FC = () => {
   };
   // Initialize realtime channels when the feed mounts
   useEffect(() => { useDiaryStore.getState().initRealtime(); }, []);
-  useEffect(() => { void fetchAll(); }, []);
+  
+  // Fetch when mounted or when date changes
+  useEffect(() => { void fetchAll(currentDate); }, [currentDate]);
+
+  // React to hash changes (e.g. navigation elsewhere sets #diary?date=...)
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#diary')) {
+        const params = new URLSearchParams(hash.split('?')[1] || '');
+        const date = params.get('date');
+        if (date) setCurrentDate(date);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  // 日付操作
+  const addDays = (isoDate: string, days: number) => {
+    const [y, m, d] = isoDate.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + days);
+    const yyyy = dt.getUTCFullYear();
+    const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getUTCDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const goPrev = () => {
+    const nextDate = addDays(currentDate, -1);
+    setCurrentDate(nextDate);
+    const params = new URLSearchParams();
+    params.set('date', nextDate);
+    window.location.hash = `#diary?${params.toString()}`;
+  };
+  const goNext = () => {
+    const nextDate = addDays(currentDate, +1);
+    setCurrentDate(nextDate);
+    const params = new URLSearchParams();
+    params.set('date', nextDate);
+    window.location.hash = `#diary?${params.toString()}`;
+  };
   
   // コメントを並行取得
   useEffect(() => {
@@ -71,10 +124,22 @@ const DiaryFeed: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-sm text-gray-300">
+          {(() => { const [y,m,d] = currentDate.split('-'); return `${y}年${Number(m)}月${Number(d)}日`; })()}
+        </div>
+        <div className="space-x-2">
+          <button className="btn btn-xs" onClick={goPrev}>← 前の日</button>
+          <button className="btn btn-xs" onClick={goNext} disabled={(() => { const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-'); return currentDate === today; })()}>次の日 →</button>
+        </div>
+      </div>
       {user && (
         <div className="text-right mb-1">
           <button className="btn btn-xs btn-outline" onClick={goToMyDiary}>自分の日記を見る</button>
         </div>
+      )}
+      {diaries.length === 0 && (
+        <p className="text-center text-gray-400">この日の日記はまだありません</p>
       )}
       {diaries.map(d => (
         <div key={d.id} className="p-3 sm:p-4 bg-slate-800 rounded-lg">
