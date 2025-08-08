@@ -304,12 +304,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // 敵の攻撃音を再生
-    try {
-      const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
-      FantasySoundManager.playEnemyAttack();
-    } catch (error) {
-      console.error('Failed to play enemy attack sound:', error);
+    // 敵の攻撃音を再生（single クイズモードのみ）
+    if (stage.mode === 'single') {
+      try {
+        const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
+        FantasySoundManager.playEnemyAttack();
+      } catch (error) {
+        console.error('Failed to play enemy attack sound:', error);
+      }
     }
     
     // confetti削除 - 何もしない
@@ -322,7 +324,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setHeartFlash(true);
     setTimeout(() => setHeartFlash(false), 150);
     
-  }, []);
+  }, [stage.mode]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
