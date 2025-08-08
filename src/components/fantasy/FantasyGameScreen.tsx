@@ -636,12 +636,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }
       });
       
+      // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
+      const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
+      
       // ループ対応：最後に近づいたら最初から複数ノーツを仮想的に追加（次ループのプレビュー）
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
         const maxLoopPreview = 6;
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
+          
+          // 現在ループでヒット済みのノーツは、次ループのプレビューでも直前復活させない
+          if (note.isHit) continue;
+          
+          // すでに通常ノーツに含まれている場合はプレビュー重複を避ける
+          if (displayedBaseIds.has(note.id)) continue;
+          
           const virtualHitTime = note.hitTime + loopDuration; // 次ループのヒット時刻
           const timeUntilHit = virtualHitTime - normalizedTime;
           if (timeUntilHit > lookAheadTime) break;
