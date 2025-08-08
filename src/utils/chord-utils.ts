@@ -110,12 +110,28 @@ export function getFantasyChordNotes(chordId: string, octave: number = 4): numbe
 
 /**
  * コード名のパース（ルートとクオリティに分割）
- * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7'）
- * @returns { root: string, quality: ChordQuality } | null
+ * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7', 'C/E', 'F/G'）
+ * @returns { root: string, quality: ChordQuality, bass?: string } | null
  */
-export function parseChordName(chordName: string): { root: string; quality: ChordQuality } | null {
+export function parseChordName(chordName: string): { root: string; quality: ChordQuality; bass?: string } | null {
+  // オンコード（分数コード）の処理
+  const slashIndex = chordName.indexOf('/');
+  let bassNote: string | undefined;
+  let baseChordName = chordName;
+  
+  if (slashIndex !== -1) {
+    baseChordName = chordName.substring(0, slashIndex);
+    bassNote = chordName.substring(slashIndex + 1);
+    
+    // ベース音が有効な音名かチェック
+    if (!bassNote.match(/^[A-G](?:#{1,2}|b{1,2}|x)?$/)) {
+      console.warn(`⚠️ 無効なベース音: ${bassNote} in ${chordName}`);
+      return null;
+    }
+  }
+  
   // ルート音とサフィックスを分離（ダブルシャープ・ダブルフラットも対応）
-  const match = chordName.match(/^([A-G](?:#{1,2}|b{1,2}|x)?)(.*)$/);
+  const match = baseChordName.match(/^([A-G](?:#{1,2}|b{1,2}|x)?)(.*)$/);
   if (!match) return null;
   
   const [, root, suffix] = match;
@@ -150,13 +166,13 @@ export function parseChordName(chordName: string): { root: string; quality: Chor
     return null;
   }
   
-  return { root, quality };
+  return { root, quality, bass: bassNote };
 }
 
 /**
  * 任意のコードから実音配列を取得する汎用関数
  * FANTASY_CHORD_MAPを使わずに動的にコードを解決
- * @param chordId コードID（例: 'CM7', 'DbM7', 'D#7'）
+ * @param chordId コードID（例: 'CM7', 'DbM7', 'D#7', 'C/E', 'F/G'）
  * @param octave 基準オクターブ（デフォルト: 4）
  * @param displayOpts 表示オプション
  * @returns コード情報オブジェクト | null
@@ -165,13 +181,14 @@ export function resolveChord(
   chordId: string,
   octave: number = 4,
   displayOpts?: DisplayOpts
-): { id: string; root: string; quality: ChordQuality; notes: string[]; displayName: string } | null {
+): { id: string; root: string; quality: ChordQuality; notes: string[]; displayName: string; bass?: string } | null {
   
   // a) まずエイリアスを考慮してパース
   const parsed = parseChordName(chordId);
   if (!parsed) return null;
 
   // b) インターバル → 実音配列
+  // オンコードの場合も上部のコードの構成音のみを使用（ベース音は無視）
   const notes = buildChordNotes(parsed.root, parsed.quality, octave);
 
   return {
@@ -179,7 +196,8 @@ export function resolveChord(
     root: parsed.root,
     quality: parsed.quality,
     notes,
-    displayName: displayOpts ? toDisplayChordName(chordId, displayOpts) : chordId
+    displayName: displayOpts ? toDisplayChordName(chordId, displayOpts) : chordId,
+    bass: parsed.bass
   };
 }
 

@@ -297,10 +297,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
 
     // ルート音を再生（非同期対応）
+    // オンコードの場合は分母のベース音を、通常のコードはルート音を再生
     if (settings.playRootSound) {
       try {
         const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
-        await FantasySoundManager.playRootNote(chord.root);
+        const noteToPlay = chord.bass || chord.root; // オンコードならベース音、通常ならルート音
+        await FantasySoundManager.playRootNote(noteToPlay);
       } catch (error) {
         console.error('Failed to play root note:', error);
       }
