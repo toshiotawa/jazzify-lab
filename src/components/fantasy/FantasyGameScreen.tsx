@@ -586,7 +586,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const currentTime = bgmManager.getCurrentMusicTime();
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
-      const noteSpeed = 400; // ピクセル/秒
+      const noteSpeed = 320; // ピクセル/秒（少しゆっくり）
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
@@ -890,14 +890,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div
             ref={monsterAreaRef}
             className="relative w-full bg-black bg-opacity-20 rounded-lg overflow-hidden"
-            style={{ height: 'min(200px, 30vh)' }}
+            style={{ height: 'min(280px, 40vh)' }}
           >
             {/* 魔法名表示 - モンスターカード内に移動 */}
             <FantasyPIXIRenderer
               width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
-              height={200}
+              height={280}
               monsterIcon={currentEnemy.icon}
-    
+      
               enemyGauge={gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
@@ -912,7 +912,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <div className="mt-2">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
               // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
-              <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(120px,22vw)' }}>
+              <div className="flex justify-center items-start w-full mx-auto gap-0" style={{ height: 'min(80px,15vw)' }}>
                 {gameState.activeMonsters
                   .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
                   .map((monster) => {
@@ -1022,7 +1022,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           ref={el => {
                             if (el) gaugeRefs.current.set(monster.id, el);
                           }}
-                          className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
+                          className="w-full h-1 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
                         >
                           <div
                             className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
@@ -1032,7 +1032,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       )}
                       
                       {/* HPゲージ */}
-                      <div className="w-full h-3 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
+                      <div className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative">
                         <div
                           className="h-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-300"
                           style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
