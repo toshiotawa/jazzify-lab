@@ -84,12 +84,6 @@ class NoteUpdater {
       
       // 位置更新（例）
       if (sprite.parent && !sprite.destroyed) {
-        sprite.y += this.settings.noteSpeed * delta * 0.016; // 60FPS基準
-        
-        // 画面外判定
-        if (sprite.y > this.settings.viewportHeight + 100) {
-          this.dispose();
-        }
       }
     } catch (error) {
       log.warn('⚠️ NoteUpdater error, disposing:', error);
@@ -298,7 +292,7 @@ export class PIXINotesRendererInstance {
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
   public readonly settings: RendererSettings = {
     noteWidth: 28,
-    noteHeight: 20,
+    noteHeight: 4,
     hitLineY: 0,
     pianoHeight: 200, // viewportHeightと同じ値に設定
     noteSpeed: 400,
@@ -311,7 +305,7 @@ export class PIXINotesRendererInstance {
       good: 0x48BB78,
       whiteKey: 0xFFFFFF,
       blackKey: 0x2D2D2D,
-      activeKey: 0x4A90E2
+      activeKey: 0xFF8C00
     },
             effects: {
           glow: true,
@@ -559,9 +553,9 @@ export class PIXINotesRendererInstance {
     let { noteWidth, noteHeight } = this.settings;
     
     // 最小サイズを保証（平らなノーツ対応）
-    if (noteHeight < 6) {
-      log.warn(`⚠️ Note height too small (${noteHeight}), using minimum 6px`);
-      noteHeight = 6;
+    if (noteHeight < 3) {
+      log.warn(`⚠️ Note height too small (${noteHeight}), using minimum 3px`);
+      noteHeight = 3;
     }
     if (noteWidth < 8) {
       log.warn(`⚠️ Note width too small (${noteWidth}), using minimum 8px`);
@@ -965,7 +959,10 @@ export class PIXINotesRendererInstance {
       uvs: false,
       alpha: true
     });
-    this.whiteNotes.zIndex = 5;
+    (this.whiteNotes as any).eventMode = 'none';
+    (this.whiteNotes as any).interactiveChildren = false;
+    (this.whiteNotes as any).interactive = false;
+    this.whiteNotes.zIndex = 12;
     this.container.addChild(this.whiteNotes);
 
     this.blackNotes = new PIXI.ParticleContainer(1000, {
@@ -975,22 +972,30 @@ export class PIXINotesRendererInstance {
       uvs: false,
       alpha: true
     });
-    this.blackNotes.zIndex = 6;
+    (this.blackNotes as any).eventMode = 'none';
+    (this.blackNotes as any).interactiveChildren = false;
+    (this.blackNotes as any).interactive = false;
+    this.blackNotes.zIndex = 13;
     this.container.addChild(this.blackNotes);
 
     // ラベル専用コンテナ（通常のContainer）
     this.labelsContainer = new PIXI.Container();
-    this.labelsContainer.zIndex = 7;
+    this.labelsContainer.eventMode = 'none';
+    this.labelsContainer.zIndex = 14;
     this.container.addChild(this.labelsContainer);
 
     // エフェクト用コンテナ
     this.effectsContainer = new PIXI.Container();
-    this.effectsContainer.zIndex = 8;
+    this.effectsContainer.eventMode = 'none';
+    this.effectsContainer.zIndex = 16;
     this.container.addChild(this.effectsContainer);
 
     // ヒットライン用コンテナ
     this.hitLineContainer = new PIXI.Container();
-    this.hitLineContainer.zIndex = 9;
+    this.hitLineContainer.zIndex = 20;
+    this.hitLineContainer.eventMode = 'none';
+    ;(this.hitLineContainer as any).interactive = false;
+    ;(this.hitLineContainer as any).interactiveChildren = false;
     this.container.addChild(this.hitLineContainer);
 
     // ピアノコンテナ（最上層）- 横スクロール機能を追加
@@ -1049,7 +1054,7 @@ export class PIXINotesRendererInstance {
 
     // パーティクル用コンテナ
     this.particles = new PIXI.Container();
-    this.particles.zIndex = 15;
+    this.particles.zIndex = 18;
     this.container.addChild(this.particles);
 
     // ヒットライン表示
@@ -1069,18 +1074,15 @@ export class PIXINotesRendererInstance {
   
   private setupHitLine(): void {
     const hitLine = new PIXI.Graphics();
-    hitLine.lineStyle(3, 0xFBBF24); // amber-400
-    hitLine.moveTo(0, this.settings.hitLineY);
-    hitLine.lineTo(this.app.screen.width, this.settings.hitLineY);
+    // 1px のヘアラインをピアノ上端に完全一致で描画（アンチエイリアス対策で -0.5）
+    hitLine.lineStyle(1, 0xFBBF24, 1.0); // amber-400
+    const y = this.settings.hitLineY - 0.5;
+    hitLine.moveTo(0, y);
+    hitLine.lineTo(this.app.screen.width, y);
     
-    // グロー効果
-    const glowLine = new PIXI.Graphics();
-    glowLine.lineStyle(6, 0xFBBF24, 0.5);
-    glowLine.moveTo(0, this.settings.hitLineY);
-    glowLine.lineTo(this.app.screen.width, this.settings.hitLineY);
-    
-    this.hitLineContainer.addChild(glowLine);
+    // 余計なグローは除去（位置ズレの原因になるため）
     this.hitLineContainer.addChild(hitLine);
+    this.hitLineContainer.visible = this.settings.showHitLine;
   }
   
   private setupPiano(): void {
@@ -1338,6 +1340,7 @@ export class PIXINotesRendererInstance {
     
     // ピアノ背景のイベントを透過
     background.eventMode = 'none';
+    background.interactive = false;
     
     this.pianoContainer.addChild(background);
   }
@@ -2103,6 +2106,10 @@ export class PIXINotesRendererInstance {
     
     // メインノートスプライト（位置は後でupdateNotesで設定）
     const sprite = new PIXI.Sprite(texture);
+    // ノーツスプライトは完全にイベント非対象（クリック透過）
+    ;(sprite as any).eventMode = 'none';
+    ;(sprite as any).interactive = false;
+    ;(sprite as any).interactiveChildren = false;
     sprite.anchor.set(0.5, 0.5);
     sprite.x = x;
     sprite.y = 0; // 後で設定
@@ -2357,6 +2364,10 @@ export class PIXINotesRendererInstance {
     if (state === 'hit') {
       return;
     }
+    // ミス時は拡大したグローを描かない
+    if (state === 'missed') {
+      return;
+    }
 
     const color = this.getStateColor(state, pitch);
     const { noteWidth, noteHeight } = this.settings;
@@ -2387,6 +2398,7 @@ export class PIXINotesRendererInstance {
     
     // ===== 1. 縦レーンライト（新機能） =====
     const laneLight = new PIXI.Graphics();
+    (laneLight as any).eventMode = 'none';
     
     // レーンライトの幅とグラデーション
     const laneWidth = 8; // レーンライト幅
@@ -2559,6 +2571,10 @@ export class PIXINotesRendererInstance {
       }
     
     Object.assign(this.settings, newSettings);
+
+    if (newSettings.showHitLine !== undefined && this.hitLineContainer) {
+      this.hitLineContainer.visible = newSettings.showHitLine;
+    }
 
     // ピアノ高さが変更された場合、判定ラインと背景を再配置
     if (newSettings.pianoHeight !== undefined && newSettings.pianoHeight !== prevPianoHeight) {
