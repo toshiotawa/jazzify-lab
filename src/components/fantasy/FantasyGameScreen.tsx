@@ -639,7 +639,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             chord: note.chord.displayName,
             x
           });
-          baseIdsPresent.add(note.id);
+          // 現在ループに表示したベースIDとして登録
+          // ただし、ヒット直後に消えた最後ノーツはベースID登録しないことで、
+          // 次ループ側のプレビューを許可して "復活" を実現する
+          if (!note.isHit) {
+            baseIdsPresent.add(note.id);
+          }
         }
       });
       
@@ -649,10 +654,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const maxLoopPreview = 6;
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
-          // すでに処理済み（currentNoteIndex より前）のノーツは次ループの直前プレビューに出さない
-          if (i < gameState.currentNoteIndex) continue;
-          // 直前にヒット済みのノーツは、直後のプレビューに出さない
-          if (note.isHit) continue;
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
           if (timeUntilHit > lookAheadTime) break;
