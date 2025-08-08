@@ -642,24 +642,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       });
       
       // ループ対応：最後に近づいたら最初から複数ノーツを仮想的に追加
-      const timeToLoop = loopDuration - normalizedTime;
-      if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
-        const maxLoopPreview = 6;
-        for (let i = 0; i < gameState.taikoNotes.length; i++) {
-          const note = gameState.taikoNotes[i];
-          const virtualHitTime = note.hitTime + loopDuration;
-          const timeUntilHit = virtualHitTime - normalizedTime;
-          if (timeUntilHit > lookAheadTime) break;
-          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          // 次ループのプレビュー用には表示（idに _loop を付与）
-          notesToDisplay.push({
-            id: `${note.id}_loop`,
-            chord: note.chord.displayName,
-            x
-          });
-          if (i + 1 >= maxLoopPreview) break;
-        }
-      }
+      // const timeToLoop = loopDuration - normalizedTime;
+      // if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
+      //   const maxLoopPreview = 6;
+      //   for (let i = 0; i < gameState.taikoNotes.length; i++) {
+      //     const note = gameState.taikoNotes[i];
+      //     const virtualHitTime = note.hitTime + loopDuration;
+      //     const timeUntilHit = virtualHitTime - normalizedTime;
+      //     if (timeUntilHit > lookAheadTime) break;
+      //     const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+      //     // 次ループのプレビュー用には表示（idに _loop を付与）
+      //     notesToDisplay.push({
+      //       id: `${note.id}_loop`,
+      //       chord: note.chord.displayName,
+      //       x
+      //     });
+      //     if (i + 1 >= maxLoopPreview) break;
+      //   }
+      // }
       
       // PIXIレンダラーに更新を送信
       fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
