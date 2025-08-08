@@ -473,9 +473,11 @@ export class FantasyPIXIInstance {
     try {
       devLog.debug('👾 モンスタースプライト作成開始:', { icon });
       
-      // 既存のテクスチャをクリア
+      // 既存のテクスチャをクリア（共有ベーステクスチャは破棄しない）
       if (this.monsterSprite.texture && this.monsterSprite.texture !== PIXI.Texture.EMPTY) {
-        this.monsterSprite.texture.destroy(true);
+        if (!this.monsterSprite.texture.destroyed) {
+          this.monsterSprite.texture.destroy(false);
+        }
       }
       
       // ★★★ createMonsterSpriteForId を画像ベースに修正 ★★★
@@ -710,17 +712,17 @@ export class FantasyPIXIInstance {
         
         // 非同期で本物のテクスチャをロードして差し替える
         loadMonsterTexture(icon).then(loadedTexture => {
-          if (!placeholder.destroyed) {
+          if (!placeholder.destroyed && loadedTexture && !(loadedTexture as any).destroyed && (loadedTexture as any).valid) {
             placeholder.texture = loadedTexture;
             placeholder.tint = 0xFFFFFF;
             
             // αを滑らかに 0→1 にする
-            const targetScale = this.calcSpriteScale(
-              loadedTexture,
-              this.app.screen.width,
-              200,
-              this.monsterSprites.size || 1
-            );
+                         const targetScale = this.calcSpriteScale(
+               loadedTexture,
+               this.app?.screen?.width ?? 0,
+               200,
+               this.monsterSprites.size || 1
+             );
 
             placeholder.scale.set(targetScale);
 
@@ -2121,7 +2123,8 @@ export class FantasyPIXIInstance {
       this.imageTextures.forEach((texture: PIXI.Texture) => {
         try {
           if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
-            texture.destroy(true);
+            // BaseTexture を共有している可能性があるためテクスチャのみ破棄
+            texture.destroy(false);
           }
         } catch (error) {
           devLog.debug('⚠️ 画像テクスチャ削除エラー:', error);
