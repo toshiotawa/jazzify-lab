@@ -352,7 +352,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 失敗してもゲーム続行
     }
     
-  }, [stage.mode]);
+  }, [stage.mode, fantasyPixiInstance]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
