@@ -243,10 +243,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
       // 日記新規投稿（最適化: キャッシュクリアを最小限に）
       supabase.channel('realtime-diaries')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async () => {
-          // Prepend newest diary
-          const { fetchDiariesInfinite } = await import('@/platform/supabaseDiary');
-          const { diaries } = await fetchDiariesInfinite({ limit: 1 });
-          set(s => { s.diaries = diaries.concat(s.diaries); });
+          await get().fetch(get().currentDate || undefined);
         })
         .subscribe();
 

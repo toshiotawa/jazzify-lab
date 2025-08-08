@@ -4,6 +4,7 @@ import { useGameActions } from '@/stores/helpers';
 import { FaHome, FaUserCircle } from 'react-icons/fa';
 import { FaBell } from 'react-icons/fa';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 /**
  * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
@@ -137,7 +138,7 @@ const HeaderRightControls: React.FC = () => {
                           }
                         }}
                       >
-                        <img src={n.actor_avatar_url || ''} className="w-6 h-6 rounded-full object-cover bg-slate-600" />
+                        <img src={n.actor_avatar_url || DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover bg-slate-600" />
                         <div className="flex-1 text-sm">
                           <div className="text-gray-200">
                             {n.actor_nickname || 'ユーザー'}
@@ -145,7 +146,7 @@ const HeaderRightControls: React.FC = () => {
                             {n.type === 'diary_comment' && ' があなたの日記に返信しました'}
                             {n.type === 'comment_thread_reply' && ' がコメントを追加しました'}
                           </div>
-                          <div className="text-xs text-gray-500">{new Date(n.created_at).toLocaleString('ja-JP')}</div>
+                          <div className="text-xs text-gray-500">{new Date(n.created_at).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
                         </div>
                       </button>
                     ))

@@ -45,7 +45,7 @@ const DiaryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user, isGuest } = useAuthStore();
-  const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary } = useDiaryStore();
+  const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary, like } = useDiaryStore();
   const { addComment, deleteComment, likeComment } = useDiaryStore();
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [openSection, setOpenSection] = useState<Record<string, {likes:boolean;comments:boolean}>>({});
@@ -319,17 +319,30 @@ const DiaryPage: React.FC = () => {
                               <FaCalendarAlt className="w-4 h-4" />
                               <button className="hover:text-blue-400" onClick={()=>{window.location.href = `/main#diary-detail?id=${diary.id}`;}}>{diary.practice_date}</button>
                             </div>
-                            <button
-                              className="flex items-center space-x-1 hover:text-blue-400"
-                              onClick={async ()=>{
-                                if(!likeUsers[diary.id]) await fetchLikeUsers(diary.id);
-                                setOpenSection(s=>({ ...s, [diary.id]: {likes:!s[diary.id]?.likes, comments: s[diary.id]?.comments||false} }));
-                              }}
-                            >
-                              <FaHeart className="w-4 h-4 text-pink-400" />
-                              <span>{diary.likes}</span>
-                              <FaChevronDown className="ml-1" />
-                            </button>
+                                                          <div className="flex items-center space-x-3">
+                                <button
+                                  className="flex items-center space-x-1 hover:text-pink-400"
+                                  onClick={async ()=>{
+                                    try{
+                                      await like(diary.id);
+                                      setDiaries(prev => prev.map(d => d.id===diary.id ? { ...d, likes: d.likes + 1 } : d));
+                                    }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); }
+                                  }}
+                                >
+                                  <FaHeart className="w-4 h-4 text-pink-400" />
+                                  <span>{diary.likes}</span>
+                                </button>
+                                <button
+                                  className="flex items-center space-x-1 hover:text-blue-400"
+                                  onClick={async ()=>{
+                                    if(!likeUsers[diary.id]) await fetchLikeUsers(diary.id);
+                                    setOpenSection(s=>({ ...s, [diary.id]: {likes:!s[diary.id]?.likes, comments: s[diary.id]?.comments||false} }));
+                                  }}
+                                >
+                                  いいねした人
+                                  <FaChevronDown className="ml-1" />
+                                </button>
+                              </div>
                           </div>
                           {editingId===diary.id ? (
                             <>
