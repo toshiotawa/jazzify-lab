@@ -59,7 +59,7 @@ const DiaryPage: React.FC = () => {
         const id = urlParams.get('id');
         setUserId(id);
         setOpen(!!id);
-      } else if (hash === '#diary') {
+      } else if (hash === '#diary' || hash.startsWith('#diary?')) {
         setOpen(true);
         setUserId(null);
       } else {

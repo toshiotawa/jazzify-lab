@@ -16,10 +16,11 @@ interface DiaryState {
   likeUsers: Record<string, import('@/platform/supabaseDiary').DiaryLikeUser[]>;
   updating: Record<string, boolean>; // 個別の更新状態
   deleting: Record<string, boolean>; // 個別の削除状態
+  currentDate: string | null; // 現在の表示日 (yyyy-mm-dd)
 }
 
 interface DiaryActions {
-  fetch: () => Promise<void>;
+  fetch: (date?: string) => Promise<void>;
   add: (content: string, imageUrl?: string) => Promise<{
     success: boolean;
     xpGained: number;
@@ -50,19 +51,40 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     likeUsers: {},
     updating: {},
     deleting: {},
+    currentDate: null,
 
-    fetch: async () => {
+    fetch: async (date?: string) => {
       set(s => { s.loading = true; s.error = null; });
       try {
-        const data = await fetchDiaries(50);
-        // 当日の日記のみ表示
+        const supabase = getSupabaseClient();
         const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
-        const todayDiaries = data.filter(d => d.practice_date === today);
-        set(s => { s.diaries = todayDiaries; });
-        // 今日投稿しているか判定
-        const { data: { user } } = await getSupabaseClient().auth.getUser();
-        const posted = user ? todayDiaries.some(d => d.user_id === user.id) : false;
-        set(s => { s.todayPosted = posted; });
+        // 現在の表示日を更新
+        set(s => { s.currentDate = date ?? today; });
+
+        // まず今日投稿済みかどうかを独立に計算
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { count } = await supabase
+            .from('practice_diaries')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('practice_date', today);
+          set(s => { s.todayPosted = !!(count && count > 0); });
+        } else {
+          set(s => { s.todayPosted = false; });
+        }
+
+        // 一覧の取得
+        if (date) {
+          const { fetchDiariesByDate } = await import('@/platform/supabaseDiary');
+          const list = await fetchDiariesByDate(date, 500);
+          set(s => { s.diaries = list; });
+        } else {
+          const data = await fetchDiaries(50);
+          // 当日の日記のみ表示
+          const todayDiaries = data.filter(d => d.practice_date === today);
+          set(s => { s.diaries = todayDiaries; });
+        }
       } catch (e:any) {
         set(s => { s.error = e.message; });
       } finally { set(s=>{s.loading=false;}); }
@@ -175,8 +197,8 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
       // 日記新規投稿（最適化: キャッシュクリアを最小限に）
       supabase.channel('realtime-diaries')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async () => {
-          // 最新データを取得
-          await get().fetch();
+          // 現在の表示日を保持したまま再取得
+          await get().fetch(get().currentDate || undefined);
         })
         .subscribe();
 

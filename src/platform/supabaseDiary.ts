@@ -98,6 +98,76 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   return diariesWithLikes;
 }
 
+export async function fetchDiariesByDate(date: string, limit = 200): Promise<Diary[]> {
+  const supabase = getSupabaseClient();
+
+  // 指定日の日記とプロフィール情報を取得
+  const { data: diariesData, error } = await supabase
+    .from('practice_diaries')
+    .select('*, profiles(nickname, avatar_url, level, rank, email)')
+    .eq('practice_date', date)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  if (!diariesData) return [];
+
+  // 自動作成プロフィール（nickname = email）のユーザーの日記は除外
+  const filteredDiaries = diariesData.filter((diary: any) => {
+    const profile = diary.profiles;
+    return profile && profile.nickname && profile.nickname !== profile.email;
+  });
+
+  const diaryIds = filteredDiaries.map((diary: any) => diary.id);
+
+  // 一括でいいね数とコメント数を取得
+  const [likesData, commentsData] = await Promise.all([
+    supabase
+      .from('diary_likes')
+      .select('diary_id')
+      .in('diary_id', diaryIds)
+      .then(result => {
+        const likesMap = new Map<string, number>();
+        if (result.data) {
+          result.data.forEach((item: any) => {
+            likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
+          });
+        }
+        return likesMap;
+      }),
+    supabase
+      .from('diary_comments')
+      .select('diary_id')
+      .in('diary_id', diaryIds)
+      .then(result => {
+        const commentsMap = new Map<string, number>();
+        if (result.data) {
+          result.data.forEach((item: any) => {
+            commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
+          });
+        }
+        return commentsMap;
+      })
+  ]);
+
+  const diariesWithCounts: Diary[] = filteredDiaries.map((diary: any) => ({
+    id: diary.id,
+    user_id: diary.user_id,
+    content: diary.content,
+    practice_date: diary.practice_date,
+    created_at: diary.created_at,
+    likes: likesData.get(diary.id) || 0,
+    comment_count: commentsData.get(diary.id) || 0,
+    nickname: diary.profiles?.nickname || 'User',
+    avatar_url: diary.profiles?.avatar_url,
+    level: diary.profiles?.level || 1,
+    rank: diary.profiles?.rank || 'free',
+    image_url: diary.image_url,
+  }));
+
+  return diariesWithCounts;
+}
+
 export async function fetchUserDiaries(userId: string): Promise<{
   diaries: Array<{
     id: string;
