@@ -1085,11 +1085,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                             </div>
                           </div>
                         );
-                      })()}
-                      </div>
-                    </div>
-                    );
-                  })}
+                                             })()}
+                     </div>
+                     );
+                   })}
               </div>
             ) : null}
             
