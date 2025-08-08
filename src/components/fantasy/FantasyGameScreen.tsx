@@ -605,15 +605,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         return;
       }
       
-      // 表示するノーツを収集
+      // 表示するノーツを収集（重複防止用にベースID集合を用意）
       const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+      const baseIdsPresent = new Set<string>();
       
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
       // 通常のノーツ
       gameState.taikoNotes.forEach((note, index) => {
-        // 2週目以降は全てのノーツを表示対象とする
+        // 2週目以降は全てのノーツを表示対象とする（未使用のため保持）
         const loopCount = Math.floor(currentTime / loopDuration);
         
         // 処理済みのノーツをスキップ（直前にヒットしたノーツも含めて非表示）
@@ -638,6 +639,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             chord: note.chord.displayName,
             x
           });
+          // 現在ループに表示したベースIDとして登録
+          // ただし、ヒット直後に消えた最後ノーツはベースID登録しないことで、
+          // 次ループ側のプレビューを許可して "復活" を実現する
+          if (!note.isHit) {
+            baseIdsPresent.add(note.id);
+          }
         }
       });
       
@@ -645,18 +652,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
         const maxLoopPreview = 6;
+        const minPreviewLeadTime = 1.2;
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
           if (timeUntilHit > lookAheadTime) break;
+          // ループ直後0.4秒未満のものは、直前ループの残像と紛らわしいので抑制
+          if (timeUntilHit < minPreviewLeadTime) continue;
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          // 次ループのプレビュー用には表示（idに _loop を付与）
-          notesToDisplay.push({
-            id: `${note.id}_loop`,
-            chord: note.chord.displayName,
-            x
-          });
+          // 次ループのプレビューは、同じベースIDが既に通常ノーツで表示されている場合は重ね表示しない
+          if (!baseIdsPresent.has(note.id)) {
+            notesToDisplay.push({
+              id: `${note.id}_loop`,
+              chord: note.chord.displayName,
+              x
+            });
+          }
           if (i + 1 >= maxLoopPreview) break;
         }
       }
