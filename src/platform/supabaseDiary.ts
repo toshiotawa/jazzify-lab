@@ -26,6 +26,8 @@ export interface DiaryComment {
   created_at: string;
   nickname: string;
   avatar_url?: string;
+  likes?: number;
+  likedByMe?: boolean;
 }
 
 export async function fetchDiaries(limit = 20): Promise<Diary[]> {
@@ -486,7 +488,9 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
     profiles: { nickname: string; avatar_url?: string } | null;
   };
 
-  const { data: rawData, error } = await getSupabaseClient()
+  const supabase = getSupabaseClient();
+
+  const { data: rawData, error } = await supabase
     .from('diary_comments')
     .select('id, user_id, content, created_at, profiles(nickname, avatar_url)')
     .eq('diary_id', diaryId)
@@ -496,7 +500,29 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
   const data = rawData as unknown as Row[] | null;
   if (!data) return [];
 
-  // 型ガード: profiles が必ず存在する前提だが、null チェック
+  const commentIds = data.map(d => d.id);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // 取得したコメントに対する「いいね」を取得（存在しない環境では0として扱う）
+  let likesByComment = new Map<string, number>();
+  let likedByMeSet = new Set<string>();
+  try {
+    const { data: likeRows } = await supabase
+      .from('comment_likes')
+      .select('comment_id, user_id')
+      .in('comment_id', commentIds);
+    if (likeRows) {
+      likeRows.forEach((r: any) => {
+        likesByComment.set(r.comment_id, (likesByComment.get(r.comment_id) || 0) + 1);
+        if (user && r.user_id === user.id) likedByMeSet.add(r.comment_id);
+      });
+    }
+  } catch (e) {
+    // テーブル未作成などの環境では何もしない
+    likesByComment = new Map();
+    likedByMeSet = new Set();
+  }
+
   return data.map((d) => {
     const profile = d.profiles ?? { nickname: 'User' };
     return {
@@ -506,6 +532,8 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
       created_at: d.created_at,
       nickname: profile.nickname,
       avatar_url: profile.avatar_url,
+      likes: likesByComment.get(d.id) || 0,
+      likedByMe: likedByMeSet.has(d.id),
     } satisfies DiaryComment;
   });
 }
@@ -527,6 +555,29 @@ export async function deleteComment(commentId: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
   const { error } = await supabase.from('diary_comments').delete().eq('id', commentId).eq('user_id', user.id);
+  if (error) throw error;
+}
+
+export async function likeComment(commentId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+
+  // 既にいいね済みかチェック
+  const { data: existing } = await supabase
+    .from('comment_likes')
+    .select('user_id')
+    .eq('comment_id', commentId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (existing) {
+    throw new Error('既にいいね済みです');
+  }
+
+  const { error } = await supabase
+    .from('comment_likes')
+    .insert({ comment_id: commentId, user_id: user.id });
   if (error) throw error;
 }
 
@@ -568,6 +619,38 @@ export async function fetchDiaryLikes(diaryId: string, limit = 50): Promise<Diar
     level: p.level || 1,
     rank: p.rank || 'free',
   }));
+}
+
+export async function fetchDiaryById(diaryId: string): Promise<Diary | null> {
+  const supabase = getSupabaseClient();
+  const { data: row, error } = await supabase
+    .from('practice_diaries')
+    .select('*, profiles(nickname, avatar_url, level, rank, email)')
+    .eq('id', diaryId)
+    .single();
+  if (error) throw error;
+  if (!row) return null;
+
+  // いいね数とコメント数
+  const [likesCount, commentsCount] = await Promise.all([
+    supabase.from('diary_likes').select('id', { count: 'exact', head: true }).eq('diary_id', diaryId),
+    supabase.from('diary_comments').select('id', { count: 'exact', head: true }).eq('diary_id', diaryId),
+  ]);
+
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    content: row.content,
+    practice_date: row.practice_date,
+    created_at: row.created_at,
+    likes: likesCount.count || 0,
+    comment_count: commentsCount.count || 0,
+    nickname: row.profiles?.nickname || 'User',
+    avatar_url: row.profiles?.avatar_url,
+    level: row.profiles?.level || 1,
+    rank: row.profiles?.rank || 'free',
+    image_url: row.image_url,
+  };
 }
 
 export async function deleteDiary(diaryId: string): Promise<void> {

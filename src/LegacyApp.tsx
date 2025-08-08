@@ -12,6 +12,7 @@ import ProfileWizard from '@/components/auth/ProfileWizard';
 import AccountPage from '@/components/ui/AccountModal';
 import MypagePage from '@/components/ui/MypageModal';
 import DiaryPage from '@/components/diary/DiaryPage';
+import DiaryDetailPage from '@/components/diary/DiaryDetailPage';
 import LessonPage from '@/components/lesson/LessonPage';
 import LessonDetailPage from '@/components/lesson/LessonDetailPage';
 import Dashboard from '@/components/dashboard/Dashboard';
@@ -186,6 +187,15 @@ const App: React.FC = () => {
     return (
       <>
         <MypagePage />
+        <ToastContainer />
+      </>
+    );
+  }
+
+  if (hash.startsWith('#diary-detail')) {
+    return (
+      <>
+        <DiaryDetailPage />
         <ToastContainer />
       </>
     );

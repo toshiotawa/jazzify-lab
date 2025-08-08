@@ -46,6 +46,8 @@ const DiaryPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const { user, isGuest } = useAuthStore();
   const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary } = useDiaryStore();
+  const { addComment, deleteComment, likeComment } = useDiaryStore();
+  const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [openSection, setOpenSection] = useState<Record<string, {likes:boolean;comments:boolean}>>({});
   const [editingId, setEditingId] = useState<string|null>(null);
   const [editText, setEditText] = useState<string>('');
@@ -315,7 +317,7 @@ const DiaryPage: React.FC = () => {
                           <div className="flex items-center justify-between mb-3 text-sm text-gray-400">
                             <div className="flex items-center space-x-2">
                               <FaCalendarAlt className="w-4 h-4" />
-                              <span>{diary.practice_date}</span>
+                              <button className="hover:text-blue-400" onClick={()=>{window.location.href = `/main#diary-detail?id=${diary.id}`;}}>{diary.practice_date}</button>
                             </div>
                             <button
                               className="flex items-center space-x-1 hover:text-blue-400"
@@ -394,9 +396,38 @@ const DiaryPage: React.FC = () => {
                                 <div key={c.id} className="text-xs text-gray-300 flex items-center space-x-2">
                                   <img src={c.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
                                   <span className="font-semibold">{c.nickname}</span>
-                                  <p>{c.content}</p>
+                                  <p className="flex-1 break-words">{c.content}</p>
+                                  <button
+                                    className="text-pink-400 hover:text-pink-300"
+                                    onClick={async ()=>{ try{ await likeComment(c.id, diary.id); }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); } }}
+                                    title="いいね"
+                                  >
+                                    <FaHeart className="inline mr-1" /> {c.likes ?? 0}
+                                  </button>
                                 </div>
                               ))}
+                              <div className="flex space-x-2 mt-2">
+                                <input
+                                  className="flex-1 p-1 bg-slate-700 rounded"
+                                  value={commentText[diary.id] || ''}
+                                  onChange={e => setCommentText(prev => ({ ...prev, [diary.id]: e.target.value }))}
+                                  placeholder="コメントを追加..."
+                                  disabled={!user}
+                                />
+                                <button
+                                  className="btn btn-xs btn-primary"
+                                  onClick={async ()=>{
+                                    const text = (commentText[diary.id]||'').trim();
+                                    if(!text) return;
+                                    try {
+                                      await addComment(diary.id, text);
+                                      setCommentText(prev=>({ ...prev, [diary.id]: '' }));
+                                      await fetchComments(diary.id);
+                                    } catch(e:any){ toast.error(e.message||'コメントの追加に失敗しました'); }
+                                  }}
+                                  disabled={!commentText[diary.id]?.trim()}
+                                >送信</button>
+                              </div>
                             </div>
                           )}
                         </div>
