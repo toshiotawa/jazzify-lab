@@ -653,6 +653,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           const timeUntilHit = virtualHitTime - normalizedTime;
           if (timeUntilHit > lookAheadTime) break;
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          // 既に同等のX位置に通常ノーツがある場合はプレビューを追加しない（重なりで明るく見えるのを防止）
+          const isDuplicateX = notesToDisplay.some(n => Math.abs(n.x - x) < 1.5);
+          if (isDuplicateX) continue;
           // 次ループのプレビュー用には表示（idに _loop を付与）
           notesToDisplay.push({
             id: `${note.id}_loop`,
