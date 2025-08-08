@@ -475,12 +475,10 @@ export class FantasyPIXIInstance {
       
       // 既存のテクスチャをクリア
       if (this.monsterSprite.texture && this.monsterSprite.texture !== PIXI.Texture.EMPTY) {
-        // Avoid destroying baseTexture to prevent uvsFloat32 null issues on reuse
-        try {
-          if (!this.monsterSprite.texture.destroyed) {
-            this.monsterSprite.texture.destroy(false);
-          }
-        } catch {}
+        // Do not destroy shared textures; simply detach to avoid race conditions
+        if (this.monsterSprite && !this.monsterSprite.destroyed) {
+          this.monsterSprite.texture = PIXI.Texture.EMPTY;
+        }
       }
       
       // ★★★ createMonsterSpriteForId を画像ベースに修正 ★★★
@@ -2154,17 +2152,9 @@ export class FantasyPIXIInstance {
     
     // テクスチャクリーンアップ
     try {
-      this.imageTextures.forEach((texture: PIXI.Texture) => {
-        try {
-          // Do not destroy base textures shared by PIXI asset cache
-          if (texture && typeof texture.destroy === 'function' && !texture.destroyed) {
-            texture.destroy(false);
-          }
-        } catch (error) {
-          devLog.debug('⚠️ 画像テクスチャ削除エラー:', error);
-        }
-      });
+      // Do not destroy textures obtained from PIXI.Assets; just clear local references
       this.imageTextures.clear();
+      this.fukidashiTexture = null;
     } catch (error) {
       devLog.debug('⚠️ テクスチャクリーンアップエラー:', error);
     }
