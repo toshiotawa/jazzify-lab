@@ -399,6 +399,8 @@ export const useFantasyGameEngine = ({
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
   // プリロードしたテクスチャを保持
   const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
+  // 怒り状態の自動解除タイマーをモンスターIDごとに管理
+  const enrageTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -948,11 +950,18 @@ export const useFantasyGameEngine = ({
   const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
     // 攻撃時に入力バッファをリセット（削除済み）
     
-    // 怒り状態のトグル（IDがわかる場合）
+    // 怒り状態のトグル（IDがわかる場合）: タイマーを延長可能に
     if (attackingMonsterId) {
       const { setEnrage } = useEnemyStore.getState();
+      const timers = enrageTimersRef.current;
+      const oldTimer = timers.get(attackingMonsterId);
+      if (oldTimer) clearTimeout(oldTimer);
       setEnrage(attackingMonsterId, true);
-      setTimeout(() => setEnrage(attackingMonsterId!, false), 500);
+      const t = setTimeout(() => {
+        setEnrage(attackingMonsterId!, false);
+        timers.delete(attackingMonsterId!);
+      }, 500);
+      timers.set(attackingMonsterId, t);
     }
     
     setGameState(prevState => {
@@ -960,8 +969,15 @@ export const useFantasyGameEngine = ({
       if (!attackingMonsterId && prevState.activeMonsters?.length) {
         const { setEnrage } = useEnemyStore.getState();
         const fallbackId = prevState.activeMonsters[0].id;
+        const timers = enrageTimersRef.current;
+        const oldTimer = timers.get(fallbackId);
+        if (oldTimer) clearTimeout(oldTimer);
         setEnrage(fallbackId, true);
-        setTimeout(() => setEnrage(fallbackId, false), 500);
+        const t = setTimeout(() => {
+          setEnrage(fallbackId, false);
+          timers.delete(fallbackId);
+        }, 500);
+        timers.set(fallbackId, t);
       }
 
       const newHp = Math.max(0, prevState.playerHp - 1); // 確実に1減らす
@@ -1168,6 +1184,18 @@ export const useFantasyGameEngine = ({
           
           // 敵の攻撃を発動（先頭モンスターを指定）
           const attackerId = prevState.activeMonsters?.[0]?.id;
+          if (attackerId) {
+            const { setEnrage } = useEnemyStore.getState();
+            const timers = enrageTimersRef.current;
+            const oldTimer = timers.get(attackerId);
+            if (oldTimer) clearTimeout(oldTimer);
+            setEnrage(attackerId, true);
+            const t = setTimeout(() => {
+              setEnrage(attackerId, false);
+              timers.delete(attackerId);
+            }, 500);
+            timers.set(attackerId, t);
+          }
           setTimeout(() => handleEnemyAttack(attackerId), 0);
           
           // 次のノーツへ進む
@@ -1224,8 +1252,15 @@ export const useFantasyGameEngine = ({
         
         // 怒り状態をストアに通知
         const { setEnrage } = useEnemyStore.getState();
+        const timers = enrageTimersRef.current;
+        const oldTimer = timers.get(attackingMonster.id);
+        if (oldTimer) clearTimeout(oldTimer);
         setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
+        const t = setTimeout(() => {
+          setEnrage(attackingMonster.id, false);
+          timers.delete(attackingMonster.id);
+        }, 500);
+        timers.set(attackingMonster.id, t);
         
         // 攻撃したモンスターのゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 
@@ -1521,6 +1556,10 @@ export const useFantasyGameEngine = ({
       
       // プリロードしたテクスチャのクリア（参照のみクリア、実体はPIXI側で管理）
       imageTexturesRef.current.clear();
+      
+      // 怒り解除タイマーのクリーンアップ
+      enrageTimersRef.current.forEach(clearTimeout);
+      enrageTimersRef.current.clear();
       
       devLog.debug('✅ FantasyGameEngine クリーンアップ完了');
     };
