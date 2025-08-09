@@ -2251,6 +2251,11 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  // 怒りを短時間だけ強制表示（即時反映＆即終了）
+  public triggerEnrageBurst(monsterId: string, durationMs: number = 100): void {
+    const now = Date.now();
+    this.enrageHoldUntil.set(monsterId, now + Math.max(0, durationMs));
+  }
 
 }
 
