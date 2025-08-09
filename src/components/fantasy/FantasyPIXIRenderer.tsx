@@ -2070,9 +2070,9 @@ export class FantasyPIXIInstance {
   }
   
   // ノーツヒット時のエフェクト
-  createNoteHitEffect(x: number, y: number, isSuccess: boolean): void {
+  createNoteHitEffect(x: number, y: number, isSuccess: boolean, durationMs: number = isSuccess ? 300 : 50): void {
     const effectGraphics = new PIXI.Graphics();
-    
+
     if (isSuccess) {
       // 成功時：金色の爆発エフェクト
       effectGraphics.lineStyle(4, 0xFFD700, 1);
@@ -2085,26 +2085,35 @@ export class FantasyPIXIInstance {
       effectGraphics.moveTo(20, -20);
       effectGraphics.lineTo(-20, 20);
     }
-    
+
     effectGraphics.x = x;
     effectGraphics.y = y;
-    
+
     this.effectContainer.addChild(effectGraphics);
-    
-    // フェードアウトアニメーション
-    const fadeOut = () => {
-      effectGraphics.alpha -= 0.05;
-      effectGraphics.scale.x += 0.05;
-      effectGraphics.scale.y += 0.05;
-      
-      if (effectGraphics.alpha <= 0) {
-        effectGraphics.destroy();
+
+    let remaining = durationMs;
+
+    const tick = () => {
+      if (this.isDestroyed || !effectGraphics || (effectGraphics as any).destroyed) return;
+
+      remaining -= 16; // ~60fps
+      // フェード
+      effectGraphics.alpha = Math.max(0, remaining / durationMs);
+      // 成功時のみ少し拡大
+      if (isSuccess) {
+        effectGraphics.scale.x += 0.06;
+        effectGraphics.scale.y += 0.06;
+      }
+
+      if (remaining <= 0) {
+        if (effectGraphics.parent) effectGraphics.parent.removeChild(effectGraphics);
+        if (!(effectGraphics as any).destroyed) effectGraphics.destroy();
       } else {
-        requestAnimationFrame(fadeOut);
+        requestAnimationFrame(tick);
       }
     };
-    
-    requestAnimationFrame(fadeOut);
+
+    requestAnimationFrame(tick);
   }
   
   // 判定ラインの位置を取得
@@ -2234,7 +2243,7 @@ export class FantasyPIXIInstance {
       /* ✨ 追加 ✨ : モンスターが去ったらエフェクトを全部掃除 */
       this.effectContainer.children.forEach(child => {
         if (child.parent) child.parent.removeChild(child);
-        if (!child.destroyed && typeof (child as any).destroy === 'function') {
+        if (!(child as any).destroyed && typeof (child as any).destroy === 'function') {
           (child as any).destroy();
         }
       });
@@ -2258,7 +2267,7 @@ export class FantasyPIXIInstance {
     !s || (s as any).destroyed || !(s as any).transform;
 
 
-}
+} // end of class FantasyPIXIInstance
 
 // ===== Reactコンポーネント =====
 
@@ -2306,8 +2315,8 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
     }
   }, [pixiInstance, monsterIcon, activeMonsters]);
 
-
-
+  
+  
   // サイズ変更
   useEffect(() => {
     if (pixiInstance) {
@@ -2324,4 +2333,4 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   );
 };
 
-export default FantasyPIXIRenderer; 
+export default FantasyPIXIRenderer;
