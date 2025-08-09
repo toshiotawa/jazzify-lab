@@ -1639,14 +1639,15 @@ export class FantasyPIXIInstance {
         // ストアから怒り状態を取得
         const enragedTable = useEnemyStore.getState().enraged;
         
-        // 怒りマークの相対位置（スプライト中心基準）
-        const ANGER_OFFSET = { x: 80, y: -80 }; // さらに右上へ（アイコンに重ならないように）
+        // 怒りマークの相対位置（スプライト中心基準）: 近傍ランダム
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 30 + Math.random() * 30; // 30〜60pxの範囲
+        const ANGER_OFFSET = { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
         
         if (enragedTable[id]) {
-          // ---- 怒り演出 ----
-          const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
-          visualState.scale = baseScale * 1.25; // 巨大化（25%増し）
-          sprite.tint = 0xFFCCCC;
+          // ---- 怒り演出 ----（サイズ・色は変えず、怒りマークのみ表示）
+          // モンスター本体の見た目は不変
+          sprite.scale.set(visualState.scale);
           
           // 怒りマークを追加（まだない場合）
           if (!monsterData.angerMark) {
@@ -1654,8 +1655,8 @@ export class FantasyPIXIInstance {
             if (angerTexture) {
               const angerMark = new PIXI.Sprite(angerTexture);
               angerMark.anchor.set(0.5);
-              angerMark.width = 72;  // サイズ調整（もっと大きく）
-              angerMark.height = 72;
+              angerMark.width = 48;
+              angerMark.height = 48;
               angerMark.position.set(
                 ANGER_OFFSET.x,
                 ANGER_OFFSET.y
@@ -1666,8 +1667,8 @@ export class FantasyPIXIInstance {
               // テクスチャが無い場合は絵文字でフォールバック
               const angerMark = new PIXI.Text('💢', {
                 fontFamily: 'DotGothic16',
-                fontSize: 54,  // もっと大きく
-                fill: 0xFF0000,
+                fontSize: 36,
+                fill: 0xFF3333,
                 stroke: 0x000000,
                 strokeThickness: 4,
               });
@@ -1691,7 +1692,7 @@ export class FantasyPIXIInstance {
           }
           
         } else {
-          // ---- 通常状態 ----
+          // ---- 通常状態 ----（元のスケール・色）
           const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
           visualState.scale = baseScale;
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
@@ -2056,12 +2057,19 @@ export class FantasyPIXIInstance {
       effectGraphics.lineStyle(4, 0xFFD700, 1);
       effectGraphics.drawCircle(0, 0, 40);
     } else {
-      // 失敗時：赤い×マーク
+      // 失敗時：赤い×マーク（50msのみ表示）
       effectGraphics.lineStyle(4, 0xFF0000, 1);
       effectGraphics.moveTo(-20, -20);
       effectGraphics.lineTo(20, 20);
       effectGraphics.moveTo(20, -20);
       effectGraphics.lineTo(-20, 20);
+      effectGraphics.x = x;
+      effectGraphics.y = y;
+      this.effectContainer.addChild(effectGraphics);
+      setTimeout(() => {
+        effectGraphics.destroy();
+      }, 50);
+      return;
     }
     
     effectGraphics.x = x;
