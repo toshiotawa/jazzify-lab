@@ -634,19 +634,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       gameState.taikoNotes.forEach((note, index) => {
         // 2週目以降は全てのノーツを表示対象とする
         const loopCount = Math.floor(currentTime / loopDuration);
-        
-        // 処理済みのノーツをスキップ（直前にヒットしたノーツも含めて非表示）
-        if (index < gameState.currentNoteIndex) return;
-        
+
         // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
         if (note.isHit) return;
-        
+
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
-        
-        // ループリセット直後（currentNoteIndex===0）は負の許容をやめ、直前ノーツの復活を防ぐ
-        const lowerBound = gameState.currentNoteIndex === 0 ? 0 : -0.5;
-        
+
+        // 判定ライン通過後も一定時間は左に流し続ける（-0.5秒）
+        const lowerBound = -0.5;
+
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
