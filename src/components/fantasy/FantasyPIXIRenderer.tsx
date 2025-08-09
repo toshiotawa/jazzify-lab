@@ -155,7 +155,16 @@ const loadMonsterTexture = async (icon: string): Promise<PIXI.Texture> => {
       return PIXI.Texture.EMPTY;
     })();
   }
-  return textureCache[icon];
+
+  const tex = await textureCache[icon];
+  // 破棄耐性: 破棄済みならキャッシュを捨てて再ロード
+  if ((tex as any)?.destroyed || (tex.baseTexture as any)?.destroyed) {
+    devLog.debug(`♻️ 破棄済みテクスチャ検出。再ロードします: ${icon}`);
+    delete textureCache[icon];
+    return loadMonsterTexture(icon);
+  }
+
+  return tex;
 };
 
 // ===== モンスターシンボルマッピング（フラットデザイン） =====
@@ -690,14 +699,21 @@ export class FantasyPIXIInstance {
     try {
       // まずプリロードされたテクスチャをチェック
       let texture: PIXI.Texture | null = null;
-      
+
       if (this.imageTexturesRef?.current.has(icon)) {
-        // プリロードされたテクスチャが存在する場合は即座に使用
-        texture = this.imageTexturesRef.current.get(icon)!;
-        devLog.debug(`✅ プリロードされたテクスチャを使用: ${icon}`);
-      } else {
-        // プリロードされていない場合は従来の非同期ロード
-        // ▼▼▼ 変更点：完全に透明なプレースホルダーで即座に表示 ▼▼▼
+        // プリロードされたテクスチャが存在する場合
+        const t = this.imageTexturesRef.current.get(icon)!;
+        const isDestroyed = (t as any)?.destroyed || (t.baseTexture as any)?.destroyed;
+        if (!isDestroyed) {
+          texture = t;
+          devLog.debug(`✅ プリロードされたテクスチャを使用: ${icon}`);
+        } else {
+          devLog.debug(`⚠️ プリロード済みだが破棄済みのテクスチャを検出。フォールバックへ: ${icon}`);
+        }
+      }
+
+      // フォールバック: プリロードが無い/破棄済み -> プレースホルダーを返しつつ非同期で差し替え
+      if (!texture) {
         // 完全に透明なテクスチャを作成
         const transparentGraphics = new PIXI.Graphics();
         transparentGraphics.beginFill(0xFFFFFF, 0); // 完全に透明
@@ -705,18 +721,24 @@ export class FantasyPIXIInstance {
         transparentGraphics.endFill();
         const transparentTexture = this.app.renderer.generateTexture(transparentGraphics);
         transparentGraphics.destroy();
-        
+
         // プレースホルダーを作成（完全に透明）
         const placeholder = new PIXI.Sprite(transparentTexture);
         placeholder.anchor.set(0.5);
-        placeholder.alpha = 0;          // まずは見えない状態で挿入
-        
+        placeholder.alpha = 0; // まずは見えない状態で挿入
+
         // 非同期で本物のテクスチャをロードして差し替える
         loadMonsterTexture(icon).then(loadedTexture => {
           if (!placeholder.destroyed) {
+            // 破棄済みテクスチャは使わない
+            if ((loadedTexture as any)?.destroyed || (loadedTexture.baseTexture as any)?.destroyed) {
+              devLog.debug(`⚠️ ロード結果が破棄済みのため差し替え中止: ${icon}`);
+              return;
+            }
+
             placeholder.texture = loadedTexture;
             placeholder.tint = 0xFFFFFF;
-            
+
             // αを滑らかに 0→1 にする
             const targetScale = this.calcSpriteScale(
               loadedTexture,
@@ -736,20 +758,20 @@ export class FantasyPIXIInstance {
               if (a < 1) requestAnimationFrame(fade);
             };
             fade();
-            
+
             devLog.debug(`✅ モンスタープレースホルダーを実画像に差し替え: ${icon}`);
           }
         }).catch(error => {
           devLog.debug(`❌ モンスターテクスチャ差し替え失敗: ${icon}`, error);
         });
-        
+
         return placeholder;
       }
-      
+
       // プリロードされたテクスチャを使用してスプライトを作成
       const sprite = new PIXI.Sprite(texture);
       sprite.anchor.set(0.5);
-      
+
       // ▼▼▼ 修正箇所 ▼▼▼
       // 実際のモンスター表示エリアのサイズに基づいてサイズを決定
       const CONTAINER_WIDTH = this.app.screen.width;
@@ -757,13 +779,13 @@ export class FantasyPIXIInstance {
 
       // モバイル判定
       const isMobile = CONTAINER_WIDTH < 768;
-      
+
       // 現在のモンスター数を取得（デフォルトは3）
       const currentMonsterCount = this.monsterSprites.size || 3;
-      
+
       // モンスター数とデバイスに応じて利用可能幅を計算
       let availableWidthRatio: number;
-      
+
       if (isMobile) {
         // モバイルの場合（3倍に拡大）
         if (currentMonsterCount <= 3) {
@@ -785,7 +807,7 @@ export class FantasyPIXIInstance {
           availableWidthRatio = 0.30;  // 0.10から0.30へ（3倍）
         }
       }
-      
+
       // 動的スケール計算を使用
       const dynamicScale = this.calcSpriteScale(
         sprite.texture,
@@ -793,15 +815,15 @@ export class FantasyPIXIInstance {
         CONTAINER_HEIGHT,
         currentMonsterCount
       );
-      
+
       sprite.scale.set(dynamicScale);
-      
+
       sprite.anchor.set(0.5);
       // ▲▲▲ ここまで ▲▲▲
-      
+
       sprite.anchor.set(0.5);
       // ▲▲▲ ここまで ▲▲▲
-      
+
       return sprite;
     } catch (error) {
       devLog.debug('❌ モンスタースプライト作成エラー:', { id, error });
