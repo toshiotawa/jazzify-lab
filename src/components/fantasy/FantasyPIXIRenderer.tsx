@@ -1597,11 +1597,11 @@ export class FantasyPIXIInstance {
     icon.y = -monsterData.sprite.height * 0.45;
     monsterData.sprite.addChild(icon);
 
-    // 0.5 秒後に自動削除（過密時の視認性改善）
+    // 0.1 秒後に自動削除（過密時の視認性改善）
     setTimeout(() => {
       if (!icon.destroyed && icon.parent) icon.parent.removeChild(icon);
       icon.destroy();
-    }, 500);
+    }, 100);
 
     (monsterData as any).attackIcon = icon; // 再利用できるよう保持
   }
@@ -1686,7 +1686,7 @@ export class FantasyPIXIInstance {
           sprite.scale.set(visualState.scale * pulse);
           
           // 攻撃直後のモンスター赤フラッシュ
-          if (monsterData.lastAttackTime && Date.now() - monsterData.lastAttackTime < 150) {
+          if (monsterData.lastAttackTime && Date.now() - monsterData.lastAttackTime < 100) {
             sprite.tint = 0xFF4444; // 真紅
           }
           

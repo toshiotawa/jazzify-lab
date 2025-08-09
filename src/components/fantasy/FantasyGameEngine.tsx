@@ -1234,7 +1234,7 @@ export const useFantasyGameEngine = ({
         // 怒り状態をストアに通知
         const { setEnrage } = useEnemyStore.getState();
         setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
+        setTimeout(() => setEnrage(attackingMonster.id, false), 100); // 0.1秒後にOFF
         
         // 攻撃したモンスターのゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 
