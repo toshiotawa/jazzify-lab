@@ -439,24 +439,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const whiteKeyWidth = screenWidth / totalWhiteKeys;
       const dynamicNoteWidth = Math.max(whiteKeyWidth - 2, 16); // 最小16px
       
-      renderer.updateSettings({
-        noteNameStyle: 'abc',
-        simpleDisplayMode: true, // シンプル表示モードを有効
-        pianoHeight: 120, // ファンタジーモード用に大幅に縮小
-        noteHeight: 16, // 音符の高さも縮小
-        noteWidth: dynamicNoteWidth,
-        transpose: 0,
-        transposingInstrument: 'concert_pitch',
-        practiceGuide: stage.showGuide ? 'key' : 'off', // ガイド表示設定に基づく
-        showHitLine: false, // ヒットラインを非表示
-        viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
-        timingAdjustment: 0,
-        effects: {
-          glow: true,
-          particles: false,
-          trails: false
-        }
-      });
+              const shouldEnableGuide = stage.showGuide && (stage.simultaneousMonsterCount === 1);
+        renderer.updateSettings({
+          noteNameStyle: 'abc',
+          simpleDisplayMode: true, // シンプル表示モードを有効
+          pianoHeight: 120, // ファンタジーモード用に大幅に縮小
+          noteHeight: 16, // 音符の高さも縮小
+          noteWidth: dynamicNoteWidth,
+          transpose: 0,
+          transposingInstrument: 'concert_pitch',
+          practiceGuide: shouldEnableGuide ? 'key' : 'off', // ガイド表示: show_guide && 同時出現数1 のときのみ
+          showHitLine: false, // ヒットラインを非表示
+          viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
+          timingAdjustment: 0,
+          effects: {
+            glow: true,
+            particles: false,
+            trails: false
+          }
+        });
       
       // キーボードのクリックイベントを接続
       devLog.debug('🎹 Setting key callbacks for Fantasy mode...');
@@ -484,12 +485,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         if (midiControllerRef.current) {
           midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
             renderer.highlightKey(note, active);
-            // アクティブ(ノートオン)時に即時エフェクトを発火
             if (active) {
               renderer.triggerKeyPressEffect(note);
             }
           });
-          
           devLog.debug('✅ ファンタジーモードMIDIController ↔ PIXIレンダラー連携完了');
         }
       
@@ -708,12 +707,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
   useEffect(() => {
     if (pixiRenderer) {
+      const shouldEnableGuide = stage.showGuide && (stage.simultaneousMonsterCount === 1);
       pixiRenderer.updateSettings({
-        practiceGuide: 'off' // 常にOFFにして鍵盤ハイライトを無効化
+        practiceGuide: shouldEnableGuide ? 'key' : 'off'
       });
-      devLog.debug('🎮 PIXIレンダラー設定更新: 鍵盤ハイライト無効化');
+      devLog.debug(`🎮 PIXIレンダラー設定更新: practiceGuide=${shouldEnableGuide ? 'key' : 'off'}`);
     }
-  }, [pixiRenderer]);
+  }, [pixiRenderer, stage.showGuide, stage.simultaneousMonsterCount]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
