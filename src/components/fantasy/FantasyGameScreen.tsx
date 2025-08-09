@@ -320,6 +320,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
+
+    // Taikoモードのミス時は判定ラインへ赤い×を一瞬表示
+    if (isTaikoModeRef.current && fantasyPixiInstance) {
+      const { x, y } = fantasyPixiInstance.getJudgeLinePosition();
+      fantasyPixiInstance.createNoteHitEffect(x, y, false, 50);
+    }
     
     // 敵の攻撃音を再生（single クイズモードのみ）
     try {
@@ -341,7 +347,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setHeartFlash(true);
     setTimeout(() => setHeartFlash(false), 150);
     
-  }, [stage.mode]);
+  }, [stage.mode, fantasyPixiInstance]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
