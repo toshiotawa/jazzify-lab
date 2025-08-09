@@ -321,8 +321,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
 
-    // Taikoモードのミス時は判定ラインへ赤い×を一瞬表示
-    if (isTaikoModeRef.current && fantasyPixiInstance) {
+    // progression系（order/random/timing）のTaikoミス時は判定ラインへ赤い×を一瞬表示
+    if (fantasyPixiInstance && stage.mode !== 'single') {
       const { x, y } = fantasyPixiInstance.getJudgeLinePosition();
       fantasyPixiInstance.createNoteHitEffect(x, y, false, 50);
     }
