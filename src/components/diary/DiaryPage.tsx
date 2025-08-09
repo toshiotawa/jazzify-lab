@@ -318,6 +318,7 @@ const DiaryPage: React.FC = () => {
                             <div className="flex items-center space-x-2">
                               <FaCalendarAlt className="w-4 h-4" />
                               <button className="hover:text-blue-400" onClick={()=>{window.location.href = `/main#diary-detail?id=${diary.id}`;}}>{diary.practice_date}</button>
+                              <span className="ml-2">{new Date(diary.created_at).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
                             </div>
                                                           <div className="flex items-center space-x-3">
                                 <button
@@ -407,9 +408,12 @@ const DiaryPage: React.FC = () => {
                             <div className="mt-2 space-y-2">
                               {comments[diary.id].map(c=>(
                                 <div key={c.id} className="text-xs text-gray-300 flex items-center space-x-2">
-                                  <img src={c.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
-                                  <span className="font-semibold">{c.nickname}</span>
+                                  <button onClick={()=>{window.location.href=`/main#diary-user?id=${c.user_id}`;}}>
+                                    <img src={c.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
+                                  </button>
+                                  <button className="font-semibold hover:text-blue-400" onClick={()=>{window.location.href=`/main#diary-user?id=${c.user_id}`;}}>{c.nickname}</button>
                                   <p className="flex-1 break-words">{c.content}</p>
+                                  <span className="text-[10px] text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleString('ja-JP', { year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
                                   <button
                                     className="text-pink-400 hover:text-pink-300 disabled:opacity-50"
                                     onClick={async ()=>{ try{ await likeComment(c.id, diary.id); }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); } }}

@@ -163,6 +163,7 @@ const DiaryFeed: React.FC = () => {
                 {d.nickname || 'User'}
               </button>
               <span className="text-gray-500 text-xs ml-0 sm:ml-2 block sm:inline">{d.practice_date}</span>
+              <span className="text-gray-500 text-xs ml-2">{new Date(d.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })}</span>
               <span className="text-xs ml-2 text-yellow-400">Lv.{d.level}</span>
               <div className="flex items-center space-x-1 ml-1">
                 {getRankIcon(d.rank)}
@@ -291,12 +292,15 @@ const DiaryFeed: React.FC = () => {
             <div className="mt-2 space-y-2">
               {comments[d.id]?.map(c => (
                 <div key={c.id} className="text-xs text-gray-300 flex items-center space-x-2">
-                  <Avatar url={c.avatar_url} />
+                  <button onClick={()=>{window.location.hash=`#diary-user?id=${c.user_id}`;}} className="rounded-full">
+                    <Avatar url={c.avatar_url} />
+                  </button>
                   <button
                     onClick={()=>{window.location.hash=`#diary-user?id=${c.user_id}`;}}
                     className="font-semibold hover:text-blue-400 transition-colors"
                   >{c.nickname}</button>
                   <p className="flex-1 break-words">{c.content}</p>
+                  <span className="text-[10px] text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleString('ja-JP', { year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
                   {/* comment like */}
                   <button
                     className="text-pink-400 hover:text-pink-300"

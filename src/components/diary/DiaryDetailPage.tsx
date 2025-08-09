@@ -70,6 +70,7 @@ const DiaryDetailPage: React.FC = () => {
                 <img src={diary.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full object-cover cursor-pointer" onClick={()=>{window.location.href=`/main#diary-user?id=${diary.user_id}`;}} />
                 <button className="font-semibold hover:text-blue-400" onClick={()=>{window.location.href=`/main#diary-user?id=${diary.user_id}`;}}>{diary.nickname}</button>
                 <span className="text-gray-500">{diary.practice_date}</span>
+                <span className="text-gray-500">{new Date(diary.created_at).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
                 <span className="text-yellow-400">Lv.{diary.level}</span>
               </div>
               <p className="whitespace-pre-wrap text-gray-100 mb-3 text-sm leading-relaxed">{diary.content}</p>
@@ -86,9 +87,12 @@ const DiaryDetailPage: React.FC = () => {
               <div className="mt-3 space-y-2">
                 {(comments[diary.id] || []).map(c => (
                   <div key={c.id} className="text-xs text-gray-300 flex items-center space-x-2">
-                    <img src={c.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
-                    <span className="font-semibold">{c.nickname}</span>
+                    <button onClick={()=>{window.location.href=`/main#diary-user?id=${c.user_id}`;}}>
+                      <img src={c.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
+                    </button>
+                    <button className="font-semibold hover:text-blue-400" onClick={()=>{window.location.href=`/main#diary-user?id=${c.user_id}`;}}>{c.nickname}</button>
                     <p className="flex-1 break-words">{c.content}</p>
+                    <span className="text-[10px] text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleString('ja-JP', { year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
                     <button className="text-pink-400 hover:text-pink-300 disabled:opacity-50" onClick={()=>likeComment(c.id, diary.id)} disabled={c.user_id===user?.id} title={c.user_id===user?.id ? '自分のコメントにはいいねできません' : 'いいね'}>
                       <FaHeart className="inline mr-1"/> {c.likes ?? 0}
                     </button>
