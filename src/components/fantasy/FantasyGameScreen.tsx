@@ -321,6 +321,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
+    // 太鼓モードのミス時: 判定ライン上に×マークを50msだけ表示
+    try {
+      if (isTaikoModeRef.current && fantasyPixiInstance) {
+        const pos = fantasyPixiInstance.getJudgeLinePosition();
+        // 新規API: 短命のミスマーク
+        // duration 50ms 指定
+        (fantasyPixiInstance as any).createMissMark?.(pos.x, pos.y, 50);
+      }
+    } catch (e) {
+      // no-op
+    }
+
     // 敵の攻撃音を再生（single クイズモードのみ）
     try {
       if (stage.mode === 'single') {
@@ -645,7 +657,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const timeUntilHit = note.hitTime - normalizedTime;
         
         // ループリセット直後（currentNoteIndex===0）は負の許容をやめ、直前ノーツの復活を防ぐ
-        const lowerBound = gameState.currentNoteIndex === 0 ? 0 : -0.5;
+        // 修正: 最初のノーツでも他と同様に判定ライン通過後0.5秒だけ表示を継続
+        const lowerBound = -0.5;
         
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {

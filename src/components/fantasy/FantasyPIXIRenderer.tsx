@@ -239,7 +239,8 @@ export class FantasyPIXIInstance {
   private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
   private judgeLineX: number = 100; // 判定ラインのX座標
-  
+  private isTaikoMode: boolean = false; // 太鼓モードフラグ
+   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
   
@@ -1643,50 +1644,62 @@ export class FantasyPIXIInstance {
         const ANGER_OFFSET = { x: 80, y: -80 }; // さらに右上へ（アイコンに重ならないように）
         
         if (enragedTable[id]) {
-          // ---- 怒り演出 ----
-          const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
-          visualState.scale = baseScale * 1.25; // 巨大化（25%増し）
-          sprite.tint = 0xFFCCCC;
-          
-          // 怒りマークを追加（まだない場合）
-          if (!monsterData.angerMark) {
-            const angerTexture = this.imageTextures.get('angerMark');
-            if (angerTexture) {
-              const angerMark = new PIXI.Sprite(angerTexture);
-              angerMark.anchor.set(0.5);
-              angerMark.width = 72;  // サイズ調整（もっと大きく）
-              angerMark.height = 72;
-              angerMark.position.set(
-                ANGER_OFFSET.x,
-                ANGER_OFFSET.y
-              );
-              sprite.addChild(angerMark);
-              monsterData.angerMark = angerMark;
-            } else {
-              // テクスチャが無い場合は絵文字でフォールバック
-              const angerMark = new PIXI.Text('💢', {
-                fontFamily: 'DotGothic16',
-                fontSize: 54,  // もっと大きく
-                fill: 0xFF0000,
-                stroke: 0x000000,
-                strokeThickness: 4,
-              });
-              angerMark.anchor.set(0.5);
-              angerMark.position.set(
-                ANGER_OFFSET.x,
-                ANGER_OFFSET.y
-              );
-              sprite.addChild(angerMark);
-              monsterData.angerMark = angerMark;
+          // ---- 怒り演出（仕様変更）----
+          // 太鼓モードではアイコンの見た目を変えない。代わりに短命の「怒」テキストをランダム位置に1個だけ表示
+          if (this.isTaikoMode) {
+            // スプライトの見た目は不変
+            const randX = (Math.random() * 160 - 80);
+            const randY = (Math.random() * 80 - 40);
+            const angerText = new PIXI.Text('怒', {
+              fontFamily: 'DotGothic16',
+              fontSize: 28,
+              fill: 0xFF3333,
+              stroke: 0x660000,
+              strokeThickness: 3,
+            });
+            angerText.anchor.set(0.5);
+            angerText.position.set(randX, randY);
+            sprite.addChild(angerText);
+            setTimeout(() => { try { if (angerText.parent) angerText.parent.removeChild(angerText); angerText.destroy(); } catch {} }, 350);
+          } else {
+            // 従来の拡大/色変更・マーク表示
+            const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
+            visualState.scale = baseScale * 1.25; // 巨大化（25%増し）
+            sprite.tint = 0xFFCCCC;
+
+            // 怒りマークを追加（まだない場合）
+            if (!monsterData.angerMark) {
+              const angerTexture = this.imageTextures.get('angerMark');
+              if (angerTexture) {
+                const angerMark = new PIXI.Sprite(angerTexture);
+                angerMark.anchor.set(0.5);
+                angerMark.width = 72;
+                angerMark.height = 72;
+                angerMark.position.set(ANGER_OFFSET.x, ANGER_OFFSET.y);
+                sprite.addChild(angerMark);
+                monsterData.angerMark = angerMark;
+              } else {
+                const angerMark = new PIXI.Text('💢', {
+                  fontFamily: 'DotGothic16',
+                  fontSize: 54,
+                  fill: 0xFF3333,
+                  stroke: 0x660000,
+                  strokeThickness: 4,
+                });
+                angerMark.anchor.set(0.5);
+                angerMark.position.set(ANGER_OFFSET.x, ANGER_OFFSET.y);
+                sprite.addChild(angerMark);
+                monsterData.angerMark = angerMark;
+              }
             }
+
+            // パルスアニメーション（怒りの脈動）
+            const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
+            sprite.scale.set(visualState.scale * pulse);
           }
           
-          // パルスアニメーション（怒りの脈動）
-          const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
-          sprite.scale.set(visualState.scale * pulse);
-          
-          // 攻撃直後のモンスター赤フラッシュ
-          if (monsterData.lastAttackTime && Date.now() - monsterData.lastAttackTime < 150) {
+          // 攻撃直後のモンスター赤フラッシュ（太鼓モードでは無効）
+          if (!this.isTaikoMode && monsterData.lastAttackTime && Date.now() - monsterData.lastAttackTime < 150) {
             sprite.tint = 0xFF4444; // 真紅
           }
           
@@ -1696,7 +1709,7 @@ export class FantasyPIXIInstance {
           visualState.scale = baseScale;
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
           
-          // 怒りエフェクトを削除
+          // 怒りエフェクトを削除（テキストは既に短命で自壊する）
           if (monsterData.angerMark) {
             sprite.removeChild(monsterData.angerMark);
             monsterData.angerMark.destroy();
@@ -2032,6 +2045,7 @@ export class FantasyPIXIInstance {
 
   // 太鼓モードの切り替え
   updateTaikoMode(isTaikoMode: boolean): void {
+    this.isTaikoMode = isTaikoMode;
     if (isTaikoMode) {
       // 太鼓モードの場合、判定ラインを表示
       if (!this.judgeLineGraphics) {
@@ -2092,6 +2106,7 @@ export class FantasyPIXIInstance {
       y: this.app.screen.height / 2
     };
   }
+
   
   // Canvas要素取得
   getCanvas(): HTMLCanvasElement {
@@ -2235,6 +2250,24 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  // ミスマーク（赤い×）を短時間表示
+  createMissMark(x: number, y: number, durationMs: number = 50): void {
+    const g = new PIXI.Graphics();
+    g.lineStyle(4, 0xFF0000, 1);
+    g.moveTo(-20, -20);
+    g.lineTo(20, 20);
+    g.moveTo(20, -20);
+    g.lineTo(-20, 20);
+    g.x = x;
+    g.y = y;
+    this.effectContainer.addChild(g);
+
+    // 50ms後に消す（厳密に）
+    setTimeout(() => {
+      if (g.parent) g.parent.removeChild(g);
+      g.destroy();
+    }, Math.max(10, durationMs));
+  }
 
 }
 
