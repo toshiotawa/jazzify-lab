@@ -26,6 +26,8 @@ export interface DiaryComment {
   created_at: string;
   nickname: string;
   avatar_url?: string;
+  likes?: number;
+  likedByMe?: boolean;
 }
 
 export async function fetchDiaries(limit = 20): Promise<Diary[]> {
@@ -41,14 +43,11 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   if (error) throw error;
   if (!diariesData) return [];
 
-  // 自動作成されたプロフィール（nickname = email）のユーザーの日記を除外
-  const filteredDiaries = diariesData.filter((diary: any) => {
-    const profile = diary.profiles;
-    return profile && profile.nickname && profile.nickname !== profile.email;
-  });
+  // フィルタリングを削除して全ての有効プロフィールを対象にする
+  const baseRows = diariesData as any[];
 
   // 日記IDのリストを作成
-  const diaryIds = filteredDiaries.slice(0, limit).map(diary => diary.id);
+  const diaryIds = baseRows.slice(0, limit).map(diary => diary.id);
   
   // 一括でいいね数とコメント数を取得
   const [likesData, commentsData] = await Promise.all([
@@ -80,7 +79,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
       })
   ]);
   
-  const diariesWithLikes = filteredDiaries.slice(0, limit).map((diary: any) => ({
+  const diariesWithLikes = baseRows.slice(0, limit).map((diary: any) => ({
     id: diary.id,
     user_id: diary.user_id,
     content: diary.content,
@@ -112,13 +111,9 @@ export async function fetchDiariesByDate(date: string, limit = 200): Promise<Dia
   if (error) throw error;
   if (!diariesData) return [];
 
-  // 自動作成プロフィール（nickname = email）のユーザーの日記は除外
-  const filteredDiaries = diariesData.filter((diary: any) => {
-    const profile = diary.profiles;
-    return profile && profile.nickname && profile.nickname !== profile.email;
-  });
+  const baseRows = diariesData as any[];
 
-  const diaryIds = filteredDiaries.map((diary: any) => diary.id);
+  const diaryIds = baseRows.map((diary: any) => diary.id);
 
   // 一括でいいね数とコメント数を取得
   const [likesData, commentsData] = await Promise.all([
@@ -150,7 +145,7 @@ export async function fetchDiariesByDate(date: string, limit = 200): Promise<Dia
       })
   ]);
 
-  const diariesWithCounts: Diary[] = filteredDiaries.map((diary: any) => ({
+  const diariesWithCounts: Diary[] = baseRows.map((diary: any) => ({
     id: diary.id,
     user_id: diary.user_id,
     content: diary.content,
@@ -166,6 +161,78 @@ export async function fetchDiariesByDate(date: string, limit = 200): Promise<Dia
   }));
 
   return diariesWithCounts;
+}
+
+export async function fetchDiariesInfinite(params: { limit?: number; beforeCreatedAt?: string }): Promise<{ diaries: Diary[]; nextCursor: string | null; hasMore: boolean; }> {
+  const { limit = 10, beforeCreatedAt } = params;
+  const supabase = getSupabaseClient();
+
+  let query = supabase
+    .from('practice_diaries')
+    .select('*, profiles(nickname, avatar_url, level, rank, email)')
+    .order('created_at', { ascending: false })
+    .limit(limit * 2);
+
+  if (beforeCreatedAt) {
+    query = query.lt('created_at', beforeCreatedAt);
+  }
+
+  const { data: diariesData, error } = await query;
+  if (error) throw error;
+  if (!diariesData) return { diaries: [], nextCursor: null, hasMore: false };
+
+  const baseRows = diariesData as any[];
+
+  const sliced = baseRows.slice(0, limit);
+  const diaryIds = sliced.map((d: any) => d.id);
+
+  const [likesData, commentsData] = await Promise.all([
+    supabase
+      .from('diary_likes')
+      .select('diary_id')
+      .in('diary_id', diaryIds)
+      .then(result => {
+        const likesMap = new Map<string, number>();
+        if (result.data) {
+          result.data.forEach((item: any) => {
+            likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
+          });
+        }
+        return likesMap;
+      }),
+    supabase
+      .from('diary_comments')
+      .select('diary_id')
+      .in('diary_id', diaryIds)
+      .then(result => {
+        const commentsMap = new Map<string, number>();
+        if (result.data) {
+          result.data.forEach((item: any) => {
+            commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
+          });
+        }
+        return commentsMap;
+      })
+  ]);
+
+  const diaries: Diary[] = sliced.map((row: any) => ({
+    id: row.id,
+    user_id: row.user_id,
+    content: row.content,
+    practice_date: row.practice_date,
+    created_at: row.created_at,
+    likes: likesData.get(row.id) || 0,
+    comment_count: commentsData.get(row.id) || 0,
+    nickname: row.profiles?.nickname || 'User',
+    avatar_url: row.profiles?.avatar_url,
+    level: row.profiles?.level || 1,
+    rank: row.profiles?.rank || 'free',
+    image_url: row.image_url,
+  }));
+
+  const nextCursor = diaries.length > 0 ? diaries[diaries.length - 1].created_at : null;
+  const hasMore = baseRows.length > sliced.length;
+  return { diaries, nextCursor, hasMore };
 }
 
 export async function fetchUserDiaries(userId: string): Promise<{
@@ -486,7 +553,9 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
     profiles: { nickname: string; avatar_url?: string } | null;
   };
 
-  const { data: rawData, error } = await getSupabaseClient()
+  const supabase = getSupabaseClient();
+
+  const { data: rawData, error } = await supabase
     .from('diary_comments')
     .select('id, user_id, content, created_at, profiles(nickname, avatar_url)')
     .eq('diary_id', diaryId)
@@ -496,7 +565,29 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
   const data = rawData as unknown as Row[] | null;
   if (!data) return [];
 
-  // 型ガード: profiles が必ず存在する前提だが、null チェック
+  const commentIds = data.map(d => d.id);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // 取得したコメントに対する「いいね」を取得（存在しない環境では0として扱う）
+  let likesByComment = new Map<string, number>();
+  let likedByMeSet = new Set<string>();
+  try {
+    const { data: likeRows } = await supabase
+      .from('comment_likes')
+      .select('comment_id, user_id')
+      .in('comment_id', commentIds);
+    if (likeRows) {
+      likeRows.forEach((r: any) => {
+        likesByComment.set(r.comment_id, (likesByComment.get(r.comment_id) || 0) + 1);
+        if (user && r.user_id === user.id) likedByMeSet.add(r.comment_id);
+      });
+    }
+  } catch (e) {
+    // テーブル未作成などの環境では何もしない
+    likesByComment = new Map();
+    likedByMeSet = new Set();
+  }
+
   return data.map((d) => {
     const profile = d.profiles ?? { nickname: 'User' };
     return {
@@ -506,6 +597,8 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
       created_at: d.created_at,
       nickname: profile.nickname,
       avatar_url: profile.avatar_url,
+      likes: likesByComment.get(d.id) || 0,
+      likedByMe: likedByMeSet.has(d.id),
     } satisfies DiaryComment;
   });
 }
@@ -527,6 +620,40 @@ export async function deleteComment(commentId: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
   const { error } = await supabase.from('diary_comments').delete().eq('id', commentId).eq('user_id', user.id);
+  if (error) throw error;
+}
+
+export async function likeComment(commentId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+
+  // 自分のコメントはいいね不可
+  const { data: commentRow, error: commentErr } = await supabase
+    .from('diary_comments')
+    .select('user_id')
+    .eq('id', commentId)
+    .maybeSingle();
+  if (commentErr) throw commentErr;
+  if (commentRow && commentRow.user_id === user.id) {
+    throw new Error('自分のコメントにはいいねできません');
+  }
+
+  // 既にいいね済みかチェック
+  const { data: existing } = await supabase
+    .from('comment_likes')
+    .select('user_id')
+    .eq('comment_id', commentId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (existing) {
+    throw new Error('既にいいね済みです');
+  }
+
+  const { error } = await supabase
+    .from('comment_likes')
+    .insert({ comment_id: commentId, user_id: user.id });
   if (error) throw error;
 }
 
@@ -568,6 +695,38 @@ export async function fetchDiaryLikes(diaryId: string, limit = 50): Promise<Diar
     level: p.level || 1,
     rank: p.rank || 'free',
   }));
+}
+
+export async function fetchDiaryById(diaryId: string): Promise<Diary | null> {
+  const supabase = getSupabaseClient();
+  const { data: row, error } = await supabase
+    .from('practice_diaries')
+    .select('*, profiles(nickname, avatar_url, level, rank, email)')
+    .eq('id', diaryId)
+    .single();
+  if (error) throw error;
+  if (!row) return null;
+
+  // いいね数とコメント数
+  const [likesCount, commentsCount] = await Promise.all([
+    supabase.from('diary_likes').select('id', { count: 'exact', head: true }).eq('diary_id', diaryId),
+    supabase.from('diary_comments').select('id', { count: 'exact', head: true }).eq('diary_id', diaryId),
+  ]);
+
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    content: row.content,
+    practice_date: row.practice_date,
+    created_at: row.created_at,
+    likes: likesCount.count || 0,
+    comment_count: commentsCount.count || 0,
+    nickname: row.profiles?.nickname || 'User',
+    avatar_url: row.profiles?.avatar_url,
+    level: row.profiles?.level || 1,
+    rank: row.profiles?.rank || 'free',
+    image_url: row.image_url,
+  };
 }
 
 export async function deleteDiary(diaryId: string): Promise<void> {

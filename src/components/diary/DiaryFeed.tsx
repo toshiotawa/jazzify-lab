@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useDiaryStore } from '@/stores/diaryStore';
 import { useAuthStore } from '@/stores/authStore';
 import { FaHeart, FaTrash, FaEdit, FaChevronDown, FaTimes, FaSave, FaCrown, FaGem, FaStar, FaMedal } from 'react-icons/fa';
@@ -15,7 +15,7 @@ const Avatar: React.FC<{ url?: string }> = ({ url }) => (
 );
 
 const DiaryFeed: React.FC = () => {
-  const { diaries, loading, fetch: fetchAll, like, comments, fetchComments, addComment, deleteComment, deleteDiary, likeUsers, fetchLikeUsers, update } = useDiaryStore();
+  const { diaries, loading, fetch: fetchAll, like, comments, fetchComments, addComment, deleteComment, deleteDiary, likeUsers, fetchLikeUsers, update, loadMore, hasMore, loadingMore } = useDiaryStore();
   const { user, isGuest } = useAuthStore();
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentText, setCommentText] = useState<Record<string, string>>({});
@@ -34,6 +34,8 @@ const DiaryFeed: React.FC = () => {
     return new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
   });
 
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
   // ランクに応じたアイコンを取得する関数
   const getRankIcon = (rank: string) => {
     switch (rank.toLowerCase()) {
@@ -51,8 +53,22 @@ const DiaryFeed: React.FC = () => {
   // Initialize realtime channels when the feed mounts
   useEffect(() => { useDiaryStore.getState().initRealtime(); }, []);
   
-  // Fetch when mounted or when date changes
-  useEffect(() => { void fetchAll(currentDate); }, [currentDate]);
+  // Initial load (infinite)
+  useEffect(() => { void fetchAll(); }, []);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver((entries) => {
+      const first = entries[0];
+      if (first.isIntersecting) {
+        void loadMore();
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   // React to hash changes (e.g. navigation elsewhere sets #diary?date=...)
   useEffect(() => {
@@ -124,22 +140,14 @@ const DiaryFeed: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-sm text-gray-300">
-          {(() => { const [y,m,d] = currentDate.split('-'); return `${y}年${Number(m)}月${Number(d)}日`; })()}
-        </div>
-        <div className="space-x-2">
-          <button className="btn btn-xs" onClick={goPrev}>← 前の日</button>
-          <button className="btn btn-xs" onClick={goNext} disabled={(() => { const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-'); return currentDate === today; })()}>次の日 →</button>
-        </div>
-      </div>
+      {/* Removed date header and prev/next controls for infinite scroll */}
       {user && (
         <div className="text-right mb-1">
           <button className="btn btn-xs btn-outline" onClick={goToMyDiary}>自分の日記を見る</button>
         </div>
       )}
       {diaries.length === 0 && (
-        <p className="text-center text-gray-400">この日の日記はまだありません</p>
+        <p className="text-center text-gray-400">まだ投稿がありません</p>
       )}
       {diaries.map(d => (
         <div key={d.id} className="p-3 sm:p-4 bg-slate-800 rounded-lg">
@@ -155,6 +163,7 @@ const DiaryFeed: React.FC = () => {
                 {d.nickname || 'User'}
               </button>
               <span className="text-gray-500 text-xs ml-0 sm:ml-2 block sm:inline">{d.practice_date}</span>
+              <span className="text-gray-500 text-xs ml-2">{new Date(d.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })}</span>
               <span className="text-xs ml-2 text-yellow-400">Lv.{d.level}</span>
               <div className="flex items-center space-x-1 ml-1">
                 {getRankIcon(d.rank)}
@@ -283,12 +292,24 @@ const DiaryFeed: React.FC = () => {
             <div className="mt-2 space-y-2">
               {comments[d.id]?.map(c => (
                 <div key={c.id} className="text-xs text-gray-300 flex items-center space-x-2">
-                  <Avatar url={c.avatar_url} />
+                  <button onClick={()=>{window.location.hash=`#diary-user?id=${c.user_id}`;}} className="rounded-full">
+                    <Avatar url={c.avatar_url} />
+                  </button>
                   <button
                     onClick={()=>{window.location.hash=`#diary-user?id=${c.user_id}`;}}
                     className="font-semibold hover:text-blue-400 transition-colors"
                   >{c.nickname}</button>
-                  <p>{c.content}</p>
+                  <p className="flex-1 break-words">{c.content}</p>
+                  <span className="text-[10px] text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleString('ja-JP', { year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
+                  {/* comment like */}
+                  <button
+                    className="text-pink-400 hover:text-pink-300"
+                    onClick={async ()=>{ try{ await useDiaryStore.getState().likeComment(c.id, d.id); }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); } }}
+                    disabled={c.user_id===user?.id}
+                    title={c.user_id===user?.id ? '自分のコメントにはいいねできません' : 'いいね'}
+                  >
+                    <FaHeart className="inline mr-1" /> {c.likes ?? 0}
+                  </button>
                   {c.user_id === user?.id && (
                     <button onClick={() => deleteComment(c.id, d.id)} className="text-red-400"><FaTrash /></button>
                   )}
@@ -326,6 +347,9 @@ const DiaryFeed: React.FC = () => {
           )}
         </div>
       ))}
+      <div ref={sentinelRef} className="h-10" />
+      {loadingMore && <p className="text-center text-gray-500 text-xs">読み込み中...</p>}
+      {!hasMore && diaries.length>0 && <p className="text-center text-gray-500 text-xs">これ以上はありません</p>}
     </div>
   );
 };

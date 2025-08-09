@@ -45,7 +45,9 @@ const DiaryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user, isGuest } = useAuthStore();
-  const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary } = useDiaryStore();
+  const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary, like } = useDiaryStore();
+  const { addComment, deleteComment, likeComment } = useDiaryStore();
+  const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [openSection, setOpenSection] = useState<Record<string, {likes:boolean;comments:boolean}>>({});
   const [editingId, setEditingId] = useState<string|null>(null);
   const [editText, setEditText] = useState<string>('');
@@ -315,19 +317,33 @@ const DiaryPage: React.FC = () => {
                           <div className="flex items-center justify-between mb-3 text-sm text-gray-400">
                             <div className="flex items-center space-x-2">
                               <FaCalendarAlt className="w-4 h-4" />
-                              <span>{diary.practice_date}</span>
+                              <button className="hover:text-blue-400" onClick={()=>{window.location.href = `/main#diary-detail?id=${diary.id}`;}}>{diary.practice_date}</button>
+                              <span className="ml-2">{new Date(diary.created_at).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
                             </div>
-                            <button
-                              className="flex items-center space-x-1 hover:text-blue-400"
-                              onClick={async ()=>{
-                                if(!likeUsers[diary.id]) await fetchLikeUsers(diary.id);
-                                setOpenSection(s=>({ ...s, [diary.id]: {likes:!s[diary.id]?.likes, comments: s[diary.id]?.comments||false} }));
-                              }}
-                            >
-                              <FaHeart className="w-4 h-4 text-pink-400" />
-                              <span>{diary.likes}</span>
-                              <FaChevronDown className="ml-1" />
-                            </button>
+                                                          <div className="flex items-center space-x-3">
+                                <button
+                                  className="flex items-center space-x-1 hover:text-pink-400"
+                                  onClick={async ()=>{
+                                    try{
+                                      await like(diary.id);
+                                      setDiaries(prev => prev.map(d => d.id===diary.id ? { ...d, likes: d.likes + 1 } : d));
+                                    }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); }
+                                  }}
+                                >
+                                  <FaHeart className="w-4 h-4 text-pink-400" />
+                                  <span>{diary.likes}</span>
+                                </button>
+                                <button
+                                  className="flex items-center space-x-1 hover:text-blue-400"
+                                  onClick={async ()=>{
+                                    if(!likeUsers[diary.id]) await fetchLikeUsers(diary.id);
+                                    setOpenSection(s=>({ ...s, [diary.id]: {likes:!s[diary.id]?.likes, comments: s[diary.id]?.comments||false} }));
+                                  }}
+                                >
+                                  いいねした人
+                                  <FaChevronDown className="ml-1" />
+                                </button>
+                              </div>
                           </div>
                           {editingId===diary.id ? (
                             <>
@@ -392,11 +408,44 @@ const DiaryPage: React.FC = () => {
                             <div className="mt-2 space-y-2">
                               {comments[diary.id].map(c=>(
                                 <div key={c.id} className="text-xs text-gray-300 flex items-center space-x-2">
-                                  <img src={c.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
-                                  <span className="font-semibold">{c.nickname}</span>
-                                  <p>{c.content}</p>
+                                  <button onClick={()=>{window.location.href=`/main#diary-user?id=${c.user_id}`;}}>
+                                    <img src={c.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
+                                  </button>
+                                  <button className="font-semibold hover:text-blue-400" onClick={()=>{window.location.href=`/main#diary-user?id=${c.user_id}`;}}>{c.nickname}</button>
+                                  <p className="flex-1 break-words">{c.content}</p>
+                                  <span className="text-[10px] text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleString('ja-JP', { year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
+                                  <button
+                                    className="text-pink-400 hover:text-pink-300 disabled:opacity-50"
+                                    onClick={async ()=>{ try{ await likeComment(c.id, diary.id); }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); } }}
+                                    title={c.user_id===user?.id ? '自分のコメントにはいいねできません' : 'いいね'}
+                                    disabled={c.user_id===user?.id}
+                                  >
+                                    <FaHeart className="inline mr-1" /> {c.likes ?? 0}
+                                  </button>
                                 </div>
                               ))}
+                              <div className="flex space-x-2 mt-2">
+                                <input
+                                  className="flex-1 p-1 bg-slate-700 rounded"
+                                  value={commentText[diary.id] || ''}
+                                  onChange={e => setCommentText(prev => ({ ...prev, [diary.id]: e.target.value }))}
+                                  placeholder="コメントを追加..."
+                                  disabled={!user}
+                                />
+                                <button
+                                  className="btn btn-xs btn-primary"
+                                  onClick={async ()=>{
+                                    const text = (commentText[diary.id]||'').trim();
+                                    if(!text) return;
+                                    try {
+                                      await addComment(diary.id, text);
+                                      setCommentText(prev=>({ ...prev, [diary.id]: '' }));
+                                      await fetchComments(diary.id);
+                                    } catch(e:any){ toast.error(e.message||'コメントの追加に失敗しました'); }
+                                  }}
+                                  disabled={!commentText[diary.id]?.trim()}
+                                >送信</button>
+                              </div>
                             </div>
                           )}
                         </div>
