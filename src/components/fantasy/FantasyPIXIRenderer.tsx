@@ -225,6 +225,8 @@ export class FantasyPIXIInstance {
   private damageData: Map<string, DamageNumberData> = new Map();
   private chordNameText: PIXI.Text | null = null;
 
+  // 怒り状態の短時間ホールド（ストアのON/OFFが速すぎて取りこぼすのを防ぐ）
+  private enrageHoldUntil: Map<string, number> = new Map();
   
   private currentMagicType: string = 'fire';
   // ★★★ MONSTER_EMOJI と loadEmojiTextures を削除、またはコメントアウト ★★★
@@ -1599,8 +1601,10 @@ export class FantasyPIXIInstance {
 
     // 0.1 秒後に自動削除（過密時の視認性改善）
     setTimeout(() => {
-      if (!icon.destroyed && icon.parent) icon.parent.removeChild(icon);
-      icon.destroy();
+      if (icon && !icon.destroyed) {
+        if (icon.parent) icon.parent.removeChild(icon);
+        icon.destroy();
+      }
     }, 100);
 
     (monsterData as any).attackIcon = icon; // 再利用できるよう保持
@@ -1639,10 +1643,16 @@ export class FantasyPIXIInstance {
         // ストアから怒り状態を取得
         const enragedTable = useEnemyStore.getState().enraged;
         
+        const now = Date.now();
+        if (enragedTable[id]) {
+          this.enrageHoldUntil.set(id, now + 100); // 最低100msは保持
+        }
+        const isEnragedEffective = enragedTable[id] || ((this.enrageHoldUntil.get(id) || 0) > now);
+        
         // 怒りマークの相対位置（スプライト中心基準）
         const ANGER_OFFSET = { x: 80, y: -80 }; // さらに右上へ（アイコンに重ならないように）
         
-        if (enragedTable[id]) {
+        if (isEnragedEffective) {
           // ---- 怒り演出 ----
           const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
           visualState.scale = baseScale * 1.25; // 巨大化（25%増し）
@@ -1683,7 +1693,7 @@ export class FantasyPIXIInstance {
           
           // パルスアニメーション（怒りの脈動）
           const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
-          sprite.scale.set(visualState.scale * pulse);
+          visualState.scale = baseScale * 1.25 * pulse;
           
           // 攻撃直後のモンスター赤フラッシュ
           if (monsterData.lastAttackTime && Date.now() - monsterData.lastAttackTime < 100) {
@@ -1698,7 +1708,9 @@ export class FantasyPIXIInstance {
           
           // 怒りエフェクトを削除
           if (monsterData.angerMark) {
-            sprite.removeChild(monsterData.angerMark);
+            if (monsterData.angerMark.parent) {
+              monsterData.angerMark.parent.removeChild(monsterData.angerMark);
+            }
             monsterData.angerMark.destroy();
             monsterData.angerMark = undefined;
           }
