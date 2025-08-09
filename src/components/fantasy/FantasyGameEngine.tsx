@@ -951,8 +951,8 @@ export const useFantasyGameEngine = ({
     // 怒り状態のトグル（IDがわかる場合）
     if (attackingMonsterId) {
       const { setEnrage } = useEnemyStore.getState();
-      setEnrage(attackingMonsterId, true);
-      setTimeout(() => setEnrage(attackingMonsterId!, false), 500);
+      // 自動解除に任せる（重複しない）
+      setEnrage(attackingMonsterId, true, 1200);
     }
     
     setGameState(prevState => {
@@ -960,8 +960,7 @@ export const useFantasyGameEngine = ({
       if (!attackingMonsterId && prevState.activeMonsters?.length) {
         const { setEnrage } = useEnemyStore.getState();
         const fallbackId = prevState.activeMonsters[0].id;
-        setEnrage(fallbackId, true);
-        setTimeout(() => setEnrage(fallbackId, false), 500);
+        setEnrage(fallbackId, true, 1200);
       }
 
       const newHp = Math.max(0, prevState.playerHp - 1); // 確実に1減らす
@@ -1224,8 +1223,7 @@ export const useFantasyGameEngine = ({
         
         // 怒り状態をストアに通知
         const { setEnrage } = useEnemyStore.getState();
-        setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
+        setEnrage(attackingMonster.id, true, 1200); // 自動解除（重複無し）
         
         // 攻撃したモンスターのゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 

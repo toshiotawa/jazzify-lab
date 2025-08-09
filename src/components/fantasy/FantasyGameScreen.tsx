@@ -632,30 +632,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // 通常のノーツ（現在ループのみ表示）
       gameState.taikoNotes.forEach((note, index) => {
-        // 2週目以降は全てのノーツを表示対象とする
-        const loopCount = Math.floor(currentTime / loopDuration);
-        
-        // 処理済みのノーツをスキップ（直前にヒットしたノーツも含めて非表示）
-        if (index < gameState.currentNoteIndex) return;
-        
         // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
         if (note.isHit) return;
         
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
         
-        // ループリセット直後（currentNoteIndex===0）は負の許容をやめ、直前ノーツの復活を防ぐ
-        const lowerBound = gameState.currentNoteIndex === 0 ? 0 : -0.5;
+        // 表示範囲外はスキップ（判定ライン通過後もしばらくは表示を維持）
+        if (timeUntilHit < -0.5 || timeUntilHit > lookAheadTime) return;
         
-        // 表示範囲内のノーツ（現在ループのみ）
-        if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
-          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          notesToDisplay.push({
-            id: note.id,
-            chord: note.chord.displayName,
-            x
-          });
+        // 既に処理済みのノーツでも、通過直後（-0.5秒以内）は描画を継続して判定ラインを越えて流れる見た目にする
+        if (index < gameState.currentNoteIndex && timeUntilHit < -0.0001) {
+          // 通過直後のみ許可（すでに return 済みになるのは -0.5 秒より前なのでここは安全）
         }
+        
+        const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+        notesToDisplay.push({
+          id: note.id,
+          chord: note.chord.displayName,
+          x
+        });
       });
       
       // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
