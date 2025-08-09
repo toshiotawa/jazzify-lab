@@ -613,7 +613,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           const note = gameState.taikoNotes[i];
           const timeUntilHit = note.hitTime - currentTime; // currentTime は負値
           if (timeUntilHit > lookAheadTime) break;
-          if (timeUntilHit >= -0.5) {
+          if (timeUntilHit >= -1.2) {
             const x = judgeLinePos.x + timeUntilHit * noteSpeed;
             notesToDisplay.push({ id: note.id, chord: note.chord.displayName, x });
             if (notesToDisplay.length >= maxPreCountNotes) break;
@@ -645,7 +645,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const timeUntilHit = note.hitTime - normalizedTime;
         
         // ループリセット直後（currentNoteIndex===0）は負の許容をやめ、直前ノーツの復活を防ぐ
-        const lowerBound = gameState.currentNoteIndex === 0 ? 0 : -0.5;
+        const lowerBound = gameState.currentNoteIndex === 0 ? 0 : -1.2;
         
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
