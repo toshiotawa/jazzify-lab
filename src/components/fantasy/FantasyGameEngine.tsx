@@ -1156,8 +1156,8 @@ export const useFantasyGameEngine = ({
         if (currentTime < 0) {
           return prevState;
         }
-        // ミス判定：+150ms以上経過した場合
-        if (timeDiff > 0.15) {
+        // ミス判定：+300ms以上経過した場合
+        if (timeDiff > 0.3) {
           devLog.debug('💥 太鼓の達人：ミス判定', {
             noteId: currentNote.id,
             measure: currentNote.measure,
@@ -1166,8 +1166,16 @@ export const useFantasyGameEngine = ({
             hitTime: currentNote.hitTime.toFixed(3)
           });
           
+          // 怒り演出: 先頭モンスターを対象にフラグを立てる
+          const attacker = prevState.activeMonsters?.[0];
+          if (attacker) {
+            const { setEnrage } = useEnemyStore.getState();
+            setEnrage(attacker.id, true);
+            setTimeout(() => setEnrage(attacker.id, false), 500);
+          }
+
           // 敵の攻撃を発動（先頭モンスターを指定）
-          const attackerId = prevState.activeMonsters?.[0]?.id;
+          const attackerId = attacker?.id;
           setTimeout(() => handleEnemyAttack(attackerId), 0);
           
           // 次のノーツへ進む
@@ -1188,9 +1196,15 @@ export const useFantasyGameEngine = ({
               : prevState.taikoNotes[0];
           }
           
+          // 現在ノーツをミス状態に
+          const updatedNotes = prevState.taikoNotes.map((n, i) =>
+            i === currentNoteIndex ? { ...n, isMissed: true } : n
+          );
+          
           return {
             ...prevState,
             currentNoteIndex: nextIndex,
+            taikoNotes: updatedNotes,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],

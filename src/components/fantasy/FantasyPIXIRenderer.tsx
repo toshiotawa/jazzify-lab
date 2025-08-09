@@ -240,6 +240,9 @@ export class FantasyPIXIInstance {
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
   private judgeLineX: number = 100; // 判定ラインのX座標
   
+  // 怒りマークの重複管理
+  private angerMarks: Map<string, { sprite: PIXI.DisplayObject; timeoutId: number }> = new Map();
+  
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
   
@@ -1643,65 +1646,25 @@ export class FantasyPIXIInstance {
         const ANGER_OFFSET = { x: 80, y: -80 }; // さらに右上へ（アイコンに重ならないように）
         
         if (enragedTable[id]) {
-          // ---- 怒り演出 ----
+          // ---- 怒り演出（巨大化はしない） ----
           const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
-          visualState.scale = baseScale * 1.25; // 巨大化（25%増し）
+          visualState.scale = baseScale;
           sprite.tint = 0xFFCCCC;
-          
-          // 怒りマークを追加（まだない場合）
-          if (!monsterData.angerMark) {
-            const angerTexture = this.imageTextures.get('angerMark');
-            if (angerTexture) {
-              const angerMark = new PIXI.Sprite(angerTexture);
-              angerMark.anchor.set(0.5);
-              angerMark.width = 72;  // サイズ調整（もっと大きく）
-              angerMark.height = 72;
-              angerMark.position.set(
-                ANGER_OFFSET.x,
-                ANGER_OFFSET.y
-              );
-              sprite.addChild(angerMark);
-              monsterData.angerMark = angerMark;
-            } else {
-              // テクスチャが無い場合は絵文字でフォールバック
-              const angerMark = new PIXI.Text('💢', {
-                fontFamily: 'DotGothic16',
-                fontSize: 54,  // もっと大きく
-                fill: 0xFF0000,
-                stroke: 0x000000,
-                strokeThickness: 4,
-              });
-              angerMark.anchor.set(0.5);
-              angerMark.position.set(
-                ANGER_OFFSET.x,
-                ANGER_OFFSET.y
-              );
-              sprite.addChild(angerMark);
-              monsterData.angerMark = angerMark;
-            }
-          }
-          
-          // パルスアニメーション（怒りの脈動）
-          const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
-          sprite.scale.set(visualState.scale * pulse);
-          
+
+          // 怒りマークをランダム配置で表示（重複管理は内部で）
+          this.showAngerMark(monsterData);
+
           // 攻撃直後のモンスター赤フラッシュ
           if (monsterData.lastAttackTime && Date.now() - monsterData.lastAttackTime < 150) {
             sprite.tint = 0xFF4444; // 真紅
           }
-          
+
         } else {
           // ---- 通常状態 ----
           const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
           visualState.scale = baseScale;
           sprite.tint = gameState.isHit ? gameState.hitColor : 0xFFFFFF;
-          
-          // 怒りエフェクトを削除
-          if (monsterData.angerMark) {
-            sprite.removeChild(monsterData.angerMark);
-            monsterData.angerMark.destroy();
-            monsterData.angerMark = undefined;
-          }
+          // 固定怒りマークの付け外しは行わない（showAngerMarkで管理）
         }
         
         // よろけ効果の減衰
@@ -2235,6 +2198,62 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  // 怒りマークを表示（重複管理 + 再配置 + タイマー延長）
+  private showAngerMark(monster: MonsterSpriteData) {
+    const tex = this.imageTextures.get('angerMark');
+    const centerX = monster.visualState.x;
+    const centerY = monster.visualState.y;
+
+    const existing = this.angerMarks.get(monster.id);
+    if (existing) {
+      clearTimeout(existing.timeoutId);
+      if (!(existing.sprite as any).destroyed) {
+        (existing.sprite as any).x = centerX + (Math.random() - 0.5) * 120;
+        (existing.sprite as any).y = centerY - 60 + (Math.random() - 0.5) * 60;
+        (existing.sprite as any).alpha = 1;
+      }
+      const timeoutId = window.setTimeout(() => {
+        const s = existing.sprite as any;
+        if (s && !s.destroyed && s.parent) {
+          s.parent.removeChild(s);
+          s.destroy?.();
+        }
+        this.angerMarks.delete(monster.id);
+      }, 1800);
+      this.angerMarks.set(monster.id, { sprite: existing.sprite, timeoutId });
+      return;
+    }
+
+    let mark: PIXI.DisplayObject;
+    if (tex) {
+      const s = new PIXI.Sprite(tex);
+      s.anchor.set(0.5);
+      s.width = 56;
+      s.height = 56;
+      s.x = centerX + (Math.random() - 0.5) * 120;
+      s.y = centerY - 60 + (Math.random() - 0.5) * 60;
+      this.effectContainer.addChild(s);
+      mark = s;
+    } else {
+      const t = new PIXI.Text('💢', { fontFamily: 'DotGothic16', fontSize: 48, fill: 0xFF0000, stroke: 0x000000, strokeThickness: 4 });
+      t.anchor.set(0.5);
+      t.x = centerX + (Math.random() - 0.5) * 120;
+      t.y = centerY - 60 + (Math.random() - 0.5) * 60;
+      this.effectContainer.addChild(t);
+      mark = t as unknown as PIXI.DisplayObject;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const s = mark as any;
+      if (s && !s.destroyed && s.parent) {
+        s.parent.removeChild(s);
+        s.destroy?.();
+      }
+      this.angerMarks.delete(monster.id);
+    }, 1800);
+
+    this.angerMarks.set(monster.id, { sprite: mark, timeoutId });
+  }
 
 }
 
