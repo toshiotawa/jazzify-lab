@@ -1437,14 +1437,7 @@ export class PIXINotesRendererInstance {
       // pointerイベントがタッチとマウスの両方を処理するため、touchイベントは不要
       // （touchイベントとpointerイベントの両方が発火して2重になるのを防ぐ）
       
-      // ホバー効果を追加
-      key.on('pointerover', () => {
-        key.tint = 0xF3F4F6; // light gray hover
-      });
-      
-      key.on('pointerout', () => {
-        key.tint = 0xFFFFFF; // white
-      });
+      // ホバー効果を削除（ファンタジーモード等でのハイライトと競合を回避）
     }
     
     return key;
@@ -1538,20 +1531,7 @@ export class PIXINotesRendererInstance {
       // pointerイベントがタッチとマウスの両方を処理するため、touchイベントは不要
       // （touchイベントとpointerイベントの両方が発火して2重になるのを防ぐ）
       
-      // ホバー効果を追加（黒鍵専用、tintではなく軽微な視覚効果のみ）
-      key.on('pointerover', () => {
-        // 黒鍵のホバー効果は微妙にして、ハイライト状態を阻害しない
-        if (!this.isKeyHighlighted(midiNote)) {
-          key.alpha = 0.8; // 少し透明にしてホバー感を演出
-        }
-      });
-      
-      key.on('pointerout', () => {
-        // ハイライト状態でない場合のみリセット
-        if (!this.isKeyHighlighted(midiNote)) {
-          key.alpha = 1.0; // 通常状態に戻す
-        }
-      });
+      // ホバー効果を削除（黒鍵も含む）
     }
     
     return key;
