@@ -2222,4 +2222,96 @@ export class FantasyPIXIInstance {
   private setMonsterState(newState: MonsterState): void {
     if (this.monsterGameState.state === newState) return;
 
-    devLog.debug(`
+    devLog.debug('👾 Monster state changed', {
+      previousState: this.monsterGameState.state,
+      newState,
+      hitCount: this.monsterGameState.hitCount,
+      isDestroyed: this.isDestroyed
+    });
+
+    this.monsterGameState.state = newState;
+
+    if (newState === 'FADING_OUT') {
+      this.startMonsterFadeOut();
+    } else if (newState === 'GONE') {
+      // 画面上の残存エフェクトを安全にクリーンアップ
+      try {
+        const children = this.effectContainer.removeChildren();
+        children.forEach((child: any) => {
+          try {
+            if (child && typeof child.destroy === 'function' && !child.destroyed) {
+              child.destroy();
+            }
+          } catch {}
+        });
+      } catch (error) {
+        devLog.debug('⚠️ エフェクトクリーンアップエラー:', error);
+      }
+
+      // 親コンポーネントへの通知
+      if (!this.isDestroyed) {
+        this.onDefeated?.();
+      }
+    }
+  }
+}
+
+// ===== Reactコンポーネント =====
+export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
+  width,
+  height,
+  monsterIcon,
+  enemyGauge,
+  onReady,
+  onMonsterDefeated,
+  onShowMagicName,
+  className,
+  activeMonsters,
+  imageTexturesRef
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [pixiInstance, setPixiInstance] = useState<FantasyPIXIInstance | null>(null);
+
+  // PIXI初期化
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const instance = new FantasyPIXIInstance(width, height, onMonsterDefeated, onShowMagicName, imageTexturesRef);
+    containerRef.current.appendChild(instance.getCanvas());
+    
+    setPixiInstance(instance);
+    onReady?.(instance);
+
+    return () => {
+      instance.destroy();
+    };
+  }, [width, height, onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef]);
+
+  // モンスターアイコン変更（状態機械による安全な生成）
+  useEffect(() => {
+    if (pixiInstance) {
+      if (activeMonsters && activeMonsters.length > 0) {
+        pixiInstance.updateActiveMonsters(activeMonsters);
+      } else {
+        pixiInstance.createMonsterSprite(monsterIcon);
+      }
+    }
+  }, [pixiInstance, monsterIcon, activeMonsters]);
+
+  // サイズ変更
+  useEffect(() => {
+    if (pixiInstance) {
+      pixiInstance.resize(width, height);
+    }
+  }, [pixiInstance, width, height]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn('relative', className)}
+      style={{ width, height }}
+    />
+  );
+};
+
+export default FantasyPIXIRenderer;
