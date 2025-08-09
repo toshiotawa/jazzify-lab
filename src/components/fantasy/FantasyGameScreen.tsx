@@ -320,6 +320,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
     console.log('🔥 handleEnemyAttack called with monsterId:', attackingMonsterId);
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
+    // 太鼓progression系のミス時は判定ライン上に×マークを短時間表示
+    if (fantasyPixiInstance && isTaikoModeRef.current) {
+      const pos = fantasyPixiInstance.getJudgeLinePosition();
+      fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, false);
+    }
     
     // 敵の攻撃音を再生（single クイズモードのみ）
     try {
@@ -635,17 +640,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 2週目以降は全てのノーツを表示対象とする
         const loopCount = Math.floor(currentTime / loopDuration);
         
-        // 処理済みのノーツをスキップ（直前にヒットしたノーツも含めて非表示）
-        if (index < gameState.currentNoteIndex) return;
-        
-        // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
-        if (note.isHit) return;
-        
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
+
+        // 処理済みのノーツをスキップ。ただし「直前にミスした1つだけ」は-0.2秒までは残して越えていく表現にする
+        const isPreviousJustProcessed = index === gameState.currentNoteIndex - 1;
+        if (index < gameState.currentNoteIndex && !(isPreviousJustProcessed && note.isMissed && timeUntilHit >= -0.2)) {
+          return;
+        }
         
-        // ループリセット直後（currentNoteIndex===0）は負の許容をやめ、直前ノーツの復活を防ぐ
-        const lowerBound = gameState.currentNoteIndex === 0 ? 0 : -0.5;
+        // ヒット済みノーツは非表示。ミス済みでも-0.2秒までは表示継続して越えていく表現にする
+        if (note.isHit) return;
+        if (note.isMissed && timeUntilHit < -0.2) return;
+        
+        // 判定ライン通過後もわずかに表示を継続して越えていく表現にする
+        const lowerBound = -0.2;
         
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
