@@ -2070,7 +2070,7 @@ export class FantasyPIXIInstance {
   }
   
   // ノーツヒット時のエフェクト
-  createNoteHitEffect(x: number, y: number, isSuccess: boolean): void {
+  createNoteHitEffect(x: number, y: number, isSuccess: boolean, durationMs: number = isSuccess ? 300 : 100): void {
     const effectGraphics = new PIXI.Graphics();
     
     if (isSuccess) {
@@ -2091,20 +2091,30 @@ export class FantasyPIXIInstance {
     
     this.effectContainer.addChild(effectGraphics);
     
-    // フェードアウトアニメーション
-    const fadeOut = () => {
-      effectGraphics.alpha -= 0.05;
-      effectGraphics.scale.x += 0.05;
-      effectGraphics.scale.y += 0.05;
-      
-      if (effectGraphics.alpha <= 0) {
+    // 時間ベースのフェードアウト（durationMsに応じて約100msなどで終了）
+    const start = performance.now();
+    const startScaleX = 1;
+    const startScaleY = 1;
+    const targetScaleDelta = isSuccess ? 0.6 : 0.2; // 成功は少し大きく、ミスは控えめ
+
+    const animate = () => {
+      const now = performance.now();
+      const elapsed = now - start;
+      const t = Math.min(1, elapsed / durationMs);
+
+      // 線形フェード
+      effectGraphics.alpha = 1 - t;
+      effectGraphics.scale.x = startScaleX + targetScaleDelta * t;
+      effectGraphics.scale.y = startScaleY + targetScaleDelta * t;
+
+      if (t >= 1) {
         effectGraphics.destroy();
       } else {
-        requestAnimationFrame(fadeOut);
+        requestAnimationFrame(animate);
       }
     };
     
-    requestAnimationFrame(fadeOut);
+    requestAnimationFrame(animate);
   }
   
   // 判定ラインの位置を取得
@@ -2212,56 +2222,41 @@ export class FantasyPIXIInstance {
   private setMonsterState(newState: MonsterState): void {
     if (this.monsterGameState.state === newState) return;
 
-    devLog.debug(`👾 Monster state changed: ${this.monsterGameState.state} -> ${newState}`, {
+    devLog.debug('👾 Monster state changed', {
       previousState: this.monsterGameState.state,
-      newState: newState,
+      newState,
       hitCount: this.monsterGameState.hitCount,
       isDestroyed: this.isDestroyed
     });
-    
+
     this.monsterGameState.state = newState;
 
-    // 新しい状態に応じた処理をトリガー
     if (newState === 'FADING_OUT') {
-      devLog.debug('💀 モンスター消滅アニメーション開始');
       this.startMonsterFadeOut();
     } else if (newState === 'GONE') {
-      devLog.debug('💀 モンスター完全消滅、親コンポーネントに通知', {
-        hasCallback: !!this.onDefeated,
-        isDestroyed: this.isDestroyed
-      });
+      // 画面上の残存エフェクトを安全にクリーンアップ
+      try {
+        const children = this.effectContainer.removeChildren();
+        children.forEach((child: any) => {
+          try {
+            if (child && typeof child.destroy === 'function' && !child.destroyed) {
+              child.destroy();
+            }
+          } catch {}
+        });
+      } catch (error) {
+        devLog.debug('⚠️ エフェクトクリーンアップエラー:', error);
+      }
 
-      /* ✨ 追加 ✨ : モンスターが去ったらエフェクトを全部掃除 */
-      this.effectContainer.children.forEach(child => {
-        if (child.parent) child.parent.removeChild(child);
-        if (!child.destroyed && typeof (child as any).destroy === 'function') {
-          (child as any).destroy();
-        }
-      });
-
-      // 親コンポーネント通知の直前で片付け
-      this.monsterSprite.visible = false;
-      // 二度アクセスしない様に null‑out
-      (this.monsterSprite as any) = null;
-      (this.monsterGameState as any) = null;
-      
-      // 親コンポーネントに通知
-      // isDestroyedフラグをチェックして、インスタンス破棄後のコールバック呼び出しを防ぐ
+      // 親コンポーネントへの通知
       if (!this.isDestroyed) {
         this.onDefeated?.();
-      } 
+      }
     }
   }
-  
-  /** これ１行で「壊れていたら return true」 */
-  private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
-    !s || (s as any).destroyed || !(s as any).transform;
-
-
 }
 
 // ===== Reactコンポーネント =====
-
 export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   width,
   height,
@@ -2295,18 +2290,13 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   // モンスターアイコン変更（状態機械による安全な生成）
   useEffect(() => {
     if (pixiInstance) {
-      // マルチモンスター対応がある場合はそちらを優先
       if (activeMonsters && activeMonsters.length > 0) {
         pixiInstance.updateActiveMonsters(activeMonsters);
       } else {
-        // 互換性のため従来の単体モンスター表示
-        // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
         pixiInstance.createMonsterSprite(monsterIcon);
       }
     }
   }, [pixiInstance, monsterIcon, activeMonsters]);
-
-
 
   // サイズ変更
   useEffect(() => {
@@ -2318,10 +2308,10 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   return (
     <div
       ref={containerRef}
-      className={cn("relative", className)}
+      className={cn('relative', className)}
       style={{ width, height }}
     />
   );
 };
 
-export default FantasyPIXIRenderer; 
+export default FantasyPIXIRenderer;
