@@ -1644,50 +1644,72 @@ export class FantasyPIXIInstance {
         
         if (enragedTable[id]) {
           // ---- 怒り演出 ----
+          // アイコンのスケールは変更しない（巨大化を廃止）
           const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
-          visualState.scale = baseScale * 1.25; // 巨大化（25%増し）
-          sprite.tint = 0xFFCCCC;
+          visualState.scale = baseScale;
           
-          // 怒りマークを追加（まだない場合）
-          if (!monsterData.angerMark) {
+          // ランダム位置に怒りマークをフローティング表示（ダメージテキスト風）
+          const showFloatingAnger = () => {
             const angerTexture = this.imageTextures.get('angerMark');
-            if (angerTexture) {
-              const angerMark = new PIXI.Sprite(angerTexture);
-              angerMark.anchor.set(0.5);
-              angerMark.width = 72;  // サイズ調整（もっと大きく）
-              angerMark.height = 72;
-              angerMark.position.set(
-                ANGER_OFFSET.x,
-                ANGER_OFFSET.y
-              );
-              sprite.addChild(angerMark);
-              monsterData.angerMark = angerMark;
-            } else {
-              // テクスチャが無い場合は絵文字でフォールバック
-              const angerMark = new PIXI.Text('💢', {
-                fontFamily: 'DotGothic16',
-                fontSize: 54,  // もっと大きく
-                fill: 0xFF0000,
-                stroke: 0x000000,
-                strokeThickness: 4,
-              });
-              angerMark.anchor.set(0.5);
-              angerMark.position.set(
-                ANGER_OFFSET.x,
-                ANGER_OFFSET.y
-              );
-              sprite.addChild(angerMark);
-              monsterData.angerMark = angerMark;
+            const isSprite = !!angerTexture;
+            const textOrSprite = isSprite
+              ? new PIXI.Sprite(angerTexture!)
+              : new PIXI.Text('💢', {
+                  fontFamily: 'DotGothic16',
+                  fontSize: 42,
+                  fill: 0xFF0000,
+                  stroke: 0x000000,
+                  strokeThickness: 4,
+                });
+            if ('anchor' in (textOrSprite as any)) {
+              (textOrSprite as any).anchor?.set?.(0.5);
             }
+            const randX = sprite.x + (Math.random() - 0.5) * 140;
+            const randY = sprite.y - 60 + (Math.random() - 0.5) * 80;
+            textOrSprite.position.set(randX, randY);
+            // ライフ数秒の間、ゆっくり浮かせてフェード
+            let life = 0;
+            const maxLife = 120; // 約2秒（60fps想定）
+            textOrSprite.alpha = 1;
+            this.uiContainer.addChild(textOrSprite as any);
+            const tick = () => {
+              if (this.isDestroyed) return;
+              life++;
+              (textOrSprite as any).y -= 0.6;
+              if (life > maxLife * 0.5) {
+                (textOrSprite as any).alpha = Math.max(0, 1 - (life - maxLife * 0.5) / (maxLife * 0.5));
+              }
+              if (life < maxLife) {
+                requestAnimationFrame(tick);
+              } else {
+                try {
+                  if (!(textOrSprite as any).destroyed && (textOrSprite as any).parent) {
+                    (textOrSprite as any).parent.removeChild(textOrSprite as any);
+                  }
+                  (textOrSprite as any).destroy?.();
+                } catch {}
+              }
+            };
+            requestAnimationFrame(tick);
+          };
+          
+          // 既存の固定怒りマークは使わない（必要なら削除）
+          if (monsterData.angerMark) {
+            try {
+              sprite.removeChild(monsterData.angerMark);
+              monsterData.angerMark.destroy();
+            } catch {}
+            monsterData.angerMark = undefined;
           }
           
-          // パルスアニメーション（怒りの脈動）
-          const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
-          sprite.scale.set(visualState.scale * pulse);
-          
-          // 攻撃直後のモンスター赤フラッシュ
-          if (monsterData.lastAttackTime && Date.now() - monsterData.lastAttackTime < 150) {
-            sprite.tint = 0xFF4444; // 真紅
+          // 表示開始直後と継続中に何度かランダムに出す（重複させすぎない）
+          const now = Date.now();
+          if (!monsterData.lastAttackTime || now - monsterData.lastAttackTime > 250) {
+            monsterData.lastAttackTime = now;
+            showFloatingAnger();
+          }
+          if (Math.random() < 0.05) {
+            showFloatingAnger();
           }
           
         } else {
