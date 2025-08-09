@@ -110,7 +110,7 @@ const HeaderRightControls: React.FC = () => {
             <button
               className="p-2 text-white hover:text-primary-400 transition-colors relative"
               aria-label="通知"
-              onClick={async ()=>{ const open = !notif.open; notif.setOpen(open); if (open) { await notif.fetch(); await notif.markRead(); } }}
+              onClick={async ()=>{ const open = !notif.open; notif.setOpen(open); if (open) { await notif.fetch(); const unreadIds = notif.items.filter(i=>!i.read).map(i=>i.id); if (unreadIds.length>0) { await notif.markRead(unreadIds); } } }}
             >
               <FaBell size={20} />
               {notif.unread && (

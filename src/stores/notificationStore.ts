@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { fetchLatestNotifications, markAllNotificationsRead, type NotificationItem } from '@/platform/supabaseNotifications';
+import { fetchLatestNotifications, markNotificationsRead, type NotificationItem } from '@/platform/supabaseNotifications';
 
 interface NotificationState {
   items: NotificationItem[];
@@ -12,12 +12,12 @@ interface NotificationState {
 
 interface NotificationActions {
   fetch: () => Promise<void>;
-  markRead: () => Promise<void>;
+  markRead: (ids?: string[]) => Promise<void>;
   setOpen: (open: boolean) => void;
 }
 
 export const useNotificationStore = create<NotificationState & NotificationActions>()(
-  immer((set) => ({
+  immer((set, get) => ({
     items: [],
     loading: false,
     error: null,
@@ -36,9 +36,17 @@ export const useNotificationStore = create<NotificationState & NotificationActio
       }
     },
 
-    markRead: async () => {
-      await markAllNotificationsRead();
-      set(s => { s.items.forEach(i => i.read = true); s.unread = false; });
+    markRead: async (ids?: string[]) => {
+      // 楽観的にバッジを消す
+      set(s => {
+        if (ids && ids.length > 0) {
+          s.items.forEach(i => { if (ids.includes(i.id)) i.read = true; });
+        } else {
+          s.items.forEach(i => { i.read = true; });
+        }
+        s.unread = s.items.some(i => !i.read);
+      });
+      await markNotificationsRead(ids);
     },
 
     setOpen: (open: boolean) => set(s => { s.open = open; }),

@@ -43,13 +43,13 @@ export async function fetchLatestNotifications(limit = 10): Promise<Notification
   }));
 }
 
-export async function markAllNotificationsRead(): Promise<void> {
+export async function markNotificationsRead(ids?: string[]): Promise<void> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
-  await supabase
-    .from('notifications')
-    .update({ read: true })
-    .eq('user_id', user.id)
-    .throwOnError();
+  let query = supabase.from('notifications').update({ read: true }).eq('user_id', user.id);
+  if (ids && ids.length > 0) {
+    query = query.in('id', ids);
+  }
+  await query.throwOnError();
 }
