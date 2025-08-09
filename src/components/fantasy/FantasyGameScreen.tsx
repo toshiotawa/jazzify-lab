@@ -510,6 +510,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 初期状態の太鼓モードを設定
     instance.updateTaikoMode(gameState.isTaikoMode);
     isTaikoModeRef.current = gameState.isTaikoMode;
+    // グローバル参照（ミスエフェクト用の軽結合呼び出し）
+    (window as any).__fantasy_pixi__ = instance;
   }, [gameState.isTaikoMode]);
   
   // 魔法名表示ハンドラー
@@ -630,6 +632,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
+      // 直前に消化したノーツのインデックス（復活させない対象の特定にも使う）
+      const lastCompletedIndex = gameState.taikoNotes.length > 0
+        ? (gameState.currentNoteIndex - 1 + gameState.taikoNotes.length) % gameState.taikoNotes.length
+        : -1;
+      
       // 通常のノーツ（現在ループのみ表示）
       gameState.taikoNotes.forEach((note, index) => {
         // 2週目以降は全てのノーツを表示対象とする
@@ -644,8 +651,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
         
-        // ループリセット直後（currentNoteIndex===0）は負の許容をやめ、直前ノーツの復活を防ぐ
-        const lowerBound = gameState.currentNoteIndex === 0 ? 0 : -0.5;
+        // 判定ライン通過後も僅かに表示してクロスさせる（全ケースで統一）
+        const lowerBound = -0.2;
         
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
@@ -660,11 +667,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
       const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
-      
-      // 直前に消化したノーツのインデックス（復活させない）
-      const lastCompletedIndex = gameState.taikoNotes.length > 0
-        ? (gameState.currentNoteIndex - 1 + gameState.taikoNotes.length) % gameState.taikoNotes.length
-        : -1;
       
       // ループ対応：最後に近づいたら最初から複数ノーツを仮想的に追加（次ループのプレビュー）
       const timeToLoop = loopDuration - normalizedTime;

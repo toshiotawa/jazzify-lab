@@ -225,6 +225,8 @@ export class FantasyPIXIInstance {
   private damageData: Map<string, DamageNumberData> = new Map();
   private chordNameText: PIXI.Text | null = null;
 
+  // 怒り状態の短時間ホールド（ストアのON/OFFが速すぎて取りこぼすのを防ぐ）
+  private enrageHoldUntil: Map<string, number> = new Map();
   
   private currentMagicType: string = 'fire';
   // ★★★ MONSTER_EMOJI と loadEmojiTextures を削除、またはコメントアウト ★★★
@@ -1597,11 +1599,13 @@ export class FantasyPIXIInstance {
     icon.y = -monsterData.sprite.height * 0.45;
     monsterData.sprite.addChild(icon);
 
-    // 1 秒後に自動削除（ずっと残すなら setTimeout を外す）
+    // 0.1 秒後に自動削除（過密時の視認性改善）
     setTimeout(() => {
-      if (!icon.destroyed && icon.parent) icon.parent.removeChild(icon);
-      icon.destroy();
-    }, 1000);
+      if (icon && !icon.destroyed) {
+        if (icon.parent) icon.parent.removeChild(icon);
+        icon.destroy();
+      }
+    }, 100);
 
     (monsterData as any).attackIcon = icon; // 再利用できるよう保持
   }
@@ -1639,10 +1643,16 @@ export class FantasyPIXIInstance {
         // ストアから怒り状態を取得
         const enragedTable = useEnemyStore.getState().enraged;
         
+        const now = Date.now();
+        if (enragedTable[id]) {
+          this.enrageHoldUntil.set(id, now + 100); // 最低100msは保持
+        }
+        const isEnragedEffective = enragedTable[id] || ((this.enrageHoldUntil.get(id) || 0) > now);
+        
         // 怒りマークの相対位置（スプライト中心基準）
         const ANGER_OFFSET = { x: 80, y: -80 }; // さらに右上へ（アイコンに重ならないように）
         
-        if (enragedTable[id]) {
+        if (isEnragedEffective) {
           // ---- 怒り演出 ----
           const baseScale = this.calcSpriteScale(sprite.texture, this.app.screen.width, this.app.screen.height, this.monsterSprites.size);
           visualState.scale = baseScale * 1.25; // 巨大化（25%増し）
@@ -1683,10 +1693,10 @@ export class FantasyPIXIInstance {
           
           // パルスアニメーション（怒りの脈動）
           const pulse = Math.sin(Date.now() * 0.005) * 0.05 + 1;
-          sprite.scale.set(visualState.scale * pulse);
+          visualState.scale = baseScale * 1.25 * pulse;
           
           // 攻撃直後のモンスター赤フラッシュ
-          if (monsterData.lastAttackTime && Date.now() - monsterData.lastAttackTime < 150) {
+          if (monsterData.lastAttackTime && Date.now() - monsterData.lastAttackTime < 100) {
             sprite.tint = 0xFF4444; // 真紅
           }
           
@@ -1698,7 +1708,9 @@ export class FantasyPIXIInstance {
           
           // 怒りエフェクトを削除
           if (monsterData.angerMark) {
-            sprite.removeChild(monsterData.angerMark);
+            if (monsterData.angerMark.parent) {
+              monsterData.angerMark.parent.removeChild(monsterData.angerMark);
+            }
             monsterData.angerMark.destroy();
             monsterData.angerMark = undefined;
           }
@@ -2069,20 +2081,24 @@ export class FantasyPIXIInstance {
     
     this.effectContainer.addChild(effectGraphics);
     
-    // フェードアウトアニメーション
-    const fadeOut = () => {
-      effectGraphics.alpha -= 0.05;
-      effectGraphics.scale.x += 0.05;
-      effectGraphics.scale.y += 0.05;
-      
-      if (effectGraphics.alpha <= 0) {
-        effectGraphics.destroy();
+    // 140msで確実に終了する時間制御フェード
+    const start = performance.now();
+    const duration = 140;
+    const startScaleX = effectGraphics.scale.x;
+    const startScaleY = effectGraphics.scale.y;
+    const animate = (t: number) => {
+      const elapsed = t - start;
+      const p = Math.min(1, elapsed / duration);
+      effectGraphics.alpha = 1 - p;
+      const s = 1 + p * 0.25;
+      effectGraphics.scale.set(startScaleX * s, startScaleY * s);
+      if (p < 1) {
+        requestAnimationFrame(animate);
       } else {
-        requestAnimationFrame(fadeOut);
+        if (!effectGraphics.destroyed) effectGraphics.destroy();
       }
     };
-    
-    requestAnimationFrame(fadeOut);
+    requestAnimationFrame(animate);
   }
   
   // 判定ラインの位置を取得
@@ -2235,6 +2251,11 @@ export class FantasyPIXIInstance {
   private isSpriteInvalid = (s: PIXI.DisplayObject | null | undefined) =>
     !s || (s as any).destroyed || !(s as any).transform;
 
+  // 怒りを短時間だけ強制表示（即時反映＆即終了）
+  public triggerEnrageBurst(monsterId: string, durationMs: number = 100): void {
+    const now = Date.now();
+    this.enrageHoldUntil.set(monsterId, now + Math.max(0, durationMs));
+  }
 
 }
 

@@ -1165,16 +1165,25 @@ export const useFantasyGameEngine = ({
             currentTime: currentTime.toFixed(3),
             hitTime: currentNote.hitTime.toFixed(3)
           });
-          
+
+          // ▼ 判定ライン上にミスエフェクト（短時間）
+          try {
+            // FantasyPIXIRenderer 経由で失敗エフェクトを表示
+            (window as any).__fantasy_pixi__?.createNoteHitEffect?.(
+              (window as any).__fantasy_pixi__?.getJudgeLinePosition?.().x,
+              (window as any).__fantasy_pixi__?.getJudgeLinePosition?.().y,
+              false
+            );
+          } catch {}
+
           // 敵の攻撃を発動（先頭モンスターを指定）
           const attackerId = prevState.activeMonsters?.[0]?.id;
           setTimeout(() => handleEnemyAttack(attackerId), 0);
-          
-          // 次のノーツへ進む
-          const nextIndex = currentNoteIndex + 1;
-          
-          // 次のノーツの情報を取得（ループ対応）
-          let nextNote, nextNextNote;
+
+          // 次のノーツに進める
+          let nextIndex = (currentNoteIndex + 1) % prevState.taikoNotes.length;
+          let nextNote: TaikoNote | undefined;
+          let nextNextNote: TaikoNote | undefined;
           if (nextIndex < prevState.taikoNotes.length) {
             nextNote = prevState.taikoNotes[nextIndex];
             nextNextNote = (nextIndex + 1 < prevState.taikoNotes.length) 
@@ -1195,8 +1204,8 @@ export const useFantasyGameEngine = ({
               ...m,
               correctNotes: [],
               gauge: 0,
-              chordTarget: nextNote.chord,
-              nextChord: nextNextNote.chord
+              chordTarget: nextNote?.chord || m.chordTarget,
+              nextChord: nextNextNote?.chord || nextNote?.chord || m.nextChord
             }))
           };
         }
@@ -1225,7 +1234,11 @@ export const useFantasyGameEngine = ({
         // 怒り状態をストアに通知
         const { setEnrage } = useEnemyStore.getState();
         setEnrage(attackingMonster.id, true);
-        setTimeout(() => setEnrage(attackingMonster.id, false), 500); // 0.5秒後にOFF
+        try {
+          // 視覚は直ちに100msだけ怒りを保証（取りこぼし防止）
+          (window as any).__fantasy_pixi__?.triggerEnrageBurst?.(attackingMonster.id, 100);
+        } catch {}
+        setTimeout(() => setEnrage(attackingMonster.id, false), 100); // 0.1秒後にOFF
         
         // 攻撃したモンスターのゲージをリセット
         const resetMonsters = updatedMonsters.map(m => 
