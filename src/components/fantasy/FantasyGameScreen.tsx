@@ -331,7 +331,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       console.error('Failed to play enemy attack sound:', error);
     }
     
-    // confetti削除 - 何もしない
+    // 判定ライン上にミスエフェクト（赤い×）
+    if (fantasyPixiInstance) {
+      const pos = fantasyPixiInstance.getJudgeLinePosition();
+      fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, false);
+      // ランダム位置に怒りマークを複数表示
+      fantasyPixiInstance.spawnAngerEmotes?.(3, 1800);
+    }
     
     // ダメージ時の画面振動
     setDamageShake(true);
@@ -341,7 +347,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setHeartFlash(true);
     setTimeout(() => setHeartFlash(false), 150);
     
-  }, [stage.mode]);
+  }, [stage.mode, fantasyPixiInstance]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
@@ -604,10 +610,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
+      const missDisplayDuration = 0.5; // ミス後に表示を残す秒数
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
-        const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+        const notesToDisplay: Array<{id: string, chord: string, x: number, miss?: boolean}> = [];
         const maxPreCountNotes = 6;
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
@@ -625,16 +632,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       
       // 表示するノーツを収集
-      const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+      const notesToDisplay: Array<{id: string, chord: string, x: number, miss?: boolean}> = [];
       
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
       // 通常のノーツ（現在ループのみ表示）
       gameState.taikoNotes.forEach((note, index) => {
-        // 2週目以降は全てのノーツを表示対象とする
-        const loopCount = Math.floor(currentTime / loopDuration);
-        
         // 処理済みのノーツをスキップ（直前にヒットしたノーツも含めて非表示）
         if (index < gameState.currentNoteIndex) return;
         
@@ -657,6 +661,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           });
         }
       });
+      
+      // ミスした直後のノーツを、判定ラインを越えて少しだけ表示
+      if (gameState.taikoNotes.length > 0) {
+        const loopDurationAbs = loopDuration;
+        for (const note of gameState.taikoNotes) {
+          if (!note.isMissed) continue;
+          const missedAt = note.missedAt ?? note.hitTime; // フォールバック
+          // 絶対時間で経過を計算（ループ補正）
+          let elapsed = currentTime - missedAt;
+          while (elapsed < 0) elapsed += loopDurationAbs;
+          if (elapsed >= 0 && elapsed <= missDisplayDuration) {
+            const x = judgeLinePos.x - elapsed * noteSpeed; // 判定ラインの左へ流す
+            notesToDisplay.push({ id: `${note.id}_miss`, chord: note.chord.displayName, x, miss: true });
+          }
+        }
+      }
       
       // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
       const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));

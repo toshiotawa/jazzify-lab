@@ -1170,6 +1170,11 @@ export const useFantasyGameEngine = ({
           const attackerId = prevState.activeMonsters?.[0]?.id;
           setTimeout(() => handleEnemyAttack(attackerId), 0);
           
+          // 現在のノーツにミスフラグを立て、経過表示用に時刻を記録
+          const updatedTaikoNotes = prevState.taikoNotes.map((n, i) =>
+            i === currentNoteIndex ? { ...n, isMissed: true, missedAt: currentTime } : n
+          );
+          
           // 次のノーツへ進む
           const nextIndex = currentNoteIndex + 1;
           
@@ -1191,6 +1196,7 @@ export const useFantasyGameEngine = ({
           return {
             ...prevState,
             currentNoteIndex: nextIndex,
+            taikoNotes: updatedTaikoNotes,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
