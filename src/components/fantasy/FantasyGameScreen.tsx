@@ -717,21 +717,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (!pixiRenderer) return;
     const canGuide = stage.showGuide && gameState.simultaneousMonsterCount === 1;
-    const setGuide = (pcs: number[]) => {
-      (pixiRenderer as any).setGuideHighlightsByPitchClasses?.(pcs);
+    const setGuideMidi = (midiNotes: number[]) => {
+      (pixiRenderer as any).setGuideHighlightsByMidiNotes?.(midiNotes);
     };
     if (!canGuide) {
-      setGuide([]);
+      setGuideMidi([]);
       return;
     }
     const targetMonster = gameState.activeMonsters?.[0];
     const chord = targetMonster?.chordTarget || gameState.currentChordTarget;
     if (!chord) {
-      setGuide([]);
+      setGuideMidi([]);
       return;
     }
-    const pcs = Array.from(new Set(chord.notes.map((n: number) => ((n % 12) + 12) % 12)));
-    setGuide(pcs);
+    // 出題オクターブでのMIDIノートをそのまま渡す
+    setGuideMidi(chord.notes as number[]);
   }, [pixiRenderer, stage.showGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）

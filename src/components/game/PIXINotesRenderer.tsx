@@ -3123,6 +3123,31 @@ export class PIXINotesRendererInstance {
       });
     }
   }
+
+  // 出題オクターブのみのガイド表示用：MIDI番号で直接指定
+  public setGuideHighlightsByMidiNotes(midiNotes: number[]): void {
+    const clamped = new Set<number>();
+    for (const n of midiNotes) {
+      const midi = Math.round(n);
+      if (midi >= 21 && midi <= 108) clamped.add(midi);
+    }
+
+    // なくなるガイドを消す（演奏ハイライトが無ければ可視も解除）
+    for (const midi of Array.from(this.guideHighlightedKeys)) {
+      if (!clamped.has(midi)) {
+        this.guideHighlightedKeys.delete(midi);
+        if (!this.highlightedKeys.has(midi)) this.applyKeyHighlightVisual(midi, false);
+      }
+    }
+
+    // 新しく必要なガイドを付与
+    for (const midi of clamped) {
+      if (!this.guideHighlightedKeys.has(midi)) {
+        this.guideHighlightedKeys.add(midi);
+        this.applyKeyHighlightVisual(midi, true);
+      }
+    }
+  }
 }
 
 // ===== React コンポーネント =====
