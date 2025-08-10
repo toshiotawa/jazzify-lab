@@ -148,3 +148,72 @@ export async function fetchFantasyClearedStageCount(userId: string): Promise<num
   
   return count || 0;
 }
+
+export interface UpsertFantasyStagePayload {
+  id?: string;
+  stage_number: string;
+  name: string;
+  description?: string;
+  max_hp?: number;
+  enemy_gauge_seconds?: number;
+  enemy_count?: number;
+  enemy_hp?: number;
+  min_damage?: number;
+  max_damage?: number;
+  mode: 'single' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing';
+  allowed_chords?: any[]; // ChordSpec[] or string[]
+  chord_progression?: any[]; // ChordSpec[]
+  chord_progression_data?: any; // JSON array
+  show_sheet_music?: boolean;
+  show_guide?: boolean;
+  monster_icon?: string;
+  bgm_url?: string | null;
+  mp3_url?: string | null;
+  simultaneous_monster_count?: number;
+  bpm?: number;
+  measure_count?: number;
+  time_signature?: number;
+  count_in_measures?: number;
+  note_interval_beats?: number | null;
+}
+
+/**
+ * 新規ファンタジーステージを作成
+ */
+export async function createFantasyStage(payload: UpsertFantasyStagePayload): Promise<FantasyStage> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('fantasy_stages')
+    .insert(payload as any)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data as FantasyStage;
+}
+
+/**
+ * 既存ファンタジーステージを更新
+ */
+export async function updateFantasyStage(id: string, payload: Partial<UpsertFantasyStagePayload>): Promise<FantasyStage> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('fantasy_stages')
+    .update(payload as any)
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data as FantasyStage;
+}
+
+/**
+ * ステージを削除
+ */
+export async function deleteFantasyStage(id: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('fantasy_stages')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
