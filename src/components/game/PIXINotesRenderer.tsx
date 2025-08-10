@@ -192,6 +192,7 @@ interface RendererSettings {
     whiteKey: number;
     blackKey: number;
     activeKey: number;
+    guideKey: number;
   };
   effects: {
     glow: boolean;
@@ -247,6 +248,9 @@ export class PIXINotesRendererInstance {
   
   // ★ ガイドライン管理用プロパティを追加
   private guidelines?: PIXI.Graphics;
+  
+  // ガイド用ハイライト（演奏と独立して保持）
+  private guideHighlightedKeys: Set<number> = new Set();
   
   // ★ パフォーマンス最適化: nextNoteIndex ポインタシステム
   private allNotes: ActiveNote[] = []; // 全ノートのソート済みリスト
@@ -305,7 +309,8 @@ export class PIXINotesRendererInstance {
       good: 0x48BB78,
       whiteKey: 0xFFFFFF,
       blackKey: 0x2D2D2D,
-      activeKey: 0xFF8C00
+      activeKey: 0xFF8C00,
+      guideKey: 0x22C55E
     },
             effects: {
           glow: true,
@@ -1158,6 +1163,11 @@ export class PIXINotesRendererInstance {
     // this.pianoContainer.on('pointerup', this.handleDragEnd.bind(this));
     // this.pianoContainer.on('pointerupoutside', this.handleDragEnd.bind(this));
     // this.pianoContainer.on('pointercancel', this.handleDragEnd.bind(this));
+    
+    // 既存のガイドハイライトを再適用
+    for (const note of this.guideHighlightedKeys) {
+      this.applyKeyHighlightVisual(note, true);
+    }
   }
   
   /**
@@ -1437,14 +1447,7 @@ export class PIXINotesRendererInstance {
       // pointerイベントがタッチとマウスの両方を処理するため、touchイベントは不要
       // （touchイベントとpointerイベントの両方が発火して2重になるのを防ぐ）
       
-      // ホバー効果を追加
-      key.on('pointerover', () => {
-        key.tint = 0xF3F4F6; // light gray hover
-      });
-      
-      key.on('pointerout', () => {
-        key.tint = 0xFFFFFF; // white
-      });
+      // ホバー演出は無効化（ガイドの視認性を保つ）
     }
     
     return key;
@@ -1538,20 +1541,7 @@ export class PIXINotesRendererInstance {
       // pointerイベントがタッチとマウスの両方を処理するため、touchイベントは不要
       // （touchイベントとpointerイベントの両方が発火して2重になるのを防ぐ）
       
-      // ホバー効果を追加（黒鍵専用、tintではなく軽微な視覚効果のみ）
-      key.on('pointerover', () => {
-        // 黒鍵のホバー効果は微妙にして、ハイライト状態を阻害しない
-        if (!this.isKeyHighlighted(midiNote)) {
-          key.alpha = 0.8; // 少し透明にしてホバー感を演出
-        }
-      });
-      
-      key.on('pointerout', () => {
-        // ハイライト状態でない場合のみリセット
-        if (!this.isKeyHighlighted(midiNote)) {
-          key.alpha = 1.0; // 通常状態に戻す
-        }
-      });
+      // ホバー演出は無効化（ガイドの視認性を保つ）
     }
     
     return key;
@@ -1616,7 +1606,7 @@ export class PIXINotesRendererInstance {
    * キーがハイライト状態かどうかを確認
    */
   private isKeyHighlighted(midiNote: number): boolean {
-    return this.highlightedKeys.has(midiNote);
+    return this.highlightedKeys.has(midiNote) || this.guideHighlightedKeys.has(midiNote);
   }
   
   private calculateBlackKeyPosition(note: number, minNote: number, _maxNote: number, totalWhiteKeys: number): number {
@@ -1692,39 +1682,28 @@ export class PIXINotesRendererInstance {
       return;
     }
     
-    const isBlackKey = this.isBlackKey(midiNote);
-    
     if (active) {
-      // ハイライト状態に追加
       this.highlightedKeys.add(midiNote);
-      
-      if (isBlackKey) {
-        // 黒鍵のハイライト：オレンジ色で再描画
-        this.redrawBlackKeyHighlight(keySprite, true);
-      } else {
-        // 白鍵のハイライト：tintを使用
-        keySprite.tint = this.settings.colors.activeKey;
-      }
     } else {
-      // ハイライト状態から削除
-      this.highlightedKeys.delete(midiNote);
-      
-      if (isBlackKey) {
-        // 黒鍵の通常状態：元の色で再描画
-        this.redrawBlackKeyHighlight(keySprite, false);
-        // アルファ値もリセット
-        keySprite.alpha = 1.0;
-      } else {
-        // 白鍵の通常状態：tintをリセット
-        keySprite.tint = 0xFFFFFF;
+      // ガイドが存在する場合は解除しない
+      if (!this.guideHighlightedKeys.has(midiNote)) {
+        this.highlightedKeys.delete(midiNote);
       }
+    }
+    
+    const shouldHighlight = this.isKeyHighlighted(midiNote);
+    if (this.isBlackKey(midiNote)) {
+      this.redrawBlackKeyHighlight(keySprite, shouldHighlight, midiNote);
+      if (!shouldHighlight) keySprite.alpha = 1.0;
+    } else {
+      (keySprite as any).tint = shouldHighlight ? this.settings.colors.activeKey : 0xFFFFFF;
     }
   }
   
   /**
    * 黒鍵のハイライト状態を再描画
    */
-  private redrawBlackKeyHighlight(keySprite: PIXI.Graphics, highlighted: boolean): void {
+  private redrawBlackKeyHighlight(keySprite: PIXI.Graphics, highlighted: boolean, midiNote?: number): void {
     keySprite.clear();
     
     // 基本的な寸法を再計算（createBlackKeyと同じ値）
@@ -1734,23 +1713,33 @@ export class PIXINotesRendererInstance {
     const blackKeyHeight = this.settings.pianoHeight * 0.65;
     
     if (highlighted) {
-      // より鮮やかなオレンジ色のグロー効果（外側）
-      keySprite.beginFill(0xFF8C00, 0.6); // より鮮やかなオレンジ
+      const isActive = midiNote !== undefined && this.highlightedKeys.has(midiNote);
+      const baseColor = isActive ? this.settings.colors.activeKey : this.settings.colors.guideKey;
+      const lighten = (color: number, amt: number) => {
+        const r = Math.min(255, ((color >> 16) & 0xFF) + amt);
+        const g = Math.min(255, ((color >> 8) & 0xFF) + amt);
+        const b = Math.min(255, (color & 0xFF) + amt);
+        return (r << 16) | (g << 8) | b;
+      };
+      const topHighlight = lighten(baseColor, 40);
+
+      // グロー効果（外側）
+      keySprite.beginFill(baseColor, 0.6);
       keySprite.drawRect(-adjustedWidth * 0.9 / 2, -2, adjustedWidth * 0.9, blackKeyHeight + 4);
       keySprite.endFill();
       
-      // ハイライト状態：鮮やかなオレンジ色で描画
-      keySprite.beginFill(0xFF8C00); // より鮮やかなオレンジ色 (DarkOrange)
+      // メイン
+      keySprite.beginFill(baseColor);
       keySprite.drawRect(-adjustedWidth * 0.75 / 2, 0, adjustedWidth * 0.75, blackKeyHeight);
       keySprite.endFill();
       
-      // 上部のハイライト効果（より明るいオレンジ）
-      keySprite.beginFill(0xFFB347, 0.9); // 明るいオレンジ
+      // 上部のハイライト効果
+      keySprite.beginFill(topHighlight, 0.9);
       keySprite.drawRect(-adjustedWidth * 0.75 / 2, 0, adjustedWidth * 0.75, blackKeyHeight * 0.3);
       keySprite.endFill();
       
-      // クリック領域（ハイライト時は薄いオレンジ）
-      keySprite.beginFill(0xFF8C00, 0.3);
+      // クリック領域
+      keySprite.beginFill(baseColor, 0.3);
       keySprite.drawRect(-adjustedWidth / 2, 0, adjustedWidth, blackKeyHeight);
       keySprite.endFill();
     } else {
@@ -2855,6 +2844,7 @@ export class PIXINotesRendererInstance {
       // ピアノスプライトをクリア
       this.pianoSprites.clear();
       this.highlightedKeys.clear();
+      this.guideHighlightedKeys.clear();
 
       // ★ ガイドラインも破棄
       if (this.guidelines) {
@@ -3024,44 +3014,69 @@ export class PIXINotesRendererInstance {
     this.app.ticker.add(tickerFunc);
   }
 
+    // 外部からのガイド設定（ピッチクラス配列 0-11）
+  public setGuideHighlightsByPitchClasses(pitchClasses: number[]): void {
+    const normalized = new Set(pitchClasses.map(pc => ((pc % 12) + 12) % 12));
+    const target: Set<number> = new Set();
+    for (let midi = 21; midi <= 108; midi++) {
+      if (normalized.has(midi % 12)) target.add(midi);
+    }
+
+    // なくなるガイドを消す（演奏ハイライトが無ければ可視も解除）
+    for (const midi of Array.from(this.guideHighlightedKeys)) {
+      if (!target.has(midi)) {
+        this.guideHighlightedKeys.delete(midi);
+        if (!this.highlightedKeys.has(midi)) this.applyKeyHighlightVisual(midi, false);
+      }
+    }
+
+    // 新しく必要なガイドを付与
+    for (const midi of target) {
+      if (!this.guideHighlightedKeys.has(midi)) {
+        this.guideHighlightedKeys.add(midi);
+        this.applyKeyHighlightVisual(midi, true);
+      }
+    }
+  }
+
+  // 見た目適用（ガイド/演奏の合算状態を前提）
+  private applyKeyHighlightVisual(midiNote: number, highlighted: boolean): void {
+    const keySprite = this.pianoSprites.get(midiNote);
+    if (!keySprite) return;
+    if (this.isBlackKey(midiNote)) {
+      this.redrawBlackKeyHighlight(keySprite, highlighted, midiNote);
+      keySprite.alpha = highlighted ? 1.0 : 1.0;
+    } else {
+      if (!highlighted) {
+        (keySprite as any).tint = 0xFFFFFF;
+        return;
+      }
+      // ガイドのみの点灯は緑、演奏中はオレンジ
+      const isActive = this.highlightedKeys.has(midiNote);
+      (keySprite as any).tint = isActive ? this.settings.colors.activeKey : this.settings.colors.guideKey;
+    }
+  }
+
   /**
    * キー押下に応じた即時ヒットエフェクトを発火
    * GameEngine の判定を待たずに視覚フィードバックを返すための補助メソッド。
    */
   public triggerKeyPressEffect(midiNote: number): void {
-    /*
-     * ユーザーが鍵盤を押下した際に発火する即時ヒットエフェクト。
-     * ------------------------------------------------------------
-     * 変更点 :
-     *   1. トランスポーズ値が二重に適用される問題を回避するため、
-     *      pitchToX ではなく現在描画中のノートスプライトの座標を利用する。
-     *   2. 画面上に対応するノートが存在しない場合（＝演奏すべきノートが無い場合）は
-     *      エフェクトを生成しない。
-     */
-
-    // 1. 現在表示中のノートスプライトから一致するものを探す
-    //    rawMidi = noteSprite.pitch + transpose が実際に押される MIDI ノートになる。
+    // 現在表示中のノートスプライトから一致するものを探す
     const targetSprite = Array.from(this.noteSprites.values()).find((ns) => {
       const rawMidi = ns.noteData.pitch + this.settings.transpose;
       return rawMidi === midiNote && ns.noteData.state === 'visible';
     });
 
-    // 2. 一致するノートが無い場合はエフェクトを出さない（不要表示防止）
-    if (!targetSprite) {
-      return;
-    }
+    if (!targetSprite) return;
 
-    // 3. ノートが判定ライン近くにあるかを確認（早押し時の誤エフェクト防止）
+    // 早押し時の誤エフェクト防止
     const distanceToHitLine = Math.abs(targetSprite.sprite.y - this.settings.hitLineY);
-    const threshold = this.settings.noteHeight * 1.5; // ノート高さの約1.5倍以内
-    if (distanceToHitLine > threshold) {
-      // まだ判定ラインに到達していないためエフェクトを生成しない
-      return;
-    }
+    const threshold = this.settings.noteHeight * 1.5;
+    if (distanceToHitLine > threshold) return;
 
-    // 4. 見つかったノートの現在位置を使用してエフェクトを生成
-    const x = targetSprite.sprite.x;
-    this.createHitEffect(x, targetSprite.sprite.y);
+    // 見つかったノートの現在位置を使用してエフェクトを生成
+    this.createHitEffect(targetSprite.sprite.x, targetSprite.sprite.y);
   }
 
   /**
@@ -3127,6 +3142,30 @@ export class PIXINotesRendererInstance {
     }
   }
 
+  // 出題オクターブのみのガイド表示用：MIDI番号で直接指定
+  public setGuideHighlightsByMidiNotes(midiNotes: number[]): void {
+    const clamped = new Set<number>();
+    for (const n of midiNotes) {
+      const midi = Math.round(n);
+      if (midi >= 21 && midi <= 108) clamped.add(midi);
+    }
+
+    // なくなるガイドを消す（演奏ハイライトが無ければ可視も解除）
+    for (const midi of Array.from(this.guideHighlightedKeys)) {
+      if (!clamped.has(midi)) {
+        this.guideHighlightedKeys.delete(midi);
+        if (!this.highlightedKeys.has(midi)) this.applyKeyHighlightVisual(midi, false);
+      }
+    }
+
+    // 新しく必要なガイドを付与
+    for (const midi of clamped) {
+      if (!this.guideHighlightedKeys.has(midi)) {
+        this.guideHighlightedKeys.add(midi);
+        this.applyKeyHighlightVisual(midi, true);
+      }
+    }
+  }
 }
 
 // ===== React コンポーネント =====
