@@ -192,6 +192,7 @@ interface RendererSettings {
     whiteKey: number;
     blackKey: number;
     activeKey: number;
+    guideKey: number;
   };
   effects: {
     glow: boolean;
@@ -308,7 +309,8 @@ export class PIXINotesRendererInstance {
       good: 0x48BB78,
       whiteKey: 0xFFFFFF,
       blackKey: 0x2D2D2D,
-      activeKey: 0xFF8C00
+      activeKey: 0xFF8C00,
+      guideKey: 0x22C55E
     },
             effects: {
           glow: true,
@@ -1691,7 +1693,7 @@ export class PIXINotesRendererInstance {
     
     const shouldHighlight = this.isKeyHighlighted(midiNote);
     if (this.isBlackKey(midiNote)) {
-      this.redrawBlackKeyHighlight(keySprite, shouldHighlight);
+      this.redrawBlackKeyHighlight(keySprite, shouldHighlight, midiNote);
       if (!shouldHighlight) keySprite.alpha = 1.0;
     } else {
       (keySprite as any).tint = shouldHighlight ? this.settings.colors.activeKey : 0xFFFFFF;
@@ -1701,7 +1703,7 @@ export class PIXINotesRendererInstance {
   /**
    * 黒鍵のハイライト状態を再描画
    */
-  private redrawBlackKeyHighlight(keySprite: PIXI.Graphics, highlighted: boolean): void {
+  private redrawBlackKeyHighlight(keySprite: PIXI.Graphics, highlighted: boolean, midiNote?: number): void {
     keySprite.clear();
     
     // 基本的な寸法を再計算（createBlackKeyと同じ値）
@@ -1711,23 +1713,33 @@ export class PIXINotesRendererInstance {
     const blackKeyHeight = this.settings.pianoHeight * 0.65;
     
     if (highlighted) {
-      // より鮮やかなオレンジ色のグロー効果（外側）
-      keySprite.beginFill(0xFF8C00, 0.6); // より鮮やかなオレンジ
+      const isActive = midiNote !== undefined && this.highlightedKeys.has(midiNote);
+      const baseColor = isActive ? this.settings.colors.activeKey : this.settings.colors.guideKey;
+      const lighten = (color: number, amt: number) => {
+        const r = Math.min(255, ((color >> 16) & 0xFF) + amt);
+        const g = Math.min(255, ((color >> 8) & 0xFF) + amt);
+        const b = Math.min(255, (color & 0xFF) + amt);
+        return (r << 16) | (g << 8) | b;
+      };
+      const topHighlight = lighten(baseColor, 40);
+
+      // グロー効果（外側）
+      keySprite.beginFill(baseColor, 0.6);
       keySprite.drawRect(-adjustedWidth * 0.9 / 2, -2, adjustedWidth * 0.9, blackKeyHeight + 4);
       keySprite.endFill();
       
-      // ハイライト状態：鮮やかなオレンジ色で描画
-      keySprite.beginFill(0xFF8C00); // より鮮やかなオレンジ色 (DarkOrange)
+      // メイン
+      keySprite.beginFill(baseColor);
       keySprite.drawRect(-adjustedWidth * 0.75 / 2, 0, adjustedWidth * 0.75, blackKeyHeight);
       keySprite.endFill();
       
-      // 上部のハイライト効果（より明るいオレンジ）
-      keySprite.beginFill(0xFFB347, 0.9); // 明るいオレンジ
+      // 上部のハイライト効果
+      keySprite.beginFill(topHighlight, 0.9);
       keySprite.drawRect(-adjustedWidth * 0.75 / 2, 0, adjustedWidth * 0.75, blackKeyHeight * 0.3);
       keySprite.endFill();
       
-      // クリック領域（ハイライト時は薄いオレンジ）
-      keySprite.beginFill(0xFF8C00, 0.3);
+      // クリック領域
+      keySprite.beginFill(baseColor, 0.3);
       keySprite.drawRect(-adjustedWidth / 2, 0, adjustedWidth, blackKeyHeight);
       keySprite.endFill();
     } else {
@@ -3032,10 +3044,16 @@ export class PIXINotesRendererInstance {
     const keySprite = this.pianoSprites.get(midiNote);
     if (!keySprite) return;
     if (this.isBlackKey(midiNote)) {
-      this.redrawBlackKeyHighlight(keySprite, highlighted);
+      this.redrawBlackKeyHighlight(keySprite, highlighted, midiNote);
       keySprite.alpha = highlighted ? 1.0 : 1.0;
     } else {
-      (keySprite as any).tint = highlighted ? this.settings.colors.activeKey : 0xFFFFFF;
+      if (!highlighted) {
+        (keySprite as any).tint = 0xFFFFFF;
+        return;
+      }
+      // ガイドのみの点灯は緑、演奏中はオレンジ
+      const isActive = this.highlightedKeys.has(midiNote);
+      (keySprite as any).tint = isActive ? this.settings.colors.activeKey : this.settings.colors.guideKey;
     }
   }
 
