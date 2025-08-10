@@ -8,6 +8,7 @@ import MissionManager from './MissionManager';
 import UserManager from './UserManager';
 import AnnouncementManager from './AnnouncementManager';
 import FantasyBgmManager from './FantasyBgmManager';
+import FantasyStageManager from './FantasyStageManager';
 
 /**
  * 管理画面ゲート – is_admin フラグを持つユーザーのみアクセス許可
@@ -58,6 +59,7 @@ const AdminDashboard: React.FC = () => {
                  <nav className="space-y-2 flex-1">
            <SidebarLink hash="#admin-songs" label="曲管理" />
            <SidebarLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
+           <SidebarLink hash="#admin-fantasy-stages" label="ファンタジーステージ" />
            <SidebarLink hash="#admin-courses" label="コース管理" />
            <SidebarLink hash="#admin-lessons" label="レッスン管理" />
            <SidebarLink hash="#admin-challenges" label="ミッション管理" />
@@ -80,6 +82,7 @@ const AdminDashboard: React.FC = () => {
                  <nav className="flex space-x-2 overflow-x-auto">
            <MobileTabLink hash="#admin-songs" label="曲管理" />
            <MobileTabLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
+           <MobileTabLink hash="#admin-fantasy-stages" label="ステージ" />
            <MobileTabLink hash="#admin-courses" label="コース" />
            <MobileTabLink hash="#admin-lessons" label="レッスン" />
            <MobileTabLink hash="#admin-challenges" label="ミッション" />
@@ -135,6 +138,7 @@ const DashboardContent: React.FC = () => {
 
      if (currentHash.startsWith('#admin-songs')) return <SongManager />;
    if (currentHash.startsWith('#admin-fantasy-bgm')) return <FantasyBgmManager />;
+   if (currentHash.startsWith('#admin-fantasy-stages')) return <FantasyStageManager />;
    if (currentHash.startsWith('#admin-courses')) return <CourseManager />;
    if (currentHash.startsWith('#admin-lessons')) return <LessonManager />;
    if (currentHash.startsWith('#admin-challenges')) return <MissionManager />;
