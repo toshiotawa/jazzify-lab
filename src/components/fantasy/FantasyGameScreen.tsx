@@ -712,7 +712,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     pixiRenderer.updateSettings({ practiceGuide: canGuide ? 'key' : 'off' });
     devLog.debug('🎮 PIXIレンダラー設定更新:', { practiceGuide: canGuide ? 'key' : 'off', showGuide: stage.showGuide, simCount: gameState.simultaneousMonsterCount, mode: stage.mode });
   }, [pixiRenderer, stage.showGuide, gameState.simultaneousMonsterCount, stage.mode]);
-  
+
+  // 問題が変わったタイミングでハイライトを確実にリセット
+  useEffect(() => {
+    if (!pixiRenderer) return;
+    // single: currentChordTarget が変わる / progression: currentNoteIndex が進む
+    (pixiRenderer as any).clearActiveHighlights?.();
+    // ガイドもいったん全消去 → 後続のガイド再設定で再点灯
+    (pixiRenderer as any).clearAllHighlights?.();
+  }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex]);
+
   // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
   useEffect(() => {
     if (!pixiRenderer) return;
@@ -721,16 +730,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       (pixiRenderer as any).setGuideHighlightsByMidiNotes?.(midiNotes);
     };
     if (!canGuide) {
+      // ガイドOFF時は確実に全消去
+      (pixiRenderer as any).clearAllHighlights?.();
       setGuideMidi([]);
       return;
     }
     const targetMonster = gameState.activeMonsters?.[0];
     const chord = targetMonster?.chordTarget || gameState.currentChordTarget;
     if (!chord) {
+      (pixiRenderer as any).clearAllHighlights?.();
       setGuideMidi([]);
       return;
     }
-    // 出題オクターブでのMIDIノートをそのまま渡す
+    // いったん全消去してから今回のガイドを設定（取り残し防止）
+    (pixiRenderer as any).clearAllHighlights?.();
     setGuideMidi(chord.notes as number[]);
   }, [pixiRenderer, stage.showGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
   
