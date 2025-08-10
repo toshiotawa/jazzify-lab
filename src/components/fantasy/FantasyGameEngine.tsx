@@ -231,7 +231,8 @@ const createMonsterFromQueue = (
   allowedChords: ChordSpec[],
   previousChordId?: string,
   displayOpts?: DisplayOpts,
-  stageMonsterIds?: string[]
+  stageMonsterIds?: string[],
+  useVoicingForGuide: boolean = false
 ): MonsterState => {
   // stageMonsterIdsが提供されている場合は、それを使用
   let iconKey: string;
@@ -244,7 +245,7 @@ const createMonsterFromQueue = (
   }
   
   const enemy = { id: iconKey, icon: iconKey, name: '' }; // ← name は空文字
-  const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
+  const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts, useVoicingForGuide);
   
   return {
     id: `${enemy.id}_${Date.now()}_${position}`,
@@ -286,10 +287,11 @@ const assignPositions = (count: number): ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G
 const selectUniqueRandomChord = (
   allowedChords: ChordSpec[],
   previousChordId?: string,
-  displayOpts?: DisplayOpts
+  displayOpts?: DisplayOpts,
+  useVoicingForGuide: boolean = false
 ): ChordDefinition | null => {
   let availableChords = allowedChords
-    .map(spec => getChordDefinition(spec, displayOpts, false))
+    .map(spec => getChordDefinition(spec, displayOpts, useVoicingForGuide))
     .filter(Boolean) as ChordDefinition[];
 
   if (previousChordId && availableChords.length > 1) {
@@ -379,9 +381,14 @@ const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): nu
 /**
  * ランダムコード選択（allowedChordsから）
  */
-const selectRandomChord = (allowedChords: ChordSpec[], previousChordId?: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
+const selectRandomChord = (
+  allowedChords: ChordSpec[],
+  previousChordId?: string,
+  displayOpts?: DisplayOpts,
+  useVoicingForGuide: boolean = false
+): ChordDefinition | null => {
   let availableChords = allowedChords
-    .map(spec => getChordDefinition(spec, displayOpts, false))
+    .map(spec => getChordDefinition(spec, displayOpts, useVoicingForGuide))
     .filter(Boolean) as ChordDefinition[];
     
   if (availableChords.length === 0) return null;
@@ -626,7 +633,8 @@ export const useFantasyGameEngine = ({
             stage.allowedChords,
             undefined,
             displayOpts,
-            stageMonsterIds
+            stageMonsterIds,
+            stage.showGuide
           );
           
           // 新しいモンスターに次のコードを設定
@@ -781,7 +789,9 @@ export const useFantasyGameEngine = ({
           stage.allowedChords,
           lastChordId,
           displayOpts,
-          monsterIds        // ✅ 今回作った配列
+          monsterIds,        // ✅ 今回作った配列
+          // singleモードかつ同時出現1体、かつガイドONならボイシング適用
+          (stage.mode === 'single' && simultaneousCount === 1 && stage.showGuide)
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -949,12 +959,17 @@ export const useFantasyGameEngine = ({
           let nextChord;
           if (prevState.currentStage?.mode === 'single') {
             // ランダムモード：前回と異なるコードを選択
-            nextChord = selectRandomChord(prevState.currentStage.allowedChords, monster.chordTarget?.id, displayOpts);
+            nextChord = selectRandomChord(
+              prevState.currentStage.allowedChords,
+              monster.chordTarget?.id,
+              displayOpts,
+              (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1)
+            );
           } else {
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
             const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            nextChord = getProgressionChord(progression, nextIndex, displayOpts, prevState.currentStage?.showGuide);
           }
           
           return {
@@ -1077,12 +1092,17 @@ export const useFantasyGameEngine = ({
           if (prevState.currentStage?.mode === 'single') {
             // ランダムモード：前回と異なるコードを選択
             const previousChordId = prevState.currentChordTarget?.id;
-            nextChord = selectRandomChord(prevState.currentStage.allowedChords, previousChordId, displayOpts);
+            nextChord = selectRandomChord(
+              prevState.currentStage.allowedChords,
+              previousChordId,
+              displayOpts,
+              (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1)
+            );
           } else {
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
             const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            nextChord = getProgressionChord(progression, nextIndex, displayOpts, prevState.currentStage?.showGuide);
           }
           
           const nextState = {
@@ -1441,7 +1461,8 @@ export const useFantasyGameEngine = ({
               stateAfterAttack.currentStage!.allowedChords,
               lastUsedChordId, // 直前のコードを避ける
               displayOpts,
-              stageMonsterIds // stageMonsterIdsを渡す
+              stageMonsterIds, // stageMonsterIdsを渡す
+              stage.showGuide
             );
             remainingMonsters.push(newMonster);
           }
