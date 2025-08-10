@@ -22,8 +22,6 @@ interface FantasySettingsModalProps {
   bgmVolume?: number; // BGM音量設定をpropsで受け取る
   noteNameLang?: DisplayLang; // 音名表示言語
   simpleNoteName?: boolean; // 簡易表記
-  playRootSound?: boolean; // ルート音を鳴らすか
-  rootSoundVolume?: number; // ルート音量
 }
 
 interface FantasySettings {
@@ -33,8 +31,6 @@ interface FantasySettings {
   bgmVolume: number; // BGM音量
   noteNameLang: DisplayLang; // 音名表示言語
   simpleNoteName: boolean; // 簡易表記
-  playRootSound: boolean; // ルート音を鳴らすか
-  rootSoundVolume: number; // ルート音量
 }
 
 const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
@@ -48,9 +44,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   soundEffectVolume = 0.8, // デフォルト80%効果音音量
   bgmVolume = 0.7, // デフォルト70%BGM音量
   noteNameLang = 'en', // デフォルト英語表記
-  simpleNoteName = false, // デフォルト簡易表記OFF
-  playRootSound = true, // デフォルトルート音ON
-  rootSoundVolume = 0.5 // デフォルト50%ルート音量
+  simpleNoteName = false // デフォルト簡易表記OFF
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
@@ -58,9 +52,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     soundEffectVolume: soundEffectVolume, // propsから受け取った効果音音量を使用
     bgmVolume: bgmVolume, // propsから受け取ったBGM音量を使用
     noteNameLang: noteNameLang,
-    simpleNoteName: simpleNoteName,
-    playRootSound: playRootSound,
-    rootSoundVolume: rootSoundVolume
+    simpleNoteName: simpleNoteName
   });
   
   // propsのmidiDeviceIdが変更されたらsettingsも更新
@@ -92,16 +84,6 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   useEffect(() => {
     setSettings(prev => ({ ...prev, simpleNoteName: simpleNoteName }));
   }, [simpleNoteName]);
-
-  // propsのplayRootSoundが変更されたらsettingsも更新
-  useEffect(() => {
-    setSettings(prev => ({ ...prev, playRootSound: playRootSound }));
-  }, [playRootSound]);
-
-  // propsのrootSoundVolumeが変更されたらsettingsも更新
-  useEffect(() => {
-    setSettings(prev => ({ ...prev, rootSoundVolume: rootSoundVolume }));
-  }, [rootSoundVolume]);
 
   // 設定変更ハンドラー
   const handleSettingChange = (key: keyof FantasySettings, value: any) => {
@@ -169,7 +151,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
 
           {/* ピアノ音量設定 */}
           <div>
-            <label className="block text-sm font-medium text-white mb-2">
+            <label className="block text.sm font-medium text-white mb-2">
               ピアノ音量: {Math.round(settings.volume * 100)}%
             </label>
             <input
@@ -274,39 +256,6 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               ヒント表示のダブルシャープ・ダブルフラットを基本音名に変換します（例: Fx → G）
             </p>
           </div>
-
-          {/* 正解時ルート音 ON/OFF */}
-          <div>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={settings.playRootSound}
-                onChange={e => handleSettingChange('playRootSound', e.target.checked)}
-                className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-white">
-                正解時にルート音を鳴らす
-              </span>
-            </label>
-          </div>
-
-          {/* ボリュームスライダー（ON の時だけ表示） */}
-          {settings.playRootSound && (
-            <div className="mt-2">
-              <label className="block text-sm font-medium text-white mb-2">
-                ルート音量: {Math.round(settings.rootSoundVolume * 100)}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={settings.rootSoundVolume}
-                onChange={e => handleSettingChange('rootSoundVolume', parseFloat(e.target.value))}
-                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-          )}
         </div>
 
         <div className="flex justify-end space-x-3 mt-6">
