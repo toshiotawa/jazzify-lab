@@ -630,7 +630,7 @@ export const useFantasyGameEngine = ({
             monsterIndex,
             'D' as const, // 中央に配置
             stage.enemyHp,
-            stage.allowedChords,
+            (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
             undefined,
             displayOpts,
             stageMonsterIds,
@@ -786,7 +786,7 @@ export const useFantasyGameEngine = ({
           monsterIndex,
           positions[i],
           enemyHp,
-          stage.allowedChords,
+          (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
           lastChordId,
           displayOpts,
           monsterIds,        // ✅ 今回作った配列
@@ -840,13 +840,13 @@ export const useFantasyGameEngine = ({
         case 'progression_random':
           // ランダムプログレッション：各小節ごとにランダムでコードを決定
           taikoNotes = generateRandomProgressionNotes(
-            stage.allowedChords.length ? stage.allowedChords : (stage.chordProgression || []),
+            (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
             stage.measureCount || 8,
             stage.bpm || 120,
             stage.timeSignature || 4,
             (spec) => getChordDefinition(spec, displayOpts, stage.showGuide),
             0,
-            (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
+            ((stage as any).noteIntervalBeats || (stage as any).note_interval_beats || stage.timeSignature || 4)
           );
           break;
 
@@ -960,7 +960,7 @@ export const useFantasyGameEngine = ({
           if (prevState.currentStage?.mode === 'single') {
             // ランダムモード：前回と異なるコードを選択
             nextChord = selectRandomChord(
-              prevState.currentStage.allowedChords,
+              (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
               monster.chordTarget?.id,
               displayOpts,
               (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1)
@@ -1093,7 +1093,7 @@ export const useFantasyGameEngine = ({
             // ランダムモード：前回と異なるコードを選択
             const previousChordId = prevState.currentChordTarget?.id;
             nextChord = selectRandomChord(
-              prevState.currentStage.allowedChords,
+              (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
               previousChordId,
               displayOpts,
               (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1)
@@ -1458,7 +1458,7 @@ export const useFantasyGameEngine = ({
               monsterIndex,
               position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
               stateAfterAttack.maxEnemyHp,
-              stateAfterAttack.currentStage!.allowedChords,
+              (stateAfterAttack.currentStage!.allowedChords && stateAfterAttack.currentStage!.allowedChords.length > 0) ? stateAfterAttack.currentStage!.allowedChords : (stateAfterAttack.currentStage!.chordProgression || []),
               lastUsedChordId, // 直前のコードを避ける
               displayOpts,
               stageMonsterIds, // stageMonsterIdsを渡す
@@ -1530,7 +1530,11 @@ export const useFantasyGameEngine = ({
       // ★追加：次の問題もここで準備する
       let nextChord;
       if (prevState.currentStage?.mode === 'single') {
-        nextChord = selectRandomChord(prevState.currentStage.allowedChords, prevState.currentChordTarget?.id, displayOpts);
+        nextChord = selectRandomChord(
+          (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
+          prevState.currentChordTarget?.id,
+          displayOpts
+        );
       } else {
         const progression = prevState.currentStage?.chordProgression || [];
         const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
