@@ -705,15 +705,34 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage]);
   
-  // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは無効化）
+  // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {
-    if (pixiRenderer) {
-      pixiRenderer.updateSettings({
-        practiceGuide: 'off' // 常にOFFにして鍵盤ハイライトを無効化
-      });
-      devLog.debug('🎮 PIXIレンダラー設定更新: 鍵盤ハイライト無効化');
+    if (!pixiRenderer) return;
+    const canGuide = stage.showGuide && gameState.simultaneousMonsterCount === 1;
+    pixiRenderer.updateSettings({ practiceGuide: canGuide ? 'key' : 'off' });
+    devLog.debug('🎮 PIXIレンダラー設定更新:', { practiceGuide: canGuide ? 'key' : 'off', showGuide: stage.showGuide, simCount: gameState.simultaneousMonsterCount, mode: stage.mode });
+  }, [pixiRenderer, stage.showGuide, gameState.simultaneousMonsterCount, stage.mode]);
+  
+  // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
+  useEffect(() => {
+    if (!pixiRenderer) return;
+    const canGuide = stage.showGuide && gameState.simultaneousMonsterCount === 1;
+    const setGuide = (pcs: number[]) => {
+      (pixiRenderer as any).setGuideHighlightsByPitchClasses?.(pcs);
+    };
+    if (!canGuide) {
+      setGuide([]);
+      return;
     }
-  }, [pixiRenderer]);
+    const targetMonster = gameState.activeMonsters?.[0];
+    const chord = targetMonster?.chordTarget || gameState.currentChordTarget;
+    if (!chord) {
+      setGuide([]);
+      return;
+    }
+    const pcs = Array.from(new Set(chord.notes.map((n: number) => ((n % 12) + 12) % 12)));
+    setGuide(pcs);
+  }, [pixiRenderer, stage.showGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
