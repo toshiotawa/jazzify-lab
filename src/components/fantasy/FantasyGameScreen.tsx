@@ -785,9 +785,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
     if (!stage.mode.startsWith('progression') || !stage.chordProgression) return null;
-    
     const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
-    return stage.chordProgression[nextIndex];
+    const spec = stage.chordProgression[nextIndex] as any;
+    return typeof spec === 'string' ? spec : spec?.chord ?? '';
   }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
   
   // SPゲージ表示

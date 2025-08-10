@@ -18,10 +18,11 @@ import {
   generateBasicProgressionNotes,
   generateRandomProgressionNotes,
   parseChordProgressionData,
-  parseSimpleProgressionText
+  parseSimpleProgressionText,
+  ChordSpec
 } from './TaikoNoteSystem';
 import { bgmManager } from '@/utils/BGMManager';
-import { buildChordMidiNotes } from '@/utils/chord-utils';
+import { note as parseNote } from 'tonal';
 
 // ===== 型定義 =====
 
@@ -31,16 +32,16 @@ type StageMode =
   | 'progression_random'
   | 'progression_timing';
 
-interface ChordDefinition {
+export interface ChordDefinition {
   id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
-  notes: number[];     // MIDIノート番号の配列
-  noteNames: string[]; // ★ 理論的に正しい音名配列を追加
+  notes: number[];     // MIDIノート番号の配列（ガイド用ボイシングに使用）
+  noteNames: string[]; // 表示用（オクターブなし、ボイシング順）
   quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
   root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
 
-interface FantasyStage {
+export interface FantasyStage {
   id: string;
   stageNumber: string;
   name: string;
@@ -52,9 +53,9 @@ interface FantasyStage {
   minDamage: number;
   maxDamage: number;
   mode: StageMode;
-  allowedChords: string[];
-  chordProgression?: string[];
-  chordProgressionData?: any; // 拡張版progression用のJSONデータ
+  allowedChords: ChordSpec[]; // 変更: ChordSpec対応
+  chordProgression?: ChordSpec[]; // 変更
+  chordProgressionData?: ChordProgressionDataItem[] | string; // 型明確化
   showSheetMusic: boolean;
   showGuide: boolean; // ガイド表示設定を追加
   monsterIcon: string;
@@ -66,7 +67,7 @@ interface FantasyStage {
   timeSignature?: number;
 }
 
-interface MonsterState {
+export interface MonsterState {
   id: string;
   index: number; // モンスターリストのインデックス
   position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'; // 列位置（最大8体対応）
@@ -80,7 +81,7 @@ interface MonsterState {
   nextChord?: ChordDefinition; // 次のコード（ループ時の表示用）
 }
 
-interface FantasyGameState {
+export interface FantasyGameState {
   currentStage: FantasyStage | null;
   currentQuestionIndex: number;
   currentChordTarget: ChordDefinition | null; // 廃止予定（互換性のため残す）
@@ -132,25 +133,67 @@ interface FantasyGameEngineProps {
 
 /**
  * コード定義を動的に生成する関数
- * @param chordId コードID
+ * @param spec コードIDまたはChordSpec
  * @param displayOpts 表示オプション
  * @returns ChordDefinition
  */
-const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
+const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoicing: boolean = false): ChordDefinition | null => {
+  const chordId = typeof spec === 'string' ? spec : spec.chord;
   const resolved = resolveChord(chordId, 4, displayOpts);
   if (!resolved) {
     console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
     return null;
   }
 
-  // ルートを下にした基本形のまま（指定オクターブ基準）でMIDIノートを生成
-  const midiNotes = buildChordMidiNotes(resolved.root, resolved.quality, 4);
+  // 'Fx' のような 'x' を tonal の '##' に戻す
+  const toTonalName = (n: string) => n.replace(/x/g, '##');
+
+  // inversion / octave を受け取り（未指定なら null）
+  const maybeInversion = typeof spec === 'object' ? (spec.inversion ?? null) : null;
+  const maybeOctave = typeof spec === 'object' ? (spec.octave ?? null) : null;
+
+  let midiNotes: number[];
+  let noteNamesForDisplay: string[];
+
+  if (useVoicing && (maybeInversion != null || maybeOctave != null)) {
+    // ボイシング適用（最低音から積む）
+    const baseNames = resolved.notes; // 例: ['A','C','E']
+    const N = baseNames.length;
+    const inv = Math.max(0, Math.min(N - 1, (maybeInversion ?? 0)));
+    const rotated = [...baseNames.slice(inv), ...baseNames.slice(0, inv)];
+    const bassOct = (maybeOctave ?? 4);
+
+    let prevMidi = -Infinity;
+    midiNotes = rotated.map((name) => {
+      let oct = bassOct;
+      let parsed = parseNote(toTonalName(name) + String(oct));
+      if (!parsed || typeof parsed.midi !== 'number') {
+        parsed = parseNote(toTonalName(name) + '4');
+      }
+      let midi = (parsed && typeof parsed.midi === 'number') ? parsed.midi : 60;
+      while (midi <= prevMidi) {
+        oct += 1;
+        const n2 = parseNote(toTonalName(name) + String(oct));
+        if (n2 && typeof n2.midi === 'number') midi = n2.midi; else break;
+      }
+      prevMidi = midi;
+      return midi;
+    });
+    noteNamesForDisplay = rotated; // オクターブ無し
+  } else {
+    // 従来: ルートポジションを4オクターブ基準で表示用に構築
+    midiNotes = resolved.notes.map(n => {
+      const nn = parseNote(toTonalName(n) + '4');
+      return (nn && typeof nn.midi === 'number') ? nn.midi : 60;
+    });
+    noteNamesForDisplay = resolved.notes;
+  }
 
   return {
     id: chordId,
     displayName: resolved.displayName,
     notes: midiNotes,
-    noteNames: resolved.notes, // 理論的に正しい音名配列を追加
+    noteNames: noteNamesForDisplay,
     quality: resolved.quality,
     root: resolved.root
   };
@@ -185,7 +228,7 @@ const createMonsterFromQueue = (
   monsterIndex: number,
   position: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
   enemyHp: number,
-  allowedChords: string[],
+  allowedChords: ChordSpec[],
   previousChordId?: string,
   displayOpts?: DisplayOpts,
   stageMonsterIds?: string[]
@@ -241,16 +284,14 @@ const assignPositions = (count: number): ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G
  * 修正版：ユーザーの要望に基づき、直前のコードを避けることを最優先とする
  */
 const selectUniqueRandomChord = (
-  allowedChords: string[],
+  allowedChords: ChordSpec[],
   previousChordId?: string,
   displayOpts?: DisplayOpts
 ): ChordDefinition | null => {
-  // まずは単純に全候補
   let availableChords = allowedChords
-    .map(id => getChordDefinition(id, displayOpts))
+    .map(spec => getChordDefinition(spec, displayOpts, false))
     .filter(Boolean) as ChordDefinition[];
 
-  // ---- 同じ列の直前コードだけは除外 ----
   if (previousChordId && availableChords.length > 1) {
     const tmp = availableChords.filter(c => c.id !== previousChordId);
     if (tmp.length) availableChords = tmp;
@@ -338,17 +379,15 @@ const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): nu
 /**
  * ランダムコード選択（allowedChordsから）
  */
-const selectRandomChord = (allowedChords: string[], previousChordId?: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
+const selectRandomChord = (allowedChords: ChordSpec[], previousChordId?: string, displayOpts?: DisplayOpts): ChordDefinition | null => {
   let availableChords = allowedChords
-    .map(chordId => getChordDefinition(chordId, displayOpts))
+    .map(spec => getChordDefinition(spec, displayOpts, false))
     .filter(Boolean) as ChordDefinition[];
     
   if (availableChords.length === 0) return null;
   
-  // 前回のコードと異なるコードが選択肢にあれば、それを除外する
   if (previousChordId && availableChords.length > 1) {
     const filteredChords = availableChords.filter(c => c.id !== previousChordId);
-    // 除外した結果、選択肢が残っている場合のみ、絞り込んだリストを使用する
     if (filteredChords.length > 0) {
       availableChords = filteredChords;
     }
@@ -361,11 +400,11 @@ const selectRandomChord = (allowedChords: string[], previousChordId?: string, di
 /**
  * コード進行から次のコードを取得
  */
-const getProgressionChord = (progression: string[], questionIndex: number, displayOpts?: DisplayOpts): ChordDefinition | null => {
+const getProgressionChord = (progression: ChordSpec[], questionIndex: number, displayOpts?: DisplayOpts, useVoicing: boolean = false): ChordDefinition | null => {
   if (progression.length === 0) return null;
   
-  const chordId = progression[questionIndex % progression.length];
-  return getChordDefinition(chordId, displayOpts) || null;
+  const spec = progression[questionIndex % progression.length];
+  return getChordDefinition(spec, displayOpts, useVoicing) || null;
 };
 
 /**
@@ -782,7 +821,7 @@ export const useFantasyGameEngine = ({
               progressionData,
               stage.bpm || 120,
               stage.timeSignature || 4,
-              (chordId) => getChordDefinition(chordId, displayOpts),
+              (spec) => getChordDefinition(spec, displayOpts, stage.showGuide),
               0 // カウントインを渡す
             );
           }
@@ -795,7 +834,7 @@ export const useFantasyGameEngine = ({
             stage.measureCount || 8,
             stage.bpm || 120,
             stage.timeSignature || 4,
-            (chordId) => getChordDefinition(chordId, displayOpts),
+            (spec) => getChordDefinition(spec, displayOpts, stage.showGuide),
             0,
             (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
           );
@@ -806,11 +845,11 @@ export const useFantasyGameEngine = ({
           // 基本版：小節の頭でコード出題（Measure 1 から）
           if (stage.chordProgression) {
             taikoNotes = generateBasicProgressionNotes(
-              stage.chordProgression,
+              stage.chordProgression as ChordSpec[],
               stage.measureCount || 8,
               stage.bpm || 120,
               stage.timeSignature || 4,
-              (chordId) => getChordDefinition(chordId, displayOpts),
+              (spec) => getChordDefinition(spec, displayOpts, stage.showGuide),
               0,
               (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
             );
@@ -1630,5 +1669,5 @@ export const useFantasyGameEngine = ({
   };
 };
 
-export type { ChordDefinition, FantasyStage, FantasyGameState, FantasyGameEngineProps, MonsterState };
+export type { FantasyGameEngineProps };
 export { ENEMY_LIST, getCurrentEnemy };
