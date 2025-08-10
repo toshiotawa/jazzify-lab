@@ -196,7 +196,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               FantasySoundManager.init(
                 settings.soundEffectVolume ?? 0.8,
                 settings.rootSoundVolume ?? 0.5,
-                true
+                false
               ).then(() => {
                 devLog.debug('🔊 ファンタジーモード効果音初期化完了');
               }).catch(error => {
@@ -297,7 +297,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
 
     // ルート音を再生（非同期対応）
-    const allowRootSound = stage?.playRootOnCorrect ?? true;
+    const allowRootSound = stage?.playRootOnCorrect === true;
     if (allowRootSound) {
       try {
         const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
