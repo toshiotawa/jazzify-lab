@@ -47,16 +47,26 @@ export function buildChordNotes(root: string, quality: ChordQuality, octave: num
  * @returns MIDIノート番号配列
  */
 export function buildChordMidiNotes(root: string, quality: ChordQuality, octave: number = 4): number[] {
-  const notes = buildChordNotes(root, quality, octave);
-  
-  return notes.map(noteName => {
-    const note = parseNote(noteName);
-    if (!note || typeof note.midi !== 'number') {
-      console.warn(`⚠️ MIDI変換失敗: ${noteName}`);
-      return 60; // デフォルトでC4
+  const intervals = CHORD_TEMPLATES[quality];
+  if (!intervals) {
+    console.warn(`⚠️ 未定義のコードクオリティ: ${quality}`);
+    return [];
+  }
+
+  const rootWithOctave = `${root}${octave}`;
+  const midiNotes: number[] = [];
+  for (const interval of intervals) {
+    const n = transpose(rootWithOctave, interval);
+    if (!n) {
+      console.warn(`⚠️ 移調失敗: ${rootWithOctave} + ${interval}`);
+      continue;
     }
-    return note.midi;
-  });
+    const parsed = parseNote(n);
+    if (parsed && typeof parsed.midi === 'number') {
+      midiNotes.push(parsed.midi);
+    }
+  }
+  return midiNotes;
 }
 
 /**

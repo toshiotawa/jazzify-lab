@@ -21,6 +21,7 @@ import {
   parseSimpleProgressionText
 } from './TaikoNoteSystem';
 import { bgmManager } from '@/utils/BGMManager';
+import { buildChordMidiNotes } from '@/utils/chord-utils';
 
 // ===== 型定義 =====
 
@@ -142,11 +143,8 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
     return null;
   }
 
-  // notesをMIDIノート番号に変換
-  const midiNotes = resolved.notes.map(noteName => {
-    const noteObj = parseNote(noteName + '4'); // オクターブ4を付加
-    return noteObj && typeof noteObj.midi === 'number' ? noteObj.midi : 60; // デフォルトでC4
-  });
+  // ルートを下にした基本形のまま（指定オクターブ基準）でMIDIノートを生成
+  const midiNotes = buildChordMidiNotes(resolved.root, resolved.quality, 4);
 
   return {
     id: chordId,
@@ -157,9 +155,6 @@ const getChordDefinition = (chordId: string, displayOpts?: DisplayOpts): ChordDe
     root: resolved.root
   };
 };
-
-// parseNoteをインポート
-import { note as parseNote } from 'tonal';
 
 // ===== 敵リスト定義 =====
 
