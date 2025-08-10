@@ -238,6 +238,7 @@ const App: React.FC = () => {
       break;
     case '#admin-songs':
     case '#admin-fantasy-bgm':
+    case '#admin-fantasy-stages':
     case '#admin-lessons':
     case '#admin-challenges':
     case '#admin-users':
