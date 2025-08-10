@@ -16,11 +16,16 @@ export interface TaikoNote {
   isMissed: boolean; // ミスしたか
 }
 
+// Progressionで受け取るコード指定（後方互換: string も許容）
+export type ChordSpec = string | { chord: string; inversion?: number | null; octave?: number | null };
+
 // chord_progression_data のJSON形式
 export interface ChordProgressionDataItem {
   bar: number; // 小節番号（1始まり）
   beats: number; // 拍番号（1始まり、小数可）
   chord: string; // コード名
+  inversion?: number | null; // 追加: 転回形（0=基本形）
+  octave?: number | null; // 追加: 最低音のオクターブ
 }
 
 // タイミング判定の結果
@@ -79,11 +84,11 @@ export function judgeTimingWindow(
  * @param countInMeasures カウントイン小節数
  */
 export function generateBasicProgressionNotes(
-  chordProgression: string[],
+  chordProgression: ChordSpec[],
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
   countInMeasures: number = 0,
   intervalBeats: number = timeSignature
 ): TaikoNote[] {
@@ -117,8 +122,8 @@ export function generateBasicProgressionNotes(
   // 各小節に対して intervalBeats おきに配置（1拍目から）
   for (let measure = 1; measure <= measureCount; measure++) {
     for (let beat = 1; beat <= timeSignature; beat += intervalBeats) {
-      const chordId = chordProgression[noteIndex % chordProgression.length];
-      const chord = getChordDefinition(chordId);
+      const spec = chordProgression[noteIndex % chordProgression.length];
+      const chord = getChordDefinition(spec);
       if (!chord) {
         noteIndex++;
         continue;
@@ -154,11 +159,11 @@ export function generateBasicProgressionNotes(
  * @param countInMeasures カウントイン小節数
  */
 export function generateRandomProgressionNotes(
-  chordPool: string[],
+  chordPool: ChordSpec[],
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
   countInMeasures: number = 0,
   intervalBeats: number = timeSignature
 ): TaikoNote[] {
@@ -179,17 +184,18 @@ export function generateRandomProgressionNotes(
   for (let measure = 1; measure <= measureCount; measure++) {
     for (let beat = 1; beat <= timeSignature; beat += intervalBeats) {
       // 直前と同じコードは避ける
-      let nextId = chordPool[safeRandom()];
+      let nextSpec = chordPool[safeRandom()];
+      const specToId = (s: ChordSpec) => (typeof s === 'string' ? s : s.chord);
       if (chordPool.length > 1) {
         let guard = 0;
-        while (nextId === lastChordId && guard < 10) {
-          nextId = chordPool[safeRandom()];
+        while (specToId(nextSpec) === lastChordId && guard < 10) {
+          nextSpec = chordPool[safeRandom()];
           guard++;
         }
       }
-      lastChordId = nextId;
+      lastChordId = specToId(nextSpec);
 
-      const chord = getChordDefinition(nextId);
+      const chord = getChordDefinition(nextSpec);
       if (!chord) continue;
 
       notes.push({
@@ -220,7 +226,7 @@ export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (chordId: string) => ChordDefinition | null,
+  getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
   countInMeasures: number = 0
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
@@ -231,8 +237,12 @@ export function parseChordProgressionData(
   const maxBar = Math.max(...progressionData.map(item => item.bar), 0);
   
   progressionData.forEach((item, index) => {
-    // 本来仕様：Measure 1〜maxBar すべて許可
-    const chord = getChordDefinition(item.chord);
+    const spec: ChordSpec = {
+      chord: item.chord,
+      inversion: item.inversion ?? undefined,
+      octave: item.octave ?? undefined
+    };
+    const chord = getChordDefinition(spec);
     if (chord) {
       // Measure 1 開始を0秒として計算
       const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;

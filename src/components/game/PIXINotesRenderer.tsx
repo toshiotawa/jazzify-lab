@@ -3166,6 +3166,36 @@ export class PIXINotesRendererInstance {
       }
     }
   }
+
+  /**
+   * すべてのハイライト状態（演奏・ガイド）をクリア
+   */
+  public clearAllHighlights(): void {
+    // まず演奏ハイライトを消す（ガイドと重複していないもののみ）
+    for (const midi of Array.from(this.highlightedKeys)) {
+      if (!this.guideHighlightedKeys.has(midi)) {
+        this.applyKeyHighlightVisual(midi, false);
+      }
+    }
+    // 次にガイドハイライトを消す
+    for (const midi of Array.from(this.guideHighlightedKeys)) {
+      this.applyKeyHighlightVisual(midi, false);
+    }
+    this.highlightedKeys.clear();
+    this.guideHighlightedKeys.clear();
+  }
+
+  /**
+   * 演奏ハイライトのみをクリア（ガイドは維持）
+   */
+  public clearActiveHighlights(): void {
+    for (const midi of Array.from(this.highlightedKeys)) {
+      if (!this.guideHighlightedKeys.has(midi)) {
+        this.applyKeyHighlightVisual(midi, false);
+      }
+    }
+    this.highlightedKeys.clear();
+  }
 }
 
 // ===== React コンポーネント =====
