@@ -297,7 +297,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
 
     // ルート音を再生（非同期対応）
-    if (settings.playRootSound) {
+    const allowRootSound = (settings.playRootSound ?? true) && (stage?.playRootOnCorrect ?? true);
+    if (allowRootSound) {
       try {
         const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
         await FantasySoundManager.playRootNote(chord.root);
@@ -305,7 +306,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         console.error('Failed to play root note:', error);
       }
     }
-  }, [fantasyPixiInstance, settings.playRootSound]);
+  }, [fantasyPixiInstance, settings.playRootSound, stage?.playRootOnCorrect]);
   // ▲▲▲ ここまで ▲▲▲
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {

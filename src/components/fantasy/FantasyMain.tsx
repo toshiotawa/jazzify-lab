@@ -126,7 +126,9 @@ const FantasyMain: React.FC = () => {
             countInMeasures: (stage as any).count_in_measures,
             timeSignature: (stage as any).time_signature,
             // 追加: 拍間隔（存在すれば）
-            noteIntervalBeats: (stage as any).note_interval_beats
+            noteIntervalBeats: (stage as any).note_interval_beats,
+            // ステージ設定のルート音
+            playRootOnCorrect: (stage as any).play_root_on_correct ?? true
           };
           devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
@@ -448,7 +450,9 @@ const FantasyMain: React.FC = () => {
         countInMeasures: (nextStageData as any).count_in_measures,
         timeSignature: (nextStageData as any).time_signature,
         // 追加: 拍間隔（存在すれば）
-        noteIntervalBeats: (nextStageData as any).note_interval_beats
+        noteIntervalBeats: (nextStageData as any).note_interval_beats,
+        // ステージ設定のルート音
+        playRootOnCorrect: (nextStageData as any).play_root_on_correct ?? true
       };
 
       setGameResult(null);
