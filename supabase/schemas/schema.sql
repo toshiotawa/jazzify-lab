@@ -903,8 +903,6 @@ CREATE TABLE IF NOT EXISTS "public"."fantasy_stages" (
     "mode" "text" DEFAULT 'single'::"text" NOT NULL,
     "allowed_chords" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
     "chord_progression" "jsonb" DEFAULT '[]'::"jsonb",
-    "show_sheet_music" boolean DEFAULT true NOT NULL,
-    "monster_icon" "text" DEFAULT 'ghost'::"text",
     "bgm_url" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
@@ -914,6 +912,7 @@ CREATE TABLE IF NOT EXISTS "public"."fantasy_stages" (
     "min_damage" integer DEFAULT 10 NOT NULL,
     "max_damage" integer DEFAULT 20 NOT NULL,
     "simultaneous_monster_count" integer DEFAULT 1 NOT NULL,
+    "play_root_on_correct" boolean DEFAULT true NOT NULL,
     CONSTRAINT "fantasy_stages_mode_check" CHECK (("mode" = ANY (ARRAY['single'::"text", 'progression'::"text"]))),
     CONSTRAINT "fantasy_stages_simultaneous_monster_count_check" CHECK ((("simultaneous_monster_count" >= 1) AND ("simultaneous_monster_count" <= 8)))
 );
@@ -947,6 +946,8 @@ COMMENT ON COLUMN "public"."fantasy_stages"."chord_progression" IS 'コード進
 
 
 COMMENT ON COLUMN "public"."fantasy_stages"."show_guide" IS 'ガイド表示ON/OFF設定（true: ガイド表示、false: ガイド非表示）';
+
+COMMENT ON COLUMN "public"."fantasy_stages"."play_root_on_correct" IS '正解時にルート音を鳴らす（true: 鳴らす, false: 鳴らさない）';
 
 
 

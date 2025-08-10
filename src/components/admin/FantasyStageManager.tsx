@@ -41,9 +41,9 @@ interface StageFormValues {
   min_damage: number;
   max_damage: number;
   simultaneous_monster_count: number;
-  show_sheet_music: boolean;
   show_guide: boolean;
-  monster_icon?: string;
+  // ルート音設定
+  play_root_on_correct: boolean;
   // BGM/表示
   bpm?: number;
   measure_count?: number;
@@ -71,8 +71,8 @@ const defaultValues: StageFormValues = {
   min_damage: 1,
   max_damage: 1,
   simultaneous_monster_count: 1,
-  show_sheet_music: false,
   show_guide: false,
+  play_root_on_correct: true,
   bpm: 120,
   measure_count: 8,
   time_signature: 4,
@@ -162,15 +162,14 @@ const FantasyStageManager: React.FC = () => {
         min_damage: s.min_damage,
         max_damage: s.max_damage,
         simultaneous_monster_count: s.simultaneous_monster_count || 1,
-        show_sheet_music: !!s.show_sheet_music,
         show_guide: !!s.show_guide,
-        monster_icon: s.monster_icon || '',
-        bpm: s.bpm || 120,
-        measure_count: s.measure_count || 8,
-        time_signature: s.time_signature || 4,
-        count_in_measures: s.count_in_measures || 0,
-        bgm_url: s.bgm_url || s.mp3_url || '',
-        mp3_url: s.mp3_url || '',
+        play_root_on_correct: (s as any).play_root_on_correct ?? true,
+        bpm: (s as any).bpm || 120,
+        measure_count: (s as any).measure_count || 8,
+        time_signature: (s as any).time_signature || 4,
+        count_in_measures: (s as any).count_in_measures || 0,
+        bgm_url: (s as any).bgm_url || (s as any).mp3_url || '',
+        mp3_url: (s as any).mp3_url || '',
         note_interval_beats: (s as any).note_interval_beats ?? null,
         allowed_chords: Array.isArray(s.allowed_chords) ? s.allowed_chords : [],
         chord_progression: (Array.isArray(s.chord_progression) ? s.chord_progression : []) as any[],
@@ -198,9 +197,8 @@ const FantasyStageManager: React.FC = () => {
       min_damage: v.min_damage,
       max_damage: v.max_damage,
       simultaneous_monster_count: v.simultaneous_monster_count,
-      show_sheet_music: v.show_sheet_music,
       show_guide: v.show_guide,
-      monster_icon: v.monster_icon,
+      play_root_on_correct: v.play_root_on_correct,
       bpm: v.bpm,
       measure_count: v.measure_count,
       time_signature: v.time_signature,
@@ -221,7 +219,7 @@ const FantasyStageManager: React.FC = () => {
       delete base.measure_count;
       delete base.time_signature;
       delete base.count_in_measures;
-      delete base.bpm; // single ではテンポ不要（必要なら残す）
+      delete base.bpm; // single ではテンポ不要
     }
     if (v.mode === 'progression_order') {
       delete base.chord_progression_data;
@@ -348,16 +346,12 @@ const FantasyStageManager: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <SmallLabel>モンスターアイコン</SmallLabel>
-                  <input className="input input-bordered w-full" placeholder="例: dragon" {...register('monster_icon')} />
-                </div>
-                <div>
                   <SmallLabel>ガイド表示</SmallLabel>
                   <input type="checkbox" className="toggle toggle-primary" {...register('show_guide')} />
                 </div>
                 <div>
-                  <SmallLabel>楽譜表示</SmallLabel>
-                  <input type="checkbox" className="toggle toggle-primary" {...register('show_sheet_music')} />
+                  <SmallLabel>正解時にルート音を鳴らす</SmallLabel>
+                  <input type="checkbox" className="toggle toggle-primary" {...register('play_root_on_correct')} />
                 </div>
               </Row>
             </Section>
