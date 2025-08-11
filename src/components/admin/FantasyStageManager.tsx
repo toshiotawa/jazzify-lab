@@ -13,6 +13,8 @@ import {
   UpsertFantasyStagePayload,
 } from '@/platform/supabaseFantasyStages';
 import { FantasyStageSelector } from './FantasyStageSelector';
+import { parseMusicXmlForChords } from '@/utils/musicxml';
+import { resolveChord, parseChordName, buildChordNotes } from '@/utils/chord-utils';
 
 // モード型
 type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
@@ -551,6 +553,85 @@ const FantasyStageManager: React.FC = () => {
             {mode === 'progression_timing' && (
               <Section title="カスタム配置（小節・拍）">
                 <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input id="musicxmlFile" type="file" accept=".xml,.musicxml" className="file-input file-input-bordered file-input-sm" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const text = await file.text();
+                        const events = parseMusicXmlForChords(text);
+                        if (!events.length) {
+                          toast.error('MusicXMLからコード歌詞が見つかりませんでした');
+                          return;
+                        }
+
+                        const newRows: TimingRow[] = [];
+                        for (const ev of events) {
+                          const chordText = (ev.text || '').trim();
+                          if (!chordText) continue;
+
+                          // Parse chord (supports slash)
+                          const resolved = resolveChord(chordText, 4);
+                          if (!resolved) {
+                            throw new Error(`未知のコード表記: ${chordText} (小節${ev.bar} 拍${ev.beats})`);
+                          }
+
+                          // Validate voicing content: required notes subset present
+                          const theoreticalNotes = buildChordNotes(resolved.root, resolved.quality, 4).map(n => n.replace(/\d+$/, ''));
+                          const playedNotes = ev.notes.map(n => n.name.replace(/\d+$/, ''));
+                          const missing = theoreticalNotes.filter(tn => !playedNotes.includes(tn));
+                          if (missing.length > 0) {
+                            throw new Error(`構成音が不足: ${chordText} に ${missing.join(', ')} が含まれていません (小節${ev.bar} 拍${ev.beats})`);
+                          }
+
+                          // Slash bass check if present
+                          if (chordText.includes('/')) {
+                            const denom = chordText.split('/')[1]?.trim();
+                            if (denom) {
+                              const denomRoot = parseChordName(denom)?.root || denom.replace(/\d+$/, '');
+                              const bassName = ev.bass?.name?.replace(/\d+$/, '');
+                              if (bassName && denomRoot && bassName !== denomRoot) {
+                                throw new Error(`オンコード不一致: 期待ベース ${denomRoot} 実ベース ${bassName} (小節${ev.bar} 拍${ev.beats})`);
+                              }
+                            }
+                          }
+
+                          // Determine inversion by which chord degree is in bass
+                          let inversion: number | null = null;
+                          if (ev.bass) {
+                            const bassPc = ev.bass.name.replace(/\d+$/, '');
+                            const degrees = theoreticalNotes; // 1P,3,5... already mapped to names
+                            const idx = degrees.findIndex(d => d === bassPc);
+                            inversion = idx >= 0 ? idx : 0;
+                          }
+
+                          // Determine octave: use bass octave if available
+                          let octave: number | null = null;
+                          if (ev.bass) {
+                            const m = ev.bass.name.match(/(\d+)$/);
+                            if (m) octave = Number(m[1]);
+                          }
+
+                          newRows.push({ bar: ev.bar, beats: ev.beats, chord: chordText, inversion, octave });
+                        }
+
+                        if (newRows.length === 0) {
+                          toast.error('取り込める行がありませんでした');
+                          return;
+                        }
+
+                        // Append rows
+                        replaceTiming([...(timingRows as any), ...newRows]);
+                        toast.success(`${newRows.length} 行を追加しました`);
+                        // clear file
+                        (document.getElementById('musicxmlFile') as HTMLInputElement).value = '';
+                      } catch (err: any) {
+                        console.error(err);
+                        toast.error(err?.message || 'MusicXMLの読み込みに失敗しました');
+                      }
+                    }} />
+                    <button type="button" className="btn btn-sm" onClick={() => (document.getElementById('musicxmlFile') as HTMLInputElement)?.click?.()}>MusicXMLを読み込む</button>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="table table-zebra w-full">
                       <thead>
