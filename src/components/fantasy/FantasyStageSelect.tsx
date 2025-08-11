@@ -114,7 +114,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           showGuide: stage.show_guide || false,
           // 追加: 拍間隔（存在すれば）
           noteIntervalBeats: (stage as any).note_interval_beats,
-          showSheetMusic: false
+          showSheetMusic: false,
+          // 追加: 正解時にルート音を鳴らす
+          playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
+          bpm: (stage as any).bpm || 120,
         }));
         
         setStages(convertedStages);
@@ -204,7 +207,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         bpm: (stage as any).bpm || 120,
         measureCount: (stage as any).measure_count,
         countInMeasures: (stage as any).count_in_measures,
-        timeSignature: (stage as any).time_signature
+        timeSignature: (stage as any).time_signature,
+        // 追加: 正解時にルート音を鳴らす
+        playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
       }));
       
       const convertedProgress: FantasyUserProgress = {

@@ -192,19 +192,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
             
             // FantasySoundManagerの初期化
-            import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
-              FantasySoundManager.init(
-                settings.soundEffectVolume ?? 0.8,
-                settings.rootSoundVolume ?? 0.5,
-                false
-              ).then(() => {
+            import('@/utils/FantasySoundManager')
+              .then(async (mod) => {
+                const FSM = (mod as any).FantasySoundManager ?? mod.default;
+                await FSM?.init(
+                  settings.soundEffectVolume ?? 0.8,
+                  settings.rootSoundVolume ?? 0.5,
+                  false
+                );
                 devLog.debug('🔊 ファンタジーモード効果音初期化完了');
-              }).catch(error => {
-                console.error('Failed to initialize FantasySoundManager:', error);
-              });
-            }).catch(error => {
-              console.error('Failed to import FantasySoundManager:', error);
-            });
+              })
+              .catch(err => console.error('Failed to import/init FantasySoundManager:', err));
           }).catch(error => {
             console.error('Audio system initialization failed:', error);
           });
@@ -266,8 +264,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     let cancelled = false;
     const apply = async () => {
       try {
-        const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
-        FantasySoundManager.enableRootSound(stage?.playRootOnCorrect === true);
+        const mod = await import('@/utils/FantasySoundManager');
+        const FSM = (mod as any).FantasySoundManager ?? mod.default;
+        FSM?.enableRootSound(stage?.playRootOnCorrect === true);
         if (stage?.playRootOnCorrect === true) {
           // 初回有効化直後に鳴らない問題の回避: 少し待機
           await new Promise(r => setTimeout(r, 50));
@@ -318,8 +317,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const allowRootSound = stage?.playRootOnCorrect === true;
     if (allowRootSound) {
       try {
-        const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
-        await FantasySoundManager.playRootNote(chord.root);
+        const mod = await import('@/utils/FantasySoundManager');
+        const FSM = (mod as any).FantasySoundManager ?? mod.default;
+        await FSM?.playRootNote(chord.root);
       } catch (error) {
         console.error('Failed to play root note:', error);
       }
@@ -341,12 +341,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
     // 敵の攻撃音を再生（single クイズモードのみ）
-    try {
-      if (stage.mode === 'single') {
-        const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
-        FantasySoundManager.playEnemyAttack();
-      }
-    } catch (error) {
+          try {
+        if (stage.mode === 'single') {
+          const mod = await import('@/utils/FantasySoundManager');
+          const FSM = (mod as any).FantasySoundManager ?? mod.default;
+          FSM?.playEnemyAttack();
+        }
+      } catch (error) {
       console.error('Failed to play enemy attack sound:', error);
     }
     
@@ -1297,11 +1298,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             devLog.debug(`🔊 ファンタジーモードの効果音音量を更新: ${settings.soundEffectVolume}`);
             
             // FantasySoundManagerの音量も即座に更新
-            import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
-              FantasySoundManager.setVolume(settings.soundEffectVolume);
-            }).catch(error => {
-              console.error('Failed to update FantasySoundManager volume:', error);
-            });
+            import('@/utils/FantasySoundManager')
+              .then((mod) => {
+                const FSM = (mod as any).FantasySoundManager ?? mod.default;
+                FSM?.setVolume(settings.soundEffectVolume);
+              })
+              .catch(error => {
+                console.error('Failed to update FantasySoundManager volume:', error);
+              });
           }
         }}
         // gameStoreの値を渡す
