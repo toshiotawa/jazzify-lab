@@ -251,6 +251,23 @@ export class FantasyPIXIInstance {
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
+  
+  // 画面揺れ関連のプロパティ（誤って削除されていたため復元）
+  private screenShakeState: {
+    isActive: boolean;
+    intensity: number;
+    duration: number;
+    elapsed: number;
+    originalX: number;
+    originalY: number;
+  } = {
+    isActive: false,
+    intensity: 0,
+    duration: 0,
+    elapsed: 0,
+    originalX: 0,
+    originalY: 0
+  };
 
   // setTimeout 管理
   private _timeouts = new Set<number>();
