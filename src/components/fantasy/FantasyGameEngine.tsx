@@ -971,7 +971,7 @@ export const useFantasyGameEngine = ({
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
             const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts, prevState.currentStage?.showGuide);
+            nextChord = getProgressionChord(progression, nextIndex, displayOpts, !!prevState.currentStage?.showGuide);
           }
           
           return {
@@ -1104,7 +1104,7 @@ export const useFantasyGameEngine = ({
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
             const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts, prevState.currentStage?.showGuide);
+            nextChord = getProgressionChord(progression, nextIndex, displayOpts, !!prevState.currentStage?.showGuide);
           }
           
           const nextState = {
@@ -1464,7 +1464,7 @@ export const useFantasyGameEngine = ({
               lastUsedChordId, // 直前のコードを避ける
               displayOpts,
               stageMonsterIds, // stageMonsterIdsを渡す
-              stage.showGuide
+              stateAfterAttack.currentStage?.showGuide ?? false
             );
             remainingMonsters.push(newMonster);
           }
@@ -1540,7 +1540,7 @@ export const useFantasyGameEngine = ({
       } else {
         const progression = prevState.currentStage?.chordProgression || [];
         const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-        nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+        nextChord = getProgressionChord(progression, nextIndex, displayOpts, !!prevState.currentStage?.showGuide);
       }
 
       nextState = {
