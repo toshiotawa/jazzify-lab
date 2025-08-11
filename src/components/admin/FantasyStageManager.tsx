@@ -14,7 +14,7 @@ import {
 } from '@/platform/supabaseFantasyStages';
 import { FantasyStageSelector } from './FantasyStageSelector';
 import { parseMusicXmlForChords } from '@/utils/musicxml';
-import { resolveChord, parseChordName, buildChordNotes } from '@/utils/chord-utils';
+import { resolveChord, buildChordNotes } from '@/utils/chord-utils';
 
 // モード型
 type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
@@ -584,18 +584,7 @@ const FantasyStageManager: React.FC = () => {
                             throw new Error(`構成音が不足: ${chordText} に ${missing.join(', ')} が含まれていません (小節${ev.bar} 拍${ev.beats})`);
                           }
 
-                          // Slash bass check if present
-                          if (chordText.includes('/')) {
-                            const denom = chordText.split('/')[1]?.trim();
-                            if (denom) {
-                              const denomRoot = parseChordName(denom)?.root || denom.replace(/\d+$/, '');
-                              const bassName = ev.bass?.name?.replace(/\d+$/, '');
-                              if (bassName && denomRoot && bassName !== denomRoot) {
-                                throw new Error(`オンコード不一致: 期待ベース ${denomRoot} 実ベース ${bassName} (小節${ev.bar} 拍${ev.beats})`);
-                              }
-                            }
-                          }
-
+                          
                           // Determine inversion by which chord degree is in bass
                           let inversion: number | null = null;
                           if (ev.bass) {
