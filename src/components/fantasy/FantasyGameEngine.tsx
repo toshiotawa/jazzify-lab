@@ -159,8 +159,8 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoici
   let midiNotes: number[];
   let noteNamesForDisplay: string[];
 
-  if (useVoicing && (maybeInversion != null || maybeOctave != null)) {
-    // ボイシング適用（最低音から積む）
+  if (useVoicing) {
+    // ガイド表示時: 未指定なら inversion=0, octave=4 を既定値として使用
     const baseNames = resolved.notes; // 例: ['A','C','E']
     const N = baseNames.length;
     const inv = Math.max(0, Math.min(N - 1, (maybeInversion ?? 0)));

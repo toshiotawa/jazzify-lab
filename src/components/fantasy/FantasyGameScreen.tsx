@@ -317,7 +317,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       try {
         const mod = await import('@/utils/FantasySoundManager');
         const FSM = (mod as any).FantasySoundManager ?? mod.default;
-        await FSM?.playRootNote(chord.root);
+        // スラッシュコード対応: 分母があればそれをルートとして鳴らす
+        const id = chord.id || chord.displayName || chord.root;
+        let bassToPlay = chord.root;
+        if (typeof id === 'string' && id.includes('/')) {
+          const parts = id.split('/');
+          if (parts[1]) bassToPlay = parts[1];
+        }
+        await FSM?.playRootNote(bassToPlay);
       } catch (error) {
         console.error('Failed to play root note:', error);
       }
