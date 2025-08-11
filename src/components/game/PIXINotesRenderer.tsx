@@ -1681,23 +1681,17 @@ export class PIXINotesRendererInstance {
       log.warn(`⚠️ Key sprite not found for note: ${midiNote}`);
       return;
     }
-    
+
     if (active) {
       this.highlightedKeys.add(midiNote);
     } else {
-      // ガイドが存在する場合は解除しない
-      if (!this.guideHighlightedKeys.has(midiNote)) {
-        this.highlightedKeys.delete(midiNote);
-      }
+      // ノートオフ時は演奏ハイライトを確実に解除（ガイドは別管理で残す）
+      this.highlightedKeys.delete(midiNote);
     }
-    
+
     const shouldHighlight = this.isKeyHighlighted(midiNote);
-    if (this.isBlackKey(midiNote)) {
-      this.redrawBlackKeyHighlight(keySprite, shouldHighlight, midiNote);
-      if (!shouldHighlight) keySprite.alpha = 1.0;
-    } else {
-      (keySprite as any).tint = shouldHighlight ? this.settings.colors.activeKey : 0xFFFFFF;
-    }
+    // 見た目は統一関数で適用（ガイド/演奏の合算状態に基づく色分け）
+    this.applyKeyHighlightVisual(midiNote, shouldHighlight);
   }
   
   /**
