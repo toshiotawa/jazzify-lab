@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast, handleApiError } from '@/stores/toastStore';
+import { useNavigate } from 'react-router-dom';
 
 interface AuthLandingProps {
   mode: 'signup' | 'login';
@@ -12,6 +13,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   const [email, setEmail] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [signupDisabled, setSignupDisabled] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +56,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
       email,
       mode
     });
-    window.location.href = `/login/verify-otp?${params.toString()}`;
+    navigate(`/login/verify-otp?${params.toString()}`, { replace: true });
     return null;
   }
 

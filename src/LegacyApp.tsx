@@ -167,7 +167,7 @@ const App: React.FC = () => {
   if (!user && !isGuest || forceLogin) {
     return (
       <>
-        <AuthLanding />
+        <AuthLanding mode="login" />
         <ToastContainer />
       </>
     );

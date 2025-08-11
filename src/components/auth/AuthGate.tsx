@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import AuthLanding from '@/components/auth/AuthLanding';
 import { cn } from '@/utils/cn';
+import { useState } from 'react';
 
 interface AuthGateProps {
   children: React.ReactNode;
