@@ -625,6 +625,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
+      const PREVIEW_MIN_DELAY = 0.6; // 次ループの先頭は 0.6 秒はプレビューしない（復活防止）
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
@@ -696,9 +697,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           
           // すでに通常ノーツに含まれている場合はプレビュー重複を避ける
           if (displayedBaseIds.has(note.id)) continue;
+
+          // 既に当ループでヒット済みのノーツは次ループの先行表示に含めない（復活防止）
+          if (note.isHit) continue;
           
           const virtualHitTime = note.hitTime + loopDuration; // 次ループのヒット時刻
           const timeUntilHit = virtualHitTime - normalizedTime;
+          // ループ直後のプレビューは一定時間抑制
+          if (timeUntilHit < PREVIEW_MIN_DELAY) continue;
           if (timeUntilHit > lookAheadTime) break;
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
