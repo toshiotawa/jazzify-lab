@@ -177,15 +177,24 @@ export function resolveChord(
   displayOpts?: DisplayOpts
 ): { id: string; root: string; quality: ChordQuality; notes: string[]; displayName: string } | null {
   
-  // a) まずエイリアスを考慮してパース
-  const parsed = parseChordName(chordId);
+  // a) スラッシュコード対応: 分子/分母に分割（例: C/E, F/G）
+  let numerator = chordId;
+  if (chordId.includes('/')) {
+    const parts = chordId.split('/');
+    if (parts[0]) {
+      numerator = parts[0];
+    }
+  }
+
+  // b) まずエイリアスを考慮してパース（分子のみ）
+  const parsed = parseChordName(numerator);
   if (!parsed) return null;
 
-  // b) インターバル → 実音配列
+  // c) インターバル → 実音配列（分子から生成。分母はボイシングや判定には使わない）
   const notes = buildChordNotes(parsed.root, parsed.quality, octave);
 
   return {
-    id: chordId,
+    id: chordId, // 表示や後段処理のため、元のID（スラッシュ含む）を保持
     root: parsed.root,
     quality: parsed.quality,
     notes,
