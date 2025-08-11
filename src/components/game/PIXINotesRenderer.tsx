@@ -1685,19 +1685,13 @@ export class PIXINotesRendererInstance {
     if (active) {
       this.highlightedKeys.add(midiNote);
     } else {
-      // ガイドが存在する場合は解除しない
-      if (!this.guideHighlightedKeys.has(midiNote)) {
-        this.highlightedKeys.delete(midiNote);
-      }
+      // リリース時は常に演奏ハイライトを解除する（ガイドがあれば緑に戻る）
+      this.highlightedKeys.delete(midiNote);
     }
     
     const shouldHighlight = this.isKeyHighlighted(midiNote);
-    if (this.isBlackKey(midiNote)) {
-      this.redrawBlackKeyHighlight(keySprite, shouldHighlight, midiNote);
-      if (!shouldHighlight) keySprite.alpha = 1.0;
-    } else {
-      (keySprite as any).tint = shouldHighlight ? this.settings.colors.activeKey : 0xFFFFFF;
-    }
+    // ガイド/演奏の合算状態を元に見た目を一元適用
+    this.applyKeyHighlightVisual(midiNote, shouldHighlight);
   }
   
   /**

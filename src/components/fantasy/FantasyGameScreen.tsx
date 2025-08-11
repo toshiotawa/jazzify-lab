@@ -736,11 +736,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 問題が変わったタイミングでハイライトを確実にリセット
   useEffect(() => {
     if (!pixiRenderer) return;
+    // 太鼓モードでは、押下中のオレンジを維持するためリセットしない
+    if (gameState.isTaikoMode) return;
     // single: currentChordTarget が変わる / progression: currentNoteIndex が進む
     (pixiRenderer as any).clearActiveHighlights?.();
     // ガイドもいったん全消去 → 後続のガイド再設定で再点灯
     (pixiRenderer as any).clearAllHighlights?.();
-  }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex]);
+  }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex, gameState.isTaikoMode]);
 
   // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
   useEffect(() => {
@@ -762,8 +764,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       setGuideMidi([]);
       return;
     }
-    // いったん全消去してから今回のガイドを設定（取り残し防止）
-    (pixiRenderer as any).clearAllHighlights?.();
+    // ガイドは差分適用で更新（太鼓モードでも押下中オレンジを保持）
+    if (!gameState.isTaikoMode) {
+      (pixiRenderer as any).clearAllHighlights?.();
+    }
     setGuideMidi(chord.notes as number[]);
   }, [pixiRenderer, stage.showGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
   
