@@ -1681,23 +1681,17 @@ export class PIXINotesRendererInstance {
       log.warn(`⚠️ Key sprite not found for note: ${midiNote}`);
       return;
     }
-    
+
     if (active) {
       this.highlightedKeys.add(midiNote);
     } else {
-      // ガイドが存在する場合は解除しない
-      if (!this.guideHighlightedKeys.has(midiNote)) {
-        this.highlightedKeys.delete(midiNote);
-      }
+      // 演奏ハイライトからは外す（ガイドは別Setで保持）
+      this.highlightedKeys.delete(midiNote);
     }
-    
-    const shouldHighlight = this.isKeyHighlighted(midiNote);
-    if (this.isBlackKey(midiNote)) {
-      this.redrawBlackKeyHighlight(keySprite, shouldHighlight, midiNote);
-      if (!shouldHighlight) keySprite.alpha = 1.0;
-    } else {
-      (keySprite as any).tint = shouldHighlight ? this.settings.colors.activeKey : 0xFFFFFF;
-    }
+
+    // ガイド or 演奏の合算状態をもとに見た目を適用
+    const unionHighlighted = this.isKeyHighlighted(midiNote);
+    this.applyKeyHighlightVisual(midiNote, unionHighlighted);
   }
   
   /**
@@ -3195,6 +3189,13 @@ export class PIXINotesRendererInstance {
       }
     }
     this.highlightedKeys.clear();
+  }
+
+  /**
+   * 現在そのキーが押下中（演奏ハイライト中）かどうか
+   */
+  public isKeyPressed(midiNote: number): boolean {
+    return this.highlightedKeys.has(midiNote);
   }
 }
 

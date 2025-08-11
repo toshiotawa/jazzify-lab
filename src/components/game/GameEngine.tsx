@@ -704,7 +704,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         // 一定時間後にハイライトを解除
         setTimeout(() => {
           if (pixiRenderer) {
-            pixiRenderer.highlightKey(pitch, false);
+            // 押下中でない場合のみ自動解除（押下中は離すまでオレンジ維持）
+            if (!pixiRenderer.isKeyPressed(pitch)) {
+              pixiRenderer.highlightKey(pitch, false);
+            }
           }
         }, 150); // 150ms後にハイライト解除（マウスクリックと同じ長さ）
       }
