@@ -67,50 +67,45 @@ class BGMManager {
   stop() {
     this.isPlaying = false
     this.loopScheduled = false
-    
-    if (this.loopTimeoutId !== null) {
-      clearTimeout(this.loopTimeoutId)
-      this.loopTimeoutId = null
-    }
-    if (this.loopCheckIntervalId !== null) {
-      clearInterval(this.loopCheckIntervalId)
-      this.loopCheckIntervalId = null
-    }
-    
-    if (this.audio) {
-      if (this.timeUpdateHandler) {
-        this.audio.removeEventListener('timeupdate', this.timeUpdateHandler)
-        this.timeUpdateHandler = null
-      }
-      this.audio.removeEventListener('ended', this.handleEnded)
-      this.audio.removeEventListener('error', this.handleError)
-      try {
-        this.audio.pause()
-        this.audio.currentTime = 0
-        this.audio.src = ''
-        this.audio.load()
-      } catch (e) {
-        console.warn('Audio cleanup error:', e)
-      }
-      this.audio = null
-    }
 
-    // Web Audio cleanup
     try {
-      if (this.waSource) {
-        this.waSource.stop()
-        this.waSource.disconnect()
+      if (this.loopTimeoutId !== null) {
+        clearTimeout(this.loopTimeoutId)
+        this.loopTimeoutId = null
       }
-    } catch {}
-    this.waSource = null
-    this.waBuffer = null
-    if (this.waGain) {
-      try { this.waGain.disconnect() } catch {}
+      if (this.loopCheckIntervalId !== null) {
+        clearInterval(this.loopCheckIntervalId)
+        this.loopCheckIntervalId = null
+      }
+
+      if (this.audio) {
+        try {
+          if (this.timeUpdateHandler) {
+            this.audio.removeEventListener('timeupdate', this.timeUpdateHandler)
+          }
+          this.audio.removeEventListener?.('ended', this.handleEnded)
+          this.audio.removeEventListener?.('error', this.handleError)
+        } catch {}
+        try { this.audio.pause?.() } catch {}
+        try { this.audio.currentTime = 0 } catch {}
+        try { (this.audio as any).src = '' } catch {}
+        try { (this.audio as any).load?.() } catch {}
+      }
+
+      // Web Audio cleanup
+      try { this.waSource?.stop?.() } catch {}
+      try { this.waSource?.disconnect?.() } catch {}
+      this.waSource = null
+      this.waBuffer = null
+      try { this.waGain?.disconnect?.() } catch {}
       this.waGain = null
+    } catch (e) {
+      console.warn('BGMManager.stop safe stop failed:', e)
+    } finally {
+      this.timeUpdateHandler = null
+      this.audio = null
+      console.log('🔇 BGM停止・クリーンアップ完了')
     }
-    // Context は再利用
-    
-    console.log('🔇 BGM停止・クリーンアップ完了')
   }
   
   private handleError = (e: Event) => {

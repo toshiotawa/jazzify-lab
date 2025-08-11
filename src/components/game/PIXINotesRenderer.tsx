@@ -3257,13 +3257,15 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
     
     requestAnimationFrame(() => {
       log.info('🎯 Fade-in animation frame executing...');
-      if (containerRef.current) {
-        containerRef.current.style.opacity = '1';
-        containerRef.current.style.visibility = 'visible';
-        containerRef.current.style.transition = 'opacity 0.2s ease-in-out';
+      const el = containerRef.current;
+      if (el) {
+        el.style.opacity = '1';
+        el.style.visibility = 'visible';
+        el.style.transition = 'opacity 0.2s ease-in-out';
         log.info('✅ PIXI Container made visible');
       } else {
-        log.error('❌ containerRef.current is null during fade-in');
+        // コンポーネントが既にアンマウントされている場合は何もしない
+        log.debug?.('ℹ️ Skipping fade-in: containerRef is null (likely unmounted)');
       }
     });
 
