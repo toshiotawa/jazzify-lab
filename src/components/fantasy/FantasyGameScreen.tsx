@@ -696,6 +696,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           
           // すでに通常ノーツに含まれている場合はプレビュー重複を避ける
           if (displayedBaseIds.has(note.id)) continue;
+
+          // 既に当ループでヒット済みのノーツは次ループの先行表示に含めない（復活防止）
+          if (note.isHit) continue;
           
           const virtualHitTime = note.hitTime + loopDuration; // 次ループのヒット時刻
           const timeUntilHit = virtualHitTime - normalizedTime;
