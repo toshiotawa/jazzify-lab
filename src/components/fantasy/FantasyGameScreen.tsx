@@ -198,8 +198,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 await FSM?.init(
                   settings.soundEffectVolume ?? 0.8,
                   settings.rootSoundVolume ?? 0.5,
-                  false
+                  stage?.playRootOnCorrect !== false
                 );
+                FSM?.enableRootSound(stage?.playRootOnCorrect !== false);
                 devLog.debug('🔊 ファンタジーモード効果音初期化完了');
               })
               .catch(err => console.error('Failed to import/init FantasySoundManager:', err));
@@ -266,11 +267,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       try {
         const mod = await import('@/utils/FantasySoundManager');
         const FSM = (mod as any).FantasySoundManager ?? mod.default;
-        FSM?.enableRootSound(stage?.playRootOnCorrect === true);
-        if (stage?.playRootOnCorrect === true) {
-          // 初回有効化直後に鳴らない問題の回避: 少し待機
-          await new Promise(r => setTimeout(r, 50));
-        }
+        // 明示的に false のときのみ無効化。未指定(undefined)は有効のまま
+        FSM?.enableRootSound(stage?.playRootOnCorrect !== false);
       } catch {}
       if (cancelled) return;
     };
@@ -403,6 +401,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
+    // iOS/Safari 対策: 最初のユーザー操作でオーディオを解放
+    try { await (window as any).Tone?.start?.(); } catch {}
+
     // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
     if (source === 'mouse' && activeNotesRef.current.has(note)) {
       devLog.debug('🎵 Note already playing, skipping:', note);
