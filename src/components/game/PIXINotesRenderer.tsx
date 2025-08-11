@@ -3190,6 +3190,13 @@ export class PIXINotesRendererInstance {
     }
     this.highlightedKeys.clear();
   }
+
+  /**
+   * 現在そのキーが押下中（演奏ハイライト中）かどうか
+   */
+  public isKeyPressed(midiNote: number): boolean {
+    return this.highlightedKeys.has(midiNote);
+  }
 }
 
 // ===== React コンポーネント =====
