@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import AuthLanding from '@/components/auth/AuthLanding';
 import { cn } from '@/utils/cn';
+import { Navigate, useLocation } from 'react-router-dom';
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -10,11 +10,16 @@ interface AuthGateProps {
 /**
  * ログインが必要な領域をラップするゲート。
  * - ローディング中はスピナー
- * - 未ログインなら 認証コード入力 UI
+ * - 未ログインなら /login へリダイレクト（/login 系は素通り）
  * - ゲストプレイボタンも提供
  */
 export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   const { user, loading, error, isGuest, hasProfile, createProfile, fetchProfile } = useAuthStore();
+  const location = useLocation();
+  const inAuthFlow =
+    location.pathname === '/login' ||
+    location.pathname === '/signup' ||
+    location.pathname === '/login/verify-otp';
 
   // ローディング中
   if (loading) {
@@ -47,14 +52,14 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   }
 
   // デバッグ情報を出力
-  console.log('🔍 AuthGate: 状態確認', { 
-    user: !!user, 
-    isGuest, 
-    hasProfile, 
-    loading, 
+  console.log('🔍 AuthGate: 状態確認', {
+    user: !!user,
+    isGuest,
+    hasProfile,
+    loading,
     error,
     userId: user?.id,
-    userEmail: user?.email
+    userEmail: user?.email,
   });
 
   // ログイン済みでプロフィールがある、またはゲストモード
@@ -67,16 +72,22 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   if (user && !hasProfile) {
     console.log('⚠️ AuthGate: プロフィール未作成 - アカウント登録モーダル表示');
     return (
-      <AccountRegistrationModal 
-        onSubmit={createProfile} 
+      <AccountRegistrationModal
+        onSubmit={createProfile}
         error={error}
         onRetry={fetchProfile}
       />
     );
   }
 
-  // 未ログイン・ゲストでもない場合は AuthLanding を表示（#login と同デザイン）
-  return <AuthLanding mode="login" />;
+  // 未ログイン: /login 系はゲート対象外（そのまま子コンポーネントを表示）
+  if (inAuthFlow) {
+    return <>{children}</>;
+  }
+
+  // 未ログイン: それ以外は /login にリダイレクト（戻り先を付与）
+  const redirect = encodeURIComponent(location.pathname + location.search + location.hash);
+  return <Navigate to={`/login?redirect=${redirect}`} replace />;
 };
 
 export default AuthGate;
@@ -99,7 +110,7 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
     if (!agreed) {
       return;
     }
-    
+
     setSubmitting(true);
     try {
       await onSubmit(nickname.trim(), agreed);

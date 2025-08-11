@@ -13,17 +13,20 @@ const VerifyOtpPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
 
+  const searchParams = new URLSearchParams(location.search);
+  const redirect = searchParams.get('redirect') || '';
+
   useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
     const emailFromQuery = searchParams.get('email');
     if (emailFromQuery) {
       setEmail(emailFromQuery);
     } else {
       // emailがなければログイン画面に戻す
       toast.error('不正なアクセスです。再度操作をお試しください。');
-      navigate('/login');
+      navigate('/login', { replace: true });
     }
-  }, [location.search, navigate, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   const handleVerifyOtp = async () => {
     if (otpCode.length !== 6) {
@@ -33,11 +36,15 @@ const VerifyOtpPage: React.FC = () => {
     try {
       await verifyOtp(email, otpCode);
       toast.success('ログインに成功しました！');
-      // 成功後はAuthGateが自動的にメインアプリに遷移させるので、'/'に移動
-      navigate('/'); 
+      navigate(redirect || '/main#dashboard', { replace: true });
     } catch (err) {
       toast.error('OTP検証に失敗しました。コードを確認してください。');
     }
+  };
+
+  const handleBack = () => {
+    const to = redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login';
+    navigate(to);
   };
 
   if (!email) {
@@ -81,7 +88,7 @@ const VerifyOtpPage: React.FC = () => {
         </button>
         <button
           className="btn btn-ghost btn-sm w-full"
-          onClick={() => navigate('/login')}
+          onClick={handleBack}
         >
           戻る
         </button>

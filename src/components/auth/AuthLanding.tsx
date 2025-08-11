@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast, handleApiError } from '@/stores/toastStore';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface AuthLandingProps {
   mode: 'signup' | 'login';
@@ -10,8 +11,9 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   const { sendOtp, enterGuestMode, loading, error, user, isGuest } = useAuthStore();
   const toast = useToast();
   const [email, setEmail] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [signupDisabled, setSignupDisabled] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +23,6 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
     
     try {
       await sendOtp(email, mode);
-      setOtpSent(true);
       toast.success(
         mode === 'signup'
           ? '認証コードを送信しました（会員登録）'
@@ -31,6 +32,14 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
           duration: 5000,
         }
       );
+
+      // 現在のURLからredirectパラメータを引き継ぐ
+      const currentParams = new URLSearchParams(location.search);
+      const redirect = currentParams.get('redirect') || '';
+      const params = new URLSearchParams({ email, mode });
+      if (redirect) params.set('redirect', redirect);
+
+      navigate(`/login/verify-otp?${params.toString()}`, { replace: true });
     } catch (err) {
       console.error('認証コード送信エラー:', err);
       const errorMessage = err instanceof Error ? err.message : '認証コード送信に失敗しました';
@@ -46,17 +55,6 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   const handleGuest = () => {
     enterGuestMode();
   };
-
-  // OTP送信済みの場合はOTP検証画面にリダイレクト
-  if (otpSent) {
-    // リダイレクトのためのパラメータを設定
-    const params = new URLSearchParams({
-      email,
-      mode
-    });
-    window.location.href = `/login/verify-otp?${params.toString()}`;
-    return null;
-  }
 
   if (user && !isGuest) {
     return (
