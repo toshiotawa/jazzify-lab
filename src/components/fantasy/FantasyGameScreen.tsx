@@ -393,7 +393,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
-    displayOpts: { lang: 'en', simple: false } // コードネーム表示は常に英語、簡易表記OFF
+    displayOpts: { lang: 'en', simple: false }, // コードネーム表示は常に英語、簡易表記OFF
+    pauseEnemyGauge: isReady
   });
   
   // 現在の敵情報を取得

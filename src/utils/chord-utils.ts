@@ -124,8 +124,11 @@ export function getFantasyChordNotes(chordId: string, octave: number = 4): numbe
  * @returns { root: string, quality: ChordQuality } | null
  */
 export function parseChordName(chordName: string): { root: string; quality: ChordQuality } | null {
+  // スラッシュコード対応: 分母(ベース音)は無視して本体を解析
+  const base = chordName.split('/')[0];
+  
   // ルート音とサフィックスを分離（ダブルシャープ・ダブルフラットも対応）
-  const match = chordName.match(/^([A-G](?:#{1,2}|b{1,2}|x)?)(.*)$/);
+  const match = base.match(/^([A-G](?:#{1,2}|b{1,2}|x)?)(.*)$/);
   if (!match) return null;
   
   const [, root, suffix] = match;
@@ -181,6 +184,9 @@ export function resolveChord(
   const parsed = parseChordName(chordId);
   if (!parsed) return null;
 
+  // スラッシュコードのベースを表示名生成に利用（構成音は同じ）
+  const baseForDisplay = chordId.split('/')[0];
+
   // b) インターバル → 実音配列
   const notes = buildChordNotes(parsed.root, parsed.quality, octave);
 
@@ -189,7 +195,7 @@ export function resolveChord(
     root: parsed.root,
     quality: parsed.quality,
     notes,
-    displayName: displayOpts ? toDisplayChordName(chordId, displayOpts) : chordId
+    displayName: chordId.includes('/') ? chordId : (displayOpts ? toDisplayChordName(chordId, displayOpts) : chordId)
   };
 }
 

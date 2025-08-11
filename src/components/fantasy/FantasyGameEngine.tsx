@@ -129,6 +129,8 @@ interface FantasyGameEngineProps {
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: (attackingMonsterId?: string) => void;
+  // ★ 追加: Ready 中にゲージ更新を停止するためのフラグ
+  pauseEnemyGauge?: boolean;
 }
 
 // ===== コード定義データ =====
@@ -435,7 +437,8 @@ export const useFantasyGameEngine = ({
   onChordIncorrect,
   onGameComplete,
   onEnemyAttack,
-  displayOpts = { lang: 'en', simple: false }
+  displayOpts = { lang: 'en', simple: false },
+  pauseEnemyGauge = false,
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   
   // ステージで使用するモンスターIDを保持
@@ -1160,8 +1163,12 @@ export const useFantasyGameEngine = ({
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中はゲージ停止 - FantasyGameScreenで管理 */
-    
     setGameState(prevState => {
+      // Ready中は single モードの敵ゲージを停止
+      if (pauseEnemyGauge && prevState.currentStage?.mode === 'single') {
+        return prevState;
+      }
+
       if (!prevState.isGameActive || !prevState.currentStage) {
         devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
         return prevState;
@@ -1345,7 +1352,7 @@ export const useFantasyGameEngine = ({
         return nextState;
       }
     });
-  }, [handleEnemyAttack, onGameStateChange]);
+  }, [handleEnemyAttack, onGameStateChange, pauseEnemyGauge]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
