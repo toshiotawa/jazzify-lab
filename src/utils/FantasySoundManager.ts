@@ -333,12 +333,12 @@ export class FantasySoundManager {
 
   // ベース音関連のprivateメソッド
   private async _playRootNote(rootName: string) {
-    if (!this.bassEnabled || !this.bassSampler) return;
-    
-    // ロード完了を待つ
+    // 先に初期化の完了を待つ（未完了だと bassSampler が null で早期 return してしまう）
     if (this.loadedPromise) {
       await this.loadedPromise;
     }
+
+    if (!this.bassEnabled || !this.bassSampler) return;
     
     const Tone = window.Tone as typeof import('tone');
     const n = tonalNote(rootName + '2');        // C2 付近

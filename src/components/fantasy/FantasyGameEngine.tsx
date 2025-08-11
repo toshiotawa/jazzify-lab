@@ -65,6 +65,8 @@ export interface FantasyStage {
   measureCount?: number;
   countInMeasures?: number;
   timeSignature?: number;
+  // ステージ設定: 正解時にルート音を鳴らすか
+  playRootOnCorrect?: boolean;
 }
 
 export interface MonsterState {

@@ -108,12 +108,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           enemyGaugeSeconds: stage.enemy_gauge_seconds,
           mode: stage.mode,
           allowedChords: stage.allowed_chords,
-          monsterIcon: stage.monster_icon,
+          monsterIcon: 'dragon',
           chordProgression: stage.chord_progression,
           simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
           showGuide: stage.show_guide || false,
           // 追加: 拍間隔（存在すれば）
-          noteIntervalBeats: (stage as any).note_interval_beats
+          noteIntervalBeats: (stage as any).note_interval_beats,
+          showSheetMusic: false
         }));
         
         setStages(convertedStages);
@@ -192,18 +193,18 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         mode: stage.mode as 'single' | 'progression_order' | 'progression_random' | 'progression_timing',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
-        chordProgressionData: stage.chord_progression_data,
-        showSheetMusic: stage.show_sheet_music,
+        chordProgressionData: (stage as any).chord_progression_data,
+        showSheetMusic: false,
         showGuide: stage.show_guide,
         // 追加: 拍間隔（存在すれば）
         noteIntervalBeats: (stage as any).note_interval_beats,
-        monsterIcon: stage.monster_icon,
-        bgmUrl: stage.bgm_url || stage.mp3_url,
+        monsterIcon: 'dragon',
+        bgmUrl: stage.bgm_url || (stage as any).mp3_url,
         simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
-        bpm: stage.bpm || 120,
-        measureCount: stage.measure_count,
-        countInMeasures: stage.count_in_measures,
-        timeSignature: stage.time_signature
+        bpm: (stage as any).bpm || 120,
+        measureCount: (stage as any).measure_count,
+        countInMeasures: (stage as any).count_in_measures,
+        timeSignature: (stage as any).time_signature
       }));
       
       const convertedProgress: FantasyUserProgress = {

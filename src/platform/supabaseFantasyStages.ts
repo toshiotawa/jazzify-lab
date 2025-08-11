@@ -164,9 +164,7 @@ export interface UpsertFantasyStagePayload {
   allowed_chords?: any[]; // ChordSpec[] or string[]
   chord_progression?: any[]; // ChordSpec[]
   chord_progression_data?: any; // JSON array
-  show_sheet_music?: boolean;
   show_guide?: boolean;
-  monster_icon?: string;
   bgm_url?: string | null;
   mp3_url?: string | null;
   simultaneous_monster_count?: number;
@@ -175,6 +173,7 @@ export interface UpsertFantasyStagePayload {
   time_signature?: number;
   count_in_measures?: number;
   note_interval_beats?: number | null;
+  play_root_on_correct?: boolean;
 }
 
 /**

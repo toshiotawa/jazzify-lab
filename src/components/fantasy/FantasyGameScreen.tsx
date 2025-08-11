@@ -196,7 +196,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               FantasySoundManager.init(
                 settings.soundEffectVolume ?? 0.8,
                 settings.rootSoundVolume ?? 0.5,
-                settings.playRootSound ?? true
+                false
               ).then(() => {
                 devLog.debug('🔊 ファンタジーモード効果音初期化完了');
               }).catch(error => {
@@ -261,6 +261,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => clearTimeout(timer);
   }, [stage]); // stageが変更されたときに実行
   
+  // ステージ設定に応じてルート音を有効/無効にする
+  useEffect(() => {
+    let cancelled = false;
+    const apply = async () => {
+      try {
+        const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
+        FantasySoundManager.enableRootSound(stage?.playRootOnCorrect === true);
+        if (stage?.playRootOnCorrect === true) {
+          // 初回有効化直後に鳴らない問題の回避: 少し待機
+          await new Promise(r => setTimeout(r, 50));
+        }
+      } catch {}
+      if (cancelled) return;
+    };
+    apply();
+    return () => { cancelled = true; };
+  }, [stage?.playRootOnCorrect]);
+  
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
@@ -297,7 +315,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
 
     // ルート音を再生（非同期対応）
-    if (settings.playRootSound) {
+    const allowRootSound = stage?.playRootOnCorrect === true;
+    if (allowRootSound) {
       try {
         const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
         await FantasySoundManager.playRootNote(chord.root);
@@ -305,7 +324,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         console.error('Failed to play root note:', error);
       }
     }
-  }, [fantasyPixiInstance, settings.playRootSound]);
+  }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
   // ▲▲▲ ここまで ▲▲▲
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
@@ -1284,20 +1303,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               console.error('Failed to update FantasySoundManager volume:', error);
             });
           }
-
-          // ルート音設定が変更されたら、gameStoreを更新
-          if (settings.playRootSound !== undefined) {
-            updateSettings({ playRootSound: settings.playRootSound });
-            import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) =>
-              FantasySoundManager.enableRootSound(settings.playRootSound)
-            );
-          }
-          if (settings.rootSoundVolume !== undefined) {
-            updateSettings({ rootSoundVolume: settings.rootSoundVolume });
-            import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) =>
-              FantasySoundManager.setRootVolume(settings.rootSoundVolume)
-            );
-          }
         }}
         // gameStoreの値を渡す
         midiDeviceId={settings.selectedMidiDevice}
@@ -1305,8 +1310,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         soundEffectVolume={settings.soundEffectVolume} // gameStoreの効果音音量を渡す
         noteNameLang={currentNoteNameLang}
         simpleNoteName={currentSimpleNoteName}
-        playRootSound={settings.playRootSound}
-        rootSoundVolume={settings.rootSoundVolume}
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}

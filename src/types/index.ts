@@ -635,13 +635,11 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression';
+  mode: 'single' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing';
   allowed_chords: string[];
   chord_progression?: string[];
-  show_sheet_music: boolean;
   show_guide: boolean;
   simultaneous_monster_count?: number;
-  monster_icon?: string;
   bgm_url?: string;
   mp3_url?: string;
   bpm?: number;
@@ -651,6 +649,8 @@ export interface FantasyStage {
   // 追加: 拍間隔（DBとクライアント両方のキーを許容）
   note_interval_beats?: number;
   noteIntervalBeats?: number;
+  // 新規: 正解時にルート音を鳴らす
+  play_root_on_correct?: boolean;
 }
 
 export interface LessonContext {
