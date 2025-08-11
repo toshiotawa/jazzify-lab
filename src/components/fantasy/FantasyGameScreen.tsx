@@ -612,8 +612,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // ループ情報を事前計算
     const stage = gameState.currentStage!;
           const loopDuration = (stage.measureCount || 8) * (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
-    
-    const updateTaikoNotes = (timestamp: number) => {
+      
+      // 1小節あたりの秒とプレビューウィンドウ（2小節分）を追加
+      const secPerBeat = 60 / (stage.bpm || 120);
+      const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
+      const previewWindow = 2 * secPerMeasure; // 2小節分だけ先読み
+      
+      const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
       if (timestamp - lastUpdateTime < updateInterval) {
         animationId = requestAnimationFrame(updateTaikoNotes);
@@ -686,8 +691,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // ループ対応：最後に近づいたら最初から複数ノーツを仮想的に追加（次ループのプレビュー）
       const timeToLoop = loopDuration - normalizedTime;
-      if (timeToLoop < lookAheadTime && gameState.taikoNotes.length > 0) {
-        const maxLoopPreview = 6;
+      if (timeToLoop < previewWindow && gameState.taikoNotes.length > 0) {
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
           
@@ -699,14 +703,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           
           const virtualHitTime = note.hitTime + loopDuration; // 次ループのヒット時刻
           const timeUntilHit = virtualHitTime - normalizedTime;
-          if (timeUntilHit > lookAheadTime) break;
+          
+          // 判定ライン左側（過去）は描画しない / 2小節分だけに制限
+          if (timeUntilHit < 0) continue;
+          if (timeUntilHit > previewWindow) break;
+          
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
             id: `${note.id}_loop`,
             chord: note.chord.displayName,
             x
           });
-          if (i + 1 >= maxLoopPreview) break;
         }
       }
       
