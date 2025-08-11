@@ -251,23 +251,17 @@ export class FantasyPIXIInstance {
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
-  
-  // 画面揺れ関連のプロパティ
-  private screenShakeState: {
-    isActive: boolean;
-    intensity: number;
-    duration: number;
-    elapsed: number;
-    originalX: number;
-    originalY: number;
-  } = {
-    isActive: false,
-    intensity: 0,
-    duration: 0,
-    elapsed: 0,
-    originalX: 0,
-    originalY: 0
-  };
+
+  // setTimeout 管理
+  private _timeouts = new Set<number>();
+  private setTimeoutSafe(fn: () => void, ms: number) {
+    const id = window.setTimeout(() => {
+      this._timeouts.delete(id);
+      try { fn(); } catch (e) { /* swallow to avoid global errors */ }
+    }, ms);
+    this._timeouts.add(id);
+    return id;
+  }
 
   constructor(
     width: number, 
@@ -965,10 +959,12 @@ export class FantasyPIXIInstance {
       }
 
       // ヒット状態を解除
-      setTimeout(() => {
-        if (monsterData.gameState) {
-          monsterData.gameState.isHit = false;
-        }
+      this.setTimeoutSafe(() => {
+        try {
+          if (monsterData.gameState) {
+            monsterData.gameState.isHit = false;
+          }
+        } catch {}
       }, 300);
 
     } catch (error) {
@@ -1089,8 +1085,9 @@ export class FantasyPIXIInstance {
           /* ✨ 追加 ✨ : 破棄済み Sprite が残らないよう必ず removeChild */
           if (this.isDestroyed || !magicSprite) return;
 
-          if (magicSprite.destroyed) {
+          if (magicSprite.destroyed || !(magicSprite as any).transform) {
             if (magicSprite.parent) magicSprite.parent.removeChild(magicSprite);
+            try { magicSprite.destroy?.(); } catch {}
             return;      // ← ここで終了して OK
           }
           
@@ -1107,7 +1104,7 @@ export class FantasyPIXIInstance {
           } else {
             try {
               this.effectContainer.removeChild(magicSprite);
-              magicSprite.destroy();
+              try { magicSprite.destroy?.(); } catch {}
             } catch (error) {
               devLog.debug('⚠️ 魔法スプライト削除エラー:', error);
             }
@@ -1115,7 +1112,7 @@ export class FantasyPIXIInstance {
         };
         
         if (isSpecial) {
-          setTimeout(animate, i * 100);
+          this.setTimeoutSafe(animate, i * 100);
         } else {
           animate();
         }
@@ -1180,8 +1177,9 @@ export class FantasyPIXIInstance {
           /* ✨ 追加 ✨ : 破棄済み Sprite が残らないよう必ず removeChild */
           if (this.isDestroyed || !magicSprite) return;
 
-          if (magicSprite.destroyed) {
+          if (magicSprite.destroyed || !(magicSprite as any).transform) {
             if (magicSprite.parent) magicSprite.parent.removeChild(magicSprite);
+            try { magicSprite.destroy?.(); } catch {}
             return;      // ← ここで終了して OK
           }
           
@@ -1216,7 +1214,7 @@ export class FantasyPIXIInstance {
                 if (magicSprite.parent) {
                   magicSprite.parent.removeChild(magicSprite);
                 }
-                magicSprite.destroy();
+                try { magicSprite.destroy?.(); } catch {}
               }
             }
           } else {
@@ -1226,14 +1224,14 @@ export class FantasyPIXIInstance {
                 if (magicSprite.parent) {
                   magicSprite.parent.removeChild(magicSprite);
                 }
-                magicSprite.destroy();
+                try { magicSprite.destroy?.(); } catch {}
               }
             } catch (error) {
               devLog.debug('⚠️ 魔法エフェクト削除エラー:', error);
             }
           }
         };
-        setTimeout(animate, i * 100); // SPアタック時は少しずらして表示
+        this.setTimeoutSafe(animate, i * 100); // SPアタック時は少しずらして表示
       } catch (error) {
         devLog.debug('⚠️ SVG魔法エフェクト作成エラー:', error);
       }
@@ -1428,11 +1426,13 @@ export class FantasyPIXIInstance {
     scaleUp();
     
     // 3秒後に削除
-    setTimeout(() => {
-      if (this.chordNameText && !this.isDestroyed) {
-        this.effectContainer.removeChild(this.chordNameText);
-        this.chordNameText = null;
-      }
+    this.setTimeoutSafe(() => {
+      try {
+        if (this.chordNameText && !this.isDestroyed) {
+          this.effectContainer.removeChild(this.chordNameText);
+          this.chordNameText = null;
+        }
+      } catch {}
     }, 3000);
     
     devLog.debug('✅ コード名表示:', { chordName });
@@ -1580,17 +1580,22 @@ export class FantasyPIXIInstance {
     this.activeFukidashi.set(monsterId, fukidashi);
 
     // 2秒後に自動で削除
-    setTimeout(() => {
-      if (!this.isDestroyed && fukidashi && !fukidashi.destroyed) {
-        this.effectContainer.removeChild(fukidashi);
-        fukidashi.destroy();
-        this.activeFukidashi.delete(monsterId);
-      }
+    this.setTimeoutSafe(() => {
+      try {
+        if (!this.isDestroyed && fukidashi && !fukidashi.destroyed) {
+          this.effectContainer.removeChild(fukidashi);
+          fukidashi.destroy?.();
+          this.activeFukidashi.delete(monsterId);
+        }
+      } catch {}
     }, 2000);
   }
 
   /** 攻撃アイコンを敵スプライト右上に固定で出す */
   private async showAttackIcon(monsterData: MonsterSpriteData): Promise<void> {
+    // 親スプライトが生存しているか
+    if (!monsterData?.sprite || (monsterData.sprite as any).destroyed || !(monsterData.sprite as any).transform) return;
+
     let tex = this.imageTextures.get(ATTACK_ICON_KEY);
     if (!tex) {
       try {
@@ -1607,22 +1612,34 @@ export class FantasyPIXIInstance {
 
     // 既に付いているアイコンがあれば一旦消す
     if ((monsterData as any).attackIcon && !(monsterData as any).attackIcon.destroyed) {
-      monsterData.sprite.removeChild((monsterData as any).attackIcon);
-      (monsterData as any).attackIcon.destroy();
+      try {
+        monsterData.sprite?.removeChild?.((monsterData as any).attackIcon);
+        (monsterData as any).attackIcon?.destroy?.();
+      } catch {}
     }
+
+    // 破棄/transform 再確認
+    if (!monsterData?.sprite || (monsterData.sprite as any).destroyed || !(monsterData.sprite as any).transform) return;
 
     const texture = tex as PIXI.Texture;
     const icon = new PIXI.Sprite(texture);
     icon.anchor.set(0.5);
-    icon.scale.set(0.35); // お好みで
-    icon.x = monsterData.sprite.width * 0.45; // 右上へオフセット
-    icon.y = -monsterData.sprite.height * 0.45;
+    icon.scale.set(0.35);
+
+    // width/height 参照前にガード
+    const w = (monsterData.sprite as any).destroyed || !(monsterData.sprite as any).transform ? 0 : (monsterData.sprite.width ?? 0);
+    const h = (monsterData.sprite as any).destroyed || !(monsterData.sprite as any).transform ? 0 : (monsterData.sprite.height ?? 0);
+    icon.x = w * 0.45;
+    icon.y = -h * 0.45;
+
     monsterData.sprite.addChild(icon);
 
-    // 1 秒後に自動削除（ずっと残すなら setTimeout を外す）
-    setTimeout(() => {
-      if (!icon.destroyed && icon.parent) icon.parent.removeChild(icon);
-      icon.destroy();
+    // 1 秒後に自動削除
+    this.setTimeoutSafe(() => {
+      try {
+        if (!icon.destroyed && icon.parent) icon.parent.removeChild(icon);
+        icon.destroy?.();
+      } catch {}
     }, 1000);
 
     (monsterData as any).attackIcon = icon; // 再利用できるよう保持
@@ -2031,7 +2048,9 @@ export class FantasyPIXIInstance {
     // 既存のノーツをクリア
     this.activeNotes.forEach((note, id) => {
       if (!notes.find(n => n.id === id)) {
-        note.destroy();
+        try {
+          if (note && !(note as any).destroyed) note.destroy({ children: true });
+        } catch {}
         this.activeNotes.delete(id);
       }
     });
@@ -2046,8 +2065,15 @@ export class FantasyPIXIInstance {
         this.notesContainer.addChild(note);
         this.activeNotes.set(noteData.id, note);
       } else {
-        // 既存のノーツの位置を更新
-        note.x = noteData.x;
+        // 破棄済みなら作り直す
+        if ((note as any).destroyed || !(note as any).transform) {
+          note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+          this.notesContainer.addChild(note);
+          this.activeNotes.set(noteData.id, note);
+        } else {
+          // 既存のノーツの位置を更新
+          note.x = noteData.x;
+        }
       }
     });
   }
@@ -2093,12 +2119,17 @@ export class FantasyPIXIInstance {
     
     // フェードアウトアニメーション
     const fadeOut = () => {
+      // 破棄済み・transform無しは即終了
+      if (this.isDestroyed || !effectGraphics || (effectGraphics as any).destroyed || !(effectGraphics as any).transform) {
+        try { (effectGraphics as any)?.destroy?.(); } catch {}
+        return;
+      }
       effectGraphics.alpha -= 0.05;
       effectGraphics.scale.x += 0.05;
       effectGraphics.scale.y += 0.05;
       
       if (effectGraphics.alpha <= 0) {
-        effectGraphics.destroy();
+        try { (effectGraphics as any).destroy?.(); } catch {}
       } else {
         requestAnimationFrame(fadeOut);
       }
@@ -2123,6 +2154,10 @@ export class FantasyPIXIInstance {
   // 破棄
   destroy(): void {
     this.isDestroyed = true;
+
+    // タイマーの一括停止
+    this._timeouts.forEach((id) => clearTimeout(id));
+    this._timeouts.clear();
     
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
