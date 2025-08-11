@@ -129,6 +129,8 @@ interface FantasyGameEngineProps {
   onChordIncorrect: (expectedChord: ChordDefinition, inputNotes: number[]) => void;
   onGameComplete: (result: 'clear' | 'gameover', finalState: FantasyGameState) => void;
   onEnemyAttack: (attackingMonsterId?: string) => void;
+  // ★ 追加: Ready フェーズ中フラグ
+  isReady?: boolean;
 }
 
 // ===== コード定義データ =====
@@ -435,7 +437,8 @@ export const useFantasyGameEngine = ({
   onChordIncorrect,
   onGameComplete,
   onEnemyAttack,
-  displayOpts = { lang: 'en', simple: false }
+  displayOpts = { lang: 'en', simple: false },
+  isReady = false
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   
   // ステージで使用するモンスターIDを保持
@@ -1131,7 +1134,8 @@ export const useFantasyGameEngine = ({
     devLog.debug('🎮 ゲージタイマー状態チェック:', { 
       isGameActive: gameState.isGameActive, 
       hasTimer: !!enemyGaugeTimer,
-      currentStage: gameState.currentStage?.stageNumber
+      currentStage: gameState.currentStage?.stageNumber,
+      isReady
     });
     
     // 既存のタイマーをクリア
@@ -1141,7 +1145,12 @@ export const useFantasyGameEngine = ({
     }
     
     // ゲームがアクティブな場合のみ新しいタイマーを開始
-    if (gameState.isGameActive && gameState.currentStage) {
+    // Ready中（single）では開始しない
+    if (
+      gameState.isGameActive &&
+      gameState.currentStage &&
+      !(isReady && gameState.currentStage.mode === 'single')
+    ) {
       devLog.debug('⏰ 敵ゲージタイマー開始');
       const timer = setInterval(() => {
         updateEnemyGauge();
@@ -1155,11 +1164,18 @@ export const useFantasyGameEngine = ({
         clearInterval(enemyGaugeTimer);
       }
     };
-  }, [gameState.isGameActive, gameState.currentStage]); // ゲーム状態とステージの変更を監視
+  }, [gameState.isGameActive, gameState.currentStage, isReady]); // ゲーム状態とステージ、Readyの変更を監視
   
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
-    /* Ready 中はゲージ停止 - FantasyGameScreenで管理 */
+    /* Ready 中はゲージ停止 - FantasyGameScreenで管理 → エンジンでもガード */
+    if (isReady) {
+      // singleモード時のみ停止
+      const mode = gameState.currentStage?.mode;
+      if (mode === 'single') {
+        return;
+      }
+    }
     
     setGameState(prevState => {
       if (!prevState.isGameActive || !prevState.currentStage) {
@@ -1345,7 +1361,7 @@ export const useFantasyGameEngine = ({
         return nextState;
       }
     });
-  }, [handleEnemyAttack, onGameStateChange]);
+  }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
@@ -1495,7 +1511,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
@@ -1628,26 +1644,23 @@ export const useFantasyGameEngine = ({
 
   // エフェクトの分離：enemyGaugeTimer専用
   useEffect(() => {
-    if (!gameState.isGameActive || !gameState.currentStage) {
+    if (!gameState.isGameActive || !gameState.currentStage || (isReady && gameState.currentStage.mode === 'single')) {
       if (enemyGaugeTimer) {
         clearInterval(enemyGaugeTimer);
         setEnemyGaugeTimer(null);
       }
       return;
     }
-    
+
     const timer = setInterval(() => {
       updateEnemyGauge();
     }, 100);
-    
     setEnemyGaugeTimer(timer);
-    
+
     return () => {
-      if (timer) {
-        clearInterval(timer);
-      }
+      clearInterval(timer);
     };
-  }, [gameState.isGameActive, gameState.currentStage?.id, updateEnemyGauge]); // IDで比較して不要な再生成を防ぐ
+  }, [gameState.isGameActive, gameState.currentStage?.id, updateEnemyGauge, isReady]); // Ready も依存に追加
 
   // パフォーマンス監視（開発環境のみ）
   useEffect(() => {
