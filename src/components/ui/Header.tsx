@@ -64,9 +64,11 @@ const Header: React.FC = () => {
             <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#mypage'}}>
               マイページ
             </button>
-            <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#diary';}}>
-              コミュニティ
-            </button>
+            {useAuthStore.getState().profile?.rank !== 'standard_global' && (
+              <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#diary';}}>
+                コミュニティ
+              </button>
+            )}
           </>
         )}
       </div>
@@ -122,12 +124,14 @@ const Header: React.FC = () => {
                 >
                   マイページ
                 </button>
-                <button 
-                  className="btn btn-sm btn-outline w-full text-left" 
-                  onClick={()=>{location.hash='#diary'; setMenuOpen(false);}}
-                >
-                  コミュニティ
-                </button>
+                {useAuthStore.getState().profile?.rank !== 'standard_global' && (
+                  <button 
+                    className="btn btn-sm btn-outline w-full text-left" 
+                    onClick={()=>{location.hash='#diary'; setMenuOpen(false);}}
+                  >
+                    コミュニティ
+                  </button>
+                )}
               </>
             )}
           </div>

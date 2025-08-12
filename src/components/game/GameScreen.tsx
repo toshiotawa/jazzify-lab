@@ -483,20 +483,22 @@ const GameScreen: React.FC = () => {
               </button>
 
               {/* 曲選択タブ */}
-              <TabButton
-                active={window.location.hash === '#songs'}
-                onClick={() => {
-                  gameActions.setCurrentTab('songs');
-                  window.location.hash = '#songs';
-                }}
-              >
-                曲選択
-              </TabButton>
+              {!(useAuthStore.getState().profile?.rank === 'standard_global') && (
+                <TabButton
+                  active={window.location.hash === '#songs'}
+                  onClick={() => {
+                    gameActions.setCurrentTab('songs');
+                    window.location.hash = '#songs';
+                  }}
+                >
+                  曲選択
+                </TabButton>
+              )}
 
-              <HashButton hash="#lessons">レッスン</HashButton>
+              {!(useAuthStore.getState().profile?.rank === 'standard_global') && <HashButton hash="#lessons">レッスン</HashButton>}
               <HashButton hash="#ranking">ランキング</HashButton>
-              <HashButton hash="#missions">ミッション</HashButton>
-              <HashButton hash="#diary">日記</HashButton>
+              {!(useAuthStore.getState().profile?.rank === 'standard_global') && <HashButton hash="#missions">ミッション</HashButton>}
+              {!(useAuthStore.getState().profile?.rank === 'standard_global') && <HashButton hash="#diary">日記</HashButton>}
               <HashButton hash="#information">お知らせ</HashButton>
             </div>
 

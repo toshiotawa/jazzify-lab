@@ -39,6 +39,7 @@ const Dashboard: React.FC = () => {
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
+  const isStandardGlobal = profile?.rank === 'standard_global';
   const { monthly: missions, fetchAll: loadMissions } = useMissionStore();
   const { stats: userStats, fetchStats, loading: statsLoading } = useUserStatsStore();
   const toast = useToast();
@@ -78,7 +79,7 @@ const Dashboard: React.FC = () => {
       // お知らせのロード（ゲスト以外）
       if (!isGuest) {
         promises.push(
-          fetchActiveAnnouncements().then(announcementsData => {
+          fetchActiveAnnouncements(isStandardGlobal ? 'global' : 'default').then(announcementsData => {
             // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
             const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
               // まず優先度で比較
@@ -186,6 +187,7 @@ const Dashboard: React.FC = () => {
       case 'premium':
         return <FaGem className="text-yellow-400 text-lg" />;
       case 'standard':
+      case 'standard_global':
         return <FaStar className="text-blue-400 text-sm" />;
       case 'free':
       default:
@@ -239,8 +241,8 @@ const Dashboard: React.FC = () => {
                     </div>
                   ) : userStats ? (
                     <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
-                      <span>ミッション完了数 {userStats.missionCompletedCount}</span>
-                      <span>レッスンクリア数 {userStats.lessonCompletedCount}</span>
+                      {!isStandardGlobal && (<span>ミッション完了数 {userStats.missionCompletedCount}</span>)}
+                      {!isStandardGlobal && (<span>レッスンクリア数 {userStats.lessonCompletedCount}</span>)}
                     </div>
                   ) : null}
                   
@@ -324,6 +326,7 @@ const Dashboard: React.FC = () => {
               {/* クイックアクション */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* 今日のミッション */}
+                {!isStandardGlobal && (
                 <button
                   onClick={() => { window.location.hash = '#missions'; }}
                   className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
@@ -344,8 +347,10 @@ const Dashboard: React.FC = () => {
                     <p className="text-sm text-gray-400">ミッションを確認</p>
                   )}
                 </button>
+                )}
 
                 {/* 曲練習 */}
+                {!isStandardGlobal && (
                 <button
                   onClick={() => { window.location.hash = '#songs'; }}
                   className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
@@ -358,8 +363,10 @@ const Dashboard: React.FC = () => {
                     楽曲を選んで練習を開始
                   </p>
                 </button>
+                )}
 
                 {/* レッスン */}
+                {!isStandardGlobal && (
                 <button
                   onClick={() => { window.location.hash = '#lessons'; }}
                   className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
@@ -372,6 +379,7 @@ const Dashboard: React.FC = () => {
                     ジャズ理論を学習
                   </p>
                 </button>
+                )}
                 
                 {/* ファンタジーモード */}
                 <button

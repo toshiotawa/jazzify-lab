@@ -11,6 +11,7 @@ export interface Announcement {
   created_by: string;
   created_at: string;
   updated_at: string;
+  target_audience?: 'default' | 'global';
 }
 
 export interface CreateAnnouncementData {
@@ -20,6 +21,7 @@ export interface CreateAnnouncementData {
   link_text?: string;
   is_active?: boolean;
   priority?: number;
+  target_audience?: 'default' | 'global';
 }
 
 export interface UpdateAnnouncementData {
@@ -29,6 +31,7 @@ export interface UpdateAnnouncementData {
   link_text?: string | null;
   is_active?: boolean;
   priority?: number;
+  target_audience?: 'default' | 'global';
 }
 
 /**
@@ -52,14 +55,14 @@ export async function fetchAllAnnouncements(): Promise<Announcement[]> {
 /**
  * アクティブなお知らせのみ取得（ユーザー向け）
  */
-export async function fetchActiveAnnouncements(): Promise<Announcement[]> {
+export async function fetchActiveAnnouncements(audience: 'default' | 'global' = 'default'): Promise<Announcement[]> {
+  const cacheKey = `announcements:active:${audience}`;
   const { data, error } = await fetchWithCache(
-    'announcements:active',
+    cacheKey,
     async () => await getSupabaseClient()
       .from('announcements')
       .select('*')
-      // RLSポリシーで is_active = true が適用されるため、フロントのクエリは不要
-      // .eq('is_active', true)
+      .eq('target_audience', audience)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: false }),
     1000 * 60 * 5 // 最適化: 5分キャッシュ（短いTTLで最新情報を確保）
@@ -85,6 +88,7 @@ export async function createAnnouncement(data: CreateAnnouncementData): Promise<
       created_by: user.id,
       is_active: data.is_active ?? true,
       priority: data.priority ?? 1,
+      target_audience: data.target_audience ?? 'default',
     });
 
   if (error) throw new Error(`お知らせの作成に失敗しました: ${error.message}`);

@@ -38,7 +38,8 @@ const AnnouncementManager: React.FC = () => {
   } = useForm<CreateAnnouncementData>({
     defaultValues: {
       priority: 1,
-      is_active: true
+      is_active: true,
+      target_audience: 'default'
     }
   });
   
@@ -113,6 +114,7 @@ const AnnouncementManager: React.FC = () => {
     setValue('link_text', announcement.link_text || '');
     setValue('is_active', announcement.is_active);
     setValue('priority', announcement.priority || 1);
+    setValue('target_audience', announcement.target_audience || 'default');
     setShowForm(true);
   };
 
@@ -234,8 +236,8 @@ const AnnouncementManager: React.FC = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-1">
                 <label className="block text-sm font-medium mb-1">リンクURL</label>
                 <input
                   {...register('link_url')}
@@ -245,13 +247,24 @@ const AnnouncementManager: React.FC = () => {
                 />
               </div>
 
-              <div>
+              <div className="md:col-span-1">
                 <label className="block text-sm font-medium mb-1">リンクテキスト</label>
                 <input
                   {...register('link_text')}
                   className="input input-bordered w-full text-white"
                   placeholder="詳細はこちら"
                 />
+              </div>
+
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium mb-1">対象</label>
+                <select
+                  {...register('target_audience')}
+                  className="select select-bordered w-full text-white bg-slate-700 border-slate-600"
+                >
+                  <option value="default">通常（日本ユーザー等）</option>
+                  <option value="global">Standard(Global)</option>
+                </select>
               </div>
             </div>
 

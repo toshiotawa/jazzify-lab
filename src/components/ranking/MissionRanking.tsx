@@ -4,14 +4,19 @@ import { useMissionStore } from '@/stores/missionStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { FaArrowLeft, FaTrophy, FaMedal, FaCrown, FaGem, FaStar } from 'react-icons/fa';
+import { useAuthStore } from '@/stores/authStore';
 
 const MissionRanking: React.FC = () => {
-  const [open, setOpen] = useState(window.location.hash === '#mission-ranking');
+  const [open, setOpen] = useState(window.location.hash === '#mission-ranking'); // This page will not be reachable for Standard(Global)
   const [entries, setEntries] = useState<MissionRankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { monthly } = useMissionStore();
   const [missionId, setMissionId] = useState<string | null>(null);
+  // If needed later, we can add gating like in LevelRanking header.
+  const { profile } = useAuthStore();
+  const isStandardGlobal = profile?.rank === 'standard_global';
+
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#mission-ranking');
@@ -44,6 +49,25 @@ const MissionRanking: React.FC = () => {
   }, [open, missionId]);
 
   if (!open) return null;
+
+  if (isStandardGlobal) {
+    return (
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
+        <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">
+          <h4 className="text-lg font-bold text-center">この機能はご利用いただけません</h4>
+          <p className="text-center text-gray-300">Standard(Global)プランではミッションランキングは非対応です。</p>
+          <div className="flex flex-col gap-3">
+            <button 
+              className="btn btn-sm btn-outline w-full" 
+              onClick={() => { window.location.href = '/main#dashboard'; }}
+            >
+              ダッシュボードに戻る
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleClose = () => {
     window.location.href = '/main#dashboard';
