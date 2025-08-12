@@ -6,7 +6,7 @@ import { useToast } from '@/stores/toastStore';
 // オープンベータ用の簡易プラン変更UI
 // 注意: Stripe を介さず Supabase の profiles.rank を直接更新します
 const OpenBetaPlanSwitcher: React.FC = () => {
-  const { profile } = useAuthStore();
+  const { profile, isGuest } = useAuthStore();
   const toast = useToast();
   const [updating, setUpdating] = useState(false);
   const [selected, setSelected] = useState<string>(profile?.rank || 'free');

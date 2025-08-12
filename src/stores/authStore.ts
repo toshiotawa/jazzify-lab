@@ -92,7 +92,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.session = session ?? null;
         state.user = session?.user ?? null;
         state.loading = false;
-        state.isGuest = false;
+        try {
+          const storedGuestId = typeof localStorage !== 'undefined' ? localStorage.getItem('guest_id') : null;
+          state.isGuest = !session?.user && !!storedGuestId;
+          state.guestId = !session?.user && storedGuestId ? storedGuestId : null;
+        } catch {
+          state.isGuest = false;
+          state.guestId = null;
+        }
       });
 
       // セッションがある場合はプロフィールも取得
