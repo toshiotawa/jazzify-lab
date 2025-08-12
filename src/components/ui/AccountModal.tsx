@@ -14,7 +14,7 @@ import { fetchFantasyClearedStageCount } from '@/platform/supabaseFantasyStages'
 
 const RANK_LABEL: Record<string, string> = {
   free: 'フリー',
-  standard: 'スタンダード',
+  standard: 'スタンダード（Global）',
   premium: 'プレミアム',
   platinum: 'プラチナ',
 };

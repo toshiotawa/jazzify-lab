@@ -5,6 +5,7 @@ import { useToast } from '@/stores/toastStore';
 import { mdToHtml } from '@/utils/markdown';
 import { FaBell, FaExternalLinkAlt, FaChevronDown } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
+import { isStandardGlobalMode, parseAnnouncementAudience } from '@/utils/planFlags';
 
 /**
  * お知らせページ
@@ -17,6 +18,7 @@ const InformationPage: React.FC = () => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const { user } = useAuthStore();
   const toast = useToast();
+  const isGlobal = isStandardGlobalMode();
 
   useEffect(() => {
     const checkHash = () => {
@@ -38,7 +40,11 @@ const InformationPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await fetchActiveAnnouncements();
-      setAnnouncements(data);
+      const filtered = data.filter(a => {
+        const audience = parseAnnouncementAudience(a.title);
+        return audience === 'all' || (isGlobal ? audience === 'global' : audience === 'jp');
+      });
+      setAnnouncements(filtered);
     } catch (e: unknown) {
       toast.error('お知らせの読み込みに失敗しました');
     } finally {
@@ -116,6 +122,7 @@ const InformationPage: React.FC = () => {
             <div className="space-y-3">
               {announcements.map((announcement) => {
                 const isExpanded = expandedIds.has(announcement.id);
+                const strippedTitle = announcement.title.replace(/^\s*\[(GLOBAL|WORLD|JP|JAPAN)\]\s*/i, '').trim();
                 return (
                   <div 
                     key={announcement.id}
@@ -127,7 +134,7 @@ const InformationPage: React.FC = () => {
                       onClick={() => toggleExpanded(announcement.id)}
                     >
                       <div className="flex-1 min-w-0">
-                        <h2 className="text-lg font-semibold mb-1 truncate pr-4">{announcement.title}</h2>
+                        <h2 className="text-lg font-semibold mb-1 truncate pr-4">{strippedTitle}</h2>
                         <div className="text-sm text-gray-500">
                           {new Date(announcement.created_at).toLocaleDateString('ja-JP', {
                             year: 'numeric',
@@ -147,7 +154,7 @@ const InformationPage: React.FC = () => {
                     {isExpanded && (
                       <div className="p-6 border-t border-slate-700">
                         <div 
-                          className="text-gray-300 mb-4 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
+                          className="text-gray-300 mb-4 [&_a]:text-blue-400 [&_a]:underline [&_a]:hover:text-blue-300 [&_a]:transition-colors"
                           dangerouslySetInnerHTML={{ __html: mdToHtml(announcement.content) }}
                         />
                         

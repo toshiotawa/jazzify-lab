@@ -29,6 +29,7 @@ import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES } from '@/utils/titleConstants';
+import { isStandardGlobalMode, parseAnnouncementAudience } from '@/utils/planFlags';
 
 /**
  * ダッシュボード画面
@@ -42,6 +43,7 @@ const Dashboard: React.FC = () => {
   const { monthly: missions, fetchAll: loadMissions } = useMissionStore();
   const { stats: userStats, fetchStats, loading: statsLoading } = useUserStatsStore();
   const toast = useToast();
+  const isGlobal = isStandardGlobalMode();
 
   useEffect(() => {
     const checkHash = () => {
@@ -79,33 +81,20 @@ const Dashboard: React.FC = () => {
       if (!isGuest) {
         promises.push(
           fetchActiveAnnouncements().then(announcementsData => {
+            // 受信後にオーディエンスでフィルタ
+            const filtered = announcementsData.filter(a => {
+              const audience = parseAnnouncementAudience(a.title);
+              return audience === 'all' || (isGlobal ? audience === 'global' : audience === 'jp');
+            });
             // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
-            const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
-              // まず優先度で比較
+            const sortedAnnouncements = filtered.sort((a: Announcement, b: Announcement) => {
               if (a.priority !== b.priority) {
                 return a.priority - b.priority;
               }
-              // 優先度が同じ場合は作成日時で比較（新しい順）
               return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
             });
-            
             const latestData = sortedAnnouncements.length > 0 ? sortedAnnouncements[0] : null;
-            
-            console.log('Dashboard: Latest announcement data:', latestData);
-            console.log('Dashboard: All active announcements:', announcementsData);
-            console.log('Dashboard: Sorted announcements:', sortedAnnouncements);
-            console.log('Dashboard: Total active announcements count:', announcementsData.length);
-            
             setLatestAnnouncement(latestData);
-            
-            if (!latestData) {
-              console.log('Dashboard: No active announcements found');
-              if (announcementsData.length === 0) {
-                console.log('Dashboard: No announcements exist at all');
-              } else {
-                console.log('Dashboard: Active announcements exist but latestData is null');
-              }
-            }
           }).catch((announcementError: any) => {
             console.error('Announcement loading error:', announcementError);
             toast.error(`お知らせの読み込みに失敗しました: ${announcementError.message}`, {
@@ -121,12 +110,10 @@ const Dashboard: React.FC = () => {
         promises.push(
           fetchStats(profile.id).catch((statsError: any) => {
             console.error('User stats loading error:', statsError);
-            // 統計の読み込み失敗は致命的ではないので、エラーログのみ
           })
         );
       }
 
-      // すべてのプロミスを並行実行
       await Promise.all(promises);
     } catch (error) {
       console.error('Dashboard data loading error:', error);
@@ -141,23 +128,18 @@ const Dashboard: React.FC = () => {
 
   // 称号の種類を判定する関数
   const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
-    // レベル称号の判定
     if (TITLES.includes(title as any)) {
       return 'level';
     }
-    // ミッション称号の判定
     if (MISSION_TITLES.some(mt => mt.name === title)) {
       return 'mission';
     }
-    // レッスン称号の判定
     if (LESSON_TITLES.some(lt => lt.name === title)) {
       return 'lesson';
     }
-    // 魔法使い称号の判定
     if (WIZARD_TITLES.includes(title as any)) {
       return 'wizard';
     }
-    // デフォルトはレベル称号
     return 'level';
   };
 
@@ -232,15 +214,19 @@ const Dashboard: React.FC = () => {
                     <span>累計経験値 {profile.xp.toLocaleString()}</span>
                   </div>
                   
-                  {/* ミッション・レッスン統計 */}
+                  {/* ミッション・レッスン統計（Standard(Global)では非表示）*/}
                   {statsLoading ? (
                     <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
                       <span className="animate-pulse">統計を読み込み中...</span>
                     </div>
                   ) : userStats ? (
                     <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
-                      <span>ミッション完了数 {userStats.missionCompletedCount}</span>
-                      <span>レッスンクリア数 {userStats.lessonCompletedCount}</span>
+                      {!isGlobal && (
+                        <>
+                          <span>ミッション完了数 {userStats.missionCompletedCount}</span>
+                          <span>レッスンクリア数 {userStats.lessonCompletedCount}</span>
+                        </>
+                      )}
                     </div>
                   ) : null}
                   
@@ -288,7 +274,7 @@ const Dashboard: React.FC = () => {
                     <div className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors">
                       <h4 className="font-semibold mb-2">{latestAnnouncement.title}</h4>
                       <div 
-                        className="text-sm text-gray-300 mb-3 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
+                        className="text-sm text-gray-300 mb-3 [&_a]:text-blue-400 [&_a]:underline [&_a]:hover:text-blue-300 [&_a]:transition-colors"
                         dangerouslySetInnerHTML={{ __html: mdToHtml(latestAnnouncement.content) }}
                       />
                       
@@ -321,59 +307,63 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* クイックアクション */}
+              {/* クイックアクション（Standard(Global)ではミッション/レッスン/曲選択を非表示） */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* 今日のミッション */}
-                <button
-                  onClick={() => { window.location.hash = '#missions'; }}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
-                >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <FaBullseye className="w-6 h-6 text-orange-400" />
-                    <h3 className="text-lg font-semibold">今日のミッション</h3>
-                  </div>
-                  
-                  {missions.length > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-sm text-gray-300">{missions[0].title}</p>
-                      <div className="flex items-center space-x-2 text-xs text-gray-400">
-                        <span>{missions[0].reward_multiplier}x ボーナス</span>
+                {!isGlobal && (
+                  <>
+                    {/* 今日のミッション */}
+                    <button
+                      onClick={() => { window.location.hash = '#missions'; }}
+                      className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                    >
+                      <div className="flex items-center space-x-3 mb-3">
+                        <FaBullseye className="w-6 h-6 text-orange-400" />
+                        <h3 className="text-lg font-semibold">今日のミッション</h3>
                       </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-400">ミッションを確認</p>
-                  )}
-                </button>
+                      
+                      {missions.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-sm text-gray-300">{missions[0].title}</p>
+                          <div className="flex items-center space-x-2 text-xs text-gray-400">
+                            <span>{missions[0].reward_multiplier}x ボーナス</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400">ミッションを確認</p>
+                      )}
+                    </button>
 
-                {/* 曲練習 */}
-                <button
-                  onClick={() => { window.location.hash = '#songs'; }}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
-                >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <FaMusic className="w-6 h-6 text-green-400" />
-                    <h3 className="text-lg font-semibold">曲練習</h3>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    楽曲を選んで練習を開始
-                  </p>
-                </button>
+                    {/* 曲練習 */}
+                    <button
+                      onClick={() => { window.location.hash = '#songs'; }}
+                      className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                    >
+                      <div className="flex items-center space-x-3 mb-3">
+                        <FaMusic className="w-6 h-6 text-green-400" />
+                        <h3 className="text-lg font-semibold">曲練習</h3>
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        楽曲を選んで練習を開始
+                      </p>
+                    </button>
 
-                {/* レッスン */}
-                <button
-                  onClick={() => { window.location.hash = '#lessons'; }}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
-                >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <FaTrophy className="w-6 h-6 text-purple-400" />
-                    <h3 className="text-lg font-semibold">レッスン</h3>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    ジャズ理論を学習
-                  </p>
-                </button>
-                
-                {/* ファンタジーモード */}
+                    {/* レッスン */}
+                    <button
+                      onClick={() => { window.location.hash = '#lessons'; }}
+                      className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                    >
+                      <div className="flex items-center space-x-3 mb-3">
+                        <FaTrophy className="w-6 h-6 text-purple-400" />
+                        <h3 className="text-lg font-semibold">レッスン</h3>
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        ジャズ理論を学習
+                      </p>
+                    </button>
+                  </>
+                )}
+
+                {/* ファンタジーモード（常に表示） */}
                 <button
                   onClick={() => { window.location.hash = '#fantasy'; }}
                   className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg p-6 border border-purple-600 hover:border-purple-400 transition-colors text-left relative overflow-hidden"
