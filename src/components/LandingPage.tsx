@@ -7,11 +7,7 @@ const LandingPage: React.FC = () => {
   const { user, isGuest, loading } = useAuthStore();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!loading && (user || isGuest)) {
-      navigate('/main#dashboard', { replace: true });
-    }
-  }, [user, isGuest, loading, navigate]);
+  // トップページではログイン済みでも自動リダイレクトしない
 
   const [openFaqId, setOpenFaqId] = useState<number | null>(null);
 

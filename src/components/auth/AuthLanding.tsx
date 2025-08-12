@@ -18,6 +18,13 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // ログイン画面にいるときは、既にログイン済みならダッシュボードへ即リダイレクト
+  useEffect(() => {
+    if (mode === 'login' && user && !isGuest) {
+      navigate('/main#dashboard', { replace: true });
+    }
+  }, [mode, user, isGuest, navigate]);
+
   useEffect(() => {
     if (mode !== 'signup') return;
     let aborted = false;
@@ -82,17 +89,21 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
 
   const handleGuest = () => {
     enterGuestMode();
+    navigate('/main#dashboard');
   };
 
   if (user && !isGuest) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white">
-        <div className="text-center">
-          <h1 className="text-2xl mb-4">既にログインしています</h1>
-          <a href="/main" className="btn btn-primary">メインページへ</a>
+    // モードがloginであれば上のuseEffectでリダイレクト済み。signupの場合のみ表示。
+    if (mode === 'signup') {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white">
+          <div className="text-center">
+            <h1 className="text-2xl mb-4">既にログインしています</h1>
+            <a href="/main#dashboard" className="btn btn-primary">ダッシュボードへ</a>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
   }
 
   return (
@@ -170,8 +181,9 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
             </div>
           </div>
 
-          <div className="text-center">
+          <div className="flex items-center justify-center gap-3">
             <button className="btn btn-secondary" onClick={handleGuest}>おためしプレイ</button>
+            <button className="btn btn-ghost" onClick={() => navigate('/')}>トップに戻る</button>
           </div>
         </div>
       </div>
