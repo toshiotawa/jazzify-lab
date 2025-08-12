@@ -86,7 +86,7 @@ const LandingPage: React.FC = () => {
                 to="/signup"
                 className="relative block rounded-2xl overflow-hidden text-white font-extrabold tracking-wide shadow-xl"
                 style={{
-                  backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0.55)), url(/first-view.png)',
+                  backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.12), rgba(0,0,0,0.32)), url(/first-view.png)',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   width: '100%',
