@@ -93,7 +93,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
 export default AuthGate;
 
 interface AccountModalProps {
-  onSubmit: (nickname: string, agreed: boolean) => Promise<void>;
+  onSubmit: (nickname: string, agreed: boolean, country?: string) => Promise<void>;
   error: string | null;
   onRetry: () => Promise<void>;
 }
@@ -101,6 +101,7 @@ interface AccountModalProps {
 const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error, onRetry }) => {
   const [nickname, setNickname] = useState('');
   const [agreed, setAgreed] = useState(false);
+  const [country, setCountry] = useState<string>(() => localStorage.getItem('signup_country') || 'JP');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -113,7 +114,7 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
 
     setSubmitting(true);
     try {
-      await onSubmit(nickname.trim(), agreed);
+      await onSubmit(nickname.trim(), agreed, country);
     } finally {
       setSubmitting(false);
     }
@@ -148,7 +149,7 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+                    <div className="space-y-4">
             <input
               type="text"
               placeholder="ニックネーム（必須）"
@@ -157,6 +158,22 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
               className="w-full px-4 py-2 rounded bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={submitting}
             />
+            <div className="space-y-2">
+              <label className="block text-sm">国</label>
+              <select
+                className="select select-bordered w-full"
+                value={country}
+                onChange={e => {
+                  setCountry(e.target.value);
+                  localStorage.setItem('signup_country', e.target.value);
+                }}
+                disabled={submitting}
+              >
+                <option value="JP">日本</option>
+                <option value="OVERSEAS">海外</option>
+              </select>
+              <p className="text-xs text-orange-300">※ 国を誤って選ぶと支払い方法が変わります</p>
+            </div>
             <label className="flex items-start space-x-2 text-sm">
               <input 
                 type="checkbox" 
