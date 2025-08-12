@@ -17,26 +17,27 @@ interface AuthState {
     message: string;
     title: string;
   } | null;
-  profile: {
-    nickname: string;
-    rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
-    level: number;
-    xp: number;
-    isAdmin: boolean;
-    id: string;
-    email?: string;
-    avatar_url?: string | null;
-    bio?: string | null;
-    twitter_handle?: string | null;
-    selected_title?: string | null;
-    next_season_xp_multiplier?: number;
-    // Stripe subscription fields
-    stripe_customer_id?: string;
-    will_cancel?: boolean;
-    cancel_date?: string;
-    downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
-    downgrade_date?: string;
-  } | null;
+    profile: {
+     nickname: string;
+     rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
+     level: number;
+     xp: number;
+     isAdmin: boolean;
+     id: string;
+     email?: string;
+     avatar_url?: string | null;
+     bio?: string | null;
+     twitter_handle?: string | null;
+     selected_title?: string | null;
+     next_season_xp_multiplier?: number;
+     country?: string | null;
+     // Stripe subscription fields
+     stripe_customer_id?: string;
+     will_cancel?: boolean;
+     cancel_date?: string;
+     downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
+     downgrade_date?: string;
+   } | null;
 }
 
 interface AuthActions {
@@ -46,7 +47,7 @@ interface AuthActions {
   logout: () => Promise<void>;
   enterGuestMode: () => void;
   fetchProfile: () => Promise<void>;
-  createProfile: (nickname: string, agreed: boolean) => Promise<void>;
+  createProfile: (nickname: string, agreed: boolean, country?: string) => Promise<void>;
   updateEmail: (newEmail: string) => Promise<{ success: boolean; message: string }>;
   clearEmailChangeStatus: () => void;
 }
@@ -445,7 +446,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, email')
+          .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, email, country')
           .eq('id', user.id)
           .maybeSingle(); // singleの代わりにmaybeSingleを使用してNot Found エラーを防ぐ
         
@@ -462,12 +463,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               xp: data.xp,
               isAdmin: data.is_admin,
               id: user.id,
-              email: data.email || user.email,
+                             email: data.email || user.email,
+               country: data.country || null,
               avatar_url: data.avatar_url,
               bio: data.bio,
               twitter_handle: data.twitter_handle,
               selected_title: data.selected_title,
-              next_season_xp_multiplier: data.next_season_xp_multiplier,
+                             next_season_xp_multiplier: data.next_season_xp_multiplier,
+               country: data.country, 
               stripe_customer_id: data.stripe_customer_id,
               will_cancel: data.will_cancel,
               cancel_date: data.cancel_date,
@@ -512,7 +515,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       }
     },
 
-    createProfile: async (nickname, agreed) => {
+         createProfile: async (nickname, agreed, country) => {
       if (!agreed) {
         set(state => {
           state.error = '利用規約に同意してください';
@@ -538,7 +541,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         // まず既存のプロフィールを確認
         const { data: existingProfile } = await supabase
           .from('profiles')
-          .select('nickname, created_at')
+          .select('nickname, created_at, country')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -554,15 +557,16 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
 
         // 新規プロフィール作成
-        const { error } = await supabase.from('profiles').insert({
-          id: user.id,
-          email: user.email!,
-          nickname,
-          rank: 'free',
-          xp: 0,
-          level: 1,
-          is_admin: false,
-        });
+                 const { error } = await supabase.from('profiles').insert({
+           id: user.id,
+           email: user.email!,
+           nickname,
+           rank: 'free',
+           xp: 0,
+           level: 1,
+           is_admin: false,
+           country: country === 'JP' ? 'JP' : country ? String(country) : null,
+         });
         
         if (error) {
           throw error;

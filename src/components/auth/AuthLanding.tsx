@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { getCountryLabel, getSortedCountryCodesWithJPFirst } from '@/constants/countries';
 import { useToast, handleApiError } from '@/stores/toastStore';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -12,16 +13,43 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [signupDisabled, setSignupDisabled] = useState(false);
+  const [country, setCountry] = useState<string>('JP');
+  const [loadingGeo, setLoadingGeo] = useState<boolean>(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    if (mode !== 'signup') return;
+    let aborted = false;
+    // prefer previously selected value
+    const stored = localStorage.getItem('signup_country');
+    if (stored) setCountry(stored);
+    setLoadingGeo(true);
+    fetch('/.netlify/functions/getGeoCountry')
+      .then(res => res.ok ? res.json() : Promise.reject(new Error('Geo API error')))
+      .then(data => {
+        if (aborted) return;
+        const code = (data?.country as string | null)?.toUpperCase() || null;
+        if (code === 'JP') setCountry(prev => prev || 'JP');
+        else if (code) setCountry(prev => prev || 'OVERSEAS');
+      })
+      .catch(() => {})
+      .finally(() => setLoadingGeo(false));
+    return () => { aborted = true; };
+  }, [mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
     setSignupDisabled(false);
-    
+
     try {
+      // persist chosen country for profile creation step
+      if (mode === 'signup') {
+        localStorage.setItem('signup_country', country);
+      }
+
       await sendOtp(email, mode);
       toast.success(
         mode === 'signup'
@@ -43,11 +71,11 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
     } catch (err) {
       console.error('認証コード送信エラー:', err);
       const errorMessage = err instanceof Error ? err.message : '認証コード送信に失敗しました';
-      
+
       if (errorMessage.includes('Signups not allowed') || errorMessage.includes('signups not allowed')) {
         setSignupDisabled(true);
       }
-      
+
       toast.error(handleApiError(err, '認証コード送信'));
     }
   };
@@ -79,6 +107,23 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
 
           <div className="bg-gray-800 p-8 rounded-lg shadow-lg space-y-6">
             <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'signup' && (
+                <div className="space-y-2">
+                  <label htmlFor="country" className="block text-sm font-medium">国</label>
+                  <select
+                    id="country"
+                    className="w-full select select-bordered"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    disabled={loading}
+                  >
+                    {getSortedCountryCodesWithJPFirst('ja').map(c => (
+                      <option key={c} value={c}>{getCountryLabel(c, 'ja')}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-orange-300">※ 国を誤って選ぶと支払い方法が変わります</p>
+                </div>
+              )}
               <div>
                 <label htmlFor="email" className="block text-sm font-medium mb-2">
                   メールアドレス
