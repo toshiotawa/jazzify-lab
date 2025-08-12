@@ -114,6 +114,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               state.session = session;
               state.user = session.user;
               state.isGuest = false;
+              state.guestId = null;
             });
             // プロフィール情報を再取得
             get().fetchProfile();
@@ -138,6 +139,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                   state.session = data.session;
                   state.user = data.session.user;
                   state.isGuest = false;
+                  state.guestId = null;
                 });
                 get().fetchProfile();
               } else if (data.event === 'SIGNED_OUT') {
@@ -170,6 +172,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set(state => {
           state.session = session ?? null;
           state.user = session?.user ?? null;
+          // ログイン状態になったらゲストフラグを必ず解除
+          if (session?.user) {
+            state.isGuest = false;
+          }
           // エラーをクリア
           if (session) {
             state.error = null;
@@ -370,6 +376,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             state.user = data.session!.user;
             state.loading = false;
             state.error = null;
+            state.isGuest = false;
           });
           
           // プロファイルを取得
