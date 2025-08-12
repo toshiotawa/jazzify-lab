@@ -22,12 +22,14 @@ import {
   FaPlus,
   FaLink
 } from 'react-icons/fa';
+import { AnnouncementAudience, parseAnnouncementAudience, withAudiencePrefix } from '@/utils/planFlags';
 
 const AnnouncementManager: React.FC = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [audience, setAudience] = useState<AnnouncementAudience>('all');
   
   const { 
     register, 
@@ -58,7 +60,6 @@ const AnnouncementManager: React.FC = () => {
       value.substring(0, selectionStart) +
       linkMarkdown +
       value.substring(selectionEnd);
-    // React-Hook-Form に値を同期
     setValue('content', textarea.value, { shouldValidate: true });
   };
 
@@ -80,15 +81,16 @@ const AnnouncementManager: React.FC = () => {
 
   const onSubmit = async (data: CreateAnnouncementData) => {
     try {
+      const prefixedTitle = withAudiencePrefix(data.title, audience);
       if (editingId) {
-        await updateAnnouncement(editingId, data);
+        await updateAnnouncement(editingId, { ...data, title: prefixedTitle });
         toast.success('お知らせを更新しました', {
           title: '更新完了',
           duration: 3000,
         });
         setEditingId(null);
       } else {
-        await createAnnouncement(data);
+        await createAnnouncement({ ...data, title: prefixedTitle });
         toast.success('お知らせを作成しました', {
           title: '作成完了', 
           duration: 3000,
@@ -96,6 +98,7 @@ const AnnouncementManager: React.FC = () => {
       }
       
       reset();
+      setAudience('all');
       setShowForm(false);
       await loadAnnouncements();
     } catch (e: any) {
@@ -107,7 +110,11 @@ const AnnouncementManager: React.FC = () => {
 
   const handleEdit = (announcement: Announcement) => {
     setEditingId(announcement.id);
-    setValue('title', announcement.title);
+    // 既存タイトルからオーディエンスを抽出し、タグは除去
+    const aud = parseAnnouncementAudience(announcement.title);
+    setAudience(aud);
+    const strippedTitle = announcement.title.replace(/^\s*\[(GLOBAL|WORLD|JP|JAPAN)\]\s*/i, '').trim();
+    setValue('title', strippedTitle);
     setValue('content', announcement.content);
     setValue('link_url', announcement.link_url || '');
     setValue('link_text', announcement.link_text || '');
@@ -168,6 +175,7 @@ const AnnouncementManager: React.FC = () => {
     setEditingId(null);
     setShowForm(false);
     reset();
+    setAudience('all');
   };
 
   return (
@@ -192,19 +200,33 @@ const AnnouncementManager: React.FC = () => {
           </h4>
           
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">タイトル *</label>
-              <input
-                {...register('title', { 
-                  required: 'タイトルは必須です',
-                  maxLength: { value: 100, message: '100文字以内' }
-                })}
-                className="input input-bordered w-full text-white"
-                placeholder="お知らせのタイトルを入力"
-              />
-              {errors.title && (
-                <p className="text-red-400 text-xs mt-1">{errors.title.message}</p>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">タイトル *</label>
+                <input
+                  {...register('title', { 
+                    required: 'タイトルは必須です',
+                    maxLength: { value: 100, message: '100文字以内' }
+                  })}
+                  className="input input-bordered w-full text-white"
+                  placeholder="お知らせのタイトルを入力"
+                />
+                {errors.title && (
+                  <p className="text-red-400 text-xs mt-1">{errors.title.message}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">対象</label>
+                <select
+                  className="select select-bordered w-full bg-slate-700 text-white"
+                  value={audience}
+                  onChange={(e)=>setAudience(e.target.value as AnnouncementAudience)}
+                >
+                  <option value="all">すべて</option>
+                  <option value="jp">日本向け</option>
+                  <option value="global">Global</option>
+                </select>
+              </div>
             </div>
 
             <div>

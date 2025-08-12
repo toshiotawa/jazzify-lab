@@ -5,6 +5,7 @@ import { FaHome, FaUserCircle } from 'react-icons/fa';
 import { FaBell } from 'react-icons/fa';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { isStandardGlobalMode } from '@/utils/planFlags';
 
 /**
  * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
@@ -13,6 +14,7 @@ import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 const GameHeader: React.FC = () => {
   const gameActions = useGameActions();
   const { isGuest } = useAuthStore();
+  const isGlobal = isStandardGlobalMode();
 
   return (
     <header className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]">
@@ -29,22 +31,27 @@ const GameHeader: React.FC = () => {
             トップ
           </button>
 
-          {/* 曲選択タブ */}
-          <HashButton
-            hash="#songs"
-            onClick={() => {
-              gameActions.setCurrentTab?.('songs');
-            }}
-            disabled={isGuest}
-          >
-            曲選択
-          </HashButton>
+          {/* 曲選択タブ（Globalモードでは非表示）*/}
+          {!isGlobal && (
+            <HashButton
+              hash="#songs"
+              onClick={() => {
+                gameActions.setCurrentTab?.('songs');
+              }}
+              disabled={isGuest}
+            >
+              曲選択
+            </HashButton>
+          )}
 
-          <HashButton hash="#lessons" disabled={isGuest}>レッスン</HashButton>
+          {/* レッスン（Globalモードでは非表示）*/}
+          {!isGlobal && <HashButton hash="#lessons" disabled={isGuest}>レッスン</HashButton>}
           <HashButton hash="#fantasy">ファンタジー</HashButton>
+          {/* ランキング（Globalモードでも表示可）*/}
           <HashButton hash="#ranking" disabled={isGuest}>ランキング</HashButton>
-          <HashButton hash="#missions" disabled={isGuest}>ミッション</HashButton>
-          <HashButton hash="#diary" disabled={isGuest}>日記</HashButton>
+          {/* ミッション（日記）はGlobalモードでは非表示）*/}
+          {!isGlobal && <HashButton hash="#missions" disabled={isGuest}>ミッション</HashButton>}
+          {!isGlobal && <HashButton hash="#diary" disabled={isGuest}>日記</HashButton>}
           <HashButton hash="#information" disabled={isGuest}>お知らせ</HashButton>
         </div>
 

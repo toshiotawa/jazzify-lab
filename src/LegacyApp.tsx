@@ -23,6 +23,7 @@ import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import PricingTable from '@/components/subscription/PricingTable';
 import FantasyMain from '@/components/fantasy/FantasyMain';
+import { isStandardGlobalMode } from '@/utils/planFlags';
 
 /**
  * メインアプリケーションコンポーネント
@@ -53,6 +54,17 @@ const App: React.FC = () => {
       window.location.hash = '#dashboard';
     }
   }, []);
+  
+  // 権限制御: Standard(Global) では特定画面にアクセス不可
+  useEffect(() => {
+    const isGlobal = isStandardGlobalMode();
+    if (!isGlobal) return;
+    const base = window.location.hash.split('?')[0];
+    const blocked = new Set(['#songs', '#lessons', '#missions', '#diary', '#lesson-detail', '#mission-ranking']);
+    if (blocked.has(base)) {
+      window.location.hash = '#dashboard';
+    }
+  }, [hash]);
   
   // ゲーム設定書き換え用アクション
   const updateGameSettings = useGameStore((state) => state.updateSettings);
