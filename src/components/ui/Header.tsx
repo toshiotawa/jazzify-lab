@@ -7,6 +7,7 @@ const Header: React.FC = () => {
   const { user, isGuest, logout, enterGuestMode } = useAuthStore();
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
+  const isFreePlan = useAuthStore.getState().profile?.rank === 'free';
 
   const handleLogoutToLogin = async () => {
     await logout();
@@ -61,10 +62,12 @@ const Header: React.FC = () => {
             <button className="btn btn-sm" onClick={()=>{location.hash='#account'}}>
               アカウント
             </button>
-            <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#mypage'}}>
-              マイページ
-            </button>
-            {useAuthStore.getState().profile?.rank !== 'standard_global' && (
+            {!isFreePlan && (
+              <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#mypage'}}>
+                マイページ
+              </button>
+            )}
+            {!isFreePlan && useAuthStore.getState().profile?.rank !== 'standard_global' && (
               <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#diary';}}>
                 コミュニティ
               </button>
@@ -118,13 +121,15 @@ const Header: React.FC = () => {
                 >
                   アカウント
                 </button>
-                <button 
-                  className="btn btn-sm btn-outline w-full text-left" 
-                  onClick={()=>{location.hash='#mypage'; setMenuOpen(false);}}
-                >
-                  マイページ
-                </button>
-                {useAuthStore.getState().profile?.rank !== 'standard_global' && (
+                {!isFreePlan && (
+                  <button 
+                    className="btn btn-sm btn-outline w-full text-left" 
+                    onClick={()=>{location.hash='#mypage'; setMenuOpen(false);}}
+                  >
+                    マイページ
+                  </button>
+                )}
+                {!isFreePlan && useAuthStore.getState().profile?.rank !== 'standard_global' && (
                   <button 
                     className="btn btn-sm btn-outline w-full text-left" 
                     onClick={()=>{location.hash='#diary'; setMenuOpen(false);}}

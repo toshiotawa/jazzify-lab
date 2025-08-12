@@ -23,6 +23,7 @@ import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import PricingTable from '@/components/subscription/PricingTable';
 import FantasyMain from '@/components/fantasy/FantasyMain';
+import { useMemo } from 'react';
 
 /**
  * メインアプリケーションコンポーネント
@@ -173,6 +174,16 @@ const App: React.FC = () => {
     );
   }
 
+  // フリープランのアクセス制限: ダッシュボードとアカウント以外は不可
+  const isFreePlan = profile?.rank === 'free';
+  if (isFreePlan) {
+    if (hash === '#account') {
+      // アカウントは許可
+    } else if (hash !== '#dashboard' && hash !== '#login') {
+      window.location.hash = '#dashboard';
+    }
+  }
+
   // 専用ページ (#account / #mypage) 表示中は他コンテンツを隠す
   if (hash === '#account') {
     return (
@@ -207,6 +218,11 @@ const App: React.FC = () => {
   // ハッシュをベース部分だけで判定するための処理
   const baseHash = hash.split('?')[0];
   const isStandardGlobal = profile?.rank === 'standard_global';
+  const isAllowedForFree = baseHash === '#dashboard' || baseHash === '#account' || baseHash === '#login';
+  if (isFreePlan && !isAllowedForFree) {
+    // フリープランはダッシュボードとアカウント以外アクセス不可
+    window.location.hash = '#dashboard';
+  }
   
   switch (baseHash) {
     case '#dashboard':
@@ -214,29 +230,29 @@ const App: React.FC = () => {
       break;
     case '#diary':
     case '#diary-user':
-      MainContent = <DiaryPage />;
+      MainContent = isFreePlan ? <Dashboard /> : <DiaryPage />;
       break;
     case '#lessons':
-      MainContent = <LessonPage />;
+      MainContent = isFreePlan ? <Dashboard /> : <LessonPage />;
       break;
     case '#lesson-detail':
-      MainContent = <LessonDetailPage />;
+      MainContent = isFreePlan ? <Dashboard /> : <LessonDetailPage />;
       break;
     case '#ranking':
-      MainContent = <LevelRanking />;
+      MainContent = isFreePlan ? <Dashboard /> : <LevelRanking />;
       break;
     case '#missions':
     case '#mission':
-      MainContent = <MissionPage />;
+      MainContent = isFreePlan ? <Dashboard /> : <MissionPage />;
       break;
     case '#mission-ranking':
-      MainContent = <MissionRanking />;
+      MainContent = isFreePlan ? <Dashboard /> : <MissionRanking />;
       break;
     case '#information':
-      MainContent = <InformationPage />;
+      MainContent = isFreePlan ? <Dashboard /> : <InformationPage />;
       break;
     case '#pricing':
-      MainContent = <PricingTable />;
+      MainContent = isFreePlan ? <Dashboard /> : <PricingTable />;
       break;
     case '#admin-songs':
     case '#admin-fantasy-bgm':
@@ -246,20 +262,20 @@ const App: React.FC = () => {
     case '#admin-users':
     case '#admin-announcements':
     case '#admin-courses':
-      MainContent = <AdminDashboard />;
+      MainContent = isFreePlan ? <Dashboard /> : <AdminDashboard />;
       break;
     case '#fantasy':
-      MainContent = <FantasyMain />;
+      MainContent = isFreePlan ? <Dashboard /> : <FantasyMain />;
       break;
     case '#songs':
     case '#practice':
     case '#performance':
     case '#play-lesson':
     case '#play-mission':
-      MainContent = isStandardGlobal ? <Dashboard /> : <GameScreen />;
+      MainContent = (isFreePlan || isStandardGlobal) ? <Dashboard /> : <GameScreen />;
       break;
     default:
-      MainContent = isStandardGlobal ? <Dashboard /> : <GameScreen />;
+      MainContent = (isFreePlan || isStandardGlobal) ? <Dashboard /> : <GameScreen />;
       break;
   }
 

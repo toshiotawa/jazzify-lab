@@ -14,6 +14,7 @@ const GameHeader: React.FC = () => {
   const gameActions = useGameActions();
   const { isGuest, profile } = useAuthStore();
   const isStandardGlobal = profile?.rank === 'standard_global';
+  const isFreePlan = profile?.rank === 'free';
 
   return (
     <header className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]">
@@ -31,7 +32,7 @@ const GameHeader: React.FC = () => {
           </button>
 
           {/* 曲選択タブ */}
-          {!isStandardGlobal && (
+          {!isStandardGlobal && !isFreePlan && (
             <HashButton
               hash="#songs"
               onClick={() => {
@@ -43,12 +44,12 @@ const GameHeader: React.FC = () => {
             </HashButton>
           )}
 
-          {!isStandardGlobal && <HashButton hash="#lessons" disabled={isGuest}>レッスン</HashButton>}
-          <HashButton hash="#fantasy">ファンタジー</HashButton>
-          <HashButton hash="#ranking" disabled={isGuest}>ランキング</HashButton>
-          {!isStandardGlobal && <HashButton hash="#missions" disabled={isGuest}>ミッション</HashButton>}
-          {!isStandardGlobal && <HashButton hash="#diary" disabled={isGuest}>日記</HashButton>}
-          <HashButton hash="#information" disabled={isGuest}>お知らせ</HashButton>
+          {!isStandardGlobal && !isFreePlan && <HashButton hash="#lessons" disabled={isGuest}>レッスン</HashButton>}
+          {!isFreePlan && <HashButton hash="#fantasy">ファンタジー</HashButton>}
+          {!isFreePlan && <HashButton hash="#ranking" disabled={isGuest}>ランキング</HashButton>}
+          {!isStandardGlobal && !isFreePlan && <HashButton hash="#missions" disabled={isGuest}>ミッション</HashButton>}
+          {!isStandardGlobal && !isFreePlan && <HashButton hash="#diary" disabled={isGuest}>日記</HashButton>}
+          {!isFreePlan && <HashButton hash="#information" disabled={isGuest}>お知らせ</HashButton>}
         </div>
 
         {/* 右側のコントロール */}
