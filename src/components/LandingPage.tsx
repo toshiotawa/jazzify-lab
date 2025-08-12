@@ -137,11 +137,11 @@ const LandingPage: React.FC = () => {
                 <p className="text-gray-300 leading-relaxed">
                   ジャズに憧れを持つ青年。ジャズ研究会に所属していたが、コードが覚えられず、なかなかジャズらしくならないことに悩んでいた。突然ジャズ異世界に飛ばされてしまう。
                 </p>
-                <ul className="mt-6 text-left inline-block text-sm text-gray-300 space-y-2">
-                  <li>初心者</li>
-                  <li>コードを覚えたい</li>
-                  <li>作曲に役立てたい</li>
-                  <li>何から始めればいい？</li>
+                <ul className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
+                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">初心者</li>
+                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">コードを覚えたい</li>
+                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">作曲に役立てたい</li>
+                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">何から始めればいい？</li>
                 </ul>
               </div>
 
@@ -154,8 +154,8 @@ const LandingPage: React.FC = () => {
                 <p className="text-gray-300 leading-relaxed">
                   異世界の住人で、エレキベースを弾く占い師。ファイが元の世界に戻れるよう、ジャズの奥義を伝授し、ジャズソーサラー（大魔法使い）への道を導く。
                 </p>
-                <ul className="mt-6 text-left inline-block text-sm text-gray-300 space-y-2">
-                  <li>練習時間が取れない</li>
+                <ul className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
+                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">練習時間が取れない</li>
                 </ul>
               </div>
 
@@ -168,9 +168,9 @@ const LandingPage: React.FC = () => {
                 <p className="text-gray-300 leading-relaxed">
                   ジャズを愛し、何らかの楽器をたしなんでいる異世界の住人たち。ファイと旅の道中で出会うといつもセッションを申し出てくる音楽好きな仲間たち。
                 </p>
-                <ul className="mt-6 text-left inline-block text-sm text-gray-300 space-y-2">
-                  <li>ジャズらしくならない</li>
-                  <li>1からきちんと学びたい</li>
+                <ul className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
+                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">ジャズらしくならない</li>
+                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">1からきちんと学びたい</li>
                 </ul>
               </div>
             </div>
@@ -214,7 +214,12 @@ const LandingPage: React.FC = () => {
                   <li><i className="fas fa-star text-yellow-400 mr-2"></i>スロー再生機能</li>
                   <li><i className="fas fa-star text-yellow-400 mr-2"></i>フレーズ分析機能</li>
                 </ul>
-                <div className="mt-6 text-sm text-gray-400">「ファイタイプのあなた」におすすめ！</div>
+                <div className="mt-6">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-yellow-500/40 text-xs text-yellow-200">
+                    <i className="fas fa-thumbs-up text-yellow-400"></i>
+                    「ファイタイプのあなた」におすすめ！
+                  </div>
+                </div>
               </div>
 
               {/* Fantasy Mode */}
@@ -237,7 +242,12 @@ const LandingPage: React.FC = () => {
                   <li><i className="fas fa-magic text-purple-400 mr-2"></i>スキルツリーシステム</li>
                   <li><i className="fas fa-magic text-purple-400 mr-2"></i>アイテム収集機能</li>
                 </ul>
-                <div className="mt-6 text-sm text-gray-400">「ジャジィタイプのあなた」におすすめ！</div>
+                <div className="mt-6">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-purple-500/40 text-xs text-purple-200">
+                    <i className="fas fa-thumbs-up text-purple-400"></i>
+                    「ジャジィタイプのあなた」におすすめ！
+                  </div>
+                </div>
               </div>
 
               {/* Lesson Mode */}
@@ -260,7 +270,12 @@ const LandingPage: React.FC = () => {
                   <li><i className="fas fa-video text-blue-400 mr-2"></i>課題チェック機能</li>
                   <li><i className="fas fa-video text-blue-400 mr-2"></i>進捗管理システム</li>
                 </ul>
-                <div className="mt-6 text-sm text-gray-400">「モンスタータイプのあなた」におすすめ！</div>
+                <div className="mt-6">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-blue-500/40 text-xs text-blue-200">
+                    <i className="fas fa-thumbs-up text-blue-400"></i>
+                    「モンスタータイプのあなた」におすすめ！
+                  </div>
+                </div>
               </div>
             </div>
           </div>
