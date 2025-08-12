@@ -7,6 +7,10 @@ const Header: React.FC = () => {
   const { user, isGuest, logout, enterGuestMode } = useAuthStore();
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
+  // ログイン状態に移行したらゲストIDをクリーンアップ
+  if (user && !isGuest) {
+    try { localStorage.removeItem('guest_id'); } catch {}
+  }
 
   const handleLogoutToLogin = async () => {
     await logout();
