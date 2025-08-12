@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import { getCountryLabel, getSortedCountryCodesWithJPFirst } from '@/constants/countries';
+import { getCountryLabel, getSortedCountryCodes } from '@/constants/countries';
 import { useToast, handleApiError } from '@/stores/toastStore';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -117,8 +117,8 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
                     onChange={(e) => setCountry(e.target.value)}
                     disabled={loading}
                   >
-                    {getSortedCountryCodesWithJPFirst('ja').map(c => (
-                      <option key={c} value={c}>{getCountryLabel(c, 'ja')}</option>
+                    {getSortedCountryCodes('en').map(c => (
+                      <option key={c} value={c}>{getCountryLabel(c, 'en')}</option>
                     ))}
                   </select>
                   <p className="text-xs text-orange-300">※ 国を誤って選ぶと支払い方法が変わります</p>

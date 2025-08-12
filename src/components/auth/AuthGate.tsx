@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/utils/cn';
-import { getCountryLabel, getSortedCountryCodesWithJPFirst } from '@/constants/countries';
+import { getCountryLabel, getSortedCountryCodes } from '@/constants/countries';
 import { Navigate, useLocation } from 'react-router-dom';
 
 interface AuthGateProps {
@@ -170,8 +170,8 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
                 }}
                 disabled={submitting}
               >
-                {getSortedCountryCodesWithJPFirst('ja').map(c => (
-                  <option key={c} value={c}>{getCountryLabel(c, 'ja')}</option>
+                {getSortedCountryCodes('en').map(c => (
+                  <option key={c} value={c}>{getCountryLabel(c, 'en')}</option>
                 ))}
               </select>
               <p className="text-xs text-orange-300">※ 国を誤って選ぶと支払い方法が変わります</p>

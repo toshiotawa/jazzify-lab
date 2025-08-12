@@ -53,3 +53,19 @@ export function getSortedCountryCodesWithJPFirst(locale: string = 'ja'): string[
   });
   return [jp, ...sorted];
 }
+
+// New: Return all country codes sorted by locale without prioritizing any
+export function getSortedCountryCodes(locale: string = 'en'): string[] {
+  const dn = (() => {
+    try {
+      return new Intl.DisplayNames([locale], { type: 'region' });
+    } catch {
+      return null as any;
+    }
+  })();
+  return [...ISO_COUNTRY_CODES].sort((a, b) => {
+    const an = dn ? (dn.of(a) || a) : a;
+    const bn = dn ? (dn.of(b) || b) : b;
+    return an.localeCompare(bn, locale);
+  });
+}
