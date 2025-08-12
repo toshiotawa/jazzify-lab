@@ -74,7 +74,7 @@ const LandingPage: React.FC = () => {
         {/* Hero Section */}
         <section className="hero-bg min-h-screen flex items-center justify-center pt-20">
           <div className="container mx-auto px-6 text-center">
-            <div className="floating-animation">
+            <div>
               <h1 className="text-6xl md:text-8xl font-black mb-6 section-title">Jazzify</h1>
               <p className="text-xl md:text-3xl text-purple-200 mb-8 max-w-3xl mx-auto leading-relaxed">
                 練習を冒険に。<br />
@@ -121,56 +121,65 @@ const LandingPage: React.FC = () => {
               <p className="text-lg leading-relaxed text-gray-300 mt-6">
                 世界観は遊び心、学習はガチ。— そんな“冒険する学習体験”がJazzifyです。
               </p>
+              <p className="text-sm text-gray-400 mt-4">
+                “Jazzify” は接尾語「-fy」（〇〇化する）から生まれた言葉。あなたの演奏を「ジャズ化」するという意味を込めています。
+              </p>
             </div>
 
             {/* Character Cards */}
             <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {/* Protagonist */}
-              <div className="character-card rounded-2xl p-8 text-center floating-animation">
+              <div className="character-card rounded-2xl p-8 text-center">
                 <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                   <img src="/default_avater/default-avater.png" alt="不破市太郎 (ファイ)" className="w-full h-full object-cover" />
                 </div>
                 <h3 className="text-2xl font-bold mb-4 text-blue-300">不破市太郎 (ファイ)</h3>
-                <div className="text-sm text-purple-300 mb-4">主人公・見習いジャズマン</div>
                 <p className="text-gray-300 leading-relaxed">
                   ジャズに憧れを持つ青年。ジャズ研究会に所属していたが、コードが覚えられず、なかなかジャズらしくならないことに悩んでいた。突然ジャズ異世界に飛ばされてしまう。
                 </p>
-                <div className="mt-6 flex justify-center space-x-4 text-sm">
-                  <span className="bg-blue-600 px-3 py-1 rounded-full">初心者</span>
-                  <span className="bg-purple-600 px-3 py-1 rounded-full">努力家</span>
-                </div>
+                <ul className="mt-6 text-left inline-block text-sm text-gray-300 space-y-2">
+                  <li>初心者</li>
+                  <li>コードを覚えたい</li>
+                  <li>作曲に役立てたい</li>
+                  <li>何から始めればいい？</li>
+                </ul>
               </div>
 
               {/* Master */}
-              <div className="character-card rounded-2xl p-8 text-center floating-animation" style={{ animationDelay: '0.5s' }}>
+              <div className="character-card rounded-2xl p-8 text-center">
                 <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                   <img src="/stage_icons/5.png" alt="ジャ爺 (ジャジィ)" className="w-24 h-24 object-contain" />
                 </div>
                 <h3 className="text-2xl font-bold mb-4 text-green-300">ジャ爺 (ジャジィ)</h3>
-                <div className="text-sm text-purple-300 mb-4">師匠・エレキベース占い師</div>
                 <p className="text-gray-300 leading-relaxed">
                   異世界の住人で、エレキベースを弾く占い師。ファイが元の世界に戻れるよう、ジャズの奥義を伝授し、ジャズソーサラー（大魔法使い）への道を導く。
                 </p>
-                <div className="mt-6 flex justify-center space-x-4 text-sm">
-                  <span className="bg-green-600 px-3 py-1 rounded-full">賢者</span>
-                  <span className="bg-teal-600 px-3 py-1 rounded-full">ベーシスト</span>
-                </div>
+                <ul className="mt-6 text-left inline-block text-sm text-gray-300 space-y-2">
+                  <li>練習時間が取れない</li>
+                </ul>
               </div>
 
               {/* Monsters */}
-              <div className="character-card rounded-2xl p-8 text-center floating-animation" style={{ animationDelay: '1s' }}>
+              <div className="character-card rounded-2xl p-8 text-center">
                 <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                   <img src="/monster_icons/monster_43.png" alt="異世界のモンスター" className="w-24 h-24 object-contain" />
                 </div>
                 <h3 className="text-2xl font-bold mb-4 text-pink-300">異世界のモンスター</h3>
-                <div className="text-sm text-purple-300 mb-4">セッション相手・音楽愛好家</div>
                 <p className="text-gray-300 leading-relaxed">
                   ジャズを愛し、何らかの楽器をたしなんでいる異世界の住人たち。ファイと旅の道中で出会うといつもセッションを申し出てくる音楽好きな仲間たち。
                 </p>
-                <div className="mt-6 flex justify-center space-x-4 text-sm">
-                  <span className="bg-pink-600 px-3 py-1 rounded-full">音楽愛好家</span>
-                  <span className="bg-red-600 px-3 py-1 rounded-full">セッション仲間</span>
-                </div>
+                <ul className="mt-6 text-left inline-block text-sm text-gray-300 space-y-2">
+                  <li>ジャズらしくならない</li>
+                  <li>1からきちんと学びたい</li>
+                </ul>
+              </div>
+            </div>
+            <div className="mt-12 text-center">
+              <h4 className="text-2xl font-bold mb-4">あなたはどのタイプ？</h4>
+              <div className="flex flex-col md:flex-row items-center justify-center gap-4 text-sm">
+                <span className="px-4 py-2 rounded-full bg-slate-800">ファイタイプ</span>
+                <span className="px-4 py-2 rounded-full bg-slate-800">ジャジィタイプ</span>
+                <span className="px-4 py-2 rounded-full bg-slate-800">モンスタータイプ</span>
               </div>
             </div>
           </div>
@@ -187,6 +196,9 @@ const LandingPage: React.FC = () => {
             <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {/* Legend Mode */}
               <div className="feature-card rounded-2xl p-8 magic-glow">
+                <div className="w-full h-32 mb-6 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center text-sm text-gray-500">
+                  画像（準備中）
+                </div>
                 <div className="text-center mb-6">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                     <img src="/monster_icons/monster_61.png" alt="レジェンドモード" className="w-14 h-14 object-contain" />
@@ -202,10 +214,14 @@ const LandingPage: React.FC = () => {
                   <li><i className="fas fa-star text-yellow-400 mr-2"></i>スロー再生機能</li>
                   <li><i className="fas fa-star text-yellow-400 mr-2"></i>フレーズ分析機能</li>
                 </ul>
+                <div className="mt-6 text-sm text-gray-400">「ファイタイプのあなた」におすすめ！</div>
               </div>
 
               {/* Fantasy Mode */}
               <div className="feature-card rounded-2xl p-8 magic-glow">
+                <div className="w-full h-32 mb-6 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center text-sm text-gray-500">
+                  画像（準備中）
+                </div>
                 <div className="text-center mb-6">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                     <img src="/monster_icons/monster_35.png" alt="ファンタジーモード" className="w-14 h-14 object-contain" />
@@ -221,10 +237,14 @@ const LandingPage: React.FC = () => {
                   <li><i className="fas fa-magic text-purple-400 mr-2"></i>スキルツリーシステム</li>
                   <li><i className="fas fa-magic text-purple-400 mr-2"></i>アイテム収集機能</li>
                 </ul>
+                <div className="mt-6 text-sm text-gray-400">「ジャジィタイプのあなた」におすすめ！</div>
               </div>
 
               {/* Lesson Mode */}
               <div className="feature-card rounded-2xl p-8 magic-glow">
+                <div className="w-full h-32 mb-6 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center text-sm text-gray-500">
+                  画像（準備中）
+                </div>
                 <div className="text-center mb-6">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                     <img src="/stage_icons/3.png" alt="レッスンモード" className="w-14 h-14 object-contain" />
@@ -240,6 +260,7 @@ const LandingPage: React.FC = () => {
                   <li><i className="fas fa-video text-blue-400 mr-2"></i>課題チェック機能</li>
                   <li><i className="fas fa-video text-blue-400 mr-2"></i>進捗管理システム</li>
                 </ul>
+                <div className="mt-6 text-sm text-gray-400">「モンスタータイプのあなた」におすすめ！</div>
               </div>
             </div>
           </div>
@@ -256,6 +277,9 @@ const LandingPage: React.FC = () => {
             <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {/* Practice Diary */}
               <div className="feature-card rounded-2xl p-8">
+                <div className="w-full h-32 mb-6 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center text-sm text-gray-500">
+                  画像（準備中）
+                </div>
                 <div className="text-center mb-6">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                     <img src="/monster_icons/monster_32.png" alt="練習日記" className="w-14 h-14 object-contain" />
@@ -287,6 +311,9 @@ const LandingPage: React.FC = () => {
 
               {/* Experience System */}
               <div className="feature-card rounded-2xl p-8">
+                <div className="w-full h-32 mb-6 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center text-sm text-gray-500">
+                  画像（準備中）
+                </div>
                 <div className="text-center mb-6">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                     <img src="/stage_icons/8.png" alt="経験値システム" className="w-14 h-14 object-contain" />
@@ -318,6 +345,9 @@ const LandingPage: React.FC = () => {
 
               {/* Ranking System */}
               <div className="feature-card rounded-2xl p-8">
+                <div className="w-full h-32 mb-6 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center text-sm text-gray-500">
+                  画像（準備中）
+                </div>
                 <div className="text-center mb-6">
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                     <img src="/monster_icons/monster_52.png" alt="ランキングシステム" className="w-14 h-14 object-contain" />
@@ -360,32 +390,32 @@ const LandingPage: React.FC = () => {
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
               <div className="feature-card rounded-xl p-6 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
-                  <img src="/monster_icons/monster_22.png" alt="スマートフォン" className="w-10 h-10 object-contain" />
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/monster_icons/monster_22.png" alt="スマートフォン" className="w-14 h-14 object-contain" />
                 </div>
                 <h3 className="text-lg font-bold text-blue-300 mb-2">スマートフォン</h3>
                 <p className="text-sm text-gray-400">iOS・Android対応</p>
               </div>
 
               <div className="feature-card rounded-xl p-6 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
-                  <img src="/monster_icons/monster_40.png" alt="PCブラウザ" className="w-10 h-10 object-contain" />
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/monster_icons/monster_40.png" alt="PCブラウザ" className="w-14 h-14 object-contain" />
                 </div>
                 <h3 className="text-lg font-bold text-green-300 mb-2">PCブラウザ</h3>
                 <p className="text-sm text-gray-400">Chrome・Safari・Firefox</p>
               </div>
 
               <div className="feature-card rounded-xl p-6 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
-                  <img src="/monster_icons/monster_13.png" alt="MIDI対応" className="w-10 h-10 object-contain" />
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/monster_icons/monster_13.png" alt="MIDI対応" className="w-14 h-14 object-contain" />
                 </div>
                 <h3 className="text-lg font-bold text-purple-300 mb-2">MIDI対応</h3>
                 <p className="text-sm text-gray-400">キーボード接続可能</p>
               </div>
 
               <div className="feature-card rounded-xl p-6 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
-                  <img src="/monster_icons/monster_47.png" alt="音声入力" className="w-10 h-10 object-contain" />
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/monster_icons/monster_47.png" alt="音声入力" className="w-14 h-14 object-contain" />
                 </div>
                 <h3 className="text-lg font-bold text-pink-300 mb-2">音声入力</h3>
                 <p className="text-sm text-gray-400">ピッチ認識機能</p>
