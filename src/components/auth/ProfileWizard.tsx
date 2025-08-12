@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
+import { getCountryLabel, getSortedCountryCodesWithJPFirst } from '@/constants/countries';
 
 const ProfileWizard: React.FC = () => {
   const { createProfile, hasProfile, error } = useAuthStore();
@@ -49,8 +50,9 @@ const ProfileWizard: React.FC = () => {
         <div className="space-y-2">
           <label className="block text-sm">国</label>
           <select className="select select-bordered w-full" value={country} onChange={e=>setCountry(e.target.value)} disabled={loadingGeo}>
-            <option value="JP">日本</option>
-            <option value="OVERSEAS">海外</option>
+            {getSortedCountryCodesWithJPFirst('ja').map(c => (
+              <option key={c} value={c}>{getCountryLabel(c, 'ja')}</option>
+            ))}
           </select>
           <p className="text-xs text-orange-300">※ 国を誤って選ぶと支払い方法が変わります</p>
         </div>
