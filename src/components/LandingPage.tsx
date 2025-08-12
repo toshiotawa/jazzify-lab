@@ -40,7 +40,7 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div ref={rootRef} className="min-h-screen w-full bg-gradient-to-b from-slate-950 via-slate-900 to-black text-white">
+    <div ref={rootRef} className="h-screen w-full overflow-y-auto bg-gradient-to-b from-slate-950 via-slate-900 to-black text-white">
       <Helmet>
         <title>Jazzify - ジャズをゲームで学ぶ</title>
         <meta name="description" content="MIDIキーボードやマイクのピッチ認識に対応。音ゲー/ファンタジー/RPG/レッスン/コミュニティを備えた新感覚ジャズ学習プラットフォーム。" />
