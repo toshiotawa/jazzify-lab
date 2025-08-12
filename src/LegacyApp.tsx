@@ -37,6 +37,7 @@ const App: React.FC = () => {
   
   // 認証ストアの状態
   const { profile, loading:authLoading, isGuest, user } = useAuthStore();
+  const isFree = profile?.rank === 'free';
   
   // hash monitor
   const [hash, setHash] = useState(window.location.hash);
@@ -115,10 +116,23 @@ const App: React.FC = () => {
   }, []);
   
   useEffect(() => {
-    if (isGuest && window.location.hash !== '#dashboard') {
-      window.location.hash = '#dashboard';
+    const baseHash = window.location.hash.split('?')[0];
+    if (isGuest) {
+      if (baseHash !== '#dashboard' && baseHash !== '#account') {
+        window.location.hash = '#dashboard';
+      }
     }
   }, [isGuest]);
+
+  // フリープランはダッシュボード/アカウントのみ
+  useEffect(() => {
+    const baseHash = window.location.hash.split('?')[0];
+    if (isFree) {
+      if (baseHash !== '#dashboard' && baseHash !== '#account') {
+        window.location.hash = '#dashboard';
+      }
+    }
+  }, [isFree]);
   
   // 他画面遷移時にヘッダー非表示状態を自動解除
   useEffect(() => {
@@ -183,7 +197,7 @@ const App: React.FC = () => {
     );
   }
 
-  if (hash === '#mypage') {
+  if (hash === '#mypage' && !isFree) {
     return (
       <>
         <MypagePage />
@@ -192,7 +206,7 @@ const App: React.FC = () => {
     );
   }
 
-  if (hash.startsWith('#diary-detail')) {
+  if (hash.startsWith('#diary-detail') && !isFree) {
     return (
       <>
         <DiaryDetailPage />
@@ -214,29 +228,29 @@ const App: React.FC = () => {
       break;
     case '#diary':
     case '#diary-user':
-      MainContent = <DiaryPage />;
+      MainContent = isFree ? <Dashboard /> : <DiaryPage />;
       break;
     case '#lessons':
-      MainContent = <LessonPage />;
+      MainContent = isFree ? <Dashboard /> : <LessonPage />;
       break;
     case '#lesson-detail':
-      MainContent = <LessonDetailPage />;
+      MainContent = isFree ? <Dashboard /> : <LessonDetailPage />;
       break;
     case '#ranking':
-      MainContent = <LevelRanking />;
+      MainContent = isFree ? <Dashboard /> : <LevelRanking />;
       break;
     case '#missions':
     case '#mission':
-      MainContent = <MissionPage />;
+      MainContent = isFree ? <Dashboard /> : <MissionPage />;
       break;
     case '#mission-ranking':
-      MainContent = <MissionRanking />;
+      MainContent = isFree ? <Dashboard /> : <MissionRanking />;
       break;
     case '#information':
-      MainContent = <InformationPage />;
+      MainContent = isFree ? <Dashboard /> : <InformationPage />;
       break;
     case '#pricing':
-      MainContent = <PricingTable />;
+      MainContent = isFree ? <Dashboard /> : <PricingTable />;
       break;
     case '#admin-songs':
     case '#admin-fantasy-bgm':
@@ -246,20 +260,20 @@ const App: React.FC = () => {
     case '#admin-users':
     case '#admin-announcements':
     case '#admin-courses':
-      MainContent = <AdminDashboard />;
+      MainContent = isFree ? <Dashboard /> : <AdminDashboard />;
       break;
     case '#fantasy':
-      MainContent = <FantasyMain />;
+      MainContent = isFree ? <Dashboard /> : <FantasyMain />;
       break;
     case '#songs':
     case '#practice':
     case '#performance':
     case '#play-lesson':
     case '#play-mission':
-      MainContent = isStandardGlobal ? <Dashboard /> : <GameScreen />;
+      MainContent = isStandardGlobal || isFree ? <Dashboard /> : <GameScreen />;
       break;
     default:
-      MainContent = isStandardGlobal ? <Dashboard /> : <GameScreen />;
+      MainContent = isStandardGlobal || isFree ? <Dashboard /> : <GameScreen />;
       break;
   }
 

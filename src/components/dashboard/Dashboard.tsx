@@ -25,6 +25,7 @@ import {
 } from 'react-icons/fa';
 import { Mission } from '@/platform/supabaseMissions';
 import GameHeader from '@/components/ui/GameHeader';
+import OpenBetaPlanSwitcher from '@/components/subscription/OpenBetaPlanSwitcher';
 import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
@@ -197,6 +198,20 @@ const Dashboard: React.FC = () => {
 
   if (!open) return null;
 
+  // フリープランの場合はプラン変更UIのみ表示
+  if (profile?.rank === 'free') {
+    return (
+      <div className="w-full h-full flex flex-col bg-gradient-game text-white">
+        <GameHeader />
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="max-w-2xl mx-auto space-y-6">
+            <OpenBetaPlanSwitcher />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       className="w-full h-full flex flex-col bg-gradient-game text-white"
@@ -205,6 +220,8 @@ const Dashboard: React.FC = () => {
       {/* ダッシュボードコンテンツ */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
+          {/* オープンベータ: プラン変更 UI */}
+          <OpenBetaPlanSwitcher />
           {/* ユーザー情報カード */}
           {profile && (
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
