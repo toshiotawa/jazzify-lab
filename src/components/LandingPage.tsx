@@ -84,9 +84,10 @@ const LandingPage: React.FC = () => {
             <div className="inline-block mb-8">
               <Link
                 to="/signup"
-                className="relative block rounded-2xl overflow-hidden text-white font-extrabold tracking-wide shadow-xl"
+                aria-label="無料トライアルを始める"
+                className="relative block rounded-2xl overflow-hidden text-white font-extrabold tracking-wide shadow-2xl border border-white/20 ring-1 ring-white/10"
                 style={{
-                  backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.12), rgba(0,0,0,0.32)), url(/first-view.png)',
+                  backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.5)), url(/first-view.png)',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   width: '100%',
@@ -94,8 +95,11 @@ const LandingPage: React.FC = () => {
                   height: '12rem'
                 }}
               >
-                <div className="absolute inset-0 flex items-center justify-center text-2xl md:text-3xl">
-                  無料トライアルを始める
+                <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/10 via-black/5 to-black/20" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl md:text-3xl bg-black/50 backdrop-blur-sm px-6 py-3 rounded-full border border-white/20 shadow-lg">
+                    無料トライアルを始める
+                  </span>
                 </div>
               </Link>
             </div>
