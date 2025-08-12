@@ -75,29 +75,24 @@ const LandingPage: React.FC = () => {
         <section className="hero-bg min-h-screen flex items-center justify-center pt-20">
           <div className="container mx-auto px-6 text-center">
             <div>
-              <h1 className="text-6xl md:text-8xl font-black mb-6 section-title">Jazzify</h1>
+              <h1 className="text-4xl sm:text-5xl md:text-7xl font-black mb-6 section-title">Jazzify</h1>
               <p className="text-xl md:text-3xl text-purple-200 mb-8 max-w-3xl mx-auto leading-relaxed">
                 練習を冒険に。<br />
                 あなたの演奏、今日からジャズ化。
               </p>
             </div>
-            <div className="inline-block mb-8">
+            <div className="w-full max-w-3xl mx-auto mb-8">
               <Link
                 to="/signup"
                 aria-label="無料トライアルを始める"
-                className="relative block rounded-2xl overflow-hidden text-white font-extrabold tracking-wide shadow-2xl border border-white/20 ring-1 ring-white/10"
+                className="relative block w-full h-40 sm:h-56 md:h-64 rounded-2xl overflow-hidden text-white font-extrabold tracking-wide shadow-2xl border border-white/20 ring-1 ring-white/10 bg-cover bg-center"
                 style={{
-                  backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.5)), url(/first-view.png)',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  width: '100%',
-                  maxWidth: '48rem',
-                  height: '12rem'
+                  backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.5)), url(/first-view.png)'
                 }}
               >
                 <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/10 via-black/5 to-black/20" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl md:text-3xl bg-black/50 backdrop-blur-sm px-6 py-3 rounded-full border border-white/20 shadow-lg">
+                  <span className="text-xl sm:text-2xl md:text-3xl bg-black/50 backdrop-blur-sm px-6 py-3 rounded-full border border-white/20 shadow-lg">
                     無料トライアルを始める
                   </span>
                 </div>
@@ -109,7 +104,7 @@ const LandingPage: React.FC = () => {
         {/* Story Section */}
         <section id="story" className="py-20 story-gradient">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title">
               <i className="fas fa-book-open mr-4"></i>Story
             </h2>
 
@@ -192,7 +187,7 @@ const LandingPage: React.FC = () => {
         {/* Learning Modes Section */}
         <section id="modes" className="py-20">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
               <img src="/stage_icons/1.png" alt="学習モード" className="w-16 h-16" />
               学習モード
             </h2>
@@ -288,7 +283,7 @@ const LandingPage: React.FC = () => {
         {/* Community Section */}
         <section id="community" className="py-20 story-gradient">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
               <img src="/monster_icons/monster_49.png" alt="コミュニティ機能" className="w-16 h-16" />
               コミュニティ機能
             </h2>
@@ -402,7 +397,7 @@ const LandingPage: React.FC = () => {
         {/* Technical Features */}
         <section className="py-20">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
               <img src="/stage_icons/10.png" alt="対応機種・技術仕様" className="w-16 h-16" />
               対応機種・技術仕様
             </h2>
@@ -446,7 +441,7 @@ const LandingPage: React.FC = () => {
         {/* Creator Section */}
         <section id="creator" className="py-20 story-gradient">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
               <img src="/stage_icons/4.png" alt="製作者紹介" className="w-16 h-16" />
               製作者紹介
             </h2>
@@ -467,7 +462,7 @@ const LandingPage: React.FC = () => {
         {/* Pricing Section */}
         <section id="pricing" className="py-20 story-gradient">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
               <img src="/stage_icons/10.png" alt="料金プラン" className="w-16 h-16" />
               料金プラン
             </h2>
@@ -532,7 +527,7 @@ const LandingPage: React.FC = () => {
         {/* FAQ Section */}
         <section id="faq" className="py-20">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
               <img src="/stage_icons/1.png" alt="よくある質問" className="w-16 h-16" />
               よくある質問
             </h2>
