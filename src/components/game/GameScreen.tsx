@@ -48,6 +48,14 @@ const GameScreen: React.FC = () => {
       const requiresDays = params.get('requiresDays') === 'true';
       const dailyCount = parseInt(params.get('dailyCount') || '1');
       
+      // 権限制御: Standard(Global)はレッスン/曲プレイ不可
+      if (useAuthStore.getState().profile?.rank === 'standard_global') {
+        console.warn('Standard(Global)は#play-lesson非対応のためダッシュボードへ');
+        setIsLoadingLessonSong(false);
+        window.location.hash = '#dashboard';
+        return;
+      }
+      
       if (songId) {
         try {
           // 曲データを取得（レッスン曲は通常曲も使用できるため、すべての曲から検索）
@@ -218,6 +226,14 @@ const GameScreen: React.FC = () => {
     const handleMissionPlay = async (hash: string) => {
       console.log('🎵 ミッション曲読み込み開始');
       setIsLoadingLessonSong(true);
+      
+      // 権限制御: Standard(Global)はミッションプレイ不可
+      if (useAuthStore.getState().profile?.rank === 'standard_global') {
+        console.warn('Standard(Global)は#play-mission非対応のためミッション一覧→ダッシュボードへ');
+        setIsLoadingLessonSong(false);
+        window.location.hash = '#dashboard';
+        return;
+      }
       
       // '#play-mission?...' から '?' 以降をパース
       const [, query] = hash.split('?');
@@ -435,7 +451,13 @@ const GameScreen: React.FC = () => {
     });
     
     // レッスン曲・ミッション曲読み込み中は曲選択画面へのリダイレクトをスキップ
+    const isStandardGlobal = useAuthStore.getState().profile?.rank === 'standard_global';
     if (!currentSong && currentTab !== 'songs' && !isPlayLessonHash && !isLoadingLessonSong) {
+      if (isStandardGlobal) {
+        // 権限制御: standard_global は曲選択タブへ飛ばさない
+        console.log('🔧 Auto-redirect suppressed for Standard(Global)');
+        return;
+      }
       console.log('🔧 Auto-redirecting to songs tab');
       gameActions.setCurrentTab('songs');
     } else if (isPlayLessonHash || isLoadingLessonSong) {
