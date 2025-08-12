@@ -15,6 +15,23 @@ const LandingPage: React.FC = () => {
     }
   }, [user, isGuest, loading, navigate]);
 
+  // ランディングページではスクロールを有効にする
+  useEffect(() => {
+    // 元のoverflow値を保存
+    const originalOverflow = document.body.style.overflow;
+    const originalHeight = document.body.style.height;
+    
+    // スクロールを有効にする
+    document.body.style.overflow = 'auto';
+    document.body.style.height = 'auto';
+    
+    // クリーンアップ時に元に戻す
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.height = originalHeight;
+    };
+  }, []);
+
   // スクロールアニメーション用
   useEffect(() => {
     const observerOptions = {
@@ -119,7 +136,7 @@ const LandingPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900/20 to-slate-900 text-white">
+    <div className="landing-page min-h-screen bg-gradient-to-b from-slate-900 via-purple-900/20 to-slate-900 text-white">
       <Helmet>
         <title>Jazzify - ゲームで学ぶジャズピアノ</title>
         <meta name="description" content="RPG感覚でジャズピアノをマスター。MIDIキーボードやマイク入力に対応した次世代音楽学習プラットフォーム" />

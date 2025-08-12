@@ -899,4 +899,15 @@
 
 .delay-1000 {
   animation-delay: 1s;
+}
+
+/* ランディングページ専用スタイル */
+.landing-page {
+  overflow: auto !important;
+  height: auto !important;
+}
+
+.landing-page body {
+  overflow: auto !important;
+  height: auto !important;
 } 
