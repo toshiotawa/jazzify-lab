@@ -221,7 +221,12 @@ const Dashboard: React.FC = () => {
                     </div>
                   ) : userStats ? (
                     <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
-                      {/* hidden in Standard(Global) */}
+                      {!isGlobal && (
+                        <>
+                          <span>ミッション完了数 {userStats.missionCompletedCount}</span>
+                          <span>レッスンクリア数 {userStats.lessonCompletedCount}</span>
+                        </>
+                      )}
                     </div>
                   ) : null}
                   
@@ -269,7 +274,7 @@ const Dashboard: React.FC = () => {
                     <div className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors">
                       <h4 className="font-semibold mb-2">{latestAnnouncement.title}</h4>
                       <div 
-                        className="text-sm text-gray-300 mb-3 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
+                        className="text-sm text-gray-300 mb-3 [&_a]:text-blue-400 [&_a]:underline [&_a]:hover:text-blue-300 [&_a]:transition-colors"
                         dangerouslySetInnerHTML={{ __html: mdToHtml(latestAnnouncement.content) }}
                       />
                       
@@ -304,7 +309,61 @@ const Dashboard: React.FC = () => {
 
               {/* クイックアクション（Standard(Global)ではミッション/レッスン/曲選択を非表示） */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* ファンタジーモードのみ表示 */}
+                {!isGlobal && (
+                  <>
+                    {/* 今日のミッション */}
+                    <button
+                      onClick={() => { window.location.hash = '#missions'; }}
+                      className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                    >
+                      <div className="flex items-center space-x-3 mb-3">
+                        <FaBullseye className="w-6 h-6 text-orange-400" />
+                        <h3 className="text-lg font-semibold">今日のミッション</h3>
+                      </div>
+                      
+                      {missions.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-sm text-gray-300">{missions[0].title}</p>
+                          <div className="flex items-center space-x-2 text-xs text-gray-400">
+                            <span>{missions[0].reward_multiplier}x ボーナス</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400">ミッションを確認</p>
+                      )}
+                    </button>
+
+                    {/* 曲練習 */}
+                    <button
+                      onClick={() => { window.location.hash = '#songs'; }}
+                      className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                    >
+                      <div className="flex items-center space-x-3 mb-3">
+                        <FaMusic className="w-6 h-6 text-green-400" />
+                        <h3 className="text-lg font-semibold">曲練習</h3>
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        楽曲を選んで練習を開始
+                      </p>
+                    </button>
+
+                    {/* レッスン */}
+                    <button
+                      onClick={() => { window.location.hash = '#lessons'; }}
+                      className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                    >
+                      <div className="flex items-center space-x-3 mb-3">
+                        <FaTrophy className="w-6 h-6 text-purple-400" />
+                        <h3 className="text-lg font-semibold">レッスン</h3>
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        ジャズ理論を学習
+                      </p>
+                    </button>
+                  </>
+                )}
+
+                {/* ファンタジーモード（常に表示） */}
                 <button
                   onClick={() => { window.location.hash = '#fantasy'; }}
                   className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg p-6 border border-purple-600 hover:border-purple-400 transition-colors text-left relative overflow-hidden"
