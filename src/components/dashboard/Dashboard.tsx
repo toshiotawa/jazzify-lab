@@ -242,7 +242,7 @@ const Dashboard: React.FC = () => {
                   ) : userStats ? (
                     <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
                       {!isStandardGlobal && (<span>ミッション完了数 {userStats.missionCompletedCount}</span>)}
-                      {!isStandardGlobal && (<span>レッスンクリア数 {userStats.lessonCompletedCount}</span>)
+                      {!isStandardGlobal && (<span>レッスンクリア数 {userStats.lessonCompletedCount}</span>)}
                     </div>
                   ) : null}
                   
