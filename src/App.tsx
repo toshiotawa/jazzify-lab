@@ -7,6 +7,9 @@ import AuthGate from '@/components/auth/AuthGate';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
 import { useAuthStore } from '@/stores/authStore';
+import TermsPage from '@/components/legal/TermsPage';
+import PrivacyPage from '@/components/legal/PrivacyPage';
+import TokushohoPage from '@/components/legal/TokushohoPage';
 
 // LegacyApp はバンドルサイズが大きいため遅延読み込みする
 const LegacyApp = React.lazy(() => import('./LegacyApp'));
@@ -53,6 +56,9 @@ const App: React.FC = () => {
                                   <Route path="/login" element={<AuthLanding mode="login" />} />
             <Route path="/signup" element={<AuthLanding mode="signup" />} />
             <Route path="/login/verify-otp" element={<VerifyOtpPage />} />
+            <Route path="/legal/terms" element={<TermsPage />} />
+            <Route path="/legal/privacy" element={<PrivacyPage />} />
+            <Route path="/legal/tokushoho" element={<TokushohoPage />} />
 
           {/* ========== 保護ルート (AuthGateの内側) ========== */}
           {/* '/*' を使い、上記以外のすべてのパスを保護対象にする */}

@@ -14,7 +14,7 @@
     @apply antialiased text-lg; /* デフォルトでlgサイズに */
     font-feature-settings: 'cv03', 'cv04', 'cv11';
     margin: 0;
-    overflow: hidden; /* ゲーム画面では画面外スクロールを無効 */
+    overflow: auto; /* LPではスクロール可能 */
     height: 100%;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y;
