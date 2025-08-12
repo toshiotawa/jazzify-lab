@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 
 const LandingPage: React.FC = () => {
-  const { user, isGuest, loading } = useAuthStore();
+  const { user, isGuest, loading, enterGuestMode } = useAuthStore();
   const navigate = useNavigate();
 
   // トップページではログイン済みでも自動リダイレクトしない
@@ -13,6 +13,11 @@ const LandingPage: React.FC = () => {
 
   const toggleFAQ = (id: number) => {
     setOpenFaqId(prev => (prev === id ? null : id));
+  };
+
+  const handleGuestClick = () => {
+    enterGuestMode();
+    navigate('/main#dashboard');
   };
 
   const navLinks = useMemo(
@@ -47,20 +52,17 @@ const LandingPage: React.FC = () => {
         <nav className="fixed top-0 left-0 right-0 w-full bg-slate-900 bg-opacity-90 backdrop-blur-md z-50 border-b border-purple-500 border-opacity-30">
           <div className="container mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                <i className="fas fa-music mr-2"></i>Jazzify
+              <h1 className="flex items-center gap-3 text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                <img src="/default_avater/default-avater.png" alt="Jazzify ロゴ" className="w-8 h-8 rounded-full" />
+                Jazzify
               </h1>
-              <div className="hidden md:flex space-x-6">
-                {navLinks.map(link => (
-                  <a
-                    key={link.id}
-                    href={`#${link.id}`}
-                    className="text-gray-300 hover:text-purple-400 transition"
-                    onClick={(e) => handleAnchorClick(e, link.id)}
-                  >
-                    {link.label}
-                  </a>
-                ))}
+              <div className="hidden md:flex items-center gap-3">
+                <button onClick={handleGuestClick} className="px-4 py-2 rounded-full bg-slate-800 hover:bg-slate-700 transition text-sm font-semibold">
+                  おためしプレイ
+                </button>
+                <Link to="/signup" className="px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-sm font-bold">
+                  ログイン/無料トライアル
+                </Link>
               </div>
             </div>
           </div>
@@ -71,15 +73,18 @@ const LandingPage: React.FC = () => {
           <div className="container mx-auto px-6 text-center">
             <div className="floating-animation">
               <h1 className="text-6xl md:text-8xl font-black mb-6 section-title">Jazzify</h1>
-              <p className="text-xl md:text-2xl text-purple-200 mb-8 max-w-3xl mx-auto">
-                ジャズ異世界で始まる音楽冒険<br />
-                君は伝説のジャズソーサラーになれるか？
+              <p className="text-xl md:text-3xl text-purple-200 mb-8 max-w-3xl mx-auto leading-relaxed">
+                練習を冒険に。<br />
+                あなたの演奏、今日からジャズ化。
               </p>
             </div>
-            <div className="magic-glow inline-block rounded-full p-1 bg-gradient-to-r from-purple-500 to-pink-500">
-              <Link to="/login" className="bg-slate-900 px-8 py-4 rounded-full text-xl font-bold hover:bg-slate-800 transition inline-flex items-center">
-                <i className="fas fa-play mr-2"></i>冒険を始める
+            <div className="magic-glow inline-block rounded-full p-1 bg-gradient-to-r from-purple-500 to-pink-500 mb-8">
+              <Link to="/signup" className="bg-slate-900 px-8 py-4 rounded-full text-xl font-bold hover:bg-slate-800 transition inline-flex items-center">
+                無料トライアルを始める
               </Link>
+            </div>
+            <div className="max-w-4xl mx-auto">
+              <img src="/first-view.png" alt="ファーストビュー画像" className="w-full h-auto rounded-2xl shadow-lg" />
             </div>
           </div>
         </section>
@@ -87,18 +92,15 @@ const LandingPage: React.FC = () => {
         {/* Story Section */}
         <section id="story" className="py-20 story-gradient">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title">
-              <i className="fas fa-book-open mr-4"></i>Story
+            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+              <img src="/stage_icons/9.png" alt="ストーリー" className="w-12 h-12" />
+              ジャズ異世界で、君の演奏をジャズ化せよ。
             </h2>
 
             <div className="max-w-4xl mx-auto mb-16 p-8 rounded-2xl character-card">
-              <h3 className="text-2xl font-bold mb-6 text-purple-300">物語の始まり</h3>
               <p className="text-lg leading-relaxed text-gray-300">
-                ここは、ジャズに憧れを持つ青年たちが集まる音楽の世界。<br />
-                しかし、コードが覚えられず、なかなかジャズらしい演奏ができずに悩む者も多い。<br />
-                そんな悩みを抱えた主人公が、突然ジャズ異世界に飛ばされてしまう...！<br />
-                モンスターとセッションし、心を通わせることで元の世界に戻れるという。<br />
-                果たして、君は伝説のジャズソーサラーになることができるのか？
+                コードに悩む主人公・不破 市太郎（ファイ）は、ベース占い師“ジャ爺”に導かれ、モンスターとセッションしながら成長していく。世界観は遊び心、学習はガチ。— そんな“冒険する学習体験”がJazzifyです。<br />
+                <span className="text-sm text-gray-400">(-fy・・・〇〇化する、という意味の接尾語)</span>
               </p>
             </div>
 
@@ -106,8 +108,8 @@ const LandingPage: React.FC = () => {
             <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {/* Protagonist */}
               <div className="character-card rounded-2xl p-8 text-center floating-animation">
-                <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center">
-                  <i className="fas fa-user text-4xl text-white"></i>
+                <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/default_avater/default-avater.png" alt="不破市太郎 (ファイ)" className="w-full h-full object-cover" />
                 </div>
                 <h3 className="text-2xl font-bold mb-4 text-blue-300">不破市太郎 (ファイ)</h3>
                 <div className="text-sm text-purple-300 mb-4">主人公・見習いジャズマン</div>
@@ -122,8 +124,8 @@ const LandingPage: React.FC = () => {
 
               {/* Master */}
               <div className="character-card rounded-2xl p-8 text-center floating-animation" style={{ animationDelay: '0.5s' }}>
-                <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center">
-                  <i className="fas fa-guitar text-4xl text-white"></i>
+                <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/stage_icons/5.png" alt="ジャ爺 (ジャジィ)" className="w-24 h-24 object-contain" />
                 </div>
                 <h3 className="text-2xl font-bold mb-4 text-green-300">ジャ爺 (ジャジィ)</h3>
                 <div className="text-sm text-purple-300 mb-4">師匠・エレキベース占い師</div>
@@ -138,8 +140,8 @@ const LandingPage: React.FC = () => {
 
               {/* Monsters */}
               <div className="character-card rounded-2xl p-8 text-center floating-animation" style={{ animationDelay: '1s' }}>
-                <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-pink-400 to-red-600 flex items-center justify-center">
-                  <i className="fas fa-dragon text-4xl text-white"></i>
+                <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/monster_icons/monster_43.png" alt="異世界のモンスター" className="w-24 h-24 object-contain" />
                 </div>
                 <h3 className="text-2xl font-bold mb-4 text-pink-300">異世界のモンスター</h3>
                 <div className="text-sm text-purple-300 mb-4">セッション相手・音楽愛好家</div>
@@ -158,16 +160,17 @@ const LandingPage: React.FC = () => {
         {/* Learning Modes Section */}
         <section id="modes" className="py-20">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title">
-              <i className="fas fa-gamepad mr-4"></i>学習モード
+            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+              <img src="/stage_icons/1.png" alt="学習モード" className="w-12 h-12" />
+              学習モード
             </h2>
 
             <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {/* Legend Mode */}
               <div className="feature-card rounded-2xl p-8 magic-glow">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-yellow-400 to-orange-600 flex items-center justify-center">
-                    <i className="fas fa-crown text-2xl text-white"></i>
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                    <img src="/monster_icons/monster_61.png" alt="レジェンドモード" className="w-12 h-12 object-contain" />
                   </div>
                   <h3 className="text-2xl font-bold text-yellow-300">レジェンドモード</h3>
                 </div>
@@ -204,8 +207,8 @@ const LandingPage: React.FC = () => {
               {/* Lesson Mode */}
               <div className="feature-card rounded-2xl p-8 magic-glow">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-400 to-teal-600 flex items-center justify-center">
-                    <i className="fas fa-graduation-cap text-2xl text-white"></i>
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                    <img src="/stage_icons/3.png" alt="レッスンモード" className="w-12 h-12 object-contain" />
                   </div>
                   <h3 className="text-2xl font-bold text-blue-300">レッスンモード</h3>
                 </div>
@@ -226,16 +229,17 @@ const LandingPage: React.FC = () => {
         {/* Community Section */}
         <section id="community" className="py-20 story-gradient">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title">
-              <i className="fas fa-users mr-4"></i>コミュニティ機能
+            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+              <img src="/monster_icons/monster_49.png" alt="コミュニティ機能" className="w-12 h-12" />
+              コミュニティ機能
             </h2>
 
             <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {/* Practice Diary */}
               <div className="feature-card rounded-2xl p-8">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center">
-                    <i className="fas fa-book text-2xl text-white"></i>
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                    <img src="/monster_icons/monster_32.png" alt="練習日記" className="w-12 h-12 object-contain" />
                   </div>
                   <h3 className="text-2xl font-bold text-green-300">練習日記</h3>
                 </div>
@@ -265,8 +269,8 @@ const LandingPage: React.FC = () => {
               {/* Experience System */}
               <div className="feature-card rounded-2xl p-8">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-orange-400 to-red-600 flex items-center justify-center">
-                    <i className="fas fa-trophy text-2xl text-white"></i>
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                    <img src="/stage_icons/8.png" alt="経験値システム" className="w-12 h-12 object-contain" />
                   </div>
                   <h3 className="text-2xl font-bold text-orange-300">経験値システム</h3>
                 </div>
@@ -296,8 +300,8 @@ const LandingPage: React.FC = () => {
               {/* Ranking System */}
               <div className="feature-card rounded-2xl p-8">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-400 to-indigo-600 flex items-center justify-center">
-                    <i className="fas fa-ranking-star text-2xl text-white"></i>
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                    <img src="/monster_icons/monster_52.png" alt="ランキングシステム" className="w-12 h-12 object-contain" />
                   </div>
                   <h3 className="text-2xl font-bold text-purple-300">ランキングシステム</h3>
                 </div>
@@ -330,38 +334,39 @@ const LandingPage: React.FC = () => {
         {/* Technical Features */}
         <section className="py-20">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title">
-              <i className="fas fa-cogs mr-4"></i>対応機種・技術仕様
+            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+              <img src="/stage_icons/10.png" alt="対応機種・技術仕様" className="w-12 h-12" />
+              対応機種・技術仕様
             </h2>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
               <div className="feature-card rounded-xl p-6 text-center">
-                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-                  <i className="fas fa-mobile-alt text-xl text-white"></i>
+                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/monster_icons/monster_22.png" alt="スマートフォン" className="w-8 h-8 object-contain" />
                 </div>
                 <h3 className="text-lg font-bold text-blue-300 mb-2">スマートフォン</h3>
                 <p className="text-sm text-gray-400">iOS・Android対応</p>
               </div>
 
               <div className="feature-card rounded-xl p-6 text-center">
-                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
-                  <i className="fas fa-desktop text-xl text-white"></i>
+                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/monster_icons/monster_40.png" alt="PCブラウザ" className="w-8 h-8 object-contain" />
                 </div>
                 <h3 className="text-lg font-bold text-green-300 mb-2">PCブラウザ</h3>
                 <p className="text-sm text-gray-400">Chrome・Safari・Firefox</p>
               </div>
 
               <div className="feature-card rounded-xl p-6 text-center">
-                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center">
-                  <i className="fas fa-piano text-xl text-white"></i>
+                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/monster_icons/monster_13.png" alt="MIDI対応" className="w-8 h-8 object-contain" />
                 </div>
                 <h3 className="text-lg font-bold text-purple-300 mb-2">MIDI対応</h3>
                 <p className="text-sm text-gray-400">キーボード接続可能</p>
               </div>
 
               <div className="feature-card rounded-xl p-6 text-center">
-                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-pink-400 to-pink-600 flex items-center justify-center">
-                  <i className="fas fa-microphone text-xl text-white"></i>
+                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <img src="/monster_icons/monster_47.png" alt="音声入力" className="w-8 h-8 object-contain" />
                 </div>
                 <h3 className="text-lg font-bold text-pink-300 mb-2">音声入力</h3>
                 <p className="text-sm text-gray-400">ピッチ認識機能</p>
@@ -370,11 +375,33 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
+        {/* Creator Section */}
+        <section id="creator" className="py-20 story-gradient">
+          <div className="container mx-auto px-6">
+            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+              <img src="/stage_icons/4.png" alt="製作者紹介" className="w-12 h-12" />
+              製作者紹介
+            </h2>
+            <div className="max-w-3xl mx-auto feature-card rounded-2xl p-8 flex flex-col md:flex-row items-center gap-6">
+              <div className="w-32 h-32 rounded-full overflow-hidden bg-slate-800 flex items-center justify-center">
+                <img src="/default_avater/default-avater.png" alt="永吉俊雄" className="w-full h-full object-cover" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-2xl font-bold mb-2">永吉俊雄</h3>
+                <p className="text-gray-300 leading-relaxed">
+                  プロフィール文はプレースホルダーです。ここに自己紹介や開発への想いなどのテキストが入ります。
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Pricing Section */}
         <section id="pricing" className="py-20 story-gradient">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title">
-              <i className="fas fa-gem mr-4"></i>料金プラン
+            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+              <img src="/stage_icons/10.png" alt="料金プラン" className="w-12 h-12" />
+              料金プラン
             </h2>
 
             <div className="grid lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
@@ -382,28 +409,26 @@ const LandingPage: React.FC = () => {
               <div className="pricing-card rounded-2xl p-8 text-center">
                 <h3 className="text-2xl font-bold text-gray-300 mb-4">フリー</h3>
                 <div className="text-4xl font-bold text-white mb-6">¥0<span className="text-sm text-gray-400">/月</span></div>
-                <ul className="space-y-3 text-sm text-gray-400 mb-8">
+                <ul className="space-y-3 text-sm text-gray-400 mb-0">
                   <li><i className="fas fa-check text-green-400 mr-2"></i>基本レッスン（10回まで）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>ファンタジーモード（Lv.5まで）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>練習日記（月5投稿）</li>
                   <li><i className="fas fa-times text-red-400 mr-2"></i>レジェンドモード</li>
                   <li><i className="fas fa-times text-red-400 mr-2"></i>MIDI接続</li>
                 </ul>
-                <Link to="/signup" className="block w-full py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition text-center">無料で始める</Link>
               </div>
 
               {/* Standard Plan */}
               <div className="pricing-card rounded-2xl p-8 text-center">
                 <h3 className="text-2xl font-bold text-blue-300 mb-4">スタンダード</h3>
                 <div className="text-4xl font-bold text-white mb-6">¥980<span className="text-sm text-gray-400">/月</span></div>
-                <ul className="space-y-3 text-sm text-gray-400 mb-8">
+                <ul className="space-y-3 text-sm text-gray-400 mb-0">
                   <li><i className="fas fa-check text-green-400 mr-2"></i>基本レッスン（無制限）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>ファンタジーモード（無制限）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>練習日記（無制限）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>レジェンドモード（3曲まで）</li>
                   <li><i className="fas fa-times text-red-400 mr-2"></i>MIDI接続</li>
                 </ul>
-                <Link to="/signup" className="block w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition text-center">スタンダードを選ぶ</Link>
               </div>
 
               {/* Premium Plan */}
@@ -411,28 +436,26 @@ const LandingPage: React.FC = () => {
                 <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-black text-xs px-3 py-1 rounded-full inline-block mb-4">おすすめ</div>
                 <h3 className="text-2xl font-bold text-yellow-300 mb-4">プレミアム</h3>
                 <div className="text-4xl font-bold text-white mb-6">¥1,980<span className="text-sm text-gray-400">/月</span></div>
-                <ul className="space-y-3 text-sm text-gray-400 mb-8">
+                <ul className="space-y-3 text-sm text-gray-400 mb-0">
                   <li><i className="fas fa-check text-green-400 mr-2"></i>全レッスン（無制限）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>ファンタジーモード（無制限）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>コミュニティ機能（全て）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>レジェンドモード（無制限）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>MIDI接続</li>
                 </ul>
-                <Link to="/signup" className="block w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold rounded-lg hover:from-yellow-400 hover:to-orange-400 transition text-center">プレミアムを選ぶ</Link>
               </div>
 
               {/* Platinum Plan */}
               <div className="pricing-card rounded-2xl p-8 text-center">
                 <h3 className="text-2xl font-bold text-purple-300 mb-4">プラチナ</h3>
                 <div className="text-4xl font-bold text-white mb-6">¥2,980<span className="text-sm text-gray-400">/月</span></div>
-                <ul className="space-y-3 text-sm text-gray-400 mb-8">
+                <ul className="space-y-3 text-sm text-gray-400 mb-0">
                   <li><i className="fas fa-check text-green-400 mr-2"></i>全機能（無制限）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>個人レッスン（月2回）</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>専用コンシェルジュ</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>楽譜ダウンロード</li>
                   <li><i className="fas fa-check text-green-400 mr-2"></i>優先サポート</li>
                 </ul>
-                <Link to="/signup" className="block w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition text-center">プラチナを選ぶ</Link>
               </div>
             </div>
           </div>
@@ -441,8 +464,9 @@ const LandingPage: React.FC = () => {
         {/* FAQ Section */}
         <section id="faq" className="py-20">
           <div className="container mx-auto px-6">
-            <h2 className="text-5xl font-bold text-center mb-16 section-title">
-              <i className="fas fa-question-circle mr-4"></i>よくある質問
+            <h2 className="text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+              <img src="/stage_icons/1.png" alt="よくある質問" className="w-12 h-12" />
+              よくある質問
             </h2>
 
             <div className="max-w-4xl mx-auto space-y-6">
@@ -475,6 +499,22 @@ const LandingPage: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Final CTA Section */}
+        <section className="py-20">
+          <div className="container mx-auto px-6 text-center">
+            <h2 className="text-4xl md:text-5xl font-extrabold mb-6">今すぐ無料トライアルを始める</h2>
+            <p className="text-gray-300 mb-8">登録は数分で完了。おためしプレイも可能です。</p>
+            <div className="flex items-center justify-center gap-4">
+              <Link to="/signup" className="px-8 py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition font-bold">
+                無料トライアルを始める
+              </Link>
+              <button onClick={handleGuestClick} className="px-8 py-3 rounded-full bg-slate-800 hover:bg-slate-700 transition font-semibold">
+                おためしプレイ
+              </button>
             </div>
           </div>
         </section>
