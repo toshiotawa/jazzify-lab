@@ -6,7 +6,7 @@
 @layer base {
   html {
     scroll-behavior: smooth;
-    height: 100%;
+    min-height: 100%;
     font-size: 18px; /* ベースフォントサイズを18pxに変更 */
   }
   
@@ -24,6 +24,7 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: auto; /* 明示的にスクロールを許可 */
   }
   
   * {
@@ -245,6 +246,19 @@
   
   body.game-page #root {
     height: 100vh;
+  }
+
+  /* ランディングページでは確実にスクロールを有効化 */
+  body.landing-page {
+    overflow: auto !important;
+    height: auto !important;
+    min-height: 100vh;
+  }
+  
+  body.landing-page #root {
+    height: auto !important;
+    min-height: 100vh;
+    overflow: visible !important;
   }
 }
 

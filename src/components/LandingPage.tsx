@@ -34,6 +34,27 @@ const LandingPage: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // ランディングページ用のbodyクラスを追加
+  useEffect(() => {
+    // ランディングページではスクロールを有効化
+    document.body.classList.add('landing-page');
+    document.body.style.overflow = 'auto';
+    document.documentElement.style.overflow = 'auto';
+    
+    // デバッグ情報をログ出力
+    console.log('Landing page mounted - Enabling scroll');
+    console.log('Body overflow:', window.getComputedStyle(document.body).overflow);
+    console.log('HTML overflow:', window.getComputedStyle(document.documentElement).overflow);
+    console.log('Body height:', window.getComputedStyle(document.body).height);
+    console.log('Document height:', document.documentElement.scrollHeight);
+    
+    return () => {
+      document.body.classList.remove('landing-page');
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
+
   // 認証状態を監視
   useEffect(() => {
     if (!loading && (user || isGuest)) {
@@ -59,7 +80,7 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-black to-slate-900 text-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-black to-slate-900 text-white" style={{ overflow: 'visible' }}>
       <Helmet>
         <title>Jazzify - ジャズ練習をRPGの冒険に</title>
         <meta name="description" content="MIDIキーボードとマイク入力対応。音ゲー×RPG×動画レッスンでジャズを楽しく上達。" />
