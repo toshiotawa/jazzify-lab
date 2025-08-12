@@ -206,6 +206,7 @@ const App: React.FC = () => {
   
   // ハッシュをベース部分だけで判定するための処理
   const baseHash = hash.split('?')[0];
+  const isStandardGlobal = profile?.rank === 'standard_global';
   
   switch (baseHash) {
     case '#dashboard':
@@ -225,6 +226,7 @@ const App: React.FC = () => {
       MainContent = <LevelRanking />;
       break;
     case '#missions':
+    case '#mission':
       MainContent = <MissionPage />;
       break;
     case '#mission-ranking':
@@ -254,10 +256,10 @@ const App: React.FC = () => {
     case '#performance':
     case '#play-lesson':
     case '#play-mission':
-      MainContent = <GameScreen />;
+      MainContent = isStandardGlobal ? <Dashboard /> : <GameScreen />;
       break;
     default:
-      MainContent = <GameScreen />;
+      MainContent = isStandardGlobal ? <Dashboard /> : <GameScreen />;
       break;
   }
 
