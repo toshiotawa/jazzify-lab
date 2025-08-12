@@ -44,8 +44,8 @@ const DiaryPage: React.FC = () => {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isGuest, profile } = useAuthStore();
-  const isStandardGlobal = profile?.rank === 'standard_global';
+  const { user, isGuest, profile: authProfile } = useAuthStore();
+  const isStandardGlobal = authProfile?.rank === 'standard_global';
   const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary, like } = useDiaryStore();
   const { addComment, deleteComment, likeComment } = useDiaryStore();
   const [commentText, setCommentText] = useState<Record<string, string>>({});
