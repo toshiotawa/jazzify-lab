@@ -19,7 +19,7 @@ interface AuthState {
   } | null;
   profile: {
     nickname: string;
-    rank: 'free' | 'standard' | 'premium' | 'platinum';
+    rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
     level: number;
     xp: number;
     isAdmin: boolean;
@@ -34,7 +34,7 @@ interface AuthState {
     stripe_customer_id?: string;
     will_cancel?: boolean;
     cancel_date?: string;
-    downgrade_to?: 'free' | 'standard' | 'premium' | 'platinum';
+    downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
     downgrade_date?: string;
   } | null;
 }

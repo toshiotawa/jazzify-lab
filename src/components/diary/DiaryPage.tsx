@@ -44,7 +44,8 @@ const DiaryPage: React.FC = () => {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isGuest } = useAuthStore();
+  const { user, isGuest, profile } = useAuthStore();
+  const isStandardGlobal = profile?.rank === 'standard_global';
   const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary, like } = useDiaryStore();
   const { addComment, deleteComment, likeComment } = useDiaryStore();
   const [commentText, setCommentText] = useState<Record<string, string>>({});
@@ -107,8 +108,8 @@ const DiaryPage: React.FC = () => {
   if (!open) return null;
 
   if (!userId) {
-    // ゲストユーザーの場合のモーダル表示
-    if (!user || isGuest) {
+    // Standard(Global) とゲストユーザーはコミュニティにアクセス不可
+    if (!user || isGuest || isStandardGlobal) {
       return (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
           <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">
@@ -209,6 +210,7 @@ const DiaryPage: React.FC = () => {
       case 'premium':
         return <FaGem className="text-yellow-400 text-lg" />;
       case 'standard':
+      case 'standard_global':
         return <FaStar className="text-blue-400 text-sm" />;
       case 'free':
       default:
@@ -275,15 +277,15 @@ const DiaryPage: React.FC = () => {
                           <span>累計経験値 {profile.xp?.toLocaleString() || '0'}</span>
                         </div>
                         
-                        {/* ミッション・レッスン統計 */}
-                        {userStats && (
-                          <div className="flex items-center space-x-3 text-sm text-gray-400 mt-2">
-                            <span>ミッション完了数 {userStats.missionCompletedCount}</span>
-                            <span>レッスンクリア数 {userStats.lessonCompletedCount}</span>
-                          </div>
-                        )}
-                        
-                        <div className="flex items-center space-x-3 text-sm text-gray-400 mt-2">
+                                                 {/* ミッション・レッスン統計 */}
+                         {userStats && !isStandardGlobal && (
+                           <div className="flex items-center space-x-3 text-sm text-gray-400 mt-2">
+                             <span>ミッション完了数 {userStats.missionCompletedCount}</span>
+                             <span>レッスンクリア数 {userStats.lessonCompletedCount}</span>
+                           </div>
+                         )}
+                         
+                         <div className="flex items-center space-x-3 text-sm text-gray-400 mt-2">
                           <span>{diaries.length}件の日記</span>
                         </div>
                         {profile.twitter_handle ? (

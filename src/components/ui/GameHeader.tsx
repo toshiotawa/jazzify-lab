@@ -12,7 +12,8 @@ import { DEFAULT_AVATAR_URL } from '@/utils/constants';
  */
 const GameHeader: React.FC = () => {
   const gameActions = useGameActions();
-  const { isGuest } = useAuthStore();
+  const { isGuest, profile } = useAuthStore();
+  const isStandardGlobal = profile?.rank === 'standard_global';
 
   return (
     <header className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]">
@@ -30,21 +31,23 @@ const GameHeader: React.FC = () => {
           </button>
 
           {/* 曲選択タブ */}
-          <HashButton
-            hash="#songs"
-            onClick={() => {
-              gameActions.setCurrentTab?.('songs');
-            }}
-            disabled={isGuest}
-          >
-            曲選択
-          </HashButton>
+          {!isStandardGlobal && (
+            <HashButton
+              hash="#songs"
+              onClick={() => {
+                gameActions.setCurrentTab?.('songs');
+              }}
+              disabled={isGuest}
+            >
+              曲選択
+            </HashButton>
+          )}
 
-          <HashButton hash="#lessons" disabled={isGuest}>レッスン</HashButton>
+          {!isStandardGlobal && <HashButton hash="#lessons" disabled={isGuest}>レッスン</HashButton>}
           <HashButton hash="#fantasy">ファンタジー</HashButton>
           <HashButton hash="#ranking" disabled={isGuest}>ランキング</HashButton>
-          <HashButton hash="#missions" disabled={isGuest}>ミッション</HashButton>
-          <HashButton hash="#diary" disabled={isGuest}>日記</HashButton>
+          {!isStandardGlobal && <HashButton hash="#missions" disabled={isGuest}>ミッション</HashButton>}
+          {!isStandardGlobal && <HashButton hash="#diary" disabled={isGuest}>日記</HashButton>}
           <HashButton hash="#information" disabled={isGuest}>お知らせ</HashButton>
         </div>
 

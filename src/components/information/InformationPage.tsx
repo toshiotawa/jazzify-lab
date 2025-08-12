@@ -15,7 +15,8 @@ const InformationPage: React.FC = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
+  const isStandardGlobal = profile?.rank === 'standard_global';
   const toast = useToast();
 
   useEffect(() => {
@@ -37,7 +38,7 @@ const InformationPage: React.FC = () => {
   const loadAnnouncements = async () => {
     setLoading(true);
     try {
-      const data = await fetchActiveAnnouncements();
+      const data = await fetchActiveAnnouncements(isStandardGlobal ? 'global' : 'default');
       setAnnouncements(data);
     } catch (e: unknown) {
       toast.error('お知らせの読み込みに失敗しました');

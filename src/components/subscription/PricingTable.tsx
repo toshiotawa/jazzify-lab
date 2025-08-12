@@ -104,6 +104,9 @@ const PricingTable: React.FC = () => {
         <p className="text-gray-300 mb-6">
           Jazz Learning Gameのプレミアム機能をご利用ください
         </p>
+        <p className="text-gray-400 text-xs">
+          ※ Standard(Global) は海外向けの限定機能プランです（本画面からの購入対象外）。
+        </p>
 
         {/* 月額・年額切替 */}
         <div className="inline-flex items-center bg-slate-800 rounded-lg p-1">

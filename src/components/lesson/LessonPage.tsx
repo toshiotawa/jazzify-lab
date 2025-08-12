@@ -350,7 +350,7 @@ const LessonPage: React.FC = () => {
 
   if (!open) return null;
 
-  if (!profile || isGuest) {
+  if (!profile || isGuest || profile.rank === 'standard_global') {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-game">
         <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">

@@ -3,11 +3,14 @@ import GameHeader from '@/components/ui/GameHeader';
 import ChallengeBoard from './ChallengeBoard';
 import { useMissionStore } from '@/stores/missionStore';
 import { FaCalendarAlt, FaBullseye } from 'react-icons/fa';
+import { useAuthStore } from '@/stores/authStore';
 
 const MissionPage: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#missions');
   const [error, setError] = useState<string | null>(null);
   const { fetchAll, loading, monthly } = useMissionStore();
+  const { profile } = useAuthStore();
+  const isStandardGlobal = profile?.rank === 'standard_global';
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#missions');
@@ -32,7 +35,24 @@ const MissionPage: React.FC = () => {
 
   if (!open) return null;
 
-
+  if (isStandardGlobal) {
+    return (
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
+        <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">
+          <h4 className="text-lg font-bold text-center">この機能はご利用いただけません</h4>
+          <p className="text-center text-gray-300">Standard(Global)プランではミッション機能は非対応です。</p>
+          <div className="flex flex-col gap-3">
+            <button 
+              className="btn btn-sm btn-outline w-full" 
+              onClick={() => { window.location.href = '/main#dashboard'; }}
+            >
+              ダッシュボードに戻る
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">

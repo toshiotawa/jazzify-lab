@@ -15,7 +15,8 @@ const LevelRanking: React.FC = () => {
   const [sortKey, setSortKey] = useState<SortKey>('level');
   const [hoveredUserId, setHoveredUserId] = useState<string | null>(null);
   const [clickedUserId, setClickedUserId] = useState<string | null>(null);
-  const { user, isGuest } = useAuthStore();
+  const { user, isGuest, profile } = useAuthStore();
+  const isStandardGlobal = profile?.rank === 'standard_global';
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#ranking');
@@ -48,13 +49,16 @@ const LevelRanking: React.FC = () => {
         setLoading(true);
         try {
           const data = await fetchLevelRanking();
-          setEntries(sortEntries(data, sortKey));
+          const filtered = isStandardGlobal
+            ? data.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
+            : data;
+          setEntries(sortEntries(filtered, sortKey));
         } finally {
           setLoading(false);
         }
       })();
     }
-  }, [open, user, isGuest, sortKey]);
+  }, [open, user, isGuest, sortKey, isStandardGlobal]);
 
   if (!open) return null;
 
@@ -135,6 +139,7 @@ const LevelRanking: React.FC = () => {
       case 'premium':
         return <FaGem className="text-yellow-400 text-sm" />;
       case 'standard':
+      case 'standard_global':
         return <FaStar className="text-blue-400 text-xs" />;
       case 'free':
       default:
@@ -162,26 +167,30 @@ const LevelRanking: React.FC = () => {
               >
                 Level
               </button>
-              <button
-                onClick={() => setSortKey('lessons')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  sortKey === 'lessons'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                }`}
-              >
-                Lesson
-              </button>
-              <button
-                onClick={() => setSortKey('missions')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  sortKey === 'missions'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                }`}
-              >
-                Mission
-              </button>
+              {!isStandardGlobal && (
+                <>
+                  <button
+                    onClick={() => setSortKey('lessons')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      sortKey === 'lessons'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Lesson
+                  </button>
+                  <button
+                    onClick={() => setSortKey('missions')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      sortKey === 'missions'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Mission
+                  </button>
+                </>
+              )}
             </div>
             
             <div className="overflow-x-auto">
@@ -192,10 +201,10 @@ const LevelRanking: React.FC = () => {
                 <th className="py-3 px-2 min-w-[12rem] sm:min-w-[10rem]">ユーザー(タップで詳細)</th>
                 <th className="py-3 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">称号</th>
                 <th className="py-3 px-2 min-w-[3rem]">Lv</th>
-                <th className="py-3 px-2 min-w-[4rem]">レッスン</th>
-                <th className="py-3 px-2 min-w-[4rem]">ミッション</th>
+                {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">レッスン</th>}
+                {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">ミッション</th>}
                 <th className="py-3 px-2 min-w-[4rem]">ファンタジー</th>
-                <th className="py-3 px-2 min-w-[5rem] sm:min-w-[4rem]">ランク</th>
+                {!isStandardGlobal && <th className="py-3 px-2 min-w-[5rem] sm:min-w-[4rem]">ランク</th>}
                 <th className="py-3 px-2 min-w-[8rem] sm:min-w-[6rem]">Twitter</th>
               </tr>
             </thead>
@@ -266,15 +275,17 @@ const LevelRanking: React.FC = () => {
                     </div>
                   </td>
                   <td className="py-3 px-2">{e.level}</td>
-                  <td className="py-3 px-2">{e.lessons_cleared}</td>
-                  <td className="py-3 px-2">{e.missions_completed || 0}</td>
+                  {!isStandardGlobal && <td className="py-3 px-2">{e.lessons_cleared}</td>}
+                  {!isStandardGlobal && <td className="py-3 px-2">{e.missions_completed || 0}</td>}
                   <td className="py-3 px-2 text-purple-300">{e.fantasy_current_stage || '-'}</td>
-                  <td className="py-3 px-2">
-                    <div className="flex items-center space-x-1">
-                      {getRankIcon(e.rank)}
-                      <span className="capitalize text-xs">{e.rank}</span>
-                    </div>
-                  </td>
+                  {!isStandardGlobal && (
+                    <td className="py-3 px-2">
+                      <div className="flex items-center space-x-1">
+                        {getRankIcon(e.rank)}
+                        <span className="capitalize text-xs">{e.rank}</span>
+                      </div>
+                    </td>
+                  )}
                   <td className="py-3 px-2">
                     {e.twitter_handle ? (
                       <a 
