@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { FaBars, FaTimes } from 'react-icons/fa';
+import { isStandardGlobalMode } from '@/utils/planFlags';
 
 const Header: React.FC = () => {
   const { user, isGuest, logout, enterGuestMode } = useAuthStore();
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
+  const isGlobal = isStandardGlobalMode();
 
   const handleLogoutToLogin = async () => {
     await logout();
@@ -64,9 +66,11 @@ const Header: React.FC = () => {
             <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#mypage'}}>
               マイページ
             </button>
-            <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#diary';}}>
-              コミュニティ
-            </button>
+            {!isGlobal && (
+              <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#diary';}}>
+                コミュニティ
+              </button>
+            )}
           </>
         )}
       </div>
@@ -122,12 +126,14 @@ const Header: React.FC = () => {
                 >
                   マイページ
                 </button>
-                <button 
-                  className="btn btn-sm btn-outline w-full text-left" 
-                  onClick={()=>{location.hash='#diary'; setMenuOpen(false);}}
-                >
-                  コミュニティ
-                </button>
+                {!isGlobal && (
+                  <button 
+                    className="btn btn-sm btn-outline w-full text-left" 
+                    onClick={()=>{location.hash='#diary'; setMenuOpen(false);}}
+                  >
+                    コミュニティ
+                  </button>
+                )}
               </>
             )}
           </div>
