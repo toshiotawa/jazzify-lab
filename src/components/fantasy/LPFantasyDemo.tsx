@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
+import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { useGameStore } from '@/stores/gameStore';
 
 const LPFantasyDemo: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -7,6 +9,7 @@ const LPFantasyDemo: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const { settings, updateSettings } = useGameStore();
 
   // Lazy import FantasyGameScreen only when modal opens
   const FantasyGameScreen = useMemo(() => React.lazy(() => import('./FantasyGameScreen')), []);
@@ -87,29 +90,41 @@ const LPFantasyDemo: React.FC = () => {
     setIsFullscreen(false);
   }, []);
 
-  // Minimal, low-height teaser with CTA
   return (
-    <section className="py-8 bg-slate-900/60 border-t border-b border-purple-500/20">
+    <section className="py-10">
       <div className="container mx-auto px-6">
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <div className="flex-1">
-            <h3 className="text-2xl md:text-3xl font-bold text-purple-300 mb-2">ファンタジーモード デモ（1-1）</h3>
-            <p className="text-gray-300 text-sm md:text-base">MIDIキーボード／タッチ／クリックで、そのままの挙動を体験。クリックで全画面表示されます。</p>
-          </div>
-          <div className="flex-1">
-            <div className="relative w-full h-40 md:h-44 rounded-xl overflow-hidden bg-[url('/first-view.png')] bg-cover bg-center border border-purple-500/30 shadow-lg">
-              <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-black/30" />
-              <button
-                onClick={openDemo}
-                className="absolute inset-0 m-auto h-12 w-44 md:h-14 md:w-56 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-xl"
-                aria-label="ファンタジーモード デモを再生"
-              >
-                体験する（全画面）
-              </button>
+        <div className="rounded-2xl border border-purple-500/30 bg-slate-900/60 shadow-xl overflow-hidden">
+          <div className="grid md:grid-cols-2 gap-0">
+            {/* Visual + CTA */}
+            <div className="relative min-h-[192px] md:min-h-[224px]">
+              <div className="absolute inset-0 bg-[url('/default_avater/default-avater.png')] bg-cover bg-center" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
+                <h3 className="text-xl md:text-2xl font-bold text-purple-200 text-center">ファンタジーモード デモ（1-1）</h3>
+                <p className="text-gray-200 text-xs md:text-sm text-center max-w-md">MIDIキーボード／タッチ／クリック対応。全画面でシームレスにプレイ。</p>
+                <button
+                  onClick={openDemo}
+                  className="h-11 w-56 md:h-12 md:w-64 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-2xl"
+                  aria-label="ファンタジーモード デモを再生"
+                >
+                  体験する（全画面）
+                </button>
+                {error && <div className="text-red-400 text-xs">{error}</div>}
+              </div>
             </div>
-            {error && (
-              <div className="text-red-400 text-sm mt-2">{error}</div>
-            )}
+
+            {/* Device select + note */}
+            <div className="p-4 md:p-6 flex flex-col justify-center gap-4">
+              <div>
+                <div className="text-sm text-purple-200 font-semibold mb-2">MIDI機器を選択</div>
+                <MidiDeviceSelector
+                  value={settings.selectedMidiDevice}
+                  onChange={(id) => updateSettings({ selectedMidiDevice: id })}
+                />
+                <div className="text-xs text-gray-400 mt-2">選択した機器はデモプレイで使用されます。未選択でもマウス/タッチでプレイ可能です。</div>
+              </div>
+              <div className="text-[11px] text-gray-400">通信や環境により音声の初回起動にユーザー操作が必要な場合があります。</div>
+            </div>
           </div>
         </div>
       </div>
@@ -135,6 +150,7 @@ const LPFantasyDemo: React.FC = () => {
                 <FantasyGameScreen
                   stage={stage}
                   autoStart
+                  fitAllKeys
                   onGameComplete={() => {}}
                   onBackToStageSelect={closeDemo}
                   noteNameLang="en"

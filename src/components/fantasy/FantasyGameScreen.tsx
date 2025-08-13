@@ -26,6 +26,7 @@ interface FantasyGameScreenProps {
   noteNameLang?: DisplayOpts['lang'];     // 音名表示言語
   simpleNoteName?: boolean;                // 簡易表記
   lessonMode?: boolean;                    // レッスンモード
+  fitAllKeys?: boolean;                    // ★ 追加: 全鍵盤を幅内に収める（LPデモ用）
 }
 
 // 不要な定数とインターフェースを削除（PIXI側で処理）
@@ -37,7 +38,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   onBackToStageSelect,
   noteNameLang = 'en',
   simpleNoteName = false,
-  lessonMode = false
+  lessonMode = false,
+  fitAllKeys = false
 }) => {
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
@@ -993,7 +995,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   return (
     <div className={cn(
-      "h-screen bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen"
+      `${fitAllKeys ? 'h-full' : 'h-screen'} bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen`
     )}>
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
@@ -1270,7 +1272,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           let pixiWidth: number;
           let needsScroll: boolean;
           
-          if (gameAreaWidth >= adjustedThreshold) {
+          if (fitAllKeys) {
+            // 全鍵盤を現在の幅にフィット（横スクロール無し）
+            pixiWidth = gameAreaWidth;
+            needsScroll = false;
+          } else if (gameAreaWidth >= adjustedThreshold) {
             // PC等、画面が十分広い → 88鍵全表示（スクロール不要）
             pixiWidth = gameAreaWidth;
             needsScroll = false;
@@ -1284,26 +1290,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           if (needsScroll) {
             // スクロールが必要な場合
             return (
-                             <div 
-                 className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
-                 style={{ 
-                   WebkitOverflowScrolling: 'touch',
-                   scrollSnapType: 'none',
-                   scrollBehavior: 'auto',
-                   width: '100%',
-                   touchAction: 'pan-x', // 横スクロールのみを許可
-                   overscrollBehavior: 'contain' // スクロールの境界を制限
-                 }}
-                 onScroll={handlePianoScroll}
-                 ref={(el) => {
-                   pianoScrollRef.current = el;
-                   if (el) {
-                     requestAnimationFrame(() => {
-                       requestAnimationFrame(centerPianoC4);
-                     });
-                   }
-                 }}
-               >
+              <div 
+                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
+                style={{ 
+                  WebkitOverflowScrolling: 'touch',
+                  scrollSnapType: 'none',
+                  scrollBehavior: 'auto',
+                  width: '100%',
+                  touchAction: 'pan-x', // 横スクロールのみを許可
+                  overscrollBehavior: 'contain' // スクロールの境界を制限
+                }}
+                onScroll={handlePianoScroll}
+                ref={(el) => {
+                  pianoScrollRef.current = el;
+                  if (el) {
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(centerPianoC4);
+                    });
+                  }
+                }}
+              >
                 <PIXINotesRenderer
                   activeNotes={[]}
                   width={pixiWidth}
