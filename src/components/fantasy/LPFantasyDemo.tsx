@@ -150,7 +150,6 @@ const LPFantasyDemo: React.FC = () => {
                 <FantasyGameScreen
                   stage={stage}
                   autoStart
-                  fitAllKeys
                   onGameComplete={() => {}}
                   onBackToStageSelect={closeDemo}
                   noteNameLang="en"
