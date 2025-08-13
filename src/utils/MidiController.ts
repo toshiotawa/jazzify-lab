@@ -38,6 +38,17 @@ const detectUserInteraction = (): Promise<void> => {
       resolve();
       return;
     }
+
+    // If Tone audio context is already running (e.g. Tone.start() was invoked),
+    // treat it as an interaction to avoid requiring a second click.
+    try {
+      const tone: any = (typeof window !== 'undefined') ? (window as any).Tone : null;
+      if (tone?.context?.state === 'running') {
+        userInteracted = true;
+        resolve();
+        return;
+      }
+    } catch {}
     
     const handleUserInteraction = () => {
       userInteracted = true;

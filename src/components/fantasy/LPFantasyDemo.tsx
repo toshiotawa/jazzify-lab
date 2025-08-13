@@ -1,0 +1,168 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
+import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { useGameStore } from '@/stores/gameStore';
+
+const LPFantasyDemo: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [stage, setStage] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { settings, updateSettings } = useGameStore();
+
+  // Lazy import FantasyGameScreen only when modal opens
+  const FantasyGameScreen = useMemo(() => React.lazy(() => import('./FantasyGameScreen')), []);
+
+  // Fetch 1-1 stage from DB when opening
+  const loadStage = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { fetchFantasyStageByNumber } = await import('@/platform/supabaseFantasyStages');
+      const dbStage = await fetchFantasyStageByNumber('1-1');
+      if (!dbStage) {
+        throw new Error('ステージ 1-1 が見つかりませんでした');
+      }
+      // Map DB shape to FantasyGameScreen expected stage shape
+      const mapped = {
+        id: dbStage.id,
+        stageNumber: dbStage.stage_number,
+        name: dbStage.name,
+        description: dbStage.description,
+        maxHp: dbStage.max_hp,
+        enemyGaugeSeconds: dbStage.enemy_gauge_seconds,
+        enemyCount: dbStage.enemy_count,
+        enemyHp: dbStage.enemy_hp,
+        minDamage: dbStage.min_damage,
+        maxDamage: dbStage.max_damage,
+        mode: (dbStage as any).mode,
+        allowedChords: (dbStage as any).allowed_chords,
+        chordProgression: (dbStage as any).chord_progression,
+        chordProgressionData: (dbStage as any).chord_progression_data,
+        showSheetMusic: false,
+        showGuide: dbStage.show_guide,
+        simultaneousMonsterCount: dbStage.simultaneous_monster_count || 1,
+        monsterIcon: 'dragon',
+        bpm: (dbStage as any).bpm || 120,
+        bgmUrl: dbStage.bgm_url || (dbStage as any).mp3_url || '/demo-1.mp3',
+        measureCount: (dbStage as any).measure_count,
+        countInMeasures: (dbStage as any).count_in_measures,
+        timeSignature: (dbStage as any).time_signature,
+        noteIntervalBeats: (dbStage as any).note_interval_beats,
+        playRootOnCorrect: (dbStage as any).play_root_on_correct ?? true
+      } as const;
+      setStage(mapped);
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || 'ステージ取得に失敗しました');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const openDemo = useCallback(async () => {
+    if (!stage) {
+      await loadStage();
+    }
+    setIsOpen(true);
+    // Request fullscreen after state update in next tick
+    setTimeout(() => {
+      const root = containerRef.current;
+      if (!root) return;
+      if (root.requestFullscreen) root.requestFullscreen().catch(() => {});
+      // vendor prefixes
+      (root as any).webkitRequestFullscreen?.();
+      (root as any).msRequestFullscreen?.();
+      setIsFullscreen(true);
+    }, 0);
+  }, [loadStage, stage]);
+
+  const closeDemo = useCallback(() => {
+    setIsOpen(false);
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
+      (document as any).webkitExitFullscreen?.();
+      (document as any).msExitFullscreen?.();
+    } catch {}
+    setIsFullscreen(false);
+  }, []);
+
+  return (
+    <section className="py-10">
+      <div className="container mx-auto px-6">
+        <div className="rounded-2xl border border-purple-500/30 bg-slate-900/60 shadow-xl overflow-hidden">
+          <div className="grid md:grid-cols-2 gap-0">
+            {/* Visual + CTA */}
+            <div className="relative min-h-[192px] md:min-h-[224px]">
+              <div className="absolute inset-0 bg-[url('/default_avater/default-avater.png')] bg-cover bg-center" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
+                <h3 className="text-xl md:text-2xl font-bold text-purple-200 text-center">ファンタジーモード デモ（1-1）</h3>
+                <p className="text-gray-200 text-xs md:text-sm text-center max-w-md">MIDIキーボード／タッチ／クリック対応。全画面でシームレスにプレイ。</p>
+                <button
+                  onClick={openDemo}
+                  className="h-11 w-56 md:h-12 md:w-64 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-2xl"
+                  aria-label="ファンタジーモード デモを再生"
+                >
+                  体験する（全画面）
+                </button>
+                {error && <div className="text-red-400 text-xs">{error}</div>}
+              </div>
+            </div>
+
+            {/* Device select + note */}
+            <div className="p-4 md:p-6 flex flex-col justify-center gap-4">
+              <div>
+                <div className="text-sm text-purple-200 font-semibold mb-2">MIDI機器を選択</div>
+                <MidiDeviceSelector
+                  value={settings.selectedMidiDevice}
+                  onChange={(id) => updateSettings({ selectedMidiDevice: id })}
+                />
+                <div className="text-xs text-gray-400 mt-2">選択した機器はデモプレイで使用されます。未選択でもマウス/タッチでプレイ可能です。</div>
+              </div>
+              <div className="text-[11px] text-gray-400">通信や環境により音声の初回起動にユーザー操作が必要な場合があります。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {isOpen && (
+        <div
+          ref={containerRef}
+          className="fixed inset-0 z-[1000] bg-black"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="absolute top-3 right-3 z-50">
+            <button
+              onClick={closeDemo}
+              className="px-3 py-2 rounded bg-gray-800 hover:bg-gray-700 text-sm text-white border border-white/10"
+            >
+              全画面を終了
+            </button>
+          </div>
+          <div className="absolute inset-0">
+            <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-white">読み込み中...</div>}>
+              {stage && (
+                <FantasyGameScreen
+                  stage={stage}
+                  autoStart
+                  onGameComplete={() => {}}
+                  onBackToStageSelect={closeDemo}
+                  noteNameLang="en"
+                  simpleNoteName={false}
+                  lessonMode={false}
+                />
+              )}
+            </Suspense>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+};
+
+export default LPFantasyDemo;
