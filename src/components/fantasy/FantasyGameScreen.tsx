@@ -1275,8 +1275,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                  className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
                  style={{ 
                    WebkitOverflowScrolling: 'touch',
-                   scrollSnapType: 'x proximity',
-                   scrollBehavior: 'smooth',
+                   scrollSnapType: 'none',
+                   scrollBehavior: 'auto',
                    width: '100%',
                    touchAction: 'pan-x', // 横スクロールのみを許可
                    overscrollBehavior: 'contain' // スクロールの境界を制限

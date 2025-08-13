@@ -1053,8 +1053,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x pixi-mobile-scroll custom-game-scrollbar" 
               style={{ 
                 WebkitOverflowScrolling: 'touch',
-                scrollSnapType: 'x proximity',
-                scrollBehavior: 'smooth'
+                scrollSnapType: 'none',
+                scrollBehavior: 'auto'
               }}
               ref={pianoScrollRef}
             >
