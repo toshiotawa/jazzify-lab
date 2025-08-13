@@ -54,6 +54,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
+  const hasUserScrolledRef = useRef(false);
+  const isProgrammaticScrollRef = useRef(false);
+  const handlePianoScroll = useCallback(() => {
+    if (!isProgrammaticScrollRef.current) {
+      hasUserScrolledRef.current = true;
+    }
+  }, []);
   
   // 音声再生用の要素
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -955,6 +962,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (!container) return;
 
     const centerC4 = () => {
+      if (hasUserScrolledRef.current) return;
       const contentWidth = container.scrollWidth;
       const viewportWidth = container.clientWidth;
       if (!contentWidth || !viewportWidth) return;
@@ -964,7 +972,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       const whiteKeyWidth = contentWidth / TOTAL_WHITE_KEYS;
       const c4CenterX = (C4_WHITE_INDEX + 0.5) * whiteKeyWidth;
       const desiredScroll = Math.max(0, Math.min(contentWidth - viewportWidth, c4CenterX - viewportWidth / 2));
+      isProgrammaticScrollRef.current = true;
       container.scrollLeft = desiredScroll;
+      requestAnimationFrame(() => {
+        isProgrammaticScrollRef.current = false;
+      });
     };
 
     const raf = requestAnimationFrame(centerC4);
@@ -1056,6 +1068,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                 scrollSnapType: 'none',
                 scrollBehavior: 'auto'
               }}
+              onScroll={handlePianoScroll}
               ref={pianoScrollRef}
             >
               <div style={{ 
