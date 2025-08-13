@@ -383,11 +383,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
 
     // ルート音を再生（非同期対応）
-    const allowRootSound = stage?.playRootOnCorrect === true;
+    const allowRootSound = stage?.playRootOnCorrect !== false;
     if (allowRootSound) {
       try {
         const mod = await import('@/utils/FantasySoundManager');
         const FSM = (mod as any).FantasySoundManager ?? mod.default;
+        // iOS/Safari 対策: 再生前にTone.start()
+        try { await (window as any).Tone?.start?.(); } catch {}
         // スラッシュコード対応: 分母があればそれをルートとして鳴らす
         const id = chord.id || chord.displayName || chord.root;
         let bassToPlay = chord.root;
@@ -944,6 +946,40 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [autoStart, initializeGame, stage]);
 
+  // iOS Safari 対策: 初回タップでオーディオ解放
+  const [needsUnlock, setNeedsUnlock] = useState<boolean>(false);
+  useEffect(() => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIOS) {
+      // 判定: Toneが未起動なら解放が必要
+      try {
+        const started = (window as any).Tone?.context?.state === 'running';
+        if (!started) setNeedsUnlock(true);
+      } catch {}
+    }
+  }, []);
+
+  const handleUnlockAudio = useCallback(async () => {
+    try {
+      await (window as any).Tone?.start?.();
+    } catch {}
+    try {
+      const { initializeAudioSystem, updateGlobalVolume } = await import('@/utils/MidiController');
+      await initializeAudioSystem();
+      updateGlobalVolume(0.8);
+    } catch {}
+    try {
+      const mod = await import('@/utils/FantasySoundManager');
+      const FSM = (mod as any).FantasySoundManager ?? mod.default;
+      await FSM?.init(
+        settings.soundEffectVolume ?? 0.8,
+        settings.rootSoundVolume ?? 0.5,
+        stage?.playRootOnCorrect !== false
+      );
+    } catch {}
+    setNeedsUnlock(false);
+  }, [settings.soundEffectVolume, settings.rootSoundVolume, stage?.playRootOnCorrect]);
+
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
     devLog.debug('🎮 ゲーム開始前画面表示:', { 
@@ -997,6 +1033,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     <div className={cn(
       `${fitAllKeys ? 'h-full' : 'min-h-[var(--dvh,100dvh)]'} bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen`
     )}>
+      {needsUnlock && (
+        <button
+          className="absolute inset-0 z-50 bg-black/70 text-white flex items-center justify-center text-lg"
+          onClick={handleUnlockAudio}
+        >
+          画面をタップして音声を有効にする
+        </button>
+      )}
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="flex items-center justify-between">

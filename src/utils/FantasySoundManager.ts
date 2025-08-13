@@ -71,6 +71,10 @@ export class FantasySoundManager {
     thunder: null,
     my_attack: null,
   };
+  private seUnlocked: boolean = false;
+  
+  /** Tone.js プレイヤー（iOS Safari 対策: 同一コンテキストで再生） */
+  private tonePlayers: Partial<Record<'my_attack' | 'enemy_attack', any>> = {};
 
   /** マスターボリューム (0‑1) */
   private _volume = 0.8;
@@ -183,8 +187,30 @@ export class FantasySoundManager {
         },
         baseUrl: "https://tonejs.github.io/audio/salamander/"
       }).toDestination();
+
+      // ─ SE: Tone.Player を準備（Safari での複数 AudioContext 制限を回避）
+      try {
+        const playerMy = new (Tone as any).Player({ url: `${baseUrl}sounds/my_attack.mp3`, autostart: false }).toDestination();
+        const playerEnemy = new (Tone as any).Player({ url: `${baseUrl}sounds/enemy_attack.mp3`, autostart: false }).toDestination();
+        // 音量を同期
+        const volDb = this._volume === 0 ? -Infinity : Math.log10(this._volume) * 20;
+        if (playerMy.volume) playerMy.volume.value = volDb;
+        if (playerEnemy.volume) playerEnemy.volume.value = volDb;
+        // 読み込み待機
+        if (playerMy.loaded) { try { await playerMy.loaded; } catch {} }
+        if (playerEnemy.loaded) { try { await playerEnemy.loaded; } catch {} }
+        this.tonePlayers.my_attack = playerMy;
+        this.tonePlayers.enemy_attack = playerEnemy;
+      } catch (e) {
+        console.warn('[FantasySoundManager] Failed to setup Tone.Player for SE:', e);
+      }
+
+      // ルート音量と有効化
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
+
+      // ルートサンプラーのロード完了をできるだけ待つ
+      try { await (this.bassSampler as any)?.loaded; } catch {}
 
       this.isInited = true;
       console.debug('[FantasySoundManager] init complete');
@@ -253,6 +279,11 @@ export class FantasySoundManager {
     if (this.seGainNode) {
       this.seGainNode.gain.setValueAtTime(this._volume, this.seAudioContext!.currentTime);
     }
+    // Tone.Player の音量にも反映（dB）
+    const volDb = this._volume === 0 ? -Infinity : Math.log10(this._volume) * 20;
+    Object.values(this.tonePlayers).forEach((p) => {
+      try { if (p?.volume) p.volume.value = volDb; } catch {}
+    });
   }
 
   private _playMagic(type: MagicSeType) {
@@ -262,24 +293,48 @@ export class FantasySoundManager {
     this._playSe('my_attack');
   }
 
-  private _playSe(key: keyof typeof this.audioMap) {
+  private async _playSe(key: keyof typeof this.audioMap) {
     console.debug(`[FantasySoundManager] _playSe called with key: ${key}`);
+
+    // まず Tone.Player を優先使用（iOS Safari でも確実）
+    const tp = (this.tonePlayers as any)[key];
+    if (tp) {
+      try {
+        const ToneAny: any = (window as any).Tone;
+        if (ToneAny?.context?.state !== 'running') {
+          try { await ToneAny.start?.(); } catch {}
+        }
+        tp.start?.();
+        return;
+      } catch (e) {
+        console.warn('[FantasySoundManager] Tone.Player playback failed, trying WebAudio/HTMLAudio...', e);
+      }
+    }
 
     // 低遅延: Web Audio での即時再生（フォールバックあり）
     if (this.seAudioContext && this.seBuffers[key]) {
       try {
         const ctx = this.seAudioContext;
         if (ctx.state !== 'running') {
-          void ctx.resume();
+          try {
+            await ctx.resume();
+          } catch (e) {
+            console.warn('[FantasySoundManager] ctx.resume() failed:', e);
+          }
         }
-        const src = ctx.createBufferSource();
-        src.buffer = this.seBuffers[key]!;
-        src.connect(this.seGainNode!);
-        src.start(0);
-        src.addEventListener('ended', () => {
-          try { src.disconnect(); } catch {}
-        });
-        return;
+        if (ctx.state === 'running') {
+          const src = ctx.createBufferSource();
+          src.buffer = this.seBuffers[key]!;
+          src.connect(this.seGainNode!);
+          src.start(0);
+          src.addEventListener('ended', () => {
+            try { src.disconnect(); } catch {}
+          });
+          return;
+        } else {
+          console.warn('[FantasySoundManager] SE AudioContext not running, falling back to HTMLAudio.');
+          // fall through to HTMLAudio
+        }
       } catch (e) {
         console.warn('[FantasySoundManager] WebAudio SE playback failed. Falling back to HTMLAudio.', e);
       }
@@ -293,21 +348,20 @@ export class FantasySoundManager {
 
     const base = entry.base;
     if (!entry.ready) {
-      // 未ロード or 失敗時は何もしない（ユーザー体験阻害しない）
-      console.warn(`[FantasySoundManager] Audio not ready for key: ${key}`);
+      // 未ロード時でも再生を試みる（モバイルでcanplaythroughが遅い対策）
+      console.warn(`[FantasySoundManager] Audio not fully ready for key: ${key} (trying early playback)`);
       console.warn(`[FantasySoundManager] Audio state:`, {
         src: base.src,
         readyState: base.readyState,
         networkState: base.networkState,
         error: base.error
       });
-      return;
     }
 
-    console.debug(`[FantasySoundManager] Playing sound (fallback): ${key} at volume: ${this._volume}`);
+    console.debug(`[FantasySoundManager] Playing sound (fallback HTMLAudio): ${key} at volume: ${this._volume}`);
 
     // 同時再生のため cloneNode()
-    const node = base.cloneNode() as HTMLAudioElement;
+    const node = base.cloneNode(true) as HTMLAudioElement;
     node.volume = this._volume;
     // onended で解放
     node.addEventListener('ended', () => {
@@ -379,6 +433,7 @@ export class FantasySoundManager {
         this.seGainNode = this.seAudioContext.createGain();
         this.seGainNode.gain.setValueAtTime(this._volume, this.seAudioContext.currentTime);
         this.seGainNode.connect(this.seAudioContext.destination);
+        this._installMobileUnlockHandlers();
       }
 
       const seFiles: Array<[keyof typeof this.seBuffers, string]> = [
@@ -403,6 +458,33 @@ export class FantasySoundManager {
     } catch (e) {
       console.warn('[FantasySoundManager] SE AudioContext setup failed:', e);
     }
+  }
+
+  private _installMobileUnlockHandlers() {
+    if (!this.seAudioContext || this.seUnlocked) return;
+
+    const tryUnlock = async () => {
+      try {
+        if (this.seAudioContext && this.seAudioContext.state !== 'running') {
+          await this.seAudioContext.resume();
+        }
+        const ToneAny: any = (window as any).Tone;
+        if (ToneAny?.start) {
+          try { await ToneAny.start(); } catch {}
+        }
+      } catch {}
+
+      if (this.seAudioContext?.state === 'running') {
+        this.seUnlocked = true;
+      }
+    };
+
+    // ユーザー操作で確実に解放する
+    const opts: AddEventListenerOptions & EventListenerOptions = { once: true, passive: true } as any;
+    window.addEventListener('pointerdown', tryUnlock, opts);
+    window.addEventListener('touchstart', tryUnlock, opts);
+    window.addEventListener('click', tryUnlock, opts);
+    window.addEventListener('keydown', tryUnlock, opts);
   }
 }
 
