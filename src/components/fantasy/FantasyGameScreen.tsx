@@ -278,6 +278,34 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
+  const pianoScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const container = pianoScrollRef.current;
+    if (!container) return;
+
+    const centerC4 = () => {
+      const contentWidth = container.scrollWidth;
+      const viewportWidth = container.clientWidth;
+      if (!contentWidth || !viewportWidth) return;
+      if (contentWidth <= viewportWidth) return;
+      const TOTAL_WHITE_KEYS = 52;
+      const C4_WHITE_INDEX = 23; // A0=0 ... C4=23
+      const whiteKeyWidth = contentWidth / TOTAL_WHITE_KEYS;
+      const c4CenterX = (C4_WHITE_INDEX + 0.5) * whiteKeyWidth;
+      const desiredScroll = Math.max(0, Math.min(contentWidth - viewportWidth, c4CenterX - viewportWidth / 2));
+      container.scrollLeft = desiredScroll;
+    };
+
+    const raf = requestAnimationFrame(centerC4);
+    const handleResize = () => requestAnimationFrame(centerC4);
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [pianoScrollRef]);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const isTaikoModeRef = useRef(false);
   const gameAreaRef = useRef<HTMLDivElement>(null);
@@ -1219,6 +1247,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   touchAction: 'pan-x', // 横スクロールのみを許可
                   overscrollBehavior: 'contain' // スクロールの境界を制限
                 }}
+                ref={pianoScrollRef}
               >
                 <PIXINotesRenderer
                   activeNotes={[]}
