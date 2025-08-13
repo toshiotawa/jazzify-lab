@@ -41,9 +41,25 @@ const LessonPage: React.FC = () => {
 
   useEffect(() => {
     const checkHash = () => {
-      const isLessonsPage = window.location.hash === '#lessons';
+      const hash = window.location.hash;
+      const isLessonsPage = hash.startsWith('#lessons');
       const wasOpen = open;
       setOpen(isLessonsPage);
+      
+      // URLパラメータからcourseIdを取得
+      if (isLessonsPage) {
+        const urlParams = new URLSearchParams(hash.split('?')[1] || '');
+        const courseIdFromUrl = urlParams.get('courseId');
+        
+        // courseIdが指定されていて、まだ選択されていない場合
+        if (courseIdFromUrl && (!selectedCourse || selectedCourse.id !== courseIdFromUrl)) {
+          // コースリストから該当するコースを探して選択
+          const targetCourse = courses.find(c => c.id === courseIdFromUrl);
+          if (targetCourse) {
+            setSelectedCourse(targetCourse);
+          }
+        }
+      }
       
       // レッスン詳細から戻ってきた場合は強制再読み込み
       if (isLessonsPage && !wasOpen && profile && selectedCourse) {
@@ -57,7 +73,7 @@ const LessonPage: React.FC = () => {
     checkHash();
     window.addEventListener('hashchange', checkHash);
     return () => window.removeEventListener('hashchange', checkHash);
-  }, [open, profile, selectedCourse]);
+  }, [open, profile, selectedCourse, courses]);
 
   useEffect(() => {
     if (selectedCourse) {
@@ -158,6 +174,25 @@ const LessonPage: React.FC = () => {
           setAllCoursesProgress(progressMap);
         } catch (error) {
           console.error('Error loading course progress data:', error);
+        }
+      }
+      
+      // URLパラメータからcourseIdを取得
+      const hash = window.location.hash;
+      const urlParams = new URLSearchParams(hash.split('?')[1] || '');
+      const courseIdFromUrl = urlParams.get('courseId');
+      
+      // courseIdが指定されている場合はそのコースを選択
+      if (courseIdFromUrl) {
+        const targetCourse = sortedCourses.find(c => c.id === courseIdFromUrl);
+        if (targetCourse) {
+          // アクセス可能かチェック
+          const courseUnlockFlag = unlockStatus[targetCourse.id] !== undefined ? unlockStatus[targetCourse.id] : null;
+          const accessResult = canAccessCourse(targetCourse, profile?.rank || 'free', completedCourses, courseUnlockFlag);
+          if (accessResult.canAccess) {
+            setSelectedCourse(targetCourse);
+            return; // 早期リターン
+          }
         }
       }
       
@@ -377,29 +412,29 @@ const LessonPage: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-gradient-game text-white">
+    <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col">
+      {/* GameHeaderを追加 */}
       <GameHeader />
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col">
-          {/* ヘッダー */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-700">
-            <button
-              onClick={handleClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-              aria-label="戻る"
-            >
-              <FaArrowLeft />
-            </button>
-            <h1 className="text-xl font-bold">レッスン</h1>
-            <div className="w-8" /> {/* スペーサー */}
-          </div>
+      
+      {/* ヘッダー */}
+      <div className="flex items-center justify-between p-4 border-b border-slate-700">
+        <button
+          onClick={handleClose}
+          className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+          aria-label="戻る"
+        >
+          <FaArrowLeft />
+        </button>
+        <h1 className="text-xl font-bold">レッスン</h1>
+        <div className="w-8" /> {/* スペーサー */}
+      </div>
 
-          {loading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-gray-400">読み込み中...</p>
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-gray-400">読み込み中...</p>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
               {/* コース一覧サイドバー */}
               <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col">
                 <div className="p-4 border-b border-slate-700">
@@ -425,6 +460,8 @@ const LessonPage: React.FC = () => {
                         }`}
                         onClick={() => {
                           if (accessible) {
+                            console.log('Course selected:', course.title, course.id);
+                            console.log('Course details:', course);
                             setSelectedCourse(course);
                           } else {
                             toast.warning(accessResult.reason || 'このコースにはアクセスできません');
@@ -520,6 +557,7 @@ const LessonPage: React.FC = () => {
               <div className="flex-1 flex flex-col overflow-hidden">
                 {selectedCourse ? (
                   <>
+                    {console.log('Rendering selected course:', selectedCourse.title, selectedCourse.description)}
                     <div className="p-6 border-b border-slate-700">
                       <h2 className="text-2xl font-bold mb-2">{selectedCourse.title}</h2>
                       {selectedCourse.description && (
@@ -652,9 +690,7 @@ const LessonPage: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-};
+      );
+    };
 
 export default LessonPage; 
