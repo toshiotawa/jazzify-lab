@@ -354,7 +354,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       <div
         key={stage.id}
         className={cn(
-          "relative p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-center gap-4",
+          "relative p-4 sm:p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:scale-[1.02] flex items-start sm:items-center gap-3 sm:gap-4 w-full",
           unlocked
             ? "bg-white bg-opacity-10 border-white border-opacity-30 hover:bg-opacity-20"
             : "bg-gray-700 bg-opacity-50 border-gray-600 cursor-not-allowed",
@@ -367,20 +367,20 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           <img 
             src={`/stage_icons/${iconNumber}.png`}
             alt={`Stage ${stage.stageNumber} icon`}
-            className="w-20 h-20 object-contain"
+            className="w-14 h-14 sm:w-20 sm:h-20 object-contain"
           />
         </div>
         
         {/* ステージ番号 */}
-        <div className="text-white text-xl font-bold flex-shrink-0 w-16 text-center">
+        <div className="text-white text-lg sm:text-xl font-bold flex-shrink-0 w-14 sm:w-16 text-center">
           {stage.stageNumber}
         </div>
         
         {/* コンテンツ部分 */}
-        <div className="flex-grow">
+        <div className="min-w-0 flex-grow">
           {/* ステージ名 */}
           <div className={cn(
-            "text-lg font-medium mb-1",
+            "text-base sm:text-lg font-medium mb-1 truncate",
             unlocked ? "text-white" : "text-gray-400"
           )}>
             {unlocked ? stage.name : "???"}
@@ -388,9 +388,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           
           {/* モードタグ */}
           {unlocked && (
-            <div className="mb-2">
+            <div className="mb-1 sm:mb-2">
               <span className={cn(
-                "inline-block px-3 py-1 text-xs font-semibold text-white rounded-full",
+                "inline-block px-2 py-0.5 sm:px-3 sm:py-1 text-[10px] sm:text-xs font-semibold text-white rounded-full",
                 modeDisplay.color
               )}>
                 {modeDisplay.label}
@@ -400,7 +400,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           
           {/* 説明文 */}
           <div className={cn(
-            "text-sm leading-relaxed",
+            "text-xs sm:text-sm leading-relaxed break-words",
             unlocked ? "text-gray-300" : "text-gray-500"
           )}>
             {unlocked ? stage.description : (
@@ -412,14 +412,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         </div>
         
         {/* 右側のアイコン */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 self-center">
           {!unlocked && (
-            <div className="text-2xl">
+            <div className="text-xl sm:text-2xl">
               <span>🔒</span>
             </div>
           )}
           {isCleared && (
-            <div className="text-yellow-400 text-2xl">
+            <div className="text-yellow-400 text-xl sm:text-2xl">
               ⭐
             </div>
           )}
@@ -433,8 +433,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     return (
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white mx-auto mb-4"></div>
-          <h2 className="text-2xl font-bold">ファンタジーモード読み込み中...</h2>
+          <div className="animate-spin rounded-full h-24 w-24 sm:h-32 sm:w-32 border-b-2 border-white mx-auto mb-4"></div>
+          <h2 className="text-xl sm:text-2xl font-bold">ファンタジーモード読み込み中...</h2>
         </div>
       </div>
     );
@@ -445,19 +445,19 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     return (
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center max-w-md">
-          <div className="text-6xl mb-4">😵</div>
-          <h2 className="text-2xl font-bold mb-4">エラーが発生しました</h2>
-          <p className="text-indigo-200 mb-6">{error}</p>
-          <div className="space-x-4">
+          <div className="text-5xl sm:text-6xl mb-4">😵</div>
+          <h2 className="text-xl sm:text-2xl font-bold mb-4">エラーが発生しました</h2>
+          <p className="text-indigo-200 mb-6 text-sm sm:text-base">{error}</p>
+          <div className="space-x-2 sm:space-x-4">
             <button
               onClick={loadFantasyData}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
+              className="px-4 sm:px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors text-sm sm:text-base"
             >
               再読み込み
             </button>
             <button
               onClick={onBackToMenu}
-              className="px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors"
+              className="px-4 sm:px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base"
             >
               メニューに戻る
             </button>
@@ -475,21 +475,21 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto fantasy-game-screen">
       {/* ヘッダー */}
-      <div className="relative z-10 p-6 text-white">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-              <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-16 h-16" />
-              ファンタジーモード
+      <div className="relative z-10 p-4 sm:p-6 text-white">
+        <div className="flex justify-between items-center gap-2">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-3">
+              <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-12 h-12 sm:w-16 sm:h-16" />
+              <span className="truncate">ファンタジーモード</span>
             </h1>
-            <div className="flex items-center space-x-6 text-lg">
+            <div className="flex items-center space-x-4 sm:space-x-6 text-base sm:text-lg">
               <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber || '1-1'}</span></div>
             </div>
           </div>
           
           <button
             onClick={onBackToMenu}
-            className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
+            className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap"
           >
             メニューに戻る
           </button>
@@ -498,8 +498,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       
       {/* フリープラン・ゲストユーザー向けのメッセージ */}
       {isFreeOrGuest && (
-        <div className="mx-6 mb-4 p-4 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
-          <p className="text-yellow-200 text-center">
+        <div className="mx-4 sm:mx-6 mb-4 p-3 sm:p-4 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
+          <p className="text-yellow-200 text-center text-sm sm:text-base">
             {isGuest ? 'ゲストプレイ中です。' : 'フリープランでご利用中です。'}
             ステージ1-1〜1-3までプレイ可能です。
             {isGuest && 'クリア記録は保存されません。'}
@@ -508,14 +508,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       )}
       
       {/* ランク選択タブ */}
-      <div className="px-6 mb-6">
+      <div className="px-4 sm:px-6 mb-4 sm:mb-6">
         <div className="flex space-x-2 overflow-x-auto">
           {Object.keys(groupedStages).map(rank => (
             <button
               key={rank}
               onClick={() => setSelectedRank(rank)}
               className={cn(
-                "px-6 py-3 rounded-lg font-medium whitespace-nowrap transition-colors",
+                "px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base",
                 selectedRank === rank
                   ? "bg-white text-purple-900"
                   : "bg-white bg-opacity-20 text-white hover:bg-opacity-30"
@@ -528,17 +528,17 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       </div>
       
       {/* ステージ一覧 */}
-      <div className="px-6 pb-6">
+      <div className="px-4 sm:px-6 pb-6">
         {selectedRank && groupedStages[selectedRank] && (
           <div className={cn(
-            "rounded-xl p-6 bg-gradient-to-br",
+            "rounded-xl p-4 sm:p-6 bg-gradient-to-br",
             getRankColor(parseInt(selectedRank))
           )}>
-            <h2 className="text-white text-xl font-bold mb-4">
+            <h2 className="text-white text-lg sm:text-xl font-bold mb-3 sm:mb-4">
               ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank)).title}
             </h2>
             
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {groupedStages[selectedRank]
                 .sort((a, b) => {
                   const [, aStage] = a.stageNumber.split('-').map(Number);
@@ -550,10 +550,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             </div>
             
             {/* ランク説明 */}
-            <div className="mt-6 bg-black bg-opacity-30 rounded-lg p-4">
-              <div className="text-white text-sm">
-                <p className="font-semibold mb-2">{getFantasyRankInfo(parseInt(selectedRank)).stageName}</p>
-                <p>{getFantasyRankInfo(parseInt(selectedRank)).description}</p>
+            <div className="mt-4 sm:mt-6 bg-black bg-opacity-30 rounded-lg p-3 sm:p-4">
+              <div className="text-white text-xs sm:text-sm">
+                <p className="font-semibold mb-1 sm:mb-2">{getFantasyRankInfo(parseInt(selectedRank)).stageName}</p>
+                <p className="leading-relaxed">{getFantasyRankInfo(parseInt(selectedRank)).description}</p>
               </div>
             </div>
           </div>
@@ -561,9 +561,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       </div>
       
       {/* フッター */}
-      <div className="text-center text-white text-sm opacity-70 pb-6">
+      <div className="text-center text-white text-xs sm:text-sm opacity-70 pb-6">
         <p>🎹 正しいコードを演奏してモンスターを倒そう！</p>
-        <p className="text-xs mt-1">構成音が全て含まれていれば正解です（順番・オクターブ不問）</p>
+        <p className="text-[11px] sm:text-xs mt-1">構成音が全て含まれていれば正解です（順番・オクターブ不問）</p>
       </div>
     </div>
   );
