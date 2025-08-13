@@ -3,6 +3,9 @@ import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 
+// ファンタジーモード 1-1 デモ（遅延読込）
+const Stage1Demo = React.lazy(() => import('./fantasy/LandingStage1Demo'));
+
 const LandingPage: React.FC = () => {
   const { user, isGuest, loading, enterGuestMode } = useAuthStore();
   const navigate = useNavigate();
@@ -97,6 +100,25 @@ const LandingPage: React.FC = () => {
                   </span>
                 </div>
               </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Fantasy Mode Stage 1-1 Demo Section (Hero直後) */}
+        <section id="fantasy-demo" className="py-16 story-gradient">
+          <div className="container mx-auto px-6">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8 section-title flex items-center justify-center gap-3">
+              <img src="/stage_icons/1.png" alt="ファンタジーモード" className="w-10 h-10" />
+              ファンタジーモード 1-1 デモ
+            </h2>
+            <div className="max-w-4xl mx-auto">
+              <React.Suspense fallback={
+                <div className="p-6 rounded-xl border border-white/10 bg-white/5 text-center text-sm text-gray-300">
+                  デモを読み込み中...
+                </div>
+              }>
+                <Stage1Demo />
+              </React.Suspense>
             </div>
           </div>
         </section>
