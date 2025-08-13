@@ -14,9 +14,9 @@ const GameHeader: React.FC = () => {
 
   return (
     <header className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-2">
         {/* 左側ナビゲーション */}
-        <div className="flex items-center space-x-2 overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
+        <div className="flex-1 min-w-0 flex items-center space-x-1 sm:space-x-2 overflow-x-auto whitespace-nowrap pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
           {/* トップ (ダッシュボード) */}
           <button
             className="text-white hover:text-primary-400 font-bold px-2"
@@ -82,7 +82,7 @@ const HashButton: React.FC<HashButtonProps> = ({ hash, children, onClick, disabl
           onClick?.();
         }
       }}
-      className={`tab-xs ${active ? 'tab-active' : 'tab-inactive'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      className={`px-2 py-1 text-xs sm:text-sm whitespace-nowrap ${active ? 'tab-active' : 'tab-inactive'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       disabled={disabled}
     >
       {children}
@@ -94,7 +94,7 @@ const HeaderRightControls: React.FC = () => {
   const { user, isGuest, logout } = useAuthStore();
 
   return (
-    <div className="flex items-center space-x-2 sm:space-x-4">
+    <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 whitespace-nowrap">
       {user && !isGuest ? (
         <>
           <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary">
@@ -104,7 +104,7 @@ const HeaderRightControls: React.FC = () => {
       ) : isGuest ? (
         <>
           <button 
-            className="btn btn-sm btn-primary" 
+            className="btn btn-sm btn-primary text-xs px-2 py-1 sm:text-base sm:px-4 sm:py-2 whitespace-nowrap" 
             onClick={() => {
               logout();
               window.location.hash = '#login';
@@ -114,7 +114,7 @@ const HeaderRightControls: React.FC = () => {
           </button>
         </>
       ) : (
-        <button className="btn btn-sm btn-outline" onClick={logout}>ログアウト</button>
+        <button className="btn btn-sm btn-outline text-xs px-2 py-1 sm:text-base sm:px-4 sm:py-2" onClick={logout}>ログアウト</button>
       )}
     </div>
   );

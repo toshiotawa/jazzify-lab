@@ -41,33 +41,33 @@ const Header: React.FC = () => {
       <div className="hidden md:flex items-center space-x-2">
         {!user && !isGuest && (
           <>
-            <button className="btn btn-sm btn-primary" onClick={()=>{location.hash='#login';}}>
+            <button className="btn btn-sm btn-primary text-sm px-3 py-1.5" onClick={()=>{location.hash='#login';}}>
               会員登録
             </button>
-            <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#login';}}>
+            <button className="btn btn-sm btn-outline text-sm px-3 py-1.5" onClick={()=>{location.hash='#login';}}>
               ログイン
             </button>
-            <button className="btn btn-sm btn-secondary" onClick={handleGuest}>
+            <button className="btn btn-sm btn-secondary text-sm px-3 py-1.5" onClick={handleGuest}>
               おためしプレイ
             </button>
           </>
         )}
         {isGuest && (
-          <button className="btn btn-sm btn-secondary" onClick={handleLogoutToLogin}>
+          <button className="btn btn-sm btn-secondary text-sm px-3 py-1.5" onClick={handleLogoutToLogin}>
             ログイン / 会員登録
           </button>
         )}
         {user && (
           <>
-            <button className="btn btn-sm btn-primary" onClick={()=>{location.href='/main#dashboard'}}>
+            <button className="btn btn-sm btn-primary text-sm px-3 py-1.5" onClick={()=>{location.href='/main#dashboard'}}>
               ダッシュボード
             </button>
-            <button className="btn btn-sm" onClick={()=>{location.hash='#account'}}>
+            <button className="btn btn-sm text-sm px-3 py-1.5" onClick={()=>{location.hash='#account'}}>
               アカウント
             </button>
             
             {useAuthStore.getState().profile?.rank !== 'standard_global' && (
-              <button className="btn btn-sm btn-outline" onClick={()=>{location.hash='#diary';}}>
+              <button className="btn btn-sm btn-outline text-sm px-3 py-1.5" onClick={()=>{location.hash='#diary';}}>
                 コミュニティ
               </button>
             )}
@@ -90,32 +90,32 @@ const Header: React.FC = () => {
           <div className="flex flex-col space-y-2 p-4">
             {!user && !isGuest && (
               <>
-                <button className="btn btn-sm btn-primary w-full text-left" onClick={()=>{location.hash='#login'; setMenuOpen(false);}}>
+                <button className="btn btn-sm btn-primary w-full text-left text-base" onClick={()=>{location.hash='#login'; setMenuOpen(false);}}>
                   会員登録
                 </button>
-                <button className="btn btn-sm btn-outline w-full text-left" onClick={()=>{location.hash='#login'; setMenuOpen(false);}}>
+                <button className="btn btn-sm btn-outline w-full text-left text-base" onClick={()=>{location.hash='#login'; setMenuOpen(false);}}>
                   ログイン
                 </button>
-                <button className="btn btn-sm btn-secondary w-full text-left" onClick={handleGuest}>
+                <button className="btn btn-sm btn-secondary w-full text-left text-base" onClick={handleGuest}>
                   おためしプレイ
                 </button>
               </>
             )}
             {isGuest && (
-              <button className="btn btn-sm btn-secondary w-full text-left" onClick={handleLogoutToLogin}>
+              <button className="btn btn-sm btn-secondary w-full text-left text-base" onClick={handleLogoutToLogin}>
                 ログイン / 会員登録
               </button>
             )}
             {user && (
               <>
                 <button 
-                  className="btn btn-sm btn-primary w-full text-left" 
+                  className="btn btn-sm btn-primary w-full text-left text-base" 
                   onClick={()=>{location.href='/main#dashboard'; setMenuOpen(false);}}
                 >
                   ダッシュボード
                 </button>
                 <button 
-                  className="btn btn-sm w-full text-left" 
+                  className="btn btn-sm w-full text-left text-base" 
                   onClick={()=>{location.hash='#account'; setMenuOpen(false);}}
                 >
                   アカウント
@@ -123,7 +123,7 @@ const Header: React.FC = () => {
                 
                 {useAuthStore.getState().profile?.rank !== 'standard_global' && (
                   <button 
-                    className="btn btn-sm btn-outline w-full text-left" 
+                    className="btn btn-sm btn-outline w-full text-left text-base" 
                     onClick={()=>{location.hash='#diary'; setMenuOpen(false);}}
                   >
                     コミュニティ

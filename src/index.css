@@ -31,6 +31,12 @@
   * {
     box-sizing: border-box;
   }
+
+  /* モバイル時は少しだけベースフォントを縮小 */
+  @media (max-width: 640px) {
+    html { font-size: 16px; }
+    body { @apply text-base; }
+  }
   
   /* ユーザー選択を無効化（ゲーム画面での誤選択防止） */
   .game-area {
@@ -333,6 +339,13 @@
     @apply opacity-50 cursor-not-allowed;
   }
 
+  /* 小画面でのボタンの最適化（行折返し抑制） */
+  @media (max-width: 640px) {
+    .btn, .btn-sm {
+      @apply text-sm px-3 py-1.5;
+    }
+  }
+
   /* グラデーション付きコントロールボタン */
   .control-btn {
     /* 軽量化: スケール拡大でコントロールバーが揺れるのを防止 */
@@ -399,49 +412,23 @@
     box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
   }
   
-  .control-btn-danger {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
-    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
-    @apply focus:ring-red-500;
-  }
-  
-  .control-btn-danger:hover {
-    background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
-    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6);
-  }
-  
-  .control-btn-sm {
-    @apply px-4 py-3 text-base;
-  }
-  
-  .control-btn-xs {
-    @apply px-3 py-2 text-sm;
-  }
-  
-  .control-btn-xxs {
-    @apply px-2 py-1 text-xs;
-  }
-  
-  .control-btn:disabled {
-    @apply opacity-50 cursor-not-allowed transform-none hover:scale-100;
-    background: linear-gradient(135deg, #4b5563 0%, #374151 50%, #1f2937 100%);
-    box-shadow: none;
+  .control-btn-loop-active .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-top-color: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
   }
 
-  .control-btn svg {
-    width: 1em;
-    height: 1em;
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
-  
+
   @keyframes pulseLoop {
-    0%, 100% {
-      transform: scale(1);
-      box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
-    }
-    50% {
-      transform: scale(1.05);
-      box-shadow: 0 6px 25px rgba(245, 158, 11, 0.8);
-    }
+    0%, 100% { transform: scale(1); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); }
+    50% { transform: scale(0.98); box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3); }
   }
   
   /* カードスタイル */
@@ -803,6 +790,17 @@
     transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
     perspective: 1000px;
+  }
+}
+
+/* ユーティリティ: 強制改行や縦書き化の抑制 */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .break-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 }
 
