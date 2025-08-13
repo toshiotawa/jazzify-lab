@@ -278,6 +278,62 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
+  const pianoScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const centerPianoC4 = useCallback(() => {
+    const container = pianoScrollRef.current;
+    if (!container) return;
+
+    const contentWidth = container.scrollWidth;
+    const viewportWidth = container.clientWidth;
+    if (!contentWidth || !viewportWidth) return;
+    if (contentWidth <= viewportWidth) return;
+
+    const TOTAL_WHITE_KEYS = 52;
+    const C4_WHITE_INDEX = 23; // A0=0 ... C4=23
+    const whiteKeyWidth = contentWidth / TOTAL_WHITE_KEYS;
+    const c4CenterX = (C4_WHITE_INDEX + 0.5) * whiteKeyWidth;
+    const desiredScroll = Math.max(0, Math.min(contentWidth - viewportWidth, c4CenterX - viewportWidth / 2));
+
+    try {
+      container.scrollTo({ left: desiredScroll, behavior: 'auto' });
+    } catch {}
+    container.scrollLeft = desiredScroll;
+  }, []);
+
+  useEffect(() => {
+    // Run after initial mount/layout
+    const raf = requestAnimationFrame(centerPianoC4);
+    const handleResize = () => requestAnimationFrame(centerPianoC4);
+    window.addEventListener('resize', handleResize);
+    const handleOrientation = () => requestAnimationFrame(centerPianoC4);
+    window.addEventListener('orientationchange', handleOrientation);
+
+    const el = pianoScrollRef.current;
+    let ro: ResizeObserver | null = null;
+    if (el && 'ResizeObserver' in window) {
+      ro = new ResizeObserver(() => {
+        // When content or container size changes, re-center
+        requestAnimationFrame(centerPianoC4);
+      });
+      ro.observe(el);
+    }
+
+    // Fallback recenter after slight delay (mobile Safari layout pass)
+    const t1 = setTimeout(centerPianoC4, 120);
+    const t2 = setTimeout(centerPianoC4, 300);
+    const t3 = setTimeout(centerPianoC4, 500);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientation);
+      if (ro) ro.disconnect();
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [centerPianoC4]);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const isTaikoModeRef = useRef(false);
   const gameAreaRef = useRef<HTMLDivElement>(null);
@@ -485,6 +541,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           particles: false,
           trails: false
         }
+      });
+
+      // レイアウト反映後にC4を中央へ
+      requestAnimationFrame(() => {
+        // iOS Safari 対策で二重に呼ぶ
+        requestAnimationFrame(centerPianoC4);
       });
       
       // キーボードのクリックイベントを接続
@@ -1209,17 +1271,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           if (needsScroll) {
             // スクロールが必要な場合
             return (
-              <div 
-                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
-                style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                  scrollSnapType: 'x proximity',
-                  scrollBehavior: 'smooth',
-                  width: '100%',
-                  touchAction: 'pan-x', // 横スクロールのみを許可
-                  overscrollBehavior: 'contain' // スクロールの境界を制限
-                }}
-              >
+                             <div 
+                 className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
+                 style={{ 
+                   WebkitOverflowScrolling: 'touch',
+                   scrollSnapType: 'none',
+                   scrollBehavior: 'auto',
+                   width: '100%',
+                   touchAction: 'pan-x', // 横スクロールのみを許可
+                   overscrollBehavior: 'contain' // スクロールの境界を制限
+                 }}
+                 ref={(el) => {
+                   pianoScrollRef.current = el;
+                   if (el) {
+                     requestAnimationFrame(() => {
+                       requestAnimationFrame(centerPianoC4);
+                     });
+                   }
+                 }}
+               >
                 <PIXINotesRenderer
                   activeNotes={[]}
                   width={pixiWidth}

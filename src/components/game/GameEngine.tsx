@@ -53,6 +53,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
+  const pianoScrollRef = useRef<HTMLDivElement | null>(null);
   
   // 音声再生用の要素
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -948,6 +949,33 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [handleKeyPress]);
   
+  // ===== 初期スクロール位置: C4を中央に =====
+  useEffect(() => {
+    const container = pianoScrollRef.current;
+    if (!container) return;
+
+    const centerC4 = () => {
+      const contentWidth = container.scrollWidth;
+      const viewportWidth = container.clientWidth;
+      if (!contentWidth || !viewportWidth) return;
+      if (contentWidth <= viewportWidth) return;
+      const TOTAL_WHITE_KEYS = 52;
+      const C4_WHITE_INDEX = 23; // A0=0 ... C4=23
+      const whiteKeyWidth = contentWidth / TOTAL_WHITE_KEYS;
+      const c4CenterX = (C4_WHITE_INDEX + 0.5) * whiteKeyWidth;
+      const desiredScroll = Math.max(0, Math.min(contentWidth - viewportWidth, c4CenterX - viewportWidth / 2));
+      container.scrollLeft = desiredScroll;
+    };
+
+    const raf = requestAnimationFrame(centerC4);
+    const handleResize = () => requestAnimationFrame(centerC4);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
   if (!currentSong) {
     return (
       <div className={cn(
@@ -1025,9 +1053,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x pixi-mobile-scroll custom-game-scrollbar" 
               style={{ 
                 WebkitOverflowScrolling: 'touch',
-                scrollSnapType: 'x proximity',
-                scrollBehavior: 'smooth'
+                scrollSnapType: 'none',
+                scrollBehavior: 'auto'
               }}
+              ref={pianoScrollRef}
             >
               <div style={{ 
                 width: idealWidth, 
