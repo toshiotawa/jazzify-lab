@@ -66,6 +66,18 @@ const LPFantasyDemo: React.FC = () => {
       await loadStage();
     }
     setIsOpen(true);
+    // dvh フォールバック変数を設定
+    try {
+      const setDvh = () => {
+        const dvh = Math.max(window.innerHeight, document.documentElement.clientHeight);
+        document.documentElement.style.setProperty('--dvh', dvh + 'px');
+      };
+      setDvh();
+      window.addEventListener('resize', setDvh, { passive: true });
+      // 一度だけのタイマーで再計測（ソフトキーボード対策）
+      setTimeout(setDvh, 200);
+      setTimeout(setDvh, 500);
+    } catch {}
     // Request fullscreen after state update in next tick
     setTimeout(() => {
       const root = containerRef.current;
@@ -75,6 +87,8 @@ const LPFantasyDemo: React.FC = () => {
       (root as any).webkitRequestFullscreen?.();
       (root as any).msRequestFullscreen?.();
       setIsFullscreen(true);
+      // レイアウト確定後にresizeを明示発火（dvh反映とResizeObserver起動用）
+      try { window.dispatchEvent(new Event('resize')); } catch {}
     }, 0);
   }, [loadStage, stage]);
 
@@ -88,6 +102,10 @@ const LPFantasyDemo: React.FC = () => {
       (document as any).msExitFullscreen?.();
     } catch {}
     setIsFullscreen(false);
+    // dvh 変数のクリア
+    try {
+      document.documentElement.style.removeProperty('--dvh');
+    } catch {}
   }, []);
 
   return (
@@ -132,7 +150,7 @@ const LPFantasyDemo: React.FC = () => {
       {isOpen && (
         <div
           ref={containerRef}
-          className="fixed inset-0 z-[1000] bg-black"
+          className="fixed inset-0 z-[1000] bg-black min-h-[var(--dvh,100dvh)] flex flex-col"
           role="dialog"
           aria-modal="true"
         >

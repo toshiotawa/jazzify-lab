@@ -954,7 +954,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
     
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center fantasy-game-screen">
+      <div className="min-h-[var(--dvh,100dvh)] bg-black flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center">
           <div className="text-6xl mb-6">🎮</div>
           <h2 className="text-3xl font-bold mb-4">
@@ -995,7 +995,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   return (
     <div className={cn(
-      `${fitAllKeys ? 'h-full' : 'h-screen'} bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen`
+      `${fitAllKeys ? 'h-full' : 'min-h-[var(--dvh,100dvh)]'} bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen`
     )}>
       {/* ===== ヘッダー ===== */}
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
