@@ -383,7 +383,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
 
     // ルート音を再生（非同期対応）
-    const allowRootSound = stage?.playRootOnCorrect === true;
+    const allowRootSound = stage?.playRootOnCorrect !== false;
     if (allowRootSound) {
       try {
         const mod = await import('@/utils/FantasySoundManager');
@@ -482,6 +482,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
     // iOS/Safari 対策: 最初のユーザー操作でオーディオを解放
     try { await (window as any).Tone?.start?.(); } catch {}
+    try {
+      const mod = await import('@/utils/FantasySoundManager');
+      const FSM = (mod as any).FantasySoundManager ?? mod.default;
+      await FSM?.unlock?.();
+    } catch {}
 
     // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
     if (source === 'mouse' && activeNotesRef.current.has(note)) {

@@ -96,20 +96,16 @@ export class FantasySoundManager {
   public static playMyAttack() { return this.instance._playSe('my_attack'); }
   public static setVolume(v: number) { return this.instance._setVolume(v); }
   public static getVolume() { return this.instance._volume; }
-
-  // ─────────────────────────────────────────────
-  // ベース音関連のstaticメソッド - 非同期対応
   public static async playRootNote(rootName: string) {
     return this.instance._playRootNote(rootName);
   }
-
   public static setRootVolume(v: number) {
     this.instance._setRootVolume(v);
   }
-
   public static enableRootSound(enabled: boolean) {
     this.instance._enableRootSound(enabled);
   }
+  public static async unlock(): Promise<void> { return this.instance._unlock(); }
 
   // ─────────────────────────────────────────────
   // private constructor – outsider cannot new
@@ -183,6 +179,7 @@ export class FantasySoundManager {
         },
         baseUrl: "https://tonejs.github.io/audio/salamander/"
       }).toDestination();
+      try { await Tone.loaded(); } catch (e) { console.warn('[FantasySoundManager] Tone.loaded failed or timed out for bassSampler:', e); }
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
 
@@ -368,6 +365,54 @@ export class FantasySoundManager {
 
   private _enableRootSound(enabled: boolean) {
     this.bassEnabled = enabled;
+  }
+
+  private async _unlock(): Promise<void> {
+    try {
+      // Tone.js のコンテキストをユーザー操作で開始
+      try { await (window as any).Tone?.start?.(); } catch {}
+
+      // SE 用の AudioContext を作成または再開
+      if (!this.seAudioContext) {
+        this.seAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
+        this.seGainNode = this.seAudioContext.createGain();
+        this.seGainNode.gain.setValueAtTime(this._volume, this.seAudioContext.currentTime);
+        this.seGainNode.connect(this.seAudioContext.destination);
+      }
+
+      if (this.seAudioContext.state !== 'running') {
+        await this.seAudioContext.resume();
+      }
+
+      // iOS Safari 向け: 無音バッファを短く再生して完全に解放
+      try {
+        const ctx = this.seAudioContext;
+        const silentBuffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+        const src = ctx.createBufferSource();
+        src.buffer = silentBuffer;
+        src.connect(this.seGainNode || ctx.destination);
+        src.start(0);
+        src.addEventListener('ended', () => { try { src.disconnect(); } catch {} });
+      } catch {}
+
+      // HTMLAudio 経由も許可させるため、ミュートでワンプッシュ（端末依存のため best-effort）
+      try {
+        Object.values(this.audioMap).forEach(({ base }) => {
+          if (!base.src) return;
+          const originalMuted = base.muted;
+          base.muted = true;
+          const p = base.play();
+          if (p && typeof p.then === 'function') {
+            p.then(() => { base.pause(); base.currentTime = 0; base.muted = originalMuted; }).catch(() => { base.muted = originalMuted; });
+          } else {
+            try { base.pause(); base.currentTime = 0; } catch {}
+            base.muted = originalMuted;
+          }
+        });
+      } catch {}
+    } catch (e) {
+      console.warn('[FantasySoundManager] unlock failed:', e);
+    }
   }
 
   // ─────────────────────────────────────────────
