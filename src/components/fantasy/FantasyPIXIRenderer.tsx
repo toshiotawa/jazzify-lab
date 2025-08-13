@@ -928,6 +928,7 @@ export class FantasyPIXIInstance {
     try {
       // 魔法効果音を再生（統一）
       try {
+        try { (window as any).Tone?.start?.(); } catch {}
         FantasySoundManager.playMyAttack();
         devLog.debug('🔊 攻撃効果音再生(triggerAttackSuccessOnMonster)');
       } catch (error) {
@@ -999,6 +1000,7 @@ export class FantasyPIXIInstance {
     try {
       // 魔法効果音を再生（統一）
       try {
+        try { (window as any).Tone?.start?.(); } catch {}
         FantasySoundManager.playMyAttack();
         devLog.debug('🔊 攻撃効果音再生(triggerAttackSuccess)');
       } catch (error) {

@@ -388,6 +388,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       try {
         const mod = await import('@/utils/FantasySoundManager');
         const FSM = (mod as any).FantasySoundManager ?? mod.default;
+        // iOS/Safari 対策: 再生前にTone.start()
+        try { await (window as any).Tone?.start?.(); } catch {}
         // スラッシュコード対応: 分母があればそれをルートとして鳴らす
         const id = chord.id || chord.displayName || chord.root;
         let bassToPlay = chord.root;

@@ -72,6 +72,9 @@ export class FantasySoundManager {
     my_attack: null,
   };
   private seUnlocked: boolean = false;
+  
+  /** Tone.js プレイヤー（iOS Safari 対策: 同一コンテキストで再生） */
+  private tonePlayers: Partial<Record<'my_attack' | 'enemy_attack', any>> = {};
 
   /** マスターボリューム (0‑1) */
   private _volume = 0.8;
@@ -184,8 +187,30 @@ export class FantasySoundManager {
         },
         baseUrl: "https://tonejs.github.io/audio/salamander/"
       }).toDestination();
+
+      // ─ SE: Tone.Player を準備（Safari での複数 AudioContext 制限を回避）
+      try {
+        const playerMy = new (Tone as any).Player({ url: `${baseUrl}sounds/my_attack.mp3`, autostart: false }).toDestination();
+        const playerEnemy = new (Tone as any).Player({ url: `${baseUrl}sounds/enemy_attack.mp3`, autostart: false }).toDestination();
+        // 音量を同期
+        const volDb = this._volume === 0 ? -Infinity : Math.log10(this._volume) * 20;
+        if (playerMy.volume) playerMy.volume.value = volDb;
+        if (playerEnemy.volume) playerEnemy.volume.value = volDb;
+        // 読み込み待機
+        if (playerMy.loaded) { try { await playerMy.loaded; } catch {} }
+        if (playerEnemy.loaded) { try { await playerEnemy.loaded; } catch {} }
+        this.tonePlayers.my_attack = playerMy;
+        this.tonePlayers.enemy_attack = playerEnemy;
+      } catch (e) {
+        console.warn('[FantasySoundManager] Failed to setup Tone.Player for SE:', e);
+      }
+
+      // ルート音量と有効化
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
+
+      // ルートサンプラーのロード完了をできるだけ待つ
+      try { await (this.bassSampler as any)?.loaded; } catch {}
 
       this.isInited = true;
       console.debug('[FantasySoundManager] init complete');
@@ -254,6 +279,11 @@ export class FantasySoundManager {
     if (this.seGainNode) {
       this.seGainNode.gain.setValueAtTime(this._volume, this.seAudioContext!.currentTime);
     }
+    // Tone.Player の音量にも反映（dB）
+    const volDb = this._volume === 0 ? -Infinity : Math.log10(this._volume) * 20;
+    Object.values(this.tonePlayers).forEach((p) => {
+      try { if (p?.volume) p.volume.value = volDb; } catch {}
+    });
   }
 
   private _playMagic(type: MagicSeType) {
@@ -265,6 +295,21 @@ export class FantasySoundManager {
 
   private async _playSe(key: keyof typeof this.audioMap) {
     console.debug(`[FantasySoundManager] _playSe called with key: ${key}`);
+
+    // まず Tone.Player を優先使用（iOS Safari でも確実）
+    const tp = (this.tonePlayers as any)[key];
+    if (tp) {
+      try {
+        const ToneAny: any = (window as any).Tone;
+        if (ToneAny?.context?.state !== 'running') {
+          try { await ToneAny.start?.(); } catch {}
+        }
+        tp.start?.();
+        return;
+      } catch (e) {
+        console.warn('[FantasySoundManager] Tone.Player playback failed, trying WebAudio/HTMLAudio...', e);
+      }
+    }
 
     // 低遅延: Web Audio での即時再生（フォールバックあり）
     if (this.seAudioContext && this.seBuffers[key]) {
