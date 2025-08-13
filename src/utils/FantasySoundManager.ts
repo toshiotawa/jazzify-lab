@@ -71,6 +71,7 @@ export class FantasySoundManager {
     thunder: null,
     my_attack: null,
   };
+  private seUnlocked: boolean = false;
 
   /** マスターボリューム (0‑1) */
   private _volume = 0.8;
@@ -262,7 +263,7 @@ export class FantasySoundManager {
     this._playSe('my_attack');
   }
 
-  private _playSe(key: keyof typeof this.audioMap) {
+  private async _playSe(key: keyof typeof this.audioMap) {
     console.debug(`[FantasySoundManager] _playSe called with key: ${key}`);
 
     // 低遅延: Web Audio での即時再生（フォールバックあり）
@@ -270,16 +271,25 @@ export class FantasySoundManager {
       try {
         const ctx = this.seAudioContext;
         if (ctx.state !== 'running') {
-          void ctx.resume();
+          try {
+            await ctx.resume();
+          } catch (e) {
+            console.warn('[FantasySoundManager] ctx.resume() failed:', e);
+          }
         }
-        const src = ctx.createBufferSource();
-        src.buffer = this.seBuffers[key]!;
-        src.connect(this.seGainNode!);
-        src.start(0);
-        src.addEventListener('ended', () => {
-          try { src.disconnect(); } catch {}
-        });
-        return;
+        if (ctx.state === 'running') {
+          const src = ctx.createBufferSource();
+          src.buffer = this.seBuffers[key]!;
+          src.connect(this.seGainNode!);
+          src.start(0);
+          src.addEventListener('ended', () => {
+            try { src.disconnect(); } catch {}
+          });
+          return;
+        } else {
+          console.warn('[FantasySoundManager] SE AudioContext not running, falling back to HTMLAudio.');
+          // fall through to HTMLAudio
+        }
       } catch (e) {
         console.warn('[FantasySoundManager] WebAudio SE playback failed. Falling back to HTMLAudio.', e);
       }
@@ -293,21 +303,20 @@ export class FantasySoundManager {
 
     const base = entry.base;
     if (!entry.ready) {
-      // 未ロード or 失敗時は何もしない（ユーザー体験阻害しない）
-      console.warn(`[FantasySoundManager] Audio not ready for key: ${key}`);
+      // 未ロード時でも再生を試みる（モバイルでcanplaythroughが遅い対策）
+      console.warn(`[FantasySoundManager] Audio not fully ready for key: ${key} (trying early playback)`);
       console.warn(`[FantasySoundManager] Audio state:`, {
         src: base.src,
         readyState: base.readyState,
         networkState: base.networkState,
         error: base.error
       });
-      return;
     }
 
-    console.debug(`[FantasySoundManager] Playing sound (fallback): ${key} at volume: ${this._volume}`);
+    console.debug(`[FantasySoundManager] Playing sound (fallback HTMLAudio): ${key} at volume: ${this._volume}`);
 
     // 同時再生のため cloneNode()
-    const node = base.cloneNode() as HTMLAudioElement;
+    const node = base.cloneNode(true) as HTMLAudioElement;
     node.volume = this._volume;
     // onended で解放
     node.addEventListener('ended', () => {
@@ -379,6 +388,7 @@ export class FantasySoundManager {
         this.seGainNode = this.seAudioContext.createGain();
         this.seGainNode.gain.setValueAtTime(this._volume, this.seAudioContext.currentTime);
         this.seGainNode.connect(this.seAudioContext.destination);
+        this._installMobileUnlockHandlers();
       }
 
       const seFiles: Array<[keyof typeof this.seBuffers, string]> = [
@@ -403,6 +413,33 @@ export class FantasySoundManager {
     } catch (e) {
       console.warn('[FantasySoundManager] SE AudioContext setup failed:', e);
     }
+  }
+
+  private _installMobileUnlockHandlers() {
+    if (!this.seAudioContext || this.seUnlocked) return;
+
+    const tryUnlock = async () => {
+      try {
+        if (this.seAudioContext && this.seAudioContext.state !== 'running') {
+          await this.seAudioContext.resume();
+        }
+        const ToneAny: any = (window as any).Tone;
+        if (ToneAny?.start) {
+          try { await ToneAny.start(); } catch {}
+        }
+      } catch {}
+
+      if (this.seAudioContext?.state === 'running') {
+        this.seUnlocked = true;
+      }
+    };
+
+    // ユーザー操作で確実に解放する
+    const opts: AddEventListenerOptions & EventListenerOptions = { once: true, passive: true } as any;
+    window.addEventListener('pointerdown', tryUnlock, opts);
+    window.addEventListener('touchstart', tryUnlock, opts);
+    window.addEventListener('click', tryUnlock, opts);
+    window.addEventListener('keydown', tryUnlock, opts);
   }
 }
 
