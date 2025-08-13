@@ -279,10 +279,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
+  const hasUserScrolledRef = useRef(false);
+  const isProgrammaticScrollRef = useRef(false);
+  const handlePianoScroll = useCallback(() => {
+    if (!isProgrammaticScrollRef.current) {
+      hasUserScrolledRef.current = true;
+    }
+  }, []);
 
   const centerPianoC4 = useCallback(() => {
     const container = pianoScrollRef.current;
     if (!container) return;
+
+    if (hasUserScrolledRef.current) return;
 
     const contentWidth = container.scrollWidth;
     const viewportWidth = container.clientWidth;
@@ -295,10 +304,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const c4CenterX = (C4_WHITE_INDEX + 0.5) * whiteKeyWidth;
     const desiredScroll = Math.max(0, Math.min(contentWidth - viewportWidth, c4CenterX - viewportWidth / 2));
 
+    isProgrammaticScrollRef.current = true;
     try {
       container.scrollTo({ left: desiredScroll, behavior: 'auto' });
     } catch {}
     container.scrollLeft = desiredScroll;
+    requestAnimationFrame(() => {
+      isProgrammaticScrollRef.current = false;
+    });
   }, []);
 
   useEffect(() => {
@@ -1281,6 +1294,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                    touchAction: 'pan-x', // 横スクロールのみを許可
                    overscrollBehavior: 'contain' // スクロールの境界を制限
                  }}
+                 onScroll={handlePianoScroll}
                  ref={(el) => {
                    pianoScrollRef.current = el;
                    if (el) {
