@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import FantasyDemoSection from './fantasy/FantasyDemoSection';
 
 const LandingPage: React.FC = () => {
   const { user, isGuest, loading, enterGuestMode } = useAuthStore();
@@ -99,9 +100,14 @@ const LandingPage: React.FC = () => {
               </Link>
             </div>
           </div>
-        </section>
+                </section>
 
-        {/* Story Section */}
+        {/* Fantasy Mode Demo Section (1-1) */}
+        <section id="fantasy-demo" className="py-16 bg-gradient-to-b from-slate-900 to-slate-950 border-t border-purple-500/20">
+          <FantasyDemoSection />
+        </section>
+ 
+         {/* Story Section */}
         <section id="story" className="py-20 story-gradient">
           <div className="container mx-auto px-6">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title">
