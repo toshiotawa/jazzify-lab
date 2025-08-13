@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+const LPFantasyDemo = React.lazy(() => import('./fantasy/LPFantasyDemo'));
 
 const LandingPage: React.FC = () => {
   const { user, isGuest, loading, enterGuestMode } = useAuthStore();
@@ -100,6 +101,11 @@ const LandingPage: React.FC = () => {
             </div>
           </div>
         </section>
+
+        {/* Fantasy Mode Demo Section (after hero) */}
+        <React.Suspense fallback={<div className="py-12 text-center text-gray-400">デモを読み込み中...</div>}>
+          <LPFantasyDemo />
+        </React.Suspense>
 
         {/* Story Section */}
         <section id="story" className="py-20 story-gradient">
