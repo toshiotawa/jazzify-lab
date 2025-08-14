@@ -12,7 +12,9 @@ const LPFantasyDemo: React.FC = () => {
   const { settings, updateSettings } = useGameStore();
   const [selectedStageNumber, setSelectedStageNumber] = useState<'1-1' | '1-2' | '1-3' | '1-4'>('1-1');
   const [isPortrait, setIsPortrait] = useState(true);
-  const [isWide, setIsWide] = useState(false);
+  // 常に横向きiPhone風フレームを使用
+  const useLandscapeFrame = true;
+
   useEffect(() => {
     const mq = window.matchMedia('(orientation: portrait)');
     const update = () => setIsPortrait(mq.matches);
@@ -26,23 +28,6 @@ const LPFantasyDemo: React.FC = () => {
       try { mq.removeEventListener('change', update); } catch { mq.removeListener(update); }
     };
   }, []);
-
-  // 幅が一定以上（タブレット/PC）なら横向きフレームを使用
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    const update = () => setIsWide(mq.matches);
-    try {
-      mq.addEventListener('change', update);
-    } catch {
-      mq.addListener(update);
-    }
-    update();
-    return () => {
-      try { mq.removeEventListener('change', update); } catch { mq.removeListener(update); }
-    };
-  }, []);
-
-  const useLandscapeFrame = !isPortrait || isWide;
 
   // Lazy import FantasyGameScreen only when modal opens
   const FantasyGameScreen = useMemo(() => React.lazy(() => import('./FantasyGameScreen')), []);
@@ -206,6 +191,7 @@ const LPFantasyDemo: React.FC = () => {
                 </div>
               </div>
               <div className={`iphone-notch ${useLandscapeFrame ? 'landscape' : 'portrait'}`} aria-hidden="true" />
+              <div className={`iphone-home ${useLandscapeFrame ? 'landscape' : 'portrait'}`} aria-hidden="true" />
             </div>
 
             {/* Device select + note */}
