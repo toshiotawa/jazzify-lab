@@ -10,19 +10,20 @@ const LPFantasyDemo: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { settings, updateSettings } = useGameStore();
+  const [selectedStageNumber, setSelectedStageNumber] = useState<'1-1' | '1-2' | '1-3' | '1-4'>('1-1');
 
   // Lazy import FantasyGameScreen only when modal opens
   const FantasyGameScreen = useMemo(() => React.lazy(() => import('./FantasyGameScreen')), []);
 
-  // Fetch 1-1 stage from DB when opening
-  const loadStage = useCallback(async () => {
+  // 指定ステージ番号のステージをDBから取得
+  const loadStage = useCallback(async (stageNum: '1-1' | '1-2' | '1-3' | '1-4') => {
     setIsLoading(true);
     setError(null);
     try {
       const { fetchFantasyStageByNumber } = await import('@/platform/supabaseFantasyStages');
-      const dbStage = await fetchFantasyStageByNumber('1-1');
+      const dbStage = await fetchFantasyStageByNumber(stageNum);
       if (!dbStage) {
-        throw new Error('ステージ 1-1 が見つかりませんでした');
+        throw new Error(`ステージ ${stageNum} が見つかりませんでした`);
       }
       // Map DB shape to FantasyGameScreen expected stage shape
       const mapped = {
@@ -62,8 +63,9 @@ const LPFantasyDemo: React.FC = () => {
   }, []);
 
   const openDemo = useCallback(async () => {
-    if (!stage) {
-      await loadStage();
+    if (!stage || stage.stageNumber !== selectedStageNumber) {
+      // 非同期で最新選択のステージを読み込む
+      loadStage(selectedStageNumber);
     }
     setIsOpen(true);
     // dvh フォールバック変数を設定
@@ -90,7 +92,7 @@ const LPFantasyDemo: React.FC = () => {
       // レイアウト確定後にresizeを明示発火（dvh反映とResizeObserver起動用）
       try { window.dispatchEvent(new Event('resize')); } catch {}
     }, 0);
-  }, [loadStage, stage]);
+  }, [loadStage, stage, selectedStageNumber]);
 
   const closeDemo = useCallback(() => {
     setIsOpen(false);
@@ -108,9 +110,20 @@ const LPFantasyDemo: React.FC = () => {
     } catch {}
   }, []);
 
+  const handleDemoGameComplete = useCallback((
+    _result: 'clear' | 'gameover',
+    _score: number,
+    _correctAnswers: number,
+    _totalQuestions: number
+  ) => {
+    // ゲーム内で2秒後にこのコールバックが呼ばれるため、ここでは即時に全画面を終了
+    closeDemo();
+  }, [closeDemo]);
+
   return (
     <section className="py-10">
       <div className="container mx-auto px-6">
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-8 section-title">デモプレイ</h2>
         <div className="rounded-2xl border border-purple-500/30 bg-slate-900/60 shadow-xl overflow-hidden">
           <div className="grid md:grid-cols-2 gap-0">
             {/* Visual + CTA */}
@@ -118,8 +131,19 @@ const LPFantasyDemo: React.FC = () => {
               <div className="absolute inset-0 bg-[url('/default_avater/default-avater.png')] bg-cover bg-center" />
               <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
-                <h3 className="text-xl md:text-2xl font-bold text-purple-200 text-center">ファンタジーモード デモ（1-1）</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-purple-200 text-center">ファンタジーモード デモ（{selectedStageNumber}）</h3>
                 <p className="text-gray-200 text-xs md:text-sm text-center max-w-md">MIDIキーボード／タッチ／クリック対応。全画面でシームレスにプレイ。</p>
+                <select
+                  value={selectedStageNumber}
+                  onChange={(e) => { setSelectedStageNumber(e.target.value as '1-1' | '1-2' | '1-3' | '1-4'); setStage(null); setError(null); }}
+                  className="h-10 w-40 md:h-11 md:w-48 rounded-full bg-black/50 border border-white/20 text-white text-sm px-3"
+                  aria-label="ステージを選択"
+                >
+                  <option value="1-1">1-1</option>
+                  <option value="1-2">1-2</option>
+                  <option value="1-3">1-3</option>
+                  <option value="1-4">1-4</option>
+                </select>
                 <button
                   onClick={openDemo}
                   className="h-11 w-56 md:h-12 md:w-64 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-2xl"
@@ -168,7 +192,7 @@ const LPFantasyDemo: React.FC = () => {
                 <FantasyGameScreen
                   stage={stage}
                   autoStart
-                  onGameComplete={() => {}}
+                  onGameComplete={handleDemoGameComplete}
                   onBackToStageSelect={closeDemo}
                   noteNameLang="en"
                   simpleNoteName={false}
