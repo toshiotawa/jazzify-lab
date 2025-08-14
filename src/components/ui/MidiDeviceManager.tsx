@@ -197,7 +197,7 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
             id="midi-device-select"
             value={value || ''}
             onChange={(e) => handleDeviceChange(e.target.value || null)}
-            className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-blue-600"
+            className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-blue-600 lp-mobile-select"
             disabled={isRefreshing}
           >
             <option value="">なし</option>
@@ -272,7 +272,7 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
             id="audio-device-select"
             value={value || ''}
             onChange={(e) => onChange(e.target.value || null)}
-            className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-green-600 audio-devices"
+            className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-green-600 audio-devices lp-mobile-select"
             disabled={isRefreshing}
           >
             <option value="">マイクを選択...</option>
