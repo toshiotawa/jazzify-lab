@@ -131,12 +131,12 @@ const LPFantasyDemo: React.FC = () => {
               <div className="absolute inset-0 bg-[url('/default_avater/default-avater.png')] bg-cover bg-center" />
               <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
-                <h3 className="text-xl md:text-2xl font-bold text-purple-200 text-center">ファンタジーモード デモ（{selectedStageNumber}）</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-purple-200 text-center">ファンタジーモード デモ</h3>
                 <p className="text-gray-200 text-xs md:text-sm text-center max-w-md">MIDIキーボード／タッチ／クリック対応。全画面でシームレスにプレイ。</p>
                 <select
                   value={selectedStageNumber}
                   onChange={(e) => { setSelectedStageNumber(e.target.value as '1-1' | '1-2' | '1-3' | '1-4'); setStage(null); setError(null); }}
-                  className="h-10 w-40 md:h-11 md:w-48 rounded-full bg-black/50 border border-white/20 text-white text-sm px-3"
+                  className="h-12 min-h-[44px] w-44 md:h-11 md:min-h-0 md:w-48 rounded-full bg-black/50 border border-white/20 text-white text-base md:text-sm px-3 py-2"
                   aria-label="ステージを選択"
                 >
                   <option value="1-1">1-1</option>
