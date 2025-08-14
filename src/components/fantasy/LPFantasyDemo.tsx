@@ -141,7 +141,7 @@ const LPFantasyDemo: React.FC = () => {
         <div className="rounded-2xl border border-purple-500/30 bg-slate-900/60 shadow-xl overflow-hidden">
           <div className="grid md:grid-cols-2 gap-0">
             {/* Visual + CTA */}
-            <div className="relative min-h-[192px] md:min-h-[224px]">
+            <div className="relative min-h-[192px] md:min-h-[224px] lp-phone-mock">
               <div className="absolute inset-0 bg-[url('/default_avater/default-avater.png')] bg-cover bg-center" />
               <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
@@ -156,7 +156,7 @@ const LPFantasyDemo: React.FC = () => {
                           type="button"
                           onClick={() => { setSelectedStageNumber(num); setStage(null); setError(null); }}
                           aria-pressed={selectedStageNumber === num}
-                          className={`h-11 rounded-full font-semibold text-sm transition-colors ${selectedStageNumber === num ? 'bg-purple-600 text-white' : 'bg-black/50 text-white border border-white/20'}`}
+                          className={`${selectedStageNumber === num ? 'bg-purple-600 text-white' : 'bg-black/50 text-white border border-white/20'} h-11 rounded-full font-semibold text-sm transition-colors`}
                         >
                           {num}
                         </button>
