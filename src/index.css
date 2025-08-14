@@ -489,6 +489,54 @@
     @apply select bg-slate-800 border-slate-600;
   }
   
+  /* LPデモ: ステージ選択セレクトのタップ領域を強制（iOS縦画面対策） */
+  .lp-stage-select {
+    -webkit-appearance: none;
+    appearance: none;
+    display: inline-block;
+    vertical-align: middle;
+    min-height: 44px;
+    height: auto;
+    line-height: normal;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    @apply w-44 md:h-11 md:w-48 rounded-full bg-black/50 border border-white/20 text-white text-base md:text-sm px-3;
+  }
+  
+  @media (orientation: portrait) {
+    .lp-stage-select {
+      padding-top: 12px;
+      padding-bottom: 12px;
+      font-size: 16px;
+    }
+  }
+  
+  /* iOS Safari 強制上書き（UAスタイルが高さを無視するケース対策） */
+  @supports (-webkit-touch-callout: none) {
+    @media (orientation: portrait) {
+      .lp-stage-select,
+      .lp-mobile-select {
+        height: 48px !important;
+        min-height: 44px !important;
+        line-height: 48px !important;
+        font-size: 16px !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+      }
+    }
+  }
+  
+  .lp-mobile-select {
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: 44px;
+    height: auto;
+    line-height: normal;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    font-size: 16px;
+  }
+  
   /* チェックボックススタイル */
   .checkbox {
     @apply w-5 h-5 bg-slate-800 border-2 border-slate-600 rounded focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 transition-colors;
