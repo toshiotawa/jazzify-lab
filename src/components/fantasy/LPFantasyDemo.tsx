@@ -141,49 +141,54 @@ const LPFantasyDemo: React.FC = () => {
         <div className="rounded-2xl border border-purple-500/30 bg-slate-900/60 shadow-xl overflow-hidden">
           <div className="grid md:grid-cols-2 gap-0">
             {/* Visual + CTA */}
-            <div className="relative min-h-[192px] md:min-h-[224px]">
-              <div className="absolute inset-0 bg-[url('/default_avater/default-avater.png')] bg-cover bg-center" />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
-                <h3 className="text-xl md:text-2xl font-bold text-purple-200 text-center">ファンタジーモード デモ</h3>
-                <p className="text-gray-200 text-xs md:text-sm text-center max-w-md">MIDIキーボード／タッチ／クリック対応。全画面でシームレスにプレイ。</p>
-                <div className="w-full flex items-center justify-center">
-                  {isPortrait ? (
-                    <div role="group" aria-label="ステージを選択" className="grid grid-cols-4 gap-2 w-64">
-                      {(['1-1','1-2','1-3','1-4'] as const).map((num) => (
-                        <button
-                          key={num}
-                          type="button"
-                          onClick={() => { setSelectedStageNumber(num); setStage(null); setError(null); }}
-                          aria-pressed={selectedStageNumber === num}
-                          className={`h-11 rounded-full font-semibold text-sm transition-colors ${selectedStageNumber === num ? 'bg-purple-600 text-white' : 'bg-black/50 text-white border border-white/20'}`}
+            <div className="relative min-h-[192px] md:min-h-[224px] flex items-center justify-center py-6">
+              <div className="device-iphone w-64 sm:w-72 md:w-80">
+                <div className="device-iphone-notch" aria-hidden="true"></div>
+                <div className="device-iphone-screen">
+                  <div className="absolute inset-0 bg-[url('/default_avater/default-avater.png')] bg-cover bg-center" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 pt-10">
+                    <h3 className="text-xl md:text-2xl font-bold text-purple-200 text-center">ファンタジーモード デモ</h3>
+                    <p className="text-gray-200 text-xs md:text-sm text-center max-w-md">MIDIキーボード／タッチ／クリック対応。全画面でシームレスにプレイ。</p>
+                    <div className="w-full flex items-center justify-center">
+                      {isPortrait ? (
+                        <div role="group" aria-label="ステージを選択" className="grid grid-cols-4 gap-2 w-64">
+                          {(['1-1','1-2','1-3','1-4'] as const).map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              onClick={() => { setSelectedStageNumber(num); setStage(null); setError(null); }}
+                              aria-pressed={selectedStageNumber === num}
+                              className={`h-11 rounded-full font-semibold text-sm transition-colors ${selectedStageNumber === num ? 'bg-purple-600 text-white' : 'bg-black/50 text-white border border-white/20'}`}
+                            >
+                              {num}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedStageNumber}
+                          onChange={(e) => { setSelectedStageNumber(e.target.value as '1-1' | '1-2' | '1-3' | '1-4'); setStage(null); setError(null); }}
+                          className="lp-stage-select"
+                          aria-label="ステージを選択"
                         >
-                          {num}
-                        </button>
-                      ))}
+                          <option value="1-1">1-1</option>
+                          <option value="1-2">1-2</option>
+                          <option value="1-3">1-3</option>
+                          <option value="1-4">1-4</option>
+                        </select>
+                      )}
                     </div>
-                  ) : (
-                    <select
-                      value={selectedStageNumber}
-                      onChange={(e) => { setSelectedStageNumber(e.target.value as '1-1' | '1-2' | '1-3' | '1-4'); setStage(null); setError(null); }}
-                      className="lp-stage-select"
-                      aria-label="ステージを選択"
+                    <button
+                      onClick={openDemo}
+                      className="h-11 w-56 md:h-12 md:w-64 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-2xl"
+                      aria-label="ファンタジーモード デモを再生"
                     >
-                      <option value="1-1">1-1</option>
-                      <option value="1-2">1-2</option>
-                      <option value="1-3">1-3</option>
-                      <option value="1-4">1-4</option>
-                    </select>
-                  )}
+                      体験する（全画面）
+                    </button>
+                    {error && <div className="text-red-400 text-xs">{error}</div>}
+                  </div>
                 </div>
-                <button
-                  onClick={openDemo}
-                  className="h-11 w-56 md:h-12 md:w-64 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-2xl"
-                  aria-label="ファンタジーモード デモを再生"
-                >
-                  体験する（全画面）
-                </button>
-                {error && <div className="text-red-400 text-xs">{error}</div>}
               </div>
             </div>
 
