@@ -501,6 +501,12 @@
     padding-top: 10px;
     padding-bottom: 10px;
     @apply w-44 md:h-11 md:w-48 rounded-full bg-black/50 border border-white/20 text-white text-base md:text-sm px-3;
+    /* 下向き山型（chevron）を右端に表示してドロップダウンであることを示す */
+    padding-right: 2.25rem; /* アイコン分の余白 */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='2' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
   }
   
   @media (orientation: portrait) {
@@ -535,6 +541,12 @@
     padding-top: 10px;
     padding-bottom: 10px;
     font-size: 16px;
+    /* 下向き山型（chevron）を右端に表示してドロップダウンであることを示す */
+    padding-right: 2.25rem; /* アイコン分の余白 */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='2' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
   }
   
   /* チェックボックススタイル */

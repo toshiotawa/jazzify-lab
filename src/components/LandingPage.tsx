@@ -54,17 +54,17 @@ const LandingPage: React.FC = () => {
       <div className="relative flex-1 overflow-y-auto">
         {/* Header/Navigation */}
         <nav className="fixed top-0 left-0 right-0 w-full bg-slate-900 bg-opacity-90 backdrop-blur-md z-50 border-b border-purple-500 border-opacity-30">
-          <div className="container mx-auto px-6 py-4">
+          <div className="container mx-auto px-6 py-2 md:py-4">
             <div className="flex items-center justify-between">
               <h1 className="flex items-center gap-3 text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
                 <img src="/default_avater/default-avater.png" alt="Jazzify ロゴ" className="w-8 h-8 rounded-full" />
                 Jazzify
               </h1>
-              <div className="hidden md:flex items-center gap-3">
-                <button onClick={handleGuestClick} className="px-4 py-2 rounded-full bg-slate-800 hover:bg-slate-700 transition text-sm font-semibold">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button onClick={handleGuestClick} className="hidden sm:inline-flex px-4 py-2 rounded-full bg-slate-800 hover:bg-slate-700 transition text-sm font-semibold">
                   おためしプレイ
                 </button>
-                <Link to="/signup" className="px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-sm font-bold">
+                <Link to="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-xs sm:text-sm font-bold whitespace-nowrap">
                   ログイン/無料トライアル
                 </Link>
               </div>
@@ -73,7 +73,7 @@ const LandingPage: React.FC = () => {
         </nav>
 
         {/* Hero Section */}
-        <section className="hero-bg min-h-screen flex items-center justify-center pt-20">
+        <section className="hero-bg min-h-screen flex items-center justify-center pt-16 sm:pt-20">
           <div className="container mx-auto px-6 text-center">
             <div>
               <h1 className="text-4xl sm:text-5xl md:text-7xl font-black mb-6 section-title">Jazzify</h1>
@@ -577,11 +577,11 @@ const LandingPage: React.FC = () => {
           <div className="container mx-auto px-6 text-center">
             <h2 className="text-4xl md:text-5xl font-extrabold mb-6">今すぐ無料トライアルを始める</h2>
             <p className="text-gray-300 mb-8">登録は数分で完了。おためしプレイも可能です。</p>
-            <div className="flex items-center justify-center gap-4">
-              <Link to="/signup" className="px-8 py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition font-bold">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+              <Link to="/signup" className="px-6 py-2.5 sm:px-8 sm:py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition font-bold text-sm sm:text-base">
                 無料トライアルを始める
               </Link>
-              <button onClick={handleGuestClick} className="px-8 py-3 rounded-full bg-slate-800 hover:bg-slate-700 transition font-semibold">
+              <button onClick={handleGuestClick} className="px-6 py-2.5 sm:px-8 sm:py-3 rounded-full bg-slate-800 hover:bg-slate-700 transition font-semibold text-sm sm:text-base">
                 おためしプレイ
               </button>
             </div>
