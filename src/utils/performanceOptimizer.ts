@@ -417,7 +417,7 @@ export class PerformanceDebugger {
       color: white;
       padding: 10px;
       border-radius: 5px;
-      font-family: monospace;
+      font-family: "Kaisei Opti", serif;
       font-size: 12px;
       z-index: 9999;
       min-width: 250px;

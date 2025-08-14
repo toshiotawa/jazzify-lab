@@ -1399,7 +1399,7 @@ export class FantasyPIXIInstance {
     
     // コード名とチェックマークのテキスト作成
     this.chordNameText = new PIXI.Text(`✓ ${chordName}`, {
-      fontFamily: 'DotGothic16, "DotGothic16", Gothic16, Arial, sans-serif',
+      fontFamily: 'DotGothic16, "DotGothic16", Gothic16, "Kaisei Opti", serif',
       fontSize: 48,
       fontWeight: 'bold',
       fill: 0x00FF00, // 緑色
@@ -1511,7 +1511,7 @@ export class FantasyPIXIInstance {
 
     // テキスト
     const text = new PIXI.Text('Swing! Swing! Swing!', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: '"Kaisei Opti", serif',
       fontSize: 72,
       fontWeight: 'bold',
       fill: 0xFFD700, // 黄色
@@ -2011,7 +2011,7 @@ export class FantasyPIXIInstance {
     const LABEL_Y = -(NOTE_RADIUS + LABEL_GAP);
 
     const chordText = new PIXI.Text(chordName, {
-      fontFamily: 'Arial',
+      fontFamily: '"Kaisei Opti", serif',
       fontSize: BASE_FONT_SIZE,
       fontWeight: 'bold',
       fill: 0xFFFFFF,
