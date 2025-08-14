@@ -536,6 +536,55 @@
     padding-bottom: 10px;
     font-size: 16px;
   }
+
+  /* LPデモ: iPhone風フレーム */
+  .lp-iphone {
+    position: relative;
+    width: 16rem; /* 256px */
+    border-radius: 2.5rem;
+    background: #000;
+    border: 2px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 0 8px rgba(255, 255, 255, 0.05);
+    padding: 14px 10px 42px; /* 上, 左右, 下(ホームボタン分) */
+  }
+  @media (min-width: 768px) {
+    .lp-iphone {
+      width: 18rem; /* 288px */
+      padding-bottom: 52px;
+    }
+  }
+  .lp-iphone::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 64px;
+    height: 6px;
+    background: #333;
+    border-radius: 9999px; /* 受話口 */
+  }
+  .lp-iphone::after {
+    content: '';
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 42px;
+    height: 42px;
+    border: 2px solid #666;
+    border-radius: 9999px; /* ホームボタン */
+    box-shadow: inset 0 0 4px rgba(255,255,255,0.2), 0 0 10px rgba(0,0,0,0.6);
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.06), rgba(255,255,255,0.02) 60%, rgba(255,255,255,0) 70%);
+  }
+  .lp-iphone-screen {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 9 / 19.5; /* 画面比率 */
+    border-radius: 2rem;
+    overflow: hidden;
+    background: #0b0b0f;
+  }
   
   /* チェックボックススタイル */
   .checkbox {
