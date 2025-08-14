@@ -371,11 +371,6 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           />
         </div>
         
-        {/* ステージ番号 */}
-        <div className="text-white text-lg sm:text-xl font-bold flex-shrink-0 w-14 sm:w-16 text-center">
-          {stage.stageNumber}
-        </div>
-        
         {/* コンテンツ部分 */}
         <div className="min-w-0 flex-grow">
           {/* ステージ名 */}
