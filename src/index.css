@@ -537,6 +537,53 @@
     font-size: 16px;
   }
   
+  /* LPデモ: iPhone風デバイスフレーム */
+  .device-iphone {
+    position: relative;
+    border-radius: 2rem;
+    background: #0c0c12;
+    padding: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 0 6px rgba(255,255,255,0.02) inset;
+    aspect-ratio: 9 / 19.5;
+  }
+  
+  .device-iphone-screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 1.75rem;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06) inset;
+  }
+  
+  .device-iphone-notch {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36%;
+    max-width: 160px;
+    height: 22px;
+    background: #000;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    z-index: 10;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset;
+    pointer-events: none;
+  }
+  
+  @media (min-width: 768px) {
+    .device-iphone {
+      padding: 14px;
+      border-radius: 2.25rem;
+    }
+    .device-iphone-screen {
+      border-radius: 2rem;
+    }
+  }
+  
   /* チェックボックススタイル */
   .checkbox {
     @apply w-5 h-5 bg-slate-800 border-2 border-slate-600 rounded focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 transition-colors;
