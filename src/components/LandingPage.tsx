@@ -53,7 +53,7 @@ const LandingPage: React.FC = () => {
       {/* Local scroll container */}
       <div className="relative flex-1 overflow-y-auto">
         {/* Header/Navigation */}
-        <nav className="fixed top-0 left-0 right-0 w-full bg-slate-900 bg-opacity-90 backdrop-blur-md z-50 border-b border-purple-500 border-opacity-30">
+        <nav className="fixed top-0 left-0 right-0 w-full bg-slate-900 bg-opacity-90 backdrop-blur-md z-50 border-b border-purple-500 border-opacity-30 lp-nav">
           <div className="container mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <h1 className="flex items-center gap-3 text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
@@ -65,6 +65,15 @@ const LandingPage: React.FC = () => {
                   おためしプレイ
                 </button>
                 <Link to="/signup" className="px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-sm font-bold">
+                  ログイン/無料トライアル
+                </Link>
+              </div>
+              {/* Mobile portrait: show compact auth buttons */}
+              <div className="md:hidden items-center gap-2 lp-auth-portrait">
+                <button onClick={handleGuestClick} className="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 transition text-xs font-semibold">
+                  おためしプレイ
+                </button>
+                <Link to="/signup" className="px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-xs font-bold">
                   ログイン/無料トライアル
                 </Link>
               </div>
@@ -577,11 +586,11 @@ const LandingPage: React.FC = () => {
           <div className="container mx-auto px-6 text-center">
             <h2 className="text-4xl md:text-5xl font-extrabold mb-6">今すぐ無料トライアルを始める</h2>
             <p className="text-gray-300 mb-8">登録は数分で完了。おためしプレイも可能です。</p>
-            <div className="flex items-center justify-center gap-4">
-              <Link to="/signup" className="px-8 py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition font-bold">
+            <div className="lp-final-cta flex items-center justify-center gap-4">
+              <Link to="/signup" className="lp-cta-btn px-8 py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition font-bold">
                 無料トライアルを始める
               </Link>
-              <button onClick={handleGuestClick} className="px-8 py-3 rounded-full bg-slate-800 hover:bg-slate-700 transition font-semibold">
+              <button onClick={handleGuestClick} className="lp-cta-btn px-8 py-3 rounded-full bg-slate-800 hover:bg-slate-700 transition font-semibold">
                 おためしプレイ
               </button>
             </div>
