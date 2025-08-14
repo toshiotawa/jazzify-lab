@@ -470,6 +470,18 @@
     @apply input cursor-pointer;
   }
   
+  /* LP demo: cross-browser stable select sizing */
+  .lp-select {
+    -webkit-appearance: none;
+    appearance: none;
+    line-height: 1.5; /* keep text vertically centered */
+    padding-top: 0.5rem; /* 8px */
+    padding-bottom: 0.5rem; /* 8px */
+    min-height: 2.75rem; /* ~44px tap target */
+    font-size: 1rem; /* 16px to avoid iOS zoom and keep stable in portrait */
+    background-clip: padding-box;
+  }
+  
   /* 管理画面用のフォームスタイル */
   .input-bordered,
   .textarea-bordered,
