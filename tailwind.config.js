@@ -89,9 +89,8 @@ export default {
   		},
   		fontFamily: {
   			sans: [
-  				'Inter',
-  				'system-ui',
-  				'sans-serif'
+  				'Kaisei Opti',
+  				'serif'
   			],
   			mono: [
   				'JetBrains Mono',

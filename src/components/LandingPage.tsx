@@ -41,13 +41,13 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="lp-root text-white flex h-screen flex-col overflow-hidden" style={{ fontFamily: '"Noto Serif JP", serif' }}>
+    <div className="lp-root text-white flex h-screen flex-col overflow-hidden" style={{ fontFamily: '"Kaisei Opti", serif' }}>
       <Helmet>
         <title>Jazzify - ジャズ異世界で始まる音楽冒険</title>
         <meta name="description" content="ジャズ異世界で始まる音楽冒険。RPG風の学習やレッスン、コミュニティ機能でジャズを楽しく学べるプラットフォーム。" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700;900&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Kaisei+Opti:wght@400;700&display=swap" rel="stylesheet" />
       </Helmet>
 
       {/* Local scroll container */}

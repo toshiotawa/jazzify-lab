@@ -637,7 +637,7 @@ export class PIXINotesRendererInstance {
     const labelStyle = new PIXI.TextStyle({
         fontSize: 14,
         fill: 0xFFFFFF,
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: '"Kaisei Opti", serif',
         fontWeight: 'bold',
         align: 'center',
         stroke: 0x000000,
@@ -1378,7 +1378,7 @@ export class PIXINotesRendererInstance {
       const text = new PIXI.Text(_noteName, {
         fontSize: Math.min(width * 0.4, 16),
         fill: 0x666666,
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: '"Kaisei Opti", serif',
         fontWeight: 'bold',
         align: 'center'
       });

@@ -28,7 +28,7 @@ const showDebugInfo = (message: string, isError = false) => {
     color: white;
     padding: 12px 16px;
     border-radius: 8px;
-    font-family: monospace;
+    font-family: "Kaisei Opti", serif;
     font-size: 16px;
     z-index: 10000;
     max-width: 450px;
