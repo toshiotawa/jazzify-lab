@@ -1389,25 +1389,25 @@ export class FantasyPIXIInstance {
 
 
 
-  // コード名とチェックマーク表示
-  private showChordWithCheckmark(chordName: string): void {
-    // 既存のコードテキストを削除
-    if (this.chordNameText) {
-      this.effectContainer.removeChild(this.chordNameText);
-      this.chordNameText = null;
-    }
-    
-    // コード名とチェックマークのテキスト作成
-    this.chordNameText = new PIXI.Text(`✓ ${chordName}`, {
-      fontFamily: 'DotGothic16, "DotGothic16", Gothic16, "Kaisei Opti", serif',
-      fontSize: 48,
-      fontWeight: 'bold',
-      fill: 0x00FF00, // 緑色
-      stroke: 0x000000,
-      strokeThickness: 4,
-      align: 'center'
-    });
-    
+      // コード名とチェックマーク表示
+    private showChordWithCheckmark(chordName: string): void {
+      // 既存のコードテキストを削除
+      if (this.chordNameText) {
+        this.effectContainer.removeChild(this.chordNameText);
+        this.chordNameText = null;
+      }
+      
+      // コード名とチェックマークのテキスト作成
+      this.chordNameText = new PIXI.Text(`✓ ${chordName}`, {
+        fontFamily: '"Kaisei Opti", serif',
+        fontSize: 48,
+        fontWeight: 'bold',
+        fill: 0x00FF00, // 緑色
+        stroke: 0x000000,
+        strokeThickness: 4,
+        align: 'center'
+      });
+      
     // 位置設定（画面中央）
     this.chordNameText.x = this.app.screen.width / 2;
     this.chordNameText.y = this.app.screen.height / 2;
@@ -1721,7 +1721,7 @@ export class FantasyPIXIInstance {
             } else {
               // テクスチャが無い場合は絵文字でフォールバック
               const angerMark = new PIXI.Text('💢', {
-                fontFamily: 'DotGothic16',
+                fontFamily: '"Kaisei Opti", serif',
                 fontSize: 54,  // もっと大きく
                 fill: 0xFF0000,
                 stroke: 0x000000,

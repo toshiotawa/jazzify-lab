@@ -216,9 +216,7 @@
     height: 0 !important;
   }
   
-  /* DotGothic16 Font */
-  @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
-  .font-dotgothic16 { font-family: 'DotGothic16', sans-serif; }
+  /* Removed DotGothic16 import and utility; use Tailwind font-sans (Kaisei Opti) */
   
   /* 楽譜エリア: 再生中はスクロールバーを非表示 */
   .overflow-hidden.custom-sheet-scrollbar::-webkit-scrollbar {
@@ -954,32 +952,20 @@
   }
 }
 
-/* ファンタジーモード用ピクセルフォント - DotGothic16 */
+/* ファンタジーモード用フォント - Kaisei Opti */
 .fantasy-pixel-font {
-  font-family: 'DotGothic16', 'Courier New', 'Monaco', 'Menlo', monospace;
+  font-family: 'Kaisei Opti', serif;
   font-weight: normal;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-  text-rendering: geometricPrecision;
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 .fantasy-game-screen {
-  font-family: 'DotGothic16', 'Courier New', 'Monaco', 'Menlo', monospace;
+  font-family: 'Kaisei Opti', serif;
   font-weight: normal;
 }
 
 .fantasy-game-screen * {
-  font-family: 'DotGothic16', 'Courier New', 'Monaco', 'Menlo', monospace !important;
+  font-family: 'Kaisei Opti', serif !important;
   font-weight: normal !important;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-  text-rendering: geometricPrecision;
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: grayscale;
 } 
 
 /* LP specific styles (LandingPage) */
