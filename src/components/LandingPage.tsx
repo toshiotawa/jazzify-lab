@@ -74,30 +74,32 @@ const LandingPage: React.FC = () => {
 
         {/* Hero Section */}
         <section className="hero-bg min-h-screen flex items-center justify-center pt-16 sm:pt-20">
-          <div className="container mx-auto px-6 text-center">
-            <div>
-              <h1 className="text-4xl sm:text-5xl md:text-7xl font-black mb-6 section-title">Jazzify</h1>
-              <p className="text-xl md:text-3xl text-purple-200 mb-8 max-w-3xl mx-auto leading-relaxed">
-                練習を冒険に。<br />
-                あなたの演奏、今日からジャズ化。
-              </p>
-            </div>
-            <div className="w-full max-w-3xl mx-auto mb-8">
-              <Link
-                to="/signup"
-                aria-label="無料トライアルを始める"
-                className="relative block w-full h-40 sm:h-56 md:h-64 rounded-2xl overflow-hidden text-white font-extrabold tracking-wide shadow-2xl border border-white/20 ring-1 ring-white/10 bg-cover bg-center"
-                style={{
-                  backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.5)), url(/first-view.png)'
-                }}
-              >
-                <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/10 via-black/5 to-black/20" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xl sm:text-2xl md:text-3xl bg-black/50 backdrop-blur-sm px-6 py-3 rounded-full border border-white/20 shadow-lg">
+          <div className="container mx-auto px-6">
+            <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12">
+              <div className="w-full md:w-1/2">
+                <img
+                  src="/first-view.png"
+                  alt="アプリのイメージ"
+                  className="w-full h-auto rounded-2xl shadow-2xl border border-white/10"
+                />
+              </div>
+              <div className="w-full md:w-1/2 text-center md:text-left">
+                <h1 className="text-4xl sm:text-5xl md:text-7xl font-black mb-4 leading-tight">
+                  練習を冒険に。
+                </h1>
+                <p className="text-lg sm:text-xl md:text-2xl text-purple-200 mb-8">
+                  あなたの演奏、今日からジャズ化。
+                </p>
+                <div className="flex items-center justify-center md:justify-start">
+                  <Link
+                    to="/signup"
+                    className="px-6 sm:px-8 py-3 sm:py-4 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-lg"
+                    aria-label="無料トライアルを始める"
+                  >
                     無料トライアルを始める
-                  </span>
+                  </Link>
                 </div>
-              </Link>
+              </div>
             </div>
           </div>
         </section>
