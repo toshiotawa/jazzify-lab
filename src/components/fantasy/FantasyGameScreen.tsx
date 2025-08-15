@@ -1006,7 +1006,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px' }}>
         <div className="flex items-center justify-between">
           {/* 左: Measure/Beat 表示 */}
-          <div className="text-sm text-yellow-300 font-dotgothic16">
+          <div className="text-sm text-yellow-300 font-sans">
             <>{bgmManager.getIsCountIn() ? 'Measure /' : `Measure ${currentMeasure}`} - B {currentBeat}</>
           </div>
           {/* 中: ステージ情報とモンスター数（残り） */}
@@ -1182,7 +1182,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       {magicName && magicName.monsterId === monster.id && (
                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
                           {/* ▼▼▼ 変更点 ▼▼▼ */}
-                          <div className={`font-bold font-dotgothic16 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
+                          <div className={`font-bold font-sans drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
                             magicName.isSpecial ? 'text-yellow-300' : 'text-white'
                           }`}>
                           {/* ▲▲▲ ここまで ▲▲▲ */}
@@ -1428,7 +1428,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* オーバーレイ表示 */}           {/* ★★★ add */}
       {overlay && (
         <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none">
-          <span className="font-dotgothic16 text-6xl text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
+          <span className="font-sans text-6xl text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
             {overlay.text}
           </span>
         </div>
@@ -1437,7 +1437,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       {/* Ready オーバーレイ */}
       {isReady && (
         <div className="absolute inset-0 flex items-center justify-center z-[9998] bg-black/60">
-          <span className="font-dotgothic16 text-7xl text-white animate-pulse">
+          <span className="font-sans text-7xl text-white animate-pulse">
             Ready
           </span>
         </div>
