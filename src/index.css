@@ -501,6 +501,12 @@
     padding-top: 10px;
     padding-bottom: 10px;
     @apply w-44 md:h-11 md:w-48 rounded-full bg-black/50 border border-white/20 text-white text-base md:text-sm px-3;
+    /* 下向き山型（chevron）を右端に表示してドロップダウンであることを示す */
+    padding-right: 2.25rem; /* アイコン分の余白 */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='2' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
   }
   
   @media (orientation: portrait) {
@@ -535,6 +541,95 @@
     padding-top: 10px;
     padding-bottom: 10px;
     font-size: 16px;
+    /* 下向き山型（chevron）を右端に表示してドロップダウンであることを示す */
+    padding-right: 2.25rem; /* アイコン分の余白 */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='2' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+  }
+
+  /* LPデモ: iPhone風フレーム */
+  .iphone-frame {
+    position: relative;
+    background: linear-gradient(145deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98));
+    border: 2px solid rgba(148,163,184,0.2);
+    border-radius: 36px;
+    padding: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(255,255,255,0.05);
+  }
+
+  .iphone-portrait {
+    width: 100%;
+    max-width: 380px;
+    aspect-ratio: 9 / 19.5;
+  }
+
+  .iphone-landscape {
+    width: 100%;
+    max-width: 720px;
+    aspect-ratio: 19.5 / 9;
+  }
+
+  .device-screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 28px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .iphone-notch {
+    position: absolute;
+    background: #000;
+    opacity: 0.95;
+  }
+
+  .iphone-notch.portrait {
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 38%;
+    height: 5.5%;
+    border-radius: 0 0 14px 14px;
+  }
+
+  .iphone-notch.landscape {
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 5.5%;
+    height: 22%;
+    border-radius: 0 14px 14px 0;
+  }
+
+  .iphone-home {
+    position: absolute;
+    background: linear-gradient(180deg, rgba(255,255,255,0.5), rgba(255,255,255,0.1));
+    box-shadow: inset 0 0 2px rgba(0,0,0,0.6);
+  }
+
+  /* 物理ホームボタン風（古いiPhone風）: ポートレート用 */
+  .iphone-home.portrait {
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 16%;
+    height: 7.5%;
+    border-radius: 9999px;
+    opacity: 0.4;
+  }
+
+  /* 横向き時は右側に配置（ランドスケープ） */
+  .iphone-home.landscape {
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 7.5%;
+    height: 16%;
+    border-radius: 9999px;
+    opacity: 0.4;
   }
   
   /* チェックボックススタイル */
