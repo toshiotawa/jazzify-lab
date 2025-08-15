@@ -73,31 +73,27 @@ const LandingPage: React.FC = () => {
         </nav>
 
         {/* Hero Section */}
-        <section className="hero-bg min-h-screen flex items-center justify-center pt-16 sm:pt-20">
-          <div className="container mx-auto px-6 text-center">
-            <div>
-              <h1 className="text-4xl sm:text-5xl md:text-7xl font-black mb-6 section-title">Jazzify</h1>
-              <p className="text-xl md:text-3xl text-purple-200 mb-8 max-w-3xl mx-auto leading-relaxed">
-                練習を冒険に。<br />
-                あなたの演奏、今日からジャズ化。
-              </p>
-            </div>
-            <div className="w-full max-w-3xl mx-auto mb-8">
-              <Link
-                to="/signup"
-                aria-label="無料トライアルを始める"
-                className="relative block w-full h-40 sm:h-56 md:h-64 rounded-2xl overflow-hidden text-white font-extrabold tracking-wide shadow-2xl border border-white/20 ring-1 ring-white/10 bg-cover bg-center"
-                style={{
-                  backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.5)), url(/first-view.png)'
-                }}
-              >
-                <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/10 via-black/5 to-black/20" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xl sm:text-2xl md:text-3xl bg-black/50 backdrop-blur-sm px-6 py-3 rounded-full border border-white/20 shadow-lg">
-                    無料トライアルを始める
-                  </span>
+        <section className="hero-bg min-h-screen pt-16 sm:pt-20 flex items-center">
+          <div className="container mx-auto px-6">
+            <div className="firstview-layout items-center">
+              <div className="w-full md:w-1/2">
+                <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-2xl shadow-2xl border border-white/10" />
+              </div>
+              <div className="w-full md:w-1/2">
+                <div className="text-center md:text-left">
+                  <p className="text-4xl sm:text-5xl md:text-7xl font-black mb-4 section-title">練習を冒険に。</p>
+                  <p className="text-lg sm:text-xl md:text-2xl text-purple-200 mb-8">あなたの演奏、今日からジャズ化。</p>
                 </div>
-              </Link>
+                <div className="text-center md:text-left">
+                  <Link
+                    to="/signup"
+                    aria-label="無料トライアルを始める"
+                    className="inline-flex items-center justify-center px-6 py-3 sm:px-8 sm:py-4 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 font-bold shadow-lg text-base sm:text-lg"
+                  >
+                    無料トライアルを始める
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </section>
