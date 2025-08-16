@@ -717,6 +717,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
+      const leftWindow = 0.6; // 判定ライン左側に残す時間（秒）
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
@@ -757,11 +758,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
 
-        // 判定ライン左側（過去）は描画しない
-        const lowerBound = 0;
-
-        // 表示範囲内のノーツ（現在ループのみ）
-        if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
+        // 判定ライン左側も一定時間だけ表示する
+        if (timeUntilHit >= -leftWindow && timeUntilHit <= lookAheadTime) {
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
             id: note.id,
@@ -797,6 +795,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           if (timeUntilHit <= 0) continue;
           // 2小節分だけに制限
           if (timeUntilHit > previewWindow) break;
+
+          // 直近で判定ラインを越えたばかりのノーツは、左側表示を優先しプレビューに出さない
+          const currentLoopDelta = note.hitTime - normalizedTime; // 現在ループでの差（負値=通過済み）
+          if (currentLoopDelta > -leftWindow) continue;
 
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
