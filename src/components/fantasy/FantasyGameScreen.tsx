@@ -497,7 +497,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
     try {
       const { playNote } = await import('@/utils/MidiController');
-      await playNote(note, 80); // velocity 80で再生
+      await playNote(note, 64); // velocity 下げる
       activeNotesRef.current.add(note);
       devLog.debug('🎵 Played note via click:', note);
     } catch (error) {
