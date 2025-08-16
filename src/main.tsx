@@ -122,13 +122,11 @@ const initializeApp = async () => {
     
     showDebugInfo('Rendering React app...');
     root.render(
-      <React.StrictMode>
-        <HelmetProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </HelmetProvider>
-      </React.StrictMode>
+      <HelmetProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </HelmetProvider>
     );
     
     showDebugInfo('React app rendered successfully');

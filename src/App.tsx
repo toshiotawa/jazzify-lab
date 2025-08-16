@@ -7,9 +7,7 @@ import AuthGate from '@/components/auth/AuthGate';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
 import { useAuthStore } from '@/stores/authStore';
-
-// LegacyApp はバンドルサイズが大きいため遅延読み込みする
-const LegacyApp = React.lazy(() => import('./LegacyApp'));
+import LegacyApp from './LegacyApp';
 
 const App: React.FC = () => {
   const [initialized, setInitialized] = useState(false);
@@ -40,13 +38,7 @@ const App: React.FC = () => {
 
   return (
     <>
-      <Suspense
-        fallback={
-          <div className="w-full h-screen flex items-center justify-center text-white">
-            Loading...
-          </div>
-        }
-      >
+      <Suspense fallback={null}>
         <Routes>
           {/* ========== 公開ルート (AuthGateの外) ========== */}
           <Route path="/" element={<LandingPage />} />

@@ -58,6 +58,22 @@ const GameScreen: React.FC = () => {
       
       if (songId) {
         try {
+          // 既存再生の明示停止（重複再生防止）
+          try {
+            const w: any = window as any;
+            const audioRef = w.__gameAudioRef;
+            if (audioRef?.current) {
+              audioRef.current.pause();
+              audioRef.current.currentTime = 0;
+              (audioRef.current as any).src = '';
+              (audioRef.current as any).load?.();
+            }
+          } catch {}
+          try {
+            const { bgmManager } = await import('@/utils/BGMManager');
+            bgmManager.stop();
+          } catch {}
+          
           // 曲データを取得（レッスン曲は通常曲も使用できるため、すべての曲から検索）
           const songs = await fetchSongs(); // すべての曲を取得
           const song = songs.find(s => s.id === songId);
@@ -249,6 +265,22 @@ const GameScreen: React.FC = () => {
       
       if (songId && missionId) {
         try {
+          // 既存再生の明示停止（重複再生防止）
+          try {
+            const w: any = window as any;
+            const audioRef = w.__gameAudioRef;
+            if (audioRef?.current) {
+              audioRef.current.pause();
+              audioRef.current.currentTime = 0;
+              (audioRef.current as any).src = '';
+              (audioRef.current as any).load?.();
+            }
+          } catch {}
+          try {
+            const { bgmManager } = await import('@/utils/BGMManager');
+            bgmManager.stop();
+          } catch {}
+          
           console.log('🔍 ミッション曲の条件を取得中:', { songId, missionId });
           
           // ミッション曲の条件をデータベースから取得
@@ -751,6 +783,22 @@ const SongSelectionScreen: React.FC = () => {
                     setLockedSong({title:song.title,min_rank:song.min_rank});
                     return;
                   }
+                  
+                  // 既存再生の明示停止（重複再生防止）
+                  try {
+                    const w: any = window as any;
+                    const audioRef = w.__gameAudioRef;
+                    if (audioRef?.current) {
+                      audioRef.current.pause();
+                      audioRef.current.currentTime = 0;
+                      (audioRef.current as any).src = '';
+                      (audioRef.current as any).load?.();
+                    }
+                  } catch {}
+                  try {
+                    const { bgmManager } = await import('@/utils/BGMManager');
+                    bgmManager.stop();
+                  } catch {}
                   
                   // 通常曲選択時はレッスンコンテキストとミッションコンテキストをクリア
                   gameActions.clearLessonContext();

@@ -80,6 +80,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     (window as any).__gameBaseOffsetRef = baseOffsetRef;
     
     return () => {
+      // 明示停止とリセット（アンマウント時の重複再生防止）
+      try {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+          (audioRef.current as any).src = '';
+          (audioRef.current as any).load?.();
+        }
+      } catch {}
+      try { mediaSourceRef.current?.disconnect?.(); } catch {}
+      try { (pitchShiftRef.current as any)?.dispose?.(); } catch {}
+      
       delete (window as any).__gameAudioRef;
       delete (window as any).__gameAudioContextRef;
       delete (window as any).__gameBaseOffsetRef;
@@ -124,9 +136,17 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       log.info(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
       // CORS対応: Supabaseストレージからの音声ファイルでWeb Audio APIを使用するため
       audio.crossOrigin = 'anonymous';
+      // 既存の再生を明示停止・リセットしてから新しいソースを設定
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+        (audio as any).src = '';
+        (audio as any).load?.();
+      } catch {}
       audio.src = currentSong.audioFile;
       audio.volume = settings.musicVolume;
       audio.preload = 'metadata';
+      try { audio.load(); } catch {}
       
       return () => {
         // 旧リスナー解除
@@ -272,7 +292,19 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           }
           return Promise.resolve();
         }).then(() => {
-          audio.play().catch(e => log.error('音声再生エラー:', e));
+          // canplay もしくは canplaythrough を待ってから再生
+          if (audio.readyState >= 3) {
+            audio.play().catch(e => log.error('音声再生エラー:', e));
+          } else {
+            const onCanPlay = () => {
+              audio.removeEventListener('canplay', onCanPlay);
+              audio.removeEventListener('canplaythrough', onCanPlay);
+              audio.play().catch(e => log.error('音声再生エラー:', e));
+            };
+            audio.addEventListener('canplay', onCanPlay, { once: true });
+            audio.addEventListener('canplaythrough', onCanPlay, { once: true });
+            try { audio.load(); } catch {}
+          }
         }).catch(e => log.error('AudioContext resume エラー:', e));
         } else {
           // === 音声なしモード ===
@@ -300,7 +332,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
 
         startTimeSync();
-
+        
         // 音声入力開始（再生中のみ）
         if (audioControllerRef.current && settings.inputMode === 'audio') {
           audioControllerRef.current.startListening();
@@ -322,11 +354,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           log.info('🎤 音声ピッチ検出停止');
         }
         
-        // AudioContext の suspend は行わない（頻繁なsuspend/resumeを防ぐ）
-        // if (audioContextRef.current) {
-        //   audioContextRef.current.suspend();
-        // }
-
+        // 時間更新を必ず停止（多重Interval防止）
         stopTimeSync();
       }
     };
@@ -334,6 +362,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, audioLoaded, gameEngine]);
+
+  // アンマウント時のクリーンアップで時間更新を停止
+  useEffect(() => {
+    return () => {
+      stopTimeSync();
+    };
+  }, [stopTimeSync]);
   
   // 設定モーダルが開いた時に音楽を一時停止
   useEffect(() => {
@@ -700,11 +735,22 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     
     return () => {
       if (gameEngine) {
+        // 時間更新を停止（多重Interval防止）
+        stopTimeSync();
+        // Audioの安全停止
+        try {
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            (audioRef.current as any).src = '';
+            (audioRef.current as any).load?.();
+          }
+        } catch {}
         destroyGameEngine();
         setIsEngineReady(false);
       }
     };
-  }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine]);
+  }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine, stopTimeSync]);
   
   // 練習モードガイド: GameEngineのキーハイライトコールバック設定
   useEffect(() => {

@@ -339,7 +339,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   useEffect(() => {
     return () => {
       if (osmdRef.current) {
-        osmdRef.current.clear();
+        try {
+          osmdRef.current.clear();
+          // OSMDはdestroyAPIが無いため、参照を切ってGC対象に
+          osmdRef.current = null;
+        } catch {}
       }
       if (animationFrameRef.current) {
         platform.cancelAnimationFrame(animationFrameRef.current);
