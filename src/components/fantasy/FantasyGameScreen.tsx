@@ -354,6 +354,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
+  // 太鼓ノーツ表示用の内部状態（プレビュー抑止用の可視IDトラッキング）
+  const recentlyHiddenBaseIdsRef = useRef<Map<string, number>>(new Map());
+  const lastVisibleBaseIdsRef = useRef<Set<string>>(new Set());
+  
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
     devLog.debug('🎮 ファンタジーゲーム状態更新:', {
@@ -704,6 +708,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
           const loopDuration = (stage.measureCount || 8) * secPerMeasure;
     
+    // 直近に左側から消えたベースIDの記録（絶対時間）
+    const recentlyHiddenBaseIds = recentlyHiddenBaseIdsRef.current;
+    const lastVisibleBaseIds = lastVisibleBaseIdsRef.current;
+    
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
       if (timestamp - lastUpdateTime < updateInterval) {
@@ -717,6 +725,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
+      
+      // 追記: 左側に残す時間とプレビュ―の最小リード
+      const LEFT_HOLD_SEC = 0.45; // 判定ライン通過後に左側へ残す秒数
+      const MIN_PREVIEW_LEAD_SEC = 0.30; // 次ループ・プレビューを出し始める最小リード
+      const PREVIEW_COOLDOWN_AFTER_DISAPPEAR_SEC = 0.5; // 左側から消えてからプレビューに再登場するまでの最低待機
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
@@ -743,22 +756,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
+      // 現在が何周目か（負の時間も考慮して切り捨て）
+      const loopCount = Math.floor(currentTime / loopDuration);
+      
       // 通常のノーツ（現在ループのみ表示）
       gameState.taikoNotes.forEach((note, index) => {
         // 2週目以降は全てのノーツを表示対象とする
-        const loopCount = Math.floor(currentTime / loopDuration);
 
-        // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
-        if (note.isHit) return;
-
-        // 既にこのループで消化済みのインデックスは表示しない（復活防止）
-        if (index < gameState.currentNoteIndex) return;
+        // ヒット済み/消化済みでも、判定ライン通過後しばらくは左側に残すため表示対象に含める
 
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
 
-        // 判定ライン左側（過去）は描画しない
-        const lowerBound = 0;
+        // 判定ライン通過後もしばらく左側に残す
+        const lowerBound = -LEFT_HOLD_SEC;
 
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
@@ -771,36 +782,78 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }
       });
       
+      // 現ループで可視のベースID集合を更新し、非表示になったIDの消失時刻を記録
+      const currentVisibleBaseIds = new Set(notesToDisplay.map(n => n.id));
+      lastVisibleBaseIds.forEach((id) => {
+        if (!currentVisibleBaseIds.has(id)) {
+          recentlyHiddenBaseIds.set(id, currentTime);
+        }
+      });
+      lastVisibleBaseIdsRef.current = currentVisibleBaseIds;
+      
       // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
       const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
+      
+      // 判定ライン付近にノーツが存在する場合はプレビューを抑止（即復活の印象を避ける）
+      const hasNearJudgeNote = gameState.taikoNotes.some(n => {
+        const dt = n.hitTime - normalizedTime;
+        return dt >= -LEFT_HOLD_SEC && dt <= MIN_PREVIEW_LEAD_SEC;
+      });
       
       // 直前に消化したノーツのインデックス（復活させない）
       const lastCompletedIndex = gameState.taikoNotes.length > 0
         ? (gameState.currentNoteIndex - 1 + gameState.taikoNotes.length) % gameState.taikoNotes.length
         : -1;
       
+      // 末尾ノーツを直前に処理した直後は、次ループのプレビュー全体を1フレーム抑止
+      const justCompletedTail = lastCompletedIndex === gameState.taikoNotes.length - 1;
+      
+      // プレビューで絶対に出さないインデックス（直前 + 現在判定中）
+      const skipPreviewIndices = new Set<number>([
+        lastCompletedIndex,
+        (gameState.currentNoteIndex % gameState.taikoNotes.length + gameState.taikoNotes.length) % gameState.taikoNotes.length
+      ]);
+      
       // ループ対応：次ループは「2小節分だけ」先読みし、判定ライン右側のみ表示
       const timeToLoop = loopDuration - normalizedTime;
-      if (timeToLoop < previewWindow && gameState.taikoNotes.length > 0) {
+      if (!justCompletedTail && timeToLoop >= MIN_PREVIEW_LEAD_SEC && timeToLoop < previewWindow && gameState.taikoNotes.length > 0 && !hasNearJudgeNote && notesToDisplay.length === 0) {
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
 
-          // 直前に消化したノーツはプレビューで復活させない
-          if (i === lastCompletedIndex) continue;
-          // すでに通常ノーツで表示しているものは重複させない
+          // 1) 直前・現在判定中のノーツはプレビューに出さない
+          if (skipPreviewIndices.has(i)) continue;
+          // 2) すでに通常ノーツで表示しているものは重複させない
           if (displayedBaseIds.has(note.id)) continue;
 
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
 
-          // 現在より過去とみなせるものは描画しない
+          // 現ループでの相対時間（負なら過去、正なら未来）
+          const currentLoopDt = note.hitTime - normalizedTime;
+          // 左側から消えた直後のクールダウン中はプレビュー抑止
+          if (currentLoopDt < -LEFT_HOLD_SEC) {
+            const elapsedSinceVanish = (-currentLoopDt) - LEFT_HOLD_SEC;
+            if (elapsedSinceVanish < PREVIEW_COOLDOWN_AFTER_DISAPPEAR_SEC) continue;
+          }
+          // 直近で非表示になったベースIDは、一定時間プレビューに再登場させない
+          const hiddenAt = recentlyHiddenBaseIds.get(note.id);
+          if (hiddenAt !== undefined && (currentTime - hiddenAt) < PREVIEW_COOLDOWN_AFTER_DISAPPEAR_SEC) {
+            continue;
+          }
+
+          // 3) 現在より過去扱い / プレビュー範囲外は除外
           if (timeUntilHit <= 0) continue;
-          // 2小節分だけに制限
           if (timeUntilHit > previewWindow) break;
+
+          // 4) 近すぎるプレビューは出さない（即復活の印象を避ける）
+          if (timeUntilHit <= MIN_PREVIEW_LEAD_SEC) continue;
+          // 4b) ループ境界直後に近すぎるノーツは出さない
+          const leadAfterLoop = timeUntilHit - timeToLoop; // 次ループ開始からのリード時間
+          if (leadAfterLoop <= MIN_PREVIEW_LEAD_SEC) continue;
 
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
-            id: `${note.id}_loop`,
+            id: `${note.id}_loop_${loopCount + 1}`,
             chord: note.chord.displayName,
             x
           });
