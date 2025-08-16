@@ -825,7 +825,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     try {
       // 共通音声システムで音を鳴らす
       const { playNote } = await import('@/utils/MidiController');
-      await playNote(note, 100); // マウス/タッチ用の固定velocity
+      await playNote(note, 64); // マウス/タッチ用の固定velocity
       
       // ゲームエンジンにノート入力（ハイライトはGameEngineの状態更新に委ねる）
       handleNoteInput(note);

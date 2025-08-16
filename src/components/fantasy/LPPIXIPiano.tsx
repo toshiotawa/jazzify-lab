@@ -87,7 +87,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
 
     renderer.setKeyCallbacks(
       (note: number) => {
-        playNote(note, 95);
+        playNote(note, 64);
       },
       (note: number) => {
         stopNote(note);

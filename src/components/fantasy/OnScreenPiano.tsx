@@ -81,7 +81,7 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
     pointerIdToNoteRef.current.set(e.pointerId, note);
     setNoteActive(note, true);
     // velocityは固定（やや強め）
-    playNote(note, 100);
+    playNote(note, 64);
   };
 
   const handlePointerUpOrCancel = (e: React.PointerEvent) => {
@@ -106,7 +106,7 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
     }
     map.set(e.pointerId, note);
     setNoteActive(note, true);
-    playNote(note, 90);
+    playNote(note, 64);
   };
 
   useEffect(() => {
