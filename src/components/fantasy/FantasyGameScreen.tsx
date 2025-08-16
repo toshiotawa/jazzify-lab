@@ -717,7 +717,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
-      const leftWindow = 0.6; // 判定ライン左側に残す時間（秒）
+      const leftWindow = 0.15; // 判定ライン左側に残す時間（秒）= Miss猶予と同程度に揃える
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
