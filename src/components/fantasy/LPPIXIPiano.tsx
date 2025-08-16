@@ -178,12 +178,11 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
         touchAction: 'pan-x'
       }}
     >
-      {/* クリック誘導の半透明オーバーレイ（iPhoneフレーム内をうっすら暗く） */}
+      {/* クリック誘導のテキストのみ（右下） */}
       {showOverlay && (
         <button
           type="button"
           onClick={async () => {
-            // ユーザー操作でオーディオ解放
             try { await (window as any).Tone?.start?.(); } catch {}
             try {
               const { initializeAudioSystem } = await import('@/utils/MidiController');
@@ -192,8 +191,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
             setShowOverlay(false);
             setAudioReady(true);
           }}
-          className="absolute inset-0 z-10 flex items-center justify-center bg-black/35 text-white text-sm"
-          style={{ backdropFilter: 'blur(1px)' }}
+          className="absolute bottom-2 right-2 z-10 px-2 py-1 text-[11px] text-white/80 bg-transparent hover:text-white"
         >
           タップして音声を有効化
         </button>

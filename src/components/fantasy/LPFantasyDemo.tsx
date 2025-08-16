@@ -173,8 +173,7 @@ const LPFantasyDemo: React.FC = () => {
             {/* Visual (iPhone風フレーム: 中はピアノのみ) */}
             <div className={`iphone-frame ${useLandscapeFrame ? 'iphone-landscape' : 'iphone-portrait'} mx-auto`}>
               <div className="device-screen relative">
-                {/* フレーム内の薄暗オーバーレイ（クリック誘導） */}
-                <div className="absolute inset-0 pointer-events-none bg-black/20" />
+
                 <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
                 <div ref={pianoSentinelRef} className="absolute inset-0 flex items-end justify-center p-4">
                   <div className="w-full max-w-[640px]">
