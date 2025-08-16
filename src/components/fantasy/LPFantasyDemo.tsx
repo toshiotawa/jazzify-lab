@@ -99,11 +99,16 @@ const LPFantasyDemo: React.FC = () => {
     }
   }, []);
 
+  // デモ中はLPピアノをアンマウントして二重音を防ぐ
+  const [suspendPiano, setSuspendPiano] = useState(false);
+
   const openDemo = useCallback(async () => {
     if (!stage || stage.stageNumber !== selectedStageNumber) {
       // 非同期で最新選択のステージを読み込む
       loadStage(selectedStageNumber);
     }
+    // ピアノを一時停止（アンマウント）
+    setSuspendPiano(true);
     setIsOpen(true);
     // dvh フォールバック変数を設定
     try {
@@ -145,6 +150,8 @@ const LPFantasyDemo: React.FC = () => {
     try {
       document.documentElement.style.removeProperty('--dvh');
     } catch {}
+    // LPピアノを再マウント
+    setSuspendPiano(false);
   }, []);
 
   const handleDemoGameComplete = useCallback((
@@ -171,7 +178,9 @@ const LPFantasyDemo: React.FC = () => {
                   <div className="w-full max-w-[640px]">
                     {pianoVisible ? (
                       <Suspense fallback={<div className="text-center text-gray-300 text-sm">PIXIを読み込み中...</div>}>
-                        <LPPIXIPiano midiDeviceId={settings.selectedMidiDevice} height={isPortrait ? 120 : 150} />
+                        {!suspendPiano && (
+                          <LPPIXIPiano midiDeviceId={settings.selectedMidiDevice} height={isPortrait ? 120 : 150} />
+                        )}
                       </Suspense>
                     ) : (
                       <div className="w-full h-[120px] md:h-[150px] bg-black/40 rounded-md border border-white/10" />
