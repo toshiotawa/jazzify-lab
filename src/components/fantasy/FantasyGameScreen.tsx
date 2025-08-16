@@ -718,6 +718,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const noteSpeed = 400; // ピクセル/秒
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
       
+      // 追記: 左側に残す時間とプレビュ―の最小リード
+      const LEFT_HOLD_SEC = 0.45; // 判定ライン通過後に左側へ残す秒数
+      const MIN_PREVIEW_LEAD_SEC = 0.30; // 次ループ・プレビューを出し始める最小リード
+      
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
         const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
@@ -757,8 +761,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
 
-        // 判定ライン左側（過去）は描画しない
-        const lowerBound = 0;
+        // 判定ライン通過後もしばらく左側に残す
+        const lowerBound = -LEFT_HOLD_SEC;
 
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
@@ -779,24 +783,32 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         ? (gameState.currentNoteIndex - 1 + gameState.taikoNotes.length) % gameState.taikoNotes.length
         : -1;
       
+      // プレビューで絶対に出さないインデックス（直前 + 現在判定中）
+      const skipPreviewIndices = new Set<number>([
+        lastCompletedIndex,
+        (gameState.currentNoteIndex % gameState.taikoNotes.length + gameState.taikoNotes.length) % gameState.taikoNotes.length
+      ]);
+      
       // ループ対応：次ループは「2小節分だけ」先読みし、判定ライン右側のみ表示
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < previewWindow && gameState.taikoNotes.length > 0) {
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
 
-          // 直前に消化したノーツはプレビューで復活させない
-          if (i === lastCompletedIndex) continue;
-          // すでに通常ノーツで表示しているものは重複させない
+          // 1) 直前・現在判定中のノーツはプレビューに出さない
+          if (skipPreviewIndices.has(i)) continue;
+          // 2) すでに通常ノーツで表示しているものは重複させない
           if (displayedBaseIds.has(note.id)) continue;
 
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
 
-          // 現在より過去とみなせるものは描画しない
+          // 3) 現在より過去扱い / プレビュー範囲外は除外
           if (timeUntilHit <= 0) continue;
-          // 2小節分だけに制限
           if (timeUntilHit > previewWindow) break;
+
+          // 4) 近すぎるプレビューは出さない（即復活の印象を避ける）
+          if (timeUntilHit <= MIN_PREVIEW_LEAD_SEC) continue;
 
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
