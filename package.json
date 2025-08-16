@@ -29,6 +29,7 @@
     "@fortawesome/react-fontawesome": "^0.2.2",
     "@stripe/stripe-js": "^2.4.0",
     "@supabase/supabase-js": "^2.39.5",
+    "@tonejs/piano": "^0.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.6",
