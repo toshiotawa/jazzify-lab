@@ -405,7 +405,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : (
               isFreeOrGuest && stage.stageNumber >= '1-4' 
-                ? "プレミアムプラン以上で利用可能です" 
+                ? "スタンダードプラン以上で利用可能です" 
                 : "このステージはまだロックされています"
             )}
           </div>
