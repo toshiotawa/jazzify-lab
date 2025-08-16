@@ -20,6 +20,9 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
   const [rendererReady, setRendererReady] = useState<any>(null);
   const midiControllerRef = useRef<MIDIController | null>(null);
 
+  const hasUserScrolledRef = useRef(false);
+  const isProgrammaticScrollRef = useRef(false);
+
   // 外枠のサイズに応じて（必要であれば）横幅を調整
   useEffect(() => {
     const el = scrollWrapRef.current;
@@ -34,6 +37,48 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     ro.observe(el);
     return () => ro.disconnect();
   }, [targetWhiteKeyWidth]);
+
+  // 初期位置をC4中央にスクロール
+  const centerToC4 = useCallback(() => {
+    const container = scrollWrapRef.current;
+    if (!container) return;
+
+    const contentWidth = canvasWidth;
+    const viewportWidth = container.clientWidth || 0;
+    if (viewportWidth <= 0 || contentWidth <= viewportWidth) return;
+
+    const TOTAL_WHITE_KEYS = 52;
+    const C4_WHITE_INDEX = 23; // A0=0 ... C4=23 （ゲーム/ファンタジーと同仕様）
+    const whiteKeyWidth = contentWidth / TOTAL_WHITE_KEYS;
+    const c4CenterX = (C4_WHITE_INDEX + 0.5) * whiteKeyWidth;
+    const desiredScroll = Math.max(0, Math.min(contentWidth - viewportWidth, c4CenterX - viewportWidth / 2));
+
+    isProgrammaticScrollRef.current = true;
+    container.scrollLeft = desiredScroll;
+    // 少し遅延してフラグ解除（iOS Safariの二度スクロール対策）
+    setTimeout(() => { isProgrammaticScrollRef.current = false; }, 50);
+  }, [canvasWidth]);
+
+  useEffect(() => {
+    // 初回と幅変更時にセンタリング（ユーザーがスクロール済みなら抑制）
+    if (!hasUserScrolledRef.current) {
+      const r1 = requestAnimationFrame(() => centerToC4());
+      const r2 = requestAnimationFrame(() => centerToC4()); // iOS対策で二重
+      return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); };
+    }
+  }, [centerToC4, canvasWidth]);
+
+  // スクロールでユーザー操作を検知
+  useEffect(() => {
+    const el = scrollWrapRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (isProgrammaticScrollRef.current) return;
+      hasUserScrolledRef.current = true;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
 
   // レンダラー準備時にキーバインド設定
   const handleRendererReady = useCallback((renderer: any | null) => {
