@@ -16,6 +16,11 @@ const ChordOverlay: React.FC = () => {
     return () => clearInterval(interval);
   }, [chords]);
 
+  // 楽曲が切り替わったら即座にクリア
+  useEffect(() => {
+    setCurrentChord('');
+  }, [chords]);
+
   return (
     <div
       className="pointer-events-none absolute inset-0 flex items-start justify-center"
