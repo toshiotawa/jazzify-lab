@@ -20,7 +20,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
   const [rendererReady, setRendererReady] = useState<any>(null);
   const midiControllerRef = useRef<MIDIController | null>(null);
   const [audioReady, setAudioReady] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(true);
+  const [showPrompt, setShowPrompt] = useState(true);
 
   const hasUserScrolledRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
@@ -163,12 +163,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
       } catch {
         if (!cancelled) setAudioReady(false);
       }
-      // ユーザー操作済みかチェックし、未操作ならテキスト誘導を継続表示
-      try {
-        const tone: any = (window as any).Tone;
-        const interacted = !!tone?.context && tone.context.state === 'running';
-        if (!cancelled) setShowOverlay(!interacted);
-      } catch { if (!cancelled) setShowOverlay(true); }
+
     })();
     return () => { cancelled = true; };
   }, []);
@@ -184,7 +179,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
       }}
     >
       {/* クリック誘導のテキストのみ（右下） */}
-      {showOverlay && (
+      {showPrompt && (
         <button
           type="button"
           onClick={async () => {
@@ -193,7 +188,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
               const { initializeAudioSystem } = await import('@/utils/MidiController');
               await initializeAudioSystem({ light: true });
             } catch {}
-            setShowOverlay(false);
+            setShowPrompt(false);
             setAudioReady(true);
           }}
           className="absolute bottom-2 right-2 z-10 px-2 py-1 text-[11px] text-white/80 bg-transparent hover:text-white"
