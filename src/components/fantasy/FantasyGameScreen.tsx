@@ -354,6 +354,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
+  // 判定ライン通過直後の“即時復活”を防ぐためのガード（プレビュー抑止用）
+  const pendingCrossedIndexRef = useRef<number | null>(null);
+  
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
     devLog.debug('🎮 ファンタジーゲーム状態更新:', {
@@ -691,6 +694,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, gameState.isTaikoMode]);
   
+  // currentNoteIndex が進んだら、プレビュー抑止用のガードを解除
+  useEffect(() => {
+    pendingCrossedIndexRef.current = null;
+  }, [gameState.currentNoteIndex]);
+  
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
@@ -717,6 +725,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
+      const lingerWindow = 0.5; // 判定ライン通過後に左へ流れる許容時間（秒）
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
@@ -757,8 +766,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
 
-        // 判定ライン左側（過去）は描画しない
-        const lowerBound = 0;
+        // 判定ライン左側も少しだけ描画（流れていく表現）
+        const lowerBound = -lingerWindow;
+
+        // 現在の判定対象ノーツがラインを越えたら、プレビュー復活を一時抑止
+        if (index === gameState.currentNoteIndex && timeUntilHit < 0 && pendingCrossedIndexRef.current === null) {
+          pendingCrossedIndexRef.current = index;
+        }
 
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
@@ -787,6 +801,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
           // 直前に消化したノーツはプレビューで復活させない
           if (i === lastCompletedIndex) continue;
+          // 判定ラインを越えた直後の現在ノーツもプレビューで復活させない
+          if (i === pendingCrossedIndexRef.current) continue;
           // すでに通常ノーツで表示しているものは重複させない
           if (displayedBaseIds.has(note.id)) continue;
 
