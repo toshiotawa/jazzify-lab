@@ -459,7 +459,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               onClick={onBackToMenu}
               className="px-4 sm:px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base"
             >
-              メニューに戻る
+              戻る
             </button>
           </div>
         </div>
@@ -491,7 +491,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             onClick={onBackToMenu}
             className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap"
           >
-            メニューに戻る
+            戻る
           </button>
         </div>
       </div>
