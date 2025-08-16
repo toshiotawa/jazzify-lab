@@ -1235,6 +1235,11 @@ export const useFantasyGameEngine = ({
           };
         }
         
+        // 末尾処理後の待機中はミス判定を停止（ループ境界待ち）
+        if (prevState.awaitingLoopStart) {
+          return { ...prevState, lastNormalizedTime: normalizedTime };
+        }
+        
         // 以降は既存のミス判定ロジック
         let currentNoteIndex = prevState.currentNoteIndex;
         const currentNote = prevState.taikoNotes[currentNoteIndex];
