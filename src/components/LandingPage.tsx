@@ -43,7 +43,7 @@ const LandingPage: React.FC = () => {
   return (
     <div className="lp-root text-white flex h-screen flex-col overflow-hidden" style={{ fontFamily: '"Kaisei Opti", serif' }}>
       <Helmet>
-        <title>Jazzify - ジャズ異世界で始まる音楽冒険</title>
+        <title>Jazzify</title>
         <meta name="description" content="ジャズ異世界で始まる音楽冒険。RPG風の学習やレッスン、コミュニティ機能でジャズを楽しく学べるプラットフォーム。" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -107,17 +107,15 @@ const LandingPage: React.FC = () => {
         <section id="story" className="py-20 story-gradient">
           <div className="container mx-auto px-6">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title">
-              <i className="fas fa-book-open mr-4"></i>Story
+              <i className="fas fa-book-open mr-4"></i>ストーリー
             </h2>
 
             <div className="max-w-4xl mx-auto mb-16 p-8 rounded-2xl character-card">
               <h3 className="text-2xl font-bold mb-6 text-purple-300">物語の始まり</h3>
               <p className="text-lg leading-relaxed text-gray-300 space-y-3">
-                <span className="block">ここは、ジャズに憧れを持つ青年たちが集まる音楽の世界。</span>
-                <span className="block">しかし、コードが覚えられず、なかなかジャズらしい演奏ができずに悩む者も多い。</span>
-                <span className="block">そんな悩みを抱えた主人公が、突然ジャズ異世界に飛ばされてしまう...！</span>
+                <span className="block">ジャズに憧れを持つ青年が、突然ジャズ異世界に飛ばされてしまう...！</span>
                 <span className="block">モンスターとセッションし、心を通わせることで元の世界に戻れるという。</span>
-                <span className="block">果たして、君は伝説のジャズソーサラーになることができるのか？</span>
+                <span className="block">果たして、君は伝説のジャズソーサラー(大魔法使い)になることができるのか？</span>
               </p>
               <p className="text-lg leading-relaxed text-gray-300 mt-6">
                 世界観は遊び心、学習はガチ。— そんな“冒険する学習体験”がJazzifyです。
@@ -138,11 +136,10 @@ const LandingPage: React.FC = () => {
                 <p className="text-gray-300 leading-relaxed">
                   ジャズに憧れを持つ青年。ジャズ研究会に所属していたが、コードが覚えられず、なかなかジャズらしくならないことに悩んでいた。突然ジャズ異世界に飛ばされてしまう。
                 </p>
-                <ul className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
-                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">初心者</li>
-                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">コードを覚えたい</li>
-                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">作曲に役立てたい</li>
-                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">何から始めればいい？</li>
+                <h4 className="mt-6 text-lg font-semibold text-white">悩み</h4>
+                <ul className="mt-2 flex flex-wrap justify-center gap-2 text-sm">
+                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">何から始めればいいかわからない</li>
+                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">コードが覚えられない</li>
                 </ul>
               </div>
 
@@ -155,8 +152,10 @@ const LandingPage: React.FC = () => {
                 <p className="text-gray-300 leading-relaxed">
                   異世界の住人で、エレキベースを弾く占い師。ファイが元の世界に戻れるよう、ジャズの奥義を伝授し、ジャズソーサラー（大魔法使い）への道を導く。
                 </p>
-                <ul className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
+                <h4 className="mt-6 text-lg font-semibold text-white">悩み</h4>
+                <ul className="mt-2 flex flex-wrap justify-center gap-2 text-sm">
                   <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">練習時間が取れない</li>
+                  <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">上達の壁を感じている</li>
                 </ul>
               </div>
 
@@ -169,6 +168,7 @@ const LandingPage: React.FC = () => {
                 <p className="text-gray-300 leading-relaxed">
                   ジャズを愛し、何らかの楽器をたしなんでいる異世界の住人たち。ファイと旅の道中で出会うといつもセッションを申し出てくる音楽好きな仲間たち。
                 </p>
+                <h4 className="mt-6 text-lg font-semibold text-white">悩み</h4>
                 <ul className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
                   <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">ジャズらしくならない</li>
                   <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">1からきちんと学びたい</li>
@@ -182,6 +182,7 @@ const LandingPage: React.FC = () => {
                 <span className="px-4 py-2 rounded-full bg-slate-800">ジャジィタイプ</span>
                 <span className="px-4 py-2 rounded-full bg-slate-800">モンスタータイプ</span>
               </div>
+              <p className="mt-4 text-gray-300 text-sm">どのタイプの方にも役立つ学習ツールが満載――あなたの冒険を加速させるのが、Jazzifyです！</p>
             </div>
           </div>
         </section>
@@ -207,18 +208,18 @@ const LandingPage: React.FC = () => {
                   <h3 className="text-2xl font-bold text-yellow-300">レジェンドモード</h3>
                 </div>
                 <p className="text-gray-300 mb-6 leading-relaxed">
-                  ジャズの巨匠たちの伝説的なソロをプレイできるモード。マイルス・デイビス、ジョン・コルトレーン、ビル・エヴァンスなどの名演奏を体感しながら学習できます。
+                  ジャズの巨匠たちの伝説的なソロをプレイできるモード。名演奏を体感しながら学習できます。
                 </p>
                 <ul className="space-y-2 text-sm text-gray-400">
                   <li><i className="fas fa-star text-yellow-400 mr-2"></i>巨匠の演奏を完全再現</li>
-                  <li><i className="fas fa-star text-yellow-400 mr-2"></i>楽譜とタブ譜表示</li>
+                  <li><i className="fas fa-star text-yellow-400 mr-2"></i>楽譜表示</li>
                   <li><i className="fas fa-star text-yellow-400 mr-2"></i>スロー再生機能</li>
-                  <li><i className="fas fa-star text-yellow-400 mr-2"></i>フレーズ分析機能</li>
+                  <li><i className="fas fa-star text-yellow-400 mr-2"></i>移調、リピート機能</li>
                 </ul>
                 <div className="mt-6">
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-yellow-500/40 text-xs text-yellow-200">
                     <i className="fas fa-thumbs-up text-yellow-400"></i>
-                    「ファイタイプのあなた」におすすめ！
+                    「ジャジィタイプのあなた」におすすめ！
                   </div>
                 </div>
               </div>
@@ -239,14 +240,14 @@ const LandingPage: React.FC = () => {
                 </p>
                 <ul className="space-y-2 text-sm text-gray-400">
                   <li><i className="fas fa-magic text-purple-400 mr-2"></i>RPG風コード学習</li>
-                  <li><i className="fas fa-magic text-purple-400 mr-2"></i>セッションバトル</li>
-                  <li><i className="fas fa-magic text-purple-400 mr-2"></i>スキルツリーシステム</li>
-                  <li><i className="fas fa-magic text-purple-400 mr-2"></i>アイテム収集機能</li>
+                  <li><i className="fas fa-magic text-purple-400 mr-2"></i>リズムゲーム</li>
+                  <li><i className="fas fa-magic text-purple-400 mr-2"></i>クイズゲーム</li>
+                  <li><i className="fas fa-magic text-purple-400 mr-2"></i>ステージ風、段階的カリキュラム</li>
                 </ul>
                 <div className="mt-6">
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-purple-500/40 text-xs text-purple-200">
                     <i className="fas fa-thumbs-up text-purple-400"></i>
-                    「ジャジィタイプのあなた」におすすめ！
+                    「ファイタイプのあなた」におすすめ！
                   </div>
                 </div>
               </div>
@@ -269,12 +270,12 @@ const LandingPage: React.FC = () => {
                   <li><i className="fas fa-video text-blue-400 mr-2"></i>HD動画レッスン</li>
                   <li><i className="fas fa-video text-blue-400 mr-2"></i>段階的カリキュラム</li>
                   <li><i className="fas fa-video text-blue-400 mr-2"></i>課題チェック機能</li>
-                  <li><i className="fas fa-video text-blue-400 mr-2"></i>進捗管理システム</li>
+                  <li><i className="fas fa-video text-blue-400 mr-2"></i>マンツーマンサポートシステム</li>
                 </ul>
                 <div className="mt-6">
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-blue-500/40 text-xs text-blue-200">
                     <i className="fas fa-thumbs-up text-blue-400"></i>
-                    「モンスタータイプのあなた」におすすめ！
+                    「モンスタータイプ・ファイタイプのあなた」におすすめ！
                   </div>
                 </div>
               </div>
@@ -318,10 +319,6 @@ const LandingPage: React.FC = () => {
                     <i className="fas fa-heart text-green-400 mr-3"></i>
                     いいね機能
                   </div>
-                  <div className="flex items-center text-sm text-gray-400">
-                    <i className="fas fa-share text-green-400 mr-3"></i>
-                    SNS共有機能
-                  </div>
                 </div>
               </div>
 
@@ -337,7 +334,7 @@ const LandingPage: React.FC = () => {
                   <h3 className="text-2xl font-bold text-orange-300">経験値システム</h3>
                 </div>
                 <p className="text-gray-300 mb-6 leading-relaxed">
-                  レッスンクリアやセッション参加で経験値を獲得。レベルアップすることで新しいコンテンツや機能がアンロックされます。
+                  レッスンやプレイで経験値を獲得。ゲーミフィケーションで楽しみながら、気づけばあっという間に成長。
                 </p>
                 <div className="space-y-3">
                   <div className="flex items-center text-sm text-gray-400">
@@ -345,16 +342,8 @@ const LandingPage: React.FC = () => {
                     レベルアップシステム
                   </div>
                   <div className="flex items-center text-sm text-gray-400">
-                    <i className="fas fa-unlock text-orange-400 mr-3"></i>
-                    コンテンツアンロック
-                  </div>
-                  <div className="flex items-center text-sm text-gray-400">
                     <i className="fas fa-medal text-orange-400 mr-3"></i>
                     バッジ獲得システム
-                  </div>
-                  <div className="flex items-center text-sm text-gray-400">
-                    <i className="fas fa-chart-line text-orange-400 mr-3"></i>
-                    成長グラフ表示
                   </div>
                 </div>
               </div>
@@ -371,24 +360,24 @@ const LandingPage: React.FC = () => {
                   <h3 className="text-2xl font-bold text-purple-300">ランキングシステム</h3>
                 </div>
                 <p className="text-gray-300 mb-6 leading-relaxed">
-                  レベル上位者がランキングに掲載される競争システム。友達と切磋琢磨しながら上達を目指そう。
+                  競い合いながら楽しく上達できるランキング機能を用意。
                 </p>
                 <div className="space-y-3">
                   <div className="flex items-center text-sm text-gray-400">
                     <i className="fas fa-list text-purple-400 mr-3"></i>
-                    総合ランキング
+                    レベルランキング
+                  </div>
+                  <div className="flex items-center text-sm text-gray-400">
+                    <i className="fas fa-video text-purple-400 mr-3"></i>
+                    レッスンランキング
+                  </div>
+                  <div className="flex items-center text-sm text-gray-400">
+                    <i className="fas fa-magic text-purple-400 mr-3"></i>
+                    ファンタジーランキング
                   </div>
                   <div className="flex items-center text-sm text-gray-400">
                     <i className="fas fa-calendar text-purple-400 mr-3"></i>
-                    月間ランキング
-                  </div>
-                  <div className="flex items-center text-sm text-gray-400">
-                    <i className="fas fa-music text-purple-400 mr-3"></i>
-                    楽器別ランキング
-                  </div>
-                  <div className="flex items-center text-sm text-gray-400">
-                    <i className="fas fa-crown text-purple-400 mr-3"></i>
-                    殿堂入りシステム
+                    マンスリーミッション
                   </div>
                 </div>
               </div>
