@@ -38,6 +38,8 @@ let globalPiano: PianoInstrument | null = null;
 let usingPianoInstrument = false;
 let audioSystemInitialized = false;
 let userInteracted = false;
+// 直近で設定されたボリューム（0-1）を保持し、音源切替時に反映する
+let lastVolumeScalar: number | null = 0.8;
 
 // アクティブなノートを追跡するSet
 const activeNotes = new Set<string>();
@@ -133,55 +135,57 @@ export const initializeAudioSystem = async (): Promise<void> => {
     
     console.log('✅ Tone.js context optimized for low latency');
 
-    // 高品質ピアノ音源 (@tonejs/piano) を優先的に初期化
+    // 即時発音用の軽量サンプラー（最小1サンプル）を先に用意
+    // これにより全サンプルのロード完了を待たずに音が出る
     try {
-      // Piano 本体のみを直接 import して、Node の events 依存を避ける
-      const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
-      const PianoCtor = PianoModule.Piano ?? PianoModule.default ?? PianoModule;
-      const piano: PianoInstrument = new PianoCtor({
-        velocities: 5,
-        release: true,
-        pedal: true
-      }).toDestination();
-      globalPiano = piano;
-      usingPianoInstrument = true;
-      console.log('🎹 Using @tonejs/piano instrument');
-
-      // すべてのサンプルを事前読み込み
-      await piano.load();
-      console.log('✅ Piano samples loaded');
-    } catch (e) {
-      console.warn('⚠️ Failed to initialize @tonejs/piano. Falling back to Tone.Sampler:', e);
-
-      // Salamander サンプラーの初期化（フォールバック）
       globalSampler = new (window.Tone as any).Sampler({
-        urls: {
-          "A1": "A1.mp3",
-          "C2": "C2.mp3",
-          "D#2": "Ds2.mp3",
-          "F#2": "Fs2.mp3",
-          "A2": "A2.mp3",
-          "C3": "C3.mp3",
-          "D#3": "Ds3.mp3",
-          "F#3": "Fs3.mp3",
-          "A3": "A3.mp3",
-          "C4": "C4.mp3"
-        },
+        urls: { "C4": "C4.mp3" },
         baseUrl: "https://tonejs.github.io/audio/salamander/"
       }).toDestination();
-
-      // 立ち上がりを限界まで短く（型安全性確保）
-      if (globalSampler && (globalSampler as any).envelope) {
+      if ((globalSampler as any).envelope) {
         (globalSampler as any).envelope.attack = 0.001;
       }
-
-      // 全サンプルのプリロード完了を待機
-      await (window.Tone as any).loaded();
-      console.log('✅ Sampler audio samples preloaded and decoded');
+    } catch (samplerError) {
+      console.warn('⚠️ Quick sampler initialization failed:', samplerError);
     }
 
+    // オーディオシステムはここで利用可能とみなす（重い読み込みはバックグラウンドへ）
     audioSystemInitialized = true;
-    console.log('✅ Optimized audio system initialized successfully');
+    console.log('✅ Audio system ready (quick sampler). Loading HQ piano in background...');
+
+    // 高品質ピアノをバックグラウンドで読み込みし、完了後に自動切替
+    (async () => {
+      try {
+        const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
+        const PianoCtor = PianoModule.Piano ?? PianoModule.default ?? PianoModule;
+        const piano: PianoInstrument = new PianoCtor({
+          velocities: 5,
+          release: true,
+          pedal: true
+        }).toDestination();
+
+        // 直近のボリュームを適用
+        try {
+          if (lastVolumeScalar != null && (piano as any).volume) {
+            const volumeDb = lastVolumeScalar === 0 ? -Infinity : Math.log10(lastVolumeScalar) * 20;
+            (piano as any).volume.value = volumeDb;
+          }
+        } catch {}
+
+        await piano.load();
+        globalPiano = piano;
+        usingPianoInstrument = true;
+        console.log('✅ Switched to @tonejs/piano instrument (fully loaded)');
+
+        // 旧サンプラーは不要なら解放（念のため try/catch）
+        try { (globalSampler as any)?.dispose?.(); } catch {}
+        globalSampler = null;
+      } catch (e) {
+        console.warn('⚠️ HQ piano load failed. Continuing with quick sampler:', e);
+      }
+    })();
+    
+    console.log('✅ Optimized audio system initialized successfully (non-blocking)');
     
   } catch (error) {
     console.error('❌ Audio system initialization failed:', error);
@@ -280,6 +284,7 @@ export const stopNote = (note: number): void => {
  */
 export const updateGlobalVolume = (volume: number): void => {
   try {
+    lastVolumeScalar = volume;
     // 0-1 の範囲を -40dB から 0dB にマッピング
     const volumeDb = volume === 0 ? -Infinity : Math.log10(volume) * 20;
 
@@ -541,7 +546,7 @@ export class MIDIController {
     this.activeNotes.clear();
     this.notifyConnectionChange(false);
   }
-
+  
   // 公開プロパティ・メソッド
   public isConnected(): boolean {
     return this.currentDeviceId !== null;
