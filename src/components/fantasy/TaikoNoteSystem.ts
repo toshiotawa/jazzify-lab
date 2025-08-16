@@ -300,6 +300,7 @@ export function calculateNotePosition(
   speed: number = 300
 ): number {
   const timeUntilHit = note.hitTime - currentTime;
+  // 判定ラインより左側でも位置を計算し続ける（流れていくように見せるため）
   return judgeLineX + timeUntilHit * speed;
 }
 

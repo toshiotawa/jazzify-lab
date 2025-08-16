@@ -715,6 +715,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const currentTime = bgmManager.getCurrentMusicTime();
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
+      const lookBehindTime = 0.5; // 判定ライン通過後も表示する時間（秒）
       const noteSpeed = 400; // ピクセル/秒
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
       
@@ -726,7 +727,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           const note = gameState.taikoNotes[i];
           const timeUntilHit = note.hitTime - currentTime; // currentTime は負値
           if (timeUntilHit > lookAheadTime) break;
-          if (timeUntilHit >= -0.5) {
+          if (timeUntilHit >= -lookBehindTime) {
             const x = judgeLinePos.x + timeUntilHit * noteSpeed;
             notesToDisplay.push({ id: note.id, chord: note.chord.displayName, x });
             if (notesToDisplay.length >= maxPreCountNotes) break;
@@ -757,8 +758,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
 
-        // 判定ライン左側（過去）は描画しない
-        const lowerBound = 0;
+        // 判定ライン通過後も一定時間（lookBehindTime）表示し続ける
+        const lowerBound = -lookBehindTime;
 
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
@@ -793,8 +794,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
 
-          // 現在より過去とみなせるものは描画しない
-          if (timeUntilHit <= 0) continue;
+          // 判定ラインより左側のノーツも表示（lookBehindTimeまで）
+          if (timeUntilHit < -lookBehindTime) continue;
           // 2小節分だけに制限
           if (timeUntilHit > previewWindow) break;
 
