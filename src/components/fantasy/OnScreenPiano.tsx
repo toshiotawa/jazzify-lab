@@ -118,7 +118,8 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
       onNoteOff: (note: number) => {
         setNoteActive(note, false);
       },
-      playMidiSound: true
+      playMidiSound: true,
+      ...( { lightAudio: true } as any )
     });
 
     midiControllerRef.current = controller;

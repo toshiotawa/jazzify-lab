@@ -83,7 +83,7 @@ const detectUserInteraction = (): Promise<void> => {
 /**
  * 音声システムの初期化（遅延最適化設定付き）
  */
-export const initializeAudioSystem = async (): Promise<void> => {
+export const initializeAudioSystem = async (opts?: { light?: boolean }): Promise<void> => {
   if (audioSystemInitialized) {
     console.log('🎹 Audio system already initialized');
     return;
@@ -133,51 +133,71 @@ export const initializeAudioSystem = async (): Promise<void> => {
     
     console.log('✅ Tone.js context optimized for low latency');
 
-    // 高品質ピアノ音源 (@tonejs/piano) を優先的に初期化
-    try {
-      // Piano 本体のみを直接 import して、Node の events 依存を避ける
-      const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
-      const PianoCtor = PianoModule.Piano ?? PianoModule.default ?? PianoModule;
-      const piano: PianoInstrument = new PianoCtor({
-        velocities: 5,
-        release: true,
-        pedal: true
-      }).toDestination();
-      globalPiano = piano;
-      usingPianoInstrument = true;
-      console.log('🎹 Using @tonejs/piano instrument');
+    // 軽量モードでなければ高品質ピアノを試す
+    let usedPiano = false;
+    if (!opts?.light) {
+      try {
+        // Piano 本体のみを直接 import して、Node の events 依存を避ける
+        const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
+        const PianoCtor = PianoModule.Piano ?? PianoModule.default ?? PianoModule;
+        const piano: PianoInstrument = new PianoCtor({
+          velocities: 5,
+          release: true,
+          pedal: true
+        }).toDestination();
+        globalPiano = piano;
+        usingPianoInstrument = true;
+        console.log('🎹 Using @tonejs/piano instrument');
 
-      // すべてのサンプルを事前読み込み
-      await piano.load();
-      console.log('✅ Piano samples loaded');
-    } catch (e) {
-      console.warn('⚠️ Failed to initialize @tonejs/piano. Falling back to Tone.Sampler:', e);
+        // すべてのサンプルを事前読み込み
+        await piano.load();
+        console.log('✅ Piano samples loaded');
+        usedPiano = true;
+      } catch (e) {
+        console.warn('⚠️ Failed to initialize @tonejs/piano. Falling back to Tone.Sampler:', e);
+      }
+    }
 
-      // Salamander サンプラーの初期化（フォールバック）
+    // 軽量モード or ピアノ失敗時は Salamander サンプラー
+    if (!usedPiano) {
+      const samplerUrls = opts?.light ? {
+        // 軽量: マッピングを減らし、初期ダウンロードを軽くする（ピッチシフトで補完）
+        "A2": "A2.mp3",
+        "D#3": "Ds3.mp3",
+        "A3": "A3.mp3",
+        "C4": "C4.mp3"
+      } : {
+        // 通常: 広いレンジでより自然な音色
+        "A1": "A1.mp3",
+        "C2": "C2.mp3",
+        "D#2": "Ds2.mp3",
+        "F#2": "Fs2.mp3",
+        "A2": "A2.mp3",
+        "C3": "C3.mp3",
+        "D#3": "Ds3.mp3",
+        "F#3": "Fs3.mp3",
+        "A3": "A3.mp3",
+        "C4": "C4.mp3"
+      };
+
       globalSampler = new (window.Tone as any).Sampler({
-        urls: {
-          "A1": "A1.mp3",
-          "C2": "C2.mp3",
-          "D#2": "Ds2.mp3",
-          "F#2": "Fs2.mp3",
-          "A2": "A2.mp3",
-          "C3": "C3.mp3",
-          "D#3": "Ds3.mp3",
-          "F#3": "Fs3.mp3",
-          "A3": "A3.mp3",
-          "C4": "C4.mp3"
-        },
+        urls: samplerUrls,
         baseUrl: "https://tonejs.github.io/audio/salamander/"
       }).toDestination();
 
-      // 立ち上がりを限界まで短く（型安全性確保）
       if (globalSampler && (globalSampler as any).envelope) {
         (globalSampler as any).envelope.attack = 0.001;
       }
 
-      // 全サンプルのプリロード完了を待機
-      await (window.Tone as any).loaded();
-      console.log('✅ Sampler audio samples preloaded and decoded');
+      if (opts?.light) {
+        // 軽量モード: バックグラウンドでロード。初期化をブロックしない
+        (window.Tone as any).loaded().then(() => {
+          console.log('✅ Sampler audio samples loaded (background, light mode)');
+        }).catch(() => {});
+      } else {
+        await (window.Tone as any).loaded();
+        console.log('✅ Sampler audio samples preloaded and decoded');
+      }
     }
 
     audioSystemInitialized = true;
@@ -312,12 +332,14 @@ export class MIDIController {
   
   // 音声再生制御フラグ
   private readonly playMidiSound: boolean;
+  private readonly lightAudio: boolean;
 
   constructor(options: MidiControllerOptions & { playMidiSound?: boolean }) {
     this.onNoteOn = options.onNoteOn;
     this.onNoteOff = options.onNoteOff;
     this.onConnectionChange = options.onConnectionChange || null;
     this.playMidiSound = options.playMidiSound ?? true; // デフォルトは音を鳴らす
+    this.lightAudio = (options as any).lightAudio ?? false;
 
     console.log('🎹 MIDI Controller initialized (using global audio system)');
   }
@@ -329,8 +351,8 @@ export class MIDIController {
     }
 
     try {
-      // 共通音声システムを初期化
-      await initializeAudioSystem();
+      // 共通音声システムを初期化（LPなど軽量指定の考慮）
+      await initializeAudioSystem({ light: this.lightAudio });
       
       // MIDI API の存在確認
       if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) {
@@ -341,14 +363,24 @@ export class MIDIController {
 
       this.midiAccess!.onstatechange = (event): void => {
         if (event.port) {
-          const port = event.port;
-          if (port.type === 'input' && 
-              port.id === this.currentDeviceId && 
-              port.state === 'disconnected') {
-            this.disconnectDevice(port.id);
+          const port: any = event.port;
+          if (port.type === 'input' && this.currentDeviceId) {
+            if (port.id === this.currentDeviceId && port.state === 'disconnected') {
+              this.disconnectDevice(port.id);
+            } else if (port.id === this.currentDeviceId && port.state === 'connected') {
+              try {
+                const input = this.midiAccess!.inputs.get(port.id);
+                if (input) {
+                  input.onmidimessage = this.handleMIDIMessage;
+                  this.isEnabled = true;
+                  this.notifyConnectionChange(true);
+                }
+              } catch {}
+            }
           }
         }
-        
+        // 自動復旧を試行
+        void this.checkAndRestoreConnection();
         // デバイスリスト更新のコールバックを呼び出し
         this.notifyConnectionChange(this.isConnected());
       };

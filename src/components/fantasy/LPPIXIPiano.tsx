@@ -104,7 +104,9 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
       onNoteOff: (note: number) => {
         if (rendererReady) rendererReady.highlightKey?.(note, false);
       },
-      playMidiSound: true
+      playMidiSound: true,
+      // LPデモ用: 軽量音源モードを有効化
+      ...( { lightAudio: true } as any )
     });
     midiControllerRef.current = controller;
 
