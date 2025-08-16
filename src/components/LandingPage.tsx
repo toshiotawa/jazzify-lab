@@ -117,6 +117,7 @@ const LandingPage: React.FC = () => {
                 <span className="block">ジャズに憧れを持つ青年が、突然ジャズ異世界に飛ばされてしまう...！</span>
                 <span className="block">モンスターとセッションし、心を通わせることで元の世界に戻れるという。</span>
                 <span className="block">果たして、君は伝説のジャズソーサラー(大魔法使い)になることができるのか？</span>
+                <span className="block">鍵を握るのは、音で対話し、仲間と奏でる“ジャズ”そのものなのだ。</span>
               </p>
               <p className="text-lg leading-relaxed text-gray-300 mt-6">
                 世界観は遊び心、学習はガチ。— そんな“冒険する学習体験”がJazzifyです。
@@ -155,7 +156,7 @@ const LandingPage: React.FC = () => {
                 </div>
                 <h3 className="text-2xl font-bold mb-4 text-green-300">ジャ爺 (ジャジィ)</h3>
                 <p className="text-gray-300 leading-relaxed">
-                  異世界の住人で、エレキベースを弾く占い師。ファイが元の世界に戻れるよう、ジャズの奥義を伝授し、ジャズソーサラー（大魔法使い）への道を導く。自身も"ジャズファイの魔導書"でスキルアップに励んでいる。
+                  異世界の住人で、エレキベースを弾く占い師。ファイが元の世界に戻れるよう、ジャズの奥義を伝授し、ジャズソーサラー（大魔法使い）への道を導く。自身も"ジャジファイの魔導書"でスキルアップに励んでいる。
                 </p>
                 <h4 className="mt-6 text-lg font-semibold text-white inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
                   <i className="fas fa-exclamation-circle text-yellow-400"></i>
