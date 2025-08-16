@@ -2081,6 +2081,19 @@ export class FantasyPIXIInstance {
     notes.forEach(noteData => {
       let note = this.activeNotes.get(noteData.id);
       
+      // 画面外（極左）クリーンアップ（安全側）
+      if (note && !(note as any).destroyed && (note as any).transform) {
+        // 判定ラインは this.judgeLineX。大きく左に抜けているなら破棄
+        if (note.x < this.judgeLineX - 2000) {
+          try {
+            if ((note as any).parent) (note as any).parent.removeChild(note as any);
+            (note as any).destroy?.({ children: true });
+          } catch {}
+          this.activeNotes.delete(noteData.id);
+          note = undefined as any;
+        }
+      }
+      
       if (!note) {
         // 新しいノーツを作成
         note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);

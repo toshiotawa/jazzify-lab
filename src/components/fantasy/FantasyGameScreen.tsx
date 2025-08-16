@@ -758,6 +758,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
 
+        // 現在判定対象のノーツは、ヒット時間を過ぎたら即非表示（復活感の抑止）
+        if (index === gameState.currentNoteIndex && timeUntilHit < 0) return;
+
         // 判定ライン左側も一定時間だけ表示する
         if (timeUntilHit >= -leftWindow && timeUntilHit <= lookAheadTime) {
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
@@ -780,8 +783,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // ループ対応：次ループは「2小節分だけ」先読みし、判定ライン右側のみ表示
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < previewWindow && gameState.taikoNotes.length > 0) {
-        for (let i = 0; i < gameState.taikoNotes.length; i++) {
-          const note = gameState.taikoNotes[i];
+        // ループ間際のチラつき・復活感を防ぐため、直前leftWindow秒はプレビューを抑制
+        if (timeToLoop <= leftWindow) {
+          // スキップ（プレビューを出さない）
+        } else {
+          for (let i = 0; i < gameState.taikoNotes.length; i++) {
+            const note = gameState.taikoNotes[i];
 
           // 直前に消化したノーツはプレビューで復活させない
           if (i === lastCompletedIndex) continue;
@@ -801,11 +808,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           if (currentLoopDelta > -leftWindow) continue;
 
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          notesToDisplay.push({
-            id: `${note.id}_loop`,
-            chord: note.chord.displayName,
-            x
-          });
+          // 同一IDの2重描画防止（万一重複条件が重なった場合）
+          if (!notesToDisplay.some(n => n.id === `${note.id}_loop`)) {
+            notesToDisplay.push({
+              id: `${note.id}_loop`,
+              chord: note.chord.displayName,
+              x
+            });
+          }
         }
       }
       
