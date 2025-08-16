@@ -998,6 +998,27 @@
   transform: translate3d(0, 0, 0) scale(1);
   will-change: transform;
   animation: heroGlowDrift 22s ease-in-out infinite alternate;
+  opacity: 0.4;
+  mix-blend-mode: screen;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero-bg::after {
+  content: "";
+  position: absolute;
+  inset: -15%;
+  background: linear-gradient(120deg,
+    rgba(120, 119, 198, 0.25),
+    rgba(255, 119, 198, 0.15),
+    rgba(120, 219, 255, 0.20),
+    rgba(120, 119, 198, 0.25)
+  );
+  background-size: 300% 300%;
+  animation: gradientShift 18s ease-in-out infinite;
+  opacity: 0.35;
+  filter: blur(20px);
+  mix-blend-mode: screen;
   z-index: 0;
   pointer-events: none;
 }
@@ -1079,12 +1100,53 @@
   }
 }
 
+@keyframes heroGlowDriftStrong {
+  0% { transform: translate3d(-8%, -6%, 0) scale(1.05); }
+  50% { transform: translate3d(4%, -2%, 0) scale(1.00); }
+  100% { transform: translate3d(10%, 8%, 0) scale(1.06); }
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes gradientShiftStrong {
+  0% { background-position: 0% 45%; }
+  50% { background-position: 100% 55%; }
+  100% { background-position: 0% 45%; }
+}
+
+/* vivid override */
+.hero-bg.hero-bg-vivid::before {
+  opacity: 0.7;
+  filter: blur(60px);
+  animation: heroGlowDriftStrong 12s ease-in-out infinite alternate;
+}
+.hero-bg.hero-bg-vivid::after {
+  opacity: 0.6;
+  background-size: 400% 400%;
+  animation: gradientShiftStrong 10s ease-in-out infinite;
+  filter: blur(35px);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .hero-bg::before {
+  .hero-bg::before,
+  .hero-bg::after {
     animation: none !important;
     transform: none !important;
     filter: none !important;
   }
+}
+
+/* 強制的にモーションを表示するオーバーライド（デバッグ/明示的な要望向け） */
+.force-motion .hero-bg::before {
+  animation: heroGlowDriftStrong 12s ease-in-out infinite alternate !important;
+  filter: blur(35px) !important;
+}
+.force-motion .hero-bg::after {
+  animation: gradientShiftStrong 10s ease-in-out infinite !important;
 }
 
 .faq-item {

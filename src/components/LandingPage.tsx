@@ -51,7 +51,7 @@ const LandingPage: React.FC = () => {
       </Helmet>
 
       {/* Local scroll container */}
-      <div className="relative flex-1 overflow-y-auto">
+      <div className="relative flex-1 overflow-y-auto force-motion">
         {/* Header/Navigation */}
         <nav className="fixed top-0 left-0 right-0 w-full bg-slate-900 bg-opacity-90 backdrop-blur-md z-50 border-b border-purple-500 border-opacity-30">
           <div className="container mx-auto px-6 py-2 md:py-4">
@@ -73,7 +73,7 @@ const LandingPage: React.FC = () => {
         </nav>
 
         {/* Hero Section */}
-        <section className="hero-bg min-h-screen pt-16 sm:pt-20 flex items-center">
+        <section className="hero-bg hero-bg-vivid min-h-screen pt-16 sm:pt-20 flex items-center">
           <div className="container mx-auto px-6">
             <div className="firstview-layout items-center">
               <div className="w-full md:w-1/2">
