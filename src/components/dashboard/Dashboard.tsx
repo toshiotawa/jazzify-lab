@@ -39,7 +39,7 @@ const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
-  const { profile, isGuest } = useAuthStore();
+  const { profile, isGuest, logout } = useAuthStore();
   const isStandardGlobal = profile?.rank === 'standard_global';
   const { monthly: missions, fetchAll: loadMissions } = useMissionStore();
   const { stats: userStats, fetchStats, loading: statsLoading } = useUserStatsStore();
@@ -442,13 +442,19 @@ const Dashboard: React.FC = () => {
                   onClick={() => { window.location.hash = '#fantasy'; }}
                   className="btn btn-primary"
                 >
-                  コードを覚える
+                  ファンタジーモード
                 </button>
                 <button
                   onClick={() => { window.location.hash = '#login'; }}
                   className="btn btn-secondary"
                 >
                   ログイン / 会員登録
+                </button>
+                <button
+                  onClick={async () => { await logout(); try { localStorage.removeItem('guest_id'); } catch {}; window.location.hash = '#login'; toast.info('ログアウトしました'); }}
+                  className="btn btn-ghost"
+                >
+                  ログアウト
                 </button>
               </div>
             </div>
