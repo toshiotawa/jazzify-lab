@@ -117,6 +117,10 @@ export interface FantasyGameState {
   isTaikoMode: boolean; // 太鼓の達人モードかどうか
   taikoNotes: any[]; // 太鼓の達人用のノーツ配列
   currentNoteIndex: number; // 現在判定中のノーツインデックス
+  // ループ管理フィールド
+  taikoLoopCycle: number;
+  lastNormalizedTime: number;
+  awaitingLoopStart: boolean;
 }
 
 interface FantasyGameEngineProps {
@@ -480,37 +484,20 @@ export const useFantasyGameEngine = ({
     // 太鼓の達人モード用
     isTaikoMode: false,
     taikoNotes: [],
-    currentNoteIndex: 0  // 0から開始（ノーツ配列の最初がM2）
+    currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
+    taikoLoopCycle: 0,
+    lastNormalizedTime: 0,
+    awaitingLoopStart: false
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
-    // 全てのノーツを処理済みでループする場合の処理
-    if (prevState.currentNoteIndex >= prevState.taikoNotes.length) {
-      // ループ: 最初に戻る
-      devLog.debug('🔄 太鼓の達人：ループ処理（input時）');
-      
-      // 全てのノーツのisHit/isMissedをリセット
-      const resetNotes = prevState.taikoNotes.map(note => ({
-        ...note,
-        isHit: false,
-        isMissed: false
-      }));
-      
-      return {
-        ...prevState,
-        currentNoteIndex: 0,
-        taikoNotes: resetNotes,
-        activeMonsters: prevState.activeMonsters.map(m => ({
-          ...m,
-          correctNotes: [],
-          gauge: 0,
-          chordTarget: resetNotes[0].chord,
-          nextChord: resetNotes.length > 1 ? resetNotes[1].chord : resetNotes[0].chord
-        }))
-      };
+    // 次ループ開始待ち中は入力を無視
+    if (prevState.awaitingLoopStart) {
+      devLog.debug('🥁 太鼓：次ループ待ち中のため入力を無視');
+      return prevState;
     }
     
     const currentNote = prevState.taikoNotes[prevState.currentNoteIndex];
@@ -541,7 +528,7 @@ export const useFantasyGameEngine = ({
     
     // 入力されたノートがコードの構成音かチェック
     const noteMod12 = note % 12;
-    const targetNotesMod12 = [...new Set(currentNote.chord.notes.map(n => n % 12))];
+    const targetNotesMod12: number[] = [...new Set<number>(currentNote.chord.notes.map((n: number) => n % 12))];
     
     if (!targetNotesMod12.includes(noteMod12)) {
       // 構成音ではない
@@ -557,7 +544,7 @@ export const useFantasyGameEngine = ({
     );
     
     // コードが完成したかチェック
-    const isChordComplete = targetNotesMod12.every(targetNote => 
+    const isChordComplete = targetNotesMod12.every((targetNote: number) => 
       newCorrectNotes.includes(targetNote)
     );
     
@@ -571,10 +558,11 @@ export const useFantasyGameEngine = ({
       
       // 次のノーツインデックス
       const nextNoteIndex = prevState.currentNoteIndex + 1;
+      const isLastNote = nextNoteIndex >= prevState.taikoNotes.length;
       
       // 次のノーツ情報を取得（ループ対応）
       let nextNote, nextNextNote;
-      if (nextNoteIndex < prevState.taikoNotes.length) {
+      if (!isLastNote) {
         nextNote = prevState.taikoNotes[nextNoteIndex];
         nextNextNote = (nextNoteIndex + 1 < prevState.taikoNotes.length)
           ? prevState.taikoNotes[nextNoteIndex + 1]
@@ -623,7 +611,7 @@ export const useFantasyGameEngine = ({
         return m;
       });
       
-      // 敵を倒した場合、新しいモンスターを補充
+      // 敵を倒した場合、新しいモンスターを補充（既存ロジック維持）
       if (isDefeated) {
         const remainingMonsters = updatedMonsters.filter(m => m.id !== currentMonster.id);
         const newMonsterQueue = [...prevState.monsterQueue];
@@ -673,11 +661,25 @@ export const useFantasyGameEngine = ({
           activeMonsters: remainingMonsters,
           monsterQueue: newMonsterQueue,
           playerSp: newSp,
-          currentNoteIndex: nextNoteIndex,
+          currentNoteIndex: isLastNote ? prevState.currentNoteIndex : nextNoteIndex,
           taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
-          enemiesDefeated: newEnemiesDefeated
+          enemiesDefeated: newEnemiesDefeated,
+          awaitingLoopStart: isLastNote ? true : prevState.awaitingLoopStart
+        };
+      }
+      
+      if (isLastNote) {
+        // 末尾ノーツは次ループ開始まで待機（インデックスは進めない）
+        return {
+          ...prevState,
+          activeMonsters: updatedMonsters,
+          playerSp: newSp,
+          taikoNotes: updatedTaikoNotes,
+          correctAnswers: prevState.correctAnswers + 1,
+          score: prevState.score + 100 * actualDamage,
+          awaitingLoopStart: true
         };
       }
       
@@ -922,7 +924,10 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モード用
       isTaikoMode,
       taikoNotes,
-      currentNoteIndex: 0  // 0から開始（ノーツ配列の最初がM2）
+      currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
+      taikoLoopCycle: 0,
+      lastNormalizedTime: 0,
+      awaitingLoopStart: false
     };
 
     setGameState(newState);
@@ -1190,49 +1195,60 @@ export const useFantasyGameEngine = ({
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
         
-        // 現在のノーツインデックスの検証
-        let currentNoteIndex = prevState.currentNoteIndex;
+        // ループ境界検出
+        const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+        const lastNorm = (prevState.lastNormalizedTime ?? normalizedTime);
+        const justLooped = normalizedTime + 1e-6 < lastNorm;
         
-        // すべてのノーツを処理済みの場合、ループ
-        if (currentNoteIndex >= prevState.taikoNotes.length) {
-          // ループ処理
+        if (justLooped) {
+          // 次ループ突入時のみリセット・巻き戻し
           const resetNotes = prevState.taikoNotes.map(note => ({
             ...note,
             isHit: false,
             isMissed: false
           }));
           
-          devLog.debug('🔄 太鼓の達人：ループ処理（tick）');
+          let newNoteIndex = prevState.currentNoteIndex;
+          let refreshedMonsters = prevState.activeMonsters;
           
-          // 先頭と次のノーツ
-          const firstNote = resetNotes[0];
-          const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
-
-          // モンスターの表示コードもループ先頭に合わせて更新
-          const refreshedMonsters = prevState.activeMonsters.map(m => ({
-            ...m,
-            correctNotes: [],
-            gauge: 0,
-            chordTarget: firstNote?.chord || m.chordTarget,
-            nextChord: secondNote?.chord || firstNote?.chord || m.nextChord
-          }));
+          if (prevState.awaitingLoopStart) {
+            newNoteIndex = 0;
+            const firstNote = resetNotes[0];
+            const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
+            refreshedMonsters = prevState.activeMonsters.map(m => ({
+              ...m,
+              correctNotes: [],
+              gauge: 0,
+              chordTarget: firstNote.chord,
+              nextChord: secondNote.chord
+            }));
+          }
           
           return {
             ...prevState,
-            currentNoteIndex: 0,
             taikoNotes: resetNotes,
+            currentNoteIndex: newNoteIndex,
+            awaitingLoopStart: false,
+            taikoLoopCycle: (prevState.taikoLoopCycle ?? 0) + 1,
+            lastNormalizedTime: normalizedTime,
             activeMonsters: refreshedMonsters
           };
         }
         
+        // 末尾処理後の待機中はミス判定を停止（ループ境界待ち）
+        if (prevState.awaitingLoopStart) {
+          return { ...prevState, lastNormalizedTime: normalizedTime };
+        }
+        
+        // 以降は既存のミス判定ロジック
+        let currentNoteIndex = prevState.currentNoteIndex;
         const currentNote = prevState.taikoNotes[currentNoteIndex];
-        if (!currentNote) return prevState;
+        if (!currentNote) return { ...prevState, lastNormalizedTime: normalizedTime };
         
         // 現在の音楽時間とノーツのヒット時間の差を計算
         let timeDiff = currentTime - currentNote.hitTime;
         
         // ループを考慮した時間差の調整
-        // 音楽がループした場合、時間差が極端に大きくなるので調整
         while (timeDiff > loopDuration / 2) {
           timeDiff -= loopDuration;
         }
@@ -1242,8 +1258,9 @@ export const useFantasyGameEngine = ({
         
         // カウントイン中はミス判定しない
         if (currentTime < 0) {
-          return prevState;
+          return { ...prevState, lastNormalizedTime: normalizedTime };
         }
+        
         // ミス判定：+150ms以上経過した場合
         if (timeDiff > 0.15) {
           devLog.debug('💥 太鼓の達人：ミス判定', {
@@ -1270,24 +1287,30 @@ export const useFantasyGameEngine = ({
           }
           setTimeout(() => handleEnemyAttack(attackerId), 0);
           
-          // 次のノーツへ進む
+          // 次のノーツへ進む。ただし末尾なら次ループ開始まで待機
           const nextIndex = currentNoteIndex + 1;
-          
-          // 次のノーツの情報を取得（ループ対応）
-          let nextNote, nextNextNote;
-          if (nextIndex < prevState.taikoNotes.length) {
-            nextNote = prevState.taikoNotes[nextIndex];
-            nextNextNote = (nextIndex + 1 < prevState.taikoNotes.length) 
-              ? prevState.taikoNotes[nextIndex + 1]
-              : prevState.taikoNotes[0]; // ループ
-          } else {
-            // 最後のノーツをミスした場合、次回ループの最初のノーツ
-            nextNote = prevState.taikoNotes[0];
-            nextNextNote = prevState.taikoNotes.length > 1 
-              ? prevState.taikoNotes[1] 
-              : prevState.taikoNotes[0];
+          if (nextIndex >= prevState.taikoNotes.length) {
+            // 末尾：次ループまで待つ（インデックスは進めない）
+            const nextNote = prevState.taikoNotes[0];
+            const nextNextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
+            return {
+              ...prevState,
+              awaitingLoopStart: true,
+              // 視覚的なコード切り替えのみ行う
+              activeMonsters: prevState.activeMonsters.map(m => ({
+                ...m,
+                correctNotes: [],
+                gauge: 0,
+                chordTarget: nextNote.chord,
+                nextChord: nextNextNote.chord
+              })),
+              lastNormalizedTime: normalizedTime
+            };
           }
           
+          // 末尾でなければ通常通り進行
+          const nextNote = prevState.taikoNotes[nextIndex];
+          const nextNextNote = (nextIndex + 1 < prevState.taikoNotes.length) ? prevState.taikoNotes[nextIndex + 1] : prevState.taikoNotes[0];
           return {
             ...prevState,
             currentNoteIndex: nextIndex,
@@ -1297,11 +1320,12 @@ export const useFantasyGameEngine = ({
               gauge: 0,
               chordTarget: nextNote.chord,
               nextChord: nextNextNote.chord
-            }))
+            })),
+            lastNormalizedTime: normalizedTime
           };
         }
         
-              return prevState;
+        return { ...prevState, lastNormalizedTime: normalizedTime };
       }
       
       const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
