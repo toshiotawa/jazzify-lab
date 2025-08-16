@@ -299,7 +299,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
 
         startTimeSync();
-
+        
         // 音声入力開始（再生中のみ）
         if (audioControllerRef.current && settings.inputMode === 'audio') {
           audioControllerRef.current.startListening();
@@ -321,11 +321,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           log.info('🎤 音声ピッチ検出停止');
         }
         
-        // AudioContext の suspend は行わない（頻繁なsuspend/resumeを防ぐ）
-        // if (audioContextRef.current) {
-        //   audioContextRef.current.suspend();
-        // }
-
+        // 時間更新を必ず停止（多重Interval防止）
         stopTimeSync();
       }
     };
@@ -333,6 +329,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, audioLoaded, gameEngine]);
+
+  // アンマウント時のクリーンアップで時間更新を停止
+  useEffect(() => {
+    return () => {
+      stopTimeSync();
+    };
+  }, [stopTimeSync]);
   
   // 設定モーダルが開いた時に音楽を一時停止
   useEffect(() => {
@@ -695,11 +698,22 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     
     return () => {
       if (gameEngine) {
+        // 時間更新を停止（多重Interval防止）
+        stopTimeSync();
+        // Audioの安全停止
+        try {
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            (audioRef.current as any).src = '';
+            (audioRef.current as any).load?.();
+          }
+        } catch {}
         destroyGameEngine();
         setIsEngineReady(false);
       }
     };
-  }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine]);
+  }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine, stopTimeSync]);
   
   // 練習モードガイド: GameEngineのキーハイライトコールバック設定
   useEffect(() => {
