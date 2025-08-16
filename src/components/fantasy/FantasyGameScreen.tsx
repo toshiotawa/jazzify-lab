@@ -778,6 +778,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const lastCompletedIndex = gameState.taikoNotes.length > 0
         ? (gameState.currentNoteIndex - 1 + gameState.taikoNotes.length) % gameState.taikoNotes.length
         : -1;
+      const lastCompletedChordId = lastCompletedIndex >= 0 ? gameState.taikoNotes[lastCompletedIndex].chord.id : null;
       
       // ループ対応：次ループは「2小節分だけ」先読みし、判定ライン右側のみ表示
       const timeToLoop = loopDuration - normalizedTime;
@@ -787,8 +788,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
           // 直前に消化したノーツはプレビューで復活させない
           if (i === lastCompletedIndex) continue;
+          // 直前の音と同一コードは、次ループ頭で一瞬に重なるため抑制（フラッシュ防止）
+          if (lastCompletedChordId && note.chord.id === lastCompletedChordId) continue;
           // すでに通常ノーツで表示しているものは重複させない
           if (displayedBaseIds.has(note.id)) continue;
+          // そのフレームでヒット済みのノーツはプレビューに出さない（復活防止）
+          if (note.isHit) continue;
 
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
