@@ -42,7 +42,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [targetWhiteKeyWidth, centerToC4]);
+  }, [targetWhiteKeyWidth]);
 
   // 初期位置をC4中央にスクロール
   const centerToC4 = useCallback(() => {
@@ -76,7 +76,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
       const t4 = setTimeout(centerToC4, 900);
       return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
     }
-  }, [centerToC4, canvasWidth]);
+  }, [canvasWidth]);
 
   // スクロールでユーザー操作を検知
   useEffect(() => {
@@ -111,7 +111,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     setTimeout(centerToC4, 120);
     setTimeout(centerToC4, 300);
     setTimeout(centerToC4, 500);
-  }, [centerToC4, audioReady]);
+  }, [audioReady]);
 
   // MIDIの初期化とキーのハイライト連携
   useEffect(() => {
