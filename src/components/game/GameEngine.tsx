@@ -80,6 +80,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     (window as any).__gameBaseOffsetRef = baseOffsetRef;
     
     return () => {
+      // 明示停止とリセット（アンマウント時の重複再生防止）
+      try {
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+          (audioRef.current as any).src = '';
+          (audioRef.current as any).load?.();
+        }
+      } catch {}
+      try { mediaSourceRef.current?.disconnect?.(); } catch {}
+      try { (pitchShiftRef.current as any)?.dispose?.(); } catch {}
+      
       delete (window as any).__gameAudioRef;
       delete (window as any).__gameAudioContextRef;
       delete (window as any).__gameBaseOffsetRef;
@@ -124,6 +136,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       log.info(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
       // CORS対応: Supabaseストレージからの音声ファイルでWeb Audio APIを使用するため
       audio.crossOrigin = 'anonymous';
+      // 既存の再生を明示停止・リセットしてから新しいソースを設定
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+        (audio as any).src = '';
+        (audio as any).load?.();
+      } catch {}
       audio.src = currentSong.audioFile;
       audio.volume = settings.musicVolume;
       audio.preload = 'metadata';
