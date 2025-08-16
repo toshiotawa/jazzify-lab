@@ -380,7 +380,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         <div className="min-w-0 flex-grow">
           {/* ステージ名 */}
           <div className={cn(
-            "text-base sm:text-lg font-medium mb-1 truncate",
+            "text-base sm:text-lg font-medium mb-1 whitespace-normal break-words",
             unlocked ? "text-white" : "text-gray-400"
           )}>
             {unlocked ? stage.name : "???"}
@@ -480,7 +480,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-3">
               <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-12 h-12 sm:w-16 sm:h-16" />
-              <span className="truncate">ファンタジーモード</span>
+              <span className="whitespace-normal break-words">ファンタジーモード</span>
             </h1>
             <div className="flex items-center space-x-4 sm:space-x-6 text-base sm:text-lg">
               <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber || '1-1'}</span></div>
