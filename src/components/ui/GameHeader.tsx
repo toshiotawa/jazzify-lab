@@ -107,14 +107,14 @@ const HeaderRightControls: React.FC = () => {
             className="btn btn-sm btn-primary text-xs px-2 py-1 sm:text-base sm:px-4 sm:py-2 whitespace-nowrap" 
             onClick={() => {
               logout();
-              window.location.hash = '#login';
+              window.location.href = 'https://jazzify.jp/';
             }}
           >
             会員登録
           </button>
         </>
       ) : (
-        <button className="btn btn-sm btn-outline text-xs px-2 py-1 sm:text-base sm:px-4 sm:py-2" onClick={logout}>ログアウト</button>
+        <button className="btn btn-sm btn-outline text-xs px-2 py-1 sm:text-base sm:px-4 sm:py-2" onClick={async ()=>{ await logout(); window.location.href = 'https://jazzify.jp/'; }}>ログアウト</button>
       )}
     </div>
   );

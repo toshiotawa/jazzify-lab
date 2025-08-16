@@ -15,7 +15,7 @@ const Header: React.FC = () => {
   const handleLogoutToLogin = async () => {
     await logout();
     localStorage.removeItem('guest_id');
-    location.hash = '#login';
+    location.href = 'https://jazzify.jp/';
     toast.info('ログイン画面へ切り替えました');
     setMenuOpen(false);
   };
