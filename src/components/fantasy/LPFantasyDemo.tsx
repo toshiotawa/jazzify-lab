@@ -31,6 +31,8 @@ const LPFantasyDemo: React.FC = () => {
 
   // Lazy import FantasyGameScreen only when modal opens
   const FantasyGameScreen = useMemo(() => React.lazy(() => import('./FantasyGameScreen')), []);
+  // Lazy import PixiPiano only when visible in LP frame
+  const PixiPianoLazy = useMemo(() => React.lazy(() => import('../piano/PixiPiano')), []);
 
   // 指定ステージ番号のステージをDBから取得
   const loadStage = useCallback(async (stageNum: '1-1' | '1-2' | '1-3' | '1-4') => {
@@ -146,11 +148,8 @@ const LPFantasyDemo: React.FC = () => {
             {/* Visual + CTA (iPhone風フレーム) */}
             <div className={`iphone-frame ${useLandscapeFrame ? 'iphone-landscape' : 'iphone-portrait'} mx-auto`}>
               <div className="device-screen relative">
-                <div className="absolute inset-0 bg-[url('/default_avater/default-avater.png')] bg-cover bg-center" />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
-                  <h3 className="text-xl md:text-2xl font-bold text-purple-200 text-center">ファンタジーモード デモ</h3>
-                  <p className="text-gray-200 text-xs md:text-sm text-center max-w-md">MIDIキーボード／タッチ／クリック対応。全画面でシームレスにプレイ。</p>
+                {/* 上半分: ステージ選択 + 開始ボタン */}
+                <div className="absolute top-0 left-0 right-0 h-1/2 flex flex-col items-center justify-center gap-3 p-3">
                   <div className="w-full flex items-center justify-center">
                     {isPortrait ? (
                       <div role="group" aria-label="ステージを選択" className="grid grid-cols-4 gap-2 w-64">
@@ -188,6 +187,13 @@ const LPFantasyDemo: React.FC = () => {
                     体験する（全画面）
                   </button>
                   {error && <div className="text-red-400 text-xs">{error}</div>}
+                </div>
+
+                {/* 下半分: 実機演奏用PIXIピアノ */}
+                <div className="absolute bottom-0 left-0 right-0 h-1/2">
+                  <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-white text-xs">ピアノを読み込み中...</div>}>
+                    <PixiPianoLazy />
+                  </Suspense>
                 </div>
               </div>
               <div className={`iphone-notch ${useLandscapeFrame ? 'landscape' : 'portrait'}`} aria-hidden="true" />
