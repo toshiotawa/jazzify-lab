@@ -148,49 +148,7 @@ const LPFantasyDemo: React.FC = () => {
             {/* Visual + CTA (iPhone風フレーム) */}
             <div className={`iphone-frame ${useLandscapeFrame ? 'iphone-landscape' : 'iphone-portrait'} mx-auto`}>
               <div className="device-screen relative">
-                {/* 上半分: ステージ選択 + 開始ボタン */}
-                <div className="absolute top-0 left-0 right-0 h-1/2 flex flex-col items-center justify-center gap-3 p-3">
-                  <div className="w-full flex items-center justify-center">
-                    {isPortrait ? (
-                      <div role="group" aria-label="ステージを選択" className="grid grid-cols-4 gap-2 w-64">
-                        {(['1-1','1-2','1-3','1-4'] as const).map((num) => (
-                          <button
-                            key={num}
-                            type="button"
-                            onClick={() => { setSelectedStageNumber(num); setStage(null); setError(null); }}
-                            aria-pressed={selectedStageNumber === num}
-                            className={`h-11 rounded-full font-semibold text-sm transition-colors ${selectedStageNumber === num ? 'bg-purple-600 text-white' : 'bg-black/50 text-white border border-white/20'}`}
-                          >
-                            {num}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <select
-                        value={selectedStageNumber}
-                        onChange={(e) => { setSelectedStageNumber(e.target.value as '1-1' | '1-2' | '1-3' | '1-4'); setStage(null); setError(null); }}
-                        className="lp-stage-select"
-                        aria-label="ステージを選択"
-                      >
-                        <option value="1-1">1-1</option>
-                        <option value="1-2">1-2</option>
-                        <option value="1-3">1-3</option>
-                        <option value="1-4">1-4</option>
-                      </select>
-                    )}
-                  </div>
-                  <button
-                    onClick={openDemo}
-                    className="h-11 w-56 md:h-12 md:w-64 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-2xl"
-                    aria-label="ファンタジーモード デモを再生"
-                  >
-                    体験する（全画面）
-                  </button>
-                  {error && <div className="text-red-400 text-xs">{error}</div>}
-                </div>
-
-                {/* 下半分: 実機演奏用PIXIピアノ */}
-                <div className="absolute bottom-0 left-0 right-0 h-1/2">
+                <div className="absolute inset-0">
                   <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-white text-xs">ピアノを読み込み中...</div>}>
                     <PixiPianoLazy />
                   </Suspense>
@@ -200,8 +158,50 @@ const LPFantasyDemo: React.FC = () => {
               <div className={`iphone-home ${useLandscapeFrame ? 'landscape' : 'portrait'}`} aria-hidden="true" />
             </div>
 
-            {/* Device select + note */}
+            {/* Device select + note + Stage select & Start button */}
             <div className="p-4 md:p-6 flex flex-col justify-center gap-4">
+              {/* ステージ選択 + 開始ボタン（枠外） */}
+              <div className="flex flex-col items-center justify-center gap-3">
+                <div className="w-full flex items-center justify-center">
+                  {isPortrait ? (
+                    <div role="group" aria-label="ステージを選択" className="grid grid-cols-4 gap-2 w-64">
+                      {(['1-1','1-2','1-3','1-4'] as const).map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => { setSelectedStageNumber(num); setStage(null); setError(null); }}
+                          aria-pressed={selectedStageNumber === num}
+                          className={`h-11 rounded-full font-semibold text-sm transition-colors ${selectedStageNumber === num ? 'bg-purple-600 text-white' : 'bg-black/50 text-white border border-white/20'}`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedStageNumber}
+                      onChange={(e) => { setSelectedStageNumber(e.target.value as '1-1' | '1-2' | '1-3' | '1-4'); setStage(null); setError(null); }}
+                      className="lp-stage-select"
+                      aria-label="ステージを選択"
+                    >
+                      <option value="1-1">1-1</option>
+                      <option value="1-2">1-2</option>
+                      <option value="1-3">1-3</option>
+                      <option value="1-4">1-4</option>
+                    </select>
+                  )}
+                </div>
+                <button
+                  onClick={openDemo}
+                  className="h-11 w-56 md:h-12 md:w-64 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-2xl"
+                  aria-label="ファンタジーモード デモを再生"
+                >
+                  体験する（全画面）
+                </button>
+                {error && <div className="text-red-400 text-xs">{error}</div>}
+              </div>
+
+              {/* MIDIデバイス選択 */}
               <div>
                 <div className="text-sm text-purple-200 font-semibold mb-2">MIDI機器を選択</div>
                 <MidiDeviceSelector

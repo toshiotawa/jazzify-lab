@@ -83,9 +83,10 @@ const PixiPiano: React.FC = () => {
 				const host = canvasHostRef.current!;
 				const wrapper = wrapperRef.current!;
 
-				// レイアウト寸法
-				const hostRect = host.getBoundingClientRect();
-				const height = Math.max(120, Math.floor(hostRect.height));
+				// レイアウト寸法（親デバイス枠の内側高さいっぱいを使用）
+				const frame = host.parentElement as HTMLElement;
+				const frameRect = frame?.getBoundingClientRect?.() || host.getBoundingClientRect();
+				const height = Math.max(120, Math.floor(frameRect.height));
 				const whiteKeyWidth = Math.max(28, Math.floor(height * 0.28));
 				const blackKeyWidth = Math.floor(whiteKeyWidth * 0.6);
 				const blackKeyHeight = Math.floor(height * 0.66);
@@ -187,9 +188,10 @@ const PixiPiano: React.FC = () => {
 				// zIndex 有効化
 				(app.stage as any).sortableChildren = true;
 
-				// 初期スクロール位置（C4）
-				const c4x = whiteMidiToX(MIDDLE_C);
-				wrapper.scrollLeft = Math.max(0, c4x - wrapper.clientWidth / 2 + whiteKeyWidth / 2);
+				// 初期スクロール位置（C4 が中央）
+				const c4x = whiteMidiToX(MIDDLE_C) + whiteKeyWidth / 2; // C4白鍵の中心
+				const center = Math.max(0, c4x - wrapper.clientWidth / 2);
+				wrapper.scrollLeft = center;
 
 				setIsReady(true);
 			} catch (e) {
