@@ -36,6 +36,8 @@ interface PianoInstrument {
 let globalSampler: ToneSampler | null = null;
 let globalPiano: PianoInstrument | null = null;
 let usingPianoInstrument = false;
+let pianoLoadingInBackground = false; // バックグラウンド読み込み中フラグ
+let suppressDualPlayback = true; // 両方初期化済みの重複発音抑止
 let audioSystemInitialized = false;
 let userInteracted = false;
 
@@ -133,52 +135,53 @@ export const initializeAudioSystem = async (): Promise<void> => {
     
     console.log('✅ Tone.js context optimized for low latency');
 
-    // 高品質ピアノ音源 (@tonejs/piano) を優先的に初期化
-    try {
-      // Piano 本体のみを直接 import して、Node の events 依存を避ける
-      const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
-      const PianoCtor = PianoModule.Piano ?? PianoModule.default ?? PianoModule;
-      const piano: PianoInstrument = new PianoCtor({
-        velocities: 5,
-        release: true,
-        pedal: true
-      }).toDestination();
-      globalPiano = piano;
-      usingPianoInstrument = true;
-      console.log('🎹 Using @tonejs/piano instrument');
+    // 即時演奏可能な軽量サンプラを先に初期化
+    globalSampler = new (window.Tone as any).Sampler({
+      urls: {
+        "A1": "A1.mp3",
+        "C2": "C2.mp3",
+        "D#2": "Ds2.mp3",
+        "F#2": "Fs2.mp3",
+        "A2": "A2.mp3",
+        "C3": "C3.mp3",
+        "D#3": "Ds3.mp3",
+        "F#3": "Fs3.mp3",
+        "A3": "A3.mp3",
+        "C4": "C4.mp3"
+      },
+      baseUrl: "https://tonejs.github.io/audio/salamander/"
+    }).toDestination();
 
-      // すべてのサンプルを事前読み込み
-      await piano.load();
-      console.log('✅ Piano samples loaded');
-    } catch (e) {
-      console.warn('⚠️ Failed to initialize @tonejs/piano. Falling back to Tone.Sampler:', e);
-
-      // Salamander サンプラーの初期化（フォールバック）
-      globalSampler = new (window.Tone as any).Sampler({
-        urls: {
-          "A1": "A1.mp3",
-          "C2": "C2.mp3",
-          "D#2": "Ds2.mp3",
-          "F#2": "Fs2.mp3",
-          "A2": "A2.mp3",
-          "C3": "C3.mp3",
-          "D#3": "Ds3.mp3",
-          "F#3": "Fs3.mp3",
-          "A3": "A3.mp3",
-          "C4": "C4.mp3"
-        },
-        baseUrl: "https://tonejs.github.io/audio/salamander/"
-      }).toDestination();
-
-      // 立ち上がりを限界まで短く（型安全性確保）
-      if (globalSampler && (globalSampler as any).envelope) {
-        (globalSampler as any).envelope.attack = 0.001;
-      }
-
-      // 全サンプルのプリロード完了を待機
-      await (window.Tone as any).loaded();
-      console.log('✅ Sampler audio samples preloaded and decoded');
+    if (globalSampler && (globalSampler as any).envelope) {
+      (globalSampler as any).envelope.attack = 0.001;
     }
+
+    // サンプル読み込みは待機するが、同時にピアノ音源をバックグラウンドで読み込み
+    const samplerLoaded = (window.Tone as any).loaded().then(() => {
+      console.log('✅ Sampler audio samples preloaded and decoded');
+    });
+
+    // 高品質ピアノ音源 (@tonejs/piano) はバックグラウンドでロードし、完了後に移行
+    pianoLoadingInBackground = true;
+    (async () => {
+      try {
+        const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
+        const PianoCtor = PianoModule.Piano ?? PianoModule.default ?? PianoModule;
+        const piano: PianoInstrument = new PianoCtor({
+          velocities: 5,
+          release: true,
+          pedal: true
+        }).toDestination();
+        globalPiano = piano;
+        await piano.load();
+        usingPianoInstrument = true;
+        console.log('🎹 Switched to @tonejs/piano after background load');
+      } catch (e) {
+        console.warn('⚠️ Background piano load failed, continuing with Sampler:', e);
+      } finally {
+        pianoLoadingInBackground = false;
+      }
+    })();
 
     audioSystemInitialized = true;
     console.log('✅ Optimized audio system initialized successfully');
@@ -223,7 +226,7 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
       }
     }
 
-    // 再生開始（音源に応じて分岐）
+    // 再生開始（音源に応じて分岐、重複発音抑止）
     if (usingPianoInstrument && globalPiano) {
       globalPiano.keyDown({ note: noteName, velocity: normalizedVelocity });
     } else if (globalSampler) {

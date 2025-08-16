@@ -190,7 +190,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         import('@/utils/MidiController').then(({ updateGlobalVolume, initializeAudioSystem }) => {
           // 音声システムを初期化
           initializeAudioSystem().then(() => {
-            updateGlobalVolume(0.8); // デフォルト80%音量
+            // ゲーム設定のMIDI音量を反映（未設定時は0.8）
+            updateGlobalVolume(settings.midiVolume ?? 0.8);
             devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
             
             // FantasySoundManagerの初期化
@@ -488,20 +489,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       await FSM?.unlock?.();
     } catch {}
 
-    // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
+    // マウスクリック時のみ重複チェック（MIDI経由は別経路で再生されるためここでは鳴らさない）
     if (source === 'mouse' && activeNotesRef.current.has(note)) {
       devLog.debug('🎵 Note already playing, skipping:', note);
       return;
     }
     
-    // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
-    try {
-      const { playNote } = await import('@/utils/MidiController');
-      await playNote(note, 64); // velocity 下げる
-      activeNotesRef.current.add(note);
-      devLog.debug('🎵 Played note via click:', note);
-    } catch (error) {
-      console.error('Failed to play note:', error);
+    // マウス入力のみ自前で音を鳴らす（MIDIはMIDIController経由で既に鳴っている）
+    if (source === 'mouse') {
+      try {
+        const { playNote } = await import('@/utils/MidiController');
+        await playNote(note, 64); // velocity 下げる
+        activeNotesRef.current.add(note);
+        devLog.debug('🎵 Played note via click:', note);
+      } catch (error) {
+        console.error('Failed to play note:', error);
+      }
     }
     
     // ファンタジーゲームエンジンにのみ送信

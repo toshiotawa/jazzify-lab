@@ -8,12 +8,14 @@ interface LPPIXIPianoProps {
   midiDeviceId?: string | null;
   height?: number; // ピアノの高さ
   targetWhiteKeyWidth?: number; // 1白鍵あたりの目標幅(px)
+  playMidiSound?: boolean; // 物理MIDI入力で内蔵音源を鳴らすか
 }
 
 const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
   midiDeviceId = null,
   height = 160,
-  targetWhiteKeyWidth = 36
+  targetWhiteKeyWidth = 36,
+  playMidiSound = true
 }) => {
   const scrollWrapRef = useRef<HTMLDivElement | null>(null);
   const [canvasWidth, setCanvasWidth] = useState<number>(() => 52 * targetWhiteKeyWidth); // 88鍵の白鍵は52
@@ -87,6 +89,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
 
     renderer.setKeyCallbacks(
       (note: number) => {
+        // クリック/タッチ時のみローカルから演奏
         playNote(note, 64);
       },
       (note: number) => {
@@ -104,7 +107,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
       onNoteOff: (note: number) => {
         if (rendererReady) rendererReady.highlightKey?.(note, false);
       },
-      playMidiSound: true
+      playMidiSound: playMidiSound
     });
     midiControllerRef.current = controller;
 
@@ -121,7 +124,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
       try { controller.destroy(); } catch {}
       midiControllerRef.current = null;
     };
-  }, [midiDeviceId, rendererReady]);
+  }, [midiDeviceId, rendererReady, playMidiSound]);
 
   // デバイス選択変更時の再接続
   useEffect(() => {

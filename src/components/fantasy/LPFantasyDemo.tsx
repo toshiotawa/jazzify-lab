@@ -171,7 +171,7 @@ const LPFantasyDemo: React.FC = () => {
                   <div className="w-full max-w-[640px]">
                     {pianoVisible ? (
                       <Suspense fallback={<div className="text-center text-gray-300 text-sm">PIXIを読み込み中...</div>}>
-                        <LPPIXIPiano midiDeviceId={settings.selectedMidiDevice} height={isPortrait ? 120 : 150} />
+                        <LPPIXIPiano midiDeviceId={settings.selectedMidiDevice} height={isPortrait ? 120 : 150} playMidiSound={false} />
                       </Suspense>
                     ) : (
                       <div className="w-full h-[120px] md:h-[150px] bg-black/40 rounded-md border border-white/10" />
