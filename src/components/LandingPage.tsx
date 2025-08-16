@@ -114,10 +114,7 @@ const LandingPage: React.FC = () => {
             <div className="max-w-4xl mx-auto mb-16 p-8 rounded-2xl character-card">
               <h3 className="text-2xl font-bold mb-6 text-purple-300">物語の始まり</h3>
               <p className="text-lg leading-relaxed text-gray-300 space-y-3">
-                <span className="block">ジャズに憧れを持つ青年が、突然ジャズ異世界に飛ばされてしまう...！</span>
-                <span className="block">モンスターとセッションし、心を通わせることで元の世界に戻れるという。</span>
-                <span className="block">果たして、君は伝説のジャズソーサラー(大魔法使い)になることができるのか？</span>
-                <span className="block">鍵を握るのは、音で対話し、仲間と奏でる“ジャズ”そのものなのだ。</span>
+                <span className="block">ジャズに憧れる青年・不破 市太郎（ファイ）は、ある夜の練習中に鳴らした一音に吸い込まれ、突然ジャズ異世界へ——。そこは五線譜が空を流れ、モンスターたちが言葉の代わりに音で語りかける世界。彼らとセッションし、心を重ねて“いいグルーヴ”を生み出せたとき、元の世界への扉が開くという。ベースを操る占い師・ジャ爺の導きのもと、コードという呪文とソロという魔法を磨き、旅は始まる。果たして、君は伝説のジャズソーサラー（大魔法使い）になれるのか？</span>
               </p>
               <p className="text-lg leading-relaxed text-gray-300 mt-6">
                 世界観は遊び心、学習はガチ。— そんな“冒険する学習体験”がJazzifyです。
