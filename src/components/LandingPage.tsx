@@ -73,8 +73,13 @@ const LandingPage: React.FC = () => {
         </nav>
 
         {/* Hero Section */}
-        <section className="hero-bg min-h-screen pt-16 sm:pt-20 flex items-center">
-          <div className="container mx-auto px-6">
+        <section className="hero-bg relative overflow-hidden min-h-screen pt-16 sm:pt-20 flex items-center">
+          <div className="orb-layer" aria-hidden="true">
+            <span className="orb orb-1"></span>
+            <span className="orb orb-2"></span>
+            <span className="orb orb-3"></span>
+          </div>
+          <div className="container relative z-10 mx-auto px-6">
             <div className="firstview-layout items-center">
               <div className="w-full md:w-1/2">
                 <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-2xl shadow-2xl border border-white/10" />
