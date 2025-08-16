@@ -106,8 +106,9 @@ const LandingPage: React.FC = () => {
         {/* Story Section */}
         <section id="story" className="py-20 story-gradient">
           <div className="container mx-auto px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title">
-              <i className="fas fa-book-open mr-4"></i>ストーリー
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+              <img src="/stage_icons/2.png" alt="ストーリー" className="w-16 h-16" />
+              ストーリー
             </h2>
 
             <div className="max-w-4xl mx-auto mb-16 p-8 rounded-2xl character-card">
@@ -136,7 +137,10 @@ const LandingPage: React.FC = () => {
                 <p className="text-gray-300 leading-relaxed">
                   ジャズに憧れを持つ青年。ジャズ研究会に所属していたが、コードが覚えられず、なかなかジャズらしくならないことに悩んでいた。突然ジャズ異世界に飛ばされてしまう。
                 </p>
-                <h4 className="mt-6 text-lg font-semibold text-white">悩み</h4>
+                <h4 className="mt-6 text-lg font-semibold text-white inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
+                  <i className="fas fa-exclamation-circle text-yellow-400"></i>
+                  悩み
+                </h4>
                 <ul className="mt-2 flex flex-wrap justify-center gap-2 text-sm">
                   <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">何から始めればいいかわからない</li>
                   <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">コードが覚えられない</li>
@@ -152,7 +156,10 @@ const LandingPage: React.FC = () => {
                 <p className="text-gray-300 leading-relaxed">
                   異世界の住人で、エレキベースを弾く占い師。ファイが元の世界に戻れるよう、ジャズの奥義を伝授し、ジャズソーサラー（大魔法使い）への道を導く。
                 </p>
-                <h4 className="mt-6 text-lg font-semibold text-white">悩み</h4>
+                <h4 className="mt-6 text-lg font-semibold text-white inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
+                  <i className="fas fa-exclamation-circle text-yellow-400"></i>
+                  悩み
+                </h4>
                 <ul className="mt-2 flex flex-wrap justify-center gap-2 text-sm">
                   <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">練習時間が取れない</li>
                   <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">上達の壁を感じている</li>
@@ -168,7 +175,10 @@ const LandingPage: React.FC = () => {
                 <p className="text-gray-300 leading-relaxed">
                   ジャズを愛し、何らかの楽器をたしなんでいる異世界の住人たち。ファイと旅の道中で出会うといつもセッションを申し出てくる音楽好きな仲間たち。
                 </p>
-                <h4 className="mt-6 text-lg font-semibold text-white">悩み</h4>
+                <h4 className="mt-6 text-lg font-semibold text-white inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
+                  <i className="fas fa-exclamation-circle text-yellow-400"></i>
+                  悩み
+                </h4>
                 <ul className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
                   <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">ジャズらしくならない</li>
                   <li className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-gray-200">1からきちんと学びたい</li>
