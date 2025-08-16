@@ -146,6 +146,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       audio.src = currentSong.audioFile;
       audio.volume = settings.musicVolume;
       audio.preload = 'metadata';
+      try { audio.load(); } catch {}
       
       return () => {
         audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
@@ -271,7 +272,19 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           }
           return Promise.resolve();
         }).then(() => {
-          audio.play().catch(e => log.error('音声再生エラー:', e));
+          // canplay もしくは canplaythrough を待ってから再生
+          if (audio.readyState >= 3) {
+            audio.play().catch(e => log.error('音声再生エラー:', e));
+          } else {
+            const onCanPlay = () => {
+              audio.removeEventListener('canplay', onCanPlay);
+              audio.removeEventListener('canplaythrough', onCanPlay);
+              audio.play().catch(e => log.error('音声再生エラー:', e));
+            };
+            audio.addEventListener('canplay', onCanPlay, { once: true });
+            audio.addEventListener('canplaythrough', onCanPlay, { once: true });
+            try { audio.load(); } catch {}
+          }
         }).catch(e => log.error('AudioContext resume エラー:', e));
         } else {
           // === 音声なしモード ===
