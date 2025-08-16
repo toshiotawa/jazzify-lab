@@ -133,9 +133,10 @@ const LandingPage: React.FC = () => {
                 <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                   <img src="/default_avater/default-avater.png" alt="不破市太郎 (ファイ)" className="w-full h-full object-cover" />
                 </div>
-                <h3 className="text-2xl font-bold mb-4 text-blue-300">不破市太郎 (ファイ)</h3>
+                <h3 className="text-2xl font-bold mb-4 text-blue-300">不破 市太郎 (ファイ)</h3>
                 <p className="text-gray-300 leading-relaxed">
-                  ジャズに憧れを持つ青年。ジャズ研究会に所属していたが、コードが覚えられず、なかなかジャズらしくならないことに悩んでいた。突然ジャズ異世界に飛ばされてしまう。
+                  ジャズに憧れを持つ青年。ジャズ研究会に所属していたが、何から始めればいいかもわからず、
+                  コードが覚えられないことに悩んでいた。突然ジャズ異世界に飛ばされてしまう。
                 </p>
                 <h4 className="mt-6 text-lg font-semibold text-white inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
                   <i className="fas fa-exclamation-circle text-yellow-400"></i>
@@ -154,7 +155,7 @@ const LandingPage: React.FC = () => {
                 </div>
                 <h3 className="text-2xl font-bold mb-4 text-green-300">ジャ爺 (ジャジィ)</h3>
                 <p className="text-gray-300 leading-relaxed">
-                  異世界の住人で、エレキベースを弾く占い師。ファイが元の世界に戻れるよう、ジャズの奥義を伝授し、ジャズソーサラー（大魔法使い）への道を導く。
+                  異世界の住人で、エレキベースを弾く占い師。ファイが元の世界に戻れるよう、ジャズの奥義を伝授し、ジャズソーサラー（大魔法使い）への道を導く。自身も"ジャズファイの魔導書"でスキルアップに励んでいる。
                 </p>
                 <h4 className="mt-6 text-lg font-semibold text-white inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
                   <i className="fas fa-exclamation-circle text-yellow-400"></i>
@@ -353,7 +354,7 @@ const LandingPage: React.FC = () => {
                   </div>
                   <div className="flex items-center text-sm text-gray-400">
                     <i className="fas fa-medal text-orange-400 mr-3"></i>
-                    バッジ獲得システム
+                    称号獲得システム
                   </div>
                 </div>
               </div>
