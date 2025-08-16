@@ -494,14 +494,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return;
     }
     
-    // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
-    try {
-      const { playNote } = await import('@/utils/MidiController');
-      await playNote(note, 64); // velocity 下げる
-      activeNotesRef.current.add(note);
-      devLog.debug('🎵 Played note via click:', note);
-    } catch (error) {
-      console.error('Failed to play note:', error);
+    // クリック時のみ音声を再生（MIDI経由はMIDIController側で再生する）
+    if (source === 'mouse') {
+      try {
+        const { playNote } = await import('@/utils/MidiController');
+        await playNote(note, 64); // velocity 下げる
+        activeNotesRef.current.add(note);
+        devLog.debug('🎵 Played note via click:', note);
+      } catch (error) {
+        console.error('Failed to play note:', error);
+      }
     }
     
     // ファンタジーゲームエンジンにのみ送信

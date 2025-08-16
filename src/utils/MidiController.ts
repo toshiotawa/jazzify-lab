@@ -147,9 +147,8 @@ export const initializeAudioSystem = async (): Promise<void> => {
       usingPianoInstrument = true;
       console.log('🎹 Using @tonejs/piano instrument');
 
-      // すべてのサンプルを事前読み込み
-      await piano.load();
-      console.log('✅ Piano samples loaded');
+      // 事前読み込みはバックグラウンドで実行して初回音出しをブロックしない
+      piano.load().then(() => console.log('✅ Piano samples loaded (bg)')).catch((err: any) => console.warn('⚠️ Piano preload failed (bg):', err));
     } catch (e) {
       console.warn('⚠️ Failed to initialize @tonejs/piano. Falling back to Tone.Sampler:', e);
 
