@@ -380,7 +380,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         <div className="min-w-0 flex-grow">
           {/* ステージ名 */}
           <div className={cn(
-            "text-base sm:text-lg font-medium mb-1 truncate",
+            "text-base sm:text-lg font-medium mb-1 whitespace-normal break-words",
             unlocked ? "text-white" : "text-gray-400"
           )}>
             {unlocked ? stage.name : "???"}
@@ -405,7 +405,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}>
             {unlocked ? stage.description : (
               isFreeOrGuest && stage.stageNumber >= '1-4' 
-                ? "プレミアムプラン以上で利用可能です" 
+                ? "スタンダードプラン以上で利用可能です" 
                 : "このステージはまだロックされています"
             )}
           </div>
@@ -459,7 +459,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               onClick={onBackToMenu}
               className="px-4 sm:px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base"
             >
-              メニューに戻る
+              戻る
             </button>
           </div>
         </div>
@@ -480,7 +480,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-3">
               <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-12 h-12 sm:w-16 sm:h-16" />
-              <span className="truncate">ファンタジーモード</span>
+              <span className="whitespace-normal break-words">ファンタジーモード</span>
             </h1>
             <div className="flex items-center space-x-4 sm:space-x-6 text-base sm:text-lg">
               <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber || '1-1'}</span></div>
@@ -491,7 +491,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             onClick={onBackToMenu}
             className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap"
           >
-            メニューに戻る
+            戻る
           </button>
         </div>
       </div>
