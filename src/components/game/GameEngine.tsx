@@ -13,6 +13,7 @@ import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRendere
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
 import { devLog, log, perfLog } from '@/utils/logger';
+import { updateGlobalVolume } from '@/utils/MidiController';
 
 // iOS検出関数
 const isIOS = (): boolean => {
@@ -382,6 +383,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       updateEngineSettings();
     }
   }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, currentTime]);
+
+  // MIDI音量が変更されたらグローバル音量へ即時反映（LP/ファンタジーと統一）
+  useEffect(() => {
+    try { updateGlobalVolume(settings.midiVolume); } catch {}
+  }, [settings.midiVolume]);
   
   // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
   const timeIntervalRef = useRef<number | null>(null);

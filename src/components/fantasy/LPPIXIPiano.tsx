@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
-import { MIDIController, playNote, stopNote } from '@/utils/MidiController';
+import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
+import { useSettings } from '@/stores/gameStore';
 
 // PIXIレンダラーは動的にimportして初期バンドルを軽量化
 const LazyPIXINotes = React.lazy(() => import('../game/PIXINotesRenderer').then(m => ({ default: m.PIXINotesRenderer })));
@@ -22,6 +23,8 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
 
   const hasUserScrolledRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
+
+  const settings = useSettings();
 
   // 外枠のサイズに応じて（必要であれば）横幅を調整
   useEffect(() => {
@@ -95,6 +98,23 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     );
   }, []);
 
+  // オーディオ初期化 + ボリューム反映（LPでも一貫）
+  useEffect(() => {
+    let cancelled = false;
+    initializeAudioSystem()
+      .then(() => {
+        if (cancelled) return;
+        updateGlobalVolume(settings.midiVolume ?? 0.8);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // ストアのMIDI音量変更を反映
+  useEffect(() => {
+    updateGlobalVolume(settings.midiVolume ?? 0.8);
+  }, [settings.midiVolume]);
+
   // MIDIの初期化とキーのハイライト連携
   useEffect(() => {
     const controller = new MIDIController({
@@ -113,13 +133,24 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
       if (cancelled) return;
       if (midiDeviceId) {
         try { await controller.connectDevice(midiDeviceId); } catch {}
+        // 接続ハンドラが失われている場合に備えて復元を試みる
+        setTimeout(() => { try { controller.checkAndRestoreConnection(); } catch {} }, 200);
       }
     }).catch(() => {});
+
+    // タブ復帰時に接続復元
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && midiControllerRef.current) {
+        setTimeout(() => { try { midiControllerRef.current?.checkAndRestoreConnection(); } catch {} }, 100);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       cancelled = true;
       try { controller.destroy(); } catch {}
       midiControllerRef.current = null;
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [midiDeviceId, rendererReady]);
 
@@ -129,6 +160,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     if (!controller || !midiDeviceId) return;
     (async () => {
       try { await controller.connectDevice(midiDeviceId); } catch {}
+      try { await controller.checkAndRestoreConnection(); } catch {}
     })();
   }, [midiDeviceId]);
 
