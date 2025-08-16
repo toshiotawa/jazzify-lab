@@ -451,7 +451,7 @@ const Dashboard: React.FC = () => {
                   ログイン / 会員登録
                 </button>
                 <button
-                  onClick={async () => { await logout(); try { localStorage.removeItem('guest_id'); } catch {}; window.location.hash = '#login'; toast.info('ログアウトしました'); }}
+                  onClick={async () => { await logout(); try { localStorage.removeItem('guest_id'); } catch {}; window.location.href = 'https://jazzify.jp/'; toast.info('ログアウトしました'); }}
                   className="btn btn-ghost"
                 >
                   ログアウト

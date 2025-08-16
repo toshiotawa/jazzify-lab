@@ -478,7 +478,7 @@ const AccountPage: React.FC = () => {
             className="btn btn-sm btn-outline w-full"
             onClick={async () => {
               await logout();
-              window.location.href = '/main#dashboard';
+              window.location.href = 'https://jazzify.jp/';
             }}
           >
             ログアウト
