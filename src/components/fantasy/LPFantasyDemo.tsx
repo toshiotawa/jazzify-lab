@@ -3,6 +3,7 @@ import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
 
 const OnScreenPiano = React.lazy(() => import('./OnScreenPiano'));
+const LPPIXIPiano = React.lazy(() => import('./LPPIXIPiano'));
 
 const LPFantasyDemo: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -168,11 +169,11 @@ const LPFantasyDemo: React.FC = () => {
                 <div className="absolute inset-0 bg-[url('/default_avater/default-avater.png')] bg-cover bg-center" />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30" />
                 <div ref={pianoSentinelRef} className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
-                  {/* ピアノ（可視になるまでマウントしない） */}
+                  {/* ピアノ（PIXI版・可視になるまでマウントしない） */}
                   <div className="w-full max-w-[640px]">
                     {pianoVisible ? (
-                      <Suspense fallback={<div className="text-center text-gray-300 text-sm">ピアノを読み込み中...</div>}>
-                        <OnScreenPiano midiDeviceId={settings.selectedMidiDevice} startMidi={48} endMidi={72} heightPx={isPortrait ? 120 : 150} />
+                      <Suspense fallback={<div className="text-center text-gray-300 text-sm">PIXIを読み込み中...</div>}>
+                        <LPPIXIPiano midiDeviceId={settings.selectedMidiDevice} height={isPortrait ? 120 : 150} />
                       </Suspense>
                     ) : (
                       <div className="w-full h-[120px] md:h-[150px] bg-black/40 rounded-md border border-white/10" />
