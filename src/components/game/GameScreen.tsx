@@ -160,6 +160,10 @@ const GameScreen: React.FC = () => {
           }
           
           // レッスン設定を先に適用（loadSongの前に実行）
+          // 明示的リセット: 前の曲の再生・状態を完全停止/初期化
+          gameActions.stop();
+          gameActions.clearSong();
+          
           await gameActions.updateSettings({
             transpose: key,
             playbackSpeed: speed,
@@ -358,6 +362,10 @@ const GameScreen: React.FC = () => {
           });
           
           // ミッション曲の条件を先に設定に適用（loadSongの前に実行）
+          // 明示的リセット: 前の曲の再生・状態を完全停止/初期化
+          gameActions.stop();
+          gameActions.clearSong();
+          
           await gameActions.updateSettings({
             transpose: challengeSong.key_offset,
             playbackSpeed: challengeSong.min_speed,
@@ -747,6 +755,10 @@ const SongSelectionScreen: React.FC = () => {
                   // 通常曲選択時はレッスンコンテキストとミッションコンテキストをクリア
                   gameActions.clearLessonContext();
                   gameActions.clearMissionContext();
+                  
+                  // 明示的リセット: 前の曲の再生・状態を完全停止/初期化
+                  gameActions.stop();
+                  gameActions.clearSong();
                   
                   console.log(`曲を選択: ${song.title}`);
                   try {

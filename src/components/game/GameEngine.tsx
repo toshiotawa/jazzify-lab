@@ -129,9 +129,29 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       audio.preload = 'metadata';
       
       return () => {
+        // 旧リスナー解除
         audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
         audio.removeEventListener('error', handleError);
         audio.removeEventListener('canplay', handleCanPlay);
+        
+        // 旧音声の停止と解放
+        try { audio.pause(); } catch {}
+        try { audio.currentTime = 0; } catch {}
+        
+        // AudioNode/Toneノードの切断と解放
+        try {
+          if (mediaSourceRef.current) {
+            mediaSourceRef.current.disconnect();
+          }
+        } catch {}
+        try {
+          if (pitchShiftRef.current) {
+            pitchShiftRef.current.disconnect();
+          }
+        } catch {}
+        
+        // 再生同期ループ停止
+        stopTimeSync();
       };
     } else if (currentSong && (!currentSong.audioFile || currentSong.audioFile.trim() === '')) {
       // 音声ファイルなしの楽曲の場合
