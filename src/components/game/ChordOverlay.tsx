@@ -3,6 +3,7 @@ import { useChords, useGameStore } from '@/stores/gameStore';
 
 const ChordOverlay: React.FC = () => {
   const chords = useChords();
+  const currentSongId = useGameStore((s) => s.currentSong?.id);
   const [currentChord, setCurrentChord] = useState('');
 
   useEffect(() => {
@@ -14,7 +15,7 @@ const ChordOverlay: React.FC = () => {
       setCurrentChord(chord ? chord.symbol.displayText : '');
     }, 100);
     return () => clearInterval(interval);
-  }, [chords]);
+  }, [chords, currentSongId]);
 
   return (
     <div

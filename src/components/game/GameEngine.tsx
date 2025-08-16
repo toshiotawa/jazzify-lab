@@ -679,8 +679,49 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         destroyGameEngine();
         setIsEngineReady(false);
       }
+
+      // 追加のクリーンアップ（安全側）
+      stopTimeSync();
+      try { mediaSourceRef.current?.disconnect(); } catch {}
+      mediaSourceRef.current = null;
+      try { pitchShiftRef.current?.disconnect?.(); } catch {}
+      try { (pitchShiftRef.current as any)?.dispose?.(); } catch {}
+      pitchShiftRef.current = null;
+      const audio = audioRef.current;
+      if (audio) {
+        try { audio.pause(); } catch {}
+        try { audio.currentTime = 0; } catch {}
+        try { audio.src = ''; audio.load(); } catch {}
+      }
     };
   }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine]);
+  
+  // 明示的リセット: 曲変更時に前の再生状態/接続を完全初期化
+  useEffect(() => {
+    // 再生中タイマーを停止
+    stopTimeSync();
+
+    // HTMLAudio を停止して初期化
+    const audio = audioRef.current;
+    if (audio) {
+      try { audio.pause(); } catch {}
+      try { audio.currentTime = 0; } catch {}
+      try { audio.src = ''; audio.load(); } catch {}
+    }
+
+    // Web Audio 接続を解除
+    try { mediaSourceRef.current?.disconnect(); } catch {}
+    mediaSourceRef.current = null;
+
+    // Tone.js PitchShift を破棄
+    try { pitchShiftRef.current?.disconnect?.(); } catch {}
+    try { (pitchShiftRef.current as any)?.dispose?.(); } catch {}
+    pitchShiftRef.current = null;
+
+    // 同期用オフセットとフラグをリセット
+    baseOffsetRef.current = 0;
+    setAudioLoaded(false);
+  }, [currentSong?.id]);
   
   // 練習モードガイド: GameEngineのキーハイライトコールバック設定
   useEffect(() => {
