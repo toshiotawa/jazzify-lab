@@ -140,7 +140,7 @@ const LPFantasyDemo: React.FC = () => {
   return (
     <section className="py-10">
       <div className="container mx-auto px-6">
-        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-8 section-title">デモプレイ</h2>
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-8 section-title flex items-center justify-center gap-4"><img src="/stage_icons/9.png" alt="デモプレイ" className="w-16 h-16" />デモプレイ</h2>
         <div className="rounded-2xl border border-purple-500/30 bg-slate-900/60 shadow-xl overflow-hidden">
           <div className="grid md:grid-cols-2 gap-0">
             {/* Visual + CTA (iPhone風フレーム) */}
