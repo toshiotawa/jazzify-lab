@@ -105,6 +105,23 @@ const LPFantasyDemo: React.FC = () => {
       loadStage(selectedStageNumber);
     }
     setIsOpen(true);
+
+    // 音声システムを先行初期化（PIXIとは独立して即時応答性を確保）
+    try {
+      import('@/utils/MidiController').then(({ initializeAudioSystem, updateGlobalVolume }) => {
+        initializeAudioSystem().then(() => {
+          try { updateGlobalVolume(0.8); } catch {}
+        }).catch(() => {});
+      }).catch(() => {});
+    } catch {}
+
+    try {
+      import('@/utils/FantasySoundManager').then(async (mod) => {
+        const FSM = (mod as any).FantasySoundManager ?? mod.default;
+        try { await FSM?.init(settings.soundEffectVolume ?? 0.8, settings.rootSoundVolume ?? 0.5, true); } catch {}
+      }).catch(() => {});
+    } catch {}
+
     // dvh フォールバック変数を設定
     try {
       const setDvh = () => {
