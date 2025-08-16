@@ -717,6 +717,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
+      const leftWindow = 0.15; // 判定ライン左側に残す時間（秒）= Miss猶予と同程度に揃える
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
@@ -757,11 +758,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
 
-        // 判定ライン左側（過去）は描画しない
-        const lowerBound = 0;
+        // 現在判定対象のノーツは、ヒット時間を過ぎたら即非表示（復活感の抑止）
+        if (index === gameState.currentNoteIndex && timeUntilHit < 0) return;
 
-        // 表示範囲内のノーツ（現在ループのみ）
-        if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
+        // 判定ライン左側も一定時間だけ表示する
+        if (timeUntilHit >= -leftWindow && timeUntilHit <= lookAheadTime) {
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
             id: note.id,
@@ -782,8 +783,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // ループ対応：次ループは「2小節分だけ」先読みし、判定ライン右側のみ表示
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < previewWindow && gameState.taikoNotes.length > 0) {
-        for (let i = 0; i < gameState.taikoNotes.length; i++) {
-          const note = gameState.taikoNotes[i];
+        // ループ間際のチラつき・復活感を防ぐため、直前leftWindow秒はプレビューを抑制
+        if (timeToLoop <= leftWindow) {
+          // スキップ（プレビューを出さない）
+        } else {
+          for (let i = 0; i < gameState.taikoNotes.length; i++) {
+            const note = gameState.taikoNotes[i];
 
           // 直前に消化したノーツはプレビューで復活させない
           if (i === lastCompletedIndex) continue;
@@ -798,12 +803,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           // 2小節分だけに制限
           if (timeUntilHit > previewWindow) break;
 
+          // 直近で判定ラインを越えたばかりのノーツは、左側表示を優先しプレビューに出さない
+          const currentLoopDelta = note.hitTime - normalizedTime; // 現在ループでの差（負値=通過済み）
+          if (currentLoopDelta > -leftWindow) continue;
+
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          notesToDisplay.push({
-            id: `${note.id}_loop`,
-            chord: note.chord.displayName,
-            x
-          });
+          // 同一IDの2重描画防止（万一重複条件が重なった場合）
+          if (!notesToDisplay.some(n => n.id === `${note.id}_loop`)) {
+            notesToDisplay.push({
+              id: `${note.id}_loop`,
+              chord: note.chord.displayName,
+              x
+            });
+          }
         }
       }
       
