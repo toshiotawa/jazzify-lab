@@ -11,8 +11,11 @@ import { useGameStore } from '@/stores/gameStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { TaikoNote } from './TaikoNoteSystem';
-import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
-import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
+// PIXI系は初期応答性のため遅延読み込みに切り替え
+let LazyPIXINotesRenderer: any = null;
+let LazyFantasyPIXIRenderer: any = null;
+type PIXINotesRendererInstance = any;
+type FantasyPIXIInstance = any;
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
@@ -95,6 +98,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const monsterAreaRef = useRef<HTMLDivElement>(null);
   // スマホ横画面でのモンスターエリア高さを動的に調整
   const [monsterAreaHeight, setMonsterAreaHeight] = useState<number>(200);
+  // 音声優先: PIXI描画の遅延マウント制御
+  const [graphicsEnabled, setGraphicsEnabled] = useState(false);
   
   /* Ready → Start 判定 */
   // isReadyはローカルstateで管理済み
@@ -131,6 +136,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       ro.disconnect();
       window.removeEventListener('resize', update);
     };
+  }, []);
+  
+  // 音声初期化完了後にPIXIを有効化（初期応答性の確保）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { initializeAudioSystem } = await import('@/utils/MidiController');
+        await initializeAudioSystem();
+      } catch {}
+      if (!cancelled) setGraphicsEnabled(true);
+    })();
+    return () => { cancelled = true; };
   }, []);
   
   // Ready 終了時に BGM 再生
@@ -494,14 +512,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return;
     }
     
-    // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
-    try {
-      const { playNote } = await import('@/utils/MidiController');
-      await playNote(note, 64); // velocity 下げる
-      activeNotesRef.current.add(note);
-      devLog.debug('🎵 Played note via click:', note);
-    } catch (error) {
-      console.error('Failed to play note:', error);
+    // クリック時のみ音声を再生（MIDI経由はMIDIController側で再生する）
+    if (source === 'mouse') {
+      try {
+        const { playNote } = await import('@/utils/MidiController');
+        await playNote(note, 64); // velocity 下げる
+        activeNotesRef.current.add(note);
+        devLog.debug('🎵 Played note via click:', note);
+      } catch (error) {
+        console.error('Failed to play note:', error);
+      }
     }
     
     // ファンタジーゲームエンジンにのみ送信
@@ -1054,19 +1074,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             style={{ height: `${monsterAreaHeight}px` }}
           >
             {/* 魔法名表示 - モンスターカード内に移動 */}
-            <FantasyPIXIRenderer
-              width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
-              height={monsterAreaHeight}
-              monsterIcon={currentEnemy.icon}
-    
-              enemyGauge={gameState.enemyGauge}
-              onReady={handleFantasyPixiReady}
-              onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
-              className="w-full h-full"
-              activeMonsters={gameState.activeMonsters}
-              imageTexturesRef={imageTexturesRef}
-            />
+            {graphicsEnabled ? (
+              (LazyFantasyPIXIRenderer ?? (LazyFantasyPIXIRenderer = React.lazy(() => import('./FantasyPIXIRenderer').then(m => ({ default: m.FantasyPIXIRenderer }))))),
+               <React.Suspense fallback={<div className="w-full h_full flex items-center justify-center text-gray-300 text-sm">描画初期化中...</div>}>
+                 <LazyFantasyPIXIRenderer
+                   width={Math.max(monsterAreaWidth, 1)}
+                   height={monsterAreaHeight}
+                   monsterIcon={currentEnemy.icon}
+                   enemyGauge={gameState.enemyGauge}
+                   onReady={handleFantasyPixiReady}
+                   onMonsterDefeated={handleMonsterDefeated}
+                   onShowMagicName={handleShowMagicName}
+                   className="w-full h-full"
+                   activeMonsters={gameState.activeMonsters}
+                   imageTexturesRef={imageTexturesRef}
+                 />
+               </React.Suspense>
+              )
+            : (
+              <div className="w-full h-full" />
+            )}
           </div>
           
           {/* モンスターの UI オーバーレイ */}
@@ -1317,28 +1344,44 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   }
                 }}
               >
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
+                {graphicsEnabled ? (
+                  (LazyPIXINotesRenderer ?? (LazyPIXINotesRenderer = React.lazy(() => import('../game/PIXINotesRenderer').then(m => ({ default: m.PIXINotesRenderer }))))),
+                   <React.Suspense fallback={<div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">鍵盤初期化中...</div>}>
+                     <LazyPIXINotesRenderer
+                       activeNotes={[]}
+                       width={pixiWidth}
+                       height={120}
+                       currentTime={0}
+                       onReady={handlePixiReady}
+                       className="w-full h-full"
+                     />
+                   </React.Suspense>
+                  )
+                ) : (
+                  <div className="w-full h-full" />
+                )}
               </div>
             );
           } else {
             // スクロールが不要な場合（全画面表示）
             return (
               <div className="absolute inset-0 overflow-hidden">
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
+                {graphicsEnabled ? (
+                  (LazyPIXINotesRenderer ?? (LazyPIXINotesRenderer = React.lazy(() => import('../game/PIXINotesRenderer').then(m => ({ default: m.PIXINotesRenderer }))))),
+                   <React.Suspense fallback={<div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">鍵盤初期化中...</div>}>
+                     <LazyPIXINotesRenderer
+                       activeNotes={[]}
+                       width={pixiWidth}
+                       height={120}
+                       currentTime={0}
+                       onReady={handlePixiReady}
+                       className="w-full h-full"
+                     />
+                   </React.Suspense>
+                  )
+                ) : (
+                  <div className="w-full h-full" />
+                )}
               </div>
             );
           }

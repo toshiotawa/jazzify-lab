@@ -105,6 +105,23 @@ const LPFantasyDemo: React.FC = () => {
       loadStage(selectedStageNumber);
     }
     setIsOpen(true);
+
+    // 音声システムを先行初期化（PIXIとは独立して即時応答性を確保）
+    try {
+      import('@/utils/MidiController').then(({ initializeAudioSystem, updateGlobalVolume }) => {
+        initializeAudioSystem().then(() => {
+          try { updateGlobalVolume(0.8); } catch {}
+        }).catch(() => {});
+      }).catch(() => {});
+    } catch {}
+
+    try {
+      import('@/utils/FantasySoundManager').then(async (mod) => {
+        const FSM = (mod as any).FantasySoundManager ?? mod.default;
+        try { await FSM?.init(settings.soundEffectVolume ?? 0.8, settings.rootSoundVolume ?? 0.5, true); } catch {}
+      }).catch(() => {});
+    } catch {}
+
     // dvh フォールバック変数を設定
     try {
       const setDvh = () => {
@@ -171,7 +188,9 @@ const LPFantasyDemo: React.FC = () => {
                   <div className="w-full max-w-[640px]">
                     {pianoVisible ? (
                       <Suspense fallback={<div className="text-center text-gray-300 text-sm">PIXIを読み込み中...</div>}>
-                        <LPPIXIPiano midiDeviceId={settings.selectedMidiDevice} height={isPortrait ? 120 : 150} />
+                        {!isOpen && (
+                          <LPPIXIPiano midiDeviceId={settings.selectedMidiDevice} height={isPortrait ? 120 : 150} />
+                        )}
                       </Suspense>
                     ) : (
                       <div className="w-full h-[120px] md:h-[150px] bg-black/40 rounded-md border border-white/10" />
