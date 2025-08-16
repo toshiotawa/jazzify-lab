@@ -210,6 +210,55 @@ export const initializeAudioSystem = async (opts?: { light?: boolean }): Promise
 };
 
 /**
+ * 既に軽量サンプラーで初期化済みでも、@tonejs/piano へアップグレードする
+ */
+export const upgradeAudioSystemToFull = async (): Promise<void> => {
+  try {
+    // すでにピアノ音源なら何もしない
+    if (usingPianoInstrument && globalPiano) return;
+
+    // ユーザーインタラクションを確保
+    await detectUserInteraction();
+
+    // Toneが無ければ読み込み
+    if (typeof window === 'undefined' || !window.Tone) {
+      try {
+        const Tone = await import('tone');
+        (window as any).Tone = Tone;
+      } catch (e) {
+        console.warn('⚠️ Failed to import tone for upgrade:', e);
+        return;
+      }
+    }
+
+    // コンテキストを低遅延に整備
+    try {
+      const optimizedContext = new (window.Tone as any).Context({ latencyHint: 'interactive', lookAhead: 0 });
+      (window.Tone as any).setContext(optimizedContext);
+      if ((window.Tone as any).context?.state !== 'running') {
+        await (window.Tone as any).context.resume();
+      }
+    } catch {}
+
+    // @tonejs/piano を構築
+    try {
+      const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
+      const PianoCtor = PianoModule.Piano ?? PianoModule.default ?? PianoModule;
+      const piano: PianoInstrument = new PianoCtor({ velocities: 5, release: true, pedal: true }).toDestination();
+      // ロード完了まで待つ
+      await piano.load();
+      globalPiano = piano;
+      usingPianoInstrument = true;
+      console.log('🎹 Upgraded to @tonejs/piano instrument');
+    } catch (e) {
+      console.warn('⚠️ Failed to upgrade to @tonejs/piano:', e);
+    }
+  } catch (error) {
+    console.warn('⚠️ upgradeAudioSystemToFull failed:', error);
+  }
+};
+
+/**
  * 共通音声再生: ノートオン
  */
 export const playNote = async (note: number, velocity: number = 127): Promise<void> => {

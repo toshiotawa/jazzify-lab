@@ -161,9 +161,14 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
         await initializeAudioSystem({ light: true });
         if (!cancelled) setAudioReady(true);
       } catch {
-        // 失敗してもユーザー操作で解放される想定
         if (!cancelled) setAudioReady(false);
       }
+      // ユーザー操作済みかチェックし、未操作ならテキスト誘導を継続表示
+      try {
+        const tone: any = (window as any).Tone;
+        const interacted = !!tone?.context && tone.context.state === 'running';
+        if (!cancelled) setShowOverlay(!interacted);
+      } catch { if (!cancelled) setShowOverlay(true); }
     })();
     return () => { cancelled = true; };
   }, []);

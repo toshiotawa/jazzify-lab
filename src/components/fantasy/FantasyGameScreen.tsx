@@ -144,6 +144,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.countInMeasures ?? 0,
         settings.bgmVolume ?? 0.7
       );
+      // ★ デモプレイ開始時にフル音源へアップグレード（軽量→@tonejs/piano）
+      (async () => {
+        try {
+          const { upgradeAudioSystemToFull } = await import('@/utils/MidiController');
+          await upgradeAudioSystemToFull();
+        } catch {}
+      })();
     }
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume]);
