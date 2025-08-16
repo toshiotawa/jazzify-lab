@@ -757,8 +757,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 現在ループ基準の時間差
         const timeUntilHit = note.hitTime - normalizedTime;
 
-        // 判定ライン左側（過去）は描画しない
-        const lowerBound = 0;
+        // 判定ライン左側も少しだけ表示
+        const lowerBound = -0.35;
 
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
@@ -787,6 +787,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
           // 直前に消化したノーツはプレビューで復活させない
           if (i === lastCompletedIndex) continue;
+          // 現在判定中のノーツは次ループ分としては表示しない
+          if (i === gameState.currentNoteIndex) continue;
           // すでに通常ノーツで表示しているものは重複させない
           if (displayedBaseIds.has(note.id)) continue;
 
