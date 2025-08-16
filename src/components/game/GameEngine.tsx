@@ -519,6 +519,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const midiControllerRef = useRef<any>(null);
   // AudioController管理用のRef（音声入力）
   const audioControllerRef = useRef<any>(null);
+  // MIDI 初期化完了フラグ（初期化後に接続エフェクトを確実に発火させる）
+  const [isMidiReady, setIsMidiReady] = useState(false);
 
   // 共通音声システム + MIDIController + AudioController初期化
   useEffect(() => {
@@ -546,6 +548,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           
           await midiControllerRef.current.initialize();
           log.info('✅ MIDIController初期化完了');
+          // 初期化完了を通知（この後の接続用エフェクトを確実に動かす）
+          setIsMidiReady(true);
         }
 
         // AudioController インスタンスを作成（音声入力が有効な場合）
@@ -638,7 +642,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
     linkMidiAndPixi();
     
-  }, [pixiRenderer, settings.selectedMidiDevice]); // レンダラー準備完了後、またはデバイスID変更後に実行
+  }, [pixiRenderer, settings.selectedMidiDevice, isMidiReady]); // MIDI初期化完了後にも発火させる
 
   // 楽曲変更時にMIDI接続を確認・復元
   useEffect(() => {
@@ -654,7 +658,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     // 少し遅延を入れて確実に復元
     const timer = setTimeout(restoreMidiConnection, 200);
     return () => clearTimeout(timer);
-  }, [currentSong, settings.selectedMidiDevice, pixiRenderer]); // currentSongが変更されたときに実行
+  }, [currentSong, settings.selectedMidiDevice, pixiRenderer, isMidiReady]); // MIDI初期化完了後にも復元を試行
 
   // 音声デバイス選択変更監視
   useEffect(() => {
