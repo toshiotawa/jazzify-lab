@@ -391,6 +391,8 @@ const FantasyMain: React.FC = () => {
     setShowResult(false);
     setXpInfo(null); // XP情報もリセット
     setPendingAutoStart(false); // pendingAutoStartもリセット
+    // グローバル音声を軽く解放（次回起動の詰まり防止）
+    import('@/utils/MidiController').then(mod => mod.MIDIController.destroyAllAudio?.()).catch(() => {});
   }, []);
   
   // ★ 追加: 次のステージに待機画面で遷移
@@ -468,7 +470,14 @@ const FantasyMain: React.FC = () => {
   }, [currentStage, isFreeOrGuest, handleBackToStageSelect]);
   
   // メニューに戻る
-  const handleBackToMenu = useCallback(() => {
+  const handleBackToMenu = useCallback(async () => {
+    // クリーンアップ: BGM停止と一部状態クリア
+    try { const { bgmManager } = await import('@/utils/BGMManager'); bgmManager.stop(); } catch {}
+    setCurrentStage(null);
+    setGameResult(null);
+    setShowResult(false);
+    setXpInfo(null);
+    setPendingAutoStart(false);
     window.location.hash = '#dashboard';
   }, []);
   
