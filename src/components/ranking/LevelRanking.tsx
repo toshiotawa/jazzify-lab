@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
-import { FaCrown, FaStar, FaTrophy, FaGraduationCap, FaGem, FaMedal, FaHatWizard } from 'react-icons/fa';
+import { FaCrown, FaStar, FaTrophy, FaGraduationCap, FaGem, FaMedal, FaHatWizard, FaSearch, FaPlus } from 'react-icons/fa';
 
 type SortKey = 'level' | 'lessons' | 'missions';
 
@@ -12,11 +12,16 @@ const LevelRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#ranking');
   const [entries, setEntries] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('level');
   const [hoveredUserId, setHoveredUserId] = useState<string | null>(null);
   const [clickedUserId, setClickedUserId] = useState<string | null>(null);
   const { user, isGuest, profile } = useAuthStore();
   const isStandardGlobal = profile?.rank === 'standard_global';
+  const PAGE_SIZE = 50;
+  // profilesテーブル基準のオフセット（余剰取得のため *2 範囲を使用）
+  const [profilesOffset, setProfilesOffset] = useState(0);
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#ranking');
@@ -43,27 +48,72 @@ const LevelRanking: React.FC = () => {
     });
   };
 
+  const resetAndLoad = async () => {
+    setLoading(true);
+    setEntries([]);
+    setHasMore(true);
+    setProfilesOffset(0);
+    try {
+      const data = await fetchLevelRanking(PAGE_SIZE, 0);
+      const filtered = isStandardGlobal
+        ? data.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
+        : data;
+      setEntries(sortEntries(filtered, sortKey));
+      // 次の読み込み用にprofilesオフセットを進める（余剰取得分もスキップ）
+      setProfilesOffset(prev => prev + PAGE_SIZE * 2);
+      setHasMore(data.length >= PAGE_SIZE);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const data = await fetchLevelRanking(PAGE_SIZE, profilesOffset);
+      const filtered = isStandardGlobal
+        ? data.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
+        : data;
+      setEntries(prev => {
+        const exist = new Set(prev.map(e => e.id));
+        const merged = [...prev, ...filtered.filter(e => !exist.has(e.id))];
+        return sortEntries(merged, sortKey);
+      });
+      setProfilesOffset(prev => prev + PAGE_SIZE * 2);
+      setHasMore(data.length >= PAGE_SIZE);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
     if (open && user && !isGuest) {
-      (async () => {
-        setLoading(true);
-        try {
-          const data = await fetchLevelRanking();
-          const filtered = isStandardGlobal
-            ? data.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
-            : data;
-          setEntries(sortEntries(filtered, sortKey));
-        } finally {
-          setLoading(false);
-        }
-      })();
+      resetAndLoad();
     }
-  }, [open, user, isGuest, sortKey, isStandardGlobal]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, user, isGuest, isStandardGlobal]);
+
+  // ソートキー変更時は再フェッチせず再ソートのみ
+  useEffect(() => {
+    setEntries(prev => sortEntries(prev, sortKey));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortKey]);
 
   if (!open) return null;
 
   const handleClose = () => {
     window.location.href = '/main#dashboard';
+  };
+
+  const scrollToMyRow = () => {
+    if (!user) return;
+    const el = document.querySelector(`[data-user-id="${user.id}"]`);
+    if (el && 'scrollIntoView' in el) {
+      (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      alert('現在の表示範囲内にあなたのデータはありません。必要に応じて「さらに読み込む」を押してください。');
+    }
   };
 
   // ゲストユーザーの場合
@@ -155,14 +205,30 @@ const LevelRanking: React.FC = () => {
           <p className="text-center text-gray-400">Loading...</p>
         ) : (
           <div className="space-y-4">
+            {/* アクションバー */}
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                onClick={scrollToMyRow}
+                className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 text-gray-200 hover:bg-slate-600 inline-flex items-center gap-2"
+              >
+                <FaSearch /> 自分を探す
+              </button>
+              <button
+                onClick={loadMore}
+                disabled={!hasMore || loadingMore}
+                className={`px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${!hasMore ? 'bg-slate-800 text-gray-500' : 'bg-primary-600 text-white hover:bg-primary-500'} ${loadingMore ? 'opacity-70' : ''}`}
+              >
+                <FaPlus /> さらに読み込む（50件）
+              </button>
+            </div>
             {/* ソート切り替えボタン */}
             <div className="flex justify-center space-x-2">
               <button
                 onClick={() => setSortKey('level')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  sortKey === 'level'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                sortKey === 'level'
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
                 }`}
               >
                 Level
@@ -212,9 +278,9 @@ const LevelRanking: React.FC = () => {
               {entries.map((e, idx) => {
                 const isCurrentUser = user?.id === e.id;
                 return (
-                <tr key={e.id} className={`border-b border-slate-800 hover:bg-slate-800/50 ${
+                <tr key={e.id} data-user-id={e.id} className={`border-b border-slate-800 hover:bg-slate-800/50 ${
                   isCurrentUser ? 'bg-primary-900/20 border-primary-500/30' : ''
-                }`}>
+                }`}> 
                   <td className="py-3 px-2">{idx + 1}</td>
                   <td className="py-3 px-2">
                     <button
@@ -303,7 +369,7 @@ const LevelRanking: React.FC = () => {
               })}
             </tbody>
           </table>
-            </div>
+          </div>
           </div>
         )}
       </div>
