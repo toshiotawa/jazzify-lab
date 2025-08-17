@@ -209,19 +209,7 @@ const DiaryPage: React.FC = () => {
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="fixed inset-0 z-40 flex flex-col bg-slate-900 text-white">
-          {/* ヘッダー */}
-          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-700">
-            <button
-              onClick={handleClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-              aria-label="戻る"
-            >
-              <FaArrowLeft />
-            </button>
-            <h2 className="text-xl font-bold text-center flex-1">ユーザー日記</h2>
-            <div className="w-8" /> {/* スペーサー */}
-          </div>
+        <div className="fixed inset-0 z-40 flex flex-col bg-slate-900 text-white pt-14 sm:pt-16">
 
           {/* コンテンツエリア - プロフィールと日記を一緒にスクロール */}
           <div className="flex-1 overflow-y-auto">
