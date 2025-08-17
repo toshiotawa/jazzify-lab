@@ -380,7 +380,7 @@ const LessonPage: React.FC = () => {
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col">
+        <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col pt-14 sm:pt-16">
 
           {loading ? (
             <div className="flex-1 flex items-center justify-center">

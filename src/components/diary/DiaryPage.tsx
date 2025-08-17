@@ -209,7 +209,7 @@ const DiaryPage: React.FC = () => {
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="fixed inset-0 z-40 flex flex-col bg-slate-900 text-white">
+        <div className="fixed inset-0 z-40 flex flex-col bg-slate-900 text-white pt-14 sm:pt-16">
 
           {/* コンテンツエリア - プロフィールと日記を一緒にスクロール */}
           <div className="flex-1 overflow-y-auto">
