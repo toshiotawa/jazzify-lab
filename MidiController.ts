@@ -119,7 +119,13 @@ export class MIDIController {
     try {
       // MIDI API の存在確認
       if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) {
-        throw new Error('Web MIDI API is not supported');
+        const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+        const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
+        const help = '詳しくは /help/ios-midi をご覧ください。';
+        const message = isIOS
+          ? 'iPhone/iPad では Safari 等で Web MIDI API が利用できません。App Store の Web MIDI Browser の利用をご検討ください。'
+          : 'Web MIDI API is not supported';
+        throw new Error(`${message} ${help}`);
       }
 
       this.midiAccess = await navigator.requestMIDIAccess();

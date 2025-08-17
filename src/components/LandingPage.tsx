@@ -615,7 +615,7 @@ const LandingPage: React.FC = () => {
             </h2>
 
             <div className="max-w-4xl mx-auto space-y-6" data-animate="alt-cards text-up">
-              {[1, 2, 3, 4, 5].map((id) => (
+              {(Array.from([1, 2, 3, 4, 5, 6]) as number[]).map((id) => (
                 <div key={id} className="faq-item rounded-xl p-6">
                   <button
                     className="w-full flex items-center justify-between cursor-pointer"
@@ -629,6 +629,7 @@ const LandingPage: React.FC = () => {
                       {id === 3 && 'オフラインでも使用できますか？'}
                       {id === 4 && 'プラン変更はいつでもできますか？'}
                       {id === 5 && 'キャンセル・返金は可能ですか？'}
+                      {id === 6 && 'iPhone、iPadでMIDI機器が使用できません。'}
                     </h3>
                     <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'} text-purple-400`}></i>
                   </button>
@@ -641,6 +642,24 @@ const LandingPage: React.FC = () => {
                     {id === 3 && '一部のコンテンツはダウンロードしてオフラインでご利用いただけます。ただし、コミュニティ機能やランキング機能など、一部の機能はインターネット接続が必要です。'}
                     {id === 4 && 'はい、プラン変更はいつでも可能です。アップグレードの場合は即座に新機能がご利用いただけ、ダウングレードの場合は次回請求日から新プランが適用されます。'}
                     {id === 5 && '月額プランはいつでもキャンセル可能です。キャンセル後も現在の請求期間内はサービスをご利用いただけます。初回登録から7日以内であれば、返金対応も承っております。'}
+                    {id === 6 && (
+                      <span>
+                        iOS（Safari等）では Web MIDI API が利用できません。App Store の{' '}
+                        <a
+                          href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline text-blue-300"
+                        >
+                          Web MIDI Browser
+                        </a>
+                        {' '}のご利用をご検討ください。{' '}
+                        <Link to="/help/ios-midi" className="underline text-blue-300">詳しくはこちら</Link>
+                        {' ／ '}
+                        <Link to="/contact" className="underline text-blue-300">お問い合わせフォーム</Link>
+                        へどうぞ。
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -695,6 +714,7 @@ const LandingPage: React.FC = () => {
                 <h4 className="text-white font-bold mb-4">サポート</h4>
                 <ul className="space-y-2 text-sm text-gray-400">
                   <li><a href="#faq" className="hover:text-purple-400 transition" onClick={(e) => handleAnchorClick(e, 'faq')}>よくある質問</a></li>
+                  <li><Link to="/help/ios-midi" className="hover:text-purple-400 transition">iPhone/iPadでMIDIを使う</Link></li>
                   <li><Link to="/contact" className="hover:text-purple-400 transition">お問い合わせ</Link></li>
                   <li><Link to="/terms" className="hover:text-purple-400 transition">利用規約</Link></li>
                   <li><Link to="/privacy" className="hover:text-purple-400 transition">プライバシーポリシー</Link></li>
