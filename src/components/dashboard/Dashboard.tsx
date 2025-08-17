@@ -21,7 +21,9 @@ import {
   FaStar,
   FaMedal,
   FaMagic,
-  FaHatWizard
+  FaHatWizard,
+  FaList,
+  FaEdit
 } from 'react-icons/fa';
 import { Mission } from '@/platform/supabaseMissions';
 import GameHeader from '@/components/ui/GameHeader';
@@ -404,7 +406,39 @@ const Dashboard: React.FC = () => {
                   </p>
                 </button>
                 )}
-                
+
+                {/* ランキング */}
+                {!isStandardGlobal && (
+                <button
+                  onClick={() => { window.location.hash = '#ranking'; }}
+                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                >
+                  <div className="flex items-center space-x-3 mb-3">
+                    <FaList className="w-6 h-6 text-yellow-400" />
+                    <h3 className="text-lg font-semibold">ランキング</h3>
+                  </div>
+                  <p className="text-sm text-gray-400">
+                    みんなの成績をチェック
+                  </p>
+                </button>
+                )}
+
+                {/* 日記 */}
+                {!isStandardGlobal && (
+                <button
+                  onClick={() => { window.location.hash = '#diary'; }}
+                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                >
+                  <div className="flex items-center space-x-3 mb-3">
+                    <FaEdit className="w-6 h-6 text-pink-400" />
+                    <h3 className="text-lg font-semibold">日記</h3>
+                  </div>
+                  <p className="text-sm text-gray-400">
+                    今日の練習を記録
+                  </p>
+                </button>
+                )}
+
                 {/* ファンタジーモード */}
                 <button
                   onClick={() => { window.location.hash = '#fantasy'; }}

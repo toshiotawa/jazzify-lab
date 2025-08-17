@@ -273,7 +273,7 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
               <div className="text-center">
                 <div className="text-xl mb-2 opacity-50">📸</div>
                 <p className="text-sm text-gray-400 mb-1">※スタンダードプランでは画像を添付できません</p>
-                <p className="text-xs text-gray-500">画像添付はプレミアム限定機能です</p>
+                <p className="text-xs text-gray-500">画像添付はプレミアム・プラチナ以上限定機能です</p>
               </div>
             </div>
           ) : null}
