@@ -219,7 +219,6 @@ const DiaryPage: React.FC = () => {
             >
               <FaArrowLeft />
             </button>
-            <h2 className="text-xl font-bold text-center flex-1">ユーザー日記</h2>
             <div className="w-8" /> {/* スペーサー */}
           </div>
 

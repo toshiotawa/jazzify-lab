@@ -390,7 +390,6 @@ const LessonPage: React.FC = () => {
             >
               <FaArrowLeft />
             </button>
-            <h1 className="text-xl font-bold">レッスン</h1>
             <div className="w-8" /> {/* スペーサー */}
           </div>
 
