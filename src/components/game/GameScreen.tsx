@@ -11,7 +11,7 @@ import type { TransposingInstrument } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
-import { FaArrowLeft, FaAward } from 'react-icons/fa';
+import { FaArrowLeft, FaAward, FaMusic } from 'react-icons/fa';
 
 /**
  * メインゲーム画面コンポーネント
@@ -526,6 +526,7 @@ const GameScreen: React.FC = () => {
               )}
 
               {!(useAuthStore.getState().profile?.rank === 'standard_global') && <HashButton hash="#lessons">レッスン</HashButton>}
+              {!(useAuthStore.getState().profile?.rank === 'free') && <HashButton hash="#fantasy">ファンタジー</HashButton>}
               <HashButton hash="#ranking">ランキング</HashButton>
               {!(useAuthStore.getState().profile?.rank === 'standard_global') && <HashButton hash="#missions">ミッション</HashButton>}
               {!(useAuthStore.getState().profile?.rank === 'standard_global') && <HashButton hash="#diary">日記</HashButton>}
@@ -705,6 +706,16 @@ const SongSelectionScreen: React.FC = () => {
           </div>
         </div>
 
+        <div className="mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
+          <div className="flex items-center space-x-2 mb-1">
+            <FaMusic className="text-green-400" />
+            <h3 className="text-sm font-semibold">楽曲を選んで練習しましょう</h3>
+          </div>
+          <p className="text-gray-300 text-xs sm:text-sm">
+            ソートやフィルターを使って曲を探し、選択すると練習画面に移動します。自分のペースで練習を進めましょう。
+          </p>
+        </div>
+        
         {/* ソート・フィルター コントロール */}
         <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
           <div className="flex items-center space-x-2">
@@ -1984,7 +1995,7 @@ const SettingsPanel: React.FC = () => {
  * ヘッダー右端ボタン群
  */
 const HeaderRightControls: React.FC = () => {
-  const { user, isGuest, hasProfile } = useAuthStore();
+  const { user } = useAuthStore();
 
   if (!user) {
     // 未ログイン
@@ -1997,10 +2008,6 @@ const HeaderRightControls: React.FC = () => {
 
   return (
     <div className="flex items-center space-x-4">
-      {/* マイページ */}
-      {hasProfile && (
-        <a href="#mypage" className="btn btn-sm btn-ghost text-white hover:text-primary-400">マイページ</a>
-      )}
       {/* アカウント */}
       <a href="#account" className="btn btn-sm btn-primary">アカウント</a>
     </div>

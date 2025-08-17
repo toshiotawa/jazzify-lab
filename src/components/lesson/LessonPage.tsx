@@ -15,7 +15,8 @@ import {
   FaPlay, 
   FaStar, 
   FaVideo,
-  FaMusic 
+  FaMusic,
+  FaGraduationCap
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchMultipleLessonRequirementsProgress } from '@/platform/supabaseLessonRequirements';
@@ -381,6 +382,19 @@ const LessonPage: React.FC = () => {
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4">
         <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col pt-14 sm:pt-16">
+
+          {/* ページ説明 */}
+          <div className="px-6 pb-4">
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+              <div className="flex items-center space-x-2 mb-1">
+                <FaGraduationCap className="text-blue-400" />
+                <h3 className="text-sm font-semibold">レッスンで体系的に学びましょう</h3>
+              </div>
+              <p className="text-gray-300 text-xs sm:text-sm">
+                コースからレッスンを選び、動画と実習で基礎から応用まで段階的に学習できます。前のブロックをクリアすると次が解放されます。
+              </p>
+            </div>
+          </div>
 
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
