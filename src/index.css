@@ -1052,3 +1052,143 @@
 .story-gradient {
   background: linear-gradient(135deg, rgba(120, 119, 198, 0.1), rgba(255, 119, 198, 0.1));
 } 
+
+/* =====================
+   LP Scroll Animations
+   ===================== */
+
+/* 基本: 低負荷の補助設定 */
+[data-animate] {
+  will-change: transform, opacity, filter;
+}
+
+/* 1) 後ろから出てくる（縮小+ぼかし→等倍） */
+[data-animate~="from-behind"] {
+  transform: scale(0.96);
+  opacity: 0;
+  filter: blur(6px);
+}
+[data-animate~="from-behind"].is-inview {
+  transform: none;
+  opacity: 1;
+  filter: none;
+  transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 900ms ease, filter 900ms ease;
+}
+
+/* 2) スライド（左右） */
+[data-animate~="slide-right"] {
+  transform: translateX(56px);
+  opacity: 0;
+}
+[data-animate~="slide-right"].is-inview {
+  transform: none;
+  opacity: 1;
+  transition: transform 850ms cubic-bezier(0.22, 1, 0.36, 1), opacity 850ms ease;
+}
+
+[data-animate~="slide-left"] {
+  transform: translateX(-56px);
+  opacity: 0;
+}
+[data-animate~="slide-left"].is-inview {
+  transform: none;
+  opacity: 1;
+  transition: transform 850ms cubic-bezier(0.22, 1, 0.36, 1), opacity 850ms ease;
+}
+
+/* 3) テキストのフェードアップ（親に付与して子の文字に適用） */
+[data-animate~="text-up"]:not(.is-inview) p,
+[data-animate~="text-up"]:not(.is-inview) li,
+[data-animate~="text-up"]:not(.is-inview) h3,
+[data-animate~="text-up"]:not(.is-inview) h4,
+[data-animate~="text-up"]:not(.is-inview) small,
+[data-animate~="text-up"]:not(.is-inview) .text-sm,
+[data-animate~="text-up"]:not(.is-inview) .text-base,
+[data-animate~="text-up"]:not(.is-inview) .text-lg,
+[data-animate~="text-up"]:not(.is-inview) .text-xl {
+  transform: translateY(12px);
+  opacity: 0;
+}
+[data-animate~="text-up"].is-inview p,
+[data-animate~="text-up"].is-inview li,
+[data-animate~="text-up"].is-inview h3,
+[data-animate~="text-up"].is-inview h4,
+[data-animate~="text-up"].is-inview small,
+[data-animate~="text-up"].is-inview .text-sm,
+[data-animate~="text-up"].is-inview .text-base,
+[data-animate~="text-up"].is-inview .text-lg,
+[data-animate~="text-up"].is-inview .text-xl {
+  transform: none;
+  opacity: 1;
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1) 140ms, opacity 700ms ease 140ms;
+}
+
+/* 4) 見出しのセンターアンダーライン（中央→両端へ伸長） */
+.section-title[data-animate*="heading-underline"] {
+  position: relative;
+}
+.section-title[data-animate*="heading-underline"]::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  width: 64%;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(147,51,234,0), rgba(147,51,234,1) 25%, rgba(236,72,153,1) 75%, rgba(236,72,153,0));
+  transform: translateX(-50%) scaleX(0);
+  transform-origin: center;
+  transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms;
+}
+.section-title[data-animate*="heading-underline"].is-inview::after {
+  transform: translateX(-50%) scaleX(1);
+}
+
+/* 5) カード群の交互スライド（親にalt-cardsを付与） */
+[data-animate~="alt-cards"] > * {
+  opacity: 0;
+  transform: translateX(56px);
+}
+[data-animate~="alt-cards"] > *:nth-child(2n) {
+  transform: translateX(-56px);
+}
+[data-animate~="alt-cards"].is-inview > * {
+  transform: none;
+  opacity: 1;
+  transition: transform 850ms cubic-bezier(0.22, 1, 0.36, 1), opacity 850ms ease;
+}
+/* スタッガー */
+[data-animate~="alt-cards"].is-inview > *:nth-child(1) { transition-delay: 0ms; }
+[data-animate~="alt-cards"].is-inview > *:nth-child(2) { transition-delay: 120ms; }
+[data-animate~="alt-cards"].is-inview > *:nth-child(3) { transition-delay: 240ms; }
+[data-animate~="alt-cards"].is-inview > *:nth-child(4) { transition-delay: 360ms; }
+[data-animate~="alt-cards"].is-inview > *:nth-child(5) { transition-delay: 480ms; }
+[data-animate~="alt-cards"].is-inview > *:nth-child(6) { transition-delay: 600ms; }
+[data-animate~="alt-cards"].is-inview > *:nth-child(7) { transition-delay: 720ms; }
+[data-animate~="alt-cards"].is-inview > *:nth-child(8) { transition-delay: 840ms; }
+
+/* タイピング風カーソル */
+.type-caret {
+  display: inline-block;
+  margin-left: 6px;
+  color: #e5e7eb; /* slate-200 */
+  animation: caret-blink 1s steps(1, end) infinite;
+}
+@keyframes caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* アニメ軽減設定 */
+@media (prefers-reduced-motion: reduce) {
+  [data-animate], [data-animate]::after,
+  [data-animate] > *, [data-animate] * {
+    transition: none !important;
+    animation: none !important;
+  }
+  [data-animate], [data-animate] > * {
+    transform: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+  }
+} 

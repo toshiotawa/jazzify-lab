@@ -1,12 +1,79 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 const LPFantasyDemo = React.lazy(() => import('./fantasy/LPFantasyDemo'));
 
+// タイピング風テキスト表示コンポーネント
+const TypewriterText: React.FC<{
+  text: string;
+  className?: string;
+  speedMsPerChar?: number;
+  delayMs?: number;
+  dataAnimate?: string;
+}> = ({ text, className = '', speedMsPerChar = 80, delayMs = 0, dataAnimate }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    let startTimer: number | undefined;
+    let intervalId: number | undefined;
+    const start = () => {
+      let index = 0;
+      intervalId = window.setInterval(() => {
+        if (cancelled) return;
+        index += 1;
+        setDisplayedText(text.slice(0, index));
+        if (index >= text.length) {
+          if (intervalId) window.clearInterval(intervalId);
+        }
+      }, speedMsPerChar);
+    };
+    startTimer = window.setTimeout(start, delayMs);
+    return () => {
+      cancelled = true;
+      if (startTimer) window.clearTimeout(startTimer);
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [text, speedMsPerChar, delayMs]);
+  return (
+    <p className={className} data-animate={dataAnimate} aria-label={text}>
+      <span>{displayedText}</span>
+      <span className="type-caret" aria-hidden="true">|</span>
+    </p>
+  );
+};
+
 const LandingPage: React.FC = () => {
   const { user, isGuest, loading, enterGuestMode } = useAuthStore();
   const navigate = useNavigate();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // アニメーション: 画面内進入検知
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const observed = new Set<Element>();
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          (entry.target as HTMLElement).classList.add('is-inview');
+          observer.unobserve(entry.target);
+          observed.delete(entry.target);
+        }
+      });
+    }, { root, threshold: 0.2, rootMargin: '0px 0px -80px 0px' });
+
+    const watch = () => {
+      root.querySelectorAll('[data-animate]')
+        .forEach((el) => { if (!observed.has(el)) { observer.observe(el); observed.add(el); } });
+    };
+
+    watch();
+    const mo = new MutationObserver(watch);
+    mo.observe(root, { childList: true, subtree: true });
+
+    return () => { observer.disconnect(); mo.disconnect(); };
+  }, []);
 
   // トップページではログイン済みでも自動リダイレクトしない
 
@@ -51,7 +118,7 @@ const LandingPage: React.FC = () => {
       </Helmet>
 
       {/* Local scroll container */}
-      <div className="relative flex-1 overflow-y-auto">
+      <div className="relative flex-1 overflow-y-auto" ref={scrollRef}>
         {/* Header/Navigation */}
         <nav className="fixed top-0 left-0 right-0 w-full bg-slate-900 bg-opacity-90 backdrop-blur-md z-50 border-b border-purple-500 border-opacity-30">
           <div className="container mx-auto px-6 py-2 md:py-4">
@@ -81,8 +148,12 @@ const LandingPage: React.FC = () => {
               </div>
               <div className="w-full md:w-1/2">
                 <div className="text-center md:text-left">
-                  <p className="text-4xl sm:text-5xl md:text-7xl font-black mb-4 section-title">練習を冒険に。</p>
-                  <p className="text-lg sm:text-xl md:text-2xl text-purple-200 mb-8">あなたの演奏、今日からジャズ化。</p>
+                  <TypewriterText
+                    text="練習を冒険に。"
+                    className="text-4xl sm:text-5xl md:text-7xl font-black mb-4 section-title"
+                    dataAnimate="from-behind heading-underline"
+                  />
+                  <p className="text-lg sm:text-xl md:text-2xl text-purple-200 mb-8" data-animate="text-up">あなたの演奏、今日からジャズ化。</p>
                 </div>
                 <div className="text-center md:text-left">
                   <Link
@@ -104,14 +175,14 @@ const LandingPage: React.FC = () => {
         </React.Suspense>
 
         {/* Story Section */}
-        <section id="story" className="py-20 story-gradient">
+        <section id="story" className="py-20 story-gradient" data-animate="slide-left text-up">
           <div className="container mx-auto px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/2.png" alt="ストーリー" className="w-16 h-16" />
               ストーリー
             </h2>
 
-            <div className="max-w-4xl mx-auto mb-16 p-8 rounded-2xl character-card">
+            <div className="max-w-4xl mx-auto mb-16 p-8 rounded-2xl character-card" data-animate="slide-right text-up">
               <h3 className="text-2xl font-bold mb-6 text-purple-300">物語の始まり</h3>
               <p className="text-lg leading-relaxed text-gray-300 space-y-3">
                 <span className="block">ジャズに憧れを持つ青年が、ある日突然、摩訶不思議なジャズ異世界に飛ばされてしまう...！</span>
@@ -128,7 +199,7 @@ const LandingPage: React.FC = () => {
             </div>
 
             {/* Character Cards */}
-            <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto" data-animate="alt-cards text-up">
               {/* Protagonist */}
               <div className="character-card rounded-2xl p-8 text-center">
                 <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
@@ -200,14 +271,14 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* Learning Modes Section */}
-        <section id="modes" className="py-20">
+        <section id="modes" className="py-20" data-animate="slide-right text-up">
           <div className="container mx-auto px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/1.png" alt="学習モード" className="w-16 h-16" />
               学習モード
             </h2>
 
-            <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto" data-animate="alt-cards text-up">
               {/* Legend Mode */}
               <div className="feature-card rounded-2xl p-8 magic-glow">
                 <div className="w-full h-32 mb-6 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center text-sm text-gray-500">
@@ -296,14 +367,14 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* Community Section */}
-        <section id="community" className="py-20 story-gradient">
+        <section id="community" className="py-20 story-gradient" data-animate="slide-left text-up">
           <div className="container mx-auto px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/monster_icons/monster_49.png" alt="コミュニティ機能" className="w-16 h-16" />
               コミュニティ機能
             </h2>
 
-            <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto" data-animate="alt-cards text-up">
               {/* Practice Diary */}
               <div className="feature-card rounded-2xl p-8">
                 <div className="w-full h-32 mb-6 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center text-sm text-gray-500">
@@ -398,14 +469,14 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* Technical Features */}
-        <section className="py-20">
+        <section className="py-20" data-animate="slide-right text-up">
           <div className="container mx-auto px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/10.png" alt="対応機種・技術仕様" className="w-16 h-16" />
               対応機種・技術仕様
             </h2>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto" data-animate="alt-cards text-up">
               <div className="feature-card rounded-xl p-6 text-center">
                 <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                   <img src="/monster_icons/monster_22.png" alt="スマートフォン" className="w-14 h-14 object-contain" />
@@ -442,9 +513,9 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* Creator Section */}
-        <section id="creator" className="py-20 story-gradient">
+        <section id="creator" className="py-20 story-gradient" data-animate="slide-left text-up">
           <div className="container mx-auto px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/4.png" alt="製作者紹介" className="w-16 h-16" />
               製作者紹介
             </h2>
@@ -463,14 +534,14 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* Pricing Section */}
-        <section id="pricing" className="py-20 story-gradient">
+        <section id="pricing" className="py-20 story-gradient" data-animate="slide-right text-up">
           <div className="container mx-auto px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/10.png" alt="料金プラン" className="w-16 h-16" />
               料金プラン
             </h2>
 
-            <div className="grid lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+            <div className="grid lg:grid-cols-4 gap-6 max-w-6xl mx-auto" data-animate="alt-cards text-up">
               {/* Free Plan */}
               <div className="pricing-card rounded-2xl p-8 text-center">
                 <h3 className="text-2xl font-bold text-gray-300 mb-4">フリー</h3>
@@ -528,14 +599,14 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* FAQ Section */}
-        <section id="faq" className="py-20">
+        <section id="faq" className="py-20" data-animate="slide-left text-up">
           <div className="container mx-auto px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/1.png" alt="よくある質問" className="w-16 h-16" />
               よくある質問
             </h2>
 
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-4xl mx-auto space-y-6" data-animate="alt-cards text-up">
               {[1, 2, 3, 4, 5].map((id) => (
                 <div key={id} className="faq-item rounded-xl p-6">
                   <button
@@ -570,9 +641,9 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* Final CTA Section */}
-        <section className="py-20">
+        <section className="py-20" data-animate="slide-right text-up">
           <div className="container mx-auto px-6 text-center">
-            <h2 className="text-4xl md:text-5xl font-extrabold mb-6">今すぐ無料トライアルを始める</h2>
+            <h2 className="text-4xl md:text-5xl font-extrabold mb-6" data-animate="from-behind heading-underline">今すぐ無料トライアルを始める</h2>
             <p className="text-gray-300 mb-8">登録は数分で完了。おためしプレイも可能です。</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
               <Link to="/signup" className="px-6 py-2.5 sm:px-8 sm:py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition font-bold text-sm sm:text-base">
