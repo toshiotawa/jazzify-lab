@@ -673,7 +673,7 @@ const SongSelectionScreen: React.FC = () => {
             <h3 className="text-sm font-semibold">楽曲を選んで練習しましょう</h3>
           </div>
           <p className="text-gray-300 text-xs sm:text-sm">
-            フィルターや曲を使って曲を探し、選択すると練習画面に移動します。自分のペースで練習を進めましょう。
+            ソートや検索で楽曲を絞り込み、選択すると練習画面に移動します。自分のペースで練習を進めましょう。
           </p>
         </div>
         
@@ -692,14 +692,14 @@ const SongSelectionScreen: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-1 min-w-[200px]">
             <label className="text-sm text-gray-300">検索:</label>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="曲名・アーティスト名で絞り込み"
-              className="input input-sm bg-slate-700 text-white border-slate-600 w-56"
+              placeholder="曲名・アーティストで検索"
+              className="input input-sm bg-slate-700 text-white border-slate-600 w-full"
             />
           </div>
         </div>
