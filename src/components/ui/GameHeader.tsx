@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameActions } from '@/stores/helpers';
+import NotificationBell from '@/components/ui/NotificationBell';
 
 /**
  * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
@@ -97,6 +98,7 @@ const HeaderRightControls: React.FC = () => {
     <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 whitespace-nowrap">
       {user && !isGuest ? (
         <>
+          <NotificationBell />
           <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary">
             アカウント
           </a>
