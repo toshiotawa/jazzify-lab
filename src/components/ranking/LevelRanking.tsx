@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchLevelRanking, RankingEntry, fetchLevelRankingByView, fetchUserGlobalRank, fetchLessonRankingByRpc, fetchUserLessonRank } from '@/platform/supabaseRanking';
+import { RankingEntry, fetchLevelRankingByView, fetchUserGlobalRank, fetchLessonRankingByRpc, fetchUserLessonRank } from '@/platform/supabaseRanking';
 import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
@@ -20,8 +20,7 @@ const LevelRanking: React.FC = () => {
   const { user, isGuest, profile } = useAuthStore();
   const isStandardGlobal = profile?.rank === 'standard_global';
   const PAGE_SIZE = 50;
-  // profilesテーブル基準のオフセット（余剰取得のため *2 範囲を使用）
-  const [profilesOffset, setProfilesOffset] = useState(0);
+  const [offset, setOffset] = useState(0);
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#ranking');
@@ -52,15 +51,14 @@ const LevelRanking: React.FC = () => {
     setLoading(true);
     setEntries([]);
     setHasMore(true);
-    setProfilesOffset(0);
+    setOffset(0);
     try {
-      const data = await fetchLevelRanking(PAGE_SIZE, 0);
+      const data = await fetchLevelRankingByView(PAGE_SIZE, 0);
       const filtered = isStandardGlobal
         ? data.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
         : data;
       setEntries(sortEntries(filtered, sortKey));
-      // 次の読み込み用にprofilesオフセットを進める（余剰取得分もスキップ）
-      setProfilesOffset(prev => prev + PAGE_SIZE * 2);
+      setOffset(prev => prev + PAGE_SIZE);
       setHasMore(data.length >= PAGE_SIZE);
     } finally {
       setLoading(false);
@@ -71,7 +69,7 @@ const LevelRanking: React.FC = () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const data = await fetchLevelRanking(PAGE_SIZE, profilesOffset);
+      const data = await fetchLevelRankingByView(PAGE_SIZE, offset);
       const filtered = isStandardGlobal
         ? data.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
         : data;
@@ -80,7 +78,7 @@ const LevelRanking: React.FC = () => {
         const merged = [...prev, ...filtered.filter(e => !exist.has(e.id))];
         return sortEntries(merged, sortKey);
       });
-      setProfilesOffset(prev => prev + PAGE_SIZE * 2);
+      setOffset(prev => prev + PAGE_SIZE);
       setHasMore(data.length >= PAGE_SIZE);
     } finally {
       setLoadingMore(false);

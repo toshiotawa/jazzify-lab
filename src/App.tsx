@@ -18,15 +18,21 @@ const LegacyApp = React.lazy(() => import('./LegacyApp'));
 
 const App: React.FC = () => {
   const [initialized, setInitialized] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
   const { init } = useAuthStore();
 
   // アプリケーション起動時に一度だけ認証状態を初期化
   useEffect(() => {
     const initializeAuth = async () => {
-      console.log('🚀 App: 認証初期化開始');
-      await init();
-      console.log('✅ App: 認証初期化完了');
-      setInitialized(true);
+      try {
+        console.log('🚀 App: 認証初期化開始');
+        await init();
+        console.log('✅ App: 認証初期化完了');
+      } catch {
+        setInitError('認証の初期化に失敗しました');
+      } finally {
+        setInitialized(true);
+      }
     };
     initializeAuth();
   }, [init]);
@@ -38,6 +44,22 @@ const App: React.FC = () => {
         <div className="flex flex-col items-center space-y-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
           <div>Initializing...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-black/70 text-white">
+        <div className="flex flex-col items-center space-y-4">
+          <p>{initError}</p>
+          <button
+            className="px-4 py-2 bg-white text-black rounded"
+            onClick={() => location.reload()}
+          >
+            リロード
+          </button>
         </div>
       </div>
     );
