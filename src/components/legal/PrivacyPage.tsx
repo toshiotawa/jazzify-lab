@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 const PrivacyPage: React.FC = () => {
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col">
+    <div className="bg-slate-900 text-white flex flex-col h-screen overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
       <header className="border-b border-white/10 bg-slate-900/80 backdrop-blur">
         <div className="container mx-auto px-6 py-3">
           <button
