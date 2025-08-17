@@ -102,10 +102,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
       });
 
-      // セッションがある場合はプロフィールも取得
+      // セッションがある場合はプロフィールも取得（非ブロッキングで開始）
       if (session?.user) {
         console.log('🔍 init: プロフィール取得開始');
-        await get().fetchProfile();
+        get().fetchProfile().catch(error => {
+          console.error('❌ プロフィール取得エラー:', error);
+        });
       }
 
       // BroadcastChannel でタブ間認証同期
@@ -458,11 +460,23 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       console.log('🔍 fetchProfile: プロフィール取得開始', { userId: user.id, userEmail: user.email });
       
       try {
-        const { data, error } = await supabase
+        // 認証系の読み込み表示を統一するためプロファイル取得中も loading をオン
+        set(state => {
+          state.loading = true;
+        });
+        
+        // 明示的タイムアウト（ネットワークハング対策）
+        const timeoutMs = 7000;
+        const queryPromise = supabase
           .from('profiles')
           .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, email, country')
           .eq('id', user.id)
           .maybeSingle(); // singleの代わりにmaybeSingleを使用してNot Found エラーを防ぐ
+        
+        const { data, error } = await Promise.race([
+          queryPromise,
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('fetchProfile timeout')), timeoutMs))
+        ]);
         
         console.log('📊 fetchProfile: 取得結果', { data, error, hasData: !!data, hasError: !!error });
         
@@ -510,7 +524,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         
         // ネットワークエラーや一時的なエラーの場合は hasProfile を変更しない
         const errorMessage = err instanceof Error ? err.message : String(err);
-        if (errorMessage.includes('network') || errorMessage.includes('timeout') || errorMessage.includes('fetch')) {
+        if (errorMessage.includes('network') || errorMessage.includes('timeout') || errorMessage.includes('fetch') || errorMessage.includes('fetchProfile timeout')) {
           console.log('🌐 fetchProfile: ネットワークエラー', { errorMessage });
           set(state => {
             state.error = '一時的なネットワークエラーです。しばらくしてから再試行してください。';
@@ -524,6 +538,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           state.hasProfile = false;
           state.profile = null;
           state.error = 'プロフィールの取得に失敗しました';
+        });
+      } finally {
+        set(state => {
+          state.loading = false;
         });
       }
     },
