@@ -174,6 +174,8 @@ export interface UpsertFantasyStagePayload {
   count_in_measures?: number;
   note_interval_beats?: number | null;
   play_root_on_correct?: boolean;
+  // 新規: ステージ種別（Basic/Advanced）
+  stage_tier?: 'basic' | 'advanced';
 }
 
 /**

@@ -74,22 +74,21 @@ const LPFantasyDemo: React.FC = () => {
         enemyHp: dbStage.enemy_hp,
         minDamage: dbStage.min_damage,
         maxDamage: dbStage.max_damage,
-        mode: (dbStage as any).mode,
-        allowedChords: (dbStage as any).allowed_chords,
-        chordProgression: (dbStage as any).chord_progression,
-        chordProgressionData: (dbStage as any).chord_progression_data,
+        mode: (dbStage.mode as any) || 'single',
+        allowedChords: Array.isArray(dbStage.allowed_chords) ? dbStage.allowed_chords : [],
+        chordProgression: Array.isArray(dbStage.chord_progression) ? dbStage.chord_progression : undefined,
         showSheetMusic: false,
-        showGuide: dbStage.show_guide,
-        simultaneousMonsterCount: dbStage.simultaneous_monster_count || 1,
+        showGuide: !!dbStage.show_guide,
         monsterIcon: 'dragon',
+        bgmUrl: (dbStage as any).bgm_url || (dbStage as any).mp3_url,
+        simultaneousMonsterCount: (dbStage as any).simultaneous_monster_count || 1,
         bpm: (dbStage as any).bpm || 120,
-        bgmUrl: dbStage.bgm_url || (dbStage as any).mp3_url || '/demo-1.mp3',
         measureCount: (dbStage as any).measure_count,
         countInMeasures: (dbStage as any).count_in_measures,
         timeSignature: (dbStage as any).time_signature,
-        noteIntervalBeats: (dbStage as any).note_interval_beats,
-        playRootOnCorrect: (dbStage as any).play_root_on_correct ?? true
-      } as const;
+        playRootOnCorrect: (dbStage as any).play_root_on_correct ?? true,
+        tier: (dbStage as any).stage_tier || 'basic',
+      } as any;
       setStage(mapped);
     } catch (e: any) {
       console.error(e);

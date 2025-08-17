@@ -96,6 +96,9 @@ export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
                     <span className="text-xs px-2 py-1 bg-gray-100 rounded">
                       モード: {stage.mode === 'single' ? 'シングル' : stage.mode === 'progression_order' ? 'リズム・順番' : stage.mode === 'progression_random' ? 'リズム・ランダム' : stage.mode === 'progression_timing' ? 'リズム・カスタム' : 'プログレッション'}
                     </span>
+                    <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded">
+                      種別: {(stage as any).stage_tier === 'advanced' ? 'Advanced' : 'Basic'}
+                    </span>
                     <span className="text-xs px-2 py-1 bg-gray-100 rounded">
                       敵数: {stage.enemy_count}
                     </span>
