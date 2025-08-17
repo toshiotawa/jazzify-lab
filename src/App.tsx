@@ -24,9 +24,16 @@ const App: React.FC = () => {
   useEffect(() => {
     const initializeAuth = async () => {
       console.log('🚀 App: 認証初期化開始');
-      await init();
-      console.log('✅ App: 認証初期化完了');
-      setInitialized(true);
+      try {
+        const TIMEOUT_MS = 8000;
+        const timeout = new Promise<void>((resolve) => setTimeout(resolve, TIMEOUT_MS));
+        await Promise.race([init(), timeout]);
+      } catch (e) {
+        console.error('❌ App: 認証初期化エラー', e);
+      } finally {
+        console.log('✅ App: 認証初期化完了');
+        setInitialized(true);
+      }
     };
     initializeAuth();
   }, [init]);

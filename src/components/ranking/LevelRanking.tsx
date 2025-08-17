@@ -54,13 +54,13 @@ const LevelRanking: React.FC = () => {
     setHasMore(true);
     setProfilesOffset(0);
     try {
-      const data = await fetchLevelRanking(PAGE_SIZE, 0);
+      const data = await fetchLevelRankingByView(PAGE_SIZE, 0);
       const filtered = isStandardGlobal
         ? data.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
         : data;
       setEntries(sortEntries(filtered, sortKey));
-      // 次の読み込み用にprofilesオフセットを進める（余剰取得分もスキップ）
-      setProfilesOffset(prev => prev + PAGE_SIZE * 2);
+      // RPC はページングが正確なため、通常通り PAGE_SIZE で進める
+      setProfilesOffset(prev => prev + PAGE_SIZE);
       setHasMore(data.length >= PAGE_SIZE);
     } finally {
       setLoading(false);
@@ -71,7 +71,7 @@ const LevelRanking: React.FC = () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const data = await fetchLevelRanking(PAGE_SIZE, profilesOffset);
+      const data = await fetchLevelRankingByView(PAGE_SIZE, profilesOffset);
       const filtered = isStandardGlobal
         ? data.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
         : data;
@@ -80,7 +80,7 @@ const LevelRanking: React.FC = () => {
         const merged = [...prev, ...filtered.filter(e => !exist.has(e.id))];
         return sortEntries(merged, sortKey);
       });
-      setProfilesOffset(prev => prev + PAGE_SIZE * 2);
+      setProfilesOffset(prev => prev + PAGE_SIZE);
       setHasMore(data.length >= PAGE_SIZE);
     } finally {
       setLoadingMore(false);

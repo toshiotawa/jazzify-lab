@@ -40,7 +40,7 @@ const MissionRanking: React.FC = () => {
     setHasMore(true);
     setOffset(0);
     try {
-      const data = await fetchMissionRanking(mId, PAGE_SIZE, 0);
+      const data = await fetchMissionRankingByRpc(mId, PAGE_SIZE, 0);
       setEntries(data);
       setOffset(PAGE_SIZE);
       setHasMore(data.length >= PAGE_SIZE);
@@ -56,7 +56,7 @@ const MissionRanking: React.FC = () => {
     if (!missionId || loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const data = await fetchMissionRanking(missionId, PAGE_SIZE, offset);
+      const data = await fetchMissionRankingByRpc(missionId, PAGE_SIZE, offset);
       setEntries(prev => {
         const exist = new Set(prev.map(e => e.user_id));
         return [...prev, ...data.filter(e => !exist.has(e.user_id))];

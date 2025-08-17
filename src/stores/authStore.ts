@@ -105,7 +105,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       // セッションがある場合はプロフィールも取得
       if (session?.user) {
         console.log('🔍 init: プロフィール取得開始');
-        await get().fetchProfile();
+        try {
+          const PROFILE_TIMEOUT = 7000;
+          await Promise.race([
+            get().fetchProfile(),
+            new Promise<void>((resolve) => setTimeout(resolve, PROFILE_TIMEOUT)),
+          ]);
+        } catch (e) {
+          console.warn('fetchProfile during init failed (ignored):', e);
+        }
       }
 
       // BroadcastChannel でタブ間認証同期
@@ -276,9 +284,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
       });
 
-      if (session?.user) {
-        await get().fetchProfile();
-      }
+      // 二重取得防止のため、ここでの再取得は行わない
     },
 
     /**
