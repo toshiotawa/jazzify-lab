@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchMissionRanking, MissionRankingEntry } from '@/platform/supabaseRanking';
+import { fetchMissionRanking, MissionRankingEntry, fetchMissionRankingByRpc, fetchUserMissionRank } from '@/platform/supabaseRanking';
 import { useMissionStore } from '@/stores/missionStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
@@ -124,13 +124,38 @@ const MissionRanking: React.FC = () => {
     }
   };
 
-  const scrollToMyRow = () => {
-    if (!user) return;
-    const el = document.querySelector(`[data-user-id="${user.id}"]`);
-    if (el && 'scrollIntoView' in el) {
-      (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-      alert('現在の表示範囲内にあなたのデータはありません。必要に応じて「さらに読み込む」を押してください。');
+  const scrollToMyRow = async () => {
+    if (!user || !missionId) return;
+    try {
+      const globalRank = await fetchUserMissionRank(missionId, user.id);
+      if (!globalRank || globalRank <= 0) {
+        const el = document.querySelector(`[data-user-id="${user.id}"]`);
+        if (el && 'scrollIntoView' in el) {
+          (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        alert('あなたの順位を特定できませんでした。ミッションのプレイ履歴が無い可能性があります。');
+        return;
+      }
+      const PAGE_SIZE_NUM = 50;
+      const pageOffset = Math.floor((globalRank - 1) / PAGE_SIZE_NUM) * PAGE_SIZE_NUM;
+      const page = await fetchMissionRankingByRpc(missionId, PAGE_SIZE_NUM, pageOffset);
+      setEntries(prev => {
+        const map = new Map(prev.map(e => [e.user_id, e] as const));
+        page.forEach(e => map.set(e.user_id, e));
+        return Array.from(map.values());
+      });
+      setTimeout(() => {
+        const el = document.querySelector(`[data-user-id="${user.id}"]`);
+        if (el && 'scrollIntoView' in el) {
+          (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          alert('スクロール対象が見つかりませんでした。');
+        }
+      }, 0);
+    } catch (e) {
+      console.error(e);
+      alert('順位の取得に失敗しました。時間をおいて再度お試しください。');
     }
   };
 

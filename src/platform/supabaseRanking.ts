@@ -154,3 +154,17 @@ export async function fetchUserGlobalRank(userId: string): Promise<number | null
   if (error) throw error;
   return (data as number | null) ?? null;
 }
+
+export async function fetchMissionRankingByRpc(missionId: string, limit = 50, offset = 0): Promise<MissionRankingEntry[]> {
+  const { data, error } = await getSupabaseClient()
+    .rpc('rpc_get_mission_ranking', { mission_id: missionId, limit_count: limit, offset_count: offset });
+  if (error) throw error;
+  return (data ?? []) as MissionRankingEntry[];
+}
+
+export async function fetchUserMissionRank(missionId: string, userId: string): Promise<number | null> {
+  const { data, error } = await getSupabaseClient()
+    .rpc('rpc_get_user_mission_rank', { mission_id: missionId, target_user_id: userId });
+  if (error) throw error;
+  return (data as number | null) ?? null;
+}
