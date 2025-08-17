@@ -1,6 +1,6 @@
--- Create or replace view and RPC for accurate level ranking with global rank
+-- Recreate level ranking view to include fantasy_cleared_stages
+-- Created at: 2025-08-17
 
--- Safety first
 DROP VIEW IF EXISTS public.view_level_ranking CASCADE;
 
 CREATE VIEW public.view_level_ranking AS
@@ -43,37 +43,3 @@ LEFT JOIN (
 ) AS fs ON fs.user_id = p.id
 WHERE p.nickname IS NOT NULL
   AND p.nickname <> p.email;
-
--- RPC: get paginated ranking from the view
-DROP FUNCTION IF EXISTS public.rpc_get_level_ranking(limit_count integer, offset_count integer);
-
-CREATE FUNCTION public.rpc_get_level_ranking(limit_count integer DEFAULT 50, offset_count integer DEFAULT 0)
-RETURNS SETOF public.view_level_ranking
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT *
-  FROM public.view_level_ranking
-  ORDER BY global_rank
-  OFFSET offset_count
-  LIMIT limit_count;
-$$;
-
--- RPC: get a user's global rank
-DROP FUNCTION IF EXISTS public.rpc_get_user_global_rank(target_user_id uuid);
-
-CREATE FUNCTION public.rpc_get_user_global_rank(target_user_id uuid)
-RETURNS integer
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT v.global_rank
-  FROM public.view_level_ranking v
-  WHERE v.id = target_user_id
-  LIMIT 1;
-$$;
-
--- Optional grants (adjust roles as needed)
--- GRANT SELECT ON public.view_level_ranking TO anon, authenticated;
--- GRANT EXECUTE ON FUNCTION public.rpc_get_level_ranking(integer, integer) TO anon, authenticated;
--- GRANT EXECUTE ON FUNCTION public.rpc_get_user_global_rank(uuid) TO anon, authenticated;

@@ -24,6 +24,9 @@ interface FantasyUserProgress {
   currentStageNumber: string;
   wizardRank: string;
   totalClearedStages: number;
+  // 追加: Tier別現在地
+  currentStageNumberBasic?: string;
+  currentStageNumberAdvanced?: string;
 }
 
 interface FantasyStageClear {
@@ -68,6 +71,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const [stageClears, setStageClears] = useState<FantasyStageClear[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedRank, setSelectedRank] = useState<string>('1');
+  const [selectedTier, setSelectedTier] = useState<'basic' | 'advanced'>('basic');
   
   // フリープラン・ゲストユーザーかどうかの確認
   const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
@@ -125,6 +129,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           // 追加: 正解時にルート音を鳴らす
           playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
           bpm: (stage as any).bpm || 120,
+          tier: (stage as any).stage_tier || 'basic',
         }));
         
         setStages(convertedStages);
@@ -175,6 +180,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           .insert({
             user_id: userId,
             current_stage_number: '1-1',
+            current_stage_number_basic: '1-1',
+            current_stage_number_advanced: '1-1',
             wizard_rank: 'F',
             total_cleared_stages: 0
           })
@@ -222,6 +229,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         timeSignature: (stage as any).time_signature,
         // 追加: 正解時にルート音を鳴らす
         playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
+        tier: (stage as any).stage_tier || 'basic',
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -229,7 +237,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         userId: userProgressData.user_id,
         currentStageNumber: userProgressData.current_stage_number,
         wizardRank: userProgressData.wizard_rank,
-        totalClearedStages: userProgressData.total_cleared_stages
+        totalClearedStages: userProgressData.total_cleared_stages,
+        currentStageNumberBasic: userProgressData.current_stage_number_basic,
+        currentStageNumberAdvanced: userProgressData.current_stage_number_advanced,
       };
       
       const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: any) => ({
@@ -268,21 +278,37 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     loadFantasyData();
   }, [loadFantasyData]);
   
+  // Tier変更時にそのTierの最初のランクへ自動切替
+  useEffect(() => {
+    const tierFiltered = (stages || []).filter(s => (s as any).tier === selectedTier);
+    const groups = groupStagesByRank(tierFiltered);
+    const keys = Object.keys(groups);
+    if (keys.length > 0 && !keys.includes(selectedRank)) {
+      setSelectedRank(keys[0]);
+    }
+  }, [selectedTier, stages]);
+
   // 現在地のステージ番号からランクを設定
   useEffect(() => {
-    if (userProgress && userProgress.currentStageNumber) {
-      const currentRank = userProgress.currentStageNumber.split('-')[0];
+    // Tier変更時に最初のランクへ移動（直前のeffectで処理済み）
+    if (!userProgress) {
+      if (isFreeOrGuest) setSelectedRank('1');
+      return;
+    }
+    // Basic/Advancedともに数値ランク（1,2,3...）運用。選択Tierの現在地ランクを開く
+    const currentStageForTier = selectedTier === 'advanced'
+      ? (userProgress.currentStageNumberAdvanced || userProgress.currentStageNumber)
+      : (userProgress.currentStageNumberBasic || userProgress.currentStageNumber);
+    if (currentStageForTier) {
+      const currentRank = currentStageForTier.split('-')[0];
       setSelectedRank(currentRank);
       devLog.debug('🎮 現在のランクを設定:', currentRank);
-    } else if (isFreeOrGuest) {
-      // ゲストユーザーまたはフリープランの場合はランク1をデフォルトに設定
-      setSelectedRank('1');
     }
-  }, [userProgress, isFreeOrGuest]);
+  }, [userProgress, isFreeOrGuest, selectedTier]);
   
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
-    // フリープラン・ゲストユーザーの場合は1-1, 1-2, 1-3のみアンロック
+    // フリープラン・ゲストユーザーの場合はBasic/Advancedともに1-1, 1-2, 1-3のみアンロック
     if (isFreeOrGuest) {
       const allowedStages = ['1-1', '1-2', '1-3'];
       return allowedStages.includes(stage.stageNumber);
@@ -296,14 +322,20 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     );
     if (cleared) return true;
 
-    /* 2) progress に記録されている現在地より前ならアンロック */
-    const [currR, currS] = userProgress.currentStageNumber.split('-').map(Number);
+    /* 2) progress に記録されている現在地より前ならアンロック（数値ランクのみ） */
+    const currentStageForTier = selectedTier === 'advanced'
+      ? (userProgress.currentStageNumberAdvanced || userProgress.currentStageNumber)
+      : (userProgress.currentStageNumberBasic || userProgress.currentStageNumber);
+    const [currR, currS] = (currentStageForTier || '1-1').split('-').map(Number);
     const [r, s] = stage.stageNumber.split('-').map(Number);
+    if (isNaN(r) || isNaN(s) || isNaN(currR) || isNaN(currS)) {
+      return false;
+    }
     if (r < currR) return true;
     if (r === currR && s <= currS) return true;
 
     return false;
-  }, [userProgress, stageClears, isFreeOrGuest]);
+  }, [userProgress, stageClears, isFreeOrGuest, selectedTier]);
   
   // ステージのクリア状況を取得
   const getStageClearInfo = useCallback((stage: FantasyStage) => {
@@ -324,8 +356,11 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     let globalIndex = 0;
     const [targetMajor, targetMinor] = stage.stageNumber.split('-').map(Number);
     
+    // 選択中Tierのステージのみを対象
+    const tierFiltered = stages.filter(s => (s as any).tier === selectedTier);
+    
     // 全ステージをソートしてインデックスを見つける
-    const allStages = stages.slice().sort((a, b) => {
+    const allStages = tierFiltered.slice().sort((a, b) => {
       const [aMajor, aMinor] = a.stageNumber.split('-').map(Number);
       const [bMajor, bMinor] = b.stageNumber.split('-').map(Number);
       if (aMajor !== bMajor) return aMajor - bMajor;
@@ -340,7 +375,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     }
     
     return globalIndex;
-  }, [stages]);
+  }, [stages, selectedTier]);
   
   // ステージカードのレンダリング
   const renderStageCard = useCallback((stage: FantasyStage, index: number) => {
@@ -480,7 +515,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   }
   
   // メイン画面
-  const groupedStages = groupStagesByRank(stages);
+  const groupedStages = groupStagesByRank(
+    (stages || []).filter(s => (s as any).tier === selectedTier)
+  );
   const currentWizardRank = userProgress ? userProgress.wizardRank : 'F';
   const totalCleared = userProgress ? userProgress.totalClearedStages : 0;
   
@@ -495,7 +532,16 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               <span className="whitespace-normal break-words">ファンタジーモード</span>
             </h1>
             <div className="flex items-center space-x-4 sm:space-x-6 text-base sm:text-lg">
-              <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber || '1-1'}</span></div>
+              {(stages.some(s => (s as any).tier === selectedTier)) && (
+                <div>
+                  現在地: <span className="text-blue-300 font-bold">
+                    {selectedTier === 'advanced'
+                      ? (userProgress?.currentStageNumberAdvanced || userProgress?.currentStageNumber || '1-1')
+                      : (userProgress?.currentStageNumberBasic || userProgress?.currentStageNumber || '1-1')}
+                  </span>
+                  <span className="ml-2 text-xs opacity-80">({selectedTier === 'advanced' ? 'Advanced' : 'Basic'})</span>
+                </div>
+              )}
             </div>
           </div>
           
@@ -518,6 +564,26 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           </p>
         </div>
       )}
+      
+      {/* ランク選択タブの上にTier切り替え */}
+      <div className="px-4 sm:px-6 mb-3 sm:mb-4">
+        <div className="flex space-x-2 overflow-x-auto">
+          {(['basic','advanced'] as const).map(tier => (
+            <button
+              key={tier}
+              onClick={() => setSelectedTier(tier)}
+              className={cn(
+                "px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base",
+                selectedTier === tier
+                  ? "bg-white text-purple-900"
+                  : "bg-white bg-opacity-20 text-white hover:bg-opacity-30"
+              )}
+            >
+              {tier === 'basic' ? 'Basic' : 'Advanced'}
+            </button>
+          ))}
+        </div>
+      </div>
       
       {/* ランク選択タブ */}
       <div className="px-4 sm:px-6 mb-4 sm:mb-6">
@@ -547,7 +613,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             getRankColor(parseInt(selectedRank))
           )}>
             <h2 className="text-white text-lg sm:text-xl font-bold mb-3 sm:mb-4">
-              ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank)).title}
+             ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank)).title}
             </h2>
             
             <div className="space-y-2 sm:space-y-3">
@@ -564,8 +630,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             {/* ランク説明 */}
             <div className="mt-4 sm:mt-6 bg-black bg-opacity-30 rounded-lg p-3 sm:p-4">
               <div className="text-white text-xs sm:text-sm">
-                <p className="font-semibold mb-1 sm:mb-2">{getFantasyRankInfo(parseInt(selectedRank)).stageName}</p>
-                <p className="leading-relaxed">{getFantasyRankInfo(parseInt(selectedRank)).description}</p>
+               <p className="font-semibold mb-1 sm:mb-2">{getFantasyRankInfo(parseInt(selectedRank)).stageName}</p>
+               <p className="leading-relaxed">{getFantasyRankInfo(parseInt(selectedRank)).description}</p>
               </div>
             </div>
           </div>

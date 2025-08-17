@@ -379,7 +379,7 @@ const LevelRanking: React.FC = () => {
                   <td className="py-3 px-2">{e.level}</td>
                   {!isStandardGlobal && <td className="py-3 px-2">{e.lessons_cleared}</td>}
                   {!isStandardGlobal && <td className="py-3 px-2">{e.missions_completed || 0}</td>}
-                  <td className="py-3 px-2 text-purple-300">{e.fantasy_current_stage || '-'}</td>
+                  <td className="py-3 px-2 text-purple-300">{e.fantasy_cleared_stages ?? 0}</td>
                   {!isStandardGlobal && (
                     <td className="py-3 px-2">
                       <div className="flex items-center space-x-1">

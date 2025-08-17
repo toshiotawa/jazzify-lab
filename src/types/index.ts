@@ -651,6 +651,8 @@ export interface FantasyStage {
   noteIntervalBeats?: number;
   // 新規: 正解時にルート音を鳴らす
   play_root_on_correct?: boolean;
+  // 新規: ステージ種別（Basic/Advanced）
+  stage_tier?: 'basic' | 'advanced';
 }
 
 export interface LessonContext {

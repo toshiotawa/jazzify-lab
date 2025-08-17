@@ -20,7 +20,8 @@ RETURNS TABLE (
   selected_title text,
   fantasy_current_stage text,
   lessons_cleared integer,
-  missions_completed integer
+  missions_completed integer,
+  fantasy_cleared_stages integer
 )
 LANGUAGE sql
 STABLE
@@ -41,6 +42,12 @@ AS $$
     SELECT fup.user_id, fup.current_stage_number
     FROM public.fantasy_user_progress fup
   ),
+  fs AS (
+    SELECT fsc.user_id, COUNT(*) AS cleared_count
+    FROM public.fantasy_stage_clears fsc
+    WHERE fsc.clear_type = 'clear'
+    GROUP BY fsc.user_id
+  ),
   base AS (
     SELECT
       p.id,
@@ -53,11 +60,13 @@ AS $$
       p.selected_title,
       f.current_stage_number AS fantasy_current_stage,
       COALESCE(l.lessons_cleared, 0) AS lessons_cleared,
-      COALESCE(m.missions_completed, 0) AS missions_completed
+      COALESCE(m.missions_completed, 0) AS missions_completed,
+      COALESCE(fs.cleared_count, 0) AS fantasy_cleared_stages
     FROM public.profiles p
     LEFT JOIN l ON l.user_id = p.id
     LEFT JOIN m ON m.user_id = p.id
     LEFT JOIN f ON f.user_id = p.id
+    LEFT JOIN fs ON fs.user_id = p.id
     WHERE p.nickname IS NOT NULL
       AND p.nickname <> p.email
   ), ranked AS (
@@ -75,7 +84,8 @@ AS $$
     selected_title,
     fantasy_current_stage,
     lessons_cleared,
-    missions_completed
+    missions_completed,
+    fantasy_cleared_stages
   FROM ranked
   ORDER BY rn
   OFFSET offset_count

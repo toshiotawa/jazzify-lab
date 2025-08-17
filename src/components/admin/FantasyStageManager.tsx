@@ -57,6 +57,8 @@ interface StageFormValues {
   allowed_chords: any[]; // string or {chord,inversion,octave}
   chord_progression: any[]; // for order
   chord_progression_data: TimingRow[]; // for timing
+  // 新規: ステージ種別
+  stage_tier: 'basic' | 'advanced';
 }
 
 const defaultValues: StageFormValues = {
@@ -82,7 +84,8 @@ const defaultValues: StageFormValues = {
   chord_progression: [],
   chord_progression_data: [],
   bgm_url: '',
-  mp3_url: ''
+  mp3_url: '',
+  stage_tier: 'basic'
 };
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -174,6 +177,7 @@ const FantasyStageManager: React.FC = () => {
         allowed_chords: Array.isArray(s.allowed_chords) ? s.allowed_chords : [],
         chord_progression: (Array.isArray(s.chord_progression) ? s.chord_progression : []) as any[],
         chord_progression_data: (s as any).chord_progression_data || [],
+        stage_tier: (s as any).stage_tier || 'basic'
       };
       reset(v);
     } catch (e: any) {
@@ -209,6 +213,7 @@ const FantasyStageManager: React.FC = () => {
       chord_progression: v.chord_progression,
       chord_progression_data: v.chord_progression_data,
       note_interval_beats: v.note_interval_beats ?? null,
+      stage_tier: v.stage_tier
     };
 
     // モードに応じた不要フィールドの削除
@@ -352,6 +357,13 @@ const FantasyStageManager: React.FC = () => {
                 <div>
                   <SmallLabel>正解時にルート音を鳴らす</SmallLabel>
                   <input type="checkbox" className="toggle toggle-primary" {...register('play_root_on_correct')} />
+                </div>
+                <div>
+                  <SmallLabel>ステージ種別 *</SmallLabel>
+                  <select className="select select-bordered w-full" {...register('stage_tier', { required: true })}>
+                    <option value="basic">Basic</option>
+                    <option value="advanced">Advanced</option>
+                  </select>
                 </div>
               </Row>
             </Section>

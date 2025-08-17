@@ -294,7 +294,13 @@ const FantasyMain: React.FC = () => {
             };
 
             const clearedIsFurther =
-              cmpStage(currentStage.stageNumber, currentProgress.current_stage_number) >= 0;
+              (() => {
+                const stageTier = (currentStage as any).tier === 'advanced' ? 'advanced' : 'basic';
+                const currentTierStage = stageTier === 'advanced'
+                  ? ((currentProgress as any).current_stage_number_advanced || (currentProgress as any).current_stage_number || '1-1')
+                  : ((currentProgress as any).current_stage_number_basic || (currentProgress as any).current_stage_number || '1-1');
+                return cmpStage(currentStage.stageNumber, currentTierStage) >= 0;
+              })();
 
             const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
 
@@ -304,13 +310,19 @@ const FantasyMain: React.FC = () => {
             const newRank = getWizardRankString(newClearedStages);
 
             if (clearedIsFurther) {
+              const stageTier = (currentStage as any).tier === 'advanced' ? 'advanced' : 'basic';
+              const updatePayload: any = {
+                wizard_rank: newRank,
+                total_cleared_stages: newClearedStages,
+              };
+              if (stageTier === 'advanced') {
+                updatePayload.current_stage_number_advanced = nextStageNumber;
+              } else {
+                updatePayload.current_stage_number_basic = nextStageNumber;
+              }
               const { error: updateError } = await supabase
                 .from('fantasy_user_progress')
-                .update({
-                  current_stage_number: nextStageNumber,
-                  wizard_rank: newRank,
-                  total_cleared_stages: newClearedStages
-                })
+                .update(updatePayload)
                 .eq('user_id', profile.id);
 
               if (updateError) {
@@ -416,6 +428,7 @@ const FantasyMain: React.FC = () => {
         .from('fantasy_stages')
         .select('*')
         .eq('stage_number', nextStageNumber)
+        .eq('stage_tier', ((currentStage as any).tier === 'advanced' ? 'advanced' : 'basic'))
         .single();
       
       if (error || !nextStageData) {
@@ -452,7 +465,8 @@ const FantasyMain: React.FC = () => {
         // 追加: 拍間隔（存在すれば）
         noteIntervalBeats: (nextStageData as any).note_interval_beats,
         // ステージ設定のルート音
-        playRootOnCorrect: (nextStageData as any).play_root_on_correct ?? true
+        playRootOnCorrect: (nextStageData as any).play_root_on_correct ?? true,
+        tier: (nextStageData as any).stage_tier || 'basic',
       };
 
       setGameResult(null);

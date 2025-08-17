@@ -67,6 +67,8 @@ export interface FantasyStage {
   timeSignature?: number;
   // ステージ設定: 正解時にルート音を鳴らすか
   playRootOnCorrect?: boolean;
+  // 新規: ステージ種別（Basic/Advanced）
+  tier?: 'basic' | 'advanced';
 }
 
 export interface MonsterState {

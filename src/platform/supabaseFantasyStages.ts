@@ -47,13 +47,14 @@ export async function fetchFantasyStageById(stageId: string): Promise<FantasySta
 /**
  * ステージ番号でファンタジーステージを取得
  */
-export async function fetchFantasyStageByNumber(stageNumber: string): Promise<FantasyStage | null> {
+export async function fetchFantasyStageByNumber(stageNumber: string, stageTier: 'basic' | 'advanced' = 'basic'): Promise<FantasyStage | null> {
   const supabase = getSupabaseClient();
   
   const { data, error } = await supabase
     .from('fantasy_stages')
     .select('*')
     .eq('stage_number', stageNumber)
+    .eq('stage_tier', stageTier)
     .single();
     
   if (error) {
@@ -94,12 +95,14 @@ export async function fetchFantasyUserProgress(userId: string): Promise<{
   currentStageNumber: string;
   totalClearedStages: number;
   wizardRank: string;
+  currentStageNumberBasic?: string;
+  currentStageNumberAdvanced?: string;
 } | null> {
   const supabase = getSupabaseClient();
   
   const { data, error } = await supabase
     .from('fantasy_user_progress')
-    .select('current_stage_number, total_cleared_stages, wizard_rank')
+    .select('current_stage_number, total_cleared_stages, wizard_rank, current_stage_number_basic, current_stage_number_advanced')
     .eq('user_id', userId)
     .single();
     
@@ -118,7 +121,9 @@ export async function fetchFantasyUserProgress(userId: string): Promise<{
   return {
     currentStageNumber: data.current_stage_number,
     totalClearedStages: data.total_cleared_stages || 0,
-    wizardRank: data.wizard_rank
+    wizardRank: data.wizard_rank,
+    currentStageNumberBasic: (data as any).current_stage_number_basic,
+    currentStageNumberAdvanced: (data as any).current_stage_number_advanced,
   };
 }
 
@@ -174,6 +179,8 @@ export interface UpsertFantasyStagePayload {
   count_in_measures?: number;
   note_interval_beats?: number | null;
   play_root_on_correct?: boolean;
+  // 新規: ステージ種別（Basic/Advanced）
+  stage_tier?: 'basic' | 'advanced';
 }
 
 /**

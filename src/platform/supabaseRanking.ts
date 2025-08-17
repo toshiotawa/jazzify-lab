@@ -11,7 +11,7 @@ export interface RankingEntry {
   avatar_url?: string;
   twitter_handle?: string;
   selected_title?: string;
-  fantasy_current_stage?: string;
+  fantasy_cleared_stages?: number;
 }
 
 export async function fetchLevelRanking(limit = 50, offset = 0): Promise<RankingEntry[]> {
@@ -58,11 +58,12 @@ export async function fetchLevelRanking(limit = 50, offset = 0): Promise<Ranking
   if (missionError) throw missionError;
   
   // ファンタジーモード進捗情報を取得
-  const { data: fantasyProgress, error: fantasyError } = await supabase
-    .from('fantasy_user_progress')
-    .select('user_id, current_stage_number')
+  const { data: fantasyClears, error: fantasyError } = await supabase
+    .from('fantasy_stage_clears')
+    .select('user_id')
+    .eq('clear_type', 'clear')
     .in('user_id', userIds);
-  
+
   if (fantasyError) throw fantasyError;
   
   // ユーザーごとにカウントを集計
@@ -79,9 +80,10 @@ export async function fetchLevelRanking(limit = 50, offset = 0): Promise<Ranking
   });
   
   // ファンタジー進捗情報のマップを作成
-  const fantasyProgressMap = new Map<string, string>();
-  (fantasyProgress ?? []).forEach(record => {
-    fantasyProgressMap.set(record.user_id, record.current_stage_number);
+  const fantasyClearsMap = new Map<string, number>();
+  (fantasyClears ?? []).forEach(record => {
+    const count = fantasyClearsMap.get(record.user_id) || 0;
+    fantasyClearsMap.set(record.user_id, count + 1);
   });
   
   // プロフィールデータと集計データを結合
@@ -91,7 +93,7 @@ export async function fetchLevelRanking(limit = 50, offset = 0): Promise<Ranking
       ...profile,
       lessons_cleared: lessonCountMap.get(p.id) || 0,
       missions_completed: missionCountMap.get(p.id) || 0,
-      fantasy_current_stage: fantasyProgressMap.get(p.id),
+      fantasy_cleared_stages: fantasyClearsMap.get(p.id) || 0,
     };
   });
   
@@ -128,31 +130,42 @@ export async function fetchMissionRanking(missionId: string, limit = 50, offset 
 
 // ===== RPC based helpers for accurate global rank and paginated pages =====
 export async function fetchLevelRankingByView(limit = 50, offset = 0): Promise<RankingEntry[]> {
-  const { data, error } = await getSupabaseClient()
-    .rpc('rpc_get_level_ranking', { limit_count: limit, offset_count: offset });
-  if (error) throw error;
-  const rows = (data ?? []) as any[];
-  return rows.map((r) => ({
-    id: r.id,
-    nickname: r.nickname,
-    level: r.level,
-    xp: r.xp,
-    rank: r.rank,
-    lessons_cleared: r.lessons_cleared ?? 0,
-    missions_cleared: undefined, // keep shape stable
-    missions_completed: r.missions_completed ?? 0,
-    avatar_url: r.avatar_url ?? undefined,
-    twitter_handle: r.twitter_handle ?? undefined,
-    selected_title: r.selected_title ?? undefined,
-    fantasy_current_stage: r.fantasy_current_stage !== null && r.fantasy_current_stage !== undefined ? String(r.fantasy_current_stage) : undefined,
-  })) as unknown as RankingEntry[];
+  try {
+    const { data, error } = await getSupabaseClient()
+      .rpc('rpc_get_level_ranking', { limit_count: limit, offset_count: offset });
+    if (error) throw error;
+    const rows = (data ?? []) as any[];
+    return rows.map((r) => ({
+      id: r.id,
+      nickname: r.nickname,
+      level: r.level,
+      xp: r.xp,
+      rank: r.rank,
+      lessons_cleared: r.lessons_cleared ?? 0,
+      missions_cleared: undefined, // keep shape stable
+      missions_completed: r.missions_completed ?? 0,
+      avatar_url: r.avatar_url ?? undefined,
+      twitter_handle: r.twitter_handle ?? undefined,
+      selected_title: r.selected_title ?? undefined,
+      fantasy_cleared_stages: r.fantasy_cleared_stages !== null && r.fantasy_cleared_stages !== undefined ? Number(r.fantasy_cleared_stages) : 0,
+    })) as unknown as RankingEntry[];
+  } catch (e) {
+    console.warn('rpc_get_level_ranking が利用できないためフォールバックを使用します:', e);
+    // Fallback: 非RPC版
+    return fetchLevelRanking(limit, offset);
+  }
 }
 
 export async function fetchUserGlobalRank(userId: string): Promise<number | null> {
-  const { data, error } = await getSupabaseClient()
-    .rpc('rpc_get_user_global_rank', { target_user_id: userId });
-  if (error) throw error;
-  return (data as number | null) ?? null;
+  try {
+    const { data, error } = await getSupabaseClient()
+      .rpc('rpc_get_user_global_rank', { target_user_id: userId });
+    if (error) throw error;
+    return (data as number | null) ?? null;
+  } catch (e) {
+    console.warn('rpc_get_user_global_rank が利用できないためフォールバック（null）を返します:', e);
+    return null;
+  }
 }
 
 export async function fetchMissionRankingByRpc(missionId: string, limit = 50, offset = 0): Promise<MissionRankingEntry[]> {
@@ -185,7 +198,7 @@ export async function fetchLessonRankingByRpc(limit = 50, offset = 0): Promise<R
     avatar_url: r.avatar_url ?? undefined,
     twitter_handle: r.twitter_handle ?? undefined,
     selected_title: r.selected_title ?? undefined,
-    fantasy_current_stage: r.fantasy_current_stage !== null && r.fantasy_current_stage !== undefined ? String(r.fantasy_current_stage) : undefined,
+    fantasy_cleared_stages: r.fantasy_cleared_stages !== null && r.fantasy_cleared_stages !== undefined ? Number(r.fantasy_cleared_stages) : 0,
   })) as unknown as RankingEntry[];
 }
 
