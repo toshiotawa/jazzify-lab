@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft, FaAward, FaMusic } from 'react-icons/fa';
+import GameHeader from '@/components/ui/GameHeader';
 
 /**
  * メインゲーム画面コンポーネント
@@ -496,47 +497,9 @@ const GameScreen: React.FC = () => {
         overscrollBehavior: 'none'
       }}
     >
-      {/* ヘッダー */}
+            {/* ヘッダー */}
       {settings.showHeader && (
-        <header
-          className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]"
-        >
-          <div className="flex justify-between items-center">
-            {/* 左側ナビゲーション */}
-            <div className="flex items-center space-x-2 overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
-              {/* トップ (ダッシュボード) */}
-              <button
-                className="text-white hover:text-primary-400 font-bold px-2"
-                onClick={() => { window.location.href = '/main#dashboard'; }}
-              >
-                トップ
-              </button>
-
-              {/* 曲選択タブ */}
-              {!(useAuthStore.getState().profile?.rank === 'standard_global') && (
-                <TabButton
-                  active={window.location.hash === '#songs'}
-                  onClick={() => {
-                    gameActions.setCurrentTab('songs');
-                    window.location.hash = '#songs';
-                  }}
-                >
-                  曲選択
-                </TabButton>
-              )}
-
-              {!(useAuthStore.getState().profile?.rank === 'standard_global') && <HashButton hash="#lessons">レッスン</HashButton>}
-              {!(useAuthStore.getState().profile?.rank === 'free') && <HashButton hash="#fantasy">ファンタジー</HashButton>}
-              <HashButton hash="#ranking">ランキング</HashButton>
-              {!(useAuthStore.getState().profile?.rank === 'standard_global') && <HashButton hash="#missions">ミッション</HashButton>}
-              {!(useAuthStore.getState().profile?.rank === 'standard_global') && <HashButton hash="#diary">日記</HashButton>}
-              <HashButton hash="#information">お知らせ</HashButton>
-            </div>
-
-            {/* 右側のコントロール */}
-            <HeaderRightControls />
-          </div>
-        </header>
+        <GameHeader />
       )}
 
       {/* メインコンテンツエリア */}
