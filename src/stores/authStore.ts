@@ -460,10 +460,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       console.log('🔍 fetchProfile: プロフィール取得開始', { userId: user.id, userEmail: user.email });
       
       try {
-        // 認証系の読み込み表示を統一するためプロファイル取得中も loading をオン
-        set(state => {
-          state.loading = true;
-        });
+
         
         // 明示的タイムアウト（ネットワークハング対策）
         const timeoutMs = 7000;
@@ -540,8 +537,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           state.error = 'プロフィールの取得に失敗しました';
         });
       } finally {
+        // fetchProfile はUI全体のloadingをブロックしない
         set(state => {
-          state.loading = false;
+          // state.loading はここでは触らない
         });
       }
     },
