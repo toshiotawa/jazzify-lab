@@ -609,7 +609,8 @@ const SongSelectionScreen: React.FC = () => {
   const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
   const [sortBy, setSortBy] = React.useState<'artist' | 'title' | 'difficulty'>('artist');
   const [filterBy, setFilterBy] = React.useState<'all' | 'free' | 'premium'>('all');
-
+  const [searchTerm, setSearchTerm] = React.useState('');
+  
   React.useEffect(() => {
     (async () => {
       try {
@@ -675,6 +676,15 @@ const SongSelectionScreen: React.FC = () => {
       });
     }
     
+    // 検索フィルタ
+    if (searchTerm && searchTerm.trim() !== '') {
+      const term = searchTerm.toLowerCase();
+      sorted = sorted.filter(song => (
+        (song.title || '').toLowerCase().includes(term) ||
+        (song.artist || '').toLowerCase().includes(term)
+      ));
+    }
+    
     // ソート
     sorted.sort((a, b) => {
       if (sortBy === 'artist') {
@@ -693,7 +703,7 @@ const SongSelectionScreen: React.FC = () => {
     });
     
     return sorted;
-  }, [dbSongs, sortBy, filterBy]);
+  }, [dbSongs, sortBy, filterBy, searchTerm]);
 
   return (
     <div className="flex-1 p-3 sm:p-6 overflow-auto">
@@ -731,6 +741,17 @@ const SongSelectionScreen: React.FC = () => {
               <option value="free">無料</option>
               <option value="premium">プレミアム</option>
             </select>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <label className="text-sm text-gray-300">検索:</label>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="曲名・アーティスト名で絞り込み"
+              className="input input-sm bg-slate-700 text-white border-slate-600 w-56"
+            />
           </div>
         </div>
         
