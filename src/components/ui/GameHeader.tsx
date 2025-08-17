@@ -37,7 +37,7 @@ const GameHeader: React.FC = () => {
               }}
               disabled={isGuest}
             >
-              曲選択
+              レジェンド
             </HashButton>
           )}
 

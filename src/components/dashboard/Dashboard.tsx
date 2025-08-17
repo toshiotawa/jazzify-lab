@@ -383,7 +383,7 @@ const Dashboard: React.FC = () => {
                 >
                   <div className="flex items-center space-x-3 mb-3">
                     <FaMusic className="w-6 h-6 text-green-400" />
-                    <h3 className="text-lg font-semibold">曲練習</h3>
+                    <h3 className="text-lg font-semibold">レジェンドモード</h3>
                   </div>
                   <p className="text-sm text-gray-400">
                     楽曲を選んで練習を開始
