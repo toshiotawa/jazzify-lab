@@ -1009,6 +1009,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
   }
   
+  useEffect(() => {
+    return () => {
+      try { bgmManager.stop(); } catch {}
+      try { fantasyPixiInstance?.destroy?.(); } catch {}
+    };
+  }, [fantasyPixiInstance]);
+  
   return (
     <div className={cn(
       `${fitAllKeys ? 'h-full' : 'min-h-[var(--dvh,100dvh)]'} bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen`

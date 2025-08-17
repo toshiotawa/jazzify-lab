@@ -364,6 +364,29 @@ export const updateGlobalVolume = (volume: number): void => {
   }
 };
 
+export const shutdownAudioSystem = async (): Promise<void> => {
+  try {
+    const Tone: any = (typeof window !== 'undefined') ? (window as any).Tone : null;
+    if (Tone?.context) {
+      try { await Tone.context.close(); } catch {}
+    }
+  } catch {}
+  try {
+    // グローバル音源を解放
+    if (globalSampler && (globalSampler as any).releaseAll) {
+      try { (globalSampler as any).releaseAll(); } catch {}
+    }
+  } catch {}
+  // 参照をクリア
+  globalSampler = null;
+  globalPiano = null;
+  usingPianoInstrument = false;
+  audioSystemInitialized = false;
+  activeNotes.clear();
+  sustainOn = false;
+  sustainedNotes.clear();
+};
+
 export class MIDIController {
   private readonly onNoteOn: (note: number, velocity?: number) => void;
   private readonly onNoteOff: (note: number) => void;
@@ -705,6 +728,13 @@ export class MIDIController {
   public async destroy(): Promise<void> {
     this.disconnect();
     this.isInitialized = false;
+  }
+
+  /**
+   * グローバル音声を完全停止（画面遷移などで一度リセットしたいときに使用）
+   */
+  public static async destroyAllAudio(): Promise<void> {
+    await shutdownAudioSystem();
   }
 
   /**
