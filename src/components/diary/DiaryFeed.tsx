@@ -152,7 +152,9 @@ const DiaryFeed: React.FC = () => {
       {diaries.map(d => (
         <div key={d.id} className="p-3 sm:p-4 bg-slate-800 rounded-lg">
           <div className="flex items-center mb-2 space-x-2 text-sm text-gray-300">
-            <Avatar url={d.avatar_url} />
+            <button onClick={()=>{window.location.hash=`#diary-user?id=${d.user_id}`;}} className="rounded-full">
+              <Avatar url={d.avatar_url} />
+            </button>
             <div className="flex-1 min-w-0">
               <button
                 onClick={() => {
@@ -271,7 +273,9 @@ const DiaryFeed: React.FC = () => {
                 <div className="absolute right-0 top-full mt-1 z-10 bg-slate-700 p-2 rounded shadow-lg w-52 max-h-60 overflow-y-auto space-y-1 whitespace-nowrap">
                   {likeUsers[d.id]?.map(u=> (
                     <div key={u.user_id} className="flex items-center space-x-2 text-xs text-gray-200">
-                      <Avatar url={u.avatar_url} />
+                      <button onClick={()=>{window.location.hash=`#diary-user?id=${u.user_id}`;}} className="rounded-full">
+                        <Avatar url={u.avatar_url} />
+                      </button>
                       <button
                         onClick={()=>{window.location.hash=`#diary-user?id=${u.user_id}`;}}
                         className="font-semibold truncate hover:text-blue-400 transition-colors"
