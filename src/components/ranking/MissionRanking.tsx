@@ -1,22 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { fetchMissionRanking, MissionRankingEntry } from '@/platform/supabaseRanking';
+import { fetchMissionRanking, MissionRankingEntry, fetchMissionRankingByRpc, fetchUserMissionRank } from '@/platform/supabaseRanking';
 import { useMissionStore } from '@/stores/missionStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { FaArrowLeft, FaTrophy, FaMedal, FaCrown, FaGem, FaStar } from 'react-icons/fa';
+import { FaArrowLeft, FaTrophy, FaMedal, FaCrown, FaGem, FaStar, FaSearch, FaPlus } from 'react-icons/fa';
 import { useAuthStore } from '@/stores/authStore';
 
 const MissionRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#mission-ranking'); // This page will not be reachable for Standard(Global)
   const [entries, setEntries] = useState<MissionRankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { monthly } = useMissionStore();
   const [missionId, setMissionId] = useState<string | null>(null);
   // If needed later, we can add gating like in LevelRanking header.
-  const { profile } = useAuthStore();
+  const { profile, user } = useAuthStore();
   const isStandardGlobal = profile?.rank === 'standard_global';
-
+  const PAGE_SIZE = 50;
+  const [offset, setOffset] = useState(0);
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#mission-ranking');
@@ -30,21 +33,47 @@ const MissionRanking: React.FC = () => {
     }
   }, [open, monthly, missionId]);
 
+  const resetAndLoad = async (mId: string) => {
+    setLoading(true);
+    setError(null);
+    setEntries([]);
+    setHasMore(true);
+    setOffset(0);
+    try {
+      const data = await fetchMissionRanking(mId, PAGE_SIZE, 0);
+      setEntries(data);
+      setOffset(PAGE_SIZE);
+      setHasMore(data.length >= PAGE_SIZE);
+    } catch (err) {
+      console.error('ミッションランキング取得エラー:', err);
+      setError('ランキングデータの取得に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (!missionId || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const data = await fetchMissionRanking(missionId, PAGE_SIZE, offset);
+      setEntries(prev => {
+        const exist = new Set(prev.map(e => e.user_id));
+        return [...prev, ...data.filter(e => !exist.has(e.user_id))];
+      });
+      setOffset(prev => prev + PAGE_SIZE);
+      setHasMore(data.length >= PAGE_SIZE);
+    } catch (err) {
+      console.error('ミッションランキング取得エラー:', err);
+      setError('ランキングデータの取得に失敗しました');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
     if (open && missionId) {
-      (async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          const data = await fetchMissionRanking(missionId);
-          setEntries(data);
-        } catch (err) {
-          console.error('ミッションランキング取得エラー:', err);
-          setError('ランキングデータの取得に失敗しました');
-        } finally {
-          setLoading(false);
-        }
-      })();
+      resetAndLoad(missionId);
     }
   }, [open, missionId]);
 
@@ -95,6 +124,41 @@ const MissionRanking: React.FC = () => {
     }
   };
 
+  const scrollToMyRow = async () => {
+    if (!user || !missionId) return;
+    try {
+      const globalRank = await fetchUserMissionRank(missionId, user.id);
+      if (!globalRank || globalRank <= 0) {
+        const el = document.querySelector(`[data-user-id="${user.id}"]`);
+        if (el && 'scrollIntoView' in el) {
+          (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        alert('あなたの順位を特定できませんでした。ミッションのプレイ履歴が無い可能性があります。');
+        return;
+      }
+      const PAGE_SIZE_NUM = 50;
+      const pageOffset = Math.floor((globalRank - 1) / PAGE_SIZE_NUM) * PAGE_SIZE_NUM;
+      const page = await fetchMissionRankingByRpc(missionId, PAGE_SIZE_NUM, pageOffset);
+      setEntries(prev => {
+        const map = new Map(prev.map(e => [e.user_id, e] as const));
+        page.forEach(e => map.set(e.user_id, e));
+        return Array.from(map.values());
+      });
+      setTimeout(() => {
+        const el = document.querySelector(`[data-user-id="${user.id}"]`);
+        if (el && 'scrollIntoView' in el) {
+          (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          alert('スクロール対象が見つかりませんでした。');
+        }
+      }, 0);
+    } catch (e) {
+      console.error(e);
+      alert('順位の取得に失敗しました。時間をおいて再度お試しください。');
+    }
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
@@ -132,6 +196,23 @@ const MissionRanking: React.FC = () => {
             </div>
           )}
 
+          {/* アクションバー */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+            <button
+              onClick={scrollToMyRow}
+              className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 text-gray-200 hover:bg-slate-600 inline-flex items-center gap-2"
+            >
+              <FaSearch /> 自分を探す
+            </button>
+            <button
+              onClick={loadMore}
+              disabled={!hasMore || loadingMore}
+              className={`px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${!hasMore ? 'bg-slate-800 text-gray-500' : 'bg-primary-600 text-white hover:bg-primary-500'} ${loadingMore ? 'opacity-70' : ''}`}
+            >
+              <FaPlus /> さらに読み込む（50件）
+            </button>
+          </div>
+
           {/* エラー表示 */}
           {error && (
             <div className="mb-6 p-4 bg-red-900/50 border border-red-700 rounded-lg">
@@ -166,7 +247,7 @@ const MissionRanking: React.FC = () => {
                   </thead>
                   <tbody>
                     {entries.map((entry, idx) => (
-                      <tr key={entry.user_id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
+                      <tr key={entry.user_id} data-user-id={entry.user_id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
                         <td className="py-4 px-4">
                           <div className="flex items-center space-x-2">
                             {getRankIcon(idx)}
@@ -200,7 +281,7 @@ const MissionRanking: React.FC = () => {
                               entry.rank === 'premium' ? 'bg-yellow-600 text-white' :
                               entry.rank === 'standard' ? 'bg-blue-600 text-white' :
                               'bg-gray-600 text-white'
-                            }`}>
+                            }` }>
                               {entry.rank.toUpperCase()}
                             </span>
                           </div>
