@@ -24,6 +24,9 @@ interface FantasyUserProgress {
   currentStageNumber: string;
   wizardRank: string;
   totalClearedStages: number;
+  // 追加: Tier別現在地
+  currentStageNumberBasic?: string;
+  currentStageNumberAdvanced?: string;
 }
 
 interface FantasyStageClear {
@@ -177,6 +180,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           .insert({
             user_id: userId,
             current_stage_number: '1-1',
+            current_stage_number_basic: '1-1',
+            current_stage_number_advanced: '1-1',
             wizard_rank: 'F',
             total_cleared_stages: 0
           })
@@ -232,7 +237,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         userId: userProgressData.user_id,
         currentStageNumber: userProgressData.current_stage_number,
         wizardRank: userProgressData.wizard_rank,
-        totalClearedStages: userProgressData.total_cleared_stages
+        totalClearedStages: userProgressData.total_cleared_stages,
+        currentStageNumberBasic: userProgressData.current_stage_number_basic,
+        currentStageNumberAdvanced: userProgressData.current_stage_number_advanced,
       };
       
       const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: any) => ({
@@ -288,13 +295,16 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       if (isFreeOrGuest) setSelectedRank('1');
       return;
     }
-    // Basic/Advancedともに数値ランク（1,2,3...）運用。現在地のランクを開く
-    if (userProgress.currentStageNumber) {
-      const currentRank = userProgress.currentStageNumber.split('-')[0];
+    // Basic/Advancedともに数値ランク（1,2,3...）運用。選択Tierの現在地ランクを開く
+    const currentStageForTier = selectedTier === 'advanced'
+      ? (userProgress.currentStageNumberAdvanced || userProgress.currentStageNumber)
+      : (userProgress.currentStageNumberBasic || userProgress.currentStageNumber);
+    if (currentStageForTier) {
+      const currentRank = currentStageForTier.split('-')[0];
       setSelectedRank(currentRank);
       devLog.debug('🎮 現在のランクを設定:', currentRank);
     }
-  }, [userProgress, isFreeOrGuest]);
+  }, [userProgress, isFreeOrGuest, selectedTier]);
   
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
@@ -313,7 +323,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     if (cleared) return true;
 
     /* 2) progress に記録されている現在地より前ならアンロック（数値ランクのみ） */
-    const [currR, currS] = userProgress.currentStageNumber.split('-').map(Number);
+    const currentStageForTier = selectedTier === 'advanced'
+      ? (userProgress.currentStageNumberAdvanced || userProgress.currentStageNumber)
+      : (userProgress.currentStageNumberBasic || userProgress.currentStageNumber);
+    const [currR, currS] = (currentStageForTier || '1-1').split('-').map(Number);
     const [r, s] = stage.stageNumber.split('-').map(Number);
     if (isNaN(r) || isNaN(s) || isNaN(currR) || isNaN(currS)) {
       return false;
@@ -322,7 +335,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     if (r === currR && s <= currS) return true;
 
     return false;
-  }, [userProgress, stageClears, isFreeOrGuest]);
+  }, [userProgress, stageClears, isFreeOrGuest, selectedTier]);
   
   // ステージのクリア状況を取得
   const getStageClearInfo = useCallback((stage: FantasyStage) => {
@@ -521,7 +534,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             <div className="flex items-center space-x-4 sm:space-x-6 text-base sm:text-lg">
               {(stages.some(s => (s as any).tier === selectedTier)) && (
                 <div>
-                  現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber || '1-1'}</span> <span className="ml-2 text-xs opacity-80">({selectedTier === 'advanced' ? 'Advanced' : 'Basic'})</span>
+                  現在地: <span className="text-blue-300 font-bold">
+                    {selectedTier === 'advanced'
+                      ? (userProgress?.currentStageNumberAdvanced || userProgress?.currentStageNumber || '1-1')
+                      : (userProgress?.currentStageNumberBasic || userProgress?.currentStageNumber || '1-1')}
+                  </span>
+                  <span className="ml-2 text-xs opacity-80">({selectedTier === 'advanced' ? 'Advanced' : 'Basic'})</span>
                 </div>
               )}
             </div>

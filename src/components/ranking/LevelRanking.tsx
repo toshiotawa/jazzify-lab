@@ -305,7 +305,7 @@ const LevelRanking: React.FC = () => {
                 <th className="py-3 px-2 min-w-[3rem]">Lv</th>
                 {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">レッスン</th>}
                 {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">ミッション</th>}
-                <th className="py-3 px-2 min-w-[4rem]">F クリア</th>
+                <th className="py-3 px-2 min-w-[4rem]">ファンタジー</th>
                 {!isStandardGlobal && <th className="py-3 px-2 min-w-[5rem] sm:min-w-[4rem]">ランク</th>}
                 <th className="py-3 px-2 min-w-[8rem] sm:min-w-[6rem]">Twitter</th>
               </tr>
