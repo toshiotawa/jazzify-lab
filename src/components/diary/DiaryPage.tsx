@@ -210,17 +210,6 @@ const DiaryPage: React.FC = () => {
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4">
         <div className="fixed inset-0 z-40 flex flex-col bg-slate-900 text-white">
-          {/* ヘッダー */}
-          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-700">
-            <button
-              onClick={handleClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-              aria-label="戻る"
-            >
-              <FaArrowLeft />
-            </button>
-            <div className="w-8" /> {/* スペーサー */}
-          </div>
 
           {/* コンテンツエリア - プロフィールと日記を一緒にスクロール */}
           <div className="flex-1 overflow-y-auto">

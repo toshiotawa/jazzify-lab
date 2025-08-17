@@ -381,17 +381,6 @@ const LessonPage: React.FC = () => {
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4">
         <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col">
-          {/* ヘッダー */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-700">
-            <button
-              onClick={handleClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-              aria-label="戻る"
-            >
-              <FaArrowLeft />
-            </button>
-            <div className="w-8" /> {/* スペーサー */}
-          </div>
 
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
