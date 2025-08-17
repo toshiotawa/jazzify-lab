@@ -165,10 +165,10 @@ const LPFantasyDemo: React.FC = () => {
   }, [closeDemo]);
 
   return (
-    <section className="py-10">
+    <section className="py-10" data-animate="slide-right">
       <div className="container mx-auto px-6">
-        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-8 section-title flex items-center justify-center gap-4"><img src="/stage_icons/9.png" alt="デモプレイ" className="w-16 h-16" />デモプレイ</h2>
-        <div className="rounded-2xl border border-purple-500/30 bg-slate-900/60 shadow-xl overflow-hidden">
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-8 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline"><img src="/stage_icons/9.png" alt="デモプレイ" className="w-16 h-16" />デモプレイ</h2>
+        <div className="rounded-2xl border border-purple-500/30 bg-slate-900/60 shadow-xl overflow-hidden" data-animate="slide-right text-up">
           <div className="grid md:grid-cols-2 gap-0">
             {/* Visual (iPhone風フレーム: 中はピアノのみ) */}
             <div className={`iphone-frame ${useLandscapeFrame ? 'iphone-landscape' : 'iphone-portrait'} mx-auto`}>
@@ -194,7 +194,7 @@ const LPFantasyDemo: React.FC = () => {
             </div>
 
             {/* 右カラム: ステージ選択 + 開始ボタン + MIDI選択 */}
-            <div className="p-4 md:p-6 flex flex-col justify-center gap-4">
+            <div className="p-4 md:p-6 flex flex-col justify-center gap-4" data-animate="text-up">
               {/* ステージ選択 */}
               <div>
                 <div className="text-sm text-purple-200 font-semibold mb-2">ステージ選択</div>
