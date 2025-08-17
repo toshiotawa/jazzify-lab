@@ -168,3 +168,30 @@ export async function fetchUserMissionRank(missionId: string, userId: string): P
   if (error) throw error;
   return (data as number | null) ?? null;
 }
+
+export async function fetchLessonRankingByRpc(limit = 50, offset = 0): Promise<RankingEntry[]> {
+  const { data, error } = await getSupabaseClient()
+    .rpc('rpc_get_lesson_ranking', { limit_count: limit, offset_count: offset });
+  if (error) throw error;
+  const rows = (data ?? []) as any[];
+  return rows.map((r) => ({
+    id: r.id,
+    nickname: r.nickname,
+    level: r.level,
+    xp: Number(r.xp),
+    rank: r.rank,
+    lessons_cleared: r.lessons_cleared ?? 0,
+    missions_completed: r.missions_completed ?? 0,
+    avatar_url: r.avatar_url ?? undefined,
+    twitter_handle: r.twitter_handle ?? undefined,
+    selected_title: r.selected_title ?? undefined,
+    fantasy_current_stage: r.fantasy_current_stage !== null && r.fantasy_current_stage !== undefined ? String(r.fantasy_current_stage) : undefined,
+  })) as unknown as RankingEntry[];
+}
+
+export async function fetchUserLessonRank(userId: string): Promise<number | null> {
+  const { data, error } = await getSupabaseClient()
+    .rpc('rpc_get_user_lesson_rank', { target_user_id: userId });
+  if (error) throw error;
+  return (data as number | null) ?? null;
+}

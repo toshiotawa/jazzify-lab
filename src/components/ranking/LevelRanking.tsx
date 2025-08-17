@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchLevelRanking, RankingEntry, fetchLevelRankingByView, fetchUserGlobalRank } from '@/platform/supabaseRanking';
+import { fetchLevelRanking, RankingEntry, fetchLevelRankingByView, fetchUserGlobalRank, fetchLessonRankingByRpc, fetchUserLessonRank } from '@/platform/supabaseRanking';
 import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
@@ -109,38 +109,37 @@ const LevelRanking: React.FC = () => {
   const scrollToMyRow = async () => {
     if (!user) return;
 
-    // 1) RPCで自分の全体順位を取得
     try {
-      const globalRank = await fetchUserGlobalRank(user.id);
-      if (!globalRank || globalRank <= 0) {
-        // 既存の読み込み範囲にあるかを試しにスクロール
-        const el = document.querySelector(`[data-user-id="${user.id}"]`);
-        if (el && 'scrollIntoView' in el) {
-          (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
-          return;
-        }
-        alert('あなたの順位を特定できませんでした。もう一度お試しください。');
-        return;
+      const PAGE_SIZE_NUM = 50;
+
+      if (sortKey === 'lessons' && !isStandardGlobal) {
+        // レッスン数ベースの順位でページジャンプ
+        const lessonRank = await fetchUserLessonRank(user.id);
+        if (!lessonRank || lessonRank <= 0) throw new Error('rank not found');
+        const pageOffset = Math.floor((lessonRank - 1) / PAGE_SIZE_NUM) * PAGE_SIZE_NUM;
+        const page = await fetchLessonRankingByRpc(PAGE_SIZE_NUM, pageOffset);
+        const adjusted = page; // レッスン列はnon-standardのみ表示なのでそのまま
+        setEntries(prev => {
+          const map = new Map(prev.map(e => [e.id, e] as const));
+          adjusted.forEach(e => map.set(e.id, e));
+          return sortEntries(Array.from(map.values()), sortKey);
+        });
+      } else {
+        // レベルベースの順位でページジャンプ
+        const globalRank = await fetchUserGlobalRank(user.id);
+        if (!globalRank || globalRank <= 0) throw new Error('rank not found');
+        const pageOffset = Math.floor((globalRank - 1) / PAGE_SIZE_NUM) * PAGE_SIZE_NUM;
+        const page = await fetchLevelRankingByView(PAGE_SIZE_NUM, pageOffset);
+        const adjusted = isStandardGlobal
+          ? page.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
+          : page;
+        setEntries(prev => {
+          const exist = new Map(prev.map(e => [e.id, e] as const));
+          adjusted.forEach(e => exist.set(e.id, e));
+          return sortEntries(Array.from(exist.values()), sortKey);
+        });
       }
 
-      // 2) 対象ページのoffsetを算出（50件単位）
-      const PAGE_SIZE_NUM = 50;
-      const pageOffset = Math.floor((globalRank - 1) / PAGE_SIZE_NUM) * PAGE_SIZE_NUM;
-
-      // 3) 対象ページをRPCで一発取得
-      const page = await fetchLevelRankingByView(PAGE_SIZE_NUM, pageOffset);
-      const adjusted = isStandardGlobal
-        ? page.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
-        : page;
-
-      // 4) 現在のentriesにマージして再ソート
-      setEntries(prev => {
-        const exist = new Map(prev.map(e => [e.id, e] as const));
-        adjusted.forEach(e => exist.set(e.id, e));
-        return sortEntries(Array.from(exist.values()), sortKey);
-      });
-
-      // 5) スクロール
       setTimeout(() => {
         const el = document.querySelector(`[data-user-id="${user.id}"]`);
         if (el && 'scrollIntoView' in el) {
