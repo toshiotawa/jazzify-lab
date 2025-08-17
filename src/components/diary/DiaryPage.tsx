@@ -371,8 +371,10 @@ const DiaryPage: React.FC = () => {
                             <div className="absolute right-4 top-12 bg-slate-700 rounded shadow-lg p-2 w-52 max-h-60 overflow-y-auto space-y-1 z-20 whitespace-nowrap">
                               {likeUsers[diary.id].map(u=>(
                                 <div key={u.user_id} className="flex items-center space-x-2 text-xs text-gray-200">
-                                  <img src={u.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
-                                  <span className="truncate">{u.nickname}</span>
+                                  <button onClick={()=>{window.location.href=`/main#diary-user?id=${u.user_id}`;}}>
+                                    <img src={u.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
+                                  </button>
+                                  <button className="truncate hover:text-blue-400" onClick={()=>{window.location.href=`/main#diary-user?id=${u.user_id}`;}}>{u.nickname}</button>
                                   <span className="text-yellow-400">Lv.{u.level}</span>
                                   <div className="flex items-center space-x-1">
                                     {getRankIcon(u.rank)}
