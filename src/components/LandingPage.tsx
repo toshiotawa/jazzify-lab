@@ -718,6 +718,7 @@ const LandingPage: React.FC = () => {
                   <li><Link to="/contact" className="hover:text-purple-400 transition">お問い合わせ</Link></li>
                   <li><Link to="/terms" className="hover:text-purple-400 transition">利用規約</Link></li>
                   <li><Link to="/privacy" className="hover:text-purple-400 transition">プライバシーポリシー</Link></li>
+                  <li><Link to="/legal/tokushoho" className="hover:text-purple-400 transition">特定商取引法に基づく表記</Link></li>
                 </ul>
               </div>
 
