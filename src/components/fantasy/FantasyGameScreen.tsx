@@ -133,7 +133,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []);
   
-  // Ready 終了時に BGM 再生
+  // Ready 終了時に BGM 再生（ゲームSEはFSMが担当、鍵盤はマウス時のみローカル再生）
   useEffect(() => {
     if (!isReady) {
       bgmManager.play(
@@ -144,6 +144,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.countInMeasures ?? 0,
         settings.bgmVolume ?? 0.7
       );
+      // ★ デモプレイ開始時にフル音源へアップグレード（軽量→@tonejs/piano）
+      (async () => {
+        try {
+          const { upgradeAudioSystemToFull } = await import('@/utils/MidiController');
+          await upgradeAudioSystemToFull();
+        } catch {}
+      })();
     }
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume]);
@@ -496,10 +503,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
     try {
-      const { playNote } = await import('@/utils/MidiController');
-      await playNote(note, 64); // velocity 下げる
-      activeNotesRef.current.add(note);
-      devLog.debug('🎵 Played note via click:', note);
+      if (source === 'mouse') {
+        const { playNote } = await import('@/utils/MidiController');
+        await playNote(note, 64); // velocity 下げる
+        activeNotesRef.current.add(note);
+        devLog.debug('🎵 Played note via click:', note);
+      }
     } catch (error) {
       console.error('Failed to play note:', error);
     }

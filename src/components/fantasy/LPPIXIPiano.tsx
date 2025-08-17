@@ -19,6 +19,8 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
   const [canvasWidth, setCanvasWidth] = useState<number>(() => 52 * targetWhiteKeyWidth); // 88鍵の白鍵は52
   const [rendererReady, setRendererReady] = useState<any>(null);
   const midiControllerRef = useRef<MIDIController | null>(null);
+  const [audioReady, setAudioReady] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(true);
 
   const hasUserScrolledRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
@@ -33,6 +35,10 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
       const deviceW = el.clientWidth || 360;
       const whiteKeyWidth = Math.max(28, Math.min(targetWhiteKeyWidth, Math.floor(deviceW / 10))); // 目標: 一度に10白鍵前後表示
       setCanvasWidth(52 * whiteKeyWidth);
+      // レイアウト確定後にセンタリングを再試行（未スクロール時のみ）
+      if (!hasUserScrolledRef.current) {
+        requestAnimationFrame(() => centerToC4());
+      }
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -64,9 +70,13 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     if (!hasUserScrolledRef.current) {
       const r1 = requestAnimationFrame(() => centerToC4());
       const r2 = requestAnimationFrame(() => centerToC4()); // iOS対策で二重
-      return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); };
+      const t1 = setTimeout(centerToC4, 120);
+      const t2 = setTimeout(centerToC4, 300);
+      const t3 = setTimeout(centerToC4, 500);
+      const t4 = setTimeout(centerToC4, 900);
+      return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
     }
-  }, [centerToC4, canvasWidth]);
+  }, [canvasWidth]);
 
   // スクロールでユーザー操作を検知
   useEffect(() => {
@@ -87,13 +97,21 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
 
     renderer.setKeyCallbacks(
       (note: number) => {
+        if (!audioReady) return; // 読み込みが終わるまで鳴らさない
         playNote(note, 64);
       },
       (note: number) => {
+        if (!audioReady) return;
         stopNote(note);
       }
     );
-  }, []);
+
+    // PIXI 初期化後にもセンタリングを複数回試行
+    requestAnimationFrame(centerToC4);
+    setTimeout(centerToC4, 120);
+    setTimeout(centerToC4, 300);
+    setTimeout(centerToC4, 500);
+  }, [audioReady]);
 
   // MIDIの初期化とキーのハイライト連携
   useEffect(() => {
@@ -104,7 +122,9 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
       onNoteOff: (note: number) => {
         if (rendererReady) rendererReady.highlightKey?.(note, false);
       },
-      playMidiSound: true
+      playMidiSound: true,
+      // LPデモ用: 軽量音源モードを有効化
+      ...( { lightAudio: true } as any )
     });
     midiControllerRef.current = controller;
 
@@ -132,16 +152,51 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     })();
   }, [midiDeviceId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    // 音声システムを先に初期化（軽量）してから鍵盤の操作を許可
+    (async () => {
+      try {
+        const { initializeAudioSystem } = await import('@/utils/MidiController');
+        await initializeAudioSystem({ light: true });
+        if (!cancelled) setAudioReady(true);
+      } catch {
+        if (!cancelled) setAudioReady(false);
+      }
+
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div
       ref={scrollWrapRef}
-      className="w-full"
+      className="w-full relative"
       style={{
         overflowX: 'auto',
         WebkitOverflowScrolling: 'touch',
         touchAction: 'pan-x'
       }}
     >
+      {/* クリック誘導のテキストのみ（右下） */}
+      {showPrompt && (
+        <button
+          type="button"
+          onClick={async () => {
+            try { await (window as any).Tone?.start?.(); } catch {}
+            try {
+              const { initializeAudioSystem } = await import('@/utils/MidiController');
+              await initializeAudioSystem({ light: true });
+            } catch {}
+            setShowPrompt(false);
+            setAudioReady(true);
+          }}
+          className="absolute bottom-2 right-2 z-10 px-2 py-1 text-[11px] text-white/80 bg-transparent hover:text-white"
+        >
+          タップして音声を有効化
+        </button>
+      )}
+
       <Suspense fallback={<div className="text-center text-gray-300 text-sm">PIXIを読み込み中...</div>}>
         <LazyPIXINotes
           activeNotes={[]}
