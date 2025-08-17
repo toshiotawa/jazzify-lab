@@ -191,8 +191,11 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
             setShowPrompt(false);
             setAudioReady(true);
           }}
-          className="absolute bottom-2 right-2 z-10 px-2 py-1 text-[11px] text-white/80 bg-transparent hover:text-white"
+          className="absolute bottom-3 right-3 z-20 px-3 py-2 text-white text-[13px] md:text-sm bg-black/60 backdrop-blur-sm rounded-full shadow-lg ring-1 ring-white/20 hover:bg-black/70 hover:ring-white/30 transition pointer-events-auto select-none font-medium flex items-center gap-1.5 animate-pulse"
+          aria-label="音声を有効化"
+          title="音声を有効化"
         >
+          <span className="inline-block">🔊</span>
           タップして音声を有効化
         </button>
       )}
