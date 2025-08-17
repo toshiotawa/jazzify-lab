@@ -168,45 +168,58 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     return () => { cancelled = true; };
   }, []);
 
-  return (
-    <div
-      ref={scrollWrapRef}
-      className="w-full relative"
-      style={{
-        overflowX: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        touchAction: 'pan-x'
-      }}
-    >
-      {/* クリック誘導のテキストのみ（右下） */}
-      {showPrompt && (
-        <button
-          type="button"
-          onClick={async () => {
-            try { await (window as any).Tone?.start?.(); } catch {}
-            try {
-              const { initializeAudioSystem } = await import('@/utils/MidiController');
-              await initializeAudioSystem({ light: true });
-            } catch {}
-            setShowPrompt(false);
-            setAudioReady(true);
-          }}
-          className="absolute bottom-2 right-2 z-10 px-2 py-1 text-[11px] text-white/80 bg-transparent hover:text-white"
-        >
-          タップして音声を有効化
-        </button>
-      )}
+  const handleUserActivate = useCallback(async () => {
+    try { await (window as any).Tone?.start?.(); } catch {}
+    try {
+      const { initializeAudioSystem } = await import('@/utils/MidiController');
+      await initializeAudioSystem({ light: true });
+    } catch {}
+    setShowPrompt(false);
+    setAudioReady(true);
+  }, []);
 
-      <Suspense fallback={<div className="text-center text-gray-300 text-sm">PIXIを読み込み中...</div>}>
-        <LazyPIXINotes
-          activeNotes={[]}
-          width={canvasWidth}
-          height={height}
-          currentTime={0}
-          onReady={handleRendererReady}
-          className="min-w-full"
-        />
-      </Suspense>
+  return (
+    <div className="w-full relative">
+      <div
+        ref={scrollWrapRef}
+        className="w-full"
+        style={{
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-x'
+        }}
+      >
+        <Suspense fallback={<div className="text-center text-gray-300 text-sm">PIXIを読み込み中...</div>}>
+          <LazyPIXINotes
+            activeNotes={[]}
+            width={canvasWidth}
+            height={height}
+            currentTime={0}
+            onReady={handleRendererReady}
+            className="min-w-full"
+          />
+        </Suspense>
+      </div>
+
+      {showPrompt && (
+        <>
+          <button
+            type="button"
+            onClick={handleUserActivate}
+            className="absolute right-3 bottom-24 z-40 px-3 py-2 text-white text-[13px] md:text-sm bg-black/60 backdrop-blur-sm rounded-full shadow-lg ring-1 ring-white/20 hover:bg-black/70 hover:ring-white/30 transition pointer-events-auto select-none font-medium flex items-center gap-1.5 animate-pulse"
+            aria-label="音声を有効化"
+            title="音声を有効化"
+          >
+            <span className="inline-block">🔊</span>
+            タップして音声を有効化
+          </button>
+          <div
+            className="absolute inset-0 z-30 cursor-pointer"
+            onPointerDown={handleUserActivate}
+            aria-hidden="true"
+          />
+        </>
+      )}
     </div>
   );
 };
