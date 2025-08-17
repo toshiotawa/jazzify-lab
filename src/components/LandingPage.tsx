@@ -118,7 +118,7 @@ const LandingPage: React.FC = () => {
       </Helmet>
 
       {/* Local scroll container */}
-      <div className="relative flex-1 overflow-y-auto" ref={scrollRef}>
+      <div className="relative flex-1 overflow-y-auto overflow-x-hidden" ref={scrollRef}>
         {/* Header/Navigation */}
         <nav className="fixed top-0 left-0 right-0 w-full bg-slate-900 bg-opacity-90 backdrop-blur-md z-50 border-b border-purple-500 border-opacity-30">
           <div className="container mx-auto px-6 py-2 md:py-4">
@@ -140,7 +140,7 @@ const LandingPage: React.FC = () => {
         </nav>
 
         {/* Hero Section */}
-        <section className="hero-bg min-h-screen pt-16 sm:pt-20 flex items-center">
+        <section className="hero-bg min-h-screen pt-16 sm:pt-20 flex items-center overflow-x-hidden">
           <div className="container mx-auto px-6">
             <div className="firstview-layout items-center">
               <div className="w-full md:w-1/2">
@@ -152,8 +152,16 @@ const LandingPage: React.FC = () => {
                     text="練習を冒険に。"
                     className="text-4xl sm:text-5xl md:text-7xl font-black mb-4 section-title"
                     dataAnimate="from-behind heading-underline"
+                    speedMsPerChar={110}
+                    delayMs={100}
                   />
-                  <p className="text-lg sm:text-xl md:text-2xl text-purple-200 mb-8" data-animate="text-up">あなたの演奏、今日からジャズ化。</p>
+                  <TypewriterText
+                    text="あなたの演奏、今日からジャズ化。"
+                    className="text-lg sm:text-xl md:text-2xl text-purple-200 mb-8"
+                    dataAnimate="from-behind"
+                    speedMsPerChar={120}
+                    delayMs={1000}
+                  />
                 </div>
                 <div className="text-center md:text-left">
                   <Link
