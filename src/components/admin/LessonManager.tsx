@@ -10,8 +10,8 @@ import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClien
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical, FaDragon } from 'react-icons/fa';
 import { FantasyStageSelector } from './FantasyStageSelector';
-import { uploadLessonVideo, uploadLessonAttachment, deleteLessonAttachmentByKey } from '@/platform/r2Storage';
-import { addLessonVideoR2, fetchLessonAttachments, addLessonAttachment as insertLessonAttachment, deleteLessonAttachment as removeLessonAttachment } from '@/platform/supabaseLessonContent';
+import { uploadLessonVideo, uploadLessonAttachment, deleteLessonAttachmentByKey, deleteLessonVideoByKey } from '@/platform/r2Storage';
+import { addLessonVideoR2, fetchLessonAttachments, addLessonAttachment as insertLessonAttachment, deleteLessonAttachment as removeLessonAttachment, fetchLessonVideos, deleteLessonVideoRecord, LessonVideo } from '@/platform/supabaseLessonContent';
 
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number'>;
 
@@ -41,6 +41,7 @@ export const LessonManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSorting, setIsSorting] = useState(false);
   const [attachmentsByLesson, setAttachmentsByLesson] = useState<Record<string, any[]>>({});
+  const [videosByLesson, setVideosByLesson] = useState<Record<string, LessonVideo[]>>({});
   const videoInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
 
@@ -111,6 +112,8 @@ export const LessonManager: React.FC = () => {
     try {
       const attachments = await fetchLessonAttachments(lessonId);
       setAttachmentsByLesson(prev => ({ ...prev, [lessonId]: attachments }));
+      const videos = await fetchLessonVideos(lessonId);
+      setVideosByLesson(prev => ({ ...prev, [lessonId]: videos }));
     } catch (e) {
       console.error('Failed to load attachments:', e);
     }
@@ -665,7 +668,7 @@ export const LessonManager: React.FC = () => {
                                     await addLessonVideoR2(lesson.id, { url: uploaded.url, r2_key: uploaded.key, content_type: uploaded.contentType });
                                     toast.success('動画をアップロードしました');
                                     invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
-                                    setTimeout(() => loadLessons(true), 500);
+                                    await loadLessonExtras(lesson.id);
                                   } catch (e) {
                                     toast.error('動画のアップロードに失敗しました');
                                     console.error(e);
@@ -676,6 +679,38 @@ export const LessonManager: React.FC = () => {
                               >アップロード</button>
                             </div>
                             <p className="text-xs text-gray-400">対応: mp4 / mov / webm / m4v, 最大200MB</p>
+                            <div className="mt-3 space-y-2">
+                              {(videosByLesson[lesson.id] || []).map(v => (
+                                <div key={v.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                  <div className="text-sm">
+                                    { (v as any).video_url ? (
+                                      <a href={(v as any).video_url} target="_blank" rel="noreferrer" className="underline">R2動画</a>
+                                    ) : (
+                                      <span className="text-gray-300">Bunny/外部動画</span>
+                                    )}
+                                    <span className="text-xs text-gray-400 ml-2">順序: {v.order_index ?? 0}</span>
+                                  </div>
+                                  <button
+                                    className="btn btn-ghost btn-xs text-red-500"
+                                    onClick={async () => {
+                                      if (!window.confirm('この動画を削除しますか？（R2にある場合はファイルも削除）')) return;
+                                      try {
+                                        await deleteLessonVideoRecord(v.id);
+                                        if ((v as any).r2_key) {
+                                          try { await deleteLessonVideoByKey((v as any).r2_key); } catch {}
+                                        }
+                                        toast.success('動画を削除しました');
+                                        await loadLessonExtras(lesson.id);
+                                      } catch (e) {
+                                        toast.error('動画の削除に失敗しました');
+                                        console.error(e);
+                                      }
+                                    }}
+                                  >削除</button>
+                                </div>
+                              ))}
+                              <button className="btn btn-ghost btn-xs" onClick={() => loadLessonExtras(lesson.id)}>再読み込み</button>
+                            </div>
                           </div>
 
                           <div>
