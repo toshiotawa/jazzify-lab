@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchLessonById } from '@/platform/supabaseLessons';
-import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement } from '@/platform/supabaseLessonContent';
+import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments } from '@/platform/supabaseLessonContent';
 import { updateLessonProgress, fetchUserLessonProgress, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
 import { 
   fetchDetailedRequirementsProgress, 
@@ -54,6 +54,7 @@ const LessonDetailPage: React.FC = () => {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
+  const [attachments, setAttachments] = useState<Array<{ id: string; file_name: string; url: string; content_type?: string; size?: number }>>([]);
 
   const { profile } = useAuthStore();
   const toast = useToast();
@@ -103,14 +104,16 @@ const LessonDetailPage: React.FC = () => {
     
     try {
       // レッスン情報、動画、進捗を並行取得
-      const [lessonData, videosData, progressData] = await Promise.all([
+      const [lessonData, videosData, progressData, attachmentsData] = await Promise.all([
         fetchLessonById(targetLessonId),
         fetchLessonVideos(targetLessonId),
-        fetchDetailedRequirementsProgress(targetLessonId)
+        fetchDetailedRequirementsProgress(targetLessonId),
+        fetchLessonAttachments(targetLessonId)
       ]);
 
       setLesson(lessonData);
       setVideos(videosData);
+      setAttachments(attachmentsData || []);
       
       // lesson_songsをrequirementsとして設定（後方互換性のため）
       if (lessonData?.lesson_songs) {
@@ -268,6 +271,28 @@ const LessonDetailPage: React.FC = () => {
     return `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${vimeoUrl}?autoplay=false`;
   };
 
+  const renderVideoPlayer = (video: LessonVideo) => {
+    // 拡張カラム経由の直リンク再生が可能なら<video>タグ、そうでなければ従来の埋め込み
+    const anyVideo = video as any;
+    if (anyVideo.video_url) {
+      return (
+        <video className="w-full h-full" controls preload="metadata">
+          <source src={anyVideo.video_url} type={anyVideo.content_type || 'video/mp4'} />
+        </video>
+      );
+    }
+    return (
+      <iframe
+        src={getBunnyEmbedUrl(video.vimeo_url)}
+        className="w-full h-full"
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+        title={`レッスン動画`}
+      />
+    );
+  };
+
   if (!open) return null;
 
   return createPortal(
@@ -352,14 +377,7 @@ const LessonDetailPage: React.FC = () => {
               <div className="bg-slate-800 rounded-lg overflow-hidden">
                 {/* ビデオプレイヤー */}
                 <div className="aspect-video bg-black">
-                  <iframe
-                    src={getBunnyEmbedUrl(videos[currentVideoIndex].vimeo_url)}
-                    className="w-full h-full"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    title={`レッスン動画 ${currentVideoIndex + 1}`}
-                  />
+                  {renderVideoPlayer(videos[currentVideoIndex])}
                 </div>
 
                 {/* ビデオ情報 */}
@@ -662,6 +680,26 @@ const LessonDetailPage: React.FC = () => {
               <div className="bg-slate-800 rounded-lg p-6">
                 <h3 className="text-lg font-semibold mb-4">課題説明</h3>
                 <p className="text-gray-300">{lesson.assignment_description}</p>
+              </div>
+            )}
+
+            {/* 添付ファイルセクション */}
+            {attachments.length > 0 && (
+              <div className="bg-slate-800 rounded-lg p-6">
+                <h3 className="text-lg font-semibold mb-4">添付ファイル</h3>
+                <ul className="space-y-2">
+                  {attachments.map(att => (
+                    <li key={att.id} className="flex items-center justify-between bg-slate-700 p-3 rounded">
+                      <a href={att.url} target="_blank" rel="noreferrer" className="underline">
+                        {att.file_name}
+                      </a>
+                      <span className="text-xs text-gray-400">
+                        {att.content_type || ''}
+                        {att.size ? ` · ${(att.size / (1024 * 1024)).toFixed(1)}MB` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

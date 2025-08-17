@@ -10,6 +10,8 @@ import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClien
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical, FaDragon } from 'react-icons/fa';
 import { FantasyStageSelector } from './FantasyStageSelector';
+import { uploadLessonVideo, uploadLessonAttachment, deleteLessonAttachmentByKey } from '@/platform/r2Storage';
+import { addLessonVideoR2, fetchLessonAttachments, addLessonAttachment as insertLessonAttachment, deleteLessonAttachment as removeLessonAttachment } from '@/platform/supabaseLessonContent';
 
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number'>;
 
@@ -38,6 +40,9 @@ export const LessonManager: React.FC = () => {
   const [lessonsLoading, setLessonsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSorting, setIsSorting] = useState(false);
+  const [attachmentsByLesson, setAttachmentsByLesson] = useState<Record<string, any[]>>({});
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   const toast = useToast();
   const { register, handleSubmit, reset, setValue } = useForm<LessonFormData>();
@@ -99,6 +104,15 @@ export const LessonManager: React.FC = () => {
       console.error('Error loading lessons:', error);
     } finally {
       setLessonsLoading(false);
+    }
+  };
+
+  const loadLessonExtras = async (lessonId: string) => {
+    try {
+      const attachments = await fetchLessonAttachments(lessonId);
+      setAttachmentsByLesson(prev => ({ ...prev, [lessonId]: attachments }));
+    } catch (e) {
+      console.error('Failed to load attachments:', e);
     }
   };
 
@@ -366,6 +380,7 @@ export const LessonManager: React.FC = () => {
   };
 
   const toggleExpand = (lessonId: string) => {
+    const willExpand = !expandedLessons.has(lessonId);
     setExpandedLessons(prev => {
       const newSet = new Set(prev);
       if (newSet.has(lessonId)) {
@@ -375,6 +390,9 @@ export const LessonManager: React.FC = () => {
       }
       return newSet;
     });
+    if (willExpand) {
+      loadLessonExtras(lessonId);
+    }
   };
 
   const handleClearCache = async () => {
@@ -631,6 +649,96 @@ export const LessonManager: React.FC = () => {
                         ) : (
                           <p className="text-sm text-gray-400">課題が登録されていません。</p>
                         )}
+
+                        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <h5 className="font-semibold mb-2">動画</h5>
+                            <div className="flex items-center gap-2 mb-3">
+                              <input ref={videoInputRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v" className="file-input file-input-bordered file-input-sm" />
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={async () => {
+                                  const file = videoInputRef.current?.files?.[0];
+                                  if (!file) return;
+                                  try {
+                                    const uploaded = await uploadLessonVideo(file, lesson.id);
+                                    await addLessonVideoR2(lesson.id, { url: uploaded.url, r2_key: uploaded.key, content_type: uploaded.contentType });
+                                    toast.success('動画をアップロードしました');
+                                    invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+                                    setTimeout(() => loadLessons(true), 500);
+                                  } catch (e) {
+                                    toast.error('動画のアップロードに失敗しました');
+                                    console.error(e);
+                                  } finally {
+                                    if (videoInputRef.current) videoInputRef.current.value = '';
+                                  }
+                                }}
+                              >アップロード</button>
+                            </div>
+                            <p className="text-xs text-gray-400">対応: mp4 / mov / webm / m4v, 最大200MB</p>
+                          </div>
+
+                          <div>
+                            <h5 className="font-semibold mb-2">添付ファイル</h5>
+                            <div className="flex items-center gap-2 mb-3">
+                              <input ref={attachmentInputRef} type="file" accept="application/pdf,audio/mpeg,audio/wav,audio/mp4" className="file-input file-input-bordered file-input-sm" />
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={async () => {
+                                  const file = attachmentInputRef.current?.files?.[0];
+                                  if (!file) return;
+                                  try {
+                                    const uploaded = await uploadLessonAttachment(file, lesson.id);
+                                    await insertLessonAttachment({
+                                      lesson_id: lesson.id,
+                                      file_name: uploaded.fileName,
+                                      url: uploaded.url,
+                                      r2_key: uploaded.key,
+                                      content_type: uploaded.contentType,
+                                      size: uploaded.size,
+                                    });
+                                    toast.success('添付ファイルを追加しました');
+                                    await loadLessonExtras(lesson.id);
+                                  } catch (e) {
+                                    toast.error('添付ファイルの追加に失敗しました');
+                                    console.error(e);
+                                  } finally {
+                                    if (attachmentInputRef.current) attachmentInputRef.current.value = '';
+                                  }
+                                }}
+                              >追加</button>
+                            </div>
+                            <p className="text-xs text-gray-400">例: PDF, MP3, WAV, M4A, 最大50MB</p>
+                            <div className="mt-3 space-y-2">
+                              {(attachmentsByLesson[lesson.id] || []).map(att => (
+                                <div key={att.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                  <a href={att.url} target="_blank" rel="noreferrer" className="text-sm underline">
+                                    {att.file_name}
+                                  </a>
+                                  <button
+                                    className="btn btn-ghost btn-xs text-red-500"
+                                    onClick={async () => {
+                                      if (!window.confirm('この添付ファイルを削除しますか？')) return;
+                                      try {
+                                        await removeLessonAttachment(att.id);
+                                        await deleteLessonAttachmentByKey(att.r2_key);
+                                        toast.success('添付ファイルを削除しました');
+                                        await loadLessonExtras(lesson.id);
+                                      } catch (e) {
+                                        toast.error('削除に失敗しました');
+                                        console.error(e);
+                                      }
+                                    }}
+                                  >削除</button>
+                                </div>
+                              ))}
+                              <button
+                                className="btn btn-ghost btn-xs"
+                                onClick={() => loadLessonExtras(lesson.id)}
+                              >再読み込み</button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -724,7 +832,7 @@ export const LessonManager: React.FC = () => {
             </div>
             <div>
               <label className="label"><span className="label-text">最低ランク</span></label>
-あ              <select {...registerSong('clear_conditions.rank')} className="select select-bordered w-full" defaultValue="B">
+              <select {...registerSong('clear_conditions.rank')} className="select select-bordered w-full" defaultValue="B">
                 <option value="S">S</option>
                 <option value="A">A</option>
                 <option value="B">B</option>
