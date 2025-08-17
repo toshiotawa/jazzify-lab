@@ -125,3 +125,32 @@ export async function fetchMissionRanking(missionId: string, limit = 50, offset 
     rank: d.profiles.rank,
   }));
 }
+
+// ===== RPC based helpers for accurate global rank and paginated pages =====
+export async function fetchLevelRankingByView(limit = 50, offset = 0): Promise<RankingEntry[]> {
+  const { data, error } = await getSupabaseClient()
+    .rpc('rpc_get_level_ranking', { limit_count: limit, offset_count: offset });
+  if (error) throw error;
+  const rows = (data ?? []) as any[];
+  return rows.map((r) => ({
+    id: r.id,
+    nickname: r.nickname,
+    level: r.level,
+    xp: r.xp,
+    rank: r.rank,
+    lessons_cleared: r.lessons_cleared ?? 0,
+    missions_cleared: undefined, // keep shape stable
+    missions_completed: r.missions_completed ?? 0,
+    avatar_url: r.avatar_url ?? undefined,
+    twitter_handle: r.twitter_handle ?? undefined,
+    selected_title: r.selected_title ?? undefined,
+    fantasy_current_stage: r.fantasy_current_stage !== null && r.fantasy_current_stage !== undefined ? String(r.fantasy_current_stage) : undefined,
+  })) as unknown as RankingEntry[];
+}
+
+export async function fetchUserGlobalRank(userId: string): Promise<number | null> {
+  const { data, error } = await getSupabaseClient()
+    .rpc('rpc_get_user_global_rank', { target_user_id: userId });
+  if (error) throw error;
+  return (data as number | null) ?? null;
+}
