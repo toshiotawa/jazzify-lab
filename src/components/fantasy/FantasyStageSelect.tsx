@@ -613,7 +613,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             getRankColor(parseInt(selectedRank))
           )}>
             <h2 className="text-white text-lg sm:text-xl font-bold mb-3 sm:mb-4">
-             ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank)).title}
+             ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank), selectedTier).title}
             </h2>
             
             <div className="space-y-2 sm:space-y-3">
@@ -630,8 +630,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             {/* ランク説明 */}
             <div className="mt-4 sm:mt-6 bg-black bg-opacity-30 rounded-lg p-3 sm:p-4">
               <div className="text-white text-xs sm:text-sm">
-               <p className="font-semibold mb-1 sm:mb-2">{getFantasyRankInfo(parseInt(selectedRank)).stageName}</p>
-               <p className="leading-relaxed">{getFantasyRankInfo(parseInt(selectedRank)).description}</p>
+               <p className="font-semibold mb-1 sm:mb-2">{getFantasyRankInfo(parseInt(selectedRank), selectedTier).stageName}</p>
+               <p className="leading-relaxed">{getFantasyRankInfo(parseInt(selectedRank), selectedTier).description}</p>
               </div>
             </div>
           </div>

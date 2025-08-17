@@ -5,7 +5,8 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import { uploadAvatar } from '@/platform/r2Storage';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { getAvailableTitles, DEFAULT_TITLE, getTitleConditionText, getAvailableWizardTitles, getTitleRequirement } from '@/utils/titleConstants';
+import { getAvailableTitles, DEFAULT_TITLE, getTitleConditionText, getAvailableWizardTitles, getTitleRequirement, getAvailableAdvancedTitles } from '@/utils/titleConstants';
+import { fetchFantasyClearedStageCounts } from '@/platform/supabaseFantasyStages';
 import type { Title } from '@/utils/titleConstants';
 import { getUserAchievementTitles } from '@/utils/achievementTitles';
 import { updateUserTitle } from '@/platform/supabaseTitles';
@@ -43,13 +44,19 @@ const AccountPage: React.FC = () => {
     lessonCompletedCount: number;
     wizardTitles: string[];
     fantasyClearedCount: number;
+    advancedTitles: string[];
+    fantasyClearedCountBasic: number;
+    fantasyClearedCountAdvanced: number;
   }>({ 
     missionTitles: [], 
     lessonTitles: [], 
     missionCompletedCount: 0, 
     lessonCompletedCount: 0, 
-    wizardTitles: ['マナの芽吹き'], // 初期称号を含める
-    fantasyClearedCount: 0 
+    wizardTitles: ['マナの芽吹き'],
+    fantasyClearedCount: 0,
+    advancedTitles: [],
+    fantasyClearedCountBasic: 0,
+    fantasyClearedCountAdvanced: 0,
   });
 
   // ハッシュ変更で開閉
@@ -70,14 +77,18 @@ const AccountPage: React.FC = () => {
       if (profile?.id) {
         try {
           const titles = await getUserAchievementTitles(profile.id);
-          const fantasyClearedCount = await fetchFantasyClearedStageCount(profile.id);
-          const wizardTitles = getAvailableWizardTitles(fantasyClearedCount);
+          const { basic: fantasyClearedCountBasic, advanced: fantasyClearedCountAdvanced, total: fantasyClearedCount } = await fetchFantasyClearedStageCounts(profile.id);
+          const wizardTitles = getAvailableWizardTitles(fantasyClearedCountBasic);
+          const advancedTitles = getAvailableAdvancedTitles(fantasyClearedCountAdvanced);
           console.log('Fantasy cleared count:', fantasyClearedCount);
           console.log('Available wizard titles:', wizardTitles);
           setAchievementTitles({
             ...titles,
             wizardTitles,
-            fantasyClearedCount
+            fantasyClearedCount,
+            advancedTitles,
+            fantasyClearedCountBasic,
+            fantasyClearedCountAdvanced,
           });
         } catch (error) {
           console.error('Failed to load achievement titles:', error);
@@ -87,7 +98,10 @@ const AccountPage: React.FC = () => {
             missionCompletedCount: 0,
             lessonCompletedCount: 0,
             wizardTitles: [],
-            fantasyClearedCount: 0
+            fantasyClearedCount: 0,
+            advancedTitles: [],
+            fantasyClearedCountBasic: 0,
+            fantasyClearedCountAdvanced: 0,
           });
         }
       }
@@ -202,8 +216,20 @@ const AccountPage: React.FC = () => {
                 >
                   {/* 魔法使い称号カテゴリ */}
                   {achievementTitles.wizardTitles && achievementTitles.wizardTitles.length > 0 && (
-                    <optgroup label="魔法使い称号">
+                    <optgroup label="魔法使い（Basic）称号">
                       {achievementTitles.wizardTitles.map((title) => {
+                        const conditionText = getTitleRequirement(title);
+                        return (
+                          <option key={title} value={title}>
+                            {title} - {conditionText}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  )}
+                  {achievementTitles.advancedTitles && achievementTitles.advancedTitles.length > 0 && (
+                    <optgroup label="戦士（Advanced）称号">
+                      {achievementTitles.advancedTitles.map((title) => {
                         const conditionText = getTitleRequirement(title);
                         return (
                           <option key={title} value={title}>
