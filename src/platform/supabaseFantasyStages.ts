@@ -47,13 +47,14 @@ export async function fetchFantasyStageById(stageId: string): Promise<FantasySta
 /**
  * ステージ番号でファンタジーステージを取得
  */
-export async function fetchFantasyStageByNumber(stageNumber: string): Promise<FantasyStage | null> {
+export async function fetchFantasyStageByNumber(stageNumber: string, stageTier: 'basic' | 'advanced' = 'basic'): Promise<FantasyStage | null> {
   const supabase = getSupabaseClient();
   
   const { data, error } = await supabase
     .from('fantasy_stages')
     .select('*')
     .eq('stage_number', stageNumber)
+    .eq('stage_tier', stageTier)
     .single();
     
   if (error) {

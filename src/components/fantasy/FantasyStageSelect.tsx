@@ -283,22 +283,23 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
 
   // 現在地のステージ番号からランクを設定
   useEffect(() => {
-    if (userProgress && userProgress.currentStageNumber) {
+    // Tier変更時に最初のランクへ移動（直前のeffectで処理済み）
+    if (!userProgress) {
+      if (isFreeOrGuest) setSelectedRank('1');
+      return;
+    }
+    // Basic/Advancedともに数値ランク（1,2,3...）運用。現在地のランクを開く
+    if (userProgress.currentStageNumber) {
       const currentRank = userProgress.currentStageNumber.split('-')[0];
       setSelectedRank(currentRank);
       devLog.debug('🎮 現在のランクを設定:', currentRank);
-    } else if (isFreeOrGuest) {
-      // ゲストユーザーまたはフリープランの場合はランク1をデフォルトに設定
-      setSelectedRank('1');
     }
   }, [userProgress, isFreeOrGuest]);
   
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
-    // フリープラン・ゲストユーザーの場合は1-1, 1-2, 1-3のみアンロック（Basic限定）
+    // フリープラン・ゲストユーザーの場合はBasic/Advancedともに1-1, 1-2, 1-3のみアンロック
     if (isFreeOrGuest) {
-      const isAdvanced = (stage as any).tier === 'advanced';
-      if (isAdvanced) return false;
       const allowedStages = ['1-1', '1-2', '1-3'];
       return allowedStages.includes(stage.stageNumber);
     }
@@ -311,13 +312,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     );
     if (cleared) return true;
 
-    /* 2) progress に記録されている現在地より前ならアンロック */
+    /* 2) progress に記録されている現在地より前ならアンロック（数値ランクのみ） */
     const [currR, currS] = userProgress.currentStageNumber.split('-').map(Number);
     const [r, s] = stage.stageNumber.split('-').map(Number);
-    // Advancedティアは進捗とは独立に解放（ゲスト以外）
-    if ((stage as any).tier === 'advanced') return true;
-    if (isNaN(r) || isNaN(s)) {
-      // 例: Advanced の 'A-1' などは数値比較しない（別Tier）。基本は明示クリアで解放とする
+    if (isNaN(r) || isNaN(s) || isNaN(currR) || isNaN(currS)) {
       return false;
     }
     if (r < currR) return true;
@@ -521,7 +519,11 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               <span className="whitespace-normal break-words">ファンタジーモード</span>
             </h1>
             <div className="flex items-center space-x-4 sm:space-x-6 text-base sm:text-lg">
-              <div>現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber || '1-1'}</span> <span className="ml-2 text-xs opacity-80">({selectedTier === 'advanced' ? 'Advanced' : 'Basic'})</span></div>
+              {(stages.some(s => (s as any).tier === selectedTier)) && (
+                <div>
+                  現在地: <span className="text-blue-300 font-bold">{userProgress?.currentStageNumber || '1-1'}</span> <span className="ml-2 text-xs opacity-80">({selectedTier === 'advanced' ? 'Advanced' : 'Basic'})</span>
+                </div>
+              )}
             </div>
           </div>
           
@@ -590,13 +592,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         {selectedRank && groupedStages[selectedRank] && (
           <div className={cn(
             "rounded-xl p-4 sm:p-6 bg-gradient-to-br",
-            /^\d+$/.test(selectedRank) ? getRankColor(parseInt(selectedRank)) : 'from-purple-700 via-fuchsia-700 to-rose-700'
+            getRankColor(parseInt(selectedRank))
           )}>
             <h2 className="text-white text-lg sm:text-xl font-bold mb-3 sm:mb-4">
-             {/^\d+$/.test(selectedRank)
-               ? <>ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank)).title}</>
-               : <>Advanced - {selectedRank}</>
-             }
+             ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank)).title}
             </h2>
             
             <div className="space-y-2 sm:space-y-3">
@@ -613,14 +612,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             {/* ランク説明 */}
             <div className="mt-4 sm:mt-6 bg-black bg-opacity-30 rounded-lg p-3 sm:p-4">
               <div className="text-white text-xs sm:text-sm">
-               {/^\d+$/.test(selectedRank) ? (
-                 <>
-                   <p className="font-semibold mb-1 sm:mb-2">{getFantasyRankInfo(parseInt(selectedRank)).stageName}</p>
-                   <p className="leading-relaxed">{getFantasyRankInfo(parseInt(selectedRank)).description}</p>
-                 </>
-               ) : (
-                 <p className="leading-relaxed">上級者向けの高難度ステージです。</p>
-               )}
+               <p className="font-semibold mb-1 sm:mb-2">{getFantasyRankInfo(parseInt(selectedRank)).stageName}</p>
+               <p className="leading-relaxed">{getFantasyRankInfo(parseInt(selectedRank)).description}</p>
               </div>
             </div>
           </div>

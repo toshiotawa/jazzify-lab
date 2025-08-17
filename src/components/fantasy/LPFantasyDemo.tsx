@@ -58,7 +58,7 @@ const LPFantasyDemo: React.FC = () => {
     setError(null);
     try {
       const { fetchFantasyStageByNumber } = await import('@/platform/supabaseFantasyStages');
-      const dbStage = await fetchFantasyStageByNumber(stageNum);
+      const dbStage = await fetchFantasyStageByNumber(stageNum, 'basic');
       if (!dbStage) {
         throw new Error(`ステージ ${stageNum} が見つかりませんでした`);
       }
