@@ -10,6 +10,6 @@ INSERT INTO public.fantasy_stages (
 ) VALUES
 ('1-2', '星落つる塔', 'ii-V-Iを高テンポで。ミス許容量が少ない', 4, 3, 6, 1, 1, 3.2, 'progression_order',
   '[]'::jsonb, '["Dm7", "G7", "CM7", "Am7", "Dm7", "G7", "CM7"]'::jsonb, false, NULL, 2, true, 'advanced', 160, 4, 8, 1)
-ON CONFLICT (stage_number) DO NOTHING;
+ON CONFLICT (stage_tier, stage_number) DO NOTHING;
 
 COMMIT;
