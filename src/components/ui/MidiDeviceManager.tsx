@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { MidiDevice, AudioDevice } from '@/types';
+import { Link } from 'react-router-dom';
 
 // MIDIデバイス管理用カスタムフック
 export const useMidiDevices = () => {
@@ -22,7 +23,12 @@ export const useMidiDevices = () => {
     try {
       // Web MIDI API の存在確認
       if (!navigator.requestMIDIAccess) {
-        throw new Error('Web MIDI API is not supported in this browser');
+        const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+        const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
+        const message = isIOS
+          ? 'iPhone/iPad では Safari 等で Web MIDI API が利用できません。'
+          : 'Web MIDI API is not supported in this browser';
+        throw new Error(message);
       }
 
       // MIDI アクセス要求
@@ -236,7 +242,37 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
         
         {error && (
           <div className="text-red-400 text-xs mt-2 p-2 bg-red-900 bg-opacity-30 rounded">
-            ❌ {error}
+            {(() => {
+              const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+              const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
+              if (isIOS) {
+                return (
+                  <div>
+                    <div className="mb-1">❌ iPhone/iPad では Safari 等で Web MIDI API が利用できません。</div>
+                    <div className="mb-1">
+                      App Store の{' '}
+                      <a
+                        href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline text-blue-300"
+                      >
+                        Web MIDI Browser
+                      </a>
+                      {' '}のご利用をご検討ください。
+                    </div>
+                    <div>
+                      <Link to="/help/ios-midi" className="underline text-blue-300">詳しくはこちら</Link>
+                      <span className="mx-1">/</span>
+                      <Link to="/contact" className="underline text-blue-300">お問い合わせ</Link>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div>❌ {error}</div>
+              );
+            })()}
           </div>
         )}
       </div>

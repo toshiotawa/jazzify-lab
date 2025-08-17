@@ -77,6 +77,14 @@
     <div class="loading-text">Jazzify を読み込み中...</div>
   </div>
   <div id="root"></div>
+  
+  <!-- Netlify Forms registration (hidden) -->
+  <form name="contact" netlify data-netlify="true" hidden>
+    <input type="text" name="name" />
+    <input type="email" name="email" />
+    <textarea name="message"></textarea>
+  </form>
+  
   <script type="module" src="/src/main.tsx"></script>
 </body>
 </html> 
