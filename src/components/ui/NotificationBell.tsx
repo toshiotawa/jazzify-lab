@@ -48,12 +48,12 @@ const NotificationBell: React.FC = () => {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-[70]">
+        <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-[70] overflow-hidden">
           <div className="p-3 border-b border-slate-700">
             <p className="text-sm font-semibold text-white">通知</p>
             <p className="text-xs text-gray-400">最新10件</p>
           </div>
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-96 overflow-y-auto overflow-x-hidden">
             {loading ? (
               <div className="p-3 text-center text-gray-400 text-sm">読み込み中...</div>
             ) : items.length === 0 ? (
@@ -62,7 +62,7 @@ const NotificationBell: React.FC = () => {
               <ul className="divide-y divide-slate-700">
                 {items.map(n => (
                   <li key={n.id} className="p-3 hover:bg-slate-700/60 transition-colors">
-                    <div className="flex items-start gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
                       <button
                         onClick={() => {
                           window.location.href = `/main#diary-user?id=${n.actor_id}`;
@@ -77,7 +77,7 @@ const NotificationBell: React.FC = () => {
                         />
                       </button>
                       <button
-                        className="text-left flex-1"
+                        className="text-left flex-1 min-w-0"
                         onClick={() => {
                           if (n.diary_id) {
                             window.location.href = `/main#diary-detail?id=${n.diary_id}`;
@@ -87,7 +87,7 @@ const NotificationBell: React.FC = () => {
                           setOpen(false);
                         }}
                       >
-                        <p className="text-sm text-white">
+                        <p className="text-sm text-white whitespace-normal break-words">
                           {n.type === 'diary_like' && (
                             <>
                               <span className="font-semibold">{n.actor_nickname || 'ユーザー'}</span>
