@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchLevelRanking, RankingEntry, fetchLevelRankingByView, fetchUserGlobalRank, fetchLessonRankingByRpc, fetchUserLessonRank } from '@/platform/supabaseRanking';
+import { fetchLevelRanking, RankingEntry, fetchUserGlobalRank, fetchLessonRankingByRpc, fetchUserLessonRank } from '@/platform/supabaseRanking';
 import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
@@ -129,7 +129,7 @@ const LevelRanking: React.FC = () => {
         const globalRank = await fetchUserGlobalRank(user.id);
         if (!globalRank || globalRank <= 0) throw new Error('rank not found');
         const pageOffset = Math.floor((globalRank - 1) / PAGE_SIZE_NUM) * PAGE_SIZE_NUM;
-        const page = await fetchLevelRankingByView(PAGE_SIZE_NUM, pageOffset);
+        const page = await fetchLevelRanking(PAGE_SIZE_NUM, pageOffset);
         const adjusted = isStandardGlobal
           ? page.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
           : page;
