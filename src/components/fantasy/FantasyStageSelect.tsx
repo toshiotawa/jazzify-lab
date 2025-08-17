@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
-import BackButton from '../ui/BackButton';
+// BackButton は未使用のため削除
 import { devLog } from '@/utils/logger';
 import { 
   getFantasyRankInfo, 
@@ -81,15 +81,22 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       // Supabaseクライアントの動的インポート
       const { getSupabaseClient } = await import('@/platform/supabaseClient');
       const supabase = getSupabaseClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      // 既にストアにある情報を利用して余計なリクエストを避ける
+      const authState = useAuthStore.getState();
+      const userId = authState.profile?.id || authState.user?.id || null;
       
       // ゲストユーザーの場合、またはユーザーが存在しない場合は、ステージデータのみ読み込む
-      if (!user || isGuest) {
+      if (!userId || isGuest) {
         // ステージマスタデータの読み込み
-        const { data: stagesData, error: stagesError } = await supabase
+        const timeoutMs = 7000;
+        const stagesQuery = supabase
           .from('fantasy_stages')
           .select('*')
           .order('stage_number');
+        const { data: stagesData, error: stagesError } = await Promise.race([
+          stagesQuery,
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('stages timeout')), timeoutMs))
+        ]);
         
         if (stagesError) {
           throw new Error(`ステージデータの読み込みに失敗: ${stagesError.message}`);
@@ -127,56 +134,61 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         return;
       }
       
-      // ステージマスタデータの読み込み
-      const { data: stagesData, error: stagesError } = await supabase
+      // ===== 並列取得 + タイムアウト =====
+      const timeoutMs = 7000;
+      const stagesQuery = supabase
         .from('fantasy_stages')
         .select('*')
         .order('stage_number');
+      const progressQuery = supabase
+        .from('fantasy_user_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      const clearsQuery = supabase
+        .from('fantasy_stage_clears')
+        .select('*')
+        .eq('user_id', userId);
       
+      const [stagesRes, progressRes, clearsRes] = await Promise.all([
+        Promise.race([stagesQuery, new Promise<any>((_, r) => setTimeout(() => r(new Error('stages timeout')), timeoutMs))]),
+        Promise.race([progressQuery, new Promise<any>((_, r) => setTimeout(() => r(new Error('progress timeout')), timeoutMs))]),
+        Promise.race([clearsQuery, new Promise<any>((_, r) => setTimeout(() => r(new Error('clears timeout')), timeoutMs))])
+      ]);
+      
+      const stagesError = stagesRes instanceof Error ? { message: stagesRes.message } : stagesRes.error;
+      const stagesData = stagesRes instanceof Error ? [] : stagesRes.data;
       if (stagesError) {
         throw new Error(`ステージデータの読み込みに失敗: ${stagesError.message}`);
       }
       
-      // ユーザー進捗の読み込み
-      let userProgressData;
-      const { data: existingProgress, error: progressError } = await supabase
-        .from('fantasy_user_progress')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (progressError && progressError.code !== 'PGRST116') { // PGRST116 = レコードが見つからない
+      const progressError = progressRes instanceof Error ? { message: progressRes.message, code: undefined } : progressRes.error;
+      let userProgressData = progressRes instanceof Error ? null : progressRes.data;
+      if (progressError && progressError.code !== 'PGRST116') {
         throw new Error(`ユーザー進捗の読み込みに失敗: ${progressError.message}`);
       }
       
-      if (!existingProgress) {
+      if (!userProgressData) {
         // 初回アクセス時は進捗レコードを作成
         const { data: newProgress, error: createError } = await supabase
           .from('fantasy_user_progress')
           .insert({
-            user_id: user.id,
+            user_id: userId,
             current_stage_number: '1-1',
             wizard_rank: 'F',
             total_cleared_stages: 0
           })
           .select()
           .single();
-        
         if (createError) {
           throw new Error(`ユーザー進捗の作成に失敗: ${createError.message}`);
         }
-        
         userProgressData = newProgress;
-      } else {
-        userProgressData = existingProgress;
       }
       
-      // クリア記録の読み込み
-      const { data: clearsData, error: clearsError } = await supabase
-        .from('fantasy_stage_clears')
-        .select('*')
-        .eq('user_id', user.id);
-      
+      const clearsError = clearsRes instanceof Error ? { message: clearsRes.message } : clearsRes.error;
+      const clearsData = clearsRes instanceof Error ? [] : clearsRes.data;
+       
       if (clearsError) {
         throw new Error(`クリア記録の読み込みに失敗: ${clearsError.message}`);
       }
