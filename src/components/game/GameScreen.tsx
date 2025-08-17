@@ -607,8 +607,7 @@ const SongSelectionScreen: React.FC = () => {
   const [dbSongs, setDbSongs] = React.useState<any[]>([]);
   const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string}>>({});
   const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
-  const [sortBy, setSortBy] = React.useState<'artist' | 'title' | 'difficulty'>('artist');
-  const [filterBy, setFilterBy] = React.useState<'all' | 'free' | 'premium'>('all');
+  const [sortBy, setSortBy] = React.useState<'artist' | 'title'>('artist');
   const [searchTerm, setSearchTerm] = React.useState('');
   
   React.useEffect(() => {
@@ -667,15 +666,6 @@ const SongSelectionScreen: React.FC = () => {
   const sortedSongs = React.useMemo(() => {
     let sorted = [...dbSongs];
     
-    // フィルタリング
-    if (filterBy !== 'all') {
-      sorted = sorted.filter(song => {
-        if (filterBy === 'free') return song.min_rank === 'free';
-        if (filterBy === 'premium') return ['premium', 'platinum'].includes(song.min_rank);
-        return true;
-      });
-    }
-    
     // 検索フィルタ
     if (searchTerm && searchTerm.trim() !== '') {
       const term = searchTerm.toLowerCase();
@@ -696,14 +686,11 @@ const SongSelectionScreen: React.FC = () => {
       if (sortBy === 'title') {
         return (a.title || '').localeCompare(b.title || '');
       }
-      if (sortBy === 'difficulty') {
-        return (a.difficulty || 0) - (b.difficulty || 0);
-      }
       return 0;
     });
     
     return sorted;
-  }, [dbSongs, sortBy, filterBy, searchTerm]);
+  }, [dbSongs, sortBy, searchTerm]);
 
   return (
     <div className="flex-1 p-3 sm:p-6 overflow-auto">
@@ -715,31 +702,17 @@ const SongSelectionScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* ソート・フィルター コントロール */}
+        {/* ソート・検索 コントロール */}
         <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 whitespace-nowrap">
             <label className="text-sm text-gray-300">ソート:</label>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'artist' | 'title' | 'difficulty')}
+              onChange={(e) => setSortBy(e.target.value as 'artist' | 'title')}
               className="select select-sm bg-slate-700 text-white border-slate-600"
             >
               <option value="artist">アーティスト順</option>
               <option value="title">タイトル順</option>
-              <option value="difficulty">難易度順</option>
-            </select>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <label className="text-sm text-gray-300">フィルター:</label>
-            <select
-              value={filterBy}
-              onChange={(e) => setFilterBy(e.target.value as 'all' | 'free' | 'premium')}
-              className="select select-sm bg-slate-700 text-white border-slate-600"
-            >
-              <option value="all">すべて</option>
-              <option value="free">無料</option>
-              <option value="premium">プレミアム</option>
             </select>
           </div>
 
@@ -863,7 +836,6 @@ const SongSelectionScreen: React.FC = () => {
                       id: song.id,
                       title: song.title,
                       artist: song.artist || '',
-                      difficulty: song.difficulty || 1,
                       duration: duration,
                       audioFile: song.audio_url || '',
                       notesFile: song.json_url || '',
@@ -1175,13 +1147,7 @@ interface SongListItemProps {
 const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, onSelect }) => {
   const [isLoading, setIsLoading] = React.useState(false);
 
-  const getDifficultyColor = (difficulty: number | null) => {
-    if (!difficulty) return 'text-gray-400';
-    if (difficulty <= 3) return 'text-green-400';
-    if (difficulty <= 6) return 'text-yellow-400';
-    if (difficulty <= 8) return 'text-orange-400';
-    return 'text-red-400';
-  };
+
 
   const getRankColor = (rank: string) => {
     switch (rank) {
@@ -1226,31 +1192,21 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
           <p className="text-gray-400 text-sm truncate">{song.artist || '不明'}</p>
         </div>
 
-        {/* 楽曲詳細情報 */}
-        <div className="flex items-center space-x-3 text-xs">
-          {/* 難易度 */}
-          {song.difficulty && (
-            <div className="flex items-center space-x-1">
-              <span className="text-gray-500">難易度:</span>
-              <span className={`font-mono ${getDifficultyColor(song.difficulty)}`}>
-                {song.difficulty}
-              </span>
-            </div>
-          )}
+                  {/* 楽曲詳細情報 */}
+          <div className="flex items-center space-x-3 text-xs">
+            {/* BPM */}
+            {song.bpm && (
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">BPM:</span>
+                <span className="font-mono text-blue-400">{song.bpm}</span>
+              </div>
+            )}
 
-          {/* BPM */}
-          {song.bpm && (
-            <div className="flex items-center space-x-1">
-              <span className="text-gray-500">BPM:</span>
-              <span className="font-mono text-blue-400">{song.bpm}</span>
-            </div>
-          )}
-
-          {/* 会員ランク */}
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRankColor(song.min_rank)}`}>
-            {song.min_rank?.toUpperCase() || 'FREE'}
-          </span>
-        </div>
+            {/* 会員ランク */}
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRankColor(song.min_rank)}`}>
+              {song.min_rank?.toUpperCase() || 'FREE'}
+            </span>
+          </div>
         
         {/* ユーザー統計情報 */}
         {(() => {
