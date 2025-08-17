@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { FaBars, FaTimes } from 'react-icons/fa';
+import NotificationBell from '@/components/ui/NotificationBell';
 
 const Header: React.FC = () => {
   const { user, isGuest, logout, enterGuestMode } = useAuthStore();
@@ -62,6 +63,8 @@ const Header: React.FC = () => {
             <button className="btn btn-sm btn-primary text-sm px-3 py-1.5" onClick={()=>{location.href='/main#dashboard'}}>
               ダッシュボード
             </button>
+            {/* 通知ベル（アカウントの左） */}
+            <NotificationBell />
             <button className="btn btn-sm text-sm px-3 py-1.5" onClick={()=>{location.hash='#account'}}>
               アカウント
             </button>
@@ -108,6 +111,10 @@ const Header: React.FC = () => {
             )}
             {user && (
               <>
+                {/* 通知ベル（アカウントの左） */}
+                <div className="flex items-center">
+                  <NotificationBell />
+                </div>
                 <button 
                   className="btn btn-sm btn-primary w-full text-left text-base" 
                   onClick={()=>{location.href='/main#dashboard'; setMenuOpen(false);}}
