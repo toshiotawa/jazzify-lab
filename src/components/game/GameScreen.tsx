@@ -660,7 +660,7 @@ const SongSelectionScreen: React.FC = () => {
     <div className="flex-1 p-3 sm:p-6 overflow-auto">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="text-xl sm:text-2xl font-bold text-white">楽曲選択</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-white">レジェンドモード</h2>
           <div className="text-sm text-gray-400">
             {sortedSongs.length} 曲
           </div>
