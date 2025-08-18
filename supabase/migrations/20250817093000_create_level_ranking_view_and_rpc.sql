@@ -74,6 +74,6 @@ AS $$
 $$;
 
 -- Optional grants (adjust roles as needed)
--- GRANT SELECT ON public.view_level_ranking TO anon, authenticated;
--- GRANT EXECUTE ON FUNCTION public.rpc_get_level_ranking(integer, integer) TO anon, authenticated;
--- GRANT EXECUTE ON FUNCTION public.rpc_get_user_global_rank(uuid) TO anon, authenticated;
+GRANT SELECT ON public.view_level_ranking TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_get_level_ranking(integer, integer) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_get_user_global_rank(uuid) TO anon, authenticated;

@@ -36,6 +36,12 @@ export interface GuildJoinRequest {
   requester_nickname?: string;
 }
 
+function getMonthStartDateStringUTC(baseDate?: Date): string {
+  const now = baseDate ? new Date(baseDate) : new Date();
+  const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return monthStartUtc.toISOString().slice(0, 10);
+}
+
 export async function getMyGuild(): Promise<Guild | null> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -149,7 +155,7 @@ export async function kickMember(memberUserId: string): Promise<void> {
 
 export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: string): Promise<Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>> {
   const supabase = getSupabaseClient();
-  const month = targetMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const month = targetMonth || getMonthStartDateStringUTC();
   // Try RPC first
   try {
     const { data, error } = await supabase
@@ -202,7 +208,7 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: st
 
 export async function fetchMyGuildRank(targetMonth?: string): Promise<number | null> {
   const supabase = getSupabaseClient();
-  const month = targetMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const month = targetMonth || getMonthStartDateStringUTC();
   try {
     const { data, error } = await supabase.rpc('rpc_get_my_guild_rank', { target_month: month });
     if (error) throw error;
@@ -246,8 +252,8 @@ export async function fetchGuildMonthlyRanks(guildId: string, months = 12): Prom
     const now = new Date();
     const monthsList: string[] = [];
     for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      monthsList.push(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10));
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      monthsList.push(d.toISOString().slice(0, 10));
     }
     const { data, error } = await supabase
       .from('guild_xp_contributions')
@@ -388,7 +394,7 @@ export async function getPendingInvitationToUser(targetUserId: string): Promise<
  */
 export async function fetchGuildMemberMonthlyXp(guildId: string, targetMonth?: string): Promise<Array<{ user_id: string; monthly_xp: number }>> {
   const supabase = getSupabaseClient();
-  const month = targetMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const month = targetMonth || getMonthStartDateStringUTC();
   const { data, error } = await supabase
     .from('guild_xp_contributions')
     .select('user_id, gained_xp')

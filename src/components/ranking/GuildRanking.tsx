@@ -20,9 +20,9 @@ const GuildRanking: React.FC = () => {
         setLoading(true);
         try {
           const now = new Date();
-          const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
-          const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          const prevMonth = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), 1).toISOString().slice(0,10);
+          const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
+          const prevMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+          const prevMonth = prevMonthDate.toISOString().slice(0,10);
           const [cur, prev] = await Promise.all([
             fetchGuildRanking(100, 0, currentMonth),
             fetchGuildRanking(100, 0, prevMonth),
