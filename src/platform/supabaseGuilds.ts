@@ -148,49 +148,94 @@ export async function kickMember(memberUserId: string): Promise<void> {
 }
 
 export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: string): Promise<Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>> {
-  try {
-    const params: Record<string, any> = { limit_count: limit, offset_count: offset };
-    if (targetMonth) params.target_month = targetMonth;
-    const { data, error } = await getSupabaseClient()
-      .rpc('rpc_get_guild_ranking', params as any);
-    if (error) throw error;
-    return (data || []).map((r: any) => ({
-      guild_id: r.guild_id,
-      name: r.name,
-      members_count: Number(r.members_count) || 0,
-      level: Number(r.level) || 1,
-      monthly_xp: Number(r.monthly_xp) || 0,
-      rank_no: Number(r.rank_no) || 0,
-    }));
-  } catch (e) {
-    console.warn('rpc_get_guild_ranking failed, returning empty list:', e);
+  // Client-side aggregation fallback to avoid RPC dependency
+  const supabase = getSupabaseClient();
+  const month = targetMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  // Fetch all contributions for target month
+  const { data: contribs, error: contribErr } = await supabase
+    .from('guild_xp_contributions')
+    .select('guild_id, gained_xp, month')
+    .eq('month', month);
+  if (contribErr) {
+    console.warn('fetchGuildRanking contributions error:', contribErr);
     return [];
   }
+  const xpByGuild = new Map<string, number>();
+  (contribs || []).forEach((c: any) => {
+    const cur = xpByGuild.get(c.guild_id) || 0;
+    xpByGuild.set(c.guild_id, cur + Number(c.gained_xp || 0));
+  });
+  const entries = Array.from(xpByGuild.entries()).map(([guildId, monthly_xp]) => ({ guildId, monthly_xp }));
+  entries.sort((a, b) => b.monthly_xp - a.monthly_xp);
+  const sliced = entries.slice(offset, offset + limit);
+  const guildIds = sliced.map(e => e.guildId);
+  if (guildIds.length === 0) return [];
+  const { data: guildsData, error: gErr } = await supabase
+    .from('guilds')
+    .select('id, name, level')
+    .in('id', guildIds);
+  if (gErr) {
+    console.warn('fetchGuildRanking guilds error:', gErr);
+    return [];
+  }
+  const guildMap = new Map((guildsData || []).map((g: any) => [g.id, g] as const));
+  return sliced.map((e, idx) => {
+    const g = guildMap.get(e.guildId);
+    return {
+      guild_id: e.guildId,
+      name: g?.name || 'Guild',
+      members_count: 0,
+      level: g?.level ? Number(g.level) : 1,
+      monthly_xp: e.monthly_xp,
+      rank_no: offset + idx + 1,
+    };
+  });
 }
 
 export async function fetchMyGuildRank(targetMonth?: string): Promise<number | null> {
-  try {
-    const params: Record<string, any> = {};
-    if (targetMonth) params.target_month = targetMonth;
-    const { data, error } = await getSupabaseClient().rpc('rpc_get_my_guild_rank', params as any);
-    if (error) throw error;
-    return (data as number | null) ?? null;
-  } catch (e) {
-    console.warn('rpc_get_my_guild_rank failed:', e);
+  const supabase = getSupabaseClient();
+  const myGuildId = await getMyGuildId();
+  if (!myGuildId) return null;
+  const month = targetMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('guild_xp_contributions')
+    .select('guild_id, gained_xp')
+    .eq('month', month);
+  if (error) {
+    console.warn('fetchMyGuildRank contributions error:', error);
     return null;
   }
+  const sums = new Map<string, number>();
+  (data || []).forEach((r: any) => {
+    sums.set(r.guild_id, (sums.get(r.guild_id) || 0) + Number(r.gained_xp || 0));
+  });
+  const sorted = Array.from(sums.entries()).sort((a, b) => b[1] - a[1]);
+  const rank = sorted.findIndex(([gid]) => gid === myGuildId);
+  return rank >= 0 ? rank + 1 : null;
 }
 
 export async function fetchGuildMonthlyRanks(guildId: string, months = 12): Promise<Array<{ month: string; monthly_xp: number; rank_no: number }>> {
-  try {
-    const { data, error } = await getSupabaseClient()
-      .rpc('rpc_get_guild_monthly_ranks', { p_guild_id: guildId, months });
-    if (error) throw error;
-    return (data || []).map((r: any) => ({ month: r.month, monthly_xp: Number(r.monthly_xp) || 0, rank_no: Number(r.rank_no) || 0 }));
-  } catch (e) {
-    console.warn('rpc_get_guild_monthly_ranks failed:', e);
-    return [];
+  const supabase = getSupabaseClient();
+  const now = new Date();
+  const monthsList: string[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    monthsList.push(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10));
   }
+  const { data, error } = await supabase
+    .from('guild_xp_contributions')
+    .select('guild_id, month, gained_xp')
+    .eq('guild_id', guildId)
+    .in('month', monthsList);
+  if (error) {
+    console.warn('fetchGuildMonthlyRanks error:', error);
+    return monthsList.map(m => ({ month: m, monthly_xp: 0, rank_no: null as any }));
+  }
+  const sumByMonth = new Map<string, number>();
+  (data || []).forEach((r: any) => {
+    sumByMonth.set(r.month, (sumByMonth.get(r.month) || 0) + Number(r.gained_xp || 0));
+  });
+  return monthsList.map(m => ({ month: m, monthly_xp: sumByMonth.get(m) || 0, rank_no: null as any }));
 }
 
 export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]> {
