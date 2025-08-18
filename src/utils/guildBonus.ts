@@ -20,9 +20,10 @@ export function computeGuildBonus(level: number, contributedMemberCount: number)
   return { levelBonus, memberBonus, totalMultiplier };
 }
 
-/** 数値倍率から "+1.2x" のような表記を返す */
+/** 数値倍率から "+10.1%" のような表記を返す（1を基準に差分を百分率表示） */
 export function formatMultiplier(multiplier: number): string {
-  return `+${multiplier.toFixed(2)}x`;
+  const percent = (multiplier - 1) * 100;
+  return `+${percent.toFixed(1)}%`;
 }
 
 /** ボーナス内訳 "(Lv +x.xx, Mem +y.yy)" のような短い表示 */
