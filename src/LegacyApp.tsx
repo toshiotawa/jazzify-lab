@@ -26,6 +26,7 @@ import PricingTable from '@/components/subscription/PricingTable';
 import FantasyMain from '@/components/fantasy/FantasyMain';
 import GuildDashboard from '@/components/guild/GuildDashboard';
 import GuildHistory from '@/components/guild/GuildHistory';
+import GuildPage from '@/components/guild/GuildPage';
 
 /**
  * メインアプリケーションコンポーネント
@@ -244,6 +245,9 @@ const App: React.FC = () => {
       break;
     case '#guilds':
       MainContent = isFree ? <Dashboard /> : <GuildDashboard />;
+      break;
+    case '#guild':
+      MainContent = isFree ? <Dashboard /> : <GuildPage />;
       break;
     case '#guild-history':
       MainContent = isFree ? <Dashboard /> : <GuildHistory />;

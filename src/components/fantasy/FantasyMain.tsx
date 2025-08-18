@@ -347,6 +347,19 @@ const FantasyMain: React.FC = () => {
           // 会員ランクによる倍率を適用
           const membershipMultiplier = profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1;
           
+          // ギルド倍率の取得
+          let guildMultiplier = 1;
+          try {
+            const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
+            const { computeGuildBonus } = await import('@/utils/guildBonus');
+            const myGuild = await getMyGuild();
+            if (myGuild) {
+              const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
+              const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
+              guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
+            }
+          } catch {}
+
           const xpResult = await addXp({
             songId: null, // ファンタジーモードなので曲IDはnull
             baseXp: xpGain,
@@ -354,6 +367,7 @@ const FantasyMain: React.FC = () => {
             rankMultiplier: 1,
             transposeMultiplier: 1,
             membershipMultiplier: membershipMultiplier, // 契約ランクによる倍率を適用
+            missionMultiplier: 1 * guildMultiplier,
             reason: reason
           });
           

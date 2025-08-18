@@ -87,10 +87,30 @@ export async function addXp(params: AddXpParams) {
     .eq('id', user.id);
   if (profErr) throw profErr;
 
+  // 追加: ギルド貢献の記録（所属していれば、当月エントリとして追加）
+  try {
+    const { data: membership } = await supabase
+      .from('guild_members')
+      .select('guild_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const guildId = (membership as any)?.guild_id as string | undefined;
+    if (guildId && gained > 0) {
+      const now = new Date();
+      const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const monthStr = monthStartUtc.toISOString().slice(0, 10);
+      await supabase
+        .from('guild_xp_contributions')
+        .insert({ guild_id: guildId, user_id: user.id, gained_xp: gained, month: monthStr });
+    }
+  } catch (e) {
+    console.warn('guild_xp_contributions insert failed:', e);
+  }
+
   return {
     gainedXp: gained,
     totalXp: newTotalXp,
     level: levelInfo.level,
     nextLevelXp: levelInfo.nextLevelXp,
   };
-} 
+}

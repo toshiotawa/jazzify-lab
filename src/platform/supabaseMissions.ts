@@ -532,6 +532,19 @@ export async function claimReward(missionId: string) {
     // addXp関数をインポートして使用
     const { addXp } = await import('@/platform/supabaseXp');
     
+    // ギルド倍率の取得
+    let guildMultiplier = 1;
+    try {
+      const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
+      const { computeGuildBonus } = await import('@/utils/guildBonus');
+      const myGuild = await getMyGuild();
+      if (myGuild) {
+        const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
+        const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
+        guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
+      }
+    } catch {}
+
     const xpResult = await addXp({
       songId: null, // ミッション報酬なので曲IDはnull
       baseXp: rewardXP, // 報酬XPを基本XPとして使用
@@ -539,7 +552,7 @@ export async function claimReward(missionId: string) {
       rankMultiplier: 1, // ミッション報酬なのでランク倍率は1
       transposeMultiplier: 1, // ミッション報酬なので移調倍率は1
       membershipMultiplier: 1, // ミッション報酬なので会員倍率は1
-      missionMultiplier: 1, // ミッション報酬なのでミッション倍率は1
+      missionMultiplier: 1 * guildMultiplier, // ギルドボーナスを適用
       reason: 'mission_clear', // ミッション報酬の理由を明示的に指定
     });
     

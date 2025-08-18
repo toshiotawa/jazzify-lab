@@ -13,6 +13,7 @@ export interface XPCalcParams {
   missionBonusMultiplier?: number;  // ミッション報酬ボーナス（現在は1.0）
   challengeBonusMultiplier?: number; // チャレンジ報酬
   seasonMultiplier?: number; // プロフィール next_season_xp_multiplier
+  guildMultiplier?: number; // 追加: ギルドボーナス
 }
 
 export interface XPDetailed {
@@ -25,6 +26,7 @@ export interface XPDetailed {
     mission: number;
     challenge: number;
     season: number;
+    guild?: number;
   };
   total: number;
 }
@@ -65,6 +67,7 @@ export function calculateXP(params: XPCalcParams): number {
     missionBonusMultiplier = 1,
     challengeBonusMultiplier = 1,
     seasonMultiplier = 1,
+    guildMultiplier = 1,
   } = params;
 
   const base = baseXPFromRank(scoreRank);
@@ -75,8 +78,9 @@ export function calculateXP(params: XPCalcParams): number {
   const missionBonus = missionBonusMultiplier - 1;
   const challengeBonus = challengeBonusMultiplier - 1;
   const seasonBonus = seasonMultiplier - 1;
+  const guildBonus = guildMultiplier - 1;
 
-  const totalBonus = membershipBonus + speedBonus + transposeBonus + lessonBonus + missionBonus + challengeBonus + seasonBonus;
+  const totalBonus = membershipBonus + speedBonus + transposeBonus + lessonBonus + missionBonus + challengeBonus + seasonBonus + guildBonus;
 
   return Math.round(base * (1 + totalBonus));
 }
@@ -91,6 +95,7 @@ export function calculateXPDetailed(params: XPCalcParams): XPDetailed {
     missionBonusMultiplier = 1,
     challengeBonusMultiplier = 1,
     seasonMultiplier = 1,
+    guildMultiplier = 1,
   } = params;
 
   const base = baseXPFromRank(scoreRank);
@@ -101,8 +106,9 @@ export function calculateXPDetailed(params: XPCalcParams): XPDetailed {
   const mission = missionBonusMultiplier;
   const challenge = challengeBonusMultiplier;
   const season = seasonMultiplier;
+  const guild = guildMultiplier;
 
-  // 加算方式に変更
+  // 加算方式
   const membershipBonus = membership - 1;
   const speedBonus = speed - 1;
   const transposeBonus = transpose - 1;
@@ -110,14 +116,15 @@ export function calculateXPDetailed(params: XPCalcParams): XPDetailed {
   const missionBonus = mission - 1;
   const challengeBonus = challenge - 1;
   const seasonBonus = season - 1;
+  const guildBonus = guild - 1;
 
-  const totalBonus = membershipBonus + speedBonus + transposeBonus + lessonBonus + missionBonus + challengeBonus + seasonBonus;
+  const totalBonus = membershipBonus + speedBonus + transposeBonus + lessonBonus + missionBonus + challengeBonus + seasonBonus + guildBonus;
 
   const total = Math.round(base * (1 + totalBonus));
 
   return {
     base,
-    multipliers: { membership, speed, transpose, lesson, mission, challenge, season },
+    multipliers: { membership, speed, transpose, lesson, mission, challenge, season, guild },
     total
   };
 }
