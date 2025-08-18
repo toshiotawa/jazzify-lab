@@ -18,14 +18,14 @@ begin
   return query
   with monthly as (
     select g.id as guild_id, g.name, g.level,
-           (select count(*) from public.guild_members gm where gm.guild_id = g.id) as members_count,
+           (select count(*)::integer from public.guild_members gm where gm.guild_id = g.id) as members_count,
            coalesce(sum(c.gained_xp), 0) as monthly_xp
     from public.guilds g
     left join public.guild_xp_contributions c
       on c.guild_id = g.id and c.month = target_month
     group by g.id, g.name, g.level
   ), ranked as (
-    select m.*, rank() over(order by m.monthly_xp desc) as rank_no
+    select m.*, rank() over(order by m.monthly_xp desc)::integer as rank_no
     from monthly m
   )
   select ranked.guild_id as guild_id,
@@ -69,7 +69,7 @@ begin
     select monthly.month as month,
            monthly.guild_id as guild_id,
            monthly.monthly_xp as monthly_xp,
-           rank() over(partition by monthly.month order by monthly.monthly_xp desc) as rank_no
+           rank() over(partition by monthly.month order by monthly.monthly_xp desc)::integer as rank_no
     from monthly
   )
   select ranked.month as month,
@@ -82,4 +82,3 @@ end;
 $$;
 
 grant execute on function public.rpc_get_guild_monthly_ranks(uuid, integer) to anon, authenticated;
-
