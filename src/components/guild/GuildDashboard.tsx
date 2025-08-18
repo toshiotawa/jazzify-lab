@@ -220,7 +220,7 @@ const GuildDashboard: React.FC = () => {
                   <div className="text-sm text-gray-300 mt-1">称号: {guildTitle}</div>
                   <div className="text-xs text-gray-400">メンバー {members.length}/5</div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm overflow-x-auto">
                   <div className="bg-slate-900 rounded p-3 border border-slate-700">
                     <div className="text-gray-400">ギルドレベル</div>
                     <div className="text-lg font-semibold">{myGuild.level}</div>
@@ -232,7 +232,7 @@ const GuildDashboard: React.FC = () => {
                   <div className="bg-slate-900 rounded p-3 border border-slate-700">
                     <div className="text-gray-400">順位</div>
                     <button
-                      className="text-lg font-semibold hover:text-blue-400"
+                      className="text-lg font-semibold hover:text-blue-400 underline underline-offset-2"
                       onClick={() => { window.location.hash = '#guilds-ranking'; }}
                       title="ギルドランキングを開く"
                     >{myRank ? `${myRank}位` : '-'}</button>
