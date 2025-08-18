@@ -15,7 +15,7 @@ import {
 	Guild,
 	GuildMember,
 	GuildJoinRequest,
-	fetchMyGuildContributionTotal
+	fetchMyGuildContributionTotal,
 } from '@/platform/supabaseGuilds';
 import GuildBoard from '@/components/guild/GuildBoard';
 import GameHeader from '@/components/ui/GameHeader';
@@ -65,7 +65,6 @@ const GuildDashboard: React.FC = () => {
 						const total = await fetchMyGuildContributionTotal(g.id);
 						setMyTotalContribXp(Number(total));
 					}
-					// リーダーなら参加リクエスト取得
 					if (user && g.leader_id === user.id) {
 						const reqs = await fetchJoinRequestsForMyGuild();
 						if (mounted) setJoinRequests(reqs);
@@ -112,30 +111,23 @@ const GuildDashboard: React.FC = () => {
 							<div className="bg-slate-900 border border-slate-700 p-4 rounded">
 								<h3 className="font-semibold mb-2">ギルドを作成</h3>
 								<div className="flex gap-2 items-center">
-									<input
-										className="flex-1 bg-slate-800 p-2 rounded"
-										placeholder="ギルド名"
-										value={newGuildName}
-										onChange={(e) => setNewGuildName(e.target.value)}
-									/>
-									<button
-										className="btn btn-primary"
-										disabled={busy || !newGuildName.trim()}
-										onClick={async () => {
-											try {
-												setBusy(true);
-												await createGuild(newGuildName.trim());
-												setNewGuildName('');
-												const g = await getMyGuild();
-												setMyGuild(g);
-												if (g) setMembers(await getGuildMembers(g.id));
-											} catch (e: any) {
-												alert(e?.message || 'ギルド作成に失敗しました');
-											} finally {
-												setBusy(false);
-											}
-										}}
-									>作成</button>
+									<input className="flex-1 bg-slate-800 p-2 rounded" placeholder="ギルド名" value={newGuildName} onChange={(e) => setNewGuildName(e.target.value)} />
+									<button className="btn btn-primary" disabled={busy || !newGuildName.trim()} onClick={async () => {
+										try {
+											setBusy(true);
+											await createGuild(newGuildName.trim());
+											setNewGuildName('');
+											const g = await getMyGuild();
+											setMyGuild(g);
+											if (g) setMembers(await getGuildMembers(g.id));
+										} catch (e: any) {
+											alert(e?.message || 'ギルド作成に失敗しました');
+										} finally {
+											setBusy(false);
+										}
+									}}>
+										作成
+									</button>
 								</div>
 							</div>
 						)}
@@ -143,13 +135,7 @@ const GuildDashboard: React.FC = () => {
 						<div className="bg-slate-900 border border-slate-700 p-4 rounded">
 							<h3 className="font-semibold mb-2">ギルドを探す</h3>
 							<div className="flex gap-2 mb-3">
-								<input
-									className="flex-1 bg-slate-800 p-2 rounded"
-									placeholder="キーワードで検索"
-									value={keyword}
-									onChange={(e) => setKeyword(e.target.value)}
-									onKeyDown={(e) => { if (e.key === 'Enter') void doSearch(); }}
-								/>
+								<input className="flex-1 bg-slate-800 p-2 rounded" placeholder="キーワードで検索" value={keyword} onChange={(e) => setKeyword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void doSearch(); }} />
 								<button className="btn" disabled={busy} onClick={() => void doSearch()}>検索</button>
 							</div>
 							{results.length === 0 ? (
@@ -163,25 +149,20 @@ const GuildDashboard: React.FC = () => {
 												<div className="text-xs text-gray-400">Lv.{g.level} / メンバー {g.members_count}</div>
 											</div>
 											<div className="flex items-center gap-2">
-												<button
-													className="btn btn-sm btn-outline"
-													onClick={() => { const p = new URLSearchParams(); p.set('id', g.id); window.location.hash = `#guild-history?${p.toString()}`; }}
-												>ヒストリー</button>
-												<button
-													className="btn btn-sm btn-primary"
-													disabled={busy}
-													onClick={async () => {
-														try {
-															setBusy(true);
-															await requestJoin(g.id);
-															alert('加入申請を送信しました');
-														} catch (e: any) {
-															alert(e?.message || '申請に失敗しました');
-														} finally {
-															setBusy(false);
-														}
-													}}
-												>加入申請</button>
+												<button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', g.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ヒストリー</button>
+												<button className="btn btn-sm btn-primary" disabled={busy} onClick={async () => {
+													try {
+														setBusy(true);
+														await requestJoin(g.id);
+														alert('加入申請を送信しました');
+													} catch (e: any) {
+														alert(e?.message || '申請に失敗しました');
+													} finally {
+														setBusy(false);
+													}
+												}}>
+													加入申請
+												</button>
 											</div>
 										</li>
 									))}
@@ -194,7 +175,6 @@ const GuildDashboard: React.FC = () => {
 		);
 	}
 
-	// ギルド称号（簡易）
 	const guildTitle = (() => {
 		const lvl = myGuild?.level || 1;
 		if (lvl < 5) return 'Novice Guild';
@@ -219,7 +199,6 @@ const GuildDashboard: React.FC = () => {
 			<GameHeader />
 			<div className="flex-1 overflow-y-auto p-4 sm:p-6">
 				<div className="max-w-6xl mx-auto space-y-6">
-					{/* ヘッダー情報 */}
 					<div>
 						<h2 className="text-xl font-bold">ギルド</h2>
 						<div className="mt-2 bg-slate-800 rounded-lg p-4 border border-slate-700">
@@ -240,11 +219,7 @@ const GuildDashboard: React.FC = () => {
 									</div>
 									<div className="bg-slate-900 rounded p-3 border border-slate-700">
 										<div className="text-gray-400">順位</div>
-										<button
-											className="text-lg font-semibold hover:text-blue-400 underline underline-offset-2"
-											onClick={() => { window.location.hash = '#guilds-ranking'; }}
-											title="ギルドランキングを開く"
-										>{myRank ? `${myRank}位` : '-'}</button>
+										<button className="text-lg font-semibold hover:text-blue-400 underline underline-offset-2" onClick={() => { window.location.hash = '#guilds-ranking'; }} title="ギルドランキングを開く">{myRank ? `${myRank}位` : '-'}</button>
 									</div>
 									<div className="bg-slate-900 rounded p-3 border border-slate-700">
 										<div className="text-gray-400">累計XP</div>
@@ -257,20 +232,12 @@ const GuildDashboard: React.FC = () => {
 										</div>
 									</div>
 								</div>
-								<div className="mt-3 text-right">
-									<button
-										className="btn btn-sm btn-outline"
-										onClick={() => {
-											const params = new URLSearchParams();
-											params.set('id', myGuild.id);
-											window.location.hash = `#guild-history?${params.toString()}`;
-										}}
-									>ギルドヒストリーを見る</button>
-								</div>
+							<div className="mt-3 text-right">
+								<button className="btn btn-sm btn-outline" onClick={() => { const params = new URLSearchParams(); params.set('id', myGuild.id); window.location.hash = `#guild-history?${params.toString()}`; }}>ギルドヒストリーを見る</button>
+							</div>
 						</div>
 					</div>
 
-					{/* MVP セクション */}
 					<div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
 						<h3 className="font-semibold mb-3">MVPメンバー（今月）</h3>
 						{!mvp ? (
@@ -286,7 +253,6 @@ const GuildDashboard: React.FC = () => {
 						)}
 					</div>
 
-					{/* 自分の貢献XP */}
 					<div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
 						<h3 className="font-semibold mb-3">自分の貢献XP</h3>
 						<div className="grid grid-cols-2 gap-3 text-sm">
@@ -301,7 +267,6 @@ const GuildDashboard: React.FC = () => {
 						</div>
 					</div>
 
-					{/* メンバー一覧 */}
 					<div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
 						<h3 className="font-semibold mb-3">メンバー一覧</h3>
 						{members.length === 0 ? (
@@ -314,9 +279,7 @@ const GuildDashboard: React.FC = () => {
 											<img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
 										</button>
 										<div className="flex-1 min-w-0">
-											<button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} className="font-medium text-sm truncate text-left hover:text-blue-400">
-												{m.nickname}
-											</button>
+											<button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} className="font-medium text-sm truncate text-left hover:text-blue-400">{m.nickname}</button>
 											<div className="text-xs text-gray-400">Lv {m.level} / {m.rank}</div>
 										</div>
 										{m.role === 'leader' && (
@@ -328,10 +291,8 @@ const GuildDashboard: React.FC = () => {
 						)}
 					</div>
 
-					{/* 掲示板 */}
 					<GuildBoard guildId={myGuild.id} />
 
-					{/* 参加リクエスト（リーダーのみ） */}
 					{isLeader && (
 						<div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
 							<h3 className="font-semibold mb-3">参加リクエスト</h3>
@@ -343,35 +304,8 @@ const GuildDashboard: React.FC = () => {
 										<li key={r.id} className="flex items-center justify-between bg-slate-900 p-3 rounded border border-slate-700">
 											<div className="text-sm">{r.requester_nickname || r.requester_id}</div>
 											<div className="flex items-center gap-2">
-												<button
-													className="btn btn-xs btn-outline"
-													disabled={busy}
-													onClick={async () => {
-														try {
-															setBusy(true);
-															await rejectJoinRequest(r.id);
-															setJoinRequests(prev => prev.filter(x => x.id !== r.id));
-														} finally {
-															setBusy(false);
-														}
-													}}
-												>拒否</button>
-												<button
-													className="btn btn-xs btn-primary"
-													disabled={busy}
-													onClick={async () => {
-														try {
-															setBusy(true);
-															await approveJoinRequest(r.id);
-															setJoinRequests(prev => prev.filter(x => x.id !== r.id));
-															// 参加承認後、メンバーを再取得
-															const m = await getGuildMembers(myGuild.id);
-															setMembers(m);
-														} finally {
-															setBusy(false);
-														}
-													}}
-												>承認</button>
+												<button className="btn btn-xs btn-outline" disabled={busy} onClick={async () => { try { setBusy(true); await rejectJoinRequest(r.id); setJoinRequests(prev => prev.filter(x => x.id !== r.id)); } finally { setBusy(false); } }}>拒否</button>
+												<button className="btn btn-xs btn-primary" disabled={busy} onClick={async () => { try { setBusy(true); await approveJoinRequest(r.id); setJoinRequests(prev => prev.filter(x => x.id !== r.id)); const m = await getGuildMembers(myGuild.id); setMembers(m); } finally { setBusy(false); } }}>承認</button>
 											</div>
 										</li>
 									))}
