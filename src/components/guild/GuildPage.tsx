@@ -3,12 +3,14 @@ import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild } from '@/platform/supabaseGuilds';
 import { computeGuildBonus, formatMultiplier } from '@/utils/guildBonus';
+import { DEFAULT_TITLE, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
+import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard } from 'react-icons/fa';
 
 const GuildPage: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash.startsWith('#guild'));
   const [guildId, setGuildId] = useState<string | null>(null);
   const [guild, setGuild] = useState<Guild | null>(null);
-  const [members, setMembers] = useState<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; role: 'leader' | 'member' }>>([]);
+  const [members, setMembers] = useState<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; role: 'leader' | 'member'; selected_title?: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [memberMonthly, setMemberMonthly] = useState<Array<{ user_id: string; monthly_xp: number }>>([]);
   const [seasonXp, setSeasonXp] = useState<number>(0);
@@ -65,6 +67,24 @@ const GuildPage: React.FC = () => {
 
   const contributors = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
   const bonus = computeGuildBonus(guild?.level || 1, contributors);
+  const contributedSet = new Set(memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).map(x => x.user_id));
+  const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
+    if (TITLES.includes(title as any)) return 'level';
+    if (MISSION_TITLES.some(mt => mt.name === title)) return 'mission';
+    if (LESSON_TITLES.some(lt => lt.name === title)) return 'lesson';
+    if (WIZARD_TITLES.includes(title as any)) return 'wizard';
+    return 'level';
+  };
+  const getTitleIcon = (title: string) => {
+    const t = getTitleType(title);
+    switch (t) {
+      case 'mission': return <FaTrophy className="text-xs text-purple-400" />;
+      case 'lesson': return <FaGraduationCap className="text-xs text-blue-400" />;
+      case 'wizard': return <FaHatWizard className="text-xs text-green-400" />;
+      case 'level':
+      default: return <FaCrown className="text-xs text-yellow-400" />;
+    }
+  };
   const mvpUserId = memberMonthly.sort((a,b)=>b.monthly_xp-a.monthly_xp)[0]?.user_id;
   const mvp = mvpUserId ? members.find(x => x.user_id === mvpUserId) : undefined;
   const mvpXp = memberMonthly.find(x => x.user_id === mvpUserId)?.monthly_xp || 0;
@@ -142,7 +162,18 @@ const GuildPage: React.FC = () => {
                           <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
                         </button>
                         <button className="hover:text-blue-400" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
-                        <span className="text-xs text-gray-400">Lv.{m.level} / {m.rank}</span>
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <span>Lv.{m.level} / {m.rank}</span>
+                          <div className="relative" title={getTitleRequirement((m.selected_title as any) || DEFAULT_TITLE)}>
+                            <span className="inline-flex items-center gap-1 text-yellow-400">
+                              {getTitleIcon((m.selected_title as any) || DEFAULT_TITLE)}
+                              <span className="truncate max-w-[8rem]">{(m.selected_title as any) || DEFAULT_TITLE}</span>
+                            </span>
+                          </div>
+                          {contributedSet.has(m.user_id) && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-600">1.1x</span>
+                          )}
+                        </div>
                         {m.role === 'leader' && (
                           <span className="text-[10px] px-2 py-0.5 rounded_full bg-yellow-500 text-black font-bold">Leader</span>
                         )}

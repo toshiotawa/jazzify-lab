@@ -8,7 +8,7 @@ import { useDiaryStore } from '@/stores/diaryStore';
 import { useToast } from '@/stores/toastStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES } from '@/utils/titleConstants';
+import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
 import GuildInviteControls from '@/components/guild/GuildInviteControls';
 import { getGuildOfUser, Guild } from '@/platform/supabaseGuilds';
@@ -246,12 +246,15 @@ const DiaryPage: React.FC = () => {
                             <span className="text-xs text-gray-400 ml-2">Lv.{joinedGuild.level} / メンバー {joinedGuild.members_count}</span>
                           </div>
                         )}
-                        {/* 称号表示 */}
-                        <div className="flex items-center space-x-2 mb-2 mt-1">
-                          {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
-                          <span className="text-yellow-400 font-medium text-sm">
-                            {(profile.selected_title as Title) || DEFAULT_TITLE}
-                          </span>
+                        {/* 称号表示（ホバー/タップで取得条件） */}
+                        <div className="relative">
+                          <div className="flex items-center space-x-2 mb-2 mt-1 text-yellow-400 cursor-help"
+                               title={getTitleRequirement((profile.selected_title as Title) || DEFAULT_TITLE)}>
+                            {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
+                            <span className="font-medium text-sm">
+                              {(profile.selected_title as Title) || DEFAULT_TITLE}
+                            </span>
+                          </div>
                         </div>
                         <div className="flex items-center space-x-3 text-sm text-gray-400">
                           <span>Lv.{profile.level}</span>

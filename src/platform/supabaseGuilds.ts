@@ -17,6 +17,7 @@ export interface GuildMember {
   avatar_url?: string;
   level: number;
   rank: string;
+  selected_title?: string | null;
   role: 'leader' | 'member';
 }
 
@@ -85,7 +86,7 @@ export async function getGuildMembers(guildId: string): Promise<GuildMember[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('guild_members')
-    .select('user_id, role, profiles(nickname, avatar_url, level, rank)')
+    .select('user_id, role, profiles(nickname, avatar_url, level, rank, selected_title)')
     .eq('guild_id', guildId)
     .order('joined_at', { ascending: true });
   if (error) throw error;
@@ -95,6 +96,7 @@ export async function getGuildMembers(guildId: string): Promise<GuildMember[]> {
     avatar_url: row.profiles?.avatar_url || undefined,
     level: row.profiles?.level || 1,
     rank: row.profiles?.rank || 'free',
+    selected_title: row.profiles?.selected_title || null,
     role: (row.role as 'leader' | 'member') || 'member',
   }));
 }
