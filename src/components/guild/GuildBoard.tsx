@@ -80,9 +80,11 @@ const GuildBoard: React.FC<Props> = ({ guildId }) => {
           {posts.map(p => (
             <li key={p.id} className="bg-slate-800 p-3 rounded">
               <div className="flex items-center gap-2 mb-2">
-                <img src={p.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
+                <button onClick={()=>{ window.location.href = `/main#diary-user?id=${p.user_id}`; }} aria-label="メンバー詳細へ">
+                  <img src={p.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
+                </button>
                 <div className="text-sm">
-                  <div className="font-medium">{p.nickname}</div>
+                  <button className="font-medium text-left" onClick={()=>{ window.location.href = `/main#diary-user?id=${p.user_id}`; }}>{p.nickname}</button>
                   <div className="text-gray-400 text-xs">{new Date(p.created_at).toLocaleString('ja-JP')}</div>
                 </div>
               </div>
@@ -95,8 +97,10 @@ const GuildBoard: React.FC<Props> = ({ guildId }) => {
                 <div className="mt-2 space-y-2">
                   {(comments[p.id] || []).map(c => (
                     <div key={c.id} className="flex items-center gap-2 text-xs">
-                      <img src={c.avatar_url || DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full" />
-                      <div className="font-semibold">{c.nickname}</div>
+                      <button onClick={()=>{ window.location.href = `/main#diary-user?id=${c.user_id}`; }} aria-label="メンバー詳細へ">
+                        <img src={c.avatar_url || DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full" />
+                      </button>
+                      <button className="font-semibold text-left" onClick={()=>{ window.location.href = `/main#diary-user?id=${c.user_id}`; }}>{c.nickname}</button>
                       <div className="text-gray-200 flex-1">{c.content}</div>
                       <div className="text-gray-500">{new Date(c.created_at).toLocaleString('ja-JP')}</div>
                     </div>
