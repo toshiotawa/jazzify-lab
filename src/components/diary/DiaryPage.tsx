@@ -10,6 +10,7 @@ import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES } from '@/utils/titleConstants';
 import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
+import GuildInviteControls from '@/components/guild/GuildInviteControls';
 
 interface UserDiary {
   id: string;
@@ -275,6 +276,14 @@ const DiaryPage: React.FC = () => {
                         ) : null}
                       </div>
                     </div>
+
+                    {/* ギルド勧誘/参加リクエストコントロール */}
+                    {userId && user && user.id !== userId && (
+                      <div className="mt-3">
+                        <GuildInviteControls targetUserId={userId} />
+                      </div>
+                    )}
+
                     {profile.bio && (
                       <p className="mt-3 text-sm text-gray-300 whitespace-pre-wrap">{profile.bio}</p>
                     )}
@@ -441,4 +450,4 @@ const DiaryPage: React.FC = () => {
   );
 };
 
-export default DiaryPage; 
+export default DiaryPage;
