@@ -148,34 +148,49 @@ export async function kickMember(memberUserId: string): Promise<void> {
 }
 
 export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: string): Promise<Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>> {
-  const params: Record<string, any> = { limit_count: limit, offset_count: offset };
-  if (targetMonth) params.target_month = targetMonth;
-  const { data, error } = await getSupabaseClient()
-    .rpc('rpc_get_guild_ranking', params as any);
-  if (error) throw error;
-  return (data || []).map((r: any) => ({
-    guild_id: r.guild_id,
-    name: r.name,
-    members_count: Number(r.members_count) || 0,
-    level: Number(r.level) || 1,
-    monthly_xp: Number(r.monthly_xp) || 0,
-    rank_no: Number(r.rank_no) || 0,
-  }));
+  try {
+    const params: Record<string, any> = { limit_count: limit, offset_count: offset };
+    if (targetMonth) params.target_month = targetMonth;
+    const { data, error } = await getSupabaseClient()
+      .rpc('rpc_get_guild_ranking', params as any);
+    if (error) throw error;
+    return (data || []).map((r: any) => ({
+      guild_id: r.guild_id,
+      name: r.name,
+      members_count: Number(r.members_count) || 0,
+      level: Number(r.level) || 1,
+      monthly_xp: Number(r.monthly_xp) || 0,
+      rank_no: Number(r.rank_no) || 0,
+    }));
+  } catch (e) {
+    console.warn('rpc_get_guild_ranking failed, returning empty list:', e);
+    return [];
+  }
 }
 
 export async function fetchMyGuildRank(targetMonth?: string): Promise<number | null> {
-  const params: Record<string, any> = {};
-  if (targetMonth) params.target_month = targetMonth;
-  const { data, error } = await getSupabaseClient().rpc('rpc_get_my_guild_rank', params as any);
-  if (error) throw error;
-  return (data as number | null) ?? null;
+  try {
+    const params: Record<string, any> = {};
+    if (targetMonth) params.target_month = targetMonth;
+    const { data, error } = await getSupabaseClient().rpc('rpc_get_my_guild_rank', params as any);
+    if (error) throw error;
+    return (data as number | null) ?? null;
+  } catch (e) {
+    console.warn('rpc_get_my_guild_rank failed:', e);
+    return null;
+  }
 }
 
 export async function fetchGuildMonthlyRanks(guildId: string, months = 12): Promise<Array<{ month: string; monthly_xp: number; rank_no: number }>> {
-  const { data, error } = await getSupabaseClient()
-    .rpc('rpc_get_guild_monthly_ranks', { p_guild_id: guildId, months });
-  if (error) throw error;
-  return (data || []).map((r: any) => ({ month: r.month, monthly_xp: Number(r.monthly_xp) || 0, rank_no: Number(r.rank_no) || 0 }));
+  try {
+    const { data, error } = await getSupabaseClient()
+      .rpc('rpc_get_guild_monthly_ranks', { p_guild_id: guildId, months });
+    if (error) throw error;
+    return (data || []).map((r: any) => ({ month: r.month, monthly_xp: Number(r.monthly_xp) || 0, rank_no: Number(r.rank_no) || 0 }));
+  } catch (e) {
+    console.warn('rpc_get_guild_monthly_ranks failed:', e);
+    return [];
+  }
 }
 
 export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]> {

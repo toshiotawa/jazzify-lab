@@ -595,3 +595,18 @@ grant all on table public.guild_post_likes to anon, authenticated, service_role;
 grant select on table public.guild_xp_contributions to anon, authenticated;
 grant all on table public.guild_xp_contributions to service_role;
 
+-- Function execution grants
+grant execute on function public.rpc_guild_create(text) to anon, authenticated;
+grant execute on function public.rpc_guild_invite(uuid) to anon, authenticated;
+grant execute on function public.rpc_guild_cancel_invitation(uuid) to anon, authenticated;
+grant execute on function public.rpc_guild_accept_invitation(uuid) to anon, authenticated;
+grant execute on function public.rpc_guild_reject_invitation(uuid) to anon, authenticated;
+grant execute on function public.rpc_guild_request_join(uuid) to anon, authenticated;
+grant execute on function public.rpc_guild_approve_request(uuid) to anon, authenticated;
+grant execute on function public.rpc_guild_reject_request(uuid) to anon, authenticated;
+grant execute on function public.rpc_guild_kick_member(uuid) to anon, authenticated;
+grant execute on function public.rpc_get_guild_ranking(integer, integer, date) to anon, authenticated;
+grant execute on function public.rpc_get_my_guild_rank(date) to anon, authenticated;
+grant execute on function public.rpc_get_guild_monthly_ranks(uuid, integer) to anon, authenticated;
+grant execute on function public.is_current_user_free() to anon, authenticated;
+

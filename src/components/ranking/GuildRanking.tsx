@@ -19,6 +19,9 @@ const GuildRanking: React.FC = () => {
         setLoading(true);
         try {
           setRows(await fetchGuildRanking(100, 0));
+        } catch (e) {
+          console.warn('Guild ranking load failed:', e);
+          setRows([]);
         } finally {
           setLoading(false);
         }

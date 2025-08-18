@@ -59,24 +59,28 @@ const GuildDashboard: React.FC = () => {
   const initialize = async () => {
     setLoading(true);
     try {
-      const g = await getMyGuild();
-      setMyGuild(g);
-      if (g) {
-        const mem = await getGuildMembers(g.id);
-        setMembers(mem);
-        const [rankList, myRank, months] = await Promise.all([
-          fetchGuildRanking(20, 0),
-          fetchMyGuildRank(),
-          fetchGuildMonthlyRanks(g.id, 12),
-        ]);
-        setRanking(rankList);
-        setMyGuildRank(myRank);
-        setMonthlyRanks(months);
-        setJoinRequests(await fetchJoinRequestsForMyGuild());
-      } else {
-        // not in a guild: preload invites and ranking
-        setRanking(await fetchGuildRanking(20, 0));
-        setPendingInvites(await fetchPendingInvitationsForMe());
+      try {
+        const g = await getMyGuild();
+        setMyGuild(g);
+        if (g) {
+          const mem = await getGuildMembers(g.id);
+          setMembers(mem);
+          const [rankList, myRank, months] = await Promise.all([
+            fetchGuildRanking(20, 0),
+            fetchMyGuildRank(),
+            fetchGuildMonthlyRanks(g.id, 12),
+          ]);
+          setRanking(rankList);
+          setMyGuildRank(myRank);
+          setMonthlyRanks(months);
+          setJoinRequests(await fetchJoinRequestsForMyGuild());
+        } else {
+          // not in a guild: preload invites and ranking
+          setRanking(await fetchGuildRanking(20, 0));
+          setPendingInvites(await fetchPendingInvitationsForMe());
+        }
+      } catch (e) {
+        console.warn('Guild initialize failed:', e);
       }
     } finally {
       setLoading(false);
