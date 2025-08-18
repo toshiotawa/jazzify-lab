@@ -91,7 +91,9 @@ const GuildRanking: React.FC = () => {
                     {rowsCurrent.map((r) => (
                       <tr key={r.guild_id} className="border-b border-slate-800">
                         <td className="py-2 px-2">{r.rank_no}</td>
-                        <td className="py-2 px-2">{r.name}</td>
+                        <td className="py-2 px-2">
+                          <button className="hover:text-blue-400 underline" onClick={() => { const p = new URLSearchParams(); p.set('id', r.guild_id); window.location.hash = `#guild?${p.toString()}`; }}>{r.name}</button>
+                        </td>
                         <td className="py-2 px-2">{r.level}</td>
                         <td className="py-2 px-2">
                           {mvpCurrent[r.guild_id] ? (
@@ -133,7 +135,9 @@ const GuildRanking: React.FC = () => {
                     {rowsPrev.map((r) => (
                       <tr key={r.guild_id} className="border-b border-slate-800">
                         <td className="py-2 px-2">{r.rank_no}</td>
-                        <td className="py-2 px-2">{r.name}</td>
+                        <td className="py-2 px-2">
+                          <button className="hover:text-blue-400 underline" onClick={() => { const p = new URLSearchParams(); p.set('id', r.guild_id); window.location.hash = `#guild?${p.toString()}`; }}>{r.name}</button>
+                        </td>
                         <td className="py-2 px-2">{r.level}</td>
                         <td className="py-2 px-2">
                           {mvpPrev[r.guild_id] ? (

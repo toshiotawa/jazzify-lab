@@ -16,11 +16,14 @@ import {
 	GuildMember,
 	GuildJoinRequest,
 	fetchMyGuildContributionTotal,
+	updateGuildDescription,
+	disbandMyGuild,
 } from '@/platform/supabaseGuilds';
 import GuildBoard from '@/components/guild/GuildBoard';
 import GameHeader from '@/components/ui/GameHeader';
 import { currentLevelXP, xpToNextLevel } from '@/utils/xpCalculator';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { computeGuildBonus, formatMultiplier } from '@/utils/guildBonus';
 
 const GuildDashboard: React.FC = () => {
 	const { user, profile } = useAuthStore();
@@ -38,6 +41,7 @@ const GuildDashboard: React.FC = () => {
 	const [joinRequests, setJoinRequests] = useState<GuildJoinRequest[]>([]);
 	const [myMonthlyXp, setMyMonthlyXp] = useState<number>(0);
 	const [myTotalContribXp, setMyTotalContribXp] = useState<number>(0);
+	const [descEdit, setDescEdit] = useState<string>('');
 
 	useEffect(() => {
 		let mounted = true;
@@ -48,6 +52,7 @@ const GuildDashboard: React.FC = () => {
 				if (!mounted) return;
 				setMyGuild(g);
 				if (g) {
+					setDescEdit(g.description || '');
 					const [m, rank, months, perMember] = await Promise.all([
 						getGuildMembers(g.id),
 						fetchMyGuildRank(),
@@ -68,6 +73,17 @@ const GuildDashboard: React.FC = () => {
 					if (user && g.leader_id === user.id) {
 						const reqs = await fetchJoinRequestsForMyGuild();
 						if (mounted) setJoinRequests(reqs);
+						// メンバー上限到達時の保留申請・招待の撤回
+						if ((members.length || 0) >= 5) {
+							try {
+								const { cancelInvitation } = await import('@/platform/supabaseGuilds');
+								const { data: { user: cur } } = await (await import('@/platform/supabaseClient')).getSupabaseClient().auth.getUser();
+								// 自ギルドから出している招待を全撤回
+								const { fetchOutgoingInvitationsForMyGuild } = await import('@/platform/supabaseGuilds');
+								const outgoing = await fetchOutgoingInvitationsForMyGuild();
+								await Promise.all(outgoing.map(o => cancelInvitation(o.id))); // 失敗は無視
+							} catch {}
+						}
 					}
 				}
 			} finally {
@@ -76,6 +92,16 @@ const GuildDashboard: React.FC = () => {
 		})();
 		return () => { mounted = false; };
 	}, [user?.id]);
+
+	// 追加: 単独メンバーでリーダーがフリーなら自動解散
+	useEffect(() => {
+		(async () => {
+			if (!myGuild || !user) return;
+			if (members.length === 1 && myGuild.leader_id === user.id && (profile?.rank === 'free')) {
+				try { await disbandMyGuild(); setMyGuild({ ...myGuild, disbanded: true, name: '解散したギルド' }); } catch {}
+			}
+		})();
+	}, [myGuild?.id, members.length, profile?.rank]);
 
 	const doSearch = async () => {
 		setBusy(true);
@@ -161,7 +187,7 @@ const GuildDashboard: React.FC = () => {
 														setBusy(false);
 													}
 												}}>
-													加入申請
+												加入申請
 												</button>
 											</div>
 										</li>
@@ -194,6 +220,9 @@ const GuildDashboard: React.FC = () => {
 		return { user_id: top.user_id, monthly_xp: top.monthly_xp, nickname: mem?.nickname || 'Member', avatar_url: mem?.avatar_url };
 	})();
 
+	const contributedCount = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
+	const guildBonus = computeGuildBonus(myGuild?.level || 1, contributedCount);
+
 	return (
 		<div className="w-full h-full flex flex-col bg-gradient-game text-white">
 			<GameHeader />
@@ -201,10 +230,15 @@ const GuildDashboard: React.FC = () => {
 				<div className="max-w-6xl mx-auto space-y-6">
 					<div>
 						<h2 className="text-xl font-bold">ギルド</h2>
+						{/* 追加: ギルドボーナスの説明 */}
+						<div className="mt-2 bg-slate-800 rounded-lg p-4 border border-slate-700">
+							<h3 className="font-semibold mb-2">ギルドボーナスとは？</h3>
+							<p className="text-sm text-gray-300">ギルドに所属していると、XP獲得にボーナスが加算されます。レベル倍率（レベル1ごとに+0.1%）と、当月にXPを1以上獲得したメンバー人数×10%（最大+50%）のメンバー倍率の合算を、1に足した倍率が適用されます。</p>
+						</div>
 						<div className="mt-2 bg-slate-800 rounded-lg p-4 border border-slate-700">
 							<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 								<div className="min-w-0">
-									<div className="text-2xl font-bold break-all">{myGuild.name}</div>
+									<div className="text-2xl font-bold break-all">{myGuild.name}{myGuild.disbanded ? '（解散したギルド）' : ''}</div>
 									<div className="text-sm text-gray-300 mt-1">称号: {guildTitle}</div>
 									<div className="text-xs text-gray-400">メンバー {members.length}/5</div>
 								</div>
@@ -225,6 +259,11 @@ const GuildDashboard: React.FC = () => {
 										<div className="text-gray-400">累計XP</div>
 										<div className="text-lg font-semibold">{(myGuild.total_xp || 0).toLocaleString()}</div>
 									</div>
+									<div className="bg-slate-900 rounded p-3 border border-slate-700">
+										<div className="text-gray-400">ギルドボーナス</div>
+										<div className="text-lg font-semibold text-green-400">{formatMultiplier(guildBonus.totalMultiplier)}</div>
+										<div className="text-xs text-gray-400">レベル倍率 +{(guildBonus.levelBonus*100).toFixed(1)}% / メンバー倍率 +{(guildBonus.memberBonus*100).toFixed(0)}%</div>
+									</div>
 									<div className="col-span-2 sm:col-span-3 bg-slate-900 rounded p-3 border border-slate-700">
 										<div className="text-gray-400 mb-1">現在レベルの進捗: {levelRemainder.toLocaleString()} / {nextLevelXp.toLocaleString()} XP</div>
 										<div className="bg-slate-700 h-2 rounded overflow-hidden">
@@ -233,8 +272,26 @@ const GuildDashboard: React.FC = () => {
 									</div>
 								</div>
 							</div>
-							<div className="mt-3 text-right">
-								<button className="btn btn-sm btn-outline" onClick={() => { const params = new URLSearchParams(); params.set('id', myGuild.id); window.location.hash = `#guild-history?${params.toString()}`; }}>ギルドヒストリーを見る</button>
+							<div className="mt-3 text-right flex items-center justify-between gap-3">
+								<div className="text-sm text-gray-300 flex-1">
+									{isLeader ? (
+										<div className="space-y-2">
+											<div className="text-xs text-gray-400">ギルド説明（ダッシュボードに表示）</div>
+											<textarea className="w-full bg-slate-800 p-2 rounded text-sm" rows={3} value={descEdit} onChange={(e)=>setDescEdit(e.target.value)} />
+											<div className="flex gap-2">
+												<button className="btn btn-sm btn-primary" disabled={busy} onClick={async()=>{ try{ setBusy(true); await updateGuildDescription(descEdit); const g = await getMyGuild(); setMyGuild(g); } catch(e:any){ alert(e?.message||'保存に失敗しました'); } finally{ setBusy(false); } }}>説明を保存</button>
+												{members.length === 1 && (
+													<button className="btn btn-sm btn-outline text-red-300 border-red-600" disabled={busy} onClick={async()=>{ if(!confirm('本当にギルドを解散しますか？')) return; try{ setBusy(true); await disbandMyGuild(); const g = await getMyGuild(); setMyGuild(g); } catch(e:any){ alert(e?.message||'解散に失敗しました'); } finally{ setBusy(false); } }}>ギルドを解散</button>
+												)}
+											</div>
+										</div>
+									) : (
+										<div className="text-xs text-gray-400 whitespace-pre-wrap">{myGuild.description || '（説明は設定されていません）'}</div>
+									)}
+								</div>
+								<div>
+									<button className="btn btn-sm btn-outline" onClick={() => { const params = new URLSearchParams(); params.set('id', myGuild.id); window.location.hash = `#guild-history?${params.toString()}`; }}>ギルドヒストリーを見る</button>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -269,7 +326,7 @@ const GuildDashboard: React.FC = () => {
 					</div>
 
 					<div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-						<h3 className="font-semibold mb-3">メンバー一覧</h3>
+						<h3 className="font-semibold mb-3">メンバー一覧 <span className="text-xs text-green-400 ml-2">{formatMultiplier(guildBonus.totalMultiplier)}</span></h3>
 						{members.length === 0 ? (
 							<p className="text-gray-400 text-sm">メンバーがいません</p>
 						) : (
@@ -292,8 +349,7 @@ const GuildDashboard: React.FC = () => {
 						)}
 					</div>
 
-					<GuildBoard guildId={myGuild.id} />
-
+					{/* 参加リクエスト（先に表示） */}
 					{isLeader && (
 						<div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
 							<h3 className="font-semibold mb-3">参加リクエスト</h3>
@@ -306,7 +362,7 @@ const GuildDashboard: React.FC = () => {
 											<div className="text-sm">{r.requester_nickname || r.requester_id}</div>
 											<div className="flex items-center gap-2">
 												<button className="btn btn-xs btn-outline" disabled={busy} onClick={async () => { try { setBusy(true); await rejectJoinRequest(r.id); setJoinRequests(prev => prev.filter(x => x.id !== r.id)); } finally { setBusy(false); } }}>拒否</button>
-												<button className="btn btn-xs btn-primary" disabled={busy} onClick={async () => { try { setBusy(true); await approveJoinRequest(r.id); setJoinRequests(prev => prev.filter(x => x.id !== r.id)); const m = await getGuildMembers(myGuild.id); setMembers(m); } finally { setBusy(false); } }}>承認</button>
+												<button className="btn btn-xs btn-primary" disabled={busy || members.length >= 5} onClick={async () => { try { setBusy(true); await approveJoinRequest(r.id); const m = await getGuildMembers(myGuild.id); setMembers(m); setJoinRequests(prev => prev.filter(x => x.id !== r.id)); } finally { setBusy(false); } }}>承認</button>
 											</div>
 										</li>
 									))}
@@ -314,6 +370,9 @@ const GuildDashboard: React.FC = () => {
 							)}
 						</div>
 					)}
+
+					{/* 掲示板（後ろに移動） */}
+					<GuildBoard guildId={myGuild.id} />
 				</div>
 			</div>
 		</div>

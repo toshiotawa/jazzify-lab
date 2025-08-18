@@ -7,6 +7,8 @@ export interface Guild {
   level: number;
   total_xp: number;
   members_count: number;
+  description?: string | null;
+  disbanded?: boolean;
 }
 
 export interface GuildMember {
@@ -58,7 +60,7 @@ export async function getMyGuild(): Promise<Guild | null> {
   // guild row + members_count
   const { data: guildRow, error } = await supabase
     .from('guilds')
-    .select('id, name, leader_id, level, total_xp')
+    .select('*')
     .eq('id', membership.guild_id)
     .single();
   if (error) throw error;
@@ -69,12 +71,14 @@ export async function getMyGuild(): Promise<Guild | null> {
     .eq('guild_id', membership.guild_id);
 
   return {
-    id: guildRow.id,
-    name: guildRow.name,
-    leader_id: guildRow.leader_id,
-    level: guildRow.level,
-    total_xp: Number(guildRow.total_xp || 0),
+    id: (guildRow as any).id,
+    name: (guildRow as any).name,
+    leader_id: (guildRow as any).leader_id,
+    level: Number((guildRow as any).level || 1),
+    total_xp: Number((guildRow as any).total_xp || 0),
     members_count: membersCount || 0,
+    description: (guildRow as any).description ?? null,
+    disbanded: !!(guildRow as any).disbanded,
   };
 }
 
@@ -298,6 +302,26 @@ export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]>
   }));
 }
 
+// 追加: 自分のギルド（リーダー）から出した保留中招待一覧を取得
+export async function fetchOutgoingInvitationsForMyGuild(): Promise<Array<{ id: string }>> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data: myGuild } = await supabase
+    .from('guilds')
+    .select('id')
+    .eq('leader_id', user.id)
+    .maybeSingle();
+  if (!myGuild?.id) return [];
+  const { data, error } = await supabase
+    .from('guild_invitations')
+    .select('id')
+    .eq('guild_id', myGuild.id)
+    .eq('status', 'pending');
+  if (error) throw error;
+  return (data || []).map((r: any) => ({ id: r.id }));
+}
+
 export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -329,7 +353,7 @@ export async function searchGuilds(keyword: string): Promise<Guild[]> {
   const supabase = getSupabaseClient();
   let query = supabase
     .from('guilds')
-    .select('id, name, leader_id, level, total_xp');
+    .select('*');
   if (keyword && keyword.trim().length > 0) {
     query = query.ilike('name', `%${keyword.trim()}%`);
   }
@@ -343,14 +367,16 @@ export async function searchGuilds(keyword: string): Promise<Guild[]> {
     const { count } = await supabase
       .from('guild_members')
       .select('*', { count: 'exact', head: true })
-      .eq('guild_id', g.id);
+      .eq('guild_id', (g as any).id);
     result.push({
-      id: g.id,
-      name: g.name,
-      leader_id: g.leader_id,
-      level: g.level,
-      total_xp: Number(g.total_xp || 0),
+      id: (g as any).id,
+      name: (g as any).name,
+      leader_id: (g as any).leader_id,
+      level: Number((g as any).level || 1),
+      total_xp: Number((g as any).total_xp || 0),
       members_count: count || 0,
+      description: (g as any).description ?? null,
+      disbanded: !!(g as any).disbanded,
     });
   }
   return result;
@@ -532,5 +558,103 @@ export async function fetchGuildMonthlyXpSingle(guildId: string, targetMonth: st
     return 0;
   }
   return (data || []).reduce((acc: number, r: any) => acc + Number(r.gained_xp || 0), 0);
+}
+
+// 追加: ギルド説明文の更新（リーダーのみ）
+export async function updateGuildDescription(newDescription: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+  const { data: guild } = await supabase
+    .from('guilds')
+    .select('id')
+    .eq('leader_id', user.id)
+    .maybeSingle();
+  if (!guild?.id) throw new Error('リーダー権限がありません');
+  const { error } = await supabase
+    .from('guilds')
+    .update({ description: newDescription })
+    .eq('id', guild.id);
+  if (error && error.code !== '42703') throw error; // 列が無い場合は無視
+}
+
+// 追加: ギルド解散（メンバーが1人のときのみ、リーダー実行）
+export async function disbandMyGuild(): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+  const { data: guild } = await supabase
+    .from('guilds')
+    .select('id')
+    .eq('leader_id', user.id)
+    .maybeSingle();
+  if (!guild?.id) throw new Error('リーダー権限がありません');
+  const { count } = await supabase
+    .from('guild_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('guild_id', guild.id);
+  if ((count || 0) > 1) throw new Error('メンバーが1人のときのみ解散できます');
+  const { error } = await supabase
+    .from('guilds')
+    .update({ disbanded: true, name: '解散したギルド' })
+    .eq('id', guild.id);
+  if (error && error.code !== '42703') throw error; // 列が無い場合は無視（name更新だけ成功していればOK）
+}
+
+// 追加: 指定ユーザーの所属ギルド（ユーザーページ用）
+export async function getGuildOfUser(userId: string): Promise<Guild | null> {
+  const supabase = getSupabaseClient();
+  const { data: membership } = await supabase
+    .from('guild_members')
+    .select('guild_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!membership?.guild_id) return null;
+  const { data: guildRow } = await supabase
+    .from('guilds')
+    .select('*')
+    .eq('id', membership.guild_id)
+    .maybeSingle();
+  if (!guildRow) return null;
+  const { count } = await supabase
+    .from('guild_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('guild_id', (guildRow as any).id);
+  return {
+    id: (guildRow as any).id,
+    name: (guildRow as any).name,
+    leader_id: (guildRow as any).leader_id,
+    level: Number((guildRow as any).level || 1),
+    total_xp: Number((guildRow as any).total_xp || 0),
+    members_count: count || 0,
+    description: (guildRow as any).description ?? null,
+    disbanded: !!(guildRow as any).disbanded,
+  };
+}
+
+// 追加: ギルドIDからギルドを取得
+export async function getGuildById(guildId: string): Promise<Guild | null> {
+  const supabase = getSupabaseClient();
+  const { data: guildRow, error } = await supabase
+    .from('guilds')
+    .select('*')
+    .eq('id', guildId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!guildRow) return null;
+  const { count } = await supabase
+    .from('guild_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('guild_id', (guildRow as any).id);
+  return {
+    id: (guildRow as any).id,
+    name: (guildRow as any).name,
+    leader_id: (guildRow as any).leader_id,
+    level: Number((guildRow as any).level || 1),
+    total_xp: Number((guildRow as any).total_xp || 0),
+    members_count: count || 0,
+    description: (guildRow as any).description ?? null,
+    disbanded: !!(guildRow as any).disbanded,
+  };
 }
 

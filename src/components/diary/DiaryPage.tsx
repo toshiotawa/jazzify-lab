@@ -11,6 +11,7 @@ import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES } from '@/utils/titleConstants';
 import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
 import GuildInviteControls from '@/components/guild/GuildInviteControls';
+import { getGuildOfUser, Guild } from '@/platform/supabaseGuilds';
 
 interface UserDiary {
   id: string;
@@ -54,6 +55,7 @@ const DiaryPage: React.FC = () => {
   const [editingId, setEditingId] = useState<string|null>(null);
   const [editText, setEditText] = useState<string>('');
   const toast = useToast();
+  const [joinedGuild, setJoinedGuild] = useState<Guild | null>(null);
 
   useEffect(() => {
     const checkHash = () => {
@@ -88,13 +90,15 @@ const DiaryPage: React.FC = () => {
     setError(null);
     
     try {
-      const [result, stats] = await Promise.all([
+      const [result, stats, guild] = await Promise.all([
         fetchUserDiaries(targetUserId),
-        fetchUserStats(targetUserId).catch(() => null) // 統計の取得失敗は致命的ではない
+        fetchUserStats(targetUserId).catch(() => null),
+        getGuildOfUser(targetUserId).catch(() => null),
       ]);
       setDiaries(result.diaries);
       setProfile(result.profile);
       setUserStats(stats);
+      setJoinedGuild(guild);
     } catch (e: any) {
       setError(e.message || 'データの読み込みに失敗しました');
     } finally {
@@ -235,15 +239,20 @@ const DiaryPage: React.FC = () => {
                       />
                       <div>
                         <h3 className="text-xl font-semibold">{profile.nickname}</h3>
-                        
+                        {/* 参加ギルド表示 */}
+                        {joinedGuild && (
+                          <div className="mt-1 text-sm">
+                            参加ギルド: <button className="hover:text-blue-400 underline" onClick={() => { const p = new URLSearchParams(); p.set('id', joinedGuild.id); window.location.hash = `#guild?${p.toString()}`; }}>{joinedGuild.name}</button>
+                            <span className="text-xs text-gray-400 ml-2">Lv.{joinedGuild.level} / メンバー {joinedGuild.members_count}</span>
+                          </div>
+                        )}
                         {/* 称号表示 */}
-                        <div className="flex items-center space-x-2 mb-2">
+                        <div className="flex items-center space-x-2 mb-2 mt-1">
                           {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
                           <span className="text-yellow-400 font-medium text-sm">
                             {(profile.selected_title as Title) || DEFAULT_TITLE}
                           </span>
                         </div>
-                        
                         <div className="flex items-center space-x-3 text-sm text-gray-400">
                           <span>Lv.{profile.level}</span>
                           <div className="flex items-center space-x-1">
@@ -252,28 +261,6 @@ const DiaryPage: React.FC = () => {
                           </div>
                           <span>累計経験値 {profile.xp?.toLocaleString() || '0'}</span>
                         </div>
-                        
-                                                 {/* ミッション・レッスン統計 */}
-                         {userStats && !isStandardGlobal && (
-                           <div className="flex items-center space-x-3 text-sm text-gray-400 mt-2">
-                             <span>ミッション完了数 {userStats.missionCompletedCount}</span>
-                             <span>レッスンクリア数 {userStats.lessonCompletedCount}</span>
-                           </div>
-                         )}
-                         
-                         <div className="flex items-center space-x-3 text-sm text-gray-400 mt-2">
-                          <span>{diaries.length}件の日記</span>
-                        </div>
-                        {profile.twitter_handle ? (
-                          <a 
-                            href={`https://twitter.com/${profile.twitter_handle}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-blue-400 hover:underline text-sm block mt-1"
-                          >
-                            {profile.twitter_handle}
-                          </a>
-                        ) : null}
                       </div>
                     </div>
 
@@ -306,30 +293,30 @@ const DiaryPage: React.FC = () => {
                               <button className="hover:text-blue-400" onClick={()=>{window.location.href = `/main#diary-detail?id=${diary.id}`;}}>{diary.practice_date}</button>
                               <span className="ml-2">{new Date(diary.created_at).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
                             </div>
-                                                          <div className="flex items-center space-x-3">
-                                <button
-                                  className="flex items-center space-x-1 hover:text-pink-400"
-                                  onClick={async ()=>{
-                                    try{
-                                      await like(diary.id);
-                                      setDiaries(prev => prev.map(d => d.id===diary.id ? { ...d, likes: d.likes + 1 } : d));
-                                    }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); }
-                                  }}
-                                >
-                                  <FaHeart className="w-4 h-4 text-pink-400" />
-                                  <span>{diary.likes}</span>
-                                </button>
-                                <button
-                                  className="flex items-center space-x-1 hover:text-blue-400"
-                                  onClick={async ()=>{
-                                    if(!likeUsers[diary.id]) await fetchLikeUsers(diary.id);
-                                    setOpenSection(s=>({ ...s, [diary.id]: {likes:!s[diary.id]?.likes, comments: s[diary.id]?.comments||false} }));
-                                  }}
-                                >
-                                  いいねした人
-                                  <FaChevronDown className="ml-1" />
-                                </button>
-                              </div>
+                            <div className="flex items-center space-x-3">
+                              <button
+                                className="flex items-center space-x-1 hover:text-pink-400"
+                                onClick={async ()=>{
+                                  try{
+                                    await like(diary.id);
+                                    setDiaries(prev => prev.map(d => d.id===diary.id ? { ...d, likes: d.likes + 1 } : d));
+                                  }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); }
+                                }}
+                              >
+                                <FaHeart className="w-4 h-4 text-pink-400" />
+                                <span>{diary.likes}</span>
+                              </button>
+                              <button
+                                className="flex items-center space-x-1 hover:text-blue-400"
+                                onClick={async ()=>{
+                                  if(!likeUsers[diary.id]) await fetchLikeUsers(diary.id);
+                                  setOpenSection(s=>({ ...s, [diary.id]: {likes:!s[diary.id]?.likes, comments: s[diary.id]?.comments||false} }));
+                                }}
+                              >
+                                いいねした人
+                                <FaChevronDown className="ml-1" />
+                              </button>
+                            </div>
                           </div>
                           {editingId===diary.id ? (
                             <>

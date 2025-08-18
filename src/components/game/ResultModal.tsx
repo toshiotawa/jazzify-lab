@@ -9,6 +9,8 @@ import { useMissionStore } from '@/stores/missionStore';
 import { calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
 import { log } from '@/utils/logger';
+import { getMyGuild, fetchGuildMemberMonthlyXp } from '@/platform/supabaseGuilds';
+import { computeGuildBonus } from '@/utils/guildBonus';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -66,16 +68,31 @@ const ResultModal: React.FC = () => {
       
       (async () => {
         try {
+          // 追加: ギルド倍率の取得
+          let guildMultiplier = 1;
+          try {
+            const myGuild = await getMyGuild();
+            if (myGuild) {
+              const memberMonthly = await fetchGuildMemberMonthlyXp(myGuild.id);
+              const contributors = memberMonthly.filter(m => Number(m.monthly_xp || 0) >= 1).length;
+              const b = computeGuildBonus(myGuild.level || 1, contributors);
+              guildMultiplier = b.totalMultiplier;
+            }
+          } catch (e) {
+            // 失敗しても続行
+          }
+
           // ローカルで詳細計算
           const detailed = calculateXPDetailed({
             membershipRank: profile.rank,
             scoreRank: score.rank as any,
             playbackSpeed: settings.playbackSpeed,
             transposed: settings.transpose !== 0,
-            lessonBonusMultiplier: 1, // レッスンボーナスを削除（2→1）
-            missionBonusMultiplier: 1, // ミッションボーナスを削除（2→1）
-            challengeBonusMultiplier: 1, // TODO: challengeから
+            lessonBonusMultiplier: 1,
+            missionBonusMultiplier: 1,
+            challengeBonusMultiplier: 1,
             seasonMultiplier: profile.next_season_xp_multiplier ?? 1,
+            guildMultiplier,
           });
 
           // デバッグ用: ランクボーナスの確認
@@ -83,7 +100,8 @@ const ResultModal: React.FC = () => {
             membershipRank: profile.rank,
             membershipMultiplier: detailed.multipliers.membership,
             base: detailed.base,
-            total: detailed.total
+            total: detailed.total,
+            guildMultiplier,
           });
 
           // 正しい基本XPを計算
@@ -91,13 +109,13 @@ const ResultModal: React.FC = () => {
 
           const res = await addXp({
             songId: currentSong.id,
-            baseXp: baseXp, // ランクに応じた正しい基本XP
+            baseXp: baseXp,
             speedMultiplier: settings.playbackSpeed,
-            rankMultiplier: 1, // 新しい計算方式では基本XPに含まれているため1
+            rankMultiplier: 1,
             transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
             membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
-            missionMultiplier: 1, // レッスン・ミッションボーナスを削除（2→1）
-            reason: lessonContext ? 'lesson_clear' : missionContext ? 'mission_clear' : 'song_clear', // コンテキストに応じた理由を指定
+            missionMultiplier: 1 * guildMultiplier, // ここにギルド倍率を乗せる
+            reason: lessonContext ? 'lesson_clear' : missionContext ? 'mission_clear' : 'song_clear',
           });
 
           const levelDetail = calcLevel(res.totalXp);
@@ -590,6 +608,10 @@ const ResultModal: React.FC = () => {
                 <div className="flex justify-between">
                   <span>移調ボーナス:</span>
                   <span>x{xpInfo.detailed?.multipliers?.transpose || 1}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ギルドボーナス:</span>
+                  <span>x{xpInfo.detailed?.multipliers?.guild || 1}</span>
                 </div>
               </div>
             </div>
