@@ -44,6 +44,7 @@ const GameHeader: React.FC = () => {
           {!isStandardGlobal && !isFree && <HashButton hash="#lessons" disabled={isGuest}>レッスン</HashButton>}
           {!isFree && <HashButton hash="#fantasy">ファンタジー</HashButton>}
           {!isFree && <HashButton hash="#ranking" disabled={isGuest}>ランキング</HashButton>}
+          {!isFree && <HashButton hash="#guilds" disabled={isGuest}>ギルド</HashButton>}
           {!isStandardGlobal && !isFree && <HashButton hash="#missions" disabled={isGuest}>ミッション</HashButton>}
           {!isStandardGlobal && !isFree && <HashButton hash="#diary" disabled={isGuest}>日記</HashButton>}
           {!isFree && <HashButton hash="#information" disabled={isGuest}>お知らせ</HashButton>}

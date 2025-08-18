@@ -158,7 +158,7 @@ const LevelRanking: React.FC = () => {
       <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
         <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">
           <h4 className="text-lg font-bold text-center">ランキングはログインユーザー専用です</h4>
-          <p className="text-center text-gray-300">ランキング機能を利用するにはログインが必要です。</p>
+          <p className="text中心 text-gray-300">ランキング機能を利用するにはログインが必要です。</p>
           <div className="flex flex-col gap-3">
             <button 
               className="btn btn-sm btn-primary w-full" 
@@ -234,7 +234,7 @@ const LevelRanking: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-gradient-game text-white">
+    <div className="w-full h-full flex flex-col bg-gradient-game text白">
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
@@ -255,6 +255,12 @@ const LevelRanking: React.FC = () => {
                 className={`px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${!hasMore ? 'bg-slate-800 text-gray-500' : 'bg-primary-600 text-white hover:bg-primary-500'} ${loadingMore ? 'opacity-70' : ''}`}
               >
                 <FaPlus /> さらに読み込む（50件）
+              </button>
+              <button
+                onClick={() => { window.location.hash = '#guilds-ranking'; }}
+                className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-purple-700 text-white hover:bg-purple-600"
+              >
+                ギルドランキングへ
               </button>
             </div>
             {/* ソート切り替えボタン */}
@@ -413,4 +419,4 @@ const LevelRanking: React.FC = () => {
   );
 };
 
-export default LevelRanking; 
+export default LevelRanking;

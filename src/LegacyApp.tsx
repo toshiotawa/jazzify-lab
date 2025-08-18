@@ -19,10 +19,12 @@ import Dashboard from '@/components/dashboard/Dashboard';
 import InformationPage from '@/components/information/InformationPage';
 import LevelRanking from '@/components/ranking/LevelRanking';
 import MissionRanking from '@/components/ranking/MissionRanking';
+import GuildRanking from '@/components/ranking/GuildRanking';
 import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import PricingTable from '@/components/subscription/PricingTable';
 import FantasyMain from '@/components/fantasy/FantasyMain';
+import GuildDashboard from '@/components/guild/GuildDashboard';
 
 /**
  * メインアプリケーションコンポーネント
@@ -239,12 +241,18 @@ const App: React.FC = () => {
     case '#ranking':
       MainContent = isFree ? <Dashboard /> : <LevelRanking />;
       break;
+    case '#guilds':
+      MainContent = isFree ? <Dashboard /> : <GuildDashboard />;
+      break;
     case '#missions':
     case '#mission':
       MainContent = isFree ? <Dashboard /> : <MissionPage />;
       break;
     case '#mission-ranking':
       MainContent = isFree ? <Dashboard /> : <MissionRanking />;
+      break;
+    case '#guilds-ranking':
+      MainContent = isFree ? <Dashboard /> : <GuildRanking />;
       break;
     case '#information':
       MainContent = isFree ? <Dashboard /> : <InformationPage />;
