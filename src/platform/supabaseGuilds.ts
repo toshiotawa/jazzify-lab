@@ -161,7 +161,9 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: st
     const { data, error } = await supabase
       .rpc('rpc_get_guild_ranking', { limit_count: limit, offset_count: offset, target_month: month });
     if (error) throw error;
-    return (data || []) as Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>;
+    // XP0 ギルドを除外
+    return ((data || []) as Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>).
+      filter(r => Number(r.monthly_xp || 0) > 0);
   } catch (e) {
     console.warn('rpc_get_guild_ranking failed, fallback to client aggregation:', e);
     // Client-side aggregation fallback
@@ -178,7 +180,9 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: st
       const cur = xpByGuild.get(c.guild_id) || 0;
       xpByGuild.set(c.guild_id, cur + Number(c.gained_xp || 0));
     });
-    const entries = Array.from(xpByGuild.entries()).map(([guildId, monthly_xp]) => ({ guildId, monthly_xp }));
+    const entries = Array.from(xpByGuild.entries())
+      .map(([guildId, monthly_xp]) => ({ guildId, monthly_xp }))
+      .filter(e => e.monthly_xp > 0);
     entries.sort((a, b) => b.monthly_xp - a.monthly_xp);
     const sliced = entries.slice(offset, offset + limit);
     const guildIds = sliced.map(e => e.guildId);
@@ -454,7 +458,7 @@ export async function fetchGuildContributorsWithProfiles(
     const prof = map.get(e.user_id);
     return {
       user_id: e.user_id,
-      nickname: prof?.nickname || 'User',
+      nickname: prof ? (prof.nickname || 'User') : '退会済みユーザー',
       avatar_url: prof?.avatar_url || undefined,
       level: prof?.level || 1,
       rank: prof?.rank || 'free',

@@ -49,8 +49,10 @@ const GuildHistory: React.FC = () => {
   const monthList = useMemo(() => {
     const list: string[] = [];
     const now = new Date();
+    const oldest = new Date(Date.UTC(2024, 6, 1)); // 2024-07-01 (month is 0-based)
     for (let i = 0; i < monthsToShow; i++) {
       const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      if (d < oldest) break;
       list.push(d.toISOString().slice(0, 10));
     }
     return list;
