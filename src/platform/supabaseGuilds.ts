@@ -416,6 +416,25 @@ export async function fetchGuildMemberMonthlyXp(guildId: string, targetMonth?: s
 }
 
 /**
+ * 指定ギルドにおける自分の累計貢献XP（全期間）を返す
+ */
+export async function fetchMyGuildContributionTotal(guildId: string): Promise<number> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 0;
+  const { data, error } = await supabase
+    .from('guild_xp_contributions')
+    .select('gained_xp')
+    .eq('guild_id', guildId)
+    .eq('user_id', user.id);
+  if (error) {
+    console.warn('fetchMyGuildContributionTotal error:', error);
+    return 0;
+  }
+  return (data || []).reduce((acc: number, r: any) => acc + Number(r.gained_xp || 0), 0);
+}
+
+/**
  * 指定ギルド・指定月の貢献メンバー一覧（プロフィール付き）
  * - 1以上貢献したメンバーのみ
  * - contributed_xp を保持（UIではMVP用のみ表示に利用）
