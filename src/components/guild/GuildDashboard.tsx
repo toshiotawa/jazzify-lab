@@ -153,21 +153,27 @@ const GuildDashboard: React.FC = () => {
                         <div className="font-medium">{g.name}</div>
                         <div className="text-xs text-gray-400">Lv.{g.level} / メンバー {g.members_count}</div>
                       </div>
-                      <button
-                        className="btn btn-sm btn-primary"
-                        disabled={busy}
-                        onClick={async () => {
-                          try {
-                            setBusy(true);
-                            await requestJoin(g.id);
-                            alert('加入申請を送信しました');
-                          } catch (e: any) {
-                            alert(e?.message || '申請に失敗しました');
-                          } finally {
-                            setBusy(false);
-                          }
-                        }}
-                      >加入申請</button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="btn btn-sm btn-outline"
+                          onClick={() => { const p = new URLSearchParams(); p.set('id', g.id); window.location.hash = `#guild-history?${p.toString()}`; }}
+                        >ヒストリー</button>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          disabled={busy}
+                          onClick={async () => {
+                            try {
+                              setBusy(true);
+                              await requestJoin(g.id);
+                              alert('加入申請を送信しました');
+                            } catch (e: any) {
+                              alert(e?.message || '申請に失敗しました');
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        >加入申請</button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -216,7 +222,7 @@ const GuildDashboard: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                   <div className="bg-slate-900 rounded p-3 border border-slate-700">
-                    <div className="text-gray-400">Lv</div>
+                    <div className="text-gray-400">ギルドレベル</div>
                     <div className="text-lg font-semibold">{myGuild.level}</div>
                   </div>
                   <div className="bg-slate-900 rounded p-3 border border-slate-700">
@@ -238,6 +244,16 @@ const GuildDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+              <div className="mt-3 text-right">
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    params.set('id', myGuild.id);
+                    window.location.hash = `#guild-history?${params.toString()}`;
+                  }}
+                >ギルドヒストリーを見る</button>
               </div>
             </div>
           </div>
@@ -267,11 +283,18 @@ const GuildDashboard: React.FC = () => {
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {members.map(m => (
                   <li key={m.user_id} className="flex items-center gap-3 bg-slate-900 p-2 rounded border border-slate-700">
-                    <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
+                    <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} aria-label="ユーザーページへ">
+                      <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
+                    </button>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{m.nickname}</div>
+                      <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} className="font-medium text-sm truncate text-left hover:text-blue-400">
+                        {m.nickname}
+                      </button>
                       <div className="text-xs text-gray-400">Lv {m.level} / {m.rank}</div>
                     </div>
+                    {m.role === 'leader' && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">Leader</span>
+                    )}
                   </li>
                 ))}
               </ul>

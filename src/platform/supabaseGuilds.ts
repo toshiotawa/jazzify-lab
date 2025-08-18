@@ -411,3 +411,103 @@ export async function fetchGuildMemberMonthlyXp(guildId: string, targetMonth?: s
   return Array.from(map.entries()).map(([user_id, monthly_xp]) => ({ user_id, monthly_xp }));
 }
 
+/**
+ * 指定ギルド・指定月の貢献メンバー一覧（プロフィール付き）
+ * - 1以上貢献したメンバーのみ
+ * - contributed_xp を保持（UIではMVP用のみ表示に利用）
+ */
+export async function fetchGuildContributorsWithProfiles(
+  guildId: string,
+  targetMonth: string,
+): Promise<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; contributed_xp: number }>> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('guild_xp_contributions')
+    .select('user_id, gained_xp')
+    .eq('guild_id', guildId)
+    .eq('month', targetMonth);
+  if (error) {
+    console.warn('fetchGuildContributorsWithProfiles error:', error);
+    return [];
+  }
+  const xpByUser = new Map<string, number>();
+  (data || []).forEach((r: any) => {
+    const prev = xpByUser.get(r.user_id) || 0;
+    xpByUser.set(r.user_id, prev + Number(r.gained_xp || 0));
+  });
+  const entries = Array.from(xpByUser.entries())
+    .map(([user_id, contributed_xp]) => ({ user_id, contributed_xp }))
+    .filter((e) => e.contributed_xp >= 1)
+    .sort((a, b) => b.contributed_xp - a.contributed_xp);
+  if (entries.length === 0) return [];
+  const userIds = entries.map((e) => e.user_id);
+  const { data: profiles, error: pErr } = await supabase
+    .from('profiles')
+    .select('id, nickname, avatar_url, level, rank')
+    .in('id', userIds);
+  if (pErr) {
+    console.warn('fetchGuildContributorsWithProfiles profiles error:', pErr);
+    return entries.map((e) => ({ user_id: e.user_id, nickname: 'User', level: 1, rank: 'free', contributed_xp: e.contributed_xp }));
+  }
+  const map = new Map((profiles || []).map((p: any) => [p.id, p] as const));
+  return entries.map((e) => {
+    const prof = map.get(e.user_id);
+    return {
+      user_id: e.user_id,
+      nickname: prof?.nickname || 'User',
+      avatar_url: prof?.avatar_url || undefined,
+      level: prof?.level || 1,
+      rank: prof?.rank || 'free',
+      contributed_xp: e.contributed_xp,
+    };
+  });
+}
+
+/**
+ * 指定ギルドの指定月のランキング順位を返す（RPCが無ければクライアント集計）
+ */
+export async function fetchGuildRankForMonth(guildId: string, targetMonth: string): Promise<number | null> {
+  const supabase = getSupabaseClient();
+  try {
+    // もしサーバー側にギルドIDと月を受け取るRPCがあればこちらを使う（存在しない可能性が高いのでコメントアウト）
+    // const { data, error } = await supabase.rpc('rpc_get_guild_rank_for', { p_guild_id: guildId, target_month: targetMonth });
+    // if (error) throw error;
+    // return (data as number) ?? null;
+    throw new Error('no_rpc');
+  } catch (_e) {
+    // Fallback: クライアント集計
+    const { data, error } = await supabase
+      .from('guild_xp_contributions')
+      .select('guild_id, gained_xp')
+      .eq('month', targetMonth);
+    if (error) {
+      console.warn('fetchGuildRankForMonth contributions error:', error);
+      return null;
+    }
+    const sums = new Map<string, number>();
+    (data || []).forEach((r: any) => {
+      sums.set(r.guild_id, (sums.get(r.guild_id) || 0) + Number(r.gained_xp || 0));
+    });
+    const sorted = Array.from(sums.entries()).sort((a, b) => b[1] - a[1]);
+    const rank = sorted.findIndex(([gid]) => gid === guildId);
+    return rank >= 0 ? rank + 1 : null;
+  }
+}
+
+/**
+ * 指定ギルド・指定月の総獲得XPを返す
+ */
+export async function fetchGuildMonthlyXpSingle(guildId: string, targetMonth: string): Promise<number> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('guild_xp_contributions')
+    .select('gained_xp')
+    .eq('guild_id', guildId)
+    .eq('month', targetMonth);
+  if (error) {
+    console.warn('fetchGuildMonthlyXpSingle error:', error);
+    return 0;
+  }
+  return (data || []).reduce((acc: number, r: any) => acc + Number(r.gained_xp || 0), 0);
+}
+

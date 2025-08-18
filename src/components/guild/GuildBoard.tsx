@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { addGuildComment, createGuildPost, fetchGuildComments, fetchGuildPosts, likeGuildPost, GuildPost, GuildComment } from '@/platform/supabaseGuildBoard';
+import { addGuildComment, createGuildPost, fetchGuildComments, fetchGuildPostsInfinite, likeGuildPost, GuildPost, GuildComment, deleteGuildPost, deleteGuildComment } from '@/platform/supabaseGuildBoard';
 import { useAuthStore } from '@/stores/authStore';
 
 interface Props {
@@ -15,6 +15,10 @@ const GuildBoard: React.FC<Props> = ({ guildId }) => {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [comments, setComments] = useState<Record<string, GuildComment[]>>({});
   const [commentInput, setCommentInput] = useState<Record<string, string>>({});
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const sentinelRef = React.useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     void reload();
@@ -23,12 +27,40 @@ const GuildBoard: React.FC<Props> = ({ guildId }) => {
   const reload = async () => {
     setLoading(true);
     try {
-      const p = await fetchGuildPosts(guildId, 50);
-      setPosts(p);
+      const res = await fetchGuildPostsInfinite({ guildId, limit: 10 });
+      setPosts(res.posts);
+      setCursor(res.nextCursor);
+      setHasMore(res.hasMore);
     } finally {
       setLoading(false);
     }
   };
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetchGuildPostsInfinite({ guildId, limit: 10, beforeCreatedAt: cursor || undefined });
+      setPosts(prev => [...prev, ...res.posts]);
+      setCursor(res.nextCursor);
+      setHasMore(res.hasMore);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver((entries) => {
+      const first = entries[0];
+      if (first.isIntersecting) {
+        void loadMore();
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   const submitPost = async () => {
     const text = newContent.trim();
@@ -92,6 +124,9 @@ const GuildBoard: React.FC<Props> = ({ guildId }) => {
               <div className="mt-2 text-xs text-gray-300 flex items-center gap-3">
                 <button className="hover:text-pink-400" onClick={async ()=>{ try{ await likeGuildPost(p.id); await reload(); } catch(e:any){ alert(e?.message||'いいねに失敗しました'); } }}>いいね {p.likes_count}</button>
                 <button className="hover:text-blue-400" onClick={()=>toggleComments(p.id)}>コメント {p.comments_count}</button>
+                {p.user_id === user?.id && (
+                  <button className="text-red-400 hover:text-red-300" onClick={async ()=>{ if(!confirm('この投稿を削除しますか？')) return; try{ await deleteGuildPost(p.id); setPosts(prev=>prev.filter(x=>x.id!==p.id)); } catch(e:any){ alert(e?.message||'削除に失敗しました'); } }}>削除</button>
+                )}
               </div>
               {openComments[p.id] && (
                 <div className="mt-2 space-y-2">
@@ -103,6 +138,9 @@ const GuildBoard: React.FC<Props> = ({ guildId }) => {
                       <button className="font-semibold text-left" onClick={()=>{ window.location.href = `/main#diary-user?id=${c.user_id}`; }}>{c.nickname}</button>
                       <div className="text-gray-200 flex-1">{c.content}</div>
                       <div className="text-gray-500">{new Date(c.created_at).toLocaleString('ja-JP')}</div>
+                      {c.user_id === user?.id && (
+                        <button className="text-red-400 hover:text-red-300" onClick={async ()=>{ if(!confirm('このコメントを削除しますか？')) return; try{ await deleteGuildComment(c.id); const list = await fetchGuildComments(p.id); setComments(prev=>({ ...prev, [p.id]: list })); } catch(e:any){ alert(e?.message||'削除に失敗しました'); } }}>削除</button>
+                      )}
                     </div>
                   ))}
                   <div className="flex gap-2">
@@ -115,6 +153,9 @@ const GuildBoard: React.FC<Props> = ({ guildId }) => {
           ))}
         </ul>
       )}
+      <div ref={sentinelRef} className="h-8" />
+      {loadingMore && <p className="text-center text-gray-500 text-xs mt-2">読み込み中...</p>}
+      {!hasMore && posts.length>0 && <p className="text-center text-gray-500 text-xs mt-2">これ以上はありません</p>}
     </div>
   );
 };
