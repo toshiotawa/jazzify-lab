@@ -5,6 +5,9 @@ export interface LessonVideo {
   lesson_id: string;
   vimeo_url: string;
   order_index: number;
+  video_url?: string;
+  r2_key?: string;
+  content_type?: string;
 }
 
 export interface LessonRequirement {
@@ -19,6 +22,17 @@ export interface LessonRequirement {
     requires_days?: boolean;  // 日数条件かどうか（true: 日数でカウント、false: 回数でカウント）
     daily_count?: number;  // 1日あたりの必要クリア回数（requires_days が true の場合に使用）
   };
+}
+
+export interface LessonAttachment {
+  id: string;
+  lesson_id: string;
+  file_name: string;
+  url: string;
+  r2_key: string;
+  content_type?: string;
+  size?: number;
+  order_index: number;
 }
 
 /**
@@ -126,4 +140,68 @@ export async function deleteLessonRequirement(lessonId: string, songId: string):
     .eq('song_id', songId);
 
   if (error) throw new Error(`課題の削除に失敗しました: ${error.message}`);
+}
+
+export async function fetchLessonAttachments(lessonId: string): Promise<LessonAttachment[]> {
+  const cacheKey = `lesson_attachments:${lessonId}`;
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => await getSupabaseClient()
+      .from('lesson_attachments')
+      .select('*')
+      .eq('lesson_id', lessonId)
+      .order('order_index', { ascending: true }),
+    1000 * 60 * 10
+  );
+  if (error) throw new Error(`添付ファイルの取得に失敗しました: ${error.message}`);
+  return data || [];
+}
+
+export async function addLessonAttachment(params: { lesson_id: string; file_name: string; url: string; r2_key: string; content_type?: string; size?: number; order_index?: number; }): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('lesson_attachments')
+    .insert({
+      lesson_id: params.lesson_id,
+      file_name: params.file_name,
+      url: params.url,
+      r2_key: params.r2_key,
+      content_type: params.content_type,
+      size: params.size,
+      order_index: params.order_index ?? 0,
+    });
+  if (error) throw new Error(`添付ファイルの登録に失敗しました: ${error.message}`);
+}
+
+export async function deleteLessonAttachment(id: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('lesson_attachments')
+    .delete()
+    .eq('id', id);
+  if (error) throw new Error(`添付ファイルの削除に失敗しました: ${error.message}`);
+}
+
+export async function addLessonVideoR2(
+  lessonId: string,
+  payload: { url: string; r2_key: string; content_type?: string; order_index?: number }
+): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('lesson_videos')
+    .insert({
+      lesson_id: lessonId,
+      vimeo_url: payload.r2_key, // 後方互換: 既存実装のBunny Video ID欄を流用していたため
+      order_index: payload.order_index ?? 0,
+      // 拡張カラム
+      video_url: payload.url,
+      r2_key: payload.r2_key,
+      content_type: payload.content_type,
+    } as any);
+  if (error) throw new Error(`動画の登録に失敗しました: ${error.message}`);
+}
+
+export async function deleteLessonVideoRecord(id: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('lesson_videos')
+    .delete()
+    .eq('id', id);
+  if (error) throw new Error(`動画レコードの削除に失敗しました: ${error.message}`);
 } 

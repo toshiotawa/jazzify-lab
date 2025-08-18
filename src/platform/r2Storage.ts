@@ -28,6 +28,8 @@ const PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL || 'https://jazzify-cdn.co
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_SONG_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_DIARY_IMAGE_SIZE = 1 * 1024 * 1024; // 1MB
+const MAX_LESSON_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
+const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024; // 50MB
 
 // ファイルサイズのチェック
 function checkFileSize(file: File, maxSize: number, fileType: string) {
@@ -210,4 +212,71 @@ export async function deleteFantasyBgm(bgmId: string): Promise<void> {
   } catch (error) {
     console.log(`BGM ${key} の削除をスキップしました`);
   }
+}
+
+export async function uploadLessonVideo(file: File, lessonId: string): Promise<{ url: string; key: string; contentType: string; size: number; fileName: string; }> {
+  checkFileSize(file, MAX_LESSON_VIDEO_SIZE, 'レッスン動画');
+
+  const client = getR2Client();
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const safeExt = ['mp4', 'mov', 'webm', 'm4v'].includes(ext) ? ext : 'mp4';
+  const contentType = file.type || (safeExt === 'mov' ? 'video/quicktime' : safeExt === 'webm' ? 'video/webm' : 'video/mp4');
+  const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+  const key = `lesson-videos/${lessonId}/${fileName}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: new Uint8Array(arrayBuffer),
+    ContentType: contentType,
+    CacheControl: 'public, max-age=31536000'
+  });
+
+  await client.send(command);
+
+  return { url: `${PUBLIC_URL}/${key}`, key, contentType, size: file.size, fileName };
+}
+
+export async function deleteLessonVideoByKey(r2Key: string): Promise<void> {
+  const client = getR2Client();
+  const command = new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: r2Key });
+  await client.send(command);
+}
+
+export async function uploadLessonAttachment(file: File, lessonId: string): Promise<{ url: string; key: string; contentType: string; size: number; fileName: string; }> {
+  checkFileSize(file, MAX_ATTACHMENT_SIZE, '添付ファイル');
+
+  const client = getR2Client();
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const contentType = file.type || (
+    ext === 'pdf' ? 'application/pdf' :
+    ext === 'mp3' ? 'audio/mpeg' :
+    ext === 'wav' ? 'audio/wav' :
+    ext === 'm4a' ? 'audio/mp4' :
+    'application/octet-stream'
+  );
+  const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+  const key = `lesson-attachments/${lessonId}/${fileName}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: new Uint8Array(arrayBuffer),
+    ContentType: contentType,
+    CacheControl: 'public, max-age=31536000'
+  });
+
+  await client.send(command);
+
+  return { url: `${PUBLIC_URL}/${key}`, key, contentType, size: file.size, fileName };
+}
+
+export async function deleteLessonAttachmentByKey(r2Key: string): Promise<void> {
+  const client = getR2Client();
+  const command = new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: r2Key });
+  await client.send(command);
 }

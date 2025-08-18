@@ -692,8 +692,12 @@ export interface Lesson {
 export interface LessonVideo {
   id: string;
   lesson_id: string;
-  bunny_video_id: string;
+  vimeo_url: string; // 既存の列名（Bunny等のIDが入る後方互換フィールド）
   order_index: number;
+  // R2拡張
+  video_url?: string;
+  r2_key?: string;
+  content_type?: string;
 }
 
 export interface Course {
