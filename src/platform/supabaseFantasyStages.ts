@@ -41,7 +41,7 @@ export async function fetchFantasyStageById(stageId: string): Promise<FantasySta
     throw new Error('Fantasy stage not found');
   }
   
-  return data;
+  return data as FantasyStage;
 }
 
 /**
@@ -58,15 +58,15 @@ export async function fetchFantasyStageByNumber(stageNumber: string, stageTier: 
     .single();
     
   if (error) {
-    if (error.code === 'PGRST116') {
-      // No rows returned
+    // PGRST116: No rows
+    if ((error as any).code === 'PGRST116') {
       return null;
     }
     console.error('Error fetching fantasy stage by number:', error);
     throw error;
   }
   
-  return data;
+  return data as FantasyStage;
 }
 
 /**
@@ -107,7 +107,7 @@ export async function fetchFantasyUserProgress(userId: string): Promise<{
     .single();
     
   if (error) {
-    if (error.code === 'PGRST116') {
+    if ((error as any).code === 'PGRST116') {
       // No rows returned - 新規ユーザーの場合
       return null;
     }
@@ -119,16 +119,16 @@ export async function fetchFantasyUserProgress(userId: string): Promise<{
   
   // snake_caseからcamelCaseに変換
   return {
-    currentStageNumber: data.current_stage_number,
-    totalClearedStages: data.total_cleared_stages || 0,
-    wizardRank: data.wizard_rank,
+    currentStageNumber: (data as any).current_stage_number,
+    totalClearedStages: (data as any).total_cleared_stages || 0,
+    wizardRank: (data as any).wizard_rank,
     currentStageNumberBasic: (data as any).current_stage_number_basic,
     currentStageNumberAdvanced: (data as any).current_stage_number_advanced,
   };
 }
 
 /**
- * ユーザーのファンタジーモードクリア済みステージ数を取得
+ * ユーザーのファンタジーモードクリア済みステージ数を取得（全Tier合算）
  */
 export async function fetchFantasyClearedStageCount(userId: string): Promise<number> {
   const supabase = getSupabaseClient();
@@ -222,4 +222,50 @@ export async function deleteFantasyStage(id: string): Promise<void> {
     .delete()
     .eq('id', id);
   if (error) throw error;
+}
+
+/**
+ * 指定Tierのクリア済みステージ数を取得
+ */
+export async function fetchFantasyClearedStageCountByTier(
+  userId: string,
+  tier: 'basic' | 'advanced'
+): Promise<number> {
+  const supabase = getSupabaseClient();
+  // Tierに属するステージIDを取得
+  const { data: stages, error: stageErr } = await supabase
+    .from('fantasy_stages')
+    .select('id')
+    .eq('stage_tier', tier);
+  if (stageErr) {
+    console.error('Error fetching stages by tier:', stageErr);
+    return 0;
+  }
+  const stageIds = (stages || []).map((s: any) => s.id);
+  if (stageIds.length === 0) return 0;
+  // 対象ステージに紐づくクリア件数をカウント
+  const { count, error } = await supabase
+    .from('fantasy_stage_clears')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('clear_type', 'clear')
+    .in('stage_id', stageIds);
+  if (error) {
+    console.error('Error counting tiered cleared stages:', error);
+    return 0;
+  }
+  return count || 0;
+}
+
+/**
+ * ベーシック/アドバンスド別のクリア数を一括取得
+ */
+export async function fetchFantasyClearedStageCounts(
+  userId: string
+): Promise<{ basic: number; advanced: number; total: number }> {
+  const [basic, advanced] = await Promise.all([
+    fetchFantasyClearedStageCountByTier(userId, 'basic'),
+    fetchFantasyClearedStageCountByTier(userId, 'advanced'),
+  ]);
+  return { basic, advanced, total: basic + advanced };
 }

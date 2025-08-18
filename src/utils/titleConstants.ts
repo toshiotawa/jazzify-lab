@@ -706,6 +706,11 @@ export const WIZARD_TITLES = [
   '魔法そのもの'            // 1990-1999
 ] as const;
 
+// 追加: アドバンスド（戦士系）称号
+// FANTASY_RANKS_ADVANCED に合わせた200個の称号名
+import { FANTASY_RANKS_ADVANCED } from './fantasyRankConstants';
+export const WARRIOR_TITLES = FANTASY_RANKS_ADVANCED.map(r => r.title) as unknown as readonly string[];
+
 /**
  * ファンタジーモードクリア数から利用可能な魔法使い称号を取得
  * @param clearedStages クリア済みステージ数
@@ -715,6 +720,14 @@ export function getAvailableWizardTitles(clearedStages: number): string[] {
   // 最初の称号は0クリアから使用可能
   const maxIndex = Math.floor(clearedStages / 10);
   return WIZARD_TITLES.slice(0, Math.min(maxIndex + 1, WIZARD_TITLES.length));
+}
+
+/**
+ * アドバンスド（戦士系）称号の解放リスト
+ */
+export function getAvailableAdvancedTitles(clearedStagesAdvanced: number): string[] {
+  const maxIndex = Math.floor(clearedStagesAdvanced / 10);
+  return WARRIOR_TITLES.slice(0, Math.min(maxIndex + 1, WARRIOR_TITLES.length)) as string[];
 }
 
 /**
@@ -844,6 +857,15 @@ export function getTitleRequirement(titleName: string): string {
       return 'ファンタジーモード初期称号';
     }
     return `ファンタジーモード${minClears}ステージクリアで獲得`;
+  }
+  // アドバンスド（戦士）称号の条件をチェック
+  const warriorIndex = (WARRIOR_TITLES as readonly string[]).indexOf(titleName as any);
+  if (warriorIndex !== -1) {
+    const minClears = warriorIndex * 10;
+    if (warriorIndex === 0) {
+      return 'アドバンスドモード初期称号';
+    }
+    return `アドバンスドモード${minClears}ステージクリアで獲得`;
   }
   
   // レベル称号の条件をチェック
