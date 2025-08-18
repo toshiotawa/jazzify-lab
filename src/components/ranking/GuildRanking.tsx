@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
-import { fetchGuildRanking } from '@/platform/supabaseGuilds';
+import { fetchGuildRanking, fetchGuildContributorsWithProfiles } from '@/platform/supabaseGuilds';
+import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 const GuildRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#guilds-ranking');
@@ -29,6 +30,25 @@ const GuildRanking: React.FC = () => {
           ]);
           setRowsCurrent(cur);
           setRowsPrev(prev);
+          // MVPの取得（各ギルドのトップ貢献者）
+          const [curMvpList, prevMvpList] = await Promise.all([
+            Promise.all(cur.map(async (r) => {
+              const contribs = await fetchGuildContributorsWithProfiles(r.guild_id, currentMonth);
+              const top = contribs[0];
+              return { guild_id: r.guild_id, mvp: top ? { user_id: top.user_id, nickname: top.nickname, avatar_url: top.avatar_url, level: top.level, contributed_xp: top.contributed_xp } : null };
+            })),
+            Promise.all(prev.map(async (r) => {
+              const contribs = await fetchGuildContributorsWithProfiles(r.guild_id, prevMonth);
+              const top = contribs[0];
+              return { guild_id: r.guild_id, mvp: top ? { user_id: top.user_id, nickname: top.nickname, avatar_url: top.avatar_url, level: top.level, contributed_xp: top.contributed_xp } : null };
+            })),
+          ]);
+          const curMap: Record<string, { user_id: string; nickname: string; avatar_url?: string; level: number; contributed_xp: number } | null> = {};
+          curMvpList.forEach(x => { curMap[x.guild_id] = x.mvp; });
+          const prevMap: Record<string, { user_id: string; nickname: string; avatar_url?: string; level: number; contributed_xp: number } | null> = {};
+          prevMvpList.forEach(x => { prevMap[x.guild_id] = x.mvp; });
+          setMvpCurrent(curMap);
+          setMvpPrev(prevMap);
         } catch (e) {
           console.warn('Guild ranking load failed:', e);
           setRowsCurrent([]);
@@ -41,6 +61,9 @@ const GuildRanking: React.FC = () => {
   }, [open]);
 
   if (!open) return null;
+
+  const [mvpCurrent, setMvpCurrent] = useState<Record<string, { user_id: string; nickname: string; avatar_url?: string; level: number; contributed_xp: number } | null>>({});
+  const [mvpPrev, setMvpPrev] = useState<Record<string, { user_id: string; nickname: string; avatar_url?: string; level: number; contributed_xp: number } | null>>({});
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
@@ -59,8 +82,8 @@ const GuildRanking: React.FC = () => {
                     <tr className="border-b border-slate-700">
                       <th className="py-2 px-2 text-left">#</th>
                       <th className="py-2 px-2 text-left">ギルド名</th>
-                      <th className="py-2 px-2 text-left">レベル</th>
-                      <th className="py-2 px-2 text-left">メンバー</th>
+                      <th className="py-2 px-2 text-left">ギルドレベル</th>
+                      <th className="py-2 px-2 text-left">MVPメンバー</th>
                       <th className="py-2 px-2 text-left">今月XP</th>
                     </tr>
                   </thead>
@@ -70,7 +93,22 @@ const GuildRanking: React.FC = () => {
                         <td className="py-2 px-2">{r.rank_no}</td>
                         <td className="py-2 px-2">{r.name}</td>
                         <td className="py-2 px-2">{r.level}</td>
-                        <td className="py-2 px-2">{r.members_count}/5</td>
+                        <td className="py-2 px-2">
+                          {mvpCurrent[r.guild_id] ? (
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => { window.location.hash = `#diary-user?id=${mvpCurrent[r.guild_id]!.user_id}`; }} aria-label="ユーザーページへ">
+                                <img src={mvpCurrent[r.guild_id]?.avatar_url || DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full" />
+                              </button>
+                              <button className="truncate max-w-[160px] text-left hover:text-blue-400" onClick={() => { window.location.hash = `#diary-user?id=${mvpCurrent[r.guild_id]!.user_id}`; }}>
+                                {mvpCurrent[r.guild_id]?.nickname}
+                              </button>
+                              <span className="text-xs text-yellow-400">Lv.{mvpCurrent[r.guild_id]?.level}</span>
+                              <span className="text-xs text-green-400">+{mvpCurrent[r.guild_id]?.contributed_xp.toLocaleString()} XP</span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-500 text-xs">-</span>
+                          )}
+                        </td>
                         <td className="py-2 px-2">{r.monthly_xp}</td>
                       </tr>
                     ))}
@@ -86,9 +124,9 @@ const GuildRanking: React.FC = () => {
                     <tr className="border-b border-slate-700">
                       <th className="py-2 px-2 text-left">#</th>
                       <th className="py-2 px-2 text-left">ギルド名</th>
-                      <th className="py-2 px-2 text-left">レベル</th>
-                      <th className="py-2 px-2 text左">メンバー</th>
-                      <th className="py-2 px-2 text左">先月XP</th>
+                      <th className="py-2 px-2 text-left">ギルドレベル</th>
+                      <th className="py-2 px-2 text-left">MVPメンバー</th>
+                      <th className="py-2 px-2 text-left">先月XP</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -97,7 +135,22 @@ const GuildRanking: React.FC = () => {
                         <td className="py-2 px-2">{r.rank_no}</td>
                         <td className="py-2 px-2">{r.name}</td>
                         <td className="py-2 px-2">{r.level}</td>
-                        <td className="py-2 px-2">{r.members_count}/5</td>
+                        <td className="py-2 px-2">
+                          {mvpPrev[r.guild_id] ? (
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => { window.location.hash = `#diary-user?id=${mvpPrev[r.guild_id]!.user_id}`; }} aria-label="ユーザーページへ">
+                                <img src={mvpPrev[r.guild_id]?.avatar_url || DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full" />
+                              </button>
+                              <button className="truncate max-w-[160px] text-left hover:text-blue-400" onClick={() => { window.location.hash = `#diary-user?id=${mvpPrev[r.guild_id]!.user_id}`; }}>
+                                {mvpPrev[r.guild_id]?.nickname}
+                              </button>
+                              <span className="text-xs text-yellow-400">Lv.{mvpPrev[r.guild_id]?.level}</span>
+                              <span className="text-xs text-green-400">+{mvpPrev[r.guild_id]?.contributed_xp.toLocaleString()} XP</span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-500 text-xs">-</span>
+                          )}
+                        </td>
                         <td className="py-2 px-2">{r.monthly_xp}</td>
                       </tr>
                     ))}
