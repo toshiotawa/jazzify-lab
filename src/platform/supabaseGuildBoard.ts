@@ -56,11 +56,11 @@ export async function fetchGuildPosts(guildId: string, limit = 50): Promise<Guil
   }));
 }
 
-export async function createGuildPost(content: string): Promise<string> {
+export async function createGuildPost(content: string, guildIdOverride?: string): Promise<string> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
-  const guildId = await getMyGuildId();
+  const guildId = guildIdOverride || (await getMyGuildId());
   if (!guildId) throw new Error('ギルドに所属していません');
   const { data, error } = await supabase
     .from('guild_posts')

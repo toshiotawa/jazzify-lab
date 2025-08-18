@@ -33,9 +33,13 @@ const GuildBoard: React.FC<Props> = ({ guildId }) => {
   const submitPost = async () => {
     const text = newContent.trim();
     if (!text) return;
-    await createGuildPost(text);
-    setNewContent('');
-    await reload();
+    try {
+      await createGuildPost(text, guildId);
+      setNewContent('');
+      await reload();
+    } catch (e: any) {
+      alert(e?.message || '投稿に失敗しました');
+    }
   };
 
   const toggleComments = async (postId: string) => {
@@ -84,7 +88,7 @@ const GuildBoard: React.FC<Props> = ({ guildId }) => {
               </div>
               <div className="text-sm whitespace-pre-wrap">{p.content}</div>
               <div className="mt-2 text-xs text-gray-300 flex items-center gap-3">
-                <button className="hover:text-pink-400" onClick={async ()=>{ await likeGuildPost(p.id); await reload(); }}>いいね {p.likes_count}</button>
+                <button className="hover:text-pink-400" onClick={async ()=>{ try{ await likeGuildPost(p.id); await reload(); } catch(e:any){ alert(e?.message||'いいねに失敗しました'); } }}>いいね {p.likes_count}</button>
                 <button className="hover:text-blue-400" onClick={()=>toggleComments(p.id)}>コメント {p.comments_count}</button>
               </div>
               {openComments[p.id] && (
@@ -99,7 +103,7 @@ const GuildBoard: React.FC<Props> = ({ guildId }) => {
                   ))}
                   <div className="flex gap-2">
                     <input className="flex-1 bg-slate-700 p-1 rounded" placeholder="コメントを書く" value={commentInput[p.id] || ''} onChange={(e)=>setCommentInput(prev=>({ ...prev, [p.id]: e.target.value }))} />
-                    <button className="btn btn-xs btn-primary" onClick={()=>submitComment(p.id)}>送信</button>
+                    <button className="btn btn-xs btn-primary" onClick={async()=>{ try{ await submitComment(p.id); } catch(e:any){ alert(e?.message||'コメントに失敗しました'); } }}>送信</button>
                   </div>
                 </div>
               )}
