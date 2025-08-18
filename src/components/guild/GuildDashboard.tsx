@@ -155,8 +155,21 @@ const GuildDashboard: React.FC = () => {
                     </div>
                   ); })()}
                 </div>
-                <div className="mt-3 text-sm text-gray-300">
-                  今シーズン合計XP: {ranking.find(r => r.guild_id === myGuild.id)?.monthly_xp ?? 0} / 順位: {myGuildRank ?? '-'}位
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-gray-300">
+                  <div>
+                    今シーズン合計XP: {ranking.find(r => r.guild_id === myGuild.id)?.monthly_xp ?? 0}
+                  </div>
+                  <div>
+                    順位: {myGuildRank ?? '-'}位
+                  </div>
+                  <div>
+                    累計XP: {myGuild.total_xp?.toLocaleString?.() || myGuild.total_xp}
+                  </div>
+                </div>
+                <div className="mt-1 text-xs text-gray-400">
+                  {(() => { const d = calcGuildLevelDetail(myGuild.total_xp || 0); return (
+                    <span>現在レベルの進捗: {d.remainder.toLocaleString()} / {d.nextLevelXp.toLocaleString()} XP</span>
+                  ); })()}
                 </div>
                 {/* 過去12ヶ月チャート（簡易） */}
                 <div className="mt-4 grid grid-cols-12 gap-1">

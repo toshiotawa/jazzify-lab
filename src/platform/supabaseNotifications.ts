@@ -4,7 +4,7 @@ export interface NotificationItem {
   id: string;
   user_id: string;      // recipient
   actor_id: string;
-  type: 'diary_like' | 'diary_comment' | 'comment_thread_reply';
+  type: 'diary_like' | 'diary_comment' | 'comment_thread_reply' | 'guild_post_like' | 'guild_post_comment';
   diary_id?: string | null;
   comment_id?: string | null;
   created_at: string;

@@ -79,7 +79,9 @@ const NotificationBell: React.FC = () => {
                       <button
                         className="text-left flex-1 min-w-0"
                         onClick={() => {
-                          if (n.diary_id) {
+                          if (n.type === 'guild_post_like' || n.type === 'guild_post_comment') {
+                            window.location.href = '/main#guilds';
+                          } else if (n.diary_id) {
                             window.location.href = `/main#diary-detail?id=${n.diary_id}`;
                           } else {
                             window.location.href = '/main#diary';
@@ -88,16 +90,16 @@ const NotificationBell: React.FC = () => {
                         }}
                       >
                         <p className="text-sm text-white whitespace-normal break-words">
-                          {n.type === 'diary_like' && (
+                          {(n.type === 'diary_like' || n.type === 'guild_post_like') && (
                             <>
                               <span className="font-semibold">{n.actor_nickname || 'ユーザー'}</span>
-                              <span> さんがあなたの日記にいいねしました</span>
+                              <span> さんがあなたの{n.type === 'guild_post_like' ? 'ギルド投稿' : '日記'}にいいねしました</span>
                             </>
                           )}
-                          {n.type === 'diary_comment' && (
+                          {(n.type === 'diary_comment' || n.type === 'guild_post_comment') && (
                             <>
                               <span className="font-semibold">{n.actor_nickname || 'ユーザー'}</span>
-                              <span> さんがあなたの日記にコメントしました</span>
+                              <span> さんがあなたの{n.type === 'guild_post_comment' ? 'ギルド投稿' : '日記'}にコメントしました</span>
                             </>
                           )}
                           {n.type === 'comment_thread_reply' && (
@@ -124,3 +126,4 @@ const NotificationBell: React.FC = () => {
 };
 
 export default NotificationBell;
+
