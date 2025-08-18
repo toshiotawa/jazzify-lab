@@ -231,7 +231,11 @@ const GuildDashboard: React.FC = () => {
                   </div>
                   <div className="bg-slate-900 rounded p-3 border border-slate-700">
                     <div className="text-gray-400">順位</div>
-                    <div className="text-lg font-semibold">{myRank ? `${myRank}位` : '-'}</div>
+                    <button
+                      className="text-lg font-semibold hover:text-blue-400"
+                      onClick={() => { window.location.hash = '#guilds-ranking'; }}
+                      title="ギルドランキングを開く"
+                    >{myRank ? `${myRank}位` : '-'}</button>
                   </div>
                   <div className="bg-slate-900 rounded p-3 border border-slate-700">
                     <div className="text-gray-400">累計XP</div>

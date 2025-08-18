@@ -35,17 +35,17 @@ const GuildRanking: React.FC = () => {
             Promise.all(cur.map(async (r) => {
               const contribs = await fetchGuildContributorsWithProfiles(r.guild_id, currentMonth);
               const top = contribs[0];
-              return { guild_id: r.guild_id, mvp: top ? { nickname: top.nickname, avatar_url: top.avatar_url, level: top.level } : null };
+              return { guild_id: r.guild_id, mvp: top ? { user_id: top.user_id, nickname: top.nickname, avatar_url: top.avatar_url, level: top.level, contributed_xp: top.contributed_xp } : null };
             })),
             Promise.all(prev.map(async (r) => {
               const contribs = await fetchGuildContributorsWithProfiles(r.guild_id, prevMonth);
               const top = contribs[0];
-              return { guild_id: r.guild_id, mvp: top ? { nickname: top.nickname, avatar_url: top.avatar_url, level: top.level } : null };
+              return { guild_id: r.guild_id, mvp: top ? { user_id: top.user_id, nickname: top.nickname, avatar_url: top.avatar_url, level: top.level, contributed_xp: top.contributed_xp } : null };
             })),
           ]);
-          const curMap: Record<string, { nickname: string; avatar_url?: string; level: number } | null> = {};
+          const curMap: Record<string, { user_id: string; nickname: string; avatar_url?: string; level: number; contributed_xp: number } | null> = {};
           curMvpList.forEach(x => { curMap[x.guild_id] = x.mvp; });
-          const prevMap: Record<string, { nickname: string; avatar_url?: string; level: number } | null> = {};
+          const prevMap: Record<string, { user_id: string; nickname: string; avatar_url?: string; level: number; contributed_xp: number } | null> = {};
           prevMvpList.forEach(x => { prevMap[x.guild_id] = x.mvp; });
           setMvpCurrent(curMap);
           setMvpPrev(prevMap);
@@ -62,8 +62,8 @@ const GuildRanking: React.FC = () => {
 
   if (!open) return null;
 
-  const [mvpCurrent, setMvpCurrent] = useState<Record<string, { nickname: string; avatar_url?: string; level: number } | null>>({});
-  const [mvpPrev, setMvpPrev] = useState<Record<string, { nickname: string; avatar_url?: string; level: number } | null>>({});
+  const [mvpCurrent, setMvpCurrent] = useState<Record<string, { user_id: string; nickname: string; avatar_url?: string; level: number; contributed_xp: number } | null>>({});
+  const [mvpPrev, setMvpPrev] = useState<Record<string, { user_id: string; nickname: string; avatar_url?: string; level: number; contributed_xp: number } | null>>({});
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
@@ -96,9 +96,14 @@ const GuildRanking: React.FC = () => {
                         <td className="py-2 px-2">
                           {mvpCurrent[r.guild_id] ? (
                             <div className="flex items-center gap-2">
-                              <img src={mvpCurrent[r.guild_id]?.avatar_url || DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full" />
-                              <span className="truncate max-w-[160px]">{mvpCurrent[r.guild_id]?.nickname}</span>
+                              <button onClick={() => { window.location.hash = `#diary-user?id=${mvpCurrent[r.guild_id]!.user_id}`; }} aria-label="ユーザーページへ">
+                                <img src={mvpCurrent[r.guild_id]?.avatar_url || DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full" />
+                              </button>
+                              <button className="truncate max-w-[160px] text-left hover:text-blue-400" onClick={() => { window.location.hash = `#diary-user?id=${mvpCurrent[r.guild_id]!.user_id}`; }}>
+                                {mvpCurrent[r.guild_id]?.nickname}
+                              </button>
                               <span className="text-xs text-yellow-400">Lv.{mvpCurrent[r.guild_id]?.level}</span>
+                              <span className="text-xs text-green-400">+{mvpCurrent[r.guild_id]?.contributed_xp.toLocaleString()} XP</span>
                             </div>
                           ) : (
                             <span className="text-gray-500 text-xs">-</span>
@@ -133,9 +138,14 @@ const GuildRanking: React.FC = () => {
                         <td className="py-2 px-2">
                           {mvpPrev[r.guild_id] ? (
                             <div className="flex items-center gap-2">
-                              <img src={mvpPrev[r.guild_id]?.avatar_url || DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full" />
-                              <span className="truncate max-w-[160px]">{mvpPrev[r.guild_id]?.nickname}</span>
+                              <button onClick={() => { window.location.hash = `#diary-user?id=${mvpPrev[r.guild_id]!.user_id}`; }} aria-label="ユーザーページへ">
+                                <img src={mvpPrev[r.guild_id]?.avatar_url || DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full" />
+                              </button>
+                              <button className="truncate max-w-[160px] text-left hover:text-blue-400" onClick={() => { window.location.hash = `#diary-user?id=${mvpPrev[r.guild_id]!.user_id}`; }}>
+                                {mvpPrev[r.guild_id]?.nickname}
+                              </button>
                               <span className="text-xs text-yellow-400">Lv.{mvpPrev[r.guild_id]?.level}</span>
+                              <span className="text-xs text-green-400">+{mvpPrev[r.guild_id]?.contributed_xp.toLocaleString()} XP</span>
                             </div>
                           ) : (
                             <span className="text-gray-500 text-xs">-</span>
