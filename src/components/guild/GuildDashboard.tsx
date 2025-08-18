@@ -18,6 +18,7 @@ import {
 	fetchMyGuildContributionTotal,
 	updateGuildDescription,
 	disbandMyGuild,
+	leaveMyGuild,
 } from '@/platform/supabaseGuilds';
 import GuildBoard from '@/components/guild/GuildBoard';
 import GameHeader from '@/components/ui/GameHeader';
@@ -42,6 +43,7 @@ const GuildDashboard: React.FC = () => {
 	const [myMonthlyXp, setMyMonthlyXp] = useState<number>(0);
 	const [myTotalContribXp, setMyTotalContribXp] = useState<number>(0);
 	const [descEdit, setDescEdit] = useState<string>('');
+	const [editingDesc, setEditingDesc] = useState<boolean>(false);
 
 	useEffect(() => {
 		let mounted = true;
@@ -277,20 +279,34 @@ const GuildDashboard: React.FC = () => {
 									{isLeader ? (
 										<div className="space-y-2">
 											<div className="text-xs text-gray-400">ギルド説明（ダッシュボードに表示）</div>
-											<textarea className="w-full bg-slate-800 p-2 rounded text-sm" rows={3} value={descEdit} onChange={(e)=>setDescEdit(e.target.value)} />
-											<div className="flex gap-2">
-												<button className="btn btn-sm btn-primary" disabled={busy} onClick={async()=>{ try{ setBusy(true); await updateGuildDescription(descEdit); const g = await getMyGuild(); setMyGuild(g); } catch(e:any){ alert(e?.message||'保存に失敗しました'); } finally{ setBusy(false); } }}>説明を保存</button>
-												{members.length === 1 && (
-													<button className="btn btn-sm btn-outline text-red-300 border-red-600" disabled={busy} onClick={async()=>{ if(!confirm('本当にギルドを解散しますか？')) return; try{ setBusy(true); await disbandMyGuild(); const g = await getMyGuild(); setMyGuild(g); } catch(e:any){ alert(e?.message||'解散に失敗しました'); } finally{ setBusy(false); } }}>ギルドを解散</button>
-												)}
-											</div>
+											{editingDesc ? (
+												<>
+													<textarea className="w-full bg-slate-800 p-2 rounded text-sm" rows={3} value={descEdit} onChange={(e)=>setDescEdit(e.target.value)} />
+													<div className="flex gap-2">
+														<button className="btn btn-sm btn-primary" disabled={busy} onClick={async()=>{ try{ setBusy(true); await updateGuildDescription(descEdit); const g = await getMyGuild(); setMyGuild(g); setEditingDesc(false); } catch(e:any){ alert(e?.message||'保存に失敗しました'); } finally{ setBusy(false); } }}>保存</button>
+														<button className="btn btn-sm" disabled={busy} onClick={()=>{ setDescEdit(myGuild.description || ''); setEditingDesc(false); }}>キャンセル</button>
+													</div>
+												</>
+											) : (
+												<div className="flex items-start justify-between gap-3">
+													<div className="text-xs text-gray-400 whitespace-pre-wrap flex-1">{myGuild.description || '（説明は設定されていません）'}</div>
+													<button className="btn btn-sm btn-outline" onClick={()=>setEditingDesc(true)}>編集</button>
+												</div>
+											)}
 										</div>
 									) : (
 										<div className="text-xs text-gray-400 whitespace-pre-wrap">{myGuild.description || '（説明は設定されていません）'}</div>
 									)}
 								</div>
 								<div>
-									<button className="btn btn-sm btn-outline" onClick={() => { const params = new URLSearchParams(); params.set('id', myGuild.id); window.location.hash = `#guild-history?${params.toString()}`; }}>ギルドヒストリーを見る</button>
+									<div className="flex items-center gap-2">
+										<button className="btn btn-sm btn-outline" onClick={() => { const params = new URLSearchParams(); params.set('id', myGuild.id); window.location.hash = `#guild-history?${params.toString()}`; }}>ギルドヒストリーを見る</button>
+										<button className="btn btn-sm btn-outline text-red-300 border-red-600" disabled={busy} onClick={async()=>{
+											if(!confirm('本当にギルドを脱退しますか？')) return;
+											if(!confirm('最終確認: ギルドを脱退すると元に戻せません。よろしいですか？')) return;
+											try { setBusy(true); await leaveMyGuild(); const g = await getMyGuild(); setMyGuild(g); if (g) { const m = await getGuildMembers(g.id); setMembers(m); } else { setMembers([]); } } catch(e:any){ alert(e?.message||'脱退に失敗しました'); } finally { setBusy(false); }
+										}}>ギルドを脱退</button>
+									</div>
 								</div>
 							</div>
 						</div>
