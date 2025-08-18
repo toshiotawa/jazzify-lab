@@ -96,7 +96,7 @@ const GuildHistory: React.FC = () => {
                   return (
                     <div key={m} className="bg-slate-800 border border-slate-700 rounded p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold">{m}</h3>
+                        <h3 className="font-semibold">{m.slice(0, 7)}</h3>
                         {d?.mvp ? (
                           <div className="text-xs text-gray-300">MVP: <span className="font-bold text-white">{d.mvp.nickname}</span> <span className="ml-2 text-yellow-400">+{d.mvp.contributed_xp.toLocaleString()} XP</span></div>
                         ) : (
