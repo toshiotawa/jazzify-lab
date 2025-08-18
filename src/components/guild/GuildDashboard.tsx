@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import {
   getMyGuild,
@@ -79,7 +79,7 @@ const GuildDashboard: React.FC = () => {
     }
   };
 
-  const isLeader = useMemo(() => !!(user && myGuild && myGuild.leader_id === user.id), [user, myGuild]);
+  const isLeader = !!(user && myGuild && myGuild.leader_id === user.id);
 
   if (!user) return null;
   if (loading) return (
@@ -180,24 +180,24 @@ const GuildDashboard: React.FC = () => {
   }
 
   // ギルド称号（簡易）
-  const guildTitle = useMemo(() => {
-    const lvl = myGuild.level || 1;
+  const guildTitle = (() => {
+    const lvl = myGuild?.level || 1;
     if (lvl < 5) return 'Novice Guild';
     if (lvl < 10) return 'Brave Guild';
     if (lvl < 20) return 'Elite Guild';
     return 'Legend Guild';
-  }, [myGuild.level]);
+  })();
 
-  const levelRemainder = currentLevelXP(myGuild.level, myGuild.total_xp || 0);
-  const nextLevelXp = xpToNextLevel(myGuild.level);
+  const levelRemainder = currentLevelXP(myGuild?.level || 1, myGuild?.total_xp || 0);
+  const nextLevelXp = xpToNextLevel(myGuild?.level || 1);
   const progress = Math.max(0, Math.min(100, (levelRemainder / Math.max(1, nextLevelXp)) * 100));
 
-  const mvp = useMemo(() => {
+  const mvp = (() => {
     if (memberMonthly.length === 0) return null as null | { user_id: string; monthly_xp: number; nickname: string; avatar_url?: string };
     const top = [...memberMonthly].sort((a, b) => b.monthly_xp - a.monthly_xp)[0];
     const mem = members.find(x => x.user_id === top.user_id);
     return { user_id: top.user_id, monthly_xp: top.monthly_xp, nickname: mem?.nickname || 'Member', avatar_url: mem?.avatar_url };
-  }, [memberMonthly, members]);
+  })();
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
