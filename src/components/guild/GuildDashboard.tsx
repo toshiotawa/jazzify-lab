@@ -232,6 +232,7 @@ const GuildDashboard: React.FC = () => {
 										</div>
 									</div>
 								</div>
+							</div>
 							<div className="mt-3 text-right">
 								<button className="btn btn-sm btn-outline" onClick={() => { const params = new URLSearchParams(); params.set('id', myGuild.id); window.location.hash = `#guild-history?${params.toString()}`; }}>ギルドヒストリーを見る</button>
 							</div>
