@@ -27,7 +27,7 @@ export async function fetchGuildPosts(guildId: string, limit = 50): Promise<Guil
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('guild_posts')
-    .select('id, guild_id, user_id, content, created_at, profiles(nickname, avatar_url)')
+    .select('id, guild_id, user_id, content, created_at, author:profiles!guild_posts_user_id_fkey(nickname, avatar_url)')
     .eq('guild_id', guildId)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -49,8 +49,8 @@ export async function fetchGuildPosts(guildId: string, limit = 50): Promise<Guil
     user_id: row.user_id,
     content: row.content,
     created_at: row.created_at,
-    nickname: row.profiles?.nickname || 'User',
-    avatar_url: row.profiles?.avatar_url || undefined,
+    nickname: row.author?.nickname || 'User',
+    avatar_url: row.author?.avatar_url || undefined,
     comments_count: commentsMap.get(row.id) || 0,
     likes_count: likesMap.get(row.id) || 0,
   }));
@@ -85,7 +85,7 @@ export async function fetchGuildComments(postId: string): Promise<GuildComment[]
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('guild_post_comments')
-    .select('id, post_id, user_id, content, created_at, profiles(nickname, avatar_url)')
+    .select('id, post_id, user_id, content, created_at, author:profiles!guild_post_comments_user_id_fkey(nickname, avatar_url)')
     .eq('post_id', postId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -95,8 +95,8 @@ export async function fetchGuildComments(postId: string): Promise<GuildComment[]
     user_id: row.user_id,
     content: row.content,
     created_at: row.created_at,
-    nickname: row.profiles?.nickname || 'User',
-    avatar_url: row.profiles?.avatar_url || undefined,
+    nickname: row.author?.nickname || 'User',
+    avatar_url: row.author?.avatar_url || undefined,
   }));
 }
 
