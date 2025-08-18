@@ -73,6 +73,17 @@ const GuildDashboard: React.FC = () => {
 					if (user && g.leader_id === user.id) {
 						const reqs = await fetchJoinRequestsForMyGuild();
 						if (mounted) setJoinRequests(reqs);
+						// メンバー上限到達時の保留申請・招待の撤回
+						if ((members.length || 0) >= 5) {
+							try {
+								const { cancelInvitation } = await import('@/platform/supabaseGuilds');
+								const { data: { user: cur } } = await (await import('@/platform/supabaseClient')).getSupabaseClient().auth.getUser();
+								// 自ギルドから出している招待を全撤回
+								const { fetchOutgoingInvitationsForMyGuild } = await import('@/platform/supabaseGuilds');
+								const outgoing = await fetchOutgoingInvitationsForMyGuild();
+								await Promise.all(outgoing.map(o => cancelInvitation(o.id))); // 失敗は無視
+							} catch {}
+						}
 					}
 				}
 			} finally {
@@ -338,8 +349,7 @@ const GuildDashboard: React.FC = () => {
 						)}
 					</div>
 
-					<GuildBoard guildId={myGuild.id} />
-
+					{/* 参加リクエスト（先に表示） */}
 					{isLeader && (
 						<div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
 							<h3 className="font-semibold mb-3">参加リクエスト</h3>
@@ -352,7 +362,7 @@ const GuildDashboard: React.FC = () => {
 											<div className="text-sm">{r.requester_nickname || r.requester_id}</div>
 											<div className="flex items-center gap-2">
 												<button className="btn btn-xs btn-outline" disabled={busy} onClick={async () => { try { setBusy(true); await rejectJoinRequest(r.id); setJoinRequests(prev => prev.filter(x => x.id !== r.id)); } finally { setBusy(false); } }}>拒否</button>
-												<button className="btn btn-xs btn-primary" disabled={busy} onClick={async () => { try { setBusy(true); await approveJoinRequest(r.id); setJoinRequests(prev => prev.filter(x => x.id !== r.id)); const m = await getGuildMembers(myGuild.id); setMembers(m); } finally { setBusy(false); } }}>承認</button>
+												<button className="btn btn-xs btn-primary" disabled={busy || members.length >= 5} onClick={async () => { try { setBusy(true); await approveJoinRequest(r.id); const m = await getGuildMembers(myGuild.id); setMembers(m); setJoinRequests(prev => prev.filter(x => x.id !== r.id)); } finally { setBusy(false); } }}>承認</button>
 											</div>
 										</li>
 									))}
@@ -360,6 +370,9 @@ const GuildDashboard: React.FC = () => {
 							)}
 						</div>
 					)}
+
+					{/* 掲示板（後ろに移動） */}
+					<GuildBoard guildId={myGuild.id} />
 				</div>
 			</div>
 		</div>

@@ -302,6 +302,26 @@ export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]>
   }));
 }
 
+// 追加: 自分のギルド（リーダー）から出した保留中招待一覧を取得
+export async function fetchOutgoingInvitationsForMyGuild(): Promise<Array<{ id: string }>> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data: myGuild } = await supabase
+    .from('guilds')
+    .select('id')
+    .eq('leader_id', user.id)
+    .maybeSingle();
+  if (!myGuild?.id) return [];
+  const { data, error } = await supabase
+    .from('guild_invitations')
+    .select('id')
+    .eq('guild_id', myGuild.id)
+    .eq('status', 'pending');
+  if (error) throw error;
+  return (data || []).map((r: any) => ({ id: r.id }));
+}
+
 export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
