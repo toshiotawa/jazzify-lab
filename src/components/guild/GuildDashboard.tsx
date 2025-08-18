@@ -20,6 +20,7 @@ import {
   kickMember,
   Guild,
   GuildMember,
+  fetchGuildMemberMonthlyXp,
 } from '@/platform/supabaseGuilds';
 import GuildBoard from '@/components/guild/GuildBoard';
 import { getGuildTitleByLevel } from '@/utils/guildTitles';
@@ -43,6 +44,8 @@ const GuildDashboard: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Guild[]>([]);
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
+  const [memberMonthlyXp, setMemberMonthlyXp] = useState<Record<string, number>>({});
+  const [mvp, setMvp] = useState<{ user_id: string; nickname: string; avatar_url?: string; monthly_xp: number } | null>(null);
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#guilds');
@@ -65,14 +68,25 @@ const GuildDashboard: React.FC = () => {
         if (g) {
           const mem = await getGuildMembers(g.id);
           setMembers(mem);
-          const [rankList, myRank, months] = await Promise.all([
+          const [rankList, myRank, months, perMemberXp] = await Promise.all([
             fetchGuildRanking(20, 0),
             fetchMyGuildRank(),
             fetchGuildMonthlyRanks(g.id, 12),
+            fetchGuildMemberMonthlyXp(g.id),
           ]);
           setRanking(rankList);
           setMyGuildRank(myRank);
           setMonthlyRanks(months);
+          const xpMap: Record<string, number> = {};
+          perMemberXp.forEach(e => { xpMap[e.user_id] = e.monthly_xp; });
+          setMemberMonthlyXp(xpMap);
+          // compute MVP
+          let top: { user_id: string; nickname: string; avatar_url?: string; monthly_xp: number } | null = null;
+          for (const m of mem) {
+            const x = xpMap[m.user_id] || 0;
+            if (!top || x > top.monthly_xp) top = { user_id: m.user_id, nickname: m.nickname, avatar_url: m.avatar_url, monthly_xp: x };
+          }
+          setMvp(top);
           setJoinRequests(await fetchJoinRequestsForMyGuild());
         } else {
           // not in a guild: preload invites and ranking
@@ -171,36 +185,41 @@ const GuildDashboard: React.FC = () => {
                     <span>現在レベルの進捗: {d.remainder.toLocaleString()} / {d.nextLevelXp.toLocaleString()} XP</span>
                   ); })()}
                 </div>
-                {/* 過去12ヶ月チャート（順位数字付き） */}
-                <div className="mt-4 grid grid-cols-12 gap-1">
-                  {monthlyRanks.map((m) => {
-                    const best = Math.min(...monthlyRanks.map(x => x.rank_no || 9999));
-                    const isBest = m.rank_no && m.rank_no === best;
-                    return (
-                      <div key={m.month} className="flex flex-col items-center" title={`${m.month} Rank ${m.rank_no ?? '-'}`}>
-                        <div className={`w-5 h-5 flex items-center justify-center text-[10px] font-bold ${m.rank_no === 1 ? 'bg-yellow-400 text-black' : 'bg-blue-500 text-white'} rounded-sm`}>
-                          {m.rank_no ?? '-'}
-                        </div>
-                        <span className="text-[10px] text-gray-300">{m.month.slice(5,7)}{isBest ? '👑' : ''}</span>
-                      </div>
-                    );
-                  })}
+                {/* MVP メンバー（今月） */}
+                <div className="mt-4 bg-slate-800 p-3 rounded border border-slate-700">
+                  <h4 className="font-semibold mb-2">MVPメンバー（今月）</h4>
+                  {mvp ? (
+                    <div className="flex items-center gap-3">
+                      <button onClick={()=>{ window.location.href = `/main#diary-user?id=${mvp.user_id}`; }} aria-label="メンバー詳細へ">
+                        <img src={mvp.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
+                      </button>
+                      <button className="text-left" onClick={()=>{ window.location.href = `/main#diary-user?id=${mvp.user_id}`; }}>
+                        <div className="font-medium">{mvp.nickname}</div>
+                        <div className="text-xs text-gray-400">今月XP {mvp.monthly_xp.toLocaleString()}</div>
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">まだ今月の貢献データがありません</p>
+                  )}
                 </div>
               </div>
 
-              {/* メンバー一覧 */}
+              {/* MVPメンバー一覧（今月の獲得XP付き） */}
               <div className="bg-slate-900 p-4 rounded-lg border border-slate-700">
-                <h4 className="font-semibold mb-2">メンバー</h4>
+                <h4 className="font-semibold mb-2">MVPメンバー</h4>
                 <ul className="divide-y divide-slate-800">
                   {members.map((m) => (
                     <li key={m.user_id} className="py-2 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
-                        <div>
+                        <button onClick={()=>{ window.location.href = `/main#diary-user?id=${m.user_id}`; }} aria-label="メンバー詳細へ">
+                          <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
+                        </button>
+                        <button className="text-left" onClick={()=>{ window.location.href = `/main#diary-user?id=${m.user_id}`; }}>
                           <div className="font-medium">{m.nickname}</div>
                           <div className="text-xs text-gray-400">Lv {m.level} / {m.rank}</div>
-                        </div>
+                        </button>
                       </div>
+                      <div className="text-sm text-yellow-300 whitespace-nowrap">+{(memberMonthlyXp[m.user_id] || 0).toLocaleString()} XP</div>
                       {myRole === 'leader' && m.user_id !== user?.id && (
                         <button className="btn btn-xs btn-outline" onClick={async ()=>{ if(confirm('このメンバーを除名しますか？')){ await kickMember(m.user_id); await initialize(); } }}>除名</button>
                       )}

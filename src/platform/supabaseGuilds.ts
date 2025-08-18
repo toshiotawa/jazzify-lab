@@ -383,3 +383,25 @@ export async function getPendingInvitationToUser(targetUserId: string): Promise<
   } as GuildInvitation) : null;
 }
 
+/**
+ * Fetch per-member monthly XP for a guild (client-side aggregation).
+ */
+export async function fetchGuildMemberMonthlyXp(guildId: string, targetMonth?: string): Promise<Array<{ user_id: string; monthly_xp: number }>> {
+  const supabase = getSupabaseClient();
+  const month = targetMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('guild_xp_contributions')
+    .select('user_id, gained_xp')
+    .eq('guild_id', guildId)
+    .eq('month', month);
+  if (error) {
+    console.warn('fetchGuildMemberMonthlyXp error:', error);
+    return [];
+  }
+  const map = new Map<string, number>();
+  (data || []).forEach((r: any) => {
+    map.set(r.user_id, (map.get(r.user_id) || 0) + Number(r.gained_xp || 0));
+  });
+  return Array.from(map.entries()).map(([user_id, monthly_xp]) => ({ user_id, monthly_xp }));
+}
+
