@@ -14,7 +14,8 @@ create or replace function public.rpc_guild_kick_member(p_member_user_id uuid)
 returns void
 language plpgsql
 security definer
-set search_path = publicQQ
+set search_path = public
+as $$
 declare
   _uid uuid := auth.uid();
   _gid uuid;

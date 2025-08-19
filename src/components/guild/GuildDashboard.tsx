@@ -198,7 +198,7 @@ const GuildDashboard: React.FC = () => {
                 if (!confirm('このメンバーを除名しますか？')) return;
                 try {
                         setBusy(true);
-                        await kickMember(memberUserId);
+                        await kickMember(myGuild.id, memberUserId);
                         setMembers(prev => prev.filter(m => m.user_id !== memberUserId));
                         alert('メンバーを除名しました。');
                 } catch (e: unknown) {

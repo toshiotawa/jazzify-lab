@@ -252,9 +252,9 @@ export async function rejectJoinRequest(requestId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function kickMember(memberUserId: string): Promise<void> {
+export async function kickMember(guildId: string, memberUserId: string): Promise<void> {
   const { error } = await getSupabaseClient()
-    .rpc('rpc_guild_kick_member', { p_member_user_id: memberUserId });
+    .rpc('rpc_guild_kick_member', { p_guild_id: guildId, p_member_user_id: memberUserId });
   if (error) throw error;
 }
 
