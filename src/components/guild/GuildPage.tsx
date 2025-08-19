@@ -115,8 +115,8 @@ const GuildPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-2xl font-bold">{guild.name}{guild.disbanded ? '（解散したギルド）' : ''}</div>
-                    <div className="text-sm text-gray-300 mt-1">Lv.{guild.level} / メンバー {guild.members_count}</div>
-                    <div className="text-sm text-green-400 mt-1">ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)} <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(0)}% / ストリーク +{(bonus.streakBonus*100).toFixed(0)}%）</span></div>
+                    <div className="text-sm text-gray-300 mt-1">Lv.{guild.level}</div>
+                    <div className="text-sm text-green-400 mt-1">ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)} <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}% / ストリーク +{(bonus.streakBonus*100).toFixed(1)}%）</span></div>
                     <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
                       <div className="bg-slate-900 rounded p-3 border border-slate-700">
                         <div className="text-gray-400">今シーズン合計XP</div>
@@ -191,11 +191,11 @@ const GuildPage: React.FC = () => {
               )}
 
               <div className="bg-slate-800 border border-slate-700 rounded p-4">
-                <h3 className="font-semibold mb-3">メンバー</h3>
+                <h3 className="font-semibold mb-3">メンバーリスト ({members.length}/5)</h3>
                 {members.length === 0 ? (
                   <p className="text-gray-400 text-sm">メンバーがいません</p>
                 ) : (
-                  <ul className="space-y-2">
+                  <ul className="space-y-2 text-base">
                     {members.map(m => (
                       <li key={m.user_id} className="flex items-center gap-2">
                         <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} aria-label="ユーザーページへ">
