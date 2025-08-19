@@ -106,29 +106,29 @@ export async function getGuildMembers(guildId: string): Promise<GuildMember[]> {
 }
 
 /**
- * ギルド内メンバーの当月日次貢献ストリークを取得（xp_historyベース、クライアント集計）
- * 戻り値: ユーザーID -> { daysCurrentStreak, tierPercent, tierMaxDays, display }
+ * ギルド内メンバーの日次貢献ストリークを取得（xp_historyベース、クライアント集計）
+ * 月を跨いでもリセットされない。ストリーク失敗時はレベルが1下降し、5日成功で1上昇。
+ * 戻り値: ユーザーID -> { daysCurrentStreak(進行度0-5), tierPercent, tierMaxDays, display, level }
  */
 export async function fetchGuildDailyStreaks(
   guildId: string,
   baseDate?: Date,
-): Promise<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>> {
+): Promise<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string; level: number }>> {
   const supabase = getSupabaseClient();
   const now = baseDate ? new Date(baseDate) : new Date();
-  const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const monthStartStr = monthStartUtc.toISOString();
 
   // ギルドメンバー一覧
   const members = await getGuildMembers(guildId);
   const userIds = members.map(m => m.user_id);
   if (userIds.length === 0) return {};
 
-  // 当月の xp_history を取得
+  // 過去180日の xp_history を取得（月でリセットしない)
+  const startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 180)).toISOString();
   const { data, error } = await supabase
     .from('xp_history')
     .select('user_id, created_at, gained_xp')
     .in('user_id', userIds)
-    .gte('created_at', monthStartStr);
+    .gte('created_at', startDate);
   if (error) {
     console.warn('fetchGuildDailyStreaks xp_history error:', error);
     return {};
@@ -145,43 +145,34 @@ export async function fetchGuildDailyStreaks(
     if (Number(r.gained_xp || 0) > 0) byUser.get(uid)!.add(key);
   });
 
-  // 連続達成ストリークを計算（最後の貢献日から遡って連続している日数）
-  const result: Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }> = {};
-  const todayKey = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().slice(0, 10);
+  const result: Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string; level: number }> = {};
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
   for (const uid of userIds) {
     const days = byUser.get(uid) || new Set<string>();
-    // 最新貢献日（文字列比較でOK: YYYY-MM-DD）
-    const sortedDays = Array.from(days.values()).sort();
-    let streak = 0;
-    if (sortedDays.length > 0) {
-      // 最新日から遡ってカウント
-      let cursor = new Date(sortedDays[sortedDays.length - 1] + 'T00:00:00.000Z');
-      while (true) {
-        const key = cursor.toISOString().slice(0, 10);
-        if (days.has(key)) {
-          streak += 1;
-          // 前日へ
-          cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate() - 1));
-        } else {
-          break;
+    let level = 0;
+    let progress = 0; // 次のレベルまでの進行度
+    // 直近180日を古い順に走査
+    const cursor = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 179));
+    while (cursor <= today) {
+      const key = cursor.toISOString().slice(0, 10);
+      if (days.has(key)) {
+        progress += 1;
+        if (progress >= 5) {
+          level = Math.min(6, level + 1);
+          progress = 0;
         }
+      } else {
+        if (level > 0) level -= 1;
+        progress = 0;
       }
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
 
-    // ティア計算
-    let tierPercent = 0;
-    let tierMaxDays = 5;
-    if (streak >= 26) { tierPercent = 0.30; tierMaxDays = 30; }
-    else if (streak >= 21) { tierPercent = 0.25; tierMaxDays = 25; }
-    else if (streak >= 16) { tierPercent = 0.20; tierMaxDays = 20; }
-    else if (streak >= 11) { tierPercent = 0.15; tierMaxDays = 15; }
-    else if (streak >= 6)  { tierPercent = 0.10; tierMaxDays = 10; }
-    else if (streak >= 1)  { tierPercent = 0.05; tierMaxDays = 5; }
-    else { tierPercent = 0; tierMaxDays = 5; }
-
-    const display = streak > 0 ? `${Math.min(streak, tierMaxDays)}/${tierMaxDays} +${Math.round(tierPercent * 100)}%` : '0/5 +0%';
-    result[uid] = { daysCurrentStreak: streak, tierPercent, tierMaxDays, display };
+    const tierPercent = level * 0.05;
+    const tierMaxDays = 5;
+    const display = `Lv.${level} ${progress}/${tierMaxDays} +${Math.round(tierPercent * 100)}%`;
+    result[uid] = { daysCurrentStreak: progress, tierPercent, tierMaxDays, display, level };
   }
 
   return result;
