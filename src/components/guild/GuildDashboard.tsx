@@ -90,24 +90,27 @@ const GuildDashboard: React.FC = () => {
 							if (evt) {
 								setLastGuildEvent(evt);
 							} else {
-								try {
-									const { getGuildById } = await import('@/platform/supabaseGuilds');
-									const g2 = await getGuildById(parsed.id);
-									setLastGuildEvent(g2?.disbanded ? 'disband' : 'kicked');
-								} catch {}
+								// パフォーマンス改善: 脱退理由表示は廃止したため、この処理は不要
+								setLastGuildEvent('left');
 							}
 						}
 					}
 				} catch {}
-				// ランクと参加リクエストはユーザーコンテキストから
-                                const [rank, joinReqs, invitations] = await Promise.all([
-                                        fetchMyGuildRank(),
-                                        fetchJoinRequestsForMyGuild(),
-                                        fetchPendingInvitationsForMe(),
-                                ]);
-                                setMyRank(rank);
-                                setJoinRequests(joinReqs);
-                                setPendingInvitations(invitations);
+				// ギルドに所属している場合のみランクと参加リクエストを取得
+				if (guild) {
+					const [rank, joinReqs, invitations] = await Promise.all([
+						fetchMyGuildRank(),
+						fetchJoinRequestsForMyGuild(),
+						fetchPendingInvitationsForMe(),
+					]);
+					setMyRank(rank);
+					setJoinRequests(joinReqs);
+					setPendingInvitations(invitations);
+				} else {
+					// ギルドに所属していない場合は招待のみ確認
+					const invitations = await fetchPendingInvitationsForMe();
+					setPendingInvitations(invitations);
+				}
 				if (guild) {
 					// ギルドIDに依存する取得
 					const [m, perMember, totalContrib, st] = await Promise.all([

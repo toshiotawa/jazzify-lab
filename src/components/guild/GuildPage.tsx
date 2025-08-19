@@ -41,10 +41,13 @@ const GuildPage: React.FC = () => {
         const mine = await getMyGuild();
         setIsMember(!!(mine && mine.id === guildId));
         if (g) {
-          const hasReq = await hasJoinRequest(g.id);
-          setHasRequest(hasReq);
+          // メンバーでない場合のみ参加リクエスト状態を確認
+          if (!mine || mine.id !== g.id) {
+            const hasReq = await hasJoinRequest(g.id);
+            setHasRequest(hasReq);
+          }
           
-          // メンバーの場合のみメンバー情報を取得
+          // メンバーの場合のみ詳細情報を取得
           if (mine && mine.id === g.id) {
             const [m, per] = await Promise.all([
               getGuildMembers(g.id),
@@ -53,7 +56,8 @@ const GuildPage: React.FC = () => {
             setMembers(m);
             setMemberMonthly(per);
           }
-          // 今シーズン（当月）合計XPと順位
+          
+          // 今シーズン（当月）合計XPと順位は全員に表示
           const now = new Date();
           const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
           const [xp, r] = await Promise.all([

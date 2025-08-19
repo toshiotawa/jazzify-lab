@@ -709,18 +709,22 @@ export async function disbandMyGuild(): Promise<void> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
-  const { data: guild } = await supabase
-    .from('guilds')
-    .select('id')
-    .eq('leader_id', user.id)
+  
+  // まず自分が所属しているギルドを確認
+  const { data: membership } = await supabase
+    .from('guild_members')
+    .select('guild_id, role')
+    .eq('user_id', user.id)
     .maybeSingle();
-  if (!guild?.id) throw new Error('リーダー権限がありません');
+    
+  if (!membership) throw new Error('ギルドに所属していません');
+  if (membership.role !== 'leader') throw new Error('リーダー権限がありません');
   const { count } = await supabase
     .from('guild_members')
     .select('*', { count: 'exact', head: true })
-    .eq('guild_id', guild.id);
+    .eq('guild_id', membership.guild_id);
   if ((count || 0) > 1) throw new Error('メンバーが1人のときのみ解散できます');
-  const { error } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: guild.id });
+  const { error } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: membership.guild_id });
   if (error) throw error;
 }
 
