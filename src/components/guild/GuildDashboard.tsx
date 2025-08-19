@@ -61,10 +61,8 @@ const GuildDashboard: React.FC = () => {
 	const [isLeader, setIsLeader] = useState<boolean>(false);
 	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
-	const [lastGuildInfo, setLastGuildInfo] = useState<{ id: string; name: string } | null>(null);
+        const [lastGuildInfo, setLastGuildInfo] = useState<{ id: string; name: string } | null>(null);
         const [lastGuildEvent, setLastGuildEvent] = useState<'left'|'kicked'|'disband'|null>(null);
-        const [leaveReason, setLeaveReason] = useState<string>('');
-        const [reasonSubmitting, setReasonSubmitting] = useState<boolean>(false);
         const [pendingInvitations, setPendingInvitations] = useState<GuildInvitation[]>([]);
 
 	useEffect(() => {
@@ -338,32 +336,13 @@ const GuildDashboard: React.FC = () => {
                                                 {lastGuildInfo && (
                                                         <div className="mt-6 max-w-xl mx-auto text-left bg-slate-800 border border-slate-700 rounded p-4">
                                                                 <div className="font-semibold mb-2">脱退のご報告</div>
-                                                                <p className="text-sm text-gray-300 mb-2">ギルド名「{lastGuildInfo.name}」から{lastGuildEvent === 'disband' ? '解散' : lastGuildEvent === 'kicked' ? '除名' : '脱退'}のため、脱退しました。よろしければ理由をご記入ください。</p>
-                                                                <textarea className="textarea textarea-bordered w-full text-sm" rows={3} placeholder="脱退理由（任意）" value={leaveReason} onChange={(e)=>setLeaveReason(e.target.value)} />
+                                                                <p className="text-sm text-gray-300 mb-2">ギルド名「{lastGuildInfo.name}」から{lastGuildEvent === 'disband' ? '解散' : lastGuildEvent === 'kicked' ? '除名' : '脱退'}のため、脱退しました。</p>
                                                                 <div className="mt-2 flex gap-2">
-                                                                        <button className="btn btn-sm btn-primary" disabled={reasonSubmitting || leaveReason.trim().length===0} onClick={async()=>{
-                                                                                try {
-                                                                                        setReasonSubmitting(true);
-                                                                                        const { submitGuildLeaveFeedback } = await import('@/platform/supabaseGuilds');
-                                                                                        await submitGuildLeaveFeedback(lastGuildInfo.id, lastGuildInfo.name, (lastGuildEvent||'left'), leaveReason.trim());
-                                                                                        alert('ご協力ありがとうございます。');
-                                                                                        localStorage.removeItem('lastGuildInfo');
-                                                                                        localStorage.removeItem('lastGuildEvent');
-                                                                                        setLastGuildInfo(null);
-                                                                                        setLastGuildEvent(null);
-                                                                                        setLeaveReason('');
-                                                                                } catch (e:any) {
-                                                                                        alert(e?.message || '送信に失敗しました');
-                                                                                } finally {
-                                                                                        setReasonSubmitting(false);
-                                                                                }
-                                                                        }}>送信</button>
-                                                                        <button className="btn btn-sm btn-ghost" onClick={()=>{
+                                                                        <button className="btn btn-sm btn-primary" onClick={()=>{
                                                                                 localStorage.removeItem('lastGuildInfo');
                                                                                 localStorage.removeItem('lastGuildEvent');
                                                                                 setLastGuildInfo(null);
                                                                                 setLastGuildEvent(null);
-                                                                                setLeaveReason('');
                                                                         }}>閉じる</button>
                                                                 </div>
                                                         </div>
