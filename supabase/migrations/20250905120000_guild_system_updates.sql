@@ -8,7 +8,10 @@ alter table public.guilds
 drop policy if exists guild_members_select_visible on public.guild_members;
 create policy guild_members_select_visible on public.guild_members
   for select using (
-    exists(select 1 from public.guild_members gm where gm.guild_id = guild_members.guild_id and gm.user_id = auth.uid())
+    user_id = auth.uid()
+    or guild_id in (
+      select gm.guild_id from public.guild_members gm where gm.user_id = auth.uid()
+    )
   );
 
 -- Allow leader to transfer leadership
