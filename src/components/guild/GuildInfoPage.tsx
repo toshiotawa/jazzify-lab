@@ -48,7 +48,7 @@ const GuildInfoPage: React.FC = () => {
                                                         </div>
                                                         <div>
                                                                 <h4 className="font-medium text-lg mb-1">メンバー独立性</h4>
-                                                                <p className="text-sm text-gray-300">各メンバーのストリークは独立して管理されます。メンバー5人全員がレベル6の場合、合計で150％のストリークボーナスを獲得できます。</p>
+                                                                <p className="text-sm text-gray-300">各メンバーのストリークは独立して管理されます。合計で+150％(2.5倍)のストリークボーナスを獲得できます。さらにメンバーボーナスと合わせて+200%(3倍)のギルドボーナスになります。</p>
                                                         </div>
                                                         <div>
                                                                 <h4 className="font-medium text-lg mb-1">月跨ぎ対応</h4>
