@@ -31,7 +31,7 @@ import OpenBetaPlanSwitcher from '@/components/subscription/OpenBetaPlanSwitcher
 import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES } from '@/utils/titleConstants';
+import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 
 /**
  * ダッシュボード画面
@@ -205,6 +205,9 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const [hoveredTitle, setHoveredTitle] = useState<boolean>(false);
+  const [clickedTitle, setClickedTitle] = useState<boolean>(false);
+
   if (!open) return null;
 
   // フリープランの場合はプラン変更UIのみ表示
@@ -243,12 +246,28 @@ const Dashboard: React.FC = () => {
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold">{profile.nickname}</h2>
                   
-                  {/* 称号表示 */}
-                  <div className="flex items-center space-x-2 mb-2">
-                    {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
-                    <span className="text-yellow-400 font-medium text-sm">
-                      {(profile.selected_title as Title) || DEFAULT_TITLE}
-                    </span>
+                  {/* 称号表示（ホバー/タップで条件表示） */}
+                  <div className="relative mb-2">
+                    <div 
+                      className="flex items-center space-x-2 cursor-help max-w-full"
+                      onMouseEnter={()=>setHoveredTitle(true)}
+                      onMouseLeave={()=>setHoveredTitle(false)}
+                      onClick={(e)=>{ e.stopPropagation(); setClickedTitle(v=>!v); }}
+                    >
+                      {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
+                      <span className="text-yellow-400 font-medium text-sm truncate max-w-[240px]">
+                        {(profile.selected_title as Title) || DEFAULT_TITLE}
+                      </span>
+                    </div>
+                    {(hoveredTitle || clickedTitle) && (
+                      <div 
+                        className="absolute z-50 bg-gray-900 text-white text-xs p-2 rounded shadow-lg whitespace-nowrap"
+                        style={{ bottom: '100%', left: '0', marginBottom: '4px' }}
+                      >
+                        {getTitleRequirement((profile.selected_title as Title) || DEFAULT_TITLE)}
+                        <div className="absolute w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" style={{ bottom: '-4px', left: '12px' }} />
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex items-center space-x-4 text-sm text-gray-400">

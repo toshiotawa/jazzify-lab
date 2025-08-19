@@ -8,7 +8,7 @@ import { useDiaryStore } from '@/stores/diaryStore';
 import { useToast } from '@/stores/toastStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES } from '@/utils/titleConstants';
+import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
 import GuildInviteControls from '@/components/guild/GuildInviteControls';
 import { getGuildOfUser, Guild } from '@/platform/supabaseGuilds';
@@ -210,6 +210,9 @@ const DiaryPage: React.FC = () => {
     }
   };
 
+  const [hoveredTitle, setHoveredTitle] = useState<boolean>(false);
+  const [clickedTitle, setClickedTitle] = useState<boolean>(false);
+
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
@@ -246,12 +249,28 @@ const DiaryPage: React.FC = () => {
                             <span className="text-xs text-gray-400 ml-2">Lv.{joinedGuild.level} / メンバー {joinedGuild.members_count}</span>
                           </div>
                         )}
-                        {/* 称号表示 */}
-                        <div className="flex items-center space-x-2 mb-2 mt-1">
-                          {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
-                          <span className="text-yellow-400 font-medium text-sm">
-                            {(profile.selected_title as Title) || DEFAULT_TITLE}
-                          </span>
+                        {/* 称号表示（ホバー/タップで条件表示） */}
+                        <div className="relative mb-2 mt-1">
+                          <div
+                            className="flex items-center space-x-2 cursor-help"
+                            onMouseEnter={()=>setHoveredTitle(true)}
+                            onMouseLeave={()=>setHoveredTitle(false)}
+                            onClick={(e)=>{ e.stopPropagation(); setClickedTitle(v=>!v); }}
+                          >
+                            {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
+                            <span className="text-yellow-400 font-medium text-sm truncate max-w-[240px]">
+                              {(profile.selected_title as Title) || DEFAULT_TITLE}
+                            </span>
+                          </div>
+                          {(hoveredTitle || clickedTitle) && (
+                            <div 
+                              className="absolute z-50 bg-gray-900 text-white text-xs p-2 rounded shadow-lg whitespace-nowrap"
+                              style={{ bottom: '100%', left: 0, marginBottom: '4px' }}
+                            >
+                              {getTitleRequirement((profile.selected_title as Title) || DEFAULT_TITLE)}
+                              <div className="absolute w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" style={{ bottom: '-4px', left: '12px' }} />
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center space-x-3 text-sm text-gray-400">
                           <span>Lv.{profile.level}</span>

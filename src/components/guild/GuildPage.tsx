@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild } from '@/platform/supabaseGuilds';
+import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, fetchGuildDailyStreaks } from '@/platform/supabaseGuilds';
+import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
+import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 import { computeGuildBonus, formatMultiplier } from '@/utils/guildBonus';
 
 const GuildPage: React.FC = () => {
@@ -15,6 +17,7 @@ const GuildPage: React.FC = () => {
   const [rank, setRank] = useState<number | null>(null);
   const [isMember, setIsMember] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
+  const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash.startsWith('#guild'));
@@ -45,6 +48,8 @@ const GuildPage: React.FC = () => {
           ]);
           setMembers(m);
           setMemberMonthly(per);
+          const st = await fetchGuildDailyStreaks(g.id).catch(()=>({} as Record<string, any>));
+          setStreaks(st);
           // 今シーズン（当月）合計XPと順位
           const now = new Date();
           const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
@@ -68,6 +73,25 @@ const GuildPage: React.FC = () => {
   const mvpUserId = memberMonthly.sort((a,b)=>b.monthly_xp-a.monthly_xp)[0]?.user_id;
   const mvp = mvpUserId ? members.find(x => x.user_id === mvpUserId) : undefined;
   const mvpXp = memberMonthly.find(x => x.user_id === mvpUserId)?.monthly_xp || 0;
+
+  const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
+    if (TITLES.includes(title as any)) return 'level';
+    if (MISSION_TITLES.some(mt => mt.name === title)) return 'mission';
+    if (LESSON_TITLES.some(lt => lt.name === title)) return 'lesson';
+    if (WIZARD_TITLES.includes(title as any)) return 'wizard';
+    return 'level';
+  };
+
+  const getTitleIcon = (title: string) => {
+    const t = getTitleType(title);
+    switch (t) {
+      case 'level': return <FaCrown className="text-xs text-yellow-400"/>;
+      case 'mission': return <FaTrophy className="text-xs text-purple-400"/>;
+      case 'lesson': return <FaGraduationCap className="text-xs text-blue-400"/>;
+      case 'wizard': return <FaHatWizard className="text-xs text-green-400"/>;
+      default: return <FaCrown className="text-xs text-yellow-400"/>;
+    }
+  };
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
@@ -137,14 +161,44 @@ const GuildPage: React.FC = () => {
                 ) : (
                   <ul className="space-y-2">
                     {members.map(m => (
-                      <li key={m.user_id} className="flex items_center gap-2">
+                      <li key={m.user_id} className="flex items-center gap-2">
                         <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} aria-label="ユーザーページへ">
                           <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
                         </button>
-                        <button className="hover:text-blue-400" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
-                        <span className="text-xs text-gray-400">Lv.{m.level} / {m.rank}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <button className="hover:text-blue-400 truncate" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
+                            {/* 称号（ホバー/タップで条件表示） */}
+                            {m.selected_title && (
+                              <div className="relative">
+                                <div className="flex items-center gap-1 text-yellow-400 cursor-help group">
+                                  {getTitleIcon((m.selected_title as Title) || DEFAULT_TITLE)}
+                                  <span className="text-[11px] truncate max-w-[160px]">{(m.selected_title as Title) || DEFAULT_TITLE}</span>
+                                </div>
+                                <div className="absolute hidden group-hover:block z-50 bg-gray-900 text-white text-[11px] p-2 rounded shadow-lg whitespace-nowrap" style={{ top: '100%', left: 0, marginTop: '4px' }}>
+                                  {getTitleRequirement((m.selected_title as Title) || DEFAULT_TITLE)}
+                                  <div className="absolute w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900" style={{ top: '-4px', left: '12px' }} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-400">Lv.{m.level} / {m.rank}</div>
+                          {/* チャレンジギルド: 連続達成進捗 */}
+                          {streaks[m.user_id] && (
+                            <div className="mt-1">
+                              <div className="h-1.5 bg-slate-700 rounded overflow-hidden">
+                                <div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
+                              </div>
+                              <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id].display}</div>
+                            </div>
+                          )}
+                        </div>
                         {m.role === 'leader' && (
                           <span className="text-[10px] px-2 py-0.5 rounded_full bg-yellow-500 text-black font-bold">Leader</span>
+                        )}
+                        {/* 当月貢献ありメンバー: Success!! アイコン */}
+                        {memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
+                          <FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
                         )}
                       </li>
                     ))}
