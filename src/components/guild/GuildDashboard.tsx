@@ -24,6 +24,7 @@ import {
 import GuildBoard from '@/components/guild/GuildBoard';
 import GameHeader from '@/components/ui/GameHeader';
 import { currentLevelXP, xpToNextLevel } from '@/utils/xpCalculator';
+import { calcGuildLevelDetail } from '@/utils/guildLevel';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { computeGuildBonus, formatMultiplier } from '@/utils/guildBonus';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
@@ -250,33 +251,53 @@ const GuildDashboard: React.FC = () => {
 		<div className="container mx-auto p-4">
 			<GameHeader title={myGuild.name} />
 
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-				<div className="bg-slate-900 p-4 rounded-lg">
-					<h3>ギルド情報</h3>
-					<p>ギルド説明: {myGuild.description || 'なし'}</p>
-					<p>メンバー数: {members.length}</p>
-					<p>リーダー: {myGuild.leader_id === user?.id ? 'あなた' : members.find(m => m.user_id === myGuild.leader_id)?.nickname || '不明'}</p>
-					<p>今月合計XP: {thisMonthXp}</p>
-					<p>総貢献XP: {myTotalContribXp}</p>
-					<p>ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)}</p>
-					<p className="text-xs text-gray-400">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(0)}% / ストリーク +{((bonus.streakBonus||0)*100).toFixed(0)}%）</p>
-					<p>現在のレベル: {currentLevelXP(myTotalContribXp)}</p>
-					<p>次のレベルまで: {xpToNextLevel(myTotalContribXp)}</p>
-
+			<div className="max-w-3xl mx-auto space-y-4">
+				{/* ギルド説明カード */}
+				<div className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+					<h3 className="font-semibold mb-2">ギルド説明</h3>
+					<p className="whitespace-pre-wrap text-sm text-gray-200">{myGuild.description || 'なし'}</p>
 					{editingDesc ? (
-						<div className="mt-4">
-							<textarea value={descEdit} onChange={(e)=>setDescEdit(e.target.value)} className="input input-bordered w-full" />
+						<div className="mt-3">
+							<textarea value={descEdit} onChange={(e)=>setDescEdit(e.target.value)} className="w-full bg-slate-800 p-2 rounded" rows={3} />
 							<button onClick={handleUpdateDescription} className="btn btn-primary mt-2" disabled={busy}>説明を更新</button>
 						</div>
 					) : (
-						<button onClick={()=>setEditingDesc(true)} className="btn btn-outline btn-sm">ギルド説明を編集</button>
+						<button onClick={()=>setEditingDesc(true)} className="btn btn-outline btn-sm mt-3">ギルド説明を編集</button>
 					)}
+				</div>
+
+				{/* ギルド情報カード */}
+				<div className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+					<h3 className="font-semibold mb-2">ギルド情報</h3>
+					<p>メンバー数: {members.length}</p>
+					<p>リーダー: {myGuild.leader_id === user?.id ? 'あなた' : members.find(m => m.user_id === myGuild.leader_id)?.nickname || '不明'}</p>
+					<p>今月合計XP: {thisMonthXp}</p>
+					<p>総貢献XP（あなた）: {myTotalContribXp}</p>
+					{/* ギルドレベル進捗 */}
+					{(() => {
+						const d = calcGuildLevelDetail(Number(myGuild.total_xp || 0));
+						const remain = d.remainder;
+						const need = d.nextLevelXp;
+						const pct = Math.max(0, Math.min(100, Math.round((remain / (need || 1)) * 100)));
+						return (
+							<div className="mt-2">
+								<p>ギルドレベル: {d.level}</p>
+								<div className="h-2 bg-slate-800 rounded overflow-hidden">
+									<div className="h-full bg-green-500" style={{ width: `${pct}%` }} />
+								</div>
+								<p className="text-xs text-gray-400 mt-1">次のレベルまで: {(need - remain).toLocaleString()} XP</p>
+								<p className="text-xs text-gray-400">累計獲得経験値: {Number(myGuild.total_xp||0).toLocaleString()} XP</p>
+							</div>
+						);
+					})()}
+					<p>ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)}</p>
+					<p className="text-xs text-gray-400">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(0)}% / ストリーク +{((bonus.streakBonus||0)*100).toFixed(0)}%）</p>
 
 					<h3 className="mt-4">ギルドボード</h3>
 					<GuildBoard guildId={myGuild.id} />
 				</div>
 
-				<div className="bg-slate-900 p-4 rounded-lg">
+				<div className="bg-slate-900 p-4 rounded-lg border border-slate-700">
 					<h3>メンバーリスト</h3>
 					{members.length === 0 ? (
 						<p>メンバーはまだいません。</p>
@@ -289,10 +310,10 @@ const GuildDashboard: React.FC = () => {
 									</button>
 									<div className="flex-1 min-w-0">
 										<div className="flex items-center gap-2">
-											<button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} className="font-medium text-sm truncate text-left hover:text-blue-400">{m.nickname}</button>
+											<button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} className="font-medium text-sm text-left hover:text-blue-400 text-white">{m.nickname || 'ユーザー'}</button>
 											{m.selected_title && (
-												<div className="relative">
-													<div className="flex items-center gap-1 text-yellow-400 cursor-help group">
+												<div className="relative group">
+													<div className="flex items-center gap-1 text-yellow-400 cursor-help">
 														{getTitleIcon((m.selected_title as Title) || DEFAULT_TITLE)}
 														<span className="text-[10px] truncate max-w-[140px]">{(m.selected_title as Title) || DEFAULT_TITLE}</span>
 													</div>
@@ -344,7 +365,7 @@ const GuildDashboard: React.FC = () => {
 					)}
 				</div>
 
-				<div className="bg-slate-900 p-4 rounded-lg">
+				<div className="bg-slate-900 p-4 rounded-lg border border-slate-700">
 					<h3>参加リクエスト</h3>
 					{joinRequests.length === 0 ? (
 						<p>参加リクエストはありません。</p>
