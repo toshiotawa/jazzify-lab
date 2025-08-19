@@ -14,12 +14,16 @@ import {
 	Guild,
 	GuildMember,
 	GuildJoinRequest,
-	fetchMyGuildContributionTotal,
-	updateGuildDescription,
-	disbandMyGuild,
-	leaveMyGuild,
-	kickMember,
-	fetchGuildDailyStreaks,
+        fetchMyGuildContributionTotal,
+        updateGuildDescription,
+        disbandMyGuild,
+        leaveMyGuild,
+        kickMember,
+        fetchGuildDailyStreaks,
+        fetchPendingInvitationsForMe,
+        acceptInvitation,
+        rejectInvitation,
+        GuildInvitation,
 } from '@/platform/supabaseGuilds';
 import GuildBoard from '@/components/guild/GuildBoard';
 import GameHeader from '@/components/ui/GameHeader';
@@ -48,9 +52,10 @@ const GuildDashboard: React.FC = () => {
 	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
 	const [lastGuildInfo, setLastGuildInfo] = useState<{ id: string; name: string } | null>(null);
-	const [lastGuildEvent, setLastGuildEvent] = useState<'left'|'kicked'|'disband'|null>(null);
-	const [leaveReason, setLeaveReason] = useState<string>('');
-	const [reasonSubmitting, setReasonSubmitting] = useState<boolean>(false);
+        const [lastGuildEvent, setLastGuildEvent] = useState<'left'|'kicked'|'disband'|null>(null);
+        const [leaveReason, setLeaveReason] = useState<string>('');
+        const [reasonSubmitting, setReasonSubmitting] = useState<boolean>(false);
+        const [pendingInvitations, setPendingInvitations] = useState<GuildInvitation[]>([]);
 
 	useEffect(() => {
 		const fetchData = async () => {
@@ -86,12 +91,14 @@ const GuildDashboard: React.FC = () => {
 					}
 				} catch {}
 				// ランクと参加リクエストはユーザーコンテキストから
-				const [rank, joinReqs] = await Promise.all([
-					fetchMyGuildRank(),
-					fetchJoinRequestsForMyGuild(),
-				]);
-				setMyRank(rank);
-				setJoinRequests(joinReqs);
+                                const [rank, joinReqs, invitations] = await Promise.all([
+                                        fetchMyGuildRank(),
+                                        fetchJoinRequestsForMyGuild(),
+                                        fetchPendingInvitationsForMe(),
+                                ]);
+                                setMyRank(rank);
+                                setJoinRequests(joinReqs);
+                                setPendingInvitations(invitations);
 				if (guild) {
 					// ギルドIDに依存する取得
 					const [m, perMember, totalContrib, st] = await Promise.all([
@@ -211,19 +218,63 @@ const GuildDashboard: React.FC = () => {
 		}
 	};
 
-	const handleRejectJoinRequest = async (requestId: string) => {
-		if (!myGuild) return;
-		try {
-			setBusy(true);
-			await rejectJoinRequest(requestId);
-			alert('参加リクエストが拒否されました。');
-			window.location.reload();
-		} catch (e: any) {
-			alert(e?.message || '参加リクエスト拒否に失敗しました');
-		} finally {
-			setBusy(false);
-		}
-	};
+        const handleRejectJoinRequest = async (requestId: string) => {
+                if (!myGuild) return;
+                try {
+                        setBusy(true);
+                        await rejectJoinRequest(requestId);
+                        alert('参加リクエストが拒否されました。');
+                        window.location.reload();
+                } catch (e: any) {
+                        alert(e?.message || '参加リクエスト拒否に失敗しました');
+                } finally {
+                        setBusy(false);
+                }
+        };
+
+        const handleKickMember = async (memberUserId: string) => {
+                if (!myGuild || !isLeader) return;
+                if (!confirm('このメンバーを除名しますか？')) return;
+                try {
+                        setBusy(true);
+                        await kickMember(memberUserId);
+                        setMembers(prev => prev.filter(m => m.user_id !== memberUserId));
+                        alert('メンバーを除名しました。');
+                } catch (e: unknown) {
+                        const msg = (e as { message?: string })?.message || '除名に失敗しました';
+                        alert(msg);
+                } finally {
+                        setBusy(false);
+                }
+        };
+
+        const handleAcceptInvitation = async (invId: string) => {
+                try {
+                        setBusy(true);
+                        await acceptInvitation(invId);
+                        alert('ギルドに参加しました。');
+                        window.location.reload();
+                } catch (e: unknown) {
+                        const msg = (e as { message?: string })?.message || '招待の承諾に失敗しました';
+                        alert(msg);
+                } finally {
+                        setBusy(false);
+                }
+        };
+
+        const handleRejectInvitation = async (invId: string) => {
+                try {
+                        setBusy(true);
+                        await rejectInvitation(invId);
+                        setPendingInvitations(prev => prev.filter(i => i.id !== invId));
+                        alert('招待を辞退しました。');
+                } catch (e: unknown) {
+                        const msg = (e as { message?: string })?.message || '招待の辞退に失敗しました';
+                        alert(msg);
+                } finally {
+                        setBusy(false);
+                }
+        };
 
 	const handleUpdateDescription = async () => {
 		if (!myGuild || !descEdit.trim()) return;
@@ -263,11 +314,32 @@ const GuildDashboard: React.FC = () => {
 	if (!myGuild) {
 		return (
 			<div className="text-center py-8">
-				<h2>ギルドを作成または参加</h2>
-				<p>ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
-				{lastGuildInfo && (
-					<div className="mt-6 max-w-xl mx-auto text-left bg-slate-800 border border-slate-700 rounded p-4">
-						<div className="font-semibold mb-2">脱退のご報告</div>
+                                <h2>ギルドを作成または参加</h2>
+                                <p>ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
+                                {pendingInvitations.length > 0 && (
+                                        <div className="mt-6 max-w-xl mx-auto text-left bg-slate-800 border border-slate-700 rounded p-4">
+                                                <div className="font-semibold mb-2">ギルド招待</div>
+                                                <ul className="space-y-2">
+                                                        {pendingInvitations.map(inv => (
+                                                                <li key={inv.id} className="bg-slate-900 p-2 rounded-lg flex justify-between items-center">
+                                                                        <div>
+                                                                                <p className="text-sm">{inv.guild_name || 'ギルド'} からの招待</p>
+                                                                                {inv.inviter_nickname && (
+                                                                                        <p className="text-xs text-gray-400">招待者: {inv.inviter_nickname}</p>
+                                                                                )}
+                                                                        </div>
+                                                                        <div className="flex gap-2 flex-shrink-0">
+                                                                                <button onClick={() => handleAcceptInvitation(inv.id)} className="btn btn-xs btn-success">参加</button>
+                                                                                <button onClick={() => handleRejectInvitation(inv.id)} className="btn btn-xs btn-error">辞退</button>
+                                                                        </div>
+                                                                </li>
+                                                        ))}
+                                                </ul>
+                                        </div>
+                                )}
+                                {lastGuildInfo && (
+                                        <div className="mt-6 max-w-xl mx-auto text-left bg-slate-800 border border-slate-700 rounded p-4">
+                                                <div className="font-semibold mb-2">脱退のご報告</div>
 						<p className="text-sm text-gray-300 mb-2">ギルド名「{lastGuildInfo.name}」から{lastGuildEvent === 'disband' ? '解散' : lastGuildEvent === 'kicked' ? '除名' : '脱退'}のため、脱退しました。よろしければ理由をご記入ください。</p>
 						<textarea className="textarea textarea-bordered w-full text-sm" rows={3} placeholder="脱退理由（任意）" value={leaveReason} onChange={(e)=>setLeaveReason(e.target.value)} />
 						<div className="mt-2 flex gap-2">
@@ -462,14 +534,17 @@ const GuildDashboard: React.FC = () => {
 													{m.role === 'leader' && (
 														<span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">Leader</span>
 													)}
-													{memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
-														<FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
-													)}
-												</li>
-											))}
-										</ul>
-									)}
-								</div>
+                                                                                                        {memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
+                                                                                                                <FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
+                                                                                                        )}
+                                                                                                        {isLeader && m.user_id !== user?.id && m.role !== 'leader' && (
+                                                                                                                <button onClick={() => handleKickMember(m.user_id)} className="btn btn-xs btn-error ml-2">追放</button>
+                                                                                                        )}
+                                                                                                </li>
+                                                                                        ))}
+                                                                                </ul>
+                                                                        )}
+                                                                </div>
 
 								<div className="bg-slate-800 border border-slate-700 rounded p-4">
 									<h3 className="font-semibold mb-3">参加リクエスト</h3>

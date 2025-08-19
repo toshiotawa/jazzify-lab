@@ -62,6 +62,8 @@ const FantasyMain: React.FC = () => {
     nextLevelXp: number;
     currentLevelXp: number;
     leveledUp: boolean;
+    base: number;
+    multipliers: { membership: number; guild: number };
   } | null>(null);
   
   // フリープラン・ゲストユーザーかどうかの確認
@@ -398,7 +400,9 @@ const FantasyMain: React.FC = () => {
             previousLevel: previousLevel,
             nextLevelXp: nextLvXp,
             currentLevelXp: currentLvXp,
-            leveledUp: leveledUp
+            leveledUp: leveledUp,
+            base: xpGain,
+            multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
           });
           
           // レベルアップした場合はトーストを表示
@@ -537,21 +541,30 @@ const FantasyMain: React.FC = () => {
             
             {/* 経験値獲得 */}
             <div className="mt-4 pt-4 border-t border-gray-600 font-sans">
-              <div className="text-blue-300">
-                基本経験値: {gameResult.result === 'clear' ? 1000 : 200} XP
-              </div>
-              {profile && (profile.rank === 'premium' || profile.rank === 'platinum') && (
-                <div className="text-yellow-300 text-sm mt-1">
-                  ランクボーナス {profile.rank === 'premium' ? 'プレミアム1.5x' : 'プラチナ2.0x'}
-                </div>
+              {xpInfo ? (
+                <>
+                  <div className="text-sm text-gray-300 space-y-1">
+                    <div className="flex justify-between">
+                      <span>基本XP:</span>
+                      <span>{xpInfo.base}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>ランクボーナス:</span>
+                      <span>x{xpInfo.multipliers.membership}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>ギルドボーナス:</span>
+                      <span>x{xpInfo.multipliers.guild}</span>
+                    </div>
+                  </div>
+                  <div className="text-green-300 font-bold text-xl mt-2">
+                    獲得: +{xpInfo.gained} XP
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-gray-300">XP計算中...</div>
               )}
-              <div className="text-green-300 font-bold text-xl mt-2">
-                獲得: +{gameResult.result === 'clear' ? 
-                  (profile?.rank === 'platinum' ? 2000 : profile?.rank === 'premium' ? 1500 : 1000) : 
-                  (profile?.rank === 'platinum' ? 400 : profile?.rank === 'premium' ? 300 : 200)
-                } XP
-              </div>
-              
+
               {/* 次レベルまでの経験値表示 */}
               {xpInfo && (
                 <div className="mt-3 pt-3 border-t border-gray-600">
