@@ -434,39 +434,7 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
   }));
 }
 
-export async function searchGuilds(keyword: string): Promise<Guild[]> {
-  const supabase = getSupabaseClient();
-  let query = supabase
-    .from('guilds')
-    .select('*');
-  if (keyword && keyword.trim().length > 0) {
-    query = query.ilike('name', `%${keyword.trim()}%`);
-  }
-  query = query.order('level', { ascending: false }).limit(50);
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  const result: Guild[] = [];
-  for (const g of data || []) {
-    const { count } = await supabase
-      .from('guild_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('guild_id', (g as any).id);
-    result.push({
-      id: (g as any).id,
-      name: (g as any).name,
-      leader_id: (g as any).leader_id,
-      level: Number((g as any).level || 1),
-      total_xp: Number((g as any).total_xp || 0),
-      members_count: count || 0,
-      description: (g as any).description ?? null,
-      disbanded: !!(g as any).disbanded,
-      guild_type: ((g as any).guild_type as GuildType) || 'casual',
-    });
-  }
-  return result;
-}
+// searchGuilds は要件変更により削除されました
 
 export async function getGuildIdOfUser(userId: string): Promise<string | null> {
   const { data } = await getSupabaseClient()
