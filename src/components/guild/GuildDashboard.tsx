@@ -14,12 +14,16 @@ import {
 	Guild,
 	GuildMember,
 	GuildJoinRequest,
-	fetchMyGuildContributionTotal,
-	updateGuildDescription,
-	disbandMyGuild,
-	leaveMyGuild,
-	kickMember,
-	fetchGuildDailyStreaks,
+        fetchMyGuildContributionTotal,
+        updateGuildDescription,
+        disbandMyGuild,
+        leaveMyGuild,
+        kickMember,
+        fetchGuildDailyStreaks,
+        fetchPendingInvitationsForMe,
+        acceptInvitation,
+        rejectInvitation,
+        GuildInvitation,
 } from '@/platform/supabaseGuilds';
 import GuildBoard from '@/components/guild/GuildBoard';
 import GameHeader from '@/components/ui/GameHeader';
@@ -61,9 +65,10 @@ const GuildDashboard: React.FC = () => {
 	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
 	const [lastGuildInfo, setLastGuildInfo] = useState<{ id: string; name: string } | null>(null);
-	const [lastGuildEvent, setLastGuildEvent] = useState<'left'|'kicked'|'disband'|null>(null);
-	const [leaveReason, setLeaveReason] = useState<string>('');
-	const [reasonSubmitting, setReasonSubmitting] = useState<boolean>(false);
+        const [lastGuildEvent, setLastGuildEvent] = useState<'left'|'kicked'|'disband'|null>(null);
+        const [leaveReason, setLeaveReason] = useState<string>('');
+        const [reasonSubmitting, setReasonSubmitting] = useState<boolean>(false);
+        const [pendingInvitations, setPendingInvitations] = useState<GuildInvitation[]>([]);
 
 	useEffect(() => {
 		const fetchData = async () => {
@@ -99,12 +104,14 @@ const GuildDashboard: React.FC = () => {
 					}
 				} catch {}
 				// ランクと参加リクエストはユーザーコンテキストから
-				const [rank, joinReqs] = await Promise.all([
-					fetchMyGuildRank(),
-					fetchJoinRequestsForMyGuild(),
-				]);
-				setMyRank(rank);
-				setJoinRequests(joinReqs);
+                                const [rank, joinReqs, invitations] = await Promise.all([
+                                        fetchMyGuildRank(),
+                                        fetchJoinRequestsForMyGuild(),
+                                        fetchPendingInvitationsForMe(),
+                                ]);
+                                setMyRank(rank);
+                                setJoinRequests(joinReqs);
+                                setPendingInvitations(invitations);
 				if (guild) {
 					// ギルドIDに依存する取得
 					const [m, perMember, totalContrib, st] = await Promise.all([
@@ -224,19 +231,63 @@ const GuildDashboard: React.FC = () => {
 		}
 	};
 
-	const handleRejectJoinRequest = async (requestId: string) => {
-		if (!myGuild) return;
-		try {
-			setBusy(true);
-			await rejectJoinRequest(requestId);
-			alert('参加リクエストが拒否されました。');
-			window.location.reload();
-		} catch (e: any) {
-			alert(e?.message || '参加リクエスト拒否に失敗しました');
-		} finally {
-			setBusy(false);
-		}
-	};
+        const handleRejectJoinRequest = async (requestId: string) => {
+                if (!myGuild) return;
+                try {
+                        setBusy(true);
+                        await rejectJoinRequest(requestId);
+                        alert('参加リクエストが拒否されました。');
+                        window.location.reload();
+                } catch (e: any) {
+                        alert(e?.message || '参加リクエスト拒否に失敗しました');
+                } finally {
+                        setBusy(false);
+                }
+        };
+
+        const handleKickMember = async (memberUserId: string) => {
+                if (!myGuild || !isLeader) return;
+                if (!confirm('このメンバーを除名しますか？')) return;
+                try {
+                        setBusy(true);
+                        await kickMember(memberUserId);
+                        setMembers(prev => prev.filter(m => m.user_id !== memberUserId));
+                        alert('メンバーを除名しました。');
+                } catch (e: unknown) {
+                        const msg = (e as { message?: string })?.message || '除名に失敗しました';
+                        alert(msg);
+                } finally {
+                        setBusy(false);
+                }
+        };
+
+        const handleAcceptInvitation = async (invId: string) => {
+                try {
+                        setBusy(true);
+                        await acceptInvitation(invId);
+                        alert('ギルドに参加しました。');
+                        window.location.reload();
+                } catch (e: unknown) {
+                        const msg = (e as { message?: string })?.message || '招待の承諾に失敗しました';
+                        alert(msg);
+                } finally {
+                        setBusy(false);
+                }
+        };
+
+        const handleRejectInvitation = async (invId: string) => {
+                try {
+                        setBusy(true);
+                        await rejectInvitation(invId);
+                        setPendingInvitations(prev => prev.filter(i => i.id !== invId));
+                        alert('招待を辞退しました。');
+                } catch (e: unknown) {
+                        const msg = (e as { message?: string })?.message || '招待の辞退に失敗しました';
+                        alert(msg);
+                } finally {
+                        setBusy(false);
+                }
+        };
 
 	const handleUpdateDescription = async () => {
 		if (!myGuild || !descEdit.trim()) return;
@@ -345,6 +396,7 @@ const GuildDashboard: React.FC = () => {
                         </div>
                 );
         }
+
 
 	const contributors = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
 	const streakBonus = (myGuild.guild_type === 'challenge') ? Object.values(streaks).reduce((sum, s) => sum + (s.tierPercent || 0), 0) : 0;
@@ -482,14 +534,17 @@ const GuildDashboard: React.FC = () => {
 													{m.role === 'leader' && (
 														<span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">Leader</span>
 													)}
-													{memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
-														<FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
-													)}
-												</li>
-											))}
-										</ul>
-									)}
-								</div>
+                                                                                                        {memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
+                                                                                                                <FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
+                                                                                                        )}
+                                                                                                        {isLeader && m.user_id !== user?.id && m.role !== 'leader' && (
+                                                                                                                <button onClick={() => handleKickMember(m.user_id)} className="btn btn-xs btn-error ml-2">追放</button>
+                                                                                                        )}
+                                                                                                </li>
+                                                                                        ))}
+                                                                                </ul>
+                                                                        )}
+                                                                </div>
 
 								<div className="bg-slate-800 border border-slate-700 rounded p-4">
 									<h3 className="font-semibold mb-3">参加リクエスト</h3>
