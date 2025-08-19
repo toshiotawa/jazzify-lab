@@ -322,8 +322,26 @@ const GuildDashboard: React.FC = () => {
 		}
 	};
 
-	if (loading) return <div className="text-center py-8">Loading...</div>;
-	if (!user) return <div className="text-center py-8">Please log in to view this page.</div>;
+	if (loading) return (
+		<div className="w-full h-full flex flex-col bg-gradient-game text-white">
+					<GameHeader />
+					<div className="flex-1 overflow-y-auto p-4 sm:p-6">
+							<div className="max-w-4xl mx-auto">
+									<p className="text-center py-8">Loading...</p>
+							</div>
+					</div>
+		</div>
+	);
+	if (!user) return (
+		<div className="w-full h-full flex flex-col bg-gradient-game text-white">
+					<GameHeader />
+					<div className="flex-1 overflow-y-auto p-4 sm:p-6">
+							<div className="max-w-4xl mx-auto">
+									<p className="text-center py-8">Please log in to view this page.</p>
+							</div>
+					</div>
+		</div>
+	);
         if (!myGuild) {
                 return (
                         <div className="w-full h-full flex flex-col bg-gradient-game text-white">
