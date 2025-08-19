@@ -25,7 +25,7 @@ import GuildBoard from '@/components/guild/GuildBoard';
 import GameHeader from '@/components/ui/GameHeader';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { computeGuildBonus, formatMultiplier } from '@/utils/guildBonus';
+import { computeGuildBonus } from '@/utils/guildBonus';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 
@@ -258,9 +258,10 @@ const GuildDashboard: React.FC = () => {
                                 <div className="max-w-4xl mx-auto space-y-4">
                                         <div className="bg-slate-800 border border-slate-700 rounded p-4">
                                                 <h3 className="font-semibold mb-2">ギルド情報</h3>
+                                                <div className="text-lg font-semibold">{myGuild.name}</div>
                                                 <p className="text-sm mb-2">{myGuild.description || 'なし'}</p>
                                                 <div className="text-sm text-gray-300">リーダー: {myGuild.leader_id === user?.id ? 'あなた' : members.find(m => m.user_id === myGuild.leader_id)?.nickname || '不明'}</div>
-                                                <div className="text-sm text-green-400 mt-1">ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)} <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}% / ストリーク +{(bonus.streakBonus*100).toFixed(1)}%）</span></div>
+                                                <div className="text-sm text-green-400 mt-1">ギルドボーナス: +{((bonus.levelBonus + bonus.memberBonus + bonus.streakBonus) * 100).toFixed(1)}% <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}% / ストリーク +{(bonus.streakBonus*100).toFixed(1)}%）</span></div>
                                                 <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
                                                         <div className="bg-slate-900 rounded p-3 border border-slate-700">
                                                                 <div className="text-gray-400">今月XP</div>
