@@ -296,7 +296,8 @@ const GuildDashboard: React.FC = () => {
 								setLeaveReason('');
 							}}>閉じる</button>
 						</div>
-					)}
+					</div>
+				)}
 				<div className="mt-4">
 					<input type="text" placeholder="ギルド名/検索キーワード" value={keyword} onChange={(e)=>setKeyword(e.target.value)} className="input input-bordered w-full max-w-xs" />
 					<div className="mt-2 flex gap-2 justify-center items-center">
