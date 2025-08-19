@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, fetchGuildDailyStreaks } from '@/platform/supabaseGuilds';
+import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, fetchGuildDailyStreaks } from '@/platform/supabaseGuilds';
+import { getSupabaseClient } from '@/platform/supabaseClient';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 import { computeGuildBonus, formatMultiplier } from '@/utils/guildBonus';
@@ -39,26 +40,29 @@ const GuildPage: React.FC = () => {
       try {
         const g = await getGuildById(guildId);
         setGuild(g);
-        const mine = await getMyGuild();
-        setIsMember(!!(mine && mine.id === guildId));
         if (g) {
+          const supabase = getSupabaseClient();
+          const { data: { user } } = await supabase.auth.getUser();
           const [m, per] = await Promise.all([
             getGuildMembers(g.id),
             fetchGuildMemberMonthlyXp(g.id),
           ]);
           setMembers(m);
           setMemberMonthly(per);
-          const st = await fetchGuildDailyStreaks(g.id).catch(()=>({} as Record<string, any>));
+          setIsMember(user ? m.some(mem => mem.user_id === user.id) : false);
+          const st = await fetchGuildDailyStreaks(g.id).catch(() => ({} as Record<string, any>));
           setStreaks(st);
           // 今シーズン（当月）合計XPと順位
           const now = new Date();
-          const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
+          const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
           const [xp, r] = await Promise.all([
             fetchGuildMonthlyXpSingle(g.id, currentMonth),
             fetchGuildRankForMonth(g.id, currentMonth),
           ]);
           setSeasonXp(xp);
           setRank(r);
+        } else {
+          setIsMember(false);
         }
       } finally {
         setLoading(false);
@@ -101,10 +105,12 @@ const GuildPage: React.FC = () => {
         <div className="max-w-4xl mx-auto space-y-4">
           <h2 className="text-xl font-bold">ギルドページ</h2>
           {/* 説明カード（ミッションページ風） */}
-          <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-            <h3 className="text-lg font-semibold mb-2">ギルドボーナス</h3>
-            <p className="text-gray-300 text-sm">ギルドに所属していると、XP獲得にボーナスが加算されます。レベル倍率（レベル1ごとに+0.1%）と、当月にXPを1以上獲得したメンバー人数×10%（最大+50%）のメンバー倍率の合算を、1に足した倍率が適用されます。</p>
-          </div>
+          {isMember && (
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+              <h3 className="text-lg font-semibold mb-2">ギルドボーナス</h3>
+              <p className="text-gray-300 text-sm">ギルドに所属していると、XP獲得にボーナスが加算されます。レベル倍率（レベル1ごとに+0.1%）と、当月にXPを1以上獲得したメンバー人数×10%（最大+50%）のメンバー倍率の合算を、1に足した倍率が適用されます。</p>
+            </div>
+          )}
           {loading ? (
             <p className="text-gray-400">読み込み中...</p>
           ) : !guild ? (
@@ -143,9 +149,10 @@ const GuildPage: React.FC = () => {
                 {guild.description && (
                   <div className="mt-3 text-sm text-gray-200 whitespace-pre-wrap">{guild.description}</div>
                 )}
+                <div className="text-sm text-gray-300 mt-2">メンバー数:{members.length}/5名</div>
               </div>
 
-              {guild.guild_type === 'challenge' && (
+              {isMember && guild.guild_type === 'challenge' && (
                 <div className="bg-slate-800 border border-slate-700 rounded p-4">
                   <h3 className="font-semibold mb-2">ギルドクエスト</h3>
                   <p className="text-sm text-gray-300">今月の獲得経験値が1,000,000に達しないと、月末にギルドは解散（メンバー0人）となります。</p>
@@ -159,92 +166,59 @@ const GuildPage: React.FC = () => {
                 </div>
               )}
 
-              {/* チャレンジギルド: チャレンジ見出し */}
-              {guild.guild_type === 'challenge' && (
+              {isMember && (
                 <div className="bg-slate-800 border border-slate-700 rounded p-4">
-                  <h3 className="font-semibold mb-3">チャレンジ</h3>
-                  <ul className="space-y-2">
-                    {members.map(m => (
-                      <li key={m.user_id} className="bg-slate-900 p-2 rounded">
-                        <div className="flex items-center gap-3">
-                          <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
-                          <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold mb-3">メンバーリスト ({members.length}/5)</h3>
+                  {members.length === 0 ? (
+                    <p className="text-gray-400 text-sm">メンバーがいません</p>
+                  ) : (
+                    <ul className="space-y-2 text-base">
+                      {members.map(m => (
+                        <li key={m.user_id} className="flex items-center gap-2">
+                          <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} aria-label="ユーザーページへ">
+                            <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
+                          </button>
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <button className="hover:text-blue-400 truncate" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
-                              {/* レベル（チャレンジレベル=連続日数ティア） */}
-                              <span className="text-xs text-yellow-400">
-                                {(() => {
-                                  const s = streaks[m.user_id];
-                                  if (!s) return 'Lv.0 (+0%)';
-                                  return `Lv.${Math.min(s.daysCurrentStreak, s.tierMaxDays)} (+${Math.round(s.tierPercent*100)}%)`;
-                                })()}
-                              </span>
-                            </div>
-                            <div className="h-1.5 bg-slate-700 rounded overflow-hidden mt-1">
-                              <div className="h-full bg-green-500" style={{ width: `${streaks[m.user_id] ? Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100) : 0}%` }} />
-                            </div>
-                            <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id]?.display || '0/5 +0%'}</div>
-                          </div>
-                          {/* チャレンジボーナス倍率 */}
-                          <div className="text-xs text-green-400 whitespace-nowrap">×{(1 + (streaks[m.user_id]?.tierPercent || 0)).toFixed(2)}</div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="bg-slate-800 border border-slate-700 rounded p-4">
-                <h3 className="font-semibold mb-3">メンバーリスト ({members.length}/5)</h3>
-                {members.length === 0 ? (
-                  <p className="text-gray-400 text-sm">メンバーがいません</p>
-                ) : (
-                  <ul className="space-y-2 text-base">
-                    {members.map(m => (
-                      <li key={m.user_id} className="flex items-center gap-2">
-                        <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} aria-label="ユーザーページへ">
-                          <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
-                        </button>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <button className="hover:text-blue-400 truncate" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
-                            {/* 称号（ホバー/タップで条件表示） */}
-                            {m.selected_title && (
-                              <div className="relative group">
-                                <div className="flex items-center gap-1 text-yellow-400 cursor-help">
-                                  {getTitleIcon((m.selected_title as Title) || DEFAULT_TITLE)}
-                                  <span className="text-[11px] truncate max-w-[160px]">{(m.selected_title as Title) || DEFAULT_TITLE}</span>
+                              {/* 称号（ホバー/タップで条件表示） */}
+                              {m.selected_title && (
+                                <div className="relative group">
+                                  <div className="flex items-center gap-1 text-yellow-400 cursor-help">
+                                    {getTitleIcon((m.selected_title as Title) || DEFAULT_TITLE)}
+                                    <span className="text-[11px] truncate max-w-[160px]">{(m.selected_title as Title) || DEFAULT_TITLE}</span>
+                                  </div>
+                                  <div className="absolute hidden group-hover:block z-50 bg-gray-900 text-white text-[11px] p-2 rounded shadow-lg whitespace-nowrap" style={{ top: '100%', left: 0, marginTop: '4px' }}>
+                                    {getTitleRequirement((m.selected_title as Title) || DEFAULT_TITLE)}
+                                    <div className="absolute w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900" style={{ top: '-4px', left: '12px' }} />
+                                  </div>
                                 </div>
-                                <div className="absolute hidden group-hover:block z-50 bg-gray-900 text-white text-[11px] p-2 rounded shadow-lg whitespace-nowrap" style={{ top: '100%', left: 0, marginTop: '4px' }}>
-                                  {getTitleRequirement((m.selected_title as Title) || DEFAULT_TITLE)}
-                                  <div className="absolute w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900" style={{ top: '-4px', left: '12px' }} />
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-400">Lv.{m.level} / {m.rank}</div>
+                            {/* チャレンジギルド: 連続達成進捗 */}
+                            {guild.guild_type === 'challenge' && streaks[m.user_id] && (
+                              <div className="mt-1">
+                                <div className="h-1.5 bg-slate-700 rounded overflow-hidden">
+                                  <div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
                                 </div>
+                                <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id].display}</div>
                               </div>
                             )}
                           </div>
-                          <div className="text-xs text-gray-400">Lv.{m.level} / {m.rank}</div>
-                          {/* チャレンジギルド: 連続達成進捗 */}
-                          {guild.guild_type === 'challenge' && streaks[m.user_id] && (
-                            <div className="mt-1">
-                              <div className="h-1.5 bg-slate-700 rounded overflow-hidden">
-                                <div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
-                              </div>
-                              <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id].display}</div>
-                            </div>
+                          {m.role === 'leader' && (
+                            <span className="text-[10px] px-2 py-0.5 rounded_full bg-yellow-500 text-black font-bold">Leader</span>
                           )}
-                        </div>
-                        {m.role === 'leader' && (
-                          <span className="text-[10px] px-2 py-0.5 rounded_full bg-yellow-500 text-black font-bold">Leader</span>
-                        )}
-                        {/* 当月貢献ありメンバー: Success!! アイコン */}
-                        {memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
-                          <FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                          {/* 当月貢献ありメンバー: Success!! アイコン */}
+                          {memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
+                            <FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
