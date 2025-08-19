@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, cancelJoinRequest, getMyPendingJoinRequestToGuild } from '@/platform/supabaseGuilds';
+import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, cancelJoinRequest, getMyPendingJoinRequestToGuild } from '@/platform/supabaseGuilds';
+import { useAuthStore } from '@/stores/authStore';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 
@@ -17,6 +18,7 @@ const GuildPage: React.FC = () => {
   const [isMember, setIsMember] = useState<boolean>(false);
   const [hasPendingRequest, setHasPendingRequest] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
+  const { user } = useAuthStore();
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash.startsWith('#guild'));
@@ -38,24 +40,24 @@ const GuildPage: React.FC = () => {
       try {
         const g = await getGuildById(guildId);
         setGuild(g);
-        const mine = await getMyGuild();
-        setIsMember(!!(mine && mine.id === guildId));
         if (!g) return;
 
-        if (mine && mine.id === g.id) {
-          const [m, per] = await Promise.all([
-            getGuildMembers(g.id),
-            fetchGuildMemberMonthlyXp(g.id),
-          ]);
-          setMembers(m);
+        const m = await getGuildMembers(g.id);
+        setMembers(m);
+        const memberFlag = m.some(mem => mem.user_id === user?.id);
+        setIsMember(memberFlag);
+        if (memberFlag) {
+          const per = await fetchGuildMemberMonthlyXp(g.id);
           setMemberMonthly(per);
-        } else {
+        } else if (user) {
           try {
             const requested = await getMyPendingJoinRequestToGuild(g.id);
             setHasPendingRequest(requested);
           } catch {
             setHasPendingRequest(false);
           }
+        } else {
+          setHasPendingRequest(false);
         }
 
         const now = new Date();
