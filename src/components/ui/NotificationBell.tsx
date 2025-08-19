@@ -12,6 +12,22 @@ const NotificationBell: React.FC = () => {
   const allowedRank = profile?.rank === 'standard' || profile?.rank === 'premium' || profile?.rank === 'platinum';
   const canShow = !!user && !isGuest && allowedRank;
 
+  const HIDDEN_TYPES = new Set<string>([
+    'guild_join_request',
+    'guild_invitation',
+    'guild_invite',
+    'guild_request_approved',
+    'guild_request_rejected',
+    'guild_invite_cancelled',
+    'guild_request_cancelled',
+  ]);
+
+  const filteredItems = (items || []).filter((n: any) => !HIDDEN_TYPES.has(n?.type));
+
+  const hasUnreadInFiltered =
+    filteredItems.some((n: any) => n?.read === false || n?.unread === true);
+  const showDot = hasUnreadInFiltered || (unread && filteredItems.length > 0);
+
   useEffect(() => {
     if (!canShow) return;
     fetch().catch(() => {});
@@ -42,7 +58,7 @@ const NotificationBell: React.FC = () => {
         }}
       >
         <FaBell className="w-5 h-5" />
-        {unread && (
+        {showDot && (
           <span className="absolute -top-0.5 -right-0.5 inline-block w-2 h-2 bg-red-500 rounded-full" />
         )}
       </button>
@@ -56,11 +72,11 @@ const NotificationBell: React.FC = () => {
           <div className="max-h-96 overflow-y-auto overflow-x-hidden">
             {loading ? (
               <div className="p-3 text-center text-gray-400 text-sm">読み込み中...</div>
-            ) : items.length === 0 ? (
+            ) : filteredItems.length === 0 ? (
               <div className="p-3 text-center text-gray-400 text-sm">新しい通知はありません</div>
             ) : (
               <ul className="divide-y divide-slate-700">
-                {items.map(n => (
+                {filteredItems.map((n: any) => (
                   <li key={n.id} className="p-3 hover:bg-slate-700/60 transition-colors">
                     <div className="flex min-w-0 items-start gap-3">
                       <button
@@ -110,7 +126,14 @@ const NotificationBell: React.FC = () => {
                           )}
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {new Date(n.created_at).toLocaleString('ja-JP', { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })}
+                          {new Date(n.created_at).toLocaleString('ja-JP', {
+                            year: '2-digit',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZone: 'Asia/Tokyo',
+                          })}
                         </p>
                       </button>
                     </div>
@@ -126,4 +149,3 @@ const NotificationBell: React.FC = () => {
 };
 
 export default NotificationBell;
-

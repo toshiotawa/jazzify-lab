@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild } from '@/platform/supabaseGuilds';
+import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, cancelJoinRequest, getMyPendingJoinRequestToGuild } from '@/platform/supabaseGuilds';
+import { useAuthStore } from '@/stores/authStore';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 
@@ -15,7 +16,9 @@ const GuildPage: React.FC = () => {
   const [seasonXp, setSeasonXp] = useState<number>(0);
   const [rank, setRank] = useState<number | null>(null);
   const [isMember, setIsMember] = useState<boolean>(false);
+  const [hasPendingRequest, setHasPendingRequest] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
+  const { user } = useAuthStore();
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash.startsWith('#guild'));
@@ -37,25 +40,34 @@ const GuildPage: React.FC = () => {
       try {
         const g = await getGuildById(guildId);
         setGuild(g);
-        const mine = await getMyGuild();
-        setIsMember(!!(mine && mine.id === guildId));
-        if (g) {
-          const [m, per] = await Promise.all([
-            getGuildMembers(g.id),
-            fetchGuildMemberMonthlyXp(g.id),
-          ]);
-          setMembers(m);
+        if (!g) return;
+
+        const m = await getGuildMembers(g.id);
+        setMembers(m);
+        const memberFlag = m.some(mem => mem.user_id === user?.id);
+        setIsMember(memberFlag);
+        if (memberFlag) {
+          const per = await fetchGuildMemberMonthlyXp(g.id);
           setMemberMonthly(per);
-          // 今シーズン（当月）合計XPと順位
-          const now = new Date();
-          const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
-          const [xp, r] = await Promise.all([
-            fetchGuildMonthlyXpSingle(g.id, currentMonth),
-            fetchGuildRankForMonth(g.id, currentMonth),
-          ]);
-          setSeasonXp(xp);
-          setRank(r);
+        } else if (user) {
+          try {
+            const requested = await getMyPendingJoinRequestToGuild(g.id);
+            setHasPendingRequest(requested);
+          } catch {
+            setHasPendingRequest(false);
+          }
+        } else {
+          setHasPendingRequest(false);
         }
+
+        const now = new Date();
+        const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
+        const [xp, r] = await Promise.all([
+          fetchGuildMonthlyXpSingle(g.id, currentMonth),
+          fetchGuildRankForMonth(g.id, currentMonth),
+        ]);
+        setSeasonXp(xp);
+        setRank(r);
       } finally {
         setLoading(false);
       }
@@ -119,8 +131,14 @@ const GuildPage: React.FC = () => {
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', guild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
-                    {!isMember && guild.members_count < 5 && (
-                      <button className="btn btn-sm btn-primary" disabled={busy} onClick={async()=>{ try{ setBusy(true); await requestJoin(guild.id); alert('参加リクエストを送信しました'); } catch(e:any){ alert(e?.message||'リクエスト送信に失敗しました'); } finally{ setBusy(false); } }}>参加リクエスト</button>
+                    {!isMember && (
+                      guild.members_count >= 5 ? (
+                        <button className="btn btn-sm btn-disabled" disabled>満員</button>
+                      ) : hasPendingRequest ? (
+                        <button className="btn btn-sm btn-outline" disabled={busy} onClick={async()=>{ try{ setBusy(true); await cancelJoinRequest(guild.id); setHasPendingRequest(false); alert('参加リクエストをキャンセルしました'); } catch(e:any){ alert(e?.message||'キャンセルに失敗しました'); } finally{ setBusy(false); } }}>申請をキャンセル</button>
+                      ) : (
+                        <button className="btn btn-sm btn-primary" disabled={busy} onClick={async()=>{ try{ setBusy(true); await requestJoin(guild.id); setHasPendingRequest(true); alert('参加リクエストを送信しました'); } catch(e:any){ alert(e?.message||'リクエスト送信に失敗しました'); } finally{ setBusy(false); } }}>参加リクエスト</button>
+                      )
                     )}
                   </div>
                 </div>
@@ -130,8 +148,10 @@ const GuildPage: React.FC = () => {
               </div>
 
               <div className="bg-slate-800 border border-slate-700 rounded p-4">
-                <h3 className="font-semibold mb-3">メンバーリスト ({members.length}/5)</h3>
-                {members.length === 0 ? (
+                <h3 className="font-semibold mb-3">メンバー（{Math.max(guild.members_count ?? members.length, 0)}/5）</h3>
+                {!isMember ? (
+                  <p className="text-gray-400 text-sm">メンバーは非公開です。人数のみ表示しています。</p>
+                ) : members.length === 0 ? (
                   <p className="text-gray-400 text-sm">メンバーがいません</p>
                 ) : (
                   <ul className="space-y-2 text-base">
@@ -143,7 +163,6 @@ const GuildPage: React.FC = () => {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <button className="hover:text-blue-400 truncate" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
-                            {/* 称号（ホバー/タップで条件表示） */}
                             {m.selected_title && (
                               <div className="relative group">
                                 <div className="flex items-center gap-1 text-yellow-400 cursor-help">
@@ -160,9 +179,8 @@ const GuildPage: React.FC = () => {
                           <div className="text-xs text-gray-400">Lv.{m.level} / {m.rank}</div>
                         </div>
                         {m.role === 'leader' && (
-                          <span className="text-[10px] px-2 py-0.5 rounded_full bg-yellow-500 text-black font-bold">Leader</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">Leader</span>
                         )}
-                        {/* 当月貢献ありメンバー: Success!! アイコン */}
                         {memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
                           <FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
                         )}

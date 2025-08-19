@@ -241,6 +241,24 @@ export async function requestJoin(guildId: string): Promise<string> {
   return data as string;
 }
 
+export async function getMyPendingJoinRequestToGuild(guildId: string): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('guild_join_requests')
+    .select('id')
+    .eq('guild_id', guildId)
+    .eq('status', 'pending')
+    .limit(1);
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0;
+}
+
+export async function cancelJoinRequest(guildId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('rpc_guild_cancel_request', { p_guild_id: guildId });
+  if (error) throw error;
+}
+
 export async function approveJoinRequest(requestId: string): Promise<void> {
   const { error } = await getSupabaseClient()
     .rpc('rpc_guild_approve_request', { p_request_id: requestId });
@@ -639,61 +657,8 @@ export async function disbandMyGuild(): Promise<void> {
 
 export async function leaveMyGuild(): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
-
-  const { data: membership } = await supabase
-    .from('guild_members')
-    .select('guild_id, role')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  const guildId = membership?.guild_id as string | undefined;
-  if (!guildId) throw new Error('ギルドに所属していません');
-
-  const { count: membersCount } = await supabase
-    .from('guild_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('guild_id', guildId);
-
-  if ((membersCount || 0) <= 1) {
-    const { error: disbandErr } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: guildId });
-    if (disbandErr) throw disbandErr;
-    return;
-  }
-
-  const isLeader = (membership?.role as 'leader' | 'member') === 'leader';
-  if (isLeader) {
-    const { data: candidates, error: candErr } = await supabase
-      .from('guild_members')
-      .select('user_id')
-      .eq('guild_id', guildId)
-      .neq('user_id', user.id)
-      .order('joined_at', { ascending: true })
-      .limit(1);
-    if (candErr) throw candErr;
-    const nextLeaderId = candidates?.[0]?.user_id as string | undefined;
-    if (!nextLeaderId) throw new Error('移譲先メンバーが見つかりません');
-    const { error: updateErr } = await supabase
-      .from('guilds')
-      .update({ leader_id: nextLeaderId })
-      .eq('id', guildId);
-    if (updateErr) throw updateErr;
-    try {
-      const { error: roleErr } = await supabase
-        .from('guild_members')
-        .update({ role: 'leader' as any })
-        .eq('guild_id', guildId)
-        .eq('user_id', nextLeaderId);
-      if (roleErr && roleErr.code !== '42703') throw roleErr;
-    } catch {}
-  }
-
-  const { error: delErr } = await supabase
-    .from('guild_members')
-    .delete()
-    .eq('guild_id', guildId)
-    .eq('user_id', user.id);
-  if (delErr) throw delErr;
+  const { error } = await supabase.rpc('rpc_guild_leave');
+  if (error) throw error;
 }
 
 export async function getGuildOfUser(userId: string): Promise<Guild | null> {
