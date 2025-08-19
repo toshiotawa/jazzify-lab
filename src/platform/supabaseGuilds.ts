@@ -63,7 +63,7 @@ export async function getMyGuild(): Promise<Guild | null> {
 
   const { data: guildRow, error } = await supabase
     .from('guilds')
-    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
+    .select('id, name, leader_id, level, total_xp, description, guild_type')
     .eq('id', membership.guild_id)
     .single();
   if (error) throw error;
@@ -760,7 +760,7 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
   const supabase = getSupabaseClient();
   const { data: guildRow, error } = await supabase
     .from('guilds')
-    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
+    .select('id, name, leader_id, level, total_xp, description, guild_type')
     .eq('id', guildId)
     .maybeSingle();
   if (error) throw error;
