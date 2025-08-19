@@ -9,7 +9,7 @@ import { useMissionStore } from '@/stores/missionStore';
 import { calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
 import { log } from '@/utils/logger';
-import { getMyGuild, fetchGuildMemberMonthlyXp } from '@/platform/supabaseGuilds';
+import { getMyGuild, fetchGuildMemberMonthlyXp, fetchGuildDailyStreaks } from '@/platform/supabaseGuilds';
 import { computeGuildBonus } from '@/utils/guildBonus';
 
 const ResultModal: React.FC = () => {
@@ -68,7 +68,7 @@ const ResultModal: React.FC = () => {
       
       (async () => {
         try {
-          // 追加: ギルド倍率の取得
+          // 追加: ギルド倍率の取得（レベル/貢献人数 + 連続達成ストリーク）
           let guildMultiplier = 1;
           try {
             const myGuild = await getMyGuild();
@@ -77,6 +77,14 @@ const ResultModal: React.FC = () => {
               const contributors = memberMonthly.filter(m => Number(m.monthly_xp || 0) >= 1).length;
               const b = computeGuildBonus(myGuild.level || 1, contributors);
               guildMultiplier = b.totalMultiplier;
+              // 連続達成ストリーク倍率を追加
+              try {
+                const st = await fetchGuildDailyStreaks(myGuild.id);
+                const myStreak = st[profile.id];
+                if (myStreak && typeof myStreak.tierPercent === 'number') {
+                  guildMultiplier *= (1 + myStreak.tierPercent);
+                }
+              } catch {}
             }
           } catch (e) {
             // 失敗しても続行
