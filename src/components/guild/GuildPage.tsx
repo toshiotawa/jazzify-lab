@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild } from '@/platform/supabaseGuilds';
+import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, cancelJoinRequest, hasJoinRequest } from '@/platform/supabaseGuilds';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 
@@ -16,6 +16,7 @@ const GuildPage: React.FC = () => {
   const [rank, setRank] = useState<number | null>(null);
   const [isMember, setIsMember] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
+  const [hasRequest, setHasRequest] = useState<boolean>(false);
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash.startsWith('#guild'));
@@ -40,12 +41,18 @@ const GuildPage: React.FC = () => {
         const mine = await getMyGuild();
         setIsMember(!!(mine && mine.id === guildId));
         if (g) {
-          const [m, per] = await Promise.all([
-            getGuildMembers(g.id),
-            fetchGuildMemberMonthlyXp(g.id),
-          ]);
-          setMembers(m);
-          setMemberMonthly(per);
+          const hasReq = await hasJoinRequest(g.id);
+          setHasRequest(hasReq);
+          
+          // メンバーの場合のみメンバー情報を取得
+          if (mine && mine.id === g.id) {
+            const [m, per] = await Promise.all([
+              getGuildMembers(g.id),
+              fetchGuildMemberMonthlyXp(g.id),
+            ]);
+            setMembers(m);
+            setMemberMonthly(per);
+          }
           // 今シーズン（当月）合計XPと順位
           const now = new Date();
           const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
@@ -120,7 +127,11 @@ const GuildPage: React.FC = () => {
                   <div className="flex flex-col items-end gap-2">
                     <button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', guild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
                     {!isMember && guild.members_count < 5 && (
-                      <button className="btn btn-sm btn-primary" disabled={busy} onClick={async()=>{ try{ setBusy(true); await requestJoin(guild.id); alert('参加リクエストを送信しました'); } catch(e:any){ alert(e?.message||'リクエスト送信に失敗しました'); } finally{ setBusy(false); } }}>参加リクエスト</button>
+                      hasRequest ? (
+                        <button className="btn btn-sm btn-error" disabled={busy} onClick={async()=>{ try{ setBusy(true); await cancelJoinRequest(guild.id); setHasRequest(false); alert('参加リクエストをキャンセルしました'); } catch(e:any){ alert(e?.message||'キャンセルに失敗しました'); } finally{ setBusy(false); } }}>リクエストをキャンセル</button>
+                      ) : (
+                        <button className="btn btn-sm btn-primary" disabled={busy} onClick={async()=>{ try{ setBusy(true); await requestJoin(guild.id); setHasRequest(true); alert('参加リクエストを送信しました'); } catch(e:any){ alert(e?.message||'リクエスト送信に失敗しました'); } finally{ setBusy(false); } }}>参加リクエスト</button>
+                      )
                     )}
                   </div>
                 </div>
@@ -130,8 +141,10 @@ const GuildPage: React.FC = () => {
               </div>
 
               <div className="bg-slate-800 border border-slate-700 rounded p-4">
-                <h3 className="font-semibold mb-3">メンバーリスト ({members.length}/5)</h3>
-                {members.length === 0 ? (
+                <h3 className="font-semibold mb-3">メンバーリスト ({guild.members_count || members.length}/5)</h3>
+                {!isMember ? (
+                  <p className="text-gray-400 text-sm">メンバー情報はギルドメンバーのみ閲覧できます</p>
+                ) : members.length === 0 ? (
                   <p className="text-gray-400 text-sm">メンバーがいません</p>
                 ) : (
                   <ul className="space-y-2 text-base">
