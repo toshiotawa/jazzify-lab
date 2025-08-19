@@ -106,85 +106,89 @@ export async function getGuildMembers(guildId: string): Promise<GuildMember[]> {
 }
 
 /**
- * ギルド内メンバーの当月日次貢献ストリークを取得（xp_historyベース、クライアント集計）
- * 戻り値: ユーザーID -> { daysCurrentStreak, tierPercent, tierMaxDays, display }
+ * ギルド内メンバーのストリークを取得（永続化されたデータから）
+ * 戻り値: ユーザーID -> { daysCurrentStreak, tierPercent, tierMaxDays, display, streakLevel }
  */
 export async function fetchGuildDailyStreaks(
   guildId: string,
   baseDate?: Date,
-): Promise<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>> {
+): Promise<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string; streakLevel: number }>> {
   const supabase = getSupabaseClient();
-  const now = baseDate ? new Date(baseDate) : new Date();
-  const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const monthStartStr = monthStartUtc.toISOString();
-
+  
   // ギルドメンバー一覧
   const members = await getGuildMembers(guildId);
   const userIds = members.map(m => m.user_id);
   if (userIds.length === 0) return {};
 
-  // 当月の xp_history を取得
-  const { data, error } = await supabase
-    .from('xp_history')
-    .select('user_id, created_at, gained_xp')
-    .in('user_id', userIds)
-    .gte('created_at', monthStartStr);
+  // ストリークデータを取得
+  const { data: streakData, error } = await supabase
+    .from('guild_member_streaks')
+    .select('user_id, current_streak_days, streak_level')
+    .eq('guild_id', guildId)
+    .in('user_id', userIds);
+    
   if (error) {
-    console.warn('fetchGuildDailyStreaks xp_history error:', error);
+    console.warn('fetchGuildDailyStreaks error:', error);
     return {};
   }
 
-  // ユーザー毎に日付セットを作成（UTC日単位）
-  const byUser = new Map<string, Set<string>>();
-  (data || []).forEach((r: any) => {
-    const uid = r.user_id as string;
-    const dt = new Date(r.created_at);
-    // UTC日付キー
-    const key = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate())).toISOString().slice(0, 10);
-    if (!byUser.has(uid)) byUser.set(uid, new Set<string>());
-    if (Number(r.gained_xp || 0) > 0) byUser.get(uid)!.add(key);
+  const result: Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string; streakLevel: number }> = {};
+  
+  // 既存のストリークデータをマップ
+  const streakMap = new Map<string, any>();
+  (streakData || []).forEach(s => {
+    streakMap.set(s.user_id, s);
   });
 
-  // 連続達成ストリークを計算（最後の貢献日から遡って連続している日数）
-  const result: Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }> = {};
-  const todayKey = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().slice(0, 10);
-
   for (const uid of userIds) {
-    const days = byUser.get(uid) || new Set<string>();
-    // 最新貢献日（文字列比較でOK: YYYY-MM-DD）
-    const sortedDays = Array.from(days.values()).sort();
-    let streak = 0;
-    if (sortedDays.length > 0) {
-      // 最新日から遡ってカウント
-      let cursor = new Date(sortedDays[sortedDays.length - 1] + 'T00:00:00.000Z');
-      while (true) {
-        const key = cursor.toISOString().slice(0, 10);
-        if (days.has(key)) {
-          streak += 1;
-          // 前日へ
-          cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate() - 1));
-        } else {
-          break;
-        }
-      }
-    }
-
-    // ティア計算
-    let tierPercent = 0;
-    let tierMaxDays = 5;
-    if (streak >= 26) { tierPercent = 0.30; tierMaxDays = 30; }
-    else if (streak >= 21) { tierPercent = 0.25; tierMaxDays = 25; }
-    else if (streak >= 16) { tierPercent = 0.20; tierMaxDays = 20; }
-    else if (streak >= 11) { tierPercent = 0.15; tierMaxDays = 15; }
-    else if (streak >= 6)  { tierPercent = 0.10; tierMaxDays = 10; }
-    else if (streak >= 1)  { tierPercent = 0.05; tierMaxDays = 5; }
-    else { tierPercent = 0; tierMaxDays = 5; }
-
-    const display = streak > 0 ? `${Math.min(streak, tierMaxDays)}/${tierMaxDays} +${Math.round(tierPercent * 100)}%` : '0/5 +0%';
-    result[uid] = { daysCurrentStreak: streak, tierPercent, tierMaxDays, display };
+    const streak = streakMap.get(uid);
+    const level = streak?.streak_level || 0;
+    const days = streak?.current_streak_days || 0;
+    
+    // レベルに基づくボーナス計算（1レベルあたり+5%）
+    const tierPercent = level * 0.05;
+    
+    // 次のレベルまでの日数を計算
+    const currentLevelStartDays = level * 5;
+    const nextLevelDays = (level + 1) * 5;
+    const tierMaxDays = level < 6 ? 5 : days; // レベル6の場合は現在の日数を表示
+    
+    const display = level < 6 
+      ? `Lv.${level} (${days % 5}/5日) +${Math.round(tierPercent * 100)}%`
+      : `Lv.${level} (${days}日) +${Math.round(tierPercent * 100)}%`;
+      
+    result[uid] = { 
+      daysCurrentStreak: days, 
+      tierPercent, 
+      tierMaxDays,
+      display,
+      streakLevel: level
+    };
   }
 
   return result;
+}
+
+/**
+ * ユーザーのストリークを更新（XP獲得時に呼び出す）
+ */
+export async function updateUserStreak(userId: string, guildId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  
+  try {
+    const { data, error } = await supabase
+      .rpc('update_guild_member_streak', {
+        p_user_id: userId,
+        p_guild_id: guildId,
+        p_contributed: true
+      });
+      
+    if (error) {
+      console.error('updateUserStreak error:', error);
+    }
+  } catch (e) {
+    console.error('updateUserStreak exception:', e);
+  }
 }
 
 export async function createGuild(name: string, type: GuildType): Promise<string> {
