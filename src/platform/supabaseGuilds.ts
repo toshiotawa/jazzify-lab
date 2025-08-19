@@ -60,29 +60,26 @@ export async function getMyGuild(): Promise<Guild | null> {
     .maybeSingle();
 
   if (!membership?.guild_id) return null;
-
-  const { data: guildRow, error } = await supabase
-    .from('guilds')
-    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
-    .eq('id', membership.guild_id)
-    .single();
-  if (error) throw error;
-
-  const { count: membersCount } = await supabase
-    .from('guild_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('guild_id', membership.guild_id);
+  const [guildRes, countRes] = await Promise.all([
+    supabase
+      .from('guilds')
+      .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
+      .eq('id', membership.guild_id)
+      .single(),
+    supabase.rpc('rpc_get_guild_member_count', { p_guild_id: membership.guild_id }).select(),
+  ]);
+  if (guildRes.error) throw guildRes.error;
 
   return {
-    id: (guildRow as any).id,
-    name: (guildRow as any).name,
-    leader_id: (guildRow as any).leader_id,
-    level: Number((guildRow as any).level || 1),
-    total_xp: Number((guildRow as any).total_xp || 0),
-    members_count: membersCount || 0,
-    description: (guildRow as any).description ?? null,
-    disbanded: !!(guildRow as any).disbanded,
-    guild_type: ((guildRow as any).guild_type as GuildType) || 'casual',
+    id: (guildRes.data as any).id,
+    name: (guildRes.data as any).name,
+    leader_id: (guildRes.data as any).leader_id,
+    level: Number((guildRes.data as any).level || 1),
+    total_xp: Number((guildRes.data as any).total_xp || 0),
+    members_count: Number((countRes.data as any) || 0),
+    description: (guildRes.data as any).description ?? null,
+    disbanded: !!(guildRes.data as any).disbanded,
+    guild_type: ((guildRes.data as any).guild_type as GuildType) || 'casual',
   };
 }
 
@@ -239,6 +236,26 @@ export async function requestJoin(guildId: string): Promise<string> {
     .rpc('rpc_guild_request_join', { p_gid: guildId });
   if (error) throw error;
   return data as string;
+}
+
+export async function getMyPendingJoinRequestForGuild(guildId: string): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from('guild_join_requests')
+    .select('id')
+    .eq('guild_id', guildId)
+    .eq('requester_id', user.id)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (error && error.code !== 'PGRST116') throw error;
+  return data?.id ?? null;
+}
+
+export async function cancelJoinRequest(requestId: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('rpc_guild_cancel_request', { p_request_id: requestId });
+  if (error) throw error;
 }
 
 export async function approveJoinRequest(requestId: string): Promise<void> {
@@ -446,12 +463,12 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
 }
 
 export async function getGuildIdOfUser(userId: string): Promise<string | null> {
-  const { data } = await getSupabaseClient()
+  const { data: row } = await getSupabaseClient()
     .from('guild_members')
     .select('guild_id')
     .eq('user_id', userId)
     .maybeSingle();
-  return data?.guild_id ?? null;
+  return row?.guild_id ?? null;
 }
 
 export async function getMyGuildId(): Promise<string | null> {
@@ -655,13 +672,24 @@ export async function leaveMyGuild(): Promise<void> {
     .select('*', { count: 'exact', head: true })
     .eq('guild_id', guildId);
 
+  const isLeader = (membership?.role as 'leader' | 'member') === 'leader';
   if ((membersCount || 0) <= 1) {
-    const { error: disbandErr } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: guildId });
-    if (disbandErr) throw disbandErr;
-    return;
+    if (isLeader) {
+      const { error: disbandErr } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: guildId });
+      if (disbandErr) throw disbandErr;
+      return;
+    } else {
+      // 最後の1人だがリーダーでない場合は、単に退会し、DBトリガーでギルドの後処理を行う
+      const { error: delLastErr } = await supabase
+        .from('guild_members')
+        .delete()
+        .eq('guild_id', guildId)
+        .eq('user_id', user.id);
+      if (delLastErr) throw delLastErr;
+      return;
+    }
   }
 
-  const isLeader = (membership?.role as 'leader' | 'member') === 'leader';
   if (isLeader) {
     const { data: candidates, error: candErr } = await supabase
       .from('guild_members')
@@ -728,24 +756,24 @@ export async function getGuildOfUser(userId: string): Promise<Guild | null> {
 
 export async function getGuildById(guildId: string): Promise<Guild | null> {
   const supabase = getSupabaseClient();
-  const { data: guildRow, error } = await supabase
-    .from('guilds')
-    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
-    .eq('id', guildId)
-    .maybeSingle();
-  if (error) throw error;
+  const [guildRes, countRes] = await Promise.all([
+    supabase
+      .from('guilds')
+      .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
+      .eq('id', guildId)
+      .maybeSingle(),
+    supabase.rpc('rpc_get_guild_member_count', { p_guild_id: guildId }).select(),
+  ]);
+  if (guildRes.error) throw guildRes.error;
+  const guildRow = guildRes.data;
   if (!guildRow) return null;
-  const { count } = await supabase
-    .from('guild_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('guild_id', (guildRow as any).id);
   return {
     id: (guildRow as any).id,
     name: (guildRow as any).name,
     leader_id: (guildRow as any).leader_id,
     level: Number((guildRow as any).level || 1),
     total_xp: Number((guildRow as any).total_xp || 0),
-    members_count: count || 0,
+    members_count: Number((countRes.data as any) || 0),
     description: (guildRow as any).description ?? null,
     disbanded: !!(guildRow as any).disbanded,
     guild_type: ((guildRow as any).guild_type as GuildType) || 'casual',
@@ -767,4 +795,10 @@ export async function submitGuildLeaveFeedback(previousGuildId: string, previous
     p_reason: reason,
   });
   if (error) throw error;
+}
+
+export async function fetchGuildMemberCount(guildId: string): Promise<number> {
+  const { data, error } = await getSupabaseClient().rpc('rpc_get_guild_member_count', { p_guild_id: guildId });
+  if (error) throw error;
+  return Number(data || 0);
 }
