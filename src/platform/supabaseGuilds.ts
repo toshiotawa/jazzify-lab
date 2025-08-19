@@ -224,7 +224,18 @@ export async function rejectInvitation(invitationId: string): Promise<void> {
 }
 
 export async function requestJoin(guildId: string): Promise<string> {
-  const { data, error } = await getSupabaseClient()
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('not authenticated');
+  const { data: existing } = await supabase
+    .from('guild_join_requests')
+    .select('id')
+    .eq('guild_id', guildId)
+    .eq('requester_id', user.id)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (existing?.id) return existing.id as string;
+  const { data, error } = await supabase
     .rpc('rpc_guild_request_join', { p_gid: guildId });
   if (error) throw error;
   return data as string;
@@ -432,40 +443,6 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
     status: row.status,
     requester_nickname: row.requester?.nickname,
   }));
-}
-
-export async function searchGuilds(keyword: string): Promise<Guild[]> {
-  const supabase = getSupabaseClient();
-  let query = supabase
-    .from('guilds')
-    .select('*');
-  if (keyword && keyword.trim().length > 0) {
-    query = query.ilike('name', `%${keyword.trim()}%`);
-  }
-  query = query.order('level', { ascending: false }).limit(50);
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  const result: Guild[] = [];
-  for (const g of data || []) {
-    const { count } = await supabase
-      .from('guild_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('guild_id', (g as any).id);
-    result.push({
-      id: (g as any).id,
-      name: (g as any).name,
-      leader_id: (g as any).leader_id,
-      level: Number((g as any).level || 1),
-      total_xp: Number((g as any).total_xp || 0),
-      members_count: count || 0,
-      description: (g as any).description ?? null,
-      disbanded: !!(g as any).disbanded,
-      guild_type: ((g as any).guild_type as GuildType) || 'casual',
-    });
-  }
-  return result;
 }
 
 export async function getGuildIdOfUser(userId: string): Promise<string | null> {
