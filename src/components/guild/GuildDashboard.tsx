@@ -404,6 +404,7 @@ const GuildDashboard: React.FC = () => {
                                                                                 <li key={g.id} onClick={() => requestJoin(g.id)} className="cursor-pointer hover:bg-slate-800 p-2 rounded flex items-center gap-2">
                                                                                         <span className="font-medium">{g.name}</span>
                                                                                         <span className={`text-sm px-2 py-0.5 rounded-full ${g.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>{g.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</span>
+                                                                                        <span className="text-xs text-gray-300 ml-auto">メンバー数:{g.members_count}/5名</span>
                                                                                 </li>
                                                                         ))}
                                                                 </ul>

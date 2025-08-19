@@ -153,9 +153,9 @@ export async function fetchGuildDailyStreaks(
     const nextLevelDays = (level + 1) * 5;
     const tierMaxDays = level < 6 ? 5 : days; // レベル6の場合は現在の日数を表示
     
-    const display = level < 6 
-      ? `Lv.${level} (${days % 5}/5日) +${Math.round(tierPercent * 100)}%`
-      : `Lv.${level} (${days}日) +${Math.round(tierPercent * 100)}%`;
+    const display = level < 6
+      ? `ストリークLv.${level} (${days % 5}/5日) +${Math.round(tierPercent * 100)}%`
+      : `ストリークLv.${level} (${days}日) +${Math.round(tierPercent * 100)}%`;
       
     result[uid] = { 
       daysCurrentStreak: days, 
