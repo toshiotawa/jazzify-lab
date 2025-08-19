@@ -154,6 +154,41 @@ const GuildPage: React.FC = () => {
                 )}
               </div>
 
+              {/* チャレンジギルド: チャレンジ見出し */}
+              {guild.guild_type === 'challenge' && (
+                <div className="bg-slate-800 border border-slate-700 rounded p-4">
+                  <h3 className="font-semibold mb-3">チャレンジ</h3>
+                  <ul className="space-y-2">
+                    {members.map(m => (
+                      <li key={m.user_id} className="bg-slate-900 p-2 rounded">
+                        <div className="flex items-center gap-3">
+                          <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <button className="hover:text-blue-400 truncate" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
+                              {/* レベル（チャレンジレベル=連続日数ティア） */}
+                              <span className="text-xs text-yellow-400">
+                                {(() => {
+                                  const s = streaks[m.user_id];
+                                  if (!s) return 'Lv.0 (+0%)';
+                                  return `Lv.${Math.min(s.daysCurrentStreak, s.tierMaxDays)} (+${Math.round(s.tierPercent*100)}%)`;
+                                })()}
+                              </span>
+                            </div>
+                            <div className="h-1.5 bg-slate-700 rounded overflow-hidden mt-1">
+                              <div className="h-full bg-green-500" style={{ width: `${streaks[m.user_id] ? Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100) : 0}%` }} />
+                            </div>
+                            <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id]?.display || '0/5 +0%'}</div>
+                          </div>
+                          {/* チャレンジボーナス倍率 */}
+                          <div className="text-xs text-green-400 whitespace-nowrap">×{(1 + (streaks[m.user_id]?.tierPercent || 0)).toFixed(2)}</div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="bg-slate-800 border border-slate-700 rounded p-4">
                 <h3 className="font-semibold mb-3">メンバー</h3>
                 {members.length === 0 ? (

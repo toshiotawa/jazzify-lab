@@ -94,11 +94,13 @@ const GuildDashboard: React.FC = () => {
 		}
 	};
 
+	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
+
 	const handleCreateGuild = async () => {
 		if (!user || !keyword.trim()) return;
 		try {
 			setBusy(true);
-			const g = await createGuild(keyword.trim(), user.id);
+			const g = await createGuild(keyword.trim(), newGuildType);
 			if (g) {
 				setMyGuild(g);
 				setIsLeader(true);
@@ -209,7 +211,12 @@ const GuildDashboard: React.FC = () => {
 				<p>ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
 				<div className="mt-4">
 					<input type="text" placeholder="ギルド名/検索キーワード" value={keyword} onChange={(e)=>setKeyword(e.target.value)} className="input input-bordered w-full max-w-xs" />
-					<div className="mt-2 flex gap-2 justify-center">
+					<div className="mt-2 flex gap-2 justify-center items-center">
+						<label className="text-sm">タイプ:</label>
+						<select className="select select-bordered select-sm" value={newGuildType} onChange={e=>setNewGuildType(e.target.value as any)}>
+							<option value="casual">ゆるギルド</option>
+							<option value="challenge">チャレンジギルド</option>
+						</select>
 						<button onClick={handleCreateGuild} className="btn btn-primary" disabled={busy}>ギルドを作成</button>
 						<button onClick={handleSearch} className="btn btn-secondary" disabled={busy}>検索</button>
 					</div>

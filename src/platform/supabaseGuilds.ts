@@ -1,5 +1,7 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
 
+export type GuildType = 'casual' | 'challenge';
+
 export interface Guild {
   id: string;
   name: string;
@@ -9,6 +11,7 @@ export interface Guild {
   members_count: number;
   description?: string | null;
   disbanded?: boolean;
+  guild_type?: GuildType;
 }
 
 export interface GuildMember {
@@ -60,7 +63,7 @@ export async function getMyGuild(): Promise<Guild | null> {
 
   const { data: guildRow, error } = await supabase
     .from('guilds')
-    .select('*')
+    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
     .eq('id', membership.guild_id)
     .single();
   if (error) throw error;
@@ -79,6 +82,7 @@ export async function getMyGuild(): Promise<Guild | null> {
     members_count: membersCount || 0,
     description: (guildRow as any).description ?? null,
     disbanded: !!(guildRow as any).disbanded,
+    guild_type: ((guildRow as any).guild_type as GuildType) || 'casual',
   };
 }
 
@@ -183,9 +187,9 @@ export async function fetchGuildDailyStreaks(
   return result;
 }
 
-export async function createGuild(name: string): Promise<string> {
+export async function createGuild(name: string, type: GuildType): Promise<string> {
   const { data, error } = await getSupabaseClient()
-    .rpc('rpc_guild_create', { p_name: name });
+    .rpc('rpc_guild_create', { p_name: name, p_type: type });
   if (error) throw error;
   return data as string;
 }
@@ -755,7 +759,7 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
   const supabase = getSupabaseClient();
   const { data: guildRow, error } = await supabase
     .from('guilds')
-    .select('*')
+    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
     .eq('id', guildId)
     .maybeSingle();
   if (error) throw error;
@@ -773,5 +777,6 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
     members_count: count || 0,
     description: (guildRow as any).description ?? null,
     disbanded: !!(guildRow as any).disbanded,
+    guild_type: ((guildRow as any).guild_type as GuildType) || 'casual',
   };
 }

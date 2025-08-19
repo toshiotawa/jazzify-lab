@@ -20,6 +20,7 @@ create table if not exists public.guilds (
   leader_id uuid not null references public.profiles(id) on delete set null,
   total_xp bigint not null default 0,
   level integer not null default 1,
+  guild_type text not null default 'casual' check (guild_type in ('casual','challenge')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -252,7 +253,7 @@ language sql stable as $$
 $$;
 
 -- Create a guild with current user as leader
-create or replace function public.rpc_guild_create(p_name text)
+create or replace function public.rpc_guild_create(p_name text, p_type text)
 returns uuid
 language plpgsql security definer as $$
 declare
@@ -268,7 +269,10 @@ begin
   if exists(select 1 from public.guild_members where user_id = _uid) then
     raise exception 'Already in a guild';
   end if;
-  insert into public.guilds(name, leader_id) values(p_name, _uid) returning id into _gid;
+  if p_type is null or p_type not in ('casual','challenge') then
+    raise exception 'Invalid guild type';
+  end if;
+  insert into public.guilds(name, leader_id, guild_type) values(p_name, _uid, p_type) returning id into _gid;
   insert into public.guild_members(guild_id, user_id, role) values(_gid, _uid, 'leader');
   return _gid;
 end;
@@ -596,7 +600,7 @@ grant select on table public.guild_xp_contributions to anon, authenticated;
 grant all on table public.guild_xp_contributions to service_role;
 
 -- Function execution grants
-grant execute on function public.rpc_guild_create(text) to anon, authenticated;
+grant execute on function public.rpc_guild_create(text, text) to anon, authenticated;
 grant execute on function public.rpc_guild_invite(uuid) to anon, authenticated;
 grant execute on function public.rpc_guild_cancel_invitation(uuid) to anon, authenticated;
 grant execute on function public.rpc_guild_accept_invitation(uuid) to anon, authenticated;
