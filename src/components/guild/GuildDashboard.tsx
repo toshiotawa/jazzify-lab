@@ -259,10 +259,17 @@ const GuildDashboard: React.FC = () => {
                                         <div className="bg-slate-800 border border-slate-700 rounded p-4">
                                                 <h3 className="font-semibold mb-2">ギルド情報</h3>
                                                 <p className="text-sm mb-2">{myGuild.description || 'なし'}</p>
-                                                <div className="text-sm text-gray-300">メンバー {members.length}</div>
                                                 <div className="text-sm text-gray-300">リーダー: {myGuild.leader_id === user?.id ? 'あなた' : members.find(m => m.user_id === myGuild.leader_id)?.nickname || '不明'}</div>
-                                                <div className="text-sm text-green-400 mt-1">ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)} <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(0)}% / ストリーク +{(bonus.streakBonus*100).toFixed(0)}%）</span></div>
+                                                <div className="text-sm text-green-400 mt-1">ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)} <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}% / ストリーク +{(bonus.streakBonus*100).toFixed(1)}%）</span></div>
                                                 <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+                                                        <div className="bg-slate-900 rounded p-3 border border-slate-700">
+                                                                <div className="text-gray-400">今月XP</div>
+                                                                <div className="text-lg font-semibold">{thisMonthXp.toLocaleString()}</div>
+                                                        </div>
+                                                        <div className="bg-slate-900 rounded p-3 border border-slate-700">
+                                                                <div className="text-gray-400">今月の順位</div>
+                                                                <div className="text-lg font-semibold">{myRank ? `${myRank}位` : '-'}</div>
+                                                        </div>
                                                         <div className="bg-slate-900 rounded p-3 border border-slate-700">
                                                                 <div className="text-gray-400">累計獲得XP</div>
                                                                 <div className="text-lg font-semibold">{myTotalContribXp.toLocaleString()}</div>
@@ -280,19 +287,17 @@ const GuildDashboard: React.FC = () => {
                                                         <button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', myGuild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
                                                         {isLeader && (
                                                                 editingDesc ? (
-                                                                        <>
+                                                                        <div className="flex gap-2 flex-1">
                                                                                 <textarea value={descEdit} onChange={(e)=>setDescEdit(e.target.value)} className="input input-bordered input-sm flex-1" />
                                                                                 <button onClick={handleUpdateDescription} className="btn btn-primary btn-sm" disabled={busy}>更新</button>
-                                                                        </>
+                                                                                <button onClick={()=>{ setEditingDesc(false); setDescEdit(myGuild.description || ''); }} className="btn btn-sm btn-outline">キャンセル</button>
+                                                                        </div>
                                                                 ) : (
                                                                         <button onClick={()=>{ setDescEdit(myGuild.description || ''); setEditingDesc(true); }} className="btn btn-sm btn-outline">説明を編集</button>
                                                                 )
                                                         )}
                                                 </div>
-                                                <div className="mt-4">
-                                                        <GuildBoard guildId={myGuild.id} />
-                                                </div>
-                                        </div>
+                                       </div>
 
                                         <div className="bg-slate-800 border border-slate-700 rounded p-4">
                                                 <h3 className="font-semibold mb-3">MVP（今月）</h3>
@@ -310,11 +315,11 @@ const GuildDashboard: React.FC = () => {
                                         </div>
 
                                         <div className="bg-slate-800 border border-slate-700 rounded p-4">
-                                                <h3 className="font-semibold mb-3">メンバーリスト</h3>
+                                                <h3 className="font-semibold mb-3">メンバーリスト ({members.length}/5)</h3>
                                                 {members.length === 0 ? (
                                                         <p className="text-gray-400 text-sm">メンバーはまだいません。</p>
                                                 ) : (
-                                                        <ul className="space-y-2">
+                                                        <ul className="space-y-2 text-base">
                                                                 {members.map(m => (
                                                                         <li key={m.user_id} className="flex items-center gap-3">
                                                                                 <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} aria-label="ユーザーページへ">
@@ -322,7 +327,7 @@ const GuildDashboard: React.FC = () => {
                                                                                 </button>
                                                                                 <div className="flex-1 min-w-0">
                                                                                         <div className="flex items-center gap-2">
-                                                                                                <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} className="font-medium text-sm truncate text-left hover:text-blue-400">{m.nickname}</button>
+                                                                                                <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} className="font-medium text-base truncate text-left hover:text-blue-400">{m.nickname}</button>
                                                                                                 {m.selected_title && (
                                                                                                         <div className="relative group">
                                                                                                                 <div className="flex items-center gap-1 text-yellow-400 cursor-help">
@@ -383,6 +388,10 @@ const GuildDashboard: React.FC = () => {
                                                 {isLeader && (
                                                         <button onClick={handleDisbandGuild} className="btn btn-outline text-red-300 border-red-600">ギルドを解散</button>
                                                 )}
+                                        </div>
+
+                                        <div className="bg-slate-800 border border-slate-700 rounded p-4">
+                                                <GuildBoard guildId={myGuild.id} />
                                         </div>
                                 </div>
                         </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { fetchGuildContributorsWithProfiles, fetchGuildMonthlyXpSingle, fetchGuildRankForMonth, getMyGuild } from '@/platform/supabaseGuilds';
+import { fetchGuildContributorsWithProfiles, fetchGuildMonthlyXpSingle, fetchGuildRankForMonth, getMyGuild, getGuildById } from '@/platform/supabaseGuilds';
 
 type MonthData = {
 	month: string;
@@ -31,20 +31,25 @@ const GuildHistory: React.FC = () => {
 		(async () => {
 			setLoading(true);
 			try {
-				const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-				const id = params.get('id');
-				let gid = id;
-				if (!gid) {
-					const g = await getMyGuild();
-					gid = g?.id || null;
-					if (g?.name) setGuildName(g.name);
-				}
-				setGuildId(gid);
-			} finally {
-				setLoading(false);
-			}
-		})();
-	}, [open]);
+                                const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+                                const id = params.get('id');
+                                let gid = id;
+                                let gname = '';
+                                if (!gid) {
+                                        const g = await getMyGuild();
+                                        gid = g?.id || null;
+                                        gname = g?.name || '';
+                                } else {
+                                        const g = await getGuildById(gid);
+                                        gname = g?.name || '';
+                                }
+                                setGuildId(gid);
+                                setGuildName(gname);
+                        } finally {
+                                setLoading(false);
+                        }
+                })();
+        }, [open]);
 
 	const monthList = useMemo(() => {
 		const list: string[] = [];
@@ -91,7 +96,7 @@ const GuildHistory: React.FC = () => {
 						<p className="text-gray-300 text-sm">ギルドが特定できません。ギルドダッシュボードからアクセスしてください。</p>
 					) : (
 						<>
-							<p className="text-gray-300 text-sm">ギルドID: <span className="font-mono">{guildId}</span></p>
+                                                        <p className="text-gray-300 text-sm">ギルド名: {guildName || '-'}</p>
 							<div className="space-y-6">
 								{monthList.map((m) => {
 									const d = dataByMonth[m];

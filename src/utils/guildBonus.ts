@@ -24,15 +24,16 @@ export function computeGuildBonus(level: number, contributedMemberCount: number,
 
 /** 数値倍率から "+1.20x (+20.00%)" のような表記を返す */
 export function formatMultiplier(multiplier: number): string {
-  const percent = (multiplier - 1) * 100;
-  return `+${multiplier.toFixed(2)}x (+${percent.toFixed(2)}%)`;
+  const rounded = Number(multiplier.toFixed(2));
+  const percent = (rounded - 1) * 100;
+  return `+${rounded.toFixed(2)}x (+${percent.toFixed(1)}%)`;
 }
 
 /** ボーナス内訳 "(Lv +x.xx, Mem +y.yy)" のような短い表示 */
 export function formatBonusBreakdown(levelBonus: number, memberBonus: number, streakBonus = 0): string {
-  const lvPct = (levelBonus * 100).toFixed(2);
-  const memPct = (memberBonus * 100).toFixed(0);
-  const stPct = (streakBonus * 100).toFixed(0);
+  const lvPct = (levelBonus * 100).toFixed(1);
+  const memPct = (memberBonus * 100).toFixed(1);
+  const stPct = (streakBonus * 100).toFixed(1);
   return `(Lv +${lvPct}%, Mem +${memPct}%, St +${stPct}%)`;
 }
 
