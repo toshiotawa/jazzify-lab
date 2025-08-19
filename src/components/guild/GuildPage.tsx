@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild } from '@/platform/supabaseGuilds';
+import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, getMyJoinRequest, cancelJoinRequest } from '@/platform/supabaseGuilds';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 
@@ -16,6 +16,7 @@ const GuildPage: React.FC = () => {
   const [rank, setRank] = useState<number | null>(null);
   const [isMember, setIsMember] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
+  const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash.startsWith('#guild'));
@@ -38,15 +39,22 @@ const GuildPage: React.FC = () => {
         const g = await getGuildById(guildId);
         setGuild(g);
         const mine = await getMyGuild();
-        setIsMember(!!(mine && mine.id === guildId));
+        const member = !!(mine && mine.id === guildId);
+        setIsMember(member);
         if (g) {
-          const [m, per] = await Promise.all([
-            getGuildMembers(g.id),
-            fetchGuildMemberMonthlyXp(g.id),
-          ]);
-          setMembers(m);
-          setMemberMonthly(per);
-          // 今シーズン（当月）合計XPと順位
+          if (member) {
+            const [m, per] = await Promise.all([
+              getGuildMembers(g.id),
+              fetchGuildMemberMonthlyXp(g.id),
+            ]);
+            setMembers(m);
+            setMemberMonthly(per);
+          } else {
+            setMembers([]);
+            setMemberMonthly([]);
+            const pending = await getMyJoinRequest(g.id);
+            setPendingRequestId(pending);
+          }
           const now = new Date();
           const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
           const [xp, r] = await Promise.all([
@@ -81,6 +89,34 @@ const GuildPage: React.FC = () => {
       case 'lesson': return <FaGraduationCap className="text-xs text-blue-400"/>;
       case 'wizard': return <FaHatWizard className="text-xs text-green-400"/>;
       default: return <FaCrown className="text-xs text-yellow-400"/>;
+    }
+  };
+
+  const handleRequestJoin = async () => {
+    if (!guild) return;
+    try {
+      setBusy(true);
+      const id = await requestJoin(guild.id);
+      setPendingRequestId(id);
+      alert('参加リクエストを送信しました');
+    } catch (e: any) {
+      alert(e?.message || 'リクエスト送信に失敗しました');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!pendingRequestId) return;
+    try {
+      setBusy(true);
+      await cancelJoinRequest(pendingRequestId);
+      setPendingRequestId(null);
+      alert('参加リクエストをキャンセルしました');
+    } catch (e: any) {
+      alert(e?.message || 'キャンセルに失敗しました');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -119,8 +155,14 @@ const GuildPage: React.FC = () => {
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', guild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
-                    {!isMember && guild.members_count < 5 && (
-                      <button className="btn btn-sm btn-primary" disabled={busy} onClick={async()=>{ try{ setBusy(true); await requestJoin(guild.id); alert('参加リクエストを送信しました'); } catch(e:any){ alert(e?.message||'リクエスト送信に失敗しました'); } finally{ setBusy(false); } }}>参加リクエスト</button>
+                    {!isMember && (
+                      pendingRequestId ? (
+                        <button className="btn btn-sm btn-outline" disabled={busy} onClick={handleCancelRequest}>申請をキャンセル</button>
+                      ) : (
+                        guild.members_count < 5 && (
+                          <button className="btn btn-sm btn-primary" disabled={busy} onClick={handleRequestJoin}>参加リクエスト</button>
+                        )
+                      )
                     )}
                   </div>
                 </div>
@@ -130,45 +172,48 @@ const GuildPage: React.FC = () => {
               </div>
 
               <div className="bg-slate-800 border border-slate-700 rounded p-4">
-                <h3 className="font-semibold mb-3">メンバーリスト ({members.length}/5)</h3>
-                {members.length === 0 ? (
-                  <p className="text-gray-400 text-sm">メンバーがいません</p>
-                ) : (
-                  <ul className="space-y-2 text-base">
-                    {members.map(m => (
-                      <li key={m.user_id} className="flex items-center gap-2">
-                        <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} aria-label="ユーザーページへ">
-                          <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
-                        </button>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <button className="hover:text-blue-400 truncate" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
-                            {/* 称号（ホバー/タップで条件表示） */}
-                            {m.selected_title && (
-                              <div className="relative group">
-                                <div className="flex items-center gap-1 text-yellow-400 cursor-help">
-                                  {getTitleIcon((m.selected_title as Title) || DEFAULT_TITLE)}
-                                  <span className="text-[11px] truncate max-w-[160px]">{(m.selected_title as Title) || DEFAULT_TITLE}</span>
+                <h3 className="font-semibold mb-3">メンバーリスト ({isMember ? members.length : guild.members_count}/5)</h3>
+                {isMember ? (
+                  members.length === 0 ? (
+                    <p className="text-gray-400 text-sm">メンバーがいません</p>
+                  ) : (
+                    <ul className="space-y-2 text-base">
+                      {members.map(m => (
+                        <li key={m.user_id} className="flex items-center gap-2">
+                          <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} aria-label="ユーザーページへ">
+                            <img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
+                          </button>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <button className="hover:text-blue-400 truncate" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
+                              {/* 称号（ホバー/タップで条件表示） */}
+                              {m.selected_title && (
+                                <div className="relative group">
+                                  <div className="flex items-center gap-1 text-yellow-400 cursor-help">
+                                    {getTitleIcon((m.selected_title as Title) || DEFAULT_TITLE)}
+                                    <span className="text-[11px] truncate max-w-[160px]">{(m.selected_title as Title) || DEFAULT_TITLE}</span>
+                                  </div>
+                                  <div className="absolute hidden group-hover:block z-50 bg-gray-900 text-white text-[11px] p-2 rounded shadow-lg whitespace-nowrap" style={{ top: '100%', left: 0, marginTop: '4px' }}>
+                                    {getTitleRequirement((m.selected_title as Title) || DEFAULT_TITLE)}
+                                    <div className="absolute w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900" style={{ top: '-4px', left: '12px' }} />
+                                  </div>
                                 </div>
-                                <div className="absolute hidden group-hover:block z-50 bg-gray-900 text-white text-[11px] p-2 rounded shadow-lg whitespace-nowrap" style={{ top: '100%', left: 0, marginTop: '4px' }}>
-                                  {getTitleRequirement((m.selected_title as Title) || DEFAULT_TITLE)}
-                                  <div className="absolute w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900" style={{ top: '-4px', left: '12px' }} />
-                                </div>
-                              </div>
-                            )}
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-400">Lv.{m.level} / {m.rank}</div>
                           </div>
-                          <div className="text-xs text-gray-400">Lv.{m.level} / {m.rank}</div>
-                        </div>
-                        {m.role === 'leader' && (
-                          <span className="text-[10px] px-2 py-0.5 rounded_full bg-yellow-500 text-black font-bold">Leader</span>
-                        )}
-                        {/* 当月貢献ありメンバー: Success!! アイコン */}
-                        {memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
-                          <FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                          {m.role === 'leader' && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">Leader</span>
+                          )}
+                          {memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
+                            <FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : (
+                  <p className="text-gray-400 text-sm">メンバーは非公開です</p>
                 )}
               </div>
             </>
