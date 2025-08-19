@@ -8,18 +8,20 @@ import {
 	createGuild,
 	fetchMyGuildRank,
 	fetchGuildMemberMonthlyXp,
-	fetchJoinRequestsForMyGuild,
-	approveJoinRequest,
-	rejectJoinRequest,
-	Guild,
-	GuildMember,
-	GuildJoinRequest,
-	fetchMyGuildContributionTotal,
-	updateGuildDescription,
-	disbandMyGuild,
-	leaveMyGuild,
-	kickMember,
-	fetchGuildDailyStreaks,
+        fetchJoinRequestsForMyGuild,
+        approveJoinRequest,
+        rejectJoinRequest,
+        Guild,
+        GuildMember,
+        GuildJoinRequest,
+        fetchMyGuildContributionTotal,
+        updateGuildDescription,
+        disbandMyGuild,
+        leaveMyGuild,
+        kickMember,
+        fetchGuildDailyStreaks,
+        fetchMyLatestGuildLeave,
+        type GuildLeaveLog,
 } from '@/platform/supabaseGuilds';
 import GuildBoard from '@/components/guild/GuildBoard';
 import GameHeader from '@/components/ui/GameHeader';
@@ -43,10 +45,13 @@ const GuildDashboard: React.FC = () => {
 	const [joinRequests, setJoinRequests] = useState<GuildJoinRequest[]>([]);
 	const [myTotalContribXp, setMyTotalContribXp] = useState<number>(0);
 	const [descEdit, setDescEdit] = useState<string>('');
-	const [editingDesc, setEditingDesc] = useState<boolean>(false);
-	const [isLeader, setIsLeader] = useState<boolean>(false);
-	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
-	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
+        const [editingDesc, setEditingDesc] = useState<boolean>(false);
+        const [isLeader, setIsLeader] = useState<boolean>(false);
+        const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
+        const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
+        const [lastLeave, setLastLeave] = useState<GuildLeaveLog | null>(null);
+
+        const reasonMap: Record<'leave'|'kick'|'disband', string> = { leave: '脱退', kick: '除名', disband: '解散' };
 
 	useEffect(() => {
 		const fetchData = async () => {
@@ -54,30 +59,32 @@ const GuildDashboard: React.FC = () => {
 			try {
 				setLoading(true);
 				// まず自分のギルド情報のみ取得
-				const guild = await getMyGuild();
-				setMyGuild(guild);
-				// ランクと参加リクエストはユーザーコンテキストから
-				const [rank, joinReqs] = await Promise.all([
-					fetchMyGuildRank(),
-					fetchJoinRequestsForMyGuild(),
-				]);
-				setMyRank(rank);
-				setJoinRequests(joinReqs);
-				if (guild) {
-					// ギルドIDに依存する取得
-					const [m, perMember, totalContrib, st] = await Promise.all([
-						getGuildMembers(guild.id),
-						fetchGuildMemberMonthlyXp(guild.id),
-						fetchMyGuildContributionTotal(guild.id),
-						fetchGuildDailyStreaks(guild.id).catch(()=>({} as Record<string, any>)),
-					]);
-					setMembers(m);
-					setMemberMonthly(perMember);
-					setMyTotalContribXp(totalContrib);
-					setThisMonthXp(perMember.reduce((a, b) => a + Number(b.monthly_xp || 0), 0));
-					setIsLeader(m.some(x => x.user_id === user.id && x.role === 'leader'));
-					setStreaks(st);
-				}
+                                const guild = await getMyGuild();
+                                setMyGuild(guild);
+                                const [rank, joinReqs] = await Promise.all([
+                                        fetchMyGuildRank(),
+                                        fetchJoinRequestsForMyGuild(),
+                                ]);
+                                setMyRank(rank);
+                                setJoinRequests(joinReqs);
+                                if (guild) {
+                                        const [m, perMember, totalContrib, st] = await Promise.all([
+                                                getGuildMembers(guild.id),
+                                                fetchGuildMemberMonthlyXp(guild.id),
+                                                fetchMyGuildContributionTotal(guild.id),
+                                                guild.guild_type === 'challenge' ? fetchGuildDailyStreaks(guild.id).catch(()=>({} as Record<string, any>)) : Promise.resolve({}),
+                                        ]);
+                                        setMembers(m);
+                                        setMemberMonthly(perMember);
+                                        setMyTotalContribXp(totalContrib);
+                                        setThisMonthXp(perMember.reduce((a, b) => a + Number(b.monthly_xp || 0), 0));
+                                        setIsLeader(m.some(x => x.user_id === user.id && x.role === 'leader'));
+                                        setStreaks(st);
+                                        setLastLeave(null);
+                                } else {
+                                        const leave = await fetchMyLatestGuildLeave();
+                                        setLastLeave(leave);
+                                }
 			} catch (e: any) {
 				alert(e?.message || 'ギルド情報の取得に失敗しました');
 			} finally {
@@ -210,10 +217,13 @@ const GuildDashboard: React.FC = () => {
 	if (loading) return <div className="text-center py-8">Loading...</div>;
 	if (!user) return <div className="text-center py-8">Please log in to view this page.</div>;
 	if (!myGuild) {
-		return (
-			<div className="text-center py-8">
-				<h2>ギルドを作成または参加</h2>
-				<p>ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
+                return (
+                        <div className="text-center py-8">
+                                {lastLeave && (
+                                        <p className="mb-4 text-sm">ギルド名{lastLeave.guild_name}から{reasonMap[lastLeave.reason]}のため脱退しました。</p>
+                                )}
+                                <h2>ギルドを作成または参加</h2>
+                                <p>ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
 				<div className="mt-4">
 					<input type="text" placeholder="ギルド名/検索キーワード" value={keyword} onChange={(e)=>setKeyword(e.target.value)} className="input input-bordered w-full max-w-xs" />
 					<div className="mt-2 flex gap-2 justify-center items-center">
@@ -242,9 +252,11 @@ const GuildDashboard: React.FC = () => {
 		);
 	}
 
-	const contributors = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-	const streakBonus = Object.values(streaks).reduce((sum, s) => sum + (s.tierPercent || 0), 0);
-	const bonus = computeGuildBonus(myGuild.level || 1, contributors, streakBonus);
+        const contributors = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
+        const streakBonus = myGuild.guild_type === 'challenge'
+                ? Object.values(streaks).reduce((sum, s) => sum + (s.tierPercent || 0), 0)
+                : 0;
+        const bonus = computeGuildBonus(myGuild.level || 1, contributors, streakBonus);
 	const levelInfo = calcLevel(myTotalContribXp);
 	const levelProgress = (levelInfo.remainder / levelInfo.nextLevelXp) * 100;
 	const mvpUserId = memberMonthly.sort((a,b)=>b.monthly_xp-a.monthly_xp)[0]?.user_id;
@@ -258,12 +270,12 @@ const GuildDashboard: React.FC = () => {
 							<div className="max-w-4xl mx-auto space-y-4">
 									<div className="bg-slate-800 border border-slate-700 rounded p-4">
 											<h3 className="font-semibold mb-2">ギルド情報</h3>
-											<div className="text-lg font-semibold">{myGuild.name}</div>
+                                                                                        <div className="text-lg font-semibold flex items-center gap-2">{myGuild.name}<span className="text-xs px-2 py-0.5 rounded bg-slate-700">{myGuild.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</span></div>
 											<p className="text-sm mb-2">{(myGuild.description && myGuild.description !== myGuild.id) ? myGuild.description : 'なし'}</p>
 											<div className="text-sm text-gray-300">リーダー: {myGuild.leader_id === user?.id ? 'あなた' : members.find(m => m.user_id === myGuild.leader_id)?.nickname || '不明'}</div>
-											<div className="text-sm text-green-400 mt-1">ギルドボーナス: +{((bonus.levelBonus + bonus.memberBonus + bonus.streakBonus) * 100).toFixed(1)}% <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}% / ストリーク +{(bonus.streakBonus*100).toFixed(1)}%）</span></div>
+                                                                                        <div className="text-sm text-green-400 mt-1">ギルドボーナス: +{((bonus.levelBonus + bonus.memberBonus + (myGuild.guild_type === 'challenge' ? bonus.streakBonus : 0)) * 100).toFixed(1)}% <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}%{myGuild.guild_type === 'challenge' ? ` / ストリーク +${(bonus.streakBonus*100).toFixed(1)}%` : ''}）</span></div>
 
-											<div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+                                                                                        <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
 												<div className="bg-slate-900 rounded p-3 border border-slate-700">
 													<div className="text-gray-400">今月XP</div>
 													<div className="text-lg font-semibold">{thisMonthXp.toLocaleString()}</div>
@@ -277,14 +289,20 @@ const GuildDashboard: React.FC = () => {
 													<div className="text-lg font-semibold">{myTotalContribXp.toLocaleString()}</div>
 												</div>
 												<div className="bg-slate-900 rounded p-3 border border-slate-700">
-													<div className="text-gray-400">現在のレベル</div>
-													<div className="text-lg font-semibold">Lv.{levelInfo.level}</div>
-													<div className="h-1.5 bg-slate-700 rounded overflow-hidden mt-1">
-														<div className="h-full bg-green-500" style={{ width: `${Math.min(100, levelProgress)}%` }} />
-													</div>
-													<div className="text-[10px] text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
-												</div>
-											</div>
+                                                                                                       <div className="text-gray-400">現在のレベル</div>
+                                                                                                       <div className="text-lg font-semibold">Lv.{levelInfo.level}</div>
+                                                                                                       <div className="h-1.5 bg-slate-700 rounded overflow-hidden mt-1">
+                                                                                                               <div className="h-full bg-green-500" style={{ width: `${Math.min(100, levelProgress)}%` }} />
+                                                                                                       </div>
+                                                                                                       <div className="text-[10px] text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
+                                                                                               </div>
+                                                                                       </div>
+                                                                                        {myGuild.guild_type === 'challenge' && (
+                                                                                                <div className="bg-slate-900 rounded p-3 border border-slate-700 mt-3">
+                                                                                                        <div className="font-semibold">ギルドクエスト</div>
+                                                                                                        <div className="text-sm text-gray-300 mt-1">今月の獲得XPが1,000,000に達しないとギルドは解散します。</div>
+                                                                                                </div>
+                                                                                        )}
 											<div className="flex gap-2 mt-3">
 												<button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', myGuild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
 												{isLeader && (
@@ -344,14 +362,14 @@ const GuildDashboard: React.FC = () => {
 															)}
 														</div>
 														<div className="text-xs text-gray-400">Lv {m.level} / {m.rank}</div>
-														{streaks[m.user_id] && (
-															<div className="mt-1">
-																<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
-																	<div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
-																</div>
-																<div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id].display}</div>
-															</div>
-														)}
+                                                                                                        {myGuild.guild_type === 'challenge' && streaks[m.user_id] && (
+                                                                                                                       <div className="mt-1">
+                                                                                                                               <div className="h-1.5 bg-slate-700 rounded overflow-hidden">
+                                                                                                                                       <div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
+                                                                                                                               </div>
+                                                                                                                               <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id].display}</div>
+                                                                                                                       </div>
+                                                                                                       )}
 													</div>
 													{m.role === 'leader' && (
 														<span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">Leader</span>
