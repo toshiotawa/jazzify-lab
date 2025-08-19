@@ -20,6 +20,7 @@ import {
 	leaveMyGuild,
 	kickMember,
 	fetchGuildDailyStreaks,
+	fetchLastLeaveLogForMe,
 } from '@/platform/supabaseGuilds';
 import GuildBoard from '@/components/guild/GuildBoard';
 import GameHeader from '@/components/ui/GameHeader';
@@ -47,6 +48,7 @@ const GuildDashboard: React.FC = () => {
 	const [isLeader, setIsLeader] = useState<boolean>(false);
 	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
+	const [lastLeaveMessage, setLastLeaveMessage] = useState<string>('');
 
 	useEffect(() => {
 		const fetchData = async () => {
@@ -85,6 +87,21 @@ const GuildDashboard: React.FC = () => {
 			}
 		};
 		fetchData();
+	}, [user]);
+
+	useEffect(() => {
+		(async () => {
+			if (!user) return;
+			try {
+				const log = await fetchLastLeaveLogForMe();
+				if (log) {
+					const reasonText = log.reason === 'kicked' ? '除名' : (log.reason === 'disbanded' ? '解散' : '脱退');
+					setLastLeaveMessage(`ギルド名${log.guild_name}から${reasonText}のため脱退しました。`);
+				} else {
+					setLastLeaveMessage('');
+				}
+			} catch {}
+		})();
 	}, [user]);
 
 	const handleSearch = async () => {
@@ -213,6 +230,9 @@ const GuildDashboard: React.FC = () => {
 		return (
 			<div className="text-center py-8">
 				<h2>ギルドを作成または参加</h2>
+				{lastLeaveMessage && (
+					<p className="text-sm text-gray-300 mt-2">{lastLeaveMessage}</p>
+				)}
 				<p>ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
 				<div className="mt-4">
 					<input type="text" placeholder="ギルド名/検索キーワード" value={keyword} onChange={(e)=>setKeyword(e.target.value)} className="input input-bordered w-full max-w-xs" />
@@ -244,7 +264,8 @@ const GuildDashboard: React.FC = () => {
 
 	const contributors = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
 	const streakBonus = Object.values(streaks).reduce((sum, s) => sum + (s.tierPercent || 0), 0);
-	const bonus = computeGuildBonus(myGuild.level || 1, contributors, streakBonus);
+	const appliedStreakBonus = (myGuild.guild_type === 'challenge') ? streakBonus : 0;
+	const bonus = computeGuildBonus(myGuild.level || 1, contributors, appliedStreakBonus);
 	const levelInfo = calcLevel(myTotalContribXp);
 	const levelProgress = (levelInfo.remainder / levelInfo.nextLevelXp) * 100;
 	const mvpUserId = memberMonthly.sort((a,b)=>b.monthly_xp-a.monthly_xp)[0]?.user_id;
@@ -259,9 +280,10 @@ const GuildDashboard: React.FC = () => {
 									<div className="bg-slate-800 border border-slate-700 rounded p-4">
 											<h3 className="font-semibold mb-2">ギルド情報</h3>
 											<div className="text-lg font-semibold">{myGuild.name}</div>
+											<div className="text-xs text-gray-400 mt-1">タイプ: {myGuild.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</div>
 											<p className="text-sm mb-2">{(myGuild.description && myGuild.description !== myGuild.id) ? myGuild.description : 'なし'}</p>
 											<div className="text-sm text-gray-300">リーダー: {myGuild.leader_id === user?.id ? 'あなた' : members.find(m => m.user_id === myGuild.leader_id)?.nickname || '不明'}</div>
-											<div className="text-sm text-green-400 mt-1">ギルドボーナス: +{((bonus.levelBonus + bonus.memberBonus + bonus.streakBonus) * 100).toFixed(1)}% <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}% / ストリーク +{(bonus.streakBonus*100).toFixed(1)}%）</span></div>
+											<div className="text-sm text-green-400 mt-1">ギルドボーナス: +{((bonus.levelBonus + bonus.memberBonus + bonus.streakBonus) * 100).toFixed(1)}% <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}%{myGuild.guild_type === 'challenge' ? ` / ストリーク +${(bonus.streakBonus*100).toFixed(1)}%` : ''}）</span></div>
 
 											<div className="grid grid-cols-2 gap-3 mt-3 text-sm">
 												<div className="bg-slate-900 rounded p-3 border border-slate-700">
@@ -285,6 +307,16 @@ const GuildDashboard: React.FC = () => {
 													<div className="text-[10px] text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
 												</div>
 											</div>
+											{myGuild.guild_type === 'challenge' && (
+												<div className="mt-3 bg-slate-900 rounded p-3 border border-slate-700">
+													<div className="text-gray-400">ギルドクエスト（今月）</div>
+													<div className="text-sm mt-1">今月の獲得XPを1,000,000に到達させよう。未達の場合は月末に解散となります。</div>
+													<div className="h-2 bg-slate-700 rounded overflow-hidden mt-2">
+														<div className="h-full bg-purple-500" style={{ width: `${Math.min(100, (thisMonthXp / 1000000) * 100)}%` }} />
+													</div>
+													<div className="text-[11px] text-gray-300 mt-1">{thisMonthXp.toLocaleString()} / 1,000,000</div>
+												</div>
+											)}
 											<div className="flex gap-2 mt-3">
 												<button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', myGuild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
 												{isLeader && (
@@ -344,7 +376,7 @@ const GuildDashboard: React.FC = () => {
 															)}
 														</div>
 														<div className="text-xs text-gray-400">Lv {m.level} / {m.rank}</div>
-														{streaks[m.user_id] && (
+														{myGuild.guild_type === 'challenge' && streaks[m.user_id] && (
 															<div className="mt-1">
 																<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
 																	<div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />

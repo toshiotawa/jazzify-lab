@@ -75,7 +75,8 @@ const ResultModal: React.FC = () => {
             if (myGuild) {
               const memberMonthly = await fetchGuildMemberMonthlyXp(myGuild.id);
               const contributors = memberMonthly.filter(m => Number(m.monthly_xp || 0) >= 1).length;
-              const b = computeGuildBonus(myGuild.level || 1, contributors);
+              // ResultModalではストリーク詳細を取得しないため、ストリークは0として計算（ストリークはチャレンジタイプに限定して別画面で反映）
+              const b = computeGuildBonus(myGuild.level || 1, contributors, 0);
               guildMultiplier = b.totalMultiplier;
             }
           } catch (e) {
@@ -686,4 +687,4 @@ const ResultModal: React.FC = () => {
   );
 };
 
-export default ResultModal; 
+export default ResultModal;
