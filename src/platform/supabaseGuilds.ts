@@ -241,6 +241,26 @@ export async function requestJoin(guildId: string): Promise<string> {
   return data as string;
 }
 
+export async function getMyPendingJoinRequestIdForGuild(guildId: string): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from('guild_join_requests')
+    .select('id')
+    .eq('guild_id', guildId)
+    .eq('requester_id', user.id)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (error && error.code !== 'PGRST116') throw error;
+  return data?.id ?? null;
+}
+
+export async function cancelMyJoinRequest(guildId: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('rpc_guild_cancel_my_join_request', { p_gid: guildId });
+  if (error) throw error;
+}
+
 export async function approveJoinRequest(requestId: string): Promise<void> {
   const { error } = await getSupabaseClient()
     .rpc('rpc_guild_approve_request', { p_request_id: requestId });
