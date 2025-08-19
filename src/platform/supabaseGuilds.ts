@@ -458,6 +458,7 @@ export async function searchGuilds(keyword: string): Promise<Guild[]> {
       members_count: count || 0,
       description: (g as any).description ?? null,
       disbanded: !!(g as any).disbanded,
+      guild_type: ((g as any).guild_type as GuildType) || 'casual',
     });
   }
   return result;
@@ -651,11 +652,8 @@ export async function disbandMyGuild(): Promise<void> {
     .select('*', { count: 'exact', head: true })
     .eq('guild_id', guild.id);
   if ((count || 0) > 1) throw new Error('メンバーが1人のときのみ解散できます');
-  const { error } = await supabase
-    .from('guilds')
-    .update({ disbanded: true, name: '解散したギルド' })
-    .eq('id', guild.id);
-  if (error && error.code !== '42703') throw error;
+  const { error } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: guild.id });
+  if (error) throw error;
 }
 
 export async function leaveMyGuild(): Promise<void> {
@@ -677,16 +675,8 @@ export async function leaveMyGuild(): Promise<void> {
     .eq('guild_id', guildId);
 
   if ((membersCount || 0) <= 1) {
-    const { error: disbandErr } = await supabase
-      .from('guilds')
-      .update({ disbanded: true, name: '解散したギルド' })
-      .eq('id', guildId);
-    if (disbandErr && disbandErr.code !== '42703') throw disbandErr;
-    await supabase
-      .from('guild_members')
-      .delete()
-      .eq('guild_id', guildId)
-      .eq('user_id', user.id);
+    const { error: disbandErr } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: guildId });
+    if (disbandErr) throw disbandErr;
     return;
   }
 
@@ -779,4 +769,21 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
     disbanded: !!(guildRow as any).disbanded,
     guild_type: ((guildRow as any).guild_type as GuildType) || 'casual',
   };
+}
+
+export async function enforceMonthlyGuildQuest(targetMonth?: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest', { p_month: targetMonth || null });
+  if (error && error.code !== 'PGRST116') throw error;
+}
+
+export async function submitGuildLeaveFeedback(previousGuildId: string, previousGuildName: string, leaveType: 'left'|'kicked'|'disband', reason: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('rpc_submit_guild_leave_feedback', {
+    p_prev_guild_id: previousGuildId,
+    p_prev_guild_name: previousGuildName,
+    p_leave_type: leaveType,
+    p_reason: reason,
+  });
+  if (error) throw error;
 }

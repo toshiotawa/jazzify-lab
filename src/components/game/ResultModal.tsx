@@ -9,7 +9,7 @@ import { useMissionStore } from '@/stores/missionStore';
 import { calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
 import { log } from '@/utils/logger';
-import { getMyGuild, fetchGuildMemberMonthlyXp } from '@/platform/supabaseGuilds';
+import { getMyGuild, fetchGuildMemberMonthlyXp, fetchGuildDailyStreaks } from '@/platform/supabaseGuilds';
 import { computeGuildBonus } from '@/utils/guildBonus';
 
 const ResultModal: React.FC = () => {
@@ -68,15 +68,22 @@ const ResultModal: React.FC = () => {
       
       (async () => {
         try {
-          // 追加: ギルド倍率の取得
+          // 追加: ギルド倍率の取得（チャレンジギルドのみストリーク加算）
           let guildMultiplier = 1;
           try {
             const myGuild = await getMyGuild();
             if (myGuild) {
               const memberMonthly = await fetchGuildMemberMonthlyXp(myGuild.id);
               const contributors = memberMonthly.filter(m => Number(m.monthly_xp || 0) >= 1).length;
-              const b = computeGuildBonus(myGuild.level || 1, contributors);
-              guildMultiplier = b.totalMultiplier;
+              let streakSum = 0;
+              if (myGuild.guild_type === 'challenge') {
+                try {
+                  const st = await fetchGuildDailyStreaks(myGuild.id);
+                  streakSum = Object.values(st).reduce((acc, s: any) => acc + (s?.tierPercent || 0), 0);
+                } catch {}
+              }
+              const b = computeGuildBonus(myGuild.level || 1, contributors, streakSum);
+              guildMultiplier = 1 + b.levelBonus + b.memberBonus + (myGuild.guild_type === 'challenge' ? b.streakBonus : 0);
             }
           } catch (e) {
             // 失敗しても続行
