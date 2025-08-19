@@ -264,7 +264,19 @@ const GuildDashboard: React.FC = () => {
 		return (
 			<div className="text-center py-8">
 				<h2>ギルドを作成または参加</h2>
-				<p>ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
+				<div className="max-w-3xl mx-auto text-left bg-slate-800 border border-slate-700 rounded p-4 mt-4">
+					<h3 className="font-semibold mb-1">ギルドシステムの紹介</h3>
+					<p className="text-sm text-gray-300">仲間と一緒に協力してXPを稼ぎ、ボーナスを得たり、月次クエストやランキングに挑戦できる仕組みです。プレイスタイルに合わせて<span className="font-semibold">「カジュアル」</span>と<span className="font-semibold">「チャレンジ」</span>の2タイプから選べます。</p>
+					<ul className="list-disc pl-5 mt-2 text-sm text-gray-300 space-y-1">
+						<li>ボーナス: レベル(+0.1%/Lv) + メンバー（当月貢献人数×+10%、最大+50%） <span className="text-xs text-gray-400">※チャレンジはストリーク加算あり</span></li>
+						<li>クエスト: チャレンジは当月ギルド合計XPが1,000,000未満だと月末に解散</li>
+						<li>ランキング: 月次の合計XPで全ギルドを順位付け</li>
+						<li>MVP: その月に最も貢献したメンバーを表彰</li>
+					</ul>
+					<div className="mt-3">
+						<button className="btn btn-sm btn-outline" onClick={()=>{ window.location.hash = '#guilds-detail'; }}>ギルドの詳細を見る</button>
+					</div>
+				</div>
 				{lastGuildInfo && (
 					<div className="mt-6 max-w-xl mx-auto text-left bg-slate-800 border border-slate-700 rounded p-4">
 						<div className="font-semibold mb-2">脱退のご報告</div>
@@ -317,7 +329,7 @@ const GuildDashboard: React.FC = () => {
 							{results.map(g => (
 								<li key={g.id} onClick={() => requestJoin(g.id)} className="cursor-pointer hover:bg-slate-800 p-2 rounded flex items-center gap-2">
 									<span className="font-medium">{g.name}</span>
-									<span className={`text-[10px] px-2 py-0.5 rounded-full ${g.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>{g.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</span>
+									<span className={`${'text-[10px] px-2 py-0.5 rounded-full'} ${g.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>{g.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</span>
 								</li>
 							))}
 						</ul>
@@ -341,56 +353,64 @@ const GuildDashboard: React.FC = () => {
 					<GameHeader />
 					<div className="flex-1 overflow-y-auto p-4 sm:p-6">
 							<div className="max-w-4xl mx-auto space-y-4">
-									<div className="bg-slate-800 border border-slate-700 rounded p-4">
-											<h3 className="font-semibold mb-2">ギルド情報</h3>
-											<div className="text-lg font-semibold flex items-center gap-2">
-												<span>{myGuild.name}</span>
-												<span className={`text-[10px] px-2 py-0.5 rounded-full ${myGuild.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>
-													{myGuild.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}
-												</span>
-											</div>
-											<p className="text-sm mb-2">{(myGuild.description && myGuild.description !== myGuild.id) ? myGuild.description : 'なし'}</p>
-											<div className="text-sm text-gray-300">リーダー: {myGuild.leader_id === user?.id ? 'あなた' : members.find(m => m.user_id === myGuild.leader_id)?.nickname || '不明'}</div>
-											<div className="text-sm text-green-400 mt-1">
-												ギルドボーナス: +{((bonus.levelBonus + bonus.memberBonus + (myGuild.guild_type==='challenge'?bonus.streakBonus:0)) * 100).toFixed(1)}% <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}%{myGuild.guild_type==='challenge' ? ` / ストリーク +${(bonus.streakBonus*100).toFixed(1)}%` : ''}）</span>
-											</div>
+								<div className="bg-slate-800 border border-slate-700 rounded p-4">
+									<h3 className="font-semibold mb-1">ギルドシステムの紹介</h3>
+									<p className="text-sm text-gray-300">仲間と一緒に協力してXPを稼ぎ、ボーナスを得たり、月次クエストやランキングに挑戦できる仕組みです。プレイスタイルに合わせて<span className="font-semibold">「カジュアル」</span>と<span className="font-semibold">「チャレンジ」</span>の2タイプから選べます。</p>
+									<div className="mt-2 flex flex-wrap gap-2">
+										<button className="btn btn-sm btn-outline" onClick={()=>{ window.location.hash = '#guilds-detail'; }}>ギルドの詳細を見る</button>
+										<button className="btn btn-sm btn-outline" onClick={()=>{ window.location.hash = '#guilds-ranking'; }}>ギルドランキングを見る</button>
+									</div>
+								</div>
+								<div className="bg-slate-800 border border-slate-700 rounded p-4">
+										<h3 className="font-semibold mb-2">ギルド情報</h3>
+										<div className="text-lg font-semibold flex items-center gap-2">
+											<span>{myGuild.name}</span>
+											<span className={`text-[10px] px-2 py-0.5 rounded-full ${myGuild.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>
+												{myGuild.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}
+											</span>
+										</div>
+										<p className="text-sm mb-2">{(myGuild.description && myGuild.description !== myGuild.id) ? myGuild.description : 'なし'}</p>
+										<div className="text-sm text-gray-300">リーダー: {myGuild.leader_id === user?.id ? 'あなた' : members.find(m => m.user_id === myGuild.leader_id)?.nickname || '不明'}</div>
+										<div className="text-sm text-green-400 mt-1">
+											ギルドボーナス: +{((bonus.levelBonus + bonus.memberBonus + (myGuild.guild_type==='challenge'?bonus.streakBonus:0)) * 100).toFixed(1)}% <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}%{myGuild.guild_type==='challenge' ? ` / ストリーク +${(bonus.streakBonus*100).toFixed(1)}%` : ''}）</span>
+										</div>
 
-											<div className="grid grid-cols-2 gap-3 mt-3 text-sm">
-												<div className="bg-slate-900 rounded p-3 border border-slate-700">
-													<div className="text-gray-400">今月XP</div>
-													<div className="text-lg font-semibold">{thisMonthXp.toLocaleString()}</div>
+										<div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+											<div className="bg-slate-900 rounded p-3 border border-slate-700">
+												<div className="text-gray-400">今月XP</div>
+												<div className="text-lg font-semibold">{thisMonthXp.toLocaleString()}</div>
+											</div>
+											<div className="bg-slate-900 rounded p-3 border border-slate-700">
+												<div className="text-gray-400">今月の順位</div>
+												<div className="text-lg font-semibold">{myRank ? `${myRank}位` : '-'}</div>
+											</div>
+											<div className="bg-slate-900 rounded p-3 border border-slate-700">
+												<div className="text-gray-400">累計獲得XP</div>
+												<div className="text-lg font-semibold">{myTotalContribXp.toLocaleString()}</div>
+											</div>
+											<div className="bg-slate-900 rounded p-3 border border-slate-700">
+												<div className="text-gray-400">現在のレベル</div>
+												<div className="text-lg font-semibold">Lv.{levelInfo.level}</div>
+												<div className="h-1.5 bg-slate-700 rounded overflow-hidden mt-1">
+													<div className="h-full bg-green-500" style={{ width: `${Math.min(100, levelProgress)}%` }} />
 												</div>
-												<div className="bg-slate-900 rounded p-3 border border-slate-700">
-													<div className="text-gray-400">今月の順位</div>
-													<div className="text-lg font-semibold">{myRank ? `${myRank}位` : '-'}</div>
-												</div>
-												<div className="bg-slate-900 rounded p-3 border border-slate-700">
-													<div className="text-gray-400">累計獲得XP</div>
-													<div className="text-lg font-semibold">{myTotalContribXp.toLocaleString()}</div>
-												</div>
-												<div className="bg-slate-900 rounded p-3 border border-slate-700">
-													<div className="text-gray-400">現在のレベル</div>
-													<div className="text-lg font-semibold">Lv.{levelInfo.level}</div>
-													<div className="h-1.5 bg-slate-700 rounded overflow-hidden mt-1">
-														<div className="h-full bg-green-500" style={{ width: `${Math.min(100, levelProgress)}%` }} />
+												<div className="text-[10px] text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
+											</div>
+										</div>
+										<div className="flex gap-2 mt-3">
+											<button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', myGuild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
+											{isLeader && (
+												editingDesc ? (
+													<div className="flex gap-2 flex-1">
+														<textarea value={descEdit} onChange={(e)=>setDescEdit(e.target.value)} className="input input-bordered input-sm flex-1" />
+														<button onClick={handleUpdateDescription} className="btn btn-primary btn-sm" disabled={busy}>更新</button>
+														<button onClick={()=>{ setEditingDesc(false); setDescEdit(myGuild.description || ''); }} className="btn btn-sm btn-outline">キャンセル</button>
 													</div>
-													<div className="text-[10px] text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
-												</div>
-											</div>
-											<div className="flex gap-2 mt-3">
-												<button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', myGuild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
-												{isLeader && (
-													editingDesc ? (
-														<div className="flex gap-2 flex-1">
-															<textarea value={descEdit} onChange={(e)=>setDescEdit(e.target.value)} className="input input-bordered input-sm flex-1" />
-															<button onClick={handleUpdateDescription} className="btn btn-primary btn-sm" disabled={busy}>更新</button>
-															<button onClick={()=>{ setEditingDesc(false); setDescEdit(myGuild.description || ''); }} className="btn btn-sm btn-outline">キャンセル</button>
-														</div>
-													) : (
-														<button onClick={()=>{ setDescEdit(myGuild.description || ''); setEditingDesc(true); }} className="btn btn-sm btn-outline">説明を編集</button>
-													)
-												)}
-											</div>
+												) : (
+													<button onClick={()=>{ setDescEdit(myGuild.description || ''); setEditingDesc(true); }} className="btn btn-sm btn-outline">説明を編集</button>
+												)
+											)}
+										</div>
 								</div>
 
 								{myGuild.guild_type === 'challenge' && (
@@ -434,11 +454,11 @@ const GuildDashboard: React.FC = () => {
 														<img src={m.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full" />
 													</button>
 													<div className="flex-1 min-w-0">
-														<div className="flex items-center gap-2">
+														<div className="flex items間er gap-2">
 															<button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} className="font-medium text-base truncate text-left hover:text-blue-400">{m.nickname}</button>
 															{m.selected_title && (
 																<div className="relative group">
-																	<div className="flex items-center gap-1 text-yellow-400 cursor-help">
+																	<div className="flex items-center gap-1 text黄色-400 cursor-help">
 																		{getTitleIcon((m.selected_title as Title) || DEFAULT_TITLE)}
 																		<span className="text-[10px] truncate max-w-[140px]">{(m.selected_title as Title) || DEFAULT_TITLE}</span>
 																	</div>
@@ -505,3 +525,4 @@ const GuildDashboard: React.FC = () => {
 };
 
 export default GuildDashboard;
+

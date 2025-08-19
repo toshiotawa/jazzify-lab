@@ -27,6 +27,7 @@ import FantasyMain from '@/components/fantasy/FantasyMain';
 import GuildDashboard from '@/components/guild/GuildDashboard';
 import GuildHistory from '@/components/guild/GuildHistory';
 import GuildPage from '@/components/guild/GuildPage';
+import GuildDetail from '@/components/guild/GuildDetail';
 
 /**
  * メインアプリケーションコンポーネント
@@ -251,6 +252,9 @@ const App: React.FC = () => {
       break;
     case '#guild-history':
       MainContent = isFree ? <Dashboard /> : <GuildHistory />;
+      break;
+    case '#guilds-detail':
+      MainContent = isFree ? <Dashboard /> : <GuildDetail />;
       break;
     case '#missions':
     case '#mission':
