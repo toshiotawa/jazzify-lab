@@ -29,6 +29,19 @@ import { computeGuildBonus } from '@/utils/guildBonus';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 
+const GuildIntro: React.FC = () => (
+        <div className="bg-slate-800 border border-slate-700 rounded p-4">
+                <h3 className="font-semibold mb-2">ギルドシステム</h3>
+                <p className="text-sm text-gray-300 mb-2">仲間と協力して経験値を稼ぎ、ボーナスやクエスト、ランキングで競い合える機能です。</p>
+                <button
+                        className="text-blue-400 underline text-sm"
+                        onClick={() => { window.location.hash = '#guilds-info'; }}
+                >
+                        詳細はこちら
+                </button>
+        </div>
+);
+
 const GuildDashboard: React.FC = () => {
 	const { user } = useAuthStore();
 	const [loading, setLoading] = useState(true);
@@ -260,72 +273,78 @@ const GuildDashboard: React.FC = () => {
 
 	if (loading) return <div className="text-center py-8">Loading...</div>;
 	if (!user) return <div className="text-center py-8">Please log in to view this page.</div>;
-	if (!myGuild) {
-		return (
-			<div className="text-center py-8">
-				<h2>ギルドを作成または参加</h2>
-				<p>ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
-				{lastGuildInfo && (
-					<div className="mt-6 max-w-xl mx-auto text-left bg-slate-800 border border-slate-700 rounded p-4">
-						<div className="font-semibold mb-2">脱退のご報告</div>
-						<p className="text-sm text-gray-300 mb-2">ギルド名「{lastGuildInfo.name}」から{lastGuildEvent === 'disband' ? '解散' : lastGuildEvent === 'kicked' ? '除名' : '脱退'}のため、脱退しました。よろしければ理由をご記入ください。</p>
-						<textarea className="textarea textarea-bordered w-full text-sm" rows={3} placeholder="脱退理由（任意）" value={leaveReason} onChange={(e)=>setLeaveReason(e.target.value)} />
-						<div className="mt-2 flex gap-2">
-							<button className="btn btn-sm btn-primary" disabled={reasonSubmitting || leaveReason.trim().length===0} onClick={async()=>{
-								try {
-									setReasonSubmitting(true);
-									const { submitGuildLeaveFeedback } = await import('@/platform/supabaseGuilds');
-									await submitGuildLeaveFeedback(lastGuildInfo.id, lastGuildInfo.name, (lastGuildEvent||'left'), leaveReason.trim());
-									alert('ご協力ありがとうございます。');
-									localStorage.removeItem('lastGuildInfo');
-									localStorage.removeItem('lastGuildEvent');
-									setLastGuildInfo(null);
-									setLastGuildEvent(null);
-									setLeaveReason('');
-								} catch (e:any) {
-									alert(e?.message || '送信に失敗しました');
-								} finally {
-									setReasonSubmitting(false);
-								}
-							}}>送信</button>
-							<button className="btn btn-sm btn-ghost" onClick={()=>{
-								localStorage.removeItem('lastGuildInfo');
-								localStorage.removeItem('lastGuildEvent');
-								setLastGuildInfo(null);
-								setLastGuildEvent(null);
-								setLeaveReason('');
-							}}>閉じる</button>
-						</div>
-					</div>
-				)}
-				<div className="mt-4">
-					<input type="text" placeholder="ギルド名/検索キーワード" value={keyword} onChange={(e)=>setKeyword(e.target.value)} className="input input-bordered w-full max-w-xs" />
-					<div className="mt-2 flex gap-2 justify-center items-center">
-						<label className="text-sm">タイプ:</label>
-						<select className="select select-bordered select-sm" value={newGuildType} onChange={e=>setNewGuildType(e.target.value as any)}>
-							<option value="casual">ゆるギルド</option>
-							<option value="challenge">チャレンジギルド</option>
-						</select>
-						<button onClick={handleCreateGuild} className="btn btn-primary" disabled={busy}>ギルドを作成</button>
-						<button onClick={handleSearch} className="btn btn-secondary" disabled={busy}>検索</button>
-					</div>
-				</div>
-				{results.length > 0 && (
-					<div className="mt-4">
-						<h3>検索結果</h3>
-						<ul>
-							{results.map(g => (
-								<li key={g.id} onClick={() => requestJoin(g.id)} className="cursor-pointer hover:bg-slate-800 p-2 rounded flex items-center gap-2">
-									<span className="font-medium">{g.name}</span>
-									<span className={`text-[10px] px-2 py-0.5 rounded-full ${g.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>{g.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</span>
-								</li>
-							))}
-						</ul>
-					</div>
-				)}
-			</div>
-		);
-	}
+        if (!myGuild) {
+                return (
+                        <div className="w-full h-full flex flex-col bg-gradient-game text-white">
+                                <GameHeader />
+                                <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                                        <div className="max-w-4xl mx-auto space-y-4 text-center">
+                                                <GuildIntro />
+                                                <h2 className="text-xl font-bold">ギルドを作成または参加</h2>
+                                                <p className="text-gray-300">ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
+                                                {lastGuildInfo && (
+                                                        <div className="mt-6 max-w-xl mx-auto text-left bg-slate-800 border border-slate-700 rounded p-4">
+                                                                <div className="font-semibold mb-2">脱退のご報告</div>
+                                                                <p className="text-sm text-gray-300 mb-2">ギルド名「{lastGuildInfo.name}」から{lastGuildEvent === 'disband' ? '解散' : lastGuildEvent === 'kicked' ? '除名' : '脱退'}のため、脱退しました。よろしければ理由をご記入ください。</p>
+                                                                <textarea className="textarea textarea-bordered w-full text-sm" rows={3} placeholder="脱退理由（任意）" value={leaveReason} onChange={(e)=>setLeaveReason(e.target.value)} />
+                                                                <div className="mt-2 flex gap-2">
+                                                                        <button className="btn btn-sm btn-primary" disabled={reasonSubmitting || leaveReason.trim().length===0} onClick={async()=>{
+                                                                                try {
+                                                                                        setReasonSubmitting(true);
+                                                                                        const { submitGuildLeaveFeedback } = await import('@/platform/supabaseGuilds');
+                                                                                        await submitGuildLeaveFeedback(lastGuildInfo.id, lastGuildInfo.name, (lastGuildEvent||'left'), leaveReason.trim());
+                                                                                        alert('ご協力ありがとうございます。');
+                                                                                        localStorage.removeItem('lastGuildInfo');
+                                                                                        localStorage.removeItem('lastGuildEvent');
+                                                                                        setLastGuildInfo(null);
+                                                                                        setLastGuildEvent(null);
+                                                                                        setLeaveReason('');
+                                                                                } catch (e:any) {
+                                                                                        alert(e?.message || '送信に失敗しました');
+                                                                                } finally {
+                                                                                        setReasonSubmitting(false);
+                                                                                }
+                                                                        }}>送信</button>
+                                                                        <button className="btn btn-sm btn-ghost" onClick={()=>{
+                                                                                localStorage.removeItem('lastGuildInfo');
+                                                                                localStorage.removeItem('lastGuildEvent');
+                                                                                setLastGuildInfo(null);
+                                                                                setLastGuildEvent(null);
+                                                                                setLeaveReason('');
+                                                                        }}>閉じる</button>
+                                                                </div>
+                                                        </div>
+                                                )}
+                                                <div className="mt-4">
+                                                        <input type="text" placeholder="ギルド名/検索キーワード" value={keyword} onChange={(e)=>setKeyword(e.target.value)} className="input input-bordered w-full max-w-xs" />
+                                                        <div className="mt-2 flex gap-2 justify-center items-center">
+                                                                <label className="text-sm">タイプ:</label>
+                                                                <select className="select select-bordered select-sm" value={newGuildType} onChange={e=>setNewGuildType(e.target.value as any)}>
+                                                                        <option value="casual">ゆるギルド</option>
+                                                                        <option value="challenge">チャレンジギルド</option>
+                                                                </select>
+                                                                <button onClick={handleCreateGuild} className="btn btn-primary" disabled={busy}>ギルドを作成</button>
+                                                                <button onClick={handleSearch} className="btn btn-secondary" disabled={busy}>検索</button>
+                                                        </div>
+                                                </div>
+                                                {results.length > 0 && (
+                                                        <div className="mt-4">
+                                                                <h3>検索結果</h3>
+                                                                <ul>
+                                                                        {results.map(g => (
+                                                                                <li key={g.id} onClick={() => requestJoin(g.id)} className="cursor-pointer hover:bg-slate-800 p-2 rounded flex items-center gap-2">
+                                                                                        <span className="font-medium">{g.name}</span>
+                                                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${g.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>{g.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</span>
+                                                                                </li>
+                                                                        ))}
+                                                                </ul>
+                                                        </div>
+                                                )}
+                                        </div>
+                                </div>
+                        </div>
+                );
+        }
 
 	const contributors = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
 	const streakBonus = (myGuild.guild_type === 'challenge') ? Object.values(streaks).reduce((sum, s) => sum + (s.tierPercent || 0), 0) : 0;
@@ -336,13 +355,14 @@ const GuildDashboard: React.FC = () => {
 	const mvp = mvpUserId ? members.find(x => x.user_id === mvpUserId) : undefined;
 	const mvpXp = memberMonthly.find(x => x.user_id === mvpUserId)?.monthly_xp || 0;
 
-	return (
-			<div className="w-full h-full flex flex-col bg-gradient-game text-white">
-					<GameHeader />
-					<div className="flex-1 overflow-y-auto p-4 sm:p-6">
-							<div className="max-w-4xl mx-auto space-y-4">
-									<div className="bg-slate-800 border border-slate-700 rounded p-4">
-											<h3 className="font-semibold mb-2">ギルド情報</h3>
+        return (
+                        <div className="w-full h-full flex flex-col bg-gradient-game text-white">
+                                        <GameHeader />
+                                        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                                                        <div className="max-w-4xl mx-auto space-y-4">
+                                                                        <GuildIntro />
+                                                                        <div className="bg-slate-800 border border-slate-700 rounded p-4">
+                                                                                        <h3 className="font-semibold mb-2">ギルド情報</h3>
 											<div className="text-lg font-semibold flex items-center gap-2">
 												<span>{myGuild.name}</span>
 												<span className={`text-[10px] px-2 py-0.5 rounded-full ${myGuild.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>
