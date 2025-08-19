@@ -69,7 +69,8 @@ const GuildPage: React.FC = () => {
   if (!open) return null;
 
   const contributors = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-  const bonus = computeGuildBonus(guild?.level || 1, contributors);
+  const streakSum = Object.values(streaks).reduce((acc, s) => acc + (s?.tierPercent || 0), 0);
+  const bonus = computeGuildBonus(guild?.level || 1, contributors, streakSum);
   const mvpUserId = memberMonthly.sort((a,b)=>b.monthly_xp-a.monthly_xp)[0]?.user_id;
   const mvp = mvpUserId ? members.find(x => x.user_id === mvpUserId) : undefined;
   const mvpXp = memberMonthly.find(x => x.user_id === mvpUserId)?.monthly_xp || 0;
@@ -102,7 +103,7 @@ const GuildPage: React.FC = () => {
           {/* 説明カード（ミッションページ風） */}
           <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
             <h3 className="text-lg font-semibold mb-2">ギルドボーナス</h3>
-            <p className="text-gray-300 text-sm">ギルドに所属していると、XP獲得にボーナスが加算されます。レベル倍率（レベル1ごとに+0.1%）と、当月にXPを1以上獲得したメンバー人数×10%（最大+50%）のメンバー倍率の合算を、1に足した倍率が適用されます。</p>
+            <p className="text-gray-300 text-sm">ギルドに所属していると、XP獲得にボーナスが加算されます。レベル倍率（レベル1ごとに+0.1%）と、当月にXPを1以上獲得したメンバー人数×10%（最大+50%）のメンバー倍率、さらに連続達成ストリークの合算（例: 5%のメンバーが5人で+25%）をすべて加算し、1に足した倍率が適用されます。</p>
           </div>
           {loading ? (
             <p className="text-gray-400">読み込み中...</p>
@@ -115,7 +116,7 @@ const GuildPage: React.FC = () => {
                   <div>
                     <div className="text-2xl font-bold">{guild.name}{guild.disbanded ? '（解散したギルド）' : ''}</div>
                     <div className="text-sm text-gray-300 mt-1">Lv.{guild.level} / メンバー {guild.members_count}</div>
-                    <div className="text-sm text-green-400 mt-1">ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)} <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(0)}%）</span></div>
+                    <div className="text-sm text-green-400 mt-1">ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)} <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(0)}% / ストリーク +{((bonus.streakBonus||0)*100).toFixed(0)}%）</span></div>
                     <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
                       <div className="bg-slate-900 rounded p-3 border border-slate-700">
                         <div className="text-gray-400">今シーズン合計XP</div>

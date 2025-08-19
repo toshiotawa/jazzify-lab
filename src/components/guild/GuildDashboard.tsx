@@ -243,7 +243,8 @@ const GuildDashboard: React.FC = () => {
 	}
 
 	const contributors = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-	const bonus = computeGuildBonus(myGuild.level || 1, contributors);
+	const streakSum = Object.values(streaks).reduce((acc, s) => acc + (s?.tierPercent || 0), 0);
+	const bonus = computeGuildBonus(myGuild.level || 1, contributors, streakSum);
 
 	return (
 		<div className="container mx-auto p-4">
@@ -258,7 +259,7 @@ const GuildDashboard: React.FC = () => {
 					<p>今月合計XP: {thisMonthXp}</p>
 					<p>総貢献XP: {myTotalContribXp}</p>
 					<p>ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)}</p>
-					<p className="text-xs text-gray-400">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(0)}%）</p>
+					<p className="text-xs text-gray-400">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(0)}% / ストリーク +{((bonus.streakBonus||0)*100).toFixed(0)}%）</p>
 					<p>現在のレベル: {currentLevelXP(myTotalContribXp)}</p>
 					<p>次のレベルまで: {xpToNextLevel(myTotalContribXp)}</p>
 
@@ -372,3 +373,4 @@ const GuildDashboard: React.FC = () => {
 };
 
 export default GuildDashboard;
+

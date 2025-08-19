@@ -356,14 +356,9 @@ const FantasyMain: React.FC = () => {
             if (myGuild) {
               const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
               const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-              guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
-              try {
-                const st = await fetchGuildDailyStreaks(myGuild.id);
-                const myStreak = st[profile.id];
-                if (myStreak && typeof myStreak.tierPercent === 'number') {
-                  guildMultiplier *= (1 + myStreak.tierPercent);
-                }
-              } catch {}
+              const st = await fetchGuildDailyStreaks(myGuild.id).catch(()=>({} as Record<string, any>));
+              const streakSumForGuild = Object.values(st as any).reduce((acc: number, s: any) => acc + (s?.tierPercent || 0), 0);
+              guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors, streakSumForGuild).totalMultiplier;
             }
           } catch {}
 

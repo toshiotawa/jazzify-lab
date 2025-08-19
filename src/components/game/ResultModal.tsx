@@ -75,16 +75,11 @@ const ResultModal: React.FC = () => {
             if (myGuild) {
               const memberMonthly = await fetchGuildMemberMonthlyXp(myGuild.id);
               const contributors = memberMonthly.filter(m => Number(m.monthly_xp || 0) >= 1).length;
-              const b = computeGuildBonus(myGuild.level || 1, contributors);
+              const st = await fetchGuildDailyStreaks(myGuild.id).catch(()=>({} as Record<string, any>));
+              const streakSumForGuild = Object.values(st as any).reduce((acc: number, s: any) => acc + (s?.tierPercent || 0), 0);
+              const b = computeGuildBonus(myGuild.level || 1, contributors, streakSumForGuild);
               guildMultiplier = b.totalMultiplier;
-              // 連続達成ストリーク倍率を追加
-              try {
-                const st = await fetchGuildDailyStreaks(myGuild.id);
-                const myStreak = st[profile.id];
-                if (myStreak && typeof myStreak.tierPercent === 'number') {
-                  guildMultiplier *= (1 + myStreak.tierPercent);
-                }
-              } catch {}
+              // 個人分はギルド合算に含まれているため、別乗算は不要
             }
           } catch (e) {
             // 失敗しても続行

@@ -3,6 +3,7 @@
 export interface GuildBonusBreakdown {
   levelBonus: number; // 例: 0.034 => +3.4%
   memberBonus: number; // 例: 0.2 => +20%
+  streakBonus?: number; // 例: 0.25 => +25%（連続達成合算）
   totalMultiplier: number; // 例: 1.234
 }
 
@@ -12,12 +13,13 @@ export interface GuildBonusBreakdown {
  * - メンバー倍率: 当月XP>=1のメンバー人数 x +10% (0.1) 上限+50% (0.5)
  * - 合算方式: levelBonus + memberBonus を加算し、1に足す
  */
-export function computeGuildBonus(level: number, contributedMemberCount: number): GuildBonusBreakdown {
+export function computeGuildBonus(level: number, contributedMemberCount: number, streakBonusSum = 0): GuildBonusBreakdown {
   const safeLevel = Math.max(0, Math.floor(level || 0));
   const levelBonus = safeLevel * 0.001; // +0.1%/Lv
   const memberBonus = Math.min(0.5, Math.max(0, Math.floor(contributedMemberCount || 0)) * 0.1);
-  const totalMultiplier = 1 + levelBonus + memberBonus;
-  return { levelBonus, memberBonus, totalMultiplier };
+  const streakBonus = Math.max(0, streakBonusSum || 0);
+  const totalMultiplier = 1 + levelBonus + memberBonus + streakBonus;
+  return { levelBonus, memberBonus, streakBonus, totalMultiplier };
 }
 
 /** 数値倍率から "+1.20x (+20.00%)" のような表記を返す */
