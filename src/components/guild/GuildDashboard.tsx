@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import {
-	getMyGuild,
-	getGuildMembers,
-	searchGuilds,
-	requestJoin,
-	createGuild,
+        getMyGuild,
+        getGuildMembers,
+        createGuild,
 	fetchMyGuildRank,
 	fetchGuildMemberMonthlyXp,
 	fetchJoinRequestsForMyGuild,
@@ -51,9 +49,8 @@ const GuildDashboard: React.FC = () => {
 	const [loading, setLoading] = useState(true);
 	const [myGuild, setMyGuild] = useState<Guild | null>(null);
 	const [members, setMembers] = useState<GuildMember[]>([]);
-	const [keyword, setKeyword] = useState('');
-	const [results, setResults] = useState<Guild[]>([]);
-	const [busy, setBusy] = useState(false);
+        const [guildName, setGuildName] = useState('');
+        const [busy, setBusy] = useState(false);
 	const [myRank, setMyRank] = useState<number | null>(null);
 	const [thisMonthXp, setThisMonthXp] = useState<number>(0);
 	const [memberMonthly, setMemberMonthly] = useState<Array<{ user_id: string; monthly_xp: number }>>([]);
@@ -150,36 +147,52 @@ const GuildDashboard: React.FC = () => {
 		})();
 	}, []);
 
-	const handleSearch = async () => {
-		if (!keyword) return;
-		try {
-			setLoading(true);
-			const r = await searchGuilds(keyword);
-			setResults(r);
-		} catch (e: any) {
-			alert(e?.message || 'ギルド検索に失敗しました');
-		} finally {
-			setLoading(false);
-		}
-	};
+        const handleCreateGuild = async () => {
+                if (!user || !guildName.trim()) return;
+                try {
+                        setBusy(true);
+                        const gId = await createGuild(guildName.trim(), newGuildType);
+                        if (gId) {
+                                alert('ギルドが作成されました！');
+                                // 再読み込み
+                                window.location.hash = '#guild-dashboard';
+                                window.location.reload();
+                        }
+                } catch (e) {
+                        const msg = (e as { message?: string }).message;
+                        alert(msg || 'ギルド作成に失敗しました');
+                } finally {
+                        setBusy(false);
+                }
+        };
 
-	const handleCreateGuild = async () => {
-		if (!user || !keyword.trim()) return;
-		try {
-			setBusy(true);
-			const gId = await createGuild(keyword.trim(), newGuildType);
-			if (gId) {
-				alert('ギルドが作成されました！');
-				// 再読み込み
-				window.location.hash = '#guild-dashboard';
-				window.location.reload();
-			}
-		} catch (e: any) {
-			alert(e?.message || 'ギルド作成に失敗しました');
-		} finally {
-			setBusy(false);
-		}
-	};
+        const handleAcceptInvitation = async (invitationId: string) => {
+                try {
+                        setBusy(true);
+                        await acceptInvitation(invitationId);
+                        alert('ギルドに参加しました');
+                        window.location.reload();
+                } catch (e) {
+                        const msg = (e as { message?: string }).message;
+                        alert(msg || '勧誘の承認に失敗しました');
+                } finally {
+                        setBusy(false);
+                }
+        };
+
+        const handleRejectInvitation = async (invitationId: string) => {
+                try {
+                        setBusy(true);
+                        await rejectInvitation(invitationId);
+                        setPendingInvitations(prev => prev.filter(i => i.id !== invitationId));
+                        alert('勧誘を拒否しました');
+                } catch (e) {
+                        const msg = (e as { message?: string }).message;
+                        alert(msg || '勧誘の拒否に失敗しました');
+                } finally {
+                        setBusy(false);
+                }
+        };
 
 	const handleLeaveGuild = async () => {
 		if (!myGuild || !user) return;
@@ -385,7 +398,7 @@ const GuildDashboard: React.FC = () => {
                                                         </div>
                                                 )}
                                                 <div className="mt-4">
-                                                        <input type="text" placeholder="ギルド名/検索キーワード" value={keyword} onChange={(e)=>setKeyword(e.target.value)} className="input input-bordered w-full max-w-xs" />
+                                                        <input type="text" placeholder="新しいギルド名" value={guildName} onChange={(e)=>setGuildName(e.target.value)} className="input input-bordered w-full max-w-xs" />
                                                         <div className="mt-2 flex gap-2 justify-center items-center">
                                                                 <label className="text-sm">タイプ:</label>
                                                                 <select className="select select-bordered select-sm" value={newGuildType} onChange={e=>setNewGuildType(e.target.value as any)}>
@@ -393,22 +406,29 @@ const GuildDashboard: React.FC = () => {
                                                                         <option value="challenge">チャレンジギルド</option>
                                                                 </select>
                                                                 <button onClick={handleCreateGuild} className="btn btn-primary" disabled={busy}>ギルドを作成</button>
-                                                                <button onClick={handleSearch} className="btn btn-secondary" disabled={busy}>検索</button>
                                                         </div>
                                                 </div>
-                                                {results.length > 0 && (
-                                                        <div className="mt-4">
-                                                                <h3>検索結果</h3>
-                                                                <ul>
-                                                                        {results.map(g => (
-                                                                                <li key={g.id} onClick={() => requestJoin(g.id)} className="cursor-pointer hover:bg-slate-800 p-2 rounded flex items-center gap-2">
-                                                                                        <span className="font-medium">{g.name}</span>
-                                                                                        <span className={`text-sm px-2 py-0.5 rounded-full ${g.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>{g.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</span>
+                                                <div className="mt-4">
+                                                        <h3 className="font-semibold">勧誘一覧</h3>
+                                                        {pendingInvitations.length === 0 ? (
+                                                                <p className="text-sm text-gray-300">現在、勧誘はありません</p>
+                                                        ) : (
+                                                                <ul className="space-y-2">
+                                                                        {pendingInvitations.map(inv => (
+                                                                                <li key={inv.id} className="bg-slate-800 border border-slate-700 rounded p-2 flex items-center justify-between">
+                                                                                        <div>
+                                                                                                <div className="font-medium">{inv.guild_name}</div>
+                                                                                                <div className="text-sm text-gray-300">招待者: {inv.inviter_nickname}</div>
+                                                                                        </div>
+                                                                                        <div className="flex gap-2">
+                                                                                                <button className="btn btn-sm btn-primary" onClick={() => handleAcceptInvitation(inv.id)} disabled={busy}>参加</button>
+                                                                                                <button className="btn btn-sm btn-outline" onClick={() => handleRejectInvitation(inv.id)} disabled={busy}>拒否</button>
+                                                                                        </div>
                                                                                 </li>
                                                                         ))}
                                                                 </ul>
-                                                        </div>
-                                                )}
+                                                        )}
+                                                </div>
                                         </div>
                                 </div>
                         </div>
