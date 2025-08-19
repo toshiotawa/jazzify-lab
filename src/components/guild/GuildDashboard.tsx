@@ -61,10 +61,6 @@ const GuildDashboard: React.FC = () => {
 	const [isLeader, setIsLeader] = useState<boolean>(false);
 	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
-	const [lastGuildInfo, setLastGuildInfo] = useState<{ id: string; name: string } | null>(null);
-        const [lastGuildEvent, setLastGuildEvent] = useState<'left'|'kicked'|'disband'|null>(null);
-        const [leaveReason, setLeaveReason] = useState<string>('');
-        const [reasonSubmitting, setReasonSubmitting] = useState<boolean>(false);
         const [pendingInvitations, setPendingInvitations] = useState<GuildInvitation[]>([]);
 
 	useEffect(() => {
@@ -75,32 +71,7 @@ const GuildDashboard: React.FC = () => {
 				// まず自分のギルド情報のみ取得
 				const guild = await getMyGuild();
 				setMyGuild(guild);
-				// 現在所属のスナップショットを保存／未所属時は直前情報を復元
-				try {
-					if (guild) {
-						localStorage.setItem('lastGuildCurrent', JSON.stringify({ id: guild.id, name: guild.name }));
-						// 直前の表示はクリア
-						setLastGuildInfo(null);
-						setLastGuildEvent(null);
-					} else {
-						const raw = localStorage.getItem('lastGuildInfo') || localStorage.getItem('lastGuildCurrent');
-						const evt = (localStorage.getItem('lastGuildEvent') as 'left'|'kicked'|'disband'|null) || null;
-						if (raw) {
-							const parsed = JSON.parse(raw) as { id: string; name: string };
-							setLastGuildInfo(parsed);
-							if (evt) {
-								setLastGuildEvent(evt);
-							} else {
-								try {
-									const { getGuildById } = await import('@/platform/supabaseGuilds');
-									const g2 = await getGuildById(parsed.id);
-									setLastGuildEvent(g2?.disbanded ? 'disband' : 'kicked');
-								} catch {}
-							}
-						}
-					}
-				} catch {}
-				// ランクと参加リクエストはユーザーコンテキストから
+                                // ランクと参加リクエストはユーザーコンテキストから
                                 const [rank, joinReqs, invitations] = await Promise.all([
                                         fetchMyGuildRank(),
                                         fetchJoinRequestsForMyGuild(),
@@ -165,41 +136,33 @@ const GuildDashboard: React.FC = () => {
                 }
         };
 
-	const handleLeaveGuild = async () => {
-		if (!myGuild || !user) return;
-		try {
-			setBusy(true);
-			try {
-				localStorage.setItem('lastGuildInfo', JSON.stringify({ id: myGuild.id, name: myGuild.name }));
-				localStorage.setItem('lastGuildEvent', 'left');
-			} catch {}
-			await leaveMyGuild();
-			alert('ギルドから退出しました。');
-			window.location.reload();
-		} catch (e: any) {
-			alert(e?.message || 'ギルドから退出に失敗しました');
-		} finally {
-			setBusy(false);
-		}
-	};
+        const handleLeaveGuild = async () => {
+                if (!myGuild || !user) return;
+                try {
+                        setBusy(true);
+                        await leaveMyGuild();
+                        alert('ギルドから退出しました。');
+                        window.location.reload();
+                } catch (e: any) {
+                        alert(e?.message || 'ギルドから退出に失敗しました');
+                } finally {
+                        setBusy(false);
+                }
+        };
 
-	const handleDisbandGuild = async () => {
-		if (!myGuild || !user) return;
-		try {
-			setBusy(true);
-			try {
-				localStorage.setItem('lastGuildInfo', JSON.stringify({ id: myGuild.id, name: myGuild.name }));
-				localStorage.setItem('lastGuildEvent', 'disband');
-			} catch {}
-			await disbandMyGuild();
-			alert('ギルドが解散されました。');
-			window.location.reload();
-		} catch (e: any) {
-			alert(e?.message || 'ギルド解散に失敗しました');
-		} finally {
-			setBusy(false);
-		}
-	};
+        const handleDisbandGuild = async () => {
+                if (!myGuild || !user) return;
+                try {
+                        setBusy(true);
+                        await disbandMyGuild();
+                        alert('ギルドが解散されました。');
+                        window.location.reload();
+                } catch (e: any) {
+                        alert(e?.message || 'ギルド解散に失敗しました');
+                } finally {
+                        setBusy(false);
+                }
+        };
 
 	const handleApproveJoinRequest = async (requestId: string) => {
 		if (!myGuild) return;
@@ -335,39 +298,6 @@ const GuildDashboard: React.FC = () => {
                                                 <GuildIntro />
                                                 <h2 className="text-xl font-bold">ギルドを作成または参加</h2>
                                                 <p className="text-gray-300">ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
-                                                {lastGuildInfo && (
-                                                        <div className="mt-6 max-w-xl mx-auto text-left bg-slate-800 border border-slate-700 rounded p-4">
-                                                                <div className="font-semibold mb-2">脱退のご報告</div>
-                                                                <p className="text-sm text-gray-300 mb-2">ギルド名「{lastGuildInfo.name}」から{lastGuildEvent === 'disband' ? '解散' : lastGuildEvent === 'kicked' ? '除名' : '脱退'}のため、脱退しました。よろしければ理由をご記入ください。</p>
-                                                                <textarea className="textarea textarea-bordered w-full text-sm" rows={3} placeholder="脱退理由（任意）" value={leaveReason} onChange={(e)=>setLeaveReason(e.target.value)} />
-                                                                <div className="mt-2 flex gap-2">
-                                                                        <button className="btn btn-sm btn-primary" disabled={reasonSubmitting || leaveReason.trim().length===0} onClick={async()=>{
-                                                                                try {
-                                                                                        setReasonSubmitting(true);
-                                                                                        const { submitGuildLeaveFeedback } = await import('@/platform/supabaseGuilds');
-                                                                                        await submitGuildLeaveFeedback(lastGuildInfo.id, lastGuildInfo.name, (lastGuildEvent||'left'), leaveReason.trim());
-                                                                                        alert('ご協力ありがとうございます。');
-                                                                                        localStorage.removeItem('lastGuildInfo');
-                                                                                        localStorage.removeItem('lastGuildEvent');
-                                                                                        setLastGuildInfo(null);
-                                                                                        setLastGuildEvent(null);
-                                                                                        setLeaveReason('');
-                                                                                } catch (e:any) {
-                                                                                        alert(e?.message || '送信に失敗しました');
-                                                                                } finally {
-                                                                                        setReasonSubmitting(false);
-                                                                                }
-                                                                        }}>送信</button>
-                                                                        <button className="btn btn-sm btn-ghost" onClick={()=>{
-                                                                                localStorage.removeItem('lastGuildInfo');
-                                                                                localStorage.removeItem('lastGuildEvent');
-                                                                                setLastGuildInfo(null);
-                                                                                setLastGuildEvent(null);
-                                                                                setLeaveReason('');
-                                                                        }}>閉じる</button>
-                                                                </div>
-                                                        </div>
-                                                )}
                                                 <div className="mt-4 max-w-xl mx-auto text-left bg-slate-800 border border-slate-700 rounded p-4">
                                                         <h3 className="font-semibold mb-2">勧誘リスト</h3>
                                                         {pendingInvitations.length === 0 ? (
