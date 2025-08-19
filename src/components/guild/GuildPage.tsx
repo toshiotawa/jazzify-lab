@@ -120,7 +120,24 @@ const GuildPage: React.FC = () => {
                   <div className="flex flex-col items-end gap-2">
                     <button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', guild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
                     {!isMember && guild.members_count < 5 && (
-                      <button className="btn btn-sm btn-primary" disabled={busy} onClick={async()=>{ try{ setBusy(true); await requestJoin(guild.id); alert('参加リクエストを送信しました'); } catch(e:any){ alert(e?.message||'リクエスト送信に失敗しました'); } finally{ setBusy(false); } }}>参加リクエスト</button>
+                      <button
+                        className="btn btn-sm btn-primary"
+                        disabled={busy}
+                        onClick={async () => {
+                          try {
+                            setBusy(true);
+                            const r = await requestJoin(guild.id);
+                            alert(r === null ? '既に参加リクエストがあります' : '参加リクエストを送信しました');
+                          } catch (e) {
+                            const msg = (e as { message?: string }).message;
+                            alert(msg || 'リクエスト送信に失敗しました');
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        参加リクエスト
+                      </button>
                     )}
                   </div>
                 </div>
