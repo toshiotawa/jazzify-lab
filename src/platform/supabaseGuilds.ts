@@ -68,10 +68,9 @@ export async function getMyGuild(): Promise<Guild | null> {
     .single();
   if (error) throw error;
 
-  const { count: membersCount } = await supabase
-    .from('guild_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('guild_id', membership.guild_id);
+  const { data: membersCountData } = await supabase
+    .rpc('rpc_get_guild_member_count', { p_guild_id: membership.guild_id });
+  const membersCount = (membersCountData as number) || 0;
 
   return {
     id: (guildRow as any).id,
@@ -227,6 +226,7 @@ export async function requestJoin(guildId: string): Promise<string> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('not authenticated');
+  // 既存の他ギルドへの申請は維持（サーバ側で加入時に一括取り消し）
   const { data: existing } = await supabase
     .from('guild_join_requests')
     .select('id')
@@ -446,12 +446,10 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
 }
 
 export async function getGuildIdOfUser(userId: string): Promise<string | null> {
-  const { data } = await getSupabaseClient()
-    .from('guild_members')
-    .select('guild_id')
-    .eq('user_id', userId)
-    .maybeSingle();
-  return data?.guild_id ?? null;
+  const { data, error } = await getSupabaseClient()
+    .rpc('rpc_get_user_guild_id', { p_user_id: userId });
+  if (error && error.code !== 'PGRST116') throw error;
+  return (data as string | null) ?? null;
 }
 
 export async function getMyGuildId(): Promise<string | null> {
@@ -673,19 +671,9 @@ export async function leaveMyGuild(): Promise<void> {
     if (candErr) throw candErr;
     const nextLeaderId = candidates?.[0]?.user_id as string | undefined;
     if (!nextLeaderId) throw new Error('移譲先メンバーが見つかりません');
-    const { error: updateErr } = await supabase
-      .from('guilds')
-      .update({ leader_id: nextLeaderId })
-      .eq('id', guildId);
-    if (updateErr) throw updateErr;
-    try {
-      const { error: roleErr } = await supabase
-        .from('guild_members')
-        .update({ role: 'leader' as any })
-        .eq('guild_id', guildId)
-        .eq('user_id', nextLeaderId);
-      if (roleErr && roleErr.code !== '42703') throw roleErr;
-    } catch {}
+    const { error: transferErr } = await supabase
+      .rpc('rpc_guild_transfer_leader', { p_guild_id: guildId, p_new_leader: nextLeaderId });
+    if (transferErr) throw transferErr;
   }
 
   const { error: delErr } = await supabase
@@ -735,10 +723,9 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
     .maybeSingle();
   if (error) throw error;
   if (!guildRow) return null;
-  const { count } = await supabase
-    .from('guild_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('guild_id', (guildRow as any).id);
+  const { data: countData } = await supabase
+    .rpc('rpc_get_guild_member_count', { p_guild_id: (guildRow as any).id });
+  const count = (countData as number) || 0;
   return {
     id: (guildRow as any).id,
     name: (guildRow as any).name,
@@ -750,6 +737,27 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
     disbanded: !!(guildRow as any).disbanded,
     guild_type: ((guildRow as any).guild_type as GuildType) || 'casual',
   };
+}
+
+export async function fetchMyJoinRequestForGuild(guildId: string): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from('guild_join_requests')
+    .select('id')
+    .eq('guild_id', guildId)
+    .eq('requester_id', user.id)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (error && error.code !== 'PGRST116') throw error;
+  return data?.id ?? null;
+}
+
+export async function cancelMyJoinRequest(requestId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .rpc('rpc_guild_cancel_my_join_request', { p_request_id: requestId });
+  if (error) throw error;
 }
 
 export async function enforceMonthlyGuildQuest(targetMonth?: string): Promise<void> {
