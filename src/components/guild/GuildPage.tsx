@@ -4,7 +4,7 @@ import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, fetchGuildDailyStreaks } from '@/platform/supabaseGuilds';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
-import { computeGuildBonus, formatMultiplier } from '@/utils/guildBonus';
+import { computeGuildBonus } from '@/utils/guildBonus';
 
 const GuildPage: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash.startsWith('#guild'));
@@ -71,6 +71,7 @@ const GuildPage: React.FC = () => {
   const contributors = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
   const streakBonus = Object.values(streaks).reduce((sum, s) => sum + (s.tierPercent || 0), 0);
   const bonus = computeGuildBonus(guild?.level || 1, contributors, streakBonus);
+  const totalPercent = (bonus.levelBonus + bonus.memberBonus + bonus.streakBonus) * 100;
   const mvpUserId = memberMonthly.sort((a,b)=>b.monthly_xp-a.monthly_xp)[0]?.user_id;
   const mvp = mvpUserId ? members.find(x => x.user_id === mvpUserId) : undefined;
   const mvpXp = memberMonthly.find(x => x.user_id === mvpUserId)?.monthly_xp || 0;
@@ -116,7 +117,7 @@ const GuildPage: React.FC = () => {
                   <div>
                     <div className="text-2xl font-bold">{guild.name}{guild.disbanded ? '（解散したギルド）' : ''}</div>
                     <div className="text-sm text-gray-300 mt-1">Lv.{guild.level}</div>
-                    <div className="text-sm text-green-400 mt-1">ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)} <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}% / ストリーク +{(bonus.streakBonus*100).toFixed(1)}%）</span></div>
+                    <div className="text-sm text-green-400 mt-1">ギルドボーナス: +{totalPercent.toFixed(1)}% <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(1)}% / ストリーク +{(bonus.streakBonus*100).toFixed(1)}%）</span></div>
                     <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
                       <div className="bg-slate-900 rounded p-3 border border-slate-700">
                         <div className="text-gray-400">今シーズン合計XP</div>

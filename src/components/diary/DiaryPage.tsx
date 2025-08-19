@@ -56,6 +56,8 @@ const DiaryPage: React.FC = () => {
   const [editText, setEditText] = useState<string>('');
   const toast = useToast();
   const [joinedGuild, setJoinedGuild] = useState<Guild | null>(null);
+  const [hoveredTitle, setHoveredTitle] = useState<boolean>(false);
+  const [clickedTitle, setClickedTitle] = useState<boolean>(false);
 
   useEffect(() => {
     const checkHash = () => {
@@ -210,8 +212,6 @@ const DiaryPage: React.FC = () => {
     }
   };
 
-  const [hoveredTitle, setHoveredTitle] = useState<boolean>(false);
-  const [clickedTitle, setClickedTitle] = useState<boolean>(false);
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
