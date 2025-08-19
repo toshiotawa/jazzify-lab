@@ -422,16 +422,12 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
-  const { data: myGuild } = await supabase
-    .from('guilds')
-    .select('id')
-    .eq('leader_id', user.id)
-    .maybeSingle();
-  if (!myGuild?.id) return [];
+  const myGuildId = await getMyGuildId();
+  if (!myGuildId) return [];
   const { data, error } = await supabase
     .from('guild_join_requests')
     .select('id, guild_id, requester_id, status, requester:profiles(nickname)')
-    .eq('guild_id', myGuild.id)
+    .eq('guild_id', myGuildId)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -619,18 +615,21 @@ export async function disbandMyGuild(): Promise<void> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
-  const { data: guild } = await supabase
+  const myGuildId = await getMyGuildId();
+  if (!myGuildId) throw new Error('リーダー権限がありません');
+  // 自分がリーダーか確認
+  const { data: gRow, error: gErr } = await supabase
     .from('guilds')
-    .select('id')
-    .eq('leader_id', user.id)
+    .select('leader_id')
+    .eq('id', myGuildId)
     .maybeSingle();
-  if (!guild?.id) throw new Error('リーダー権限がありません');
-  const { count } = await supabase
-    .from('guild_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('guild_id', guild.id);
-  if ((count || 0) > 1) throw new Error('メンバーが1人のときのみ解散できます');
-  const { error } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: guild.id });
+  if (gErr) throw gErr;
+  if (!gRow || (gRow as any).leader_id !== user.id) throw new Error('リーダー権限がありません');
+  // メンバー数はRPCで取得（軽量）
+  const { data: mcData } = await supabase.rpc('rpc_get_guild_member_count', { p_guild_id: myGuildId });
+  const mc = (mcData as number) || 0;
+  if (mc > 1) throw new Error('メンバーが1人のときのみ解散できます');
+  const { error } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: myGuildId });
   if (error) throw error;
 }
 
@@ -671,7 +670,7 @@ export async function leaveMyGuild(): Promise<void> {
     const nextLeaderId = candidates?.[0]?.user_id as string | undefined;
     if (!nextLeaderId) throw new Error('移譲先メンバーが見つかりません');
     const { error: transferErr } = await supabase
-      .rpc('rpc_guild_transfer_leader', { p_guild_id: guildId, p_new_leader: nextLeaderId });
+      .rpc('rpc_guild_transfer_leader', { p_old_leader_id: user.id, p_guild_id: guildId, p_new_leader_id: nextLeaderId });
     if (transferErr) throw transferErr;
   }
 
