@@ -113,6 +113,10 @@ export interface GuildStreak {
   display: string; // 例: "Lv3 2/5 +15%"
 }
 
+function formatDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 /**
  * ギルド内メンバーの日次貢献ストリークを取得（xp_historyベース、クライアント集計）
  * 月を跨いでもリセットされない
@@ -140,19 +144,19 @@ export async function fetchGuildDailyStreaks(
     return {};
   }
 
-  // ユーザー毎に日付セットを作成（UTC日単位）
+  // ユーザー毎に日付セットを作成（ローカル日単位）
   const byUser = new Map<string, Set<string>>();
   (data || []).forEach((r: any) => {
     const uid = r.user_id as string;
     const dt = new Date(r.created_at);
-    const key = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate())).toISOString().slice(0, 10);
+    const key = formatDateKey(dt);
     if (!byUser.has(uid)) byUser.set(uid, new Set<string>());
     if (Number(r.gained_xp || 0) > 0) byUser.get(uid)!.add(key);
   });
 
   const result: Record<string, GuildStreak> = {};
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const todayKey = today.toISOString().slice(0, 10);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayKey = formatDateKey(today);
 
   for (const uid of userIds) {
     const days = byUser.get(uid) || new Set<string>();
@@ -164,10 +168,11 @@ export async function fetchGuildDailyStreaks(
     const sorted = Array.from(days.values()).sort();
     let level = 0;
     let progress = 0;
-    let cursor = new Date(sorted[0] + 'T00:00:00.000Z');
+    const [sy, sm, sd] = sorted[0].split('-').map(Number);
+    let cursor = new Date(sy, sm - 1, sd);
 
     while (cursor <= today) {
-      const key = cursor.toISOString().slice(0, 10);
+      const key = formatDateKey(cursor);
       const success = days.has(key);
       if (success) {
         progress += 1;
@@ -175,13 +180,11 @@ export async function fetchGuildDailyStreaks(
           if (level < 6) level += 1;
           progress = 0;
         }
-      } else {
-        if (key !== todayKey) {
-          if (level > 0) level -= 1;
-          progress = 0;
-        }
+      } else if (key !== todayKey) {
+        if (level > 0) level -= 1;
+        progress = 0;
       }
-      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate() + 1));
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
     }
 
     const tierPercent = level * 0.05;
