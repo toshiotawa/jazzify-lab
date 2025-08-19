@@ -350,13 +350,21 @@ const FantasyMain: React.FC = () => {
           // ギルド倍率の取得
           let guildMultiplier = 1;
           try {
-            const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
+            const { getMyGuild, fetchGuildMemberMonthlyXp, fetchGuildDailyStreaks } = await import('@/platform/supabaseGuilds');
             const { computeGuildBonus } = await import('@/utils/guildBonus');
             const myGuild = await getMyGuild();
             if (myGuild) {
               const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
               const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-              guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
+              let streakSum = 0;
+              if (myGuild.guild_type === 'challenge') {
+                try {
+                  const st = await fetchGuildDailyStreaks(myGuild.id);
+                  streakSum = Object.values(st).reduce((acc: number, s: any) => acc + (s?.tierPercent || 0), 0);
+                } catch {}
+              }
+              const b = computeGuildBonus(myGuild.level || 1, contributors, streakSum);
+              guildMultiplier = 1 + b.levelBonus + b.memberBonus + (myGuild.guild_type === 'challenge' ? b.streakBonus : 0);
             }
           } catch {}
 
