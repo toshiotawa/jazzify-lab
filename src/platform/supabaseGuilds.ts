@@ -42,6 +42,30 @@ export interface GuildJoinRequest {
   requester_nickname?: string;
 }
 
+export interface GuildLeaveLog {
+  guild_name: string;
+  reason: 'leave' | 'kick' | 'disband';
+  created_at: string;
+}
+
+async function logGuildLeave(userId: string, guildName: string, reason: 'leave' | 'kick' | 'disband'): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+    await supabase.from('guild_leave_logs').insert({ user_id: userId, guild_name: guildName, reason });
+  } catch {}
+}
+
+export async function fetchMyLatestGuildLeave(): Promise<GuildLeaveLog | null> {
+  const supabase = getSupabaseClient();
+  const { data } = await supabase
+    .from('guild_leave_logs')
+    .select('guild_name, reason, created_at')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data || null;
+}
+
 function getMonthStartDateStringUTC(baseDate?: Date): string {
   const now = baseDate ? new Date(baseDate) : new Date();
   const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -239,9 +263,19 @@ export async function rejectJoinRequest(requestId: string): Promise<void> {
 }
 
 export async function kickMember(memberUserId: string): Promise<void> {
-  const { error } = await getSupabaseClient()
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+  const { data: guild } = await supabase
+    .from('guilds')
+    .select('id, name')
+    .eq('leader_id', user.id)
+    .maybeSingle();
+  if (!guild?.id) throw new Error('リーダー権限がありません');
+  const { error } = await supabase
     .rpc('rpc_guild_kick_member', { p_member_user_id: memberUserId });
   if (error) throw error;
+  await logGuildLeave(memberUserId, guild.name || '', 'kick');
 }
 
 export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: string): Promise<Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>> {
@@ -636,7 +670,7 @@ export async function updateGuildDescription(newDescription: string): Promise<vo
   if (error && error.code !== '42703') throw error;
 }
 
-export async function disbandMyGuild(): Promise<void> {
+export async function updateGuildType(newType: GuildType): Promise<void> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('ログインが必要です');
@@ -646,16 +680,45 @@ export async function disbandMyGuild(): Promise<void> {
     .eq('leader_id', user.id)
     .maybeSingle();
   if (!guild?.id) throw new Error('リーダー権限がありません');
-  const { count } = await supabase
+  const { error } = await supabase
+    .from('guilds')
+    .update({ guild_type: newType })
+    .eq('id', guild.id);
+  if (error && error.code !== '42703') throw error;
+}
+
+async function disbandGuildFully(guildId: string, guildName: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: members } = await supabase
     .from('guild_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('guild_id', guild.id);
-  if ((count || 0) > 1) throw new Error('メンバーが1人のときのみ解散できます');
+    .select('user_id')
+    .eq('guild_id', guildId);
   const { error } = await supabase
     .from('guilds')
     .update({ disbanded: true, name: '解散したギルド' })
-    .eq('id', guild.id);
+    .eq('id', guildId);
   if (error && error.code !== '42703') throw error;
+  await supabase
+    .from('guild_members')
+    .delete()
+    .eq('guild_id', guildId);
+  if (members && members.length > 0) {
+    const logs = members.map(m => ({ user_id: m.user_id, guild_name: guildName, reason: 'disband' as const }));
+    await supabase.from('guild_leave_logs').insert(logs).catch(()=>{});
+  }
+}
+
+export async function disbandMyGuild(): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('ログインが必要です');
+  const { data: guild } = await supabase
+    .from('guilds')
+    .select('id, name')
+    .eq('leader_id', user.id)
+    .maybeSingle();
+  if (!guild?.id) throw new Error('リーダー権限がありません');
+  await disbandGuildFully(guild.id, guild.name || '');
 }
 
 export async function leaveMyGuild(): Promise<void> {
@@ -665,10 +728,11 @@ export async function leaveMyGuild(): Promise<void> {
 
   const { data: membership } = await supabase
     .from('guild_members')
-    .select('guild_id, role')
+    .select('guild_id, role, guilds(name)')
     .eq('user_id', user.id)
     .maybeSingle();
   const guildId = membership?.guild_id as string | undefined;
+  const guildName = (membership as any)?.guilds?.name || '';
   if (!guildId) throw new Error('ギルドに所属していません');
 
   const { count: membersCount } = await supabase
@@ -677,16 +741,7 @@ export async function leaveMyGuild(): Promise<void> {
     .eq('guild_id', guildId);
 
   if ((membersCount || 0) <= 1) {
-    const { error: disbandErr } = await supabase
-      .from('guilds')
-      .update({ disbanded: true, name: '解散したギルド' })
-      .eq('id', guildId);
-    if (disbandErr && disbandErr.code !== '42703') throw disbandErr;
-    await supabase
-      .from('guild_members')
-      .delete()
-      .eq('guild_id', guildId)
-      .eq('user_id', user.id);
+    await disbandGuildFully(guildId, guildName);
     return;
   }
 
@@ -723,6 +778,7 @@ export async function leaveMyGuild(): Promise<void> {
     .eq('guild_id', guildId)
     .eq('user_id', user.id);
   if (delErr) throw delErr;
+  await logGuildLeave(user.id, guildName, 'leave');
 }
 
 export async function getGuildOfUser(userId: string): Promise<Guild | null> {
