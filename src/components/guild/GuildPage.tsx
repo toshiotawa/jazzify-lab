@@ -199,7 +199,7 @@ const GuildPage: React.FC = () => {
                 {members.length === 0 ? (
                   <p className="text-gray-400 text-sm">メンバーがいません</p>
                 ) : (
-                  <ul className="space-y-2 text-base">
+                  <ul className="space-y-2 text-lg">
                     {members.map(m => (
                       <li key={m.user_id} className="flex items-center gap-2">
                         <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} aria-label="ユーザーページへ">
@@ -207,7 +207,7 @@ const GuildPage: React.FC = () => {
                         </button>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <button className="hover:text-blue-400 truncate" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
+                            <button className="hover:text-blue-400 truncate text-lg font-semibold" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
                             {/* 称号（ホバー/タップで条件表示） */}
                             {m.selected_title && (
                               <div className="relative group">
