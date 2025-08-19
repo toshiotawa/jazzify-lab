@@ -22,6 +22,7 @@ export async function fetchLatestNotifications(limit = 10): Promise<Notification
     .from('notifications')
     .select('id, user_id, actor_id, type, diary_id, comment_id, created_at, read')
     .eq('user_id', user.id)
+    .in('type', ['diary_like', 'diary_comment', 'comment_thread_reply', 'guild_post_like', 'guild_post_comment'])
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw error;

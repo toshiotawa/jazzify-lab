@@ -63,7 +63,7 @@ export async function getMyGuild(): Promise<Guild | null> {
 
   const { data: guildRow, error } = await supabase
     .from('guilds')
-    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
+    .select('id, name, leader_id, level, total_xp, description, guild_type')
     .eq('id', membership.guild_id)
     .single();
   if (error) throw error;
@@ -239,6 +239,26 @@ export async function requestJoin(guildId: string): Promise<string> {
     .rpc('rpc_guild_request_join', { p_gid: guildId });
   if (error) throw error;
   return data as string;
+}
+
+export async function getMyPendingJoinRequest(guildId: string): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from('guild_join_requests')
+    .select('id')
+    .eq('guild_id', guildId)
+    .eq('requester_id', user.id)
+    .eq('status', 'pending')
+    .maybeSingle();
+  return (data as any)?.id ?? null;
+}
+
+export async function cancelJoinRequest(requestId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .rpc('rpc_guild_cancel_request', { p_request_id: requestId });
+  if (error) throw error;
 }
 
 export async function approveJoinRequest(requestId: string): Promise<void> {
@@ -650,18 +670,28 @@ export async function leaveMyGuild(): Promise<void> {
   const guildId = membership?.guild_id as string | undefined;
   if (!guildId) throw new Error('ギルドに所属していません');
 
+  const isLeader = (membership?.role as 'leader' | 'member') === 'leader';
+
   const { count: membersCount } = await supabase
     .from('guild_members')
     .select('*', { count: 'exact', head: true })
     .eq('guild_id', guildId);
 
   if ((membersCount || 0) <= 1) {
-    const { error: disbandErr } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: guildId });
-    if (disbandErr) throw disbandErr;
+    if (isLeader) {
+      const { error: disbandErr } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: guildId });
+      if (disbandErr) throw disbandErr;
+    } else {
+      const { error: delErr } = await supabase
+        .from('guild_members')
+        .delete()
+        .eq('guild_id', guildId)
+        .eq('user_id', user.id);
+      if (delErr) throw delErr;
+    }
     return;
   }
 
-  const isLeader = (membership?.role as 'leader' | 'member') === 'leader';
   if (isLeader) {
     const { data: candidates, error: candErr } = await supabase
       .from('guild_members')
@@ -730,7 +760,7 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
   const supabase = getSupabaseClient();
   const { data: guildRow, error } = await supabase
     .from('guilds')
-    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
+    .select('id, name, leader_id, level, total_xp, description, guild_type')
     .eq('id', guildId)
     .maybeSingle();
   if (error) throw error;
@@ -756,15 +786,4 @@ export async function enforceMonthlyGuildQuest(targetMonth?: string): Promise<vo
   const supabase = getSupabaseClient();
   const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest', { p_month: targetMonth || null });
   if (error && error.code !== 'PGRST116') throw error;
-}
-
-export async function submitGuildLeaveFeedback(previousGuildId: string, previousGuildName: string, leaveType: 'left'|'kicked'|'disband', reason: string): Promise<void> {
-  const supabase = getSupabaseClient();
-  const { error } = await supabase.rpc('rpc_submit_guild_leave_feedback', {
-    p_prev_guild_id: previousGuildId,
-    p_prev_guild_name: previousGuildName,
-    p_leave_type: leaveType,
-    p_reason: reason,
-  });
-  if (error) throw error;
 }
