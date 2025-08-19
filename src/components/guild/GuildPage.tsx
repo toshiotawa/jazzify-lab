@@ -17,7 +17,7 @@ const GuildPage: React.FC = () => {
   const [rank, setRank] = useState<number | null>(null);
   const [isMember, setIsMember] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
-  const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
+  const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string; level: number }>>({});
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash.startsWith('#guild'));
@@ -176,14 +176,14 @@ const GuildPage: React.FC = () => {
                                 {(() => {
                                   const s = streaks[m.user_id];
                                   if (!s) return 'Lv.0 (+0%)';
-                                  return `Lv.${Math.min(s.daysCurrentStreak, s.tierMaxDays)} (+${Math.round(s.tierPercent*100)}%)`;
+                                  return `Lv.${s.level} (+${Math.round(s.tierPercent*100)}%)`;
                                 })()}
                               </span>
                             </div>
                             <div className="h-1.5 bg-slate-700 rounded overflow-hidden mt-1">
                               <div className="h-full bg-green-500" style={{ width: `${streaks[m.user_id] ? Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100) : 0}%` }} />
                             </div>
-                            <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id]?.display || '0/5 +0%'}</div>
+                            <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id]?.display || 'Lv.0 0/5 +0%'}</div>
                           </div>
                           {/* チャレンジボーナス倍率 */}
                           <div className="text-xs text-green-400 whitespace-nowrap">×{(1 + (streaks[m.user_id]?.tierPercent || 0)).toFixed(2)}</div>
@@ -229,7 +229,7 @@ const GuildPage: React.FC = () => {
                               <div className="h-1.5 bg-slate-700 rounded overflow-hidden">
                                 <div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
                               </div>
-                              <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id].display}</div>
+                              <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id]?.display || 'Lv.0 0/5 +0%'}</div>
                             </div>
                           )}
                         </div>

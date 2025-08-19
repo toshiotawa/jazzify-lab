@@ -62,7 +62,7 @@ const GuildDashboard: React.FC = () => {
 	const [descEdit, setDescEdit] = useState<string>('');
 	const [editingDesc, setEditingDesc] = useState<boolean>(false);
 	const [isLeader, setIsLeader] = useState<boolean>(false);
-	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
+        const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string; level: number }>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
 	const [lastGuildInfo, setLastGuildInfo] = useState<{ id: string; name: string } | null>(null);
         const [lastGuildEvent, setLastGuildEvent] = useState<'left'|'kicked'|'disband'|null>(null);
@@ -507,8 +507,11 @@ const GuildDashboard: React.FC = () => {
 													</button>
 													<div className="flex-1 min-w-0">
 														<div className="flex items-center gap-2">
-															<button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} className="font-medium text-base truncate text-left hover:text-blue-400">{m.nickname}</button>
-															{m.selected_title && (
+                                                                                                                       <button onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }} className="font-medium text-base truncate text-left hover:text-blue-400">{m.nickname}</button>
+                                                                                                                       {myGuild.guild_type === 'challenge' && (
+                                                                                                                               <span className="text-[10px] text-yellow-400 ml-1">Streak Lv.{streaks[m.user_id]?.level ?? 0}</span>
+                                                                                                                       )}
+                                                                                                                       {m.selected_title && (
 																<div className="relative group">
 																	<div className="flex items-center gap-1 text-yellow-400 cursor-help">
 																		{getTitleIcon((m.selected_title as Title) || DEFAULT_TITLE)}
@@ -527,7 +530,7 @@ const GuildDashboard: React.FC = () => {
 																<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
 																	<div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
 																</div>
-																<div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id].display}</div>
+                                                                                                                               <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id]?.display || 'Lv.0 0/5 +0%'}</div>
 															</div>
 														)}
 													</div>
