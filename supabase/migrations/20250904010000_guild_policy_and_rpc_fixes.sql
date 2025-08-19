@@ -7,6 +7,7 @@ alter table if exists public.guilds
 -- 2) RLS: members can see all members of their own guild
 drop policy if exists guild_members_select_visible on public.guild_members;
 create policy guild_members_select_visible on public.guild_members for select using (
+  user_id = auth.uid() or
   exists(
     select 1 from public.guild_members gm2
     where gm2.guild_id = public.guild_members.guild_id
@@ -34,7 +35,7 @@ $$;
 grant execute on function public.rpc_get_guild_member_count(uuid) to anon, authenticated;
 
 -- 4) RPC: cancel my join request
-create or replace function public.rpc_guild_cancel_my_join_request(p_request_id uuid)
+create or replace function public.rpc_guild_cancel_join_request(p_request_id uuid)
 returns void
 language plpgsql security definer as $$
 declare
@@ -48,26 +49,29 @@ begin
   update public.guild_join_requests set status = 'cancelled', updated_at = now() where id = p_request_id;
 end;
 $$;
-grant execute on function public.rpc_guild_cancel_my_join_request(uuid) to anon, authenticated;
+grant execute on function public.rpc_guild_cancel_join_request(uuid) to anon, authenticated;
 
--- 5) RPC: transfer leadership (definer to bypass with check)
-create or replace function public.rpc_guild_transfer_leader(p_guild_id uuid, p_new_leader uuid)
+-- 5) RPC: transfer leadership (definer to bypass with check) - FIXED ARGUMENTS
+create or replace function public.rpc_guild_transfer_leader(p_old_leader_id uuid, p_guild_id uuid, p_new_leader_id uuid)
 returns void
 language plpgsql security definer as $$
 declare
   _uid uuid := auth.uid();
-  _cur_leader uuid;
 begin
   if _uid is null then raise exception 'Auth required'; end if;
-  select leader_id into _cur_leader from public.guilds where id = p_guild_id;
-  if _cur_leader is null then raise exception 'Guild not found'; end if;
-  if _cur_leader <> _uid then raise exception 'Only leader can transfer'; end if;
-  update public.guilds set leader_id = p_new_leader, updated_at = now() where id = p_guild_id;
-  update public.guild_members set role = 'leader' where guild_id = p_guild_id and user_id = p_new_leader;
-  update public.guild_members set role = 'member' where guild_id = p_guild_id and user_id = _uid;
+  if not exists(select 1 from public.guilds where id = p_guild_id and leader_id = _uid) then
+    raise exception 'Only current leader can transfer leadership';
+  end if;
+  if not exists(select 1 from public.guild_members where guild_id = p_guild_id and user_id = p_new_leader_id) then
+    raise exception 'New leader must be a member of the guild';
+  end if;
+
+  update public.guilds set leader_id = p_new_leader_id, updated_at = now() where id = p_guild_id;
+  update public.guild_members set role = 'member' where guild_id = p_guild_id and user_id = p_old_leader_id;
+  update public.guild_members set role = 'leader' where guild_id = p_guild_id and user_id = p_new_leader_id;
 end;
 $$;
-grant execute on function public.rpc_guild_transfer_leader(uuid, uuid) to anon, authenticated;
+grant execute on function public.rpc_guild_transfer_leader(uuid, uuid, uuid) to anon, authenticated;
 
 -- 6) Allow last non-leader to disband via existing RPC
 create or replace function public.rpc_guild_disband_and_clear_members(p_guild_id uuid)
