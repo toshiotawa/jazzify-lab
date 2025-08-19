@@ -69,7 +69,8 @@ const GuildPage: React.FC = () => {
   if (!open) return null;
 
   const contributors = memberMonthly.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-  const bonus = computeGuildBonus(guild?.level || 1, contributors);
+  const streakBonus = Object.values(streaks).reduce((sum, s) => sum + (s.tierPercent || 0), 0);
+  const bonus = computeGuildBonus(guild?.level || 1, contributors, streakBonus);
   const mvpUserId = memberMonthly.sort((a,b)=>b.monthly_xp-a.monthly_xp)[0]?.user_id;
   const mvp = mvpUserId ? members.find(x => x.user_id === mvpUserId) : undefined;
   const mvpXp = memberMonthly.find(x => x.user_id === mvpUserId)?.monthly_xp || 0;
@@ -115,7 +116,7 @@ const GuildPage: React.FC = () => {
                   <div>
                     <div className="text-2xl font-bold">{guild.name}{guild.disbanded ? '（解散したギルド）' : ''}</div>
                     <div className="text-sm text-gray-300 mt-1">Lv.{guild.level} / メンバー {guild.members_count}</div>
-                    <div className="text-sm text-green-400 mt-1">ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)} <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(0)}%）</span></div>
+                    <div className="text-sm text-green-400 mt-1">ギルドボーナス: {formatMultiplier(bonus.totalMultiplier)} <span className="text-xs text-gray-400 ml-1">（レベル +{(bonus.levelBonus*100).toFixed(1)}% / メンバー +{(bonus.memberBonus*100).toFixed(0)}% / ストリーク +{(bonus.streakBonus*100).toFixed(0)}%）</span></div>
                     <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
                       <div className="bg-slate-900 rounded p-3 border border-slate-700">
                         <div className="text-gray-400">今シーズン合計XP</div>
@@ -205,8 +206,8 @@ const GuildPage: React.FC = () => {
                             <button className="hover:text-blue-400 truncate" onClick={()=>{ window.location.hash = `#diary-user?id=${m.user_id}`; }}>{m.nickname}</button>
                             {/* 称号（ホバー/タップで条件表示） */}
                             {m.selected_title && (
-                              <div className="relative">
-                                <div className="flex items-center gap-1 text-yellow-400 cursor-help group">
+                              <div className="relative group">
+                                <div className="flex items-center gap-1 text-yellow-400 cursor-help">
                                   {getTitleIcon((m.selected_title as Title) || DEFAULT_TITLE)}
                                   <span className="text-[11px] truncate max-w-[160px]">{(m.selected_title as Title) || DEFAULT_TITLE}</span>
                                 </div>
