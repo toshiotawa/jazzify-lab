@@ -32,6 +32,32 @@ const GuildInfoPage: React.FC = () => {
                                         </section>
 
                                         <section className="space-y-2">
+                                                <h3 className="text-xl font-semibold">ストリークシステム（チャレンジギルドのみ）</h3>
+                                                <div className="space-y-3 bg-slate-800 rounded-lg p-4">
+                                                        <div>
+                                                                <h4 className="font-medium text-lg mb-1">ストリークレベル</h4>
+                                                                <p className="text-sm text-gray-300">5日連続達成ごとに1レベル上昇。1レベルごとに5％のボーナスが追加されます（最大レベル6）。</p>
+                                                        </div>
+                                                        <div>
+                                                                <h4 className="font-medium text-lg mb-1">ストリーク条件</h4>
+                                                                <p className="text-sm text-gray-300">その日に1以上のXPを獲得することでストリークが継続されます。</p>
+                                                        </div>
+                                                        <div>
+                                                                <h4 className="font-medium text-lg mb-1">ストリーク失敗</h4>
+                                                                <p className="text-sm text-gray-300">条件未達成の場合、ストリークレベルが1下がります。</p>
+                                                        </div>
+                                                        <div>
+                                                                <h4 className="font-medium text-lg mb-1">メンバー独立性</h4>
+                                                                <p className="text-sm text-gray-300">各メンバーのストリークは独立して管理されます。メンバー5人全員がレベル6の場合、合計で150％のストリークボーナスを獲得できます。</p>
+                                                        </div>
+                                                        <div>
+                                                                <h4 className="font-medium text-lg mb-1">月跨ぎ対応</h4>
+                                                                <p className="text-sm text-gray-300">ストリークは月をまたいでもリセットされません。継続的な努力が報われます。</p>
+                                                        </div>
+                                                </div>
+                                        </section>
+
+                                        <section className="space-y-2">
                                                 <h3 className="text-xl font-semibold">クエストについて</h3>
                                                 <p className="text-sm text-gray-300">チャレンジギルドは毎月1,000,000XPを獲得しないと解散します。</p>
                                         </section>

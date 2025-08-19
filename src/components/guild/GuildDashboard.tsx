@@ -314,11 +314,11 @@ const GuildDashboard: React.FC = () => {
 	const getTitleIcon = (title: string) => {
 		const t = getTitleType(title);
 		switch (t) {
-			case 'level': return <FaCrown className="text-[10px] text-yellow-400"/>;
-			case 'mission': return <FaTrophy className="text-[10px] text-purple-400"/>;
-			case 'lesson': return <FaGraduationCap className="text-[10px] text-blue-400"/>;
-			case 'wizard': return <FaHatWizard className="text-[10px] text-green-400"/>;
-			default: return <FaCrown className="text-[10px] text-yellow-400"/>;
+			case 'level': return <FaCrown className="text-sm text-yellow-400"/>;
+			case 'mission': return <FaTrophy className="text-sm text-purple-400"/>;
+			case 'lesson': return <FaGraduationCap className="text-sm text-blue-400"/>;
+			case 'wizard': return <FaHatWizard className="text-sm text-green-400"/>;
+			default: return <FaCrown className="text-sm text-yellow-400"/>;
 		}
 	};
 
@@ -385,7 +385,7 @@ const GuildDashboard: React.FC = () => {
                                                                         {results.map(g => (
                                                                                 <li key={g.id} onClick={() => requestJoin(g.id)} className="cursor-pointer hover:bg-slate-800 p-2 rounded flex items-center gap-2">
                                                                                         <span className="font-medium">{g.name}</span>
-                                                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${g.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>{g.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</span>
+                                                                                        <span className={`text-sm px-2 py-0.5 rounded-full ${g.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>{g.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</span>
                                                                                 </li>
                                                                         ))}
                                                                 </ul>
@@ -417,7 +417,7 @@ const GuildDashboard: React.FC = () => {
                                                                                         <h3 className="font-semibold mb-2">ギルド情報</h3>
 											<div className="text-lg font-semibold flex items-center gap-2">
 												<span>{myGuild.name}</span>
-												<span className={`text-[10px] px-2 py-0.5 rounded-full ${myGuild.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>
+												<span className={`text-sm px-2 py-0.5 rounded-full ${myGuild.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>
 													{myGuild.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}
 												</span>
 											</div>
@@ -446,7 +446,7 @@ const GuildDashboard: React.FC = () => {
 													<div className="h-1.5 bg-slate-700 rounded overflow-hidden mt-1">
 														<div className="h-full bg-green-500" style={{ width: `${Math.min(100, levelProgress)}%` }} />
 													</div>
-													<div className="text-[10px] text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
+													<div className="text-sm text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
 												</div>
 											</div>
 											<div className="flex gap-2 mt-3">
@@ -470,11 +470,11 @@ const GuildDashboard: React.FC = () => {
 										<h3 className="font-semibold mb-2">ギルドクエスト</h3>
 										<p className="text-gray-300 text-sm">今月の獲得経験値が1,000,000に達しないと、月末にギルドは解散となります（メンバーは0人になります）。</p>
 										<div className="mt-2">
-											<div className="text-gray-400">今月の進捗</div>
+											<div className="text-sm font-medium text-gray-400">今月の進捗</div>
 											<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
 												<div className="h-full bg-pink-500" style={{ width: `${Math.min(100, (thisMonthXp/1000000)*100)}%` }} />
 											</div>
-											<div className="text-[10px] text-gray-400 mt-1">{thisMonthXp.toLocaleString()} / 1,000,000</div>
+											<div className="text-sm text-gray-400 mt-1">{thisMonthXp.toLocaleString()} / 1,000,000</div>
 										</div>
 									</div>
 								)}
@@ -512,27 +512,27 @@ const GuildDashboard: React.FC = () => {
 																<div className="relative group">
 																	<div className="flex items-center gap-1 text-yellow-400 cursor-help">
 																		{getTitleIcon((m.selected_title as Title) || DEFAULT_TITLE)}
-																		<span className="text-[10px] truncate max-w-[140px]">{(m.selected_title as Title) || DEFAULT_TITLE}</span>
+																		<span className="text-sm truncate max-w-[140px]">{(m.selected_title as Title) || DEFAULT_TITLE}</span>
 																	</div>
-																	<div className="absolute hidden group-hover:block z-50 bg-gray-900 text-white text-[11px] p-2 rounded shadow-lg whitespace-nowrap" style={{ top: '100%', left: 0, marginTop: '4px' }}>
+																	<div className="absolute hidden group-hover:block z-50 bg-gray-900 text-white text-xs p-2 rounded shadow-lg whitespace-nowrap" style={{ top: '100%', left: 0, marginTop: '4px' }}>
 																		{getTitleRequirement((m.selected_title as Title) || DEFAULT_TITLE)}
 																		<div className="absolute w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900" style={{ top: '-4px', left: '12px' }} />
 																	</div>
 																</div>
 															)}
 														</div>
-														<div className="text-xs text-gray-400">Lv {m.level} / {m.rank}</div>
+														<div className="text-sm text-gray-400">Lv {m.level} / {m.rank}</div>
 														{myGuild.guild_type === 'challenge' && streaks[m.user_id] && (
 															<div className="mt-1">
 																<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
 																	<div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
 																</div>
-																<div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id].display}</div>
+																<div className="text-sm text-gray-400 mt-1">{streaks[m.user_id].display}</div>
 															</div>
 														)}
 													</div>
 													{m.role === 'leader' && (
-														<span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">Leader</span>
+														<span className="text-sm px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">Leader</span>
 													)}
                                                                                                         {memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
                                                                                                                 <FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
