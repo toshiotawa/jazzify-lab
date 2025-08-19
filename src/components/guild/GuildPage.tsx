@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, fetchGuildDailyStreaks } from '@/platform/supabaseGuilds';
+import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, fetchGuildDailyStreaks } from '@/platform/supabaseGuilds';
+import { getSupabaseClient } from '@/platform/supabaseClient';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 import { computeGuildBonus, formatMultiplier } from '@/utils/guildBonus';
@@ -39,26 +40,29 @@ const GuildPage: React.FC = () => {
       try {
         const g = await getGuildById(guildId);
         setGuild(g);
-        const mine = await getMyGuild();
-        setIsMember(!!(mine && mine.id === guildId));
         if (g) {
+          const supabase = getSupabaseClient();
+          const { data: { user } } = await supabase.auth.getUser();
           const [m, per] = await Promise.all([
             getGuildMembers(g.id),
             fetchGuildMemberMonthlyXp(g.id),
           ]);
           setMembers(m);
           setMemberMonthly(per);
-          const st = await fetchGuildDailyStreaks(g.id).catch(()=>({} as Record<string, any>));
+          setIsMember(user ? m.some(mem => mem.user_id === user.id) : false);
+          const st = await fetchGuildDailyStreaks(g.id).catch(() => ({} as Record<string, any>));
           setStreaks(st);
           // 今シーズン（当月）合計XPと順位
           const now = new Date();
-          const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
+          const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
           const [xp, r] = await Promise.all([
             fetchGuildMonthlyXpSingle(g.id, currentMonth),
             fetchGuildRankForMonth(g.id, currentMonth),
           ]);
           setSeasonXp(xp);
           setRank(r);
+        } else {
+          setIsMember(false);
         }
       } finally {
         setLoading(false);
