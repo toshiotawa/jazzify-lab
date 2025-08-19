@@ -369,7 +369,7 @@ export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]>
   if (!user) return [];
   const { data, error } = await supabase
     .from('guild_invitations')
-    .select('id, guild_id, inviter_id, invitee_id, status, guilds(name), inviter:profiles(nickname)')
+    .select('id, guild_id, inviter_id, invitee_id, status, guilds(name), inviter:profiles!guild_invitations_inviter_id_fkey(nickname)')
     .eq('invitee_id', user.id)
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
