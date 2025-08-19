@@ -1,5 +1,7 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
 
+export type GuildType = 'casual' | 'challenge';
+
 export interface Guild {
   id: string;
   name: string;
@@ -9,6 +11,7 @@ export interface Guild {
   members_count: number;
   description?: string | null;
   disbanded?: boolean;
+  guild_type?: GuildType;
 }
 
 export interface GuildMember {
@@ -18,6 +21,7 @@ export interface GuildMember {
   level: number;
   rank: string;
   role: 'leader' | 'member';
+  selected_title?: string | null;
 }
 
 export interface GuildInvitation {
@@ -59,7 +63,7 @@ export async function getMyGuild(): Promise<Guild | null> {
 
   const { data: guildRow, error } = await supabase
     .from('guilds')
-    .select('*')
+    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
     .eq('id', membership.guild_id)
     .single();
   if (error) throw error;
@@ -78,6 +82,7 @@ export async function getMyGuild(): Promise<Guild | null> {
     members_count: membersCount || 0,
     description: (guildRow as any).description ?? null,
     disbanded: !!(guildRow as any).disbanded,
+    guild_type: ((guildRow as any).guild_type as GuildType) || 'casual',
   };
 }
 
@@ -85,7 +90,7 @@ export async function getGuildMembers(guildId: string): Promise<GuildMember[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('guild_members')
-    .select('user_id, role, profiles(nickname, avatar_url, level, rank)')
+    .select('user_id, role, profiles(nickname, avatar_url, level, rank, selected_title)')
     .eq('guild_id', guildId)
     .order('joined_at', { ascending: true });
   if (error) throw error;
@@ -96,12 +101,95 @@ export async function getGuildMembers(guildId: string): Promise<GuildMember[]> {
     level: row.profiles?.level || 1,
     rank: row.profiles?.rank || 'free',
     role: (row.role as 'leader' | 'member') || 'member',
+    selected_title: row.profiles?.selected_title ?? null,
   }));
 }
 
-export async function createGuild(name: string): Promise<string> {
+/**
+ * ギルド内メンバーの当月日次貢献ストリークを取得（xp_historyベース、クライアント集計）
+ * 戻り値: ユーザーID -> { daysCurrentStreak, tierPercent, tierMaxDays, display }
+ */
+export async function fetchGuildDailyStreaks(
+  guildId: string,
+  baseDate?: Date,
+): Promise<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>> {
+  const supabase = getSupabaseClient();
+  const now = baseDate ? new Date(baseDate) : new Date();
+  const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const monthStartStr = monthStartUtc.toISOString();
+
+  // ギルドメンバー一覧
+  const members = await getGuildMembers(guildId);
+  const userIds = members.map(m => m.user_id);
+  if (userIds.length === 0) return {};
+
+  // 当月の xp_history を取得
+  const { data, error } = await supabase
+    .from('xp_history')
+    .select('user_id, created_at, gained_xp')
+    .in('user_id', userIds)
+    .gte('created_at', monthStartStr);
+  if (error) {
+    console.warn('fetchGuildDailyStreaks xp_history error:', error);
+    return {};
+  }
+
+  // ユーザー毎に日付セットを作成（UTC日単位）
+  const byUser = new Map<string, Set<string>>();
+  (data || []).forEach((r: any) => {
+    const uid = r.user_id as string;
+    const dt = new Date(r.created_at);
+    // UTC日付キー
+    const key = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate())).toISOString().slice(0, 10);
+    if (!byUser.has(uid)) byUser.set(uid, new Set<string>());
+    if (Number(r.gained_xp || 0) > 0) byUser.get(uid)!.add(key);
+  });
+
+  // 連続達成ストリークを計算（最後の貢献日から遡って連続している日数）
+  const result: Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }> = {};
+  const todayKey = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().slice(0, 10);
+
+  for (const uid of userIds) {
+    const days = byUser.get(uid) || new Set<string>();
+    // 最新貢献日（文字列比較でOK: YYYY-MM-DD）
+    const sortedDays = Array.from(days.values()).sort();
+    let streak = 0;
+    if (sortedDays.length > 0) {
+      // 最新日から遡ってカウント
+      let cursor = new Date(sortedDays[sortedDays.length - 1] + 'T00:00:00.000Z');
+      while (true) {
+        const key = cursor.toISOString().slice(0, 10);
+        if (days.has(key)) {
+          streak += 1;
+          // 前日へ
+          cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate() - 1));
+        } else {
+          break;
+        }
+      }
+    }
+
+    // ティア計算
+    let tierPercent = 0;
+    let tierMaxDays = 5;
+    if (streak >= 26) { tierPercent = 0.30; tierMaxDays = 30; }
+    else if (streak >= 21) { tierPercent = 0.25; tierMaxDays = 25; }
+    else if (streak >= 16) { tierPercent = 0.20; tierMaxDays = 20; }
+    else if (streak >= 11) { tierPercent = 0.15; tierMaxDays = 15; }
+    else if (streak >= 6)  { tierPercent = 0.10; tierMaxDays = 10; }
+    else if (streak >= 1)  { tierPercent = 0.05; tierMaxDays = 5; }
+    else { tierPercent = 0; tierMaxDays = 5; }
+
+    const display = streak > 0 ? `${Math.min(streak, tierMaxDays)}/${tierMaxDays} +${Math.round(tierPercent * 100)}%` : '0/5 +0%';
+    result[uid] = { daysCurrentStreak: streak, tierPercent, tierMaxDays, display };
+  }
+
+  return result;
+}
+
+export async function createGuild(name: string, type: GuildType): Promise<string> {
   const { data, error } = await getSupabaseClient()
-    .rpc('rpc_guild_create', { p_name: name });
+    .rpc('rpc_guild_create', { p_name: name, p_type: type });
   if (error) throw error;
   return data as string;
 }
@@ -671,7 +759,7 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
   const supabase = getSupabaseClient();
   const { data: guildRow, error } = await supabase
     .from('guilds')
-    .select('*')
+    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
     .eq('id', guildId)
     .maybeSingle();
   if (error) throw error;
@@ -689,5 +777,6 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
     members_count: count || 0,
     description: (guildRow as any).description ?? null,
     disbanded: !!(guildRow as any).disbanded,
+    guild_type: ((guildRow as any).guild_type as GuildType) || 'casual',
   };
 }
