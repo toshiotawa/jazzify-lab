@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import {
-	getMyGuild,
-	getGuildMembers,
-	searchGuilds,
-	requestJoin,
-	createGuild,
-	fetchMyGuildRank,
-	fetchGuildMemberMonthlyXp,
-	fetchJoinRequestsForMyGuild,
-	approveJoinRequest,
-	rejectJoinRequest,
-	Guild,
-	GuildMember,
-	GuildJoinRequest,
+        getMyGuild,
+        getGuildMembers,
+        searchGuilds,
+        requestJoin,
+        createGuild,
+        fetchMyGuildRank,
+        fetchGuildMemberMonthlyXp,
+        fetchJoinRequestsForMyGuild,
+        approveJoinRequest,
+        rejectJoinRequest,
+        Guild,
+        GuildMember,
+        GuildJoinRequest,
         fetchMyGuildContributionTotal,
         updateGuildDescription,
         disbandMyGuild,
@@ -24,6 +24,7 @@ import {
         acceptInvitation,
         rejectInvitation,
         GuildInvitation,
+        type GuildStreak,
 } from '@/platform/supabaseGuilds';
 import GuildBoard from '@/components/guild/GuildBoard';
 import GameHeader from '@/components/ui/GameHeader';
@@ -62,7 +63,7 @@ const GuildDashboard: React.FC = () => {
 	const [descEdit, setDescEdit] = useState<string>('');
 	const [editingDesc, setEditingDesc] = useState<boolean>(false);
 	const [isLeader, setIsLeader] = useState<boolean>(false);
-	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
+        const [streaks, setStreaks] = useState<Record<string, GuildStreak>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
 	const [lastGuildInfo, setLastGuildInfo] = useState<{ id: string; name: string } | null>(null);
         const [lastGuildEvent, setLastGuildEvent] = useState<'left'|'kicked'|'disband'|null>(null);
@@ -521,15 +522,15 @@ const GuildDashboard: React.FC = () => {
 																</div>
 															)}
 														</div>
-														<div className="text-xs text-gray-400">Lv {m.level} / {m.rank}</div>
-														{myGuild.guild_type === 'challenge' && streaks[m.user_id] && (
-															<div className="mt-1">
-																<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
-																	<div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
-																</div>
-																<div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id].display}</div>
-															</div>
-														)}
+                                                                                                                <div className="text-xs text-gray-400">Lv {m.level} / {m.rank}{myGuild.guild_type === 'challenge' && streaks[m.user_id] ? ` / ストリークLv${streaks[m.user_id].level}` : ''}</div>
+                                                                                                                {myGuild.guild_type === 'challenge' && streaks[m.user_id] && (
+                                                                                                                        <div className="mt-1">
+                                                                                                                                <div className="h-1.5 bg-slate-700 rounded overflow-hidden">
+                                                                                                                                        <div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
+                                                                                                                                </div>
+                                                                                                                                <div className="text-[10px] text-gray-400 mt-1">{streaks[m.user_id].display}</div>
+                                                                                                                        </div>
+                                                                                                                )}
 													</div>
 													{m.role === 'leader' && (
 														<span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">Leader</span>
