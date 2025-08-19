@@ -532,16 +532,18 @@ export async function claimReward(missionId: string) {
     // addXp関数をインポートして使用
     const { addXp } = await import('@/platform/supabaseXp');
     
-    // ギルド倍率の取得
+    // ギルド倍率の取得（レベル/貢献人数 + 連続達成ストリーク）
     let guildMultiplier = 1;
     try {
-      const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
+      const { getMyGuild, fetchGuildMemberMonthlyXp, fetchGuildDailyStreaks } = await import('@/platform/supabaseGuilds');
       const { computeGuildBonus } = await import('@/utils/guildBonus');
       const myGuild = await getMyGuild();
       if (myGuild) {
         const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
         const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-        guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
+        const st = await fetchGuildDailyStreaks(myGuild.id).catch(()=>({} as Record<string, any>));
+        const streakSumForGuild = Object.values(st as any).reduce((acc: number, s: any) => acc + (s?.tierPercent || 0), 0);
+        guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors, streakSumForGuild).totalMultiplier;
       }
     } catch {}
 
