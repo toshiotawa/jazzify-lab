@@ -26,7 +26,16 @@ export async function fetchLatestNotifications(limit = 10): Promise<Notification
     .limit(limit);
   if (error) throw error;
 
-  const actorIds = (data || []).map(n => n.actor_id);
+  const allowed = new Set<NotificationItem['type']>([
+    'diary_like',
+    'diary_comment',
+    'comment_thread_reply',
+    'guild_post_like',
+    'guild_post_comment',
+  ]);
+  const filtered = (data || []).filter(n => allowed.has(n.type as NotificationItem['type']));
+
+  const actorIds = filtered.map(n => n.actor_id);
   let actorMap = new Map<string, { nickname: string; avatar_url: string | null }>();
   if (actorIds.length > 0) {
     const { data: profiles } = await supabase
@@ -36,7 +45,7 @@ export async function fetchLatestNotifications(limit = 10): Promise<Notification
     (profiles || []).forEach(p => actorMap.set(p.id as string, { nickname: p.nickname || 'User', avatar_url: p.avatar_url || null }));
   }
 
-  return (data || []).map(n => ({
+  return filtered.map(n => ({
     ...n,
     actor_nickname: actorMap.get(n.actor_id)?.nickname,
     actor_avatar_url: actorMap.get(n.actor_id)?.avatar_url ?? null,
