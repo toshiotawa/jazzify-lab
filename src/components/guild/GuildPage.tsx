@@ -39,18 +39,24 @@ const GuildPage: React.FC = () => {
         const g = await getGuildById(guildId);
         setGuild(g);
         const mine = await getMyGuild();
-        setIsMember(!!(mine && mine.id === guildId));
+        const memberNow = !!(mine && mine.id === guildId);
+        setIsMember(memberNow);
         if (g) {
           try {
             const reqId = await getMyPendingJoinRequestForGuild(g.id);
             setMyPendingReqId(reqId);
           } catch {}
-          const [m, per] = await Promise.all([
-            getGuildMembers(g.id),
-            fetchGuildMemberMonthlyXp(g.id),
-          ]);
-          setMembers(m);
-          setMemberMonthly(per);
+          if (memberNow) {
+            const [m, per] = await Promise.all([
+              getGuildMembers(g.id),
+              fetchGuildMemberMonthlyXp(g.id),
+            ]);
+            setMembers(m);
+            setMemberMonthly(per);
+          } else {
+            setMembers([]);
+            setMemberMonthly([]);
+          }
           // 今シーズン（当月）合計XPと順位
           const now = new Date();
           const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
@@ -106,7 +112,7 @@ const GuildPage: React.FC = () => {
                   <div>
                     <div className="text-2xl font-bold flex items-center gap-2">
                       <span>{guild.name}{guild.disbanded ? '（解散したギルド）' : ''}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${guild.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text白'}`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${guild.guild_type === 'challenge' ? 'bg-pink-500 text-white' : 'bg-slate-600 text-white'}`}>
                         {guild.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}
                       </span>
                     </div>
@@ -167,7 +173,7 @@ const GuildPage: React.FC = () => {
                                   </div>
                                   <div className="absolute hidden group-hover:block z-50 bg-gray-900 text-white text-[11px] p-2 rounded shadow-lg whitespace-nowrap" style={{ top: '100%', left: 0, marginTop: '4px' }}>
                                     {getTitleRequirement((m.selected_title as Title) || DEFAULT_TITLE)}
-                                    <div className="absolute w-0 h-0 border-l-4 border-r-4 border-b-4 border透明 border-b-gray-900" style={{ top: '-4px', left: '12px' }} />
+                                    <div className="absolute w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900" style={{ top: '-4px', left: '12px' }} />
                                   </div>
                                 </div>
                               )}
@@ -175,7 +181,7 @@ const GuildPage: React.FC = () => {
                             <div className="text-xs text-gray-400">Lv.{m.level} / {m.rank}</div>
                           </div>
                           {m.role === 'leader' && (
-                            <span className="text-[10px] px-2 py-0.5 rounded_full bg-yellow-500 text黒 font-bold">Leader</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded_full bg-yellow-500 text-black font-bold">Leader</span>
                           )}
                           {memberMonthly.some(x=>x.user_id===m.user_id && Number(x.monthly_xp||0)>=1) && (
                             <FaCheckCircle className="text-green-400 text-sm" title="今月のギルド貢献にカウント済み" />
