@@ -483,19 +483,7 @@ const GuildDashboard: React.FC = () => {
 											</div>
 								</div>
 
-								{myGuild.guild_type === 'challenge' && (
-									<div className="bg-slate-800 border border-slate-700 rounded p-4">
-										<h3 className="font-semibold mb-2">ギルドクエスト</h3>
-										<p className="text-gray-300 text-sm">今月の獲得経験値が1,000,000に達しないと、月末にギルドは解散となります（メンバーは0人になります）。</p>
-										<div className="mt-2">
-											<div className="text-sm font-medium text-gray-400">今月の進捗</div>
-											<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
-												<div className="h-full bg-pink-500" style={{ width: `${Math.min(100, (thisMonthXp/1000000)*100)}%` }} />
-											</div>
-											<div className="text-sm text-gray-400 mt-1">{thisMonthXp.toLocaleString()} / 1,000,000</div>
-										</div>
-									</div>
-								)}
+                        {/* チャレンジUI削除: ギルドクエスト非表示 */}
 
 								<div className="bg-slate-800 border border-slate-700 rounded p-4">
 									<h3 className="font-semibold mb-3">MVP（今月）</h3>
@@ -540,14 +528,7 @@ const GuildDashboard: React.FC = () => {
 															)}
 														</div>
 														<div className="text-sm text-gray-400">Lv {m.level} / {m.rank}</div>
-														{myGuild.guild_type === 'challenge' && streaks[m.user_id] && (
-															<div className="mt-1">
-																<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
-																	<div className="h-full bg-green-500" style={{ width: `${Math.min(100, (Math.min(streaks[m.user_id].daysCurrentStreak, streaks[m.user_id].tierMaxDays) / streaks[m.user_id].tierMaxDays) * 100)}%` }} />
-																</div>
-																<div className="text-sm text-gray-400 mt-1">{streaks[m.user_id].display}</div>
-															</div>
-														)}
+                                                        {/* チャレンジUI削除: メンバーごとのストリーク進捗非表示 */}
 													</div>
 													{m.role === 'leader' && (
 														<span className="text-sm px-2 py-0.5 rounded-full bg-yellow-500 text-black font-bold">Leader</span>
