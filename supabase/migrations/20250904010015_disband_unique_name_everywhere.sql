@@ -15,7 +15,7 @@ begin
   if current_user <> 'service_role' and _leader <> _uid then
     raise exception 'Only leader can disband';
   end if;
-  _new_name := '解散したギルド-' || substr(replace(p_guild_id::text, '-', ''), 1, 8);
+  _new_name := '解散したギルド-Manual-' || substr(replace(p_guild_id::text, '-', ''), 1, 8);
   update public.guilds set disbanded = true, name = _new_name, updated_at = now() where id = p_guild_id;
   delete from public.guild_members where guild_id = p_guild_id;
 

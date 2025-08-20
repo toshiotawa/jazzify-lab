@@ -23,7 +23,7 @@ declare
   _new_name text;
 begin
   -- ensure deterministic unique rename to avoid violating unique(name)
-  _new_name := '解散したギルド-' || substr(replace(p_guild_id::text, '-', ''), 1, 8);
+  _new_name := '解散したギルド(Quest Failed)-' || substr(replace(p_guild_id::text, '-', ''), 1, 8);
   update public.guilds set disbanded = true, name = _new_name, updated_at = now() where id = p_guild_id;
   delete from public.guild_members where guild_id = p_guild_id;
 end;

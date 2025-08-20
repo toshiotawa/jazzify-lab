@@ -140,7 +140,7 @@ language plpgsql security definer as $$
 declare
   _new_name text;
 begin
-  _new_name := '解散したギルド-' || substr(replace(p_guild_id::text, '-', ''), 1, 8);
+  _new_name := '解散したギルド(Quest Failed)-' || substr(replace(p_guild_id::text, '-', ''), 1, 8);
   update public.guilds set disbanded = true, name = _new_name, updated_at = now() where id = p_guild_id;
   delete from public.guild_members where guild_id = p_guild_id;
 
@@ -167,7 +167,7 @@ begin
     raise exception 'Only leader can disband';
   end if;
 
-  update public.guilds set disbanded = true, name = '解散したギルド', updated_at = now() where id = p_guild_id;
+  update public.guilds set disbanded = true, name = '解散したギルド-Manual-' || substr(replace(p_guild_id::text, '-', ''), 1, 8), updated_at = now() where id = p_guild_id;
   delete from public.guild_members where guild_id = p_guild_id;
 
   update public.guild_invitations set status = 'cancelled', updated_at = now()
