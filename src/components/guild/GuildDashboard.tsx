@@ -131,11 +131,19 @@ const GuildDashboard: React.FC = () => {
                 if (!user || !guildName.trim()) return;
                 try {
                         setBusy(true);
-                        const gId = await createGuild(guildName.trim(), newGuildType);
-                        if (gId) {
-                                alert('ギルドが作成されました！');
-                                // 作成後はダッシュボードを維持
-                                window.location.hash = '#guilds';
+                        try {
+                                const gId = await createGuild(guildName.trim(), newGuildType);
+                                if (gId) {
+                                        alert('ギルドが作成されました！');
+                                        window.location.hash = '#guilds';
+                                }
+                        } catch (e: any) {
+                                const msg: string = e?.message || '';
+                                if (msg.includes('既に使用されています') || msg.includes('duplicate key')) {
+                                        alert('このギルド名は既に使われています。別の名前をお試しください。');
+                                } else {
+                                        throw e;
+                                }
                         }
                 } catch (e: any) {
                         alert(e?.message || 'ギルド作成に失敗しました');
