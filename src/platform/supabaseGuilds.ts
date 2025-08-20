@@ -454,6 +454,7 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
   const { data, error } = await supabase
     .from('guild_join_requests')
     .select('id, guild_id, requester_id, status, requester:profiles(nickname), guilds(name, guild_type)')
+
     .eq('guild_id', myGuildId)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
@@ -768,6 +769,7 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
 }
 
 export async function fetchMyJoinRequestForGuild(guildId: string): Promise<string | null> {
+
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;

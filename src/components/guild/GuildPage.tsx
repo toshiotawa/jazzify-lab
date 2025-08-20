@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, fetchMyJoinRequestForGuild, cancelMyJoinRequest, fetchGuildQuestSuccessCount } from '@/platform/supabaseGuilds';
+
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 
@@ -18,6 +19,7 @@ const GuildPage: React.FC = () => {
   const [busy, setBusy] = useState<boolean>(false);
   const [myPendingRequestId, setMyPendingRequestId] = useState<string | null>(null);
   const [questSuccessCount, setQuestSuccessCount] = useState<number | null>(null);
+
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash.startsWith('#guild'));
@@ -58,6 +60,7 @@ const GuildPage: React.FC = () => {
             setMyPendingRequestId(pendingId);
           }
           // 今シーズン（当時間）合計XPと順位
+
           const now = new Date();
           const currentHour = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())).toISOString();
           const [xp, r] = await Promise.all([
@@ -142,6 +145,7 @@ const GuildPage: React.FC = () => {
                       <button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', guild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
                       <button className="btn btn-sm btn-outline" onClick={() => { window.location.hash = '#my-guild-history'; }}>自分のギルド歴</button>
                     </div>
+
                     {!isMember && (
                       myPendingRequestId ? (
                         <button className="btn btn-sm btn-outline" disabled={busy} onClick={async()=>{ try{ setBusy(true); await cancelMyJoinRequest(myPendingRequestId); setMyPendingRequestId(null); } catch(e:any){ alert(e?.message||'キャンセルに失敗しました'); } finally{ setBusy(false); } }}>申請をキャンセル</button>

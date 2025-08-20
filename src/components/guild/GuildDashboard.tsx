@@ -63,7 +63,9 @@ const GuildDashboard: React.FC = () => {
 	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
 	const [pendingInvitations, setPendingInvitations] = useState<GuildInvitation[]>([]);
+
 	const [questSuccessCount, setQuestSuccessCount] = useState<number | null>(null);
+
 
 	useEffect(() => {
 		const fetchData = async () => {
