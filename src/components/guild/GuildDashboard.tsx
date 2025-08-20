@@ -30,6 +30,7 @@ import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { computeGuildBonus } from '@/utils/guildBonus';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
+import { fetchGuildQuestSuccessCount } from '@/platform/supabaseGuilds';
 
 const GuildIntro: React.FC = () => (
         <div className="bg-slate-800 border border-slate-700 rounded p-4">
@@ -62,6 +63,7 @@ const GuildDashboard: React.FC = () => {
 	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
 	const [pendingInvitations, setPendingInvitations] = useState<GuildInvitation[]>([]);
+	const [questSuccessCount, setQuestSuccessCount] = useState<number | null>(null);
 
 	useEffect(() => {
 		const fetchData = async () => {
@@ -83,11 +85,12 @@ const GuildDashboard: React.FC = () => {
                                 setPendingInvitations(invitations);
 				if (guild) {
 					// ギルドIDに依存する取得
-					const [m, perMember, totalContrib, st] = await Promise.all([
+					const [m, perMember, totalContrib, st, successCount] = await Promise.all([
 						getGuildMembers(guild.id),
 						fetchGuildMemberMonthlyXp(guild.id),
 						fetchMyGuildContributionTotal(guild.id),
 						(guild.guild_type === 'challenge' ? fetchGuildDailyStreaks(guild.id) : Promise.resolve({} as Record<string, any>)).catch(()=>({} as Record<string, any>)),
+						fetchGuildQuestSuccessCount(guild.id),
 					]);
 					setMembers(m);
 					setMemberMonthly(perMember);
@@ -95,6 +98,7 @@ const GuildDashboard: React.FC = () => {
 					setThisMonthXp(perMember.reduce((a, b) => a + Number(b.monthly_xp || 0), 0));
 					setIsLeader(m.some(x => x.user_id === user.id && x.role === 'leader'));
 					setStreaks(st);
+					setQuestSuccessCount(Number(successCount||0));
 				}
 			} catch (e: any) {
 				alert(e?.message || 'ギルド情報の取得に失敗しました');
@@ -396,6 +400,10 @@ const GuildDashboard: React.FC = () => {
 														<div className="h-full bg-green-500" style={{ width: `${Math.min(100, levelProgress)}%` }} />
 													</div>
 													<div className="text-sm text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
+												</div>
+												<div className="bg-slate-900 rounded p-3 border border-slate-700 col-span-2">
+													<div className="text-gray-400">クエスト成功回数（公開情報）</div>
+													<div className="text-lg font-semibold">{(questSuccessCount ?? 0).toLocaleString()}</div>
 												</div>
 											</div>
 											<div className="flex gap-2 mt-3">
