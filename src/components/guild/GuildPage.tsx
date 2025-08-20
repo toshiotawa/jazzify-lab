@@ -66,7 +66,7 @@ const GuildPage: React.FC = () => {
           ]);
           setSeasonXp(xp);
           setRank(r);
-          // クエスト成功回数（公開情報）
+          // クエスト成功回数
           const questSuccess = await fetchGuildQuestSuccessCount(g.id);
           setQuestSuccessCount(questSuccess);
         }
@@ -129,10 +129,12 @@ const GuildPage: React.FC = () => {
                         <div className="text-gray-400">順位</div>
                         <div className="text-lg font-semibold">{rank ? `${rank}位` : '-'}</div>
                       </div>
-                      <div className="bg-slate-900 rounded p-3 border border-slate-700 col-span-2">
-                        <div className="text-gray-400">クエスト成功回数（公開情報）</div>
-                        <div className="text-lg font-semibold">{questSuccessCount?.toLocaleString?.() ?? questSuccessCount}</div>
-                      </div>
+                      {guild.guild_type === 'challenge' && (
+                        <div className="bg-slate-900 rounded p-3 border border-slate-700 col-span-2">
+                          <div className="text-gray-400">クエスト成功回数</div>
+                          <div className="text-lg font-semibold">{questSuccessCount?.toLocaleString?.() ?? questSuccessCount}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">

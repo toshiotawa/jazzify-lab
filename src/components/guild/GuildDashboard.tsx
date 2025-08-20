@@ -404,10 +404,12 @@ const GuildDashboard: React.FC = () => {
 													</div>
 													<div className="text-sm text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
 												</div>
-												<div className="bg-slate-900 rounded p-3 border border-slate-700 col-span-2">
-													<div className="text-gray-400">クエスト成功回数（公開情報）</div>
-													<div className="text-lg font-semibold">{(questSuccessCount ?? 0).toLocaleString()}</div>
-												</div>
+												{myGuild.guild_type === 'challenge' && (
+													<div className="bg-slate-900 rounded p-3 border border-slate-700 col-span-2">
+														<div className="text-gray-400">クエスト成功回数</div>
+														<div className="text-lg font-semibold">{(questSuccessCount ?? 0).toLocaleString()}</div>
+													</div>
+												)}
 											</div>
 											<div className="flex gap-2 mt-3">
 												<button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', myGuild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
@@ -429,7 +431,7 @@ const GuildDashboard: React.FC = () => {
 								{myGuild.guild_type === 'challenge' && (
 									<div className="bg-slate-800 border border-slate-700 rounded p-4">
 										<h3 className="font-semibold mb-2">ギルドクエスト</h3>
-										<p className="text-gray-300 text-sm">直前の1時間での獲得経験値が1,000に達しない場合、ギルドは解散となります。達成時はシーズン切替時に成功回数が加算されます（成功回数は公開情報）。</p>
+										<p className="text-gray-300 text-sm">直前の1時間での獲得経験値が1,000に達しない場合、ギルドは解散となります。達成時はシーズン切替時に成功回数が加算されます。</p>
 										<div className="mt-2">
 											<div className="text-sm font-medium text-gray-400">今時間の進捗（残り: {(() => { const now = new Date(); const mins = 59 - now.getUTCMinutes(); const secs = 59 - now.getUTCSeconds(); return `${mins}分${secs}秒`; })()}）</div>
 											<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
