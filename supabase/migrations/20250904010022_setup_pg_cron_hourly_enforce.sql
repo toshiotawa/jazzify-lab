@@ -3,17 +3,15 @@
 -- pg_cron extension (Supabase recommends installing into extensions schema)
 create extension if not exists pg_cron with schema extensions;
 
--- Unschedule existing jobs with the same command to avoid duplicates (best-effort)
+-- Unschedule by job name if possible, ignore errors if not supported
 do $$
 begin
-  if exists (
-    select 1 from information_schema.routines
-    where routine_schema = 'cron' and routine_name = 'unschedule'
-  ) then
-    perform cron.unschedule(jobid)
-    from cron.job
-    where command = $$select public.rpc_guild_enforce_monthly_quest(date_trunc('hour', now()))$$;
-  end if;
+  begin
+    perform cron.unschedule('guild_hourly_enforce');
+  exception when others then
+    -- ignore if function signature not supported
+    null;
+  end;
 end$$;
 
 -- Schedule job at minute 1 every hour (UTC)
