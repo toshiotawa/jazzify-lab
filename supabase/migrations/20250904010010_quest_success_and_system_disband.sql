@@ -38,8 +38,8 @@ create or replace function public.rpc_guild_enforce_monthly_quest(
 returns void
 language plpgsql security definer as $$
 declare
-  _target_hour timestamptz := date_trunc('hour', p_hour);
-  _prev_hour timestamptz := date_trunc('hour', p_hour) - interval '1 hour';
+  _target_hour timestamptz := coalesce(date_trunc('hour', p_hour), date_trunc('hour', now()));
+  _prev_hour timestamptz := _target_hour - interval '1 hour';
   _gid uuid;
   _xp bigint;
   _rec record;
@@ -48,6 +48,7 @@ begin
     select g.id as guild_id
     from public.guilds g
     where coalesce(g.guild_type, 'casual') = 'challenge'
+      and coalesce(g.disbanded, false) = false
   ) loop
     _gid := _rec.guild_id;
     select coalesce(sum(c.gained_xp), 0) into _xp

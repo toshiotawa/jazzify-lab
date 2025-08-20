@@ -783,8 +783,14 @@ export async function cancelMyJoinRequest(requestId: string): Promise<void> {
 
 export async function enforceMonthlyGuildQuest(targetHour?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest', { p_hour: targetHour || null });
-  if (error && error.code !== 'PGRST116') throw error;
+  if (typeof targetHour === 'string' && targetHour.length > 0) {
+    const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest', { p_hour: targetHour });
+    if (error && error.code !== 'PGRST116') throw error;
+  } else {
+    // パラメータ未指定の場合はデフォルト引数を使わせる（nullを明示的に渡さない）
+    const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest');
+    if (error && error.code !== 'PGRST116') throw error;
+  }
 }
 
 export async function submitGuildLeaveFeedback(previousGuildId: string, previousGuildName: string, leaveType: 'left'|'kicked'|'disband', reason: string): Promise<void> {

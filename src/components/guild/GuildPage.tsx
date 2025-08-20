@@ -136,7 +136,10 @@ const GuildPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', guild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
+                    <div className="flex gap-2">
+                      <button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', guild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
+                      <button className="btn btn-sm btn-outline" onClick={() => { window.location.hash = '#my-guild-history'; }}>自分のギルド歴</button>
+                    </div>
                     {!isMember && (
                       myPendingRequestId ? (
                         <button className="btn btn-sm btn-outline" disabled={busy} onClick={async()=>{ try{ setBusy(true); await cancelMyJoinRequest(myPendingRequestId); setMyPendingRequestId(null); } catch(e:any){ alert(e?.message||'キャンセルに失敗しました'); } finally{ setBusy(false); } }}>申請をキャンセル</button>

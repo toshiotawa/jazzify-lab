@@ -400,6 +400,7 @@ const GuildDashboard: React.FC = () => {
 											</div>
 											<div className="flex gap-2 mt-3">
 												<button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', myGuild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
+												<button className="btn btn-sm btn-outline" onClick={() => { window.location.hash = '#my-guild-history'; }}>自分のギルド歴</button>
 												{isLeader && (
 													editingDesc ? (
 														<div className="flex gap-2 flex-1">
