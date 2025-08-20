@@ -9,7 +9,7 @@ const GuildPage: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash.startsWith('#guild'));
   const [guildId, setGuildId] = useState<string | null>(null);
   const [guild, setGuild] = useState<Guild | null>(null);
-  const [members, setMembers] = useState<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; role: 'leader' | 'member'; selected_title?: string }>>([]);
+  const [members, setMembers] = useState<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; role: 'leader' | 'member'; selected_title?: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [memberMonthly, setMemberMonthly] = useState<Array<{ user_id: string; monthly_xp: number }>>([]);
   const [seasonXp, setSeasonXp] = useState<number>(0);
@@ -56,12 +56,12 @@ const GuildPage: React.FC = () => {
             const pendingId = await pendingIdPromise;
             setMyPendingRequestId(pendingId);
           }
-          // 今シーズン（当月）合計XPと順位
+          // 今シーズン（当時間）合計XPと順位
           const now = new Date();
-          const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
+          const currentHour = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())).toISOString();
           const [xp, r] = await Promise.all([
-            fetchGuildMonthlyXpSingle(g.id, currentMonth),
-            fetchGuildRankForMonth(g.id, currentMonth),
+            fetchGuildMonthlyXpSingle(g.id, currentHour),
+            fetchGuildRankForMonth(g.id, currentHour),
           ]);
           setSeasonXp(xp);
           setRank(r);

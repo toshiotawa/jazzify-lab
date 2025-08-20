@@ -21,24 +21,23 @@ const GuildRanking: React.FC = () => {
         setLoading(true);
         try {
           const now = new Date();
-          const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
-          const prevMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-          const prevMonth = prevMonthDate.toISOString().slice(0,10);
+          const currentHour = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())).toISOString();
+          const prevHour = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() - 1)).toISOString();
           const [cur, prev] = await Promise.all([
-            fetchGuildRanking(100, 0, currentMonth),
-            fetchGuildRanking(100, 0, prevMonth),
+            fetchGuildRanking(100, 0, currentHour),
+            fetchGuildRanking(100, 0, prevHour),
           ]);
           setRowsCurrent(cur);
           setRowsPrev(prev);
           // MVPの取得（各ギルドのトップ貢献者）
           const [curMvpList, prevMvpList] = await Promise.all([
             Promise.all(cur.map(async (r) => {
-              const contribs = await fetchGuildContributorsWithProfiles(r.guild_id, currentMonth);
+              const contribs = await fetchGuildContributorsWithProfiles(r.guild_id, currentHour);
               const top = contribs[0];
               return { guild_id: r.guild_id, mvp: top ? { user_id: top.user_id, nickname: top.nickname, avatar_url: top.avatar_url, level: top.level, contributed_xp: top.contributed_xp } : null };
             })),
             Promise.all(prev.map(async (r) => {
-              const contribs = await fetchGuildContributorsWithProfiles(r.guild_id, prevMonth);
+              const contribs = await fetchGuildContributorsWithProfiles(r.guild_id, prevHour);
               const top = contribs[0];
               return { guild_id: r.guild_id, mvp: top ? { user_id: top.user_id, nickname: top.nickname, avatar_url: top.avatar_url, level: top.level, contributed_xp: top.contributed_xp } : null };
             })),

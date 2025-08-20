@@ -42,10 +42,12 @@ export interface GuildJoinRequest {
   requester_nickname?: string;
 }
 
-function getMonthStartDateStringUTC(baseDate?: Date): string {
+function getHourBucketISOStringUTC(baseDate?: Date): string {
   const now = baseDate ? new Date(baseDate) : new Date();
-  const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  return monthStartUtc.toISOString().slice(0, 10);
+  const hourStartUtc = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours()
+  ));
+  return hourStartUtc.toISOString();
 }
 
 export async function getMyGuild(): Promise<Guild | null> {
@@ -258,12 +260,12 @@ export async function kickMember(guildId: string, memberUserId: string): Promise
   if (error) throw error;
 }
 
-export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: string): Promise<Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>> {
+export async function fetchGuildRanking(limit = 50, offset = 0, targetHour?: string): Promise<Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>> {
   const supabase = getSupabaseClient();
-  const month = targetMonth || getMonthStartDateStringUTC();
+  const hourIso = targetHour || getHourBucketISOStringUTC();
   try {
     const { data, error } = await supabase
-      .rpc('rpc_get_guild_ranking', { limit_count: limit, offset_count: offset, target_month: month });
+      .rpc('rpc_get_guild_ranking', { limit_count: limit, offset_count: offset, target_hour: hourIso });
     if (error) throw error;
     return ((data || []) as Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>).
       filter(r => Number(r.monthly_xp || 0) > 0);
@@ -271,8 +273,8 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: st
     console.warn('rpc_get_guild_ranking failed, fallback to client aggregation:', e);
     const { data: contribs, error: contribErr } = await supabase
       .from('guild_xp_contributions')
-      .select('guild_id, gained_xp, month')
-      .eq('month', month);
+      .select('guild_id, gained_xp, hour_bucket')
+      .eq('hour_bucket', hourIso);
     if (contribErr) {
       console.warn('fetchGuildRanking contributions error:', contribErr);
       return [];
@@ -312,11 +314,11 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: st
   }
 }
 
-export async function fetchMyGuildRank(targetMonth?: string): Promise<number | null> {
+export async function fetchMyGuildRank(targetHour?: string): Promise<number | null> {
   const supabase = getSupabaseClient();
-  const month = targetMonth || getMonthStartDateStringUTC();
+  const hourIso = targetHour || getHourBucketISOStringUTC();
   try {
-    const { data, error } = await supabase.rpc('rpc_get_my_guild_rank', { target_month: month });
+    const { data, error } = await supabase.rpc('rpc_get_my_guild_rank', { target_hour: hourIso });
     if (error) throw error;
     return (data as number) ?? null;
   } catch (e) {
@@ -326,7 +328,7 @@ export async function fetchMyGuildRank(targetMonth?: string): Promise<number | n
     const { data, error } = await supabase
       .from('guild_xp_contributions')
       .select('guild_id, gained_xp')
-      .eq('month', month);
+      .eq('hour_bucket', hourIso);
     if (error) {
       console.warn('fetchMyGuildRank contributions error:', error);
       return null;
@@ -475,14 +477,14 @@ export async function getPendingInvitationToUser(targetUserId: string): Promise<
   } as GuildInvitation) : null;
 }
 
-export async function fetchGuildMemberMonthlyXp(guildId: string, targetMonth?: string): Promise<Array<{ user_id: string; monthly_xp: number }>> {
+export async function fetchGuildMemberMonthlyXp(guildId: string, targetHour?: string): Promise<Array<{ user_id: string; monthly_xp: number }>> {
   const supabase = getSupabaseClient();
-  const month = targetMonth || getMonthStartDateStringUTC();
+  const hourIso = targetHour || getHourBucketISOStringUTC();
   const { data, error } = await supabase
     .from('guild_xp_contributions')
     .select('user_id, gained_xp')
     .eq('guild_id', guildId)
-    .eq('month', month);
+    .eq('hour_bucket', hourIso);
   if (error) {
     console.warn('fetchGuildMemberMonthlyXp error:', error);
     return [];
@@ -512,14 +514,14 @@ export async function fetchMyGuildContributionTotal(guildId: string): Promise<nu
 
 export async function fetchGuildContributorsWithProfiles(
   guildId: string,
-  targetMonth: string,
+  targetHour: string,
 ): Promise<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; contributed_xp: number }>> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('guild_xp_contributions')
     .select('user_id, gained_xp')
     .eq('guild_id', guildId)
-    .eq('month', targetMonth);
+    .eq('hour_bucket', targetHour);
   if (error) {
     console.warn('fetchGuildContributorsWithProfiles error:', error);
     return [];
@@ -557,7 +559,7 @@ export async function fetchGuildContributorsWithProfiles(
   });
 }
 
-export async function fetchGuildRankForMonth(guildId: string, targetMonth: string): Promise<number | null> {
+export async function fetchGuildRankForMonth(guildId: string, targetHour: string): Promise<number | null> {
   const supabase = getSupabaseClient();
   try {
     throw new Error('no_rpc');
@@ -565,7 +567,7 @@ export async function fetchGuildRankForMonth(guildId: string, targetMonth: strin
     const { data, error } = await supabase
       .from('guild_xp_contributions')
       .select('guild_id, gained_xp')
-      .eq('month', targetMonth);
+      .eq('hour_bucket', targetHour);
     if (error) {
       console.warn('fetchGuildRankForMonth contributions error:', error);
       return null;
@@ -580,13 +582,13 @@ export async function fetchGuildRankForMonth(guildId: string, targetMonth: strin
   }
 }
 
-export async function fetchGuildMonthlyXpSingle(guildId: string, targetMonth: string): Promise<number> {
+export async function fetchGuildMonthlyXpSingle(guildId: string, targetHour: string): Promise<number> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('guild_xp_contributions')
     .select('gained_xp')
     .eq('guild_id', guildId)
-    .eq('month', targetMonth);
+    .eq('hour_bucket', targetHour);
   if (error) {
     console.warn('fetchGuildMonthlyXpSingle error:', error);
     return 0;
@@ -759,9 +761,9 @@ export async function cancelMyJoinRequest(requestId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function enforceMonthlyGuildQuest(targetMonth?: string): Promise<void> {
+export async function enforceMonthlyGuildQuest(targetHour?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest', { p_month: targetMonth || null });
+  const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest', { p_hour: targetHour || null });
   if (error && error.code !== 'PGRST116') throw error;
 }
 

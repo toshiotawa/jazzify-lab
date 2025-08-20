@@ -105,15 +105,15 @@ const GuildDashboard: React.FC = () => {
 		fetchData();
 	}, [user]);
 
-	// 月次クエストの強制（クライアント側フォールバック。1ヶ月1回のみ）
+	// 時間クエストの強制（クライアント側フォールバック。1時間1回のみ）
 	useEffect(() => {
 		(async () => {
 			try {
-				const monthKey = new Date().toISOString().slice(0,7);
-				if (!localStorage.getItem(`quest_enforced_${monthKey}`)) {
+				const hourKey = new Date().toISOString().slice(0,13);
+				if (!localStorage.getItem(`quest_enforced_${hourKey}`)) {
 					const { enforceMonthlyGuildQuest } = await import('@/platform/supabaseGuilds');
 					await enforceMonthlyGuildQuest().catch(()=>{});
-					localStorage.setItem(`quest_enforced_${monthKey}`, '1');
+					localStorage.setItem(`quest_enforced_${hourKey}`, '1');
 				}
 			} catch {}
 		})();
@@ -411,19 +411,19 @@ const GuildDashboard: React.FC = () => {
 								{myGuild.guild_type === 'challenge' && (
 									<div className="bg-slate-800 border border-slate-700 rounded p-4">
 										<h3 className="font-semibold mb-2">ギルドクエスト</h3>
-										<p className="text-gray-300 text-sm">今月の獲得経験値が1,000,000に達しないと、月末にギルドは解散となります（メンバーは0人になります）。</p>
+										<p className="text-gray-300 text-sm">直前の1時間での獲得経験値が1,000に達しない場合、ギルドは解散となります（検証用の一時設定）。</p>
 										<div className="mt-2">
-											<div className="text-sm font-medium text-gray-400">今月の進捗</div>
+											<div className="text-sm font-medium text-gray-400">今時間の進捗</div>
 											<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
-												<div className="h-full bg-pink-500" style={{ width: `${Math.min(100, (thisMonthXp/1000000)*100)}%` }} />
+												<div className="h-full bg-pink-500" style={{ width: `${Math.min(100, (thisMonthXp/1000)*100)}%` }} />
 											</div>
-											<div className="text-sm text-gray-400 mt-1">{thisMonthXp.toLocaleString()} / 1,000,000</div>
+											<div className="text-sm text-gray-400 mt-1">{thisMonthXp.toLocaleString()} / 1,000</div>
 										</div>
 									</div>
 								)}
 
 								<div className="bg-slate-800 border border-slate-700 rounded p-4">
-									<h3 className="font-semibold mb-3">MVP（今月）</h3>
+									<h3 className="font-semibold mb-3">MVP（今時間）</h3>
 									{!mvp ? (
 										<p className="text-gray-400 text-sm">該当なし</p>
 									) : (

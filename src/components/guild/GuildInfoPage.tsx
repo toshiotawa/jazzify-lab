@@ -59,7 +59,7 @@ const GuildInfoPage: React.FC = () => {
 
                                         <section className="space-y-2">
                                                 <h3 className="text-xl font-semibold">クエストについて</h3>
-                                                <p className="text-sm text-gray-300">チャレンジギルドは毎月1,000,000XPを獲得しないと解散します。</p>
+                                                <p className="text-sm text-gray-300">チャレンジギルドは直前の1時間で1,000XP未満の場合、解散します（検証用の一時設定）。</p>
                                         </section>
 
                                         <section className="space-y-2">
