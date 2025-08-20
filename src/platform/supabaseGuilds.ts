@@ -47,16 +47,15 @@ export interface GuildJoinRequest {
 
 export async function fetchGuildQuestSuccessCount(guildId: string): Promise<number> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('guild_quest_stats')
-    .select('success_count')
-    .eq('guild_id', guildId)
-    .maybeSingle();
-  if (error && error.code !== 'PGRST116') {
+  const { count, error } = await supabase
+    .from('guild_quest_success_log')
+    .select('*', { count: 'exact', head: true })
+    .eq('guild_id', guildId);
+  if (error && (error as any).code !== 'PGRST116') {
     console.warn('fetchGuildQuestSuccessCount error:', error);
     return 0;
   }
-  return Number((data as any)?.success_count || 0);
+  return Number(count || 0);
 }
 
 function getHourBucketISOStringUTC(baseDate?: Date): string {
