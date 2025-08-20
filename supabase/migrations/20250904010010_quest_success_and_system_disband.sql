@@ -102,11 +102,14 @@ create or replace function public.on_guild_member_delete_history()
 returns trigger
 language plpgsql security definer as $$
 begin
-  update public.guild_membership_history
+  update public.guild_membership_history h
     set left_at = now()
-  where user_id = old.user_id and guild_id = old.guild_id and left_at is null
-  order by joined_at desc
-  limit 1;
+  where h.id = (
+    select id from public.guild_membership_history
+    where user_id = old.user_id and guild_id = old.guild_id and left_at is null
+    order by joined_at desc
+    limit 1
+  );
   return old;
 end;
 $$;
