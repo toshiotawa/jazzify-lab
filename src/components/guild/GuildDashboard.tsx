@@ -304,6 +304,9 @@ const GuildDashboard: React.FC = () => {
                                 <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                                         <div className="max-w-4xl mx-auto space-y-4 text-center">
                                                 <GuildIntro />
+                                                <div>
+                                                        <button className="btn btn-sm btn-outline" onClick={()=>{ window.location.hash = '#my-guild-history'; }}>自分のギルド歴を見る</button>
+                                                </div>
                                                 <h2 className="text-xl font-bold">ギルドを作成または参加</h2>
                                                 <p className="text-gray-300">ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
                                                 {/* 脱退理由UIは廃止 */}
