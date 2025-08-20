@@ -132,10 +132,8 @@ const GuildDashboard: React.FC = () => {
                         const gId = await createGuild(guildName.trim(), newGuildType);
                         if (gId) {
                                 alert('ギルドが作成されました！');
-                                // 作成後は自ギルド詳細へ移動
-                                const p = new URLSearchParams();
-                                p.set('id', gId);
-                                window.location.hash = `#guild?id=${gId}`;
+                                // 作成後はダッシュボードを維持
+                                window.location.hash = '#guilds';
                         }
                 } catch (e: any) {
                         alert(e?.message || 'ギルド作成に失敗しました');

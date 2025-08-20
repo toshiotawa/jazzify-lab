@@ -5,8 +5,8 @@ import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 const GuildRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#guilds-ranking');
-  const [rowsCurrent, setRowsCurrent] = useState<Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>>([]);
-  const [rowsPrev, setRowsPrev] = useState<Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>>([]);
+  const [rowsCurrent, setRowsCurrent] = useState<Array<{ guild_id: string; name: string; guild_type: 'casual'|'challenge'; members_count: number; level: number; monthly_xp: number; quest_success_count: number | null; rank_no: number }>>([]);
+  const [rowsPrev, setRowsPrev] = useState<Array<{ guild_id: string; name: string; guild_type: 'casual'|'challenge'; members_count: number; level: number; monthly_xp: number; quest_success_count: number | null; rank_no: number }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -76,14 +76,16 @@ const GuildRanking: React.FC = () => {
             <div>
               <h4 className="font-semibold mb-2">今月</h4>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[720px]">
+                <table className="w-full text-sm min-w-[880px]">
                   <thead>
                     <tr className="border-b border-slate-700">
                       <th className="py-2 px-2 text-left">#</th>
                       <th className="py-2 px-2 text-left">ギルド名</th>
+                      <th className="py-2 px-2 text-left">タイプ</th>
                       <th className="py-2 px-2 text-left">ギルドレベル</th>
                       <th className="py-2 px-2 text-left">MVPメンバー</th>
                       <th className="py-2 px-2 text-left">今月XP</th>
+                      <th className="py-2 px-2 text-left">成功回数</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -93,6 +95,7 @@ const GuildRanking: React.FC = () => {
                         <td className="py-2 px-2">
                           <button className="hover:text-blue-400 underline" onClick={() => { const p = new URLSearchParams(); p.set('id', r.guild_id); window.location.hash = `#guild?${p.toString()}`; }}>{r.name}</button>
                         </td>
+                        <td className="py-2 px-2">{r.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</td>
                         <td className="py-2 px-2">{r.level}</td>
                         <td className="py-2 px-2">
                           {mvpCurrent[r.guild_id] ? (
@@ -111,6 +114,7 @@ const GuildRanking: React.FC = () => {
                           )}
                         </td>
                         <td className="py-2 px-2">{r.monthly_xp}</td>
+                        <td className="py-2 px-2">{r.guild_type === 'challenge' ? (r.quest_success_count ?? 0) : '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -120,14 +124,16 @@ const GuildRanking: React.FC = () => {
             <div>
               <h4 className="font-semibold mb-2">先月</h4>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[720px]">
+                <table className="w-full text-sm min-w-[880px]">
                   <thead>
                     <tr className="border-b border-slate-700">
                       <th className="py-2 px-2 text-left">#</th>
                       <th className="py-2 px-2 text-left">ギルド名</th>
+                      <th className="py-2 px-2 text-left">タイプ</th>
                       <th className="py-2 px-2 text-left">ギルドレベル</th>
                       <th className="py-2 px-2 text-left">MVPメンバー</th>
                       <th className="py-2 px-2 text-left">先月XP</th>
+                      <th className="py-2 px-2 text-left">成功回数</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -137,6 +143,7 @@ const GuildRanking: React.FC = () => {
                         <td className="py-2 px-2">
                           <button className="hover:text-blue-400 underline" onClick={() => { const p = new URLSearchParams(); p.set('id', r.guild_id); window.location.hash = `#guild?${p.toString()}`; }}>{r.name}</button>
                         </td>
+                        <td className="py-2 px-2">{r.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}</td>
                         <td className="py-2 px-2">{r.level}</td>
                         <td className="py-2 px-2">
                           {mvpPrev[r.guild_id] ? (
@@ -155,6 +162,7 @@ const GuildRanking: React.FC = () => {
                           )}
                         </td>
                         <td className="py-2 px-2">{r.monthly_xp}</td>
+                        <td className="py-2 px-2">{r.guild_type === 'challenge' ? (r.quest_success_count ?? 0) : '-'}</td>
                       </tr>
                     ))}
                   </tbody>

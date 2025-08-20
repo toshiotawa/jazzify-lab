@@ -277,15 +277,20 @@ export async function kickMember(guildId: string, memberUserId: string): Promise
   if (error) throw error;
 }
 
-export async function fetchGuildRanking(limit = 50, offset = 0, targetHour?: string): Promise<Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>> {
+export async function fetchGuildRanking(limit = 50, offset = 0, targetHour?: string): Promise<Array<{ guild_id: string; name: string; guild_type: 'casual'|'challenge'; members_count: number; level: number; monthly_xp: number; quest_success_count: number | null; rank_no: number }>> {
   const supabase = getSupabaseClient();
   const hourIso = targetHour || getHourBucketISOStringUTC();
   try {
     const { data, error } = await supabase
       .rpc('rpc_get_guild_ranking', { limit_count: limit, offset_count: offset, target_hour: hourIso });
     if (error) throw error;
-    return ((data || []) as Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>).
-      filter(r => Number(r.monthly_xp || 0) > 0);
+    const rows = ((data || []) as Array<{ guild_id: string; name: string; guild_type: string | null; members_count: number; level: number; monthly_xp: number; quest_success_count: number | null; rank_no: number }>)
+      .filter(r => Number(r.monthly_xp || 0) > 0)
+      .map(r => ({
+        ...r,
+        guild_type: (r.guild_type === 'challenge' ? 'challenge' : 'casual') as 'casual'|'challenge',
+      }));
+    return rows;
   } catch (e) {
     console.warn('rpc_get_guild_ranking failed, fallback to client aggregation:', e);
     const { data: contribs, error: contribErr } = await supabase
@@ -310,7 +315,7 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetHour?: str
     if (guildIds.length === 0) return [];
     const { data: guildsData, error: gErr } = await supabase
       .from('guilds')
-      .select('id, name, level')
+      .select('id, name, level, guild_type')
       .in('id', guildIds);
     if (gErr) {
       console.warn('fetchGuildRanking guilds error:', gErr);
@@ -322,9 +327,11 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetHour?: str
       return {
         guild_id: e.guildId,
         name: g?.name || 'Guild',
+        guild_type: ((g?.guild_type as 'casual'|'challenge') || 'casual'),
         members_count: 0,
         level: g?.level ? Number(g.level) : 1,
         monthly_xp: e.monthly_xp,
+        quest_success_count: null,
         rank_no: offset + idx + 1,
       };
     });
