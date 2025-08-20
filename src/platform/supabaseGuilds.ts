@@ -321,14 +321,11 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetHour?: str
       return [];
     }
     const guildMap = new Map((guildsData || []).map((g: any) => [g.id, g] as const));
-    const { data: succData } = await supabase
-      .from('guild_quest_success_log')
-      .select('guild_id')
-      .in('guild_id', guildIds);
-    const successCountByGuild = new Map<string, number>();
-    (succData || []).forEach((r: any) => {
-      successCountByGuild.set(r.guild_id, (successCountByGuild.get(r.guild_id) || 0) + 1);
-    });
+    // fetch success counts via RPC for accuracy/perf
+    const { data: succRows, error: succErr } = await supabase
+      .rpc('rpc_get_guild_success_counts', { p_guild_ids: guildIds });
+    if (succErr) console.warn('rpc_get_guild_success_counts error:', succErr);
+    const successCountByGuild = new Map<string, number>((succRows || []).map((r: any) => [r.guild_id, Number(r.success_count || 0)] as const));
     return sliced.map((e, idx) => {
       const g = guildMap.get(e.guildId);
       return {
