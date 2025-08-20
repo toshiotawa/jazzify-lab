@@ -6,7 +6,6 @@ import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZAR
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 
 const GuildPage: React.FC = () => {
-  const [open, setOpen] = useState(window.location.hash.startsWith('#guild'));
   const [guildId, setGuildId] = useState<string | null>(null);
   const [guild, setGuild] = useState<Guild | null>(null);
   const [members, setMembers] = useState<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; role: 'leader' | 'member'; selected_title?: string }>>([]);
@@ -19,17 +18,16 @@ const GuildPage: React.FC = () => {
   const [myPendingRequestId, setMyPendingRequestId] = useState<string | null>(null);
 
   useEffect(() => {
-    const handler = () => setOpen(window.location.hash.startsWith('#guild'));
-    window.addEventListener('hashchange', handler);
-    return () => window.removeEventListener('hashchange', handler);
+    const updateGuildId = () => {
+      const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+      const id = params.get('id');
+      setGuildId(id);
+    };
+    
+    updateGuildId();
+    window.addEventListener('hashchange', updateGuildId);
+    return () => window.removeEventListener('hashchange', updateGuildId);
   }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-    const id = params.get('id');
-    setGuildId(id);
-  }, [open]);
 
   useEffect(() => {
     (async () => {
@@ -72,7 +70,7 @@ const GuildPage: React.FC = () => {
     })();
   }, [guildId]);
 
-  if (!open) return null;
+
 
 
   const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
