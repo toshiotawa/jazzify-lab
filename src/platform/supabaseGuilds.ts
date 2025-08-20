@@ -322,6 +322,14 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetHour?: str
       return [];
     }
     const guildMap = new Map((guildsData || []).map((g: any) => [g.id, g] as const));
+    const { data: succData } = await supabase
+      .from('guild_quest_success_log')
+      .select('guild_id')
+      .in('guild_id', guildIds);
+    const successCountByGuild = new Map<string, number>();
+    (succData || []).forEach((r: any) => {
+      successCountByGuild.set(r.guild_id, (successCountByGuild.get(r.guild_id) || 0) + 1);
+    });
     return sliced.map((e, idx) => {
       const g = guildMap.get(e.guildId);
       return {
@@ -331,7 +339,7 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetHour?: str
         members_count: 0,
         level: g?.level ? Number(g.level) : 1,
         monthly_xp: e.monthly_xp,
-        quest_success_count: null,
+        quest_success_count: successCountByGuild.get(e.guildId) ?? 0,
         rank_no: offset + idx + 1,
       };
     });
