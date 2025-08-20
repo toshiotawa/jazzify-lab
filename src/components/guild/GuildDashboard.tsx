@@ -126,9 +126,10 @@ const GuildDashboard: React.FC = () => {
                         const gId = await createGuild(guildName.trim(), newGuildType);
                         if (gId) {
                                 alert('ギルドが作成されました！');
-                                // 再読み込み
-                                window.location.hash = '#guild-dashboard';
-                                window.location.reload();
+                                // 作成後は自ギルド詳細へ移動
+                                const p = new URLSearchParams();
+                                p.set('id', gId);
+                                window.location.hash = `#guild?id=${gId}`;
                         }
                 } catch (e: any) {
                         alert(e?.message || 'ギルド作成に失敗しました');
@@ -309,7 +310,12 @@ const GuildDashboard: React.FC = () => {
                                                                         {pendingInvitations.map(inv => (
                                                                                 <li key={inv.id} className="flex items-center justify-between bg-slate-900 p-2 rounded">
                                                                                         <div>
-                                                                                                <p className="text-sm">{inv.guild_name || 'ギルド'} からの招待</p>
+                                                                                                <p className="text-sm">
+                                                                                                        <a className="link link-info" onClick={() => { const p = new URLSearchParams(); p.set('id', inv.guild_id); window.location.hash = `#guild?id=${inv.guild_id}`; }}>
+                                                                                                                {inv.guild_name || 'ギルド'}
+                                                                                                        </a>
+                                                                                                        {' '}からの招待{inv.guild_type ? `（${inv.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}）` : ''}
+                                                                                                </p>
                                                                                                 {inv.inviter_nickname && (
                                                                                                         <p className="text-xs text-gray-400">招待者: {inv.inviter_nickname}</p>
                                                                                                 )}
@@ -411,9 +417,9 @@ const GuildDashboard: React.FC = () => {
 								{myGuild.guild_type === 'challenge' && (
 									<div className="bg-slate-800 border border-slate-700 rounded p-4">
 										<h3 className="font-semibold mb-2">ギルドクエスト</h3>
-										<p className="text-gray-300 text-sm">直前の1時間での獲得経験値が1,000に達しない場合、ギルドは解散となります（検証用の一時設定）。</p>
+										<p className="text-gray-300 text-sm">直前の1時間での獲得経験値が1,000に達しない場合、ギルドは解散となります。達成時はシーズン切替時に成功回数が加算されます（成功回数は公開情報）。</p>
 										<div className="mt-2">
-											<div className="text-sm font-medium text-gray-400">今時間の進捗</div>
+											<div className="text-sm font-medium text-gray-400">今時間の進捗（残り: {(() => { const now = new Date(); const mins = 59 - now.getUTCMinutes(); const secs = 59 - now.getUTCSeconds(); return `${mins}分${secs}秒`; })()}）</div>
 											<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
 												<div className="h-full bg-pink-500" style={{ width: `${Math.min(100, (thisMonthXp/1000)*100)}%` }} />
 											</div>
@@ -497,7 +503,14 @@ const GuildDashboard: React.FC = () => {
 										<ul className="space-y-2">
 											{joinRequests.map(req => (
 												<li key={req.id} className="bg-slate-900 p-2 rounded-lg">
-													<p>{req.requester_nickname || 'ユーザー'} からの参加リクエスト</p>
+													<p>
+														{req.requester_nickname || 'ユーザー'} からの参加リクエスト
+														{' '}→{' '}
+														<a className="link link-info" onClick={() => { const p = new URLSearchParams(); p.set('id', req.guild_id); window.location.hash = `#guild?id=${req.guild_id}`; }}>
+															{req.guild_name || 'ギルド'}
+														</a>
+													{req.guild_type ? `（${req.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}）` : ''}
+													</p>
 													<button onClick={() => handleApproveJoinRequest(req.id)} className="btn btn-xs btn-success mr-2">承認</button>
 													<button onClick={() => handleRejectJoinRequest(req.id)} className="btn btn-xs btn-error">拒否</button>
 												</li>

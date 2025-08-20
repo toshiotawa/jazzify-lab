@@ -32,6 +32,7 @@ export interface GuildInvitation {
   status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
   guild_name?: string;
   inviter_nickname?: string;
+  guild_type?: GuildType;
 }
 
 export interface GuildJoinRequest {
@@ -40,6 +41,8 @@ export interface GuildJoinRequest {
   requester_id: string;
   status: 'pending' | 'approved' | 'rejected' | 'cancelled';
   requester_nickname?: string;
+  guild_name?: string;
+  guild_type?: GuildType;
 }
 
 function getHourBucketISOStringUTC(baseDate?: Date): string {
@@ -385,7 +388,7 @@ export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]>
   if (!user) return [];
   const { data, error } = await supabase
     .from('guild_invitations')
-    .select('id, guild_id, inviter_id, invitee_id, status, guilds(name), inviter:profiles!guild_invitations_inviter_id_fkey(nickname)')
+    .select('id, guild_id, inviter_id, invitee_id, status, guilds(name, guild_type), inviter:profiles!guild_invitations_inviter_id_fkey(nickname)')
     .eq('invitee_id', user.id)
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
@@ -397,6 +400,7 @@ export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]>
     invitee_id: row.invitee_id,
     status: row.status,
     guild_name: row.guilds?.name,
+    guild_type: row.guilds?.guild_type,
     inviter_nickname: row.inviter?.nickname,
   }));
 }
@@ -428,7 +432,7 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
   if (!myGuildId) return [];
   const { data, error } = await supabase
     .from('guild_join_requests')
-    .select('id, guild_id, requester_id, status, requester:profiles(nickname)')
+    .select('id, guild_id, requester_id, status, requester:profiles(nickname), guilds(name, guild_type)')
     .eq('guild_id', myGuildId)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
@@ -439,6 +443,8 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
     requester_id: row.requester_id,
     status: row.status,
     requester_nickname: row.requester?.nickname,
+    guild_name: row.guilds?.name,
+    guild_type: row.guilds?.guild_type,
   }));
 }
 
