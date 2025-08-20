@@ -51,9 +51,12 @@ begin
       and coalesce(g.disbanded, false) = false
   ) loop
     _gid := _rec.guild_id;
+    -- 時間境界のズレに強いよう、直前1時間の範囲で集計
     select coalesce(sum(c.gained_xp), 0) into _xp
     from public.guild_xp_contributions c
-    where c.guild_id = _gid and c.hour_bucket = _prev_hour;
+    where c.guild_id = _gid
+      and c.hour_bucket >= _prev_hour
+      and c.hour_bucket < _target_hour;
 
     if _xp >= 1000 then
       insert into public.guild_quest_stats(guild_id, success_count, updated_at)

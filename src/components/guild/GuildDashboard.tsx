@@ -116,7 +116,9 @@ const GuildDashboard: React.FC = () => {
 				const hourKey = new Date().toISOString().slice(0,13);
 				if (!localStorage.getItem(`quest_enforced_${hourKey}`)) {
 					const { enforceMonthlyGuildQuest } = await import('@/platform/supabaseGuilds');
-					await enforceMonthlyGuildQuest().catch(()=>{});
+					const now = new Date();
+					const currentHourIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())).toISOString();
+					await enforceMonthlyGuildQuest(currentHourIso).catch(()=>{});
 					localStorage.setItem(`quest_enforced_${hourKey}`, '1');
 				}
 			} catch {}
