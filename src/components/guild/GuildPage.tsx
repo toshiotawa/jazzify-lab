@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, fetchMyJoinRequestForGuild, cancelMyJoinRequest } from '@/platform/supabaseGuilds';
+import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, fetchMyJoinRequestForGuild, cancelMyJoinRequest, fetchGuildQuestSuccessCount } from '@/platform/supabaseGuilds';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 
@@ -17,6 +17,7 @@ const GuildPage: React.FC = () => {
   const [isMember, setIsMember] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
   const [myPendingRequestId, setMyPendingRequestId] = useState<string | null>(null);
+  const [questSuccessCount, setQuestSuccessCount] = useState<number | null>(null);
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash.startsWith('#guild'));
@@ -65,6 +66,9 @@ const GuildPage: React.FC = () => {
           ]);
           setSeasonXp(xp);
           setRank(r);
+          // クエスト成功回数（公開情報）
+          const questSuccess = await fetchGuildQuestSuccessCount(g.id);
+          setQuestSuccessCount(questSuccess);
         }
       } finally {
         setLoading(false);
@@ -124,6 +128,10 @@ const GuildPage: React.FC = () => {
                       <div className="bg-slate-900 rounded p-3 border border-slate-700">
                         <div className="text-gray-400">順位</div>
                         <div className="text-lg font-semibold">{rank ? `${rank}位` : '-'}</div>
+                      </div>
+                      <div className="bg-slate-900 rounded p-3 border border-slate-700 col-span-2">
+                        <div className="text-gray-400">クエスト成功回数（公開情報）</div>
+                        <div className="text-lg font-semibold">{questSuccessCount?.toLocaleString?.() ?? questSuccessCount}</div>
                       </div>
                     </div>
                   </div>
