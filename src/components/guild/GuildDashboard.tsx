@@ -63,6 +63,7 @@ const GuildDashboard: React.FC = () => {
 	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
 	const [pendingInvitations, setPendingInvitations] = useState<GuildInvitation[]>([]);
+	const [refreshKey, setRefreshKey] = useState(0);
 
 	const [questSuccessCount, setQuestSuccessCount] = useState<number | null>(null);
 
@@ -109,7 +110,7 @@ const GuildDashboard: React.FC = () => {
 			}
 		};
 		fetchData();
-	}, [user]);
+	}, [user, refreshKey]);
 
 	// 時間クエストの強制（クライアント側フォールバック。1時間1回のみ）
 	useEffect(() => {
@@ -136,6 +137,7 @@ const GuildDashboard: React.FC = () => {
                                 if (gId) {
                                         alert('ギルドが作成されました！');
                                         window.location.hash = '#guilds';
+                                        setRefreshKey((k)=>k+1);
                                 }
                         } catch (e: any) {
                                 const msg: string = e?.message || '';
