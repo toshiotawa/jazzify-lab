@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- White background -->
+  <rect width="512" height="512" fill="#ffffff"/>
+  
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#e6f7ff" stroke="#91d5ff" stroke-width="4"/>
+  
+  <!-- Tree trunk -->
+  <rect x="216" y="300" width="80" height="140" fill="#8b4513" rx="4"/>
+  
+  <!-- Trunk highlight -->
+  <rect x="236" y="300" width="30" height="140" fill="#a0522d"/>
+  
+  <!-- Tree leaves - bottom layer (dark green) -->
+  <path d="M 256 80 L 100 320 L 412 320 Z" fill="#228b22"/>
+  
+  <!-- Tree leaves - middle layer (medium green) -->
+  <path d="M 256 120 L 140 280 L 372 280 Z" fill="#32cd32"/>
+  
+  <!-- Tree leaves - top layer (light green) -->
+  <path d="M 256 160 L 180 240 L 332 240 Z" fill="#90ee90"/>
+  
+  <!-- Decorative yellow dots (like fruits/flowers) -->
+  <circle cx="256" cy="140" r="8" fill="#ffeb3b"/>
+  <circle cx="220" cy="180" r="8" fill="#ffeb3b"/>
+  <circle cx="292" cy="180" r="8" fill="#ffeb3b"/>
+  <circle cx="200" cy="220" r="8" fill="#ffeb3b"/>
+  <circle cx="312" cy="220" r="8" fill="#ffeb3b"/>
+  <circle cx="256" cy="200" r="8" fill="#ffeb3b"/>
+  
+  <!-- Shadow under tree -->
+  <ellipse cx="256" cy="440" rx="100" ry="25" fill="#000000" opacity="0.2"/>
+</svg>
