@@ -34,11 +34,15 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   const supabase = getSupabaseClient();
   
   // 日記とプロフィール情報を取得
-  const { data: diariesData, error } = await supabase
-    .from('practice_diaries')
-    .select('*, profiles(nickname, avatar_url, level, rank, email)')
-    .order('practice_date', { ascending: false })
-    .limit(limit * 2); // 余裕をもって多めに取得してフィルタリング後に制限
+  const { data: diariesData, error } = await fetchWithCache(
+    `practice_diaries:list:limit=${limit * 2}`,
+    async () => await supabase
+      .from('practice_diaries')
+      .select('*, profiles(nickname, avatar_url, level, rank, email)')
+      .order('practice_date', { ascending: false })
+      .limit(limit * 2),
+    1000 * 30 // 30s TTL
+  );
     
   if (error) throw error;
   if (!diariesData) return [];
@@ -181,7 +185,13 @@ export async function fetchDiariesInfinite(params: { limit?: number; beforeCreat
     query = query.lt('created_at', beforeCreatedAt);
   }
 
-  const { data: diariesData, error } = await query;
+  // 初回ページ/ページングのベース行取得にTTLキャッシュ
+  const cacheKey = `practice_diaries:infinite:limit=${limit * 2}:before=${beforeCreatedAt ?? 'null'}`;
+  const { data: diariesData, error } = await fetchWithCache(
+    cacheKey,
+    async () => await query,
+    1000 * 30 // 30s TTL（SWR的に短い再検証間隔）
+  );
   if (error) throw error;
   if (!diariesData) return { diaries: [], nextCursor: null, hasMore: false };
 

@@ -22,6 +22,7 @@ interface DiaryState {
   nextCursor: string | null;
   hasMore: boolean;
   loadingMore: boolean;
+  lastFetchedAt: number | null;
 }
 
 interface DiaryActions {
@@ -65,6 +66,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     nextCursor: null,
     hasMore: true,
     loadingMore: false,
+    lastFetchedAt: null,
 
     fetch: async (date?: string) => {
       set(s => { s.loading = true; s.error = null; });
@@ -72,6 +74,14 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
         const supabase = getSupabaseClient();
         const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
         set(s => { s.currentDate = date ?? today; });
+
+        // 直近30秒以内の再取得はスキップ（タブ切替対策）
+        const now = Date.now();
+        const { lastFetchedAt } = get();
+        if (lastFetchedAt && now - lastFetchedAt < 30_000) {
+          set(s => { s.loading = false; });
+          return;
+        }
 
         const { getCurrentUserIdCached } = await import('@/platform/supabaseClient');
         const uid = await getCurrentUserIdCached();
@@ -100,6 +110,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
           s.diaries = diaries;
           s.nextCursor = nextCursor;
           s.hasMore = hasMore;
+          s.lastFetchedAt = Date.now();
         });
       } catch (e:any) {
         set(s => { s.error = e.message; });
