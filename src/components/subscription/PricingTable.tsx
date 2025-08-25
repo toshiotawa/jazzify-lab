@@ -3,14 +3,16 @@ import { useAuthStore } from '@/stores/authStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { loadStripe } from '@stripe/stripe-js';
 
-// Stripe Pricing Table用の型定義
-declare module 'react' {
-  interface IntrinsicElements {
-    'stripe-pricing-table': {
-      'pricing-table-id': string;
-      'publishable-key': string;
-      'customer-email'?: string;
-    };
+// Stripe Pricing Table用の型定義（グローバル宣言）
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'stripe-pricing-table': {
+        'pricing-table-id': string;
+        'publishable-key': string;
+        'customer-email'?: string;
+      };
+    }
   }
 }
 
@@ -74,7 +76,7 @@ const PricingTable: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await getSupabaseClient().auth.getSession()).data.session?.access_token}`,
+          'Authorization': `Bearer ${useAuthStore.getState().session?.access_token || ''}`,
         },
         body: JSON.stringify({
           priceId,

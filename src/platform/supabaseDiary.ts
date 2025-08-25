@@ -194,34 +194,31 @@ export async function fetchDiariesInfinite(params: { limit?: number; beforeCreat
   const sliced = baseRows.slice(0, limit);
   const diaryIds = sliced.map((d: any) => d.id);
 
-  const [likesData, commentsData] = await Promise.all([
-    supabase
-      .from('diary_likes')
-      .select('diary_id')
-      .in('diary_id', diaryIds)
-      .then(result => {
-        const likesMap = new Map<string, number>();
-        if (result.data) {
-          result.data.forEach((item: any) => {
-            likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
-          });
-        }
-        return likesMap;
-      }),
-    supabase
-      .from('diary_comments')
-      .select('diary_id')
-      .in('diary_id', diaryIds)
-      .then(result => {
-        const commentsMap = new Map<string, number>();
-        if (result.data) {
-          result.data.forEach((item: any) => {
-            commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
-          });
-        }
-        return commentsMap;
-      })
-  ]);
+  // 空のINクエリ防止
+  const [likesData, commentsData] = await (async () => {
+    if (diaryIds.length === 0) {
+      return [new Map<string, number>(), new Map<string, number>()] as const;
+    }
+    const [likes, comments] = await Promise.all([
+      supabase
+        .from('diary_likes')
+        .select('diary_id')
+        .in('diary_id', diaryIds),
+      supabase
+        .from('diary_comments')
+        .select('diary_id')
+        .in('diary_id', diaryIds),
+    ]);
+    const likesMap = new Map<string, number>();
+    (likes.data || []).forEach((item: any) => {
+      likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
+    });
+    const commentsMap = new Map<string, number>();
+    (comments.data || []).forEach((item: any) => {
+      commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
+    });
+    return [likesMap, commentsMap] as const;
+  })();
 
   const diaries: Diary[] = sliced.map((row: any) => ({
     id: row.id,
@@ -408,7 +405,7 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
           const { error: upsertError } = await supabase
             .from('user_challenge_progress')
             .upsert({
-              user_id: user.id,
+              user_id: userId,
               challenge_id: m.id,
               clear_count: actualDiaryCount || 0,
               completed: (actualDiaryCount || 0) >= m.diary_count
@@ -508,16 +505,8 @@ export async function likeDiary(diaryId: string) {
 
 export async function updateDiary(diaryId: string, content: string, imageUrl?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError) {
-    console.error('認証エラー:', authError);
-    throw new Error('認証エラーが発生しました');
-  }
-  
-  if (!user) {
-    throw new Error('ログインが必要です');
-  }
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
 
   const updateData: any = { 
     content,
@@ -528,13 +517,13 @@ export async function updateDiary(diaryId: string, content: string, imageUrl?: s
     updateData.image_url = imageUrl;
   }
 
-  console.log('日記更新中:', { diaryId, userId: user.id, updateData });
+  console.log('日記更新中:', { diaryId, userId, updateData });
 
   const { data, error } = await supabase
     .from('practice_diaries')
     .update(updateData)
     .eq('id', diaryId)
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .select();
     
   if (error) {
@@ -574,7 +563,7 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
   if (!data) return [];
 
   const commentIds = data.map(d => d.id);
-  const { data: { user } } = await supabase.auth.getUser();
+  const userId = await getCurrentUserIdCached();
 
   // 取得したコメントに対する「いいね」を取得（存在しない環境では0として扱う）
   let likesByComment = new Map<string, number>();
@@ -583,11 +572,11 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
     const { data: likeRows } = await supabase
       .from('comment_likes')
       .select('comment_id, user_id')
-      .in('comment_id', commentIds);
+      .in('comment_id', commentIds.length > 0 ? commentIds : ['__never__']);
     if (likeRows) {
       likeRows.forEach((r: any) => {
         likesByComment.set(r.comment_id, (likesByComment.get(r.comment_id) || 0) + 1);
-        if (user && r.user_id === user.id) likedByMeSet.add(r.comment_id);
+        if (userId && r.user_id === userId) likedByMeSet.add(r.comment_id);
       });
     }
   } catch (e) {
@@ -739,18 +728,10 @@ export async function fetchDiaryById(diaryId: string): Promise<Diary | null> {
 
 export async function deleteDiary(diaryId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { requireUserId } = await import('@/platform/authHelpers');
+  const userId = await requireUserId();
   
-  if (authError) {
-    console.error('認証エラー:', authError);
-    throw new Error('認証エラーが発生しました');
-  }
-  
-  if (!user) {
-    throw new Error('ログインが必要です');
-  }
-  
-  console.log('日記削除開始:', { diaryId, userId: user.id });
+  console.log('日記削除開始:', { diaryId, userId });
   
   // 削除対象の日記の存在確認と権限チェック
   const { data: diary, error: fetchError } = await supabase
@@ -768,7 +749,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     throw new Error('日記が見つかりません');
   }
   
-  if (diary.user_id !== user.id) {
+  if (diary.user_id !== userId) {
     throw new Error('削除権限がありません。この日記を削除できるのは作成者のみです。');
   }
   
@@ -777,7 +758,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     .from('practice_diaries')
     .delete()
     .eq('id', diaryId)
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .select();
     
   if (deleteError) {
@@ -803,7 +784,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
         const { count: actualDiaryCount } = await supabase
           .from('practice_diaries')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .gte('practice_date', mission.start_date)
           .lte('practice_date', mission.end_date);
         
@@ -811,7 +792,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
         await supabase
           .from('user_challenge_progress')
           .upsert({
-            user_id: user.id,
+            user_id: userId,
             challenge_id: mission.id,
             clear_count: actualDiaryCount || 0,
             completed: (actualDiaryCount || 0) >= mission.diary_count

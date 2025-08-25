@@ -261,11 +261,11 @@ const ResultModal: React.FC = () => {
           // 通常曲の場合、クリア回数統計を設定と更新
           if (!lessonContext && !missionContext && currentSong) {
             try {
-              const { getSupabaseClient } = await import('@/platform/supabaseClient');
+              const { getCurrentUserIdCached, getSupabaseClient } = await import('@/platform/supabaseClient');
               const supabase = getSupabaseClient();
-              const { data: { user } } = await supabase.auth.getUser();
+              const userId = await getCurrentUserIdCached();
               
-              if (user) {
+              if (userId) {
                 // B-rank以上かどうかを判定
                 const rankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
                 const currentRankOrder = rankOrder[score.rank as keyof typeof rankOrder];
@@ -274,7 +274,7 @@ const ResultModal: React.FC = () => {
                 // クリア回数を更新（B-rank以上の場合のみ）
                 if (isBRankPlus) {
                   const { data: updateResult } = await supabase.rpc('update_song_clear_progress', {
-                    _user_id: user.id,
+                    _user_id: userId,
                     _song_id: currentSong.id,
                     _rank: score.rank,
                     _is_b_rank_plus: true
@@ -291,7 +291,7 @@ const ResultModal: React.FC = () => {
                   const { data: stats } = await supabase
                     .from('user_song_stats')
                     .select('b_rank_plus_count')
-                    .eq('user_id', user.id)
+                    .eq('user_id', userId)
                     .eq('song_id', currentSong.id)
                     .single();
                   

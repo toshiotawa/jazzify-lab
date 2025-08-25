@@ -73,12 +73,13 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
         const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
         set(s => { s.currentDate = date ?? today; });
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        const { getCurrentUserIdCached } = await import('@/platform/supabaseClient');
+        const uid = await getCurrentUserIdCached();
+        if (uid) {
           const { count } = await supabase
             .from('practice_diaries')
             .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id)
+            .eq('user_id', uid)
             .eq('practice_date', today);
           set(s => { s.todayPosted = !!(count && count > 0); });
         } else {
@@ -237,20 +238,56 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     },
 
     initRealtime: () => {
-      // グローバル状態もチェック
+      // グローバル状態もチェック（重複購読防止）
       if (get().realtimeInitialized || globalRealtimeInitialized) return;
-      
       const supabase = getSupabaseClient();
 
-      // 日記新規投稿（最適化: キャッシュクリアを最小限に）
+      // 既存のチャンネルを除去してから購読（ホットリロード時の重複防止）
+      try { (globalRealtimeUnsubscribers || []).forEach(fn => fn()); } catch {}
+      globalRealtimeUnsubscribers = [];
+
+      // 日記新規投稿
       const diariesChannel = supabase.channel('realtime-diaries')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async () => {
-          await get().fetch(get().currentDate || undefined);
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async (payload) => {
+          try {
+            const newDiaryId = (payload.new as any)?.id;
+            if (!newDiaryId) return;
+            const { data } = await supabase
+              .from('practice_diaries')
+              .select('*, profiles(nickname, avatar_url, level, rank, email)')
+              .eq('id', newDiaryId)
+              .maybeSingle();
+            if (!data) return;
+            // いいね/コメント件数を最小限で取得
+            const [likesRes, commentsRes] = await Promise.all([
+              supabase.from('diary_likes').select('diary_id').eq('diary_id', newDiaryId),
+              supabase.from('diary_comments').select('diary_id').eq('diary_id', newDiaryId),
+            ]);
+            const likes = (likesRes.data || []).length;
+            const comments = (commentsRes.data || []).length;
+            set(s => {
+              const row: any = data;
+              const insert = {
+                id: row.id,
+                content: row.content,
+                practice_date: row.practice_date,
+                created_at: row.created_at,
+                likes,
+                comment_count: comments,
+                nickname: row.profiles?.nickname || 'User',
+                avatar_url: row.profiles?.avatar_url,
+                level: row.profiles?.level || 1,
+                rank: row.profiles?.rank || 'free',
+                image_url: row.image_url,
+              } as any;
+              s.diaries = [insert, ...s.diaries];
+            });
+          } catch {}
         })
         .subscribe();
       globalRealtimeUnsubscribers.push(() => { try { supabase.removeChannel(diariesChannel); } catch {} });
 
-      // コメント新規投稿（最適化: 特定の日記のコメントのみ更新）
+      // コメント新規投稿（特定の日記のみ更新）
       const commentsChannel = supabase.channel('realtime-diary-comments')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'diary_comments' }, async (payload) => {
           const diaryId = (payload.new as any).diary_id;

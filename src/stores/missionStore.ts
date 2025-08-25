@@ -34,10 +34,19 @@ export const useMissionStore = create<State & Actions>()(
       progress.forEach(pr=>{progMap[pr.challenge_id]=pr;});
       set(s=>{s.monthly=missions; s.progress=progMap; s.loading=false;});
       
-      // ミッションの曲進捗を一括取得
-      const missionIds = missions.map(m => m.id);
-      if (missionIds.length > 0) {
-        await get().fetchSongProgressAll(missionIds);
+      // ミッションの曲進捗を一括取得（tracksを再利用）
+      if (missions.length > 0) {
+        try {
+          const { computeMissionSongProgressAllFromMissions } = await import('@/platform/supabaseMissions');
+          const map = await computeMissionSongProgressAllFromMissions(missions);
+          set(s => { Object.assign(s.songProgress, map); });
+        } catch (e) {
+          // フォールバック（従来のIDベース）
+          const missionIds = missions.map(m => m.id);
+          if (missionIds.length > 0) {
+            await get().fetchSongProgressAll(missionIds);
+          }
+        }
       }
     },
 
