@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
+import { requireUserId } from '@/platform/authHelpers';
 import { MembershipRank } from '@/platform/supabaseSongs';
 
 // 経験値テーブル: レベル1-10 => 2,000 XP / lvl, 11-50 => 50,000, 51+ => 100,000
@@ -46,16 +47,12 @@ interface AddXpParams {
 
 export async function addXp(params: AddXpParams) {
   const supabase = getSupabaseClient();
-  const {
-    data: { user },
-    error: userErr,
-  } = await supabase.auth.getUser();
-  if (userErr || !user) throw userErr || new Error('User not found');
+  const userId = await requireUserId();
 
   const { data: profile } = await supabase
     .from('profiles')
     .select('xp, level, next_season_xp_multiplier')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single();
   const currentXp = profile?.xp ?? 0;
   const seasonMul = profile?.next_season_xp_multiplier ?? 1;
@@ -68,7 +65,7 @@ export async function addXp(params: AddXpParams) {
 
   // DB transaction: insert history then update profile
   const { error: histErr } = await supabase.from('xp_history').insert({
-    user_id: user.id,
+    user_id: userId,
     song_id: params.songId,
     gained_xp: gained,
     base_xp: params.baseXp,
@@ -84,7 +81,7 @@ export async function addXp(params: AddXpParams) {
   const { error: profErr } = await supabase
     .from('profiles')
     .update({ xp: newTotalXp, level: levelInfo.level })
-    .eq('id', user.id);
+    .eq('id', userId);
   if (profErr) throw profErr;
 
   // 追加: ギルド貢献の記録（所属していれば、当月エントリとして追加）
@@ -92,7 +89,7 @@ export async function addXp(params: AddXpParams) {
     const { data: membership } = await supabase
       .from('guild_members')
       .select('guild_id, guilds!inner(guild_type)')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle();
     const guildId = (membership as any)?.guild_id as string | undefined;
     const guildType = (membership as any)?.guilds?.guild_type as string | undefined;
@@ -107,7 +104,7 @@ export async function addXp(params: AddXpParams) {
       // チャレンジギルドの場合、ストリークを更新
       if (guildType === 'challenge') {
         const { updateUserStreak } = await import('@/platform/supabaseGuilds');
-        await updateUserStreak(user.id, guildId);
+        await updateUserStreak(userId, guildId);
       }
     }
   } catch (e) {

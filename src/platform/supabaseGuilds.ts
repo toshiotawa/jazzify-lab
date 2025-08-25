@@ -775,13 +775,13 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
 export async function fetchMyJoinRequestForGuild(guildId: string): Promise<string | null> {
 
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return null;
   const { data, error } = await supabase
     .from('guild_join_requests')
     .select('id')
     .eq('guild_id', guildId)
-    .eq('requester_id', user.id)
+    .eq('requester_id', userId)
     .eq('status', 'pending')
     .maybeSingle();
   if (error && error.code !== 'PGRST116') throw error;

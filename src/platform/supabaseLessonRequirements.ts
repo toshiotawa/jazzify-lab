@@ -1,4 +1,5 @@
-import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearSupabaseCache, getCurrentUserIdCached } from '@/platform/supabaseClient';
+import { requireUserId } from '@/platform/authHelpers';
 
 export interface LessonRequirementProgress {
   id: string;
@@ -21,17 +22,15 @@ export interface LessonRequirementProgress {
  */
 export async function fetchLessonRequirementsProgress(lessonId: string): Promise<LessonRequirementProgress[]> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await requireUserId();
 
-  const cacheKey = `lesson_requirements_progress:${user.id}:${lessonId}`;
+  const cacheKey = `lesson_requirements_progress:${userId}:${lessonId}`;
   const { data, error } = await fetchWithCache(
     cacheKey,
     async () => await supabase
       .from('user_lesson_requirements_progress')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('lesson_id', lessonId),
     1000 * 60 * 5 // 5分キャッシュ
   );
@@ -54,9 +53,7 @@ export async function updateLessonRequirementProgress(
   }
 ): Promise<boolean> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await requireUserId();
 
   // レッスン課題のタイプに応じて、適切なIDを使用
   // ファンタジーステージの場合は、lessonSongIdを使用（song_idカラムに格納）
@@ -65,7 +62,7 @@ export async function updateLessonRequirementProgress(
     : songId;
     
   const { data, error } = await supabase.rpc('update_lesson_requirement_progress', {
-    p_user_id: user.id,
+    p_user_id: userId,
     p_lesson_id: lessonId,
     p_song_id: progressSongId,
     p_rank: rank,
@@ -85,9 +82,7 @@ export async function updateLessonRequirementProgress(
  */
 export async function checkAllRequirementsCompleted(lessonId: string): Promise<boolean> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await requireUserId();
 
   // レッスンに必要な実習課題の数を取得（楽曲とファンタジーステージ両方）
   const { data: requirements, error: reqError } = await supabase
@@ -102,7 +97,7 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   const { data: progress, error: progError } = await supabase
     .from('user_lesson_requirements_progress')
     .select('song_id, is_completed')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('lesson_id', lessonId)
     .eq('is_completed', true);
 
@@ -123,9 +118,7 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
   allCompleted: boolean;
 }> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await requireUserId();
 
   // レッスンの実習課題を取得（ファンタジーステージも含む）
   const { data: requirements, error: reqError } = await supabase
@@ -172,13 +165,13 @@ export async function fetchMultipleLessonRequirementsProgress(lessonIds: string[
   if (!user) throw new Error('ログインが必要です');
   if (lessonIds.length === 0) return {};
 
-  const cacheKey = `multiple_lesson_requirements_progress:${user.id}:${lessonIds.sort().join(',')}`;
+  const cacheKey = `multiple_lesson_requirements_progress:${userId}:${lessonIds.sort().join(',')}`;
   const { data, error } = await fetchWithCache(
     cacheKey,
     async () => await supabase
       .from('user_lesson_requirements_progress')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .in('lesson_id', lessonIds),
     1000 * 60 * 5 // 5分キャッシュ
   );
