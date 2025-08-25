@@ -583,35 +583,9 @@ const SongSelectionScreen: React.FC = () => {
         // ユーザー統計を取得
         if (user) {
           console.log('🔍 [DEBUG] User found, fetching stats for user:', user.id);
-          const { getSupabaseClient } = await import('@/platform/supabaseClient');
-          const supabase = getSupabaseClient();
-          
-          const { data: userStats, error } = await supabase
-            .from('user_song_stats')
-            .select('song_id, clear_count, best_score, best_rank, b_rank_plus_count')
-            .eq('user_id', user.id);
-          
-          console.log('🔍 [DEBUG] Supabase query result:', {
-            data: userStats,
-            error: error,
-            rowCount: userStats?.length || 0
-          });
-          
-          if (userStats) {
-            const statsMap: Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string}> = {};
-            userStats.forEach(stat => {
-              statsMap[stat.song_id] = {
-                clear_count: stat.clear_count,
-                b_rank_plus_count: stat.b_rank_plus_count || 0,
-                best_score: stat.best_score,
-                best_rank: stat.best_rank
-              };
-            });
-            console.log('🔍 [DEBUG] Stats map created:', statsMap);
-            setSongStats(statsMap);
-          } else {
-            console.log('🔍 [DEBUG] No user stats found or userStats is null');
-          }
+          const { fetchUserSongStatsMap } = await import('@/platform/unifiedSongProgress');
+          const statsMap = await fetchUserSongStatsMap(user.id);
+          setSongStats(statsMap);
         } else {
           console.log('🔍 [DEBUG] No user found, skipping stats fetch');
         }

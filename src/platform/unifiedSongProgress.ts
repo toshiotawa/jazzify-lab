@@ -1,4 +1,4 @@
-import { getSupabaseClient } from './supabaseClient';
+import { getSupabaseClient, fetchWithCache } from './supabaseClient';
 
 export interface UnifiedSongProgress {
   userId: string;
@@ -135,12 +135,17 @@ export async function getContextSongProgress(
   const supabase = getSupabaseClient();
   
   try {
-    const { data, error } = await supabase
-      .from('user_song_play_progress')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('context_type', contextType)
-      .eq('context_id', contextId);
+    const cacheKey = `user_song_play_progress:${userId}:${contextType}:${contextId ?? 'null'}`;
+    const { data, error } = await fetchWithCache(
+      cacheKey,
+      async () => await supabase
+        .from('user_song_play_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('context_type', contextType)
+        .eq('context_id', contextId),
+      1000 * 60
+    );
 
     if (error) {
       console.error('Error fetching context song progress:', error);
@@ -161,6 +166,36 @@ export async function getContextSongProgress(
     console.error('Error fetching context song progress:', error);
     return [];
   }
+}
+
+/**
+ * 汎用: user_song_stats を songId => stats にマップして返す（TTLキャッシュ付き）
+ */
+export async function fetchUserSongStatsMap(userId: string): Promise<Record<string, { clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string }>> {
+  const supabase = getSupabaseClient();
+  const cacheKey = `user_song_stats_map:${userId}`;
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => await supabase
+      .from('user_song_stats')
+      .select('song_id, clear_count, best_score, best_rank, b_rank_plus_count')
+      .eq('user_id', userId),
+    1000 * 60 // 60s
+  );
+  if (error) {
+    console.warn('fetchUserSongStatsMap error:', error);
+    return {};
+  }
+  const map: Record<string, { clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string }> = {};
+  (data || []).forEach((stat: any) => {
+    map[stat.song_id] = {
+      clear_count: stat.clear_count,
+      b_rank_plus_count: stat.b_rank_plus_count || 0,
+      best_score: stat.best_score,
+      best_rank: stat.best_rank,
+    };
+  });
+  return map;
 }
 
 /**

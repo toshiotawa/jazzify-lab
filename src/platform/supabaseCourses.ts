@@ -292,10 +292,15 @@ export function canAccessCourse(
  */
 export async function fetchUserCourseUnlockStatus(userId: string): Promise<Record<string, boolean | null>> {
   try {
-    const { data, error } = await getSupabaseClient()
-      .from('user_course_progress')
-      .select('course_id, is_unlocked')
-      .eq('user_id', userId);
+    const cacheKey = `user_course_unlock_status:${userId}`;
+    const { data, error } = await fetchWithCache(
+      cacheKey,
+      async () => await getSupabaseClient()
+        .from('user_course_progress')
+        .select('course_id, is_unlocked')
+        .eq('user_id', userId),
+      1000 * 60 * 5 // 5分キャッシュ
+    );
 
     if (error) {
       console.error('Error fetching user course unlock status:', error);

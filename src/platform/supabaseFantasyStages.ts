@@ -1,4 +1,4 @@
-import { getSupabaseClient } from './supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearCacheByPattern } from './supabaseClient';
 import { FantasyStage } from '../types';
 
 /**
@@ -6,11 +6,15 @@ import { FantasyStage } from '../types';
  */
 export async function fetchFantasyStages(): Promise<FantasyStage[]> {
   const supabase = getSupabaseClient();
-  
-  const { data, error } = await supabase
-    .from('fantasy_stages')
-    .select('*')
-    .order('stage_number', { ascending: true });
+  // 5分TTL（静的マスタ）
+  const { data, error } = await fetchWithCache(
+    'fantasy_stages:list',
+    async () => await supabase
+      .from('fantasy_stages')
+      .select('*')
+      .order('stage_number', { ascending: true }),
+    1000 * 60 * 5
+  );
     
   if (error) {
     console.error('Error fetching fantasy stages:', error);
@@ -25,12 +29,15 @@ export async function fetchFantasyStages(): Promise<FantasyStage[]> {
  */
 export async function fetchFantasyStageById(stageId: string): Promise<FantasyStage> {
   const supabase = getSupabaseClient();
-  
-  const { data, error } = await supabase
-    .from('fantasy_stages')
-    .select('*')
-    .eq('id', stageId)
-    .single();
+  const { data, error } = await fetchWithCache(
+    `fantasy_stages:by_id:${stageId}`,
+    async () => await supabase
+      .from('fantasy_stages')
+      .select('*')
+      .eq('id', stageId)
+      .single(),
+    1000 * 60 * 5
+  );
     
   if (error) {
     console.error('Error fetching fantasy stage:', error);
@@ -49,13 +56,16 @@ export async function fetchFantasyStageById(stageId: string): Promise<FantasySta
  */
 export async function fetchFantasyStageByNumber(stageNumber: string, stageTier: 'basic' | 'advanced' = 'basic'): Promise<FantasyStage | null> {
   const supabase = getSupabaseClient();
-  
-  const { data, error } = await supabase
-    .from('fantasy_stages')
-    .select('*')
-    .eq('stage_number', stageNumber)
-    .eq('stage_tier', stageTier)
-    .single();
+  const { data, error } = await fetchWithCache(
+    `fantasy_stages:by_number:${stageTier}:${stageNumber}`,
+    async () => await supabase
+      .from('fantasy_stages')
+      .select('*')
+      .eq('stage_number', stageNumber)
+      .eq('stage_tier', stageTier)
+      .single(),
+    1000 * 60 * 5
+  );
     
   if (error) {
     // PGRST116: No rows
@@ -74,11 +84,14 @@ export async function fetchFantasyStageByNumber(stageNumber: string, stageTier: 
  */
 export async function fetchActiveFantasyStages(): Promise<FantasyStage[]> {
   const supabase = getSupabaseClient();
-  
-  const { data, error } = await supabase
-    .from('fantasy_stages')
-    .select('*')
-    .order('stage_number', { ascending: true });
+  const { data, error } = await fetchWithCache(
+    'fantasy_stages:active',
+    async () => await supabase
+      .from('fantasy_stages')
+      .select('*')
+      .order('stage_number', { ascending: true }),
+    1000 * 60 * 5
+  );
     
   if (error) {
     console.error('Error fetching active fantasy stages:', error);
@@ -100,11 +113,16 @@ export async function fetchFantasyUserProgress(userId: string): Promise<{
 } | null> {
   const supabase = getSupabaseClient();
   
-  const { data, error } = await supabase
-    .from('fantasy_user_progress')
-    .select('current_stage_number, total_cleared_stages, wizard_rank, current_stage_number_basic, current_stage_number_advanced')
-    .eq('user_id', userId)
-    .single();
+  // 60s TTL（ユーザー進捗）
+  const { data, error } = await fetchWithCache(
+    `fantasy_user_progress:${userId}`,
+    async () => await supabase
+      .from('fantasy_user_progress')
+      .select('current_stage_number, total_cleared_stages, wizard_rank, current_stage_number_basic, current_stage_number_advanced')
+      .eq('user_id', userId)
+      .single(),
+    1000 * 60
+  );
     
   if (error) {
     if ((error as any).code === 'PGRST116') {
@@ -140,11 +158,15 @@ export async function fetchFantasyClearedStageCount(userId: string): Promise<num
   }
   
   // 進捗レコードがない場合は、クリア記録から直接カウント
-  const { count, error } = await supabase
-    .from('fantasy_stage_clears')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('clear_type', 'clear');
+  const { count, error } = await fetchWithCache(
+    `fantasy_stage_clears:count:${userId}`,
+    async () => await supabase
+      .from('fantasy_stage_clears')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('clear_type', 'clear'),
+    1000 * 60
+  );
     
   if (error) {
     console.error('Error counting fantasy cleared stages:', error);
@@ -233,10 +255,14 @@ export async function fetchFantasyClearedStageCountByTier(
 ): Promise<number> {
   const supabase = getSupabaseClient();
   // Tierに属するステージIDを取得
-  const { data: stages, error: stageErr } = await supabase
-    .from('fantasy_stages')
-    .select('id')
-    .eq('stage_tier', tier);
+  const { data: stages, error: stageErr } = await fetchWithCache(
+    `fantasy_stages:ids_by_tier:${tier}`,
+    async () => await supabase
+      .from('fantasy_stages')
+      .select('id')
+      .eq('stage_tier', tier),
+    1000 * 60 * 5
+  );
   if (stageErr) {
     console.error('Error fetching stages by tier:', stageErr);
     return 0;
@@ -244,17 +270,48 @@ export async function fetchFantasyClearedStageCountByTier(
   const stageIds = (stages || []).map((s: any) => s.id);
   if (stageIds.length === 0) return 0;
   // 対象ステージに紐づくクリア件数をカウント
-  const { count, error } = await supabase
-    .from('fantasy_stage_clears')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('clear_type', 'clear')
-    .in('stage_id', stageIds);
+  const { count, error } = await fetchWithCache(
+    `fantasy_clears_count_by_tier:${userId}:${tier}`,
+    async () => await supabase
+      .from('fantasy_stage_clears')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('clear_type', 'clear')
+      .in('stage_id', stageIds),
+    1000 * 60
+  );
   if (error) {
     console.error('Error counting tiered cleared stages:', error);
     return 0;
   }
   return count || 0;
+}
+
+/**
+ * ユーザーのファンタジークリア記録一覧（60s TTL）
+ */
+export async function fetchFantasyStageClearsList(userId: string): Promise<Array<{
+  id: string;
+  user_id: string;
+  stage_id: string;
+  cleared_at: string;
+  score: number;
+  clear_type: 'clear' | 'gameover';
+  remaining_hp: number;
+  total_questions: number;
+  correct_answers: number;
+}>> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await fetchWithCache(
+    `fantasy_stage_clears:list:${userId}`,
+    async () => await supabase
+      .from('fantasy_stage_clears')
+      .select('*')
+      .eq('user_id', userId),
+    1000 * 60
+  );
+  if (error) throw error;
+  return (data || []) as any;
 }
 
 /**

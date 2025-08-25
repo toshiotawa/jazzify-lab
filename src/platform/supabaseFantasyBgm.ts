@@ -1,4 +1,5 @@
 import { getSupabaseClient, clearSupabaseCache } from '@/platform/supabaseClient';
+import { requireUserId } from '@/platform/authHelpers';
 import { uploadFantasyBgm, deleteFantasyBgm } from '@/platform/r2Storage';
 
 export interface FantasyBgmAsset {
@@ -23,14 +24,13 @@ export async function fetchFantasyBgmAssets(): Promise<FantasyBgmAsset[]> {
 
 export async function addFantasyBgmAsset(params: { name: string; description?: string }, file: File): Promise<FantasyBgmAsset> {
   const supabase = getSupabaseClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error('ログインが必要です');
+  const userId = await requireUserId();
 
   // 1) レコード作成（URLなし）
   const insertPayload = {
     name: params.name,
     description: params.description || null,
-    created_by: auth.user.id,
+    created_by: userId,
   } as const;
   const { data: created, error: insertError } = await supabase
     .from('fantasy_bgm_assets')
@@ -58,8 +58,7 @@ export async function addFantasyBgmAsset(params: { name: string; description?: s
 
 export async function deleteFantasyBgmAsset(id: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error('ログインが必要です');
+  await requireUserId();
 
   // 先にR2から削除
   await deleteFantasyBgm(id);

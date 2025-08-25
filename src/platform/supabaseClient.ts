@@ -42,15 +42,22 @@ export function getSupabaseClient(): SupabaseClient {
 let cachedUserId: string | null = null;
 let cachedUserIdExpiresAt = 0;
 const USER_ID_TTL_MS = 1000 * 60 * 5; // 5分
+let pendingUserIdPromise: Promise<string | null> | null = null;
 
 export async function getCurrentUserIdCached(): Promise<string | null> {
   const now = Date.now();
   if (cachedUserId && cachedUserIdExpiresAt > now) return cachedUserId;
+  if (pendingUserIdPromise) return pendingUserIdPromise;
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  cachedUserId = user?.id ?? null;
-  cachedUserIdExpiresAt = now + USER_ID_TTL_MS;
-  return cachedUserId;
+  pendingUserIdPromise = supabase.auth.getUser().then(({ data: { user } }) => {
+    const uid = user?.id ?? null;
+    cachedUserId = uid;
+    cachedUserIdExpiresAt = Date.now() + USER_ID_TTL_MS;
+    return uid;
+  }).finally(() => {
+    pendingUserIdPromise = null;
+  });
+  return pendingUserIdPromise;
 }
 
 export function invalidateCachedUserId(): void {
@@ -67,6 +74,7 @@ interface CacheEntry<T> {
 // 最適化: キャッシュTTLを調整
 const DEFAULT_TTL = 1000 * 600; // 600 秒（10分）に延長
 const cache: Map<string, CacheEntry<unknown>> = new Map();
+const inFlightRequests: Map<string, Promise<PostgrestResponse<any>>> = new Map();
 
 /**
  * クエリを実行し、結果を TTL 付きでキャッシュする
@@ -90,12 +98,19 @@ export async function fetchWithCache<T>(
       count: null 
     };
   }
-
-  const res = await executor();
-  if (!res.error) {
-    cache.set(cacheKey, { data: res.data, expires: now + ttl });
-  }
-  return res;
+  // in-flight 去重
+  const existing = inFlightRequests.get(cacheKey) as Promise<PostgrestResponse<T>> | undefined;
+  if (existing) return existing;
+  const execPromise = executor().then((res) => {
+    if (!res.error) {
+      cache.set(cacheKey, { data: res.data as unknown as T, expires: Date.now() + ttl });
+    }
+    return res;
+  }).finally(() => {
+    inFlightRequests.delete(cacheKey);
+  });
+  inFlightRequests.set(cacheKey, execPromise as unknown as Promise<PostgrestResponse<any>>);
+  return execPromise;
 }
 
 /**

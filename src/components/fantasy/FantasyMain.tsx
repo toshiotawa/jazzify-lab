@@ -114,7 +114,9 @@ const FantasyMain: React.FC = () => {
             enemyHp: stage.enemy_hp,
             minDamage: stage.min_damage,
             maxDamage: stage.max_damage,
-            mode: stage.mode,
+            mode: (['single','progression_order','progression_random','progression_timing'] as const).includes(stage.mode as any)
+              ? (stage.mode as any)
+              : 'progression',
             allowedChords: stage.allowed_chords,
             chordProgression: stage.chord_progression,
             chordProgressionData: (stage as any).chord_progression_data,
@@ -272,6 +274,12 @@ const FantasyMain: React.FC = () => {
           } else {
               devLog.debug('✅ ファンタジークリア記録保存完了');
             }
+            // クリア記録変更に伴い、関連キャッシュを無効化
+            try {
+              const { clearCacheByPattern } = await import('@/platform/supabaseClient');
+              clearCacheByPattern(new RegExp(`^fantasy_stage_clears`));
+              clearCacheByPattern(new RegExp(`^fantasy_user_progress:${profile.id}`));
+            } catch {}
           } catch (clearSaveError) {
             console.error('ファンタジークリア記録保存例外:', clearSaveError);
           }
@@ -333,6 +341,11 @@ const FantasyMain: React.FC = () => {
                 devLog.debug('✅ ファンタジー進捗更新完了:', {
                   nextStageNumber, newRank, newClearedStages
                 });
+                // 進捗更新に伴い、関連キャッシュを無効化
+                try {
+                  const { clearCacheByPattern } = await import('@/platform/supabaseClient');
+                  clearCacheByPattern(new RegExp(`^fantasy_user_progress:${profile.id}`));
+                } catch {}
               }
             }
           }

@@ -1,4 +1,5 @@
-import { getSupabaseClient, fetchWithCache, clearCacheByKey, invalidateCacheKey } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearCacheByKey, invalidateCacheKey, getCurrentUserIdCached } from '@/platform/supabaseClient';
+import { requireUserId } from '@/platform/authHelpers';
 import { unlockDependentCourses } from '@/platform/supabaseCourses';
 import { clearSupabaseCache } from './supabaseClient';
 import { clearUserStatsCache } from './supabaseUserStats';
@@ -41,12 +42,10 @@ export async function fetchUserLessonProgress(
   { forceRefresh = false }: { forceRefresh?: boolean } = {}
 ): Promise<LessonProgress[]> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
-  
+  const uid = await getCurrentUserIdCached();
+  if (!uid && !targetUserId) throw new Error('ログインが必要です');
   // 取得対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || (uid as any);
 
   const key = LESSON_PROGRESS_CACHE_KEY(courseId, userId);
   
@@ -71,6 +70,42 @@ export async function fetchUserLessonProgress(
 }
 
 /**
+ * ユーザーの全コース横断のレッスン進捗をまとめて取得（N→1クエリ）
+ */
+export interface LessonProgressBasic {
+  lesson_id: string;
+  course_id: string;
+  completed: boolean;
+}
+
+export async function fetchUserLessonProgressAll(
+  targetUserId?: string,
+  { forceRefresh = false }: { forceRefresh?: boolean } = {}
+): Promise<LessonProgressBasic[]> {
+  const supabase = getSupabaseClient();
+  const uid = await getCurrentUserIdCached();
+  if (!uid && !targetUserId) throw new Error('ログインが必要です');
+  const userId = targetUserId || (uid as string);
+
+  const key = `lesson_progress_all_${userId}`;
+  if (forceRefresh) {
+    clearCacheByKey(key);
+  }
+
+  const { data, error } = await fetchWithCache(
+    key,
+    async () => await supabase
+      .from('user_lesson_progress')
+      .select('lesson_id, course_id, completed')
+      .eq('user_id', userId),
+    1000 * 60 // 1分キャッシュ
+  );
+
+  if (error) throw new Error(`進捗データの取得に失敗しました: ${error.message}`);
+  return (data as LessonProgressBasic[]) || [];
+}
+
+/**
  * レッスンの進捗を更新
  */
 export async function updateLessonProgress(
@@ -80,12 +115,10 @@ export async function updateLessonProgress(
   targetUserId?: string // 管理者が他のユーザーの進捗を更新する場合
 ): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const authUserId = await requireUserId();
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || authUserId;
 
   const now = new Date().toISOString();
   
@@ -126,12 +159,10 @@ export async function updateLessonProgress(
  */
 export async function unlockLesson(lessonId: string, courseId: string, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const authUserId = await requireUserId();
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || authUserId;
 
   const now = new Date().toISOString();
   
@@ -157,12 +188,10 @@ export async function unlockLesson(lessonId: string, courseId: string, targetUse
  */
 export async function unlockBlock(courseId: string, blockNumber: number, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const authUserId = await requireUserId();
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || authUserId;
 
   // ブロックに属するレッスンを取得
   const { data: lessons, error: lessonsError } = await supabase
@@ -190,7 +219,7 @@ export async function unlockBlock(courseId: string, blockNumber: number, targetU
     })
     .eq('user_id', userId)
     .eq('course_id', courseId)
-    .in('lesson_id', lessonIds);
+    .in('lesson_id', lessonIds.length > 0 ? lessonIds : ['__never__']);
 
   if (updateError) throw new Error(`既存レッスンの解放に失敗しました: ${updateError.message}`);
 
@@ -220,12 +249,10 @@ export async function unlockBlock(courseId: string, blockNumber: number, targetU
  */
 export async function lockBlock(courseId: string, blockNumber: number, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const authUserId = await requireUserId();
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || authUserId;
 
   // ブロックに属するレッスンを取得
   const { data: lessons, error: lessonsError } = await supabase
@@ -249,7 +276,7 @@ export async function lockBlock(courseId: string, blockNumber: number, targetUse
     })
     .eq('user_id', userId)
     .eq('course_id', courseId)
-    .in('lesson_id', lessons.map(l => l.id));
+    .in('lesson_id', lessons.length > 0 ? lessons.map(l => l.id) : ['__never__']);
 
   if (error) throw new Error(`ブロックの施錠に失敗しました: ${error.message}`);
 }
@@ -315,15 +342,13 @@ export async function fetchUserLessonStats(): Promise<{
   currentStreak: number;
 }> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await requireUserId();
 
   // ユーザーのレッスン進捗を取得
   const { data: progressData, error } = await supabase
     .from('user_lesson_progress')
     .select('completed, completion_date')
-    .eq('user_id', user.id);
+    .eq('user_id', userId);
 
   if (error) throw new Error(`統計データの取得に失敗しました: ${error.message}`);
 

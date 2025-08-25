@@ -44,7 +44,7 @@ export async function fetchLevelRanking(limit = 50, offset = 0): Promise<Ranking
     .from('user_lesson_progress')
     .select('user_id')
     .eq('completed', true)
-    .in('user_id', userIds);
+    .in('user_id', userIds.length > 0 ? userIds : ['__never__']);
   
   if (lessonError) throw lessonError;
   
@@ -53,7 +53,7 @@ export async function fetchLevelRanking(limit = 50, offset = 0): Promise<Ranking
     .from('user_challenge_progress')
     .select('user_id, clear_count')
     .eq('completed', true)
-    .in('user_id', userIds);
+    .in('user_id', userIds.length > 0 ? userIds : ['__never__']);
   
   if (missionError) throw missionError;
   
@@ -62,7 +62,7 @@ export async function fetchLevelRanking(limit = 50, offset = 0): Promise<Ranking
     .from('fantasy_stage_clears')
     .select('user_id')
     .eq('clear_type', 'clear')
-    .in('user_id', userIds);
+    .in('user_id', userIds.length > 0 ? userIds : ['__never__']);
 
   if (fantasyError) throw fantasyError;
   

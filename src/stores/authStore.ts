@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { Session, User } from '@supabase/supabase-js';
-import { getSupabaseClient } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearCacheByKey } from '@/platform/supabaseClient';
 import { useUserStatsStore } from './userStatsStore';
 
 interface AuthState {
@@ -46,7 +46,7 @@ interface AuthActions {
   verifyOtp: (email: string, token: string) => Promise<void>;
   logout: () => Promise<void>;
   enterGuestMode: () => void;
-  fetchProfile: () => Promise<void>;
+  fetchProfile: (options?: { forceRefresh?: boolean }) => Promise<void>;
   createProfile: (nickname: string, agreed: boolean, country?: string) => Promise<void>;
   updateEmail: (newEmail: string) => Promise<{ success: boolean; message: string }>;
   clearEmailChangeStatus: () => void;
@@ -449,7 +449,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       });
     },
 
-    fetchProfile: async () => {
+    fetchProfile: async (options?: { forceRefresh?: boolean }) => {
       const supabase = getSupabaseClient();
       const { user } = get();
       if (!user) {
@@ -460,20 +460,20 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       console.log('🔍 fetchProfile: プロフィール取得開始', { userId: user.id, userEmail: user.email });
       
       try {
+        const cacheKey = `profile:${user.id}`;
+        if (options?.forceRefresh) {
+          clearCacheByKey(cacheKey);
+        }
 
-        
-        // 明示的タイムアウト（ネットワークハング対策）
-        const timeoutMs = 7000;
-        const queryPromise = supabase
-          .from('profiles')
-          .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, email, country')
-          .eq('id', user.id)
-          .maybeSingle(); // singleの代わりにmaybeSingleを使用してNot Found エラーを防ぐ
-        
-        const { data, error } = await Promise.race([
-          queryPromise,
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('fetchProfile timeout')), timeoutMs))
-        ]);
+        const { data, error } = await fetchWithCache(
+          cacheKey,
+          async () => await supabase
+            .from('profiles')
+            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, email, country')
+            .eq('id', user.id)
+            .maybeSingle(),
+          1000 * 60 * 5
+        );
         
         console.log('📊 fetchProfile: 取得結果', { data, error, hasData: !!data, hasError: !!error });
         
