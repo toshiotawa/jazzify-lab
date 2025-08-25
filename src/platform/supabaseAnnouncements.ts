@@ -77,15 +77,16 @@ export async function fetchActiveAnnouncements(audience: 'default' | 'global' = 
  */
 export async function createAnnouncement(data: CreateAnnouncementData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { getCurrentUserIdCached } = await import('@/platform/supabaseClient');
+  const userId = await getCurrentUserIdCached();
   
-  if (!user) throw new Error('ログインが必要です');
+  if (!userId) throw new Error('ログインが必要です');
 
   const { error } = await supabase
     .from('announcements')
     .insert({
       ...data,
-      created_by: user.id,
+      created_by: userId,
       is_active: data.is_active ?? true,
       priority: data.priority ?? 1,
       target_audience: data.target_audience ?? 'default',

@@ -73,12 +73,13 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
         const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
         set(s => { s.currentDate = date ?? today; });
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        const { getCurrentUserIdCached } = await import('@/platform/supabaseClient');
+        const userId = await getCurrentUserIdCached();
+        if (userId) {
           const { count } = await supabase
             .from('practice_diaries')
             .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .eq('practice_date', today);
           set(s => { s.todayPosted = !!(count && count > 0); });
         } else {
