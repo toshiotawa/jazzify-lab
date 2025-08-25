@@ -79,10 +79,10 @@ export async function updateLessonProgress(
   targetUserId?: string // 管理者が他のユーザーの進捗を更新する場合
 ): Promise<void> {
   const supabase = getSupabaseClient();
-  const userId = await requireUserId();
+  const authUserId = await requireUserId();
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || userId;
+  const userId = targetUserId || authUserId;
 
   const now = new Date().toISOString();
   
@@ -123,10 +123,10 @@ export async function updateLessonProgress(
  */
 export async function unlockLesson(lessonId: string, courseId: string, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const userId = await requireUserId();
+  const authUserId = await requireUserId();
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || userId;
+  const userId = targetUserId || authUserId;
 
   const now = new Date().toISOString();
   
@@ -152,10 +152,10 @@ export async function unlockLesson(lessonId: string, courseId: string, targetUse
  */
 export async function unlockBlock(courseId: string, blockNumber: number, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const userId = await requireUserId();
+  const authUserId = await requireUserId();
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || userId;
+  const userId = targetUserId || authUserId;
 
   // ブロックに属するレッスンを取得
   const { data: lessons, error: lessonsError } = await supabase
@@ -213,10 +213,10 @@ export async function unlockBlock(courseId: string, blockNumber: number, targetU
  */
 export async function lockBlock(courseId: string, blockNumber: number, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const userId = await requireUserId();
+  const authUserId = await requireUserId();
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || authUserId;
 
   // ブロックに属するレッスンを取得
   const { data: lessons, error: lessonsError } = await supabase
@@ -306,9 +306,7 @@ export async function fetchUserLessonStats(): Promise<{
   currentStreak: number;
 }> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await requireUserId();
 
   // ユーザーのレッスン進捗を取得
   const { data: progressData, error } = await supabase
