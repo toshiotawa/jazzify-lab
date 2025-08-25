@@ -460,62 +460,105 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       console.log('🔍 fetchProfile: プロフィール取得開始', { userId: user.id, userEmail: user.email });
       
       try {
+        // --- 簡易TTL + インフライト重複排除 ---
+        const CACHE_KEY = `profile:${user.id}`;
+        const now = Date.now();
+        const ttlMs = 1000 * 60 * 5; // 5分
+        // @ts-ignore メモリに保つためにwindowへ退避（同一タブ内のみ）
+        window.__profileCache = window.__profileCache || new Map();
+        // @ts-ignore
+        const profileCache = window.__profileCache as Map<string, { data: any; expires: number }>;
+        // @ts-ignore 進行中のfetchを束ねる
+        window.__profileInflight = window.__profileInflight || new Map();
+        // @ts-ignore
+        const inflight = window.__profileInflight as Map<string, Promise<any>>;
 
-        
-        // 明示的タイムアウト（ネットワークハング対策）
-        const timeoutMs = 7000;
-        const queryPromise = supabase
-          .from('profiles')
-          .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, email, country')
-          .eq('id', user.id)
-          .maybeSingle(); // singleの代わりにmaybeSingleを使用してNot Found エラーを防ぐ
-        
-        const { data, error } = await Promise.race([
-          queryPromise,
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('fetchProfile timeout')), timeoutMs))
-        ]);
-        
-        console.log('📊 fetchProfile: 取得結果', { data, error, hasData: !!data, hasError: !!error });
-        
-        set(state => {
-          state.hasProfile = !!data && !error;
-          state.error = null; // エラー状態をクリア
-          if (data && !error) {
+        const cached = profileCache.get(CACHE_KEY);
+        if (cached && cached.expires > now) {
+          set(state => {
+            state.hasProfile = true;
             state.profile = {
-              nickname: data.nickname,
-              rank: data.rank,
-              level: data.level,
-              xp: data.xp,
-              isAdmin: data.is_admin,
+              nickname: cached.data.nickname,
+              rank: cached.data.rank,
+              level: cached.data.level,
+              xp: cached.data.xp,
+              isAdmin: cached.data.is_admin,
               id: user.id,
-              email: data.email || user.email,
-              country: data.country || null,
-              avatar_url: data.avatar_url,
-              bio: data.bio,
-              twitter_handle: data.twitter_handle,
-              selected_title: data.selected_title,
-              next_season_xp_multiplier: data.next_season_xp_multiplier,
-              stripe_customer_id: data.stripe_customer_id,
-              will_cancel: data.will_cancel,
-              cancel_date: data.cancel_date,
-              downgrade_to: data.downgrade_to,
-              downgrade_date: data.downgrade_date,
+              email: cached.data.email || user.email,
+              country: cached.data.country || null,
+              avatar_url: cached.data.avatar_url,
+              bio: cached.data.bio,
+              twitter_handle: cached.data.twitter_handle,
+              selected_title: cached.data.selected_title,
+              next_season_xp_multiplier: cached.data.next_season_xp_multiplier,
+              stripe_customer_id: cached.data.stripe_customer_id,
+              will_cancel: cached.data.will_cancel,
+              cancel_date: cached.data.cancel_date,
+              downgrade_to: cached.data.downgrade_to,
+              downgrade_date: cached.data.downgrade_date,
             };
-          } else {
-            state.profile = null;
-          }
-        });
-
-        // プロフィール取得成功後、ユーザー統計も並行で取得
-        if (data && !error) {
-          console.log('✅ fetchProfile: プロフィール取得成功', { nickname: data.nickname, rank: data.rank });
-          const { fetchStats } = useUserStatsStore.getState();
-          fetchStats(user.id).catch(console.error); // エラーは無視（統計は重要ではない）
-        } else if (error) {
-          console.log('❌ fetchProfile: プロフィール取得エラー', { error });
-        } else {
-          console.log('⚠️ fetchProfile: プロフィールが見つかりません（新規ユーザー）');
+          });
+          return;
         }
+
+        if (inflight.has(CACHE_KEY)) {
+          await inflight.get(CACHE_KEY);
+          return; // inflight完了時にonAuth側で反映済みのため終了
+        }
+
+        const fetchPromise = (async () => {
+          // 明示的タイムアウト（ネットワークハング対策）
+          const timeoutMs = 7000;
+          const queryPromise = supabase
+            .from('profiles')
+            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, email, country')
+            .eq('id', user.id)
+            .maybeSingle();
+          const { data, error } = await Promise.race([
+            queryPromise,
+            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('fetchProfile timeout')), timeoutMs))
+          ]);
+
+          console.log('📊 fetchProfile: 取得結果', { data, error, hasData: !!data, hasError: !!error });
+
+          set(state => {
+            state.hasProfile = !!data && !error;
+            state.error = null;
+            if (data && !error) {
+              state.profile = {
+                nickname: data.nickname,
+                rank: data.rank,
+                level: data.level,
+                xp: data.xp,
+                isAdmin: data.is_admin,
+                id: user.id,
+                email: data.email || user.email,
+                country: data.country || null,
+                avatar_url: data.avatar_url,
+                bio: data.bio,
+                twitter_handle: data.twitter_handle,
+                selected_title: data.selected_title,
+                next_season_xp_multiplier: data.next_season_xp_multiplier,
+                stripe_customer_id: data.stripe_customer_id,
+                will_cancel: data.will_cancel,
+                cancel_date: data.cancel_date,
+                downgrade_to: data.downgrade_to,
+                downgrade_date: data.downgrade_date,
+              };
+            } else {
+              state.profile = null;
+            }
+          });
+
+          if (data && !error) {
+            profileCache.set(CACHE_KEY, { data, expires: now + ttlMs });
+            const { fetchStats } = useUserStatsStore.getState();
+            fetchStats(user.id).catch(console.error);
+          }
+        })();
+
+        inflight.set(CACHE_KEY, fetchPromise);
+        await fetchPromise.finally(() => inflight.delete(CACHE_KEY));
       } catch (err) {
         console.error('Profile fetch error:', err);
         

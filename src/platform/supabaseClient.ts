@@ -68,6 +68,10 @@ interface CacheEntry<T> {
 const DEFAULT_TTL = 1000 * 600; // 600 秒（10分）に延長
 const cache: Map<string, CacheEntry<unknown>> = new Map();
 
+// インフライト（進行中）リクエストの重複排除
+// 同じ cacheKey に対する同時実行を1本に束ねる
+const inflightRequests: Map<string, Promise<PostgrestResponse<any>>> = new Map();
+
 /**
  * クエリを実行し、結果を TTL 付きでキャッシュする
  * @param cacheKey ユニークキー (テーブル名 + クエリパラメータなど)
@@ -83,7 +87,8 @@ export async function fetchWithCache<T>(
   const cached = cache.get(cacheKey);
   if (cached && cached.expires > now) {
     return { 
-      data: cached.data, 
+      // PostgrestResponse の型に合わせるため any キャスト
+      data: cached.data as any, 
       error: null, 
       status: 200, 
       statusText: 'OK',
@@ -91,11 +96,25 @@ export async function fetchWithCache<T>(
     };
   }
 
-  const res = await executor();
-  if (!res.error) {
-    cache.set(cacheKey, { data: res.data, expires: now + ttl });
+  // 進行中の同一キーがあればそれを待つ
+  if (inflightRequests.has(cacheKey)) {
+    return inflightRequests.get(cacheKey)! as Promise<PostgrestResponse<T>>;
   }
-  return res;
+
+  const promise = (async () => {
+    try {
+      const res = await executor();
+      if (!res.error) {
+        cache.set(cacheKey, { data: res.data, expires: now + ttl });
+      }
+      return res;
+    } finally {
+      inflightRequests.delete(cacheKey);
+    }
+  })();
+
+  inflightRequests.set(cacheKey, promise as Promise<PostgrestResponse<any>>);
+  return promise;
 }
 
 /**
@@ -130,10 +149,11 @@ export function subscribeRealtime<T = Record<string, unknown>>(
     ...(options?.filter && { filter: options.filter })
   };
   
-  channel.on(
+  // 型の差異によるビルドエラーを避けるため any 経由で呼び出し
+  (channel as any).on(
     'postgres_changes',
     eventConfig,
-    (payload) => {
+    (payload: any) => {
       // 最適化: キャッシュクリアは必要な場合のみ
       if (options?.clearCache !== false) {
         clearCacheByPattern(`.*${tableName}.*`);
@@ -201,7 +221,7 @@ export function subscribeRealtimeOnce<T = Record<string, unknown>>(
 ) {
   // 既に同じチャンネルがアクティブな場合は何もしない
   if (activeSubscriptions.has(channelName)) {
-    log.debug(`Realtime subscription ${channelName} already active, skipping...`);
+    console.debug(`Realtime subscription ${channelName} already active, skipping...`);
     return () => {}; // 空のクリーンアップ関数
   }
 
