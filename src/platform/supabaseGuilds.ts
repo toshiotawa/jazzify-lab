@@ -73,8 +73,11 @@ export async function getMyGuild(): Promise<Guild | null> {
   if (!userId) return null;
 
   // RLSの影響を受けないように、所属ギルドはRPCで取得
-  const { data: guildIdData, error: guildIdErr } = await supabase
-    .rpc('rpc_get_user_guild_id', { p_user_id: userId });
+  const { data: guildIdData, error: guildIdErr } = await fetchWithCache(
+    `rpc_get_user_guild_id:${userId}`,
+    () => supabase.rpc('rpc_get_user_guild_id', { p_user_id: userId }) as any,
+    60_000
+  );
   if (guildIdErr && guildIdErr.code !== 'PGRST116') throw guildIdErr;
   const myGuildId = (guildIdData as string | null) ?? null;
   if (!myGuildId) return null;
@@ -412,12 +415,16 @@ export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]>
   const supabase = getSupabaseClient();
   const userId = await getCurrentUserIdCached();
   if (!userId) return [];
-  const { data, error } = await supabase
-    .from('guild_invitations')
-    .select('id, guild_id, inviter_id, invitee_id, status, guilds(name, guild_type), inviter:profiles!guild_invitations_inviter_id_fkey(nickname)')
-    .eq('invitee_id', userId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
+  const { data, error } = await fetchWithCache(
+    `guild_invitations:pending:${userId}`,
+    async () => await supabase
+      .from('guild_invitations')
+      .select('id, guild_id, inviter_id, invitee_id, status, guilds(name, guild_type), inviter:profiles!guild_invitations_inviter_id_fkey(nickname)')
+      .eq('invitee_id', userId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false }),
+    30_000
+  );
   if (error) throw error;
   return (data || []).map((row: any) => ({
     id: row.id,
@@ -456,13 +463,16 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
   if (!userId) return [];
   const myGuildId = await getMyGuildId();
   if (!myGuildId) return [];
-  const { data, error } = await supabase
-    .from('guild_join_requests')
-    .select('id, guild_id, requester_id, status, requester:profiles(nickname), guilds(name, guild_type)')
-
-    .eq('guild_id', myGuildId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true });
+  const { data, error } = await fetchWithCache(
+    `guild_join_requests:pending:${myGuildId}`,
+    async () => await supabase
+      .from('guild_join_requests')
+      .select('id, guild_id, requester_id, status, requester:profiles(nickname), guilds(name, guild_type)')
+      .eq('guild_id', myGuildId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true }),
+    30_000
+  );
   if (error) throw error;
   return (data || []).map((row: any) => ({
     id: row.id,

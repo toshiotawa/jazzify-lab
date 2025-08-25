@@ -76,11 +76,18 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
         const { getCurrentUserIdCached } = await import('@/platform/supabaseClient');
         const uid = await getCurrentUserIdCached();
         if (uid) {
-          const { count } = await supabase
-            .from('practice_diaries')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', uid)
-            .eq('practice_date', today);
+          // 今日の投稿済み判定を軽量化（TTLキャッシュ + count/head）
+          const { fetchWithCache } = await import('@/platform/supabaseClient');
+          const headKey = `today_diary_head:${uid}:${today}`;
+          const { count } = await fetchWithCache(
+            headKey,
+            async () => await supabase
+              .from('practice_diaries')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', uid)
+              .eq('practice_date', today),
+            1000 * 30
+          );
           set(s => { s.todayPosted = !!(count && count > 0); });
         } else {
           set(s => { s.todayPosted = false; });

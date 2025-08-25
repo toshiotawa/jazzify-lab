@@ -169,14 +169,18 @@ export async function removeSongFromChallenge(challengeId: string, songId: strin
  */
 export async function getChallengeSongs(challengeId: string): Promise<ChallengeSong[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('challenge_tracks')
-    .select(`
-      *,
-      songs(id, title, artist)
-    `)
-    .eq('challenge_id', challengeId);
-  
+  const cacheKey = `challenge_tracks:${challengeId}`;
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => await supabase
+      .from('challenge_tracks')
+      .select(`
+        *,
+        songs(id, title, artist)
+      `)
+      .eq('challenge_id', challengeId),
+    1000 * 60 // 60s TTL
+  );
   if (error) throw error;
   return data as ChallengeSong[];
 }

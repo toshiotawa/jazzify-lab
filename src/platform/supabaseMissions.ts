@@ -107,9 +107,13 @@ export async function fetchUserMissionProgress(): Promise<UserMissionProgress[]>
   const supabase = getSupabaseClient();
   const userId = await requireUserId();
   const key = `user_mission_progress:${userId}`;
-  const { data, error } = await fetchWithCache(key, async () =>
-    await supabase.from('user_challenge_progress').select('*').eq('user_id', userId),
-    1000*15,
+  const { data, error } = await fetchWithCache(
+    key,
+    async () => await supabase
+      .from('user_challenge_progress')
+      .select('*')
+      .eq('user_id', userId),
+    1000 * 60 // TTL 60s に延長
   );
   if (error) throw error;
   return data as UserMissionProgress[];
@@ -494,7 +498,7 @@ export async function claimReward(missionId: string) {
         const { data: fallbackProgress, error: fallbackError } = await supabase
           .from('user_challenge_progress')
           .select('completed')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('challenge_id', missionId)
           .maybeSingle();
         

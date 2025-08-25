@@ -1,4 +1,4 @@
-import { getSupabaseClient, getCurrentUserIdCached } from '@/platform/supabaseClient';
+import { getSupabaseClient, getCurrentUserIdCached, fetchWithCache } from '@/platform/supabaseClient';
 import { addXp } from '@/platform/supabaseXp';
 import { fetchActiveMonthlyMissions, incrementDiaryProgress } from '@/platform/supabaseMissions';
 import { clearSupabaseCache } from '@/platform/supabaseClient';
@@ -49,38 +49,36 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   // 日記IDのリストを作成
   const diaryIds = baseRows.slice(0, limit).map(diary => diary.id);
   
-  // 一括でいいね数とコメント数を取得
+  // 一括でいいね数とコメント数を取得（TTLキャッシュ + in-flight去重）
   const [likesData, commentsData] = await (async () => {
     if (diaryIds.length === 0) return [new Map(), new Map()];
-    const res = await Promise.all([
-      supabase
-        .from('diary_likes')
-        .select('diary_id')
-        .in('diary_id', diaryIds)
-        .then(result => {
-          const likesMap = new Map();
-          if (result.data) {
-            result.data.forEach((item: any) => {
-              likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
-            });
-          }
-          return likesMap;
-        }),
-      supabase
-        .from('diary_comments')
-        .select('diary_id')
-        .in('diary_id', diaryIds)
-        .then(result => {
-          const commentsMap = new Map();
-          if (result.data) {
-            result.data.forEach((item: any) => {
-              commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
-            });
-          }
-          return commentsMap;
-        })
+    const [likesRes, commentsRes] = await Promise.all([
+      fetchWithCache(
+        `diary_likes_counts:${diaryIds.sort().join(',')}`,
+        async () => await supabase
+          .from('diary_likes')
+          .select('diary_id')
+          .in('diary_id', diaryIds),
+        1000 * 30
+      ),
+      fetchWithCache(
+        `diary_comments_counts:${diaryIds.sort().join(',')}`,
+        async () => await supabase
+          .from('diary_comments')
+          .select('diary_id')
+          .in('diary_id', diaryIds),
+        1000 * 30
+      )
     ]);
-    return res as any;
+    const likesMap = new Map();
+    (likesRes.data || []).forEach((item: any) => {
+      likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
+    });
+    const commentsMap = new Map();
+    (commentsRes.data || []).forEach((item: any) => {
+      commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
+    });
+    return [likesMap, commentsMap] as any;
   })();
   
   const diariesWithLikes = baseRows.slice(0, limit).map((diary: any) => ({
@@ -119,38 +117,36 @@ export async function fetchDiariesByDate(date: string, limit = 200): Promise<Dia
 
   const diaryIds = baseRows.map((diary: any) => diary.id);
 
-  // 一括でいいね数とコメント数を取得
+  // 一括でいいね数とコメント数を取得（TTLキャッシュ + in-flight去重）
   const [likesData, commentsData] = await (async () => {
     if (diaryIds.length === 0) return [new Map(), new Map()];
-    const res = await Promise.all([
-      supabase
-        .from('diary_likes')
-        .select('diary_id')
-        .in('diary_id', diaryIds)
-        .then(result => {
-          const likesMap = new Map<string, number>();
-          if (result.data) {
-            result.data.forEach((item: any) => {
-              likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
-            });
-          }
-          return likesMap;
-        }),
-      supabase
-        .from('diary_comments')
-        .select('diary_id')
-        .in('diary_id', diaryIds)
-        .then(result => {
-          const commentsMap = new Map<string, number>();
-          if (result.data) {
-            result.data.forEach((item: any) => {
-              commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
-            });
-          }
-          return commentsMap;
-        })
+    const [likesRes, commentsRes] = await Promise.all([
+      fetchWithCache(
+        `diary_likes_counts:${diaryIds.sort().join(',')}`,
+        async () => await supabase
+          .from('diary_likes')
+          .select('diary_id')
+          .in('diary_id', diaryIds),
+        1000 * 30
+      ),
+      fetchWithCache(
+        `diary_comments_counts:${diaryIds.sort().join(',')}`,
+        async () => await supabase
+          .from('diary_comments')
+          .select('diary_id')
+          .in('diary_id', diaryIds),
+        1000 * 30
+      )
     ]);
-    return res as any;
+    const likesMap = new Map<string, number>();
+    (likesRes.data || []).forEach((item: any) => {
+      likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
+    });
+    const commentsMap = new Map<string, number>();
+    (commentsRes.data || []).forEach((item: any) => {
+      commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
+    });
+    return [likesMap, commentsMap] as any;
   })();
 
   const diariesWithCounts: Diary[] = baseRows.map((diary: any) => ({
@@ -194,20 +190,28 @@ export async function fetchDiariesInfinite(params: { limit?: number; beforeCreat
   const sliced = baseRows.slice(0, limit);
   const diaryIds = sliced.map((d: any) => d.id);
 
-  // 空のINクエリ防止
+  // 空のINクエリ防止（TTLキャッシュ + in-flight去重）
   const [likesData, commentsData] = await (async () => {
     if (diaryIds.length === 0) {
       return [new Map<string, number>(), new Map<string, number>()] as const;
     }
     const [likes, comments] = await Promise.all([
-      supabase
-        .from('diary_likes')
-        .select('diary_id')
-        .in('diary_id', diaryIds),
-      supabase
-        .from('diary_comments')
-        .select('diary_id')
-        .in('diary_id', diaryIds),
+      fetchWithCache(
+        `diary_likes_counts:${diaryIds.sort().join(',')}`,
+        async () => await supabase
+          .from('diary_likes')
+          .select('diary_id')
+          .in('diary_id', diaryIds),
+        1000 * 30
+      ),
+      fetchWithCache(
+        `diary_comments_counts:${diaryIds.sort().join(',')}`,
+        async () => await supabase
+          .from('diary_comments')
+          .select('diary_id')
+          .in('diary_id', diaryIds),
+        1000 * 30
+      ),
     ]);
     const likesMap = new Map<string, number>();
     (likes.data || []).forEach((item: any) => {
