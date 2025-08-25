@@ -25,7 +25,7 @@ export async function fetchLatestNotifications(limit = 10): Promise<Notification
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
-
+  // 空のINクエリ防止
   const actorIds = (data || []).map(n => n.actor_id);
   let actorMap = new Map<string, { nickname: string; avatar_url: string | null }>();
   if (actorIds.length > 0) {

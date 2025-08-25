@@ -131,9 +131,16 @@ export async function fetchMissionSongProgress(missionId: string): Promise<Missi
     .eq('challenge_id', missionId);
   
   if (songsError) throw songsError;
+  // 空のINクエリ防止
+  if (!songsData || songsData.length === 0) {
+    return [];
+  }
   
   // 曲IDのリストを作成
   const songIds = songsData.map(song => song.song_id);
+  if (songIds.length === 0) {
+    return [];
+  }
   
   // 一括で進捗を取得
   const { data: progressData } = await supabase
@@ -188,21 +195,28 @@ export async function fetchMissionSongProgressAll(missionIds: string[]): Promise
       .in('challenge_id', missionIds);
     
     if (songsError) throw songsError;
+    // 空のINクエリ防止
+    if (!songsData || songsData.length === 0) {
+      return {};
+    }
     
     // 曲IDのリストを作成
     const songIds = songsData.map((song: any) => song.song_id);
-    
-    // 一括で進捗を取得
-    const { data: progressData } = await supabase
-      .from('user_song_progress')
-      .select('song_id, clear_count')
-      .eq('user_id', user.id)
-      .in('song_id', songIds);
+    // songIdsが空なら進捗クエリはスキップ
+    let progressData: any[] | null = [];
+    if (songIds.length > 0) {
+      const { data: pd } = await supabase
+        .from('user_song_progress')
+        .select('song_id, clear_count')
+        .eq('user_id', user.id)
+        .in('song_id', songIds);
+      progressData = pd || [];
+    }
     
     // 進捗データをマップ化
     const progressMap = new Map();
-    if (progressData) {
-      progressData.forEach((item: any) => {
+    if (progressData && progressData.length > 0) {
+      (progressData as any[]).forEach((item: any) => {
         progressMap.set(item.song_id, item.clear_count);
       });
     }

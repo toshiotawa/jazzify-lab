@@ -141,7 +141,7 @@ export async function fetchGuildDailyStreaks(
     .from('guild_member_streaks')
     .select('user_id, current_streak_days, streak_level')
     .eq('guild_id', guildId)
-    .in('user_id', userIds);
+    .in('user_id', userIds.length > 0 ? userIds : ['__never__']);
     
   if (error) {
     console.warn('fetchGuildDailyStreaks error:', error);
@@ -575,7 +575,7 @@ export async function fetchGuildContributorsWithProfiles(
   const { data: profiles, error: pErr } = await supabase
     .from('profiles')
     .select('id, nickname, avatar_url, level, rank')
-    .in('id', userIds);
+    .in('id', userIds.length > 0 ? userIds : ['__never__']);
   if (pErr) {
     console.warn('fetchGuildContributorsWithProfiles profiles error:', pErr);
     return entries.map((e) => ({ user_id: e.user_id, nickname: 'User', level: 1, rank: 'free', contributed_xp: e.contributed_xp }));

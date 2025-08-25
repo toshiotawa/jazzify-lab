@@ -237,12 +237,15 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
     },
 
     initRealtime: () => {
-      // グローバル状態もチェック
+      // グローバル状態もチェック（重複購読防止）
       if (get().realtimeInitialized || globalRealtimeInitialized) return;
-      
       const supabase = getSupabaseClient();
 
-      // 日記新規投稿（最適化: キャッシュクリアを最小限に）
+      // 既存のチャンネルを除去してから購読（ホットリロード時の重複防止）
+      try { (globalRealtimeUnsubscribers || []).forEach(fn => fn()); } catch {}
+      globalRealtimeUnsubscribers = [];
+
+      // 日記新規投稿
       const diariesChannel = supabase.channel('realtime-diaries')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async () => {
           await get().fetch(get().currentDate || undefined);
@@ -250,7 +253,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
         .subscribe();
       globalRealtimeUnsubscribers.push(() => { try { supabase.removeChannel(diariesChannel); } catch {} });
 
-      // コメント新規投稿（最適化: 特定の日記のコメントのみ更新）
+      // コメント新規投稿（特定の日記のみ更新）
       const commentsChannel = supabase.channel('realtime-diary-comments')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'diary_comments' }, async (payload) => {
           const diaryId = (payload.new as any).diary_id;
