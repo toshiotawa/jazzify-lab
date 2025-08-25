@@ -82,8 +82,12 @@ const ResultModal: React.FC = () => {
                   streakSum = Object.values(st).reduce((acc, s: any) => acc + (s?.tierPercent || 0), 0);
                 } catch {}
               }
-              const b = computeGuildBonus(myGuild.level || 1, contributors, streakSum);
-              guildMultiplier = 1 + b.levelBonus + b.memberBonus + (myGuild.guild_type === 'challenge' ? b.streakBonus : 0);
+              const bonus = computeGuildBonus(
+                myGuild.level || 1,
+                contributors,
+                myGuild.guild_type === 'challenge' ? streakSum : 0,
+              );
+              guildMultiplier = bonus.totalMultiplier;
             }
           } catch (e) {
             // 失敗しても続行
