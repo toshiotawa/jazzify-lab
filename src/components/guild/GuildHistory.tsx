@@ -66,13 +66,16 @@ const GuildHistory: React.FC = () => {
 	useEffect(() => {
 		if (!guildId) return;
 		(async () => {
-			// 月ごとデータを並行取得
+			// 月リストを用いるが、検証用に同一時間バケットのランキングを取得
 			const promises = monthList.map(async (month) => {
 				if (dataByMonth[month]) return; // 既存
+				// その月初の同UTC時を時間バケットに変換
+				const d = new Date(month + 'T00:00:00.000Z');
+				const hourIso = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0)).toISOString();
 				const [rank, contribs, totalXp] = await Promise.all([
-					fetchGuildRankForMonth(guildId, month),
-					fetchGuildContributorsWithProfiles(guildId, month),
-					fetchGuildMonthlyXpSingle(guildId, month),
+					fetchGuildRankForMonth(guildId, hourIso),
+					fetchGuildContributorsWithProfiles(guildId, hourIso),
+					fetchGuildMonthlyXpSingle(guildId, hourIso),
 				]);
 				const mvp = contribs[0]
 					? { user_id: contribs[0].user_id, nickname: contribs[0].nickname, avatar_url: contribs[0].avatar_url, contributed_xp: contribs[0].contributed_xp }

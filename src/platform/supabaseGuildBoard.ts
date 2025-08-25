@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/platform/supabaseClient';
+import { getSupabaseClient, getCurrentUserIdCached } from '@/platform/supabaseClient';
 import { getMyGuildId } from '@/platform/supabaseGuilds';
 
 export interface GuildPost {
@@ -34,14 +34,16 @@ export async function fetchGuildPosts(guildId: string, limit = 50): Promise<Guil
   if (error) throw error;
 
   const postIds = (data || []).map((p: any) => p.id);
-  const [commentsAgg, likesAgg] = await Promise.all([
-    supabase.from('guild_post_comments').select('post_id').in('post_id', postIds),
-    supabase.from('guild_post_likes').select('post_id').in('post_id', postIds),
-  ]);
-  const commentsMap = new Map<string, number>();
-  (commentsAgg.data || []).forEach((r: any) => commentsMap.set(r.post_id, (commentsMap.get(r.post_id) || 0) + 1));
-  const likesMap = new Map<string, number>();
-  (likesAgg.data || []).forEach((r: any) => likesMap.set(r.post_id, (likesMap.get(r.post_id) || 0) + 1));
+  let commentsMap = new Map<string, number>();
+  let likesMap = new Map<string, number>();
+  if (postIds.length > 0) {
+    const [commentsAgg, likesAgg] = await Promise.all([
+      supabase.from('guild_post_comments').select('post_id').in('post_id', postIds),
+      supabase.from('guild_post_likes').select('post_id').in('post_id', postIds),
+    ]);
+    (commentsAgg.data || []).forEach((r: any) => commentsMap.set(r.post_id, (commentsMap.get(r.post_id) || 0) + 1));
+    (likesAgg.data || []).forEach((r: any) => likesMap.set(r.post_id, (likesMap.get(r.post_id) || 0) + 1));
+  }
 
   return (data || []).map((row: any) => ({
     id: row.id,
@@ -73,14 +75,16 @@ export async function fetchGuildPostsInfinite(params: { guildId: string; limit?:
   const baseRows = (data || []);
   const sliced = baseRows.slice(0, limit);
   const postIds = sliced.map((p: any) => p.id);
-  const [commentsAgg, likesAgg] = await Promise.all([
-    supabase.from('guild_post_comments').select('post_id').in('post_id', postIds),
-    supabase.from('guild_post_likes').select('post_id').in('post_id', postIds),
-  ]);
-  const commentsMap = new Map<string, number>();
-  (commentsAgg.data || []).forEach((r: any) => commentsMap.set(r.post_id, (commentsMap.get(r.post_id) || 0) + 1));
-  const likesMap = new Map<string, number>();
-  (likesAgg.data || []).forEach((r: any) => likesMap.set(r.post_id, (likesMap.get(r.post_id) || 0) + 1));
+  let commentsMap = new Map<string, number>();
+  let likesMap = new Map<string, number>();
+  if (postIds.length > 0) {
+    const [commentsAgg, likesAgg] = await Promise.all([
+      supabase.from('guild_post_comments').select('post_id').in('post_id', postIds),
+      supabase.from('guild_post_likes').select('post_id').in('post_id', postIds),
+    ]);
+    (commentsAgg.data || []).forEach((r: any) => commentsMap.set(r.post_id, (commentsMap.get(r.post_id) || 0) + 1));
+    (likesAgg.data || []).forEach((r: any) => likesMap.set(r.post_id, (likesMap.get(r.post_id) || 0) + 1));
+  }
   const posts: GuildPost[] = sliced.map((row: any) => ({
     id: row.id,
     guild_id: row.guild_id,
@@ -99,13 +103,13 @@ export async function fetchGuildPostsInfinite(params: { guildId: string; limit?:
 
 export async function createGuildPost(content: string, guildIdOverride?: string): Promise<string> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   const guildId = guildIdOverride || (await getMyGuildId());
   if (!guildId) throw new Error('ギルドに所属していません');
   const { data, error } = await supabase
     .from('guild_posts')
-    .insert({ guild_id: guildId, user_id: user.id, content })
+    .insert({ guild_id: guildId, user_id: userId, content })
     .select('id')
     .single();
   if (error) throw error;
@@ -114,11 +118,11 @@ export async function createGuildPost(content: string, guildIdOverride?: string)
 
 export async function likeGuildPost(postId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   const { error } = await supabase
     .from('guild_post_likes')
-    .insert({ post_id: postId, user_id: user.id });
+    .insert({ post_id: postId, user_id: userId });
   if (error && error.code !== '23505') throw error; // ignore duplicate
 }
 
@@ -143,11 +147,11 @@ export async function fetchGuildComments(postId: string): Promise<GuildComment[]
 
 export async function addGuildComment(postId: string, content: string): Promise<string> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   const { data, error } = await supabase
     .from('guild_post_comments')
-    .insert({ post_id: postId, user_id: user.id, content })
+    .insert({ post_id: postId, user_id: userId, content })
     .select('id')
     .single();
   if (error) throw error;
@@ -156,25 +160,25 @@ export async function addGuildComment(postId: string, content: string): Promise<
 
 export async function deleteGuildPost(postId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   const { error } = await supabase
     .from('guild_posts')
     .delete()
     .eq('id', postId)
-    .eq('user_id', user.id);
+    .eq('user_id', userId);
   if (error) throw error;
 }
 
 export async function deleteGuildComment(commentId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   const { error } = await supabase
     .from('guild_post_comments')
     .delete()
     .eq('id', commentId)
-    .eq('user_id', user.id);
+    .eq('user_id', userId);
   if (error) throw error;
 }
 

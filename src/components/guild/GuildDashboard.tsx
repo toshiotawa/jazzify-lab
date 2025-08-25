@@ -30,6 +30,7 @@ import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { computeGuildBonus } from '@/utils/guildBonus';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
+import { fetchGuildQuestSuccessCount } from '@/platform/supabaseGuilds';
 
 const GuildIntro: React.FC = () => (
         <div className="bg-slate-800 border border-slate-700 rounded p-4">
@@ -62,6 +63,10 @@ const GuildDashboard: React.FC = () => {
 	const [streaks, setStreaks] = useState<Record<string, { daysCurrentStreak: number; tierPercent: number; tierMaxDays: number; display: string }>>({});
 	const [newGuildType, setNewGuildType] = useState<'casual'|'challenge'>('casual');
 	const [pendingInvitations, setPendingInvitations] = useState<GuildInvitation[]>([]);
+	const [refreshKey, setRefreshKey] = useState(0);
+
+	const [questSuccessCount, setQuestSuccessCount] = useState<number | null>(null);
+
 
 	useEffect(() => {
 		const fetchData = async () => {
@@ -83,11 +88,12 @@ const GuildDashboard: React.FC = () => {
                                 setPendingInvitations(invitations);
 				if (guild) {
 					// ギルドIDに依存する取得
-					const [m, perMember, totalContrib, st] = await Promise.all([
+					const [m, perMember, totalContrib, st, successCount] = await Promise.all([
 						getGuildMembers(guild.id),
 						fetchGuildMemberMonthlyXp(guild.id),
 						fetchMyGuildContributionTotal(guild.id),
 						(guild.guild_type === 'challenge' ? fetchGuildDailyStreaks(guild.id) : Promise.resolve({} as Record<string, any>)).catch(()=>({} as Record<string, any>)),
+						fetchGuildQuestSuccessCount(guild.id),
 					]);
 					setMembers(m);
 					setMemberMonthly(perMember);
@@ -95,6 +101,7 @@ const GuildDashboard: React.FC = () => {
 					setThisMonthXp(perMember.reduce((a, b) => a + Number(b.monthly_xp || 0), 0));
 					setIsLeader(m.some(x => x.user_id === user.id && x.role === 'leader'));
 					setStreaks(st);
+					setQuestSuccessCount(Number(successCount||0));
 				}
 			} catch (e: any) {
 				alert(e?.message || 'ギルド情報の取得に失敗しました');
@@ -103,17 +110,19 @@ const GuildDashboard: React.FC = () => {
 			}
 		};
 		fetchData();
-	}, [user]);
+	}, [user, refreshKey]);
 
-	// 月次クエストの強制（クライアント側フォールバック。1ヶ月1回のみ）
+	// 時間クエストの強制（クライアント側フォールバック。1時間1回のみ）
 	useEffect(() => {
 		(async () => {
 			try {
-				const monthKey = new Date().toISOString().slice(0,7);
-				if (!localStorage.getItem(`quest_enforced_${monthKey}`)) {
+				const hourKey = new Date().toISOString().slice(0,13);
+				if (!localStorage.getItem(`quest_enforced_${hourKey}`)) {
 					const { enforceMonthlyGuildQuest } = await import('@/platform/supabaseGuilds');
-					await enforceMonthlyGuildQuest().catch(()=>{});
-					localStorage.setItem(`quest_enforced_${monthKey}`, '1');
+					const now = new Date();
+					const currentHourIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())).toISOString();
+					await enforceMonthlyGuildQuest(currentHourIso).catch(()=>{});
+					localStorage.setItem(`quest_enforced_${hourKey}`, '1');
 				}
 			} catch {}
 		})();
@@ -123,12 +132,20 @@ const GuildDashboard: React.FC = () => {
                 if (!user || !guildName.trim()) return;
                 try {
                         setBusy(true);
-                        const gId = await createGuild(guildName.trim(), newGuildType);
-                        if (gId) {
-                                alert('ギルドが作成されました！');
-                                // 再読み込み
-                                window.location.hash = '#guild-dashboard';
-                                window.location.reload();
+                        try {
+                                const gId = await createGuild(guildName.trim(), newGuildType);
+                                if (gId) {
+                                        alert('ギルドが作成されました！');
+                                        window.location.hash = '#guilds';
+                                        setRefreshKey((k)=>k+1);
+                                }
+                        } catch (e: any) {
+                                const msg: string = e?.message || '';
+                                if (msg.includes('既に使用されています') || msg.includes('duplicate key')) {
+                                        alert('このギルド名は既に使われています。別の名前をお試しください。');
+                                } else {
+                                        throw e;
+                                }
                         }
                 } catch (e: any) {
                         alert(e?.message || 'ギルド作成に失敗しました');
@@ -297,6 +314,9 @@ const GuildDashboard: React.FC = () => {
                                 <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                                         <div className="max-w-4xl mx-auto space-y-4 text-center">
                                                 <GuildIntro />
+                                                <div>
+                                                        <button className="btn btn-sm btn-outline" onClick={()=>{ window.location.hash = '#my-guild-history'; }}>自分のギルド歴を見る</button>
+                                                </div>
                                                 <h2 className="text-xl font-bold">ギルドを作成または参加</h2>
                                                 <p className="text-gray-300">ギルドを作成して、仲間と一緒に冒険を楽しもう！</p>
                                                 {/* 脱退理由UIは廃止 */}
@@ -309,7 +329,12 @@ const GuildDashboard: React.FC = () => {
                                                                         {pendingInvitations.map(inv => (
                                                                                 <li key={inv.id} className="flex items-center justify-between bg-slate-900 p-2 rounded">
                                                                                         <div>
-                                                                                                <p className="text-sm">{inv.guild_name || 'ギルド'} からの招待</p>
+                                                                                                <p className="text-sm">
+                                                                                                        <a className="link link-info" onClick={() => { const p = new URLSearchParams(); p.set('id', inv.guild_id); window.location.hash = `#guild?id=${inv.guild_id}`; }}>
+                                                                                                                {inv.guild_name || 'ギルド'}
+                                                                                                        </a>
+                                                                                                        {' '}からの招待{inv.guild_type ? `（${inv.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}）` : ''}
+                                                                                                </p>
                                                                                                 {inv.inviter_nickname && (
                                                                                                         <p className="text-xs text-gray-400">招待者: {inv.inviter_nickname}</p>
                                                                                                 )}
@@ -391,9 +416,16 @@ const GuildDashboard: React.FC = () => {
 													</div>
 													<div className="text-sm text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
 												</div>
+												{myGuild.guild_type === 'challenge' && (
+													<div className="bg-slate-900 rounded p-3 border border-slate-700 col-span-2">
+														<div className="text-gray-400">クエスト成功回数</div>
+														<div className="text-lg font-semibold">{(questSuccessCount ?? 0).toLocaleString()}</div>
+													</div>
+												)}
 											</div>
 											<div className="flex gap-2 mt-3">
 												<button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', myGuild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
+												<button className="btn btn-sm btn-outline" onClick={() => { window.location.hash = '#my-guild-history'; }}>自分のギルド歴</button>
 												{isLeader && (
 													editingDesc ? (
 														<div className="flex gap-2 flex-1">
@@ -411,19 +443,19 @@ const GuildDashboard: React.FC = () => {
 								{myGuild.guild_type === 'challenge' && (
 									<div className="bg-slate-800 border border-slate-700 rounded p-4">
 										<h3 className="font-semibold mb-2">ギルドクエスト</h3>
-										<p className="text-gray-300 text-sm">今月の獲得経験値が1,000,000に達しないと、月末にギルドは解散となります（メンバーは0人になります）。</p>
+										<p className="text-gray-300 text-sm">直前の1時間での獲得経験値が1,000に達しない場合、ギルドは解散となります。達成時はシーズン切替時に成功回数が加算されます。</p>
 										<div className="mt-2">
-											<div className="text-sm font-medium text-gray-400">今月の進捗</div>
+											<div className="text-sm font-medium text-gray-400">今時間の進捗（残り: {(() => { const now = new Date(); const mins = 59 - now.getUTCMinutes(); const secs = 59 - now.getUTCSeconds(); return `${mins}分${secs}秒`; })()}）</div>
 											<div className="h-1.5 bg-slate-700 rounded overflow-hidden">
-												<div className="h-full bg-pink-500" style={{ width: `${Math.min(100, (thisMonthXp/1000000)*100)}%` }} />
+												<div className="h-full bg-pink-500" style={{ width: `${Math.min(100, (thisMonthXp/1000)*100)}%` }} />
 											</div>
-											<div className="text-sm text-gray-400 mt-1">{thisMonthXp.toLocaleString()} / 1,000,000</div>
+											<div className="text-sm text-gray-400 mt-1">{thisMonthXp.toLocaleString()} / 1,000</div>
 										</div>
 									</div>
 								)}
 
 								<div className="bg-slate-800 border border-slate-700 rounded p-4">
-									<h3 className="font-semibold mb-3">MVP（今月）</h3>
+									<h3 className="font-semibold mb-3">MVP（今時間）</h3>
 									{!mvp ? (
 										<p className="text-gray-400 text-sm">該当なし</p>
 									) : (
@@ -497,7 +529,14 @@ const GuildDashboard: React.FC = () => {
 										<ul className="space-y-2">
 											{joinRequests.map(req => (
 												<li key={req.id} className="bg-slate-900 p-2 rounded-lg">
-													<p>{req.requester_nickname || 'ユーザー'} からの参加リクエスト</p>
+													<p>
+														{req.requester_nickname || 'ユーザー'} からの参加リクエスト
+														{' '}→{' '}
+														<a className="link link-info" onClick={() => { const p = new URLSearchParams(); p.set('id', req.guild_id); window.location.hash = `#guild?id=${req.guild_id}`; }}>
+															{req.guild_name || 'ギルド'}
+														</a>
+													{req.guild_type ? `（${req.guild_type === 'challenge' ? 'チャレンジ' : 'カジュアル'}）` : ''}
+													</p>
 													<button onClick={() => handleApproveJoinRequest(req.id)} className="btn btn-xs btn-success mr-2">承認</button>
 													<button onClick={() => handleRejectJoinRequest(req.id)} className="btn btn-xs btn-error">拒否</button>
 												</li>

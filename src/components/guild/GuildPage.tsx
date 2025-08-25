@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, fetchMyJoinRequestForGuild, cancelMyJoinRequest } from '@/platform/supabaseGuilds';
+import { Guild, getGuildById, getGuildMembers, fetchGuildMemberMonthlyXp, fetchGuildRankForMonth, fetchGuildMonthlyXpSingle, requestJoin, getMyGuild, fetchMyJoinRequestForGuild, cancelMyJoinRequest, fetchGuildQuestSuccessCount } from '@/platform/supabaseGuilds';
+
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaTrophy, FaGraduationCap, FaHatWizard, FaCheckCircle } from 'react-icons/fa';
 
@@ -9,7 +10,7 @@ const GuildPage: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash.startsWith('#guild'));
   const [guildId, setGuildId] = useState<string | null>(null);
   const [guild, setGuild] = useState<Guild | null>(null);
-  const [members, setMembers] = useState<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; role: 'leader' | 'member'; selected_title?: string }>>([]);
+  const [members, setMembers] = useState<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; role: 'leader' | 'member'; selected_title?: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [memberMonthly, setMemberMonthly] = useState<Array<{ user_id: string; monthly_xp: number }>>([]);
   const [seasonXp, setSeasonXp] = useState<number>(0);
@@ -17,6 +18,8 @@ const GuildPage: React.FC = () => {
   const [isMember, setIsMember] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
   const [myPendingRequestId, setMyPendingRequestId] = useState<string | null>(null);
+  const [questSuccessCount, setQuestSuccessCount] = useState<number | null>(null);
+
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash.startsWith('#guild'));
@@ -56,15 +59,19 @@ const GuildPage: React.FC = () => {
             const pendingId = await pendingIdPromise;
             setMyPendingRequestId(pendingId);
           }
-          // 今シーズン（当月）合計XPと順位
+          // 今シーズン（当時間）合計XPと順位
+
           const now = new Date();
-          const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10);
+          const currentHour = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())).toISOString();
           const [xp, r] = await Promise.all([
-            fetchGuildMonthlyXpSingle(g.id, currentMonth),
-            fetchGuildRankForMonth(g.id, currentMonth),
+            fetchGuildMonthlyXpSingle(g.id, currentHour),
+            fetchGuildRankForMonth(g.id, currentHour),
           ]);
           setSeasonXp(xp);
           setRank(r);
+          // クエスト成功回数
+          const questSuccess = await fetchGuildQuestSuccessCount(g.id);
+          setQuestSuccessCount(questSuccess);
         }
       } finally {
         setLoading(false);
@@ -125,10 +132,20 @@ const GuildPage: React.FC = () => {
                         <div className="text-gray-400">順位</div>
                         <div className="text-lg font-semibold">{rank ? `${rank}位` : '-'}</div>
                       </div>
+                      {guild.guild_type === 'challenge' && (
+                        <div className="bg-slate-900 rounded p-3 border border-slate-700 col-span-2">
+                          <div className="text-gray-400">クエスト成功回数</div>
+                          <div className="text-lg font-semibold">{questSuccessCount?.toLocaleString?.() ?? questSuccessCount}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', guild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
+                    <div className="flex gap-2">
+                      <button className="btn btn-sm btn-outline" onClick={() => { const p = new URLSearchParams(); p.set('id', guild.id); window.location.hash = `#guild-history?${p.toString()}`; }}>ギルドヒストリーを見る</button>
+                      <button className="btn btn-sm btn-outline" onClick={() => { window.location.hash = '#my-guild-history'; }}>自分のギルド歴</button>
+                    </div>
+
                     {!isMember && (
                       myPendingRequestId ? (
                         <button className="btn btn-sm btn-outline" disabled={busy} onClick={async()=>{ try{ setBusy(true); await cancelMyJoinRequest(myPendingRequestId); setMyPendingRequestId(null); } catch(e:any){ alert(e?.message||'キャンセルに失敗しました'); } finally{ setBusy(false); } }}>申請をキャンセル</button>

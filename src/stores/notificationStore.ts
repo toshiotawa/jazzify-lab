@@ -8,6 +8,7 @@ interface NotificationState {
   error: string | null;
   unread: boolean;
   open: boolean;
+  lastFetchedAt?: number | null;
 }
 
 interface NotificationActions {
@@ -23,12 +24,17 @@ export const useNotificationStore = create<NotificationState & NotificationActio
     error: null,
     unread: false,
     open: false,
+    lastFetchedAt: null,
 
     fetch: async () => {
+      const now = Date.now();
+      const { lastFetchedAt } = get();
+      // 60秒クールダウン
+      if (lastFetchedAt && now - lastFetchedAt < 60_000) return;
       set(s => { s.loading = true; s.error = null; });
       try {
         const items = await fetchLatestNotifications(10);
-        set(s => { s.items = items; s.unread = items.some(n => !n.read); });
+        set(s => { s.items = items; s.unread = items.some(n => !n.read); s.lastFetchedAt = now; });
       } catch (e:any) {
         set(s => { s.error = e.message || '通知の取得に失敗しました'; });
       } finally {

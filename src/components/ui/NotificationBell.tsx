@@ -6,16 +6,13 @@ import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 const NotificationBell: React.FC = () => {
   const { user, isGuest, profile } = useAuthStore();
-  const { items, unread, open, fetch, setOpen, loading } = useNotificationStore();
+  const { items, unread, open, fetch, setOpen, loading, markRead } = useNotificationStore();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const allowedRank = profile?.rank === 'standard' || profile?.rank === 'premium' || profile?.rank === 'platinum';
   const canShow = !!user && !isGuest && allowedRank;
 
-  useEffect(() => {
-    if (!canShow) return;
-    fetch().catch(() => {});
-  }, [canShow]);
+  // 初回自動取得は削除し、開いた時のみ取得（API削減）
 
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {
@@ -38,7 +35,11 @@ const NotificationBell: React.FC = () => {
         onClick={() => {
           const next = !open;
           setOpen(next);
-          if (next) fetch();
+          if (next) {
+            fetch();
+            // 開いたタイミングで即未読を消す
+            markRead();
+          }
         }}
       >
         <FaBell className="w-5 h-5" />

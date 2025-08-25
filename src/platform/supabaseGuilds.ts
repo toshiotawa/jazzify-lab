@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, getCurrentUserIdCached } from '@/platform/supabaseClient';
 
 export type GuildType = 'casual' | 'challenge';
 
@@ -32,6 +32,7 @@ export interface GuildInvitation {
   status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
   guild_name?: string;
   inviter_nickname?: string;
+  guild_type?: GuildType;
 }
 
 export interface GuildJoinRequest {
@@ -40,22 +41,39 @@ export interface GuildJoinRequest {
   requester_id: string;
   status: 'pending' | 'approved' | 'rejected' | 'cancelled';
   requester_nickname?: string;
+  guild_name?: string;
+  guild_type?: GuildType;
 }
 
-function getMonthStartDateStringUTC(baseDate?: Date): string {
+export async function fetchGuildQuestSuccessCount(guildId: string): Promise<number> {
+  const supabase = getSupabaseClient();
+  const { count, error } = await supabase
+    .from('guild_quest_success_log')
+    .select('*', { count: 'exact', head: true })
+    .eq('guild_id', guildId);
+  if (error && (error as any).code !== 'PGRST116') {
+    console.warn('fetchGuildQuestSuccessCount error:', error);
+    return 0;
+  }
+  return Number(count || 0);
+}
+
+function getHourBucketISOStringUTC(baseDate?: Date): string {
   const now = baseDate ? new Date(baseDate) : new Date();
-  const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  return monthStartUtc.toISOString().slice(0, 10);
+  const hourStartUtc = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours()
+  ));
+  return hourStartUtc.toISOString();
 }
 
 export async function getMyGuild(): Promise<Guild | null> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return null;
 
   // RLSの影響を受けないように、所属ギルドはRPCで取得
   const { data: guildIdData, error: guildIdErr } = await supabase
-    .rpc('rpc_get_user_guild_id', { p_user_id: user.id });
+    .rpc('rpc_get_user_guild_id', { p_user_id: userId });
   if (guildIdErr && guildIdErr.code !== 'PGRST116') throw guildIdErr;
   const myGuildId = (guildIdData as string | null) ?? null;
   if (!myGuildId) return null;
@@ -258,21 +276,26 @@ export async function kickMember(guildId: string, memberUserId: string): Promise
   if (error) throw error;
 }
 
-export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: string): Promise<Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>> {
+export async function fetchGuildRanking(limit = 50, offset = 0, targetHour?: string): Promise<Array<{ guild_id: string; name: string; guild_type: 'casual'|'challenge'; members_count: number; level: number; monthly_xp: number; quest_success_count: number | null; rank_no: number }>> {
   const supabase = getSupabaseClient();
-  const month = targetMonth || getMonthStartDateStringUTC();
+  const hourIso = targetHour || getHourBucketISOStringUTC();
   try {
     const { data, error } = await supabase
-      .rpc('rpc_get_guild_ranking', { limit_count: limit, offset_count: offset, target_month: month });
+      .rpc('rpc_get_guild_ranking', { limit_count: limit, offset_count: offset, target_hour: hourIso });
     if (error) throw error;
-    return ((data || []) as Array<{ guild_id: string; name: string; members_count: number; level: number; monthly_xp: number; rank_no: number }>).
-      filter(r => Number(r.monthly_xp || 0) > 0);
+    const rows = ((data || []) as Array<{ guild_id: string; name: string; guild_type: string | null; members_count: number; level: number; monthly_xp: number; quest_success_count: number | null; rank_no: number }>)
+      .filter(r => Number(r.monthly_xp || 0) > 0)
+      .map(r => ({
+        ...r,
+        guild_type: (r.guild_type === 'challenge' ? 'challenge' : 'casual') as 'casual'|'challenge',
+      }));
+    return rows;
   } catch (e) {
     console.warn('rpc_get_guild_ranking failed, fallback to client aggregation:', e);
     const { data: contribs, error: contribErr } = await supabase
       .from('guild_xp_contributions')
-      .select('guild_id, gained_xp, month')
-      .eq('month', month);
+      .select('guild_id, gained_xp, hour_bucket')
+      .eq('hour_bucket', hourIso);
     if (contribErr) {
       console.warn('fetchGuildRanking contributions error:', contribErr);
       return [];
@@ -291,34 +314,42 @@ export async function fetchGuildRanking(limit = 50, offset = 0, targetMonth?: st
     if (guildIds.length === 0) return [];
     const { data: guildsData, error: gErr } = await supabase
       .from('guilds')
-      .select('id, name, level')
+      .select('id, name, level, guild_type')
       .in('id', guildIds);
     if (gErr) {
       console.warn('fetchGuildRanking guilds error:', gErr);
       return [];
     }
     const guildMap = new Map((guildsData || []).map((g: any) => [g.id, g] as const));
+    // fetch success counts via RPC for accuracy/perf
+    const { data: succRows, error: succErr } = await supabase
+      .rpc('rpc_get_guild_success_counts', { p_guild_ids: guildIds });
+    if (succErr) console.warn('rpc_get_guild_success_counts error:', succErr);
+    const successCountByGuild = new Map<string, number>((succRows || []).map((r: any) => [r.guild_id, Number(r.success_count || 0)] as const));
     return sliced.map((e, idx) => {
       const g = guildMap.get(e.guildId);
       return {
         guild_id: e.guildId,
         name: g?.name || 'Guild',
+        guild_type: ((g?.guild_type as 'casual'|'challenge') || 'casual'),
         members_count: 0,
         level: g?.level ? Number(g.level) : 1,
         monthly_xp: e.monthly_xp,
+        quest_success_count: successCountByGuild.get(e.guildId) ?? 0,
         rank_no: offset + idx + 1,
       };
     });
   }
 }
 
-export async function fetchMyGuildRank(targetMonth?: string): Promise<number | null> {
+export async function fetchMyGuildRank(targetHour?: string): Promise<number | null> {
   const supabase = getSupabaseClient();
-  const month = targetMonth || getMonthStartDateStringUTC();
+  const hourIso = targetHour || getHourBucketISOStringUTC();
   try {
-    const { data, error } = await supabase.rpc('rpc_get_my_guild_rank', { target_month: month });
+    const cacheKey = `rpc_get_my_guild_rank:${hourIso}`;
+    const { data, error } = await fetchWithCache(cacheKey, () => supabase.rpc('rpc_get_my_guild_rank', { target_hour: hourIso }) as any, 60_000);
     if (error) throw error;
-    return (data as number) ?? null;
+    return (data as unknown as number) ?? null;
   } catch (e) {
     console.warn('rpc_get_my_guild_rank failed, fallback to client aggregation:', e);
     const myGuildId = await getMyGuildId();
@@ -326,7 +357,7 @@ export async function fetchMyGuildRank(targetMonth?: string): Promise<number | n
     const { data, error } = await supabase
       .from('guild_xp_contributions')
       .select('guild_id, gained_xp')
-      .eq('month', month);
+      .eq('hour_bucket', hourIso);
     if (error) {
       console.warn('fetchMyGuildRank contributions error:', error);
       return null;
@@ -379,12 +410,12 @@ export async function fetchGuildMonthlyRanks(guildId: string, months = 12): Prom
 
 export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return [];
   const { data, error } = await supabase
     .from('guild_invitations')
-    .select('id, guild_id, inviter_id, invitee_id, status, guilds(name), inviter:profiles!guild_invitations_inviter_id_fkey(nickname)')
-    .eq('invitee_id', user.id)
+    .select('id, guild_id, inviter_id, invitee_id, status, guilds(name, guild_type), inviter:profiles!guild_invitations_inviter_id_fkey(nickname)')
+    .eq('invitee_id', userId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -395,18 +426,19 @@ export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]>
     invitee_id: row.invitee_id,
     status: row.status,
     guild_name: row.guilds?.name,
+    guild_type: row.guilds?.guild_type,
     inviter_nickname: row.inviter?.nickname,
   }));
 }
 
 export async function fetchOutgoingInvitationsForMyGuild(): Promise<Array<{ id: string }>> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return [];
   const { data: myGuild } = await supabase
     .from('guilds')
     .select('id')
-    .eq('leader_id', user.id)
+    .eq('leader_id', userId)
     .maybeSingle();
   if (!myGuild?.id) return [];
   const { data, error } = await supabase
@@ -426,7 +458,8 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
   if (!myGuildId) return [];
   const { data, error } = await supabase
     .from('guild_join_requests')
-    .select('id, guild_id, requester_id, status, requester:profiles(nickname)')
+    .select('id, guild_id, requester_id, status, requester:profiles(nickname), guilds(name, guild_type)')
+
     .eq('guild_id', myGuildId)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
@@ -437,21 +470,25 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
     requester_id: row.requester_id,
     status: row.status,
     requester_nickname: row.requester?.nickname,
+    guild_name: row.guilds?.name,
+    guild_type: row.guilds?.guild_type,
   }));
 }
 
 export async function getGuildIdOfUser(userId: string): Promise<string | null> {
-  const { data, error } = await getSupabaseClient()
-    .rpc('rpc_get_user_guild_id', { p_user_id: userId });
+  const key = `rpc_get_user_guild_id:${userId}`;
+  const { data, error } = await fetchWithCache(key, () =>
+    getSupabaseClient().rpc('rpc_get_user_guild_id', { p_user_id: userId }) as any,
+    60_000
+  );
   if (error && error.code !== 'PGRST116') throw error;
-  return (data as string | null) ?? null;
+  return (data as unknown as string | null) ?? null;
 }
 
 export async function getMyGuildId(): Promise<string | null> {
-  const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  return getGuildIdOfUser(user.id);
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return null;
+  return getGuildIdOfUser(userId);
 }
 
 export async function getPendingInvitationToUser(targetUserId: string): Promise<GuildInvitation | null> {
@@ -475,14 +512,14 @@ export async function getPendingInvitationToUser(targetUserId: string): Promise<
   } as GuildInvitation) : null;
 }
 
-export async function fetchGuildMemberMonthlyXp(guildId: string, targetMonth?: string): Promise<Array<{ user_id: string; monthly_xp: number }>> {
+export async function fetchGuildMemberMonthlyXp(guildId: string, targetHour?: string): Promise<Array<{ user_id: string; monthly_xp: number }>> {
   const supabase = getSupabaseClient();
-  const month = targetMonth || getMonthStartDateStringUTC();
+  const hourIso = targetHour || getHourBucketISOStringUTC();
   const { data, error } = await supabase
     .from('guild_xp_contributions')
     .select('user_id, gained_xp')
     .eq('guild_id', guildId)
-    .eq('month', month);
+    .eq('hour_bucket', hourIso);
   if (error) {
     console.warn('fetchGuildMemberMonthlyXp error:', error);
     return [];
@@ -512,14 +549,14 @@ export async function fetchMyGuildContributionTotal(guildId: string): Promise<nu
 
 export async function fetchGuildContributorsWithProfiles(
   guildId: string,
-  targetMonth: string,
+  targetHour: string,
 ): Promise<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; contributed_xp: number }>> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('guild_xp_contributions')
     .select('user_id, gained_xp')
     .eq('guild_id', guildId)
-    .eq('month', targetMonth);
+    .eq('hour_bucket', targetHour);
   if (error) {
     console.warn('fetchGuildContributorsWithProfiles error:', error);
     return [];
@@ -557,7 +594,7 @@ export async function fetchGuildContributorsWithProfiles(
   });
 }
 
-export async function fetchGuildRankForMonth(guildId: string, targetMonth: string): Promise<number | null> {
+export async function fetchGuildRankForMonth(guildId: string, targetHour: string): Promise<number | null> {
   const supabase = getSupabaseClient();
   try {
     throw new Error('no_rpc');
@@ -565,7 +602,7 @@ export async function fetchGuildRankForMonth(guildId: string, targetMonth: strin
     const { data, error } = await supabase
       .from('guild_xp_contributions')
       .select('guild_id, gained_xp')
-      .eq('month', targetMonth);
+      .eq('hour_bucket', targetHour);
     if (error) {
       console.warn('fetchGuildRankForMonth contributions error:', error);
       return null;
@@ -580,13 +617,13 @@ export async function fetchGuildRankForMonth(guildId: string, targetMonth: strin
   }
 }
 
-export async function fetchGuildMonthlyXpSingle(guildId: string, targetMonth: string): Promise<number> {
+export async function fetchGuildMonthlyXpSingle(guildId: string, targetHour: string): Promise<number> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('guild_xp_contributions')
     .select('gained_xp')
     .eq('guild_id', guildId)
-    .eq('month', targetMonth);
+    .eq('hour_bucket', targetHour);
   if (error) {
     console.warn('fetchGuildMonthlyXpSingle error:', error);
     return 0;
@@ -739,6 +776,7 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
 }
 
 export async function fetchMyJoinRequestForGuild(guildId: string): Promise<string | null> {
+
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -759,10 +797,16 @@ export async function cancelMyJoinRequest(requestId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function enforceMonthlyGuildQuest(targetMonth?: string): Promise<void> {
+export async function enforceMonthlyGuildQuest(targetHour?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest', { p_month: targetMonth || null });
-  if (error && error.code !== 'PGRST116') throw error;
+  if (typeof targetHour === 'string' && targetHour.length > 0) {
+    const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest', { p_hour: targetHour });
+    if (error && error.code !== 'PGRST116') throw error;
+  } else {
+    // パラメータ未指定の場合はデフォルト引数を使わせる（nullを明示的に渡さない）
+    const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest');
+    if (error && error.code !== 'PGRST116') throw error;
+  }
 }
 
 export async function submitGuildLeaveFeedback(previousGuildId: string, previousGuildName: string, leaveType: 'left'|'kicked'|'disband', reason: string): Promise<void> {
@@ -775,3 +819,4 @@ export async function submitGuildLeaveFeedback(previousGuildId: string, previous
   });
   if (error) throw error;
 }
+

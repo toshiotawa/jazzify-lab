@@ -26,6 +26,7 @@ import PricingTable from '@/components/subscription/PricingTable';
 import FantasyMain from '@/components/fantasy/FantasyMain';
 import GuildDashboard from '@/components/guild/GuildDashboard';
 import GuildHistory from '@/components/guild/GuildHistory';
+import MyGuildHistory from '@/components/guild/MyGuildHistory';
 import GuildPage from '@/components/guild/GuildPage';
 import GuildInfoPage from '@/components/guild/GuildInfoPage';
 
@@ -255,6 +256,9 @@ const App: React.FC = () => {
       break;
     case '#guild-history':
       MainContent = isFree ? <Dashboard /> : <GuildHistory />;
+      break;
+    case '#my-guild-history':
+      MainContent = isFree ? <Dashboard /> : <MyGuildHistory />;
       break;
     case '#missions':
     case '#mission':

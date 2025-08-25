@@ -50,8 +50,12 @@ const DiaryFeed: React.FC = () => {
         return <FaMedal className="text-gray-400 text-xs" />;
     }
   };
-  // Initialize realtime channels when the feed mounts
-  useEffect(() => { useDiaryStore.getState().initRealtime(); }, []);
+  // Initialize realtime channels when the feed mounts, and dispose on unmount
+  useEffect(() => {
+    const store = useDiaryStore.getState();
+    store.initRealtime();
+    return () => { store.disposeRealtime(); };
+  }, []);
   
   // Initial load (infinite)
   useEffect(() => { void fetchAll(); }, []);
@@ -358,4 +362,4 @@ const DiaryFeed: React.FC = () => {
   );
 };
 
-export default DiaryFeed; 
+export default DiaryFeed;
