@@ -408,7 +408,7 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
           const { error: upsertError } = await supabase
             .from('user_challenge_progress')
             .upsert({
-              user_id: user.id,
+              user_id: userId,
               challenge_id: m.id,
               clear_count: actualDiaryCount || 0,
               completed: (actualDiaryCount || 0) >= m.diary_count
@@ -574,7 +574,7 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
   if (!data) return [];
 
   const commentIds = data.map(d => d.id);
-  const { data: { user } } = await supabase.auth.getUser();
+  const userIdForLike = await (await import('./supabaseClient')).getCurrentUserIdCached();
 
   // 取得したコメントに対する「いいね」を取得（存在しない環境では0として扱う）
   let likesByComment = new Map<string, number>();
@@ -587,7 +587,7 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
     if (likeRows) {
       likeRows.forEach((r: any) => {
         likesByComment.set(r.comment_id, (likesByComment.get(r.comment_id) || 0) + 1);
-        if (user && r.user_id === user.id) likedByMeSet.add(r.comment_id);
+        if (userIdForLike && r.user_id === userIdForLike) likedByMeSet.add(r.comment_id);
       });
     }
   } catch (e) {

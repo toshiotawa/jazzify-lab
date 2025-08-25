@@ -241,14 +241,14 @@ export async function rejectInvitation(invitationId: string): Promise<void> {
 
 export async function requestJoin(guildId: string): Promise<string> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('not authenticated');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('not authenticated');
   // 既存の他ギルドへの申請は維持（サーバ側で加入時に一括取り消し）
   const { data: existing } = await supabase
     .from('guild_join_requests')
     .select('id')
     .eq('guild_id', guildId)
-    .eq('requester_id', user.id)
+    .eq('requester_id', userId)
     .eq('status', 'pending')
     .maybeSingle();
   if (existing?.id) return existing.id as string;
@@ -452,8 +452,8 @@ export async function fetchOutgoingInvitationsForMyGuild(): Promise<Array<{ id: 
 
 export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return [];
   const myGuildId = await getMyGuildId();
   if (!myGuildId) return [];
   const { data, error } = await supabase
@@ -533,13 +533,13 @@ export async function fetchGuildMemberMonthlyXp(guildId: string, targetHour?: st
 
 export async function fetchMyGuildContributionTotal(guildId: string): Promise<number> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return 0;
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return 0;
   const { data, error } = await supabase
     .from('guild_xp_contributions')
     .select('gained_xp')
     .eq('guild_id', guildId)
-    .eq('user_id', user.id);
+    .eq('user_id', userId);
   if (error) {
     console.warn('fetchMyGuildContributionTotal error:', error);
     return 0;
@@ -633,12 +633,12 @@ export async function fetchGuildMonthlyXpSingle(guildId: string, targetHour: str
 
 export async function updateGuildDescription(newDescription: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   const { data: guild } = await supabase
     .from('guilds')
     .select('id')
-    .eq('leader_id', user.id)
+    .eq('leader_id', userId)
     .maybeSingle();
   if (!guild?.id) throw new Error('リーダー権限がありません');
   const { error } = await supabase
@@ -650,8 +650,8 @@ export async function updateGuildDescription(newDescription: string): Promise<vo
 
 export async function disbandMyGuild(): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   const myGuildId = await getMyGuildId();
   if (!myGuildId) throw new Error('リーダー権限がありません');
   // 自分がリーダーか確認
@@ -661,7 +661,7 @@ export async function disbandMyGuild(): Promise<void> {
     .eq('id', myGuildId)
     .maybeSingle();
   if (gErr) throw gErr;
-  if (!gRow || (gRow as any).leader_id !== user.id) throw new Error('リーダー権限がありません');
+  if (!gRow || (gRow as any).leader_id !== userId) throw new Error('リーダー権限がありません');
   // メンバー数はRPCで取得（軽量）
   const { data: mcData } = await supabase.rpc('rpc_get_guild_member_count', { p_guild_id: myGuildId });
   const mc = (mcData as number) || 0;
@@ -672,13 +672,13 @@ export async function disbandMyGuild(): Promise<void> {
 
 export async function leaveMyGuild(): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
 
   const { data: membership } = await supabase
     .from('guild_members')
     .select('guild_id, role')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle();
   const guildId = membership?.guild_id as string | undefined;
   if (!guildId) throw new Error('ギルドに所属していません');
@@ -700,14 +700,14 @@ export async function leaveMyGuild(): Promise<void> {
       .from('guild_members')
       .select('user_id')
       .eq('guild_id', guildId)
-      .neq('user_id', user.id)
+      .neq('user_id', userId)
       .order('joined_at', { ascending: true })
       .limit(1);
     if (candErr) throw candErr;
     const nextLeaderId = candidates?.[0]?.user_id as string | undefined;
     if (!nextLeaderId) throw new Error('移譲先メンバーが見つかりません');
     const { error: transferErr } = await supabase
-      .rpc('rpc_guild_transfer_leader', { p_old_leader_id: user.id, p_guild_id: guildId, p_new_leader_id: nextLeaderId });
+      .rpc('rpc_guild_transfer_leader', { p_old_leader_id: userId, p_guild_id: guildId, p_new_leader_id: nextLeaderId });
     if (transferErr) throw transferErr;
   }
 
@@ -715,7 +715,7 @@ export async function leaveMyGuild(): Promise<void> {
     .from('guild_members')
     .delete()
     .eq('guild_id', guildId)
-    .eq('user_id', user.id);
+    .eq('user_id', userId);
   if (delErr) throw delErr;
 }
 
@@ -775,16 +775,34 @@ export async function getGuildById(guildId: string): Promise<Guild | null> {
   };
 }
 
+/**
+ * 複数ユーザーの所属ギルドIDを一括取得
+ */
+export async function getGuildIdsOfUsers(userIds: string[]): Promise<Record<string, string | null>> {
+  if (userIds.length === 0) return {};
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .rpc('rpc_get_user_guild_ids', { p_user_ids: userIds });
+  if (error && (error as any).code !== 'PGRST116') throw error;
+  // 期待する戻り: [{ user_id, guild_id }]
+  const map: Record<string, string | null> = {};
+  userIds.forEach(id => { map[id] = null; });
+  (data || []).forEach((row: any) => {
+    map[row.user_id] = row.guild_id ?? null;
+  });
+  return map;
+}
+
 export async function fetchMyJoinRequestForGuild(guildId: string): Promise<string | null> {
 
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return null;
   const { data, error } = await supabase
     .from('guild_join_requests')
     .select('id')
     .eq('guild_id', guildId)
-    .eq('requester_id', user.id)
+    .eq('requester_id', userId)
     .eq('status', 'pending')
     .maybeSingle();
   if (error && error.code !== 'PGRST116') throw error;

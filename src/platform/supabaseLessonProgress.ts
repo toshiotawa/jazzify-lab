@@ -66,7 +66,12 @@ export async function fetchUserLessonProgress(
 
   if (error) throw new Error(`進捗データの取得に失敗しました: ${error.message}`);
   
-  return (data as any) || [];
+  // 型の都合上、必要フィールドのみを返す
+  return ((data || []) as any).map((row: any) => ({
+    course_id: row.course_id,
+    lesson_id: row.lesson_id,
+    completed: row.completed,
+  })) as unknown as LessonProgress[];
 }
 
 /**
@@ -100,7 +105,11 @@ export async function fetchUserLessonProgressBulk(
   );
 
   if (error) throw new Error(`進捗データの一括取得に失敗しました: ${error.message}`);
-  return data || [];
+  return ((data || []) as any).map((row: any) => ({
+    course_id: row.course_id,
+    lesson_id: row.lesson_id,
+    completed: row.completed,
+  })) as unknown as LessonProgress[];
 }
 
 /**

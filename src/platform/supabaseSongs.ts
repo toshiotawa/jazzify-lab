@@ -1,4 +1,4 @@
-import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearSupabaseCache, getCurrentUserIdCached } from '@/platform/supabaseClient';
 import { uploadSongFile, deleteSongFiles } from '@/platform/r2Storage';
 
 export type SongUsageType = 'general' | 'lesson';
@@ -59,11 +59,11 @@ export async function addSongWithFiles(
   const supabase = getSupabaseClient();
   
   // ユーザー認証を確認
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   
   console.log('addSongWithFiles開始:', song);
-  console.log('認証ユーザーID:', user.id);
+  console.log('認証ユーザーID:', userId);
   
   // JSONファイルの内容を読み込んで検証
   let jsonData = null;
@@ -84,7 +84,7 @@ export async function addSongWithFiles(
     is_public: true,
     // json_dataフィールドにJSONの内容を保存（ファイルがある場合）
     json_data: jsonData,
-    created_by: user.id // マイグレーション完了により使用可能
+    created_by: userId // マイグレーション完了により使用可能
   };
   
   console.log('データベースに挿入するデータ:', insertData);
@@ -157,12 +157,12 @@ export async function addSongWithFiles(
 // 旧APIとの互換性のため残す
 export async function addSong(song: Omit<Song, 'id' | 'is_public' | 'created_by'>): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
 
   await supabase
     .from('songs')
-    .insert({ ...song, is_public: true, created_by: user.id });
+    .insert({ ...song, is_public: true, created_by: userId });
   clearSupabaseCache();
 }
 
@@ -170,10 +170,10 @@ export async function updateSong(id: string, updates: Partial<Omit<Song, 'id' | 
   const supabase = getSupabaseClient();
   
   // ユーザー認証を確認
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   
-  console.log('updateSong実行 - ユーザーID:', user.id);
+  console.log('updateSong実行 - ユーザーID:', userId);
   
   // ファイルがある場合はアップロード
   const urls: { audio_url?: string; xml_url?: string; json_url?: string } = {};
@@ -210,10 +210,10 @@ export async function deleteSong(id: string): Promise<void> {
   const supabase = getSupabaseClient();
   
   // ユーザー認証を確認
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   
-  console.log('deleteSong実行 - ユーザーID:', user.id);
+  console.log('deleteSong実行 - ユーザーID:', userId);
   
   // ストレージからファイルを削除
   await deleteSongFiles(id);
