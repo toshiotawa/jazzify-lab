@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
-import { fetchUserLessonProgress, unlockLesson, LessonProgress } from '@/platform/supabaseLessonProgress';
-import { subscribeRealtime } from '@/platform/supabaseClient';
+import { fetchUserLessonProgress, fetchUserLessonProgressBulk, unlockLesson, LessonProgress } from '@/platform/supabaseLessonProgress';
+import { subscribeRealtimeOnce } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { 
@@ -61,12 +61,6 @@ const LessonPage: React.FC = () => {
   }, [open, profile, selectedCourse]);
 
   useEffect(() => {
-    if (selectedCourse) {
-      loadLessons(selectedCourse.id);
-    }
-  }, [selectedCourse]);
-
-  useEffect(() => {
     if (selectedCourse?.id) {
       loadLessons(selectedCourse.id);
     }
@@ -82,7 +76,7 @@ const LessonPage: React.FC = () => {
     if (!shouldMonitor) return;
 
     // レッスンテーブルの変更を監視（最適化: キャッシュクリアを最小限に）
-    const unsubscribeLessons = subscribeRealtime(
+    const unsubscribeLessons = subscribeRealtimeOnce(
       'lesson-changes',
       'lessons',
       '*',
@@ -97,7 +91,7 @@ const LessonPage: React.FC = () => {
     );
 
     // lesson_songsテーブルの変更も監視（最適化: キャッシュクリアを最小限に）
-    const unsubscribeLessonSongs = subscribeRealtime(
+    const unsubscribeLessonSongs = subscribeRealtimeOnce(
       'lesson-songs-changes',
       'lesson_songs',
       '*',
@@ -135,27 +129,23 @@ const LessonPage: React.FC = () => {
       // 全コースの進捗データを並行取得して完了率を計算
       if (profile) {
         try {
-          const courseProgressPromises = sortedCourses.map(async (course) => {
-            try {
-              const [courseProgressData, courseLessonsData] = await Promise.all([
-                fetchUserLessonProgress(course.id),
-                fetchLessonsByCourse(course.id)
-              ]);
-              
-              if (courseLessonsData.length === 0) return [course.id, 0];
-              
-              const completedCount = courseProgressData.filter(p => p.completed).length;
-              const completionRate = Math.round((completedCount / courseLessonsData.length) * 100);
-              
-              return [course.id, completionRate];
-            } catch (error) {
-              console.error(`Failed to load progress for course ${course.id}:`, error);
-              return [course.id, 0];
+          // 一括で進捗を取得し、レッスン数はコース詳細から算出
+          const progressList = await fetchUserLessonProgressBulk(sortedCourses.map(c => c.id));
+          const lessonsCountMap = Object.fromEntries(sortedCourses.map((c) => [c.id, (c.lessons?.length || 0)]));
+
+          const completedByCourse: Record<string, number> = {};
+          progressList.forEach(p => {
+            if (p.completed) {
+              completedByCourse[p.course_id] = (completedByCourse[p.course_id] || 0) + 1;
             }
           });
 
-          const courseProgressResults = await Promise.all(courseProgressPromises);
-          const progressMap = Object.fromEntries(courseProgressResults) as Record<string, number>;
+          const progressMap: Record<string, number> = {};
+          for (const course of sortedCourses) {
+            const total = lessonsCountMap[course.id] || 0;
+            const completed = completedByCourse[course.id] || 0;
+            progressMap[course.id] = total > 0 ? Math.round((completed / total) * 100) : 0;
+          }
           setAllCoursesProgress(progressMap);
         } catch (error) {
           console.error('Error loading course progress data:', error);
@@ -189,15 +179,13 @@ const LessonPage: React.FC = () => {
     try {
       console.log(`Loading lessons for course: ${courseId}`);
       
-      // レッスンデータ、進捗データ、要件進捗を並行取得
-      const [lessonsData, progressData, requirementsMap] = await Promise.all([
-        fetchLessonsByCourse(courseId),
-        fetchUserLessonProgress(courseId),
-        fetchLessonsByCourse(courseId).then(lessons => {
-          const lessonIds = lessons.map(lesson => lesson.id);
-          return fetchMultipleLessonRequirementsProgress(lessonIds);
-        })
+      // 重複fetchを排除: レッスンは1回のみ取得
+      const lessonsPromise = fetchLessonsByCourse(courseId);
+      const [lessonsData, progressData] = await Promise.all([
+        lessonsPromise,
+        fetchUserLessonProgress(courseId)
       ]);
+      const requirementsMap = await fetchMultipleLessonRequirementsProgress(lessonsData.map(l => l.id));
       
       console.log(`Loaded ${lessonsData.length} lessons`);
       

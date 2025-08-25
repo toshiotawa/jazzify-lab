@@ -1,4 +1,4 @@
-import { getSupabaseClient } from './supabaseClient';
+import { getSupabaseClient, getCurrentUserIdCached } from './supabaseClient';
 
 export interface UserStats {
   missionCompletedCount: number;
@@ -14,11 +14,10 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5分
  */
 export async function fetchUserStats(userId?: string): Promise<UserStats> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const cachedUserId = await getCurrentUserIdCached();
+  if (!cachedUserId && !userId) throw new Error('ログインが必要です');
   
-  if (!user) throw new Error('ログインが必要です');
-  
-  const targetUserId = userId || user.id;
+  const targetUserId = userId || (cachedUserId as string);
 
   // キャッシュチェック
   const cached = statsCache[targetUserId];

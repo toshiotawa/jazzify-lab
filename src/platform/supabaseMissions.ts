@@ -1,4 +1,4 @@
-import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearSupabaseCache, getCurrentUserIdCached } from '@/platform/supabaseClient';
 import { clearUserStatsCache } from './supabaseUserStats';
 
 export interface MissionSong {
@@ -97,19 +97,19 @@ export async function fetchMissionSongs(missionId: string): Promise<MissionSong[
 
 export async function incrementDiaryProgress(missionId: string) {
   const supabase = getSupabaseClient();
-  const { data:{ user } } = await supabase.auth.getUser();
-  if (!user) return;
-  await supabase.rpc('increment_diary_progress',{ _user_id:user.id, _mission_id:missionId });
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return;
+  await supabase.rpc('increment_diary_progress',{ _user_id:userId, _mission_id:missionId });
   clearSupabaseCache();
 }
 
 export async function fetchUserMissionProgress(): Promise<UserMissionProgress[]> {
   const supabase = getSupabaseClient();
-  const { data:{ user } } = await supabase.auth.getUser();
-  if (!user) return [];
-  const key = `user_mission_progress:${user.id}`;
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return [];
+  const key = `user_mission_progress:${userId}`;
   const { data, error } = await fetchWithCache(key, async () =>
-    await supabase.from('user_challenge_progress').select('*').eq('user_id', user.id),
+    await supabase.from('user_challenge_progress').select('*').eq('user_id', userId),
     1000*15,
   );
   if (error) throw error;
@@ -121,8 +121,8 @@ export async function fetchUserMissionProgress(): Promise<UserMissionProgress[]>
  */
 export async function fetchMissionSongProgress(missionId: string): Promise<MissionSongProgress[]> {
   const supabase = getSupabaseClient();
-  const { data:{ user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return [];
   
   // ミッションの曲一覧を取得
   const { data: songsData, error: songsError } = await supabase
@@ -139,7 +139,7 @@ export async function fetchMissionSongProgress(missionId: string): Promise<Missi
   const { data: progressData } = await supabase
     .from('user_song_progress')
     .select('song_id, clear_count')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .in('song_id', songIds);
   
   // 進捗データをマップ化
@@ -177,8 +177,8 @@ export async function fetchMissionSongProgress(missionId: string): Promise<Missi
  */
 export async function fetchMissionSongProgressAll(missionIds: string[]): Promise<Record<string, MissionSongProgress[]>> {
   const supabase = getSupabaseClient();
-  const { data:{ user } } = await supabase.auth.getUser();
-  if (!user || missionIds.length === 0) return {};
+  const userId = await getCurrentUserIdCached();
+  if (!userId || missionIds.length === 0) return {};
   
   try {
     // 全てのミッションの曲一覧を一括取得
@@ -196,7 +196,7 @@ export async function fetchMissionSongProgressAll(missionIds: string[]): Promise
     const { data: progressData } = await supabase
       .from('user_song_progress')
       .select('song_id, clear_count')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .in('song_id', songIds);
     
     // 進捗データをマップ化
@@ -245,8 +245,8 @@ export async function fetchMissionSongProgressAll(missionIds: string[]): Promise
  */
 export async function playMissionSong(missionId: string, songId: string) {
   const supabase = getSupabaseClient();
-  const { data:{ user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   
   // ミッションの曲情報を取得
   const { data: songData, error: songError } = await supabase
@@ -283,8 +283,8 @@ export async function updateMissionSongProgress(
   }
 ): Promise<boolean> {
   const supabase = getSupabaseClient();
-  const { data:{ user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   
   // ランク条件をチェック
   const rankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
@@ -299,7 +299,7 @@ export async function updateMissionSongProgress(
   const { data: existingProgress } = await supabase
     .from('user_song_progress')
     .select('clear_count')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('song_id', songId)
     .single();
   
@@ -310,7 +310,7 @@ export async function updateMissionSongProgress(
   const { error: updateError } = await supabase
     .from('user_song_progress')
     .upsert({
-      user_id: user.id,
+      user_id: userId,
       song_id: songId,
       clear_count: newCount,
       best_rank: rank,
@@ -328,7 +328,7 @@ export async function updateMissionSongProgress(
     const { error: missionError } = await supabase
       .from('user_challenge_progress')
       .upsert({
-        user_id: user.id,
+        user_id: userId,
         challenge_id: missionId,
         clear_count: songProgress.length,
         completed: true,
@@ -346,8 +346,8 @@ export async function updateMissionSongProgress(
 
 export async function claimReward(missionId: string) {
   const supabase = getSupabaseClient();
-  const { data:{ user } } = await supabase.auth.getUser();
-  if (!user) return;
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return;
   
   try {
     // ミッション情報を取得
@@ -378,7 +378,7 @@ export async function claimReward(missionId: string) {
       const { data: diaryProgress, error: diaryError } = await supabase
         .from('user_challenge_progress')
         .select('clear_count')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('challenge_id', missionId)
         .maybeSingle();
       
@@ -393,7 +393,7 @@ export async function claimReward(missionId: string) {
         const { data: songProgress } = await supabase
           .from('user_song_progress')
           .select('clear_count')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('song_id', song.song_id)
           .maybeSingle();
         
@@ -417,7 +417,7 @@ export async function claimReward(missionId: string) {
     const { data: existingProgress, error: progressError } = await supabase
       .from('user_challenge_progress')
       .select('reward_claimed, completed')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('challenge_id', missionId)
       .maybeSingle();
     
@@ -429,7 +429,7 @@ export async function claimReward(missionId: string) {
         const { data: fallbackProgress, error: fallbackError } = await supabase
           .from('user_challenge_progress')
           .select('completed')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('challenge_id', missionId)
           .maybeSingle();
         
@@ -455,7 +455,7 @@ export async function claimReward(missionId: string) {
       const { data: existingRecord } = await supabase
         .from('user_challenge_progress')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('challenge_id', missionId)
         .maybeSingle();
       
@@ -464,7 +464,7 @@ export async function claimReward(missionId: string) {
         const { error: updateError } = await supabase
           .from('user_challenge_progress')
           .update({ reward_claimed: true })
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('challenge_id', missionId);
         
         if (updateError) {
@@ -473,7 +473,7 @@ export async function claimReward(missionId: string) {
             const { error: fallbackUpdateError } = await supabase
               .from('user_challenge_progress')
               .update({ completed: true })
-              .eq('user_id', user.id)
+              .eq('user_id', userId)
               .eq('challenge_id', missionId);
             
             if (fallbackUpdateError) throw fallbackUpdateError;
@@ -486,7 +486,7 @@ export async function claimReward(missionId: string) {
         const { error: insertError } = await supabase
           .from('user_challenge_progress')
           .insert({
-            user_id: user.id,
+            user_id: userId,
             challenge_id: missionId,
             clear_count: totalCompleted,
             completed: true,
@@ -499,7 +499,7 @@ export async function claimReward(missionId: string) {
             const { error: fallbackInsertError } = await supabase
               .from('user_challenge_progress')
               .insert({
-                user_id: user.id,
+                user_id: userId,
                 challenge_id: missionId,
                 clear_count: totalCompleted,
                 completed: true
@@ -517,7 +517,7 @@ export async function claimReward(missionId: string) {
         const { error: fallbackUpdateError } = await supabase
           .from('user_challenge_progress')
           .update({ completed: true })
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('challenge_id', missionId);
         
         if (fallbackUpdateError) throw fallbackUpdateError;
@@ -564,7 +564,7 @@ export async function claimReward(missionId: string) {
     const { data: currentProfile } = await supabase
       .from('profiles')
       .select('level')
-      .eq('id', user.id)
+      .eq('id', userId)
       .maybeSingle();
     
     return {

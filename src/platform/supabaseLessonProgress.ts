@@ -1,4 +1,4 @@
-import { getSupabaseClient, fetchWithCache, clearCacheByKey, invalidateCacheKey } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearCacheByKey, invalidateCacheKey, getCurrentUserIdCached } from '@/platform/supabaseClient';
 import { unlockDependentCourses } from '@/platform/supabaseCourses';
 import { clearSupabaseCache } from './supabaseClient';
 import { clearUserStatsCache } from './supabaseUserStats';
@@ -41,12 +41,11 @@ export async function fetchUserLessonProgress(
   { forceRefresh = false }: { forceRefresh?: boolean } = {}
 ): Promise<LessonProgress[]> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userIdFromCache = await getCurrentUserIdCached();
+  if (!userIdFromCache) throw new Error('ログインが必要です');
   
   // 取得対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || userIdFromCache;
 
   const key = LESSON_PROGRESS_CACHE_KEY(courseId, userId);
   
@@ -67,7 +66,50 @@ export async function fetchUserLessonProgress(
 
   if (error) throw new Error(`進捗データの取得に失敗しました: ${error.message}`);
   
-  return data || [];
+  // 型の都合上、必要フィールドのみを返す
+  return ((data || []) as any).map((row: any) => ({
+    course_id: row.course_id,
+    lesson_id: row.lesson_id,
+    completed: row.completed,
+  })) as unknown as LessonProgress[];
+}
+
+/**
+ * 複数コースのレッスン進捗を一括取得（完了率集計などで使用）
+ */
+export async function fetchUserLessonProgressBulk(
+  courseIds: string[],
+  targetUserId?: string,
+  { forceRefresh = false }: { forceRefresh?: boolean } = {}
+): Promise<LessonProgress[]> {
+  const supabase = getSupabaseClient();
+  const userIdFromCache = await getCurrentUserIdCached();
+  if (!userIdFromCache) throw new Error('ログインが必要です');
+
+  const userId = targetUserId || userIdFromCache;
+  const sorted = [...courseIds].sort();
+  const key = `lesson_progress_bulk_${sorted.join(',')}_${userId}`;
+
+  if (forceRefresh) {
+    clearCacheByKey(key);
+  }
+
+  const { data, error } = await fetchWithCache(
+    key,
+    async () => await supabase
+      .from('user_lesson_progress')
+      .select('course_id, lesson_id, completed')
+      .eq('user_id', userId)
+      .in('course_id', sorted),
+    1000 * 60 // 1分キャッシュ
+  );
+
+  if (error) throw new Error(`進捗データの一括取得に失敗しました: ${error.message}`);
+  return ((data || []) as any).map((row: any) => ({
+    course_id: row.course_id,
+    lesson_id: row.lesson_id,
+    completed: row.completed,
+  })) as unknown as LessonProgress[];
 }
 
 /**
@@ -80,12 +122,11 @@ export async function updateLessonProgress(
   targetUserId?: string // 管理者が他のユーザーの進捗を更新する場合
 ): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userIdFromCache = await getCurrentUserIdCached();
+  if (!userIdFromCache) throw new Error('ログインが必要です');
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || userIdFromCache;
 
   const now = new Date().toISOString();
   
@@ -119,6 +160,12 @@ export async function updateLessonProgress(
     // 統計キャッシュをクリア
     clearUserStatsCache(userId);
   }
+
+  // 進捗キャッシュ無効化（個別/一括）
+  try {
+    clearCacheByKey(LESSON_PROGRESS_CACHE_KEY(courseId, userId));
+    invalidateCacheKey(`lesson_progress_bulk_`); // パターン全体を無効化（簡易）
+  } catch {}
 }
 
 /**
@@ -126,12 +173,11 @@ export async function updateLessonProgress(
  */
 export async function unlockLesson(lessonId: string, courseId: string, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userIdFromCache = await getCurrentUserIdCached();
+  if (!userIdFromCache) throw new Error('ログインが必要です');
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || userIdFromCache;
 
   const now = new Date().toISOString();
   
@@ -150,6 +196,12 @@ export async function unlockLesson(lessonId: string, courseId: string, targetUse
     });
 
   if (error) throw new Error(`レッスンの解放に失敗しました: ${error.message}`);
+
+  // キャッシュ無効化
+  try {
+    clearCacheByKey(LESSON_PROGRESS_CACHE_KEY(courseId, userId));
+    invalidateCacheKey(`lesson_progress_bulk_`);
+  } catch {}
 }
 
 /**
@@ -157,12 +209,11 @@ export async function unlockLesson(lessonId: string, courseId: string, targetUse
  */
 export async function unlockBlock(courseId: string, blockNumber: number, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userIdFromCache = await getCurrentUserIdCached();
+  if (!userIdFromCache) throw new Error('ログインが必要です');
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || userIdFromCache;
 
   // ブロックに属するレッスンを取得
   const { data: lessons, error: lessonsError } = await supabase
@@ -213,6 +264,12 @@ export async function unlockBlock(courseId: string, blockNumber: number, targetU
     });
 
   if (insertError) throw new Error(`新規レッスンの解放に失敗しました: ${insertError.message}`);
+
+  // キャッシュ無効化
+  try {
+    clearCacheByKey(LESSON_PROGRESS_CACHE_KEY(courseId, userId));
+    invalidateCacheKey(`lesson_progress_bulk_`);
+  } catch {}
 }
 
 /**
@@ -220,12 +277,11 @@ export async function unlockBlock(courseId: string, blockNumber: number, targetU
  */
 export async function lockBlock(courseId: string, blockNumber: number, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userIdFromCache = await getCurrentUserIdCached();
+  if (!userIdFromCache) throw new Error('ログインが必要です');
   
   // 更新対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || userIdFromCache;
 
   // ブロックに属するレッスンを取得
   const { data: lessons, error: lessonsError } = await supabase
@@ -252,6 +308,12 @@ export async function lockBlock(courseId: string, blockNumber: number, targetUse
     .in('lesson_id', lessons.map(l => l.id));
 
   if (error) throw new Error(`ブロックの施錠に失敗しました: ${error.message}`);
+
+  // キャッシュ無効化
+  try {
+    clearCacheByKey(LESSON_PROGRESS_CACHE_KEY(courseId, userId));
+    invalidateCacheKey(`lesson_progress_bulk_`);
+  } catch {}
 }
 
 /**
