@@ -1,4 +1,4 @@
-import { getSupabaseClient, getCurrentUserIdCached } from '@/platform/supabaseClient';
+import { getSupabaseClient, getCurrentUserIdCached, fetchWithCache, clearCacheByPattern } from '@/platform/supabaseClient';
 
 export interface NotificationItem {
   id: string;
@@ -18,12 +18,17 @@ export async function fetchLatestNotifications(limit = 10): Promise<Notification
   const userId = await getCurrentUserIdCached();
   if (!userId) return [];
 
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('id, user_id, actor_id, type, diary_id, comment_id, created_at, read')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  const cacheKey = `notifications:latest:${userId}:limit=${limit}`;
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => await supabase
+      .from('notifications')
+      .select('id, user_id, actor_id, type, diary_id, comment_id, created_at, read')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+    1000 * 20 // 20s TTL
+  );
   if (error) throw error;
   // 空のINクエリ防止
   const actorIds = (data || []).map(n => n.actor_id);
@@ -52,4 +57,6 @@ export async function markNotificationsRead(ids?: string[]): Promise<void> {
     query = query.in('id', ids);
   }
   await query.throwOnError();
+  // 既読化したので、通知のキャッシュを無効化
+  clearCacheByPattern(new RegExp(`^notifications:latest:${userId}:`));
 }

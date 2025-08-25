@@ -350,7 +350,11 @@ export async function fetchMyGuildRank(targetHour?: string): Promise<number | nu
   const hourIso = targetHour || getHourBucketISOStringUTC();
   try {
     const cacheKey = `rpc_get_my_guild_rank:${hourIso}`;
-    const { data, error } = await fetchWithCache(cacheKey, () => supabase.rpc('rpc_get_my_guild_rank', { target_hour: hourIso }) as any, 60_000);
+    const { data, error } = await fetchWithCache(
+      cacheKey,
+      () => supabase.rpc('rpc_get_my_guild_rank', { target_hour: hourIso }) as any,
+      60_000 // 60s TTL
+    );
     if (error) throw error;
     return (data as unknown as number) ?? null;
   } catch (e) {

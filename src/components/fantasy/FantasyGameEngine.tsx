@@ -28,6 +28,7 @@ import { note as parseNote } from 'tonal';
 
 type StageMode = 
   | 'single'
+  | 'progression' // 互換用途（基本進行）
   | 'progression_order'
   | 'progression_random'
   | 'progression_timing';
@@ -69,6 +70,8 @@ export interface FantasyStage {
   playRootOnCorrect?: boolean;
   // 新規: ステージ種別（Basic/Advanced）
   tier?: 'basic' | 'advanced';
+  // 追加: 1小節内のノート間隔（太鼓進行のシンプル生成で使用）
+  noteIntervalBeats?: number;
 }
 
 export interface MonsterState {
