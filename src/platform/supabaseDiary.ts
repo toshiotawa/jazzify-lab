@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/platform/supabaseClient';
+import { getSupabaseClient, getCurrentUserIdCached } from '@/platform/supabaseClient';
 import { addXp } from '@/platform/supabaseXp';
 import { fetchActiveMonthlyMissions, incrementDiaryProgress } from '@/platform/supabaseMissions';
 import { clearSupabaseCache } from '@/platform/supabaseClient';
@@ -50,34 +50,38 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
   const diaryIds = baseRows.slice(0, limit).map(diary => diary.id);
   
   // 一括でいいね数とコメント数を取得
-  const [likesData, commentsData] = await Promise.all([
-    supabase
-      .from('diary_likes')
-      .select('diary_id')
-      .in('diary_id', diaryIds)
-      .then(result => {
-        const likesMap = new Map();
-        if (result.data) {
-          result.data.forEach((item: any) => {
-            likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
-          });
-        }
-        return likesMap;
-      }),
-    supabase
-      .from('diary_comments')
-      .select('diary_id')
-      .in('diary_id', diaryIds)
-      .then(result => {
-        const commentsMap = new Map();
-        if (result.data) {
-          result.data.forEach((item: any) => {
-            commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
-          });
-        }
-        return commentsMap;
-      })
-  ]);
+  const [likesData, commentsData] = await (async () => {
+    if (diaryIds.length === 0) return [new Map(), new Map()];
+    const res = await Promise.all([
+      supabase
+        .from('diary_likes')
+        .select('diary_id')
+        .in('diary_id', diaryIds)
+        .then(result => {
+          const likesMap = new Map();
+          if (result.data) {
+            result.data.forEach((item: any) => {
+              likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
+            });
+          }
+          return likesMap;
+        }),
+      supabase
+        .from('diary_comments')
+        .select('diary_id')
+        .in('diary_id', diaryIds)
+        .then(result => {
+          const commentsMap = new Map();
+          if (result.data) {
+            result.data.forEach((item: any) => {
+              commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
+            });
+          }
+          return commentsMap;
+        })
+    ]);
+    return res as any;
+  })();
   
   const diariesWithLikes = baseRows.slice(0, limit).map((diary: any) => ({
     id: diary.id,
@@ -116,34 +120,38 @@ export async function fetchDiariesByDate(date: string, limit = 200): Promise<Dia
   const diaryIds = baseRows.map((diary: any) => diary.id);
 
   // 一括でいいね数とコメント数を取得
-  const [likesData, commentsData] = await Promise.all([
-    supabase
-      .from('diary_likes')
-      .select('diary_id')
-      .in('diary_id', diaryIds)
-      .then(result => {
-        const likesMap = new Map<string, number>();
-        if (result.data) {
-          result.data.forEach((item: any) => {
-            likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
-          });
-        }
-        return likesMap;
-      }),
-    supabase
-      .from('diary_comments')
-      .select('diary_id')
-      .in('diary_id', diaryIds)
-      .then(result => {
-        const commentsMap = new Map<string, number>();
-        if (result.data) {
-          result.data.forEach((item: any) => {
-            commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
-          });
-        }
-        return commentsMap;
-      })
-  ]);
+  const [likesData, commentsData] = await (async () => {
+    if (diaryIds.length === 0) return [new Map(), new Map()];
+    const res = await Promise.all([
+      supabase
+        .from('diary_likes')
+        .select('diary_id')
+        .in('diary_id', diaryIds)
+        .then(result => {
+          const likesMap = new Map<string, number>();
+          if (result.data) {
+            result.data.forEach((item: any) => {
+              likesMap.set(item.diary_id, (likesMap.get(item.diary_id) || 0) + 1);
+            });
+          }
+          return likesMap;
+        }),
+      supabase
+        .from('diary_comments')
+        .select('diary_id')
+        .in('diary_id', diaryIds)
+        .then(result => {
+          const commentsMap = new Map<string, number>();
+          if (result.data) {
+            result.data.forEach((item: any) => {
+              commentsMap.set(item.diary_id, (commentsMap.get(item.diary_id) || 0) + 1);
+            });
+          }
+          return commentsMap;
+        })
+    ]);
+    return res as any;
+  })();
 
   const diariesWithCounts: Diary[] = baseRows.map((diary: any) => ({
     id: diary.id,
@@ -332,14 +340,14 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
 }> {
   const supabase = getSupabaseClient();
   const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
 
   // 今日すでに投稿していないかチェック
   const { data: existing } = await supabase
     .from('practice_diaries')
     .select('id')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('practice_date', today)
     .single();
     
@@ -351,7 +359,7 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   const { data: profile } = await supabase
     .from('profiles')
     .select('level, rank')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single();
     
   const currentLevel = profile?.level || 1;
@@ -366,14 +374,14 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   const { count: todayDiaryXpCount } = await supabase
     .from('xp_history')
     .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('reason', 'diary_post')
     .gte('created_at', `${today}T00:00:00+09:00`)
     .lte('created_at', `${today}T23:59:59+09:00`);
 
   // 日記投稿
   const { data: diaryData, error } = await supabase.from('practice_diaries').insert({
-    user_id: user.id,
+    user_id: userId,
     content,
     practice_date: today,
     image_url: imageUrl,
@@ -392,7 +400,7 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
           const { count: actualDiaryCount } = await supabase
             .from('practice_diaries')
             .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .gte('practice_date', m.start_date)
             .lte('practice_date', m.end_date);
           
@@ -443,7 +451,7 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
     });
   } else {
     // XP 付与なし
-    const { data: prof } = await supabase.from('profiles').select('xp, level').eq('id', user.id).single();
+    const { data: prof } = await supabase.from('profiles').select('xp, level').eq('id', userId).single();
     xpResult = { gainedXp:0, totalXp: prof?.xp || 0, level: prof?.level || currentLevel } as any;
   }
 
@@ -464,8 +472,8 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
 
 export async function likeDiary(diaryId: string) {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return;
   
   // 日記の所有者を確認
   const { data: diary, error: diaryError } = await supabase
@@ -479,7 +487,7 @@ export async function likeDiary(diaryId: string) {
   }
   
   // 自分の日記にはいいねできない
-  if (diary.user_id === user.id) {
+  if (diary.user_id === userId) {
     throw new Error('自分の日記にはいいねできません');
   }
   
@@ -487,7 +495,7 @@ export async function likeDiary(diaryId: string) {
   const { data: existingLike } = await supabase
     .from('diary_likes')
     .select('user_id')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('diary_id', diaryId)
     .single();
     
@@ -495,7 +503,7 @@ export async function likeDiary(diaryId: string) {
     throw new Error('既にいいね済みです');
   }
   
-  await supabase.from('diary_likes').insert({ user_id: user.id, diary_id: diaryId }).throwOnError();
+  await supabase.from('diary_likes').insert({ user_id: userId, diary_id: diaryId }).throwOnError();
 }
 
 export async function updateDiary(diaryId: string, content: string, imageUrl?: string): Promise<void> {
@@ -605,11 +613,11 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
 
 export async function addComment(diaryId: string, content: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   const { error } = await supabase.from('diary_comments').insert({
     diary_id: diaryId,
-    user_id: user.id,
+    user_id: userId,
     content
   });
   if (error) throw error;
@@ -617,16 +625,16 @@ export async function addComment(diaryId: string, content: string): Promise<void
 
 export async function deleteComment(commentId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
-  const { error } = await supabase.from('diary_comments').delete().eq('id', commentId).eq('user_id', user.id);
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
+  const { error } = await supabase.from('diary_comments').delete().eq('id', commentId).eq('user_id', userId);
   if (error) throw error;
 }
 
 export async function likeComment(commentId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
 
   // 自分のコメントはいいね不可
   const { data: commentRow, error: commentErr } = await supabase
@@ -635,7 +643,7 @@ export async function likeComment(commentId: string): Promise<void> {
     .eq('id', commentId)
     .maybeSingle();
   if (commentErr) throw commentErr;
-  if (commentRow && commentRow.user_id === user.id) {
+  if (commentRow && commentRow.user_id === userId) {
     throw new Error('自分のコメントにはいいねできません');
   }
 
@@ -644,7 +652,7 @@ export async function likeComment(commentId: string): Promise<void> {
     .from('comment_likes')
     .select('user_id')
     .eq('comment_id', commentId)
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle();
 
   if (existing) {
@@ -653,7 +661,7 @@ export async function likeComment(commentId: string): Promise<void> {
 
   const { error } = await supabase
     .from('comment_likes')
-    .insert({ comment_id: commentId, user_id: user.id });
+    .insert({ comment_id: commentId, user_id: userId });
   if (error) throw error;
 }
 

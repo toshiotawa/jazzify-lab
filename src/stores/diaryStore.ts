@@ -5,6 +5,7 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 
 // グローバルなRealtime初期化状態管理
 let globalRealtimeInitialized = false;
+let globalRealtimeUnsubscribers: Array<() => void> = [];
 
 interface DiaryState {
   diaries: Diary[];
@@ -46,6 +47,7 @@ interface DiaryActions {
   fetchInitial: () => Promise<void>;
   loadMore: () => Promise<void>;
   likeComment: (commentId: string, diaryId: string) => Promise<void>;
+  disposeRealtime: () => void;
 }
 
 export const useDiaryStore = create<DiaryState & DiaryActions>()(
@@ -241,14 +243,15 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
       const supabase = getSupabaseClient();
 
       // 日記新規投稿（最適化: キャッシュクリアを最小限に）
-      supabase.channel('realtime-diaries')
+      const diariesChannel = supabase.channel('realtime-diaries')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async () => {
           await get().fetch(get().currentDate || undefined);
         })
         .subscribe();
+      globalRealtimeUnsubscribers.push(() => { try { supabase.removeChannel(diariesChannel); } catch {} });
 
       // コメント新規投稿（最適化: 特定の日記のコメントのみ更新）
-      supabase.channel('realtime-diary-comments')
+      const commentsChannel = supabase.channel('realtime-diary-comments')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'diary_comments' }, async (payload) => {
           const diaryId = (payload.new as any).diary_id;
           if (diaryId) {
@@ -256,9 +259,18 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
           }
         })
         .subscribe();
+      globalRealtimeUnsubscribers.push(() => { try { supabase.removeChannel(commentsChannel); } catch {} });
 
       set(s => { s.realtimeInitialized = true; });
       globalRealtimeInitialized = true;
+    },
+    disposeRealtime: () => {
+      if (!globalRealtimeInitialized && !get().realtimeInitialized) return;
+      const unsubs = [...globalRealtimeUnsubscribers];
+      globalRealtimeUnsubscribers = [];
+      unsubs.forEach(unsub => { try { unsub(); } catch {} });
+      set(s => { s.realtimeInitialized = false; });
+      globalRealtimeInitialized = false;
     },
   }))
 );

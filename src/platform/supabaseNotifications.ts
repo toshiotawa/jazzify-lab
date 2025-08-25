@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/platform/supabaseClient';
+import { getSupabaseClient, getCurrentUserIdCached } from '@/platform/supabaseClient';
 
 export interface NotificationItem {
   id: string;
@@ -15,13 +15,13 @@ export interface NotificationItem {
 
 export async function fetchLatestNotifications(limit = 10): Promise<NotificationItem[]> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return [];
 
   const { data, error } = await supabase
     .from('notifications')
     .select('id, user_id, actor_id, type, diary_id, comment_id, created_at, read')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw error;

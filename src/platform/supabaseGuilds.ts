@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, getCurrentUserIdCached } from '@/platform/supabaseClient';
 
 export type GuildType = 'casual' | 'challenge';
 
@@ -68,12 +68,12 @@ function getHourBucketISOStringUTC(baseDate?: Date): string {
 
 export async function getMyGuild(): Promise<Guild | null> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return null;
 
   // RLSの影響を受けないように、所属ギルドはRPCで取得
   const { data: guildIdData, error: guildIdErr } = await supabase
-    .rpc('rpc_get_user_guild_id', { p_user_id: user.id });
+    .rpc('rpc_get_user_guild_id', { p_user_id: userId });
   if (guildIdErr && guildIdErr.code !== 'PGRST116') throw guildIdErr;
   const myGuildId = (guildIdData as string | null) ?? null;
   if (!myGuildId) return null;
@@ -346,9 +346,10 @@ export async function fetchMyGuildRank(targetHour?: string): Promise<number | nu
   const supabase = getSupabaseClient();
   const hourIso = targetHour || getHourBucketISOStringUTC();
   try {
-    const { data, error } = await supabase.rpc('rpc_get_my_guild_rank', { target_hour: hourIso });
+    const cacheKey = `rpc_get_my_guild_rank:${hourIso}`;
+    const { data, error } = await fetchWithCache(cacheKey, () => supabase.rpc('rpc_get_my_guild_rank', { target_hour: hourIso }) as any, 60_000);
     if (error) throw error;
-    return (data as number) ?? null;
+    return (data as unknown as number) ?? null;
   } catch (e) {
     console.warn('rpc_get_my_guild_rank failed, fallback to client aggregation:', e);
     const myGuildId = await getMyGuildId();
@@ -409,12 +410,12 @@ export async function fetchGuildMonthlyRanks(guildId: string, months = 12): Prom
 
 export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return [];
   const { data, error } = await supabase
     .from('guild_invitations')
     .select('id, guild_id, inviter_id, invitee_id, status, guilds(name, guild_type), inviter:profiles!guild_invitations_inviter_id_fkey(nickname)')
-    .eq('invitee_id', user.id)
+    .eq('invitee_id', userId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -432,12 +433,12 @@ export async function fetchPendingInvitationsForMe(): Promise<GuildInvitation[]>
 
 export async function fetchOutgoingInvitationsForMyGuild(): Promise<Array<{ id: string }>> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return [];
   const { data: myGuild } = await supabase
     .from('guilds')
     .select('id')
-    .eq('leader_id', user.id)
+    .eq('leader_id', userId)
     .maybeSingle();
   if (!myGuild?.id) return [];
   const { data, error } = await supabase
@@ -475,17 +476,19 @@ export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]>
 }
 
 export async function getGuildIdOfUser(userId: string): Promise<string | null> {
-  const { data, error } = await getSupabaseClient()
-    .rpc('rpc_get_user_guild_id', { p_user_id: userId });
+  const key = `rpc_get_user_guild_id:${userId}`;
+  const { data, error } = await fetchWithCache(key, () =>
+    getSupabaseClient().rpc('rpc_get_user_guild_id', { p_user_id: userId }) as any,
+    60_000
+  );
   if (error && error.code !== 'PGRST116') throw error;
-  return (data as string | null) ?? null;
+  return (data as unknown as string | null) ?? null;
 }
 
 export async function getMyGuildId(): Promise<string | null> {
-  const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  return getGuildIdOfUser(user.id);
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return null;
+  return getGuildIdOfUser(userId);
 }
 
 export async function getPendingInvitationToUser(targetUserId: string): Promise<GuildInvitation | null> {
@@ -815,4 +818,820 @@ export async function submitGuildLeaveFeedback(previousGuildId: string, previous
     p_reason: reason,
   });
   if (error) throw error;
+}
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
+  const { data, error } = await supabase
+
+    .from('guild_invitations')
+
+    .select('id, guild_id, inviter_id, invitee_id, status, guilds(name, guild_type), inviter:profiles!guild_invitations_inviter_id_fkey(nickname)')
+
+    .eq('invitee_id', user.id)
+
+    .eq('status', 'pending')
+
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+
+    id: row.id,
+
+    guild_id: row.guild_id,
+
+    inviter_id: row.inviter_id,
+
+    invitee_id: row.invitee_id,
+
+    status: row.status,
+
+    guild_name: row.guilds?.name,
+
+    guild_type: row.guilds?.guild_type,
+
+    inviter_nickname: row.inviter?.nickname,
+
+  }));
+
+}
+
+
+
+export async function fetchOutgoingInvitationsForMyGuild(): Promise<Array<{ id: string }>> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
+  const { data: myGuild } = await supabase
+
+    .from('guilds')
+
+    .select('id')
+
+    .eq('leader_id', user.id)
+
+    .maybeSingle();
+
+  if (!myGuild?.id) return [];
+
+  const { data, error } = await supabase
+
+    .from('guild_invitations')
+
+    .select('id')
+
+    .eq('guild_id', myGuild.id)
+
+    .eq('status', 'pending');
+
+  if (error) throw error;
+
+  return (data || []).map((r: any) => ({ id: r.id }));
+
+}
+
+
+
+export async function fetchJoinRequestsForMyGuild(): Promise<GuildJoinRequest[]> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
+  const myGuildId = await getMyGuildId();
+
+  if (!myGuildId) return [];
+
+  const { data, error } = await supabase
+
+    .from('guild_join_requests')
+
+    .select('id, guild_id, requester_id, status, requester:profiles(nickname), guilds(name, guild_type)')
+
+
+
+    .eq('guild_id', myGuildId)
+
+    .eq('status', 'pending')
+
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+
+    id: row.id,
+
+    guild_id: row.guild_id,
+
+    requester_id: row.requester_id,
+
+    status: row.status,
+
+    requester_nickname: row.requester?.nickname,
+
+    guild_name: row.guilds?.name,
+
+    guild_type: row.guilds?.guild_type,
+
+  }));
+
+}
+
+
+
+export async function getGuildIdOfUser(userId: string): Promise<string | null> {
+
+  const { data, error } = await getSupabaseClient()
+
+    .rpc('rpc_get_user_guild_id', { p_user_id: userId });
+
+  if (error && error.code !== 'PGRST116') throw error;
+
+  return (data as string | null) ?? null;
+
+}
+
+
+
+export async function getMyGuildId(): Promise<string | null> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  return getGuildIdOfUser(user.id);
+
+}
+
+
+
+export async function getPendingInvitationToUser(targetUserId: string): Promise<GuildInvitation | null> {
+
+  const supabase = getSupabaseClient();
+
+  const myGuildId = await getMyGuildId();
+
+  if (!myGuildId) return null;
+
+  const { data, error } = await supabase
+
+    .from('guild_invitations')
+
+    .select('id, guild_id, inviter_id, invitee_id, status')
+
+    .eq('guild_id', myGuildId)
+
+    .eq('invitee_id', targetUserId)
+
+    .eq('status', 'pending')
+
+    .maybeSingle();
+
+  if (error && error.code !== 'PGRST116') throw error;
+
+  return data ? ({
+
+    id: data.id,
+
+    guild_id: data.guild_id,
+
+    inviter_id: data.inviter_id,
+
+    invitee_id: data.invitee_id,
+
+    status: data.status,
+
+  } as GuildInvitation) : null;
+
+}
+
+
+
+export async function fetchGuildMemberMonthlyXp(guildId: string, targetHour?: string): Promise<Array<{ user_id: string; monthly_xp: number }>> {
+
+  const supabase = getSupabaseClient();
+
+  const hourIso = targetHour || getHourBucketISOStringUTC();
+
+  const { data, error } = await supabase
+
+    .from('guild_xp_contributions')
+
+    .select('user_id, gained_xp')
+
+    .eq('guild_id', guildId)
+
+    .eq('hour_bucket', hourIso);
+
+  if (error) {
+
+    console.warn('fetchGuildMemberMonthlyXp error:', error);
+
+    return [];
+
+  }
+
+  const map = new Map<string, number>();
+
+  (data || []).forEach((r: any) => {
+
+    map.set(r.user_id, (map.get(r.user_id) || 0) + Number(r.gained_xp || 0));
+
+  });
+
+  return Array.from(map.entries()).map(([user_id, monthly_xp]) => ({ user_id, monthly_xp }));
+
+}
+
+
+
+export async function fetchMyGuildContributionTotal(guildId: string): Promise<number> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return 0;
+
+  const { data, error } = await supabase
+
+    .from('guild_xp_contributions')
+
+    .select('gained_xp')
+
+    .eq('guild_id', guildId)
+
+    .eq('user_id', user.id);
+
+  if (error) {
+
+    console.warn('fetchMyGuildContributionTotal error:', error);
+
+    return 0;
+
+  }
+
+  return (data || []).reduce((acc: number, r: any) => acc + Number(r.gained_xp || 0), 0);
+
+}
+
+
+
+export async function fetchGuildContributorsWithProfiles(
+
+  guildId: string,
+
+  targetHour: string,
+
+): Promise<Array<{ user_id: string; nickname: string; avatar_url?: string; level: number; rank: string; contributed_xp: number }>> {
+
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+
+    .from('guild_xp_contributions')
+
+    .select('user_id, gained_xp')
+
+    .eq('guild_id', guildId)
+
+    .eq('hour_bucket', targetHour);
+
+  if (error) {
+
+    console.warn('fetchGuildContributorsWithProfiles error:', error);
+
+    return [];
+
+  }
+
+  const xpByUser = new Map<string, number>();
+
+  (data || []).forEach((r: any) => {
+
+    const prev = xpByUser.get(r.user_id) || 0;
+
+    xpByUser.set(r.user_id, prev + Number(r.gained_xp || 0));
+
+  });
+
+  const entries = Array.from(xpByUser.entries())
+
+    .map(([user_id, contributed_xp]) => ({ user_id, contributed_xp }))
+
+    .filter((e) => e.contributed_xp >= 1)
+
+    .sort((a, b) => b.contributed_xp - a.contributed_xp);
+
+  if (entries.length === 0) return [];
+
+  const userIds = entries.map((e) => e.user_id);
+
+  const { data: profiles, error: pErr } = await supabase
+
+    .from('profiles')
+
+    .select('id, nickname, avatar_url, level, rank')
+
+    .in('id', userIds);
+
+  if (pErr) {
+
+    console.warn('fetchGuildContributorsWithProfiles profiles error:', pErr);
+
+    return entries.map((e) => ({ user_id: e.user_id, nickname: 'User', level: 1, rank: 'free', contributed_xp: e.contributed_xp }));
+
+  }
+
+  const map = new Map((profiles || []).map((p: any) => [p.id, p] as const));
+
+  return entries.map((e) => {
+
+    const prof = map.get(e.user_id);
+
+    return {
+
+      user_id: e.user_id,
+
+      nickname: prof ? (prof.nickname || 'User') : '退会済みユーザー',
+
+      avatar_url: prof?.avatar_url || undefined,
+
+      level: prof?.level || 1,
+
+      rank: prof?.rank || 'free',
+
+      contributed_xp: e.contributed_xp,
+
+    };
+
+  });
+
+}
+
+
+
+export async function fetchGuildRankForMonth(guildId: string, targetHour: string): Promise<number | null> {
+
+  const supabase = getSupabaseClient();
+
+  try {
+
+    throw new Error('no_rpc');
+
+  } catch (_e) {
+
+    const { data, error } = await supabase
+
+      .from('guild_xp_contributions')
+
+      .select('guild_id, gained_xp')
+
+      .eq('hour_bucket', targetHour);
+
+    if (error) {
+
+      console.warn('fetchGuildRankForMonth contributions error:', error);
+
+      return null;
+
+    }
+
+    const sums = new Map<string, number>();
+
+    (data || []).forEach((r: any) => {
+
+      sums.set(r.guild_id, (sums.get(r.guild_id) || 0) + Number(r.gained_xp || 0));
+
+    });
+
+    const sorted = Array.from(sums.entries()).sort((a, b) => b[1] - a[1]);
+
+    const rank = sorted.findIndex(([gid]) => gid === guildId);
+
+    return rank >= 0 ? rank + 1 : null;
+
+  }
+
+}
+
+
+
+export async function fetchGuildMonthlyXpSingle(guildId: string, targetHour: string): Promise<number> {
+
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+
+    .from('guild_xp_contributions')
+
+    .select('gained_xp')
+
+    .eq('guild_id', guildId)
+
+    .eq('hour_bucket', targetHour);
+
+  if (error) {
+
+    console.warn('fetchGuildMonthlyXpSingle error:', error);
+
+    return 0;
+
+  }
+
+  return (data || []).reduce((acc: number, r: any) => acc + Number(r.gained_xp || 0), 0);
+
+}
+
+
+
+export async function updateGuildDescription(newDescription: string): Promise<void> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('ログインが必要です');
+
+  const { data: guild } = await supabase
+
+    .from('guilds')
+
+    .select('id')
+
+    .eq('leader_id', user.id)
+
+    .maybeSingle();
+
+  if (!guild?.id) throw new Error('リーダー権限がありません');
+
+  const { error } = await supabase
+
+    .from('guilds')
+
+    .update({ description: newDescription })
+
+    .eq('id', guild.id);
+
+  if (error && error.code !== '42703') throw error;
+
+}
+
+
+
+export async function disbandMyGuild(): Promise<void> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('ログインが必要です');
+
+  const myGuildId = await getMyGuildId();
+
+  if (!myGuildId) throw new Error('リーダー権限がありません');
+
+  // 自分がリーダーか確認
+
+  const { data: gRow, error: gErr } = await supabase
+
+    .from('guilds')
+
+    .select('leader_id')
+
+    .eq('id', myGuildId)
+
+    .maybeSingle();
+
+  if (gErr) throw gErr;
+
+  if (!gRow || (gRow as any).leader_id !== user.id) throw new Error('リーダー権限がありません');
+
+  // メンバー数はRPCで取得（軽量）
+
+  const { data: mcData } = await supabase.rpc('rpc_get_guild_member_count', { p_guild_id: myGuildId });
+
+  const mc = (mcData as number) || 0;
+
+  if (mc > 1) throw new Error('メンバーが1人のときのみ解散できます');
+
+  const { error } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: myGuildId });
+
+  if (error) throw error;
+
+}
+
+
+
+export async function leaveMyGuild(): Promise<void> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('ログインが必要です');
+
+
+
+  const { data: membership } = await supabase
+
+    .from('guild_members')
+
+    .select('guild_id, role')
+
+    .eq('user_id', user.id)
+
+    .maybeSingle();
+
+  const guildId = membership?.guild_id as string | undefined;
+
+  if (!guildId) throw new Error('ギルドに所属していません');
+
+
+
+  const { count: membersCount } = await supabase
+
+    .from('guild_members')
+
+    .select('*', { count: 'exact', head: true })
+
+    .eq('guild_id', guildId);
+
+
+
+  if ((membersCount || 0) <= 1) {
+
+    const { error: disbandErr } = await supabase.rpc('rpc_guild_disband_and_clear_members', { p_guild_id: guildId });
+
+    if (disbandErr) throw disbandErr;
+
+    return;
+
+  }
+
+
+
+  const isLeader = (membership?.role as 'leader' | 'member') === 'leader';
+
+  if (isLeader) {
+
+    const { data: candidates, error: candErr } = await supabase
+
+      .from('guild_members')
+
+      .select('user_id')
+
+      .eq('guild_id', guildId)
+
+      .neq('user_id', user.id)
+
+      .order('joined_at', { ascending: true })
+
+      .limit(1);
+
+    if (candErr) throw candErr;
+
+    const nextLeaderId = candidates?.[0]?.user_id as string | undefined;
+
+    if (!nextLeaderId) throw new Error('移譲先メンバーが見つかりません');
+
+    const { error: transferErr } = await supabase
+
+      .rpc('rpc_guild_transfer_leader', { p_old_leader_id: user.id, p_guild_id: guildId, p_new_leader_id: nextLeaderId });
+
+    if (transferErr) throw transferErr;
+
+  }
+
+
+
+  const { error: delErr } = await supabase
+
+    .from('guild_members')
+
+    .delete()
+
+    .eq('guild_id', guildId)
+
+    .eq('user_id', user.id);
+
+  if (delErr) throw delErr;
+
+}
+
+
+
+export async function getGuildOfUser(userId: string): Promise<Guild | null> {
+
+  const supabase = getSupabaseClient();
+
+  // 他ユーザーの所属ギルド取得もRPCで行いRLS影響を回避
+
+  const { data: guildIdData, error: guildIdErr } = await supabase
+
+    .rpc('rpc_get_user_guild_id', { p_user_id: userId });
+
+  if (guildIdErr && guildIdErr.code !== 'PGRST116') throw guildIdErr;
+
+  const targetGuildId = (guildIdData as string | null) ?? null;
+
+  if (!targetGuildId) return null;
+
+
+
+  const { data: guildRow } = await supabase
+
+    .from('guilds')
+
+    .select('*')
+
+    .eq('id', targetGuildId)
+
+    .maybeSingle();
+
+  if (!guildRow) return null;
+
+  // 件数はヘッドクエリでなく、軽量RPCで取得
+
+  const { data: membersCountData } = await supabase
+
+    .rpc('rpc_get_guild_member_count', { p_guild_id: (guildRow as any).id });
+
+  const count = (membersCountData as number) || 0;
+
+  return {
+
+    id: (guildRow as any).id,
+
+    name: (guildRow as any).name,
+
+    leader_id: (guildRow as any).leader_id,
+
+    level: Number((guildRow as any).level || 1),
+
+    total_xp: Number((guildRow as any).total_xp || 0),
+
+    members_count: count || 0,
+
+    description: (guildRow as any).description ?? null,
+
+    disbanded: !!(guildRow as any).disbanded,
+
+  };
+
+}
+
+
+
+export async function getGuildById(guildId: string): Promise<Guild | null> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: guildRow, error } = await supabase
+
+    .from('guilds')
+
+    .select('id, name, leader_id, level, total_xp, description, disbanded, guild_type')
+
+    .eq('id', guildId)
+
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!guildRow) return null;
+
+  const { data: countData } = await supabase
+
+    .rpc('rpc_get_guild_member_count', { p_guild_id: (guildRow as any).id });
+
+  const count = (countData as number) || 0;
+
+  return {
+
+    id: (guildRow as any).id,
+
+    name: (guildRow as any).name,
+
+    leader_id: (guildRow as any).leader_id,
+
+    level: Number((guildRow as any).level || 1),
+
+    total_xp: Number((guildRow as any).total_xp || 0),
+
+    members_count: count || 0,
+
+    description: (guildRow as any).description ?? null,
+
+    disbanded: !!(guildRow as any).disbanded,
+
+    guild_type: ((guildRow as any).guild_type as GuildType) || 'casual',
+
+  };
+
+}
+
+
+
+export async function fetchMyJoinRequestForGuild(guildId: string): Promise<string | null> {
+
+
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  const { data, error } = await supabase
+
+    .from('guild_join_requests')
+
+    .select('id')
+
+    .eq('guild_id', guildId)
+
+    .eq('requester_id', user.id)
+
+    .eq('status', 'pending')
+
+    .maybeSingle();
+
+  if (error && error.code !== 'PGRST116') throw error;
+
+  return data?.id ?? null;
+
+}
+
+
+
+export async function cancelMyJoinRequest(requestId: string): Promise<void> {
+
+  const { error } = await getSupabaseClient()
+
+    .rpc('rpc_guild_cancel_join_request', { p_request_id: requestId });
+
+  if (error) throw error;
+
+}
+
+
+
+export async function enforceMonthlyGuildQuest(targetHour?: string): Promise<void> {
+
+  const supabase = getSupabaseClient();
+
+  if (typeof targetHour === 'string' && targetHour.length > 0) {
+
+    const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest', { p_hour: targetHour });
+
+    if (error && error.code !== 'PGRST116') throw error;
+
+  } else {
+
+    // パラメータ未指定の場合はデフォルト引数を使わせる（nullを明示的に渡さない）
+
+    const { error } = await supabase.rpc('rpc_guild_enforce_monthly_quest');
+
+    if (error && error.code !== 'PGRST116') throw error;
+
+  }
+
+}
+
+
+
+export async function submitGuildLeaveFeedback(previousGuildId: string, previousGuildName: string, leaveType: 'left'|'kicked'|'disband', reason: string): Promise<void> {
+
+  const supabase = getSupabaseClient();
+
+  const { error } = await supabase.rpc('rpc_submit_guild_leave_feedback', {
+
+    p_prev_guild_id: previousGuildId,
+
+    p_prev_guild_name: previousGuildName,
+
+    p_leave_type: leaveType,
+
+    p_reason: reason,
+
+  });
+
+  if (error) throw error;
+
 }

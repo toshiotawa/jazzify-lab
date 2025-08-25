@@ -38,6 +38,26 @@ export function getSupabaseClient(): SupabaseClient {
   return client;
 }
 
+// 認証ユーザーIDの簡易TTLキャッシュ
+let cachedUserId: string | null = null;
+let cachedUserIdExpiresAt = 0;
+const USER_ID_TTL_MS = 1000 * 60 * 5; // 5分
+
+export async function getCurrentUserIdCached(): Promise<string | null> {
+  const now = Date.now();
+  if (cachedUserId && cachedUserIdExpiresAt > now) return cachedUserId;
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  cachedUserId = user?.id ?? null;
+  cachedUserIdExpiresAt = now + USER_ID_TTL_MS;
+  return cachedUserId;
+}
+
+export function invalidateCachedUserId(): void {
+  cachedUserId = null;
+  cachedUserIdExpiresAt = 0;
+}
+
 // メモリキャッシュ実装
 interface CacheEntry<T> {
   data: T;
