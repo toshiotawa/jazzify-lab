@@ -457,7 +457,7 @@ const AccountPage: React.FC = () => {
                                 method: 'POST',
                                 headers: {
                                   'Content-Type': 'application/json',
-                                  'Authorization': `Bearer ${(await getSupabaseClient().auth.getSession()).data.session?.access_token}`,
+                                  'Authorization': (()=>{ try{ return `Bearer ${useAuthStore.getState().session?.access_token || ''}` }catch{return ''}})(),
                                 },
                               });
                               

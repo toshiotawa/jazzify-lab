@@ -728,18 +728,10 @@ export async function fetchDiaryById(diaryId: string): Promise<Diary | null> {
 
 export async function deleteDiary(diaryId: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { requireUserId } = await import('@/platform/authHelpers');
+  const userId = await requireUserId();
   
-  if (authError) {
-    console.error('認証エラー:', authError);
-    throw new Error('認証エラーが発生しました');
-  }
-  
-  if (!user) {
-    throw new Error('ログインが必要です');
-  }
-  
-  console.log('日記削除開始:', { diaryId, userId: user.id });
+  console.log('日記削除開始:', { diaryId, userId });
   
   // 削除対象の日記の存在確認と権限チェック
   const { data: diary, error: fetchError } = await supabase
@@ -757,7 +749,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     throw new Error('日記が見つかりません');
   }
   
-  if (diary.user_id !== user.id) {
+  if (diary.user_id !== userId) {
     throw new Error('削除権限がありません。この日記を削除できるのは作成者のみです。');
   }
   
@@ -766,7 +758,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     .from('practice_diaries')
     .delete()
     .eq('id', diaryId)
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .select();
     
   if (deleteError) {
@@ -792,7 +784,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
         const { count: actualDiaryCount } = await supabase
           .from('practice_diaries')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .gte('practice_date', mission.start_date)
           .lte('practice_date', mission.end_date);
         
@@ -800,7 +792,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
         await supabase
           .from('user_challenge_progress')
           .upsert({
-            user_id: user.id,
+            user_id: userId,
             challenge_id: mission.id,
             clear_count: actualDiaryCount || 0,
             completed: (actualDiaryCount || 0) >= mission.diary_count

@@ -247,8 +247,41 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
 
       // 日記新規投稿
       const diariesChannel = supabase.channel('realtime-diaries')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async () => {
-          await get().fetch(get().currentDate || undefined);
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async (payload) => {
+          try {
+            const newDiaryId = (payload.new as any)?.id;
+            if (!newDiaryId) return;
+            const { data } = await supabase
+              .from('practice_diaries')
+              .select('*, profiles(nickname, avatar_url, level, rank, email)')
+              .eq('id', newDiaryId)
+              .maybeSingle();
+            if (!data) return;
+            // いいね/コメント件数を最小限で取得
+            const [likesRes, commentsRes] = await Promise.all([
+              supabase.from('diary_likes').select('diary_id').eq('diary_id', newDiaryId),
+              supabase.from('diary_comments').select('diary_id').eq('diary_id', newDiaryId),
+            ]);
+            const likes = (likesRes.data || []).length;
+            const comments = (commentsRes.data || []).length;
+            set(s => {
+              const row: any = data;
+              const insert = {
+                id: row.id,
+                content: row.content,
+                practice_date: row.practice_date,
+                created_at: row.created_at,
+                likes,
+                comment_count: comments,
+                nickname: row.profiles?.nickname || 'User',
+                avatar_url: row.profiles?.avatar_url,
+                level: row.profiles?.level || 1,
+                rank: row.profiles?.rank || 'free',
+                image_url: row.image_url,
+              } as any;
+              s.diaries = [insert, ...s.diaries];
+            });
+          } catch {}
         })
         .subscribe();
       globalRealtimeUnsubscribers.push(() => { try { supabase.removeChannel(diariesChannel); } catch {} });
