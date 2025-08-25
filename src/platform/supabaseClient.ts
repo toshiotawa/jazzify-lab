@@ -68,6 +68,9 @@ interface CacheEntry<T> {
 const DEFAULT_TTL = 1000 * 600; // 600 秒（10分）に延長
 const cache: Map<string, CacheEntry<unknown>> = new Map();
 
+// 同一キーの実行中リクエストを重複排除
+const inflightRequests: Map<string, Promise<PostgrestResponse<any>>> = new Map();
+
 /**
  * クエリを実行し、結果を TTL 付きでキャッシュする
  * @param cacheKey ユニークキー (テーブル名 + クエリパラメータなど)
@@ -78,24 +81,41 @@ export async function fetchWithCache<T>(
   cacheKey: string,
   executor: () => Promise<PostgrestResponse<T>>, // 実クエリ
   ttl: number = DEFAULT_TTL,
+  options?: { force?: boolean; dedupe?: boolean }
 ): Promise<PostgrestResponse<T>> {
   const now = Date.now();
   const cached = cache.get(cacheKey);
-  if (cached && cached.expires > now) {
-    return { 
-      data: cached.data, 
-      error: null, 
-      status: 200, 
+  const force = options?.force === true;
+  const dedupe = options?.dedupe !== false; // デフォルト: 重複排除あり
+
+  if (!force && cached && cached.expires > now) {
+    return {
+      data: cached.data,
+      error: null,
+      status: 200,
       statusText: 'OK',
-      count: null 
+      count: null
     };
   }
 
-  const res = await executor();
-  if (!res.error) {
-    cache.set(cacheKey, { data: res.data, expires: now + ttl });
+  if (dedupe) {
+    const inflight = inflightRequests.get(cacheKey);
+    if (inflight) {
+      return inflight as Promise<PostgrestResponse<T>>;
+    }
   }
-  return res;
+
+  const execPromise = executor().then((res) => {
+    if (!res.error) {
+      cache.set(cacheKey, { data: res.data, expires: now + ttl });
+    }
+    return res;
+  }).finally(() => {
+    if (dedupe) inflightRequests.delete(cacheKey);
+  });
+
+  if (dedupe) inflightRequests.set(cacheKey, execPromise as Promise<PostgrestResponse<any>>);
+  return execPromise;
 }
 
 /**
@@ -171,6 +191,18 @@ export function clearCacheByPattern(pattern: string | RegExp) {
 export function invalidateCacheKey(key: string | string[]) {
   const cacheKey = Array.isArray(key) ? key.join('::') : key;
   cache.delete(cacheKey);
+}
+
+/**
+ * 現在の有効キャッシュを参照（有効期限切れは無視）
+ */
+export function getCachedValue<T = unknown>(key: string): T | undefined {
+  const entry = cache.get(key);
+  if (!entry) return undefined;
+  if (entry.expires > Date.now()) {
+    return entry.data as T;
+  }
+  return undefined;
 }
 
 // Realtimeサブスクリプション管理用
