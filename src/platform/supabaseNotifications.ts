@@ -45,9 +45,9 @@ export async function fetchLatestNotifications(limit = 10): Promise<Notification
 
 export async function markNotificationsRead(ids?: string[]): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  let query = supabase.from('notifications').update({ read: true }).eq('user_id', user.id);
+  const userId = await getCurrentUserIdCached();
+  if (!userId) return;
+  let query = supabase.from('notifications').update({ read: true }).eq('user_id', userId);
   if (ids && ids.length > 0) {
     query = query.in('id', ids);
   }
