@@ -6,7 +6,8 @@ import { updateLessonProgress, fetchUserLessonProgress, LessonProgress, LESSON_P
 import { 
   fetchDetailedRequirementsProgress, 
   checkAllRequirementsCompleted,
-  LessonRequirementProgress 
+  LessonRequirementProgress,
+  fetchAggregatedRequirementsProgress
 } from '@/platform/supabaseLessonRequirements';
 import { clearSupabaseCache, clearCacheByKey } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';

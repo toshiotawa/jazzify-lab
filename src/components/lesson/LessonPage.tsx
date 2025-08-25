@@ -19,7 +19,7 @@ import {
   FaGraduationCap
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
-import { LessonRequirementProgress, fetchMultipleLessonRequirementsProgress } from '@/platform/supabaseLessonRequirements';
+import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
 
 /**
@@ -106,9 +106,33 @@ const LessonPage: React.FC = () => {
       { clearCache: false } // キャッシュクリアを無効化
     );
 
+    // 要件進捗の変更（user_lesson_requirements_progress）を監視し、該当キャッシュをピンポイント無効化
+    const unsubscribeReqs = subscribeRealtime(
+      'lesson-reqs-progress',
+      'user_lesson_requirements_progress',
+      '*',
+      async (payload: any) => {
+        try {
+          const { clearCacheByPattern } = await import('@/platform/supabaseClient');
+          // 現在のコースのレッスンIDに関する集約キャッシュのみ無効化
+          if (selectedCourse) {
+            const lessons = await fetchLessonsByCourse(selectedCourse.id);
+            const lessonIds = lessons.map(l => l.id).sort();
+            const pattern = new RegExp(`multiple_lesson_requirements_progress:.*:${lessonIds.join(',')}`);
+            clearCacheByPattern(pattern);
+            // 画面の要件進捗を再取得
+            const map = await fetchAggregatedRequirementsProgress(lessonIds, { forceRefresh: true });
+            setLessonRequirementsProgress(map);
+          }
+        } catch {}
+      },
+      { clearCache: false }
+    );
+
     return () => {
       unsubscribeLessons();
       unsubscribeLessonSongs();
+      unsubscribeReqs();
     };
   }, [open, selectedCourse, profile?.isAdmin, profile?.rank]);
 
@@ -193,7 +217,7 @@ const LessonPage: React.FC = () => {
         fetchUserLessonProgress(courseId),
         fetchLessonsByCourse(courseId).then(lessons => {
           const lessonIds = lessons.map(lesson => lesson.id);
-          return fetchMultipleLessonRequirementsProgress(lessonIds);
+          return fetchAggregatedRequirementsProgress(lessonIds);
         })
       ]);
       
@@ -217,7 +241,7 @@ const LessonPage: React.FC = () => {
             
             // Requirements progress も再取得
             const retryLessonIds = retryLessonsData.map(lesson => lesson.id);
-            const retryRequirementsMap = await fetchMultipleLessonRequirementsProgress(retryLessonIds);
+            const retryRequirementsMap = await fetchAggregatedRequirementsProgress(retryLessonIds, { forceRefresh: true });
             
             setLessons(retryLessonsData);
             setLessonRequirementsProgress(retryRequirementsMap);

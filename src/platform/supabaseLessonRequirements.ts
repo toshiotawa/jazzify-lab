@@ -1,4 +1,4 @@
-import { getSupabaseClient, fetchWithCache, clearSupabaseCache, getCurrentUserIdCached } from '@/platform/supabaseClient';
+import { getSupabaseClient, fetchWithCache, clearSupabaseCache, getCurrentUserIdCached, clearCacheByPattern } from '@/platform/supabaseClient';
 import { requireUserId } from '@/platform/authHelpers';
 
 export interface LessonRequirementProgress {
@@ -172,7 +172,7 @@ export async function fetchMultipleLessonRequirementsProgress(lessonIds: string[
       .select('*')
       .eq('user_id', userId)
       .in('lesson_id', lessonIds),
-    1000 * 60 * 5 // 5分キャッシュ
+    1000 * 30 // 30秒TTL（タブ往復対策。リアルタイム更新と両立）
   );
 
   if (error) throw new Error(`実習課題の進捗取得に失敗しました: ${error.message}`);
@@ -191,3 +191,43 @@ export async function fetchMultipleLessonRequirementsProgress(lessonIds: string[
   
   return result;
 } 
+
+/**
+ * 画面上の全レッスンIDで1回だけ要件進捗を取得するための集約API
+ * - fetchMultipleLessonRequirementsProgress と同一だが、引数が多い場合でも安定
+ * - 30s TTL。RealtimeのUPDATE/INSERT/DELETEで該当キーだけ無効化を推奨
+ */
+export async function fetchAggregatedRequirementsProgress(
+  lessonIds: string[],
+  { forceRefresh = false }: { forceRefresh?: boolean } = {}
+): Promise<Record<string, LessonRequirementProgress[]>> {
+  const supabase = getSupabaseClient();
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
+  if (lessonIds.length === 0) return {};
+
+  const sorted = lessonIds.slice().sort();
+  const cacheKey = `multiple_lesson_requirements_progress:${userId}:${sorted.join(',')}`;
+  if (forceRefresh) {
+    clearCacheByPattern(cacheKey);
+  }
+
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => await supabase
+      .from('user_lesson_requirements_progress')
+      .select('*')
+      .eq('user_id', userId)
+      .in('lesson_id', sorted),
+    1000 * 30
+  );
+  if (error) throw new Error(`実習課題の進捗取得に失敗しました: ${error.message}`);
+
+  const result: Record<string, LessonRequirementProgress[]> = {};
+  sorted.forEach(id => { result[id] = []; });
+  (data || []).forEach(p => {
+    if (!result[p.lesson_id]) result[p.lesson_id] = [];
+    result[p.lesson_id].push(p);
+  });
+  return result;
+}
