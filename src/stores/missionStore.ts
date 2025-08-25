@@ -9,6 +9,9 @@ interface State {
   progress: Record<string, UserMissionProgress>;
   songProgress: Record<string, MissionSongProgress[]>;
   loading: boolean;
+  _inFlightAll?: Promise<void> | null;
+  _inFlightSongAll?: Promise<void> | null;
+  _lastFetchedAt?: number | null;
 }
 interface Actions {
   fetchAll: () => Promise<void>;
@@ -23,22 +26,43 @@ export const useMissionStore = create<State & Actions>()(
     progress: {},
     songProgress: {},
     loading: false,
+    _inFlightAll: null,
+    _inFlightSongAll: null,
+    _lastFetchedAt: null,
 
     fetchAll: async () => {
-      set(s=>{s.loading=true;});
-      const [missions, progress] = await Promise.all([
-        fetchActiveMonthlyMissions(),
-        fetchUserMissionProgress(),
-      ]);
-      const progMap:Record<string,UserMissionProgress> = {};
-      progress.forEach(pr=>{progMap[pr.challenge_id]=pr;});
-      set(s=>{s.monthly=missions; s.progress=progMap; s.loading=false;});
-      
-      // ミッションの曲進捗を一括取得
-      const missionIds = missions.map(m => m.id);
-      if (missionIds.length > 0) {
-        await get().fetchSongProgressAll(missionIds);
+      // 直近の取得から短時間(30秒)はスキップ
+      const now = Date.now();
+      const last = get()._lastFetchedAt;
+      if (last && now - last < 30_000 && get().monthly.length > 0) {
+        return;
       }
+
+      // in-flight重複を防止
+      if (get()._inFlightAll) {
+        try { await get()._inFlightAll; } catch {};
+        return;
+      }
+
+      const promise = (async () => {
+        set(s=>{s.loading=true;});
+        const [missions, progress] = await Promise.all([
+          fetchActiveMonthlyMissions(),
+          fetchUserMissionProgress(),
+        ]);
+        const progMap:Record<string,UserMissionProgress> = {};
+        progress.forEach(pr=>{progMap[pr.challenge_id]=pr;});
+        set(s=>{s.monthly=missions; s.progress=progMap; s.loading=false; s._lastFetchedAt = Date.now();});
+        
+        // ミッションの曲進捗を一括取得
+        const missionIds = missions.map(m => m.id);
+        if (missionIds.length > 0) {
+          await get().fetchSongProgressAll(missionIds);
+        }
+      })();
+
+      set(s=>{ s._inFlightAll = promise; });
+      try { await promise; } finally { set(s=>{ s._inFlightAll = null; }); }
     },
 
     fetchSongProgress: async (missionId: string, forceRefresh = false) => {
@@ -61,29 +85,40 @@ export const useMissionStore = create<State & Actions>()(
     },
 
     fetchSongProgressAll: async (missionIds: string[], forceRefresh = false) => {
-      try {
-        let missionIdsToFetch = missionIds;
-        
-        // forceRefreshがfalseの場合、既に進捗があるミッションを除外
-        if (!forceRefresh) {
-          const existingProgress = get().songProgress;
-          missionIdsToFetch = missionIds.filter(id => {
-            const progress = existingProgress[id];
-            return !progress || progress.length === 0;
-          });
-        }
-        
-        if (missionIdsToFetch.length === 0) {
-          return;
-        }
-        
-        const songProgressMap = await fetchMissionSongProgressAll(missionIdsToFetch);
-        set(s => {
-          Object.assign(s.songProgress, songProgressMap);
-        });
-      } catch (error) {
-        console.error('一括曲進捗の取得に失敗:', error);
+      // in-flight重複防止（song側）
+      if (get()._inFlightSongAll) {
+        try { await get()._inFlightSongAll; } catch {};
+        return;
       }
+
+      const promise = (async () => {
+        try {
+          let missionIdsToFetch = missionIds;
+          
+          // forceRefreshがfalseの場合、既に進捗があるミッションを除外
+          if (!forceRefresh) {
+            const existingProgress = get().songProgress;
+            missionIdsToFetch = missionIds.filter(id => {
+              const progress = existingProgress[id];
+              return !progress || progress.length === 0;
+            });
+          }
+          
+          if (missionIdsToFetch.length === 0) {
+            return;
+          }
+          
+          const songProgressMap = await fetchMissionSongProgressAll(missionIdsToFetch);
+          set(s => {
+            Object.assign(s.songProgress, songProgressMap);
+          });
+        } catch (error) {
+          console.error('一括曲進捗の取得に失敗:', error);
+        }
+      })();
+
+      set(s=>{ s._inFlightSongAll = promise; });
+      try { await promise; } finally { set(s=>{ s._inFlightSongAll = null; }); }
     },
 
     claim: async(id:string)=>{
