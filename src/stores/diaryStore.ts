@@ -264,9 +264,12 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
       try { (globalRealtimeUnsubscribers || []).forEach(fn => fn()); } catch {}
       globalRealtimeUnsubscribers = [];
 
-      // 日記新規投稿
+      // JSTの今日 (yyyy-mm-dd)
+      const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').join('-');
+
+      // 日記新規投稿（当日分のみ監視）
       const diariesChannel = supabase.channel('realtime-diaries')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries' }, async (payload) => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'practice_diaries', filter: `practice_date=eq.${today}` }, async (payload) => {
           try {
             const newDiaryId = (payload.new as any)?.id;
             if (!newDiaryId) return;
@@ -305,13 +308,16 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
         .subscribe();
       globalRealtimeUnsubscribers.push(() => { try { supabase.removeChannel(diariesChannel); } catch {} });
 
-      // コメント新規投稿（特定の日記のみ更新）
+      // コメント新規投稿（当日分のみ監視 + 既に表示している日記のみ再取得）
+      const todayStart = `${today}T00:00:00+09:00`;
       const commentsChannel = supabase.channel('realtime-diary-comments')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'diary_comments' }, async (payload) => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'diary_comments', filter: `created_at=gte.${todayStart}` }, async (payload) => {
           const diaryId = (payload.new as any).diary_id;
-          if (diaryId) {
-            await get().fetchComments(diaryId);
-          }
+          if (!diaryId) return;
+          // その日記のコメントを既にロードしている場合のみ再取得
+          const loaded = get().comments[diaryId];
+          if (!loaded) return;
+          await get().fetchComments(diaryId);
         })
         .subscribe();
       globalRealtimeUnsubscribers.push(() => { try { supabase.removeChannel(commentsChannel); } catch {} });

@@ -59,7 +59,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
   const { data, error } = await fetchWithCache(key, async () => {
     const result = await getSupabaseClient()
       .from('challenges')
-      .select('*, challenge_tracks(*, songs(id,title,artist))')
+      .select('id,type,diary_count,title,description,start_date,end_date,reward_multiplier,challenge_tracks(song_id,key_offset,min_speed,min_rank,clears_required,notation_setting,songs(id,title,artist))')
       .eq('type','monthly')
       .lte('start_date', today)  // 開始日が今日以前（今日を含む）
       .gte('end_date', today);   // 終了日が今日以降（今日を含む）
