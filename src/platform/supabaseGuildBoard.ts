@@ -362,3 +362,183 @@ export async function deleteGuildComment(commentId: string): Promise<void> {
 
 
 
+
+    comments_count: commentsMap.get(row.id) || 0,
+
+    likes_count: likesMap.get(row.id) || 0,
+
+  }));
+
+  const nextCursor = posts.length > 0 ? posts[posts.length - 1].created_at : null;
+
+  const hasMore = baseRows.length > sliced.length;
+
+  return { posts, nextCursor, hasMore };
+
+}
+
+
+
+export async function createGuildPost(content: string, guildIdOverride?: string): Promise<string> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('ログインが必要です');
+
+  const guildId = guildIdOverride || (await getMyGuildId());
+
+  if (!guildId) throw new Error('ギルドに所属していません');
+
+  const { data, error } = await supabase
+
+    .from('guild_posts')
+
+    .insert({ guild_id: guildId, user_id: user.id, content })
+
+    .select('id')
+
+    .single();
+
+  if (error) throw error;
+
+  return data!.id as string;
+
+}
+
+
+
+export async function likeGuildPost(postId: string): Promise<void> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('ログインが必要です');
+
+  const { error } = await supabase
+
+    .from('guild_post_likes')
+
+    .insert({ post_id: postId, user_id: user.id });
+
+  if (error && error.code !== '23505') throw error; // ignore duplicate
+
+}
+
+
+
+export async function fetchGuildComments(postId: string): Promise<GuildComment[]> {
+
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+
+    .from('guild_post_comments')
+
+    .select('id, post_id, user_id, content, created_at, author:profiles!guild_post_comments_user_id_fkey(nickname, avatar_url)')
+
+    .eq('post_id', postId)
+
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+
+    id: row.id,
+
+    post_id: row.post_id,
+
+    user_id: row.user_id,
+
+    content: row.content,
+
+    created_at: row.created_at,
+
+    nickname: row.author?.nickname || 'User',
+
+    avatar_url: row.author?.avatar_url || undefined,
+
+  }));
+
+}
+
+
+
+export async function addGuildComment(postId: string, content: string): Promise<string> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('ログインが必要です');
+
+  const { data, error } = await supabase
+
+    .from('guild_post_comments')
+
+    .insert({ post_id: postId, user_id: user.id, content })
+
+    .select('id')
+
+    .single();
+
+  if (error) throw error;
+
+  return data!.id as string;
+
+}
+
+
+
+export async function deleteGuildPost(postId: string): Promise<void> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('ログインが必要です');
+
+  const { error } = await supabase
+
+    .from('guild_posts')
+
+    .delete()
+
+    .eq('id', postId)
+
+    .eq('user_id', user.id);
+
+  if (error) throw error;
+
+}
+
+
+
+export async function deleteGuildComment(commentId: string): Promise<void> {
+
+  const supabase = getSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('ログインが必要です');
+
+  const { error } = await supabase
+
+    .from('guild_post_comments')
+
+    .delete()
+
+    .eq('id', commentId)
+
+    .eq('user_id', user.id);
+
+  if (error) throw error;
+
+}
+
+
+
+
