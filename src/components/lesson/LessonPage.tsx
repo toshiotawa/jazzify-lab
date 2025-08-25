@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
-import { fetchUserLessonProgress, unlockLesson, LessonProgress } from '@/platform/supabaseLessonProgress';
+import { fetchUserLessonProgress, unlockLesson, LessonProgress, fetchUserLessonProgressAll } from '@/platform/supabaseLessonProgress';
 import { subscribeRealtime } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
@@ -60,16 +60,12 @@ const LessonPage: React.FC = () => {
     return () => window.removeEventListener('hashchange', checkHash);
   }, [open, profile, selectedCourse]);
 
-  useEffect(() => {
-    if (selectedCourse) {
-      loadLessons(selectedCourse.id);
-    }
-  }, [selectedCourse]);
-
+  // 重複呼び出し防止: selectedCourse変更時に一度だけ実行
   useEffect(() => {
     if (selectedCourse?.id) {
       loadLessons(selectedCourse.id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCourse?.id]);
 
   // リアルタイム更新監視を追加（最適化版）
@@ -132,30 +128,32 @@ const LessonPage: React.FC = () => {
       setCompletedCourseIds(completedCourses);
       setCourseUnlockStatus(unlockStatus);
       
-      // 全コースの進捗データを並行取得して完了率を計算
+      // 全コースの進捗データを一括取得して完了率を計算（N→1クエリ）
       if (profile) {
         try {
-          const courseProgressPromises = sortedCourses.map(async (course) => {
-            try {
-              const [courseProgressData, courseLessonsData] = await Promise.all([
-                fetchUserLessonProgress(course.id),
-                fetchLessonsByCourse(course.id)
-              ]);
-              
-              if (courseLessonsData.length === 0) return [course.id, 0];
-              
-              const completedCount = courseProgressData.filter(p => p.completed).length;
-              const completionRate = Math.round((completedCount / courseLessonsData.length) * 100);
-              
-              return [course.id, completionRate];
-            } catch (error) {
-              console.error(`Failed to load progress for course ${course.id}:`, error);
-              return [course.id, 0];
-            }
+          const [allProgress, lessonsByCourse] = await Promise.all([
+            fetchUserLessonProgressAll(),
+            Promise.all(sortedCourses.map(c => fetchLessonsByCourse(c.id)))
+          ]);
+
+          const lessonsCountByCourse: Record<string, number> = {};
+          sortedCourses.forEach((c, idx) => {
+            lessonsCountByCourse[c.id] = lessonsByCourse[idx].length;
           });
 
-          const courseProgressResults = await Promise.all(courseProgressPromises);
-          const progressMap = Object.fromEntries(courseProgressResults) as Record<string, number>;
+          const completedCountByCourse: Record<string, number> = {};
+          allProgress.forEach(p => {
+            if (!completedCountByCourse[p.course_id]) completedCountByCourse[p.course_id] = 0;
+            if (p.completed) completedCountByCourse[p.course_id]++;
+          });
+
+          const progressMap: Record<string, number> = {};
+          sortedCourses.forEach(c => {
+            const total = lessonsCountByCourse[c.id] || 0;
+            const completed = completedCountByCourse[c.id] || 0;
+            progressMap[c.id] = total > 0 ? Math.round((completed / total) * 100) : 0;
+          });
+
           setAllCoursesProgress(progressMap);
         } catch (error) {
           console.error('Error loading course progress data:', error);

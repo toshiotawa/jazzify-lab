@@ -70,6 +70,42 @@ export async function fetchUserLessonProgress(
 }
 
 /**
+ * ユーザーの全コース横断のレッスン進捗をまとめて取得（N→1クエリ）
+ */
+export interface LessonProgressBasic {
+  lesson_id: string;
+  course_id: string;
+  completed: boolean;
+}
+
+export async function fetchUserLessonProgressAll(
+  targetUserId?: string,
+  { forceRefresh = false }: { forceRefresh?: boolean } = {}
+): Promise<LessonProgressBasic[]> {
+  const supabase = getSupabaseClient();
+  const uid = await getCurrentUserIdCached();
+  if (!uid && !targetUserId) throw new Error('ログインが必要です');
+  const userId = targetUserId || (uid as string);
+
+  const key = `lesson_progress_all_${userId}`;
+  if (forceRefresh) {
+    clearCacheByKey(key);
+  }
+
+  const { data, error } = await fetchWithCache(
+    key,
+    async () => await supabase
+      .from('user_lesson_progress')
+      .select('lesson_id, course_id, completed')
+      .eq('user_id', userId),
+    1000 * 60 // 1分キャッシュ
+  );
+
+  if (error) throw new Error(`進捗データの取得に失敗しました: ${error.message}`);
+  return (data as LessonProgressBasic[]) || [];
+}
+
+/**
  * レッスンの進捗を更新
  */
 export async function updateLessonProgress(

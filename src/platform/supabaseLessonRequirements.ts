@@ -160,12 +160,11 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
  */
 export async function fetchMultipleLessonRequirementsProgress(lessonIds: string[]): Promise<Record<string, LessonRequirementProgress[]>> {
   const supabase = getSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
   if (lessonIds.length === 0) return {};
 
-  const cacheKey = `multiple_lesson_requirements_progress:${userId}:${lessonIds.sort().join(',')}`;
+  const cacheKey = `multiple_lesson_requirements_progress:${userId}:${lessonIds.slice().sort().join(',')}`;
   const { data, error } = await fetchWithCache(
     cacheKey,
     async () => await supabase
