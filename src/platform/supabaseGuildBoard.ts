@@ -77,6 +77,7 @@ export async function fetchGuildPostsInfinite(params: { guildId: string; limit?:
   const postIds = sliced.map((p: any) => p.id);
   let commentsMap = new Map<string, number>();
   let likesMap = new Map<string, number>();
+  // 空のINクエリ防止
   if (postIds.length > 0) {
     const [commentsAgg, likesAgg] = await Promise.all([
       supabase.from('guild_post_comments').select('post_id').in('post_id', postIds),

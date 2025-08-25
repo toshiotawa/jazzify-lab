@@ -599,7 +599,7 @@ const SongSelectionScreen: React.FC = () => {
           
           if (userStats) {
             const statsMap: Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string}> = {};
-            userStats.forEach(stat => {
+            (userStats || []).forEach(stat => {
               statsMap[stat.song_id] = {
                 clear_count: stat.clear_count,
                 b_rank_plus_count: stat.b_rank_plus_count || 0,

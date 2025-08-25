@@ -42,11 +42,9 @@ export async function fetchUserLessonProgress(
 ): Promise<LessonProgress[]> {
   const supabase = getSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) throw new Error('ログインが必要です');
-  
+  if (!user && !targetUserId) throw new Error('ログインが必要です');
   // 取得対象のユーザーID（指定がなければ自分）
-  const userId = targetUserId || user.id;
+  const userId = targetUserId || (user as any).id;
 
   const key = LESSON_PROGRESS_CACHE_KEY(courseId, userId);
   
@@ -190,7 +188,7 @@ export async function unlockBlock(courseId: string, blockNumber: number, targetU
     })
     .eq('user_id', userId)
     .eq('course_id', courseId)
-    .in('lesson_id', lessonIds);
+    .in('lesson_id', lessonIds.length > 0 ? lessonIds : ['__never__']);
 
   if (updateError) throw new Error(`既存レッスンの解放に失敗しました: ${updateError.message}`);
 
@@ -249,7 +247,7 @@ export async function lockBlock(courseId: string, blockNumber: number, targetUse
     })
     .eq('user_id', userId)
     .eq('course_id', courseId)
-    .in('lesson_id', lessons.map(l => l.id));
+    .in('lesson_id', lessons.length > 0 ? lessons.map(l => l.id) : ['__never__']);
 
   if (error) throw new Error(`ブロックの施錠に失敗しました: ${error.message}`);
 }
