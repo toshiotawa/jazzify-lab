@@ -124,7 +124,7 @@ const StoryPage: React.FC = () => {
             </button>
           </div>
         </div>
-        <p className="mt-2 text-sm text-white/80">物語が読めるモードです。</p>
+        <p className="mt-2 text-sm text-white/80">ファンタジーモードのクリア数に応じて物語が解放されます。</p>
       </div>
 
       {/* コンテンツ */}
@@ -185,15 +185,17 @@ const StoryPage: React.FC = () => {
               <div className="text-sm text-yellow-200 mb-3">この話を読むには、合計クリア数が{(selected - 1) * 10}に達している必要があります。</div>
             )}
 
-            {loading ? (
-              <div className="text-center py-10">読み込み中...</div>
-            ) : error ? (
-              <div className="text-red-300 text-sm">{error}</div>
-            ) : (
-              <div className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base text-white/95">
-                {content}
-              </div>
-            )}
+            <div className="overflow-y-auto max-h-[50vh] sm:max-h-[calc(100vh-280px)] pr-2">
+              {loading ? (
+                <div className="text-center py-10">読み込み中...</div>
+              ) : error ? (
+                <div className="text-red-300 text-sm">{error}</div>
+              ) : (
+                <div className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base text-white/95">
+                  {content}
+                </div>
+              )}
+            </div>
           </div>
         </main>
       </div>
