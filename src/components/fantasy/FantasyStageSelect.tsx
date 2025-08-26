@@ -15,6 +15,7 @@ import {
   getRankFromClearedStages as getRankFromClearedStagesUtil 
 } from '@/utils/fantasyRankConstants';
 import { useAuthStore } from '@/stores/authStore';
+import { LessonContext } from '@/types';
 
 // ===== 型定義 =====
 
@@ -44,6 +45,7 @@ interface FantasyStageClear {
 interface FantasyStageSelectProps {
   onStageSelect: (stage: FantasyStage) => void;
   onBackToMenu: () => void;
+  lessonContext?: LessonContext | null;
 }
 
 // ===== 定数 =====
@@ -545,12 +547,20 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             </div>
           </div>
           
-          <button
-            onClick={onBackToMenu}
-            className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap"
-          >
-            戻る
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { window.location.hash = '#Story'; }}
+              className="px-3 sm:px-4 py-2 sm:py-3 bg-white/15 hover:bg-white/25 rounded-lg font-medium transition-colors text-xs sm:text-base whitespace-nowrap"
+            >
+              ストーリー
+            </button>
+            <button
+              onClick={onBackToMenu}
+              className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap"
+            >
+              戻る
+            </button>
+          </div>
         </div>
       </div>
       
