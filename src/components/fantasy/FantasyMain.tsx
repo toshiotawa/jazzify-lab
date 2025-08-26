@@ -17,6 +17,7 @@ import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequir
 import { getWizardRankString } from '@/utils/fantasyRankConstants';
 import { currentLevelXP, xpToNextLevel } from '@/utils/xpCalculator';
 import { useToast } from '@/stores/toastStore';
+import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -45,6 +46,8 @@ const FantasyMain: React.FC = () => {
   const [showResult, setShowResult] = useState(false);
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [isLessonMode, setIsLessonMode] = useState(false);
+  const [missionContext, setMissionContext] = useState<{ missionId: string; stageId: string } | null>(null);
+  const [isMissionMode, setIsMissionMode] = useState(false);
   
   // ▼▼▼ 追加 ▼▼▼
   // ゲームコンポーネントを強制的に再マウントさせるためのキー
@@ -69,18 +72,20 @@ const FantasyMain: React.FC = () => {
   // フリープラン・ゲストユーザーかどうかの確認
   const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
   
-  // URLパラメータからレッスンコンテキストを取得
+  // URLパラメータからレッスン/ミッションコンテキストを取得
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
     const lessonId = params.get('lessonId');
     const lessonSongId = params.get('lessonSongId');
     const stageId = params.get('stageId');
     const clearConditionsStr = params.get('clearConditions');
+    const missionId = params.get('missionId');
     
     devLog.debug('🎮 FantasyMain URLパラメータ:', {
       lessonId,
       lessonSongId,
       stageId,
+      missionId,
       clearConditionsStr,
       fullHash: window.location.hash
     });
@@ -96,13 +101,7 @@ const FantasyMain: React.FC = () => {
           clearConditions,
           sourceType: 'fantasy'
         });
-        
-        devLog.debug('🎮 ファンタジーステージを読み込み中:', stageId);
-        
-        // ステージを取得して自動的に開始
         fetchFantasyStageById(stageId).then(stage => {
-          devLog.debug('🎮 ファンタジーステージ取得成功:', stage);
-          // FantasyStageの形式に変換
           const fantasyStage: FantasyStage = {
             id: stage.id,
             stageNumber: stage.stage_number,
@@ -129,33 +128,65 @@ const FantasyMain: React.FC = () => {
             measureCount: (stage as any).measure_count,
             countInMeasures: (stage as any).count_in_measures,
             timeSignature: (stage as any).time_signature,
-            // 追加: 拍間隔（存在すれば）
             noteIntervalBeats: (stage as any).note_interval_beats,
-            // ステージ設定のルート音
             playRootOnCorrect: (stage as any).play_root_on_correct ?? true
           };
-          devLog.debug('🎮 FantasyStage形式に変換:', fantasyStage);
           setCurrentStage(fantasyStage);
         }).catch(err => {
           console.error('Failed to load fantasy stage:', err);
-          devLog.error('🎮 ファンタジーステージ取得エラー:', err);
         });
       } catch (e) {
         console.error('Failed to parse clear conditions:', e);
-        devLog.error('🎮 clear conditions パースエラー:', e);
       }
+      return;
+    }
+
+    if (missionId && stageId) {
+      // ミッションモード
+      setIsMissionMode(true);
+      setMissionContext({ missionId, stageId });
+      fetchFantasyStageById(stageId).then(stage => {
+        const fantasyStage: FantasyStage = {
+          id: stage.id,
+          stageNumber: stage.stage_number,
+          name: stage.name,
+          description: stage.description,
+          maxHp: stage.max_hp,
+          enemyGaugeSeconds: stage.enemy_gauge_seconds,
+          enemyCount: stage.enemy_count,
+          enemyHp: stage.enemy_hp,
+          minDamage: stage.min_damage,
+          maxDamage: stage.max_damage,
+          mode: (['single','progression_order','progression_random','progression_timing'] as const).includes(stage.mode as any)
+            ? (stage.mode as any)
+            : 'progression',
+          allowedChords: stage.allowed_chords,
+          chordProgression: stage.chord_progression,
+          chordProgressionData: (stage as any).chord_progression_data,
+          showSheetMusic: false,
+          showGuide: stage.show_guide,
+          simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
+          monsterIcon: 'dragon',
+          bpm: (stage as any).bpm || 120,
+          bgmUrl: stage.bgm_url || (stage as any).mp3_url,
+          measureCount: (stage as any).measure_count,
+          countInMeasures: (stage as any).count_in_measures,
+          timeSignature: (stage as any).time_signature,
+          noteIntervalBeats: (stage as any).note_interval_beats,
+          playRootOnCorrect: (stage as any).play_root_on_correct ?? true
+        };
+        setCurrentStage(fantasyStage);
+      }).catch(err => console.error('Failed to load fantasy stage:', err));
+      return;
     }
   }, []);
-  
+
   // ステージ選択ハンドラ
   const handleStageSelect = useCallback((stage: FantasyStage) => {
-    devLog.debug('🎮 ファンタジーモード: ステージ選択', stage.stageNumber);
     setCurrentStage(stage);
     setGameResult(null);
     setShowResult(false);
-    // ▼▼▼ 追加 ▼▼▼
-    setGameKey(prevKey => prevKey + 1); // ステージ選択時にキーを更新
-    // ▲▲▲ ここまで ▲▲▲
+    setGameKey(prevKey => prevKey + 1);
   }, []);
   
   // ゲーム完了ハンドラ
@@ -165,284 +196,157 @@ const FantasyMain: React.FC = () => {
     correctAnswers: number, 
     totalQuestions: number
   ) => {
-    // pendingAutoStart をリセット
     setPendingAutoStart(false);
     devLog.debug('🎮 ファンタジーモード: ゲーム完了', { result, score, correctAnswers, totalQuestions });
-    
     const gameResult: GameResult = { result, score, correctAnswers, totalQuestions };
     setGameResult(gameResult);
     setShowResult(true);
     
     // レッスンモードの場合の処理
     if (isLessonMode && lessonContext) {
-      devLog.debug('🎮 レッスンモード判定:', { isLessonMode, lessonContext, result });
-      
       if (result === 'clear') {
         try {
-          // ファンタジーモードでは、クリア自体が成功なので、
-          // clearConditionsで指定されたランクをそのまま使用
           const achievedRank = lessonContext.clearConditions?.rank || 'B';
-          
-          devLog.debug('🎮 レッスン進捗更新パラメータ:', {
-            lessonId: lessonContext.lessonId,
-            lessonSongId: lessonContext.lessonSongId,
-            rank: achievedRank,
-            clearConditions: lessonContext.clearConditions,
-            correctAnswers,
-            totalQuestions
-          });
-          
-          // レッスン課題の進捗を更新（fantasy_stage_clearsは更新しない）
           await updateLessonRequirementProgress(
             lessonContext.lessonId,
             lessonContext.lessonSongId,
-            achievedRank, // 必要ランクをそのまま渡す（ファンタジーモードはクリア＝成功）
+            achievedRank,
             lessonContext.clearConditions,
-            {
-              sourceType: 'fantasy',
-              lessonSongId: lessonContext.lessonSongId
-            }
+            { sourceType: 'fantasy', lessonSongId: lessonContext.lessonSongId }
           );
-          
-          devLog.debug('✅ レッスン課題進捗を更新しました');
         } catch (error) {
           console.error('レッスン課題進捗更新エラー:', error);
-          devLog.error('🎮 レッスン進捗更新エラー詳細:', error);
         }
       }
-      return; // レッスンモードの場合はここで終了
+      return; // レッスンモードはここで終了
     }
-    
-    // 通常のファンタジーモードの処理
-    // データベースに結果を保存
-    try {
-      // フリープラン・ゲストユーザーはデータベースに保存しない
-      if (!isFreeOrGuest && profile && currentStage) {
-        const { getSupabaseClient } = await import('@/platform/supabaseClient');
-        const supabase = getSupabaseClient();
-        
-        // まず初クリアかどうかを判定（upsertの前に実行）
-        let isFirstTimeClear = false;
-        if (result === 'clear') {
-          const { data: preClear, error: preErr } = await supabase
-            .from('fantasy_stage_clears')
-            .select('id')
-            .eq('user_id', profile.id)
-            .eq('stage_id', currentStage.id)
-            .eq('clear_type', 'clear')
-            .maybeSingle();
-          
-          isFirstTimeClear = !preClear; // レコードが無ければ初クリア
-          devLog.debug('🔍 初クリア判定:', { 
-            stageNumber: currentStage.stageNumber,
-            existingRecord: preClear,
-            isFirstTimeClear 
-          });
+
+    // ミッションモード：通常のファンタジークリア記録は更新しない
+    if (isMissionMode && missionContext && currentStage) {
+      try {
+        if (!isFreeOrGuest && profile && result === 'clear') {
+          await incrementFantasyMissionProgressOnClear(missionContext.missionId, currentStage.id);
         }
-        
-        // クリア記録を保存（クリアの場合のみ保存、ゲームオーバーは既存のクリア記録を上書きしない）
-        if (result === 'clear') {
-          try {
-            const { error: clearError } = await supabase
+      } catch (e) {
+        console.error('ミッション進捗更新エラー:', e);
+      }
+      // ミッションモードでは通常通りXPは付与（ステージ報酬）
+      // 以下は通常処理と同じXP付与
+    } else {
+      // 通常のファンタジーモードの処理（クリア記録の保存など）
+      try {
+        if (!isFreeOrGuest && profile && currentStage) {
+          const { getSupabaseClient } = await import('@/platform/supabaseClient');
+          const supabase = getSupabaseClient();
+          // 初クリア判定
+          let isFirstTimeClear = false;
+          if (result === 'clear') {
+            const { data: preClear } = await supabase
               .from('fantasy_stage_clears')
-              .upsert({
-                user_id: profile.id,
-                stage_id: currentStage.id,
-                score: score,
-                clear_type: result,
-                remaining_hp: Math.max(1, 5 - (totalQuestions - correctAnswers)),
-                total_questions: totalQuestions,
-                correct_answers: correctAnswers
-              }, {
-                onConflict: 'user_id,stage_id'
-              });
-          
-          if (clearError) {
-            console.error('ファンタジークリア記録保存エラー:', clearError);
-            devLog.debug('クリア記録保存失敗:', {
-              error: clearError,
-              data: {
-                user_id: profile.id,
-                stage_id: currentStage.id,
-                score: score,
-                clear_type: result,
-                remaining_hp: result === 'clear' ? Math.max(1, 5 - (totalQuestions - correctAnswers)) : 0,
-                total_questions: totalQuestions,
-                correct_answers: correctAnswers
-              }
-            });
-          } else {
-              devLog.debug('✅ ファンタジークリア記録保存完了');
-            }
-            // クリア記録変更に伴い、関連キャッシュを無効化
+              .select('id')
+              .eq('user_id', profile.id)
+              .eq('stage_id', currentStage.id)
+              .eq('clear_type', 'clear')
+              .maybeSingle();
+            isFirstTimeClear = !preClear;
+          }
+          // クリア記録保存（clear のみ）
+          if (result === 'clear') {
+            try {
+              await supabase
+                .from('fantasy_stage_clears')
+                .upsert({
+                  user_id: profile.id,
+                  stage_id: currentStage.id,
+                  score: score,
+                  clear_type: result,
+                  remaining_hp: Math.max(1, 5 - (totalQuestions - correctAnswers)),
+                  total_questions: totalQuestions,
+                  correct_answers: correctAnswers
+                });
+            } catch {}
+          }
+          // 進捗の更新
+          if (result === 'clear') {
             try {
               const { clearCacheByPattern } = await import('@/platform/supabaseClient');
               clearCacheByPattern(new RegExp(`^fantasy_stage_clears`));
               clearCacheByPattern(new RegExp(`^fantasy_user_progress:${profile.id}`));
             } catch {}
-          } catch (clearSaveError) {
-            console.error('ファンタジークリア記録保存例外:', clearSaveError);
           }
         }
-        
-        // ───────── 進捗の更新判定 ─────────
-        if (result === 'clear') {
-          const { data: currentProgress, error: progressError } = await supabase
-            .from('fantasy_user_progress')
-            .select('*')
-            .eq('user_id', profile.id)
-            .single();
-
-          if (!progressError && currentProgress) {
-            // progress に書かれているステージと、今回クリアした
-            // ステージの大小を比較
-            const cmpStage = (a: string, b: string) => {
-              const [ra, sa] = a.split('-').map(Number);
-              const [rb, sb] = b.split('-').map(Number);
-              if (ra !== rb) return ra - rb;
-              return sa - sb;
-            };
-
-            const clearedIsFurther =
-              (() => {
-                const stageTier = (currentStage as any).tier === 'advanced' ? 'advanced' : 'basic';
-                const currentTierStage = stageTier === 'advanced'
-                  ? ((currentProgress as any).current_stage_number_advanced || (currentProgress as any).current_stage_number || '1-1')
-                  : ((currentProgress as any).current_stage_number_basic || (currentProgress as any).current_stage_number || '1-1');
-                return cmpStage(currentStage.stageNumber, currentTierStage) >= 0;
-              })();
-
-            const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
-
-            // total_cleared_stages は "新規クリアのときだけ" 増やす
-            const newClearedStages =
-              currentProgress.total_cleared_stages + (isFirstTimeClear ? 1 : 0);
-            const newRank = getWizardRankString(newClearedStages);
-
-            if (clearedIsFurther) {
-              const stageTier = (currentStage as any).tier === 'advanced' ? 'advanced' : 'basic';
-              const updatePayload: any = {
-                wizard_rank: newRank,
-                total_cleared_stages: newClearedStages,
-              };
-              if (stageTier === 'advanced') {
-                updatePayload.current_stage_number_advanced = nextStageNumber;
-              } else {
-                updatePayload.current_stage_number_basic = nextStageNumber;
-              }
-              const { error: updateError } = await supabase
-                .from('fantasy_user_progress')
-                .update(updatePayload)
-                .eq('user_id', profile.id);
-
-              if (updateError) {
-                console.error('ファンタジー進捗更新エラー:', updateError);
-              } else {
-                devLog.debug('✅ ファンタジー進捗更新完了:', {
-                  nextStageNumber, newRank, newClearedStages
-                });
-                // 進捗更新に伴い、関連キャッシュを無効化
-                try {
-                  const { clearCacheByPattern } = await import('@/platform/supabaseClient');
-                  clearCacheByPattern(new RegExp(`^fantasy_user_progress:${profile.id}`));
-                } catch {}
-              }
-            }
-          }
-        }
-        
-        // 経験値付与（addXp関数を使用）
-        const xpGain = result === 'clear' ? 1000 : 200;
-        const reason = `ファンタジーモード${currentStage.stageNumber}${result === 'clear' ? 'クリア' : 'チャレンジ'}`;
-        
-        try {
-          // addXp関数をインポートして使用
-          const { addXp } = await import('@/platform/supabaseXp');
-          
-          // 会員ランクによる倍率を適用
-          const membershipMultiplier = profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1;
-          
-          // ギルド倍率の取得
-          let guildMultiplier = 1;
-          try {
-            const { getMyGuild, fetchGuildMemberMonthlyXp, fetchGuildDailyStreaks } = await import('@/platform/supabaseGuilds');
-            const { computeGuildBonus } = await import('@/utils/guildBonus');
-            const myGuild = await getMyGuild();
-            if (myGuild) {
-              const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
-              const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-              let streakSum = 0;
-              if (myGuild.guild_type === 'challenge') {
-                try {
-                  const st = await fetchGuildDailyStreaks(myGuild.id);
-                  streakSum = Object.values(st).reduce((acc: number, s: any) => acc + (s?.tierPercent || 0), 0);
-                } catch {}
-              }
-              const b = computeGuildBonus(myGuild.level || 1, contributors, streakSum);
-              guildMultiplier = 1 + b.levelBonus + b.memberBonus + (myGuild.guild_type === 'challenge' ? b.streakBonus : 0);
-            }
-          } catch {}
-
-          const xpResult = await addXp({
-            songId: null, // ファンタジーモードなので曲IDはnull
-            baseXp: xpGain,
-            speedMultiplier: 1,
-            rankMultiplier: 1,
-            transposeMultiplier: 1,
-            membershipMultiplier: membershipMultiplier, // 契約ランクによる倍率を適用
-            missionMultiplier: 1 * guildMultiplier,
-            reason: reason
-          });
-          
-          devLog.debug('✅ ファンタジーモードXP付与完了:', {
-            gained: xpResult.gainedXp,
-            total: xpResult.totalXp,
-            level: xpResult.level
-          });
-          
-          // XP情報を保存
-          const previousLevel = profile.level || 1;
-          const leveledUp = xpResult.level > previousLevel;
-          const currentLvXp = currentLevelXP(xpResult.level, xpResult.totalXp);
-          const nextLvXp = xpToNextLevel(xpResult.level);
-          
-          setXpInfo({
-            gained: xpResult.gainedXp,
-            total: xpResult.totalXp,
-            level: xpResult.level,
-            previousLevel: previousLevel,
-            nextLevelXp: nextLvXp,
-            currentLevelXp: currentLvXp,
-            leveledUp: leveledUp,
-            base: xpGain,
-            multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
-          });
-          
-          // レベルアップした場合はトーストを表示
-          if (leveledUp) {
-            toast.success(`レベルアップ！ Lv.${previousLevel} → Lv.${xpResult.level}`, {
-              duration: 5000,
-              title: 'おめでとうございます！'
-            });
-          }
-          
-        } catch (xpError) {
-          console.error('ファンタジーモードXP付与エラー:', xpError);
-        }
+      } catch (error) {
+        console.error('ファンタジーモード結果保存エラー:', error);
       }
-    } catch (error) {
-      console.error('ファンタジーモード結果保存エラー:', error);
     }
-  }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest]);
-  
+
+    // 経験値付与（addXp関数を使用）
+    const xpGain = result === 'clear' ? 1000 : 200;
+    const reason = `ファンタジーモード${currentStage?.stageNumber}${result === 'clear' ? 'クリア' : 'チャレンジ'}`;
+    try {
+      const { addXp } = await import('@/platform/supabaseXp');
+      let membershipMultiplier = 1;
+      let guildMultiplier = 1;
+      try {
+        if (profile?.rank === 'premium') membershipMultiplier = 1.5;
+        if (profile?.rank === 'platinum') membershipMultiplier = 2;
+        const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
+        const { computeGuildBonus } = await import('@/utils/guildBonus');
+        const myGuild = await getMyGuild();
+        if (myGuild) {
+          const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
+          const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
+          let streakSum = 0;
+          if (myGuild.guild_type === 'challenge') {
+            // チャレンジギルドの追加ボーナス（既存の計算に準拠）
+          }
+          guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
+        }
+      } catch {}
+
+      const xpResult = await addXp({
+        songId: null,
+        baseXp: xpGain,
+        speedMultiplier: 1,
+        rankMultiplier: 1,
+        transposeMultiplier: 1,
+        membershipMultiplier,
+        missionMultiplier: guildMultiplier,
+        reason,
+      });
+
+      const previousLevel = profile?.level || 1;
+      const leveledUp = xpResult.level > previousLevel;
+      const currentLvXp = currentLevelXP(xpResult.level, xpResult.totalXp);
+      const nextLvXp = xpToNextLevel(xpResult.level);
+      setXpInfo({
+        gained: xpResult.gainedXp,
+        total: xpResult.totalXp,
+        level: xpResult.level,
+        previousLevel,
+        nextLevelXp: nextLvXp,
+        currentLevelXp: currentLvXp,
+        leveledUp,
+        base: xpGain,
+        multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
+      });
+      if (leveledUp) {
+        toast.success(`レベルアップ！ Lv.${previousLevel} → Lv.${xpResult.level}`, { duration: 5000, title: 'おめでとうございます！' });
+      }
+    } catch (xpError) {
+      console.error('ファンタジーモードXP付与エラー:', xpError);
+    }
+  }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest, isMissionMode, missionContext]);
+
   // ステージ選択に戻る
   const handleBackToStageSelect = useCallback(() => {
+    if (isMissionMode) {
+      window.location.hash = '#missions';
+      return;
+    }
     setCurrentStage(null);
     setGameResult(null);
-    setShowResult(false);
-    setXpInfo(null); // XP情報もリセット
-    setPendingAutoStart(false); // pendingAutoStartもリセット
-  }, []);
+  }, [isMissionMode]);
   
   // ★ 追加: 次のステージに待機画面で遷移
   const gotoNextStageWaiting = useCallback(async () => {
@@ -522,8 +426,8 @@ const FantasyMain: React.FC = () => {
   
   // メニューに戻る
   const handleBackToMenu = useCallback(() => {
-    window.location.hash = '#dashboard';
-  }, []);
+    window.location.hash = isMissionMode ? '#missions' : '#dashboard';
+  }, [isMissionMode]);
   
   // ステージ選択画面
   if (!currentStage && !gameResult) {
@@ -605,45 +509,23 @@ const FantasyMain: React.FC = () => {
           
           {/* アクションボタン */}
           <div className="space-y-4">
-            {gameResult.result === 'clear' && !isLessonMode && (
-              <button
-                onClick={gotoNextStageWaiting}
-                className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-sans"
-              >
-                次のステージへ
-              </button>
+            {/* ミッションモード時は「次のステージへ」を表示しない */}
+            {gameResult.result === 'clear' && !isLessonMode && !isMissionMode && (
+              <button onClick={gotoNextStageWaiting} className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-sans">次のステージへ</button>
             )}
-            
             <button
-              // ▼▼▼ 修正 ▼▼▼
-              onClick={() => {
-                setShowResult(false);
-                setGameKey(prevKey => prevKey + 1);
-                setPendingAutoStart(true);   // ★ useState を 1 つ用意
-              }}
-              // ▲▲▲ ここまで ▲▲▲
+              onClick={() => { setShowResult(false); setGameKey(prevKey => prevKey + 1); setPendingAutoStart(true); }}
               className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors font-sans"
             >
               再挑戦
             </button>
-            
+            {/* 戻るボタンの遷移先を分岐 */}
             {isLessonMode && lessonContext ? (
-              <button
-                onClick={() => {
-                  // レッスン詳細ページに戻る
-                  window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
-                }}
-                className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans"
-              >
-                レッスンに戻る
-              </button>
+              <button onClick={() => { window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">レッスンに戻る</button>
+            ) : isMissionMode ? (
+              <button onClick={() => { window.location.hash = '#missions'; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">ミッションに戻る</button>
             ) : (
-              <button
-                onClick={handleBackToStageSelect}
-                className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-sans"
-              >
-                ステージ選択に戻る
-              </button>
+              <button onClick={handleBackToStageSelect} className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-sans">ステージ選択に戻る</button>
             )}
           </div>
         </div>

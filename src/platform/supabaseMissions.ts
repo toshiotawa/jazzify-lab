@@ -15,6 +15,7 @@ export interface MissionSong {
 export interface Mission {
   id: string;
   type: 'weekly' | 'monthly';
+  category: 'diary' | 'song_clear' | 'fantasy_clear';
   diary_count?: number | null;
   title: string;
   description?: string | null;
@@ -59,7 +60,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
   const { data, error } = await fetchWithCache(key, async () => {
     const result = await getSupabaseClient()
       .from('challenges')
-      .select('id,type,diary_count,title,description,start_date,end_date,reward_multiplier,challenge_tracks(song_id,key_offset,min_speed,min_rank,clears_required,notation_setting,songs(id,title,artist))')
+      .select('id,type,category,diary_count,title,description,start_date,end_date,reward_multiplier,challenge_tracks(song_id,key_offset,min_speed,min_rank,clears_required,notation_setting,songs(id,title,artist))')
       .eq('type','monthly')
       .lte('start_date', today)  // 開始日が今日以前（今日を含む）
       .gte('end_date', today);   // 終了日が今日以降（今日を含む）
@@ -72,6 +73,7 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
   // データを正しくマッピング
   const missions = data.map((mission: any) => ({
     ...mission,
+    category: mission.category || 'song_clear',
     songs: mission.challenge_tracks?.map((track: any) => ({
       song_id: track.song_id,
       key_offset: track.key_offset || 0,
@@ -419,65 +421,75 @@ export async function claimReward(missionId: string) {
   const userId = await requireUserId();
   
   try {
-    // ミッション情報を取得
+    // ミッション情報を取得（category を含む）
     const { data: mission, error: missionError } = await supabase
       .from('challenges')
-      .select('reward_multiplier, diary_count')
+      .select('reward_multiplier, diary_count, category')
       .eq('id', missionId)
       .single();
     
     if (missionError) throw missionError;
     
-    // ミッションの曲情報を取得
-    const { data: missionSongs, error: songsError } = await supabase
-      .from('challenge_tracks')
-      .select('song_id, clears_required')
-      .eq('challenge_id', missionId);
-    
-    if (songsError) throw songsError;
-    
     // 実際の進捗を計算
     let totalRequired = 0;
     let totalCompleted = 0;
-    
-    // 日記ミッションの場合
-    if (mission.diary_count && mission.diary_count > 0) {
-      totalRequired = mission.diary_count;
-      // 日記の進捗を取得
+
+    if (mission.category === 'diary') {
+      // 日記ミッション
+      totalRequired = mission.diary_count || 0;
       const { data: diaryProgress, error: diaryError } = await supabase
         .from('user_challenge_progress')
         .select('clear_count')
         .eq('user_id', userId)
         .eq('challenge_id', missionId)
         .maybeSingle();
-      
       if (diaryError) throw diaryError;
       totalCompleted = diaryProgress?.clear_count || 0;
+    } else if (mission.category === 'fantasy_clear') {
+      // ファンタジーステージ・ミッション（通常のファンタジーモードとは完全分離）
+      const { data: tracks, error: tracksError } = await supabase
+        .from('challenge_fantasy_tracks')
+        .select('fantasy_stage_id, clears_required')
+        .eq('challenge_id', missionId);
+      if (tracksError) throw tracksError;
+      const trackList = tracks || [];
+      totalRequired = trackList.length;
+
+      for (const tr of trackList) {
+        const { data: p } = await supabase
+          .from('user_challenge_fantasy_progress')
+          .select('clear_count')
+          .eq('user_id', userId)
+          .eq('challenge_id', missionId)
+          .eq('fantasy_stage_id', tr.fantasy_stage_id)
+          .maybeSingle();
+        const required = tr.clears_required || 1;
+        const actual = p?.clear_count || 0;
+        if (actual >= required) totalCompleted++;
+      }
     } else {
-      // 曲ミッションの場合
-      totalRequired = missionSongs.length;
-      
-      // 各曲の進捗を確認
-      for (const song of missionSongs) {
+      // 曲クリア・ミッション（既存）
+      const { data: missionSongs, error: songsError } = await supabase
+        .from('challenge_tracks')
+        .select('song_id, clears_required')
+        .eq('challenge_id', missionId);
+      if (songsError) throw songsError;
+      totalRequired = (missionSongs || []).length;
+      for (const song of (missionSongs || [])) {
         const { data: songProgress } = await supabase
           .from('user_song_progress')
           .select('clear_count')
           .eq('user_id', userId)
           .eq('song_id', song.song_id)
           .maybeSingle();
-        
         const requiredCount = song.clears_required || 1;
         const actualCount = songProgress?.clear_count || 0;
-        
-        if (actualCount >= requiredCount) {
-          totalCompleted++;
-        }
+        if (actualCount >= requiredCount) totalCompleted++;
       }
     }
     
     // ミッションが完了しているかチェック
     const isMissionCompleted = totalCompleted >= totalRequired && totalRequired > 0;
-    
     if (!isMissionCompleted) {
       throw new Error('ミッションが完了していません');
     }
@@ -491,20 +503,15 @@ export async function claimReward(missionId: string) {
       .maybeSingle();
     
     if (progressError) {
-      // reward_claimed列が存在しない場合のエラー
       if (progressError.code === '42703') {
         console.warn('reward_claimed列が存在しません。マイグレーションが必要です。');
-        // 代替手段：completed列のみでチェック
         const { data: fallbackProgress, error: fallbackError } = await supabase
           .from('user_challenge_progress')
           .select('completed')
           .eq('user_id', userId)
           .eq('challenge_id', missionId)
           .maybeSingle();
-        
         if (fallbackError) throw fallbackError;
-        
-        // completedがtrueの場合は既に報酬を受け取ったとみなす
         if (fallbackProgress?.completed) {
           throw new Error('このミッションの報酬は既に受け取っています');
         }
@@ -512,46 +519,27 @@ export async function claimReward(missionId: string) {
         throw progressError;
       }
     } else {
-      // reward_claimed列が存在する場合の通常処理
       if (existingProgress?.reward_claimed) {
         throw new Error('このミッションの報酬は既に受け取っています');
       }
     }
     
-    // ① 報酬受取フラグを設定（reward_claimed列が存在する場合のみ）
+    // ① 報酬受取フラグを設定
     try {
-      // まずレコードが存在するかチェック
       const { data: existingRecord } = await supabase
         .from('user_challenge_progress')
         .select('id')
         .eq('user_id', userId)
         .eq('challenge_id', missionId)
         .maybeSingle();
-      
       if (existingRecord) {
-        // レコードが存在する場合は更新
         const { error: updateError } = await supabase
           .from('user_challenge_progress')
-          .update({ reward_claimed: true })
+          .update({ reward_claimed: true, completed: true, clear_count: totalCompleted })
           .eq('user_id', userId)
           .eq('challenge_id', missionId);
-        
-        if (updateError) {
-          // reward_claimed列が存在しない場合はcompletedをtrueに設定
-          if (updateError.code === '42703') {
-            const { error: fallbackUpdateError } = await supabase
-              .from('user_challenge_progress')
-              .update({ completed: true })
-              .eq('user_id', userId)
-              .eq('challenge_id', missionId);
-            
-            if (fallbackUpdateError) throw fallbackUpdateError;
-          } else {
-            throw updateError;
-          }
-        }
+        if (updateError) throw updateError;
       } else {
-        // レコードが存在しない場合は新規作成
         const { error: insertError } = await supabase
           .from('user_challenge_progress')
           .insert({
@@ -559,49 +547,28 @@ export async function claimReward(missionId: string) {
             challenge_id: missionId,
             clear_count: totalCompleted,
             completed: true,
-            reward_claimed: true
+            reward_claimed: true,
           });
-        
-        if (insertError) {
-          // reward_claimed列が存在しない場合はcompletedのみで作成
-          if (insertError.code === '42703') {
-            const { error: fallbackInsertError } = await supabase
-              .from('user_challenge_progress')
-              .insert({
-                user_id: userId,
-                challenge_id: missionId,
-                clear_count: totalCompleted,
-                completed: true
-              });
-            
-            if (fallbackInsertError) throw fallbackInsertError;
-          } else {
-            throw insertError;
-          }
-        }
+        if (insertError) throw insertError;
       }
     } catch (updateError: any) {
       if (updateError.code === '42703') {
-        // reward_claimed列が存在しない場合はcompletedをtrueに設定
         const { error: fallbackUpdateError } = await supabase
           .from('user_challenge_progress')
-          .update({ completed: true })
+          .update({ completed: true, clear_count: totalCompleted })
           .eq('user_id', userId)
           .eq('challenge_id', missionId);
-        
         if (fallbackUpdateError) throw fallbackUpdateError;
       } else {
         throw updateError;
       }
     }
 
-    // ② ミッション固有のXP付与（正しいaddXp関数を使用）
-    const rewardXP = mission?.reward_multiplier || 2000; // デフォルト2000XP
-    
-    // addXp関数をインポートして使用
+    // ② XP付与
+    const rewardXP = mission?.reward_multiplier || 2000;
     const { addXp } = await import('@/platform/supabaseXp');
-    
-    // ギルド倍率の取得
+
+    // ギルド倍率
     let guildMultiplier = 1;
     try {
       const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
@@ -615,21 +582,20 @@ export async function claimReward(missionId: string) {
     } catch {}
 
     const xpResult = await addXp({
-      songId: null, // ミッション報酬なので曲IDはnull
-      baseXp: rewardXP, // 報酬XPを基本XPとして使用
-      speedMultiplier: 1, // ミッション報酬なので速度倍率は1
-      rankMultiplier: 1, // ミッション報酬なのでランク倍率は1
-      transposeMultiplier: 1, // ミッション報酬なので移調倍率は1
-      membershipMultiplier: 1, // ミッション報酬なので会員倍率は1
-      missionMultiplier: 1 * guildMultiplier, // ギルドボーナスを適用
-      reason: 'mission_clear', // ミッション報酬の理由を明示的に指定
+      songId: null,
+      baseXp: rewardXP,
+      speedMultiplier: 1,
+      rankMultiplier: 1,
+      transposeMultiplier: 1,
+      membershipMultiplier: 1,
+      missionMultiplier: 1 * guildMultiplier,
+      reason: 'mission_clear',
     });
     
     clearSupabaseCache();
     // 統計キャッシュをクリア
     clearUserStatsCache();
     
-    // XP獲得情報を返す
     const { data: currentProfile } = await supabase
       .from('profiles')
       .select('level')
