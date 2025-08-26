@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal, FaHatWizard } from 'react-icons/fa';
+import { FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal, FaHatWizard } from 'react-icons/fa';
 import DiaryFeed from './DiaryFeed';
 import { useAuthStore } from '@/stores/authStore';
 import DiaryEditor from './DiaryEditor';
@@ -10,6 +10,7 @@ import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
+import { calcLevel } from '@/platform/supabaseXp';
 import GuildInviteControls from '@/components/guild/GuildInviteControls';
 import { getGuildOfUser, Guild } from '@/platform/supabaseGuilds';
 
@@ -48,8 +49,7 @@ const DiaryPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const { user, isGuest, profile: authProfile } = useAuthStore();
   const isStandardGlobal = authProfile?.rank === 'standard_global';
-  const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary, like } = useDiaryStore();
-  const { addComment, deleteComment, likeComment } = useDiaryStore();
+  const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary, like, addComment, likeComment } = useDiaryStore();
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [openSection, setOpenSection] = useState<Record<string, {likes:boolean;comments:boolean}>>({});
   const [editingId, setEditingId] = useState<string|null>(null);
@@ -102,15 +102,12 @@ const DiaryPage: React.FC = () => {
       setProfile(result.profile);
       setUserStats(stats);
       setJoinedGuild(guild);
-    } catch (e: any) {
-      setError(e.message || 'データの読み込みに失敗しました');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'データの読み込みに失敗しました';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleClose = () => {
-    window.location.href = '/main#dashboard';
   };
 
   if (!open) return null;
@@ -161,7 +158,7 @@ const DiaryPage: React.FC = () => {
   // 称号の種類を判定する関数
   const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
     // レベル称号の判定
-    if (TITLES.includes(title as any)) {
+    if (TITLES.includes(title as Title)) {
       return 'level';
     }
     // ミッション称号の判定
@@ -173,7 +170,7 @@ const DiaryPage: React.FC = () => {
       return 'lesson';
     }
     // 魔法使い称号の判定
-    if (WIZARD_TITLES.includes(title as any)) {
+    if (WIZARD_TITLES.includes(title as Title)) {
       return 'wizard';
     }
     // デフォルトはレベル称号
@@ -235,7 +232,7 @@ const DiaryPage: React.FC = () => {
               <div className="pb-6">
                 {/* ユーザープロフィール */}
                 {profile && (
-                  <div className="p-4 sm:p-6 border-b border-slate-700">
+                  <div className="bg-slate-800 rounded-lg p-6 border border-slate-700 mx-4 sm:mx-6">
                     <div className="flex items-center space-x-4">
                       <img
                         src={profile.avatar_url || DEFAULT_AVATAR_URL}
@@ -258,6 +255,10 @@ const DiaryPage: React.FC = () => {
                             onMouseEnter={()=>setHoveredTitle(true)}
                             onMouseLeave={()=>setHoveredTitle(false)}
                             onClick={(e)=>{ e.stopPropagation(); setClickedTitle(v=>!v); }}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); setClickedTitle(v=>!v);} }}
+                            aria-label="称号の詳細を表示"
                           >
                             {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
                             <span className="text-yellow-400 font-medium text-sm truncate max-w-[240px]">
@@ -274,25 +275,47 @@ const DiaryPage: React.FC = () => {
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center space-x-3 text-sm text-gray-400">
-                          <span>Lv.{profile.level}</span>
-                          <div className="flex items-center space-x-1">
-                            {getRankIcon(profile.rank)}
-                            <span className="capitalize">{profile.rank}</span>
+                        <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+                          <div className="bg-slate-900 rounded p-3 border border-slate-700">
+                            <div className="text-gray-400">累計経験値</div>
+                            <div className="text-lg font-semibold">{(profile.xp ?? 0).toLocaleString()}</div>
                           </div>
-                          <span>累計経験値 {profile.xp?.toLocaleString() || '0'}</span>
-                        </div>
-                        <div className="mt-2 grid grid-cols-2 gap-3 text-sm" role="group" aria-label="達成状況">
-                          <div className="flex items-center space-x-2" aria-label="ミッション完了数">
-                            <FaTrophy className="text-purple-400" aria-hidden="true" />
-                            <span className="text-gray-400">ミッション完了</span>
-                            <span className="font-semibold text-white">{userStats?.missionCompletedCount ?? 0}</span>
+                          <div className="bg-slate-900 rounded p-3 border border-slate-700">
+                            <div className="text-gray-400">ランク</div>
+                            <div className="flex items-center space-x-2">
+                              {getRankIcon(profile.rank)}
+                              <span className="capitalize">{profile.rank}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-2" aria-label="レッスンクリア数">
-                            <FaGraduationCap className="text-blue-400" aria-hidden="true" />
-                            <span className="text-gray-400">レッスンクリア</span>
-                            <span className="font-semibold text-white">{userStats?.lessonCompletedCount ?? 0}</span>
+                          <div className="bg-slate-900 rounded p-3 border border-slate-700 col-span-2">
+                            <div className="text-gray-400">現在のレベル</div>
+                            {(() => {
+                              const levelInfo = calcLevel(profile.xp || 0);
+                              return (
+                                <>
+                                  <div className="text-lg font-semibold">Lv.{levelInfo.level}</div>
+                                  <div className="h-1.5 bg-slate-700 rounded overflow-hidden mt-1">
+                                    <div className="h-full bg-blue-500" style={{ width: `${(levelInfo.remainder / levelInfo.nextLevelXp) * 100}%` }} />
+                                  </div>
+                                  <div className="text-xs text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
+                                </>
+                              );
+                            })()}
                           </div>
+                          {userStats ? (
+                            <>
+                              <div className="bg-slate-900 rounded p-3 border border-slate-700">
+                                <div className="text-gray-400">ミッション完了数</div>
+                                <div className="text-lg font-semibold">{userStats.missionCompletedCount}</div>
+                              </div>
+                              <div className="bg-slate-900 rounded p-3 border border-slate-700">
+                                <div className="text-gray-400">レッスンクリア数</div>
+                                <div className="text-lg font-semibold">{userStats.lessonCompletedCount}</div>
+                              </div>
+                            </>
+                          ) : (
+                            null
+                          )}
                         </div>
                       </div>
                     </div>
@@ -333,7 +356,7 @@ const DiaryPage: React.FC = () => {
                                   try{
                                     await like(diary.id);
                                     setDiaries(prev => prev.map(d => d.id===diary.id ? { ...d, likes: d.likes + 1 } : d));
-                                  }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); }
+                                  }catch(e: unknown){ const message = e instanceof Error ? e.message : 'いいねに失敗しました'; toast.error(message); }
                                 }}
                               >
                                 <FaHeart className="w-4 h-4 text-pink-400" />
@@ -355,7 +378,7 @@ const DiaryPage: React.FC = () => {
                             <>
                               <textarea className="w-full bg-slate-700 p-2 rounded text-sm" rows={4} value={editText} onChange={e=>setEditText(e.target.value)} />
                               <div className="flex space-x-2 text-xs mt-2">
-                                <button className="btn btn-xs btn-primary flex items-center" onClick={async()=>{try{await update(diary.id, editText); setEditingId(null);}catch(e:any){toast.error(e.message);}}}><FaSave className="mr-1"/>保存</button>
+                                <button className="btn btn-xs btn-primary flex items-center" onClick={async()=>{try{await update(diary.id, editText); setEditingId(null);}catch(e: unknown){ const message = e instanceof Error ? e.message : '保存に失敗しました'; toast.error(message);}}}><FaSave className="mr-1"/>保存</button>
                                 <button className="btn btn-xs btn-outline flex items-center" onClick={()=>setEditingId(null)}><FaTimes className="mr-1"/>キャンセル</button>
                               </div>
                             </>
@@ -379,7 +402,7 @@ const DiaryPage: React.FC = () => {
                           {user?.id === userId && editingId!==diary.id && (
                             <div className="flex space-x-3 text-xs mt-2">
                               <button className="flex items-center text-blue-400 hover:text-blue-300" onClick={()=>{setEditingId(diary.id); setEditText(diary.content);}}><FaEdit className="mr-1"/>編集</button>
-                              <button className="flex items-center text-red-400 hover:text-red-300" onClick={async()=>{if(!confirm('削除しますか？'))return; try{await deleteDiary(diary.id); setDiaries(prev=>prev.filter(d=>d.id!==diary.id));}catch(e:any){toast.error(e.message);} }}><FaTrash className="mr-1"/>削除</button>
+                              <button className="flex items-center text-red-400 hover:text-red-300" onClick={async()=>{if(!confirm('削除しますか？'))return; try{await deleteDiary(diary.id); setDiaries(prev=>prev.filter(d=>d.id!==diary.id));}catch(e: unknown){ const message = e instanceof Error ? e.message : '削除に失敗しました'; toast.error(message);} }}><FaTrash className="mr-1"/>削除</button>
                             </div>
                           )}
 
@@ -388,8 +411,8 @@ const DiaryPage: React.FC = () => {
                             <div className="absolute right-4 top-12 bg-slate-700 rounded shadow-lg p-2 w-52 max-h-60 overflow-y-auto space-y-1 z-20 whitespace-nowrap">
                               {likeUsers[diary.id].map(u=>(
                                 <div key={u.user_id} className="flex items-center space-x-2 text-xs text-gray-200">
-                                  <button onClick={()=>{window.location.href=`/main#diary-user?id=${u.user_id}`;}}>
-                                    <img src={u.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
+                                  <button onClick={()=>{window.location.href=`/main#diary-user?id=${u.user_id}`;}} aria-label="ユーザープロフィールへ">
+                                    <img src={u.avatar_url||DEFAULT_AVATAR_URL} alt="avatar" className="w-6 h-6 rounded-full object-cover" />
                                   </button>
                                   <button className="truncate hover:text-blue-400" onClick={()=>{window.location.href=`/main#diary-user?id=${u.user_id}`;}}>{u.nickname}</button>
                                   <span className="text-yellow-400">Lv.{u.level}</span>
@@ -416,15 +439,15 @@ const DiaryPage: React.FC = () => {
                             <div className="mt-2 space-y-2">
                               {comments[diary.id].map(c=>(
                                 <div key={c.id} className="text-xs text-gray-300 flex items-center space-x-2">
-                                  <button onClick={()=>{window.location.href=`/main#diary-user?id=${c.user_id}`;}}>
-                                    <img src={c.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
+                                  <button onClick={()=>{window.location.href=`/main#diary-user?id=${c.user_id}`;}} aria-label="ユーザープロフィールへ">
+                                    <img src={c.avatar_url||DEFAULT_AVATAR_URL} alt="avatar" className="w-6 h-6 rounded-full object-cover" />
                                   </button>
                                   <button className="font-semibold hover:text-blue-400" onClick={()=>{window.location.href=`/main#diary-user?id=${c.user_id}`;}}>{c.nickname}</button>
                                   <p className="flex-1 break-words">{c.content}</p>
                                   <span className="text-[10px] text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleString('ja-JP', { year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
                                   <button
                                     className="text-pink-400 hover:text-pink-300 disabled:opacity-50"
-                                    onClick={async ()=>{ try{ await likeComment(c.id, diary.id); }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); } }}
+                                    onClick={async ()=>{ try{ await likeComment(c.id, diary.id); }catch(e: unknown){ const message = e instanceof Error ? e.message : 'いいねに失敗しました'; toast.error(message); } }}
                                     title={c.user_id===user?.id ? '自分のコメントにはいいねできません' : 'いいね'}
                                     disabled={c.user_id===user?.id}
                                   >
@@ -449,7 +472,7 @@ const DiaryPage: React.FC = () => {
                                       await addComment(diary.id, text);
                                       setCommentText(prev=>({ ...prev, [diary.id]: '' }));
                                       await fetchComments(diary.id);
-                                    } catch(e:any){ toast.error(e.message||'コメントの追加に失敗しました'); }
+                                    } catch(e: unknown){ const message = e instanceof Error ? e.message : 'コメントの追加に失敗しました'; toast.error(message); }
                                   }}
                                   disabled={!commentText[diary.id]?.trim()}
                                 >送信</button>
