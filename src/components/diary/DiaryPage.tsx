@@ -282,6 +282,18 @@ const DiaryPage: React.FC = () => {
                           </div>
                           <span>累計経験値 {profile.xp?.toLocaleString() || '0'}</span>
                         </div>
+                        <div className="mt-2 grid grid-cols-2 gap-3 text-sm" role="group" aria-label="達成状況">
+                          <div className="flex items-center space-x-2" aria-label="ミッション完了数">
+                            <FaTrophy className="text-purple-400" aria-hidden="true" />
+                            <span className="text-gray-400">ミッション完了</span>
+                            <span className="font-semibold text-white">{userStats?.missionCompletedCount ?? 0}</span>
+                          </div>
+                          <div className="flex items-center space-x-2" aria-label="レッスンクリア数">
+                            <FaGraduationCap className="text-blue-400" aria-hidden="true" />
+                            <span className="text-gray-400">レッスンクリア</span>
+                            <span className="font-semibold text-white">{userStats?.lessonCompletedCount ?? 0}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
