@@ -15,11 +15,11 @@ import {
   updateChallengeSong,
   removeSongFromChallenge,
 } from '@/platform/supabaseChallenges';
-import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
+import { useToast, handleApiError } from '@/stores/toastStore';
 import SongSelector from './SongSelector';
-import { fetchUserMissionProgress } from '@/platform/supabaseMissions';
+
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaCalendar, FaTrophy } from 'react-icons/fa';
+import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaTrophy } from 'react-icons/fa';
 
 interface FormValues {
   type: ChallengeType;
@@ -46,7 +46,7 @@ const MissionManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showSongSelector, setShowSongSelector] = useState(false);
   const [editingSong, setEditingSong] = useState<ChallengeSong | null>(null);
-  const [progressMap, setProgressMap] = useState<Record<string, {clear_count:number; completed:boolean}>>({});
+
   const [selectedSongs, setSelectedSongs] = useState<string[]>([]);
   const [showFormSongSelector, setShowFormSongSelector] = useState(false);
   const [songInfo, setSongInfo] = useState<Record<string, { title: string; artist?: string }>>({});
@@ -70,14 +70,7 @@ const MissionManager: React.FC = () => {
       // 管理画面では全てのミッションを取得（アクティブでないものも含む）
       const data = await listChallenges();
       setMissions(data);
-      try {
-        const progress = await fetchUserMissionProgress();
-        const map: Record<string, {clear_count:number; completed:boolean}> = {};
-        progress.forEach(p=>{ map[p.challenge_id] = {clear_count:p.clear_count, completed:p.completed}; });
-        setProgressMap(map);
-      } catch (e) {
-        console.error('progress fetch failed', e);
-      }
+
     } finally {
       setLoading(false);
     }
@@ -464,7 +457,6 @@ const MissionManager: React.FC = () => {
                   <MissionItem
                     key={c.id}
                     mission={c}
-                    progress={progressMap[c.id]}
                     onRefresh={load}
                     onSelect={() => handleMissionSelect(c.id)}
                     isSelected={selectedMission?.id === c.id}
@@ -587,11 +579,10 @@ const MissionManager: React.FC = () => {
 
 const MissionItem: React.FC<{
   mission: Challenge;
-  progress?: { clear_count: number; completed: boolean };
   onRefresh: () => void;
   onSelect: () => void;
   isSelected: boolean;
-}> = ({ mission, progress, onRefresh, onSelect, isSelected }) => {
+}> = ({ mission, onRefresh, onSelect, isSelected }) => {
   const [editing, setEditing] = useState(false);
   const { register, handleSubmit } = useForm<Partial<Challenge>>({ defaultValues: mission });
   const toast = useToast();
@@ -699,17 +690,7 @@ const MissionItem: React.FC<{
             )}
         </div>
 
-        {progress && (
-          <div className="mt-2">
-            <div className="flex justify-between text-xs">
-              <span>進捗</span>
-              <span>{progress.clear_count}/{mission.diary_count ?? 1}</span>
-            </div>
-            <div className="w-full bg-slate-700 rounded h-2 overflow-hidden">
-              <div className="h-full bg-primary-500" style={{width:`${Math.min(100, (progress.clear_count / (mission.diary_count ?? 1))*100)}%`}} />
-            </div>
-          </div>
-        )}
+
       </div>
     )}
   </li>
