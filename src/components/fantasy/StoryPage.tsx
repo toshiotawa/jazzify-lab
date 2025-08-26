@@ -135,7 +135,7 @@ const StoryPage: React.FC = () => {
           menuOpen ? 'block' : 'hidden',
           'sm:bg-transparent'
         ].join(' ')}>
-          <div className="bg-black/20 sm:bg-black/10 rounded-lg p-3 sm:p-4 max-h-[50vh] sm:max-h-[calc(100vh-200px)] overflow-y-auto">
+          <div className="bg-black/20 sm:bg-black/10 rounded-lg p-3 sm:p-4 max-h-[50vh] sm:max-h-[calc(100dvh-240px)] overflow-y-auto">
             <div className="space-y-2">
               {episodeList.map((ep) => {
                 const unlocked = ep <= unlockedCount;
@@ -159,7 +159,7 @@ const StoryPage: React.FC = () => {
         </aside>
 
         {/* 本文 */}
-        <main className="min-h-[60vh]">
+        <main>
           <div className="bg-black/20 rounded-lg p-4 sm:p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl sm:text-2xl font-semibold">第{selected}話</h2>
@@ -171,13 +171,6 @@ const StoryPage: React.FC = () => {
                     disabled={selected <= 1}
                   >
                     前へ
-                  </button>
-                  <button
-                    className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-md disabled:opacity-50"
-                    onClick={() => setSelected((s) => Math.min(EPISODE_COUNT, s + 1))}
-                    disabled={selected >= EPISODE_COUNT}
-                  >
-                    次へ
                   </button>
                 </div>
               )}
