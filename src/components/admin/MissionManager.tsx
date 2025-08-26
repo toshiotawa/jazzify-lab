@@ -1127,4 +1127,37 @@ const FantasyAddModal: React.FC<{ missionId: string; onClose: () => void; onAdde
   );
 };
 
+// 追加: フォーム用ファンタジー追加モーダル（新規作成時に使用）
+const FormFantasyAddModal: React.FC<{ onClose: () => void; onAdd: (stageId: string, clears: number) => void }> = ({ onClose, onAdd }) => {
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const [count, setCount] = useState<number>(1);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="bg-slate-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">ファンタジーステージを追加</h3>
+          <button className="btn btn-sm btn-ghost" onClick={onClose}>✕</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <FantasyStageSelector selectedStageId={selectedStageId} onStageSelect={setSelectedStageId} />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">必要クリア回数</label>
+            <input type="number" min={1} value={count} onChange={(e)=>setCount(parseInt(e.target.value,10)||1)} className="input input-bordered w-full text-white" />
+            <button
+              className="btn btn-primary w-full mt-3"
+              disabled={!selectedStageId || count <= 0}
+              onClick={() => { if (selectedStageId) onAdd(selectedStageId, count); }}
+            >
+              追加
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default MissionManager; 
