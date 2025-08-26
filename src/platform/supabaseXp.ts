@@ -1,6 +1,6 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { requireUserId } from '@/platform/authHelpers';
-import { MembershipRank } from '@/platform/supabaseSongs';
+import { log } from '@/utils/logger';
 
 // 経験値テーブル: レベル1-10 => 2,000 XP / lvl, 11-50 => 50,000, 51+ => 100,000
 export function calcLevel(totalXp: number): { level: number; remainder: number; nextLevelXp: number } {
@@ -49,13 +49,34 @@ export async function addXp(params: AddXpParams) {
   const supabase = getSupabaseClient();
   const userId = await requireUserId();
 
+  // 認証ユーザー情報（メール取得用）
+  const { data: authData } = await supabase.auth.getUser();
+
+  // プロファイル取得（存在しない場合は作成）
   const { data: profile } = await supabase
     .from('profiles')
     .select('xp, level, next_season_xp_multiplier')
     .eq('id', userId)
-    .single();
-  const currentXp = profile?.xp ?? 0;
-  const seasonMul = profile?.next_season_xp_multiplier ?? 1;
+    .maybeSingle();
+
+  if (!profile) {
+    const email = authData?.user?.email ?? `${userId}@local.invalid`;
+    const nickname = email.split('@')[0] || 'Player';
+    const { error: createErr } = await supabase.from('profiles').insert({
+      id: userId,
+      email,
+      nickname,
+      rank: 'free',
+      xp: 0,
+      level: 1,
+      is_admin: false,
+    });
+    if (createErr) throw createErr;
+  }
+
+  // bigint の可能性があるため数値へ正規化
+  const currentXp = Number((profile as any)?.xp ?? 0);
+  const seasonMul = Number((profile as any)?.next_season_xp_multiplier ?? 1);
   const missionMul = params.missionMultiplier ?? 1;
   const gained = Math.round(
     params.baseXp * params.speedMultiplier * params.rankMultiplier * params.transposeMultiplier * params.membershipMultiplier * missionMul * seasonMul,
@@ -99,7 +120,7 @@ export async function addXp(params: AddXpParams) {
       const monthStr = monthStartUtc.toISOString().slice(0, 10);
       await supabase
         .from('guild_xp_contributions')
-        .insert({ guild_id: guildId, user_id: user.id, gained_xp: gained, month: monthStr });
+        .insert({ guild_id: guildId, user_id: userId, gained_xp: gained, month: monthStr });
       
       // チャレンジギルドの場合、ストリークを更新
       if (guildType === 'challenge') {
@@ -108,7 +129,7 @@ export async function addXp(params: AddXpParams) {
       }
     }
   } catch (e) {
-    console.warn('guild_xp_contributions insert failed:', e);
+    log.warn('guild_xp_contributions insert failed:', e);
   }
 
   return {

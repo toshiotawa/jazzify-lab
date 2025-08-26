@@ -335,6 +335,19 @@ const FantasyMain: React.FC = () => {
       }
     } catch (xpError) {
       console.error('ファンタジーモードXP付与エラー:', xpError);
+      // フォールバック表示（計算中のままにしない）
+      const base = xpGain;
+      setXpInfo({
+        gained: 0,
+        total: profile?.xp ?? 0,
+        level: profile?.level ?? 1,
+        previousLevel: profile?.level ?? 1,
+        nextLevelXp: xpToNextLevel(profile?.level ?? 1),
+        currentLevelXp: currentLevelXP(profile?.level ?? 1, profile?.xp ?? 0),
+        leveledUp: false,
+        base,
+        multipliers: { membership: 1, guild: 1 },
+      });
     }
   }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest, isMissionMode, missionContext]);
 
