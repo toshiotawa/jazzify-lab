@@ -163,29 +163,31 @@ const StoryPage: React.FC = () => {
           <div className="bg-black/20 rounded-lg p-4 sm:p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl sm:text-2xl font-semibold">第{selected}話</h2>
-              <div className="hidden sm:flex gap-2">
-                <button
-                  className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-md disabled:opacity-50"
-                  onClick={() => setSelected((s) => Math.max(1, s - 1))}
-                  disabled={selected <= 1}
-                >
-                  前へ
-                </button>
-                <button
-                  className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-md disabled:opacity-50"
-                  onClick={() => setSelected((s) => Math.min(EPISODE_COUNT, s + 1))}
-                  disabled={selected >= EPISODE_COUNT}
-                >
-                  次へ
-                </button>
-              </div>
+              {selected <= unlockedCount && (
+                <div className="hidden sm:flex gap-2">
+                  <button
+                    className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-md disabled:opacity-50"
+                    onClick={() => setSelected((s) => Math.max(1, s - 1))}
+                    disabled={selected <= 1}
+                  >
+                    前へ
+                  </button>
+                  <button
+                    className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-md disabled:opacity-50"
+                    onClick={() => setSelected((s) => Math.min(EPISODE_COUNT, s + 1))}
+                    disabled={selected >= EPISODE_COUNT}
+                  >
+                    次へ
+                  </button>
+                </div>
+              )}
             </div>
 
             {selected > unlockedCount && (
               <div className="text-sm text-yellow-200 mb-3">この話を読むには、合計クリア数が{(selected - 1) * 10}に達している必要があります。</div>
             )}
 
-            <div className="overflow-y-auto max-h-[50vh] sm:max-h-[calc(100vh-280px)] pr-2">
+            <div className="overflow-y-auto max-h-[50vh] sm:max-h-[calc(100dvh-240px)] pr-2">
               {loading ? (
                 <div className="text-center py-10">読み込み中...</div>
               ) : error ? (
