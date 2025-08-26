@@ -4,6 +4,16 @@ import { fetchFantasyClearedStageCounts } from '@/platform/supabaseFantasyStages
 
 const EPISODE_COUNT = 60 as const;
 
+// 話ごとの必要クリア数ルール
+// 1話: 0, 2話:1, 3話:5, 4話:10, 以降は+20ずつ
+const getRequiredClears = (episodeIndex: number): number => {
+  if (episodeIndex <= 1) return 0;
+  if (episodeIndex === 2) return 1;
+  if (episodeIndex === 3) return 5;
+  if (episodeIndex === 4) return 10;
+  return 10 + (episodeIndex - 4) * 20;
+};
+
 interface EpisodeItemProps {
   index: number;
   unlocked: boolean;
@@ -59,8 +69,16 @@ const StoryPage: React.FC = () => {
         }
         const counts = await fetchFantasyClearedStageCounts(profile.id);
         const total = counts?.total ?? 0;
-        const episodes = Math.max(1, Math.min(EPISODE_COUNT, Math.floor(total / 10) + 1));
-        if (mounted) setUnlockedCount(episodes);
+        // 累積クリア数に基づき解放話数を決定
+        let unlocked = 1;
+        for (let i = 2; i <= EPISODE_COUNT; i += 1) {
+          if (total >= getRequiredClears(i)) {
+            unlocked = i;
+          } else {
+            break;
+          }
+        }
+        if (mounted) setUnlockedCount(unlocked);
       } catch {
         if (mounted) setUnlockedCount(1);
       }
@@ -139,7 +157,7 @@ const StoryPage: React.FC = () => {
             <div className="space-y-2">
               {episodeList.map((ep) => {
                 const unlocked = ep <= unlockedCount;
-                const required = (ep - 1) * 10;
+                const required = getRequiredClears(ep);
                 return (
                   <EpisodeItem
                     key={ep}
@@ -177,7 +195,7 @@ const StoryPage: React.FC = () => {
             </div>
 
             {selected > unlockedCount && (
-              <div className="text-sm text-yellow-200 mb-3">この話を読むには、合計クリア数が{(selected - 1) * 10}に達している必要があります。</div>
+              <div className="text-sm text-yellow-200 mb-3">この話を読むには、合計クリア数が{getRequiredClears(selected)}に達している必要があります。</div>
             )}
 
             {loading ? (
