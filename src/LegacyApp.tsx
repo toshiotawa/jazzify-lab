@@ -24,6 +24,7 @@ import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import PricingTable from '@/components/subscription/PricingTable';
 import FantasyMain from '@/components/fantasy/FantasyMain';
+import StoryPage from '@/components/fantasy/StoryPage';
 import GuildDashboard from '@/components/guild/GuildDashboard';
 import GuildHistory from '@/components/guild/GuildHistory';
 import MyGuildHistory from '@/components/guild/MyGuildHistory';
@@ -288,6 +289,9 @@ const App: React.FC = () => {
       break;
     case '#fantasy':
       MainContent = isFree ? <Dashboard /> : <FantasyMain />;
+      break;
+    case '#Story':
+      MainContent = isFree ? <Dashboard /> : <StoryPage />;
       break;
     case '#songs':
     case '#practice':
