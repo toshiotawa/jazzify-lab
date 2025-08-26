@@ -28,16 +28,16 @@ export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
       .finally(() => setLoading(false));
   }, []);
   
-  // 検索フィルタリング
+  // 検索フィルタリング（nullセーフ）
   const filteredStages = useMemo(() => {
     if (!searchTerm) return stages;
-    
-    const lowerSearchTerm = searchTerm.toLowerCase();
-    return stages.filter(stage => 
-      stage.name.toLowerCase().includes(lowerSearchTerm) || 
-      stage.stage_number.toLowerCase().includes(lowerSearchTerm) ||
-      stage.description.toLowerCase().includes(lowerSearchTerm)
-    );
+    const lower = searchTerm.toLowerCase();
+    return stages.filter(stage => {
+      const name = (stage.name ?? '').toLowerCase();
+      const desc = (stage.description ?? '').toLowerCase();
+      const num  = (stage.stage_number ?? '').toLowerCase();
+      return name.includes(lower) || desc.includes(lower) || num.includes(lower);
+    });
   }, [stages, searchTerm]);
   
   if (loading) {
@@ -87,10 +87,10 @@ export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="font-semibold text-lg">
-                    {stage.stage_number} - {stage.name}
+                    {(stage.stage_number ?? '—')} - {stage.name ?? 'No Title'}
                   </div>
                   <div className="text-sm text-gray-600 mt-1">
-                    {stage.description}
+                    {stage.description ?? ''}
                   </div>
                   <div className="flex flex-wrap gap-2 mt-2">
                     <span className="text-xs px-2 py-1 bg-gray-100 rounded">
