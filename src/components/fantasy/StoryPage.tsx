@@ -160,7 +160,7 @@ const StoryPage: React.FC = () => {
 
         {/* 本文 */}
         <main>
-          <div className="bg-black/20 rounded-lg p-4 sm:p-6">
+          <div className="bg-black/20 rounded-lg p-4 sm:p-6 max-h-[50vh] sm:max-h-[calc(100dvh-240px)] overflow-y-auto pr-2">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl sm:text-2xl font-semibold">第{selected}話</h2>
               {selected <= unlockedCount && (
@@ -180,17 +180,15 @@ const StoryPage: React.FC = () => {
               <div className="text-sm text-yellow-200 mb-3">この話を読むには、合計クリア数が{(selected - 1) * 10}に達している必要があります。</div>
             )}
 
-            <div className="overflow-y-auto max-h-[50vh] sm:max-h-[calc(100dvh-240px)] pr-2">
-              {loading ? (
-                <div className="text-center py-10">読み込み中...</div>
-              ) : error ? (
-                <div className="text-red-300 text-sm">{error}</div>
-              ) : (
-                <div className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base text-white/95">
-                  {content}
-                </div>
-              )}
-            </div>
+            {loading ? (
+              <div className="text-center py-10">読み込み中...</div>
+            ) : error ? (
+              <div className="text-red-300 text-sm">{error}</div>
+            ) : (
+              <div className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base text-white/95">
+                {content}
+              </div>
+            )}
           </div>
         </main>
       </div>
