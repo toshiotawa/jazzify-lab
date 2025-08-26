@@ -19,7 +19,10 @@ import { useToast, handleApiError } from '@/stores/toastStore';
 import SongSelector from './SongSelector';
 
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaTrophy } from 'react-icons/fa';
+import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaTrophy, FaHatWizard } from 'react-icons/fa';
+import { FantasyStageSelector } from './FantasyStageSelector';
+import { getChallengeFantasyTracks, addFantasyStageToChallenge, removeFantasyStageFromChallenge, updateFantasyStageInChallenge } from '@/platform/supabaseChallengeFantasy';
+import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 
 interface FormValues {
   type: ChallengeType;
@@ -46,18 +49,24 @@ const MissionManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showSongSelector, setShowSongSelector] = useState(false);
   const [editingSong, setEditingSong] = useState<ChallengeSong | null>(null);
+  const [showFantasyAddModal, setShowFantasyAddModal] = useState(false);
 
   const [selectedSongs, setSelectedSongs] = useState<string[]>([]);
   const [showFormSongSelector, setShowFormSongSelector] = useState(false);
   const [songInfo, setSongInfo] = useState<Record<string, { title: string; artist?: string }>>({});
   const [songConditions, setSongConditions] = useState<Record<string, SongConditions>>({});
   const [editingFormSong, setEditingFormSong] = useState<string | null>(null);
+
+  // 新規作成用: ファンタジー選択リスト
+  const [selectedFantasy, setSelectedFantasy] = useState<Array<{ stageId: string; label: string; clears: number }>>([]);
+  const [showFormFantasyAddModal, setShowFormFantasyAddModal] = useState(false);
+
   const { register, handleSubmit, reset, watch } = useForm<FormValues>({
     defaultValues: {
       type: 'monthly',
       category: 'song_clear',
-      start_date: new Date().toISOString().substring(0, 10), // 今日の日付
-      end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10), // 30日後
+      start_date: new Date().toISOString().substring(0, 10),
+      end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
       reward_multiplier: 2000,
     },
   });
@@ -67,10 +76,8 @@ const MissionManager: React.FC = () => {
   const load = async () => {
     setLoading(true);
     try {
-      // 管理画面では全てのミッションを取得（アクティブでないものも含む）
       const data = await listChallenges();
       setMissions(data);
-
     } finally {
       setLoading(false);
     }
@@ -84,13 +91,10 @@ const MissionManager: React.FC = () => {
 
   const onSubmit = async (v: FormValues) => {
     try {
-      // 日付の妥当性チェック
       const startDate = new Date(v.start_date);
       const endDate = new Date(v.end_date);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
-
 
       if (endDate <= startDate) {
         toast.error('終了日は開始日より後の日付を設定してください');
@@ -102,7 +106,6 @@ const MissionManager: React.FC = () => {
         return;
       }
 
-      // カテゴリに応じて適切なフィールドを設定
       const payload = {
         type: v.type,
         category: v.category,
@@ -112,11 +115,9 @@ const MissionManager: React.FC = () => {
         end_date: v.end_date,
         reward_multiplier: v.reward_multiplier,
         diary_count: v.category === 'diary' ? v.diary_count : null,
-      };
-      
+      } as const;
       const newChallengeId = await createChallenge(payload);
-      
-      // 曲クリアタイプで楽曲が選択されている場合、楽曲を追加
+
       if (v.category === 'song_clear' && selectedSongs.length > 0) {
         for (const songId of selectedSongs) {
           const conditions = songConditions[songId] || {
@@ -128,28 +129,24 @@ const MissionManager: React.FC = () => {
           };
           await addSongToChallenge(newChallengeId, songId, conditions);
         }
-        
-        toast.success(`ミッションを追加し、${selectedSongs.length}曲を追加しました`, {
-          title: '追加完了',
-          duration: 3000,
-        });
+        toast.success(`ミッションを追加し、${selectedSongs.length}曲を追加しました`, { title: '追加完了', duration: 3000 });
+      } else if (v.category === 'fantasy_clear' && selectedFantasy.length > 0) {
+        for (const item of selectedFantasy) {
+          await addFantasyStageToChallenge(newChallengeId, item.stageId, item.clears);
+        }
+        toast.success(`ミッションを追加し、ファンタジーステージを${selectedFantasy.length}件追加しました`, { title: '追加完了', duration: 3000 });
       } else {
-        toast.success('ミッションを追加しました', {
-          title: '追加完了',
-          duration: 3000,
-        });
+        toast.success('ミッションを追加しました', { title: '追加完了', duration: 3000 });
       }
-      
+
       reset();
       setSelectedSongs([]);
       setSongConditions({});
-      
-      // キャッシュをクリアして最新データを取得
+      setSelectedFantasy([]);
+
       await load();
     } catch (e) {
-      toast.error(handleApiError(e, 'ミッション追加'), {
-        title: '追加エラー',
-      });
+      toast.error(handleApiError(e, 'ミッション追加'), { title: '追加エラー' });
     }
   };
 
@@ -176,7 +173,6 @@ const MissionManager: React.FC = () => {
     try {
       await addSongToChallenge(selectedMission.id, songId, defaultConditions);
       toast.success('楽曲を追加しました');
-      // ミッション詳細を再読み込み
       const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
       setSelectedMission(updatedChallenge);
       setShowSongSelector(false);
@@ -188,9 +184,7 @@ const MissionManager: React.FC = () => {
   const handleFormSongSelect = (songId: string) => {
     if (!selectedSongs.includes(songId)) {
       setSelectedSongs([...selectedSongs, songId]);
-      // 楽曲情報を取得して保存
       fetchSongInfo(songId);
-      // デフォルト条件を設定
       setSongConditions(prev => ({
         ...prev,
         [songId]: {
@@ -243,7 +237,6 @@ const MissionManager: React.FC = () => {
     try {
       await updateChallengeSong(selectedMission.id, songId, conditions);
       toast.success('楽曲条件を更新しました');
-      // ミッション詳細を再読み込み
       const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
       setSelectedMission(updatedChallenge);
       setEditingSong(null);
@@ -260,7 +253,6 @@ const MissionManager: React.FC = () => {
     try {
       await removeSongFromChallenge(selectedMission.id, songId);
       toast.success('楽曲を削除しました');
-      // ミッション詳細を再読み込み
       const updatedChallenge = await getChallengeWithSongs(selectedMission.id);
       setSelectedMission(updatedChallenge);
     } catch (error) {
@@ -303,6 +295,7 @@ const MissionManager: React.FC = () => {
               <span className="text-sm font-medium mb-1 block">ミッションカテゴリ</span>
               <select className="select select-bordered w-full text-white" {...register('category')}>
                 <option value="song_clear">曲クリア</option>
+                <option value="fantasy_clear">ファンタジー</option>
                 <option value="diary">日記投稿</option>
               </select>
             </label>
@@ -357,7 +350,7 @@ const MissionManager: React.FC = () => {
             {...register('description')} 
           />
 
-          {/* 曲クリアタイプの場合、楽曲選択セクション */}
+          {/* 曲クリアタイプ */}
           {watchedCategory === 'song_clear' && (
             <div className="border border-slate-600 rounded-lg p-4 bg-slate-800/30">
               <div className="flex items-center justify-between mb-4">
@@ -371,7 +364,6 @@ const MissionManager: React.FC = () => {
                   楽曲を追加
                 </button>
               </div>
-              
               {selectedSongs.length === 0 ? (
                 <div className="text-center py-4 text-gray-400">
                   <FaMusic className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -425,7 +417,45 @@ const MissionManager: React.FC = () => {
               )}
             </div>
           )}
-          
+
+          {/* ファンタジータイプ */}
+          {watchedCategory === 'fantasy_clear' && (
+            <div className="border border-purple-600 rounded-lg p-4 bg-slate-800/30">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium text-lg">ファンタジーステージ選択</h4>
+                <button type="button" className="btn btn-primary btn-sm" onClick={()=>setShowFormFantasyAddModal(true)}>追加</button>
+              </div>
+              {selectedFantasy.length === 0 ? (
+                <div className="text-center py-4 text-gray-400">
+                  <FaHatWizard className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>ステージが選択されていません</p>
+                  <p className="text-sm">「追加」ボタンからステージを選択してください</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedFantasy.map((f)=> (
+                    <div key={f.stageId} className="flex items-center justify-between p-2 bg-slate-700/50 rounded">
+                      <div className="text-sm text-white">
+                        {f.label}
+                        <span className="ml-2 text-xs text-gray-300">必要クリア: {f.clears}回</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" className="btn btn-xs" onClick={() => {
+                          const input = prompt('必要クリア回数を入力してください', String(f.clears));
+                          if (!input) return;
+                          const num = parseInt(input, 10);
+                          if (!Number.isFinite(num) || num <= 0) { toast.error('1以上の数値を入力してください'); return; }
+                          setSelectedFantasy(prev => prev.map(x => x.stageId === f.stageId ? { ...x, clears: num } : x));
+                        }}>編集</button>
+                        <button type="button" className="btn btn-xs btn-error" onClick={() => setSelectedFantasy(prev => prev.filter(x => x.stageId !== f.stageId))}>削除</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <button className="btn btn-primary w-full md:w-auto" type="submit">
             <FaPlus className="w-4 h-4 mr-2" />
             ミッションを追加
@@ -499,6 +529,22 @@ const MissionManager: React.FC = () => {
                       楽曲の追加は不要です。日記投稿数で判定されます。
                     </p>
                   </div>
+                ) : selectedMission.category === 'fantasy_clear' ? (
+                  <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center">
+                        <FaHatWizard className="w-4 h-4 mr-2 text-purple-300" />
+                        <span className="font-medium">ファンタジーステージ</span>
+                      </div>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => setShowFantasyAddModal(true)}
+                      >
+                        追加
+                      </button>
+                    </div>
+                    <AdminFantasyTrackList missionId={selectedMission.id} />
+                  </div>
                 ) : selectedMission.songs.length === 0 ? (
                   <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-6 text-center">
                     <FaMusic className="w-6 h-6 mx-auto mb-2 text-yellow-400" />
@@ -508,12 +554,7 @@ const MissionManager: React.FC = () => {
                 ) : (
                   <div className="space-y-3">
                     {selectedMission.songs.map(song => (
-                      <SongItem
-                        key={song.song_id}
-                        song={song}
-                        onEdit={handleSongEdit}
-                        onRemove={handleSongRemove}
-                      />
+                      <SongItem key={song.song_id} song={song} onEdit={handleSongEdit} onRemove={handleSongRemove} />
                     ))}
                   </div>
                 )}
@@ -572,6 +613,32 @@ const MissionManager: React.FC = () => {
           }}
           onCancel={() => setEditingFormSong(null)}
         />
+      )}
+
+      {/* ファンタジーステージ追加モーダル */}
+      {showFantasyAddModal && selectedMission && (
+        <FantasyAddModal missionId={selectedMission.id} onClose={() => setShowFantasyAddModal(false)} onAdded={() => {
+          void load(); // モーダルを閉じてもミッション一覧を再読み込み
+          setShowFantasyAddModal(false);
+        }} />
+      )}
+
+      {/* フォーム用ファンタジー追加モーダル */}
+      {showFormFantasyAddModal && (
+        <FormFantasyAddModal onClose={() => setShowFormFantasyAddModal(false)} onAdd={async (stageId, clears) => {
+          // 重複チェック
+          if (selectedFantasy.some(f => f.stageId === stageId)) {
+            toast.error('このステージは既に追加されています');
+            return;
+          }
+          try {
+            const stage = await fetchFantasyStageById(stageId);
+            setSelectedFantasy(prev => [...prev, { stageId, label: `${stage.stage_number} - ${stage.name}`, clears }]);
+            setShowFormFantasyAddModal(false);
+          } catch {
+            toast.error('ステージ情報の取得に失敗しました');
+          }
+        }} />
       )}
     </div>
   );
@@ -949,6 +1016,144 @@ const FormSongConditionsModal: React.FC<{
           <button className="btn btn-outline flex-1" onClick={onCancel}>
             キャンセル
           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 追加: ファンタジートラック一覧（管理）
+const AdminFantasyTrackList: React.FC<{ missionId: string }> = ({ missionId }) => {
+  const [tracks, setTracks] = React.useState<Array<{ fantasy_stage_id: string; stage_label: string; clears_required: number }>>([]);
+  const toast = useToast();
+
+  const load = async () => {
+    try {
+      const rows = await getChallengeFantasyTracks(missionId);
+      setTracks(rows.map(r => ({ fantasy_stage_id: r.fantasy_stage_id, stage_label: `${r.stage.stage_number} - ${r.stage.name}`, clears_required: r.clears_required })));
+    } catch (e) {
+      toast.error('ファンタジーステージの取得に失敗しました');
+    }
+  };
+
+  React.useEffect(() => { void load(); }, [missionId]);
+
+  return (
+    <div className="space-y-2">
+      {tracks.length === 0 && (
+        <div className="text-sm text-gray-400">ステージが追加されていません</div>
+      )}
+      {tracks.map(t => (
+        <div key={t.fantasy_stage_id} className="flex items-center justify-between p-2 bg-slate-700/50 rounded">
+          <div className="text-sm text-white">
+            {t.stage_label}
+            <span className="ml-2 text-xs text-gray-300">必要クリア: {t.clears_required}回</span>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn btn-xs" onClick={async () => {
+              const input = prompt('必要クリア回数を入力してください', String(t.clears_required));
+              if (!input) return;
+              const num = parseInt(input, 10);
+              if (!Number.isFinite(num) || num <= 0) {
+                toast.error('1以上の数値を入力してください');
+                return;
+              }
+              try {
+                await updateFantasyStageInChallenge(missionId, t.fantasy_stage_id, num);
+                toast.success('更新しました');
+                void load();
+              } catch (e) {
+                toast.error('更新に失敗しました');
+              }
+            }}>編集</button>
+            <button className="btn btn-xs btn-error" onClick={async () => {
+              if (!confirm('このステージを削除しますか？')) return;
+              try {
+                await removeFantasyStageFromChallenge(missionId, t.fantasy_stage_id);
+                toast.success('削除しました');
+                void load();
+              } catch (e) {
+                toast.error('削除に失敗しました');
+              }
+            }}>削除</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// 追加: ファンタジーステージ追加モーダル
+const FantasyAddModal: React.FC<{ missionId: string; onClose: () => void; onAdded: () => void }> = ({ missionId, onClose, onAdded }) => {
+  const [selectedStageId, setSelectedStageId] = React.useState<string | null>(null);
+  const [count, setCount] = React.useState<number>(1);
+  const toast = useToast();
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="bg-slate-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">ファンタジーステージを追加</h3>
+          <button className="btn btn-sm btn-ghost" onClick={onClose}>✕</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <FantasyStageSelector selectedStageId={selectedStageId} onStageSelect={setSelectedStageId} />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">必要クリア回数</label>
+            <input type="number" min={1} value={count} onChange={(e)=>setCount(parseInt(e.target.value,10)||1)} className="input input-bordered w-full text-white" />
+            <button
+              className="btn btn-primary w-full mt-3"
+              disabled={!selectedStageId || count <= 0}
+              onClick={async () => {
+                if (!selectedStageId) return;
+                try {
+                  await addFantasyStageToChallenge(missionId, selectedStageId, count);
+                  toast.success('追加しました');
+                  onAdded();
+                  onClose();
+                } catch (e) {
+                  toast.error('追加に失敗しました');
+                }
+              }}
+            >
+              追加
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 追加: フォーム用ファンタジー追加モーダル（新規作成時に使用）
+const FormFantasyAddModal: React.FC<{ onClose: () => void; onAdd: (stageId: string, clears: number) => void }> = ({ onClose, onAdd }) => {
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const [count, setCount] = useState<number>(1);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="bg-slate-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">ファンタジーステージを追加</h3>
+          <button className="btn btn-sm btn-ghost" onClick={onClose}>✕</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <FantasyStageSelector selectedStageId={selectedStageId} onStageSelect={setSelectedStageId} />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">必要クリア回数</label>
+            <input type="number" min={1} value={count} onChange={(e)=>setCount(parseInt(e.target.value,10)||1)} className="input input-bordered w-full text-white" />
+            <button
+              className="btn btn-primary w-full mt-3"
+              disabled={!selectedStageId || count <= 0}
+              onClick={() => { if (selectedStageId) onAdd(selectedStageId, count); }}
+            >
+              追加
+            </button>
+          </div>
         </div>
       </div>
     </div>
