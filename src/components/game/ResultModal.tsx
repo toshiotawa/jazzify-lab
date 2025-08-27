@@ -58,6 +58,7 @@ const ResultModal: React.FC = () => {
       case 'B': return 600;
       case 'C': return 400;
       case 'D': return 200;
+      case 'E': return 100;
       default: return 100;
     }
   };

@@ -427,7 +427,23 @@ const FantasyMain: React.FC = () => {
           }
           
         } catch (xpError) {
-          console.error('ファンタジーモードXP付与エラー:', xpError);
+          devLog.error('ファンタジーモードXP付与エラー:', xpError);
+          // フォールバック: 少なくとも現在値を表示してハングを防ぐ
+          const previousLevel = profile.level || 1;
+          const currentTotalXp = profile.xp || 0;
+          const currentLvXp = currentLevelXP(previousLevel, currentTotalXp);
+          const nextLvXp = xpToNextLevel(previousLevel);
+          setXpInfo({
+            gained: 0,
+            total: currentTotalXp,
+            level: previousLevel,
+            previousLevel: previousLevel,
+            nextLevelXp: nextLvXp,
+            currentLevelXp: currentLvXp,
+            leveledUp: false,
+            base: xpGain,
+            multipliers: { membership: membershipMultiplier, guild: 1 },
+          });
         }
       }
     } catch (error) {
