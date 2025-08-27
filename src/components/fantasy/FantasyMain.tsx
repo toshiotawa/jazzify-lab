@@ -15,7 +15,7 @@ import { LessonContext } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { getWizardRankString } from '@/utils/fantasyRankConstants';
-import { currentLevelXP, xpToNextLevel } from '@/utils/xpCalculator';
+import { currentLevelXP, xpToNextLevel, levelAfterGain } from '@/utils/xpCalculator';
 import { useToast } from '@/stores/toastStore';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
 
@@ -283,58 +283,89 @@ const FantasyMain: React.FC = () => {
     // 経験値付与（addXp関数を使用）
     const xpGain = result === 'clear' ? 1000 : 200;
     const reason = `ファンタジーモード${currentStage?.stageNumber}${result === 'clear' ? 'クリア' : 'チャレンジ'}`;
+
+    // 事前にローカル計算結果を用意して、UIを即時更新（ゲストでも表示されるように）
+    const normalizeRank = (rank: string | undefined): 'free' | 'standard' | 'premium' | 'platinum' => {
+      if (rank === 'premium' || rank === 'platinum') return rank;
+      if (rank === 'standard' || rank === 'standard_global') return 'standard';
+      return 'free';
+    };
+
+    const membershipMultiplier = (() => {
+      const r = normalizeRank(profile?.rank);
+      if (r === 'premium') return 1.5;
+      if (r === 'platinum') return 2;
+      return 1;
+    })();
+
+    let guildMultiplier = 1;
     try {
-      const { addXp } = await import('@/platform/supabaseXp');
-      let membershipMultiplier = 1;
-      let guildMultiplier = 1;
-      try {
-        if (profile?.rank === 'premium') membershipMultiplier = 1.5;
-        if (profile?.rank === 'platinum') membershipMultiplier = 2;
-        const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
-        const { computeGuildBonus } = await import('@/utils/guildBonus');
-        const myGuild = await getMyGuild();
-        if (myGuild) {
-          const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
-          const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-          let streakSum = 0;
-          if (myGuild.guild_type === 'challenge') {
-            // チャレンジギルドの追加ボーナス（既存の計算に準拠）
-          }
-          guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
-        }
-      } catch {}
-
-      const xpResult = await addXp({
-        songId: null,
-        baseXp: xpGain,
-        speedMultiplier: 1,
-        rankMultiplier: 1,
-        transposeMultiplier: 1,
-        membershipMultiplier,
-        missionMultiplier: guildMultiplier,
-        reason,
-      });
-
-      const previousLevel = profile?.level || 1;
-      const leveledUp = xpResult.level > previousLevel;
-      const currentLvXp = currentLevelXP(xpResult.level, xpResult.totalXp);
-      const nextLvXp = xpToNextLevel(xpResult.level);
-      setXpInfo({
-        gained: xpResult.gainedXp,
-        total: xpResult.totalXp,
-        level: xpResult.level,
-        previousLevel,
-        nextLevelXp: nextLvXp,
-        currentLevelXp: currentLvXp,
-        leveledUp,
-        base: xpGain,
-        multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
-      });
-      if (leveledUp) {
-        toast.success(`レベルアップ！ Lv.${previousLevel} → Lv.${xpResult.level}`, { duration: 5000, title: 'おめでとうございます！' });
+      const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
+      const { computeGuildBonus } = await import('@/utils/guildBonus');
+      const myGuild = await getMyGuild();
+      if (myGuild) {
+        const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
+        const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
+        guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
       }
-    } catch (xpError) {
-      console.error('ファンタジーモードXP付与エラー:', xpError);
+    } catch {}
+
+    const seasonMultiplier = Math.max(0, Number(profile?.next_season_xp_multiplier ?? 1)) || 1;
+    const localGained = Math.round(xpGain * membershipMultiplier * guildMultiplier * seasonMultiplier);
+
+    // ローカル進捗（見た目）を即時反映
+    const prevLevelLocal = profile?.level || 1;
+    const prevRemainderLocal = currentLevelXP(prevLevelLocal, profile?.xp || 0);
+    const levelAfter = levelAfterGain(prevLevelLocal, prevRemainderLocal, localGained);
+    setXpInfo({
+      gained: localGained,
+      total: (profile?.xp || 0) + localGained,
+      level: levelAfter.level,
+      previousLevel: prevLevelLocal,
+      nextLevelXp: xpToNextLevel(levelAfter.level),
+      currentLevelXp: levelAfter.remainingXP,
+      leveledUp: levelAfter.leveledUp,
+      base: xpGain,
+      multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
+    });
+
+    // ログインユーザーであればDBに反映（失敗してもUIは維持）
+    if (profile?.id && !isGuest) {
+      try {
+        const { addXp } = await import('@/platform/supabaseXp');
+        const xpResult = await addXp({
+          songId: null,
+          baseXp: xpGain,
+          speedMultiplier: 1,
+          rankMultiplier: 1,
+          transposeMultiplier: 1,
+          membershipMultiplier,
+          missionMultiplier: guildMultiplier,
+          reason,
+        });
+
+        const previousLevel = profile?.level || 1;
+        const leveledUp = xpResult.level > previousLevel;
+        const currentLvXp = currentLevelXP(xpResult.level, xpResult.totalXp);
+        const nextLvXp = xpToNextLevel(xpResult.level);
+        setXpInfo({
+          gained: xpResult.gainedXp,
+          total: xpResult.totalXp,
+          level: xpResult.level,
+          previousLevel,
+          nextLevelXp: nextLvXp,
+          currentLevelXp: currentLvXp,
+          leveledUp,
+          base: xpGain,
+          multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
+        });
+        if (leveledUp) {
+          toast.success(`レベルアップ！ Lv.${previousLevel} → Lv.${xpResult.level}`, { duration: 5000, title: 'おめでとうございます！' });
+        }
+      } catch (xpError) {
+        // DB書き込み失敗時は、ローカル表示のまま（ログのみ）
+        console.error('ファンタジーモードXP付与エラー:', xpError);
+      }
     }
   }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest, isMissionMode, missionContext]);
 

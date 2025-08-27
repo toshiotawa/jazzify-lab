@@ -1,6 +1,6 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { requireUserId } from '@/platform/authHelpers';
-import { MembershipRank } from '@/platform/supabaseSongs';
+import { log } from '@/utils/logger';
 
 // 経験値テーブル: レベル1-10 => 2,000 XP / lvl, 11-50 => 50,000, 51+ => 100,000
 export function calcLevel(totalXp: number): { level: number; remainder: number; nextLevelXp: number } {
@@ -99,7 +99,7 @@ export async function addXp(params: AddXpParams) {
       const monthStr = monthStartUtc.toISOString().slice(0, 10);
       await supabase
         .from('guild_xp_contributions')
-        .insert({ guild_id: guildId, user_id: user.id, gained_xp: gained, month: monthStr });
+        .insert({ guild_id: guildId, user_id: userId, gained_xp: gained, month: monthStr });
       
       // チャレンジギルドの場合、ストリークを更新
       if (guildType === 'challenge') {
@@ -108,7 +108,7 @@ export async function addXp(params: AddXpParams) {
       }
     }
   } catch (e) {
-    console.warn('guild_xp_contributions insert failed:', e);
+    log.warn('guild_xp_contributions insert failed:', e);
   }
 
   return {
