@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/authStore';
-import { useMissionStore } from '@/stores/missionStore';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { Announcement, fetchActiveAnnouncements } from '@/platform/supabaseAnnouncements';
 import { useToast } from '@/stores/toastStore';
@@ -25,10 +23,10 @@ import {
   FaList,
   FaEdit
 } from 'react-icons/fa';
-import { Mission } from '@/platform/supabaseMissions';
+import { FaUsers } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import OpenBetaPlanSwitcher from '@/components/subscription/OpenBetaPlanSwitcher';
-import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
+// xpToNextLevel, currentLevelXP は未使用
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
@@ -43,7 +41,6 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { profile, isGuest, logout } = useAuthStore();
   const isStandardGlobal = profile?.rank === 'standard_global';
-  const { monthly: missions, fetchAll: loadMissions } = useMissionStore();
   const { stats: userStats, fetchStats, loading: statsLoading } = useUserStatsStore();
   const toast = useToast();
 
@@ -78,13 +75,7 @@ const Dashboard: React.FC = () => {
       // すべてのデータを並行読み込み
       const promises: Promise<any>[] = [];
       
-      // ミッションのロード
-      promises.push(
-        loadMissions().catch((missionError: any) => {
-          console.error('Mission loading error:', missionError);
-          toast.error('ミッションの読み込みに失敗しました');
-        })
-      );
+      // ミッション情報のフェッチは行わない（カードは説明のみ表示）
 
       // お知らせのロード（ゲスト以外）
       if (!isGuest) {
@@ -380,17 +371,9 @@ const Dashboard: React.FC = () => {
                     <FaBullseye className="w-6 h-6 text-orange-400" />
                     <h3 className="text-lg font-semibold">今日のミッション</h3>
                   </div>
-                  
-                  {missions.length > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-sm text-gray-300">{missions[0].title}</p>
-                      <div className="flex items-center space-x-2 text-xs text-gray-400">
-                        <span>{missions[0].reward_multiplier}x ボーナス</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-400">ミッションを確認</p>
-                  )}
+                  <p className="text-sm text-gray-400">
+                    日替わりの課題に挑戦して経験値を獲得しよう
+                  </p>
                 </button>
                 )}
 
@@ -438,6 +421,22 @@ const Dashboard: React.FC = () => {
                   </div>
                   <p className="text-sm text-gray-400">
                     みんなの成績をチェック
+                  </p>
+                </button>
+                )}
+
+                {/* ギルド */}
+                {!isStandardGlobal && (
+                <button
+                  onClick={() => { window.location.hash = '#guilds'; }}
+                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                >
+                  <div className="flex items-center space-x-3 mb-3">
+                    <FaUsers className="w-6 h-6 text-cyan-400" />
+                    <h3 className="text-lg font-semibold">ギルド</h3>
+                  </div>
+                  <p className="text-sm text-gray-400">
+                    参加して交流し、みんなでチャレンジ
                   </p>
                 </button>
                 )}
