@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse } from '@/platform/supabaseCourses';
@@ -39,6 +39,7 @@ const LessonPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
+  const mainAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkHash = () => {
@@ -426,7 +427,7 @@ const LessonPage: React.FC = () => {
               <p className="text-gray-400">読み込み中...</p>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+            <div className="flex-1 md:flex md:flex-row overflow-hidden min-h-0">
               {/* コース一覧サイドバー */}
               <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col overflow-hidden min-h-0 md:h-full">
                 <div className="p-4 border-b border-slate-700">
@@ -453,6 +454,12 @@ const LessonPage: React.FC = () => {
                         onClick={() => {
                           if (accessible) {
                             setSelectedCourse(course);
+                            // モバイルではメインエリアへスクロール
+                            if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                              setTimeout(() => {
+                                mainAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }, 50);
+                            }
                           } else {
                             toast.warning(accessResult.reason || 'このコースにはアクセスできません');
                           }
@@ -549,7 +556,7 @@ const LessonPage: React.FC = () => {
               </div>
 
               {/* レッスン一覧メインエリア */}
-              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+              <div ref={mainAreaRef} className="flex-1 flex flex-col overflow-hidden min-h-0">
                 {selectedCourse ? (
                   <>
                     <div className="p-6 border-b border-slate-700">
