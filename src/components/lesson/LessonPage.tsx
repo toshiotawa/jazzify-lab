@@ -403,7 +403,10 @@ const LessonPage: React.FC = () => {
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col pt-14 sm:pt-16">
+        <div 
+          className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col pt-14 sm:pt-16 overflow-y-auto"
+          style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}
+        >
 
           {/* ページ説明 */}
           <div className="px-6 pb-4">
@@ -463,7 +466,7 @@ const LessonPage: React.FC = () => {
                                 Premium
                               </span>
                             )}
-                            {courseUnlockFlag === true && (
+                            {courseUnlockFlag === true && accessible && (
                               <span className="bg-emerald-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
                                 <FaUnlock className="text-xs" />
                                 管理者解放

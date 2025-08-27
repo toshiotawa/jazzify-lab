@@ -249,10 +249,7 @@ export function canAccessCourse(
   completedCourseIds: string[] = [],
   isUnlocked: boolean | null = null
 ): { canAccess: boolean; reason?: string } {
-  // user_course_progressでアンロック状態が明示的に設定されている場合
-  if (isUnlocked === true) {
-    return { canAccess: true };
-  }
+  // user_course_progressでアンロック状態が明示的にロックの場合のみブロック
   if (isUnlocked === false) {
     return { canAccess: false, reason: 'このコースは現在ロックされています。前提コースを完了すると自動で解放されます。' };
   }
