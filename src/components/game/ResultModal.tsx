@@ -121,7 +121,7 @@ const ResultModal: React.FC = () => {
             rankMultiplier: 1,
             transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
             membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
-            missionMultiplier: 1 * guildMultiplier, // ここにギルド倍率を乗せる
+            missionMultiplier: guildMultiplier, // guildMultiplier は 1 ベース
             reason: lessonContext ? 'lesson_clear' : missionContext ? 'mission_clear' : 'song_clear',
           });
 
@@ -137,7 +137,7 @@ const ResultModal: React.FC = () => {
             detailed
           });
 
-          await fetchProfile();
+          await fetchProfile({ forceRefresh: true });
           
           // レッスンモードの場合、課題条件の成否を判定
           if (lessonContext) {
@@ -314,16 +314,28 @@ const ResultModal: React.FC = () => {
             log.error('エラースタック:', error.stack);
           }
           
-          // エラーが発生してもXP情報だけでも表示できるようにする
+          // エラー時でも詳細XP（表示用）は計算して表示する
+          const fallbackDetailed = calculateXPDetailed({
+            membershipRank: profile?.rank as any,
+            scoreRank: score.rank as any,
+            playbackSpeed: settings.playbackSpeed,
+            transposed: settings.transpose !== 0,
+            lessonBonusMultiplier: 1,
+            missionBonusMultiplier: 1,
+            challengeBonusMultiplier: 1,
+            seasonMultiplier: profile?.next_season_xp_multiplier ?? 1,
+            guildMultiplier: 1,
+          });
+
           if (!xpInfo) {
-            // 最小限のXP情報を設定
             setXpInfo({
-              gained: 0,
-              total: profile?.xp || 0,
+              gained: fallbackDetailed.total,
+              total: (profile?.xp || 0) + fallbackDetailed.total,
               level: profile?.level || 1,
               remainder: 0,
               next: 1000,
-              levelUp: false
+              levelUp: false,
+              detailed: fallbackDetailed,
             });
           }
         }

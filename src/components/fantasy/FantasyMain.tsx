@@ -38,7 +38,7 @@ interface GameResult {
 }
 
 const FantasyMain: React.FC = () => {
-  const { profile, isGuest } = useAuthStore();
+  const { profile, isGuest, fetchProfile } = useAuthStore();
   const { settings } = useGameStore();
   const toast = useToast();
   const [currentStage, setCurrentStage] = useState<FantasyStage | null>(null);
@@ -333,8 +333,25 @@ const FantasyMain: React.FC = () => {
       if (leveledUp) {
         toast.success(`レベルアップ！ Lv.${previousLevel} → Lv.${xpResult.level}`, { duration: 5000, title: 'おめでとうございます！' });
       }
+      // プロフィール（累計XP/レベル）を即時反映
+      try { await fetchProfile({ forceRefresh: true }); } catch {}
     } catch (xpError) {
       console.error('ファンタジーモードXP付与エラー:', xpError);
+      // フォールバック表示（計算中のままにしない）
+      const base = xpGain;
+      const membershipMul = profile?.rank === 'premium' ? 1.5 : profile?.rank === 'platinum' ? 2 : 1;
+      const fallbackGained = Math.round(base * membershipMul);
+      setXpInfo({
+        gained: fallbackGained,
+        total: profile?.xp ?? 0,
+        level: profile?.level ?? 1,
+        previousLevel: profile?.level ?? 1,
+        nextLevelXp: xpToNextLevel(profile?.level ?? 1),
+        currentLevelXp: currentLevelXP(profile?.level ?? 1, profile?.xp ?? 0),
+        leveledUp: false,
+        base,
+        multipliers: { membership: membershipMul, guild: 1 },
+      });
     }
   }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest, isMissionMode, missionContext]);
 
