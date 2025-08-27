@@ -76,10 +76,22 @@ export async function addXp(params: AddXpParams) {
 
   // bigint の可能性があるため数値へ正規化
   const currentXp = Number((profile as any)?.xp ?? 0);
-  const seasonMul = Number((profile as any)?.next_season_xp_multiplier ?? 1);
-  const missionMul = params.missionMultiplier ?? 1;
+  // 倍率の安全正規化（0やNaNを防ぎ、下限1.0/必要に応じて下限値を設定）
+  const seasonMulRaw = Number((profile as any)?.next_season_xp_multiplier ?? 1);
+  const seasonMul = Number.isFinite(seasonMulRaw) ? Math.max(1, seasonMulRaw) : 1;
+  const missionMulRaw = params.missionMultiplier ?? 1;
+  const missionMul = Number.isFinite(missionMulRaw) ? Math.max(1, Number(missionMulRaw)) : 1;
+  const speedMulRaw = params.speedMultiplier;
+  const speedMul = Number.isFinite(speedMulRaw) ? Math.max(0.3, Number(speedMulRaw)) : 1;
+  const rankMulRaw = params.rankMultiplier;
+  const rankMul = Number.isFinite(rankMulRaw) ? Math.max(1, Number(rankMulRaw)) : 1;
+  const transposeMulRaw = params.transposeMultiplier;
+  const transposeMul = Number.isFinite(transposeMulRaw) ? Math.max(1, Number(transposeMulRaw)) : 1;
+  const membershipMulRaw = params.membershipMultiplier;
+  const membershipMul = Number.isFinite(membershipMulRaw) ? Math.max(1, Number(membershipMulRaw)) : 1;
+
   const gained = Math.round(
-    params.baseXp * params.speedMultiplier * params.rankMultiplier * params.transposeMultiplier * params.membershipMultiplier * missionMul * seasonMul,
+    params.baseXp * speedMul * rankMul * transposeMul * membershipMul * missionMul * seasonMul,
   );
   const newTotalXp = currentXp + gained;
   const levelInfo = calcLevel(newTotalXp);
@@ -90,10 +102,10 @@ export async function addXp(params: AddXpParams) {
     song_id: params.songId,
     gained_xp: gained,
     base_xp: params.baseXp,
-    speed_multiplier: params.speedMultiplier,
-    rank_multiplier: params.rankMultiplier,
-    transpose_multiplier: params.transposeMultiplier,
-    membership_multiplier: params.membershipMultiplier,
+    speed_multiplier: speedMul,
+    rank_multiplier: rankMul,
+    transpose_multiplier: transposeMul,
+    membership_multiplier: membershipMul,
     mission_multiplier: missionMul,
     reason: params.reason || 'unknown',
   });

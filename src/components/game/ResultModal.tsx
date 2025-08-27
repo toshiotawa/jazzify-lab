@@ -121,7 +121,7 @@ const ResultModal: React.FC = () => {
             rankMultiplier: 1,
             transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
             membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
-            missionMultiplier: 1 * guildMultiplier, // ここにギルド倍率を乗せる
+            missionMultiplier: guildMultiplier, // guildMultiplier は 1 ベース
             reason: lessonContext ? 'lesson_clear' : missionContext ? 'mission_clear' : 'song_clear',
           });
 
@@ -329,8 +329,8 @@ const ResultModal: React.FC = () => {
 
           if (!xpInfo) {
             setXpInfo({
-              gained: 0,
-              total: profile?.xp || 0,
+              gained: fallbackDetailed.total,
+              total: (profile?.xp || 0) + fallbackDetailed.total,
               level: profile?.level || 1,
               remainder: 0,
               next: 1000,
