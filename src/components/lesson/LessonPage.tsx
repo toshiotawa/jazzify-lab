@@ -8,14 +8,11 @@ import { subscribeRealtime } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { 
-  FaArrowLeft, 
   FaLock, 
   FaUnlock,
   FaCheck, 
   FaPlay, 
   FaStar, 
-  FaVideo,
-  FaMusic,
   FaGraduationCap
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
@@ -49,7 +46,6 @@ const LessonPage: React.FC = () => {
       
       // レッスン詳細から戻ってきた場合は強制再読み込み
       if (isLessonsPage && !wasOpen && profile && selectedCourse) {
-        console.log('レッスン詳細から戻ってきたため、データを強制再読み込み');
         // ナビゲーションキャッシュをクリア
         clearNavigationCacheForCourse(selectedCourse.id);
         loadLessons(selectedCourse.id);
@@ -83,8 +79,7 @@ const LessonPage: React.FC = () => {
       'lesson-changes',
       'lessons',
       '*',
-      (payload: any) => {
-        console.log('Lesson data changed, reloading...', payload);
+      (_payload: unknown) => {
         // データが変更されたら現在のコースのレッスンを再読み込み
         if (selectedCourse) {
           loadLessons(selectedCourse.id);
@@ -98,8 +93,7 @@ const LessonPage: React.FC = () => {
       'lesson-songs-changes',
       'lesson_songs',
       '*',
-      (payload: any) => {
-        console.log('Lesson songs data changed, reloading...', payload);
+      (_payload: unknown) => {
         if (selectedCourse) {
           loadLessons(selectedCourse.id);
         }
@@ -112,7 +106,7 @@ const LessonPage: React.FC = () => {
       'lesson-reqs-progress',
       'user_lesson_requirements_progress',
       '*',
-      async (payload: any) => {
+      async (_payload: unknown) => {
         try {
           const { clearCacheByPattern } = await import('@/platform/supabaseClient');
           // 現在のコースのレッスンIDに関する集約キャッシュのみ無効化
@@ -610,68 +604,68 @@ const LessonPage: React.FC = () => {
                                       }`}
                                       onClick={() => handleLessonClick(lesson, lesson.order_index)}
                                     >
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-4">
-                                          {/* レッスン番号とアイコン */}
-                                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
-                                            unlocked
-                                              ? completed
-                                                ? 'bg-emerald-600 text-white'
-                                                : 'bg-blue-600 text-white'
-                                              : 'bg-gray-600 text-gray-400'
-                                          }`}>
-                                            {unlocked ? (
-                                              completed ? <FaCheck /> : <FaPlay />
-                                            ) : (
-                                              <FaLock />
-                                            )}
-                                          </div>
-
-                                          {/* レッスン情報 */}
-                                          <div>
-                                            <h3 className={`text-lg font-semibold ${
-                                              unlocked ? 'text-white' : 'text-gray-400'
-                                            }`}>
-                                              {lesson.title}
-                                            </h3>
-                                            <div className="flex items-center space-x-3 text-sm text-gray-400">
-                                              <span>レッスン {lesson.order_index}</span>
-                                              <div className="flex items-center space-x-1">
-                                                <FaVideo className="w-3 h-3" />
-                                                <span>動画</span>
-                                              </div>
-                                              <div className="flex items-center space-x-1">
-                                                <FaMusic className="w-3 h-3" />
-                                                <span>実習</span>
-                                              </div>
-                                            </div>
-                                          </div>
+                                      <div className="flex flex-col gap-3">
+                                        {/* レッスン番号（幅を拡大） */}
+                                        <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold ${
+                                          unlocked
+                                            ? completed
+                                              ? 'bg-emerald-600 text-white'
+                                              : 'bg-blue-600 text-white'
+                                            : 'bg-gray-600 text-gray-400'
+                                        }`}>
+                                          {unlocked ? (
+                                            completed ? <FaCheck /> : <FaPlay />
+                                          ) : (
+                                            <FaLock />
+                                          )}
                                         </div>
 
-                                        {/* ステータス表示 */}
-                                        <div className="text-right">
-                                          {completed && (
-                                            <div className="flex items-center space-x-1 text-emerald-400 mb-2">
-                                              <FaStar className="w-4 h-4" />
-                                              <span className="text-sm font-medium">完了</span>
-                                            </div>
-                                          )}
-                                          
-                                          {unlocked && (
-                                            <div className="w-32">
+                                        {/* タイトル（単独行） */}
+                                        <h3 className={`text-lg font-semibold ${
+                                          unlocked ? 'text-white' : 'text-gray-400'
+                                        }`}>
+                                          {lesson.title}
+                                        </h3>
+
+                                        {/* レッスン番号ラベル（幅広め） */}
+                                        <div className="text-sm text-gray-300">
+                                          <span className="inline-block bg-slate-700/60 rounded px-3 py-1 min-w-[7rem] text-center">
+                                            レッスン {lesson.order_index}
+                                          </span>
+                                        </div>
+
+                                        {/* 完了ラベル（単独行） */}
+                                        {completed && (
+                                          <div className="flex items-center text-emerald-400">
+                                            <FaStar className="w-4 h-4 mr-1" />
+                                            <span className="text-sm font-medium">完了</span>
+                                          </div>
+                                        )}
+
+                                        {/* 再生ボタン + 進捗バー（同一行） */}
+                                        {unlocked && (
+                                          <div className="flex items-center gap-4">
+                                            <button
+                                              type="button"
+                                              className={`btn btn-sm ${completed ? 'btn-success' : 'btn-primary'}`}
+                                              onClick={() => handleLessonClick(lesson, lesson.order_index)}
+                                            >
+                                              再生
+                                            </button>
+                                            <div className="flex-1">
                                               <div className="flex justify-between text-xs text-gray-400 mb-1">
                                                 <span>進捗</span>
                                                 <span>{completionRate}%</span>
                                               </div>
                                               <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
-                                                <div 
+                                                <div
                                                   className="h-full bg-blue-500 transition-all duration-300"
                                                   style={{ width: `${completionRate}%` }}
                                                 />
                                               </div>
                                             </div>
-                                          )}
-                                        </div>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   );
