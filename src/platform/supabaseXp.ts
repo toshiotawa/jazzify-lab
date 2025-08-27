@@ -93,29 +93,16 @@ export async function addXp(params: AddXpParams) {
   const gained = Math.round(
     params.baseXp * speedMul * rankMul * transposeMul * membershipMul * missionMul * seasonMul,
   );
-  const newTotalXp = currentXp + gained;
-  const levelInfo = calcLevel(newTotalXp);
 
-  // DB transaction: insert history then update profile
-  const { error: histErr } = await supabase.from('xp_history').insert({
-    user_id: userId,
-    song_id: params.songId,
-    gained_xp: gained,
-    base_xp: params.baseXp,
-    speed_multiplier: speedMul,
-    rank_multiplier: rankMul,
-    transpose_multiplier: transposeMul,
-    membership_multiplier: membershipMul,
-    mission_multiplier: missionMul,
-    reason: params.reason || 'unknown',
+  // サーバ関数で一括更新（履歴INSERTとプロフィール更新をDBで実施）
+  const { data: rpcData, error: rpcErr } = await supabase.rpc('add_xp', {
+    _user_id: userId,
+    _gained_xp: gained,
+    _reason: params.reason || 'unknown',
+    _song_id: params.songId,
+    _mission_multiplier: missionMul,
   });
-  if (histErr) throw histErr;
-
-  const { error: profErr } = await supabase
-    .from('profiles')
-    .update({ xp: newTotalXp, level: levelInfo.level })
-    .eq('id', userId);
-  if (profErr) throw profErr;
+  if (rpcErr) throw rpcErr;
 
   // キャッシュをクリアして最新のプロフィールを参照できるようにする
   try {
@@ -149,10 +136,14 @@ export async function addXp(params: AddXpParams) {
     log.warn('guild_xp_contributions insert failed:', e);
   }
 
+  const totalXp = Number((rpcData as any)?.new_xp ?? currentXp + gained);
+  const level = Number((rpcData as any)?.new_level ?? calcLevel(totalXp).level);
+  const nextLevelXp = calcLevel(totalXp).nextLevelXp;
+
   return {
-    gainedXp: gained,
-    totalXp: newTotalXp,
-    level: levelInfo.level,
-    nextLevelXp: levelInfo.nextLevelXp,
+    gainedXp: Number((rpcData as any)?.gained_xp ?? gained),
+    totalXp,
+    level,
+    nextLevelXp,
   };
 }
