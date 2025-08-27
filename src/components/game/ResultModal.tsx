@@ -145,7 +145,7 @@ const ResultModal: React.FC = () => {
             detailed
           });
 
-          await fetchProfile();
+          await fetchProfile({ forceRefresh: true });
           
           // レッスンモードの場合、課題条件の成否を判定
           if (lessonContext) {

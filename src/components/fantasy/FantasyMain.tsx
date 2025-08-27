@@ -362,6 +362,11 @@ const FantasyMain: React.FC = () => {
         if (leveledUp) {
           toast.success(`レベルアップ！ Lv.${previousLevel} → Lv.${xpResult.level}`, { duration: 5000, title: 'おめでとうございます！' });
         }
+        // サーバー反映後にプロフィールを強制リフレッシュ
+        try {
+          const { useAuthStore } = await import('@/stores/authStore');
+          await useAuthStore.getState().fetchProfile({ forceRefresh: true });
+        } catch {}
       } catch (xpError) {
         // DB書き込み失敗時は、ローカル表示のまま（ログのみ）
         console.error('ファンタジーモードXP付与エラー:', xpError);
