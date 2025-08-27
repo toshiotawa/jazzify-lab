@@ -426,9 +426,9 @@ const LessonPage: React.FC = () => {
               <p className="text-gray-400">読み込み中...</p>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
               {/* コース一覧サイドバー */}
-              <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col">
+              <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col overflow-hidden min-h-0 h-full">
                 <div className="p-4 border-b border-slate-700">
                   <h2 className="text-lg font-semibold">コース一覧</h2>
                 </div>
@@ -549,7 +549,7 @@ const LessonPage: React.FC = () => {
               </div>
 
               {/* レッスン一覧メインエリア */}
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0 h-full">
                 {selectedCourse ? (
                   <>
                     <div className="p-6 border-b border-slate-700">
