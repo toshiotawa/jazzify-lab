@@ -1,6 +1,6 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { requireUserId } from '@/platform/authHelpers';
-import { MembershipRank } from '@/platform/supabaseSongs';
+import { log } from '@/utils/logger';
 
 // 経験値テーブル: レベル1-10 => 2,000 XP / lvl, 11-50 => 50,000, 51+ => 100,000
 export function calcLevel(totalXp: number): { level: number; remainder: number; nextLevelXp: number } {
@@ -63,7 +63,7 @@ export async function addXp(params: AddXpParams) {
   const newTotalXp = currentXp + gained;
   const levelInfo = calcLevel(newTotalXp);
 
-  // DB transaction: insert history then update profile
+  // 1) まず履歴を記録（失敗しても続行し、プロフィール更新を優先）
   const { error: histErr } = await supabase.from('xp_history').insert({
     user_id: userId,
     song_id: params.songId,
@@ -76,13 +76,22 @@ export async function addXp(params: AddXpParams) {
     mission_multiplier: missionMul,
     reason: params.reason || 'unknown',
   });
-  if (histErr) throw histErr;
+  if (histErr) {
+    log.warn('xp_history insert failed (will continue to update profile):', histErr);
+  }
 
-  const { error: profErr } = await supabase
+  // 2) プロフィールのXP/レベルを更新（0件更新を検知するために select で返す）
+  const { data: updatedProfile, error: profErr } = await supabase
     .from('profiles')
     .update({ xp: newTotalXp, level: levelInfo.level })
-    .eq('id', userId);
+    .eq('id', userId)
+    .select('id')
+    .maybeSingle();
   if (profErr) throw profErr;
+  if (!updatedProfile) {
+    // マッチ0件（プロフィール未作成など）の場合
+    throw new Error('Profile update affected 0 rows. Is the profile missing?');
+  }
 
   // 追加: ギルド貢献の記録（所属していれば、当月エントリとして追加）
   try {
@@ -99,7 +108,7 @@ export async function addXp(params: AddXpParams) {
       const monthStr = monthStartUtc.toISOString().slice(0, 10);
       await supabase
         .from('guild_xp_contributions')
-        .insert({ guild_id: guildId, user_id: user.id, gained_xp: gained, month: monthStr });
+        .insert({ guild_id: guildId, user_id: userId, gained_xp: gained, month: monthStr });
       
       // チャレンジギルドの場合、ストリークを更新
       if (guildType === 'challenge') {
@@ -108,7 +117,7 @@ export async function addXp(params: AddXpParams) {
       }
     }
   } catch (e) {
-    console.warn('guild_xp_contributions insert failed:', e);
+    log.warn('guild_xp_contributions insert failed:', e);
   }
 
   return {

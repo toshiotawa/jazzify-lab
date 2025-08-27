@@ -89,9 +89,16 @@ const ResultModal: React.FC = () => {
             // 失敗しても続行
           }
 
+          // 会員ランクを正規化（standard_global -> standard）
+          const normalizeMembershipRank = (rank: string | undefined): 'free' | 'standard' | 'premium' | 'platinum' => {
+            if (rank === 'premium' || rank === 'platinum') return rank;
+            if (rank === 'standard' || rank === 'standard_global') return 'standard';
+            return 'free';
+          };
+
           // ローカルで詳細計算
           const detailed = calculateXPDetailed({
-            membershipRank: profile.rank,
+            membershipRank: normalizeMembershipRank(profile.rank as any),
             scoreRank: score.rank as any,
             playbackSpeed: settings.playbackSpeed,
             transposed: settings.transpose !== 0,
@@ -111,8 +118,9 @@ const ResultModal: React.FC = () => {
             guildMultiplier,
           });
 
-          // 正しい基本XPを計算
-          const baseXp = getBaseXpFromRank(score.rank);
+          // 正しい基本XPを計算（最低100を保証）
+          const baseXpRaw = getBaseXpFromRank(score.rank);
+          const baseXp = Math.max(100, baseXpRaw || 0);
 
           const res = await addXp({
             songId: currentSong.id,
@@ -128,7 +136,7 @@ const ResultModal: React.FC = () => {
           const levelDetail = calcLevel(res.totalXp);
 
           setXpInfo({
-            gained: res.gainedXp ?? detailed.total,
+            gained: res.gainedXp ?? Math.max(0, detailed.total),
             total: res.totalXp,
             level: res.level,
             remainder: levelDetail.remainder,
@@ -137,7 +145,7 @@ const ResultModal: React.FC = () => {
             detailed
           });
 
-          await fetchProfile();
+          await fetchProfile({ forceRefresh: true });
           
           // レッスンモードの場合、課題条件の成否を判定
           if (lessonContext) {
