@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/platform/supabaseClient';
+import { getSupabaseClient, clearCacheByPattern } from '@/platform/supabaseClient';
 import { requireUserId } from '@/platform/authHelpers';
 import { log } from '@/utils/logger';
 
@@ -116,6 +116,11 @@ export async function addXp(params: AddXpParams) {
     .update({ xp: newTotalXp, level: levelInfo.level })
     .eq('id', userId);
   if (profErr) throw profErr;
+
+  // キャッシュをクリアして最新のプロフィールを参照できるようにする
+  try {
+    clearCacheByPattern(new RegExp(`^profile:${userId}$`));
+  } catch {}
 
   // 追加: ギルド貢献の記録（所属していれば、当月エントリとして追加）
   try {
