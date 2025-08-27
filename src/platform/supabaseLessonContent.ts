@@ -153,7 +153,15 @@ export async function fetchLessonAttachments(lessonId: string): Promise<LessonAt
       .order('order_index', { ascending: true }),
     1000 * 60 * 10
   );
-  if (error) throw new Error(`添付ファイルの取得に失敗しました: ${error.message}`);
+  if (error) {
+    // テーブル未作成などで relation が無い場合は空配列でフォールバック
+    const errorCode = (error as { code?: string } | null)?.code;
+    const errorMessage = error.message ?? '';
+    if (errorCode === '42P01' || (errorMessage.includes('relation') && errorMessage.includes('lesson_attachments'))) {
+      return [];
+    }
+    throw new Error(`添付ファイルの取得に失敗しました: ${error.message}`);
+  }
   return data || [];
 }
 

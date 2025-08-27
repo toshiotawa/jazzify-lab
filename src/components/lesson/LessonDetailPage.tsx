@@ -26,7 +26,8 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaHome,
-  FaDragon
+  FaDragon,
+  FaDownload
 } from 'react-icons/fa';
 import { useGameActions } from '@/stores/helpers';
 import { 
@@ -56,6 +57,7 @@ const LessonDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [attachments, setAttachments] = useState<Array<{ id: string; file_name: string; url: string; content_type?: string; size?: number }>>([]);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const { profile } = useAuthStore();
   const toast = useToast();
@@ -694,10 +696,45 @@ const LessonDetailPage: React.FC = () => {
                       <a href={att.url} target="_blank" rel="noreferrer" className="underline">
                         {att.file_name}
                       </a>
-                      <span className="text-xs text-gray-400">
-                        {att.content_type || ''}
-                        {att.size ? ` · ${(att.size / (1024 * 1024)).toFixed(1)}MB` : ''}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-400">
+                          {att.content_type || ''}
+                          {att.size ? ` · ${(att.size / (1024 * 1024)).toFixed(1)}MB` : ''}
+                        </span>
+                        <button
+                          className={`btn btn-xs ${downloadingId === att.id ? 'btn-disabled' : 'btn-primary'} flex items-center gap-1`}
+                          disabled={downloadingId === att.id}
+                          onClick={async () => {
+                            setDownloadingId(att.id);
+                            try {
+                              const response = await fetch(att.url, { mode: 'cors' });
+                              if (!response.ok) {
+                                // フォールバック: 新規タブで開く
+                                window.open(att.url, '_blank', 'noreferrer');
+                                return;
+                              }
+                              const blob = await response.blob();
+                              const blobUrl = URL.createObjectURL(blob);
+                              const anchor = document.createElement('a');
+                              anchor.href = blobUrl;
+                              anchor.download = att.file_name || 'attachment';
+                              document.body.appendChild(anchor);
+                              anchor.click();
+                              anchor.remove();
+                              URL.revokeObjectURL(blobUrl);
+                            } catch (_e) {
+                              // フォールバック: 新規タブで開く
+                              window.open(att.url, '_blank', 'noreferrer');
+                            } finally {
+                              setDownloadingId(null);
+                            }
+                          }}
+                          aria-label={`${att.file_name} をダウンロード`}
+                        >
+                          <FaDownload />
+                          <span>{downloadingId === att.id ? '準備中...' : 'ダウンロード'}</span>
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
