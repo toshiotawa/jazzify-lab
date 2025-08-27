@@ -1198,3 +1198,42 @@
     filter: none !important;
   }
 } 
+
+/* =====================
+   LP Mobile Fallback
+   ===================== */
+/*
+  一部端末で IntersectionObserver が root コンテナ内スクロール時に
+  稀に発火しないことがあるため、スマホ縦画面ではアニメ初期状態を無効化して
+  コンテンツが常に可視になるようフォールバックを入れる。
+  影響範囲は LP（.lp-root 配下）のみ。
+*/
+@media (max-width: 640px) and (orientation: portrait) {
+  .lp-root [data-animate]:not(.is-inview) {
+    transform: none;
+    opacity: 1;
+    filter: none;
+  }
+  /* text-up の子要素にも適用 */
+  .lp-root [data-animate~="text-up"]:not(.is-inview) p,
+  .lp-root [data-animate~="text-up"]:not(.is-inview) li,
+  .lp-root [data-animate~="text-up"]:not(.is-inview) h3,
+  .lp-root [data-animate~="text-up"]:not(.is-inview) h4,
+  .lp-root [data-animate~="text-up"]:not(.is-inview) small,
+  .lp-root [data-animate~="text-up"]:not(.is-inview) .text-sm,
+  .lp-root [data-animate~="text-up"]:not(.is-inview) .text-base,
+  .lp-root [data-animate~="text-up"]:not(.is-inview) .text-lg,
+  .lp-root [data-animate~="text-up"]:not(.is-inview) .text-xl {
+    transform: none;
+    opacity: 1;
+  }
+  /* alt-cards の子カードにも適用 */
+  .lp-root [data-animate~="alt-cards"]:not(.is-inview) > * {
+    transform: none;
+    opacity: 1;
+  }
+  /* 見出し下線も表示状態に */
+  .lp-root .section-title[data-animate*="heading-underline"]::after {
+    transform: translateX(-50%) scaleX(1);
+  }
+}
