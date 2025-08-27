@@ -49,72 +49,32 @@ export async function addXp(params: AddXpParams) {
   const supabase = getSupabaseClient();
   const userId = await requireUserId();
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('xp, level, next_season_xp_multiplier')
-    .eq('id', userId)
-    .single();
-  const currentXp = profile?.xp ?? 0;
-  const seasonMul = profile?.next_season_xp_multiplier ?? 1;
   const missionMul = params.missionMultiplier ?? 1;
-  const gained = Math.round(
-    params.baseXp * params.speedMultiplier * params.rankMultiplier * params.transposeMultiplier * params.membershipMultiplier * missionMul * seasonMul,
-  );
-  const newTotalXp = currentXp + gained;
-  const levelInfo = calcLevel(newTotalXp);
 
-  // DB transaction: insert history then update profile
-  const { error: histErr } = await supabase.from('xp_history').insert({
-    user_id: userId,
-    song_id: params.songId,
-    gained_xp: gained,
-    base_xp: params.baseXp,
-    speed_multiplier: params.speedMultiplier,
-    rank_multiplier: params.rankMultiplier,
-    transpose_multiplier: params.transposeMultiplier,
-    membership_multiplier: params.membershipMultiplier,
-    mission_multiplier: missionMul,
-    reason: params.reason || 'unknown',
+  // サーバー側で一貫して計算・更新するRPCを使用
+  const { data, error } = await supabase.rpc('add_xp_v2', {
+    _user_id: userId,
+    _base_xp: Math.max(0, Math.floor(params.baseXp)),
+    _speed_multiplier: params.speedMultiplier,
+    _rank_multiplier: params.rankMultiplier,
+    _transpose_multiplier: params.transposeMultiplier,
+    _membership_multiplier: params.membershipMultiplier,
+    _mission_multiplier: missionMul,
+    _season_multiplier: null,
+    _reason: params.reason || 'unknown',
+    _song_id: params.songId,
   });
-  if (histErr) throw histErr;
+  if (error) throw error;
 
-  const { error: profErr } = await supabase
-    .from('profiles')
-    .update({ xp: newTotalXp, level: levelInfo.level })
-    .eq('id', userId);
-  if (profErr) throw profErr;
-
-  // 追加: ギルド貢献の記録（所属していれば、当月エントリとして追加）
-  try {
-    const { data: membership } = await supabase
-      .from('guild_members')
-      .select('guild_id, guilds!inner(guild_type)')
-      .eq('user_id', userId)
-      .maybeSingle();
-    const guildId = (membership as any)?.guild_id as string | undefined;
-    const guildType = (membership as any)?.guilds?.guild_type as string | undefined;
-    if (guildId && gained > 0) {
-      const now = new Date();
-      const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-      const monthStr = monthStartUtc.toISOString().slice(0, 10);
-      await supabase
-        .from('guild_xp_contributions')
-        .insert({ guild_id: guildId, user_id: user.id, gained_xp: gained, month: monthStr });
-      
-      // チャレンジギルドの場合、ストリークを更新
-      if (guildType === 'challenge') {
-        const { updateUserStreak } = await import('@/platform/supabaseGuilds');
-        await updateUserStreak(userId, guildId);
-      }
-    }
-  } catch (e) {
-    console.warn('guild_xp_contributions insert failed:', e);
-  }
+  const gained = Number((data as any)?.gained_xp ?? 0);
+  const newTotal = Number((data as any)?.new_xp ?? 0);
+  const newLevel = Number((data as any)?.new_level ?? 1);
+  const levelInfo = calcLevel(newTotal);
 
   return {
     gainedXp: gained,
-    totalXp: newTotalXp,
-    level: levelInfo.level,
+    totalXp: newTotal,
+    level: newLevel,
     nextLevelXp: levelInfo.nextLevelXp,
   };
 }

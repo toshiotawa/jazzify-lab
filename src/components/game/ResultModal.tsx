@@ -111,8 +111,9 @@ const ResultModal: React.FC = () => {
             guildMultiplier,
           });
 
-          // 正しい基本XPを計算
-          const baseXp = getBaseXpFromRank(score.rank);
+          // 正しい基本XPを計算（未知のランク文字は最低値にフォールバック）
+          const baseRank = typeof score.rank === 'string' && ['S','A','B','C','D','E'].includes(score.rank) ? score.rank : 'E';
+          const baseXp = getBaseXpFromRank(baseRank);
 
           const res = await addXp({
             songId: currentSong.id,
