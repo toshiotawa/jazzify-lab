@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import { getCountryLabel, getSortedCountryCodes } from '@/constants/countries';
 import { useToast, handleApiError } from '@/stores/toastStore';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -13,8 +12,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [signupDisabled, setSignupDisabled] = useState(false);
-  const [country, setCountry] = useState<string>('JP');
-  const [loadingGeo, setLoadingGeo] = useState<boolean>(false);
+  // 国選択はOTP後のプロフィール作成段階へ移動
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -25,25 +23,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
     }
   }, [mode, user, isGuest, navigate]);
 
-  useEffect(() => {
-    if (mode !== 'signup') return;
-    let aborted = false;
-    // prefer previously selected value
-    const stored = localStorage.getItem('signup_country');
-    if (stored) setCountry(stored);
-    setLoadingGeo(true);
-    fetch('/.netlify/functions/getGeoCountry')
-      .then(res => res.ok ? res.json() : Promise.reject(new Error('Geo API error')))
-      .then(data => {
-        if (aborted) return;
-        const code = (data?.country as string | null)?.toUpperCase() || null;
-        if (code === 'JP') setCountry(prev => prev || 'JP');
-        else if (code) setCountry(prev => prev || 'OVERSEAS');
-      })
-      .catch(() => {})
-      .finally(() => setLoadingGeo(false));
-    return () => { aborted = true; };
-  }, [mode]);
+  // 地理情報の事前取得や国のローカル保存は行わない
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,11 +32,6 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
     setSignupDisabled(false);
 
     try {
-      // persist chosen country for profile creation step
-      if (mode === 'signup') {
-        localStorage.setItem('signup_country', country);
-      }
-
       await sendOtp(email, mode);
       toast.success(
         mode === 'signup'
@@ -110,31 +85,32 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
     <div className="min-h-screen overflow-y-auto bg-gradient-to-br from-slate-900 to-black text-white">
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="max-w-md w-full space-y-8">
-          <div className="text-center">
-            <h2 className="text-xl mb-8">
-              {mode === 'signup' ? '会員登録' : 'ログイン'}
-            </h2>
+          {/* タブ切り替え */}
+          <div className="flex justify-center">
+            <div role="tablist" aria-label="認証切替" className="tabs tabs-boxed bg-transparent">
+              <button
+                role="tab"
+                aria-selected={mode === 'signup'}
+                className={`tab ${mode === 'signup' ? 'tab-active' : ''}`}
+                onClick={() => navigate('/signup')}
+              >
+                会員登録
+              </button>
+              <button
+                role="tab"
+                aria-selected={mode === 'login'}
+                className={`tab ${mode === 'login' ? 'tab-active' : ''}`}
+                onClick={() => navigate('/login')}
+              >
+                ログイン
+              </button>
+            </div>
           </div>
+          <div className="text-center"><h2 className="text-xl mb-6">{mode === 'signup' ? '会員登録' : 'ログイン'}</h2></div>
 
           <div className="bg-gray-800 p-8 rounded-lg shadow-lg space-y-6">
             <form onSubmit={handleSubmit} className="space-y-4">
-              {mode === 'signup' && (
-                <div className="space-y-2">
-                  <label htmlFor="country" className="block text-sm font-medium">国</label>
-                  <select
-                    id="country"
-                    className="w-full select select-bordered"
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    disabled={loading}
-                  >
-                    {getSortedCountryCodes('en').map(c => (
-                      <option key={c} value={c}>{getCountryLabel(c, 'en')}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-orange-300">※ 国を誤って選ぶと支払い方法が変わります</p>
-                </div>
-              )}
+              {/* 国選択はOTP後(ProfileWizard)に移動 */}
               <div>
                 <label htmlFor="email" className="block text-sm font-medium mb-2">
                   メールアドレス
