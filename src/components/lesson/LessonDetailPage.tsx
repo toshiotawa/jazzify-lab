@@ -14,6 +14,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { Lesson, LessonSong } from '@/types';
+import { fetchCourseById, canAccessCourse, fetchUserCourseUnlockStatus, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import GameHeader from '@/components/ui/GameHeader';
 import { 
   FaArrowLeft, 
@@ -141,6 +142,24 @@ const LessonDetailPage: React.FC = () => {
         const userProgress = await fetchUserLessonProgress(lessonData.course_id);
         const thisLessonProgress = userProgress.find(p => p.lesson_id === targetLessonId);
         setLessonProgress(thisLessonProgress || null);
+      }
+
+      // 直接アクセス時のコース受講可否ガード（premium_onlyを唯一の判定）
+      if (lessonData?.course_id && profile?.id) {
+        const [course, unlockMap, completedCourses] = await Promise.all([
+          fetchCourseById(lessonData.course_id),
+          fetchUserCourseUnlockStatus(profile.id),
+          fetchUserCompletedCourses(profile.id)
+        ]);
+        if (course) {
+          const unlockFlag = unlockMap[course.id] !== undefined ? unlockMap[course.id] : null;
+          const access = canAccessCourse(course, profile.rank, completedCourses, unlockFlag);
+          if (!access.canAccess) {
+            toast.warning(access.reason || 'このコースにはアクセスできません');
+            window.location.hash = '#lessons';
+            return;
+          }
+        }
       }
       
       if (videosData.length > 0) {

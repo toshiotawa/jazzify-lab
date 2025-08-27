@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse } from '@/platform/supabaseCourses';
@@ -39,6 +39,7 @@ const LessonPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
+  const mainAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkHash = () => {
@@ -402,8 +403,11 @@ const LessonPage: React.FC = () => {
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col pt-14 sm:pt-16">
+      <div className="flex-1 p-4 overflow-hidden">
+        <div 
+          className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col pt-14 sm:pt-16 overflow-y-auto md:overflow-hidden min-h-0"
+          style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}
+        >
 
           {/* ページ説明 */}
           <div className="px-6 pb-4">
@@ -423,16 +427,13 @@ const LessonPage: React.FC = () => {
               <p className="text-gray-400">読み込み中...</p>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
               {/* コース一覧サイドバー */}
-              <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col">
+              <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col overflow-hidden min-h-0 md:h-full">
                 <div className="p-4 border-b border-slate-700">
                   <h2 className="text-lg font-semibold">コース一覧</h2>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                  overscrollBehavior: 'contain'
-                }}>
+                <div className="flex-1 md:overflow-y-auto p-4 space-y-3" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
                   {courses.map((course: Course) => {
                     const courseUnlockFlag = courseUnlockStatus[course.id] !== undefined ? courseUnlockStatus[course.id] : null;
                     const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, courseUnlockFlag);
@@ -450,6 +451,12 @@ const LessonPage: React.FC = () => {
                         onClick={() => {
                           if (accessible) {
                             setSelectedCourse(course);
+                            // モバイルではメインエリアへスクロール
+                            if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                              setTimeout(() => {
+                                mainAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }, 50);
+                            }
                           } else {
                             toast.warning(accessResult.reason || 'このコースにはアクセスできません');
                           }
@@ -458,7 +465,12 @@ const LessonPage: React.FC = () => {
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="font-medium truncate flex items-center gap-2">
                             {course.title}
-                            {courseUnlockFlag === true && (
+                            {course.premium_only && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
+                                Premium
+                              </span>
+                            )}
+                            {courseUnlockFlag === true && accessible && (
                               <span className="bg-emerald-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
                                 <FaUnlock className="text-xs" />
                                 管理者解放
@@ -541,17 +553,24 @@ const LessonPage: React.FC = () => {
               </div>
 
               {/* レッスン一覧メインエリア */}
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div ref={mainAreaRef} className="flex-1 flex flex-col overflow-hidden min-h-0">
                 {selectedCourse ? (
                   <>
                     <div className="p-6 border-b border-slate-700">
-                      <h2 className="text-2xl font-bold mb-2">{selectedCourse.title}</h2>
+                      <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
+                        {selectedCourse.title}
+                        {selectedCourse.premium_only && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
+                            Premium
+                          </span>
+                        )}
+                      </h2>
                       {selectedCourse.description && (
                         <p className="text-gray-400">{selectedCourse.description}</p>
                       )}
                     </div>
                     
-                    <div className="flex-1 overflow-y-auto p-6">
+                    <div className="flex-1 md:overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
                       <div className="space-y-6">
                         {Object.entries(groupLessonsByBlock(lessons)).map(([blockNumber, blockLessons]) => {
                           const blockNum = parseInt(blockNumber);
