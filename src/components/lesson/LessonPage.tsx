@@ -458,6 +458,11 @@ const LessonPage: React.FC = () => {
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="font-medium truncate flex items-center gap-2">
                             {course.title}
+                            {course.premium_only && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
+                                Premium
+                              </span>
+                            )}
                             {courseUnlockFlag === true && (
                               <span className="bg-emerald-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
                                 <FaUnlock className="text-xs" />
@@ -545,7 +550,14 @@ const LessonPage: React.FC = () => {
                 {selectedCourse ? (
                   <>
                     <div className="p-6 border-b border-slate-700">
-                      <h2 className="text-2xl font-bold mb-2">{selectedCourse.title}</h2>
+                      <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
+                        {selectedCourse.title}
+                        {selectedCourse.premium_only && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
+                            Premium
+                          </span>
+                        )}
+                      </h2>
                       {selectedCourse.description && (
                         <p className="text-gray-400">{selectedCourse.description}</p>
                       )}

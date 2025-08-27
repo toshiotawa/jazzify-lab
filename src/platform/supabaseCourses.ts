@@ -1,5 +1,5 @@
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern, clearCacheByKey } from './supabaseClient';
-import { Course, CoursePrerequisite } from '@/types';
+import { Course } from '@/types';
 
 // コースキャッシュキー生成関数
 export const COURSES_CACHE_KEY = () => 'courses';
@@ -257,21 +257,11 @@ export function canAccessCourse(
     return { canAccess: false, reason: 'このコースは現在ロックされています。前提コースを完了すると自動で解放されます。' };
   }
 
-  const rankOrder = { free: 0, standard: 1, premium: 2, platinum: 3 };
-
-  // ランク制限をチェック
-  if (course.premium_only !== undefined) {
-    if (course.premium_only) {
-      const hasRankAccess = userRank === 'premium' || userRank === 'platinum';
-      if (!hasRankAccess) {
-        return { canAccess: false, reason: 'プレミアムプラン以上が必要です' };
-      }
-    }
-  } else if (course.min_rank) {
-    const hasRankAccess = rankOrder[userRank as keyof typeof rankOrder] >= rankOrder[course.min_rank as keyof typeof rankOrder];
+  // ランク制限は premium_only のみをトリガーとする
+  if (course.premium_only) {
+    const hasRankAccess = userRank === 'premium' || userRank === 'platinum';
     if (!hasRankAccess) {
-      const requiredRank = course.min_rank.toUpperCase();
-      return { canAccess: false, reason: `${requiredRank}プラン以上が必要です` };
+      return { canAccess: false, reason: 'プレミアムプラン以上が必要です' };
     }
   }
 
@@ -283,6 +273,34 @@ export function canAccessCourse(
   }
 
   return { canAccess: true };
+}
+
+/**
+ * 単一のコースを取得します（前提コースの最小情報を含む）
+ * @param {string} id
+ * @returns {Promise<Course | null>}
+ */
+export async function fetchCourseById(id: string): Promise<Course | null> {
+  const { data, error } = await getSupabaseClient()
+    .from('courses')
+    .select(`
+      *,
+      prerequisites:course_prerequisites!course_prerequisites_course_id_fkey (
+        prerequisite_course_id,
+        prerequisite_course:courses!course_prerequisites_prerequisite_course_id_fkey (
+          id,
+          title
+        )
+      )
+    `)
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching course by id:', error);
+    return null;
+  }
+  return (data as Course) || null;
 }
 
 /**
