@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useMissionStore } from '@/stores/missionStore';
 import { useUserStatsStore } from '@/stores/userStatsStore';
@@ -10,11 +9,8 @@ import {
   FaBell, 
   FaExternalLinkAlt, 
   FaTrophy, 
-  FaCalendarAlt,
   FaMusic,
-  FaArrowLeft,
   FaBullseye,
-  FaUser,
   FaCrown,
   FaGraduationCap,
   FaGem,
@@ -25,10 +21,8 @@ import {
   FaList,
   FaEdit
 } from 'react-icons/fa';
-import { Mission } from '@/platform/supabaseMissions';
 import GameHeader from '@/components/ui/GameHeader';
 import OpenBetaPlanSwitcher from '@/components/subscription/OpenBetaPlanSwitcher';
-import { xpToNextLevel, currentLevelXP } from '@/utils/xpCalculator';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
@@ -40,7 +34,6 @@ import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZAR
 const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
-  const [loading, setLoading] = useState(true);
   const { profile, isGuest, logout } = useAuthStore();
   const isStandardGlobal = profile?.rank === 'standard_global';
   const { monthly: missions, fetchAll: loadMissions } = useMissionStore();
@@ -58,102 +51,83 @@ const Dashboard: React.FC = () => {
     return () => window.removeEventListener('hashchange', checkHash);
   }, []);
 
-  useEffect(() => {
-    if (open) {
-      loadDashboardData();
-    }
-  }, [open, isGuest]);
-
-  // ゲストからログインへ切り替わったらデータをリロード
-  useEffect(() => {
-    if (!isGuest && open) {
-      loadDashboardData();
-    }
-  }, [isGuest, open]);
-
-  const loadDashboardData = async () => {
-    setLoading(true);
-    
+  const loadDashboardData = useCallback(async () => {
     try {
       // すべてのデータを並行読み込み
-      const promises: Promise<any>[] = [];
-      
+      const promises: Array<Promise<void>> = [];
+
       // ミッションのロード
       promises.push(
-        loadMissions().catch((missionError: any) => {
+        loadMissions().catch((missionError: unknown) => {
           console.error('Mission loading error:', missionError);
+          // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+          const message = missionError instanceof Error ? missionError.message : String(missionError);
+          // トーストはユーザー通知のみ
           toast.error('ミッションの読み込みに失敗しました');
+          void message;
         })
       );
 
       // お知らせのロード（ゲスト以外）
       if (!isGuest) {
         promises.push(
-          fetchActiveAnnouncements(isStandardGlobal ? 'global' : 'default').then(announcementsData => {
-            // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
-            const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
-              // まず優先度で比較
-              if (a.priority !== b.priority) {
-                return a.priority - b.priority;
-              }
-              // 優先度が同じ場合は作成日時で比較（新しい順）
-              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-            });
-            
-            const latestData = sortedAnnouncements.length > 0 ? sortedAnnouncements[0] : null;
-            
-            console.log('Dashboard: Latest announcement data:', latestData);
-            console.log('Dashboard: All active announcements:', announcementsData);
-            console.log('Dashboard: Sorted announcements:', sortedAnnouncements);
-            console.log('Dashboard: Total active announcements count:', announcementsData.length);
-            
-            setLatestAnnouncement(latestData);
-            
-            if (!latestData) {
-              console.log('Dashboard: No active announcements found');
-              if (announcementsData.length === 0) {
-                console.log('Dashboard: No announcements exist at all');
-              } else {
-                console.log('Dashboard: Active announcements exist but latestData is null');
-              }
-            }
-          }).catch((announcementError: any) => {
-            console.error('Announcement loading error:', announcementError);
-            toast.error(`お知らせの読み込みに失敗しました: ${announcementError.message}`, {
-              title: 'お知らせエラー',
-              duration: 5000,
-            });
-          })
+          fetchActiveAnnouncements(isStandardGlobal ? 'global' : 'default')
+            .then((announcementsData: Announcement[]) => {
+              // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
+              const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
+                if (a.priority !== b.priority) {
+                  return a.priority - b.priority;
+                }
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              });
+
+              const latestData = sortedAnnouncements.length > 0 ? sortedAnnouncements[0] : null;
+              setLatestAnnouncement(latestData);
+            })
+            .catch((announcementError: unknown) => {
+              console.error('Announcement loading error:', announcementError);
+              const message = announcementError instanceof Error ? announcementError.message : String(announcementError);
+              toast.error(`お知らせの読み込みに失敗しました: ${message}`, {
+                title: 'お知らせエラー',
+                duration: 5000,
+              });
+            })
         );
       }
 
       // ユーザー統計のロード（ゲスト以外）- 他のデータと完全に並行実行
       if (!isGuest && profile) {
         promises.push(
-          fetchStats(profile.id).catch((statsError: any) => {
+          fetchStats(profile.id).catch((statsError: unknown) => {
             console.error('User stats loading error:', statsError);
-            // 統計の読み込み失敗は致命的ではないので、エラーログのみ
           })
         );
       }
 
-      // すべてのプロミスを並行実行
       await Promise.all(promises);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Dashboard data loading error:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [isGuest, profile, isStandardGlobal, loadMissions, fetchStats, toast]);
 
-  const handleClose = () => {
-    window.location.hash = '';
-  };
+  useEffect(() => {
+    if (open) {
+      void loadDashboardData();
+    }
+  }, [open, isGuest, loadDashboardData]);
+
+  // ゲストからログインへ切り替わったらデータをリロード
+  useEffect(() => {
+    // ゲストからログインへ切り替わったらデータをリロード
+    if (!isGuest && open) {
+      void loadDashboardData();
+    }
+  }, [isGuest, open, loadDashboardData]);
 
   // 称号の種類を判定する関数
   const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
     // レベル称号の判定
-    if (TITLES.includes(title as any)) {
+    if (TITLES.includes(title as Title)) {
       return 'level';
     }
     // ミッション称号の判定
@@ -165,7 +139,7 @@ const Dashboard: React.FC = () => {
       return 'lesson';
     }
     // 魔法使い称号の判定
-    if (WIZARD_TITLES.includes(title as any)) {
+    if (WIZARD_TITLES.includes(title as Title)) {
       return 'wizard';
     }
     // デフォルトはレベル称号
@@ -250,9 +224,13 @@ const Dashboard: React.FC = () => {
                   <div className="relative mb-2">
                     <div 
                       className="flex items-center space-x-2 cursor-help max-w-full"
-                      onMouseEnter={()=>setHoveredTitle(true)}
-                      onMouseLeave={()=>setHoveredTitle(false)}
-                      onClick={(e)=>{ e.stopPropagation(); setClickedTitle(v=>!v); }}
+                      onMouseEnter={() => setHoveredTitle(true)}
+                      onMouseLeave={() => setHoveredTitle(false)}
+                      onClick={(e) => { e.stopPropagation(); setClickedTitle(v => !v); }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setClickedTitle(v => !v); } }}
+                      aria-label="称号の詳細を表示"
                     >
                       {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
                       <span className="text-yellow-400 font-medium text-sm truncate max-w-[240px]">
@@ -270,46 +248,49 @@ const Dashboard: React.FC = () => {
                     )}
                   </div>
                   
-                  <div className="flex items-center space-x-4 text-sm text-gray-400">
-                    <span>Lv.{profile.level}</span>
-                    <div className="flex items-center space-x-1">
-                      {getRankIcon(profile.rank)}
-                      <span className="capitalize">{profile.rank}</span>
+                  <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+                    <div className="bg-slate-900 rounded p-3 border border-slate-700">
+                      <div className="text-gray-400">累計経験値</div>
+                      <div className="text-lg font-semibold">{profile.xp.toLocaleString()}</div>
                     </div>
-                    <span>累計経験値 {profile.xp.toLocaleString()}</span>
-                  </div>
-                  
-                  {/* ミッション・レッスン統計 */}
-                  {statsLoading ? (
-                    <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
-                      <span className="animate-pulse">統計を読み込み中...</span>
+                    <div className="bg-slate-900 rounded p-3 border border-slate-700">
+                      <div className="text-gray-400">ランク</div>
+                      <div className="flex items-center space-x-2">
+                        {getRankIcon(profile.rank)}
+                        <span className="capitalize">{profile.rank}</span>
+                      </div>
                     </div>
-                  ) : userStats ? (
-                    <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
-                      {!isStandardGlobal && (<span>ミッション完了数 {userStats.missionCompletedCount}</span>)}
-                      {!isStandardGlobal && (<span>レッスンクリア数 {userStats.lessonCompletedCount}</span>)}
+                    <div className="bg-slate-900 rounded p-3 border border-slate-700 col-span-2">
+                      <div className="text-gray-400">現在のレベル</div>
+                      {(() => {
+                        const levelInfo = calcLevel(profile.xp);
+                        return (
+                          <>
+                            <div className="text-lg font-semibold">Lv.{levelInfo.level}</div>
+                            <div className="h-1.5 bg-slate-700 rounded overflow-hidden mt-1">
+                              <div className="h-full bg-blue-500" style={{ width: `${(levelInfo.remainder / levelInfo.nextLevelXp) * 100}%` }} />
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</div>
+                          </>
+                        );
+                      })()}
                     </div>
-                  ) : null}
-                  
-                  {/* 経験値進捗 */}
-                  <div className="mt-4">
-                    {(() => {
-                      const levelInfo = calcLevel(profile.xp);
-                      return (
-                        <>
-                          <div className="flex justify-between text-sm text-gray-400 mb-1">
-                            <span>{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</span>
-                            <span>次レベルまで: {(levelInfo.nextLevelXp - levelInfo.remainder).toLocaleString()}</span>
-                          </div>
-                          <div className="bg-slate-700 h-2 rounded overflow-hidden">
-                            <div 
-                              className="bg-blue-500 h-full transition-all"
-                              style={{ width: `${(levelInfo.remainder / levelInfo.nextLevelXp) * 100}%` }}
-                            />
-                          </div>
-                        </>
-                      );
-                    })()}
+                    {!isStandardGlobal && (statsLoading ? (
+                      <div className="col-span-2">
+                        <div className="animate-pulse text-gray-400">統計を読み込み中...</div>
+                      </div>
+                    ) : userStats ? (
+                      <>
+                        <div className="bg-slate-900 rounded p-3 border border-slate-700">
+                          <div className="text-gray-400">ミッション完了数</div>
+                          <div className="text-lg font-semibold">{userStats.missionCompletedCount}</div>
+                        </div>
+                        <div className="bg-slate-900 rounded p-3 border border-slate-700">
+                          <div className="text-gray-400">レッスンクリア数</div>
+                          <div className="text-lg font-semibold">{userStats.lessonCompletedCount}</div>
+                        </div>
+                      </>
+                    ) : null)}
                   </div>
                 </div>
               </div>
@@ -504,7 +485,7 @@ const Dashboard: React.FC = () => {
                   ログイン / 会員登録
                 </button>
                 <button
-                  onClick={async () => { await logout(); try { localStorage.removeItem('guest_id'); } catch {}; window.location.href = 'https://jazzify.jp/'; toast.info('ログアウトしました'); }}
+                  onClick={async () => { await logout(); try { localStorage.removeItem('guest_id'); } catch (_err) { void _err; } window.location.href = 'https://jazzify.jp/'; toast.info('ログアウトしました'); }}
                   className="btn btn-ghost"
                 >
                   ログアウト
