@@ -403,9 +403,9 @@ const LessonPage: React.FC = () => {
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 p-4 overflow-hidden">
         <div 
-          className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col pt-14 sm:pt-16 overflow-y-auto"
+          className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col pt-14 sm:pt-16 overflow-y-auto md:overflow-hidden min-h-0"
           style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}
         >
 
@@ -427,16 +427,13 @@ const LessonPage: React.FC = () => {
               <p className="text-gray-400">読み込み中...</p>
             </div>
           ) : (
-            <div className="flex-1 md:flex md:flex-row overflow-hidden min-h-0">
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
               {/* コース一覧サイドバー */}
               <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col overflow-hidden min-h-0 md:h-full">
                 <div className="p-4 border-b border-slate-700">
                   <h2 className="text-lg font-semibold">コース一覧</h2>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                  overscrollBehavior: 'contain'
-                }}>
+                <div className="flex-1 md:overflow-y-auto p-4 space-y-3" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
                   {courses.map((course: Course) => {
                     const courseUnlockFlag = courseUnlockStatus[course.id] !== undefined ? courseUnlockStatus[course.id] : null;
                     const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, courseUnlockFlag);
@@ -573,7 +570,7 @@ const LessonPage: React.FC = () => {
                       )}
                     </div>
                     
-                    <div className="flex-1 overflow-y-auto p-6">
+                    <div className="flex-1 md:overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
                       <div className="space-y-6">
                         {Object.entries(groupLessonsByBlock(lessons)).map(([blockNumber, blockLessons]) => {
                           const blockNum = parseInt(blockNumber);
