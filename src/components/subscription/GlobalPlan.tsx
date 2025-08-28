@@ -27,7 +27,10 @@ const GlobalPlan: React.FC = () => {
     }
     setLoading('buy');
     try {
-      const res = await fetch('/.netlify/functions/paddleCreateCheckout', {
+      const endpoint = import.meta.env.VITE_USE_PADDLE_BILLING_API === 'true'
+        ? '/.netlify/functions/paddleCreateTransaction'
+        : '/.netlify/functions/paddleCreateCheckout';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +137,11 @@ const GlobalPlan: React.FC = () => {
             Paddleカスタマーポータルを開く
           </a>
         </div>
-      ) : null)}
+      ) : (
+        <div className="mt-2 text-right text-xs text-gray-400">
+          カスタマーポータルURL未設定
+        </div>
+      ))}
     </div>
   );
 };

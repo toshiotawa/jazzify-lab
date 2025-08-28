@@ -55,17 +55,31 @@ export const handler = async (event: NetlifyEvent) => {
     }
 
     const baseCheckout = process.env.PADDLE_CHECKOUT_LINK_STANDARD_GLOBAL;
-    if (!baseCheckout) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'PADDLE_CHECKOUT_LINK_STANDARD_GLOBAL is not configured' }) };
+    const billingUrl = process.env.PADDLE_BILLING_CHECKOUT_URL; // 例: https://{vendor}.paddle.com/checkout
+    if (!baseCheckout && !billingUrl) {
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Paddle checkout URL is not configured' }) };
     }
 
-    const url = new URL(baseCheckout);
-    // 可能ならメールをプリフィル
-    if (profile?.email) url.searchParams.set('customer_email', profile.email);
-    // 我々のユーザーIDをpassthroughに載せる（Paddle Classic互換。新Billingではcustom_data等に読み替え）
-    url.searchParams.set('passthrough', JSON.stringify({ supabase_user_id: user.id }));
-
-    return { statusCode: 200, headers, body: JSON.stringify({ url: url.toString() }) };
+    // 優先: Billing URL（custom_data）; 次点: Classicリンク（passthrough）
+    if (billingUrl) {
+      const url = new URL(billingUrl);
+      // 必須: price_id
+      const priceId = process.env.PADDLE_PRICE_ID_STANDARD_GLOBAL;
+      if (!priceId) {
+        return { statusCode: 500, headers, body: JSON.stringify({ error: 'PADDLE_PRICE_ID_STANDARD_GLOBAL is not configured' }) };
+      }
+      url.searchParams.set('price_id', priceId);
+      url.searchParams.set('quantity', '1');
+      // custom_data: user id for linking
+      url.searchParams.set('custom_data', JSON.stringify({ supabase_user_id: user.id }));
+      if (profile?.email) url.searchParams.set('customer_email', profile.email);
+      return { statusCode: 200, headers, body: JSON.stringify({ url: url.toString() }) };
+    } else {
+      const url = new URL(baseCheckout as string);
+      if (profile?.email) url.searchParams.set('customer_email', profile.email);
+      url.searchParams.set('passthrough', JSON.stringify({ supabase_user_id: user.id }));
+      return { statusCode: 200, headers, body: JSON.stringify({ url: url.toString() }) };
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal error';
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', details: message }) };

@@ -34,7 +34,7 @@ export const handler = async (event: any) => {
     // Freeガード: Freeでない場合は停止
     const { data: profile, error: profErr } = await supabase
       .from('profiles')
-      .select('rank, stripe_customer_id')
+      .select('rank, stripe_customer_id, paddle_customer_id, paddle_subscription_id')
       .eq('id', user.id)
       .single();
     if (profErr) {
@@ -54,6 +54,8 @@ export const handler = async (event: any) => {
         twitter_handle: null,
         avatar_url: null,
         stripe_customer_id: null,
+        paddle_customer_id: null,
+        paddle_subscription_id: null,
         will_cancel: false,
         cancel_date: null,
         downgrade_to: null,

@@ -13,6 +13,16 @@ const supabase = createClient(
 
 type UnknownRecord = Record<string, unknown>;
 
+type ProfileUpdate = {
+  rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
+  will_cancel?: boolean | null;
+  cancel_date?: string | null;
+  downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | null;
+  downgrade_date?: string | null;
+  paddle_customer_id?: string | null;
+  paddle_subscription_id?: string | null;
+};
+
 const extractUserId = (payload: unknown): string | null => {
   if (!payload || typeof payload !== 'object') return null;
   const obj = payload as UnknownRecord;
@@ -62,17 +72,17 @@ export const handler = async (event: NetlifyEvent) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
-  // 署名検証は環境差異が大きいので、ここでは省略/任意
+  // 署名検証（簡易: 開発用スキップフラグがfalseなら許可しない）
   const insecure = (process.env.PADDLE_WEBHOOK_INSECURE || '').toLowerCase() === 'true';
   if (!insecure) {
-    // 本番運用時は必ず署名検証を実装してください
-    // ここでは安全側に 400 を返すことで誤配送を防止
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Webhook signature verification not configured' }) };
+    // TODO: 本番では Paddle Webhook のRSA署名検証を実装する
+    // 参考: https://developer.paddle.com/api-reference/webhooks/overview
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Webhook signature verification not implemented' }) };
   }
 
   let payload: unknown;
   try {
-    payload = event.headers['content-type']?.includes('application/json') ? JSON.parse(event.body) : JSON.parse(event.body);
+    payload = event.headers['content-type']?.includes('application/json') ? JSON.parse(event.body || '{}') : JSON.parse(event.body || '{}');
   } catch {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid payload' }) };
   }
@@ -91,41 +101,37 @@ export const handler = async (event: NetlifyEvent) => {
 
   const userId = await resolveUserId();
   if (!userId) {
-    return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) }; // 早期終了（ログのみ）
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   }
 
-  // イベントタイプ推定（Classic or Billing）
   const alertName = typeof obj['alert_name'] === 'string' ? (obj['alert_name'] as string) : '';
   const eventType = typeof obj['event_type'] === 'string' ? (obj['event_type'] as string) : '';
 
-  const markGlobal = async () => {
-    await supabase.from('profiles').update({
-      rank: 'standard_global',
+  // Try to extract Billing customer/subscription ids
+  const data = obj['data'] as UnknownRecord | undefined;
+  const billingCustomerId = data && typeof data['customer_id'] === 'string' ? (data['customer_id'] as string) : undefined;
+  const billingSubscriptionId = data && typeof data['subscription_id'] === 'string' ? (data['subscription_id'] as string) : undefined;
+
+  const buildUpdate = (rank: 'free' | 'standard_global' | null): ProfileUpdate => {
+    const update: ProfileUpdate = {
       will_cancel: false,
       cancel_date: null,
       downgrade_to: null,
       downgrade_date: null,
-    }).eq('id', userId);
+    };
+    if (rank) update.rank = rank;
+    if (billingCustomerId) update.paddle_customer_id = billingCustomerId;
+    if (billingSubscriptionId) update.paddle_subscription_id = billingSubscriptionId;
+    return update;
   };
 
-  const markFree = async () => {
-    await supabase.from('profiles').update({
-      rank: 'free',
-      will_cancel: false,
-      cancel_date: null,
-      downgrade_to: null,
-      downgrade_date: null,
-    }).eq('id', userId);
-  };
-
-  // 粗いマッピング（必要に応じて拡張）
   if (
     alertName === 'subscription_created' ||
     alertName === 'subscription_payment_succeeded' ||
     eventType === 'subscription.activated' ||
     eventType === 'transaction.completed'
   ) {
-    await markGlobal();
+    await supabase.from('profiles').update(buildUpdate('standard_global')).eq('id', userId);
   }
 
   if (
@@ -133,7 +139,7 @@ export const handler = async (event: NetlifyEvent) => {
     eventType === 'subscription.cancelled' ||
     eventType === 'subscription.paused'
   ) {
-    await markFree();
+    await supabase.from('profiles').update(buildUpdate('free')).eq('id', userId);
   }
 
   return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
