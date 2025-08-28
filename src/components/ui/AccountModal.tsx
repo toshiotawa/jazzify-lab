@@ -16,6 +16,7 @@ import { fetchFantasyClearedStageCount } from '@/platform/supabaseFantasyStages'
 const RANK_LABEL: Record<string, string> = {
   free: 'フリー',
   standard: 'スタンダード',
+  standard_global: 'スタンダード（グローバル）',
   premium: 'プレミアム',
   platinum: 'プラチナ',
 };
@@ -487,6 +488,36 @@ const AccountPage: React.FC = () => {
                             }}
                           >
                             プランを選択
+                          </button>
+                        </div>
+                      )}
+                      {/* Standard(Global) の場合の即時ダウングレード */}
+                      {profile.rank === 'standard_global' && (
+                        <div className="mt-3">
+                          <button
+                            className="btn btn-sm btn-outline w-full"
+                            onClick={async () => {
+                              try {
+                                const response = await fetch('/.netlify/functions/paddleDowngradeNow', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': (()=>{ try{ return `Bearer ${useAuthStore.getState().session?.access_token || ''}` }catch{return ''}})(),
+                                  },
+                                });
+                                if (response.ok) {
+                                  await useAuthStore.getState().fetchProfile({ forceRefresh: true });
+                                  alert('Freeプランに即時ダウングレードしました');
+                                } else {
+                                  const err = await response.json().catch(()=>({error:'ダウングレードに失敗しました'}));
+                                  alert(err.error || 'ダウングレードに失敗しました');
+                                }
+                              } catch (e) {
+                                alert('エラーが発生しました');
+                              }
+                            }}
+                          >
+                            今すぐFreeにダウングレード
                           </button>
                         </div>
                       )}
