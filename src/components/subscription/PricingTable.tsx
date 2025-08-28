@@ -1,18 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-
-// Stripe Pricing Table用の型定義（グローバル宣言）
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'stripe-pricing-table': {
-        'pricing-table-id': string;
-        'publishable-key': string;
-        'customer-email'?: string;
-      };
-    }
-  }
-}
 
 interface PlanPrice {
   monthly: string;
@@ -34,21 +21,6 @@ const PricingTable: React.FC = () => {
   const { profile } = useAuthStore();
   const [loading, setLoading] = useState<string | null>(null);
 
-  // Stripe Pricing Tableスクリプトを動的に読み込み
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://js.stripe.com/v3/pricing-table.js';
-    script.async = true;
-    document.head.appendChild(script);
-
-    return () => {
-      // クリーンアップ
-      const existingScript = document.querySelector('script[src="https://js.stripe.com/v3/pricing-table.js"]');
-      if (existingScript) {
-        document.head.removeChild(existingScript);
-      }
-    };
-  }, []);
 
   const handlePlanSelect = async (plan: 'standard' | 'premium' | 'platinum') => {
     if (!profile) {
@@ -181,19 +153,6 @@ const PricingTable: React.FC = () => {
         </div>
       </div>
 
-      {/* Stripe Pricing Table（代替案）*/}
-      {import.meta.env.VITE_STRIPE_PRICING_TABLE_ID && (
-        <div className="border-t border-slate-700 pt-8">
-          <h3 className="text-xl font-semibold text-white text-center mb-6">
-            または Stripe Pricing Table
-          </h3>
-          <stripe-pricing-table
-            pricing-table-id={import.meta.env.VITE_STRIPE_PRICING_TABLE_ID as string}
-            publishable-key={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string}
-            customer-email={profile?.email}
-          />
-        </div>
-      )}
       </div>
     </div>
   );
