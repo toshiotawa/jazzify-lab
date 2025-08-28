@@ -17,6 +17,7 @@ export interface Diary {
   level: number;
   rank: string;
   image_url?: string; // URL of the uploaded image for the diary entry
+  is_deleted?: boolean;
 }
 
 export interface DiaryComment {
@@ -28,6 +29,7 @@ export interface DiaryComment {
   avatar_url?: string;
   likes?: number;
   likedByMe?: boolean;
+  is_deleted?: boolean;
 }
 
 export async function fetchDiaries(limit = 20): Promise<Diary[]> {
@@ -98,6 +100,7 @@ export async function fetchDiaries(limit = 20): Promise<Diary[]> {
     level: diary.profiles?.level || 1,
     rank: diary.profiles?.rank || 'free',
     image_url: diary.image_url,
+    is_deleted: diary.is_deleted === true,
   } as Diary));
 
   return diariesWithLikes;
@@ -568,7 +571,7 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
 
   const { data: rawData, error } = await supabase
     .from('diary_comments')
-    .select('id, user_id, content, created_at, profiles(nickname, avatar_url)')
+    .select('id, user_id, content, created_at, is_deleted, profiles(nickname, avatar_url)')
     .eq('diary_id', diaryId)
     .order('created_at', { ascending: true });
 
@@ -610,6 +613,7 @@ export async function fetchComments(diaryId: string): Promise<DiaryComment[]> {
       avatar_url: profile.avatar_url,
       likes: likesByComment.get(d.id) || 0,
       likedByMe: likedByMeSet.has(d.id),
+      is_deleted: (d as any).is_deleted === true,
     } satisfies DiaryComment;
   });
 }
@@ -630,7 +634,12 @@ export async function deleteComment(commentId: string): Promise<void> {
   const supabase = getSupabaseClient();
   const userId = await getCurrentUserIdCached();
   if (!userId) throw new Error('ログインが必要です');
-  const { error } = await supabase.from('diary_comments').delete().eq('id', commentId).eq('user_id', userId);
+  // トゥームストーン: 内容を消去し、is_deletedを立てる
+  const { error } = await supabase
+    .from('diary_comments')
+    .update({ content: '', is_deleted: true, deleted_at: new Date().toISOString(), deleted_reason: 'user_deleted' })
+    .eq('id', commentId)
+    .eq('user_id', userId);
   if (error) throw error;
 }
 
@@ -737,6 +746,7 @@ export async function fetchDiaryById(diaryId: string): Promise<Diary | null> {
     level: row.profiles?.level || 1,
     rank: row.profiles?.rank || 'free',
     image_url: row.image_url,
+    is_deleted: row.is_deleted === true,
   };
 }
 
@@ -767,10 +777,10 @@ export async function deleteDiary(diaryId: string): Promise<void> {
     throw new Error('削除権限がありません。この日記を削除できるのは作成者のみです。');
   }
   
-  // 日記を削除
+  // トゥームストーン: 内容・画像URLを消去し、is_deletedを立てる
   const { data: deletedData, error: deleteError } = await supabase
     .from('practice_diaries')
-    .delete()
+    .update({ content: '', image_url: null, is_deleted: true, deleted_at: new Date().toISOString(), deleted_reason: 'user_deleted' })
     .eq('id', diaryId)
     .eq('user_id', userId)
     .select();
@@ -789,7 +799,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
   
   console.log('日記削除完了:', deletedData[0]);
   
-  // 削除された日記がミッション進捗に影響する場合は進捗を調整
+  // 削除された日記がミッション進捗に影響する場合は進捗を再計算（is_deleted=falseのみ）
   try {
     const missions = await fetchActiveMonthlyMissions();
     for (const mission of missions) {
@@ -799,6 +809,7 @@ export async function deleteDiary(diaryId: string): Promise<void> {
           .from('practice_diaries')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', userId)
+          .eq('is_deleted', false)
           .gte('practice_date', mission.start_date)
           .lte('practice_date', mission.end_date);
         

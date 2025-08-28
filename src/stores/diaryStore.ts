@@ -189,13 +189,18 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
       try {
         const { deleteDiary } = await import('@/platform/supabaseDiary');
         await deleteDiary(diaryId);
-        
-        // 楽観的削除
+
+        // 楽観的にトゥームストーン化
         set(s => {
-          s.diaries = s.diaries.filter(d => d.id !== diaryId);
-          // 関連するコメントも削除
-          delete s.comments[diaryId];
-          delete s.likeUsers[diaryId];
+          const d = s.diaries.find(x => x.id === diaryId);
+          if (d) {
+            d.content = '';
+            // @ts-expect-error optional at runtime
+            d.is_deleted = true;
+            // @ts-expect-error optional at runtime
+            d.image_url = undefined;
+          }
+          // コメント・いいね一覧は残す（文脈維持）。必要ならクリア
         });
       } catch (error) {
         set(s => { 

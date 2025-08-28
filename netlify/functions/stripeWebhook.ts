@@ -126,14 +126,23 @@ export const handler = async (event, context) => {
     };
   }
 
-  const sig = event.headers['stripe-signature'];
+  // 署名ヘッダー（大小混在に対応）
+  const signature =
+    event.headers['stripe-signature'] ||
+    event.headers['Stripe-Signature'] ||
+    event.headers['STRIPE-SIGNATURE'];
+
   let stripeEvent: Stripe.Event;
 
   try {
-    // Webhookの署名検証
+    // Webhookの署名検証（生ボディ必須）
+    const rawBody: string | Buffer = event.isBase64Encoded
+      ? Buffer.from(event.body, 'base64')
+      : event.body;
+
     stripeEvent = stripe.webhooks.constructEvent(
-      event.body,
-      sig,
+      rawBody,
+      signature as string,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err) {
