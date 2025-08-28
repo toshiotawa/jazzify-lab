@@ -1,17 +1,27 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 
 // オープンベータ用の簡易プラン変更UI
 // 注意: Stripe を介さず Supabase の profiles.rank を直接更新します
+type Rank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
+
 const OpenBetaPlanSwitcher: React.FC = () => {
-  const { profile, isGuest } = useAuthStore();
+  const { profile } = useAuthStore();
   const toast = useToast();
   const [updating, setUpdating] = useState(false);
-  const [selected, setSelected] = useState<string>(profile?.rank || 'free');
+  const [selected, setSelected] = useState<Rank>(profile?.rank || 'free');
 
-  const availablePlans = useMemo(() => {
+  const isRank = (value: string): value is Rank => (
+    value === 'free' ||
+    value === 'standard' ||
+    value === 'standard_global' ||
+    value === 'premium' ||
+    value === 'platinum'
+  );
+
+  const availablePlans = useMemo((): Array<{ value: Rank; label: string }> => {
     const isJapan = (profile?.country || '').toUpperCase() === 'JP' || (profile?.country || '').toLowerCase() === 'japan';
     if (isJapan) {
       return [
@@ -26,6 +36,13 @@ const OpenBetaPlanSwitcher: React.FC = () => {
       { value: 'standard_global', label: 'スタンダード（グローバル）' },
     ];
   }, [profile?.country]);
+
+  // プロフィールのrankが変わったらセレクトを同期
+  useEffect(() => {
+    if (profile?.rank && isRank(profile.rank)) {
+      setSelected(profile.rank);
+    }
+  }, [profile?.rank]);
 
   const applyPlan = async () => {
     if (!profile?.id) return;
@@ -46,10 +63,19 @@ const OpenBetaPlanSwitcher: React.FC = () => {
         throw new Error(error.message);
       }
 
-      await useAuthStore.getState().fetchProfile();
+      // 楽観的更新で即時反映
+      useAuthStore.setState(state => {
+        if (state.profile) {
+          state.profile = { ...state.profile, rank: selected };
+        }
+      });
+
+      // キャッシュ無効化して最新を取得
+      await useAuthStore.getState().fetchProfile({ forceRefresh: true });
       toast.success('プランを更新しました');
-    } catch (e: any) {
-      toast.error(`プランの更新に失敗しました: ${e?.message || e}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`プランの更新に失敗しました: ${message}`);
     } finally {
       setUpdating(false);
     }
@@ -72,7 +98,12 @@ const OpenBetaPlanSwitcher: React.FC = () => {
           id="openbeta-plan"
           className="w-full p-2 rounded bg-slate-700 text-sm"
           value={selected}
-          onChange={(e) => setSelected(e.target.value)}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (isRank(value)) {
+              setSelected(value);
+            }
+          }}
           disabled={updating}
         >
           {availablePlans.map(plan => (
