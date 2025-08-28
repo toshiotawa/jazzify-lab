@@ -199,7 +199,11 @@ const DiaryFeed: React.FC = () => {
             </div>
           ) : (
             <>
-              <p className="whitespace-pre-wrap text-gray-100 mb-3 text-sm leading-relaxed">{d.content}</p>
+              {d.is_deleted ? (
+                <p className="whitespace-pre-wrap text-gray-500 italic mb-3 text-sm leading-relaxed">(削除されました)</p>
+              ) : (
+                <p className="whitespace-pre-wrap text-gray-100 mb-3 text-sm leading-relaxed">{d.content}</p>
+              )}
               {d.image_url && (
                 <div className="mb-3">
                   <img
@@ -307,7 +311,11 @@ const DiaryFeed: React.FC = () => {
                     onClick={()=>{window.location.hash=`#diary-user?id=${c.user_id}`;}}
                     className="font-semibold hover:text-blue-400 transition-colors"
                   >{c.nickname}</button>
-                  <p className="flex-1 break-words">{c.content}</p>
+                  {c.is_deleted ? (
+                    <p className="flex-1 break-words text-gray-500 italic">(削除されました)</p>
+                  ) : (
+                    <p className="flex-1 break-words">{c.content}</p>
+                  )}
                   <span className="text-[10px] text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleString('ja-JP', { year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
                   {/* comment like */}
                   <button

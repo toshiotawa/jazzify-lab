@@ -23,16 +23,16 @@ interface PlanPrice {
 
 const PLAN_PRICES: Record<string, PlanPrice> = {
   standard: {
-    monthly: process.env.VITE_STRIPE_STANDARD_MONTHLY_PRICE_ID || '',
-    yearly: process.env.VITE_STRIPE_STANDARD_YEARLY_PRICE_ID || '',
+    monthly: import.meta.env.VITE_STRIPE_STANDARD_MONTHLY_PRICE_ID || '',
+    yearly: import.meta.env.VITE_STRIPE_STANDARD_YEARLY_PRICE_ID || '',
   },
   premium: {
-    monthly: process.env.VITE_STRIPE_PREMIUM_MONTHLY_PRICE_ID || '',
-    yearly: process.env.VITE_STRIPE_PREMIUM_YEARLY_PRICE_ID || '',
+    monthly: import.meta.env.VITE_STRIPE_PREMIUM_MONTHLY_PRICE_ID || '',
+    yearly: import.meta.env.VITE_STRIPE_PREMIUM_YEARLY_PRICE_ID || '',
   },
   platinum: {
-    monthly: process.env.VITE_STRIPE_PLATINUM_MONTHLY_PRICE_ID || '',
-    yearly: process.env.VITE_STRIPE_PLATINUM_YEARLY_PRICE_ID || '',
+    monthly: import.meta.env.VITE_STRIPE_PLATINUM_MONTHLY_PRICE_ID || '',
+    yearly: import.meta.env.VITE_STRIPE_PLATINUM_YEARLY_PRICE_ID || '',
   },
 };
 
@@ -237,14 +237,14 @@ const PricingTable: React.FC = () => {
       </div>
 
       {/* Stripe Pricing Table（代替案）*/}
-      {process.env.VITE_STRIPE_PRICING_TABLE_ID && (
+      {import.meta.env.VITE_STRIPE_PRICING_TABLE_ID && (
         <div className="border-t border-slate-700 pt-8">
           <h3 className="text-xl font-semibold text-white text-center mb-6">
             または Stripe Pricing Table
           </h3>
           <stripe-pricing-table
-            pricing-table-id={process.env.VITE_STRIPE_PRICING_TABLE_ID}
-            publishable-key={process.env.VITE_STRIPE_PUBLISHABLE_KEY!}
+            pricing-table-id={import.meta.env.VITE_STRIPE_PRICING_TABLE_ID as string}
+            publishable-key={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string}
             customer-email={profile?.email}
           />
         </div>

@@ -492,6 +492,72 @@ const AccountPage: React.FC = () => {
                       )}
                     </div>
                   </div>
+
+                  {/* 退会（アカウント削除） */}
+                  <div className="space-y-2 border-t border-slate-700 pt-4">
+                    <h3 className="text-lg font-semibold text-red-400">退会（アカウント削除）</h3>
+                    <p className="text-xs text-gray-400">
+                      退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。
+                      退会にはFreeプランである必要があります。Freeでない場合、下のボタンからCustomer Portalで解約してください。
+                    </p>
+                    <div className="flex gap-2">
+                      {profile.rank !== 'free' && (
+                        <button
+                          className="btn btn-sm btn-outline"
+                          onClick={async () => {
+                            try {
+                              const response = await fetch('/.netlify/functions/createPortalSession', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': (()=>{ try{ return `Bearer ${useAuthStore.getState().session?.access_token || ''}` }catch{return ''}})(),
+                                },
+                              });
+                              if (response.ok) {
+                                const { url } = await response.json();
+                                window.open(url, '_blank');
+                              } else {
+                                alert('Customer Portalの表示に失敗しました');
+                              }
+                            } catch (e) {
+                              alert('エラーが発生しました');
+                            }
+                          }}
+                        >
+                          Customer Portalを開く
+                        </button>
+                      )}
+                      <button
+                        className={`btn btn-sm ${profile.rank === 'free' ? 'btn-danger' : 'btn-disabled'}`}
+                        disabled={profile.rank !== 'free'}
+                        onClick={async () => {
+                          if (!confirm('本当に退会しますか？この操作は取り消せません。')) return;
+                          try {
+                            const response = await fetch('/.netlify/functions/deleteAccount', {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': (()=>{ try{ return `Bearer ${useAuthStore.getState().session?.access_token || ''}` }catch{return ''}})(),
+                              },
+                            });
+                            if (response.ok) {
+                              alert('退会が完了しました');
+                              await logout();
+                              window.location.href = '/';
+                            } else {
+                              const err = await response.json().catch(()=>({error:'退会に失敗しました'}));
+                              alert(err.error || '退会に失敗しました');
+                            }
+                          } catch (e) {
+                            alert('退会処理中にエラーが発生しました');
+                          }
+                        }}
+                        title={profile.rank !== 'free' ? 'Freeプランのみ退会できます' : ''}
+                      >
+                        退会する
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
