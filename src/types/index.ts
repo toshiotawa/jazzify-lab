@@ -732,10 +732,13 @@ export interface Profile {
   next_season_xp_multiplier?: number;
   // Stripe subscription fields
   stripe_customer_id?: string;
-  rank?: 'free' | 'standard' | 'premium' | 'platinum';
+  paddle_customer_id?: string;
+  paddle_subscription_id?: string;
+  // Standard(Global) を含む
+  rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
   will_cancel?: boolean;
   cancel_date?: string;
-  downgrade_to?: 'free' | 'standard' | 'premium' | 'platinum';
+  downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
   downgrade_date?: string;
   level?: number;
   xp?: number;

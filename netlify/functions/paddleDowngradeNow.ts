@@ -1,11 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
+interface NetlifyEvent {
+  httpMethod: string;
+  headers: Record<string, string | undefined>;
+  body?: string;
+}
+
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export const handler = async (event: any) => {
+export const handler = async (event: NetlifyEvent) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -21,7 +27,7 @@ export const handler = async (event: any) => {
   }
 
   try {
-    const authHeader = event.headers.authorization;
+    const authHeader = event.headers.authorization as string | undefined;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Missing authorization token' }) };
     }
@@ -31,50 +37,38 @@ export const handler = async (event: any) => {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid token' }) };
     }
 
-    // Freeガード: Freeでない場合は停止
     const { data: profile, error: profErr } = await supabase
       .from('profiles')
-      .select('rank, stripe_customer_id, paddle_customer_id, paddle_subscription_id')
+      .select('rank')
       .eq('id', user.id)
       .single();
     if (profErr) {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch profile' }) };
     }
-    if (profile?.rank && profile.rank !== 'free') {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Freeプランのみ退会できます。まずCustomer Portalで解約してください。' }) };
+
+    if (profile?.rank !== 'standard_global') {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Only Standard(Global) can be downgraded immediately' }) };
     }
 
-    // プロフィール匿名化（外部キーを保つ）
-    const { error: anonErr } = await supabase
+    const { error: updErr } = await supabase
       .from('profiles')
       .update({
-        email: null,
-        nickname: '退会ユーザー',
-        bio: null,
-        twitter_handle: null,
-        avatar_url: null,
-        stripe_customer_id: null,
-        paddle_customer_id: null,
-        paddle_subscription_id: null,
+        rank: 'free',
         will_cancel: false,
         cancel_date: null,
         downgrade_to: null,
         downgrade_date: null,
       })
       .eq('id', user.id);
-    if (anonErr) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to anonymize profile' }) };
-    }
 
-    // Supabase Authユーザーを削除（以降ログイン不可）
-    const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
-    if (delErr) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to delete auth user' }) };
+    if (updErr) {
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to downgrade' }) };
     }
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
-  } catch (error: any) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', details: error?.message }) };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal error';
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', details: message }) };
   }
 };
 

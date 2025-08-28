@@ -26,6 +26,7 @@ import {
 import { FaUsers } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import OpenBetaPlanSwitcher from '@/components/subscription/OpenBetaPlanSwitcher';
+import GlobalPlan from '@/components/subscription/GlobalPlan';
 // xpToNextLevel, currentLevelXP は未使用
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
@@ -209,6 +210,7 @@ const Dashboard: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="max-w-2xl mx-auto space-y-6">
             <OpenBetaPlanSwitcher />
+            <GlobalPlan />
           </div>
         </div>
       </div>
