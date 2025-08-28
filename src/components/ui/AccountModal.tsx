@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
@@ -26,7 +26,7 @@ const RANK_LABEL: Record<string, string> = {
 const AccountPage: React.FC = () => {
   const { profile, logout, updateEmail, emailChangeStatus, clearEmailChangeStatus } = useAuthStore();
   const pushToast = useToastStore(state => state.push);
-  const [open, setOpen] = useState(window.location.hash === '#account');
+  const [open, setOpen] = useState(() => window.location.hash.startsWith('#account'));
   const [activeTab, setActiveTab] = useState<'profile' | 'subscription'>('profile');
   const [bio, setBio] = useState(profile?.bio || '');
   const [saving, setSaving] = useState(false);
@@ -62,11 +62,47 @@ const AccountPage: React.FC = () => {
   // ハッシュ変更で開閉
   useEffect(() => {
     const handler = () => {
-      setOpen(window.location.hash === '#account');
+      setOpen(window.location.hash.startsWith('#account'));
     };
     window.addEventListener('hashchange', handler);
     return () => window.removeEventListener('hashchange', handler);
   }, []);
+
+  // Stripe Checkout など外部遷移から戻った際に最新プロフィールを取得（即時反映）
+  useEffect(() => {
+    if (!open || !profile?.id) return;
+    let cancelled = false;
+    const initialRank = profile.rank;
+    const hasCheckoutSession = window.location.hash.includes('session_id=');
+
+    const refreshOnce = async () => {
+      await useAuthStore.getState().fetchProfile({ forceRefresh: true });
+    };
+
+    const refreshWithPolling = async () => {
+      const maxTries = 7; // 約10秒（1.5s * 6回 + 初回）
+      for (let i = 0; i < maxTries && !cancelled; i++) {
+        await useAuthStore.getState().fetchProfile({ forceRefresh: true });
+        const currentRank = useAuthStore.getState().profile?.rank;
+        if (currentRank && currentRank !== initialRank) {
+          break;
+        }
+        if (i < maxTries - 1) {
+          await new Promise(r => setTimeout(r, 1500));
+        }
+      }
+    };
+
+    if (hasCheckoutSession) {
+      void refreshWithPolling();
+    } else {
+      void refreshOnce();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, profile?.id]);
 
   useEffect(()=>{ setBio(profile?.bio || ''); }, [profile]);
   useEffect(()=>{ setTwitterHandle(profile?.twitter_handle?.replace(/^@/, '') || ''); }, [profile]);
