@@ -242,13 +242,17 @@ const DiaryFeed: React.FC = () => {
           )}
           <div className="flex items-center justify-between">
             <button 
-              className={`flex items-center text-xs text-gray-400 hover:text-pink-400 transition-colors p-1 rounded ${
-                d.user_id === user?.id ? 'opacity-50 cursor-not-allowed' : ''
+              className={`flex items-center text-xs transition-colors p-1 rounded ${
+                d.user_id === user?.id || d.is_deleted ? 'text-gray-500 opacity-50 cursor-not-allowed' : 'text-gray-400 hover:text-pink-400'
               }`}
               onClick={async () => {
                 if (!user) return;
                 if (d.user_id === user.id) {
                   toast.error('自分の日記にはいいねできません');
+                  return;
+                }
+                if (d.is_deleted) {
+                  toast.error('削除された投稿にはいいねできません');
                   return;
                 }
                 try {
@@ -257,7 +261,8 @@ const DiaryFeed: React.FC = () => {
                   toast.error(e.message || 'いいねに失敗しました');
                 }
               }}
-              disabled={d.user_id === user?.id}
+              disabled={d.user_id === user?.id || !!d.is_deleted}
+              title={d.is_deleted ? '削除された投稿にはいいねできません' : undefined}
             >
               <FaHeart className="mr-1" /> {d.likes}
             </button>
@@ -319,10 +324,14 @@ const DiaryFeed: React.FC = () => {
                   <span className="text-[10px] text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleString('ja-JP', { year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>
                   {/* comment like */}
                   <button
-                    className="text-pink-400 hover:text-pink-300"
-                    onClick={async ()=>{ try{ await useDiaryStore.getState().likeComment(c.id, d.id); }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); } }}
-                    disabled={c.user_id===user?.id}
-                    title={c.user_id===user?.id ? '自分のコメントにはいいねできません' : 'いいね'}
+                    className={` ${c.is_deleted ? 'text-gray-500 opacity-50 cursor-not-allowed' : 'text-pink-400 hover:text-pink-300'}`}
+                    onClick={async ()=>{ 
+                      if (c.user_id===user?.id) { toast.error('自分のコメントにはいいねできません'); return; }
+                      if (c.is_deleted) { toast.error('削除されたコメントにはいいねできません'); return; }
+                      try{ await useDiaryStore.getState().likeComment(c.id, d.id); }catch(e:any){ toast.error(e.message||'いいねに失敗しました'); }
+                    }}
+                    disabled={c.user_id===user?.id || !!c.is_deleted}
+                    title={c.is_deleted ? '削除されたコメントにはいいねできません' : (c.user_id===user?.id ? '自分のコメントにはいいねできません' : 'いいね')}
                   >
                     <FaHeart className="inline mr-1" /> {c.likes ?? 0}
                   </button>
