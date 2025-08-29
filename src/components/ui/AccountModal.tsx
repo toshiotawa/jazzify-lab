@@ -519,7 +519,7 @@ const AccountPage: React.FC = () => {
                           <button
                             className="btn btn-sm btn-primary"
                             onClick={() => {
-                              window.location.href = '/#pricing';
+                              window.location.href = '/main#pricing';
                             }}
                           >
                             プランを選択

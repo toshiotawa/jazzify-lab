@@ -131,11 +131,11 @@ const App: React.FC = () => {
     }
   }, [isGuest]);
 
-  // フリープランはダッシュボード/アカウントのみ
+  // フリープランはダッシュボード/アカウント/料金プランのみ
   useEffect(() => {
     const baseHash = window.location.hash.split('?')[0];
     if (isFree) {
-      if (baseHash !== '#dashboard' && baseHash !== '#account') {
+      if (baseHash !== '#dashboard' && baseHash !== '#account' && baseHash !== '#pricing') {
         window.location.hash = '#dashboard';
       }
     }
@@ -275,7 +275,7 @@ const App: React.FC = () => {
       MainContent = isFree ? <Dashboard /> : <InformationPage />;
       break;
     case '#pricing':
-      MainContent = isFree ? <Dashboard /> : <PricingTable />;
+      MainContent = isFree ? <PricingTable /> : <Dashboard />;
       break;
     case '#admin-songs':
     case '#admin-fantasy-bgm':

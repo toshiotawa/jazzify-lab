@@ -31,7 +31,7 @@ export const handler = async (event, context) => {
   }
 
   try {
-    const { priceId, isYearlyPlan } = JSON.parse(event.body);
+    const { priceId } = JSON.parse(event.body);
 
     // Authorization headerからJWTトークンを取得
     const authHeader = event.headers.authorization;
@@ -91,7 +91,30 @@ export const handler = async (event, context) => {
         .eq('id', user.id);
     }
 
-    // Checkout Sessionの設定
+    // 既存サブスクリプションがあればBilling Portalへ誘導
+    const existingSubs = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit: 1,
+      expand: ['data.items']
+    });
+
+    if (existingSubs.data.length > 0) {
+      const portalSession = await stripe.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: `${process.env.SITE_URL}/#account`,
+      });
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          url: portalSession.url,
+          via: 'portal'
+        }),
+      };
+    }
+
+    // Checkout Sessionの設定（初回のみ）
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
       mode: 'subscription',
@@ -109,10 +132,8 @@ export const handler = async (event, context) => {
       },
     };
 
-    // 年額プランの場合は14日間のトライアルを追加
-    if (isYearlyPlan) {
-      sessionConfig.subscription_data!.trial_period_days = 14;
-    }
+    // すべての初回チェックアウトに14日間のトライアルを付与
+    sessionConfig.subscription_data!.trial_period_days = 14;
 
     // 既存サブスクリプションがある顧客はCustomer Portalにリダイレクト
     sessionConfig.subscription_data!.description = 'Jazz Learning Game Subscription';
