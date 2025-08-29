@@ -16,6 +16,7 @@ import { fetchFantasyClearedStageCount } from '@/platform/supabaseFantasyStages'
 const RANK_LABEL: Record<string, string> = {
   free: 'フリー',
   standard: 'スタンダード',
+  standard_global: 'スタンダード(グローバル)',
   premium: 'プレミアム',
   platinum: 'プラチナ',
 };
@@ -484,12 +485,15 @@ const AccountPage: React.FC = () => {
                       )}
                       
                       {/* 管理ボタン */}
-                      {profile.rank !== 'free' && profile.stripe_customer_id ? (
+                      {profile.rank !== 'free' && (profile.stripe_customer_id || (profile as any).lemon_customer_id) ? (
                         <button
                           className="btn btn-sm btn-primary w-full mt-2"
                           onClick={async () => {
                             try {
-                              const response = await fetch('/.netlify/functions/createPortalSession', {
+                              const endpoint = profile.country === 'JP'
+                                ? '/.netlify/functions/createPortalSession'
+                                : '/.netlify/functions/lemonsqueezyResolveLink';
+                              const response = await fetch(endpoint, {
                                 method: 'POST',
                                 headers: {
                                   'Content-Type': 'application/json',
@@ -518,8 +522,29 @@ const AccountPage: React.FC = () => {
                           </p>
                           <button
                             className="btn btn-sm btn-primary"
-                            onClick={() => {
-                              window.location.href = '/main#pricing';
+                            onClick={async () => {
+                              try {
+                                const jp = useAuthStore.getState().profile?.country === 'JP';
+                                if (jp) {
+                                  window.location.href = '/main#pricing';
+                                  return;
+                                }
+                                const response = await fetch('/.netlify/functions/lemonsqueezyResolveLink', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': (()=>{ try{ return `Bearer ${useAuthStore.getState().session?.access_token || ''}` }catch{return ''}})(),
+                                  },
+                                });
+                                if (response.ok) {
+                                  const { url } = await response.json();
+                                  window.location.href = url;
+                                } else {
+                                  alert('購入ページの生成に失敗しました');
+                                }
+                              } catch (error) {
+                                alert('エラーが発生しました');
+                              }
                             }}
                           >
                             プランを選択

@@ -1,3 +1,33 @@
+# Lemon Squeezy (MoR) 統合メモ
+
+このプロジェクトは日本以外のユーザー向けに Lemon Squeezy を用いた Standard_Global プラン（月 $9.90+税 / トライアル 14日）を提供します。
+
+## フロー
+- 日本ユーザー: 既存の Stripe フロー
+- 日本以外: Lemon Squeezy フロー
+  - サブスクあり → Portal
+  - サブスクなし → Checkout（トライアル未使用なら 14日付与）
+
+## Netlify Functions
+- `lemonsqueezyResolveLink.ts` … サーバー側でユーザー状態を見て Checkout/Portal を分岐してURLを返す
+- `lemonsqueezyWebhook.ts` … Webhookで `profiles` に購読状態を同期（rank や trial_used も更新）
+- `lemonsqueezyPortal.ts` … 既存顧客のポータルURL取得（補助）
+
+## Supabase マイグレーション
+- `supabase/migrations/20250920090000_add_lemonsqueezy_fields.sql`
+  - `lemon_customer_id`, `lemon_subscription_id`, `lemon_subscription_status`, `lemon_trial_used` 追加
+
+## 必須環境変数（Netlify）
+- `LEMONSQUEEZY_API_KEY`
+- `LEMONSQUEEZY_STORE_ID`
+- `LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL`（トライアルなし）
+- `LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL`（14日トライアル付き）
+- `LEMONSQUEEZY_WEBHOOK_SECRET`
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SITE_URL`
+
+## 画面
+- `#account` … ボタン1つ。押下時に `/.netlify/functions/lemonsqueezyResolveLink` を呼び、返ってきたURLに遷移
+
 # Jazz Learning Game
 
 > 新世代のジャズ音楽学習ゲーム 🎵
