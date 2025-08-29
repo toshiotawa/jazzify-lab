@@ -527,8 +527,14 @@ export const useFantasyGameEngine = ({
         return { i, n, j, includesNote };
       })
       .filter(c => !c.n.isHit && !c.n.isMissed && c.includesNote && c.j.isHit)
-      // 早い方を優先（同窓なら index の小さい方 = 手前優先）
-      .sort((a, b) => (a.n.hitTime - b.n.hitTime) || (a.i - b.i));
+      // 優先順位: |timingDiff| 最小 → 同点は手前優先
+      .sort((a, b) => {
+        const da = Math.abs(a.j.timingDiff);
+        const db = Math.abs(b.j.timingDiff);
+        if (da !== db) return da - db;
+        if (a.n.hitTime !== b.n.hitTime) return a.n.hitTime - b.n.hitTime;
+        return a.i - b.i;
+      });
 
     const chosen = candidates[0];
     if (!chosen) {
