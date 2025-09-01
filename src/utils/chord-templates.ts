@@ -7,7 +7,8 @@ export type ChordQuality =
   | 'maj' | 'min' | 'aug' | 'dim'
   | '7' | 'maj7' | 'm7' | 'mM7' | 'dim7' | 'aug7' | 'm7b5'
   | '6' | 'm6' | '9' | 'm9' | 'maj9' | '11' | 'm11' | '13' | 'm13'
-  | 'sus2' | 'sus4' | '7sus4' | 'add9' | 'madd9';
+  | 'sus2' | 'sus4' | '7sus4' | 'add9' | 'madd9'
+  | 'single';
 
 /**
  * 使用可能なルート音のリスト
@@ -38,6 +39,9 @@ export const CHORD_TEMPLATES: Record<ChordQuality, string[]> = {
   'min':    ['1P', '3m', '5P'],
   'aug':    ['1P', '3M', '5A'],
   'dim':    ['1P', '3m', '5d'],
+  
+  // 単音（ルートのみ）
+  'single': ['1P'],
   
   // セブンス
   '7':      ['1P', '3M', '5P', '7m'],  // ドミナント7th
@@ -78,6 +82,9 @@ export const CHORD_ALIASES: Record<string, ChordQuality> = {
   '': 'maj',
   'M': 'maj',
   'm': 'min',
+  // 単音系（明示指定の場合のみ）
+  'single': 'single',
+  'note': 'single',
   'M7': 'maj7',
   'Δ7': 'maj7',
   'maj7': 'maj7',
