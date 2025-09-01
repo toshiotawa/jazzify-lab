@@ -233,6 +233,7 @@ export class FantasyPIXIInstance {
   private damageNumbers: Map<string, PIXI.Text> = new Map();
   private damageData: Map<string, DamageNumberData> = new Map();
   private chordNameText: PIXI.Text | null = null;
+  private overlayChordTexts: Map<string, PIXI.Text> = new Map(); // monsterId -> text
 
   
   private currentMagicType: string = 'fire';
@@ -347,6 +348,54 @@ export class FantasyPIXIInstance {
     // this.initializeJudgeLine(); // 削除: updateTaikoModeで制御
     
     devLog.debug('✅ ファンタジーPIXI初期化完了（状態機械対応）');
+  }
+
+  // 現在のコード名を各モンスター頭上に表示/更新
+  public updateOverlayChordText(currentText: string | null): void {
+    if (this.isDestroyed) return;
+    try {
+      for (const [monsterId, monsterData] of this.monsterSprites) {
+        let textObj = this.overlayChordTexts.get(monsterId) || null;
+        if (!currentText) {
+          // 非表示にする
+          if (textObj) {
+            if (textObj.parent) textObj.parent.removeChild(textObj);
+            textObj.destroy?.();
+            this.overlayChordTexts.delete(monsterId);
+          }
+          continue;
+        }
+
+        // 作成 or 更新
+        if (!textObj) {
+          textObj = new PIXI.Text(currentText, {
+            fontFamily: 'sans-serif',
+            fontSize: 18,
+            fontWeight: 'bold',
+            fill: 0xffffff,
+            stroke: 0x000000,
+            strokeThickness: 3,
+            align: 'center'
+          });
+          textObj.anchor.set(0.5);
+          textObj.zIndex = 2000;
+          this.uiContainer.addChild(textObj);
+          this.overlayChordTexts.set(monsterId, textObj);
+        } else {
+          if (textObj.text !== currentText) textObj.text = currentText;
+        }
+
+        // 位置更新（モンスター頭上）
+        const sprite = monsterData.sprite;
+        const w = (sprite as any).destroyed || !(sprite as any).transform ? 0 : (sprite.width ?? 0);
+        const h = (sprite as any).destroyed || !(sprite as any).transform ? 0 : (sprite.height ?? 0);
+        const global = sprite.parent?.toGlobal(new PIXI.Point(sprite.x, sprite.y)) || new PIXI.Point(0, 0);
+        textObj.x = global.x;
+        textObj.y = global.y - h * 0.65;
+      }
+    } catch (e) {
+      devLog.debug('overlay chord text update failed', e);
+    }
   }
 
   // ★★★ 遅延ロードに変更したため、この関数は使用しない ★★★
