@@ -360,6 +360,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const isTaikoModeRef = useRef(false);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
+  const [currentOverlayChord, setCurrentOverlayChord] = useState<string | null>(null);
   
   // ゲームエンジン コールバック
   const handleGameStateChange = useCallback((state: FantasyGameState) => {
@@ -870,6 +871,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
   }, [pixiRenderer, stage.showGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
+
+  // ====== コードネームオーバーレイ（MusicXMLベース） ======
+  useEffect(() => {
+    let raf = 0;
+    let last = 0;
+    const update = (t: number) => {
+      if (!fantasyPixiInstance) { return; }
+      if (t - last < 1000 / 30) { raf = requestAnimationFrame(update); return; }
+      last = t;
+      try {
+        // storeのchordsを利用（MusicXML<harmony>ベース、endTimeまで持続）
+        const chords = useGameStore.getState().chords;
+        const time = bgmManager.getCurrentMusicTime();
+        let text: string | null = null;
+        for (let i = 0; i < chords.length; i++) {
+          const c = chords[i];
+          if (time >= c.startTime && (c.endTime === undefined || time < c.endTime)) {
+            text = c.symbol.displayText;
+            break;
+          }
+        }
+        setCurrentOverlayChord(text);
+        fantasyPixiInstance.updateOverlayChordText(text);
+      } catch {}
+      raf = requestAnimationFrame(update);
+    };
+    raf = requestAnimationFrame(update);
+    return () => { if (raf) cancelAnimationFrame(raf); };
+  }, [fantasyPixiInstance]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {

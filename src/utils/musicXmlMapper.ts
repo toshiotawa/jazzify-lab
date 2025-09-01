@@ -549,6 +549,118 @@ export function transposeChordProgression(chords: ChordInfo[], semitones: number
 }
 
 /**
+ * MusicXMLから画面オーバーレイ用テキストイベントを抽出（<harmony> と 単音ノート）
+ * - 各イベントは (bar, beats, text) を持つ
+ * - 単音ノート判定: 同一クラスターに <chord/> を伴わない単独の音符、かつ <lyric> が空
+ */
+export function extractOverlayTextEventsFromMusicXml(doc: Document): Array<{ bar: number; beats: number; text: string }> {
+  const events: Array<{ bar: number; beats: number; text: string }> = [];
+
+  const measures = Array.from(doc.querySelectorAll('measure'));
+  let lastDivisions = 480; // デフォルトの分解能（クォーター基準）
+  // 拍子は可変の可能性があるが、beats/beat-type から計算するのは呼び出し側
+
+  for (const measure of measures) {
+    const measureNumber = parseInt(measure.getAttribute('number') || '1', 10) || 1;
+
+    // attributes 更新
+    const attributes = measure.querySelector('attributes');
+    if (attributes) {
+      const divEl = attributes.querySelector('divisions');
+      if (divEl && divEl.textContent) {
+        const parsed = parseInt(divEl.textContent, 10);
+        if (!Number.isNaN(parsed) && parsed > 0) lastDivisions = parsed;
+      }
+    }
+
+    // 小節内位置（divisions単位）
+    let positionInDivisions = 0;
+
+    const children = Array.from(measure.children);
+    for (let i = 0; i < children.length; i++) {
+      const el = children[i] as Element;
+      if (el.tagName === 'attributes') {
+        // 既に処理済み
+        continue;
+      }
+
+      if (el.tagName === 'forward') {
+        const dur = parseInt(el.querySelector('duration')?.textContent || '0', 10) || 0;
+        positionInDivisions += dur;
+        continue;
+      }
+      if (el.tagName === 'backup') {
+        const dur = parseInt(el.querySelector('duration')?.textContent || '0', 10) || 0;
+        positionInDivisions = Math.max(0, positionInDivisions - dur);
+        continue;
+      }
+
+      if (el.tagName === 'harmony') {
+        // コード表示テキスト
+        const rootStep = el.querySelector('root root-step')?.textContent || '';
+        const rootAlter = parseInt(el.querySelector('root root-alter')?.textContent || '0', 10) || 0;
+        let root = rootStep;
+        if (rootAlter > 0) root += '#'.repeat(rootAlter);
+        if (rootAlter < 0) root += 'b'.repeat(-rootAlter);
+
+        const kindElement = el.querySelector('kind');
+        const kindText = (kindElement?.getAttribute('text') || '').trim();
+        const displayText = `${root}${kindText}`;
+
+        const beats = 1 + (positionInDivisions / lastDivisions); // 1拍=クォーター基準（呼び出し側で 4/beat-type を掛ける）
+        events.push({ bar: measureNumber, beats, text: displayText });
+        continue;
+      }
+
+      if (el.tagName === 'note') {
+        // 休符はスキップ（位置は進める）
+        const isRest = !!el.querySelector('rest');
+        const duration = parseInt(el.querySelector('duration')?.textContent || '0', 10) || 0;
+
+        if (!isRest) {
+          const hasChordFlag = !!el.querySelector('chord'); // 2音目以降の和音
+          // クラスター先頭かどうか（先頭 = chordフラグなし）
+          const isClusterHead = !hasChordFlag;
+
+          // 歌詞の有無
+          const lyricText = el.querySelector('lyric text')?.textContent?.trim() || '';
+
+          if (isClusterHead) {
+            // 直後の兄弟に chord フラグ付き note が続くか確認
+            const nextEl = children[i + 1] as Element | undefined;
+            const hasSimultaneous = nextEl?.tagName === 'note' && !!nextEl.querySelector('chord');
+
+            if (!hasSimultaneous && lyricText.length === 0) {
+              // 単音ノートとしてイベント化
+              const step = el.querySelector('pitch step')?.textContent || 'C';
+              const alter = parseInt(el.querySelector('pitch alter')?.textContent || '0', 10) || 0;
+              let name = step;
+              if (alter > 0) name += '#'.repeat(alter);
+              if (alter < 0) name += 'b'.repeat(-alter);
+
+              const beats = 1 + (positionInDivisions / lastDivisions);
+              events.push({ bar: measureNumber, beats, text: name });
+            }
+          }
+        }
+
+        // 位置更新：クラスターの先頭ノートのみで進める
+        const isChordFollower = !!el.querySelector('chord');
+        if (!isChordFollower) {
+          positionInDivisions += duration;
+        }
+        continue;
+      }
+    }
+  }
+
+  // 拍位置を小数第3位程度で丸めて安定化
+  return events
+    .map((e) => ({ ...e, beats: Math.round(e.beats * 1000) / 1000 }))
+    .sort((a, b) => (a.bar === b.bar ? a.beats - b.beats : a.bar - b.bar));
+}
+
+/**
  * ノーツの時間を小節ベースで再計算する
  * @param doc MusicXMLのDOMDocument
  * @param jsonNotes 元のJSONノーツデータ
