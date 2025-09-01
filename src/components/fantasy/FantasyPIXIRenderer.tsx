@@ -233,6 +233,9 @@ export class FantasyPIXIInstance {
   private damageNumbers: Map<string, PIXI.Text> = new Map();
   private damageData: Map<string, DamageNumberData> = new Map();
   private chordNameText: PIXI.Text | null = null;
+  // オーバーレイ（コードネーム等）表示用
+  private overlayLabels: Map<string, PIXI.Text> = new Map();
+  private currentOverlayText: string | null = null;
 
   
   private currentMagicType: string = 'fire';
@@ -885,6 +888,15 @@ export class FantasyPIXIInstance {
     sprite.tint = gameState.isHit ? gameState.hitColor : visualState.tint;
     sprite.alpha = visualState.alpha;
     sprite.visible = visualState.visible && gameState.state !== 'GONE';
+
+    // オーバーレイラベルの位置更新
+    const label = this.overlayLabels.get(monsterData.id);
+    if (label && !label.destroyed && (sprite as any).transform) {
+      const h = sprite.height ?? 0;
+      label.x = sprite.x;
+      label.y = sprite.y - h * 0.6; // 頭上付近
+      label.visible = sprite.visible;
+    }
   }
 
   // モンスタースプライトの属性を安全に更新
@@ -1785,6 +1797,13 @@ export class FantasyPIXIInstance {
               sprite.destroy();
             }
             this.monsterSprites.delete(id);
+            // ラベルも削除
+            const lbl = this.overlayLabels.get(id);
+            if (lbl && !lbl.destroyed) {
+              if (lbl.parent) lbl.parent.removeChild(lbl);
+              lbl.destroy();
+            }
+            this.overlayLabels.delete(id);
           }
         }
         
@@ -1793,6 +1812,54 @@ export class FantasyPIXIInstance {
       // ▲▲▲ ここまで ▲▲▲
     } catch (error) {
       devLog.debug('⚠️ モンスターアニメーション更新エラー:', error);
+    }
+  }
+
+  // オーバーレイテキスト更新（全モンスターの頭上に表示/非表示）
+  updateOverlayText(text: string | null): void {
+    this.currentOverlayText = text;
+    // 既存のラベルを更新 or 削除
+    if (!text || text.trim() === '') {
+      // 全削除
+      for (const [id, lbl] of this.overlayLabels) {
+        try {
+          if (lbl && !lbl.destroyed) {
+            if (lbl.parent) lbl.parent.removeChild(lbl);
+            lbl.destroy();
+          }
+        } catch {}
+        this.overlayLabels.delete(id);
+      }
+      return;
+    }
+
+    const createOrUpdate = (monsterId: string, sprite: PIXI.Sprite) => {
+      let lbl = this.overlayLabels.get(monsterId);
+      if (!lbl || lbl.destroyed) {
+        lbl = new PIXI.Text(text, {
+          fontFamily: 'sans-serif',
+          fontSize: Math.max(14, Math.min(24, Math.floor(this.app.screen.width / 40))),
+          fontWeight: 'bold',
+          fill: 0xFFFFFF,
+          stroke: 0x000000,
+          strokeThickness: 4,
+          align: 'center'
+        });
+        lbl.anchor.set(0.5);
+        this.uiContainer.addChild(lbl);
+        this.overlayLabels.set(monsterId, lbl);
+      } else {
+        // テキスト変更
+        if (lbl.text !== text) lbl.text = text;
+      }
+      // 位置は updateMonsterSpriteData 内で更新
+    };
+
+    for (const [id, data] of this.monsterSprites) {
+      const sprite = data.sprite;
+      if (sprite && !(sprite as any).destroyed && (sprite as any).transform) {
+        createOrUpdate(id, sprite);
+      }
     }
   }
 

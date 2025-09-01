@@ -151,6 +151,23 @@ interface FantasyGameEngineProps {
  * @returns ChordDefinition
  */
 const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoicing: boolean = false): ChordDefinition | null => {
+  // 単音指定のハンドリング
+  if (typeof spec === 'object' && spec.type === 'note') {
+    const step = spec.chord; // 'G', 'F#' など
+    const octave = spec.octave ?? 4;
+    const parsed = parseNote(step.replace(/x/g, '##') + String(octave));
+    const midi = parsed && typeof parsed.midi === 'number' ? parsed.midi : null;
+    if (!midi) return null;
+    return {
+      id: step,
+      displayName: step,
+      notes: [midi],
+      noteNames: [step],
+      quality: 'maj', // ダミー（使用しない）
+      root: step
+    };
+  }
+
   const chordId = typeof spec === 'string' ? spec : spec.chord;
   const resolved = resolveChord(chordId, 4, displayOpts);
   if (!resolved) {

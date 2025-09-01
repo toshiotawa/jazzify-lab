@@ -710,8 +710,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // ループ情報を事前計算
     const stage = gameState.currentStage!;
-          const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
-          const loopDuration = (stage.measureCount || 8) * secPerMeasure;
+    const secPerBeat = 60 / (stage.bpm || 120);
+    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
+    const loopDuration = (stage.measureCount || 8) * secPerMeasure;
+
+    // Overlay markers from chord_progression_data.text (Harmony)
+    const overlayMarkers: Array<{ time: number; text: string }> = Array.isArray((stage as any).chordProgressionData)
+      ? ((stage as any).chordProgressionData as Array<any>)
+          .filter((it) => it && typeof it.text === 'string' && it.text.trim() !== '')
+          .map((it) => ({
+            time: (it.bar - 1) * secPerMeasure + ((it.beats ?? 1) - 1) * secPerBeat,
+            text: it.text as string
+          }))
+          .sort((a, b) => a.time - b.time)
+      : [];
     
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
@@ -820,6 +832,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // PIXIレンダラーに更新を送信
       fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+
+      // オーバーレイテキスト（Harmony由来の text を拍に紐付け、次の text まで持続）
+      if (overlayMarkers.length > 0) {
+        const t = normalizedTime;
+        // 現在の text を探索（wrap対応）
+        let label = overlayMarkers[overlayMarkers.length - 1].text; // デフォルトは最後（wrap）
+        for (let i = 0; i < overlayMarkers.length; i++) {
+          const cur = overlayMarkers[i];
+          const next = overlayMarkers[i + 1];
+          if (t >= cur.time && (!next || t < next.time)) {
+            label = cur.text;
+            break;
+          }
+          if (t < overlayMarkers[0].time) {
+            // ループ開始〜最初の text までは最後の text を継続
+            label = overlayMarkers[overlayMarkers.length - 1].text;
+          }
+        }
+        fantasyPixiInstance.updateOverlayText(label || null);
+      } else {
+        fantasyPixiInstance.updateOverlayText(null);
+      }
       
       animationId = requestAnimationFrame(updateTaikoNotes);
     };

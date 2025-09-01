@@ -24,6 +24,8 @@ interface TimingRow {
   chord: string;
   inversion?: number | null;
   octave?: number | null;
+  text?: string; // Harmonyや任意のオーバーレイ文字列
+  type?: 'note'; // 単音指定
 }
 
 // フォーム全体
@@ -563,6 +565,38 @@ const FantasyStageManager: React.FC = () => {
             {mode === 'progression_timing' && (
               <Section title="カスタム配置（小節・拍）">
                 <div className="space-y-2">
+                  {/* MusicXML アップロード→JSON 変換 */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="musicxmlFileInput"
+                      type="file"
+                      accept=".xml,.musicxml,application/xml,text/xml"
+                      className="file-input file-input-bordered file-input-sm"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        try {
+                          const text = await f.text();
+                          const mod = await import('@/utils/musicXmlToProgression');
+                          const items = mod.convertMusicXmlToProgressionData(text);
+                          replaceTiming(items as any);
+                          setValue('chord_progression_data', items as any);
+                          toast.success('MusicXML から progression を読み込みました');
+                        } catch (err: any) {
+                          console.error(err);
+                          toast.error('MusicXML の読み込みに失敗しました');
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => {
+                        const el = document.getElementById('musicxmlFileInput') as HTMLInputElement | null;
+                        el?.click();
+                      }}
+                    >MusicXML から読み込み</button>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="table table-zebra w-full">
                       <thead>
@@ -572,6 +606,8 @@ const FantasyStageManager: React.FC = () => {
                           <th>コード</th>
                           <th>転回形</th>
                           <th>オクターブ</th>
+                          <th>text</th>
+                          <th>type</th>
                           <th></th>
                         </tr>
                       </thead>
@@ -592,6 +628,15 @@ const FantasyStageManager: React.FC = () => {
                             </td>
                             <td>
                               <input type="number" className="input input-bordered w-24" placeholder="例: 3" {...register(`chord_progression_data.${idx}.octave` as const, { valueAsNumber: true })} />
+                            </td>
+                            <td>
+                              <input className="input input-bordered w-40" placeholder="Harmony/N.C.等の表示用テキスト" {...register(`chord_progression_data.${idx}.text` as const)} />
+                            </td>
+                            <td>
+                              <select className="select select-bordered select-sm" {...register(`chord_progression_data.${idx}.type` as const)}>
+                                <option value="">code</option>
+                                <option value="note">note</option>
+                              </select>
                             </td>
                             <td>
                               <button type="button" className="btn btn-xs btn-error" onClick={() => removeTiming(idx)}>削除</button>
