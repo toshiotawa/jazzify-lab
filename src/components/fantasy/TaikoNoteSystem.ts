@@ -17,7 +17,15 @@ export interface TaikoNote {
 }
 
 // Progressionで受け取るコード指定（後方互換: string も許容）
-export type ChordSpec = string | { chord: string; inversion?: number | null; octave?: number | null };
+export type ChordSpec =
+  | string
+  | {
+      chord: string;
+      inversion?: number | null;
+      octave?: number | null;
+      /** 単音指定の場合に 'note' をセット（省略時はコード扱い） */
+      type?: 'note';
+    };
 
 // chord_progression_data のJSON形式
 export interface ChordProgressionDataItem {
@@ -26,6 +34,13 @@ export interface ChordProgressionDataItem {
   chord: string; // コード名
   inversion?: number | null; // 追加: 転回形（0=基本形）
   octave?: number | null; // 追加: 最低音のオクターブ
+  /**
+   * 画面オーバーレイに表示するテキスト（例: Harmonyのコード名）。
+   * 設定された時刻から、次のテキスト要素が出るまで持続表示。
+   */
+  text?: string;
+  /** 歌詞が無い単音ノーツ等から生成する単音指定（省略時はコード扱い） */
+  type?: 'note';
 }
 
 // タイミング判定の結果
@@ -236,11 +251,15 @@ export function parseChordProgressionData(
   // 最大小節数を取得
   const maxBar = Math.max(...progressionData.map(item => item.bar), 0);
   
-  progressionData.forEach((item, index) => {
+  progressionData
+    // 演奏用ノーツは chord が空/N.C. のものは無視（テキスト専用）
+    .filter(item => item.chord && item.chord.trim() !== '' && item.chord.toUpperCase() !== 'N.C.')
+    .forEach((item, index) => {
     const spec: ChordSpec = {
       chord: item.chord,
       inversion: item.inversion ?? undefined,
-      octave: item.octave ?? undefined
+      octave: item.octave ?? undefined,
+      type: item.type === 'note' ? 'note' : undefined
     };
     const chord = getChordDefinition(spec);
     if (chord) {
