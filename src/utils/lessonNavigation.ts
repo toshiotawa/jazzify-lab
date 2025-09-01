@@ -1,6 +1,7 @@
 import { Lesson } from '@/types';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
+import { useAuthStore } from '@/stores/authStore';
 import { clearCacheByPattern } from '@/platform/supabaseClient';
 
 export interface LessonNavigationInfo {
@@ -121,12 +122,34 @@ export async function getLessonNavigationInfo(
     // 進捗データをマップに変換
     const progressMap = new Map(userProgress.map(p => [p.lesson_id, p]));
 
-    // アクセス権限をチェック
-    const hasAccessToPrevious = previousLesson ? 
-      progressMap.get(previousLesson.id)?.is_unlocked || false : false;
-    
-    const hasAccessToNext = nextLesson ? 
-      progressMap.get(nextLesson.id)?.is_unlocked || false : false;
+    // ランクに応じたアクセス権限チェック
+    const { profile } = useAuthStore.getState();
+    const isPlatinum = profile?.rank === 'platinum';
+
+    const getBlockNumber = (l: Lesson | null): number => (l?.block_number || 1);
+    const isPrevBlockCompleted = (targetBlock: number): boolean => {
+      if (targetBlock <= 1) return true;
+      const prevBlock = targetBlock - 1;
+      const lessonsInPrev = sortedLessons.filter(l => (l.block_number || 1) === prevBlock);
+      if (lessonsInPrev.length === 0) return false;
+      return lessonsInPrev.every(l => !!progressMap.get(l.id)?.completed);
+    };
+
+    // previous の可否
+    const hasAccessToPrevious = previousLesson ? (() => {
+      if (isPlatinum) {
+        return !!progressMap.get(previousLesson.id)?.is_unlocked;
+      }
+      return isPrevBlockCompleted(getBlockNumber(previousLesson));
+    })() : false;
+
+    // next の可否
+    const hasAccessToNext = nextLesson ? (() => {
+      if (isPlatinum) {
+        return !!progressMap.get(nextLesson.id)?.is_unlocked;
+      }
+      return isPrevBlockCompleted(getBlockNumber(nextLesson));
+    })() : false;
 
     const navigationInfo: LessonNavigationInfo = {
       previousLesson,
