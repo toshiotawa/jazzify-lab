@@ -1105,6 +1105,9 @@ export class FantasyPIXIInstance {
         
         this.effectContainer.addChild(magicSprite);
 
+        // パーティクルエフェクトを追加
+        this.createMagicParticles(targetX, targetY, color, isSpecial ? 20 : 12);
+
         // アニメーション
         let life = 400;               // 半分の時間でフェード
         const finalTargetX = targetX + (isSpecial ? (Math.random() - 0.5) * 80 : 0);
@@ -1148,6 +1151,109 @@ export class FantasyPIXIInstance {
       } catch (error) {
         devLog.debug('❌ 魔法エフェクト作成エラー:', error);
       }
+    }
+  }
+
+  // 魔法のパーティクルエフェクトを作成
+  private createMagicParticles(x: number, y: number, color: number, count: number = 12): void {
+    for (let i = 0; i < count; i++) {
+      const particle = new PIXI.Graphics();
+      
+      // パーティクルのサイズをランダムに
+      const size = 1 + Math.random() * 3; // 1〜4pxの円
+      
+      // グロー効果のための二重円
+      particle.beginFill(color, 0.3);
+      particle.drawCircle(0, 0, size * 2); // 外側の光
+      particle.endFill();
+      
+      particle.beginFill(color, 1);
+      particle.drawCircle(0, 0, size); // 内側の核
+      particle.endFill();
+      
+      particle.x = x;
+      particle.y = y;
+      particle.alpha = 0.8 + Math.random() * 0.2;
+      
+      if (!this.effectContainer || this.effectContainer.destroyed) {
+        particle.destroy();
+        return;
+      }
+      
+      this.effectContainer.addChild(particle);
+      
+      // パーティクルの動き
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+      const speed = 1.5 + Math.random() * 2.5; // 速度を少し遅く
+      const vx = Math.cos(angle) * speed;
+      const vy = Math.sin(angle) * speed - 0.5; // 少し上向きの動き
+      
+      let life = 40; // 40フレーム（約0.67秒）
+      const trail: PIXI.Graphics[] = []; // 軌跡用の配列
+      
+      const animateParticle = () => {
+        if (this.isDestroyed || !particle || particle.destroyed) {
+          return;
+        }
+        
+        if (life > 0) {
+          // 軌跡を作成（3フレームごと）
+          if (life % 3 === 0 && trail.length < 5) {
+            const trailParticle = new PIXI.Graphics();
+            trailParticle.beginFill(color, 0.2);
+            trailParticle.drawCircle(0, 0, size * 0.7);
+            trailParticle.endFill();
+            trailParticle.x = particle.x;
+            trailParticle.y = particle.y;
+            trailParticle.alpha = particle.alpha * 0.3;
+            
+            if (this.effectContainer && !this.effectContainer.destroyed) {
+              this.effectContainer.addChildAt(trailParticle, 0); // 背面に追加
+              trail.push(trailParticle);
+            }
+          }
+          
+          particle.x += vx;
+          particle.y += vy;
+          particle.alpha *= 0.96; // 徐々に薄く
+          particle.scale.x *= 0.98; // 徐々に小さく
+          particle.scale.y *= 0.98;
+          
+          // 軌跡を薄くする
+          trail.forEach((t, index) => {
+            t.alpha *= 0.85;
+            if (t.alpha < 0.01) {
+              if (t.parent) {
+                t.parent.removeChild(t);
+              }
+              t.destroy();
+              trail.splice(index, 1);
+            }
+          });
+          
+          life--;
+          requestAnimationFrame(animateParticle);
+        } else {
+          try {
+            // 軌跡を削除
+            trail.forEach(t => {
+              if (t.parent) {
+                t.parent.removeChild(t);
+              }
+              t.destroy();
+            });
+            
+            if (particle.parent) {
+              particle.parent.removeChild(particle);
+            }
+            particle.destroy();
+          } catch (error) {
+            devLog.debug('⚠️ パーティクル削除エラー:', error);
+          }
+        }
+      };
+      
+      animateParticle();
     }
   }
 
@@ -1195,6 +1301,11 @@ export class FantasyPIXIInstance {
         }
         
         this.effectContainer.addChild(magicSprite);
+
+        // 魔法発射時のパーティクルエフェクトを追加
+        if (i === 0) { // 最初の魔法だけパーティクルを生成
+          this.createMagicParticles(startX, startY, color, isSpecial ? 15 : 8);
+        }
 
         // アニメーション - 敵に向かって飛ぶ
         let life = 800; // アニメーション時間を短く
