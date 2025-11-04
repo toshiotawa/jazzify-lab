@@ -1028,7 +1028,12 @@ CREATE TABLE IF NOT EXISTS "public"."lesson_videos" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "lesson_id" "uuid",
     "vimeo_url" "text" NOT NULL,
-    "order_index" integer DEFAULT 0 NOT NULL
+    "video_url" "text",
+    "r2_key" "text",
+    "content_type" "text",
+    "order_index" integer DEFAULT 0 NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"()
 );
 
 
