@@ -431,7 +431,6 @@ const GameScreen: React.FC = () => {
         return;
       }
       
-      console.log('🔍 非該当ハッシュ:', { hash });
       setIsLoadingLessonSong(false);
     };
     
@@ -450,14 +449,6 @@ const GameScreen: React.FC = () => {
   // ただし、レッスン曲読み込み中（#play-lesson）またはミッション曲読み込み中（#play-mission）は除外
   useEffect(() => {
     const isPlayLessonHash = window.location.hash.startsWith('#play-lesson') || window.location.hash.startsWith('#play-mission');
-    console.log('🔧 Auto-redirect check:', { 
-      currentSong: !!currentSong, 
-      currentTab, 
-      isPlayLessonHash, 
-      isLoadingLessonSong, 
-      hash: window.location.hash,
-      willRedirect: !currentSong && currentTab !== 'songs' && !isPlayLessonHash && !isLoadingLessonSong
-    });
     
     // レッスン曲・ミッション曲読み込み中は曲選択画面へのリダイレクトをスキップ
     const isStandardGlobal = useAuthStore.getState().profile?.rank === 'standard_global';
