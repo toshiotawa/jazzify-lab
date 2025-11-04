@@ -1074,7 +1074,6 @@ COMMENT ON COLUMN "public"."practice_diaries"."image_url" IS 'URL of attached im
 CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "id" "uuid" NOT NULL,
     "avatar_url" "text",
-    "member_rank" "text" DEFAULT 'FREE'::"text" NOT NULL,
     "total_exp" integer DEFAULT 0 NOT NULL,
     "is_admin" boolean DEFAULT false NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"(),
@@ -1092,8 +1091,7 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "will_cancel" boolean DEFAULT false NOT NULL,
     "cancel_date" timestamp with time zone,
     "downgrade_to" "public"."membership_rank",
-    "downgrade_date" timestamp with time zone,
-    CONSTRAINT "member_rank_check" CHECK (("member_rank" = ANY (ARRAY['FREE'::"text", 'STANDARD'::"text", 'PREMIUM'::"text", 'PLATINUM'::"text", 'BLACK'::"text"])))
+    "downgrade_date" timestamp with time zone
 );
 
 
