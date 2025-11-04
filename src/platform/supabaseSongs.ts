@@ -14,7 +14,7 @@ export interface Song {
   audio_url?: string;
   xml_url?: string;
   json_url?: string;
-  min_rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
+    min_rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
   is_public: boolean;
   usage_type: SongUsageType;
   created_by: string;
@@ -224,7 +224,7 @@ export async function deleteSong(id: string): Promise<void> {
   clearSupabaseCache();
 }
 
-const rankOrder = ['free', 'standard', 'standard_global', 'premium', 'platinum'] as const;
+const rankOrder = ['free', 'standard', 'standard_global', 'premium', 'platinum', 'black'] as const;
 export type MembershipRank = typeof rankOrder[number];
 
 export function rankAllowed(userRank: MembershipRank, songRank: MembershipRank) {

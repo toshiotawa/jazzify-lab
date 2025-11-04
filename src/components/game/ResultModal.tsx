@@ -90,11 +90,12 @@ const ResultModal: React.FC = () => {
           }
 
           // 会員ランクを正規化（standard_global -> standard）
-          const normalizeMembershipRank = (rank: string | undefined): 'free' | 'standard' | 'premium' | 'platinum' => {
-            if (rank === 'premium' || rank === 'platinum') return rank;
-            if (rank === 'standard' || rank === 'standard_global') return 'standard';
-            return 'free';
-          };
+        const normalizeMembershipRank = (rank: string | undefined): 'free' | 'standard' | 'premium' | 'platinum' => {
+          if (rank === 'premium') return 'premium';
+          if (rank === 'platinum' || rank === 'black') return 'platinum';
+          if (rank === 'standard' || rank === 'standard_global') return 'standard';
+          return 'free';
+        };
 
           // ローカルで詳細計算
           const detailed = calculateXPDetailed({
@@ -128,7 +129,7 @@ const ResultModal: React.FC = () => {
             speedMultiplier: settings.playbackSpeed,
             rankMultiplier: 1,
             transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
-            membershipMultiplier: profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1,
+            membershipMultiplier: profile.rank === 'premium' ? 1.5 : (profile.rank === 'platinum' || profile.rank === 'black') ? 2 : 1,
             missionMultiplier: 1 * guildMultiplier, // ここにギルド倍率を乗せる
             reason: lessonContext ? 'lesson_clear' : missionContext ? 'mission_clear' : 'song_clear',
           });
@@ -604,9 +605,10 @@ const ResultModal: React.FC = () => {
                 <div className="flex justify-between">
                   <span>ランクボーナス:</span>
                   <span>{profile?.rank === 'free' ? 'フリー' : 
-                         profile?.rank === 'standard' ? 'スタンダード' : 
+                         profile?.rank === 'standard' || profile?.rank === 'standard_global' ? 'スタンダード' : 
                          profile?.rank === 'premium' ? 'プレミアム' : 
-                         profile?.rank === 'platinum' ? 'プラチナ' : 'フリー'} x{xpInfo.detailed?.multipliers?.membership || 1}</span>
+                         profile?.rank === 'platinum' ? 'プラチナ' : 
+                         profile?.rank === 'black' ? 'ブラック' : 'フリー'} x{xpInfo.detailed?.multipliers?.membership || 1}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>レッスンボーナス:</span>

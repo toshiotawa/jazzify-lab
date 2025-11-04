@@ -8,7 +8,7 @@ SELECT
     email,
     split_part(email, '@', 1),
     true,
-    'platinum'::membership_rank
+    'black'::membership_rank
 FROM auth.users
 WHERE id = auth.uid()
 ON CONFLICT (id) DO UPDATE SET is_admin = true;

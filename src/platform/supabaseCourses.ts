@@ -256,7 +256,7 @@ export function canAccessCourse(
 
   // ランク制限は premium_only のみをトリガーとする
   if (course.premium_only) {
-    const hasRankAccess = userRank === 'premium' || userRank === 'platinum';
+    const hasRankAccess = userRank === 'premium' || userRank === 'platinum' || userRank === 'black';
     if (!hasRankAccess) {
       return { canAccess: false, reason: 'プレミアムプラン以上が必要です' };
     }

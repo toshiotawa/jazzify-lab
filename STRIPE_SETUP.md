@@ -23,6 +23,11 @@ Stripe Dashboardにログインし、以下のプロダクトとプライスを�
 - **月額プライス**: ¥14,800/月
 - **年額プライス**: ¥148,000/年 (2ヶ月分無料)
 
+#### ブラックプラン
+- **プロダクト名**: `Black Plan`
+- **月額プライス**: ¥19,800/月
+- **年額プライス**: ¥198,000/年 (2ヶ月分無料)
+
 ### 1.2 Customer Portal設定
 
 1. Stripe Dashboard → **Customer Portal** → **Settings**
@@ -80,6 +85,8 @@ VITE_STRIPE_PREMIUM_MONTHLY_PRICE_ID=price_...
 VITE_STRIPE_PREMIUM_YEARLY_PRICE_ID=price_...
 VITE_STRIPE_PLATINUM_MONTHLY_PRICE_ID=price_...
 VITE_STRIPE_PLATINUM_YEARLY_PRICE_ID=price_...
+VITE_STRIPE_BLACK_MONTHLY_PRICE_ID=price_...
+VITE_STRIPE_BLACK_YEARLY_PRICE_ID=price_...
 ```
 
 ## 3. Supabaseマイグレーション
