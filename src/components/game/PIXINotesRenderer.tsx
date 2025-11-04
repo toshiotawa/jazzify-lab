@@ -2368,12 +2368,27 @@ export class PIXINotesRendererInstance {
   }
   
   private createHitEffect(x: number, y: number): void {
+    // 同じ位置に既存のエフェクトがあるかチェック
+    const threshold = 5; // 5ピクセル以内は同じ位置とみなす
+    for (const child of this.effectsContainer.children) {
+      if (child instanceof PIXI.Container && child.name === 'HitEffect') {
+        const existingX = (child as any).x || 0;
+        const existingY = (child as any).y || 0;
+        if (Math.abs(existingX - x) < threshold && Math.abs(existingY - y) < threshold) {
+          log.info(`⚡ Effect already exists at similar position, skipping creation`);
+          return;
+        }
+      }
+    }
+    
     // 常にヒットエフェクトを生成（呼び出し側で判定済み）
     log.info(`⚡ Generating hit effect at (${x.toFixed(1)}, ${y.toFixed(1)})`);
     
     // メインエフェクトコンテナ
     const effectContainer = new PIXI.Container();
     effectContainer.name = 'HitEffect'; // デバッグ用名前付け
+    (effectContainer as any).x = x; // 位置情報を保存
+    (effectContainer as any).y = y;
     
     // === ポインターイベントを完全無効化 ===
     (effectContainer as any).eventMode = 'none';
@@ -2458,12 +2473,16 @@ export class PIXINotesRendererInstance {
       circleContainer.alpha = fadeAlpha;
       
       if (progress >= 1) {
-        log.info(`⚡ Flash effect completed, removing from container`);
+        log.info(`⚡ Flash effect completed, removing from container. Current children: ${this.effectsContainer.children.length}`);
         this.app.ticker.remove(animateTicker);
         if (effectContainer.parent) {
+          log.info(`⚡ Removing effect from parent container`);
           this.effectsContainer.removeChild(effectContainer);
+        } else {
+          log.warn(`⚠️ Effect container has no parent, may already be removed`);
         }
         effectContainer.destroy({ children: true });
+        log.info(`⚡ Effect destroyed. Remaining children: ${this.effectsContainer.children.length}`);
       }
     };
     
@@ -2839,6 +2858,12 @@ export class PIXINotesRendererInstance {
       this.pianoSprites.clear();
       this.highlightedKeys.clear();
       this.guideHighlightedKeys.clear();
+
+      // エフェクトコンテナのクリーンアップ
+      if (this.effectsContainer && this.effectsContainer.children.length > 0) {
+        log.info(`🧹 Cleaning up ${this.effectsContainer.children.length} remaining effects`);
+        this.effectsContainer.removeChildren();
+      }
 
       // ★ ガイドラインも破棄
       if (this.guidelines) {
