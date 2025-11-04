@@ -9,7 +9,7 @@ import { Course, Lesson } from '@/types';
 import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
 
-const ranks = ['free','standard','standard_global','premium','platinum'] as const;
+const ranks = ['free','standard','standard_global','premium','platinum','black'] as const;
 
 type Rank = typeof ranks[number];
 

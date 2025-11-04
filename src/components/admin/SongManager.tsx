@@ -7,7 +7,7 @@ import { useToast } from '@/stores/toastStore';
 interface SongFormData {
   title: string;
   artist?: string;
-  min_rank: 'free' | 'standard' | 'premium' | 'platinum';
+  min_rank: 'free' | 'standard' | 'premium' | 'platinum' | 'black';
   audioFile?: FileList;
   xmlFile?: FileList;
   jsonFile?: FileList;
@@ -164,6 +164,7 @@ const SongManager: React.FC = () => {
             <option value="standard">スタンダード</option>
             <option value="premium">プレミアム</option>
             <option value="platinum">プラチナ</option>
+            <option value="black">ブラック</option>
           </select>
         </div>
 

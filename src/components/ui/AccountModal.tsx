@@ -19,6 +19,7 @@ const RANK_LABEL: Record<string, string> = {
   standard_global: 'スタンダード(グローバル)',
   premium: 'プレミアム',
   platinum: 'プラチナ',
+  black: 'ブラック',
 };
 
 /**

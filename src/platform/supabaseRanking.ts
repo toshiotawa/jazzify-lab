@@ -5,7 +5,7 @@ export interface RankingEntry {
   nickname: string;
   level: number;
   xp: number;
-  rank: 'free' | 'standard' | 'premium' | 'platinum';
+  rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
   lessons_cleared: number;
   missions_completed: number;
   avatar_url?: string;

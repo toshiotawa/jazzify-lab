@@ -448,7 +448,7 @@ export async function createDiary(content: string, imageUrl?: string): Promise<{
   }
 
   // 会員ランクに応じたXP倍率を適用
-  const membershipMultiplier = membershipRank === 'premium' ? 1.5 : membershipRank === 'platinum' ? 2 : 1;
+  const membershipMultiplier = membershipRank === 'premium' ? 1.5 : (membershipRank === 'platinum' || membershipRank === 'black') ? 2 : 1;
 
   let xpResult: { gainedXp: number; totalXp: number; level: number } = { gainedXp:0, totalXp:0, level:currentLevel } as any;
 

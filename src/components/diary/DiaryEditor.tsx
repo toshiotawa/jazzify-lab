@@ -38,7 +38,11 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
   const getExpectedXp = () => {
     if (!profile) return 5000;
     const baseXp = 5000;
-    const multiplier = profile.rank === 'premium' ? 1.5 : profile.rank === 'platinum' ? 2 : 1;
+    const multiplier = profile.rank === 'premium'
+      ? 1.5
+      : profile.rank === 'platinum' || profile.rank === 'black'
+        ? 2
+        : 1;
     return Math.round(baseXp * multiplier);
   };
 
@@ -223,8 +227,8 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
             placeholder="今日の気づき、練習内容などを共有しましょう (最大1000文字)"
           />
           
-          {/* 画像添付セクション */}
-          {profile?.rank === 'premium' || profile?.rank === 'platinum' ? (
+            {/* 画像添付セクション */}
+            {profile?.rank === 'premium' || profile?.rank === 'platinum' || profile?.rank === 'black' ? (
             <div className="mb-2 p-3 bg-slate-700 rounded-lg border-2 border-dashed border-slate-600">
               {imagePreview ? (
                 <div className="space-y-2">
@@ -285,7 +289,7 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
             {!isEdit && (
               <span className="text-emerald-400">
                 投稿すると +{getExpectedXp().toLocaleString()} XP
-                {profile?.rank && ['standard', 'premium', 'platinum'].includes(profile.rank) && (
+                {profile?.rank && ['standard', 'standard_global', 'premium', 'platinum', 'black'].includes(profile.rank) && (
                   <span className="ml-1 text-xs text-yellow-400">
                     ({profile?.rank} 倍率適用)
                   </span>

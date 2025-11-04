@@ -709,7 +709,7 @@ export interface Course {
   lessons: Lesson[];
   order_index: number;
   premium_only?: boolean;
-  min_rank?: 'free' | 'standard' | 'premium' | 'platinum';
+  min_rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
   prerequisites?: CoursePrerequisite[];
 }
 
@@ -732,10 +732,10 @@ export interface Profile {
   next_season_xp_multiplier?: number;
   // Stripe subscription fields
   stripe_customer_id?: string;
-  rank?: 'free' | 'standard' | 'premium' | 'platinum';
+  rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
   will_cancel?: boolean;
   cancel_date?: string;
-  downgrade_to?: 'free' | 'standard' | 'premium' | 'platinum';
+  downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
   downgrade_date?: string;
   level?: number;
   xp?: number;

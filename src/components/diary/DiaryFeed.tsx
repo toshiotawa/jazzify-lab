@@ -37,19 +37,21 @@ const DiaryFeed: React.FC = () => {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // ランクに応じたアイコンを取得する関数
-  const getRankIcon = (rank: string) => {
-    switch (rank.toLowerCase()) {
-      case 'platinum':
-        return <FaCrown className="text-purple-400 text-sm" />;
-      case 'premium':
-        return <FaGem className="text-yellow-400 text-sm" />;
-      case 'standard':
-        return <FaStar className="text-blue-400 text-xs" />;
-      case 'free':
-      default:
-        return <FaMedal className="text-gray-400 text-xs" />;
-    }
-  };
+    const getRankIcon = (rank: string) => {
+      switch (rank.toLowerCase()) {
+        case 'black':
+          return <FaCrown className="text-slate-200 text-sm" />;
+        case 'platinum':
+          return <FaCrown className="text-purple-400 text-sm" />;
+        case 'premium':
+          return <FaGem className="text-yellow-400 text-sm" />;
+        case 'standard':
+          return <FaStar className="text-blue-400 text-xs" />;
+        case 'free':
+        default:
+          return <FaMedal className="text-gray-400 text-xs" />;
+      }
+    };
   // Initialize realtime channels when the feed mounts, and dispose on unmount
   useEffect(() => {
     const store = useDiaryStore.getState();

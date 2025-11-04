@@ -23,7 +23,7 @@ INSERT INTO public.profiles (
     auth.uid(),
     auth.email(),
     COALESCE(split_part(auth.email(), '@', 1), 'admin'), -- メールアドレスの@前を仮のニックネームとして使用
-    'platinum'::membership_rank, -- 管理者なのでプラチナランクに設定
+    'black'::membership_rank, -- 管理者なのでブラックランクに設定
     true, -- 管理者として設定
     0,
     1,
@@ -31,7 +31,7 @@ INSERT INTO public.profiles (
     NOW()
 ) ON CONFLICT (id) DO UPDATE SET
     is_admin = true, -- 既に存在する場合は管理者フラグを更新
-    rank = 'platinum'::membership_rank,
+    rank = 'black'::membership_rank,
     updated_at = NOW()
 RETURNING *;
 

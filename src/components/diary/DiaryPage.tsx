@@ -200,6 +200,8 @@ const DiaryPage: React.FC = () => {
   // ランクに応じたアイコンを取得する関数
   const getRankIcon = (rank: string) => {
     switch (rank.toLowerCase()) {
+      case 'black':
+        return <FaCrown className="text-slate-200 text-lg" />;
       case 'platinum':
         return <FaCrown className="text-purple-400 text-lg" />;
       case 'premium':

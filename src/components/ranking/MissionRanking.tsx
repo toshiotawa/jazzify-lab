@@ -112,6 +112,8 @@ const MissionRanking: React.FC = () => {
   // ユーザーランクに応じたアイコンを取得する関数
   const getUserRankIcon = (rank: string) => {
     switch (rank.toLowerCase()) {
+      case 'black':
+        return <FaCrown className="text-slate-200 text-sm" />;
       case 'platinum':
         return <FaCrown className="text-purple-400 text-sm" />;
       case 'premium':
@@ -277,7 +279,8 @@ const MissionRanking: React.FC = () => {
                           <div className="flex items-center space-x-1">
                             {getUserRankIcon(entry.rank)}
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              entry.rank === 'platinum' ? 'bg-purple-600 text-white' :
+                                entry.rank === 'black' ? 'bg-slate-700 text-white' :
+                                entry.rank === 'platinum' ? 'bg-purple-600 text-white' :
                               entry.rank === 'premium' ? 'bg-yellow-600 text-white' :
                               entry.rank === 'standard' ? 'bg-blue-600 text-white' :
                               'bg-gray-600 text-white'

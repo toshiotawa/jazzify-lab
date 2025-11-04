@@ -20,9 +20,10 @@ const getPlanFromStripeProduct = (product: Stripe.Product | string): string => {
     productName = product.name?.toLowerCase() || '';
   }
   
-  if (productName.includes('standard')) return 'standard';
-  if (productName.includes('premium')) return 'premium';
-  if (productName.includes('platinum')) return 'platinum';
+    if (productName.includes('standard')) return 'standard';
+    if (productName.includes('premium')) return 'premium';
+    if (productName.includes('black')) return 'black';
+    if (productName.includes('platinum')) return 'platinum';
   
   return 'free';
 };

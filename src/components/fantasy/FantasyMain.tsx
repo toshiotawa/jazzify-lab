@@ -286,7 +286,8 @@ const FantasyMain: React.FC = () => {
 
     // 事前にローカル計算結果を用意して、UIを即時更新（ゲストでも表示されるように）
     const normalizeRank = (rank: string | undefined): 'free' | 'standard' | 'premium' | 'platinum' => {
-      if (rank === 'premium' || rank === 'platinum') return rank;
+      if (rank === 'premium') return 'premium';
+      if (rank === 'platinum' || rank === 'black') return 'platinum';
       if (rank === 'standard' || rank === 'standard_global') return 'standard';
       return 'free';
     };

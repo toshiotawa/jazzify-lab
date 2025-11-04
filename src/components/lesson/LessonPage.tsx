@@ -71,7 +71,7 @@ const LessonPage: React.FC = () => {
     if (!open || !selectedCourse) return;
 
     // 最適化: 管理者またはレッスン編集権限がある場合のみ監視
-    const shouldMonitor = profile?.isAdmin || profile?.rank === 'premium' || profile?.rank === 'platinum';
+    const shouldMonitor = profile?.isAdmin || profile?.rank === 'premium' || profile?.rank === 'platinum' || profile?.rank === 'black';
     if (!shouldMonitor) return;
 
     // レッスンテーブルの変更を監視（最適化: キャッシュクリアを最小限に）

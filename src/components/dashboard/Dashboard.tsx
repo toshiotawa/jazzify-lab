@@ -181,20 +181,22 @@ const Dashboard: React.FC = () => {
   };
 
   // ランクに応じたアイコンを取得する関数
-  const getRankIcon = (rank: string) => {
-    switch (rank.toLowerCase()) {
-      case 'platinum':
-        return <FaCrown className="text-purple-400 text-lg" />;
-      case 'premium':
-        return <FaGem className="text-yellow-400 text-lg" />;
-      case 'standard':
-      case 'standard_global':
-        return <FaStar className="text-blue-400 text-sm" />;
-      case 'free':
-      default:
-        return <FaMedal className="text-gray-400 text-sm" />;
-    }
-  };
+    const getRankIcon = (rank: string) => {
+      switch (rank.toLowerCase()) {
+        case 'black':
+          return <FaCrown className="text-slate-200 text-lg" />;
+        case 'platinum':
+          return <FaCrown className="text-purple-400 text-lg" />;
+        case 'premium':
+          return <FaGem className="text-yellow-400 text-lg" />;
+        case 'standard':
+        case 'standard_global':
+          return <FaStar className="text-blue-400 text-sm" />;
+        case 'free':
+        default:
+          return <FaMedal className="text-gray-400 text-sm" />;
+      }
+    };
 
   const [hoveredTitle, setHoveredTitle] = useState<boolean>(false);
   const [clickedTitle, setClickedTitle] = useState<boolean>(false);

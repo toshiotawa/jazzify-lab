@@ -18,31 +18,31 @@ interface AuthState {
     title: string;
   } | null;
     profile: {
-     nickname: string;
-     rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
-     level: number;
-     xp: number;
-     isAdmin: boolean;
-     id: string;
-     email?: string;
-     avatar_url?: string | null;
-     bio?: string | null;
-     twitter_handle?: string | null;
-     selected_title?: string | null;
-     next_season_xp_multiplier?: number;
-     country?: string | null;
-     // Stripe subscription fields
-     stripe_customer_id?: string;
-     will_cancel?: boolean;
-     cancel_date?: string;
-     downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
-     downgrade_date?: string;
-     // Lemon Squeezy fields
-     lemon_customer_id?: string | null;
-     lemon_subscription_id?: string | null;
-     lemon_subscription_status?: string | null; // on_trial, active, past_due, cancelled, expired, paused
-     lemon_trial_used?: boolean | null;
-   } | null;
+      nickname: string;
+      rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+      level: number;
+      xp: number;
+      isAdmin: boolean;
+      id: string;
+      email?: string;
+      avatar_url?: string | null;
+      bio?: string | null;
+      twitter_handle?: string | null;
+      selected_title?: string | null;
+      next_season_xp_multiplier?: number;
+      country?: string | null;
+      // Stripe subscription fields
+      stripe_customer_id?: string;
+      will_cancel?: boolean;
+      cancel_date?: string;
+      downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+      downgrade_date?: string;
+      // Lemon Squeezy fields
+      lemon_customer_id?: string | null;
+      lemon_subscription_id?: string | null;
+      lemon_subscription_status?: string | null; // on_trial, active, past_due, cancelled, expired, paused
+      lemon_trial_used?: boolean | null;
+    } | null;
 }
 
 interface AuthActions {
