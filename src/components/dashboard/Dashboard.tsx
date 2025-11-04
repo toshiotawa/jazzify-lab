@@ -26,6 +26,7 @@ import {
 import { FaUsers } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import OpenBetaPlanSwitcher from '@/components/subscription/OpenBetaPlanSwitcher';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 // xpToNextLevel, currentLevelXP は未使用
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
@@ -40,6 +41,21 @@ const Dashboard: React.FC = () => {
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
   const { profile, isGuest, logout } = useAuthStore();
+  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+  const announcementsTitle = isEnglishCopy ? 'Announcements' : 'お知らせ';
+  const noAnnouncementsText = isEnglishCopy ? 'No announcements at the moment' : '現在お知らせはありません';
+  const viewAllAnnouncementsText = isEnglishCopy ? 'View all announcements →' : 'すべてのお知らせを見る →';
+  const totalXpLabel = isEnglishCopy ? 'Total XP' : '累計経験値';
+  const statsLoadingText = isEnglishCopy ? 'Loading stats...' : '統計を読み込み中...';
+  const xpProgressLabel = isEnglishCopy ? 'XP to next level' : '次レベルまで';
+  const fantasyQuickTitle = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
+  const fantasyQuickDescription = isEnglishCopy ? 'RPG-style chord practice game' : 'RPG風のコード練習ゲーム';
+  const guestHeading = isEnglishCopy ? 'Guest mode' : 'ゲストプレイ中';
+  const guestBodyLine1 = isEnglishCopy ? 'You are currently playing as a guest.' : '現在ゲストとしてプレイしています。';
+  const guestBodyLine2 = isEnglishCopy ? 'Sign in to unlock more features.' : 'ログインすると、より多くの機能をご利用いただけます。';
+  const guestFantasyButton = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
+  const guestLoginButton = isEnglishCopy ? 'Log in / Sign up' : 'ログイン / 会員登録';
+  const guestLogoutButton = isEnglishCopy ? 'Log out' : 'ログアウト';
   const isStandardGlobal = profile?.rank === 'standard_global';
   const { stats: userStats, fetchStats, loading: statsLoading } = useUserStatsStore();
   const toast = useToast();
@@ -68,7 +84,7 @@ const Dashboard: React.FC = () => {
     }
   }, [isGuest, open]);
 
-  const loadDashboardData = async () => {
+    const loadDashboardData = async () => {
     setLoading(true);
     
     try {
@@ -108,12 +124,17 @@ const Dashboard: React.FC = () => {
                 console.log('Dashboard: Active announcements exist but latestData is null');
               }
             }
-          }).catch((announcementError: any) => {
-            console.error('Announcement loading error:', announcementError);
-            toast.error(`お知らせの読み込みに失敗しました: ${announcementError.message}`, {
-              title: 'お知らせエラー',
-              duration: 5000,
-            });
+            }).catch((announcementError: any) => {
+              console.error('Announcement loading error:', announcementError);
+              toast.error(
+                isEnglishCopy
+                  ? `Failed to load announcements: ${announcementError.message}`
+                  : `お知らせの読み込みに失敗しました: ${announcementError.message}`,
+                {
+                  title: isEnglishCopy ? 'Announcement error' : 'お知らせエラー',
+                  duration: 5000,
+                }
+              );
           })
         );
       }
@@ -142,7 +163,7 @@ const Dashboard: React.FC = () => {
   };
 
   // 称号の種類を判定する関数
-  const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
+    const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
     // レベル称号の判定
     if (TITLES.includes(title as any)) {
       return 'level';
@@ -181,7 +202,7 @@ const Dashboard: React.FC = () => {
   };
 
   // ランクに応じたアイコンを取得する関数
-  const getRankIcon = (rank: string) => {
+    const getRankIcon = (rank: string) => {
     switch (rank.toLowerCase()) {
       case 'platinum':
         return <FaCrown className="text-purple-400 text-lg" />;
@@ -267,14 +288,14 @@ const Dashboard: React.FC = () => {
                       {getRankIcon(profile.rank)}
                       <span className="capitalize">{profile.rank}</span>
                     </div>
-                    <span>累計経験値 {profile.xp.toLocaleString()}</span>
+                      <span>{totalXpLabel} {profile.xp.toLocaleString()}</span>
                   </div>
                   
                   {/* ミッション・レッスン統計 */}
                   {statsLoading ? (
-                    <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
-                      <span className="animate-pulse">統計を読み込み中...</span>
-                    </div>
+                      <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
+                        <span className="animate-pulse">{statsLoadingText}</span>
+                      </div>
                   ) : userStats ? (
                     <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
                       {!isStandardGlobal && (<span>ミッション完了数 {userStats.missionCompletedCount}</span>)}
@@ -290,7 +311,7 @@ const Dashboard: React.FC = () => {
                         <>
                           <div className="flex justify-between text-sm text-gray-400 mb-1">
                             <span>{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</span>
-                            <span>次レベルまで: {(levelInfo.nextLevelXp - levelInfo.remainder).toLocaleString()}</span>
+                              <span>{xpProgressLabel}: {(levelInfo.nextLevelXp - levelInfo.remainder).toLocaleString()}</span>
                           </div>
                           <div className="bg-slate-700 h-2 rounded overflow-hidden">
                             <div 
@@ -311,17 +332,17 @@ const Dashboard: React.FC = () => {
           {!isGuest && (
             <>
               {/* お知らせセクション */}
-              <div className="bg-slate-800 rounded-lg border border-slate-700">
-                <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
-                  <FaBell className="w-5 h-5 text-yellow-400" />
-                  <h3 className="text-lg font-semibold">お知らせ</h3>
-                </div>
+                <div className="bg-slate-800 rounded-lg border border-slate-700">
+                  <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
+                    <FaBell className="w-5 h-5 text-yellow-400" />
+                    <h3 className="text-lg font-semibold">{announcementsTitle}</h3>
+                  </div>
                 
                 <div className="p-4">
-                  {!latestAnnouncement ? (
-                    <p className="text-gray-400 text-center py-6">
-                      現在お知らせはありません
-                    </p>
+                    {!latestAnnouncement ? (
+                      <p className="text-gray-400 text-center py-6">
+                        {noAnnouncementsText}
+                      </p>
                   ) : (
                     <div className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors">
                       <h4 className="font-semibold mb-2">{latestAnnouncement.title}</h4>
@@ -338,7 +359,7 @@ const Dashboard: React.FC = () => {
                           className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 text-sm underline transition-colors"
                         >
                           <FaExternalLinkAlt className="w-3 h-3" />
-                          <span>{latestAnnouncement.link_text || 'リンクを開く'}</span>
+                            <span>{latestAnnouncement.link_text || (isEnglishCopy ? 'Open link' : 'リンクを開く')}</span>
                         </a>
                       )}
                       
@@ -347,12 +368,12 @@ const Dashboard: React.FC = () => {
                       </div>
 
                       <div className="mt-3">
-                        <button
-                          onClick={() => { window.location.hash = '#information'; }}
-                          className="text-xs text-blue-400 hover:text-blue-300"
-                        >
-                          すべてのお知らせを見る →
-                        </button>
+                          <button
+                            onClick={() => { window.location.hash = '#information'; }}
+                            className="text-xs text-blue-400 hover:text-blue-300"
+                          >
+                            {viewAllAnnouncementsText}
+                          </button>
                       </div>
                     </div>
                   )}
@@ -457,60 +478,65 @@ const Dashboard: React.FC = () => {
                 </button>
                 )}
 
-                {/* ファンタジーモード */}
-                <button
-                  onClick={() => { window.location.hash = '#fantasy'; }}
-                  className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg p-6 border border-purple-600 hover:border-purple-400 transition-colors text-left relative overflow-hidden"
-                >
-                  <div className="absolute top-0 right-0 opacity-20">
-                    <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-24 h-24" />
-                  </div>
-                  <div className="flex items-center space-x-3 mb-3 relative z-10">
-                    <FaMagic className="w-6 h-6 text-yellow-400" />
-                    <h3 className="text-lg font-semibold text-white">ファンタジーモード</h3>
-                    <span className="bg-yellow-400 text-black text-xs px-2 py-1 rounded-full font-bold">NEW</span>
-                  </div>
-                  <p className="text-sm text-purple-100 relative z-10">
-                    RPG風のコード練習ゲーム
-                  </p>
-                </button>
+                  {/* ファンタジーモード */}
+                  <button
+                    onClick={() => { window.location.hash = '#fantasy'; }}
+                    className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg p-6 border border-purple-600 hover:border-purple-400 transition-colors text-left relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 opacity-20">
+                      <img src="/default_avater/default-avater.png" alt={fantasyQuickTitle} className="w-24 h-24" />
+                    </div>
+                    <div className="flex items-center space-x-3 mb-3 relative z-10">
+                      <FaMagic className="w-6 h-6 text-yellow-400" />
+                      <h3 className="text-lg font-semibold text-white">{fantasyQuickTitle}</h3>
+                      <span className="bg-yellow-400 text-black text-xs px-2 py-1 rounded-full font-bold">NEW</span>
+                    </div>
+                    <p className="text-sm text-purple-100 relative z-10">
+                      {fantasyQuickDescription}
+                    </p>
+                  </button>
               </div>
             </>
           )}
 
           {/* ゲストプレイ時の専用メッセージ */}
-          {isGuest && (
-            <div className="bg-slate-800 rounded-lg p-8 border border-slate-700 text-center">
-              <div className="mb-4">
-                <img src="/stage_icons/6.png" alt="Stage Icon" className="w-24 h-24 mx-auto" />
+            {isGuest && (
+              <div className="bg-slate-800 rounded-lg p-8 border border-slate-700 text-center">
+                <div className="mb-4">
+                  <img src="/stage_icons/6.png" alt="Stage Icon" className="w-24 h-24 mx-auto" />
+                </div>
+                <h3 className="text-xl font-semibold mb-4">{guestHeading}</h3>
+                <p className="text-gray-300 mb-6">
+                  {guestBodyLine1}<br />
+                  {guestBodyLine2}
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <button
+                    onClick={() => { window.location.hash = '#fantasy'; }}
+                    className="btn btn-primary"
+                  >
+                    {guestFantasyButton}
+                  </button>
+                  <button
+                    onClick={() => { window.location.hash = '#login'; }}
+                    className="btn btn-secondary"
+                  >
+                    {guestLoginButton}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await logout();
+                      try { localStorage.removeItem('guest_id'); } catch {}
+                      window.location.href = 'https://jazzify.jp/';
+                      toast.info(isEnglishCopy ? 'Logged out' : 'ログアウトしました');
+                    }}
+                    className="btn btn-ghost"
+                  >
+                    {guestLogoutButton}
+                  </button>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-4">ゲストプレイ中</h3>
-              <p className="text-gray-300 mb-6">
-                現在ゲストとしてプレイしています。<br />
-                ログインすると、より多くの機能をご利用いただけます。
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={() => { window.location.hash = '#fantasy'; }}
-                  className="btn btn-primary"
-                >
-                  ファンタジーモード
-                </button>
-                <button
-                  onClick={() => { window.location.hash = '#login'; }}
-                  className="btn btn-secondary"
-                >
-                  ログイン / 会員登録
-                </button>
-                <button
-                  onClick={async () => { await logout(); try { localStorage.removeItem('guest_id'); } catch {}; window.location.href = 'https://jazzify.jp/'; toast.info('ログアウトしました'); }}
-                  className="btn btn-ghost"
-                >
-                  ログアウト
-                </button>
-              </div>
-            </div>
-          )}
+            )}
         </div>
       </div>
     </div>

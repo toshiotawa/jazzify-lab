@@ -8,6 +8,7 @@ import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
+import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { TaikoNote } from './TaikoNoteSystem';
@@ -17,6 +18,7 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
+import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasyStageDescription } from '@/utils/globalAudience';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -41,6 +43,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   lessonMode = false,
   fitAllKeys = false
 }) => {
+  const { profile } = useAuthStore();
+  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+  const localizedStageName = useMemo(() => getLocalizedFantasyStageName(stage, profile?.rank), [stage, profile?.rank]);
+  const localizedStageDescription = useMemo(() => getLocalizedFantasyStageDescription(stage, profile?.rank) ?? '', [stage, profile?.rank]);
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
   // エフェクト状態
@@ -1007,12 +1013,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <div className="min-h-[var(--dvh,100dvh)] bg-black flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center">
           <div className="text-6xl mb-6">🎮</div>
-          <h2 className="text-3xl font-bold mb-4">
-            {stage?.name ?? 'タイトル取得失敗'}
-          </h2>
-          <p className="text-gray-200 mb-8">
-            {stage?.description ?? '説明テキストを取得できませんでした'}
-          </p>
+            <h2 className="text-3xl font-bold mb-4">
+              {localizedStageName ?? (isEnglishCopy ? 'Title unavailable' : 'タイトル取得失敗')}
+            </h2>
+            <p className="text-gray-200 mb-8">
+              {localizedStageDescription || (isEnglishCopy ? 'Description unavailable.' : '説明テキストを取得できませんでした')}
+            </p>
           <button
             onClick={() => {
               devLog.debug('🎮 ゲーム開始ボタンクリック');
@@ -1030,12 +1036,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* デバッグ情報 */}
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 bg-black bg-opacity-50 text-white text-xs p-3 rounded">
-              <div>ゲーム状態: {gameState.isGameActive ? 'アクティブ' : '非アクティブ'}</div>
-              <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>
+                <div>{isEnglishCopy ? 'Game state' : 'ゲーム状態'}: {gameState.isGameActive ? (isEnglishCopy ? 'Active' : 'アクティブ') : (isEnglishCopy ? 'Inactive' : '非アクティブ')}</div>
+                <div>{isEnglishCopy ? 'Current chord' : '現在のコード'}: {gameState.currentChordTarget?.displayName || (isEnglishCopy ? 'None' : 'なし')}</div>
               <div>許可コード数: {stage.allowedChords?.length || 0}</div>
               {stage.mode === 'single' && <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>}
-              <div>オーバーレイ: {overlay ? '表示中' : 'なし'}</div>
-              <div>完了処理中: {gameState.isCompleting ? 'はい' : 'いいえ'}</div>
+                <div>{isEnglishCopy ? 'Overlay' : 'オーバーレイ'}: {overlay ? (isEnglishCopy ? 'Visible' : '表示中') : (isEnglishCopy ? 'None' : 'なし')}</div>
+                <div>{isEnglishCopy ? 'Completing' : '完了処理中'}: {gameState.isCompleting ? (isEnglishCopy ? 'Yes' : 'はい') : (isEnglishCopy ? 'No' : 'いいえ')}</div>
             </div>
           )}
         </div>

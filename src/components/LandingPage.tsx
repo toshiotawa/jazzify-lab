@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 const LPFantasyDemo = React.lazy(() => import('./fantasy/LPFantasyDemo'));
 
 // タイピング風テキスト表示コンポーネント
@@ -44,9 +45,10 @@ const TypewriterText: React.FC<{
 };
 
 const LandingPage: React.FC = () => {
-  const { user, isGuest, loading, enterGuestMode } = useAuthStore();
+  const { user, isGuest, loading, enterGuestMode, profile } = useAuthStore();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const isEnglishLanding = shouldUseEnglishCopy(profile?.rank);
 
   // アニメーション: 画面内進入検知
   useEffect(() => {
@@ -89,15 +91,32 @@ const LandingPage: React.FC = () => {
   };
 
   const navLinks = useMemo(
-    () => [
-      { id: 'story', label: 'ストーリー' },
-      { id: 'modes', label: '学習モード' },
-      { id: 'community', label: 'コミュニティ' },
-      { id: 'pricing', label: '料金プラン' },
-      { id: 'faq', label: 'FAQ' },
-    ],
-    []
+    () => (
+      isEnglishLanding
+        ? []
+        : [
+            { id: 'story', label: 'ストーリー' },
+            { id: 'modes', label: '学習モード' },
+            { id: 'community', label: 'コミュニティ' },
+            { id: 'pricing', label: '料金プラン' },
+            { id: 'faq', label: 'FAQ' },
+          ]
+    ),
+    [isEnglishLanding]
   );
+
+  const heroTitleText = isEnglishLanding ? 'Turn practice into an adventure.' : '練習を冒険に。';
+  const heroSubtitleText = isEnglishLanding ? 'Transform your playing with an RPG-inspired jazz journey.' : 'あなたの演奏、今日からジャズ化。';
+  const primaryCtaLabel = isEnglishLanding ? 'Start Free Trial' : '無料トライアルを始める';
+  const guestCtaLabel = isEnglishLanding ? 'Play Demo' : 'おためしプレイ';
+  const heroCtaAria = isEnglishLanding ? 'Start your free trial' : '無料トライアルを始める';
+  const helmetDescription = isEnglishLanding
+    ? 'Start your jazz adventure in a fantasy realm. Practice with real-time feedback, unlock quests, and battle through Fantasy Mode.'
+    : 'ジャズ異世界で始まる音楽冒険。RPG風の学習やレッスン、コミュニティ機能でジャズを楽しく学べるプラットフォーム。';
+  const finalHeadingText = isEnglishLanding ? 'Start your free trial now' : '今すぐ無料トライアルを始める';
+  const finalDescriptionText = isEnglishLanding
+    ? 'Registration takes just a few minutes. You can also try the demo first.'
+    : '登録は数分で完了。おためしプレイも可能です。';
 
   const handleAnchorClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
@@ -109,9 +128,9 @@ const LandingPage: React.FC = () => {
 
   return (
     <div className="lp-root text-white flex h-screen flex-col overflow-hidden" style={{ fontFamily: '"Kaisei Opti", serif' }}>
-      <Helmet>
-        <title>Jazzify</title>
-        <meta name="description" content="ジャズ異世界で始まる音楽冒険。RPG風の学習やレッスン、コミュニティ機能でジャズを楽しく学べるプラットフォーム。" />
+        <Helmet>
+          <title>Jazzify</title>
+          <meta name="description" content={helmetDescription} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Kaisei+Opti:wght@400;700&display=swap" rel="stylesheet" />
@@ -127,13 +146,13 @@ const LandingPage: React.FC = () => {
                 <img src="/default_avater/default-avater.png" alt="Jazzify ロゴ" className="w-8 h-8 rounded-full" />
                 Jazzify
               </h1>
-              <div className="flex items-center gap-2 sm:gap-3">
-                <button onClick={handleGuestClick} className="hidden sm:inline-flex px-4 py-2 rounded-full bg-slate-800 hover:bg-slate-700 transition text-sm font-semibold">
-                  おためしプレイ
-                </button>
-                <Link to="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-xs sm:text-sm font-bold whitespace-nowrap">
-                  ログイン/無料トライアル
-                </Link>
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <button onClick={handleGuestClick} className="hidden sm:inline-flex px-4 py-2 rounded-full bg-slate-800 hover:bg-slate-700 transition text-sm font-semibold">
+                    {guestCtaLabel}
+                  </button>
+                  <Link to="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-xs sm:text-sm font-bold whitespace-nowrap">
+                    {isEnglishLanding ? 'Sign In / Sign Up' : 'ログイン/無料トライアル'}
+                  </Link>
               </div>
             </div>
           </div>
@@ -148,15 +167,15 @@ const LandingPage: React.FC = () => {
               </div>
               <div className="w-full md:w-1/2">
                 <div className="text-center md:text-left">
-                  <TypewriterText
-                    text="練習を冒険に。"
+                    <TypewriterText
+                      text={heroTitleText}
                     className="text-4xl sm:text-5xl md:text-7xl font-black mb-4 section-title"
                     dataAnimate="from-behind heading-underline"
                     speedMsPerChar={110}
                     delayMs={100}
                   />
-                  <TypewriterText
-                    text="あなたの演奏、今日からジャズ化。"
+                    <TypewriterText
+                      text={heroSubtitleText}
                     className="text-lg sm:text-xl md:text-2xl text-purple-200 mb-8"
                     dataAnimate="from-behind"
                     speedMsPerChar={120}
@@ -165,11 +184,11 @@ const LandingPage: React.FC = () => {
                 </div>
                 <div className="text-center md:text-left">
                   <Link
-                    to="/signup"
-                    aria-label="無料トライアルを始める"
+                      to="/signup"
+                      aria-label={heroCtaAria}
                     className="inline-flex items-center justify-center px-6 py-3 sm:px-8 sm:py-4 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 font-bold shadow-lg text-base sm:text-lg"
                   >
-                    無料トライアルを始める
+                      {primaryCtaLabel}
                   </Link>
                 </div>
               </div>
@@ -177,14 +196,16 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Fantasy Mode Demo Section (after hero) */}
-        <React.Suspense fallback={<div className="py-12 text-center text-gray-400">デモを読み込み中...</div>}>
-          <LPFantasyDemo />
-        </React.Suspense>
+          {/* Fantasy Mode Demo Section (after hero) */}
+          <React.Suspense fallback={<div className="py-12 text-center text-gray-400">{isEnglishLanding ? 'Loading demo...' : 'デモを読み込み中...'}</div>}>
+            <LPFantasyDemo />
+          </React.Suspense>
 
-        {/* Story Section */}
-        <section id="story" className="py-20 story-gradient" data-animate="slide-left text-up">
-          <div className="container mx-auto px-6">
+          {!isEnglishLanding && (
+            <>
+              {/* Story Section */}
+              <section id="story" className="py-20 story-gradient" data-animate="slide-left text-up">
+                <div className="container mx-auto px-6">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/2.png" alt="ストーリー" className="w-16 h-16" />
               ストーリー
@@ -606,8 +627,8 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        {/* FAQ Section */}
-        <section id="faq" className="py-20" data-animate="slide-left text-up">
+          {/* FAQ Section */}
+          <section id="faq" className="py-20" data-animate="slide-left text-up">
           <div className="container mx-auto px-6">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/1.png" alt="よくある質問" className="w-16 h-16" />
@@ -665,87 +686,100 @@ const LandingPage: React.FC = () => {
               ))}
             </div>
           </div>
-        </section>
+          </section>
+            </>
+          )}
 
-        {/* Final CTA Section */}
-        <section className="py-20" data-animate="slide-right text-up">
-          <div className="container mx-auto px-6 text-center">
-            <h2 className="text-4xl md:text-5xl font-extrabold mb-6" data-animate="from-behind heading-underline">今すぐ無料トライアルを始める</h2>
-            <p className="text-gray-300 mb-8">登録は数分で完了。おためしプレイも可能です。</p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-              <Link to="/signup" className="px-6 py-2.5 sm:px-8 sm:py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition font-bold text-sm sm:text-base">
-                無料トライアルを始める
-              </Link>
-              <button onClick={handleGuestClick} className="px-6 py-2.5 sm:px-8 sm:py-3 rounded-full bg-slate-800 hover:bg-slate-700 transition font-semibold text-sm sm:text-base">
-                おためしプレイ
-              </button>
+          {/* Final CTA Section */}
+          <section className="py-20" data-animate="slide-right text-up">
+            <div className="container mx-auto px-6 text-center">
+              <h2 className="text-4xl md:text-5xl font-extrabold mb-6" data-animate="from-behind heading-underline">
+                {finalHeadingText}
+              </h2>
+              <p className="text-gray-300 mb-8">{finalDescriptionText}</p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+                <Link
+                  to="/signup"
+                  aria-label={heroCtaAria}
+                  className="px-6 py-2.5 sm:px-8 sm:py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition font-bold text-sm sm:text-base"
+                >
+                  {primaryCtaLabel}
+                </Link>
+                <button
+                  onClick={handleGuestClick}
+                  className="px-6 py-2.5 sm:px-8 sm:py-3 rounded-full bg-slate-800 hover:bg-slate-700 transition font-semibold text-sm sm:text-base"
+                >
+                  {guestCtaLabel}
+                </button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* Footer */}
-        <footer className="py-16 bg-slate-900 border-t border-purple-500 border-opacity-30">
-          <div className="container mx-auto px-6">
-            <div className="grid md:grid-cols-4 gap-8 mb-12">
-              <div className="col-span-1">
-                <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-4">
-                  <i className="fas fa-music mr-2"></i>Jazzify
-                </h3>
-                <p className="text-gray-400 text-sm leading-relaxed">
-                  ジャズ異世界で始まる音楽冒険。初心者から上級者まで、すべてのジャズ愛好家のための学習プラットフォームです。
-                </p>
-              </div>
+          {/* Footer */}
+          {!isEnglishLanding && (
+            <footer className="py-16 bg-slate-900 border-t border-purple-500 border-opacity-30">
+              <div className="container mx-auto px-6">
+                <div className="grid md:grid-cols-4 gap-8 mb-12">
+                  <div className="col-span-1">
+                    <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-4">
+                      <i className="fas fa-music mr-2"></i>Jazzify
+                    </h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      ジャズ異世界で始まる音楽冒険。初心者から上級者まで、すべてのジャズ愛好家のための学習プラットフォームです。
+                    </p>
+                  </div>
 
-              <div>
-                <h4 className="text-white font-bold mb-4">サービス</h4>
-                <ul className="space-y-2 text-sm text-gray-400">
-                  {navLinks.slice(1, 4).map(l => (
-                    <li key={l.id}>
-                      <a href={`#${l.id}`} className="hover:text-purple-400 transition" onClick={(e) => handleAnchorClick(e, l.id)}>
-                        {l.label}
+                  <div>
+                    <h4 className="text-white font-bold mb-4">サービス</h4>
+                    <ul className="space-y-2 text-sm text-gray-400">
+                      {navLinks.slice(1, 4).map(l => (
+                        <li key={l.id}>
+                          <a href={`#${l.id}`} className="hover:text-purple-400 transition" onClick={(e) => handleAnchorClick(e, l.id)}>
+                            {l.label}
+                          </a>
+                        </li>
+                      ))}
+                      <li><Link to="/signup" className="hover:text-purple-400 transition">無料体験</Link></li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h4 className="text-white font-bold mb-4">サポート</h4>
+                    <ul className="space-y-2 text-sm text-gray-400">
+                      <li><a href="#faq" className="hover:text-purple-400 transition" onClick={(e) => handleAnchorClick(e, 'faq')}>よくある質問</a></li>
+                      <li><Link to="/help/ios-midi" className="hover:text-purple-400 transition">iPhone/iPadでMIDIを使う</Link></li>
+                      <li><Link to="/contact" className="hover:text-purple-400 transition">お問い合わせ</Link></li>
+                      <li><Link to="/terms" className="hover:text-purple-400 transition">利用規約</Link></li>
+                      <li><Link to="/privacy" className="hover:text-purple-400 transition">プライバシーポリシー</Link></li>
+                      <li><Link to="/legal/tokushoho" className="hover:text-purple-400 transition">特定商取引法に基づく表記</Link></li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h4 className="text-white font-bold mb-4">フォローする</h4>
+                    <div className="flex space-x-4">
+                      <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="Twitter">
+                        <i className="fab fa-twitter text-xl"></i>
                       </a>
-                    </li>
-                  ))}
-                  <li><Link to="/signup" className="hover:text-purple-400 transition">無料体験</Link></li>
-                </ul>
-              </div>
+                      <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="Facebook">
+                        <i className="fab fa-facebook text-xl"></i>
+                      </a>
+                      <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="YouTube">
+                        <i className="fab fa-youtube text-xl"></i>
+                      </a>
+                      <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="Instagram">
+                        <i className="fab fa-instagram text-xl"></i>
+                      </a>
+                    </div>
+                  </div>
+                </div>
 
-              <div>
-                <h4 className="text-white font-bold mb-4">サポート</h4>
-                <ul className="space-y-2 text-sm text-gray-400">
-                  <li><a href="#faq" className="hover:text-purple-400 transition" onClick={(e) => handleAnchorClick(e, 'faq')}>よくある質問</a></li>
-                  <li><Link to="/help/ios-midi" className="hover:text-purple-400 transition">iPhone/iPadでMIDIを使う</Link></li>
-                  <li><Link to="/contact" className="hover:text-purple-400 transition">お問い合わせ</Link></li>
-                  <li><Link to="/terms" className="hover:text-purple-400 transition">利用規約</Link></li>
-                  <li><Link to="/privacy" className="hover:text-purple-400 transition">プライバシーポリシー</Link></li>
-                  <li><Link to="/legal/tokushoho" className="hover:text-purple-400 transition">特定商取引法に基づく表記</Link></li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="text-white font-bold mb-4">フォローする</h4>
-                <div className="flex space-x-4">
-                  <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="Twitter">
-                    <i className="fab fa-twitter text-xl"></i>
-                  </a>
-                  <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="Facebook">
-                    <i className="fab fa-facebook text-xl"></i>
-                  </a>
-                  <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="YouTube">
-                    <i className="fab fa-youtube text-xl"></i>
-                  </a>
-                  <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="Instagram">
-                    <i className="fab fa-instagram text-xl"></i>
-                  </a>
+                <div className="border-t border-gray-700 pt-8 text-center text-sm text-gray-400">
+                  <p>&copy; {new Date().getFullYear()} Jazzify. All rights reserved.</p>
                 </div>
               </div>
-            </div>
-
-            <div className="border-t border-gray-700 pt-8 text-center text-sm text-gray-400">
-              <p>&copy; {new Date().getFullYear()} Jazzify. All rights reserved.</p>
-            </div>
-          </div>
-        </footer>
+            </footer>
+          )}
       </div>
     </div>
   );

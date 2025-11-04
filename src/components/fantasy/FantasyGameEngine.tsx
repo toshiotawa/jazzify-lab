@@ -46,7 +46,9 @@ export interface FantasyStage {
   id: string;
   stageNumber: string;
   name: string;
+  name_en?: string;
   description: string;
+  description_en?: string;
   maxHp: number;
   enemyGaugeSeconds: number;
   enemyCount: number;
