@@ -6,7 +6,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 // オープンベータ用の簡易プラン変更UI
 // 注意: Stripe を介さず Supabase の profiles.rank を直接更新します
-type Rank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
+type Rank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
 
 const OpenBetaPlanSwitcher: React.FC = () => {
   const { profile } = useAuthStore();
@@ -15,25 +15,29 @@ const OpenBetaPlanSwitcher: React.FC = () => {
   const [selected, setSelected] = useState<Rank>(profile?.rank || 'free');
   const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
 
-  const isRank = (value: string): value is Rank => (
-    value === 'free' ||
-    value === 'standard' ||
-    value === 'standard_global' ||
-    value === 'premium' ||
-    value === 'platinum'
-  );
+    const isRank = (value: string): value is Rank => (
+      value === 'free' ||
+      value === 'standard' ||
+      value === 'standard_global' ||
+      value === 'premium' ||
+      value === 'platinum' ||
+      value === 'black'
+    );
 
     const availablePlans = useMemo((): Array<{ value: Rank; label: string }> => {
     const isJapan = (profile?.country || '').toUpperCase() === 'JP' || (profile?.country || '').toLowerCase() === 'japan';
-    if (isJapan) {
-      return [
-          { value: 'free', label: isEnglishCopy ? 'Free' : 'フリー' },
-          { value: 'standard', label: isEnglishCopy ? 'Standard' : 'スタンダード' },
-          { value: 'premium', label: isEnglishCopy ? 'Premium' : 'プレミアム' },
-          { value: 'platinum', label: isEnglishCopy ? 'Platinum' : 'プラチナ' },
-      ];
-    }
-    return [
+
+      if (isJapan) {
+        return [
+          { value: 'free', label: 'フリー' },
+          { value: 'standard', label: 'スタンダード' },
+          { value: 'premium', label: 'プレミアム' },
+          { value: 'platinum', label: 'プラチナ' },
+          { value: 'black', label: 'ブラック' },
+        ];
+      }
+
+  return [
         { value: 'free', label: isEnglishCopy ? 'Free' : 'フリー' },
         { value: 'standard_global', label: isEnglishCopy ? 'Standard (Global)' : 'スタンダード（グローバル）' },
     ];

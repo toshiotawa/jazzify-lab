@@ -570,7 +570,7 @@ const LandingPage: React.FC = () => {
               料金プラン
             </h2>
 
-            <div className="grid lg:grid-cols-4 gap-6 max-w-6xl mx-auto" data-animate="alt-cards text-up">
+              <div className="grid lg:grid-cols-5 gap-6 max-w-6xl mx-auto" data-animate="alt-cards text-up">
               {/* Free Plan */}
               <div className="pricing-card rounded-2xl p-8 text-center">
                 <h3 className="text-2xl font-bold text-gray-300 mb-4">フリー</h3>
@@ -611,18 +611,32 @@ const LandingPage: React.FC = () => {
                 </ul>
               </div>
 
-              {/* Platinum Plan */}
-              <div className="pricing-card rounded-2xl p-8 text-center">
-                <h3 className="text-2xl font-bold text-purple-300 mb-4">プラチナ</h3>
-                <div className="text-4xl font-bold text-white mb-6">¥2,980<span className="text-sm text-gray-400">/月</span></div>
-                <ul className="space-y-3 text-sm text-gray-400 mb-0">
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>全機能（無制限）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>個人レッスン（月2回）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>専用コンシェルジュ</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>楽譜ダウンロード</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>優先サポート</li>
-                </ul>
-              </div>
+                {/* Platinum Plan */}
+                <div className="pricing-card rounded-2xl p-8 text-center">
+                  <h3 className="text-2xl font-bold text-purple-300 mb-4">プラチナ</h3>
+                  <div className="text-4xl font-bold text-white mb-6">¥2,980<span className="text-sm text-gray-400">/月</span></div>
+                  <ul className="space-y-3 text-sm text-gray-400 mb-0">
+                    <li><i className="fas fa-check text-green-400 mr-2"></i>全機能（無制限）</li>
+                    <li><i className="fas fa-check text-green-400 mr-2"></i>個人レッスン（月2回）</li>
+                    <li><i className="fas fa-check text-green-400 mr-2"></i>専用コンシェルジュ</li>
+                    <li><i className="fas fa-check text-green-400 mr-2"></i>楽譜ダウンロード</li>
+                    <li><i className="fas fa-check text-green-400 mr-2"></i>優先サポート</li>
+                  </ul>
+                </div>
+
+                {/* Black Plan */}
+                <div className="pricing-card rounded-2xl p-8 text-center border border-slate-600 bg-slate-900/80">
+                  <div className="bg-slate-200 text-black text-xs px-3 py-1 rounded-full inline-block mb-4">最上位</div>
+                  <h3 className="text-2xl font-bold text-gray-100 mb-4">ブラック</h3>
+                  <div className="text-4xl font-bold text-white mb-6">¥19,800<span className="text-sm text-gray-400">/月</span></div>
+                  <ul className="space-y-3 text-sm text-gray-300 mb-0">
+                    <li><i className="fas fa-check text-green-400 mr-2"></i>全機能（無制限）</li>
+                    <li><i className="fas fa-check text-green-400 mr-2"></i>個人レッスン（月2回）</li>
+                    <li><i className="fas fa-check text-green-400 mr-2"></i>エグゼクティブコンシェルジュ</li>
+                    <li><i className="fas fa-check text-green-400 mr-2"></i>楽譜ダウンロード</li>
+                    <li><i className="fas fa-check text-green-400 mr-2"></i>ブラックデスク（最優先サポート）</li>
+                  </ul>
+                </div>
             </div>
           </div>
         </section>

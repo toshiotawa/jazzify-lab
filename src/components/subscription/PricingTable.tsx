@@ -5,7 +5,7 @@ interface PlanPrice {
   monthly: string;
 }
 
-const PLAN_PRICES: Record<string, PlanPrice> = {
+const PLAN_PRICES: Record<'standard' | 'premium' | 'platinum' | 'black', PlanPrice> = {
   standard: {
     monthly: import.meta.env.VITE_STRIPE_STANDARD_MONTHLY_PRICE_ID || '',
   },
@@ -15,6 +15,9 @@ const PLAN_PRICES: Record<string, PlanPrice> = {
   platinum: {
     monthly: import.meta.env.VITE_STRIPE_PLATINUM_MONTHLY_PRICE_ID || '',
   },
+  black: {
+    monthly: import.meta.env.VITE_STRIPE_BLACK_MONTHLY_PRICE_ID || '',
+  },
 };
 
 const PricingTable: React.FC = () => {
@@ -22,7 +25,7 @@ const PricingTable: React.FC = () => {
   const [loading, setLoading] = useState<string | null>(null);
 
 
-  const handlePlanSelect = async (plan: 'standard' | 'premium' | 'platinum') => {
+  const handlePlanSelect = async (plan: 'standard' | 'premium' | 'platinum' | 'black') => {
     if (!profile) {
       alert('ログインが必要です');
       return;
@@ -79,8 +82,8 @@ const PricingTable: React.FC = () => {
         <div className="text-sm text-green-400">すべての有料プランに14日間無料トライアル</div>
       </div>
 
-      {/* カスタムプラン表示 */}
-      <div className="grid md:grid-cols-3 gap-6 mb-12">
+        {/* カスタムプラン表示 */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
         {/* フリープラン */}
         <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
           <div className="text-center">
@@ -135,8 +138,8 @@ const PricingTable: React.FC = () => {
           </div>
         </div>
 
-        {/* プラチナプラン */}
-        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700 md:col-start-2">
+          {/* プラチナプラン */}
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
           <div className="text-center">
             <h3 className="text-xl font-semibold text-white mb-2">プラチナ</h3>
             <div className="text-3xl font-bold text-white mb-1">¥14,800</div>
@@ -151,6 +154,35 @@ const PricingTable: React.FC = () => {
             </button>
           </div>
         </div>
+
+          {/* ブラックプラン */}
+          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-black rounded-lg p-6 border border-slate-600 relative">
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <span className="bg-slate-200 text-black px-3 py-1 rounded-full text-xs font-medium">
+                最上位
+              </span>
+            </div>
+            <div className="text-center">
+              <h3 className="text-xl font-semibold text-slate-100 mb-2">ブラック</h3>
+              <div className="text-3xl font-bold text-white mb-1">¥19,800</div>
+              <div className="text-sm text-gray-400 mb-2">月額</div>
+              <div className="text-sm text-green-400 mb-4">14日間無料トライアル</div>
+              <ul className="space-y-3 text-sm text-gray-300 mb-6 text-left">
+                <li><i className="fas fa-check text-green-400 mr-2"></i>全機能（無制限）</li>
+                <li><i className="fas fa-check text-green-400 mr-2"></i>個人レッスン（月2回）</li>
+                <li><i className="fas fa-check text-green-400 mr-2"></i>エグゼクティブコンシェルジュ</li>
+                <li><i className="fas fa-check text-green-400 mr-2"></i>楽譜ダウンロード</li>
+                <li><i className="fas fa-check text-green-400 mr-2"></i>ブラックデスク（最優先サポート）</li>
+              </ul>
+              <button 
+                className="btn btn-primary w-full"
+                onClick={() => handlePlanSelect('black')}
+                disabled={loading === 'black'}
+              >
+                {loading === 'black' ? '処理中...' : '選択する'}
+              </button>
+            </div>
+          </div>
       </div>
 
       </div>

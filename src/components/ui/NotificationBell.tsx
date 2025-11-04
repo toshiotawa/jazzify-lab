@@ -9,7 +9,7 @@ const NotificationBell: React.FC = () => {
   const { items, unread, open, fetch, setOpen, loading, markRead } = useNotificationStore();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const allowedRank = profile?.rank === 'standard' || profile?.rank === 'premium' || profile?.rank === 'platinum';
+  const allowedRank = profile?.rank === 'standard' || profile?.rank === 'standard_global' || profile?.rank === 'premium' || profile?.rank === 'platinum' || profile?.rank === 'black';
   const canShow = !!user && !isGuest && allowedRank;
 
   // 初回自動取得は削除し、開いた時のみ取得（API削減）

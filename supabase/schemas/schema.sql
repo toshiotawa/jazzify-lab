@@ -35,7 +35,8 @@ CREATE TYPE "public"."membership_rank" AS ENUM (
     'free',
     'standard',
     'premium',
-    'platinum'
+    'platinum',
+    'black'
 );
 
 
@@ -1102,7 +1103,7 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "cancel_date" timestamp with time zone,
     "downgrade_to" "public"."membership_rank",
     "downgrade_date" timestamp with time zone,
-    CONSTRAINT "member_rank_check" CHECK (("member_rank" = ANY (ARRAY['FREE'::"text", 'STANDARD'::"text", 'PREMIUM'::"text", 'PLATINUM'::"text"])))
+    CONSTRAINT "member_rank_check" CHECK (("member_rank" = ANY (ARRAY['FREE'::"text", 'STANDARD'::"text", 'PREMIUM'::"text", 'PLATINUM'::"text", 'BLACK'::"text"])))
 );
 
 
