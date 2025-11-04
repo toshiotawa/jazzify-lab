@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
+import RhythmGameScreen from '../rhythm/RhythmGameScreen';
 import { FantasyStage } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
@@ -572,6 +573,9 @@ const FantasyMain: React.FC = () => {
   
   // ゲーム画面
   if (currentStage) {
+    if ((currentStage as any).mode === 'rhythm') {
+      return <RhythmGameScreen stage={currentStage} />;
+    }
     return (
       <FantasyGameScreen
         // ▼▼▼ 追加 ▼▼▼
