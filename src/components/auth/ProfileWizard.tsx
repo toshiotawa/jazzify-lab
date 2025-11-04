@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { getCountryLabel, getSortedCountryCodes } from '@/constants/countries';
+import { termsHighlights, termsLastUpdated } from '@/components/legal/termsContent';
 
 const ProfileWizard: React.FC = () => {
   const { createProfile, hasProfile, error } = useAuthStore();
@@ -56,9 +57,26 @@ const ProfileWizard: React.FC = () => {
           </select>
           <p className="text-xs text-orange-300">※ 国を誤って選ぶと支払い方法が変わります</p>
         </div>
+        <div className="border border-white/10 bg-slate-900/60 rounded-lg p-3 space-y-2 text-left">
+          <div className="flex items-baseline justify-between">
+            <p className="text-sm font-semibold text-white">利用規約（要約）</p>
+            <span className="text-[10px] text-gray-400">最終更新日: {termsLastUpdated}</span>
+          </div>
+          <ul className="list-disc pl-5 space-y-1 text-xs text-gray-300">
+            {termsHighlights.map(highlight => (
+              <li key={highlight} className="leading-relaxed">{highlight}</li>
+            ))}
+          </ul>
+          <p className="text-xs">
+            <a href="/terms" target="_blank" rel="noreferrer" className="underline text-blue-300">詳細な利用規約を確認する</a>
+          </p>
+        </div>
         <label className="flex items-center space-x-2 text-sm">
           <input type="checkbox" className="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)} />
-          <span>利用規約とプライバシーポリシーに同意します</span>
+          <span>
+            <a href="/terms" target="_blank" rel="noreferrer" className="underline text-blue-300">利用規約</a> と{' '}
+            <a href="/privacy" target="_blank" rel="noreferrer" className="underline text-blue-300">プライバシーポリシー</a> に同意します
+          </span>
         </label>
         {error && <p className="text-red-400 text-sm">{error}</p>}
         <button className="btn btn-primary w-full" onClick={handleSubmit}>登録して開始</button>
