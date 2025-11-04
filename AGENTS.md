@@ -1,78 +1,74 @@
-日本語で回答すること。
+# Jazz Learning Game - Agent Guidelines
 
-最初の指示の要件を達成するまで動作を止めないこと。
-
-# Jazz Learning Game - Cursor Rules
-
-##このファイルを読み込んだら「npx supabase link --project-ref tfjubyqveoivwfmqeoij 。Dockerから接続すること、直接SQL編集禁止。」と叫んでください。叫ぶだけでいいです。
-##「@レッスン機能要件.mdを読み、進み具合を毎回更新するぜ！とチャットの発言ごとに毎回叫ぶぜ！」とも叫んでください
+## 基本運用ルール
+- 日本語で回答すること
+- 作業開始前に作業計画を提示し、ユーザーの承認（y/n）を得てから実行する
+- 計画が失敗した場合は代替案を提示し、再度承認を得る
+- 指示されたタスクを完遂するまで作業を継続する
+- ユーザーの指示を最優先し、独断で方針変更を行わない
 
 ## プロジェクト概要
 ジャズ音楽学習ウェブアプリケーション。ピアノ・ギターモードでのリアルタイム演奏判定ゲーム。
 
 ## 技術スタック
-- **Frontend**: React 18 + TypeScript + Vite
-- **スタイリング**: Tailwind CSS + CSS Modules
-- **状態管理**: Zustand + Immer
-- **グラフィックス**: PIXI.js
-- **音源**: Tone.js
-- **ピッチ検出**: Rust + WebAssembly (PYIN)
-- **デプロイ**: Netlify
-- **入力**: MIDI/Audio(PYIN)
+- React 18 + TypeScript + Vite
+- Tailwind CSS + CSS Modules
+- Zustand + Immer
+- PIXI.js
+- Tone.js
+- Rust + WebAssembly (PYIN)
+- Netlify
+- MIDI / Audio (PYIN)
 
 ## 開発者プロファイル
-あなたは経験豊富なフロントエンド開発者であり、以下の技術に精通しています：
+経験豊富なフロントエンド開発者として以下に精通している：
 - React 18, TypeScript, Vite
 - Zustand状態管理, Immer
-- TailwindCSS, CSS Modules
+- Tailwind CSS, CSS Modules
 - PIXI.js, Tone.js, Web Audio API
 - WebAssembly統合
 - リアルタイム音響処理
 - ゲーム開発パターン
 
 ## アーキテクチャ原則
+### プラットフォーム抽象化
+- `src/platform/index.ts`経由でブラウザAPIを操作する
+- `window.`オブジェクトを直接参照しない
+- DOM操作は最小限に抑える
 
-### 1. プラットフォーム抽象化
-- `src/platform/index.ts`経由でブラウザAPI操作
-- `window.`オブジェクト直接参照禁止
-- DOM操作は最小限に抑制
+### 型安全性
+- 全てTypeScriptで記述する
+- `any`型を使用しない
+- 型定義は`src/types/index.ts`に集約する
 
-### 2. 型安全性
-- 全てTypeScriptで記述
-- `any`型の使用禁止
-- 厳密な型定義（`src/types/index.ts`）
+### 状態管理
+- Zustandストア（`src/stores/gameStore.ts`）で状態を管理する
+- Immerミドルウェアを使用し`enableMapSet()`を有効化する
+- 不変性を維持する
 
-### 3. 状態管理
-- Zustandストア（`src/stores/gameStore.ts`）
-- Immerミドルウェア使用（`enableMapSet()`必須）
-- 不変性を保持
-
-### 4. パフォーマンス優先
-- PIXI.jsでノーツ描画最適化
-- `requestAnimationFrame`活用
-- メモリリーク防止
-- 60fps維持、<20msレイテンシ
-- **🚨 60FPS維持は最低条件**: `unifiedFrameController`使用必須、競合ループ禁止
+### パフォーマンス最優先
+- PIXI.jsでノーツ描画を最適化する
+- `requestAnimationFrame`を活用する
+- メモリリークを防止する
+- 60fps維持、<20msレイテンシを守る
+- `unifiedFrameController`を使用し、競合するループを避ける
 
 ## ファイル構成規則
-
 ```
 src/
 ├── components/          # React コンポーネント
-│   ├── game/           # ゲーム関連UI
-│   └── ui/             # 共通UIコンポーネント
-├── stores/             # Zustand ストア
-├── types/              # TypeScript 型定義
-├── platform/           # プラットフォーム抽象化
-├── utils/              # ユーティリティ関数
-└── data/               # 楽曲・設定データ
+│   ├── game/            # ゲーム関連UI
+│   └── ui/              # 共通UIコンポーネント
+├── stores/              # Zustand ストア
+├── types/               # TypeScript 型定義
+├── platform/            # プラットフォーム抽象化
+├── utils/               # ユーティリティ関数
+└── data/                # 楽曲・設定データ
 ```
 
 ## コーディング規約
-
 ### React コンポーネント
 ```typescript
-// 関数コンポーネント + TypeScript
 interface Props {
   title: string;
   onAction: () => void;
@@ -103,19 +99,19 @@ export const useStore = create<State & Actions>()(
 );
 ```
 
-### Event Handler命名
-- `handleClick`, `handleKeyDown`, `handleMidiInput`などhandle接頭辞使用
-- 音楽関連: `handleNoteOn`, `handleNoteOff`, `handlePitchDetected`
+### イベントハンドラー命名
+- `handleClick`, `handleKeyDown`, `handleMidiInput`など`handle`接頭辞を使用する
+- 音楽関連処理は`handleNoteOn`, `handleNoteOff`, `handlePitchDetected`を使用する
 
 ### スタイリング
-- Tailwind CSS優先
-- CSS Modulesは複雑なアニメーション時のみ
-- レスポンシブデザイン必須（`sm:`, `md:`, `lg:`）
-- `class:`よりも三項演算子を使用（React環境のため）
+- Tailwind CSSを優先する
+- CSS Modulesは複雑なアニメーション時のみ使用する
+- レスポンシブデザインを意識し、`sm:`, `md:`, `lg:`を活用する
+- Reactでは`class:`ではなく三項演算子を使用する
 
 ### アクセシビリティ
 ```typescript
-<button 
+<button
   tabIndex={0}
   aria-label="Play song"
   onClick={handlePlay}
@@ -125,8 +121,7 @@ export const useStore = create<State & Actions>()(
 ```
 
 ## ゲーム固有規則
-
-### 1. 楽曲データ形式
+### 楽曲データ形式
 ```typescript
 interface Note {
   time: number;    // 秒単位
@@ -134,19 +129,18 @@ interface Note {
 }
 ```
 
-### 2. 判定システム
+### 判定システム
 - good判定: ±300ms
 - 1000点満点制
 - エフェクト表示必須
 
-### 3. リアルタイム処理
+### リアルタイム処理
 - MIDI入力: <10ms応答
-- WASM ピッチ検出: <20ms
-- 音響処理優先度最高
+- WASMピッチ検出: <20ms
+- 音響処理優先度を最上位に保つ
 
-### 4. メモリ管理
+### メモリ管理
 ```typescript
-// PIXI.js リソース解放
 useEffect(() => {
   return () => {
     texture.destroy();
@@ -154,7 +148,6 @@ useEffect(() => {
   };
 }, []);
 
-// Web Audio API
 useEffect(() => {
   return () => {
     audioContext.close();
@@ -163,64 +156,59 @@ useEffect(() => {
 ```
 
 ## 実装ガイドライン
-
 ### 必須事項
-- 早期return使用で可読性向上
-- Tailwindクラスのみでスタイリング（CSS禁止）
-- 説明的な変数・関数名
-- constを関数より優先: `const toggle = () => {}`
-- 型定義を可能な限り実装
-- 完全な機能実装（TODO、プレースホルダー禁止）
-- 全ての必要なimport含める
-- アクセシビリティ機能実装
+- 早期`return`で可読性向上
+- Tailwindクラスのみでスタイリング（独自CSS禁止）
+- 説明的な変数・関数名を用いる
+- `const`宣言を優先する（例: `const toggle = () => {}`）
+- 必要な型定義をすべて実装する
+- TODOやプレースホルダーを残さない
+- 必要な`import`をすべて含める
+- アクセシビリティ対応を実装する
 
-### パフォーマンス重視
-- 可読性 > パフォーマンス（通常時）
-- リアルタイム処理時: パフォーマンス > 可読性
-- メモリリーク防止必須
-- requestAnimationFrame適切使用
+### パフォーマンス
+- 通常時は可読性を優先する
+- リアルタイム処理ではパフォーマンスを最優先する
+- メモリリークを防ぐ
+- `requestAnimationFrame`を適切に使用する
 
 ### 禁止事項
-- `console.log`の本番コミット
-- 直接的なDOM操作
-- グローバル変数の使用
-- エラーハンドリング省略
-- 型安全性の回避
-- `window.`オブジェクト直接アクセス
-- **複数アニメーションループの作成**（60fps阻害）
+- `console.log`などのデバッグ出力を本番コードに残さない
+- 直接的なDOM操作を行わない
+- グローバル変数を使用しない
+- エラーハンドリングを省略しない
+- 型安全性を犠牲にしない
+- `window.`オブジェクトを直接参照しない
+- 複数のアニメーションループを作成しない（60fpsを阻害するため）
 
 ## 音楽・ゲーム特有の考慮事項
-
-### 1. 音響処理
+### 音響処理
 ```typescript
-// Web Audio API使用例
 const handleAudioProcessing = useCallback((audioBuffer: AudioBuffer) => {
-  // プラットフォーム抽象化経由
   const context = platform.getAudioContext();
   // 処理実装
 }, []);
 ```
 
-### 2. MIDI処理
+### MIDI処理
 ```typescript
 const handleMidiMessage = useCallback((message: MIDIMessageEvent) => {
   const [status, note, velocity] = message.data;
-  if (status === 144) { // Note On
+  if (status === 144) {
     handleNoteOn(note, velocity);
   }
 }, [handleNoteOn]);
 ```
 
-### 3. PIXI.js統合
+### PIXI.js統合
 ```typescript
-// PIXI.jsコンポーネント
 useEffect(() => {
   const app = new PIXI.Application({
     width: 800,
     height: 600,
     antialias: true,
   });
-  
+
   return () => {
     app.destroy(true);
   };
@@ -228,18 +216,15 @@ useEffect(() => {
 ```
 
 ## デバッグ・テスト
-- ブラウザコンソールでストア確認: `window.gameStore`
-- Redux DevTools対応
-- エラーバウンダリ必須
-- パフォーマンス監視
+- ブラウザコンソールでストアを確認する場合は`window.gameStore`
+- Redux DevToolsに対応する
+- エラーバウンダリを実装する
+- パフォーマンスを常時監視する
 
 ## 回答スタイル
 - ユーザー要件に正確に従う
-- ステップバイステップで計画説明
-- 確認後にコード実装
-- ベストプラクティス、DRY原則遵守
-- バグフリー、完全機能実装
-- 簡潔な説明、最小限の散文
-- 不明な場合は推測せず正直に回答
-
-このプロジェクトは段階的開発中。既存機能を壊さずに機能追加すること。 
+- ステップバイステップで計画を説明し、承認後に実装する
+- ベストプラクティスとDRY原則を順守する
+- バグのない完全な実装を目指す
+- 説明は簡潔かつ必要最小限に留める
+- 不明な場合は憶測せず正直に報告する
