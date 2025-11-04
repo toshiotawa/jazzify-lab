@@ -45,6 +45,7 @@ const App: React.FC = () => {
   // 認証ストアの状態
   const { profile, loading:authLoading, isGuest, user } = useAuthStore();
   const isFree = profile?.rank === 'free';
+  const isAdmin = Boolean(profile?.isAdmin);
   
   // hash monitor
   const [hash, setHash] = useState(window.location.hash);
@@ -134,12 +135,12 @@ const App: React.FC = () => {
   // フリープランはダッシュボード/アカウント/料金プランのみ
   useEffect(() => {
     const baseHash = window.location.hash.split('?')[0];
-    if (isFree) {
+    if (isFree && !isAdmin) {
       if (baseHash !== '#dashboard' && baseHash !== '#account' && baseHash !== '#pricing') {
         window.location.hash = '#dashboard';
       }
     }
-  }, [isFree]);
+  }, [isFree, isAdmin]);
   
   // 他画面遷移時にヘッダー非表示状態を自動解除
   useEffect(() => {
@@ -285,7 +286,7 @@ const App: React.FC = () => {
     case '#admin-users':
     case '#admin-announcements':
     case '#admin-courses':
-      MainContent = isFree ? <Dashboard /> : <AdminDashboard />;
+      MainContent = isAdmin ? <AdminDashboard /> : <Dashboard />;
       break;
     case '#fantasy':
       MainContent = isFree ? <Dashboard /> : <FantasyMain />;
