@@ -14,7 +14,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { Lesson, LessonSong } from '@/types';
-import { fetchCourseById, canAccessCourse, fetchUserCourseUnlockStatus, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
+import { fetchCourseById, fetchUserCourseUnlockStatus, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import GameHeader from '@/components/ui/GameHeader';
 import { 
     FaCheck, 
@@ -35,8 +35,9 @@ import {
   validateNavigation, 
   cleanupLessonNavigationCache,
   clearNavigationCacheForCourse,
-  LessonNavigationInfo 
+    LessonNavigationInfo 
 } from '@/utils/lessonNavigation';
+import { resolveCourseAccess, isPremiumRank } from '@/utils/lessonAccess';
 
 /**
  * レッスン詳細画面
@@ -64,6 +65,8 @@ const LessonDetailPage: React.FC = () => {
   const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const gameActions = useGameActions();
+
+  const allowAdminOverride = isPremiumRank(profile?.rank);
 
   useEffect(() => {
     const checkHash = () => {
@@ -142,22 +145,29 @@ const LessonDetailPage: React.FC = () => {
       }
 
       // 直接アクセス時のコース受講可否ガード（premium_onlyを唯一の判定）
-      if (lessonData?.course_id && profile?.id) {
-        const [course, unlockMap, completedCourses] = await Promise.all([
-          fetchCourseById(lessonData.course_id),
-          fetchUserCourseUnlockStatus(profile.id),
-          fetchUserCompletedCourses(profile.id)
-        ]);
-        if (course) {
-          const unlockFlag = unlockMap[course.id] !== undefined ? unlockMap[course.id] : null;
-          const access = canAccessCourse(course, profile.rank, completedCourses, unlockFlag);
-          if (!access.canAccess) {
-            toast.warning(access.reason || 'このコースにはアクセスできません');
-            window.location.hash = '#lessons';
-            return;
+        if (lessonData?.course_id && profile?.id) {
+          const [course, unlockMap, completedCourses] = await Promise.all([
+            fetchCourseById(lessonData.course_id),
+            fetchUserCourseUnlockStatus(profile.id),
+            fetchUserCompletedCourses(profile.id),
+          ]);
+
+          if (course) {
+            const unlockFlag = unlockMap[course.id] ?? null;
+            const access = resolveCourseAccess({
+              course,
+              userRank: profile.rank,
+              completedCourseIds: completedCourses,
+              adminUnlockFlag: unlockFlag === true ? true : null,
+            });
+
+            if (!access.canAccess) {
+              toast.warning(access.reason || 'このコースにはアクセスできません');
+              window.location.hash = '#lessons';
+              return;
+            }
           }
         }
-      }
       
       if (videosData.length > 0) {
         setCurrentVideoIndex(0);
@@ -165,16 +175,18 @@ const LessonDetailPage: React.FC = () => {
       
 
       
-      // ナビゲーション情報を取得
-      if (lessonData?.course_id) {
-        try {
-          const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id);
-          setNavigationInfo(navInfo);
-        } catch (navError) {
-          console.error('Navigation info loading error:', navError);
-          // ナビゲーション情報の取得失敗は致命的ではないので、エラーログのみ
+        // ナビゲーション情報を取得
+        if (lessonData?.course_id) {
+          try {
+            const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id, {
+              allowAdminOverride,
+            });
+            setNavigationInfo(navInfo);
+          } catch (navError) {
+            console.error('Navigation info loading error:', navError);
+            // ナビゲーション情報の取得失敗は致命的ではないので、エラーログのみ
+          }
         }
-      }
       
     } catch (e: any) {
       toast.error('レッスンデータの読み込みに失敗しました');
