@@ -2,6 +2,7 @@ import { Lesson } from '@/types';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
 import { clearCacheByPattern } from '@/platform/supabaseClient';
+import { buildLessonAccessGraph, MembershipRank } from '@/utils/lessonAccess';
 
 export interface LessonNavigationInfo {
   previousLesson: Lesson | null;
@@ -20,6 +21,7 @@ const navigationCache = new Map<string, {
   data: LessonNavigationInfo;
   expires: number;
   courseId: string;
+  rank: MembershipRank | null | undefined;
 }>();
 
 const NAVIGATION_CACHE_TTL = 5 * 60 * 1000; // 5分
@@ -86,14 +88,15 @@ export function cleanupLessonNavigationCache(currentLessonId: string, courseId: 
  */
 export async function getLessonNavigationInfo(
   currentLessonId: string,
-  courseId: string
+  courseId: string,
+  userRank?: MembershipRank | null
 ): Promise<LessonNavigationInfo> {
-  const cacheKey = `${courseId}:${currentLessonId}`;
+  const cacheKey = `${courseId}:${currentLessonId}:${userRank ?? 'no-rank'}`;
   const now = Date.now();
   
   // キャッシュから取得を試行
   const cached = navigationCache.get(cacheKey);
-  if (cached && cached.expires > now) {
+    if (cached && cached.expires > now) {
     return cached.data;
   }
   
@@ -106,7 +109,7 @@ export async function getLessonNavigationInfo(
     const userProgress = await fetchUserLessonProgress(courseId);
     
     // レッスンを order_index でソート
-    const sortedLessons = lessons.sort((a, b) => a.order_index - b.order_index);
+    const sortedLessons = [...lessons].sort((a, b) => a.order_index - b.order_index);
     
     // 現在のレッスンのインデックスを取得
     const currentIndex = sortedLessons.findIndex(lesson => lesson.id === currentLessonId);
@@ -118,15 +121,24 @@ export async function getLessonNavigationInfo(
     const previousLesson = currentIndex > 0 ? sortedLessons[currentIndex - 1] : null;
     const nextLesson = currentIndex < sortedLessons.length - 1 ? sortedLessons[currentIndex + 1] : null;
 
-    // 進捗データをマップに変換
-    const progressMap = new Map(userProgress.map(p => [p.lesson_id, p]));
+    const progressMap: Record<string, typeof userProgress[number] | undefined> = {};
+    userProgress.forEach((progress) => {
+      progressMap[progress.lesson_id] = progress;
+    });
 
-    // アクセス権限をチェック
-    const hasAccessToPrevious = previousLesson ? 
-      progressMap.get(previousLesson.id)?.is_unlocked || false : false;
-    
-    const hasAccessToNext = nextLesson ? 
-      progressMap.get(nextLesson.id)?.is_unlocked || false : false;
+    const accessGraph = buildLessonAccessGraph({
+      lessons: sortedLessons,
+      progressMap,
+      userRank,
+    });
+
+    const hasAccessToPrevious = previousLesson
+      ? accessGraph.lessonStates[previousLesson.id]?.isUnlocked === true
+      : false;
+
+    const hasAccessToNext = nextLesson
+      ? accessGraph.lessonStates[nextLesson.id]?.isUnlocked === true
+      : false;
 
     const navigationInfo: LessonNavigationInfo = {
       previousLesson,
@@ -141,11 +153,12 @@ export async function getLessonNavigationInfo(
     };
     
     // キャッシュに保存
-    navigationCache.set(cacheKey, {
-      data: navigationInfo,
-      expires: now + NAVIGATION_CACHE_TTL,
-      courseId
-    });
+      navigationCache.set(cacheKey, {
+        data: navigationInfo,
+        expires: now + NAVIGATION_CACHE_TTL,
+        courseId,
+        rank: userRank,
+      });
     
     return navigationInfo;
     

@@ -183,6 +183,51 @@ export async function unlockLesson(lessonId: string, courseId: string, targetUse
   if (error) throw new Error(`レッスンの解放に失敗しました: ${error.message}`);
 }
 
+export async function updateLessonUnlockFlag(
+  lessonId: string,
+  courseId: string,
+  isUnlocked: boolean,
+  targetUserId?: string,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const authUserId = await requireUserId();
+  const userId = targetUserId || authUserId;
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('user_lesson_progress')
+    .update({
+      is_unlocked: isUnlocked,
+      unlock_date: isUnlocked ? now : null,
+      updated_at: now,
+    })
+    .eq('user_id', userId)
+    .eq('lesson_id', lessonId)
+    .select('id');
+
+  if (error) {
+    throw new Error(`レッスンの解放状態更新に失敗しました: ${error.message}`);
+  }
+
+  if (!data || data.length === 0) {
+    const { error: insertError } = await supabase
+      .from('user_lesson_progress')
+      .insert({
+        user_id: userId,
+        lesson_id: lessonId,
+        course_id: courseId,
+        completed: false,
+        is_unlocked: isUnlocked,
+        unlock_date: isUnlocked ? now : null,
+        updated_at: now,
+      });
+
+    if (insertError) {
+      throw new Error(`レッスンの解放状態登録に失敗しました: ${insertError.message}`);
+    }
+  }
+}
+
 /**
  * ブロック単位でレッスンを解放
  */

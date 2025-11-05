@@ -2,12 +2,13 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useToast } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/authStore';
 import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag, USERS_CACHE_KEY } from '@/platform/supabaseAdmin';
-import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, lockBlock, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
-import { fetchCoursesWithDetails, fetchUserCourseUnlockStatus, adminLockCourse, adminUnlockCourse, COURSES_CACHE_KEY } from '@/platform/supabaseCourses';
+import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, LessonProgress, LESSON_PROGRESS_CACHE_KEY, updateLessonUnlockFlag } from '@/platform/supabaseLessonProgress';
+import { fetchCoursesWithDetails, fetchUserCourseUnlockStatus, adminUnlockCourse, COURSES_CACHE_KEY } from '@/platform/supabaseCourses';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { Course, Lesson } from '@/types';
 import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
+import { buildLessonAccessGraph } from '@/utils/lessonAccess';
 
 const ranks = ['free','standard','standard_global','premium','platinum','black'] as const;
 
@@ -203,73 +204,142 @@ const UserManager: React.FC = () => {
     return blocks;
   }, [selectedCourse]);
 
-  const handleToggleBlockLock = useCallback(async (blockNumber: number, shouldUnlock: boolean) => {
-    if (!selectedUser || !selectedCourse) return;
-    
-    // ① 楽観的 UI 更新（即時反映）
-    setUserLessonProgress((prev) =>
-      prev.map((p) =>
-        blockLessonsCache[blockNumber]?.includes(p.lesson_id)
-          ? { ...p, is_unlocked: shouldUnlock }
-          : p
-      )
+  const handleBlockAction = useCallback(async (blockNumber: number, action: 'unlock' | 'reset') => {
+    if (!selectedUser || !selectedCourse) {
+      return;
+    }
+
+    const lessonIds = blockLessonsCache[blockNumber] ?? [];
+    if (lessonIds.length === 0) {
+      toast.warning('指定されたブロックにレッスンがありません');
+      return;
+    }
+
+    if (action === 'unlock') {
+      setUserLessonProgress(prev =>
+        prev.map(progress =>
+          lessonIds.includes(progress.lesson_id)
+            ? { ...progress, is_unlocked: true }
+            : progress,
+        ),
+      );
+
+      try {
+        await unlockBlock(selectedCourse.id, blockNumber, selectedUser.id);
+        invalidateCacheKey(LESSON_PROGRESS_CACHE_KEY(selectedCourse.id, selectedUser.id));
+        await loadUserProgress(selectedUser.id, selectedCourse.id, true);
+        toast.success(`ブロック${blockNumber}を解放しました`);
+      } catch (error) {
+        toast.error('ブロックの解放に失敗しました');
+        await loadUserProgress(selectedUser.id, selectedCourse.id, true);
+      }
+      return;
+    }
+
+    const lessons = selectedCourse.lessons ?? [];
+    const progressMap = userLessonProgress.reduce<Record<string, LessonProgress | undefined>>((acc, progress) => {
+      acc[progress.lesson_id] = progress;
+      return acc;
+    }, {});
+
+    const accessGraph = buildLessonAccessGraph({
+      lessons,
+      progressMap,
+      userRank: 'free',
+    });
+
+    const targetStates = lessonIds.reduce<Record<string, boolean>>((acc, lessonId) => {
+      acc[lessonId] = accessGraph.lessonStates[lessonId]?.isUnlocked ?? false;
+      return acc;
+    }, {});
+
+    setUserLessonProgress(prev =>
+      prev.map(progress =>
+        lessonIds.includes(progress.lesson_id)
+          ? { ...progress, is_unlocked: targetStates[progress.lesson_id] ?? false }
+          : progress,
+      ),
     );
 
     try {
-      const api = shouldUnlock ? unlockBlock : lockBlock;
-      await api(selectedCourse.id, blockNumber, selectedUser.id);
-
-      // ② キャッシュ無効化
-      invalidateCacheKey(
-        LESSON_PROGRESS_CACHE_KEY(selectedCourse.id, selectedUser.id),
+      await Promise.all(
+        lessonIds.map(lessonId =>
+          updateLessonUnlockFlag(
+            lessonId,
+            selectedCourse.id,
+            targetStates[lessonId] ?? false,
+            selectedUser.id,
+          ),
+        ),
       );
 
-      // ③ 正確なデータで再フェッチ（forceRefresh = true）
+      invalidateCacheKey(LESSON_PROGRESS_CACHE_KEY(selectedCourse.id, selectedUser.id));
       await loadUserProgress(selectedUser.id, selectedCourse.id, true);
-      toast.success(
-        `ブロック${blockNumber}を${shouldUnlock ? '解放' : '施錠'}しました`
-      );
-    } catch (e) {
-      toast.error('ブロックの更新に失敗しました');
-      
-      // エラー時はロールバック
+      toast.success(`ブロック${blockNumber}を通常の解放条件に戻しました`);
+    } catch (error) {
+      toast.error('ブロックの解放状態のリセットに失敗しました');
       await loadUserProgress(selectedUser.id, selectedCourse.id, true);
     }
-  }, [selectedUser, selectedCourse, blockLessonsCache, toast]);
+  }, [selectedUser, selectedCourse, blockLessonsCache, userLessonProgress, toast]);
 
-  const handleToggleCourseUnlock = async (courseId: string, shouldUnlock: boolean) => {
-    if (!selectedUser) return;
-    
-    // 楽観的UI更新
+  const handleManualCourseUnlock = async (courseId: string) => {
+    if (!selectedUser) {
+      return;
+    }
+
     setUserCourseUnlockStatus(prev => ({
       ...prev,
-      [courseId]: shouldUnlock
+      [courseId]: true,
     }));
-    
+
     try {
-      if (shouldUnlock) {
-        await adminUnlockCourse(selectedUser.id, courseId);
-      } else {
-        await adminLockCourse(selectedUser.id, courseId);
-      }
-      
-      // キャッシュクリアと状態更新
+      await adminUnlockCourse(selectedUser.id, courseId);
+
       invalidateCacheKey(COURSES_CACHE_KEY());
       if (selectedCourse) {
         invalidateCacheKey(LESSON_PROGRESS_CACHE_KEY(selectedCourse.id, selectedUser.id));
         await loadUserProgress(selectedUser.id, selectedCourse.id, true);
       }
-      
-      // 最新の状態を再取得
+
       const updatedStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
       setUserCourseUnlockStatus(updatedStatus);
-      
-      toast.success(`コースを${shouldUnlock ? 'アンロック' : 'ロック'}しました`);
+
+      toast.success('コースを解放しました');
     } catch (error) {
-      console.error('Course lock/unlock failed:', error);
-      toast.error('コースのロック/アンロックに失敗しました');
-      
-      // エラー時はロールバック
+      console.error('Course unlock failed:', error);
+      toast.error('コースの解放に失敗しました');
+
+      const currentStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
+      setUserCourseUnlockStatus(currentStatus);
+    }
+  };
+
+  const handleResetCourseUnlock = async (courseId: string) => {
+    if (!selectedUser) {
+      return;
+    }
+
+    setUserCourseUnlockStatus(prev => {
+      const next = { ...prev };
+      delete next[courseId];
+      return next;
+    });
+
+    try {
+      await getSupabaseClient()
+        .from('user_course_progress')
+        .delete()
+        .eq('user_id', selectedUser.id)
+        .eq('course_id', courseId);
+
+      const updatedStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
+      setUserCourseUnlockStatus(updatedStatus);
+
+      toast.success('通常の前提条件に戻しました');
+    } catch (error) {
+      console.error('Failed to reset course unlock status:', error);
+      toast.error('リセットに失敗しました');
+
       const currentStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
       setUserCourseUnlockStatus(currentStatus);
     }
@@ -477,64 +547,25 @@ const UserManager: React.FC = () => {
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-2">
-                    {userCourseUnlockStatus[selectedCourse.id] === false ? (
+                    <div className="flex items-center space-x-2">
                       <button
                         className="btn btn-sm btn-success"
-                        onClick={() => handleToggleCourseUnlock(selectedCourse.id, true)}
+                        onClick={() => handleManualCourseUnlock(selectedCourse.id)}
                       >
                         <FaUnlock className="mr-1" />
                         コース解放
                       </button>
-                    ) : (
-                      <button
-                        className="btn btn-sm btn-warning"
-                        onClick={() => handleToggleCourseUnlock(selectedCourse.id, false)}
-                      >
-                        <FaLock className="mr-1" />
-                        コースロック
-                      </button>
-                    )}
-                    
-                    {userCourseUnlockStatus[selectedCourse.id] !== undefined && (
-                      <button
-                        className="btn btn-sm btn-ghost"
-                        onClick={async () => {
-                          // 管理者アンロック状態をクリアして前提条件に従うようにする
-                          setUserCourseUnlockStatus(prev => {
-                            const newStatus = { ...prev };
-                            delete newStatus[selectedCourse.id];
-                            return newStatus;
-                          });
-                          
-                          try {
-                            // DBからレコードを削除することで前提条件判定に戻す
-                            await getSupabaseClient()
-                              .from('user_course_progress')
-                              .delete()
-                              .eq('user_id', selectedUser.id)
-                              .eq('course_id', selectedCourse.id);
-                            
-                            // 最新の状態を再取得
-                            const updatedStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
-                            setUserCourseUnlockStatus(updatedStatus);
-                            
-                            toast.success('通常の前提条件に戻しました');
-                          } catch (error) {
-                            console.error('Failed to reset course unlock status:', error);
-                            toast.error('リセットに失敗しました');
-                            
-                            // エラー時はロールバック
-                            const currentStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
-                            setUserCourseUnlockStatus(currentStatus);
-                          }
-                        }}
-                        title="通常の前提条件に戻す"
-                      >
-                        前提条件に戻す
-                      </button>
-                    )}
-                  </div>
+
+                      {userCourseUnlockStatus[selectedCourse.id] !== undefined && (
+                        <button
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => handleResetCourseUnlock(selectedCourse.id)}
+                          title="通常の前提条件に戻す"
+                        >
+                          前提条件に戻す
+                        </button>
+                      )}
+                    </div>
                 </div>
                 
                 {/* 前提条件情報 */}
@@ -634,25 +665,22 @@ const UserManager: React.FC = () => {
                             </div>
                             
                             {/* ブロック操作ボタン */}
-                            <div className="flex items-center space-x-2">
-                              {blockStatus.isUnlocked ? (
-                                <button
-                                  className="btn btn-xs btn-warning"
-                                  onClick={() => handleToggleBlockLock(blockNum, false)}
-                                >
-                                  <FaLock className="mr-1" />
-                                  ブロック施錠
-                                </button>
-                              ) : (
+                              <div className="flex items-center space-x-2">
                                 <button
                                   className="btn btn-xs btn-primary"
-                                  onClick={() => handleToggleBlockLock(blockNum, true)}
+                                  onClick={() => handleBlockAction(blockNum, 'unlock')}
                                 >
                                   <FaLockOpen className="mr-1" />
                                   ブロック解放
                                 </button>
-                              )}
-                            </div>
+                                <button
+                                  className="btn btn-xs btn-outline"
+                                  onClick={() => handleBlockAction(blockNum, 'reset')}
+                                >
+                                  <FaCheck className="mr-1" />
+                                  通常条件に戻す
+                                </button>
+                              </div>
                           </div>
                         </div>
                         
