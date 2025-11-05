@@ -1069,10 +1069,10 @@ INSERT INTO "auth"."refresh_tokens" ("instance_id", "id", "token", "user_id", "r
 -- Data for Name: profiles; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-INSERT INTO "public"."profiles" ("id", "avatar_url", "member_rank", "total_exp", "is_admin", "created_at", "updated_at", "email", "nickname", "rank", "xp", "next_season_xp_multiplier", "level", "bio", "twitter_handle", "selected_title", "stripe_customer_id", "will_cancel", "cancel_date", "downgrade_to", "downgrade_date") VALUES
-	('1d9c822d-b8e4-4d0a-977d-fabf601faf91', NULL, 'FREE', 0, true, '2025-07-11 00:25:54.005069+00', '2025-07-19 00:42:45.776838+00', 'bebopify@gmail.com', 'jeff', 'premium', 17500, 1.0, 9, NULL, NULL, '音の深淵を覗きし者', NULL, false, NULL, NULL, NULL),
-	('fdbc3244-ae91-49a3-bf38-1e0267525eec', NULL, 'FREE', 0, false, '2025-07-15 15:35:41.335232+00', '2025-07-19 00:42:47.895417+00', 'toshiotawa@me.com', 'おお', 'free', 0, 1.0, 1, NULL, NULL, '音の深淵を覗きし者', NULL, false, NULL, NULL, NULL),
-	('ed9af03b-5152-4508-b46a-0a7831ad5f5b', NULL, 'FREE', 0, true, '2025-07-10 16:49:28.720091+00', '2025-07-21 06:32:25.78058+00', 'saitama1990@gmail.com', 'a', 'platinum', 385560, 1.0, 58, 'こんにちは。', '@toshioshaaan', '記録者', NULL, false, NULL, NULL, NULL);
+INSERT INTO "public"."profiles" ("id", "avatar_url", "total_exp", "is_admin", "created_at", "updated_at", "email", "nickname", "rank", "xp", "next_season_xp_multiplier", "level", "bio", "twitter_handle", "selected_title", "stripe_customer_id", "will_cancel", "cancel_date", "downgrade_to", "downgrade_date") VALUES
+	('1d9c822d-b8e4-4d0a-977d-fabf601faf91', NULL, 0, true, '2025-07-11 00:25:54.005069+00', '2025-07-19 00:42:45.776838+00', 'bebopify@gmail.com', 'jeff', 'premium', 17500, 1.0, 9, NULL, NULL, '音の深淵を覗きし者', NULL, false, NULL, NULL, NULL),
+	('fdbc3244-ae91-49a3-bf38-1e0267525eec', NULL, 0, false, '2025-07-15 15:35:41.335232+00', '2025-07-19 00:42:47.895417+00', 'toshiotawa@me.com', 'おお', 'free', 0, 1.0, 1, NULL, NULL, '音の深淵を覗きし者', NULL, false, NULL, NULL, NULL),
+	('ed9af03b-5152-4508-b46a-0a7831ad5f5b', NULL, 0, true, '2025-07-10 16:49:28.720091+00', '2025-07-21 06:32:25.78058+00', 'saitama1990@gmail.com', 'a', 'platinum', 385560, 1.0, 58, 'こんにちは。', '@toshioshaaan', '記録者', NULL, false, NULL, NULL, NULL);
 
 
 --
