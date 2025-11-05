@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast, handleApiError } from '@/stores/toastStore';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 interface AuthLandingProps {
   mode: 'signup' | 'login';
@@ -10,13 +11,14 @@ interface AuthLandingProps {
 
 const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   const { sendOtp, enterGuestMode, loading, error, user, isGuest, profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [signupDisabled, setSignupDisabled] = useState(false);
   // 国選択はOTP後のプロフィール作成段階へ移動
   const navigate = useNavigate();
   const location = useLocation();
-  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const tablistLabel = isEnglishCopy ? 'Authentication mode' : '認証切替';
   const tabSignupLabel = isEnglishCopy ? 'Sign Up' : '会員登録';
   const tabLoginLabel = isEnglishCopy ? 'Log In' : 'ログイン';

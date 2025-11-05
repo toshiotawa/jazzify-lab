@@ -17,6 +17,7 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { LessonContext } from '@/types';
 import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasyStageDescription } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 // ===== 型定義 =====
 
@@ -68,7 +69,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   lessonContext
 }) => {
   const { profile, isGuest } = useAuthStore();
-  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const fantasyHeaderTitle = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
   const currentStageLabel = isEnglishCopy ? 'Current stage' : '現在地';
   const storyButtonLabel = isEnglishCopy ? 'Story' : 'ストーリー';

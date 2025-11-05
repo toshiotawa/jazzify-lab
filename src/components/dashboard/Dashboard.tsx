@@ -27,6 +27,7 @@ import { FaUsers } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import OpenBetaPlanSwitcher from '@/components/subscription/OpenBetaPlanSwitcher';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 // xpToNextLevel, currentLevelXP は未使用
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
@@ -40,8 +41,9 @@ const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
-  const { profile, isGuest, logout } = useAuthStore();
-  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+    const { profile, isGuest, logout } = useAuthStore();
+    const geoCountry = useGeoStore(state => state.country);
+    const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const announcementsTitle = isEnglishCopy ? 'Announcements' : 'お知らせ';
   const noAnnouncementsText = isEnglishCopy ? 'No announcements at the moment' : '現在お知らせはありません';
   const viewAllAnnouncementsText = isEnglishCopy ? 'View all announcements →' : 'すべてのお知らせを見る →';

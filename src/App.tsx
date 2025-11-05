@@ -7,6 +7,7 @@ import AuthGate from '@/components/auth/AuthGate';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
 import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
 import HelpIosMidi from '@/components/help/HelpIosMidi';
 import ContactPage from '@/components/contact/ContactPage';
 import TermsPage from '@/components/legal/TermsPage';
@@ -19,6 +20,7 @@ const LegacyApp = React.lazy(() => import('./LegacyApp'));
 const App: React.FC = () => {
   const [initialized, setInitialized] = useState(false);
   const { init } = useAuthStore();
+  const ensureGeoCountry = useGeoStore(state => state.ensureCountry);
 
   // アプリケーション起動時に一度だけ認証状態を初期化
   useEffect(() => {
@@ -30,6 +32,10 @@ const App: React.FC = () => {
     };
     initializeAuth();
   }, [init]);
+
+  useEffect(() => {
+    void ensureGeoCountry();
+  }, [ensureGeoCountry]);
 
   // 初期化中はローディング表示
   if (!initialized) {

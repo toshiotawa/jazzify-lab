@@ -3,6 +3,7 @@ import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 const OnScreenPiano = React.lazy(() => import('./OnScreenPiano'));
 const LPPIXIPiano = React.lazy(() => import('./LPPIXIPiano'));
@@ -16,7 +17,8 @@ const LPFantasyDemo: React.FC = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore();
-  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const demoTitle = isEnglishCopy ? 'Demo Play' : 'デモプレイ';
   const demoIconAlt = isEnglishCopy ? 'Demo play' : 'デモプレイ';
   const stageSelectLabel = isEnglishCopy ? 'Select a stage' : 'ステージ選択';

@@ -3,15 +3,17 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameActions } from '@/stores/helpers';
 import NotificationBell from '@/components/ui/NotificationBell';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 /**
  * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
  * GameScreen だけでなくマイページやアカウントページでも再利用する。
  */
 const GameHeader: React.FC = () => {
-  const gameActions = useGameActions();
-    const { isGuest, profile } = useAuthStore();
-    const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+    const gameActions = useGameActions();
+      const { isGuest, profile } = useAuthStore();
+      const geoCountry = useGeoStore(state => state.country);
+      const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const isStandardGlobal = profile?.rank === 'standard_global';
   const isFree = profile?.rank === 'free';
 

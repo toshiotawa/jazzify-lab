@@ -1,4 +1,5 @@
 import { getWindow } from '@/platform';
+import { STORAGE_KEY_GEO_COUNTRY, STORAGE_KEY_SIGNUP_COUNTRY } from '@/constants/storageKeys';
 
 type MembershipRank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
 
@@ -50,6 +51,47 @@ const resolveTopLevelLocale = (hostname: string): 'en' | 'ja' | null => {
 
 export const isStandardGlobalRank = (rank: MembershipRank | null | undefined): boolean => rank === 'standard_global';
 
+const normalizeCountry = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.toUpperCase();
+};
+
+const isNonJapanCountry = (value: string | null | undefined): boolean => {
+  const normalized = normalizeCountry(value);
+  if (!normalized) {
+    return false;
+  }
+  if (normalized === 'JP' || normalized === 'JPN' || normalized === 'JAPAN') {
+    return false;
+  }
+  return true;
+};
+
+const safeReadLocalStorage = (key: string): string | null => {
+  try {
+    const platformWindow = getWindow();
+    return platformWindow?.localStorage?.getItem(key) ?? null;
+  } catch {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage.getItem(key);
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+const getStoredSignupCountry = (): string | null => normalizeCountry(safeReadLocalStorage(STORAGE_KEY_SIGNUP_COUNTRY));
+const getStoredGeoCountry = (): string | null => normalizeCountry(safeReadLocalStorage(STORAGE_KEY_GEO_COUNTRY));
+
 export const detectPreferredLocale = (): 'en' | 'ja' => {
   if (!isBrowserEnvironment()) {
     return LOCALE_JA;
@@ -78,12 +120,81 @@ export const detectPreferredLocale = (): 'en' | 'ja' => {
   return LOCALE_JA;
 };
 
-export const shouldUseEnglishCopy = (rank: MembershipRank | null | undefined): boolean => {
+export interface AudienceContext {
+  rank?: MembershipRank | null;
+  country?: string | null;
+  localeOverride?: 'en' | 'ja' | null;
+  geoCountryHint?: string | null;
+  signupCountryHint?: string | null;
+}
+
+type ShouldUseEnglishCopyInput = AudienceContext | MembershipRank | null | undefined;
+
+const normalizeInputToContext = (input?: ShouldUseEnglishCopyInput): AudienceContext | undefined => {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (typeof input === 'string' || input === null) {
+    return { rank: input ?? undefined };
+  }
+  return input;
+};
+
+export const shouldUseEnglishCopy = (input?: ShouldUseEnglishCopyInput): boolean => {
+  const context = normalizeInputToContext(input) ?? {};
+  const {
+    rank,
+    country,
+    localeOverride,
+    geoCountryHint,
+    signupCountryHint,
+  } = context;
+
+  if (localeOverride === LOCALE_EN) {
+    return true;
+  }
+  if (localeOverride === LOCALE_JA) {
+    return false;
+  }
+
   if (isStandardGlobalRank(rank)) {
     return true;
   }
+
+  if (isNonJapanCountry(country)) {
+    return true;
+  }
+
+  if (isNonJapanCountry(signupCountryHint)) {
+    return true;
+  }
+
+  if (isNonJapanCountry(geoCountryHint)) {
+    return true;
+  }
+
+  if (isNonJapanCountry(getStoredSignupCountry())) {
+    return true;
+  }
+
+  if (isNonJapanCountry(getStoredGeoCountry())) {
+    return true;
+  }
+
   return detectPreferredLocale() === LOCALE_EN;
 };
+
+export const resolveAudienceLocale = (input?: ShouldUseEnglishCopyInput): 'en' | 'ja' => (
+  shouldUseEnglishCopy(input) ? LOCALE_EN : LOCALE_JA
+);
+
+export const resolveAudienceCountryHint = (): {
+  signupCountry: string | null;
+  geoCountry: string | null;
+} => ({
+  signupCountry: getStoredSignupCountry(),
+  geoCountry: getStoredGeoCountry(),
+});
 
 export const shouldHideFantasyStory = (rank: MembershipRank | null | undefined): boolean => shouldUseEnglishCopy(rank);
 
