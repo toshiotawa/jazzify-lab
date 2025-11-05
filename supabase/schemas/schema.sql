@@ -1050,6 +1050,23 @@ CREATE TABLE IF NOT EXISTS "public"."lesson_videos" (
 ALTER TABLE "public"."lesson_videos" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."lesson_attachments" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "lesson_id" "uuid" NOT NULL,
+    "file_name" "text" NOT NULL,
+    "url" "text" NOT NULL,
+    "r2_key" "text" NOT NULL,
+    "content_type" "text",
+    "size" bigint,
+    "order_index" integer DEFAULT 0 NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."lesson_attachments" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."lessons" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "course_id" "uuid",
@@ -1527,6 +1544,11 @@ ALTER TABLE ONLY "public"."lesson_songs"
 
 
 
+ALTER TABLE ONLY "public"."lesson_attachments"
+    ADD CONSTRAINT "lesson_attachments_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."lesson_tracks"
     ADD CONSTRAINT "lesson_tracks_pkey" PRIMARY KEY ("id");
 
@@ -1709,6 +1731,14 @@ CREATE INDEX "idx_lesson_songs_lesson_id" ON "public"."lesson_songs" USING "btre
 
 
 CREATE INDEX "idx_lesson_songs_song_id" ON "public"."lesson_songs" USING "btree" ("song_id");
+
+
+
+CREATE INDEX "idx_lesson_attachments_lesson_id" ON "public"."lesson_attachments" USING "btree" ("lesson_id");
+
+
+
+CREATE UNIQUE INDEX "idx_lesson_attachments_unique_key" ON "public"."lesson_attachments" USING "btree" ("lesson_id", "r2_key");
 
 
 
@@ -1998,6 +2028,11 @@ ALTER TABLE ONLY "public"."lesson_songs"
 
 ALTER TABLE ONLY "public"."lesson_songs"
     ADD CONSTRAINT "lesson_songs_lesson_id_fkey" FOREIGN KEY ("lesson_id") REFERENCES "public"."lessons"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."lesson_attachments"
+    ADD CONSTRAINT "lesson_attachments_lesson_id_fkey" FOREIGN KEY ("lesson_id") REFERENCES "public"."lessons"("id") ON DELETE CASCADE;
 
 
 
@@ -2824,6 +2859,12 @@ GRANT ALL ON TABLE "public"."lesson_tracks" TO "service_role";
 GRANT ALL ON TABLE "public"."lesson_videos" TO "anon";
 GRANT ALL ON TABLE "public"."lesson_videos" TO "authenticated";
 GRANT ALL ON TABLE "public"."lesson_videos" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."lesson_attachments" TO "anon";
+GRANT ALL ON TABLE "public"."lesson_attachments" TO "authenticated";
+GRANT ALL ON TABLE "public"."lesson_attachments" TO "service_role";
 
 
 
