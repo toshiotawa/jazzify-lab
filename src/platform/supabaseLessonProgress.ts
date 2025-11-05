@@ -282,6 +282,52 @@ export async function lockBlock(courseId: string, blockNumber: number, targetUse
 }
 
 /**
+ * ブロックの管理者解放状態をリセット（通常条件に戻す）
+ */
+export async function resetBlockOverride(
+  courseId: string,
+  blockNumber: number,
+  targetUserId?: string,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const authUserId = await requireUserId();
+
+  const userId = targetUserId || authUserId;
+
+  const { data: lessons, error: lessonsError } = await supabase
+    .from('lessons')
+    .select('id')
+    .eq('course_id', courseId)
+    .eq('block_number', blockNumber);
+
+  if (lessonsError) {
+    throw new Error(`レッスンの取得に失敗しました: ${lessonsError.message}`);
+  }
+
+  if (!lessons || lessons.length === 0) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const lessonIds = lessons.map((lesson) => lesson.id);
+
+  const { error } = await supabase
+    .from('user_lesson_progress')
+    .update({
+      is_unlocked: null,
+      unlock_date: null,
+      updated_at: now,
+    })
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .in('lesson_id', lessonIds.length > 0 ? lessonIds : ['__never__']);
+
+  if (error) {
+    throw new Error(`ブロックの解放状態リセットに失敗しました: ${error.message}`);
+  }
+}
+
+/**
  * ブロック完了をチェックして次のブロックを解放
  */
 async function checkAndUnlockNextBlock(userId: string, courseId: string, completedLessonId: string): Promise<void> {

@@ -37,6 +37,7 @@ import {
   clearNavigationCacheForCourse,
   LessonNavigationInfo 
 } from '@/utils/lessonNavigation';
+import { type MembershipRank } from '@/utils/lessonAccess';
 
 /**
  * レッスン詳細画面
@@ -58,6 +59,7 @@ const LessonDetailPage: React.FC = () => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const { profile } = useAuthStore();
+  const userRank = (profile?.rank ?? 'free') as MembershipRank;
   const toast = useToast();
   const { fetchStats } = useUserStatsStore();
 
@@ -98,7 +100,7 @@ const LessonDetailPage: React.FC = () => {
     if (open && lessonId) {
       loadLessonData(lessonId);
     }
-  }, [open, lessonId]);
+  }, [open, lessonId, userRank]);
 
   const loadLessonData = async (targetLessonId: string) => {
     setLoading(true);
@@ -150,7 +152,7 @@ const LessonDetailPage: React.FC = () => {
         ]);
         if (course) {
           const unlockFlag = unlockMap[course.id] !== undefined ? unlockMap[course.id] : null;
-          const access = canAccessCourse(course, profile.rank, completedCourses, unlockFlag);
+          const access = canAccessCourse(course, userRank, completedCourses, unlockFlag);
           if (!access.canAccess) {
             toast.warning(access.reason || 'このコースにはアクセスできません');
             window.location.hash = '#lessons';
@@ -168,7 +170,11 @@ const LessonDetailPage: React.FC = () => {
       // ナビゲーション情報を取得
       if (lessonData?.course_id) {
         try {
-          const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id);
+          const navInfo = await getLessonNavigationInfo(
+            targetLessonId,
+            lessonData.course_id,
+            userRank,
+          );
           setNavigationInfo(navInfo);
         } catch (navError) {
           console.error('Navigation info loading error:', navError);

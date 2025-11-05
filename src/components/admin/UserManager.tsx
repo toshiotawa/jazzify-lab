@@ -2,12 +2,13 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useToast } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/authStore';
 import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag, USERS_CACHE_KEY } from '@/platform/supabaseAdmin';
-import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, lockBlock, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
-import { fetchCoursesWithDetails, fetchUserCourseUnlockStatus, adminLockCourse, adminUnlockCourse, COURSES_CACHE_KEY } from '@/platform/supabaseCourses';
+import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, resetBlockOverride, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
+import { fetchCoursesWithDetails, fetchUserCourseUnlockStatus, adminUnlockCourse, COURSES_CACHE_KEY } from '@/platform/supabaseCourses';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { Course, Lesson } from '@/types';
-import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSlash, FaUndo } from 'react-icons/fa';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
+import { buildProgressMap, evaluateBlockAccess, evaluateLessonAccess } from '@/utils/lessonAccess';
 
 const ranks = ['free','standard','standard_global','premium','platinum','black'] as const;
 
@@ -210,13 +211,22 @@ const UserManager: React.FC = () => {
     setUserLessonProgress((prev) =>
       prev.map((p) =>
         blockLessonsCache[blockNumber]?.includes(p.lesson_id)
-          ? { ...p, is_unlocked: shouldUnlock }
+          ? (() => {
+              const updated = { ...p };
+              if (shouldUnlock) {
+                updated.is_unlocked = true;
+              } else {
+                delete updated.is_unlocked;
+                delete updated.unlock_date;
+              }
+              return updated;
+            })()
           : p
       )
     );
 
     try {
-      const api = shouldUnlock ? unlockBlock : lockBlock;
+      const api = shouldUnlock ? unlockBlock : resetBlockOverride;
       await api(selectedCourse.id, blockNumber, selectedUser.id);
 
       // ② キャッシュ無効化
@@ -227,7 +237,7 @@ const UserManager: React.FC = () => {
       // ③ 正確なデータで再フェッチ（forceRefresh = true）
       await loadUserProgress(selectedUser.id, selectedCourse.id, true);
       toast.success(
-        `ブロック${blockNumber}を${shouldUnlock ? '解放' : '施錠'}しました`
+        `ブロック${blockNumber}を${shouldUnlock ? '解放しました' : '通常条件に戻しました'}`
       );
     } catch (e) {
       toast.error('ブロックの更新に失敗しました');
@@ -237,21 +247,17 @@ const UserManager: React.FC = () => {
     }
   }, [selectedUser, selectedCourse, blockLessonsCache, toast]);
 
-  const handleToggleCourseUnlock = async (courseId: string, shouldUnlock: boolean) => {
+  const handleCourseUnlock = async (courseId: string) => {
     if (!selectedUser) return;
     
     // 楽観的UI更新
     setUserCourseUnlockStatus(prev => ({
       ...prev,
-      [courseId]: shouldUnlock
+      [courseId]: true
     }));
     
     try {
-      if (shouldUnlock) {
-        await adminUnlockCourse(selectedUser.id, courseId);
-      } else {
-        await adminLockCourse(selectedUser.id, courseId);
-      }
+      await adminUnlockCourse(selectedUser.id, courseId);
       
       // キャッシュクリアと状態更新
       invalidateCacheKey(COURSES_CACHE_KEY());
@@ -264,12 +270,47 @@ const UserManager: React.FC = () => {
       const updatedStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
       setUserCourseUnlockStatus(updatedStatus);
       
-      toast.success(`コースを${shouldUnlock ? 'アンロック' : 'ロック'}しました`);
+      toast.success('コースを解放しました');
     } catch (error) {
       console.error('Course lock/unlock failed:', error);
-      toast.error('コースのロック/アンロックに失敗しました');
+      toast.error('コースの解放に失敗しました');
       
       // エラー時はロールバック
+      const currentStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
+      setUserCourseUnlockStatus(currentStatus);
+    }
+  };
+
+  const handleResetCourseOverride = async (courseId: string) => {
+    if (!selectedUser) return;
+
+    setUserCourseUnlockStatus(prev => {
+      const next = { ...prev };
+      delete next[courseId];
+      return next;
+    });
+
+    try {
+      await getSupabaseClient()
+        .from('user_course_progress')
+        .delete()
+        .eq('user_id', selectedUser.id)
+        .eq('course_id', courseId);
+
+      invalidateCacheKey(COURSES_CACHE_KEY());
+      if (selectedCourse) {
+        invalidateCacheKey(LESSON_PROGRESS_CACHE_KEY(selectedCourse.id, selectedUser.id));
+        await loadUserProgress(selectedUser.id, selectedCourse.id, true);
+      }
+
+      const updatedStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
+      setUserCourseUnlockStatus(updatedStatus);
+
+      toast.success('通常の前提条件に戻しました');
+    } catch (error) {
+      console.error('Failed to reset course unlock status:', error);
+      toast.error('通常条件へのリセットに失敗しました');
+
       const currentStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
       setUserCourseUnlockStatus(currentStatus);
     }
@@ -298,30 +339,56 @@ const UserManager: React.FC = () => {
   };
 
   // ブロックの状態を判定
+  const progressMap = useMemo(() => buildProgressMap(userLessonProgress), [userLessonProgress]);
+
   const getBlockStatus = (blockLessons: Lesson[], blockNumber: number) => {
-    const blockProgress = blockLessons.map(lesson => 
-      userLessonProgress.find(p => p.lesson_id === lesson.id)
+    if (!selectedCourse) {
+      return {
+        isUnlocked: false,
+        isCompleted: false,
+        completedCount: 0,
+        totalCount: blockLessons.length,
+        hasManualOverride: false,
+        state: {
+          blockNumber,
+          naturallyUnlocked: false,
+          completed: false,
+        } as ReturnType<typeof evaluateBlockAccess>,
+      };
+    }
+
+    const blockState = evaluateBlockAccess({
+      course: selectedCourse,
+      progressMap,
+      blockNumber,
+    });
+
+    const manualOverride = blockLessons.some((lesson) =>
+      evaluateLessonAccess(lesson, blockState, progressMap).manuallyUnlocked,
     );
-    
-    const hasUnlockedLessons = blockProgress.some(p => p?.is_unlocked);
-    const allLessonsCompleted = blockProgress.length > 0 && blockProgress.every(p => p?.completed);
-    const completedCount = blockProgress.filter(p => p?.completed).length;
-    
+
+    const completedCount = blockLessons.filter((lesson) => {
+      const progress = progressMap.get(lesson.id);
+      return progress?.completed === true;
+    }).length;
+
     return {
-      isUnlocked: hasUnlockedLessons,
-      isCompleted: allLessonsCompleted,
+      isUnlocked: blockState.naturallyUnlocked || manualOverride,
+      isCompleted: blockState.completed,
       completedCount,
-      totalCount: blockLessons.length
+      totalCount: blockLessons.length,
+      hasManualOverride: manualOverride,
+      state: blockState,
     };
   };
 
-  // レッスンの状態を判定（ブロック依存）
-  const getLessonStatus = (lessonId: string, blockUnlocked: boolean) => {
-    const progress = userLessonProgress.find(p => p.lesson_id === lessonId);
+  const getLessonStatus = (lesson: Lesson, blockState: ReturnType<typeof evaluateBlockAccess>) => {
+    const lessonAccess = evaluateLessonAccess(lesson, blockState, progressMap);
+    const isUnlocked = lessonAccess.naturallyUnlocked || lessonAccess.manuallyUnlocked;
     return {
-      // ブロックが開いていれば常にアクセス可能
-      isUnlocked: blockUnlocked || progress?.is_unlocked || false,
-      isCompleted: progress?.completed || false
+      isUnlocked,
+      isCompleted: lessonAccess.completed,
+      manuallyUnlocked: lessonAccess.manuallyUnlocked,
     };
   };
 
@@ -452,90 +519,64 @@ const UserManager: React.FC = () => {
             {selectedCourse && (
               <div className="mb-6 p-4 bg-slate-700 rounded-lg">
                 <h4 className="text-lg font-semibold text-white mb-3">コースアクセス制御</h4>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-slate-300">
-                      {selectedCourse.title} のアクセス状況:
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      {userCourseUnlockStatus[selectedCourse.id] === true ? (
-                        <div className="flex items-center space-x-1 text-green-400">
-                          <FaUnlock className="text-sm" />
-                          <span className="text-sm font-medium">管理者により解放済み</span>
+                {selectedUser && !['premium', 'platinum', 'black'].includes(selectedUser.rank as string) && (
+                  <p className="text-xs text-orange-200 mb-3">
+                    このユーザーはスタンダード以下のため、管理者による解放は保持されますが通常の前提条件で受講します。
+                  </p>
+                )}
+                {(() => {
+                  const courseOverrideStatus = userCourseUnlockStatus[selectedCourse.id];
+                  const normalizedStatus = courseOverrideStatus === undefined ? null : courseOverrideStatus;
+                  const hasOverride = normalizedStatus !== null;
+
+                  return (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-slate-300">
+                          {selectedCourse.title} のアクセス状況:
+                        </span>
+                        <div className="flex items-center space-x-2">
+                          {normalizedStatus === true ? (
+                            <div className="flex items-center space-x-1 text-green-400">
+                              <FaUnlock className="text-sm" />
+                              <span className="text-sm font-medium">管理者により解放済み</span>
+                            </div>
+                          ) : normalizedStatus === false ? (
+                            <div className="flex items-center space-x-1 text-orange-400">
+                              <FaLock className="text-sm" />
+                              <span className="text-sm font-medium">管理者によるロック記録（旧設定）</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center space-x-1 text-slate-400">
+                              <FaCheck className="text-sm" />
+                              <span className="text-sm font-medium">通常の前提条件に従う</span>
+                            </div>
+                          )}
                         </div>
-                      ) : userCourseUnlockStatus[selectedCourse.id] === false ? (
-                        <div className="flex items-center space-x-1 text-red-400">
-                          <FaLock className="text-sm" />
-                          <span className="text-sm font-medium">管理者によりロック済み</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-1 text-slate-400">
-                          <FaCheck className="text-sm" />
-                          <span className="text-sm font-medium">通常の前提条件に従う</span>
-                        </div>
-                      )}
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <button
+                          className="btn btn-sm btn-success"
+                          onClick={() => handleCourseUnlock(selectedCourse.id)}
+                          disabled={normalizedStatus === true}
+                        >
+                          <FaUnlock className="mr-1" />
+                          コース解放
+                        </button>
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => handleResetCourseOverride(selectedCourse.id)}
+                          disabled={!hasOverride}
+                          title="通常の前提条件に戻す"
+                        >
+                          <FaUndo className="mr-1" />
+                          通常条件に戻す
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    {userCourseUnlockStatus[selectedCourse.id] === false ? (
-                      <button
-                        className="btn btn-sm btn-success"
-                        onClick={() => handleToggleCourseUnlock(selectedCourse.id, true)}
-                      >
-                        <FaUnlock className="mr-1" />
-                        コース解放
-                      </button>
-                    ) : (
-                      <button
-                        className="btn btn-sm btn-warning"
-                        onClick={() => handleToggleCourseUnlock(selectedCourse.id, false)}
-                      >
-                        <FaLock className="mr-1" />
-                        コースロック
-                      </button>
-                    )}
-                    
-                    {userCourseUnlockStatus[selectedCourse.id] !== undefined && (
-                      <button
-                        className="btn btn-sm btn-ghost"
-                        onClick={async () => {
-                          // 管理者アンロック状態をクリアして前提条件に従うようにする
-                          setUserCourseUnlockStatus(prev => {
-                            const newStatus = { ...prev };
-                            delete newStatus[selectedCourse.id];
-                            return newStatus;
-                          });
-                          
-                          try {
-                            // DBからレコードを削除することで前提条件判定に戻す
-                            await getSupabaseClient()
-                              .from('user_course_progress')
-                              .delete()
-                              .eq('user_id', selectedUser.id)
-                              .eq('course_id', selectedCourse.id);
-                            
-                            // 最新の状態を再取得
-                            const updatedStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
-                            setUserCourseUnlockStatus(updatedStatus);
-                            
-                            toast.success('通常の前提条件に戻しました');
-                          } catch (error) {
-                            console.error('Failed to reset course unlock status:', error);
-                            toast.error('リセットに失敗しました');
-                            
-                            // エラー時はロールバック
-                            const currentStatus = await fetchUserCourseUnlockStatus(selectedUser.id);
-                            setUserCourseUnlockStatus(currentStatus);
-                          }
-                        }}
-                        title="通常の前提条件に戻す"
-                      >
-                        前提条件に戻す
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  );
+                })()}
                 
                 {/* 前提条件情報 */}
                 {selectedCourse.prerequisites && selectedCourse.prerequisites.length > 0 && (
@@ -590,27 +631,33 @@ const UserManager: React.FC = () => {
             {selectedCourse && (
               <div className="space-y-6">
                 {Object.entries(groupLessonsByBlock(selectedCourse.lessons))
-                  .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                  .sort(([a], [b]) => parseInt(a, 10) - parseInt(b, 10))
                   .map(([blockNumber, blockLessons]) => {
-                    const blockNum = parseInt(blockNumber);
+                    const blockNum = parseInt(blockNumber, 10);
                     const blockStatus = getBlockStatus(blockLessons, blockNum);
-                    
+                    const blockState = blockStatus.state;
+                    const hasManualOverride = blockStatus.hasManualOverride;
+
                     return (
                       <div key={blockNum} className="border border-slate-600 rounded-lg overflow-hidden">
-                        {/* ブロックヘッダー */}
-                        <div className={`p-4 ${blockStatus.isCompleted ? 'bg-emerald-900/30' : blockStatus.isUnlocked ? 'bg-blue-900/30' : 'bg-slate-700'}`}>
+                        <div
+                          className={`p-4 ${
+                            blockStatus.isCompleted
+                              ? 'bg-emerald-900/30'
+                              : blockStatus.isUnlocked
+                                ? 'bg-blue-900/30'
+                                : 'bg-slate-700'
+                          }`}
+                        >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
-                              <h4 className="text-lg font-semibold text-white">
-                                ブロック {blockNum}
-                              </h4>
-                              
-                              {/* ブロック状態アイコン */}
+                              <h4 className="text-lg font-semibold text-white">ブロック {blockNum}</h4>
+
                               <div className="flex items-center space-x-2">
                                 {blockStatus.isUnlocked ? (
                                   <div className="flex items-center space-x-1 text-green-400">
                                     <FaUnlock className="text-sm" />
-                                    <span className="text-xs">解放済み</span>
+                                    <span className="text-xs">解放中</span>
                                   </div>
                                 ) : (
                                   <div className="flex items-center space-x-1 text-gray-500">
@@ -618,7 +665,13 @@ const UserManager: React.FC = () => {
                                     <span className="text-xs">未解放</span>
                                   </div>
                                 )}
-                                
+
+                                {hasManualOverride && (
+                                  <span className="bg-emerald-600/80 text-white text-[10px] px-2 py-1 rounded-full">
+                                    管理者解放
+                                  </span>
+                                )}
+
                                 {blockStatus.isCompleted && (
                                   <div className="flex items-center space-x-1 text-emerald-400">
                                     <FaCheck className="text-sm" />
@@ -626,74 +679,79 @@ const UserManager: React.FC = () => {
                                   </div>
                                 )}
                               </div>
-                              
-                              {/* ブロック進捗 */}
+
                               <div className="text-sm text-slate-300">
                                 {blockStatus.completedCount}/{blockStatus.totalCount} レッスン完了
                               </div>
                             </div>
-                            
-                            {/* ブロック操作ボタン */}
+
                             <div className="flex items-center space-x-2">
-                              {blockStatus.isUnlocked ? (
-                                <button
-                                  className="btn btn-xs btn-warning"
-                                  onClick={() => handleToggleBlockLock(blockNum, false)}
-                                >
-                                  <FaLock className="mr-1" />
-                                  ブロック施錠
-                                </button>
-                              ) : (
-                                <button
-                                  className="btn btn-xs btn-primary"
-                                  onClick={() => handleToggleBlockLock(blockNum, true)}
-                                >
-                                  <FaLockOpen className="mr-1" />
-                                  ブロック解放
-                                </button>
-                              )}
+                              <button
+                                className="btn btn-xs btn-secondary"
+                                onClick={() => handleToggleBlockLock(blockNum, false)}
+                                disabled={!hasManualOverride}
+                              >
+                                <FaUndo className="mr-1" />
+                                通常条件に戻す
+                              </button>
+                              <button
+                                className="btn btn-xs btn-primary"
+                                onClick={() => handleToggleBlockLock(blockNum, true)}
+                              >
+                                <FaLockOpen className="mr-1" />
+                                ブロック解放
+                              </button>
                             </div>
                           </div>
                         </div>
-                        
-                        {/* レッスン一覧 */}
+
                         <div className="p-4 space-y-3">
                           {blockLessons
                             .sort((a, b) => a.order_index - b.order_index)
                             .map((lesson) => {
-                              const lessonStatus = getLessonStatus(lesson.id, blockStatus.isUnlocked);
-                              
+                              const lessonStatus = getLessonStatus(lesson, blockState);
+
                               return (
-                                <div key={lesson.id} className={`p-3 rounded-lg border ${
-                                  lessonStatus.isCompleted ? 'bg-emerald-900/20 border-emerald-600' :
-                                  lessonStatus.isUnlocked ? 'bg-blue-900/20 border-blue-600' :
-                                  'bg-slate-700 border-slate-600'
-                                }`}>
+                                <div
+                                  key={lesson.id}
+                                  className={`p-3 rounded-lg border ${
+                                    lessonStatus.isCompleted
+                                      ? 'bg-emerald-900/20 border-emerald-600'
+                                      : lessonStatus.isUnlocked
+                                        ? 'bg-blue-900/20 border-blue-600'
+                                        : 'bg-slate-700 border-slate-600'
+                                  }`}
+                                >
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center space-x-3">
                                       <span className="text-sm font-medium text-white">
                                         {lesson.order_index + 1}. {lesson.title}
                                       </span>
-                                      
-                                      {/* レッスン状態アイコン */}
+
                                       <div className="flex items-center space-x-2">
                                         {lessonStatus.isUnlocked ? (
                                           <FaEye className="text-green-400 text-xs" title="アクセス可能" />
                                         ) : (
                                           <FaEyeSlash className="text-gray-500 text-xs" title="ブロック未解放" />
                                         )}
-                                        
+
+                                        {lessonStatus.manuallyUnlocked && (
+                                          <span className="bg-emerald-600/80 text-white text-[10px] px-2 py-0.5 rounded-full">
+                                            管理者解放
+                                          </span>
+                                        )}
+
                                         {lessonStatus.isCompleted && (
                                           <FaCheck className="text-emerald-400 text-xs" title="完了済み" />
                                         )}
                                       </div>
                                     </div>
-                                    
-                                    {/* レッスン操作ボタン */}
+
                                     <div className="flex items-center space-x-2">
-                                      {/* 完了切り替えボタンのみ */}
                                       <button
-                                        className={`btn btn-xs ${lessonStatus.isCompleted ? 'btn-success' : 'btn-outline btn-success'}`}
+                                        className={`btn btn-xs ${
+                                          lessonStatus.isCompleted ? 'btn-success' : 'btn-outline btn-success'
+                                        }`}
                                         onClick={() => handleToggleLessonProgress(lesson.id, lessonStatus.isCompleted)}
                                         disabled={!lessonStatus.isUnlocked}
                                       >
