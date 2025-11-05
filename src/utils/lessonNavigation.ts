@@ -1,7 +1,9 @@
 import { Lesson } from '@/types';
+import { Lesson } from '@/types';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
 import { clearCacheByPattern } from '@/platform/supabaseClient';
+import { getLessonUnlockInfo, groupLessonsByBlock, UserRank } from '@/utils/lessonAccess';
 
 export interface LessonNavigationInfo {
   previousLesson: Lesson | null;
@@ -20,6 +22,7 @@ const navigationCache = new Map<string, {
   data: LessonNavigationInfo;
   expires: number;
   courseId: string;
+  userRank: UserRank;
 }>();
 
 const NAVIGATION_CACHE_TTL = 5 * 60 * 1000; // 5分
@@ -86,9 +89,10 @@ export function cleanupLessonNavigationCache(currentLessonId: string, courseId: 
  */
 export async function getLessonNavigationInfo(
   currentLessonId: string,
-  courseId: string
+  courseId: string,
+  userRank: UserRank = 'free'
 ): Promise<LessonNavigationInfo> {
-  const cacheKey = `${courseId}:${currentLessonId}`;
+  const cacheKey = `${courseId}:${currentLessonId}:${userRank}`;
   const now = Date.now();
   
   // キャッシュから取得を試行
@@ -100,59 +104,76 @@ export async function getLessonNavigationInfo(
   // キャッシュクリーンアップ
   cleanupNavigationCache();
   
-  try {
-    // コース内の全レッスンを取得
-    const lessons = await fetchLessonsByCourse(courseId);
-    const userProgress = await fetchUserLessonProgress(courseId);
-    
-    // レッスンを order_index でソート
-    const sortedLessons = lessons.sort((a, b) => a.order_index - b.order_index);
-    
-    // 現在のレッスンのインデックスを取得
-    const currentIndex = sortedLessons.findIndex(lesson => lesson.id === currentLessonId);
-    
-    if (currentIndex === -1) {
-      throw new Error('現在のレッスンが見つかりません');
-    }
+    try {
+      // コース内の全レッスンを取得
+      const lessons = await fetchLessonsByCourse(courseId);
+      const userProgress = await fetchUserLessonProgress(courseId);
 
-    const previousLesson = currentIndex > 0 ? sortedLessons[currentIndex - 1] : null;
-    const nextLesson = currentIndex < sortedLessons.length - 1 ? sortedLessons[currentIndex + 1] : null;
+      // レッスンを order_index でソート
+      const sortedLessons = [...lessons].sort((a, b) => a.order_index - b.order_index);
 
-    // 進捗データをマップに変換
-    const progressMap = new Map(userProgress.map(p => [p.lesson_id, p]));
+      // 現在のレッスンのインデックスを取得
+      const currentIndex = sortedLessons.findIndex(lesson => lesson.id === currentLessonId);
 
-    // アクセス権限をチェック
-    const hasAccessToPrevious = previousLesson ? 
-      progressMap.get(previousLesson.id)?.is_unlocked || false : false;
-    
-    const hasAccessToNext = nextLesson ? 
-      progressMap.get(nextLesson.id)?.is_unlocked || false : false;
-
-    const navigationInfo: LessonNavigationInfo = {
-      previousLesson,
-      nextLesson,
-      canGoPrevious: previousLesson !== null && hasAccessToPrevious,
-      canGoNext: nextLesson !== null && hasAccessToNext,
-      course: {
-        id: courseId,
-        hasAccessToPrevious,
-        hasAccessToNext
+      if (currentIndex === -1) {
+        throw new Error('現在のレッスンが見つかりません');
       }
-    };
-    
-    // キャッシュに保存
-    navigationCache.set(cacheKey, {
-      data: navigationInfo,
-      expires: now + NAVIGATION_CACHE_TTL,
-      courseId
-    });
-    
-    return navigationInfo;
-    
-  } catch (error) {
-    console.error('Navigation info loading error:', error);
-    throw error;
-  }
+
+      const previousLesson = currentIndex > 0 ? sortedLessons[currentIndex - 1] : null;
+      const nextLesson = currentIndex < sortedLessons.length - 1 ? sortedLessons[currentIndex + 1] : null;
+
+      // 進捗データをマップに変換
+      const progressMap = new Map(userProgress.map(p => [p.lesson_id, p]));
+      const blockMap = groupLessonsByBlock(lessons);
+
+      // アクセス権限をチェック
+      const hasAccessToPrevious = previousLesson
+        ? getLessonUnlockInfo({
+            lesson: previousLesson,
+            allLessons: lessons,
+            progress: progressMap,
+            userRank,
+            blockMap,
+            progressMap,
+          }).unlockedForRank
+        : false;
+
+      const hasAccessToNext = nextLesson
+        ? getLessonUnlockInfo({
+            lesson: nextLesson,
+            allLessons: lessons,
+            progress: progressMap,
+            userRank,
+            blockMap,
+            progressMap,
+          }).unlockedForRank
+        : false;
+
+      const navigationInfo: LessonNavigationInfo = {
+        previousLesson,
+        nextLesson,
+        canGoPrevious: previousLesson !== null && hasAccessToPrevious,
+        canGoNext: nextLesson !== null && hasAccessToNext,
+        course: {
+          id: courseId,
+          hasAccessToPrevious,
+          hasAccessToNext,
+        },
+      };
+
+      // キャッシュに保存
+      navigationCache.set(cacheKey, {
+        data: navigationInfo,
+        expires: now + NAVIGATION_CACHE_TTL,
+        courseId,
+        userRank,
+      });
+
+      return navigationInfo;
+    } catch (error) {
+      console.error('Navigation info loading error:', error);
+      throw error;
+    }
 }
 
 /**
