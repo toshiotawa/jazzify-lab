@@ -16,6 +16,7 @@ import {
 } from '@/utils/fantasyRankConstants';
 import { useAuthStore } from '@/stores/authStore';
 import { LessonContext } from '@/types';
+import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasyStageDescription } from '@/utils/globalAudience';
 
 // ===== 型定義 =====
 
@@ -67,6 +68,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   lessonContext
 }) => {
   const { profile, isGuest } = useAuthStore();
+  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+  const fantasyHeaderTitle = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
+  const currentStageLabel = isEnglishCopy ? 'Current stage' : '現在地';
+  const storyButtonLabel = isEnglishCopy ? 'Story' : 'ストーリー';
+  const backButtonLabel = isEnglishCopy ? 'Back' : '戻る';
+  const limitedAccessMessage = isEnglishCopy ? 'Stages 1-1 to 1-3 are available.' : 'ステージ1-1〜1-3までプレイ可能です。';
   const [loading, setLoading] = useState(true);
   const [stages, setStages] = useState<FantasyStage[]>([]);
   const [userProgress, setUserProgress] = useState<FantasyUserProgress | null>(null);
@@ -108,11 +115,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           throw new Error(`ステージデータの読み込みに失敗: ${stagesError.message}`);
         }
         
-        const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
-          id: stage.id,
-          stageNumber: stage.stage_number,
-          name: stage.name,
-          description: stage.description,
+          const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+            id: stage.id,
+            stageNumber: stage.stage_number,
+            name: stage.name,
+            name_en: stage.name_en,
+            description: stage.description,
+            description_en: stage.description_en,
           maxHp: stage.max_hp,
           enemyCount: stage.enemy_count,
           enemyHp: stage.enemy_hp,
@@ -203,11 +212,13 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       }
       
       //// データの変換とセット
-      const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
-        id: stage.id,
-        stageNumber: stage.stage_number,
-        name: stage.name,
-        description: stage.description || '',
+        const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+          id: stage.id,
+          stageNumber: stage.stage_number,
+          name: stage.name,
+          name_en: stage.name_en,
+          description: stage.description || '',
+          description_en: stage.description_en,
         maxHp: stage.max_hp,
         enemyGaugeSeconds: stage.enemy_gauge_seconds,
         enemyCount: stage.enemy_count,
@@ -266,14 +277,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         clears: convertedClears.length
       });
       
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '不明なエラーが発生しました';
-      setError(errorMessage);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : (isEnglishCopy ? 'An unknown error occurred.' : '不明なエラーが発生しました');
+        setError(errorMessage);
       console.error('❌ ファンタジーデータ読み込みエラー:', err);
     } finally {
       setLoading(false);
-    }
-  }, [isGuest]);
+      }
+    }, [isGuest, isEnglishCopy]);
   
   // 初期読み込み
   useEffect(() => {
@@ -391,10 +402,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     
     // モード表示のマッピング
     const modeDisplayMap: Record<string, { label: string; color: string }> = {
-      'single': { label: 'クイズ', color: 'bg-blue-500' },
-      'progression_order': { label: 'リズム・順番', color: 'bg-green-500' },
-      'progression_random': { label: 'リズム・ランダム', color: 'bg-purple-500' },
-      'progression_timing': { label: 'リズム・カスタム', color: 'bg-orange-500' }
+      single: { label: isEnglishCopy ? 'Quiz' : 'クイズ', color: 'bg-blue-500' },
+      progression_order: { label: isEnglishCopy ? 'Rhythm / Order' : 'リズム・順番', color: 'bg-green-500' },
+      progression_random: { label: isEnglishCopy ? 'Rhythm / Random' : 'リズム・ランダム', color: 'bg-purple-500' },
+      progression_timing: { label: isEnglishCopy ? 'Rhythm / Custom' : 'リズム・カスタム', color: 'bg-orange-500' },
     };
     
     const modeDisplay = modeDisplayMap[stage.mode] || { label: stage.mode, color: 'bg-gray-500' };
@@ -431,8 +442,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           <div className={cn(
             "text-base sm:text-lg font-medium mb-1 whitespace-normal break-words",
             unlocked ? "text-white" : "text-gray-400"
-          )}>
-            {unlocked ? stage.name : "???"}
+            )}>
+              {unlocked ? getLocalizedFantasyStageName(stage, profile?.rank) : "???"}
           </div>
           
           {/* モードタグ */}
@@ -451,12 +462,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           <div className={cn(
             "text-xs sm:text-sm leading-relaxed break-words",
             unlocked ? "text-gray-300" : "text-gray-500"
-          )}>
-            {unlocked ? stage.description : (
-              isFreeOrGuest && stage.stageNumber >= '1-4' 
-                ? "スタンダードプラン以上で利用可能です" 
-                : "このステージはまだロックされています"
-            )}
+            )}>
+              {unlocked ? getLocalizedFantasyStageDescription(stage, profile?.rank) : (
+                isFreeOrGuest && stage.stageNumber >= '1-4' 
+                  ? (isEnglishCopy ? 'Available on the Standard plan or higher.' : 'スタンダードプラン以上で利用可能です') 
+                  : (isEnglishCopy ? 'This stage is still locked.' : 'このステージはまだロックされています')
+              )}
           </div>
         </div>
         
@@ -529,14 +540,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       <div className="relative z-10 p-4 sm:p-6 text-white">
         <div className="flex justify-between items-center gap-2">
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-3">
-              <img src="/default_avater/default-avater.png" alt="ファンタジーモード" className="w-12 h-12 sm:w-16 sm:h-16" />
-              <span className="whitespace-normal break-words">ファンタジーモード</span>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-3">
+                <img src="/default_avater/default-avater.png" alt={fantasyHeaderTitle} className="w-12 h-12 sm:w-16 sm:h-16" />
+                <span className="whitespace-normal break-words">{fantasyHeaderTitle}</span>
             </h1>
             <div className="flex items-center space-x-4 sm:space-x-6 text-base sm:text-lg">
               {(stages.some(s => (s as any).tier === selectedTier)) && (
                 <div>
-                  現在地: <span className="text-blue-300 font-bold">
+                    {currentStageLabel}: <span className="text-blue-300 font-bold">
                     {selectedTier === 'advanced'
                       ? (userProgress?.currentStageNumberAdvanced || userProgress?.currentStageNumber || '1-1')
                       : (userProgress?.currentStageNumberBasic || userProgress?.currentStageNumber || '1-1')}
@@ -547,32 +558,34 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { window.location.hash = '#Story'; }}
-              className="px-3 sm:px-4 py-2 sm:py-3 bg-white/15 hover:bg-white/25 rounded-lg font-medium transition-colors text-xs sm:text-base whitespace-nowrap"
-            >
-              ストーリー
-            </button>
-            <button
-              onClick={onBackToMenu}
-              className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap"
-            >
-              戻る
-            </button>
-          </div>
+            <div className="flex items-center gap-2">
+              {!isEnglishCopy && (
+                <button
+                  onClick={() => { window.location.hash = '#Story'; }}
+                  className="px-3 sm:px-4 py-2 sm:py-3 bg-white/15 hover:bg-white/25 rounded-lg font-medium transition-colors text-xs sm:text-base whitespace-nowrap"
+                >
+                  {storyButtonLabel}
+                </button>
+              )}
+              <button
+                onClick={onBackToMenu}
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap"
+              >
+                {backButtonLabel}
+              </button>
+            </div>
         </div>
       </div>
       
       {/* フリープラン・ゲストユーザー向けのメッセージ */}
       {isFreeOrGuest && (
-        <div className="mx-4 sm:mx-6 mb-4 p-3 sm:p-4 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
-          <p className="text-yellow-200 text-center text-sm sm:text-base">
-            {isGuest ? 'ゲストプレイ中です。' : 'フリープランでご利用中です。'}
-            ステージ1-1〜1-3までプレイ可能です。
-            {isGuest && 'クリア記録は保存されません。'}
-          </p>
-        </div>
+          <div className="mx-4 sm:mx-6 mb-4 p-3 sm:p-4 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
+            <p className="text-yellow-200 text-center text-sm sm:text-base">
+              {isGuest ? (isEnglishCopy ? 'You are playing as a guest.' : 'ゲストプレイ中です。') : (isEnglishCopy ? 'You are using the free plan.' : 'フリープランでご利用中です。')}
+              &nbsp;{limitedAccessMessage}
+              {isGuest && (isEnglishCopy ? 'Progress is not saved in guest mode.' : 'クリア記録は保存されません。')}
+            </p>
+          </div>
       )}
       
       {/* ランク選択タブの上にTier切り替え */}

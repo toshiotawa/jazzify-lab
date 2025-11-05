@@ -17,6 +17,7 @@ import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequir
 import { getWizardRankString } from '@/utils/fantasyRankConstants';
 import { currentLevelXP, xpToNextLevel, levelAfterGain } from '@/utils/xpCalculator';
 import { useToast } from '@/stores/toastStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
 
 // 1コース当たりのステージ数定数
@@ -41,6 +42,21 @@ const FantasyMain: React.FC = () => {
   const { profile, isGuest } = useAuthStore();
   const { settings } = useGameStore();
   const toast = useToast();
+  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+  const stageClearText = isEnglishCopy ? 'Stage Clear!' : 'ステージクリア！';
+  const gameOverText = isEnglishCopy ? 'Game Over' : 'ゲームオーバー';
+  const correctAnswersLabel = isEnglishCopy ? 'Correct answers' : '正解数';
+  const baseXpLabel = isEnglishCopy ? 'Base XP:' : '基本XP:';
+  const rankBonusLabel = isEnglishCopy ? 'Membership bonus:' : 'ランクボーナス:';
+  const guildBonusLabel = isEnglishCopy ? 'Guild bonus:' : 'ギルドボーナス:';
+  const earnedXpLabel = isEnglishCopy ? 'Earned:' : '獲得:';
+  const levelingUpLabel = isEnglishCopy ? 'Level up!' : 'レベルアップ！';
+  const currentLevelLabel = isEnglishCopy ? 'Current level' : '現在のレベル';
+  const xpToNextLabel = isEnglishCopy ? 'XP to next level' : '次のレベルまで';
+  const nextStageButtonLabel = isEnglishCopy ? 'Next stage' : '次のステージへ';
+  const retryButtonLabel = isEnglishCopy ? 'Retry' : '再挑戦';
+  const backToSelectLabel = isEnglishCopy ? 'Stage select' : 'ステージ選択に戻る';
+  const xpCalculatingText = isEnglishCopy ? 'Calculating XP...' : 'XP計算中...';
   const [currentStage, setCurrentStage] = useState<FantasyStage | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -106,7 +122,9 @@ const FantasyMain: React.FC = () => {
             id: stage.id,
             stageNumber: stage.stage_number,
             name: stage.name,
+            name_en: stage.name_en,
             description: stage.description,
+            description_en: stage.description_en,
             maxHp: stage.max_hp,
             enemyGaugeSeconds: stage.enemy_gauge_seconds,
             enemyCount: stage.enemy_count,
@@ -150,7 +168,9 @@ const FantasyMain: React.FC = () => {
           id: stage.id,
           stageNumber: stage.stage_number,
           name: stage.name,
+          name_en: stage.name_en,
           description: stage.description,
+          description_en: stage.description_en,
           maxHp: stage.max_hp,
           enemyGaugeSeconds: stage.enemy_gauge_seconds,
           enemyCount: stage.enemy_count,
@@ -282,7 +302,8 @@ const FantasyMain: React.FC = () => {
 
     // 経験値付与（addXp関数を使用）
     const xpGain = result === 'clear' ? 1000 : 200;
-    const reason = `ファンタジーモード${currentStage?.stageNumber}${result === 'clear' ? 'クリア' : 'チャレンジ'}`;
+    const resultLabel = result === 'clear' ? (isEnglishCopy ? 'Clear' : 'クリア') : (isEnglishCopy ? 'Challenge' : 'チャレンジ');
+    const reason = `Fantasy Mode ${currentStage?.stageNumber} ${resultLabel}`;
 
     // 事前にローカル計算結果を用意して、UIを即時更新（ゲストでも表示されるように）
     const normalizeRank = (rank: string | undefined): 'free' | 'standard' | 'premium' | 'platinum' => {
@@ -360,8 +381,11 @@ const FantasyMain: React.FC = () => {
           base: xpGain,
           multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
         });
-        if (leveledUp) {
-          toast.success(`レベルアップ！ Lv.${previousLevel} → Lv.${xpResult.level}`, { duration: 5000, title: 'おめでとうございます！' });
+          if (leveledUp) {
+            toast.success(`${levelingUpLabel} Lv.${previousLevel} → Lv.${xpResult.level}`, {
+              duration: 5000,
+              title: isEnglishCopy ? 'Congratulations!' : 'おめでとうございます！',
+            });
         }
         // サーバー反映後にプロフィールを強制リフレッシュ
         try {
@@ -392,10 +416,15 @@ const FantasyMain: React.FC = () => {
     const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
     
     // フリープラン・ゲストユーザーの場合、1-4以降には進めない
-    if (isFreeOrGuest && nextStageNumber >= '1-4') {
-      toast.error('フリープラン・ゲストプレイでは、ステージ1-3までプレイ可能です。', {
-        duration: 5000
-      });
+      if (isFreeOrGuest && nextStageNumber >= '1-4') {
+        toast.error(
+          isEnglishCopy
+            ? 'Free plan and guest players can play up to stage 1-3.'
+            : 'フリープラン・ゲストプレイでは、ステージ1-3までプレイ可能です。',
+          {
+            duration: 5000,
+          }
+        );
       handleBackToStageSelect();
       return;
     }
@@ -455,9 +484,9 @@ const FantasyMain: React.FC = () => {
       setGameKey(k => k + 1);  // 強制リマウント
       
       devLog.debug('✅ 次のステージに遷移:', convertedStage);
-    } catch (err) {
-      console.error('次のステージ読み込みエラー:', err);
-      alert('次のステージの読み込みに失敗しました');
+      } catch (err) {
+        console.error('次のステージ読み込みエラー:', err);
+        alert(isEnglishCopy ? 'Failed to load the next stage.' : '次のステージの読み込みに失敗しました');
     }
   }, [currentStage, isFreeOrGuest, handleBackToStageSelect]);
   
@@ -482,57 +511,57 @@ const FantasyMain: React.FC = () => {
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
         <div className="text-white text-center max-w-md w-full">
           {/* 結果タイトル */}
-          <h2 className="text-3xl font-bold mb-6 font-sans">
-            {currentStage?.stageNumber}&nbsp;
-            {gameResult.result === 'clear' ? 'ステージクリア！' : 'ゲームオーバー'}
-          </h2>
+            <h2 className="text-3xl font-bold mb-6 font-sans">
+              {currentStage?.stageNumber}&nbsp;
+              {gameResult.result === 'clear' ? stageClearText : gameOverText}
+            </h2>
           
           {/* 結果表示 */}
           <div className="bg-black bg-opacity-30 rounded-lg p-6 mb-6">
-            <div className="text-lg font-sans">
-              <div>正解数: <span className="text-green-300 font-bold text-2xl">{gameResult.correctAnswers}</span></div>
-            </div>
+              <div className="text-lg font-sans">
+                <div>{correctAnswersLabel}: <span className="text-green-300 font-bold text-2xl">{gameResult.correctAnswers}</span></div>
+              </div>
             
             {/* 経験値獲得 */}
             <div className="mt-4 pt-4 border-t border-gray-600 font-sans">
-              {xpInfo ? (
-                <>
-                  <div className="text-sm text-gray-300 space-y-1">
-                    <div className="flex justify-between">
-                      <span>基本XP:</span>
-                      <span>{xpInfo.base}</span>
+                {xpInfo ? (
+                  <>
+                    <div className="text-sm text-gray-300 space-y-1">
+                      <div className="flex justify-between">
+                        <span>{baseXpLabel}</span>
+                        <span>{xpInfo.base}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{rankBonusLabel}</span>
+                        <span>x{xpInfo.multipliers.membership}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{guildBonusLabel}</span>
+                        <span>x{xpInfo.multipliers.guild}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span>ランクボーナス:</span>
-                      <span>x{xpInfo.multipliers.membership}</span>
+                    <div className="text-green-300 font-bold text-xl mt-2">
+                      {earnedXpLabel} +{xpInfo.gained} XP
                     </div>
-                    <div className="flex justify-between">
-                      <span>ギルドボーナス:</span>
-                      <span>x{xpInfo.multipliers.guild}</span>
-                    </div>
-                  </div>
-                  <div className="text-green-300 font-bold text-xl mt-2">
-                    獲得: +{xpInfo.gained} XP
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm text-gray-300">XP計算中...</div>
-              )}
+                  </>
+                ) : (
+                  <div className="text-sm text-gray-300">{xpCalculatingText}</div>
+                )}
 
               {/* 次レベルまでの経験値表示 */}
               {xpInfo && (
                 <div className="mt-3 pt-3 border-t border-gray-600">
-                  {xpInfo.leveledUp && (
-                    <div className="text-yellow-400 font-bold mb-2">
-                      レベルアップ！ Lv.{xpInfo.previousLevel} → Lv.{xpInfo.level}
+                    {xpInfo.leveledUp && (
+                      <div className="text-yellow-400 font-bold mb-2">
+                        {levelingUpLabel} Lv.{xpInfo.previousLevel} → Lv.{xpInfo.level}
+                      </div>
+                    )}
+                    <div className="text-sm text-gray-300">
+                      {currentLevelLabel}: Lv.{xpInfo.level}
                     </div>
-                  )}
-                  <div className="text-sm text-gray-300">
-                    現在のレベル: Lv.{xpInfo.level}
-                  </div>
-                  <div className="text-sm text-gray-300">
-                    次のレベルまで: {xpInfo.currentLevelXp.toLocaleString()} / {xpInfo.nextLevelXp.toLocaleString()} XP
-                  </div>
+                    <div className="text-sm text-gray-300">
+                      {xpToNextLabel}: {xpInfo.currentLevelXp.toLocaleString()} / {xpInfo.nextLevelXp.toLocaleString()} XP
+                    </div>
                   <div className="mt-2 bg-gray-700 rounded-full h-2 overflow-hidden">
                     <div 
                       className="bg-gradient-to-r from-blue-400 to-purple-400 h-full transition-all duration-500"
@@ -547,23 +576,23 @@ const FantasyMain: React.FC = () => {
           {/* アクションボタン */}
           <div className="space-y-4">
             {/* ミッションモード時は「次のステージへ」を表示しない */}
-            {gameResult.result === 'clear' && !isLessonMode && !isMissionMode && (
-              <button onClick={gotoNextStageWaiting} className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-sans">次のステージへ</button>
-            )}
-            <button
-              onClick={() => { setShowResult(false); setGameKey(prevKey => prevKey + 1); setPendingAutoStart(true); }}
-              className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors font-sans"
-            >
-              再挑戦
-            </button>
+              {gameResult.result === 'clear' && !isLessonMode && !isMissionMode && (
+                <button onClick={gotoNextStageWaiting} className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-sans">{nextStageButtonLabel}</button>
+              )}
+              <button
+                onClick={() => { setShowResult(false); setGameKey(prevKey => prevKey + 1); setPendingAutoStart(true); }}
+                className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors font-sans"
+              >
+                {retryButtonLabel}
+              </button>
             {/* 戻るボタンの遷移先を分岐 */}
-            {isLessonMode && lessonContext ? (
-              <button onClick={() => { window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">レッスンに戻る</button>
-            ) : isMissionMode ? (
-              <button onClick={() => { window.location.hash = '#missions'; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">ミッションに戻る</button>
-            ) : (
-              <button onClick={handleBackToStageSelect} className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-sans">ステージ選択に戻る</button>
-            )}
+              {isLessonMode && lessonContext ? (
+                <button onClick={() => { window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">{isEnglishCopy ? 'Back to lesson' : 'レッスンに戻る'}</button>
+              ) : isMissionMode ? (
+                <button onClick={() => { window.location.hash = '#missions'; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">{isEnglishCopy ? 'Back to missions' : 'ミッションに戻る'}</button>
+              ) : (
+                <button onClick={handleBackToStageSelect} className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-sans">{backToSelectLabel}</button>
+              )}
           </div>
         </div>
       </div>

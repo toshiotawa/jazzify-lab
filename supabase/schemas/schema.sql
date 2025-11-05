@@ -897,7 +897,9 @@ CREATE TABLE IF NOT EXISTS "public"."fantasy_stages" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "stage_number" "text" NOT NULL,
     "name" "text" NOT NULL,
+    "name_en" "text",
     "description" "text",
+    "description_en" "text",
     "max_hp" integer DEFAULT 5 NOT NULL,
     "question_count" integer DEFAULT 10 NOT NULL,
     "enemy_gauge_seconds" double precision DEFAULT 5.0 NOT NULL,
@@ -930,6 +932,10 @@ COMMENT ON COLUMN "public"."fantasy_stages"."stage_number" IS 'ステージ番�
 
 
 
+COMMENT ON COLUMN "public"."fantasy_stages"."name_en" IS 'Stage name (English)';
+
+
+
 COMMENT ON COLUMN "public"."fantasy_stages"."enemy_gauge_seconds" IS 'モンスターの行動ゲージが満タンになるまでの秒数';
 
 
@@ -943,6 +949,10 @@ COMMENT ON COLUMN "public"."fantasy_stages"."allowed_chords" IS '許可された
 
 
 COMMENT ON COLUMN "public"."fantasy_stages"."chord_progression" IS 'コード進行モード時の進行パターン (JSON配列)';
+
+
+
+COMMENT ON COLUMN "public"."fantasy_stages"."description_en" IS 'Stage description (English)';
 
 
 
