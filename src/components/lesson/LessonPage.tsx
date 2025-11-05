@@ -303,16 +303,28 @@ const LessonPage: React.FC = () => {
   };
 
 
-  const isLessonUnlocked = (lesson: Lesson, index: number): boolean => {
-    // データベースのis_unlockedフィールドを確認
-    const lessonProgress = progress[lesson.id];
-    if (lessonProgress && lessonProgress.is_unlocked !== undefined) {
-      return lessonProgress.is_unlocked;
+  const isPreviousBlockCompleted = (blockNumber: number): boolean => {
+    if (blockNumber <= 1) return true;
+    const previousBlock = (blockNumber - 1);
+    const prevBlockLessons = lessons.filter(l => (l.block_number || 1) === previousBlock);
+    if (prevBlockLessons.length === 0) return false;
+    return prevBlockLessons.every(l => !!progress[l.id]?.completed);
+  };
+
+  const isLessonUnlocked = (lesson: Lesson, _index: number): boolean => {
+    const blockNumber = lesson.block_number || 1;
+
+    // ブロック1は常に解放
+    if (blockNumber === 1) return true;
+
+    // プラチナはDBのis_unlockedに従う（管理者解放を有効化）
+    if (profile?.rank === 'platinum') {
+      const lessonProgress = progress[lesson.id];
+      return !!lessonProgress?.is_unlocked;
     }
-    
-    // プログレスがない場合は、ブロック1（最初の5レッスン）は解放
-          const blockNumber = lesson.block_number || 1;
-    return blockNumber === 1;
+
+    // プラチナ以外は通常条件：直前ブロックが全完了で解放
+    return isPreviousBlockCompleted(blockNumber);
   };
 
   const getLessonCompletionRate = (lesson: Lesson): number => {
@@ -565,7 +577,14 @@ const LessonPage: React.FC = () => {
                       <div className="space-y-6">
                         {Object.entries(groupLessonsByBlock(lessons)).map(([blockNumber, blockLessons]) => {
                           const blockNum = parseInt(blockNumber);
-                          const isBlockUnlocked = blockLessons.some(lesson => progress[lesson.id]?.is_unlocked);
+                          const isBlockUnlocked = (() => {
+                            const blockNumComputed = blockNum;
+                            if (blockNumComputed === 1) return true;
+                            if (profile?.rank === 'platinum') {
+                              return blockLessons.some(lesson => !!progress[lesson.id]?.is_unlocked);
+                            }
+                            return isPreviousBlockCompleted(blockNumComputed);
+                          })();
                           const isBlockCompleted = blockLessons.every(lesson => progress[lesson.id]?.completed);
 
                           return (

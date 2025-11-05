@@ -254,7 +254,7 @@ export function canAccessCourse(
     return { canAccess: false, reason: 'このコースは現在ロックされています。前提コースを完了すると自動で解放されます。' };
   }
 
-  // ランク制限は premium_only のみをトリガーとする
+  // ランク制限（premium_only）
   if (course.premium_only) {
     const hasRankAccess = userRank === 'premium' || userRank === 'platinum' || userRank === 'black';
     if (!hasRankAccess) {
@@ -262,11 +262,18 @@ export function canAccessCourse(
     }
   }
 
-  // 前提条件をチェック
-  const prerequisitesMet = checkCoursePrerequisites(course, completedCourseIds);
-  if (!prerequisitesMet) {
-    const prerequisiteNames = course.prerequisites?.map(p => p.prerequisite_course.title).join(', ') || '';
-    return { canAccess: false, reason: `前提コース（${prerequisiteNames}）を完了してください` };
+  // 管理者によるアンロックの取り扱い：
+  // - プラチナ会員のみ、adminによるアンロック（is_unlocked === true）で前提条件を無視可能
+  // - プラチナ以外は前提条件に必ず従う
+  const isAdminUnlockEffective = userRank === 'platinum' && isUnlocked === true;
+
+  if (!isAdminUnlockEffective) {
+    // 前提条件をチェック（通常ルール）
+    const prerequisitesMet = checkCoursePrerequisites(course, completedCourseIds);
+    if (!prerequisitesMet) {
+      const prerequisiteNames = course.prerequisites?.map(p => p.prerequisite_course.title).join(', ') || '';
+      return { canAccess: false, reason: `前提コース（${prerequisiteNames}）を完了してください` };
+    }
   }
 
   return { canAccess: true };
