@@ -1,7 +1,8 @@
 import { Lesson } from '@/types';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
-import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
+import { fetchUserLessonProgress, LessonProgress } from '@/platform/supabaseLessonProgress';
 import { clearCacheByPattern } from '@/platform/supabaseClient';
+import { buildBlockStatuses, buildLessonStatuses } from '@/utils/lessonAccess';
 
 export interface LessonNavigationInfo {
   previousLesson: Lesson | null;
@@ -86,9 +87,11 @@ export function cleanupLessonNavigationCache(currentLessonId: string, courseId: 
  */
 export async function getLessonNavigationInfo(
   currentLessonId: string,
-  courseId: string
+  courseId: string,
+  options: { allowAdminOverride?: boolean } = {},
 ): Promise<LessonNavigationInfo> {
-  const cacheKey = `${courseId}:${currentLessonId}`;
+  const allowAdminOverride = options.allowAdminOverride ?? true;
+  const cacheKey = `${courseId}:${currentLessonId}:${allowAdminOverride ? 'admin' : 'natural'}`;
   const now = Date.now();
   
   // キャッシュから取得を試行
@@ -106,7 +109,7 @@ export async function getLessonNavigationInfo(
     const userProgress = await fetchUserLessonProgress(courseId);
     
     // レッスンを order_index でソート
-    const sortedLessons = lessons.sort((a, b) => a.order_index - b.order_index);
+    const sortedLessons = [...lessons].sort((a, b) => a.order_index - b.order_index);
     
     // 現在のレッスンのインデックスを取得
     const currentIndex = sortedLessons.findIndex(lesson => lesson.id === currentLessonId);
@@ -119,14 +122,19 @@ export async function getLessonNavigationInfo(
     const nextLesson = currentIndex < sortedLessons.length - 1 ? sortedLessons[currentIndex + 1] : null;
 
     // 進捗データをマップに変換
-    const progressMap = new Map(userProgress.map(p => [p.lesson_id, p]));
+    const progressRecord: Record<string, LessonProgress> = {};
+    userProgress.forEach((progressItem) => {
+      progressRecord[progressItem.lesson_id] = progressItem;
+    });
 
-    // アクセス権限をチェック
-    const hasAccessToPrevious = previousLesson ? 
-      progressMap.get(previousLesson.id)?.is_unlocked || false : false;
-    
-    const hasAccessToNext = nextLesson ? 
-      progressMap.get(nextLesson.id)?.is_unlocked || false : false;
+    const blockStatuses = buildBlockStatuses(lessons, progressRecord, allowAdminOverride);
+    const lessonStatuses = buildLessonStatuses(lessons, progressRecord, blockStatuses, allowAdminOverride);
+
+    const previousLessonStatus = previousLesson ? lessonStatuses[previousLesson.id] : undefined;
+    const nextLessonStatus = nextLesson ? lessonStatuses[nextLesson.id] : undefined;
+
+    const hasAccessToPrevious = previousLessonStatus?.isUnlocked ?? false;
+    const hasAccessToNext = nextLessonStatus?.isUnlocked ?? false;
 
     const navigationInfo: LessonNavigationInfo = {
       previousLesson,

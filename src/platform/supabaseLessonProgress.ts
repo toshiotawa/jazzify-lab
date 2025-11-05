@@ -245,9 +245,9 @@ export async function unlockBlock(courseId: string, blockNumber: number, targetU
 }
 
 /**
- * ブロック単位でレッスンを施錠
+ * ブロック単位の手動解放を通常条件に戻す
  */
-export async function lockBlock(courseId: string, blockNumber: number, targetUserId?: string): Promise<void> {
+export async function resetBlockUnlock(courseId: string, blockNumber: number, targetUserId?: string): Promise<void> {
   const supabase = getSupabaseClient();
   const authUserId = await requireUserId();
   
@@ -267,18 +267,19 @@ export async function lockBlock(courseId: string, blockNumber: number, targetUse
     throw new Error('指定されたブロックにレッスンが存在しません');
   }
 
-  // ブロック内のレッスンを一括で施錠（is_unlocked=false）
+  // ブロック内のレッスンを通常条件に戻す（is_unlockedをNULLにリセット）
   const { error } = await supabase
     .from('user_lesson_progress')
-    .update({ 
-      is_unlocked: false,
-      updated_at: new Date().toISOString()
+    .update({
+      is_unlocked: null,
+      unlock_date: null,
+      updated_at: new Date().toISOString(),
     })
     .eq('user_id', userId)
     .eq('course_id', courseId)
     .in('lesson_id', lessons.length > 0 ? lessons.map(l => l.id) : ['__never__']);
 
-  if (error) throw new Error(`ブロックの施錠に失敗しました: ${error.message}`);
+  if (error) throw new Error(`ブロックの解放状態リセットに失敗しました: ${error.message}`);
 }
 
 /**
