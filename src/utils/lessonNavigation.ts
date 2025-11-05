@@ -211,7 +211,7 @@ export function getLessonBlockInfo(lesson: Lesson): {
   lessonDisplayText: string;
 } {
   const blockNumber = lesson.block_number || 1;
-  const lessonNumber = lesson.order_index;
+  const lessonNumber = (lesson.order_index ?? 0) + 1;
   return {
     blockNumber,
     lessonNumber,
