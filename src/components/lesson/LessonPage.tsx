@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
-import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse } from '@/platform/supabaseCourses';
+import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress, unlockLesson, LessonProgress, fetchUserLessonProgressAll } from '@/platform/supabaseLessonProgress';
 import { subscribeRealtime } from '@/platform/supabaseClient';
@@ -17,6 +17,15 @@ import {
 import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
+import {
+  evaluateCourseAccess,
+  BlockUnlockInfo,
+  getBlockUnlockInfo,
+  getLessonUnlockInfo,
+  groupLessonsByBlock,
+  isPremiumRank,
+  UserRank,
+} from '@/utils/lessonAccess';
 
 /**
  * レッスン学習画面
@@ -36,6 +45,32 @@ const LessonPage: React.FC = () => {
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
   const mainAreaRef = useRef<HTMLDivElement>(null);
+  const userRank = useMemo<UserRank>(() => (profile?.rank ?? 'free') as UserRank, [profile?.rank]);
+  const lessonProgressMap = useMemo(() => {
+    const map = new Map<string, LessonProgress>();
+    Object.values(progress).forEach((item) => {
+      map.set(item.lesson_id, item);
+    });
+    return map;
+  }, [progress]);
+  const blockMap = useMemo(() => groupLessonsByBlock(lessons), [lessons]);
+  const blockStates = useMemo(() => {
+    const states = new Map<number, BlockUnlockInfo>();
+    blockMap.forEach((_lessonsInBlock, blockNumber) => {
+      states.set(
+        blockNumber,
+        getBlockUnlockInfo({
+          blockNumber,
+          allLessons: lessons,
+          progress: lessonProgressMap,
+          userRank,
+          blockMap,
+          progressMap: lessonProgressMap,
+        }),
+      );
+    });
+    return states;
+  }, [blockMap, lessons, lessonProgressMap, userRank]);
 
   useEffect(() => {
     const checkHash = () => {
@@ -179,11 +214,16 @@ const LessonPage: React.FC = () => {
       }
       
       // アクセス可能な最初のコースを選択
-      const firstAccessibleCourse = sortedCourses.find(course => {
-        const courseUnlockFlag = unlockStatus[course.id] !== undefined ? unlockStatus[course.id] : null;
-        const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourses, courseUnlockFlag);
-        return accessResult.canAccess;
-      });
+        const firstAccessibleCourse = sortedCourses.find(course => {
+          const courseUnlockFlag = unlockStatus[course.id] ?? null;
+          const accessResult = evaluateCourseAccess({
+            course,
+            userRank,
+            completedCourseIds: completedCourses,
+            adminOverride: courseUnlockFlag,
+          });
+          return accessResult.canAccess;
+        });
       if (firstAccessibleCourse) {
         setSelectedCourse(firstAccessibleCourse);
       }
@@ -302,16 +342,17 @@ const LessonPage: React.FC = () => {
   };
 
 
-  const isLessonUnlocked = (lesson: Lesson, index: number): boolean => {
-    // データベースのis_unlockedフィールドを確認
-    const lessonProgress = progress[lesson.id];
-    if (lessonProgress && lessonProgress.is_unlocked !== undefined) {
-      return lessonProgress.is_unlocked;
-    }
-    
-    // プログレスがない場合は、ブロック1（最初の5レッスン）は解放
-          const blockNumber = lesson.block_number || 1;
-    return blockNumber === 1;
+  const isLessonUnlocked = (lesson: Lesson): boolean => {
+    const unlockInfo = getLessonUnlockInfo({
+      lesson,
+      allLessons: lessons,
+      progress: lessonProgressMap,
+      userRank,
+      blockMap,
+      progressMap: lessonProgressMap,
+    });
+
+    return unlockInfo.unlockedForRank;
   };
 
   const getLessonCompletionRate = (lesson: Lesson): number => {
@@ -343,8 +384,8 @@ const LessonPage: React.FC = () => {
     window.location.href = '/main#dashboard';
   };
 
-  const handleLessonClick = (lesson: Lesson, index: number) => {
-    if (!isLessonUnlocked(lesson, index)) {
+  const handleLessonClick = (lesson: Lesson) => {
+    if (!isLessonUnlocked(lesson)) {
       toast.warning('前のレッスンを完了してください');
       return;
     }
@@ -424,57 +465,65 @@ const LessonPage: React.FC = () => {
                   <h2 className="text-lg font-semibold">コース一覧</h2>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
-                  {courses.map((course: Course) => {
-                    const courseUnlockFlag = courseUnlockStatus[course.id] !== undefined ? courseUnlockStatus[course.id] : null;
-                    const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, courseUnlockFlag);
-                    const accessible = accessResult.canAccess;
-                    return (
-                      <div
-                        key={course.id}
-                        className={`p-4 rounded-lg cursor-pointer transition-colors ${
-                          selectedCourse?.id === course.id 
-                            ? 'bg-primary-600' 
-                            : accessible
-                              ? 'bg-slate-700 hover:bg-slate-600'
-                              : 'bg-slate-800 opacity-75'
-                        }`}
-                        onClick={() => {
-                          if (accessible) {
-                            setSelectedCourse(course);
-                            // モバイルではメインエリアへスクロール
-                            if (typeof window !== 'undefined' && window.innerWidth < 768) {
-                              setTimeout(() => {
-                                mainAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                              }, 50);
+                    {courses.map((course: Course) => {
+                      const courseUnlockFlag = courseUnlockStatus[course.id] ?? null;
+                      const accessEvaluation = evaluateCourseAccess({
+                        course,
+                        userRank,
+                        completedCourseIds,
+                        adminOverride: courseUnlockFlag,
+                      });
+                      const accessible = accessEvaluation.canAccess;
+                      const showAdminUnlockBadge = accessEvaluation.appliedAdminOverride && accessEvaluation.overrideType === 'unlock';
+                      const showAdminLockBadge = accessEvaluation.appliedAdminOverride && accessEvaluation.overrideType === 'lock';
+                      const lockReason = accessEvaluation.reason;
+
+                      return (
+                        <div
+                          key={course.id}
+                          className={`p-4 rounded-lg cursor-pointer transition-colors ${
+                            selectedCourse?.id === course.id
+                              ? 'bg-primary-600'
+                              : accessible
+                                ? 'bg-slate-700 hover:bg-slate-600'
+                                : 'bg-slate-800 opacity-75'
+                          }`}
+                          onClick={() => {
+                            if (accessible) {
+                              setSelectedCourse(course);
+                              if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                                setTimeout(() => {
+                                  mainAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 50);
+                              }
+                            } else {
+                              toast.warning(lockReason || 'このコースにはアクセスできません');
                             }
-                          } else {
-                            toast.warning(accessResult.reason || 'このコースにはアクセスできません');
-                          }
-                        }}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-medium truncate flex items-center gap-2">
-                            {course.title}
-                            {course.premium_only && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
-                                Premium
-                              </span>
-                            )}
-                            {courseUnlockFlag === true && accessible && (
-                              <span className="bg-emerald-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                                <FaUnlock className="text-xs" />
-                                管理者解放
-                              </span>
-                            )}
-                            {courseUnlockFlag === false && (
-                              <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                                <FaLock className="text-xs" />
-                                管理者ロック
-                              </span>
-                            )}
-                            {!accessible && courseUnlockFlag === null && <FaLock className="text-xs text-gray-400" />}
-                          </h3>
-                        </div>
+                          }}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-medium truncate flex items-center gap-2">
+                              {course.title}
+                              {course.premium_only && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
+                                  Premium
+                                </span>
+                              )}
+                              {showAdminUnlockBadge && accessible && (
+                                <span className="bg-emerald-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                                  <FaUnlock className="text-xs" />
+                                  管理者解放
+                                </span>
+                              )}
+                              {showAdminLockBadge && (
+                                <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                                  <FaLock className="text-xs" />
+                                  管理者ロック
+                                </span>
+                              )}
+                              {!accessible && !showAdminLockBadge && <FaLock className="text-xs text-gray-400" />}
+                            </h3>
+                          </div>
 
                         {/* 前提条件表示 */}
                         {course.prerequisites && course.prerequisites.length > 0 && (
@@ -498,24 +547,23 @@ const LessonPage: React.FC = () => {
                         )}
 
                         {/* ロック状態の注意文言 */}
-                        {!accessible && (
-                          <div className={`mb-2 p-2 rounded border ${
-                            courseUnlockFlag === false 
-                              ? 'bg-red-900/30 border-red-600' 
-                              : 'bg-orange-900/30 border-orange-600'
-                          }`}>
-                            <p className={`text-xs ${
-                              courseUnlockFlag === false 
-                                ? 'text-red-300' 
-                                : 'text-orange-300'
-                            }`}>
-                              {courseUnlockFlag === false 
-                                ? '管理者によりロックされています。前提コースを完了すると自動で解放されます。'
-                                : accessResult.reason
-                              }
-                            </p>
-                          </div>
-                        )}
+                          {!accessible && (
+                            <div
+                              className={`mb-2 p-2 rounded border ${
+                                showAdminLockBadge
+                                  ? 'bg-red-900/30 border-red-600'
+                                  : 'bg-orange-900/30 border-orange-600'
+                              }`}
+                            >
+                              <p
+                                className={`text-xs ${
+                                  showAdminLockBadge ? 'text-red-300' : 'text-orange-300'
+                                }`}
+                              >
+                                {lockReason || 'このコースにはアクセスできません'}
+                              </p>
+                            </div>
+                          )}
                       
                         {/* コース進捗バー */}
                         <div className="mb-2">
@@ -562,32 +610,48 @@ const LessonPage: React.FC = () => {
                     
                     <div className="flex-1 overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
                       <div className="space-y-6">
-                        {Object.entries(groupLessonsByBlock(lessons)).map(([blockNumber, blockLessons]) => {
-                          const blockNum = parseInt(blockNumber);
-                          const isBlockUnlocked = blockLessons.some(lesson => progress[lesson.id]?.is_unlocked);
-                          const isBlockCompleted = blockLessons.every(lesson => progress[lesson.id]?.completed);
+                          {Array.from(blockMap.entries())
+                            .sort(([a], [b]) => a - b)
+                            .map(([blockNum, blockLessons]) => {
+                            const blockInfo = blockStates.get(blockNum) ?? getBlockUnlockInfo({
+                              blockNumber: blockNum,
+                              allLessons: lessons,
+                              progress: lessonProgressMap,
+                              userRank,
+                              blockMap,
+                              progressMap: lessonProgressMap,
+                            });
+                            const isBlockUnlocked = blockInfo.unlockedForRank;
+                            const isBlockCompleted = blockInfo.completed;
+                            const adminUnlockActive = isPremiumRank(userRank) && blockInfo.adminUnlocked && !blockInfo.naturalUnlocked;
 
-                          return (
-                            <div key={blockNum} className="bg-slate-800 rounded-lg p-4">
-                              <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-lg font-semibold text-white">
-                                  ブロック {blockNum}
-                                </h4>
-                                {isBlockCompleted ? (
-                                  <span className="flex items-center text-emerald-500">
-                                    <FaCheck className="mr-1" /> 完了
-                                  </span>
-                                ) : isBlockUnlocked ? (
-                                  <span className="text-blue-500">解放中</span>
-                                ) : (
-                                  <span className="flex items-center text-gray-400">
-                                    <FaLock className="mr-1" /> ロック中 - 前のブロックを全て完了してください
-                                  </span>
-                                )}
-                              </div>
-                              <div className="space-y-4">
-                                {blockLessons.sort((a, b) => a.order_index - b.order_index).map((lesson, index) => {
-                                  const unlocked = isLessonUnlocked(lesson, lesson.order_index);
+                            return (
+                              <div key={blockNum} className="bg-slate-800 rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-4">
+                                  <h4 className="text-lg font-semibold text-white">
+                                    ブロック {blockNum}
+                                  </h4>
+                                  {isBlockCompleted ? (
+                                    <span className="flex items-center text-emerald-500">
+                                      <FaCheck className="mr-1" /> 完了
+                                    </span>
+                                  ) : isBlockUnlocked ? (
+                                    <span className={adminUnlockActive ? 'text-purple-400 flex items-center gap-1' : 'text-blue-500'}>
+                                      {adminUnlockActive && <FaUnlock className="text-xs" />}
+                                      {adminUnlockActive ? '管理者解放中' : '解放中'}
+                                    </span>
+                                  ) : (
+                                    <span className="flex items-center text-gray-400">
+                                      <FaLock className="mr-1" /> ロック中 - 前のブロックを全て完了してください
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="space-y-4">
+                                  {blockLessons
+                                    .slice()
+                                    .sort((a, b) => a.order_index - b.order_index)
+                                    .map((lesson) => {
+                                      const unlocked = isLessonUnlocked(lesson);
                                   const completed = progress[lesson.id]?.completed || false;
                                   const completionRate = getLessonCompletionRate(lesson);
                                   
@@ -601,7 +665,7 @@ const LessonPage: React.FC = () => {
                                             : 'border-blue-500 bg-blue-900/20 hover:bg-blue-900/30 cursor-pointer'
                                           : 'border-gray-600 bg-gray-800/20'
                                       }`}
-                                      onClick={() => handleLessonClick(lesson, lesson.order_index)}
+                                        onClick={() => handleLessonClick(lesson)}
                                     >
                                         <div className="flex flex-col gap-3 sm:gap-4">
                                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
