@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/utils/cn';
 import { getCountryLabel, getSortedCountryCodes } from '@/constants/countries';
 import { Navigate, useLocation } from 'react-router-dom';
+import { termsHighlights, termsLastUpdated } from '@/components/legal/termsContent';
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -149,71 +150,88 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
               </button>
             </div>
           </div>
-        ) : (
-                    <div className="space-y-4">
-            <input
-              type="text"
-              placeholder="ニックネーム（必須）"
-              value={nickname}
-              onChange={e => setNickname(e.target.value)}
-              className="w-full px-4 py-2 rounded bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={submitting}
-            />
-            <div className="space-y-2">
-              <label className="block text-sm">国</label>
-              <select
-                className="select select-bordered w-full"
-                value={country}
-                onChange={e => {
-                  setCountry(e.target.value);
-                  localStorage.setItem('signup_country', e.target.value);
-                }}
-                disabled={submitting}
-              >
-                {getSortedCountryCodes('en').map(c => (
-                  <option key={c} value={c}>{getCountryLabel(c, 'en')}</option>
-                ))}
-              </select>
-              <p className="text-xs text-orange-300">※ 国を誤って選ぶと支払い方法が変わります</p>
-            </div>
-            <label className="flex items-start space-x-2 text-sm">
-              <input 
-                type="checkbox" 
-                checked={agreed} 
-                onChange={e => setAgreed(e.target.checked)}
-                className="mt-1"
+          ) : (
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="ニックネーム（必須）"
+                value={nickname}
+                onChange={e => setNickname(e.target.value)}
+                className="w-full px-4 py-2 rounded bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={submitting}
               />
-              <span>
-                <a href="/terms" target="_blank" className="underline text-blue-300">利用規約</a> と <a href="/privacy" target="_blank" className="underline text-blue-300">プライバシーポリシー</a> に同意します
-              </span>
-            </label>
-            {error && !isExistingProfileError && (
-              <div className="bg-red-900/50 p-3 rounded border-l-4 border-red-400">
-                <p className="text-red-200 text-sm">{error}</p>
+              <div className="space-y-2">
+                <label className="block text-sm">国</label>
+                <select
+                  className="select select-bordered w-full"
+                  value={country}
+                  onChange={e => {
+                    setCountry(e.target.value);
+                    localStorage.setItem('signup_country', e.target.value);
+                  }}
+                  disabled={submitting}
+                >
+                  {getSortedCountryCodes('en').map(c => (
+                    <option key={c} value={c}>{getCountryLabel(c, 'en')}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-orange-300">※ 国を誤って選ぶと支払い方法が変わります</p>
               </div>
-            )}
-            <button
-              disabled={!nickname.trim() || !agreed || submitting}
-              onClick={handleSubmit}
-              className={cn(
-                'w-full py-2 rounded font-semibold transition-colors flex items-center justify-center',
-                nickname.trim() && agreed && !submitting
-                  ? 'bg-blue-600 hover:bg-blue-700' 
-                  : 'bg-gray-500 cursor-not-allowed',
+              <div className="border border-white/10 bg-slate-900/60 rounded-lg p-3 space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <p className="text-sm font-semibold text-white">利用規約（要約）</p>
+                  <span className="text-[10px] text-gray-400">最終更新日: {termsLastUpdated}</span>
+                </div>
+                <ul className="list-disc pl-5 space-y-1 text-xs text-gray-300">
+                  {termsHighlights.map(highlight => (
+                    <li key={highlight} className="leading-relaxed">{highlight}</li>
+                  ))}
+                </ul>
+                <p className="text-xs">
+                  <a href="/terms" target="_blank" rel="noreferrer" className="underline text-blue-300">
+                    詳細な利用規約を確認する
+                  </a>
+                </p>
+              </div>
+              <label className="flex items-start space-x-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={e => setAgreed(e.target.checked)}
+                  className="mt-1"
+                  disabled={submitting}
+                />
+                <span>
+                  <a href="/terms" target="_blank" rel="noreferrer" className="underline text-blue-300">利用規約</a> と{' '}
+                  <a href="/privacy" target="_blank" rel="noreferrer" className="underline text-blue-300">プライバシーポリシー</a> に同意します
+                </span>
+              </label>
+              {error && !isExistingProfileError && (
+                <div className="bg-red-900/50 p-3 rounded border-l-4 border-red-400">
+                  <p className="text-red-200 text-sm">{error}</p>
+                </div>
               )}
-            >
-              {submitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  登録中...
-                </>
-              ) : (
-                '登録して開始'
-              )}
-            </button>
-          </div>
-        )}
+              <button
+                disabled={!nickname.trim() || !agreed || submitting}
+                onClick={handleSubmit}
+                className={cn(
+                  'w-full py-2 rounded font-semibold transition-colors flex items-center justify-center',
+                  nickname.trim() && agreed && !submitting
+                    ? 'bg-blue-600 hover:bg-blue-700'
+                    : 'bg-gray-500 cursor-not-allowed',
+                )}
+              >
+                {submitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    登録中...
+                  </>
+                ) : (
+                  '登録して開始'
+                )}
+              </button>
+            </div>
+          )}
       </div>
     </div>
   );
