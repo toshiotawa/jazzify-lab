@@ -1,19 +1,20 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { fetchUserStats, UserStats, clearUserStatsCache } from '@/platform/supabaseUserStats';
-import { useAuthStore } from './authStore';
 
 interface UserStatsState {
   stats: UserStats | null;
   loading: boolean;
   error: string | null;
   lastFetched: number | null;
+  currentUserId: string | null;
 }
 
 interface UserStatsActions {
   fetchStats: (userId?: string) => Promise<void>;
   clearStats: () => void;
   clearCache: (userId?: string) => void;
+  setCurrentUserId: (userId: string | null) => void;
 }
 
 export const useUserStatsStore = create<UserStatsState & UserStatsActions>()(
@@ -22,14 +23,16 @@ export const useUserStatsStore = create<UserStatsState & UserStatsActions>()(
     loading: false,
     error: null,
     lastFetched: null,
+    currentUserId: null,
 
     fetchStats: async (userId?: string) => {
-      const { profile } = useAuthStore.getState();
-      
-      if (!profile && !userId) {
+      const targetUserId = userId ?? get().currentUserId;
+
+      if (!targetUserId) {
         set(state => {
           state.stats = null;
-          state.error = 'プロフィールが見つかりません';
+          state.error = 'ユーザーIDが見つかりません';
+          state.loading = false;
         });
         return;
       }
@@ -40,13 +43,8 @@ export const useUserStatsStore = create<UserStatsState & UserStatsActions>()(
       });
 
       try {
-        const targetUserId = userId || profile?.id;
-        if (!targetUserId) {
-          throw new Error('ユーザーIDが見つかりません');
-        }
-
         const stats = await fetchUserStats(targetUserId);
-        
+
         set(state => {
           state.stats = stats;
           state.loading = false;
@@ -71,6 +69,16 @@ export const useUserStatsStore = create<UserStatsState & UserStatsActions>()(
 
     clearCache: (userId?: string) => {
       clearUserStatsCache(userId);
+    },
+
+    setCurrentUserId: (userId: string | null) => {
+      set(state => {
+        state.currentUserId = userId;
+        if (!userId) {
+          state.stats = null;
+          state.lastFetched = null;
+        }
+      });
     },
   }))
 ); 

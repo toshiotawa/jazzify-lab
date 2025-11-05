@@ -107,6 +107,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
       });
 
+      useUserStatsStore.getState().setCurrentUserId(session?.user?.id ?? null);
+
       // セッションがある場合はプロフィールも取得（非ブロッキングで開始）
       if (session?.user) {
         console.log('🔍 init: プロフィール取得開始');
@@ -130,6 +132,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               state.isGuest = false;
               state.guestId = null;
             });
+            useUserStatsStore.getState().setCurrentUserId(session.user.id);
             // プロフィール情報を再取得
             get().fetchProfile();
           } else if (event === 'SIGNED_OUT') {
@@ -139,6 +142,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               state.isGuest = false;
               state.profile = null;
             });
+            useUserStatsStore.getState().setCurrentUserId(null);
           }
         };
       } catch (error) {
@@ -155,6 +159,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                   state.isGuest = false;
                   state.guestId = null;
                 });
+                useUserStatsStore.getState().setCurrentUserId(data.session.user.id);
                 get().fetchProfile();
               } else if (data.event === 'SIGNED_OUT') {
                 set(state => {
@@ -163,6 +168,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                   state.isGuest = false;
                   state.profile = null;
                 });
+                useUserStatsStore.getState().setCurrentUserId(null);
               }
             } catch (error) {
               console.error('Error parsing auth storage event:', error);
@@ -195,6 +201,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             state.error = null;
           }
         });
+        useUserStatsStore.getState().setCurrentUserId(session?.user?.id ?? null);
         
         // ✅ 自タブでもプロフィールを取得する
         if (
@@ -452,6 +459,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.hasProfile = false;
         state.profile = null;
       });
+      const userStatsStore = useUserStatsStore.getState();
+      userStatsStore.setCurrentUserId(null);
+      userStatsStore.clearStats();
     },
 
     /**
@@ -470,6 +480,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           localStorage.setItem('guest_id', id);
         }
       });
+      useUserStatsStore.getState().setCurrentUserId(null);
     },
 
     fetchProfile: async (options?: { forceRefresh?: boolean }) => {
