@@ -14,7 +14,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { Lesson, LessonSong } from '@/types';
-import { fetchCourseById, canAccessCourse, fetchUserCourseUnlockStatus, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
+import { fetchCourseById, fetchUserCourseUnlockStatus, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import GameHeader from '@/components/ui/GameHeader';
 import { 
     FaCheck, 
@@ -37,6 +37,7 @@ import {
   clearNavigationCacheForCourse,
   LessonNavigationInfo 
 } from '@/utils/lessonNavigation';
+import { evaluateCourseAccess, UserRank } from '@/utils/lessonAccess';
 
 /**
  * レッスン詳細画面
@@ -60,6 +61,7 @@ const LessonDetailPage: React.FC = () => {
   const { profile } = useAuthStore();
   const toast = useToast();
   const { fetchStats } = useUserStatsStore();
+  const userRank = (profile?.rank ?? 'free') as UserRank;
 
   const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -142,17 +144,22 @@ const LessonDetailPage: React.FC = () => {
       }
 
       // 直接アクセス時のコース受講可否ガード（premium_onlyを唯一の判定）
-      if (lessonData?.course_id && profile?.id) {
+        if (lessonData?.course_id && profile?.id) {
         const [course, unlockMap, completedCourses] = await Promise.all([
           fetchCourseById(lessonData.course_id),
           fetchUserCourseUnlockStatus(profile.id),
           fetchUserCompletedCourses(profile.id)
         ]);
         if (course) {
-          const unlockFlag = unlockMap[course.id] !== undefined ? unlockMap[course.id] : null;
-          const access = canAccessCourse(course, profile.rank, completedCourses, unlockFlag);
-          if (!access.canAccess) {
-            toast.warning(access.reason || 'このコースにはアクセスできません');
+            const unlockFlag = unlockMap[course.id] ?? null;
+            const access = evaluateCourseAccess({
+              course,
+              userRank,
+              completedCourseIds: completedCourses,
+              adminOverride: unlockFlag,
+            });
+            if (!access.canAccess) {
+              toast.warning(access.reason || 'このコースにはアクセスできません');
             window.location.hash = '#lessons';
             return;
           }
@@ -166,9 +173,9 @@ const LessonDetailPage: React.FC = () => {
 
       
       // ナビゲーション情報を取得
-      if (lessonData?.course_id) {
+        if (lessonData?.course_id) {
         try {
-          const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id);
+            const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id, userRank);
           setNavigationInfo(navInfo);
         } catch (navError) {
           console.error('Navigation info loading error:', navError);
