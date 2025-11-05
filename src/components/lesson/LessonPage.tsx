@@ -322,7 +322,7 @@ const LessonPage: React.FC = () => {
   const handleLessonClick = (lesson: Lesson) => {
     const accessState = lessonAccessGraph.lessonStates[lesson.id];
     if (!accessState?.isUnlocked) {
-      toast.warning('前のレッスンを完了してください');
+      toast.warning('このレッスンはまだ解放されていません');
       return;
     }
 

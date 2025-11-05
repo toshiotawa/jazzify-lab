@@ -123,4 +123,52 @@ describe('buildLessonAccessGraph', () => {
     expect(standardGraph.blockStates[2].manualUnlockApplied).toBe(false);
     expect(standardGraph.lessonStates[lessonBlock2.id].isUnlocked).toBe(false);
   });
+
+  it('通常条件で解放されたブロックでは全レッスンがアクセス可能になる', () => {
+    const block1Lesson1 = createLesson({ id: 'block1-1', block_number: 1, order_index: 0 });
+    const block1Lesson2 = createLesson({ id: 'block1-2', block_number: 1, order_index: 1 });
+    const block2Lesson1 = createLesson({ id: 'block2-1', block_number: 2, order_index: 2 });
+    const block2Lesson2 = createLesson({ id: 'block2-2', block_number: 2, order_index: 3 });
+
+    const lessons: Lesson[] = [block1Lesson1, block1Lesson2, block2Lesson1, block2Lesson2];
+
+    const progressMap = {
+      [block1Lesson1.id]: createProgress({ lesson_id: block1Lesson1.id, completed: true }),
+      [block1Lesson2.id]: createProgress({ lesson_id: block1Lesson2.id, completed: true }),
+    } satisfies Record<string, LessonProgress>;
+
+    const graph = buildLessonAccessGraph({
+      lessons,
+      progressMap,
+      userRank: 'standard',
+    });
+
+    expect(graph.blockStates[2].isUnlocked).toBe(true);
+    expect(graph.lessonStates[block2Lesson1.id].isUnlocked).toBe(true);
+    expect(graph.lessonStates[block2Lesson2.id].isUnlocked).toBe(true);
+  });
+
+  it('通常条件に戻すと未達ブロックはロックされる', () => {
+    const block1Lesson = createLesson({ id: 'block1-1', block_number: 1, order_index: 0 });
+    const block2Lesson = createLesson({ id: 'block2-1', block_number: 2, order_index: 1 });
+    const block3Lesson1 = createLesson({ id: 'block3-1', block_number: 3, order_index: 2 });
+    const block3Lesson2 = createLesson({ id: 'block3-2', block_number: 3, order_index: 3 });
+
+    const lessons: Lesson[] = [block1Lesson, block2Lesson, block3Lesson1, block3Lesson2];
+
+    const progressMap = {
+      [block1Lesson.id]: createProgress({ lesson_id: block1Lesson.id, completed: true }),
+      [block3Lesson1.id]: createProgress({ lesson_id: block3Lesson1.id, completed: true, is_unlocked: true }),
+    } satisfies Record<string, LessonProgress>;
+
+    const graph = buildLessonAccessGraph({
+      lessons,
+      progressMap,
+      userRank: 'free',
+    });
+
+    expect(graph.blockStates[3].isUnlocked).toBe(false);
+    expect(graph.lessonStates[block3Lesson1.id].isUnlocked).toBe(false);
+    expect(graph.lessonStates[block3Lesson2.id].isUnlocked).toBe(false);
+  });
 });

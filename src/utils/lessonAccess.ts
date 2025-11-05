@@ -148,6 +148,7 @@ export interface LessonAccessState {
   isCompleted: boolean;
   manualUnlockApplied: boolean;
   manualUnlockSuppressed: boolean;
+  isBlockUnlocked?: boolean;
 }
 
 export interface BlockAccessState {
@@ -156,6 +157,7 @@ export interface BlockAccessState {
   isCompleted: boolean;
   manualUnlockApplied: boolean;
   manualUnlockSuppressed: boolean;
+  isNaturallyUnlocked: boolean;
 }
 
 export interface LessonAccessGraph {
@@ -237,6 +239,7 @@ export const buildLessonAccessGraph = ({
     const manualUnlockApplied = manualUnlockPresent && premium;
     const manualUnlockSuppressed = manualUnlockPresent && !premium;
     const blockUnlocked = baseUnlocked || manualUnlockApplied;
+    const isNaturallyUnlocked = baseUnlocked;
     const completed = isBlockCompleted(blockLessons, progressMap);
 
     blockStates[blockNumber] = {
@@ -245,6 +248,7 @@ export const buildLessonAccessGraph = ({
       isCompleted: completed,
       manualUnlockApplied,
       manualUnlockSuppressed,
+      isNaturallyUnlocked,
     };
 
     blockLessons.forEach((lesson) => {
@@ -254,13 +258,14 @@ export const buildLessonAccessGraph = ({
       const manualUnlockSuppressedForLesson = manualUnlock && !premium;
 
       const completedLesson = progress?.completed === true;
-      const unlocked = blockUnlocked || completedLesson || manualUnlockAppliedForLesson;
+      const unlocked = blockUnlocked || manualUnlockAppliedForLesson;
 
       lessonStates[lesson.id] = {
         isUnlocked: unlocked,
         isCompleted: completedLesson,
         manualUnlockApplied: manualUnlockAppliedForLesson,
         manualUnlockSuppressed: manualUnlockSuppressedForLesson,
+        isBlockUnlocked: blockUnlocked,
       };
     });
   });

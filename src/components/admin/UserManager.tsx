@@ -8,7 +8,7 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import { Course, Lesson } from '@/types';
 import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
-import { buildLessonAccessGraph } from '@/utils/lessonAccess';
+import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
 
 const ranks = ['free','standard','standard_global','premium','platinum','black'] as const;
 
@@ -204,6 +204,25 @@ const UserManager: React.FC = () => {
     return blocks;
   }, [selectedCourse]);
 
+  const lessonProgressMap = useMemo(() => {
+    const map: Record<string, LessonProgress | undefined> = {};
+    userLessonProgress.forEach(progress => {
+      map[progress.lesson_id] = progress;
+    });
+    return map;
+  }, [userLessonProgress]);
+
+  const lessonAccessGraph = useMemo<LessonAccessGraph | null>(() => {
+    if (!selectedCourse?.lessons) {
+      return null;
+    }
+    return buildLessonAccessGraph({
+      lessons: selectedCourse.lessons,
+      progressMap: lessonProgressMap,
+      userRank: selectedUser?.rank,
+    });
+  }, [selectedCourse, lessonProgressMap, selectedUser?.rank]);
+
   const handleBlockAction = useCallback(async (blockNumber: number, action: 'unlock' | 'reset') => {
     if (!selectedUser || !selectedCourse) {
       return;
@@ -369,29 +388,27 @@ const UserManager: React.FC = () => {
 
   // ブロックの状態を判定
   const getBlockStatus = (blockLessons: Lesson[], blockNumber: number) => {
-    const blockProgress = blockLessons.map(lesson => 
-      userLessonProgress.find(p => p.lesson_id === lesson.id)
-    );
-    
-    const hasUnlockedLessons = blockProgress.some(p => p?.is_unlocked);
-    const allLessonsCompleted = blockProgress.length > 0 && blockProgress.every(p => p?.completed);
+    const blockProgress = blockLessons.map(lesson => userLessonProgress.find(p => p.lesson_id === lesson.id));
     const completedCount = blockProgress.filter(p => p?.completed).length;
-    
+    const blockState = lessonAccessGraph?.blockStates[blockNumber];
+
     return {
-      isUnlocked: hasUnlockedLessons,
-      isCompleted: allLessonsCompleted,
+      isUnlocked: blockState?.isUnlocked ?? false,
+      isCompleted: blockState?.isCompleted ?? false,
       completedCount,
-      totalCount: blockLessons.length
+      totalCount: blockLessons.length,
+      manualUnlockApplied: blockState?.manualUnlockApplied ?? false,
+      manualUnlockSuppressed: blockState?.manualUnlockSuppressed ?? false,
     };
   };
 
   // レッスンの状態を判定（ブロック依存）
-  const getLessonStatus = (lessonId: string, blockUnlocked: boolean) => {
+  const getLessonStatus = (lessonId: string) => {
     const progress = userLessonProgress.find(p => p.lesson_id === lessonId);
+    const accessState = lessonAccessGraph?.lessonStates[lessonId];
     return {
-      // ブロックが開いていれば常にアクセス可能
-      isUnlocked: blockUnlocked || progress?.is_unlocked || false,
-      isCompleted: progress?.completed || false
+      isUnlocked: accessState?.isUnlocked ?? false,
+      isCompleted: accessState?.isCompleted ?? (progress?.completed || false),
     };
   };
 
@@ -656,6 +673,13 @@ const UserManager: React.FC = () => {
                                     <span className="text-xs">完了</span>
                                   </div>
                                 )}
+
+                                  {blockStatus.manualUnlockApplied && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
+                                      <FaUnlock className="text-[10px]" />
+                                      管理者解放
+                                    </span>
+                                  )}
                               </div>
                               
                               {/* ブロック進捗 */}
@@ -689,7 +713,7 @@ const UserManager: React.FC = () => {
                           {blockLessons
                             .sort((a, b) => a.order_index - b.order_index)
                             .map((lesson) => {
-                              const lessonStatus = getLessonStatus(lesson.id, blockStatus.isUnlocked);
+                              const lessonStatus = getLessonStatus(lesson.id);
                               
                               return (
                                 <div key={lesson.id} className={`p-3 rounded-lg border ${
