@@ -167,8 +167,8 @@ const LessonDetailPage: React.FC = () => {
       
       // ナビゲーション情報を取得
       if (lessonData?.course_id) {
-        try {
-          const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id);
+          try {
+            const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id, profile?.rank);
           setNavigationInfo(navInfo);
         } catch (navError) {
           console.error('Navigation info loading error:', navError);
