@@ -698,6 +698,8 @@ export interface LessonVideo {
   video_url?: string;
   r2_key?: string;
   content_type?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Course {

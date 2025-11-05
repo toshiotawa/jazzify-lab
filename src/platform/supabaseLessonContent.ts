@@ -8,6 +8,8 @@ export interface LessonVideo {
   video_url?: string;
   r2_key?: string;
   content_type?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface LessonRequirement {
@@ -190,7 +192,7 @@ export async function deleteLessonAttachment(id: string): Promise<void> {
 
 export async function addLessonVideoR2(
   lessonId: string,
-  payload: { url: string; r2_key: string; content_type?: string; order_index?: number }
+  payload: { url: string; r2_key: string; content_type: string; order_index?: number }
 ): Promise<void> {
   const { error } = await getSupabaseClient()
     .from('lesson_videos')
@@ -202,7 +204,7 @@ export async function addLessonVideoR2(
       video_url: payload.url,
       r2_key: payload.r2_key,
       content_type: payload.content_type,
-    } as any);
+    });
   if (error) throw new Error(`動画の登録に失敗しました: ${error.message}`);
 }
 
