@@ -18,6 +18,7 @@ import { getWizardRankString } from '@/utils/fantasyRankConstants';
 import { currentLevelXP, xpToNextLevel, levelAfterGain } from '@/utils/xpCalculator';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
 
 // 1コース当たりのステージ数定数
@@ -40,9 +41,10 @@ interface GameResult {
 
 const FantasyMain: React.FC = () => {
   const { profile, isGuest } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
   const { settings } = useGameStore();
   const toast = useToast();
-  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const stageClearText = isEnglishCopy ? 'Stage Clear!' : 'ステージクリア！';
   const gameOverText = isEnglishCopy ? 'Game Over' : 'ゲームオーバー';
   const correctAnswersLabel = isEnglishCopy ? 'Correct answers' : '正解数';

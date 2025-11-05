@@ -1,10 +1,34 @@
 import React from 'react';
 import SiteFooter from '@/components/common/SiteFooter';
 import { useNavigate } from 'react-router-dom';
-import { termsArticles, termsLastUpdated } from '@/components/legal/termsContent';
+import { getTermsContent } from '@/components/legal/termsContent';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 const TermsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const termsContent = getTermsContent(isEnglishCopy ? 'en' : 'ja');
+  const backButtonLabel = isEnglishCopy ? '← Back' : '← 戻る';
+  const backButtonAria = isEnglishCopy ? 'Go back to the previous page' : '前のページに戻る';
+  const pageTitle = isEnglishCopy ? 'Terms of Service' : '利用規約';
+  const lastUpdatedLabel = isEnglishCopy ? 'Last updated:' : '最終更新日:';
+  const companyFooter = isEnglishCopy ? 'KindWords LLC' : '合同会社KindWords';
+  const contactFooter = isEnglishCopy
+    ? (
+        <p>
+          For questions about these Terms, email{' '}
+          <a href="mailto:toshiotawa@me.com" className="underline text-blue-300">toshiotawa@me.com</a>.
+        </p>
+      )
+    : (
+        <p>
+          本規約に関するお問い合わせは <a href="mailto:toshiotawa@me.com" className="underline text-blue-300">toshiotawa@me.com</a> までお願いいたします。
+        </p>
+      );
 
   return (
     <div className="bg-slate-900 text-white flex flex-col h-screen overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -14,9 +38,9 @@ const TermsPage: React.FC = () => {
             type="button"
             onClick={() => navigate(-1)}
             className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-sm border border-white/10"
-            aria-label="前のページに戻る"
+            aria-label={backButtonAria}
           >
-            ← 戻る
+            {backButtonLabel}
           </button>
         </div>
       </header>
@@ -24,12 +48,12 @@ const TermsPage: React.FC = () => {
       <main className="flex-1">
         <div className="container mx-auto px-6 py-12 space-y-10">
           <header>
-            <h1 className="text-3xl font-bold mb-2">利用規約</h1>
-            <p className="text-sm text-gray-400">最終更新日: {termsLastUpdated}</p>
+            <h1 className="text-3xl font-bold mb-2">{pageTitle}</h1>
+            <p className="text-sm text-gray-400">{lastUpdatedLabel} {termsContent.lastUpdated}</p>
           </header>
 
           <div className="space-y-10">
-            {termsArticles.map(article => (
+            {termsContent.articles.map(article => (
               <article key={article.id} className="space-y-3">
                 <h2 className="text-2xl font-semibold text-white">{article.title}</h2>
                 {article.paragraphs.map((paragraph, index) => (
@@ -51,8 +75,8 @@ const TermsPage: React.FC = () => {
           </div>
 
           <footer className="border-t border-white/10 pt-6 text-sm text-gray-400">
-            <p>合同会社KindWords</p>
-            <p>本規約に関するお問い合わせは <a href="mailto:toshiotawa@me.com" className="underline text-blue-300">toshiotawa@me.com</a> までお願いいたします。</p>
+            <p>{companyFooter}</p>
+            {contactFooter}
           </footer>
         </div>
       </main>

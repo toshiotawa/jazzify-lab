@@ -19,6 +19,7 @@ import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
 import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasyStageDescription } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -44,9 +45,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   fitAllKeys = false
 }) => {
   const { profile } = useAuthStore();
-  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
-  const localizedStageName = useMemo(() => getLocalizedFantasyStageName(stage, profile?.rank), [stage, profile?.rank]);
-  const localizedStageDescription = useMemo(() => getLocalizedFantasyStageDescription(stage, profile?.rank) ?? '', [stage, profile?.rank]);
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const localizedStageName = useMemo(
+    () => getLocalizedFantasyStageName(stage, profile?.rank),
+    [stage, profile?.rank, geoCountry],
+  );
+  const localizedStageDescription = useMemo(
+    () => getLocalizedFantasyStageDescription(stage, profile?.rank) ?? '',
+    [stage, profile?.rank, geoCountry],
+  );
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   
   // エフェクト状態

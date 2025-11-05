@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 import { FaBars, FaTimes } from 'react-icons/fa';
 import NotificationBell from '@/components/ui/NotificationBell';
 
 const Header: React.FC = () => {
   const { user, isGuest, logout, enterGuestMode, profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
-  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   // ログイン状態に移行したらゲストIDをクリーンアップ
   if (user && !isGuest) {
     try { localStorage.removeItem('guest_id'); } catch {}

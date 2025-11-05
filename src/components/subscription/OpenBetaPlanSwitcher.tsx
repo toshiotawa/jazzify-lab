@@ -13,7 +13,7 @@ const OpenBetaPlanSwitcher: React.FC = () => {
   const toast = useToast();
   const [updating, setUpdating] = useState(false);
   const [selected, setSelected] = useState<Rank>(profile?.rank || 'free');
-  const isEnglishCopy = shouldUseEnglishCopy(profile?.rank);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country });
 
     const isRank = (value: string): value is Rank => (
       value === 'free' ||

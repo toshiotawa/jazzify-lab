@@ -5,7 +5,17 @@ export interface TermsArticle {
   points?: string[];
 }
 
-export const termsArticles: TermsArticle[] = [
+export type TermsLocale = 'ja' | 'en';
+
+interface TermsCopy {
+  articles: TermsArticle[];
+  highlights: string[];
+  lastUpdated: string;
+  summaryHeading: string;
+  detailLinkLabel: string;
+}
+
+const termsArticlesJa: TermsArticle[] = [
   {
     id: 'application',
     title: '第1条（本規約の適用）',
@@ -167,7 +177,7 @@ export const termsArticles: TermsArticle[] = [
   },
 ];
 
-export const termsHighlights: string[] = [
+const termsHighlightsJa: string[] = [
   '本サービスはジャズ演奏学習を目的としたサブスクリプション型サービスです。',
   '新規登録者には7日間の無料トライアルが付与され、終了後は月額自動更新となります。',
   '利用料金はプランに応じて2,980円〜19,800円（税込）で、Stripeを通じてクレジットカード決済されます。',
@@ -175,4 +185,191 @@ export const termsHighlights: string[] = [
   '禁止事項や免責事項、個人情報の取り扱いは本規約およびプライバシーポリシーに従います。',
 ];
 
-export const termsLastUpdated = '2025年11月4日';
+const termsArticlesEn: TermsArticle[] = [
+  {
+    id: 'application',
+    title: 'Article 1 (Application)',
+    paragraphs: [
+      'These Terms of Service govern the use of “Jazzify” (the “Service”), a jazz learning platform provided by KindWords LLC (the “Company”). Users may access and use the Service only after agreeing to these Terms. If a user does not agree, the Service cannot be used.',
+    ],
+  },
+  {
+    id: 'definitions',
+    title: 'Article 2 (Definitions)',
+    paragraphs: ['Terms used in this agreement are defined as follows.'],
+    points: [
+      '“User” means any individual who browses or uses the Service.',
+      '“Member” means a user who has completed the registration process designated by the Company and holds an account.',
+      '“Content” means audio, video, images, text, data, and other materials provided by the Company or third parties through the Service.',
+      '“Platform” means the websites, applications, and other systems that deliver the Service.',
+    ],
+  },
+  {
+    id: 'agreement',
+    title: 'Article 3 (Amendments)',
+    paragraphs: [
+      'The Company may revise these Terms whenever deemed necessary. Revised Terms become effective when posted within the Service or on any date separately specified by the Company. Users must review the latest Terms before using the Service, and continued use after an amendment constitutes acceptance of the revised Terms.',
+    ],
+  },
+  {
+    id: 'registration',
+    title: 'Article 4 (Registration)',
+    paragraphs: [
+      'Individuals who wish to use the Service must register in the manner prescribed by the Company. Membership is granted when the Company approves such registration. The Company may refuse registration if it determines that an applicant falls under any of the following.',
+    ],
+    points: [
+      'False or misleading information was submitted.',
+      'The applicant previously violated these Terms.',
+      'A minor or ward has not obtained the consent of a legal guardian.',
+      'Any other case where the Company deems registration inappropriate.',
+    ],
+  },
+  {
+    id: 'account',
+    title: 'Article 5 (Account Management)',
+    paragraphs: [
+      'Members must manage their account credentials (email address, password, etc.) responsibly and must not lend, transfer, sell, or otherwise share them with third parties. Except in cases of willful misconduct or gross negligence by the Company, the Company shall not be liable for damages resulting from unauthorized use of account information.',
+    ],
+  },
+  {
+    id: 'service',
+    title: 'Article 6 (Scope of the Service)',
+    paragraphs: [
+      'The Service provides learning materials, audio, performance evaluation, progress tracking, and other features that support jazz practice. The Company may change the contents of the Service without prior notice when necessary to improve quality or for other reasons.',
+    ],
+  },
+  {
+    id: 'fees',
+    title: 'Article 7 (Fees and Payment)',
+    paragraphs: [
+      'Paid subscription fees are ¥2,980 for the Standard Plan, ¥8,980 for the Premium Plan, ¥12,800 for the Platinum Plan, and ¥19,800 for the Gold Plan (all tax included). The Company will announce any changes to the fee structure in advance within the Service.',
+      'Members shall pay subscription fees via credit card through Stripe or other payment processors. Any costs arising from the selected payment method shall be borne by the member.',
+    ],
+  },
+  {
+    id: 'billing-cycle',
+    title: 'Article 8 (Billing Cycle)',
+    paragraphs: [
+      'New members receive a seven-day free trial. The first charge occurs on the day after the trial ends, and billing continues automatically each month thereafter.',
+      'If the member cancels within the trial period, no fees will be charged. Fees already paid are non-refundable after the trial ends.',
+    ],
+  },
+  {
+    id: 'prohibited',
+    title: 'Article 9 (Prohibited Conduct)',
+    paragraphs: ['Users must not engage in any of the following acts while using the Service.'],
+    points: [
+      'Acts that violate laws or public order and morals.',
+      'Infringing upon the intellectual property, portrait rights, privacy, or other rights of the Company or third parties.',
+      'Interfering with the operation of the Service or actions likely to do so.',
+      'Unauthorized access, program alteration, reverse engineering, or similar acts.',
+      'Impersonating other users.',
+      'Copying, reusing, or reselling information obtained through the Service without authorization.',
+      'Any other conduct the Company deems inappropriate.',
+    ],
+  },
+  {
+    id: 'suspension',
+    title: 'Article 10 (Service Suspension)',
+    paragraphs: [
+      'The Company may suspend or interrupt the Service in whole or in part without prior notice to users if any of the following applies.'],
+    points: [
+      'Maintenance or updates to Service infrastructure are required.',
+      'Provision of the Service becomes difficult due to force majeure such as earthquakes, lightning, fire, power outages, or natural disasters.',
+      'Accidents involving computers or communication lines occur.',
+      'Any other case in which the Company deems continuation of the Service difficult.',
+    ],
+  },
+  {
+    id: 'termination',
+    title: 'Article 11 (Restriction and Termination)',
+    paragraphs: [
+      'If a user violates these Terms or if the Company otherwise deems it necessary, the Company may suspend or delete the user’s account without prior notice. Fees already received will not be refunded.',
+      'Users wishing to cancel must follow the procedure on the My Page. Even after cancellation, the Service remains available until the end of the current billing period.',
+    ],
+  },
+  {
+    id: 'intellectual',
+    title: 'Article 12 (Intellectual Property)',
+    paragraphs: [
+      'All intellectual property rights related to content within the Service belong to the Company or legitimate right holders. Users must not reproduce, modify, distribute, or publicly transmit such content without explicit permission from the Company.',
+    ],
+  },
+  {
+    id: 'disclaimer',
+    title: 'Article 13 (Disclaimer)',
+    paragraphs: [
+      'The Company makes no warranties, express or implied, that the Service satisfies a user’s particular purpose, provides specific functionalities, accuracy, or usefulness, or that the use of the Service will not infringe the rights of third parties.',
+      'Except in cases of willful misconduct or gross negligence, the Company shall not be liable for damages arising from the use or inability to use the Service.',
+    ],
+  },
+  {
+    id: 'damages',
+    title: 'Article 14 (Damages)',
+    paragraphs: [
+      'If a user violates these Terms and causes damage to the Company, the Company may claim compensation for all damages, whether direct or indirect (including attorneys’ fees).',
+    ],
+  },
+  {
+    id: 'privacy',
+    title: 'Article 15 (Handling of Personal Information)',
+    paragraphs: [
+      'The Company uses personal information to provide and operate the Service. The handling of personal information follows the Privacy Policy, and users agree to the Privacy Policy when using the Service.',
+    ],
+  },
+  {
+    id: 'notice',
+    title: 'Article 16 (Notices)',
+    paragraphs: [
+      'The Company may notify or contact users via postings within the Service, email, or other methods deemed appropriate. Users must contact the Company through methods designated by the Company.',
+    ],
+  },
+  {
+    id: 'assignment',
+    title: 'Article 17 (Prohibition on Assignment)',
+    paragraphs: [
+      'Users may not assign, transfer, set as collateral, or otherwise dispose of their status or rights and obligations under these Terms to third parties without prior written consent from the Company.',
+    ],
+  },
+  {
+    id: 'severability',
+    title: 'Article 18 (Severability)',
+    paragraphs: [
+      'If any provision of these Terms is held invalid or unenforceable, the remaining provisions shall remain in full force and effect.',
+    ],
+  },
+  {
+    id: 'jurisdiction',
+    title: 'Article 19 (Governing Law and Jurisdiction)',
+    paragraphs: [
+      'These Terms are governed by the laws of Japan. Any disputes between the Company and users regarding the Service shall be subject to the exclusive jurisdiction of the Tokyo District Court or the Tokyo Summary Court, depending on the amount in controversy.',
+    ],
+  },
+];
+
+const termsHighlightsEn: string[] = [
+  'Jazzify is a subscription-based platform for learning jazz performance.',
+  'A seven-day free trial is included for new members, after which monthly billing renews automatically.',
+  'Plan fees range from ¥2,980 to ¥19,800 (tax included) and are charged via Stripe or other payment processors.',
+  'You can cancel anytime from My Page, and you retain access until the end of the billing cycle.',
+  'Prohibited activities, disclaimers, and handling of personal data are defined by these Terms and the Privacy Policy.',
+];
+
+const TERMS_CONTENT: Record<TermsLocale, TermsCopy> = {
+  ja: {
+    articles: termsArticlesJa,
+    highlights: termsHighlightsJa,
+    lastUpdated: '2025年11月4日',
+    summaryHeading: '利用規約（要約）',
+    detailLinkLabel: '詳細な利用規約を確認する',
+  },
+  en: {
+    articles: termsArticlesEn,
+    highlights: termsHighlightsEn,
+    lastUpdated: 'November 4, 2025',
+    summaryHeading: 'Terms of Service (Summary)',
+    detailLinkLabel: 'Read the full Terms of Service',
+  },
+};
+
+export const getTermsContent = (locale: TermsLocale = 'ja'): TermsCopy => TERMS_CONTENT[locale];

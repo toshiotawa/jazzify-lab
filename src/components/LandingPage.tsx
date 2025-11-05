@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 const LPFantasyDemo = React.lazy(() => import('./fantasy/LPFantasyDemo'));
 
 // タイピング風テキスト表示コンポーネント
@@ -46,9 +47,10 @@ const TypewriterText: React.FC<{
 
 const LandingPage: React.FC = () => {
   const { user, isGuest, loading, enterGuestMode, profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const isEnglishLanding = shouldUseEnglishCopy(profile?.rank);
+  const isEnglishLanding = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
 
   // アニメーション: 画面内進入検知
   useEffect(() => {
