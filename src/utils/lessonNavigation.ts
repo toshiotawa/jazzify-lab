@@ -1,7 +1,15 @@
-import { Lesson } from '@/types';
+import { Course, Lesson } from '@/types';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
 import { clearCacheByPattern } from '@/platform/supabaseClient';
+import {
+  buildProgressMap,
+  evaluateBlockAccess,
+  evaluateLessonAccess,
+  isPremiumRank,
+  type BlockAccessState,
+  type MembershipRank,
+} from '@/utils/lessonAccess';
 
 export interface LessonNavigationInfo {
   previousLesson: Lesson | null;
@@ -20,6 +28,7 @@ const navigationCache = new Map<string, {
   data: LessonNavigationInfo;
   expires: number;
   courseId: string;
+  userRank: MembershipRank;
 }>();
 
 const NAVIGATION_CACHE_TTL = 5 * 60 * 1000; // 5分
@@ -86,9 +95,10 @@ export function cleanupLessonNavigationCache(currentLessonId: string, courseId: 
  */
 export async function getLessonNavigationInfo(
   currentLessonId: string,
-  courseId: string
+  courseId: string,
+  userRank: MembershipRank,
 ): Promise<LessonNavigationInfo> {
-  const cacheKey = `${courseId}:${currentLessonId}`;
+  const cacheKey = `${courseId}:${currentLessonId}:${userRank}`;
   const now = Date.now();
   
   // キャッシュから取得を試行
@@ -104,6 +114,41 @@ export async function getLessonNavigationInfo(
     // コース内の全レッスンを取得
     const lessons = await fetchLessonsByCourse(courseId);
     const userProgress = await fetchUserLessonProgress(courseId);
+    const progressMap = buildProgressMap(userProgress);
+    const premiumMember = isPremiumRank(userRank);
+
+    const courseForAccess: Course = {
+      id: courseId,
+      title: '',
+      description: '',
+      created_at: '',
+      updated_at: '',
+      lessons,
+      order_index: 0,
+      prerequisites: [],
+    };
+
+    const blockStateCache = new Map<number, BlockAccessState>();
+
+    const getBlockState = (blockNumber: number) => {
+      const existing = blockStateCache.get(blockNumber);
+      if (existing) {
+        return existing;
+      }
+      const computed = evaluateBlockAccess({
+        course: courseForAccess,
+        progressMap,
+        blockNumber,
+      });
+      blockStateCache.set(blockNumber, computed);
+      return computed;
+    };
+
+    const getLessonAccess = (lesson: Lesson) => {
+      const blockNumber = lesson.block_number || 1;
+      const blockState = getBlockState(blockNumber);
+      return evaluateLessonAccess(lesson, blockState, progressMap);
+    };
     
     // レッスンを order_index でソート
     const sortedLessons = lessons.sort((a, b) => a.order_index - b.order_index);
@@ -119,14 +164,18 @@ export async function getLessonNavigationInfo(
     const nextLesson = currentIndex < sortedLessons.length - 1 ? sortedLessons[currentIndex + 1] : null;
 
     // 進捗データをマップに変換
-    const progressMap = new Map(userProgress.map(p => [p.lesson_id, p]));
+    const previousLessonAccess = previousLesson ? getLessonAccess(previousLesson) : null;
+    const nextLessonAccess = nextLesson ? getLessonAccess(nextLesson) : null;
 
-    // アクセス権限をチェック
-    const hasAccessToPrevious = previousLesson ? 
-      progressMap.get(previousLesson.id)?.is_unlocked || false : false;
-    
-    const hasAccessToNext = nextLesson ? 
-      progressMap.get(nextLesson.id)?.is_unlocked || false : false;
+    const hasAccessToPrevious = previousLessonAccess
+      ? previousLessonAccess.naturallyUnlocked ||
+        (premiumMember && previousLessonAccess.manuallyUnlocked)
+      : false;
+
+    const hasAccessToNext = nextLessonAccess
+      ? nextLessonAccess.naturallyUnlocked ||
+        (premiumMember && nextLessonAccess.manuallyUnlocked)
+      : false;
 
     const navigationInfo: LessonNavigationInfo = {
       previousLesson,
@@ -144,7 +193,8 @@ export async function getLessonNavigationInfo(
     navigationCache.set(cacheKey, {
       data: navigationInfo,
       expires: now + NAVIGATION_CACHE_TTL,
-      courseId
+      courseId,
+      userRank,
     });
     
     return navigationInfo;

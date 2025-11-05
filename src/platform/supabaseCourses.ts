@@ -1,5 +1,10 @@
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern, clearCacheByKey } from './supabaseClient';
 import { Course } from '@/types';
+import {
+  evaluateCourseAccess,
+  type CourseAccessResult,
+  type MembershipRank,
+} from '@/utils/lessonAccess';
 
 // コースキャッシュキー生成関数
 export const COURSES_CACHE_KEY = () => 'courses';
@@ -218,58 +223,20 @@ export async function fetchUserCompletedCourses(userId: string): Promise<string[
 }
 
 /**
- * コースの前提条件が満たされているかチェックします
- * @param {Course} course
- * @param {string[]} completedCourseIds ユーザーが完了したコースIDの配列
- * @returns {boolean}
- */
-export function checkCoursePrerequisites(course: Course, completedCourseIds: string[]): boolean {
-  // 前提条件がない場合は満たされている
-  if (!course.prerequisites || course.prerequisites.length === 0) {
-    return true;
-  }
-
-  // すべての前提条件が完了しているかチェック
-  return course.prerequisites.every(prereq => 
-    completedCourseIds.includes(prereq.prerequisite_course_id)
-  );
-}
-
-/**
- * ユーザーがコースにアクセス可能かどうかを判定します（前提条件とランク制限、管理者アンロックを含む）
- * @param {Course} course
- * @param {string} userRank
- * @param {string[]} completedCourseIds
- * @param {boolean} isUnlocked user_course_progressのis_unlockedフラグ
- * @returns {object} { canAccess: boolean, reason?: string }
+ * ユーザーがコースにアクセス可能かどうかを判定します
  */
 export function canAccessCourse(
-  course: Course, 
-  userRank: string, 
+  course: Course,
+  userRank: MembershipRank,
   completedCourseIds: string[] = [],
-  isUnlocked: boolean | null = null
-): { canAccess: boolean; reason?: string } {
-  // user_course_progressでアンロック状態が明示的にロックの場合のみブロック
-  if (isUnlocked === false) {
-    return { canAccess: false, reason: 'このコースは現在ロックされています。前提コースを完了すると自動で解放されます。' };
-  }
-
-  // ランク制限は premium_only のみをトリガーとする
-  if (course.premium_only) {
-    const hasRankAccess = userRank === 'premium' || userRank === 'platinum' || userRank === 'black';
-    if (!hasRankAccess) {
-      return { canAccess: false, reason: 'プレミアムプラン以上が必要です' };
-    }
-  }
-
-  // 前提条件をチェック
-  const prerequisitesMet = checkCoursePrerequisites(course, completedCourseIds);
-  if (!prerequisitesMet) {
-    const prerequisiteNames = course.prerequisites?.map(p => p.prerequisite_course.title).join(', ') || '';
-    return { canAccess: false, reason: `前提コース（${prerequisiteNames}）を完了してください` };
-  }
-
-  return { canAccess: true };
+  isUnlocked: boolean | null = null,
+): CourseAccessResult {
+  return evaluateCourseAccess({
+    course,
+    userRank,
+    completedCourseIds,
+    adminOverride: isUnlocked,
+  });
 }
 
 /**

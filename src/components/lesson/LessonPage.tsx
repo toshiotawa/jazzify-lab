@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse } from '@/platform/supabaseCourses';
@@ -17,6 +17,14 @@ import {
 import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
+import {
+  ADMIN_LOCK_REASON,
+  buildProgressMap,
+  evaluateBlockAccess,
+  evaluateLessonAccess,
+  isPremiumRank,
+  type MembershipRank,
+} from '@/utils/lessonAccess';
 
 /**
  * レッスン学習画面
@@ -34,8 +42,15 @@ const LessonPage: React.FC = () => {
   const [allCoursesProgress, setAllCoursesProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
+  const userRank = (profile?.rank ?? 'free') as MembershipRank;
+  const premiumMember = isPremiumRank(userRank);
   const toast = useToast();
   const mainAreaRef = useRef<HTMLDivElement>(null);
+  const progressValues = useMemo(() => Object.values(progress), [progress]);
+  const progressMap = useMemo(
+    () => buildProgressMap(progressValues),
+    [progressValues],
+  );
 
   useEffect(() => {
     const checkHash = () => {
@@ -179,9 +194,14 @@ const LessonPage: React.FC = () => {
       }
       
       // アクセス可能な最初のコースを選択
-      const firstAccessibleCourse = sortedCourses.find(course => {
-        const courseUnlockFlag = unlockStatus[course.id] !== undefined ? unlockStatus[course.id] : null;
-        const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourses, courseUnlockFlag);
+      const firstAccessibleCourse = sortedCourses.find((course) => {
+        const courseUnlockFlag = unlockStatus[course.id] ?? null;
+        const accessResult = canAccessCourse(
+          course,
+          userRank,
+          completedCourses,
+          courseUnlockFlag,
+        );
         return accessResult.canAccess;
       });
       if (firstAccessibleCourse) {
@@ -199,7 +219,7 @@ const LessonPage: React.FC = () => {
     if (open && profile) {
       loadData();
     }
-  }, [open, profile]);
+  }, [open, profile, userRank]);
 
   const loadLessons = async (courseId: string) => {
     try {
@@ -302,18 +322,6 @@ const LessonPage: React.FC = () => {
   };
 
 
-  const isLessonUnlocked = (lesson: Lesson, index: number): boolean => {
-    // データベースのis_unlockedフィールドを確認
-    const lessonProgress = progress[lesson.id];
-    if (lessonProgress && lessonProgress.is_unlocked !== undefined) {
-      return lessonProgress.is_unlocked;
-    }
-    
-    // プログレスがない場合は、ブロック1（最初の5レッスン）は解放
-          const blockNumber = lesson.block_number || 1;
-    return blockNumber === 1;
-  };
-
   const getLessonCompletionRate = (lesson: Lesson): number => {
     const requirements = lessonRequirementsProgress[lesson.id] || [];
     if (requirements.length === 0) return 0;
@@ -343,8 +351,8 @@ const LessonPage: React.FC = () => {
     window.location.href = '/main#dashboard';
   };
 
-  const handleLessonClick = (lesson: Lesson, index: number) => {
-    if (!isLessonUnlocked(lesson, index)) {
+  const handleLessonClick = (lesson: Lesson, isUnlocked: boolean) => {
+    if (!isUnlocked) {
       toast.warning('前のレッスンを完了してください');
       return;
     }
@@ -425,9 +433,16 @@ const LessonPage: React.FC = () => {
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
                   {courses.map((course: Course) => {
-                    const courseUnlockFlag = courseUnlockStatus[course.id] !== undefined ? courseUnlockStatus[course.id] : null;
-                    const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, courseUnlockFlag);
+                    const courseUnlockFlag = courseUnlockStatus[course.id] ?? null;
+                    const accessResult = canAccessCourse(
+                      course,
+                      userRank,
+                      completedCourseIds,
+                      courseUnlockFlag,
+                    );
                     const accessible = accessResult.canAccess;
+                    const showAdminUnlockBadge = accessResult.showAdminBadge && accessible;
+                    const showAdminLockBadge = accessResult.overrideApplied === 'admin_lock';
                     return (
                       <div
                         key={course.id}
@@ -460,19 +475,21 @@ const LessonPage: React.FC = () => {
                                 Premium
                               </span>
                             )}
-                            {courseUnlockFlag === true && accessible && (
+                            {showAdminUnlockBadge && (
                               <span className="bg-emerald-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
                                 <FaUnlock className="text-xs" />
                                 管理者解放
                               </span>
                             )}
-                            {courseUnlockFlag === false && (
+                            {showAdminLockBadge && (
                               <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
                                 <FaLock className="text-xs" />
                                 管理者ロック
                               </span>
                             )}
-                            {!accessible && courseUnlockFlag === null && <FaLock className="text-xs text-gray-400" />}
+                            {!accessible && accessResult.overrideApplied === 'none' && (
+                              <FaLock className="text-xs text-gray-400" />
+                            )}
                           </h3>
                         </div>
 
@@ -500,19 +517,16 @@ const LessonPage: React.FC = () => {
                         {/* ロック状態の注意文言 */}
                         {!accessible && (
                           <div className={`mb-2 p-2 rounded border ${
-                            courseUnlockFlag === false 
-                              ? 'bg-red-900/30 border-red-600' 
+                            showAdminLockBadge
+                              ? 'bg-red-900/30 border-red-600'
                               : 'bg-orange-900/30 border-orange-600'
                           }`}>
                             <p className={`text-xs ${
-                              courseUnlockFlag === false 
-                                ? 'text-red-300' 
-                                : 'text-orange-300'
+                              showAdminLockBadge ? 'text-red-300' : 'text-orange-300'
                             }`}>
-                              {courseUnlockFlag === false 
-                                ? '管理者によりロックされています。前提コースを完了すると自動で解放されます。'
-                                : accessResult.reason
-                              }
+                              {showAdminLockBadge
+                                ? ADMIN_LOCK_REASON
+                                : accessResult.reason || 'このコースにはアクセスできません'}
                             </p>
                           </div>
                         )}
@@ -564,8 +578,18 @@ const LessonPage: React.FC = () => {
                       <div className="space-y-6">
                         {Object.entries(groupLessonsByBlock(lessons)).map(([blockNumber, blockLessons]) => {
                           const blockNum = parseInt(blockNumber);
-                          const isBlockUnlocked = blockLessons.some(lesson => progress[lesson.id]?.is_unlocked);
-                          const isBlockCompleted = blockLessons.every(lesson => progress[lesson.id]?.completed);
+                          const blockState = evaluateBlockAccess({
+                            course: selectedCourse,
+                            progressMap,
+                            blockNumber: blockNum,
+                          });
+                          const hasManualUnlock = blockLessons.some((lesson) =>
+                            evaluateLessonAccess(lesson, blockState, progressMap).manuallyUnlocked,
+                          );
+                          const isBlockUnlocked =
+                            blockState.naturallyUnlocked ||
+                            (premiumMember && hasManualUnlock);
+                          const isBlockCompleted = blockState.completed;
 
                           return (
                             <div key={blockNum} className="bg-slate-800 rounded-lg p-4">
@@ -586,23 +610,32 @@ const LessonPage: React.FC = () => {
                                 )}
                               </div>
                               <div className="space-y-4">
-                                {blockLessons.sort((a, b) => a.order_index - b.order_index).map((lesson, index) => {
-                                  const unlocked = isLessonUnlocked(lesson, lesson.order_index);
-                                  const completed = progress[lesson.id]?.completed || false;
-                                  const completionRate = getLessonCompletionRate(lesson);
-                                  
-                                  return (
+                                {blockLessons
+                                  .sort((a, b) => a.order_index - b.order_index)
+                                  .map((lesson) => {
+                                    const lessonAccess = evaluateLessonAccess(
+                                      lesson,
+                                      blockState,
+                                      progressMap,
+                                    );
+                                    const unlocked =
+                                      lessonAccess.naturallyUnlocked ||
+                                      (premiumMember && lessonAccess.manuallyUnlocked);
+                                    const completed = lessonAccess.completed;
+                                    const completionRate = getLessonCompletionRate(lesson);
+
+                                    return (
                                       <div
-                                      key={lesson.id}
+                                        key={lesson.id}
                                         className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
-                                        unlocked
-                                          ? completed
-                                            ? 'border-emerald-500 bg-emerald-900/20 hover:bg-emerald-900/30 cursor-pointer'
-                                            : 'border-blue-500 bg-blue-900/20 hover:bg-blue-900/30 cursor-pointer'
-                                          : 'border-gray-600 bg-gray-800/20'
-                                      }`}
-                                      onClick={() => handleLessonClick(lesson, lesson.order_index)}
-                                    >
+                                          unlocked
+                                            ? completed
+                                              ? 'border-emerald-500 bg-emerald-900/20 hover:bg-emerald-900/30 cursor-pointer'
+                                              : 'border-blue-500 bg-blue-900/20 hover:bg-blue-900/30 cursor-pointer'
+                                            : 'border-gray-600 bg-gray-800/20'
+                                        }`}
+                                        onClick={() => handleLessonClick(lesson, unlocked)}
+                                      >
                                         <div className="flex flex-col gap-3 sm:gap-4">
                                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                             <h3
@@ -647,9 +680,9 @@ const LessonPage: React.FC = () => {
                                             </div>
                                           )}
                                         </div>
-                                    </div>
-                                  );
-                                })}
+                                      </div>
+                                    );
+                                  })}
                               </div>
                             </div>
                           );
