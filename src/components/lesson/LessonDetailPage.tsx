@@ -17,18 +17,14 @@ import { Lesson, LessonSong } from '@/types';
 import { fetchCourseById, canAccessCourse, fetchUserCourseUnlockStatus, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import GameHeader from '@/components/ui/GameHeader';
 import { 
-  FaArrowLeft, 
-  FaPlay, 
-  FaCheck, 
-  FaVideo,
-  FaMusic,
-  FaCheckCircle,
-  FaClock,
-  FaChevronLeft,
-  FaChevronRight,
-  FaHome,
-  FaDragon,
-  FaDownload
+    FaCheck, 
+    FaVideo,
+    FaMusic,
+    FaCheckCircle,
+    FaChevronLeft,
+    FaChevronRight,
+    FaDragon,
+    FaDownload
 } from 'react-icons/fa';
 import { useGameActions } from '@/stores/helpers';
 import { 
@@ -351,16 +347,15 @@ const LessonDetailPage: React.FC = () => {
                   <span className="sm:hidden">{isNavigating ? '処理中' : '前へ'}</span>
                 </button>
 
-                <button
-                  onClick={handleBackToCourse}
-                  className="flex items-center space-x-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 
-                    text-white rounded-lg transition-colors"
-                  title="レッスン一覧に戻る"
-                >
-                  <FaHome className="w-4 h-4" />
-                  <span className="hidden sm:inline">コースに戻る</span>
-                  <span className="sm:hidden">一覧</span>
-                </button>
+                  <button
+                    onClick={handleBackToCourse}
+                    className="flex items-center justify-center px-4 py-2 bg-slate-600 hover:bg-slate-700 
+                      text-white rounded-lg transition-colors"
+                    title="レッスン一覧に戻る"
+                    aria-label="コースに戻る"
+                  >
+                    <span aria-hidden="true" className="text-lg">🏠</span>
+                  </button>
 
                 <button
                   onClick={handleNavigateToNext}
@@ -402,19 +397,9 @@ const LessonDetailPage: React.FC = () => {
                   {renderVideoPlayer(videos[currentVideoIndex])}
                 </div>
 
-                {/* ビデオ情報 */}
-                <div className="p-4 border-b border-slate-700">
-                  <h2 className="text-lg font-semibold mb-2">
-                    動画 {currentVideoIndex + 1} / {videos.length}
-                  </h2>
-                  <p className="text-gray-400 text-sm">
-                    レッスンの内容を動画で学習しましょう
-                  </p>
-                </div>
-
                 {/* ビデオナビゲーション */}
                 {videos.length > 1 && (
-                  <div className="p-4">
+                    <div className="p-4 border-t border-slate-700">
                     <h3 className="text-sm font-medium mb-3">動画一覧</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                       {videos.map((video, index) => (

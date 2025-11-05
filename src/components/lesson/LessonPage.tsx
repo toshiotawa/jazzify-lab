@@ -11,7 +11,6 @@ import {
   FaLock, 
   FaUnlock,
   FaCheck, 
-  FaPlay, 
   FaStar, 
   FaGraduationCap
 } from 'react-icons/fa';
@@ -593,9 +592,9 @@ const LessonPage: React.FC = () => {
                                   const completionRate = getLessonCompletionRate(lesson);
                                   
                                   return (
-                                    <div
+                                      <div
                                       key={lesson.id}
-                                      className={`p-4 rounded-lg border-2 transition-all ${
+                                        className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                                         unlocked
                                           ? completed
                                             ? 'border-emerald-500 bg-emerald-900/20 hover:bg-emerald-900/30 cursor-pointer'
@@ -604,55 +603,37 @@ const LessonPage: React.FC = () => {
                                       }`}
                                       onClick={() => handleLessonClick(lesson, lesson.order_index)}
                                     >
-                                      <div className="flex flex-col gap-3">
-                                        {/* レッスン番号（幅を拡大） */}
-                                        <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold ${
-                                          unlocked
-                                            ? completed
-                                              ? 'bg-emerald-600 text-white'
-                                              : 'bg-blue-600 text-white'
-                                            : 'bg-gray-600 text-gray-400'
-                                        }`}>
-                                          {unlocked ? (
-                                            completed ? <FaCheck /> : <FaPlay />
-                                          ) : (
-                                            <FaLock />
-                                          )}
-                                        </div>
-
-                                        {/* タイトル（単独行） */}
-                                        <h3 className={`text-lg font-semibold ${
-                                          unlocked ? 'text-white' : 'text-gray-400'
-                                        }`}>
-                                          {lesson.title}
-                                        </h3>
-
-                                        {/* レッスン番号ラベル（幅広め） */}
-                                        <div className="text-sm text-gray-300">
-                                          <span className="inline-block bg-slate-700/60 rounded px-3 py-1 min-w-[7rem] text-center">
-                                            レッスン {lesson.order_index}
-                                          </span>
-                                        </div>
-
-                                        {/* 完了ラベル（単独行） */}
-                                        {completed && (
-                                          <div className="flex items-center text-emerald-400">
-                                            <FaStar className="w-4 h-4 mr-1" />
-                                            <span className="text-sm font-medium">完了</span>
-                                          </div>
-                                        )}
-
-                                        {/* 再生ボタン + 進捗バー（同一行） */}
-                                        {unlocked && (
-                                          <div className="flex items-center gap-4">
-                                            <button
-                                              type="button"
-                                              className={`btn btn-sm ${completed ? 'btn-success' : 'btn-primary'}`}
-                                              onClick={() => handleLessonClick(lesson, lesson.order_index)}
+                                        <div className="flex flex-col gap-3 sm:gap-4">
+                                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <h3
+                                              className={`text-base sm:text-lg font-semibold ${
+                                                unlocked ? 'text-white' : 'text-gray-400'
+                                              }`}
                                             >
-                                              再生
-                                            </button>
-                                            <div className="flex-1">
+                                              {lesson.title}
+                                            </h3>
+                                            <div className="flex items-center gap-2 text-sm">
+                                              <span className="inline-flex items-center rounded px-3 py-1 bg-slate-700/60 text-gray-200">
+                                                レッスン {lesson.order_index + 1}
+                                              </span>
+                                              {completed ? (
+                                                <span className="inline-flex items-center gap-1 text-emerald-400">
+                                                  <FaStar className="w-4 h-4" />
+                                                  <span className="text-sm font-medium">完了</span>
+                                                </span>
+                                              ) : (
+                                                !unlocked && (
+                                                  <span className="inline-flex items-center gap-1 text-gray-400">
+                                                    <FaLock className="w-3 h-3" />
+                                                    ロック中
+                                                  </span>
+                                                )
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {unlocked && (
+                                            <div>
                                               <div className="flex justify-between text-xs text-gray-400 mb-1">
                                                 <span>進捗</span>
                                                 <span>{completionRate}%</span>
@@ -664,9 +645,8 @@ const LessonPage: React.FC = () => {
                                                 />
                                               </div>
                                             </div>
-                                          </div>
-                                        )}
-                                      </div>
+                                          )}
+                                        </div>
                                     </div>
                                   );
                                 })}
