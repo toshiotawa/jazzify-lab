@@ -1,5 +1,7 @@
+import type { Handler } from '@netlify/functions';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { resolveSiteUrl } from './utils/resolveSiteUrl';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -26,7 +28,7 @@ const stripe = new Stripe(stripeSecretKey, {
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-export const handler = async (event, context) => {
+export const handler: Handler = async (event, _context) => {
   // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -47,6 +49,17 @@ export const handler = async (event, context) => {
   }
 
   try {
+    const siteUrl = resolveSiteUrl(event.headers);
+    if (!siteUrl) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          error: 'Site URL is not configured. Please set SITE_URL or DEPLOY_URL.',
+        }),
+      };
+    }
+
     // Authorization headerからJWTトークンを取得
     const authHeader = event.headers.authorization;
     if (!authHeader) {
@@ -110,7 +123,7 @@ export const handler = async (event, context) => {
     // Customer Portal Sessionを作成
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
-      return_url: `${process.env.SITE_URL}/#account`,
+      return_url: `${siteUrl}/#account`,
     });
 
     return {
@@ -125,9 +138,9 @@ export const handler = async (event, context) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: 'Internal server error',
-        details: error.message 
+        details: error.message,
       }),
     };
   }

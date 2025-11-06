@@ -1,5 +1,7 @@
+import type { Handler } from '@netlify/functions';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { resolveSiteUrl } from './utils/resolveSiteUrl';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -26,7 +28,7 @@ const stripe = new Stripe(stripeSecretKey, {
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-export const handler = async (event, context) => {
+export const handler: Handler = async (event, _context) => {
   // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -47,7 +49,26 @@ export const handler = async (event, context) => {
   }
 
   try {
-    const { priceId } = JSON.parse(event.body);
+    const { priceId } = JSON.parse(event.body ?? '{}');
+
+    if (!priceId || typeof priceId !== 'string') {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'priceId is required' }),
+      };
+    }
+
+    const siteUrl = resolveSiteUrl(event.headers);
+    if (!siteUrl) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          error: 'Site URL is not configured. Please set SITE_URL or DEPLOY_URL.',
+        }),
+      };
+    }
 
     // Authorization headerからJWTトークンを取得
     const authHeader = event.headers.authorization;
@@ -128,20 +149,20 @@ export const handler = async (event, context) => {
       customer: customerId,
       status: 'all',
       limit: 1,
-      expand: ['data.items']
+      expand: ['data.items'],
     });
 
     if (existingSubs.data.length > 0) {
       const portalSession = await stripe.billingPortal.sessions.create({
         customer: customerId,
-        return_url: `${process.env.SITE_URL}/#account`,
+        return_url: `${siteUrl}/#account`,
       });
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           url: portalSession.url,
-          via: 'portal'
+          via: 'portal',
         }),
       };
     }
@@ -156,8 +177,8 @@ export const handler = async (event, context) => {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.SITE_URL}/#account?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.SITE_URL}/#account`,
+      success_url: `${siteUrl}/#account?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteUrl}/#account`,
       subscription_data: {},
       customer_update: {
         address: 'auto',
@@ -185,9 +206,9 @@ export const handler = async (event, context) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: 'Internal server error',
-        details: error.message 
+        details: error.message,
       }),
     };
   }
