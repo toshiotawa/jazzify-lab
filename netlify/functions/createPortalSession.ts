@@ -123,7 +123,7 @@ export const handler: Handler = async (event, _context) => {
     // Customer Portal Sessionを作成
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
-      return_url: `${siteUrl}/#account`,
+      return_url: `${siteUrl}/main#account`,
     });
 
     return {

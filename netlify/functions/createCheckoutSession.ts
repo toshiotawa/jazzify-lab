@@ -177,8 +177,8 @@ export const handler: Handler = async (event, _context) => {
           quantity: 1,
         },
       ],
-      success_url: `${siteUrl}/#account?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/#account`,
+      success_url: `${siteUrl}/main#account?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteUrl}/main#account`,
       subscription_data: {},
       customer_update: {
         address: 'auto',

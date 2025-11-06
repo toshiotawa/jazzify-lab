@@ -10,21 +10,64 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// プラン名からmembership_rankへのマッピング
-const getPlanFromStripeProduct = (product: Stripe.Product | string): string => {
-  let productName = '';
-  
-  if (typeof product === 'string') {
-    productName = product;
-  } else {
-    productName = product.name?.toLowerCase() || '';
+type MembershipRank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+
+const STRIPE_PRICE_TO_RANK: Record<string, MembershipRank> = {
+  [process.env.STRIPE_STANDARD_MONTHLY_PRICE_ID ?? '']: 'standard',
+  [process.env.STRIPE_PREMIUM_MONTHLY_PRICE_ID ?? '']: 'premium',
+  [process.env.STRIPE_PLATINUM_MONTHLY_PRICE_ID ?? '']: 'platinum',
+  [process.env.STRIPE_BLACK_MONTHLY_PRICE_ID ?? '']: 'black',
+};
+
+const SUPPORTIVE_NAME_PATTERNS: Array<{ pattern: RegExp; rank: MembershipRank }> = [
+  { pattern: /standard|スタンダード|ベーシック/i, rank: 'standard' },
+  { pattern: /premium|プレミアム/i, rank: 'premium' },
+  { pattern: /platinum|プラチナ/i, rank: 'platinum' },
+  { pattern: /black|ブラック/i, rank: 'black' },
+];
+
+const getPlanFromStripeMetadata = (product: Stripe.Product | null): MembershipRank | null => {
+  if (!product) {
+    return null;
   }
-  
-    if (productName.includes('standard')) return 'standard';
-    if (productName.includes('premium')) return 'premium';
-    if (productName.includes('black')) return 'black';
-    if (productName.includes('platinum')) return 'platinum';
-  
+
+  const metadataRank = product.metadata?.membership_rank;
+  if (metadataRank && ['free', 'standard', 'standard_global', 'premium', 'platinum', 'black'].includes(metadataRank)) {
+    return metadataRank as MembershipRank;
+  }
+
+  const name = product.name || '';
+  for (const { pattern, rank } of SUPPORTIVE_NAME_PATTERNS) {
+    if (pattern.test(name)) {
+      return rank;
+    }
+  }
+
+  return null;
+};
+
+const resolveMembershipRank = async (priceId: string): Promise<MembershipRank> => {
+  const normalizedPriceId = priceId.trim();
+
+  const rankFromEnv = STRIPE_PRICE_TO_RANK[normalizedPriceId];
+  if (rankFromEnv && rankFromEnv !== 'free') {
+    return rankFromEnv;
+  }
+
+  try {
+    const price = await stripe.prices.retrieve(normalizedPriceId);
+    const productId = price.product;
+    if (typeof productId === 'string') {
+      const product = await stripe.products.retrieve(productId);
+      const inferredRank = getPlanFromStripeMetadata(product);
+      if (inferredRank) {
+        return inferredRank;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to resolve rank from price/product metadata:', error);
+  }
+
   return 'free';
 };
 
@@ -51,11 +94,8 @@ const updateUserSubscription = async (subscription: Stripe.Subscription) => {
 
   try {
     // プラン情報を取得
-    const priceId = subscription.items.data[0]?.price.id;
-    const price = await stripe.prices.retrieve(priceId);
-    const product = await stripe.products.retrieve(price.product as string);
-    
-    const newRank = getPlanFromStripeProduct(product);
+      const priceId = subscription.items.data[0]?.price.id;
+      const newRank = priceId ? await resolveMembershipRank(priceId) : 'free';
     
     // 解約予約の確認
     const willCancel = subscription.cancel_at_period_end;
