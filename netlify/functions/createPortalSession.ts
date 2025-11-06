@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-11-20.acacia',
+  apiVersion: '2023-10-16',
 });
 
 const supabase = createClient(
@@ -57,7 +57,7 @@ export const handler = async (event, context) => {
     // ユーザープロフィールを取得
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('stripe_customer_id')
+      .select('stripe_customer_id, country')
       .eq('id', user.id)
       .single();
 
@@ -69,11 +69,25 @@ export const handler = async (event, context) => {
       };
     }
 
-    if (!profile.stripe_customer_id) {
+    const normalizedCountry = profile?.country ? String(profile.country).trim().toUpperCase() : null;
+    if (
+      normalizedCountry &&
+      normalizedCountry !== 'JP' &&
+      normalizedCountry !== 'JPN' &&
+      normalizedCountry !== 'JAPAN'
+    ) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'No Stripe customer found' }),
+        body: JSON.stringify({ error: 'Stripe customer portal is available only for Japan users' }),
+      };
+    }
+
+    if (!profile.stripe_customer_id) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Stripe customer not found' }),
       };
     }
 

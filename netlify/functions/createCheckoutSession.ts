@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-11-20.acacia',
+  apiVersion: '2023-10-16',
 });
 
 const supabase = createClient(
@@ -59,7 +59,7 @@ export const handler = async (event, context) => {
     // ユーザープロフィールを取得
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('stripe_customer_id, email')
+      .select('stripe_customer_id, email, country')
       .eq('id', user.id)
       .single();
 
@@ -68,6 +68,22 @@ export const handler = async (event, context) => {
         statusCode: 500,
         headers,
         body: JSON.stringify({ error: 'Failed to fetch user profile' }),
+      };
+    }
+
+    const normalizedCountry = profile?.country ? String(profile.country).trim().toUpperCase() : null;
+    if (
+      normalizedCountry &&
+      normalizedCountry !== 'JP' &&
+      normalizedCountry !== 'JPN' &&
+      normalizedCountry !== 'JAPAN'
+    ) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          error: 'Stripe checkout is available only for Japan users. Please use the global checkout.',
+        }),
       };
     }
 
@@ -132,8 +148,8 @@ export const handler = async (event, context) => {
       },
     };
 
-    // すべての初回チェックアウトに14日間のトライアルを付与
-    sessionConfig.subscription_data!.trial_period_days = 14;
+    // すべての初回チェックアウトに7日間のトライアルを付与
+    sessionConfig.subscription_data!.trial_period_days = 7;
 
     // 既存サブスクリプションがある顧客はCustomer Portalにリダイレクト
     sessionConfig.subscription_data!.description = 'Jazz Learning Game Subscription';

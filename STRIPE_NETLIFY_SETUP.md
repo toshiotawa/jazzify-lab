@@ -44,6 +44,11 @@
 - **Currency**: `JPY (¥)`
 - **Create price** をクリック
 
+**⚠️ 重要**: 
+- すべてのプランには **1週間（7日間）の無料トライアル期間** が自動的に付与されます
+- トライアル期間中はプランの切り替えが自由に行えます
+- トライアル終了時に選択されていたプランで自動的に決済が開始されます
+
 **作成後:**
 - 作成されたプライスのID（`price_` で始まる）をコピー
 - 例: `price_1ABC123DEF456GHI`
@@ -83,8 +88,8 @@
 
 | 変数名 | 説明 | 取得方法 | 例 |
 |--------|------|---------|-----|
-| `STRIPE_SECRET_KEY` | Stripe Secret Key | Stripe Dashboard → Developers → API keys | `sk_test_5123...` |
-| `STRIPE_WEBHOOK_SECRET` | Webhook署名検証用シークレット | Webhook設定後（後述） | `whsec_7890...` |
+| `STRIPE_SECRET_KEY` | Stripe Secret Key | Stripe Dashboard → Developers → API keys | `sk_test_...` |
+| `STRIPE_WEBHOOK_SECRET` | Webhook署名検証用シークレット | Webhook設定後（後述） | `whsec_...` |
 | `SUPABASE_URL` | SupabaseプロジェクトURL | Supabase Dashboard → Project settings → API | `https://xxx.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Key | Supabase Dashboard → Project settings → API | `eyJhbGc...` |
 | `SITE_URL` | サイトのURL | Netlifyのデフォルトドメインまたはカスタムドメイン | `https://your-site.netlify.app` |
@@ -95,11 +100,11 @@
 
 | 変数名 | 説明 | 取得方法 | 例 |
 |--------|------|---------|-----|
-| `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe公開鍵 | Stripe Dashboard → Developers → API keys | `pk_test_4567...` |
-| `VITE_STRIPE_STANDARD_MONTHLY_PRICE_ID` | Standard月額Price ID | Stripe Dashboard → Products → 該当プライス | `price_1ABC123...` |
-| `VITE_STRIPE_PREMIUM_MONTHLY_PRICE_ID` | Premium月額Price ID | Stripe Dashboard → Products → 該当プライス | `price_1DEF456...` |
-| `VITE_STRIPE_PLATINUM_MONTHLY_PRICE_ID` | Platinum月額Price ID | Stripe Dashboard → Products → 該当プライス | `price_1GHI789...` |
-| `VITE_STRIPE_BLACK_MONTHLY_PRICE_ID` | Black月額Price ID | Stripe Dashboard → Products → 該当プライス | `price_1JKL012...` |
+| `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe公開鍵 | Stripe Dashboard → Developers → API keys | `pk_test_...` |
+| `VITE_STRIPE_STANDARD_MONTHLY_PRICE_ID` | Standard月額Price ID | Stripe Dashboard → Products → 該当プライス | `price_...` |
+| `VITE_STRIPE_PREMIUM_MONTHLY_PRICE_ID` | Premium月額Price ID | Stripe Dashboard → Products → 該当プライス | `price_...` |
+| `VITE_STRIPE_PLATINUM_MONTHLY_PRICE_ID` | Platinum月額Price ID | Stripe Dashboard → Products → 該当プライス | `price_...` |
+| `VITE_STRIPE_BLACK_MONTHLY_PRICE_ID` | Black月額Price ID | Stripe Dashboard → Products → 該当プライス | `price_...` |
 
 ### 2.4 環境変数の設定方法（詳細）
 
@@ -168,11 +173,17 @@ https://[your-site-name].netlify.app/.netlify/functions/stripeWebhook
 
 以下のイベントを選択してください：
 
-- ✅ `customer.subscription.created`
-- ✅ `customer.subscription.updated`
-- ✅ `customer.subscription.deleted`
-- ✅ `invoice.payment_succeeded`
-- ✅ `invoice.payment_failed`
+**必須イベント（サブスクリプション管理）:**
+- ✅ `customer.subscription.created` - サブスクリプション作成時
+- ✅ `customer.subscription.updated` - サブスクリプション更新時（トライアル期間中のプラン変更を含む）
+- ✅ `customer.subscription.deleted` - サブスクリプション削除時
+- ✅ `customer.subscription.trial_will_end` - トライアル終了3日前の通知
+
+**必須イベント（決済・インボイス）:**
+- ✅ `checkout.session.completed` - チェックアウト完了時（即座にサブスクリプションを反映）
+- ✅ `invoice.created` - インボイス作成時（トライアル終了時の初回請求を検知）
+- ✅ `invoice.payment_succeeded` - 支払い成功時（トライアル終了後の決済開始を確認）
+- ✅ `invoice.payment_failed` - 支払い失敗時
 
 #### エンドポイントの作成
 
@@ -278,6 +289,13 @@ Netlifyで以下のように設定：
    - **有効期限**: 未来の日付（例: `12/34`）
    - **CVC**: 任意の3桁（例: `123`）
    - **郵便番号**: 任意（例: `1234567`）
+
+7. **トライアル期間中の動作確認**:
+   - チェックアウト完了後、即座に選択したプランが有効化されることを確認（`checkout.session.completed` イベント）
+   - トライアル期間中にCustomer Portalでプラン変更できることを確認
+   - プラン変更後、`customer.subscription.updated` イベントで正しく反映されることを確認
+   - トライアル終了3日前に `customer.subscription.trial_will_end` イベントが送信されることを確認（Stripe Dashboard → Events）
+   - トライアル終了時に `invoice.created` → `invoice.payment_succeeded` の順でイベントが送信されることを確認
 
 ### 5.2 サブスクリプション状態の確認
 

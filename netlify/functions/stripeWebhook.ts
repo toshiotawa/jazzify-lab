@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-11-20.acacia',
+  apiVersion: '2023-10-16',
 });
 
 const supabase = createClient(
@@ -69,7 +69,11 @@ const updateUserSubscription = async (subscription: Stripe.Subscription) => {
     
     if (subscription.schedule) {
       try {
-        const schedule = await stripe.subscriptionSchedules.retrieve(subscription.schedule);
+        const scheduleId = typeof subscription.schedule === 'string'
+          ? subscription.schedule
+          : subscription.schedule.id;
+        if (scheduleId) {
+          const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
         const nextPhase = schedule.phases[1]; // 現在=0, 次=1
         
         if (nextPhase) {
@@ -80,6 +84,7 @@ const updateUserSubscription = async (subscription: Stripe.Subscription) => {
             downgradeInfo.downgrade_to = getPlanFromStripeProduct(nextProduct);
             downgradeInfo.downgrade_date = new Date(nextPhase.start_date * 1000).toISOString();
           }
+        }
         }
       } catch (scheduleError) {
         console.error('Error fetching subscription schedule:', scheduleError);
@@ -205,6 +210,34 @@ export const handler = async (event, context) => {
         const invoice = stripeEvent.data.object as Stripe.Invoice;
         console.log(`Payment failed for invoice: ${invoice.id}`);
         // 必要に応じて支払い失敗時の処理を追加
+        break;
+      }
+
+      case 'checkout.session.completed': {
+        // チェックアウト完了時、サブスクリプションを即座に反映
+        const session = stripeEvent.data.object as Stripe.Checkout.Session;
+        if (session.subscription && typeof session.subscription === 'string') {
+          const subscription = await stripe.subscriptions.retrieve(session.subscription);
+          await updateUserSubscription(subscription);
+        }
+        break;
+      }
+
+      case 'customer.subscription.trial_will_end': {
+        // トライアル終了3日前の通知（必要に応じて顧客に通知など）
+        const subscription = stripeEvent.data.object as Stripe.Subscription;
+        console.log(`Trial will end soon for subscription: ${subscription.id}`);
+        // 必要に応じて顧客への通知処理を追加
+        break;
+      }
+
+      case 'invoice.created': {
+        // インボイス作成時（トライアル終了時に初回インボイスが作成される）
+        const invoice = stripeEvent.data.object as Stripe.Invoice;
+        if (invoice.subscription && invoice.billing_reason === 'subscription_create') {
+          // トライアル終了時の初回インボイス作成を検知
+          console.log(`Invoice created for subscription: ${invoice.subscription}`);
+        }
         break;
       }
 

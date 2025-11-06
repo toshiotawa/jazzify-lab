@@ -60,6 +60,12 @@ const AccountPage: React.FC = () => {
     fantasyClearedCountBasic: 0,
     fantasyClearedCountAdvanced: 0,
   });
+  const normalizedCountry = profile?.country ? profile.country.trim().toUpperCase() : null;
+  const isJapanUser =
+    !normalizedCountry ||
+    normalizedCountry === 'JP' ||
+    normalizedCountry === 'JPN' ||
+    normalizedCountry === 'JAPAN';
 
   // ハッシュ変更で開閉
   useEffect(() => {
@@ -491,7 +497,7 @@ const AccountPage: React.FC = () => {
                           className="btn btn-sm btn-primary w-full mt-2"
                           onClick={async () => {
                             try {
-                              const endpoint = profile.country === 'JP'
+                              const endpoint = isJapanUser
                                 ? '/.netlify/functions/createPortalSession'
                                 : '/.netlify/functions/lemonsqueezyResolveLink';
                               const response = await fetch(endpoint, {
@@ -506,7 +512,12 @@ const AccountPage: React.FC = () => {
                                 const { url } = await response.json();
                                 window.open(url, '_blank');
                               } else {
-                                alert('サブスクリプション管理画面の表示に失敗しました');
+                                if (response.status === 404) {
+                                  alert('まだStripeのサブスクリプションが見つかりません。利用プランを選択してください。');
+                                  window.location.href = '/main#pricing';
+                                } else {
+                                  alert('サブスクリプション管理画面の表示に失敗しました');
+                                }
                               }
                             } catch (error) {
                               console.error('Portal session error:', error);
@@ -525,8 +536,7 @@ const AccountPage: React.FC = () => {
                             className="btn btn-sm btn-primary"
                             onClick={async () => {
                               try {
-                                const jp = useAuthStore.getState().profile?.country === 'JP';
-                                if (jp) {
+                                if (isJapanUser) {
                                   window.location.href = '/main#pricing';
                                   return;
                                 }
@@ -568,7 +578,10 @@ const AccountPage: React.FC = () => {
                           className="btn btn-sm btn-outline"
                           onClick={async () => {
                             try {
-                              const response = await fetch('/.netlify/functions/createPortalSession', {
+                              const endpoint = isJapanUser
+                                ? '/.netlify/functions/createPortalSession'
+                                : '/.netlify/functions/lemonsqueezyResolveLink';
+                              const response = await fetch(endpoint, {
                                 method: 'POST',
                                 headers: {
                                   'Content-Type': 'application/json',
@@ -579,7 +592,12 @@ const AccountPage: React.FC = () => {
                                 const { url } = await response.json();
                                 window.open(url, '_blank');
                               } else {
-                                alert('Customer Portalの表示に失敗しました');
+                                if (response.status === 404) {
+                                  alert('まだStripeのサブスクリプションが見つかりません。利用プランを選択してください。');
+                                  window.location.href = '/main#pricing';
+                                } else {
+                                  alert('Customer Portalの表示に失敗しました');
+                                }
                               }
                             } catch (e) {
                               alert('エラーが発生しました');

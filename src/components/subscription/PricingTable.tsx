@@ -23,11 +23,49 @@ const PLAN_PRICES: Record<'standard' | 'premium' | 'platinum' | 'black', PlanPri
 const PricingTable: React.FC = () => {
   const { profile } = useAuthStore();
   const [loading, setLoading] = useState<string | null>(null);
+  const normalizedCountry = profile?.country ? profile.country.trim().toUpperCase() : null;
+  const isJapanUser =
+    !normalizedCountry ||
+    normalizedCountry === 'JP' ||
+    normalizedCountry === 'JPN' ||
+    normalizedCountry === 'JAPAN';
 
 
   const handlePlanSelect = async (plan: 'standard' | 'premium' | 'platinum' | 'black') => {
     if (!profile) {
       alert('ログインが必要です');
+      return;
+    }
+
+    if (!isJapanUser) {
+      if (plan !== 'standard') {
+        alert('海外ユーザーはStandard(Global)プランをご利用ください。');
+        return;
+      }
+
+      setLoading(plan);
+      try {
+        const response = await fetch('/.netlify/functions/lemonsqueezyResolveLink', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${useAuthStore.getState().session?.access_token || ''}`,
+          },
+        });
+
+        if (response.ok) {
+          const { url } = await response.json();
+          window.location.href = url;
+        } else {
+          const error = await response.json().catch(() => ({ error: 'グローバルプランの取得に失敗しました' }));
+          alert(`エラー: ${error.error}`);
+        }
+      } catch (error) {
+        console.error('LemonSqueezy link error:', error);
+        alert('エラーが発生しました');
+      } finally {
+        setLoading(null);
+      }
       return;
     }
 
@@ -78,8 +116,8 @@ const PricingTable: React.FC = () => {
           ※ Standard(Global) は海外向けの限定機能プランです（本画面からの購入対象外）。
         </p>
 
-        {/* 14日間無料トライアル */}
-        <div className="text-sm text-green-400">すべての有料プランに14日間無料トライアル</div>
+        {/* 7日間無料トライアル */}
+        <div className="text-sm text-green-400">すべての有料プランに7日間（1週間）無料トライアル</div>
       </div>
 
         {/* カスタムプラン表示 */}
@@ -105,7 +143,7 @@ const PricingTable: React.FC = () => {
             <h3 className="text-xl font-semibold text-white mb-2">スタンダード</h3>
             <div className="text-3xl font-bold text-white mb-1">¥1,980</div>
             <div className="text-sm text-gray-400 mb-2">月額</div>
-            <div className="text-sm text-green-400 mb-4">14日間無料トライアル</div>
+            <div className="text-sm text-green-400 mb-4">7日間無料トライアル</div>
             <button 
               className="btn btn-primary w-full"
               onClick={() => handlePlanSelect('standard')}
@@ -127,7 +165,7 @@ const PricingTable: React.FC = () => {
             <h3 className="text-xl font-semibold text-white mb-2">プレミアム</h3>
             <div className="text-3xl font-bold text-white mb-1">¥8,980</div>
             <div className="text-sm text-gray-400 mb-2">月額</div>
-            <div className="text-sm text-green-400 mb-4">14日間無料トライアル</div>
+            <div className="text-sm text-green-400 mb-4">7日間無料トライアル</div>
             <button 
               className="btn btn-primary w-full"
               onClick={() => handlePlanSelect('premium')}
@@ -144,7 +182,7 @@ const PricingTable: React.FC = () => {
             <h3 className="text-xl font-semibold text-white mb-2">プラチナ</h3>
             <div className="text-3xl font-bold text-white mb-1">¥14,800</div>
             <div className="text-sm text-gray-400 mb-2">月額</div>
-            <div className="text-sm text-green-400 mb-4">14日間無料トライアル</div>
+            <div className="text-sm text-green-400 mb-4">7日間無料トライアル</div>
             <button 
               className="btn btn-primary w-full"
               onClick={() => handlePlanSelect('platinum')}
@@ -166,7 +204,7 @@ const PricingTable: React.FC = () => {
               <h3 className="text-xl font-semibold text-slate-100 mb-2">ブラック</h3>
               <div className="text-3xl font-bold text-white mb-1">¥19,800</div>
               <div className="text-sm text-gray-400 mb-2">月額</div>
-              <div className="text-sm text-green-400 mb-4">14日間無料トライアル</div>
+              <div className="text-sm text-green-400 mb-4">7日間無料トライアル</div>
               <ul className="space-y-3 text-sm text-gray-300 mb-6 text-left">
                 <li><i className="fas fa-check text-green-400 mr-2"></i>全機能（無制限）</li>
                 <li><i className="fas fa-check text-green-400 mr-2"></i>個人レッスン（月2回）</li>
