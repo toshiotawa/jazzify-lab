@@ -94,6 +94,8 @@
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Key | Supabase Dashboard → Project settings → API | `eyJhbGc...` |
 | `SITE_URL` | サイトのURL | Netlifyのデフォルトドメインまたはカスタムドメイン | `https://your-site.netlify.app` |
 
+**必須ポイント**: `SITE_URL` は必ず `https://` などのスキームを含む完全なURLを設定してください。未設定や `https://` の付与忘れがあると、Stripe Checkout や Customer Portal へのリダイレクトでエラーが発生します。Branch Deploy / Deploy Preview を利用する際は、それぞれの環境に対応するURLを設定しておくと安全です。
+
 #### 🖥️ クライアントサイド環境変数（フロントエンド用）
 
 これらの変数は `VITE_` プレフィックスが必要です。Netlifyのビルド時に環境変数として注入されます。
