@@ -276,7 +276,7 @@ const App: React.FC = () => {
       MainContent = isFree ? <Dashboard /> : <InformationPage />;
       break;
     case '#pricing':
-      MainContent = isFree ? <PricingTable /> : <Dashboard />;
+      MainContent = <PricingTable />;
       break;
     case '#admin-songs':
     case '#admin-fantasy-bgm':
