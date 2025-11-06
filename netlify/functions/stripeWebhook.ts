@@ -1,14 +1,30 @@
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeSecretKey) {
+  throw new Error('STRIPE_SECRET_KEY is required.');
+}
+
+const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2023-10-16',
 });
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseUrl =
+  process.env.SUPABASE_URL ??
+  process.env.VITE_SUPABASE_URL ??
+  process.env.SUPABASE_SERVICE_ROLE_URL;
+
+if (!supabaseUrl) {
+  throw new Error('SUPABASE_URL (or VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_URL) is required.');
+}
+
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!supabaseServiceRoleKey) {
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY is required.');
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 type MembershipRank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
 
@@ -109,22 +125,23 @@ const updateUserSubscription = async (subscription: Stripe.Subscription) => {
     
     if (subscription.schedule) {
       try {
-        const scheduleId = typeof subscription.schedule === 'string'
-          ? subscription.schedule
-          : subscription.schedule.id;
+        const scheduleId =
+          typeof subscription.schedule === 'string'
+            ? subscription.schedule
+            : subscription.schedule.id;
         if (scheduleId) {
           const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
-        const nextPhase = schedule.phases[1]; // 現在=0, 次=1
-        
-        if (nextPhase) {
-          const nextPriceId = nextPhase.items[0]?.price;
-          if (nextPriceId) {
-            const nextPrice = await stripe.prices.retrieve(nextPriceId as string);
-            const nextProduct = await stripe.products.retrieve(nextPrice.product as string);
-            downgradeInfo.downgrade_to = getPlanFromStripeProduct(nextProduct);
-            downgradeInfo.downgrade_date = new Date(nextPhase.start_date * 1000).toISOString();
+          const nextPhase = schedule.phases[1]; // 現在=0, 次=1
+
+          if (nextPhase) {
+            const nextPriceId = nextPhase.items[0]?.price;
+            if (nextPriceId) {
+              const nextPrice = await stripe.prices.retrieve(nextPriceId as string);
+              const nextProduct = await stripe.products.retrieve(nextPrice.product as string);
+              downgradeInfo.downgrade_to = getPlanFromStripeMetadata(nextProduct);
+              downgradeInfo.downgrade_date = new Date(nextPhase.start_date * 1000).toISOString();
+            }
           }
-        }
         }
       } catch (scheduleError) {
         console.error('Error fetching subscription schedule:', scheduleError);

@@ -155,7 +155,7 @@ export const handler: Handler = async (event, _context) => {
     if (existingSubs.data.length > 0) {
       const portalSession = await stripe.billingPortal.sessions.create({
         customer: customerId,
-        return_url: `${siteUrl}/#account`,
+        return_url: `${siteUrl}/main#account`,
       });
       return {
         statusCode: 200,
