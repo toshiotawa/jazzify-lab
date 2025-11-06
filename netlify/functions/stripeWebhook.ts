@@ -109,22 +109,23 @@ const updateUserSubscription = async (subscription: Stripe.Subscription) => {
     
     if (subscription.schedule) {
       try {
-        const scheduleId = typeof subscription.schedule === 'string'
-          ? subscription.schedule
-          : subscription.schedule.id;
+        const scheduleId =
+          typeof subscription.schedule === 'string'
+            ? subscription.schedule
+            : subscription.schedule.id;
         if (scheduleId) {
           const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
-        const nextPhase = schedule.phases[1]; // 現在=0, 次=1
-        
-        if (nextPhase) {
-          const nextPriceId = nextPhase.items[0]?.price;
-          if (nextPriceId) {
-            const nextPrice = await stripe.prices.retrieve(nextPriceId as string);
-            const nextProduct = await stripe.products.retrieve(nextPrice.product as string);
-            downgradeInfo.downgrade_to = getPlanFromStripeProduct(nextProduct);
-            downgradeInfo.downgrade_date = new Date(nextPhase.start_date * 1000).toISOString();
+          const nextPhase = schedule.phases[1]; // 現在=0, 次=1
+
+          if (nextPhase) {
+            const nextPriceId = nextPhase.items[0]?.price;
+            if (nextPriceId) {
+              const nextPrice = await stripe.prices.retrieve(nextPriceId as string);
+              const nextProduct = await stripe.products.retrieve(nextPrice.product as string);
+              downgradeInfo.downgrade_to = getPlanFromStripeMetadata(nextProduct);
+              downgradeInfo.downgrade_date = new Date(nextPhase.start_date * 1000).toISOString();
+            }
           }
-        }
         }
       } catch (scheduleError) {
         console.error('Error fetching subscription schedule:', scheduleError);
