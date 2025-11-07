@@ -129,14 +129,6 @@ const parseIsoToMs = (value: string | null | undefined): number | null => {
   return timestamp;
 };
 
-const billingReasonAllowsTrialCancellation = (reason: Stripe.Invoice.BillingReason | null): boolean => {
-  if (!reason) {
-    return false;
-  }
-
-  return reason === 'subscription_update' || reason === 'subscription_create';
-};
-
 // サブスクリプション情報を更新
 const updateUserSubscription = async (
   subscription: Stripe.Subscription,
@@ -244,18 +236,44 @@ const cancelInvoiceDuringTrial = async (
     return;
   }
 
-  if (!billingReasonAllowsTrialCancellation(invoice.billing_reason ?? null)) {
-    return;
-  }
-
   try {
     if (invoice.status === 'draft') {
       await stripe.invoices.delete(invoice.id);
-    } else if (invoice.status === 'open') {
+      console.log(`Deleted draft invoice ${invoice.id} during trial preservation`);
+      return;
+    }
+
+    if (invoice.status === 'open') {
       await stripe.invoices.voidInvoice(invoice.id);
+      console.log(`Voided open invoice ${invoice.id} during trial preservation`);
+      return;
+    }
+
+    if (invoice.status === 'uncollectible') {
+      await stripe.invoices.markUncollectible(invoice.id);
+      console.log(`Marked invoice ${invoice.id} as uncollectible during trial preservation`);
+      return;
+    }
+
+    if (invoice.status === 'paid') {
+      const paymentIntentId =
+        typeof invoice.payment_intent === 'string'
+          ? invoice.payment_intent
+          : invoice.payment_intent?.id ?? null;
+
+      if (paymentIntentId) {
+        const refundAmount = invoice.amount_paid && invoice.amount_paid > 0 ? invoice.amount_paid : null;
+        await stripe.refunds.create({
+          payment_intent: paymentIntentId,
+          amount: refundAmount ?? undefined,
+        });
+        console.log(`Refund initiated for invoice ${invoice.id} due to trial preservation`);
+      } else {
+        console.warn(`Invoice ${invoice.id} was paid but no payment intent found for refund.`);
+      }
     }
   } catch (invoiceError) {
-    console.error('Failed to cancel invoice during trial preservation:', invoiceError);
+    console.error('Failed to cancel or refund invoice during trial preservation:', invoiceError);
   }
 };
 
@@ -322,12 +340,12 @@ const restoreTrialIfNecessary = async (
       ...(subscription.metadata ?? {}),
       original_trial_end: preservedTrialEndIso,
     },
+    proration_behavior: 'none',
+    payment_behavior: 'allow_incomplete',
   };
 
   if (!currentTrialMatches) {
     updateParams.trial_end = Math.floor(preservedTrialEndMs / 1000);
-    updateParams.proration_behavior = 'none';
-    updateParams.payment_behavior = 'allow_incomplete';
   }
 
   try {
