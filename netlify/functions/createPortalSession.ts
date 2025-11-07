@@ -27,6 +27,51 @@ const stripe = new Stripe(stripeSecretKey, {
 });
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+const portalConfigurationIdFromEnv = process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID;
+
+const ensurePortalConfiguration = async (): Promise<string | null> => {
+  try {
+    const targetConfigurationId =
+      portalConfigurationIdFromEnv ??
+      (await stripe.billingPortal.configurations.list({ limit: 1 })).data[0]?.id ??
+      null;
+
+    if (!targetConfigurationId) {
+      console.warn('Stripe Billing Portal configuration が見つかりませんでした');
+      return null;
+    }
+
+    const configuration = await stripe.billingPortal.configurations.retrieve(
+      targetConfigurationId
+    );
+
+    const subscriptionUpdateConfig = configuration.features?.subscription_update;
+    const currentBehavior = subscriptionUpdateConfig?.trial_update_behavior ?? null;
+
+    if (currentBehavior === 'keep_trial') {
+      return targetConfigurationId;
+    }
+
+    const updateParams = {
+      features: {
+        subscription_update: {
+          ...(subscriptionUpdateConfig ?? {}),
+          trial_update_behavior: 'keep_trial',
+        },
+      },
+    } as Stripe.BillingPortal.ConfigurationUpdateParams;
+
+    await stripe.billingPortal.configurations.update(targetConfigurationId, updateParams);
+    console.log(
+      `Updated Stripe Billing Portal configuration ${targetConfigurationId} to keep trials on plan changes`
+    );
+
+    return targetConfigurationId;
+  } catch (configurationError) {
+    console.error('Failed to ensure portal configuration for trial preservation:', configurationError);
+    return portalConfigurationIdFromEnv ?? null;
+  }
+};
 
 export const handler: Handler = async (event, _context) => {
   // CORS headers
@@ -120,11 +165,19 @@ export const handler: Handler = async (event, _context) => {
       };
     }
 
-    // Customer Portal Sessionを作成
-    const portalSession = await stripe.billingPortal.sessions.create({
+    const configurationId = await ensurePortalConfiguration();
+
+    const sessionParams: Stripe.BillingPortal.SessionCreateParams = {
       customer: profile.stripe_customer_id,
       return_url: `${siteUrl}/main#account`,
-    });
+    };
+
+    if (configurationId) {
+      sessionParams.configuration = configurationId;
+    }
+
+    // Customer Portal Sessionを作成
+    const portalSession = await stripe.billingPortal.sessions.create(sessionParams);
 
     return {
       statusCode: 200,
