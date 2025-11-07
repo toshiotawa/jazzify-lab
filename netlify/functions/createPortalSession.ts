@@ -23,7 +23,7 @@ if (!supabaseServiceRoleKey) {
 }
 
 const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2023-10-16',
+  apiVersion: '2025-09-30.clover',
 });
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -31,10 +31,15 @@ const portalConfigurationIdFromEnv = process.env.STRIPE_BILLING_PORTAL_CONFIGURA
 
 const ensurePortalConfiguration = async (): Promise<string | null> => {
   try {
-    const targetConfigurationId =
-      portalConfigurationIdFromEnv ??
-      (await stripe.billingPortal.configurations.list({ limit: 1 })).data[0]?.id ??
-      null;
+    let targetConfigurationId = portalConfigurationIdFromEnv ?? null;
+
+    if (!targetConfigurationId) {
+      const { data } = await stripe.billingPortal.configurations.list({
+        is_default: true,
+        limit: 1,
+      });
+      targetConfigurationId = data[0]?.id ?? null;
+    }
 
     if (!targetConfigurationId) {
       console.warn('Stripe Billing Portal configuration が見つかりませんでした');
@@ -48,22 +53,21 @@ const ensurePortalConfiguration = async (): Promise<string | null> => {
     const subscriptionUpdateConfig = configuration.features?.subscription_update;
     const currentBehavior = subscriptionUpdateConfig?.trial_update_behavior ?? null;
 
-    if (currentBehavior === 'keep_trial') {
+    if (currentBehavior === 'continue_trial') {
       return targetConfigurationId;
     }
 
-    const updateParams = {
+    const updateParams: Stripe.BillingPortal.ConfigurationUpdateParams = {
       features: {
         subscription_update: {
-          ...(subscriptionUpdateConfig ?? {}),
-          trial_update_behavior: 'keep_trial',
+          trial_update_behavior: 'continue_trial',
         },
       },
-    } as Stripe.BillingPortal.ConfigurationUpdateParams;
+    };
 
     await stripe.billingPortal.configurations.update(targetConfigurationId, updateParams);
     console.log(
-      `Updated Stripe Billing Portal configuration ${targetConfigurationId} to keep trials on plan changes`
+      `Updated Stripe Billing Portal configuration ${targetConfigurationId} to continue trials on plan changes`
     );
 
     return targetConfigurationId;
