@@ -116,6 +116,27 @@ const toIsoStringOrNull = (unixSeconds: number | null | undefined): string | nul
   return new Date(unixSeconds * 1000).toISOString();
 };
 
+const parseIsoToMs = (value: string | null | undefined): number | null => {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) {
+    return null;
+  }
+
+  return timestamp;
+};
+
+const billingReasonAllowsTrialCancellation = (reason: Stripe.Invoice.BillingReason | null): boolean => {
+  if (!reason) {
+    return false;
+  }
+
+  return reason === 'subscription_update' || reason === 'subscription_create';
+};
+
 // サブスクリプション情報を更新
 const updateUserSubscription = async (
   subscription: Stripe.Subscription,
@@ -166,6 +187,11 @@ const updateUserSubscription = async (
       }
     }
 
+    const trialStartIso =
+      toIsoStringOrNull(subscription.trial_start) ?? profile.stripe_trial_start ?? null;
+    const trialEndIso =
+      toIsoStringOrNull(subscription.trial_end) ?? profile.stripe_trial_end ?? null;
+
     const { error } = await supabase
       .from('profiles')
       .update({
@@ -174,8 +200,8 @@ const updateUserSubscription = async (
         cancel_date: cancelDate,
         downgrade_to: downgradeInfo.downgrade_to,
         downgrade_date: downgradeInfo.downgrade_date,
-        stripe_trial_start: toIsoStringOrNull(subscription.trial_start),
-        stripe_trial_end: toIsoStringOrNull(subscription.trial_end),
+        stripe_trial_start: trialStartIso,
+        stripe_trial_end: trialEndIso,
       })
       .eq('id', profile.id);
 
@@ -218,7 +244,7 @@ const cancelInvoiceDuringTrial = async (
     return;
   }
 
-  if ((invoice.billing_reason ?? '') !== 'subscription_update') {
+  if (!billingReasonAllowsTrialCancellation(invoice.billing_reason ?? null)) {
     return;
   }
 
@@ -250,13 +276,28 @@ const restoreTrialIfNecessary = async (
     return { subscription, profile };
   }
 
-  const storedTrialEndMs = profile.stripe_trial_end ? Date.parse(profile.stripe_trial_end) : null;
+  const storedTrialEndMs = parseIsoToMs(profile.stripe_trial_end);
   const previousTrialEndMs =
     previousAttributes && typeof previousAttributes.trial_end === 'number'
       ? previousAttributes.trial_end * 1000
       : null;
+  const metadataTrialEndMs = parseIsoToMs(subscription.metadata?.original_trial_end ?? null);
+  const previousMetadataTrialEndMs =
+    previousAttributes &&
+    previousAttributes.metadata &&
+    typeof previousAttributes.metadata === 'object' &&
+    previousAttributes.metadata !== null
+      ? parseIsoToMs(
+          (previousAttributes.metadata as Record<string, string | null | undefined>).original_trial_end
+        )
+      : null;
 
-  const preservedCandidates = [storedTrialEndMs, previousTrialEndMs].filter(
+  const preservedCandidates = [
+    storedTrialEndMs,
+    previousTrialEndMs,
+    metadataTrialEndMs,
+    previousMetadataTrialEndMs,
+  ].filter(
     (value): value is number => typeof value === 'number' && !Number.isNaN(value) && value > nowMs
   );
 
@@ -265,17 +306,32 @@ const restoreTrialIfNecessary = async (
   }
 
   const preservedTrialEndMs = Math.max(...preservedCandidates);
+  const preservedTrialEndIso = new Date(preservedTrialEndMs).toISOString();
+  const currentTrialMatches =
+    currentTrialEndMs !== null && Math.abs(currentTrialEndMs - preservedTrialEndMs) <= 1000;
+  const metadataMatches = metadataTrialEndMs
+    ? Math.abs(metadataTrialEndMs - preservedTrialEndMs) <= 1000
+    : subscription.metadata?.original_trial_end === preservedTrialEndIso;
 
-  if (currentTrialEndMs && Math.abs(currentTrialEndMs - preservedTrialEndMs) <= 1000) {
+  if (currentTrialMatches && metadataMatches) {
     return { subscription, profile };
   }
 
+  const updateParams: Stripe.SubscriptionUpdateParams = {
+    metadata: {
+      ...(subscription.metadata ?? {}),
+      original_trial_end: preservedTrialEndIso,
+    },
+  };
+
+  if (!currentTrialMatches) {
+    updateParams.trial_end = Math.floor(preservedTrialEndMs / 1000);
+    updateParams.proration_behavior = 'none';
+    updateParams.payment_behavior = 'allow_incomplete';
+  }
+
   try {
-    const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
-      trial_end: Math.floor(preservedTrialEndMs / 1000),
-      proration_behavior: 'none',
-      payment_behavior: 'allow_incomplete',
-    });
+    const updatedSubscription = await stripe.subscriptions.update(subscription.id, updateParams);
 
     await cancelInvoiceDuringTrial(updatedSubscription.latest_invoice, preservedTrialEndMs);
 
@@ -338,7 +394,11 @@ export const handler = async (event, context) => {
     switch (stripeEvent.type) {
       case 'customer.subscription.created': {
         const subscription = stripeEvent.data.object as Stripe.Subscription;
-        await updateUserSubscription(subscription);
+        const { subscription: reconciledSubscription, profile } = await restoreTrialIfNecessary(
+          subscription,
+          null
+        );
+        await updateUserSubscription(reconciledSubscription, profile);
         break;
       }
 
@@ -359,17 +419,20 @@ export const handler = async (event, context) => {
         const profile = await getProfileByCustomerId(subscription.customer as string);
 
         if (profile) {
+          const preservedTrialEndMs = parseIsoToMs(profile.stripe_trial_end);
+          const shouldClearTrial = !preservedTrialEndMs || preservedTrialEndMs <= Date.now();
+          const updatePayload = {
+            rank: 'free' as MembershipRank,
+            will_cancel: false,
+            cancel_date: null,
+            downgrade_to: null as MembershipRank | null,
+            downgrade_date: null as string | null,
+            stripe_trial_start: shouldClearTrial ? null : profile.stripe_trial_start,
+            stripe_trial_end: shouldClearTrial ? null : profile.stripe_trial_end,
+          };
           const { error } = await supabase
             .from('profiles')
-            .update({
-              rank: 'free',
-              will_cancel: false,
-              cancel_date: null,
-              downgrade_to: null,
-              downgrade_date: null,
-              stripe_trial_start: null,
-              stripe_trial_end: null,
-            })
+            .update(updatePayload)
             .eq('id', profile.id);
 
           if (error) {
@@ -417,11 +480,21 @@ export const handler = async (event, context) => {
       }
 
       case 'invoice.created': {
-        // インボイス作成時（トライアル終了時に初回インボイスが作成される）
         const invoice = stripeEvent.data.object as Stripe.Invoice;
-        if (invoice.subscription && invoice.billing_reason === 'subscription_create') {
-          // トライアル終了時の初回インボイス作成を検知
-          console.log(`Invoice created for subscription: ${invoice.subscription}`);
+        const customerId =
+          typeof invoice.customer === 'string'
+            ? invoice.customer
+            : invoice.customer?.id ?? null;
+
+        if (
+          customerId &&
+          billingReasonAllowsTrialCancellation(invoice.billing_reason ?? null)
+        ) {
+          const profile = await getProfileByCustomerId(customerId);
+          const preservedTrialEndMs = parseIsoToMs(profile?.stripe_trial_end ?? null);
+          if (preservedTrialEndMs && preservedTrialEndMs > Date.now()) {
+            await cancelInvoiceDuringTrial(invoice, preservedTrialEndMs);
+          }
         }
         break;
       }
