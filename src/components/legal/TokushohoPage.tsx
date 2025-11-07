@@ -8,11 +8,11 @@ interface LegalEntry {
 }
 
 const legalEntries: LegalEntry[] = [
-  { label: '事業者', value: '合同会社KindWords' },
+  { label: '事業者', value: '永吉俊雄' },
   { label: '販売責任者', value: '永吉俊雄' },
   {
     label: '所在地',
-    value: '〒174-0072 東京都板橋区南常盤台1-11-6 レフア南常盤台101',
+    value: '東京都中野区沼袋2丁目15-15 Arte哲学堂107',
   },
   {
     label: '連絡先',
