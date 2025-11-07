@@ -741,6 +741,8 @@ export interface Profile {
   cancel_date?: string;
   downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
   downgrade_date?: string;
+  stripe_trial_start?: string;
+  stripe_trial_end?: string;
   level?: number;
   xp?: number;
   selected_title?: string;

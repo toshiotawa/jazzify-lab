@@ -1123,7 +1123,9 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "will_cancel" boolean DEFAULT false NOT NULL,
     "cancel_date" timestamp with time zone,
     "downgrade_to" "public"."membership_rank",
-    "downgrade_date" timestamp with time zone
+    "downgrade_date" timestamp with time zone,
+    "stripe_trial_start" timestamp with time zone,
+    "stripe_trial_end" timestamp with time zone
 );
 
 
@@ -1147,6 +1149,14 @@ COMMENT ON COLUMN "public"."profiles"."downgrade_to" IS 'Target membership rank 
 
 
 COMMENT ON COLUMN "public"."profiles"."downgrade_date" IS 'Date when subscription will be downgraded';
+
+
+
+COMMENT ON COLUMN "public"."profiles"."stripe_trial_start" IS 'Timestamp when the current Stripe trial period began';
+
+
+
+COMMENT ON COLUMN "public"."profiles"."stripe_trial_end" IS 'Timestamp when the current Stripe trial period ends';
 
 
 

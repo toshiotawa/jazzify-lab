@@ -35,6 +35,27 @@ const STRIPE_PRICE_TO_RANK: Record<string, MembershipRank> = {
   [process.env.STRIPE_BLACK_MONTHLY_PRICE_ID ?? '']: 'black',
 };
 
+type CustomerProfileRow = {
+  id: string;
+  stripe_trial_start: string | null;
+  stripe_trial_end: string | null;
+};
+
+const getProfileByCustomerId = async (customerId: string): Promise<CustomerProfileRow | null> => {
+  const { data, error } = await supabase
+    .from<CustomerProfileRow>('profiles')
+    .select('id, stripe_trial_start, stripe_trial_end')
+    .eq('stripe_customer_id', customerId)
+    .single();
+
+  if (error || !data) {
+    console.error('Failed to find user for customer:', customerId, error);
+    return null;
+  }
+
+  return data;
+};
+
 const SUPPORTIVE_NAME_PATTERNS: Array<{ pattern: RegExp; rank: MembershipRank }> = [
   { pattern: /standard|スタンダード|ベーシック/i, rank: 'standard' },
   { pattern: /premium|プレミアム/i, rank: 'premium' },
@@ -87,42 +108,37 @@ const resolveMembershipRank = async (priceId: string): Promise<MembershipRank> =
   return 'free';
 };
 
-// ユーザーIDをStripe Customer IDから取得
-const getUserIdFromCustomer = async (customerId: string): Promise<string | null> => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('stripe_customer_id', customerId)
-    .single();
-    
-  if (error || !data) {
-    console.error('Failed to find user for customer:', customerId, error);
+const toIsoStringOrNull = (unixSeconds: number | null | undefined): string | null => {
+  if (typeof unixSeconds !== 'number') {
     return null;
   }
-  
-  return data.id;
+
+  return new Date(unixSeconds * 1000).toISOString();
 };
 
 // サブスクリプション情報を更新
-const updateUserSubscription = async (subscription: Stripe.Subscription) => {
-  const userId = await getUserIdFromCustomer(subscription.customer as string);
-  if (!userId) return;
+const updateUserSubscription = async (
+  subscription: Stripe.Subscription,
+  existingProfile?: CustomerProfileRow | null
+) => {
+  const profile =
+    existingProfile ?? (await getProfileByCustomerId(subscription.customer as string));
+  if (!profile) {
+    return;
+  }
 
   try {
-    // プラン情報を取得
-      const priceId = subscription.items.data[0]?.price.id;
-      const newRank = priceId ? await resolveMembershipRank(priceId) : 'free';
-    
-    // 解約予約の確認
+    const priceId = subscription.items.data[0]?.price.id;
+    const newRank = priceId ? await resolveMembershipRank(priceId) : 'free';
+
     const willCancel = subscription.cancel_at_period_end;
-    const cancelDate = subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null;
-    
-    // ダウングレード予約の確認（Subscription Scheduleがある場合）
-    let downgradeInfo: { downgrade_to: string | null; downgrade_date: string | null } = {
+    const cancelDate = toIsoStringOrNull(subscription.cancel_at);
+
+    let downgradeInfo: { downgrade_to: MembershipRank | null; downgrade_date: string | null } = {
       downgrade_to: null,
-      downgrade_date: null
+      downgrade_date: null,
     };
-    
+
     if (subscription.schedule) {
       try {
         const scheduleId =
@@ -131,15 +147,17 @@ const updateUserSubscription = async (subscription: Stripe.Subscription) => {
             : subscription.schedule.id;
         if (scheduleId) {
           const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
-          const nextPhase = schedule.phases[1]; // 現在=0, 次=1
+          const nextPhase = schedule.phases[1];
 
           if (nextPhase) {
             const nextPriceId = nextPhase.items[0]?.price;
             if (nextPriceId) {
               const nextPrice = await stripe.prices.retrieve(nextPriceId as string);
               const nextProduct = await stripe.products.retrieve(nextPrice.product as string);
-              downgradeInfo.downgrade_to = getPlanFromStripeMetadata(nextProduct);
-              downgradeInfo.downgrade_date = new Date(nextPhase.start_date * 1000).toISOString();
+              downgradeInfo = {
+                downgrade_to: getPlanFromStripeMetadata(nextProduct),
+                downgrade_date: toIsoStringOrNull(nextPhase.start_date),
+              };
             }
           }
         }
@@ -148,7 +166,6 @@ const updateUserSubscription = async (subscription: Stripe.Subscription) => {
       }
     }
 
-    // データベースを更新
     const { error } = await supabase
       .from('profiles')
       .update({
@@ -157,16 +174,115 @@ const updateUserSubscription = async (subscription: Stripe.Subscription) => {
         cancel_date: cancelDate,
         downgrade_to: downgradeInfo.downgrade_to,
         downgrade_date: downgradeInfo.downgrade_date,
+        stripe_trial_start: toIsoStringOrNull(subscription.trial_start),
+        stripe_trial_end: toIsoStringOrNull(subscription.trial_end),
       })
-      .eq('id', userId);
+      .eq('id', profile.id);
 
     if (error) {
       console.error('Error updating user subscription:', error);
     } else {
-      console.log(`Updated user ${userId} subscription to ${newRank}`);
+      console.log(`Updated user ${profile.id} subscription to ${newRank}`);
     }
   } catch (error) {
     console.error('Error in updateUserSubscription:', error);
+  }
+};
+
+const cancelInvoiceDuringTrial = async (
+  invoiceRef: string | Stripe.Invoice | null | undefined,
+  preservedTrialEndMs: number
+) => {
+  if (!invoiceRef || preservedTrialEndMs <= Date.now()) {
+    return;
+  }
+
+  let invoice: Stripe.Invoice | null = null;
+
+  if (typeof invoiceRef === 'string') {
+    try {
+      invoice = await stripe.invoices.retrieve(invoiceRef);
+    } catch (error) {
+      console.error('Failed to retrieve invoice for trial preservation:', error);
+      return;
+    }
+  } else {
+    invoice = invoiceRef ?? null;
+  }
+
+  if (!invoice) {
+    return;
+  }
+
+  if (invoice.amount_due <= 0) {
+    return;
+  }
+
+  if ((invoice.billing_reason ?? '') !== 'subscription_update') {
+    return;
+  }
+
+  try {
+    if (invoice.status === 'draft') {
+      await stripe.invoices.delete(invoice.id);
+    } else if (invoice.status === 'open') {
+      await stripe.invoices.voidInvoice(invoice.id);
+    }
+  } catch (invoiceError) {
+    console.error('Failed to cancel invoice during trial preservation:', invoiceError);
+  }
+};
+
+const restoreTrialIfNecessary = async (
+  subscription: Stripe.Subscription,
+  previousAttributes?: Partial<Stripe.Subscription> | null
+): Promise<{ subscription: Stripe.Subscription; profile: CustomerProfileRow | null }> => {
+  const profile = await getProfileByCustomerId(subscription.customer as string);
+  if (!profile) {
+    return { subscription, profile: null };
+  }
+
+  const nowMs = Date.now();
+  const currentTrialEndMs =
+    typeof subscription.trial_end === 'number' ? subscription.trial_end * 1000 : null;
+
+  if (currentTrialEndMs && currentTrialEndMs > nowMs) {
+    return { subscription, profile };
+  }
+
+  const storedTrialEndMs = profile.stripe_trial_end ? Date.parse(profile.stripe_trial_end) : null;
+  const previousTrialEndMs =
+    previousAttributes && typeof previousAttributes.trial_end === 'number'
+      ? previousAttributes.trial_end * 1000
+      : null;
+
+  const preservedCandidates = [storedTrialEndMs, previousTrialEndMs].filter(
+    (value): value is number => typeof value === 'number' && !Number.isNaN(value) && value > nowMs
+  );
+
+  if (preservedCandidates.length === 0) {
+    return { subscription, profile };
+  }
+
+  const preservedTrialEndMs = Math.max(...preservedCandidates);
+
+  if (currentTrialEndMs && Math.abs(currentTrialEndMs - preservedTrialEndMs) <= 1000) {
+    return { subscription, profile };
+  }
+
+  try {
+    const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
+      trial_end: Math.floor(preservedTrialEndMs / 1000),
+      proration_behavior: 'none',
+      payment_behavior: 'allow_incomplete',
+    });
+
+    await cancelInvoiceDuringTrial(updatedSubscription.latest_invoice, preservedTrialEndMs);
+
+    return { subscription: updatedSubscription, profile };
+  } catch (error) {
+    console.error('Failed to restore trial period during subscription update:', error);
+    return { subscription, profile };
   }
 };
 
@@ -220,19 +336,29 @@ export const handler = async (event, context) => {
   try {
     // イベントタイプに応じて処理
     switch (stripeEvent.type) {
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated': {
+      case 'customer.subscription.created': {
         const subscription = stripeEvent.data.object as Stripe.Subscription;
         await updateUserSubscription(subscription);
         break;
       }
 
+      case 'customer.subscription.updated': {
+        const subscription = stripeEvent.data.object as Stripe.Subscription;
+        const previousAttributes = (stripeEvent.data.previous_attributes ??
+          null) as Partial<Stripe.Subscription> | null;
+        const { subscription: reconciledSubscription, profile } = await restoreTrialIfNecessary(
+          subscription,
+          previousAttributes
+        );
+        await updateUserSubscription(reconciledSubscription, profile);
+        break;
+      }
+
       case 'customer.subscription.deleted': {
         const subscription = stripeEvent.data.object as Stripe.Subscription;
-        const userId = await getUserIdFromCustomer(subscription.customer as string);
-        
-        if (userId) {
-          // サブスクリプション削除時はフリープランに戻す
+        const profile = await getProfileByCustomerId(subscription.customer as string);
+
+        if (profile) {
           const { error } = await supabase
             .from('profiles')
             .update({
@@ -241,13 +367,15 @@ export const handler = async (event, context) => {
               cancel_date: null,
               downgrade_to: null,
               downgrade_date: null,
+              stripe_trial_start: null,
+              stripe_trial_end: null,
             })
-            .eq('id', userId);
+            .eq('id', profile.id);
 
           if (error) {
             console.error('Error resetting user to free plan:', error);
           } else {
-            console.log(`Reset user ${userId} to free plan`);
+            console.log(`Reset user ${profile.id} to free plan`);
           }
         }
         break;
