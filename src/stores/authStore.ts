@@ -17,32 +17,34 @@ interface AuthState {
     message: string;
     title: string;
   } | null;
-    profile: {
-      nickname: string;
-      rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
-      level: number;
-      xp: number;
-      isAdmin: boolean;
-      id: string;
-      email?: string;
-      avatar_url?: string | null;
-      bio?: string | null;
-      twitter_handle?: string | null;
-      selected_title?: string | null;
-      next_season_xp_multiplier?: number;
-      country?: string | null;
-      // Stripe subscription fields
-      stripe_customer_id?: string;
-      will_cancel?: boolean;
-      cancel_date?: string;
-      downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
-      downgrade_date?: string;
-      // Lemon Squeezy fields
-      lemon_customer_id?: string | null;
-      lemon_subscription_id?: string | null;
-      lemon_subscription_status?: string | null; // on_trial, active, past_due, cancelled, expired, paused
-      lemon_trial_used?: boolean | null;
-    } | null;
+  profile: {
+    nickname: string;
+    rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+    level: number;
+    xp: number;
+    isAdmin: boolean;
+    id: string;
+    email?: string;
+    avatar_url?: string | null;
+    bio?: string | null;
+    twitter_handle?: string | null;
+    selected_title?: string | null;
+    next_season_xp_multiplier?: number;
+    country?: string | null;
+    // Stripe subscription fields
+    stripe_customer_id?: string;
+    will_cancel?: boolean;
+    cancel_date?: string;
+    downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+    downgrade_date?: string;
+    stripe_trial_start?: string | null;
+    stripe_trial_end?: string | null;
+    // Lemon Squeezy fields
+    lemon_customer_id?: string | null;
+    lemon_subscription_id?: string | null;
+    lemon_subscription_status?: string | null; // on_trial, active, past_due, cancelled, expired, paused
+    lemon_trial_used?: boolean | null;
+  } | null;
 }
 
 interface AuthActions {
@@ -492,7 +494,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           cacheKey,
           async () => await supabase
             .from('profiles')
-            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, email, country, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used')
+            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used')
             .eq('id', user.id)
             .maybeSingle(),
           1000 * 60 * 5
@@ -523,6 +525,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               cancel_date: data.cancel_date,
               downgrade_to: data.downgrade_to,
               downgrade_date: data.downgrade_date,
+              stripe_trial_start: data.stripe_trial_start ?? null,
+              stripe_trial_end: data.stripe_trial_end ?? null,
               lemon_customer_id: data.lemon_customer_id ?? null,
               lemon_subscription_id: data.lemon_subscription_id ?? null,
               lemon_subscription_status: data.lemon_subscription_status ?? null,
