@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchLessonById } from '@/platform/supabaseLessons';
-import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments } from '@/platform/supabaseLessonContent';
+import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments, LessonAttachment } from '@/platform/supabaseLessonContent';
 import { updateLessonProgress, fetchUserLessonProgress, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
 import { 
   fetchDetailedRequirementsProgress, 
@@ -54,12 +54,24 @@ const LessonDetailPage: React.FC = () => {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
-  const [attachments, setAttachments] = useState<Array<{ id: string; file_name: string; url: string; content_type?: string; size?: number }>>([]);
+  const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const { profile } = useAuthStore();
   const toast = useToast();
   const { fetchStats } = useUserStatsStore();
+
+  const isPlatinumMember = profile?.rank === 'platinum' || profile?.rank === 'black';
+  const visibleAttachments = useMemo(
+    () => attachments.filter(att => !att.platinum_only || isPlatinumMember),
+    [attachments, isPlatinumMember]
+  );
+  const platinumOnlyCount = useMemo(
+    () => attachments.filter(att => att.platinum_only).length,
+    [attachments]
+  );
+  const showPlatinumNotice = !isPlatinumMember && platinumOnlyCount > 0;
+  const shouldDisplayAttachmentsSection = visibleAttachments.length > 0 || showPlatinumNotice;
 
   const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -690,60 +702,78 @@ const LessonDetailPage: React.FC = () => {
               </div>
             )}
 
-            {/* 添付ファイルセクション */}
-            {attachments.length > 0 && (
-              <div className="bg-slate-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4">添付ファイル</h3>
-                <ul className="space-y-2">
-                  {attachments.map(att => (
-                    <li key={att.id} className="flex items-center justify-between bg-slate-700 p-3 rounded">
-                      <a href={att.url} target="_blank" rel="noreferrer" className="underline">
-                        {att.file_name}
-                      </a>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-gray-400">
-                          {att.content_type || ''}
-                          {att.size ? ` · ${(att.size / (1024 * 1024)).toFixed(1)}MB` : ''}
-                        </span>
-                        <button
-                          className={`btn btn-xs ${downloadingId === att.id ? 'btn-disabled' : 'btn-primary'} flex items-center gap-1`}
-                          disabled={downloadingId === att.id}
-                          onClick={async () => {
-                            setDownloadingId(att.id);
-                            try {
-                              const response = await fetch(att.url, { mode: 'cors' });
-                              if (!response.ok) {
-                                // フォールバック: 新規タブで開く
-                                window.open(att.url, '_blank', 'noreferrer');
-                                return;
-                              }
-                              const blob = await response.blob();
-                              const blobUrl = URL.createObjectURL(blob);
-                              const anchor = document.createElement('a');
-                              anchor.href = blobUrl;
-                              anchor.download = att.file_name || 'attachment';
-                              document.body.appendChild(anchor);
-                              anchor.click();
-                              anchor.remove();
-                              URL.revokeObjectURL(blobUrl);
-                            } catch (_e) {
-                              // フォールバック: 新規タブで開く
-                              window.open(att.url, '_blank', 'noreferrer');
-                            } finally {
-                              setDownloadingId(null);
-                            }
-                          }}
-                          aria-label={`${att.file_name} をダウンロード`}
-                        >
-                          <FaDownload />
-                          <span>{downloadingId === att.id ? '準備中...' : 'ダウンロード'}</span>
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+              {/* 添付ファイルセクション */}
+              {shouldDisplayAttachmentsSection && (
+                <div className="bg-slate-800 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold mb-4">添付ファイル</h3>
+                  {visibleAttachments.length > 0 ? (
+                    <ul className="space-y-2">
+                      {visibleAttachments.map(att => (
+                        <li key={att.id} className="bg-slate-700 p-3 rounded">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                              <a href={att.url} target="_blank" rel="noreferrer" className="underline">
+                                {att.file_name}
+                              </a>
+                              {att.platinum_only && (
+                                <span className="inline-flex items-center rounded-full bg-purple-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+                                  プラチナ以上限定
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-400">
+                                {att.content_type || ''}
+                                {att.size ? ` · ${(att.size / (1024 * 1024)).toFixed(1)}MB` : ''}
+                              </span>
+                              <button
+                                className={`btn btn-xs ${downloadingId === att.id ? 'btn-disabled' : 'btn-primary'} flex items-center gap-1`}
+                                disabled={downloadingId === att.id}
+                                onClick={async () => {
+                                  setDownloadingId(att.id);
+                                  try {
+                                    const response = await fetch(att.url, { mode: 'cors' });
+                                    if (!response.ok) {
+                                      // フォールバック: 新規タブで開く
+                                      window.open(att.url, '_blank', 'noreferrer');
+                                      return;
+                                    }
+                                    const blob = await response.blob();
+                                    const blobUrl = URL.createObjectURL(blob);
+                                    const anchor = document.createElement('a');
+                                    anchor.href = blobUrl;
+                                    anchor.download = att.file_name || 'attachment';
+                                    document.body.appendChild(anchor);
+                                    anchor.click();
+                                    anchor.remove();
+                                    URL.revokeObjectURL(blobUrl);
+                                  } catch (_e) {
+                                    // フォールバック: 新規タブで開く
+                                    window.open(att.url, '_blank', 'noreferrer');
+                                  } finally {
+                                    setDownloadingId(null);
+                                  }
+                                }}
+                                aria-label={`${att.file_name} をダウンロード`}
+                              >
+                                <FaDownload />
+                                <span>{downloadingId === att.id ? '準備中...' : 'ダウンロード'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-400">現在アクセス可能な添付ファイルはありません。</p>
+                  )}
+                  {showPlatinumNotice && (
+                    <p className="mt-4 rounded bg-purple-900/40 px-3 py-2 text-xs text-purple-200">
+                      プラチナ/ブラック会員限定の添付ファイルが {platinumOnlyCount} 件あります。アップグレードするとダウンロードできます。
+                    </p>
+                  )}
+                </div>
+              )}
 
             {/* 完了・スキップボタンセクション */}
             <div className="bg-slate-800 rounded-lg p-6">
