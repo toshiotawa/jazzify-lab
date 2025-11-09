@@ -35,6 +35,7 @@ export interface LessonAttachment {
   content_type?: string;
   size?: number;
   order_index: number;
+  platinum_only: boolean;
 }
 
 /**
@@ -167,7 +168,24 @@ export async function fetchLessonAttachments(lessonId: string): Promise<LessonAt
   return data || [];
 }
 
-export async function addLessonAttachment(params: { lesson_id: string; file_name: string; url: string; r2_key: string; content_type?: string; size?: number; order_index?: number; }): Promise<void> {
+export interface AddLessonAttachmentParams {
+  lesson_id: string;
+  file_name: string;
+  url: string;
+  r2_key: string;
+  content_type?: string;
+  size?: number;
+  order_index?: number;
+  platinum_only?: boolean;
+}
+
+export interface UpdateLessonAttachmentParams {
+  platinum_only?: boolean;
+  order_index?: number;
+  file_name?: string;
+}
+
+export async function addLessonAttachment(params: AddLessonAttachmentParams): Promise<void> {
   const { error } = await getSupabaseClient()
     .from('lesson_attachments')
     .insert({
@@ -178,6 +196,7 @@ export async function addLessonAttachment(params: { lesson_id: string; file_name
       content_type: params.content_type,
       size: params.size,
       order_index: params.order_index ?? 0,
+      platinum_only: params.platinum_only ?? false,
     });
   if (error) throw new Error(`添付ファイルの登録に失敗しました: ${error.message}`);
 }
@@ -188,6 +207,31 @@ export async function deleteLessonAttachment(id: string): Promise<void> {
     .delete()
     .eq('id', id);
   if (error) throw new Error(`添付ファイルの削除に失敗しました: ${error.message}`);
+}
+
+export async function updateLessonAttachment(id: string, params: UpdateLessonAttachmentParams): Promise<void> {
+  const payload: Record<string, unknown> = {};
+
+  if (typeof params.platinum_only === 'boolean') {
+    payload.platinum_only = params.platinum_only;
+  }
+  if (typeof params.order_index === 'number') {
+    payload.order_index = params.order_index;
+  }
+  if (typeof params.file_name === 'string') {
+    payload.file_name = params.file_name;
+  }
+
+  if (Object.keys(payload).length === 0) {
+    return;
+  }
+
+  const { error } = await getSupabaseClient()
+    .from('lesson_attachments')
+    .update(payload)
+    .eq('id', id);
+
+  if (error) throw new Error(`添付ファイルの更新に失敗しました: ${error.message}`);
 }
 
 export async function addLessonVideoR2(

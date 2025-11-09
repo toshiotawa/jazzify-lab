@@ -11,7 +11,17 @@ import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical, FaDragon } from 'react-icons/fa';
 import { FantasyStageSelector } from './FantasyStageSelector';
 import { uploadLessonVideo, uploadLessonAttachment, deleteLessonAttachmentByKey, deleteLessonVideoByKey } from '@/platform/r2Storage';
-import { addLessonVideoR2, fetchLessonAttachments, addLessonAttachment as insertLessonAttachment, deleteLessonAttachment as removeLessonAttachment, fetchLessonVideos, deleteLessonVideoRecord, LessonVideo } from '@/platform/supabaseLessonContent';
+import {
+  addLessonVideoR2,
+  fetchLessonAttachments,
+  addLessonAttachment as insertLessonAttachment,
+  deleteLessonAttachment as removeLessonAttachment,
+  updateLessonAttachment,
+  fetchLessonVideos,
+  deleteLessonVideoRecord,
+  LessonVideo,
+  LessonAttachment,
+} from '@/platform/supabaseLessonContent';
 
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number'>;
 
@@ -40,12 +50,26 @@ export const LessonManager: React.FC = () => {
   const [lessonsLoading, setLessonsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSorting, setIsSorting] = useState(false);
-  const [attachmentsByLesson, setAttachmentsByLesson] = useState<Record<string, any[]>>({});
+  const [attachmentsByLesson, setAttachmentsByLesson] = useState<Record<string, LessonAttachment[]>>({});
+  const [attachmentPlatinumOnlyByLesson, setAttachmentPlatinumOnlyByLesson] = useState<Record<string, boolean>>({});
+  const [updatingAttachmentIds, setUpdatingAttachmentIds] = useState<Set<string>>(new Set());
   const [videosByLesson, setVideosByLesson] = useState<Record<string, LessonVideo[]>>({});
   const videoInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   const toast = useToast();
+
+  const setAttachmentUpdating = (attachmentId: string, isUpdating: boolean) => {
+    setUpdatingAttachmentIds(prev => {
+      const next = new Set(prev);
+      if (isUpdating) {
+        next.add(attachmentId);
+      } else {
+        next.delete(attachmentId);
+      }
+      return next;
+    });
+  };
   const { register, handleSubmit, reset, setValue } = useForm<LessonFormData>();
   const { register: registerSong, handleSubmit: handleSubmitSong, reset: resetSong, setValue: setValueSong, watch: watchSong } = useForm<SongFormData>();
   const { register: registerContent, handleSubmit: handleSubmitContent, reset: resetContent, setValue: setValueContent, watch: watchContent } = useForm<ContentFormData>();
@@ -116,6 +140,34 @@ export const LessonManager: React.FC = () => {
       setVideosByLesson(prev => ({ ...prev, [lessonId]: videos }));
     } catch (e) {
       console.error('Failed to load attachments:', e);
+    }
+  };
+
+  const handleAttachmentPlatinumSettingChange = (lessonId: string, nextValue: boolean) => {
+    setAttachmentPlatinumOnlyByLesson(prev => ({ ...prev, [lessonId]: nextValue }));
+  };
+
+  const handleAttachmentPlatinumToggle = async (lessonId: string, attachmentId: string, nextValue: boolean) => {
+    const snapshot = (attachmentsByLesson[lessonId] ?? []).map(att => ({ ...att }));
+    setAttachmentsByLesson(prev => {
+      const current = prev[lessonId] ?? [];
+      return {
+        ...prev,
+        [lessonId]: current.map(att => (att.id === attachmentId ? { ...att, platinum_only: nextValue } : att)),
+      };
+    });
+
+    setAttachmentUpdating(attachmentId, true);
+
+    try {
+      await updateLessonAttachment(attachmentId, { platinum_only: nextValue });
+      toast.success(nextValue ? 'プラチナ限定に設定しました' : 'プラチナ限定を解除しました');
+    } catch (error) {
+      console.error('Failed to update attachment platinum flag:', error);
+      toast.error('プラチナ限定フラグの更新に失敗しました');
+      setAttachmentsByLesson(prev => ({ ...prev, [lessonId]: snapshot }));
+    } finally {
+      setAttachmentUpdating(attachmentId, false);
     }
   };
 
@@ -715,56 +767,102 @@ export const LessonManager: React.FC = () => {
 
                           <div>
                             <h5 className="font-semibold mb-2">添付ファイル</h5>
-                            <div className="flex items-center gap-2 mb-3">
-                              <input ref={attachmentInputRef} type="file" accept="application/pdf,audio/mpeg,audio/wav,audio/mp4" className="file-input file-input-bordered file-input-sm" />
-                              <button
-                                className="btn btn-primary btn-sm"
-                                onClick={async () => {
-                                  const file = attachmentInputRef.current?.files?.[0];
-                                  if (!file) return;
-                                  try {
-                                    const uploaded = await uploadLessonAttachment(file, lesson.id);
-                                    await insertLessonAttachment({
-                                      lesson_id: lesson.id,
-                                      file_name: uploaded.fileName,
-                                      url: uploaded.url,
-                                      r2_key: uploaded.key,
-                                      content_type: uploaded.contentType,
-                                      size: uploaded.size,
-                                    });
-                                    toast.success('添付ファイルを追加しました');
-                                    await loadLessonExtras(lesson.id);
-                                  } catch (e) {
-                                    toast.error('添付ファイルの追加に失敗しました');
-                                    console.error(e);
-                                  } finally {
-                                    if (attachmentInputRef.current) attachmentInputRef.current.value = '';
-                                  }
-                                }}
-                              >追加</button>
+                            <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:gap-3">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  ref={attachmentInputRef}
+                                  type="file"
+                                  multiple
+                                  accept="application/pdf,audio/mpeg,audio/wav,audio/mp4"
+                                  className="file-input file-input-bordered file-input-sm"
+                                />
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  onClick={async () => {
+                                    const files = attachmentInputRef.current?.files;
+                                    if (!files || files.length === 0) return;
+                                    const platinumOnly = attachmentPlatinumOnlyByLesson[lesson.id] ?? false;
+                                    const existingCount = attachmentsByLesson[lesson.id]?.length ?? 0;
+
+                                    try {
+                                      const uploadedFiles = Array.from(files);
+                                      for (const [index, file] of uploadedFiles.entries()) {
+                                        const uploaded = await uploadLessonAttachment(file, lesson.id);
+                                        await insertLessonAttachment({
+                                          lesson_id: lesson.id,
+                                          file_name: uploaded.fileName,
+                                          url: uploaded.url,
+                                          r2_key: uploaded.key,
+                                          content_type: uploaded.contentType,
+                                          size: uploaded.size,
+                                          order_index: existingCount + index,
+                                          platinum_only: platinumOnly,
+                                        });
+                                      }
+                                      toast.success('添付ファイルを追加しました');
+                                      await loadLessonExtras(lesson.id);
+                                    } catch (e) {
+                                      toast.error('添付ファイルの追加に失敗しました');
+                                      console.error(e);
+                                    } finally {
+                                      if (attachmentInputRef.current) attachmentInputRef.current.value = '';
+                                    }
+                                  }}
+                                >追加</button>
+                              </div>
+                              <label className="flex items-center gap-2 text-sm text-gray-200">
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-sm"
+                                  checked={attachmentPlatinumOnlyByLesson[lesson.id] ?? false}
+                                  onChange={event => handleAttachmentPlatinumSettingChange(lesson.id, event.target.checked)}
+                                />
+                                <span>プラチナ/ブラック会員限定で公開</span>
+                              </label>
                             </div>
                             <p className="text-xs text-gray-400">例: PDF, MP3, WAV, M4A, 最大50MB</p>
                             <div className="mt-3 space-y-2">
                               {(attachmentsByLesson[lesson.id] || []).map(att => (
-                                <div key={att.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
-                                  <a href={att.url} target="_blank" rel="noreferrer" className="text-sm underline">
-                                    {att.file_name}
-                                  </a>
-                                  <button
-                                    className="btn btn-ghost btn-xs text-red-500"
-                                    onClick={async () => {
-                                      if (!window.confirm('この添付ファイルを削除しますか？')) return;
-                                      try {
-                                        await removeLessonAttachment(att.id);
-                                        await deleteLessonAttachmentByKey(att.r2_key);
-                                        toast.success('添付ファイルを削除しました');
-                                        await loadLessonExtras(lesson.id);
-                                      } catch (e) {
-                                        toast.error('削除に失敗しました');
-                                        console.error(e);
-                                      }
-                                    }}
-                                  >削除</button>
+                                <div key={att.id} className="bg-slate-700 p-3 rounded flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                                    <a href={att.url} target="_blank" rel="noreferrer" className="text-sm underline">
+                                      {att.file_name}
+                                    </a>
+                                    {att.platinum_only && (
+                                      <span className="inline-flex items-center rounded-full bg-purple-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+                                        プラチナ以上限定
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <label className="flex items-center gap-1 text-xs text-gray-200">
+                                      <input
+                                        type="checkbox"
+                                        className="checkbox checkbox-xs"
+                                        checked={att.platinum_only}
+                                        onChange={event => handleAttachmentPlatinumToggle(lesson.id, att.id, event.target.checked)}
+                                        disabled={updatingAttachmentIds.has(att.id)}
+                                        aria-label="プラチナ限定を切り替える"
+                                      />
+                                      プラチナ限定
+                                    </label>
+                                    <button
+                                      className="btn btn-ghost btn-xs text-red-500"
+                                      onClick={async () => {
+                                        if (!window.confirm('この添付ファイルを削除しますか？')) return;
+                                        try {
+                                          await removeLessonAttachment(att.id);
+                                          await deleteLessonAttachmentByKey(att.r2_key);
+                                          toast.success('添付ファイルを削除しました');
+                                          await loadLessonExtras(lesson.id);
+                                        } catch (e) {
+                                          toast.error('削除に失敗しました');
+                                          console.error(e);
+                                        }
+                                      }}
+                                      disabled={updatingAttachmentIds.has(att.id)}
+                                    >削除</button>
+                                  </div>
                                 </div>
                               ))}
                               <button

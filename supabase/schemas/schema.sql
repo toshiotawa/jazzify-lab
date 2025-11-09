@@ -993,6 +993,7 @@ CREATE TABLE IF NOT EXISTS "public"."lesson_songs" (
     "lesson_id" "uuid" NOT NULL,
     "song_id" "uuid",
     "order_index" integer DEFAULT 0 NOT NULL,
+    "platinum_only" boolean DEFAULT false NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "clear_conditions" "jsonb",
     "is_fantasy" boolean DEFAULT false,
@@ -1059,6 +1060,7 @@ CREATE TABLE IF NOT EXISTS "public"."lesson_attachments" (
     "content_type" "text",
     "size" bigint,
     "order_index" integer DEFAULT 0 NOT NULL,
+    "platinum_only" boolean DEFAULT false NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"()
 );
