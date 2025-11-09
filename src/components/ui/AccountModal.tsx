@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
@@ -22,11 +22,73 @@ const RANK_LABEL: Record<string, string> = {
   black: 'ブラック',
 };
 
+interface SubscriptionStatusResponse {
+  provider: 'stripe' | 'lemonsqueezy' | 'none';
+  renewalDateIso: string | null;
+  trialEndDateIso: string | null;
+}
+
+interface SubscriptionStatusItem {
+  key: string;
+  icon: string;
+  text: string;
+  className?: string;
+}
+
+const parseIsoDate = (value: string | null | undefined): Date | null => {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDateForDisplay = (date: Date): string =>
+  date.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+const addDays = (date: Date, days: number): Date => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+
+const isSubscriptionStatusResponse = (
+  payload: unknown
+): payload is SubscriptionStatusResponse => {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  const record = payload as Record<string, unknown>;
+  const provider = record.provider;
+  const renewalDateIso = record.renewalDateIso;
+  const trialEndDateIso = record.trialEndDateIso;
+
+  const isValidProvider =
+    provider === 'stripe' || provider === 'lemonsqueezy' || provider === 'none';
+  const isValidRenewal =
+    typeof renewalDateIso === 'string' || renewalDateIso === null || renewalDateIso === undefined;
+  const isValidTrial =
+    typeof trialEndDateIso === 'string' || trialEndDateIso === null || trialEndDateIso === undefined;
+
+  return isValidProvider && isValidRenewal && isValidTrial;
+};
+
 /**
  * #account ハッシュに合わせて表示されるアカウントページ (モーダル→ページ化)
  */
 const AccountPage: React.FC = () => {
-  const { profile, logout, updateEmail, emailChangeStatus, clearEmailChangeStatus } = useAuthStore();
+  const {
+    profile,
+    logout,
+    updateEmail,
+    emailChangeStatus,
+    clearEmailChangeStatus,
+    session,
+  } = useAuthStore();
   const pushToast = useToastStore(state => state.push);
   const [open, setOpen] = useState(() => window.location.hash.startsWith('#account'));
   const [activeTab, setActiveTab] = useState<'profile' | 'subscription'>('profile');
@@ -39,6 +101,11 @@ const AccountPage: React.FC = () => {
   const [newEmail, setNewEmail] = useState('');
   const [emailUpdating, setEmailUpdating] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatusResponse | null>(
+    null
+  );
+  const [subscriptionStatusError, setSubscriptionStatusError] = useState<string | null>(null);
+  const [isSubscriptionStatusLoading, setIsSubscriptionStatusLoading] = useState(false);
   const [achievementTitles, setAchievementTitles] = useState<{
     missionTitles: string[];
     lessonTitles: string[];
@@ -66,6 +133,7 @@ const AccountPage: React.FC = () => {
     normalizedCountry === 'JP' ||
     normalizedCountry === 'JPN' ||
     normalizedCountry === 'JAPAN';
+  const accessToken = session?.access_token ?? null;
 
   // ハッシュ変更で開閉
   useEffect(() => {
@@ -153,6 +221,81 @@ const AccountPage: React.FC = () => {
     loadAchievementTitles();
   }, [profile?.id]);
 
+  useEffect(() => {
+    if (!open || activeTab !== 'subscription') {
+      return;
+    }
+
+    if (!profile?.id || !accessToken) {
+      setSubscriptionStatus(null);
+      setSubscriptionStatusError(null);
+      return;
+    }
+
+    if (profile.rank === 'free') {
+      setSubscriptionStatus(null);
+      setSubscriptionStatusError(null);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const fetchSubscriptionStatus = async () => {
+      setIsSubscriptionStatusLoading(true);
+      setSubscriptionStatusError(null);
+
+      try {
+        const response = await fetch('/.netlify/functions/getSubscriptionStatus', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          const errorMessage =
+            payload &&
+            typeof payload === 'object' &&
+            payload !== null &&
+            'error' in payload &&
+            typeof (payload as { error?: unknown }).error === 'string'
+              ? String((payload as { error?: unknown }).error)
+              : 'サブスクリプション情報の取得に失敗しました';
+          throw new Error(errorMessage);
+        }
+
+        if (!isCancelled && isSubscriptionStatusResponse(payload)) {
+          setSubscriptionStatus({
+            provider: payload.provider,
+            renewalDateIso: payload.renewalDateIso ?? null,
+            trialEndDateIso: payload.trialEndDateIso ?? null,
+          });
+        }
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+        setSubscriptionStatus(null);
+        const message =
+          error instanceof Error ? error.message : 'サブスクリプション情報の取得に失敗しました';
+        setSubscriptionStatusError(message);
+      } finally {
+        if (!isCancelled) {
+          setIsSubscriptionStatusLoading(false);
+        }
+      }
+    };
+
+    void fetchSubscriptionStatus();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [open, activeTab, profile?.id, profile?.rank, accessToken]);
+
   // メールアドレス変更ステータスを監視してToast表示
   useEffect(() => {
     if (emailChangeStatus && emailChangeStatus.type) {
@@ -167,6 +310,108 @@ const AccountPage: React.FC = () => {
       clearEmailChangeStatus();
     }
   }, [emailChangeStatus, pushToast, clearEmailChangeStatus]);
+
+  const subscriptionStatusItems: SubscriptionStatusItem[] = (() => {
+    if (!profile || profile.rank === 'free') {
+      return [];
+    }
+
+    const items: SubscriptionStatusItem[] = [];
+    const trialEndIso = subscriptionStatus?.trialEndDateIso ?? profile.stripe_trial_end ?? null;
+    const trialEndDate = parseIsoDate(trialEndIso);
+
+    if (trialEndDate) {
+      items.push({
+        key: 'trial-end',
+        icon: '🎁',
+        text: `トライアル終了日: ${formatDateForDisplay(trialEndDate)}`,
+        className: 'text-purple-300',
+      });
+    } else if (profile.lemon_subscription_status === 'on_trial') {
+      items.push({
+        key: 'trial-active',
+        icon: '🎁',
+        text: 'トライアル期間中です',
+        className: 'text-purple-300',
+      });
+    }
+
+    const isCancelScheduled = Boolean(profile.will_cancel && profile.cancel_date);
+    const downgradeDate = parseIsoDate(profile.downgrade_date);
+    const planRenewalDateFromApi = parseIsoDate(subscriptionStatus?.renewalDateIso ?? null);
+    let planRenewalDate: Date | null = null;
+    let planRenewalNote = '';
+
+    if (!isCancelScheduled) {
+      if (planRenewalDateFromApi) {
+        planRenewalDate = planRenewalDateFromApi;
+        planRenewalNote = '（自動継続予定）';
+      } else if (downgradeDate) {
+        planRenewalDate = downgradeDate;
+        planRenewalNote = '（同日にプラン変更が適用されます）';
+      } else if (trialEndDate) {
+        planRenewalDate = addDays(trialEndDate, 1);
+        planRenewalNote = '（初回請求予定日）';
+      }
+    }
+
+    if (planRenewalDate) {
+      items.push({
+        key: 'renewal',
+        icon: '🔁',
+        text: `次回更新日: ${formatDateForDisplay(planRenewalDate)}${planRenewalNote}`,
+        className: 'text-green-300',
+      });
+    } else if (
+      !isCancelScheduled &&
+      (subscriptionStatus?.provider === 'stripe' || subscriptionStatus?.provider === 'lemonsqueezy') &&
+      !trialEndDate
+    ) {
+      items.push({
+        key: 'renewal-pending',
+        icon: '🔁',
+        text: '次回更新日は現在取得中です。Customer Portalでご確認ください。',
+        className: 'text-gray-300',
+      });
+    }
+
+    if (isCancelScheduled && profile.cancel_date) {
+      const cancelDate = parseIsoDate(profile.cancel_date);
+      if (cancelDate) {
+        items.push({
+          key: 'cancel',
+          icon: '⚠️',
+          text: `${formatDateForDisplay(cancelDate)}に解約予定`,
+          className: 'text-yellow-400',
+        });
+      }
+    }
+
+    if (downgradeDate && profile.downgrade_to) {
+      const downgradeRankLabel = RANK_LABEL[profile.downgrade_to] ?? profile.downgrade_to;
+      items.push({
+        key: 'downgrade',
+        icon: '📉',
+        text: `${formatDateForDisplay(downgradeDate)}に${downgradeRankLabel}プランにダウングレード予定`,
+        className: 'text-blue-400',
+      });
+    }
+
+    if (
+      items.length === 0 &&
+      !isSubscriptionStatusLoading &&
+      (!subscriptionStatusError || subscriptionStatusError.length === 0)
+    ) {
+      items.push({
+        key: 'no-status',
+        icon: 'ℹ️',
+        text: '現在表示できるサブスクリプション情報はありません。',
+        className: 'text-gray-300',
+      });
+    }
+
+    return items;
+  })();
 
   if (!open) return null;
 
@@ -476,20 +721,25 @@ const AccountPage: React.FC = () => {
                       </div>
                       
                       {/* サブスクリプション状態表示 */}
-                      {profile.rank !== 'free' && (
-                        <div className="text-sm space-y-1">
-                          {profile.will_cancel && profile.cancel_date && (
-                            <div className="text-yellow-400">
-                              ⚠️ {new Date(profile.cancel_date).toLocaleDateString('ja-JP')}に解約予定
-                            </div>
-                          )}
-                          {profile.downgrade_to && profile.downgrade_date && (
-                            <div className="text-blue-400">
-                              📉 {new Date(profile.downgrade_date).toLocaleDateString('ja-JP')}に{RANK_LABEL[profile.downgrade_to]}プランにダウングレード予定
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        {profile.rank !== 'free' && (
+                          <div className="text-sm space-y-1">
+                            {isSubscriptionStatusLoading && (
+                              <div className="text-xs text-gray-300">サブスクリプション情報を取得中...</div>
+                            )}
+                            {subscriptionStatusItems.map(item => (
+                              <div
+                                key={item.key}
+                                className={`flex items-start gap-2 ${item.className ?? 'text-gray-200'}`}
+                              >
+                                <span aria-hidden>{item.icon}</span>
+                                <span>{item.text}</span>
+                              </div>
+                            ))}
+                            {subscriptionStatusError && (
+                              <div className="text-xs text-red-400">{subscriptionStatusError}</div>
+                            )}
+                          </div>
+                        )}
                       
                       {/* 管理ボタン */}
                       {profile.rank !== 'free' && (profile.stripe_customer_id || (profile as any).lemon_customer_id) ? (
