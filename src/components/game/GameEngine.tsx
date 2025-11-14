@@ -13,7 +13,7 @@ import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
-import { devLog, log, perfLog } from '@/utils/logger';
+import { devLog, log } from '@/utils/logger';
 
 // iOS検出関数
 const isIOS = (): boolean => {
@@ -1085,29 +1085,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   return (
     <div className={cn("h-full w-full flex flex-col", className)}>
-      {/* ==== フローティング ステータスメニュー ==== */}
-      <div className="fixed bottom-20 left-4 z-40 pointer-events-none select-none">
-        <div className="bg-black bg-opacity-70 text-white text-xs rounded-md shadow px-3 py-2 space-y-1">
-          <div className="flex items-center space-x-2">
-            <div className={cn(
-              "w-2.5 h-2.5 rounded-full",
-              isEngineReady ? "bg-green-400" : "bg-yellow-400"
-            )} />
-            <span>ゲームエンジン: {isEngineReady ? "準備完了" : "初期化中..."}</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className={cn(
-              "w-2.5 h-2.5 rounded-full",
-              audioLoaded ? "bg-green-400" : "bg-red-500"
-            )} />
-            <span>音声: {audioLoaded ? "読み込み完了" : "読み込み中..."}</span>
-          </div>
-            <div className="text-right">
-              アクティブノーツ: <ActiveNoteCount />
-            </div>
-        </div>
-      </div>
-      
       {/* Phase 3: PIXI.js ノーツ表示エリア - フル高さ */}
       <div 
         ref={gameAreaRef}
@@ -1177,14 +1154,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           );
         })()}
         
-        {/* PIXI.js デバッグ情報 */}
-        {pixiRenderer && (
-          <div className="fixed top-4 right-4 bg-black bg-opacity-60 text-white text-xs p-2 rounded z-30 pointer-events-none">
-            <div>PIXI.js レンダラー: 稼働中</div>
-            <div>アクティブノーツ: <ActiveNoteCount /></div>
-            <div>解像度: {gameAreaSize.width}×{gameAreaSize.height}</div>
-          </div>
-        )}
       </div>
       
       {/* HTML5 Audio Element（楽曲再生用） */}
@@ -1201,15 +1170,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       />
     </div>
   );
-};
-
-// ===== サブコンポーネント =====
-// 注：Phase 3でPIXI.jsレンダリングに移行済み
-// HTMLベースのピアノキーボードは削除し、PIXI.js側で統一
-
-const ActiveNoteCount: React.FC = () => {
-  const count = useGameStore((state) => state.engineActiveNotes.length);
-  return <>{count}</>;
 };
 
 export default GameEngineComponent;

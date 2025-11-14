@@ -30,11 +30,6 @@ if (typeof window !== 'undefined' && !import.meta.env.PROD) {
 }
 
 /**
- * プロダクション環境用空関数
- */
-const noop = () => {};
-
-/**
  * 統一ログインターフェース - プロダクション最適化
  */
 export const log = {
@@ -50,39 +45,6 @@ export const log = {
   debug: (...args: unknown[]) => 
     currentLevel === 'debug' && console.log(...args),
 };
-
-/**
- * 頻度制限付きログ（プロダクションでは完全無効）
- */
-class ThrottledLogger {
-  private lastLogTime = 0;
-  private interval: number;
-  
-  constructor(intervalMs: number = 1000) {
-    this.interval = intervalMs;
-  }
-  
-  info(message: string, ...args: unknown[]): void {
-    const now = performance.now();
-    if (now - this.lastLogTime >= this.interval) {
-      log.info(message, ...args);
-      this.lastLogTime = now;
-    }
-  }
-  
-  debug(message: string, ...args: unknown[]): void {
-    const now = performance.now();
-    if (now - this.lastLogTime >= this.interval) {
-      log.debug(message, ...args);
-      this.lastLogTime = now;
-    }
-  }
-}
-
-/**
- * パフォーマンス監視用の制限付きロガー（プロダクションでも有効）
- */
-export const perfLog = new ThrottledLogger(1000);
 
 /**
  * 開発専用ログ（プロダクションでも有効）

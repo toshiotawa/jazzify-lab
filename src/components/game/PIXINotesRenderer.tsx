@@ -8,8 +8,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
-import { performanceMonitor } from '@/utils/performanceOptimizer';
-import { log, perfLog } from '@/utils/logger';
+import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
 
 // ===== 破棄管理システム =====
@@ -285,9 +284,6 @@ export class PIXINotesRendererInstance {
   private lastFrameTime: number = performance.now();
   private effectsElapsed: number = 0; // エフェクト更新用の経過時間カウンター
   
-  // パフォーマンス監視フラグ
-  private performanceEnabled: boolean = true;
-  
   // 破棄状態の追跡
   private isDestroyed: boolean = false;
   
@@ -431,14 +427,9 @@ export class PIXINotesRendererInstance {
    */
   private setupTickerSystem(): void {
     // メイン更新関数（ノートUpdater管理）
-    this.mainUpdateFunction = (delta: number) => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
-      
-      // パフォーマンス監視開始
-      if (this.performanceEnabled) {
-        performanceMonitor.startFrame();
-      }
-
+      this.mainUpdateFunction = (delta: number) => {
+        if (this.isDestroyed || this.disposeManager.disposed) return;
+        
       // 全ノートUpdaterを更新
       for (const [noteId, updater] of this.noteUpdaters) {
         if (!updater.active) {
@@ -446,11 +437,6 @@ export class PIXINotesRendererInstance {
           continue;
         }
         updater.update(delta);
-      }
-
-      // パフォーマンス監視終了
-      if (this.performanceEnabled) {
-        performanceMonitor.endFrame();
       }
     };
 
@@ -1831,15 +1817,6 @@ export class PIXINotesRendererInstance {
     const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
     const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
     
-    // FPS監視（デバッグ用）
-    this.fpsCounter++;
-    if (currentTime - this.lastFpsTime >= 1000) {
-      const processedNotes = this.allNotes.length - this.nextNoteIndex;
-      perfLog.info(`🚀 PIXI FPS: ${this.fpsCounter} | Total Notes: ${this.allNotes.length} | Processed: ${processedNotes} | Next Index: ${this.nextNoteIndex} | Sprites: ${this.noteSprites.size} | speedPxPerSec: ${speedPxPerSec.toFixed(1)}`);
-      this.fpsCounter = 0;
-      this.lastFpsTime = currentTime;
-    }
-    
     // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
     // まだ表示していないノートで、表示時刻になったもののみ処理
     const appearanceTime = currentTime + baseFallDuration; // 画面上端に現れる時刻
@@ -1868,13 +1845,6 @@ export class PIXINotesRendererInstance {
     
     
     
-    // ノーツ更新のパフォーマンス測定終了
-    const notesUpdateDuration = performance.now() - notesUpdateStartTime;
-    
-    // 重い更新処理の場合のみログ出力（5ms以上またはノート数が多い場合）
-    if (notesUpdateDuration > 5 || activeNotes.length > 100) {
-      perfLog.info(`🎯 PIXI updateNotes: ${notesUpdateDuration.toFixed(2)}ms | Notes: ${activeNotes.length} | Sprites: ${this.noteSprites.size}`);
-    }
   }
 
   /**
@@ -2046,11 +2016,6 @@ export class PIXINotesRendererInstance {
       this.removeNoteSprite(noteId);
     }
     
-    // パフォーマンス監視（条件付きログ）
-    const stateDuration = performance.now() - stateStartTime;
-    if (stateDuration > 5 || this.noteSprites.size > 50) { // 5ms超過または50スプライト超過時のみ
-      perfLog.info(`🎯 PIXI状態ループ: ${stateDuration.toFixed(2)}ms | Sprites: ${this.noteSprites.size} | StateChanges: ${stateChanges} | Deleted: ${spritesToRemove.length}`);
-    }
   }
   
   /**
@@ -2725,85 +2690,75 @@ export class PIXINotesRendererInstance {
     }
   }
   
-  /**
-   * リソース解放
-   */
-  destroy(): void {
-    // 破棄状態フラグを設定（レンダリングループを停止）
-    this.isDestroyed = true;
-    
-    try {
-      // 🎯 統合フレーム制御を停止
-      if (window.performanceMonitor) {
-        window.performanceMonitor.stopMonitoring();
-      }
+    /**
+     * リソース解放
+     */
+    destroy(): void {
+      // 破棄状態フラグを設定（レンダリングループを停止）
+      this.isDestroyed = true;
       
-      // アクティブキープレス状態をクリア（音が伸び続けるバグ防止）
-      for (const midiNote of this.activeKeyPresses) {
-        this.handleKeyRelease(midiNote);
-      }
-      this.activeKeyPresses.clear();
-
-      // ノートスプライトを安全に削除
-      const noteIds = Array.from(this.noteSprites.keys());
-      for (const noteId of noteIds) {
-        this.removeNoteSprite(noteId);
-      }
-      this.noteSprites.clear();
-
-      // ピアノスプライトをクリア
-      this.pianoSprites.clear();
-      this.highlightedKeys.clear();
-      this.guideHighlightedKeys.clear();
-
-      // ★ ガイドラインも破棄
-      if (this.guidelines) {
-        this.guidelines.destroy();
-        this.guidelines = undefined;
-      }
-
-      // ===== ラベルテクスチャの破棄 =====
       try {
-        if (this.labelTextures) {
-          this.labelTextures.abc?.forEach(texture => {
-            if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
-              texture.destroy();
-            }
+        // アクティブキープレス状態をクリア（音が伸び続くバグ防止）
+        for (const midiNote of this.activeKeyPresses) {
+          this.handleKeyRelease(midiNote);
+        }
+        this.activeKeyPresses.clear();
+
+        // ノートスプライトを安全に削除
+        const noteIds = Array.from(this.noteSprites.keys());
+        for (const noteId of noteIds) {
+          this.removeNoteSprite(noteId);
+        }
+        this.noteSprites.clear();
+
+        // ピアノスプライトをクリア
+        this.pianoSprites.clear();
+        this.highlightedKeys.clear();
+        this.guideHighlightedKeys.clear();
+
+        // ガイドラインも破棄
+        if (this.guidelines) {
+          this.guidelines.destroy();
+          this.guidelines = undefined;
+        }
+
+        // ラベルテクスチャの破棄
+        try {
+          if (this.labelTextures) {
+            this.labelTextures.abc?.forEach((texture) => {
+              if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
+                texture.destroy();
+              }
+            });
+            this.labelTextures.solfege?.forEach((texture) => {
+              if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
+                texture.destroy();
+              }
+            });
+            this.labelTextures.abc.clear();
+            this.labelTextures.solfege.clear();
+          }
+        } catch (error) {
+          log.error('⚠️ Label textures cleanup error:', error);
+        }
+        
+        // PIXI.jsアプリケーションを破棄
+        if (this.app && (this.app as any)._destroyed !== true) {
+          this.app.destroy(true, {
+            children: true,
+            texture: false,
+            baseTexture: false
           });
-          this.labelTextures.solfege?.forEach(texture => {
-            if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
-              texture.destroy();
-            }
-          });
-          this.labelTextures.abc.clear();
-          this.labelTextures.solfege.clear();
         }
       } catch (error) {
-        log.error('⚠️ Label textures cleanup error:', error);
+        log.error('⚠️ PIXI renderer destroy error:', error);
       }
-      
-
-      // PIXI.jsアプリケーションを破棄
-      if (this.app && (this.app as any)._destroyed !== true) {
-        this.app.destroy(true, { 
-          children: true, 
-          texture: false,  // テクスチャは共有されている可能性があるのでfalse
-          baseTexture: false 
-        });
-      }
-    } catch (error) {
-      log.error('⚠️ PIXI renderer destroy error:', error);
     }
-  }
   
   /**
    * ピアノキー入力コールバックの設定
    */
   setKeyCallbacks(onKeyPress: (note: number) => void, onKeyRelease: (note: number) => void): void {
-    log.info('🎹 setKeyCallbacks called', {
-      hasOnKeyPress: !!onKeyPress,
-      hasOnKeyRelease: !!onKeyRelease
-    });
     this.onKeyPress = onKeyPress;
     this.onKeyRelease = onKeyRelease;
   }
@@ -2812,12 +2767,6 @@ export class PIXINotesRendererInstance {
    * 内部キープレスハンドラー
    */
   private handleKeyPress(midiNote: number): void {
-    log.info('🎹 handleKeyPress called', { 
-      midiNote, 
-      hasOnKeyPress: !!this.onKeyPress,
-      destroyed: this.isDestroyed
-    });
-    
     // アクティブキープレス状態に追加
     this.activeKeyPresses.add(midiNote);
 
