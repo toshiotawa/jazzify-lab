@@ -199,6 +199,7 @@ interface RendererSettings {
     particles: boolean;
     trails: boolean;
   };
+  performanceMode: 'standard' | 'lightweight' | 'ultra_light';
   /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
   noteNameStyle: 'off' | 'abc' | 'solfege';
   /** 簡易表示モード: 複雑な音名を基本音名に変換 */
@@ -273,6 +274,13 @@ export class PIXINotesRendererInstance {
   private disposeManager: DisposeManager = new DisposeManager();
   private noteUpdaters: Map<string, NoteUpdater> = new Map();
   private effectUpdaters: Set<EffectUpdater> = new Set();
+  private readonly defaultEffects = {
+    glow: true,
+    particles: false,
+    trails: false
+  };
+  private currentPerformanceMode: RendererSettings['performanceMode'] = 'standard';
+  private preservedNoteNameStyle: RendererSettings['noteNameStyle'] | null = null;
 
   
   // Ticker関数への参照（削除用）
@@ -312,11 +320,12 @@ export class PIXINotesRendererInstance {
       activeKey: 0xFF8C00,
       guideKey: 0x22C55E
     },
-            effects: {
-          glow: true,
-          particles: false,
-          trails: false
-        },
+    effects: {
+      glow: true,
+      particles: false,
+      trails: false
+    },
+    performanceMode: 'standard',
     noteNameStyle: 'off',
     simpleDisplayMode: false,
     transpose: 0,
@@ -419,6 +428,7 @@ export class PIXINotesRendererInstance {
     // 🎯 統合フレーム制御でPIXIアプリケーションを開始
     this.startUnifiedRendering();
     
+    this.applyPerformanceProfile(this.settings.performanceMode);
     log.info('✅ PIXI.js renderer initialized successfully');
   }
 
@@ -1856,15 +1866,14 @@ export class PIXINotesRendererInstance {
       this.nextNoteIndex++;
     }
     
+    const activeNoteMap = this.buildActiveNoteMap(activeNotes);
+    
     // ===== 🚀 CPU最適化: ループ分離による高速化 =====
     // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
-    this.updateSpritePositions(activeNotes, currentTime, speedPxPerSec);
+    this.updateSpritePositions(activeNoteMap, currentTime, speedPxPerSec);
     
     // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
-    // const frameStartTime = performance.now(); // パフォーマンス監視用（現在未使用）
-    
-    // 状態・削除処理ループ（フレーム間引き無効化）
-    this.updateSpriteStates(activeNotes);
+    this.updateSpriteStates(activeNoteMap);
     
     
     
@@ -1877,20 +1886,25 @@ export class PIXINotesRendererInstance {
     }
   }
 
+  private buildActiveNoteMap(activeNotes: ActiveNote[]): Map<string, ActiveNote> {
+    const map = new Map<string, ActiveNote>();
+    for (let i = 0; i < activeNotes.length; i++) {
+      const note = activeNotes[i];
+      map.set(note.id, note);
+    }
+    return map;
+  }
+
   /**
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
    */
-  private updateSpritePositions(activeNotes: ActiveNote[], currentTime: number, speedPxPerSec: number): void {
-    const currentNoteIds = new Set(activeNotes.map(note => note.id));
-    
+  private updateSpritePositions(activeNoteMap: Map<string, ActiveNote>, currentTime: number, speedPxPerSec: number): void {
     for (const [noteId, sprite] of this.noteSprites) {
-      if (!currentNoteIds.has(noteId)) {
-        continue; // 削除対象は状態更新ループで処理
+      const note = activeNoteMap.get(noteId);
+      if (!note) {
+        continue;
       }
-      
-      const note = activeNotes.find(n => n.id === noteId);
-      if (!note) continue;
       
       // ===== Y座標更新（毎フレーム、軽量処理） =====
       const suppliedY = note.y;
@@ -2005,21 +2019,17 @@ export class PIXINotesRendererInstance {
    * 🎯 状態・削除処理専用ループ（フレーム間引き実行）
    * 重い処理（判定、状態変更、削除）のみ
    */
-  private updateSpriteStates(activeNotes: ActiveNote[]): void {
+  private updateSpriteStates(activeNoteMap: Map<string, ActiveNote>): void {
     const stateStartTime = performance.now();
-    const currentNoteIds = new Set(activeNotes.map(note => note.id));
     const spritesToRemove: string[] = [];
     let stateChanges = 0;
     
     for (const [noteId, sprite] of this.noteSprites) {
-      if (!currentNoteIds.has(noteId)) {
-        // 画面外に出たノーツをマーク（後でバッチ削除）
+      const note = activeNoteMap.get(noteId);
+      if (!note) {
         spritesToRemove.push(noteId);
         continue;
       }
-      
-      const note = activeNotes.find(n => n.id === noteId);
-      if (!note) continue;
       
       // ===== 状態 or 音名 変更チェック（変更時のみ、重い処理） =====
       if (sprite.noteData.state !== note.state || sprite.noteData.noteName !== note.noteName) {
@@ -2368,6 +2378,9 @@ export class PIXINotesRendererInstance {
   }
   
   private createHitEffect(x: number, y: number): void {
+    if (!this.settings.effects.glow && !this.settings.effects.particles && !this.settings.effects.trails) {
+      return;
+    }
     // 常にヒットエフェクトを生成（呼び出し側で判定済み）
     log.info(`⚡ Generating hit effect at (${x.toFixed(1)}, ${y.toFixed(1)})`);
     
@@ -2554,6 +2567,9 @@ export class PIXINotesRendererInstance {
       }
     
     Object.assign(this.settings, newSettings);
+    if (newSettings.performanceMode) {
+      this.applyPerformanceProfile(newSettings.performanceMode);
+    }
 
     if (newSettings.showHitLine !== undefined && this.hitLineContainer) {
       this.hitLineContainer.visible = newSettings.showHitLine;
@@ -2806,6 +2822,56 @@ export class PIXINotesRendererInstance {
 
       // PIXIレンダラーに即座に描画を強制
       this.app.renderer.render(this.app.stage);
+    }
+  }
+
+  private applyPerformanceProfile(mode: RendererSettings['performanceMode']): void {
+    if (this.currentPerformanceMode === mode) {
+      return;
+    }
+    this.currentPerformanceMode = mode;
+
+    const cloneEffects = (overrides: Partial<typeof this.defaultEffects>): void => {
+      this.settings.effects = {
+        ...this.settings.effects,
+        ...overrides
+      };
+    };
+
+    const restoreNoteLabels = (): void => {
+      if (this.preservedNoteNameStyle) {
+        this.settings.noteNameStyle = this.preservedNoteNameStyle;
+        this.preservedNoteNameStyle = null;
+      }
+    };
+
+    switch (mode) {
+      case 'standard':
+        this.performanceEnabled = true;
+        cloneEffects(this.defaultEffects);
+        restoreNoteLabels();
+        break;
+      case 'lightweight':
+        this.performanceEnabled = false;
+        cloneEffects({
+          glow: false,
+          particles: false,
+          trails: false
+        });
+        restoreNoteLabels();
+        break;
+      case 'ultra_light':
+        this.performanceEnabled = false;
+        cloneEffects({
+          glow: false,
+          particles: false,
+          trails: false
+        });
+        if (!this.preservedNoteNameStyle) {
+          this.preservedNoteNameStyle = this.settings.noteNameStyle;
+        }
+        this.settings.noteNameStyle = 'off';
+        break;
     }
   }
   

@@ -16,6 +16,12 @@ interface TimeMappingEntry {
   xPosition: number;
 }
 
+interface MeasureMappingEntry {
+  measure: number;
+  timeMs: number;
+  xPosition: number;
+}
+
 /**
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
@@ -32,6 +38,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   
   // timeMappingはアニメーションループで使うため、useRefで状態の即時反映を保証
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
+  const measureMappingRef = useRef<MeasureMappingEntry[]>([]);
+  const currentMeasureRef = useRef<number | null>(null);
   
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
@@ -54,6 +62,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         osmdRef.current.clear();
       }
       timeMappingRef.current = [];
+        measureMappingRef.current = [];
+        currentMeasureRef.current = null;
       setError(musicXml === '' ? '楽譜データがありません' : null);
       return;
     }
@@ -124,6 +134,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       
       // タイムマッピングを作成
       createTimeMapping();
+        currentMeasureRef.current = null;
       
       log.info(`✅ OSMD initialized and rendered successfully - transpose reflected`);
       
@@ -155,6 +166,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
 
     const mapping: TimeMappingEntry[] = [];
+    const measureMapping: MeasureMappingEntry[] = [];
     const graphicSheet = osmdRef.current.GraphicSheet;
     
     if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
@@ -164,6 +176,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
     let noteIndex = 0;
     let osmdPlayableNoteCount = 0;
+    let lastMeasureNumber: number | null = null;
     
     log.info(`📊 OSMD Note Extraction Starting: ${notes.length} JSON notes to match`);
     
@@ -213,11 +226,24 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                         centerX += noteHeadWidth / 2;
                       }
 
-                      mapping.push({
-                        timeMs: note.time * 1000, // 秒をミリ秒に変換
-                        // 動的に計算したスケール係数を使用
-                        xPosition: centerX * scaleFactorRef.current
+                    const xPosition = centerX * scaleFactorRef.current;
+                    mapping.push({
+                      timeMs: note.time * 1000, // 秒をミリ秒に変換
+                      xPosition
+                    });
+
+                    const parentMeasure = (graphicNote as any).ParentMeasure ?? (graphicNote as any).parentMeasure ?? (graphicNote.sourceNote as any)?.ParentMeasure ?? (graphicNote.sourceNote as any)?.parentMeasure;
+                    const measureNumber = parentMeasure?.measureNumber ?? parentMeasure?.MeasureNumber ?? null;
+                    if (measureNumber !== null && measureNumber !== undefined && measureNumber !== lastMeasureNumber) {
+                      const measurePos = parentMeasure?.PositionAndShape?.AbsolutePosition?.x ?? parentMeasure?.positionAndShape?.AbsolutePosition?.x;
+                      const measureX = (measurePos !== undefined ? measurePos : centerX) * scaleFactorRef.current;
+                      measureMapping.push({
+                        measure: measureNumber,
+                        timeMs: note.time * 1000,
+                        xPosition: measureX
                       });
+                      lastMeasureNumber = measureNumber;
+                    }
                     }
                     noteIndex++;
       }
@@ -234,6 +260,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
     
     timeMappingRef.current = mapping; // refを更新
+    measureMappingRef.current = measureMapping;
   }, [notes]);
 
   // isPlaying状態がfalseになったときにアニメーションフレームをキャンセルする副作用
@@ -257,52 +284,75 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // 停止時・再生時に関わらず、プレイヘッドの位置を更新
   useEffect(() => {
     if (scoreWrapperRef.current) {
+      const measureMapping = measureMappingRef.current;
       const mapping = timeMappingRef.current;
+      const currentTimeMs = currentTime * 1000;
+      const playheadPosition = 120;
+
+      if (measureMapping.length > 0) {
+        let targetEntry = measureMapping[0];
+        for (let i = 0; i < measureMapping.length; i++) {
+          if (measureMapping[i].timeMs <= currentTimeMs) {
+            targetEntry = measureMapping[i];
+          } else {
+            break;
+          }
+        }
+
+        if (currentMeasureRef.current === targetEntry.measure && isPlaying) {
+          return;
+        }
+        currentMeasureRef.current = targetEntry.measure;
+
+        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+        if (isPlaying) {
+          scoreWrapperRef.current.style.transition = 'transform 0.2s ease-out';
+          scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+        } else {
+          scoreWrapperRef.current.style.transition = 'none';
+          scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+          requestAnimationFrame(() => {
+            if (scoreWrapperRef.current) {
+              scoreWrapperRef.current.style.transition = '';
+            }
+          });
+        }
+        return;
+      }
+
       if (mapping.length === 0) return;
 
-      const currentTimeMs = currentTime * 1000;
       let targetX = 0;
-
-      // 1. 現在の再生時間の直後にあるノートのエントリを探す
       const nextEntryIndex = mapping.findIndex(entry => entry.timeMs > currentTimeMs);
 
       if (nextEntryIndex === -1) {
-        // 2. 最後のノートを過ぎた場合：最後のノート位置に固定
         targetX = mapping.length > 0 ? mapping[mapping.length - 1].xPosition : 0;
       } else if (nextEntryIndex === 0) {
-        // 3. 最初のノートより前の場合：曲の開始(x=0)から最初のノートまでを補間
         const nextEntry = mapping[0];
         if (nextEntry.timeMs > 0) {
           const progress = currentTimeMs / nextEntry.timeMs;
           targetX = nextEntry.xPosition * progress;
         } else {
-          targetX = 0; // 最初のノートが時刻0なら位置も0
+          targetX = 0;
         }
       } else {
-        // 4. 2つのノートの間の場合：線形補間
         const prevEntry = mapping[nextEntryIndex - 1];
         const nextEntry = mapping[nextEntryIndex];
-        
         const segmentDuration = nextEntry.timeMs - prevEntry.timeMs;
         const timeIntoSegment = currentTimeMs - prevEntry.timeMs;
         const progress = segmentDuration > 0 ? timeIntoSegment / segmentDuration : 0;
-        
         targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
       }
-      
-      const playheadPosition = 120; // プレイヘッドの画面上のX座標 (px)
+
       const scrollX = isPlaying
         ? Math.max(0, targetX - playheadPosition)
         : targetX - playheadPosition;
-      
-      // 再生中は滑らかなアニメーション、停止時は即座に移動
+
       if (isPlaying) {
         scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
       } else {
-        // 停止時はアニメーションを無効化して即座に移動
         scoreWrapperRef.current.style.transition = 'none';
         scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-        // 次のフレームでアニメーションを再有効化
         requestAnimationFrame(() => {
           if (scoreWrapperRef.current) {
             scoreWrapperRef.current.style.transition = '';

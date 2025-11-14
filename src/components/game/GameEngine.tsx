@@ -755,7 +755,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pianoHeight: settings.pianoHeight,
         transpose: settings.transpose,
         transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
+        practiceGuide: settings.practiceGuide ?? 'key',
+        performanceMode: settings.performanceMode
       });
     }
     // AudioControllerに音声入力設定を反映
@@ -764,7 +765,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pyinThreshold: settings.pyinThreshold
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
+  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.performanceMode, settings.pyinThreshold]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
@@ -898,7 +899,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       pianoHeight: settings.pianoHeight,
       transpose: settings.transpose,
       transposingInstrument: settings.transposingInstrument,
-      practiceGuide: settings.practiceGuide ?? 'key'
+      practiceGuide: settings.practiceGuide ?? 'key',
+      performanceMode: settings.performanceMode
     });
     
     // ピアノキーボードのクリックイベントを接続
