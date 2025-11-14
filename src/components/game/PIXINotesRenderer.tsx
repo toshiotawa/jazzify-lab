@@ -10,6 +10,7 @@ import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
 import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
+import { frameLoop } from '@/utils/performanceOptimizer';
 
 const PIXI_LOOKAHEAD_SECONDS = 15;
 
@@ -282,11 +283,10 @@ export class PIXINotesRendererInstance {
   
   // ===== 新しい設計: 破棄管理＆アップデータシステム =====
   private disposeManager: DisposeManager = new DisposeManager();
-    private noteUpdaters: Map<string, NoteUpdater> = new Map();
-    private effectUpdaters: Set<EffectUpdater> = new Set();
-    private activeHitEffects: Set<ActiveHitEffect> = new Set();
-    private readonly hitEffectDurationMs = 120;
-
+  private noteUpdaters: Map<string, NoteUpdater> = new Map();
+  private effectUpdaters: Set<EffectUpdater> = new Set();
+  private activeHitEffects: Set<ActiveHitEffect> = new Set();
+  private readonly hitEffectDurationMs = 120;
   
   // Ticker関数への参照（削除用）
   private mainUpdateFunction?: (delta: number) => void;
@@ -304,7 +304,7 @@ export class PIXINotesRendererInstance {
   
   // 破棄状態の追跡
   private isDestroyed: boolean = false;
-  
+  private frameLoopUnsubscribe?: () => void;
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
   public readonly settings: RendererSettings = {
@@ -429,8 +429,8 @@ export class PIXINotesRendererInstance {
       this.activeKeyPresses.clear();
     });
     
-    // 🎯 統合フレーム制御でPIXIアプリケーションを開始
-    this.startUnifiedRendering();
+      // 🎯 統合フレーム制御ループに参加
+      this.bindToFrameLoop();
     
     log.info('✅ PIXI.js renderer initialized successfully');
   }
@@ -502,51 +502,32 @@ export class PIXINotesRendererInstance {
   }
 
   /**
-   * 🎯 統合フレーム制御でPIXIアプリケーションを開始
+   * 🎯 統合フレームループに参加し、PIXIレンダリングを同期
    */
-  // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
-  private startUnifiedRendering(): void {
-    if (!window.unifiedFrameController) {
-      log.warn('⚠️ unifiedFrameController not available, using default PIXI ticker');
-      this.app.start();
-      return;
+  private bindToFrameLoop(): void {
+    if (this.frameLoopUnsubscribe) {
+      this.frameLoopUnsubscribe();
+      this.frameLoopUnsubscribe = undefined;
     }
-    
-    // 統合フレーム制御を使用してPIXIアプリケーションを制御
-    const renderFrame = () => {
-      const currentTime = performance.now();
-      
-      // 統合フレーム制御でフレームスキップ判定
-      if (window.unifiedFrameController.shouldSkipFrame(currentTime)) {
-        // フレームをスキップ
-        requestAnimationFrame(renderFrame);
+
+    const sharedTicker = PIXI.Ticker.shared;
+    sharedTicker.autoStart = false;
+    sharedTicker.stop();
+
+    this.frameLoopUnsubscribe = frameLoop.subscribe((timestamp: number) => {
+      if (this.isDestroyed || this.disposeManager.disposed) {
         return;
       }
-      
-      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
-      if (this.isDestroyed) {
-        // 破棄済みの場合はレンダリングループを停止
-        return;
-      }
-      
+
       try {
-        if (this.app && this.app.renderer) {
-          this.app.render();
-        }
+        sharedTicker.update(timestamp);
+        this.app.render();
       } catch (error) {
-        log.warn('⚠️ PIXI render error (likely destroyed):', error);
-        // レンダリングループを停止
-        return;
+        log.warn('⚠️ PIXI frame loop error, detaching:', error);
+        this.frameLoopUnsubscribe?.();
+        this.frameLoopUnsubscribe = undefined;
       }
-      
-      // 次のフレームをスケジュール
-      requestAnimationFrame(renderFrame);
-    };
-    
-    // レンダリングループを開始
-    renderFrame();
-    
-    log.info('🎯 PIXI.js unified frame control started');
+    });
   }
   
   /**
@@ -2819,6 +2800,10 @@ export class PIXINotesRendererInstance {
   destroy(): void {
     // 破棄状態フラグを設定（レンダリングループを停止）
     this.isDestroyed = true;
+      if (this.frameLoopUnsubscribe) {
+        this.frameLoopUnsubscribe();
+        this.frameLoopUnsubscribe = undefined;
+      }
     
       try {
         // アクティブキープレス状態をクリア（音が伸び続けるバグ防止）
