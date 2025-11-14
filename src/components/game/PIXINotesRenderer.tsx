@@ -2439,6 +2439,7 @@ export class PIXINotesRendererInstance {
     const duration = 0.15;
     let elapsed = 0;
   
+    const tickerRef = { fn: (delta: number) => {} };
     const animateTicker = (delta: number) => {
       elapsed += delta * (1 / 60);
       const progress = Math.min(elapsed / duration, 1);
@@ -2448,12 +2449,13 @@ export class PIXINotesRendererInstance {
       circleContainer.alpha = fadeAlpha;
   
       if (progress >= 1) {
-        this.app.ticker.remove(animateTicker);
+        this.app.ticker.remove(tickerRef.fn);
         this.releaseHitEffect(effect);
       }
     };
   
-    this.app.ticker.add(animateTicker);
+    tickerRef.fn = animateTicker;
+    this.app.ticker.add(tickerRef.fn);
   }
   
   private getStateColor(state: ActiveNote['state'], pitch?: number): number {
