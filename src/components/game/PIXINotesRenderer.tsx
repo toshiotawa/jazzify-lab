@@ -252,46 +252,45 @@ export class PIXINotesRendererInstance {
   private hitLineContainer!: PIXI.Container;
   private pianoContainer!: PIXI.Container;
   private particles!: PIXI.Container; // パーティクル用コンテナ
-  
+ 
   private noteSprites: Map<string, NoteSprite> = new Map();
   private hitEffectPool: HitEffectInstance[] = [];
   private activeNoteLookup: Map<string, ActiveNote> = new Map();
 
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
   private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
-  
+ 
   // ★ ガイドライン管理用プロパティを追加
   private guidelines?: PIXI.Graphics;
-  
+ 
   // ガイド用ハイライト（演奏と独立して保持）
   private guideHighlightedKeys: Set<number> = new Set();
-  
+ 
   // ★ パフォーマンス最適化: nextNoteIndex ポインタシステム
   private allNotes: ActiveNote[] = []; // 全ノートのソート済みリスト
   private nextNoteIndex: number = 0;   // 次に表示するノートのインデックス
   private lastUpdateTime: number = 0;  // 前回の更新時刻（巻き戻し検出用）
-  
+ 
   // ===== テクスチャキャッシュ =====
   private noteTextures!: NoteTextures;
   private labelTextures!: LabelTextures;
-  
+
   // キーボード入力コールバック
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
-  
-  
+
   // ===== 新しい設計: 破棄管理＆アップデータシステム =====
   private disposeManager: DisposeManager = new DisposeManager();
-    private noteUpdaters: Map<string, NoteUpdater> = new Map();
-    private effectUpdaters: Set<EffectUpdater> = new Set();
-    private activeHitEffects: Set<ActiveHitEffect> = new Set();
-    private readonly hitEffectDurationMs = 120;
+  private noteUpdaters: Map<string, NoteUpdater> = new Map();
+  private effectUpdaters: Set<EffectUpdater> = new Set();
+  private activeHitEffects: Set<ActiveHitEffect> = new Set();
+  private readonly hitEffectDurationMs = 120;
 
-  
   // Ticker関数への参照（削除用）
   private mainUpdateFunction?: (delta: number) => void;
   private effectUpdateFunction?: (delta: number) => void;
-  
+  private renderTickerFunction?: (delta: number) => void;
+
   // リアルタイムアニメーション用
   // リアルタイムアニメーション用（将来の拡張用）
   private _currentTime: number = 0;
@@ -417,8 +416,9 @@ export class PIXINotesRendererInstance {
       log.error('❌ PIXI setup failed:', error);
     }
     
-    // ===== 新設計: Ticker管理を一元化 =====
-    this.setupTickerSystem();
+      // ===== 新設計: Ticker管理を一元化 =====
+      this.setupTickerSystem();
+      this.attachRendererTicker();
     
     // グローバルpointerupイベントで保険を掛ける（音が伸び続けるバグの最終防止）
     this.app.stage.on('globalpointerup', () => {
@@ -428,9 +428,6 @@ export class PIXINotesRendererInstance {
       }
       this.activeKeyPresses.clear();
     });
-    
-    // 🎯 統合フレーム制御でPIXIアプリケーションを開始
-    this.startUnifiedRendering();
     
     log.info('✅ PIXI.js renderer initialized successfully');
   }
@@ -502,51 +499,34 @@ export class PIXINotesRendererInstance {
   }
 
   /**
-   * 🎯 統合フレーム制御でPIXIアプリケーションを開始
+   * 🎯 共有Tickerにレンダリング処理を統合
    */
-  // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
-  private startUnifiedRendering(): void {
-    if (!window.unifiedFrameController) {
-      log.warn('⚠️ unifiedFrameController not available, using default PIXI ticker');
-      this.app.start();
-      return;
+  private attachRendererTicker(): void {
+    const ticker = PIXI.Ticker.shared;
+    if (!ticker.started) {
+      ticker.start();
     }
-    
-    // 統合フレーム制御を使用してPIXIアプリケーションを制御
-    const renderFrame = () => {
-      const currentTime = performance.now();
-      
-      // 統合フレーム制御でフレームスキップ判定
-      if (window.unifiedFrameController.shouldSkipFrame(currentTime)) {
-        // フレームをスキップ
-        requestAnimationFrame(renderFrame);
+
+    this.renderTickerFunction = () => {
+      if (this.isDestroyed || this.disposeManager.disposed) {
         return;
       }
-      
-      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
-      if (this.isDestroyed) {
-        // 破棄済みの場合はレンダリングループを停止
-        return;
-      }
-      
+
       try {
-        if (this.app && this.app.renderer) {
-          this.app.render();
-        }
+        this.app.renderer.render(this.app.stage);
       } catch (error) {
-        log.warn('⚠️ PIXI render error (likely destroyed):', error);
-        // レンダリングループを停止
-        return;
+        log.warn('⚠️ PIXI render error:', error);
       }
-      
-      // 次のフレームをスケジュール
-      requestAnimationFrame(renderFrame);
     };
-    
-    // レンダリングループを開始
-    renderFrame();
-    
-    log.info('🎯 PIXI.js unified frame control started');
+
+    ticker.add(this.renderTickerFunction, undefined, PIXI.UPDATE_PRIORITY.LOW);
+
+    this.disposeManager.add(() => {
+      if (this.renderTickerFunction) {
+        ticker.remove(this.renderTickerFunction);
+        this.renderTickerFunction = undefined;
+      }
+    });
   }
   
   /**
