@@ -232,6 +232,11 @@ interface HitEffectInstance {
   circleContainer: PIXI.Container;
 }
 
+interface ActiveHitEffect {
+  instance: HitEffectInstance;
+  elapsed: number;
+}
+
 
 // ===== PIXI.js レンダラークラス =====
 
@@ -275,8 +280,10 @@ export class PIXINotesRendererInstance {
   
   // ===== 新しい設計: 破棄管理＆アップデータシステム =====
   private disposeManager: DisposeManager = new DisposeManager();
-  private noteUpdaters: Map<string, NoteUpdater> = new Map();
-  private effectUpdaters: Set<EffectUpdater> = new Set();
+    private noteUpdaters: Map<string, NoteUpdater> = new Map();
+    private effectUpdaters: Set<EffectUpdater> = new Set();
+    private activeHitEffects: Set<ActiveHitEffect> = new Set();
+    private readonly hitEffectDurationMs = 120;
 
   
   // Ticker関数への参照（削除用）
@@ -449,21 +456,24 @@ export class PIXINotesRendererInstance {
     };
 
     // エフェクト更新関数（低頻度実行）
-    this.effectUpdateFunction = (delta: number) => {
+    this.effectUpdateFunction = () => {
       if (this.isDestroyed || this.disposeManager.disposed) return;
 
-      this.effectsElapsed += PIXI.Ticker.shared.deltaMS;
-      if (this.effectsElapsed >= 33) { // ≒ 30 FPS
-        // エフェクトUpdaterを更新
+      const deltaMs = PIXI.Ticker.shared.deltaMS;
+      this.effectsElapsed += deltaMs;
+
+      if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
+        const normalizedDelta = this.effectsElapsed / 16;
+
         for (const updater of this.effectUpdaters) {
           if (!updater.active) {
             this.effectUpdaters.delete(updater);
             continue;
           }
-          updater.update(this.effectsElapsed / 1000);
+          updater.update(normalizedDelta);
         }
 
-  
+        this.updateHitEffects(this.effectsElapsed);
         this.effectsElapsed = 0;
       }
     };
@@ -1792,7 +1802,6 @@ export class PIXINotesRendererInstance {
     
     // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
     if (seekDetected) {
-      log.info(`🔄 Seek detected: clearing all note sprites (old: ${this.allNotes.length}, new: ${activeNotes.length})`);
       // 全てのノートスプライトを削除
       const noteIds = Array.from(this.noteSprites.keys());
       for (const noteId of noteIds) {
@@ -1803,12 +1812,10 @@ export class PIXINotesRendererInstance {
     
     // ノートリストが変更された場合、または巻き戻しが発生した場合
     if (seekDetected) {
-      this.allNotes = [...activeNotes];
-      this.nextNoteIndex = this.findNoteIndexByTime(currentTime);
-      log.info(`🔄 Time moved backward: ${this.lastUpdateTime.toFixed(2)} -> ${currentTime.toFixed(2)}, reset nextNoteIndex: ${this.nextNoteIndex}`);
+      this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time);
+      this.nextNoteIndex = 0;
     } else {
       this.allNotes = activeNotes;
-      // 巻き戻し時は適切な nextNoteIndex を二分探索で復帰
       this.nextNoteIndex = Math.min(this.nextNoteIndex, this.allNotes.length);
     }
     
@@ -2377,6 +2384,27 @@ export class PIXINotesRendererInstance {
     effect.circleContainer.alpha = 1;
     this.hitEffectPool.push(effect);
   }
+
+  private updateHitEffects(deltaMs: number): void {
+    if (this.activeHitEffects.size === 0) {
+      return;
+    }
+    const finished: HitEffectInstance[] = [];
+    for (const effectData of this.activeHitEffects) {
+      effectData.elapsed += deltaMs;
+      const progress = Math.min(1, effectData.elapsed / this.hitEffectDurationMs);
+      const alpha = 1 - progress;
+      effectData.instance.laneLight.alpha = alpha;
+      effectData.instance.circleContainer.alpha = alpha;
+      if (progress >= 1) {
+        finished.push(effectData.instance);
+        this.activeHitEffects.delete(effectData);
+      }
+    }
+    finished.forEach((instance) => {
+      this.releaseHitEffect(instance);
+    });
+  }
   
   private redrawLaneLight(graphics: PIXI.Graphics): void {
     const laneWidth = 8;
@@ -2416,6 +2444,9 @@ export class PIXINotesRendererInstance {
   }
   
   private createHitEffect(x: number, y: number): void {
+    if (!this.settings.enableEffects) {
+      return;
+    }
     const effect = this.acquireHitEffect();
     const { container, laneLight, circleContainer } = effect;
   
@@ -2436,26 +2467,7 @@ export class PIXINotesRendererInstance {
     }
     this.container.setChildIndex(this.effectsContainer, this.container.children.length - 1);
   
-    const duration = 0.15;
-    let elapsed = 0;
-  
-    const tickerRef = { fn: (delta: number) => {} };
-    const animateTicker = (delta: number) => {
-      elapsed += delta * (1 / 60);
-      const progress = Math.min(elapsed / duration, 1);
-      const fadeAlpha = 1 - progress;
-  
-      laneLight.alpha = fadeAlpha;
-      circleContainer.alpha = fadeAlpha;
-  
-      if (progress >= 1) {
-        this.app.ticker.remove(tickerRef.fn);
-        this.releaseHitEffect(effect);
-      }
-    };
-  
-    tickerRef.fn = animateTicker;
-    this.app.ticker.add(tickerRef.fn);
+    this.activeHitEffects.add({ instance: effect, elapsed: 0 });
   }
   
   private getStateColor(state: ActiveNote['state'], pitch?: number): number {
@@ -2817,6 +2829,10 @@ export class PIXINotesRendererInstance {
           this.removeNoteSprite(noteId);
         }
         this.noteSprites.clear();
+        this.activeHitEffects.forEach(({ instance }) => {
+          this.releaseHitEffect(instance);
+        });
+        this.activeHitEffects.clear();
         this.hitEffectPool.forEach(effect => {
           effect.container.destroy({ children: true });
         });
@@ -2888,9 +2904,6 @@ export class PIXINotesRendererInstance {
 
     // 直感的なユーザーフィードバックとして即時ハイライト
     this.highlightKey(midiNote, true);
-
-    // === 追加: キー押下エフェクトを即座に表示 ===
-    this.triggerKeyPressEffect(midiNote);
 
     // 外部コールバック呼び出し（GameEngine経由で状態更新）
       if (this.onKeyPress) {
