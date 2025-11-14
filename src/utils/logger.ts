@@ -5,14 +5,14 @@
 
 type LogLevel = 'silent' | 'error' | 'warn' | 'info' | 'debug';
 
-// プロダクション環境でもログを有効化（デバッグ用）
-let currentLevel: LogLevel = 'debug';  // import.meta.env.PROD ? 'silent' : 'debug';
+const isProdEnv = typeof import.meta !== 'undefined' && Boolean(import.meta.env?.PROD);
+let currentLevel: LogLevel = isProdEnv ? 'error' : 'debug';  // import.meta.env.PROD ? 'silent' : 'debug';
 
 /**
  * ログレベルを動的に変更（プロダクションでは無効）
  */
 export function setLogLevel(level: LogLevel): void {
-  if (!import.meta.env.PROD) {
+  if (!isProdEnv) {
     currentLevel = level;
   }
 }
@@ -20,7 +20,7 @@ export function setLogLevel(level: LogLevel): void {
 /**
  * URL パラメータでログレベルを制御（開発環境のみ）
  */
-if (typeof window !== 'undefined' && !import.meta.env.PROD) {
+if (typeof window !== 'undefined' && !isProdEnv) {
   const params = new URLSearchParams(window.location.search);
   if (params.get('debug') === 'true') {
     currentLevel = 'debug';
