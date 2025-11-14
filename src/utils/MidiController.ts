@@ -10,11 +10,19 @@ import type {
 import type { PolySynth, Synth, SynthOptions } from 'tone';
 
 type ToneModule = typeof import('tone');
+type ToneFilter = import('tone').Filter;
+type ToneChorus = import('tone').Chorus;
+type ToneReverb = import('tone').Reverb;
+type ToneLimiter = import('tone').Limiter;
 
 // 共通音声再生システム
 let globalSynth: PolySynth<Synth<SynthOptions>> | null = null;
 let audioSystemInitialized = false;
 let userInteracted = false;
+let pianoFilter: ToneFilter | null = null;
+let pianoChorus: ToneChorus | null = null;
+let pianoReverb: ToneReverb | null = null;
+let pianoLimiter: ToneLimiter | null = null;
 
 // アクティブなノートを追跡するSet
 const activeNotes = new Set<string>();
@@ -61,7 +69,12 @@ const detectUserInteraction = (): Promise<void> => {
  * 音声システムの初期化（遅延最適化設定付き）
  */
 export const initializeAudioSystem = async (opts?: { light?: boolean }): Promise<void> => {
+  const lightMode = opts?.light ?? false;
+
   if (audioSystemInitialized && globalSynth) {
+    if (typeof window !== 'undefined' && window.Tone) {
+      configurePianoSound(window.Tone as ToneModule, lightMode);
+    }
     return;
   }
 
@@ -86,19 +99,12 @@ export const initializeAudioSystem = async (opts?: { light?: boolean }): Promise
   }
 
   if (!globalSynth) {
-    globalSynth = new Tone.PolySynth(Tone.Synth).toDestination() as PolySynth<Synth<SynthOptions>>;
-    const synthShape = {
-      oscillator: { type: opts?.light ? 'sine' : 'triangle' },
-      envelope: {
-        attack: 0.002,
-        decay: 0.08,
-        sustain: 0.32,
-        release: 0.9
-      }
-    } satisfies Record<string, unknown>;
-    globalSynth.set(synthShape as Partial<SynthOptions>);
-    globalSynth.volume.value = opts?.light ? -6 : -3;
+    const voiceOptions = getPianoVoiceOptions(lightMode);
+    globalSynth = new Tone.PolySynth(Tone.Synth, voiceOptions) as PolySynth<Synth<SynthOptions>>;
+    globalSynth.volume.value = lightMode ? -8 : -4;
   }
+
+  configurePianoSound(Tone, lightMode);
 
   audioSystemInitialized = true;
   console.log('✅ Lightweight synth audio system initialized');
@@ -186,6 +192,74 @@ export const updateGlobalVolume = (volume: number): void => {
   } catch (error) {
     console.error('❌ Failed to update global volume:', error);
   }
+};
+
+const getPianoVoiceOptions = (lightMode: boolean): Partial<SynthOptions> => ({
+  oscillator: {
+    type: lightMode ? 'triangle' : 'triangle8'
+  },
+  envelope: {
+    attack: 0.003,
+    decay: lightMode ? 0.14 : 0.26,
+    sustain: lightMode ? 0.22 : 0.35,
+    release: lightMode ? 1.4 : 2.8
+  }
+});
+
+const configurePianoSound = (Tone: ToneModule, lightMode: boolean): void => {
+  if (!globalSynth) {
+    return;
+  }
+
+  if (!pianoFilter) {
+    pianoFilter = new Tone.Filter({
+      type: 'lowpass',
+      frequency: 2600,
+      rolloff: -12,
+      Q: 1.2
+    });
+  }
+
+  if (!pianoChorus) {
+    pianoChorus = new Tone.Chorus({
+      frequency: 1.6,
+      delayTime: 2.4,
+      depth: 0.35,
+      spread: 70
+    }).start();
+  }
+
+  if (!pianoReverb) {
+    pianoReverb = new Tone.Reverb({
+      decay: 2.6,
+      wet: 0.2
+    });
+  }
+
+  if (!pianoLimiter) {
+    pianoLimiter = new Tone.Limiter(-1);
+  }
+
+  pianoFilter.set({
+    frequency: lightMode ? 2200 : 2900,
+    Q: lightMode ? 0.9 : 1.5
+  });
+  pianoChorus.set({
+    depth: lightMode ? 0.18 : 0.35,
+    wet: lightMode ? 0.08 : 0.18
+  });
+  pianoReverb.set({
+    decay: lightMode ? 1.4 : 2.9,
+    wet: lightMode ? 0.12 : 0.22,
+    preDelay: 0.02
+  });
+
+  globalSynth.disconnect();
+  pianoFilter.disconnect();
+  pianoChorus.disconnect();
+  pianoReverb.disconnect();
+  pianoLimiter.disconnect();
+  globalSynth.chain(pianoFilter, pianoChorus, pianoReverb, pianoLimiter, Tone.Destination);
 };
 
 export class MIDIController {
