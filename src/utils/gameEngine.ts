@@ -791,7 +791,7 @@ export class GameEngine {
         const frameStartTime = performance.now();
         
         // フレームスキップ制御
-        if (unifiedFrameController.shouldSkipFrame(frameStartTime)) {
+        if (unifiedFrameController.shouldSkipFrame(frameStartTime, 'logic')) {
           return; // スキップ時はロジック・描画を行わず、次のTicker呼び出しを待つ
         }
       

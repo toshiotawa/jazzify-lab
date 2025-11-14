@@ -78,27 +78,46 @@ export const STANDARD_CONFIG: PerformanceConfig = {
  * 統合フレームレート制御クラス
  * GameEngineとPIXIの競合を解決
  */
+export type FrameChannel = 'global' | 'logic' | 'render' | 'effects';
+const FRAME_CHANNELS: FrameChannel[] = ['global', 'logic', 'render', 'effects'];
+
+interface ChannelState {
+  lastFrameTime: number;
+  skipCount: number;
+}
+
 export class UnifiedFrameController {
-  private lastFrameTime = 0;
-  private frameSkipCount = 0;
+  private channelStates: Record<FrameChannel, ChannelState>;
   private config: PerformanceConfig;
   private lastNoteUpdateTime = 0;
   private lastEffectUpdateTime = 0;
   
   constructor(config: PerformanceConfig = PRODUCTION_CONFIG) {
     this.config = config;
+    this.channelStates = FRAME_CHANNELS.reduce<Record<FrameChannel, ChannelState>>((acc, channel) => {
+      acc[channel] = { lastFrameTime: 0, skipCount: 0 };
+      return acc;
+    }, {} as Record<FrameChannel, ChannelState>);
   }
   
-  shouldSkipFrame(currentTime: number): boolean {
-    const deltaTime = currentTime - this.lastFrameTime;
+  private getChannelState(channel: FrameChannel): ChannelState {
+    if (!this.channelStates[channel]) {
+      this.channelStates[channel] = { lastFrameTime: 0, skipCount: 0 };
+    }
+    return this.channelStates[channel];
+  }
+  
+  shouldSkipFrame(currentTime: number, channel: FrameChannel = 'global'): boolean {
+    const state = this.getChannelState(channel);
+    const deltaTime = currentTime - state.lastFrameTime;
     
     if (deltaTime < this.config.skipFrameThreshold) {
-      this.frameSkipCount++;
-      return this.frameSkipCount < this.config.maxSkipFrames;
+      state.skipCount += 1;
+      return state.skipCount < this.config.maxSkipFrames;
     }
     
-    this.frameSkipCount = 0;
-    this.lastFrameTime = currentTime;
+    state.skipCount = 0;
+    state.lastFrameTime = currentTime;
     return false;
   }
   
