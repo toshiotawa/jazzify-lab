@@ -10,6 +10,7 @@ import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
 import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
+import { frameController } from '@/utils/performanceOptimizer';
 
 const PIXI_LOOKAHEAD_SECONDS = 15;
 
@@ -429,8 +430,8 @@ export class PIXINotesRendererInstance {
       this.activeKeyPresses.clear();
     });
     
-    // 🎯 統合フレーム制御でPIXIアプリケーションを開始
-    this.startUnifiedRendering();
+    // 🎯 レンダリングループ開始
+    this.startRenderingLoop();
     
     log.info('✅ PIXI.js renderer initialized successfully');
   }
@@ -502,30 +503,18 @@ export class PIXINotesRendererInstance {
   }
 
   /**
-   * 🎯 統合フレーム制御でPIXIアプリケーションを開始
+   * 🎯 レンダリングループ開始
    */
-  // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
-  private startUnifiedRendering(): void {
-    if (!window.unifiedFrameController) {
-      log.warn('⚠️ unifiedFrameController not available, using default PIXI ticker');
-      this.app.start();
-      return;
-    }
-    
-    // 統合フレーム制御を使用してPIXIアプリケーションを制御
+  private startRenderingLoop(): void {
     const renderFrame = () => {
       const currentTime = performance.now();
       
-      // 統合フレーム制御でフレームスキップ判定
-      if (window.unifiedFrameController.shouldSkipFrame(currentTime)) {
-        // フレームをスキップ
+      if (frameController.shouldSkipFrame(currentTime)) {
         requestAnimationFrame(renderFrame);
         return;
       }
       
-      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
       if (this.isDestroyed) {
-        // 破棄済みの場合はレンダリングループを停止
         return;
       }
       
@@ -535,18 +524,14 @@ export class PIXINotesRendererInstance {
         }
       } catch (error) {
         log.warn('⚠️ PIXI render error (likely destroyed):', error);
-        // レンダリングループを停止
         return;
       }
       
-      // 次のフレームをスケジュール
       requestAnimationFrame(renderFrame);
     };
     
-    // レンダリングループを開始
     renderFrame();
-    
-    log.info('🎯 PIXI.js unified frame control started');
+    log.info('🎯 PIXI.js render loop started');
   }
   
   /**

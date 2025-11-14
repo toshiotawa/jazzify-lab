@@ -73,6 +73,7 @@ export class GameEngine {
   private startTime: number = 0;
   private pausedTime: number = 0;
   private latencyOffset: number = 0;
+  private pendingSeekTime: number | null = null;
   
   private tickerListener: ((delta: number) => void) | null = null;
   private onUpdate?: (data: GameEngineUpdate) => void;
@@ -170,32 +171,17 @@ export class GameEngine {
   }
   
   seek(time: number): void {
+    const safeTime = Math.max(0, time);
+    this.pendingSeekTime = safeTime;
+    
     if (this.audioContext) {
-      const safeTime = Math.max(0, time);
-      const oldActiveCount = this.activeNotes.size;
-      
-      // 🔧 修正: 再生速度を考慮したstartTime計算
-      // safeTimeは論理時間、audioContext.currentTimeは実時間のため、
-      // 論理時間を実時間に変換してからオフセットを計算する
-      const realTimeElapsed = safeTime / (this.settings.playbackSpeed ?? 1);
-      this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
-      this.pausedTime = 0;
-      
-      // **完全なアクティブノーツリセット**
-      this.activeNotes.clear();
-      
-      // シーク位置より後のノートの処理済みフラグとappearTimeをクリア
-      this.notes.forEach(note => {
-        if (note.time >= safeTime) {
-          delete (note as any)._wasProcessed;
-          // Fix: Reset appearTime to force recalculation based on new seek position
-          delete (note as any).appearTime;
-        }
-      });
-      
-      // ログ削除: FPS最適化のため
-      // devLog.debug(`🎮 GameEngine.seek: ${safeTime.toFixed(2)}s`);
+      this.syncStartTimeWithAudioContext(safeTime);
+      this.pendingSeekTime = null;
+    } else {
+      this.pausedTime = safeTime;
     }
+    
+    this.resetActiveNotesForSeek();
   }
   
   handleInput(inputNote: number): NoteHit | null {
@@ -376,9 +362,34 @@ export class GameEngine {
   // ===== プライベートメソッド =====
   
   private getCurrentTime(): number {
-    if (!this.audioContext) return 0;
+    if (!this.audioContext) {
+      if (this.pendingSeekTime !== null) {
+        return this.pendingSeekTime;
+      }
+      return this.pausedTime;
+    }
     return (this.audioContext.currentTime - this.startTime - this.latencyOffset)
       * (this.settings.playbackSpeed ?? 1);
+  }
+  
+  private syncStartTimeWithAudioContext(targetTime: number): void {
+    if (!this.audioContext) {
+      return;
+    }
+    
+    const speed = this.settings.playbackSpeed ?? 1;
+    const realTimeElapsed = targetTime / speed;
+    this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
+    this.pausedTime = 0;
+  }
+  
+  private resetActiveNotesForSeek(): void {
+    this.activeNotes.clear();
+    this.notes.forEach((note) => {
+      delete (note as any)._wasProcessed;
+      delete (note as any).appearTime;
+      delete (note as any).crossingLogged;
+    });
   }
   
   private calculateLatency(): void {
@@ -503,13 +514,8 @@ export class GameEngine {
     // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
     this.updateNotePositions(currentTime);
     
-    // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
-    const frameStartTime = performance.now();
-    if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
-      // 判定・状態更新ループ（ログ出力は削除）
-      this.updateNoteLogic(currentTime);
-      unifiedFrameController.markNoteUpdate(frameStartTime);
-    }
+    // Loop 2: 判定・状態更新専用（フレーム間引きは外側で制御）
+    this.updateNoteLogic(currentTime);
     
     // visibleNotes配列を構築（軽量）
     for (const note of this.activeNotes.values()) {
@@ -549,9 +555,7 @@ export class GameEngine {
    * 重い処理（判定、状態変更、削除）のみ
    */
   private updateNoteLogic(currentTime: number): void {
-    const logicStartTime = performance.now();
     const notesToDelete: string[] = [];
-    const activeNotesCount = this.activeNotes.size;
     
     for (const [noteId, note] of this.activeNotes) {
       const isRecentNote = Math.abs(currentTime - note.time) < 2.0; // 判定時間の±2秒以内
