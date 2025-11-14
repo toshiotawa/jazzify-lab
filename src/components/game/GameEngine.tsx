@@ -117,16 +117,21 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         devLog.debug('🎵 音声再生可能状態に到達');
       };
       
-      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.addEventListener('error', handleError);
-      audio.addEventListener('canplay', handleCanPlay);
-      
-      log.info(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
-      // CORS対応: Supabaseストレージからの音声ファイルでWeb Audio APIを使用するため
-      audio.crossOrigin = 'anonymous';
-      audio.src = currentSong.audioFile;
-      audio.volume = settings.musicVolume;
-      audio.preload = 'metadata';
+        audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+        audio.addEventListener('error', handleError);
+        audio.addEventListener('canplay', handleCanPlay);
+        
+        log.info(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
+        // CORS対応: Supabaseストレージからの音声ファイルでWeb Audio APIを使用するため
+        audio.crossOrigin = 'anonymous';
+        audio.src = currentSong.audioFile;
+        audio.volume = settings.musicVolume;
+        audio.preload = 'auto';
+        try {
+          audio.load();
+        } catch (loadError) {
+          devLog.debug('audio.load failed (likely Safari):', loadError);
+        }
       
       return () => {
         // 旧リスナー解除
