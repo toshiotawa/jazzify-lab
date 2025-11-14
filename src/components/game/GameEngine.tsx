@@ -8,6 +8,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useGameStore } from '@/stores/gameStore';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import ChordOverlay from './ChordOverlay';
@@ -36,7 +37,21 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     score,
     mode,
     lastKeyHighlight,
-    isSettingsOpen,
+    isSettingsOpen
+  } = useGameSelector((state) => ({
+    gameEngine: state.gameEngine,
+    engineActiveNotes: state.engineActiveNotes,
+    isPlaying: state.isPlaying,
+    currentSong: state.currentSong,
+    currentTime: state.currentTime,
+    settings: state.settings,
+    score: state.score,
+    mode: state.mode,
+    lastKeyHighlight: state.lastKeyHighlight,
+    isSettingsOpen: state.isSettingsOpen
+  }));
+
+  const {
     initializeGameEngine,
     destroyGameEngine,
     handleNoteInput,
@@ -47,7 +62,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     pause,
     setLastKeyHighlight,
     openResultModal
-  } = useGameStore();
+  } = useGameActions();
   
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
@@ -70,9 +85,15 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const pitchShiftRef = useRef<Tone.PitchShift | null>(null);
   // GameEngine と updateTime に渡すための AudioContext ベースのタイムスタンプ
   const baseOffsetRef = useRef<number>(0); // currentTime = audioCtx.time - baseOffset
-  const animationFrameRef = useRef<number | null>(null);
+    const animationFrameRef = useRef<number | null>(null);
+    const currentTimeRef = useRef(currentTime);
   
-  // 🔧 追加: グローバルアクセス用に参照を公開（再生中のシーク対応）
+    // 現在時刻の参照を最新化（高頻度の依存関係排除用）
+    useEffect(() => {
+      currentTimeRef.current = currentTime;
+    }, [currentTime]);
+
+    // 🔧 追加: グローバルアクセス用に参照を公開（再生中のシーク対応）
   useEffect(() => {
     (window as any).__gameAudioRef = audioRef;
     (window as any).__gameAudioContextRef = audioContextRef;
@@ -354,38 +375,36 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
   }, [settings.musicVolume]);
   
-  // 再生スピード変更の同期
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = settings.playbackSpeed;
+    // 再生スピード変更の同期
+    useEffect(() => {
+      if (audioRef.current) {
+        audioRef.current.playbackRate = settings.playbackSpeed;
 
-      // ピッチを保持
-      try {
-        // @ts-ignore
-        audioRef.current.preservesPitch = true;
-        // @ts-ignore
-        audioRef.current.mozPreservesPitch = true;
-        // @ts-ignore
-        audioRef.current.webkitPreservesPitch = true;
-      } catch (_) {/* ignore */}
-    }
+        // ピッチを保持
+        try {
+          // @ts-ignore
+          audioRef.current.preservesPitch = true;
+          // @ts-ignore
+          audioRef.current.mozPreservesPitch = true;
+          // @ts-ignore
+          audioRef.current.webkitPreservesPitch = true;
+        } catch (_) {/* ignore */}
+      }
 
-    // 🔧 追加: 再生中に速度が変更された場合、baseOffsetRefを再計算
-    if (audioContextRef.current && isPlaying) {
-      const currentLogicalTime = currentTime;
-      // 新しい速度での経過時間を計算し、baseOffsetを調整
-      const newElapsedReal = currentLogicalTime / settings.playbackSpeed;
-      baseOffsetRef.current = audioContextRef.current.currentTime - newElapsedReal;
-      
-      // ログ削除: FPS最適化のため
-      // devLog.debug(`🔧 再生速度変更: ${settings.playbackSpeed}x - baseOffset再計算完了`);
-    }
+      // 🔧 追加: 再生中に速度が変更された場合、baseOffsetRefを再計算
+      if (audioContextRef.current && isPlaying) {
+        const newElapsedReal = currentTimeRef.current / settings.playbackSpeed;
+        baseOffsetRef.current = audioContextRef.current.currentTime - newElapsedReal;
+        
+        // ログ削除: FPS最適化のため
+        // devLog.debug(`🔧 再生速度変更: ${settings.playbackSpeed}x - baseOffset再計算完了`);
+      }
 
-    // GameEngine にも設定を反映
-    if (gameEngine) {
-      updateEngineSettings();
-    }
-  }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, currentTime]);
+      // GameEngine にも設定を反映
+      if (gameEngine) {
+        updateEngineSettings();
+      }
+    }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying]);
   
   // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
   const timeIntervalRef = useRef<number | null>(null);

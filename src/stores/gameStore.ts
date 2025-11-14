@@ -919,6 +919,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           if (state.gameEngine) {
             state.gameEngine.seek(newTime);
             console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
+            
+            const engineSnapshot = state.gameEngine.getState();
+            set((draft) => {
+              draft.engineActiveNotes = engineSnapshot.activeNotes;
+            });
           }
           
           // 🔧 追加: 再生中の音声を即座にシーク
