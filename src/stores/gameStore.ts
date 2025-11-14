@@ -909,17 +909,22 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         seek: (time) => {
           const state = get();
           const newTime = Math.max(0, Math.min(time, state.currentSong?.duration || time));
-          
-          set((state) => {
-            state.currentTime = newTime;
-            state.activeNotes.clear();
-          });
+          let engineSnapshot: ActiveNote[] | null = null;
           
           // GameEngineにもシーク処理を伝達
           if (state.gameEngine) {
             state.gameEngine.seek(newTime);
+            engineSnapshot = state.gameEngine.getState().activeNotes;
             console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
           }
+          
+          set((state) => {
+            state.currentTime = newTime;
+            state.activeNotes.clear();
+            if (engineSnapshot) {
+              state.engineActiveNotes = engineSnapshot;
+            }
+          });
           
           // 🔧 追加: 再生中の音声を即座にシーク
           // グローバルにアクセス可能な音声要素とbaseOffsetRefを更新

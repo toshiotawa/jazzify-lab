@@ -14,8 +14,8 @@ import type {
   JudgmentResult
 } from '@/types';
 import { unifiedFrameController } from './performanceOptimizer';
+import { subscribeFrameLoop } from './frameLoop';
 import { log, devLog } from './logger';
-import * as PIXI from 'pixi.js';
 
 // ===== 定数定義 =====
 
@@ -80,6 +80,7 @@ export class GameEngine {
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
   
   private isGameLoopRunning: boolean = false; // ゲームループの状態を追跡
+  private frameLoopUnsubscribe: (() => void) | null = null;
   
   constructor(settings: GameSettings) {
     this.settings = { ...settings };
@@ -782,19 +783,29 @@ export class GameEngine {
     // Managed in store now
   }
   
-  private startGameLoop(): void {
-    this.isGameLoopRunning = true;
-    // PIXI.Ticker.shared を使用し、unifiedFrameController と同期
-    const ticker = PIXI.Ticker.shared;
+    private startGameLoop(): void {
+      if (this.frameLoopUnsubscribe) {
+        return;
+      }
+      this.isGameLoopRunning = true;
+      this.frameLoopUnsubscribe = subscribeFrameLoop((_deltaMs, frameStartTime) => {
+        this.runGameFrame(frameStartTime);
+      });
+    }
+    
+    private stopGameLoop(): void {
+      this.isGameLoopRunning = false;
+      if (this.frameLoopUnsubscribe) {
+        this.frameLoopUnsubscribe();
+        this.frameLoopUnsubscribe = null;
+      }
+    }
 
-      const gameLoop = () => {
-        const frameStartTime = performance.now();
-        
-        // フレームスキップ制御
-        if (unifiedFrameController.shouldSkipFrame(frameStartTime)) {
-          return; // スキップ時はロジック・描画を行わず、次のTicker呼び出しを待つ
-        }
-      
+    private runGameFrame(frameStartTime: number): void {
+      if (!this.isGameLoopRunning) {
+        return;
+      }
+
       const currentTime = this.getCurrentTime();
       
       // ノーツ更新の頻度制御
@@ -851,21 +862,7 @@ export class GameEngine {
           enabled: false
         }
       });
-      
-    };
-    
-    this.tickerListener = gameLoop;
-    ticker.add(gameLoop);
-  }
-  
-  private stopGameLoop(): void {
-    this.isGameLoopRunning = false;
-    const ticker = PIXI.Ticker.shared;
-    if (this.tickerListener) {
-      ticker.remove(this.tickerListener);
-      this.tickerListener = null;
     }
-  }
 
   // ===== 動的タイムスケール計算ヘルパー =====
   /**
