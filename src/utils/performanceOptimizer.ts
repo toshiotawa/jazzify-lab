@@ -125,6 +125,13 @@ export class UnifiedFrameController {
   getConfig(): PerformanceConfig {
     return { ...this.config };
   }
+
+  reset(): void {
+    this.lastFrameTime = 0;
+    this.frameSkipCount = 0;
+    this.lastNoteUpdateTime = 0;
+    this.lastEffectUpdateTime = 0;
+  }
 }
 
 /**
@@ -234,6 +241,81 @@ export class RenderOptimizer {
   }
 }
 
+export interface FrameTiming {
+  time: number;
+  deltaMs: number;
+}
+
+type FrameSubscriber = (timing: FrameTiming) => void;
+
+class FrameScheduler {
+  private subscribers = new Set<FrameSubscriber>();
+  private rafId: number | null = null;
+  private running = false;
+  private lastTime = 0;
+
+  private isBrowser(): boolean {
+    return typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function';
+  }
+
+  private now(): number {
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+      return performance.now();
+    }
+    return Date.now();
+  }
+
+  private handleFrame = (time: number): void => {
+    if (!this.running) {
+      return;
+    }
+
+    const deltaMs = this.lastTime === 0 ? 16.67 : Math.max(1, time - this.lastTime);
+
+    if (!unifiedFrameController.shouldSkipFrame(time)) {
+      this.lastTime = time;
+      for (const subscriber of this.subscribers) {
+        subscriber({ time, deltaMs });
+      }
+    }
+
+    if (this.isBrowser()) {
+      this.rafId = window.requestAnimationFrame(this.handleFrame);
+    }
+  };
+
+  subscribe(callback: FrameSubscriber): () => void {
+    if (!this.isBrowser()) {
+      return () => undefined;
+    }
+
+    this.subscribers.add(callback);
+
+    if (!this.running) {
+      this.running = true;
+      this.lastTime = this.now();
+      this.rafId = window.requestAnimationFrame(this.handleFrame);
+    }
+
+    return () => {
+      this.subscribers.delete(callback);
+      if (this.subscribers.size === 0) {
+        this.stop();
+      }
+    };
+  }
+
+  private stop(): void {
+    if (this.rafId !== null && this.isBrowser()) {
+      window.cancelAnimationFrame(this.rafId);
+    }
+    this.rafId = null;
+    this.running = false;
+    this.lastTime = 0;
+    unifiedFrameController.reset();
+  }
+}
+
 /**
  * 軽量化のためのユーティリティ関数
  */
@@ -306,6 +388,7 @@ declare global {
 export const unifiedFrameController = new UnifiedFrameController(PRODUCTION_CONFIG);
 export const frameController = new FrameRateController(LIGHTWEIGHT_CONFIG);
 export const renderOptimizer = new RenderOptimizer();
+export const frameScheduler = new FrameScheduler();
 
 // グローバルアクセス用（デバッグ・検証）
 if (typeof window !== 'undefined') {
