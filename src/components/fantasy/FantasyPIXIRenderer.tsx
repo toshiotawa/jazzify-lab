@@ -255,6 +255,14 @@ export class FantasyPIXIInstance {
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
   
+  // 太鼓モードの状態管理
+  private taikoGameState: {
+    isTaikoMode: boolean;
+    taikoNotes: any[];
+    currentNoteIndex: number;
+    stage: any;
+  } | null = null;
+  
   // 画面揺れ関連のプロパティ（誤って削除されていたため復元）
   private screenShakeState: {
     isActive: boolean;
@@ -1678,7 +1686,7 @@ export class FantasyPIXIInstance {
 
 
 
-  // アニメーションループ
+  // アニメーションループ（太鼓モードのノーツ更新も統合）
   private startAnimationLoop(): void {
     const animate = () => {
       if (this.isDestroyed) return;
@@ -1687,6 +1695,7 @@ export class FantasyPIXIInstance {
       this.updateMagicCircles();
       this.updateDamageNumbers();
       this.updateScreenShake(); // 画面揺れの更新を追加
+      this.updateTaikoNotesInternal(); // 太鼓モードのノーツ更新を統合
       
       this.animationFrameId = requestAnimationFrame(animate);
     };
@@ -2228,6 +2237,154 @@ export class FantasyPIXIInstance {
       x: this.judgeLineX,
       y: this.app.screen.height / 2
     };
+  }
+  
+  // 太鼓モードのゲーム状態を設定
+  setTaikoGameState(state: {
+    isTaikoMode: boolean;
+    taikoNotes: any[];
+    currentNoteIndex: number;
+    stage: any;
+  }): void {
+    this.taikoGameState = state;
+  }
+  
+  // 太鼓モードのノーツ更新（内部用、アニメーションループから呼ばれる）
+  private updateTaikoNotesInternal(): void {
+    if (!this.taikoGameState || !this.taikoGameState.isTaikoMode || this.taikoGameState.taikoNotes.length === 0) {
+      return;
+    }
+    
+    // BGMManagerから現在時刻を取得
+    const bgmManager = (window as any).bgmManager;
+    if (!bgmManager) return;
+    
+    const currentTime = bgmManager.getCurrentMusicTime();
+    const judgeLinePos = this.getJudgeLinePosition();
+    const lookAheadTime = 4; // 4秒先まで表示
+    const noteSpeed = 400; // ピクセル/秒
+    
+    const stage = this.taikoGameState.stage;
+    const secPerBeat = 60 / (stage.bpm || 120);
+    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
+    const loopDuration = (stage.measureCount || 8) * secPerMeasure;
+    const previewWindow = 2 * secPerMeasure;
+    
+    // Overlay markers from chord_progression_data.text (Harmony)
+    const overlayMarkers: Array<{ time: number; text: string }> = Array.isArray((stage as any).chordProgressionData)
+      ? ((stage as any).chordProgressionData as Array<any>)
+          .filter((it) => it && typeof it.text === 'string' && it.text.trim() !== '')
+          .map((it) => ({
+            time: (it.bar - 1) * secPerMeasure + ((it.beats ?? 1) - 1) * secPerBeat,
+            text: it.text as string
+          }))
+          .sort((a, b) => a.time - b.time)
+      : [];
+    
+    // カウントイン中は複数ノーツを先行表示
+    if (currentTime < 0) {
+      const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+      const maxPreCountNotes = 6;
+      for (let i = 0; i < this.taikoGameState.taikoNotes.length; i++) {
+        const note = this.taikoGameState.taikoNotes[i];
+        const timeUntilHit = note.hitTime - currentTime;
+        if (timeUntilHit > lookAheadTime) break;
+        if (timeUntilHit >= -0.5) {
+          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          notesToDisplay.push({ id: note.id, chord: note.chord.displayName, x });
+          if (notesToDisplay.length >= maxPreCountNotes) break;
+        }
+      }
+      this.updateTaikoNotes(notesToDisplay);
+      return;
+    }
+    
+    // 表示するノーツを収集
+    const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+    
+    // 現在の時間をループ内0..Tへ正規化
+    const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+    
+    // 通常のノーツ（現在ループのみ表示）
+    this.taikoGameState.taikoNotes.forEach((note: any, index: number) => {
+      // ヒット済みノーツは現在ループでは表示しない
+      if (note.isHit) return;
+      
+      // 既にこのループで消化済みのインデックスは表示しない
+      if (index < this.taikoGameState!.currentNoteIndex) return;
+      
+      // 現在ループ基準の時間差
+      const timeUntilHit = note.hitTime - normalizedTime;
+      
+      // 判定ライン左側も少しだけ表示
+      const lowerBound = -0.35;
+      
+      // 表示範囲内のノーツ
+      if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
+        const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+        notesToDisplay.push({
+          id: note.id,
+          chord: note.chord.displayName,
+          x
+        });
+      }
+    });
+    
+    // すでに通常ノーツで表示予定のベースID集合
+    const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
+    
+    // 直前に消化したノーツのインデックス
+    const lastCompletedIndex = this.taikoGameState.taikoNotes.length > 0
+      ? (this.taikoGameState.currentNoteIndex - 1 + this.taikoGameState.taikoNotes.length) % this.taikoGameState.taikoNotes.length
+      : -1;
+    
+    // ループ対応：次ループは「2小節分だけ」先読み
+    const timeToLoop = loopDuration - normalizedTime;
+    if (timeToLoop < previewWindow && this.taikoGameState.taikoNotes.length > 0) {
+      for (let i = 0; i < this.taikoGameState.taikoNotes.length; i++) {
+        const note = this.taikoGameState.taikoNotes[i];
+        
+        if (i === lastCompletedIndex) continue;
+        if (i === this.taikoGameState.currentNoteIndex) continue;
+        if (displayedBaseIds.has(note.id)) continue;
+        
+        const virtualHitTime = note.hitTime + loopDuration;
+        const timeUntilHit = virtualHitTime - normalizedTime;
+        
+        if (timeUntilHit <= 0) continue;
+        if (timeUntilHit > previewWindow) break;
+        
+        const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+        notesToDisplay.push({
+          id: `${note.id}_loop`,
+          chord: note.chord.displayName,
+          x
+        });
+      }
+    }
+    
+    // PIXIレンダラーに更新を送信
+    this.updateTaikoNotes(notesToDisplay);
+    
+    // オーバーレイテキスト
+    if (overlayMarkers.length > 0) {
+      const t = normalizedTime;
+      let label = overlayMarkers[overlayMarkers.length - 1].text;
+      for (let i = 0; i < overlayMarkers.length; i++) {
+        const cur = overlayMarkers[i];
+        const next = overlayMarkers[i + 1];
+        if (t >= cur.time && (!next || t < next.time)) {
+          label = cur.text;
+          break;
+        }
+        if (t < overlayMarkers[0].time) {
+          label = overlayMarkers[overlayMarkers.length - 1].text;
+        }
+      }
+      this.updateOverlayText(label || null);
+    } else {
+      this.updateOverlayText(null);
+    }
   }
   
   // Canvas要素取得
