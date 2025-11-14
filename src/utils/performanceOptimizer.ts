@@ -294,11 +294,81 @@ export const performanceUtils = {
   }
 };
 
+type FrameSubscriber = (timestamp: number) => void;
+
+class FrameLoop {
+  private subscribers = new Set<FrameSubscriber>();
+  private rafId: number | null = null;
+  private readonly requestFrame?: (callback: FrameSubscriber) => number;
+  private readonly cancelFrame?: (handle: number) => void;
+
+  constructor() {
+    const hasWindow = typeof window !== 'undefined';
+    if (hasWindow && typeof window.requestAnimationFrame === 'function' && typeof window.cancelAnimationFrame === 'function') {
+      this.requestFrame = window.requestAnimationFrame.bind(window);
+      this.cancelFrame = window.cancelAnimationFrame.bind(window);
+    }
+  }
+
+  subscribe(subscriber: FrameSubscriber): () => void {
+    if (!this.requestFrame || !this.cancelFrame) {
+      const intervalId = setInterval(() => {
+        const timestamp = Date.now();
+        if (unifiedFrameController.shouldSkipFrame(timestamp)) {
+          return;
+        }
+        subscriber(timestamp);
+      }, 16);
+      return () => clearInterval(intervalId);
+    }
+
+    this.subscribers.add(subscriber);
+    if (this.rafId === null) {
+      this.start();
+    }
+
+    return () => {
+      this.subscribers.delete(subscriber);
+      if (this.subscribers.size === 0 && this.rafId !== null) {
+        this.cancelFrame?.(this.rafId);
+        this.rafId = null;
+      }
+    };
+  }
+
+  private start(): void {
+    if (!this.requestFrame) {
+      return;
+    }
+
+    const step = (timestamp: number) => {
+      if (this.subscribers.size === 0) {
+        this.rafId = null;
+        return;
+      }
+
+      if (unifiedFrameController.shouldSkipFrame(timestamp)) {
+        this.rafId = this.requestFrame!(step);
+        return;
+      }
+
+      for (const subscriber of this.subscribers) {
+        subscriber(timestamp);
+      }
+
+      this.rafId = this.requestFrame!(step);
+    };
+
+    this.rafId = this.requestFrame(step);
+  }
+}
+
 // グローバル公開（デバッグ・検証用）
 declare global {
   interface Window {
     unifiedFrameController: UnifiedFrameController;
     renderOptimizer: RenderOptimizer;
+    frameLoop?: FrameLoop;
   }
 }
 
@@ -306,9 +376,11 @@ declare global {
 export const unifiedFrameController = new UnifiedFrameController(PRODUCTION_CONFIG);
 export const frameController = new FrameRateController(LIGHTWEIGHT_CONFIG);
 export const renderOptimizer = new RenderOptimizer();
+export const frameLoop = new FrameLoop();
 
 // グローバルアクセス用（デバッグ・検証）
 if (typeof window !== 'undefined') {
   window.unifiedFrameController = unifiedFrameController;
   window.renderOptimizer = renderOptimizer;
+  window.frameLoop = frameLoop;
 } 
