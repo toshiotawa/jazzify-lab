@@ -14,8 +14,8 @@ import type {
   JudgmentResult
 } from '@/types';
 import { unifiedFrameController } from './performanceOptimizer';
-import { log, devLog } from './logger';
-import * as PIXI from 'pixi.js';
+import { unifiedFrameLoop, FRAME_PRIORITIES } from './unifiedFrameLoop';
+import { log } from './logger';
 
 // ===== 定数定義 =====
 
@@ -74,7 +74,7 @@ export class GameEngine {
   private pausedTime: number = 0;
   private latencyOffset: number = 0;
   
-  private tickerListener: ((delta: number) => void) | null = null;
+  private frameLoopUnsubscribe: (() => void) | null = null;
   private onUpdate?: (data: GameEngineUpdate) => void;
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
@@ -783,27 +783,25 @@ export class GameEngine {
   }
   
   private startGameLoop(): void {
-    this.isGameLoopRunning = true;
-    // PIXI.Ticker.shared を使用し、unifiedFrameController と同期
-    const ticker = PIXI.Ticker.shared;
+    if (this.isGameLoopRunning) {
+      return;
+    }
 
-      const gameLoop = () => {
-        const frameStartTime = performance.now();
-        
-        // フレームスキップ制御
-        if (unifiedFrameController.shouldSkipFrame(frameStartTime)) {
-          return; // スキップ時はロジック・描画を行わず、次のTicker呼び出しを待つ
-        }
-      
+    this.isGameLoopRunning = true;
+
+    this.frameLoopUnsubscribe = unifiedFrameLoop.subscribe(({ timestamp }) => {
+      if (!this.isGameLoopRunning) {
+        return;
+      }
+
+      const frameStartTime = timestamp;
       const currentTime = this.getCurrentTime();
-      
-      // ノーツ更新の頻度制御
+
       let activeNotes: ActiveNote[] = [];
       if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
         activeNotes = this.updateNotes(currentTime);
         unifiedFrameController.markNoteUpdate(frameStartTime);
-        
-        // Miss判定処理（重複処理を防ぐ）
+
         for (const note of activeNotes) {
           if (note.state === 'missed' && !note.judged) {
             const missJudgment: JudgmentResult = {
@@ -813,33 +811,28 @@ export class GameEngine {
               timestamp: currentTime
             };
             this.updateScore(missJudgment);
-            
-            // 重複判定を防ぐフラグ - 新しいオブジェクトを作成して置き換え
+
             const updatedNote: ActiveNote = {
               ...note,
               judged: true
             };
             this.activeNotes.set(note.id, updatedNote);
 
-            // イベント通知
             this.onJudgment?.(missJudgment);
           }
         }
       } else {
-        // 前回の activeNotes を再利用
         activeNotes = Array.from(this.activeNotes.values());
       }
-      
-      // ABリピートチェック（軽量化）
+
       this.checkABRepeatLoop(currentTime);
-      
+
       const timing: MusicalTiming = {
         currentTime,
         audioTime: this.audioContext?.currentTime || 0,
         latencyOffset: this.latencyOffset
       };
-      
-      // UI更新（毎フレーム必要）
+
       this.onUpdate?.({
         currentTime,
         activeNotes,
@@ -851,19 +844,14 @@ export class GameEngine {
           enabled: false
         }
       });
-      
-    };
-    
-    this.tickerListener = gameLoop;
-    ticker.add(gameLoop);
+    }, FRAME_PRIORITIES.gameEngine);
   }
   
   private stopGameLoop(): void {
     this.isGameLoopRunning = false;
-    const ticker = PIXI.Ticker.shared;
-    if (this.tickerListener) {
-      ticker.remove(this.tickerListener);
-      this.tickerListener = null;
+    if (this.frameLoopUnsubscribe) {
+      this.frameLoopUnsubscribe();
+      this.frameLoopUnsubscribe = null;
     }
   }
 
