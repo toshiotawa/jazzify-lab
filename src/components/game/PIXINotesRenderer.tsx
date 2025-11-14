@@ -517,7 +517,7 @@ export class PIXINotesRendererInstance {
       const currentTime = performance.now();
       
       // 統合フレーム制御でフレームスキップ判定
-      if (window.unifiedFrameController.shouldSkipFrame(currentTime)) {
+      if (window.unifiedFrameController.shouldSkipFrame(currentTime, 'render')) {
         // フレームをスキップ
         requestAnimationFrame(renderFrame);
         return;
