@@ -263,9 +263,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         const realTimeElapsed = syncTime / settings.playbackSpeed;
         baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
 
-        // 7) GameEngine を AudioContext に紐付けて開始
-        gameEngine.start(audioContext);
-        gameEngine.seek(syncTime);
+          // 7) GameEngine を AudioContext に紐付けて開始
+          gameEngine.start(audioContext);
+          gameEngine.seek(syncTime);
 
         // 8) HTMLAudio 再生 (AudioContext と同軸)
         // resumeが完了してから再生開始
@@ -338,6 +338,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, audioLoaded, gameEngine]);
+
+useEffect(() => {
+  return () => {
+    stopTimeSync();
+  };
+}, [stopTimeSync]);
   
   // 設定モーダルが開いた時に音楽を一時停止
   useEffect(() => {
@@ -387,77 +393,55 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
   }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, currentTime]);
   
-  // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
-  const timeIntervalRef = useRef<number | null>(null);
-  
-  const startTimeSync = () => {
-    // ❌ requestAnimationFrameループは使わない
-    // ✅ 軽量なsetIntervalで時間更新（60FPSより低頻度で競合回避）
+    const rafRef = useRef<number | null>(null);
     
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
-    }
-    
-    const updateGameTime = () => {
-      if (!useGameStore.getState().isPlaying) return;
-      
-      let newTime = 0;
+    const updateTimeline = useCallback(() => {
       const audio = audioRef.current;
       const audioCtx = audioContextRef.current;
       const hasAudio = currentSong?.audioFile && audio && audioLoaded;
       
-      if (hasAudio && !audio.paused && audioCtx) {
-        // 音声ありモード：audio要素の時刻を基準
-        newTime = audio.currentTime;
-      } else if (audioCtx) {
-        // 音声なしモード：AudioContextの時刻とオフセットで計算
-        const realTimeElapsed = (audioCtx.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-        newTime = Math.max(0, realTimeElapsed);
-      } else {
-        // フォールバック
-        newTime = useGameStore.getState().currentTime + (50 / 1000); // 50ms進行と仮定
+      if (hasAudio && audio && !audio.paused) {
+        updateTime(audio.currentTime);
+        return audio.currentTime;
       }
       
-      // 🎯 重要：時間を進行させる！
-      updateTime(newTime);
+      if (audioCtx) {
+        const realTimeElapsed = (audioCtx.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
+        const logicalTime = Math.max(0, realTimeElapsed);
+        updateTime(logicalTime);
+        return logicalTime;
+      }
       
-      // 楽曲終了チェックをrequestIdleCallbackで実行
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => {
-          const songDuration = useGameStore.getState().currentSong?.duration || 0;
-          if (songDuration > 0 && newTime >= songDuration) {
-            useGameStore.getState().stop();
-            
-            // 本番モード時にリザルトモーダルを開く
-            if (useGameStore.getState().mode === 'performance') {
-              useGameStore.getState().openResultModal();
-            }
-          }
-        });
-      } else {
-        // requestIdleCallbackが無い場合は通常実行
-        const songDuration = useGameStore.getState().currentSong?.duration || 0;
-        if (songDuration > 0 && newTime >= songDuration) {
-          useGameStore.getState().stop();
-          
-          // 本番モード時にリザルトモーダルを開く
-          if (useGameStore.getState().mode === 'performance') {
-            useGameStore.getState().openResultModal();
-          }
+      const fallbackTime = useGameStore.getState().currentTime;
+      updateTime(fallbackTime);
+      return fallbackTime;
+    }, [audioLoaded, currentSong?.audioFile, settings.playbackSpeed, updateTime]);
+    
+    const runFrame = useCallback(() => {
+      const logicalTime = updateTimeline();
+      const songDuration = useGameStore.getState().currentSong?.duration || 0;
+      if (songDuration > 0 && logicalTime >= songDuration) {
+        useGameStore.getState().stop();
+        if (useGameStore.getState().mode === 'performance') {
+          useGameStore.getState().openResultModal();
         }
       }
-    };
+      rafRef.current = requestAnimationFrame(runFrame);
+    }, [updateTimeline]);
     
-    // 30ms間隔で時間更新（33FPS相当、楽譜スクロールを滑らかに）
-    timeIntervalRef.current = window.setInterval(updateGameTime, 30);
-  };
-  
-  const stopTimeSync = useCallback(() => {
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
-      timeIntervalRef.current = null;
-    }
-  }, []);
+    const startTimeSync = useCallback(() => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      rafRef.current = requestAnimationFrame(runFrame);
+    }, [runFrame]);
+    
+    const stopTimeSync = useCallback(() => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    }, []);
   
   // シーク機能（音声ありと音声なし両方対応）
   useEffect(() => {

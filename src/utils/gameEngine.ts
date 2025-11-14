@@ -13,9 +13,7 @@ import type {
   GameScore,
   JudgmentResult
 } from '@/types';
-import { unifiedFrameController } from './performanceOptimizer';
-import { log, devLog } from './logger';
-import * as PIXI from 'pixi.js';
+import { log } from './logger';
 
 // ===== 定数定義 =====
 
@@ -56,6 +54,8 @@ export interface GameEngineState {
 export class GameEngine {
   private notes: NoteData[] = [];
   private activeNotes: Map<string, ActiveNote> = new Map();
+  private noteQueue: NoteData[] = [];
+  private queueIndex: number = 0;
   private settings: GameSettings;
   private score: GameScore = {
     totalNotes: 0,
@@ -76,6 +76,7 @@ export class GameEngine {
   private pendingSeekTime: number | null = null;
   
   private tickerListener: ((delta: number) => void) | null = null;
+  private rafHandle: number | null = null;
   private onUpdate?: (data: GameEngineUpdate) => void;
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
@@ -116,6 +117,8 @@ export class GameEngine {
       // 表示開始時間の計算（タイミング調整を含める）
       appearTime: note.time + this.getTimingAdjSec() - LOOKAHEAD_TIME
     }));
+    this.noteQueue = [...this.notes];
+    this.queueIndex = 0;
     
     log.info(`🎵 GameEngine: ${this.notes.length}ノーツ読み込み完了`, {
       firstNoteTime: this.notes[0]?.time,
@@ -168,6 +171,7 @@ export class GameEngine {
     this.pausedTime = 0;
     this.stopGameLoop();
     this.resetScore();
+    this.resetActiveNotesForSeek(0);
   }
   
   seek(time: number): void {
@@ -176,12 +180,12 @@ export class GameEngine {
     
     if (this.audioContext) {
       this.syncStartTimeWithAudioContext(safeTime);
-      this.pendingSeekTime = null;
     } else {
       this.pausedTime = safeTime;
     }
     
-    this.resetActiveNotesForSeek();
+    this.resetActiveNotesForSeek(safeTime);
+    this.pendingSeekTime = null;
   }
   
   handleInput(inputNote: number): NoteHit | null {
@@ -383,13 +387,15 @@ export class GameEngine {
     this.pausedTime = 0;
   }
   
-  private resetActiveNotesForSeek(): void {
+  private resetActiveNotesForSeek(targetTime: number): void {
     this.activeNotes.clear();
     this.notes.forEach((note) => {
       delete (note as any)._wasProcessed;
       delete (note as any).appearTime;
       delete (note as any).crossingLogged;
     });
+    this.noteQueue = this.notes.filter((note) => note.time >= targetTime);
+    this.queueIndex = 0;
   }
   
   private calculateLatency(): void {
@@ -481,18 +487,22 @@ export class GameEngine {
     const visibleNotes: ActiveNote[] = [];
     
     // **新しいノーツを表示開始 - 重複防止の改善**
-    for (const note of this.notes) {
-      // ▼ まだ appearTime 未計算の場合も同様
+    while (this.queueIndex < this.noteQueue.length) {
+      const note = this.noteQueue[this.queueIndex];
+      if (!note) {
+        break;
+      }
+      
       if (!note.appearTime) {
         note.appearTime = note.time + this.getTimingAdjSec() - this.getLookaheadTime();
       }
       
-      // ノート生成条件を厳密に制限
-      const shouldAppear = currentTime >= note.appearTime && 
-                          currentTime < note.time + this.getCleanupTime(); // <= から < に変更
-      const alreadyActive = this.activeNotes.has(note.id);
+      if (note.appearTime > currentTime) {
+        break;
+      }
       
-      // 一度削除されたノートは二度と生成しない
+      const shouldAppear = currentTime >= note.appearTime && currentTime < note.time + this.getCleanupTime();
+      const alreadyActive = this.activeNotes.has(note.id);
       const wasProcessed = (note as any)._wasProcessed;
       
       if (shouldAppear && !alreadyActive && !wasProcessed) {
@@ -503,11 +513,9 @@ export class GameEngine {
         };
         
         this.activeNotes.set(note.id, activeNote);
-        // デバッグログを条件付きで表示
-        // if (Math.abs(currentTime - note.time) < 4.0) { // 判定時間の±4秒以内のみログ
-        //   console.log(`🎵 新しいノート出現: ${note.id} (pitch=${note.pitch}, time=${note.time}, y=${activeNote.y?.toFixed(1) || 'undefined'})`);
-        // }
       }
+      
+      this.queueIndex += 1;
     }
     
     // ===== 🚀 CPU最適化: ループ分離による高速化 =====
@@ -787,54 +795,39 @@ export class GameEngine {
   }
   
   private startGameLoop(): void {
-    this.isGameLoopRunning = true;
-    // PIXI.Ticker.shared を使用し、unifiedFrameController と同期
-    const ticker = PIXI.Ticker.shared;
-
-      const gameLoop = () => {
-        const frameStartTime = performance.now();
-        
-        // フレームスキップ制御
-        if (unifiedFrameController.shouldSkipFrame(frameStartTime)) {
-          return; // スキップ時はロジック・描画を行わず、次のTicker呼び出しを待つ
-        }
-      
-      const currentTime = this.getCurrentTime();
-      
-      // ノーツ更新の頻度制御
-      let activeNotes: ActiveNote[] = [];
-      if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
-        activeNotes = this.updateNotes(currentTime);
-        unifiedFrameController.markNoteUpdate(frameStartTime);
-        
-        // Miss判定処理（重複処理を防ぐ）
-        for (const note of activeNotes) {
-          if (note.state === 'missed' && !note.judged) {
-            const missJudgment: JudgmentResult = {
-              type: 'miss',
-              timingError: 0,
-              noteId: note.id,
-              timestamp: currentTime
-            };
-            this.updateScore(missJudgment);
-            
-            // 重複判定を防ぐフラグ - 新しいオブジェクトを作成して置き換え
-            const updatedNote: ActiveNote = {
-              ...note,
-              judged: true
-            };
-            this.activeNotes.set(note.id, updatedNote);
-
-            // イベント通知
-            this.onJudgment?.(missJudgment);
-          }
-        }
-      } else {
-        // 前回の activeNotes を再利用
-        activeNotes = Array.from(this.activeNotes.values());
+    if (this.rafHandle !== null) {
+      cancelAnimationFrame(this.rafHandle);
+    }
+    
+    const loop = () => {
+      if (!this.isGameLoopRunning) {
+        this.rafHandle = null;
+        return;
       }
       
-      // ABリピートチェック（軽量化）
+      const frameStartTime = performance.now();
+      const currentTime = this.getCurrentTime();
+      const activeNotes = this.updateNotes(currentTime);
+      
+      for (const note of activeNotes) {
+        if (note.state === 'missed' && !note.judged) {
+          const missJudgment: JudgmentResult = {
+            type: 'miss',
+            timingError: 0,
+            noteId: note.id,
+            timestamp: currentTime
+          };
+          this.updateScore(missJudgment);
+          
+          const updatedNote: ActiveNote = {
+            ...note,
+            judged: true
+          };
+          this.activeNotes.set(note.id, updatedNote);
+          this.onJudgment?.(missJudgment);
+        }
+      }
+      
       this.checkABRepeatLoop(currentTime);
       
       const timing: MusicalTiming = {
@@ -843,7 +836,6 @@ export class GameEngine {
         latencyOffset: this.latencyOffset
       };
       
-      // UI更新（毎フレーム必要）
       this.onUpdate?.({
         currentTime,
         activeNotes,
@@ -856,18 +848,18 @@ export class GameEngine {
         }
       });
       
+      this.rafHandle = requestAnimationFrame(loop);
     };
     
-    this.tickerListener = gameLoop;
-    ticker.add(gameLoop);
+    this.isGameLoopRunning = true;
+    this.rafHandle = requestAnimationFrame(loop);
   }
   
   private stopGameLoop(): void {
     this.isGameLoopRunning = false;
-    const ticker = PIXI.Ticker.shared;
-    if (this.tickerListener) {
-      ticker.remove(this.tickerListener);
-      this.tickerListener = null;
+    if (this.rafHandle !== null) {
+      cancelAnimationFrame(this.rafHandle);
+      this.rafHandle = null;
     }
   }
 
