@@ -614,15 +614,20 @@ export class GameEngine {
     }
     
     const timeError = (currentTime - displayTime) * 1000;
-    note.crossingLogged = true;
-    this.activeNotes.set(note.id, note);
+    const updatedNote: ActiveNote = note.crossingLogged
+      ? note
+      : {
+          ...note,
+          crossingLogged: true
+        };
+    this.activeNotes.set(note.id, updatedNote);
     
     const practiceGuide = this.settings.practiceGuide ?? 'key';
     if (practiceGuide === 'off') {
       return;
     }
     
-    const effectivePitch = note.pitch + this.settings.transpose;
+    const effectivePitch = updatedNote.pitch + this.settings.transpose;
     if (this.onKeyHighlight) {
       this.onKeyHighlight(effectivePitch, currentTime);
     }
@@ -636,7 +641,7 @@ export class GameEngine {
         timestamp: currentTime
       };
       this.processHit(autoHit);
-      const updatedNoteAfterHit = this.activeNotes.get(note.id);
+      const updatedNoteAfterHit = this.activeNotes.get(updatedNote.id);
       if (updatedNoteAfterHit && updatedNoteAfterHit.state !== 'hit') {
         const forcedHitNote: ActiveNote = {
           ...updatedNoteAfterHit,
@@ -644,7 +649,7 @@ export class GameEngine {
           hitTime: currentTime,
           timingError: Math.abs(timeError)
         };
-        this.activeNotes.set(note.id, forcedHitNote);
+        this.activeNotes.set(updatedNote.id, forcedHitNote);
       }
     }
   }

@@ -12,7 +12,7 @@ import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
 import { subscribeFrameLoop } from '@/utils/frameLoop';
 
-const PIXI_LOOKAHEAD_SECONDS = 15;
+const PIXI_LOOKAHEAD_SECONDS = 5;
 
 // ===== 破棄管理システム =====
 /**
@@ -313,12 +313,12 @@ export class PIXINotesRendererInstance {
   
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
-  public readonly settings: RendererSettings = {
-    noteWidth: 28,
-    noteHeight: 4,
-    hitLineY: 0,
-    pianoHeight: 200, // viewportHeightと同じ値に設定
-    noteSpeed: 400,
+    public readonly settings: RendererSettings = {
+      noteWidth: 28,
+      noteHeight: 4,
+      hitLineY: 0,
+      pianoHeight: 200, // viewportHeightと同じ値に設定
+      noteSpeed: 1,
     enableEffects: true,
     colors: {
       visible: 0x4A90E2,
@@ -1780,7 +1780,6 @@ export class PIXINotesRendererInstance {
     
     // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
     if (seekDetected) {
-      // 全てのノートスプライトを削除
       const noteIds = Array.from(this.noteSprites.keys());
       for (const noteId of noteIds) {
         this.removeNoteSprite(noteId);
@@ -1788,7 +1787,6 @@ export class PIXINotesRendererInstance {
       this.noteSprites.clear();
     }
     
-    // ノートリストが変更された場合、または巻き戻しが発生した場合
     if (seekDetected) {
       this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time);
       this.nextNoteIndex = 0;
@@ -1800,77 +1798,97 @@ export class PIXINotesRendererInstance {
     this.lastUpdateTime = currentTime;
     this.refreshActiveNoteLookup(activeNotes);
     
-    // GameEngineと同じ計算式を使用（統一化）
-      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
-    const visualSpeedMultiplier = this.settings.noteSpeed;
-    const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
-    const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
+    const fallDuration = this.getLookaheadSeconds();
+    const timingAdjustmentSec = this.getTimingAdjustmentSec();
+    const visibilityThreshold = currentTime + fallDuration;
     
-    // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
-    // まだ表示していないノートで、表示時刻になったもののみ処理
-    const appearanceTime = currentTime + baseFallDuration; // 画面上端に現れる時刻
-    
-    while (this.nextNoteIndex < this.allNotes.length &&
-           this.allNotes[this.nextNoteIndex].time <= appearanceTime) {
+    while (this.nextNoteIndex < this.allNotes.length) {
       const note = this.allNotes[this.nextNoteIndex];
+      const noteAppear = this.computeAppearanceTime(note, fallDuration, timingAdjustmentSec);
+      if (noteAppear > visibilityThreshold) {
+        break;
+      }
       
-      // 新規ノーツスプライト作成（初回のみ）
       if (!this.noteSprites.has(note.id)) {
-        this.createNoteSprite(note);
+        this.createNoteSprite(note, currentTime, fallDuration, timingAdjustmentSec);
       }
       
       this.nextNoteIndex++;
     }
     
-    // ===== 🚀 CPU最適化: ループ分離による高速化 =====
-    // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
-    this.updateSpritePositions(this.activeNoteLookup, currentTime, speedPxPerSec);
-    
-    // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
-    // const frameStartTime = performance.now(); // パフォーマンス監視用（現在未使用）
-    
-    // 状態・削除処理ループ（フレーム間引き無効化）
+    this.updateSpritePositions(this.activeNoteLookup, currentTime, fallDuration, timingAdjustmentSec);
     this.updateSpriteStates(this.activeNoteLookup);
-    
-    
-    
+  }
+
+  private clampValue(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  private getSpeedScale(): number {
+    const speed = this.settings.noteSpeed ?? 1;
+    const clamped = this.clampValue(speed, 0.1, 4);
+    return 1 / clamped;
+  }
+
+  private getLookaheadSeconds(): number {
+    return PIXI_LOOKAHEAD_SECONDS * this.getSpeedScale();
+  }
+
+  private getTimingAdjustmentSec(): number {
+    return (this.settings.timingAdjustment || 0) / 1000;
+  }
+
+  private computeAppearanceTime(note: ActiveNote, fallDuration: number, timingAdjustmentSec: number): number {
+    if (typeof note.appearTime === 'number') {
+      return note.appearTime;
+    }
+    const displayTime = note.time + timingAdjustmentSec;
+    return displayTime - fallDuration;
+  }
+
+  private computeFreefallY(
+    note: ActiveNote,
+    currentTime: number,
+    fallDuration: number,
+    timingAdjustmentSec: number
+  ): number {
+    const startY = -this.settings.noteHeight;
+    const endY = this.settings.hitLineY;
+    const appearanceTime = this.computeAppearanceTime(note, fallDuration, timingAdjustmentSec);
+    const progress = this.clampValue((currentTime - appearanceTime) / fallDuration, 0, 1);
+    return startY + progress * (endY - startY);
   }
 
   /**
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
    */
-  private updateSpritePositions(activeNoteLookup: Map<string, ActiveNote>, currentTime: number, speedPxPerSec: number): void {
-    for (const [noteId, sprite] of this.noteSprites) {
-      const note = activeNoteLookup.get(noteId);
-      if (!note) {
-        continue;
-      }
-      
-      // ===== Y座標更新（毎フレーム、軽量処理） =====
-      const suppliedY = note.y;
-      let newY: number;
+  private updateSpritePositions(
+    activeNoteLookup: Map<string, ActiveNote>,
+    currentTime: number,
+    fallDuration: number,
+    timingAdjustmentSec: number
+  ): void {
+      for (const [noteId, sprite] of this.noteSprites) {
+        const note = activeNoteLookup.get(noteId);
+        if (!note) {
+          continue;
+        }
+        
+        const previousY = sprite.sprite.y;
+        const newY = this.computeFreefallY(note, currentTime, fallDuration, timingAdjustmentSec);
 
-      if (suppliedY !== undefined) {
-        newY = suppliedY; // Engine提供の絶対座標を最優先
-      } else {
-        // フォールバック: 自前計算
-        newY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
-      }
-
-      sprite.sprite.y = newY;
-      if (sprite.label) sprite.label.y = newY - 8;
-      if (sprite.glowSprite) sprite.glowSprite.y = newY;
-      
-      // ===== X座標更新（ピッチ変更時のみ） =====
-      if (sprite.noteData.pitch !== note.pitch) {
-        const x = this.pitchToX(note.pitch);
-        sprite.sprite.x = x;
-        if (sprite.label) sprite.label.x = x;
-        if (sprite.glowSprite) sprite.glowSprite.x = x;
-      }
-      
-      // ===== トランスポーズ変更検出 =====
+        sprite.sprite.y = newY;
+        if (sprite.label) sprite.label.y = newY - 8;
+        if (sprite.glowSprite) sprite.glowSprite.y = newY;
+        
+        if (sprite.noteData.pitch !== note.pitch) {
+          const x = this.pitchToX(note.pitch);
+          sprite.sprite.x = x;
+          if (sprite.label) sprite.label.x = x;
+          if (sprite.glowSprite) sprite.glowSprite.x = x;
+        }
+        
       if (sprite.transposeAtCreation !== this.settings.transpose) {
         const effectivePitch = note.pitch + this.settings.transpose;
         const isBlackNote = this.isBlackKey(effectivePitch);
@@ -1943,16 +1961,14 @@ export class PIXINotesRendererInstance {
         sprite.transposeAtCreation = this.settings.transpose;
       }
       
-      // ===== 🚀 位置関連プロパティのみ部分更新（state保持） =====
-      // 新しいオブジェクトを作成し、座標のみ更新、状態は元のまま保持
-      sprite.noteData = {
-        ...sprite.noteData,  // state は保持
-        y: note.y,
-        previousY: note.previousY,
-        time: note.time,
-        pitch: note.pitch,
-        crossingLogged: note.crossingLogged // crossingLogged を同期してハイライト多重発火を防止
-      };
+        sprite.noteData = {
+          ...sprite.noteData,
+          y: newY,
+          previousY,
+          time: note.time,
+          pitch: note.pitch,
+          crossingLogged: note.crossingLogged
+        };
     }
   }
 
@@ -2031,9 +2047,15 @@ export class PIXINotesRendererInstance {
       return left; // 最初の「まだ表示していない」ノートのインデックス
     }
   
-  private createNoteSprite(note: ActiveNote): NoteSprite {
+  private createNoteSprite(
+    note: ActiveNote,
+    currentTime: number,
+    fallDuration: number,
+    timingAdjustmentSec: number
+  ): NoteSprite {
     const effectivePitch = note.pitch + this.settings.transpose;
     const x = this.pitchToX(note.pitch);
+    const initialY = this.computeFreefallY(note, currentTime, fallDuration, timingAdjustmentSec);
     
     // ===== 適切なテクスチャを選択 =====
     const isBlackNote = this.isBlackKey(effectivePitch);
@@ -2047,7 +2069,7 @@ export class PIXINotesRendererInstance {
     ;(sprite as any).interactiveChildren = false;
     sprite.anchor.set(0.5, 0.5);
     sprite.x = x;
-    sprite.y = 0; // 後で設定
+    sprite.y = initialY;
     
     // 音名ラベル（MusicXMLから取得した音名を優先）
     let label: PIXI.Sprite | undefined;
@@ -2084,8 +2106,8 @@ export class PIXINotesRendererInstance {
         if (labelTexture) {
           label = new PIXI.Sprite(labelTexture);
           label.anchor.set(0.5, 1);
-          label.x = x;
-          label.y = 0; // 後で設定
+            label.x = x;
+            label.y = initialY - 8;
           
           // 通常のContainerへ追加
           try {
@@ -2105,9 +2127,9 @@ export class PIXINotesRendererInstance {
     // グロー効果スプライト（デフォルトOFF、必要時のみ）
     let glowSprite: PIXI.Graphics | undefined;
     if (this.settings.effects.glow) {
-      glowSprite = new PIXI.Graphics();
-      glowSprite.x = x;
-      glowSprite.y = 0; // 後で設定
+        glowSprite = new PIXI.Graphics();
+        glowSprite.x = x;
+        glowSprite.y = initialY;
       this.effectsContainer.addChild(glowSprite);
     }
     
@@ -2123,7 +2145,10 @@ export class PIXINotesRendererInstance {
     const noteSprite: NoteSprite = {
       sprite,
       glowSprite,
-      noteData: note,
+      noteData: {
+        ...note,
+        y: initialY
+      },
       label,
       effectPlayed: false,
       transposeAtCreation: this.settings.transpose
