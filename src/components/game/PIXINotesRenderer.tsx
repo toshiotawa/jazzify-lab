@@ -1793,17 +1793,16 @@ export class PIXINotesRendererInstance {
    * 位置更新と状態更新を分離してCPU使用量を30-50%削減
    */
   updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
-    if (!currentTime) return; // 絶対時刻が必要
+    if (typeof currentTime !== 'number') return; // 絶対時刻が必要
     
     // ===== 巻き戻し検出とノートリスト更新 =====
     const timeMovedBackward = currentTime < this.lastUpdateTime;
     const timeDelta = Math.abs(currentTime - this.lastUpdateTime);
     const jumpThreshold = PIXI_LOOKAHEAD_SECONDS > 0 ? PIXI_LOOKAHEAD_SECONDS * 0.5 : 1;
     
-    // ===== シーク検出: activeNotesの数が大幅に変化した場合 =====
-    const notesCountChanged = Math.abs(activeNotes.length - this.allNotes.length) > 10;
+    // ===== シーク検出: 時間が逆行または大きく飛んだ場合のみ =====
     const jumpedFar = timeDelta > jumpThreshold;
-    const seekDetected = timeMovedBackward || notesCountChanged || jumpedFar;
+    const seekDetected = timeMovedBackward || jumpedFar;
     
     // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
     if (seekDetected) {
