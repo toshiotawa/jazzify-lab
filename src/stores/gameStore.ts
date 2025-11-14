@@ -883,28 +883,29 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           };
         }),
         
-        // 再生制御
-        play: () => set((state) => {
-          state.isPlaying = true;
-          state.isPaused = false;
-        }),
-        
-        pause: () => set((state) => {
-          state.isPlaying = false;
-          state.isPaused = true;
-        }),
-        
-        stop: () => set((state) => {
-          state.isPlaying = false;
-          state.isPaused = false;
-          state.currentTime = 0;
-          state.activeNotes.clear();
+         // 再生制御
+          play: () => set((state) => {
+            state.isPlaying = true;
+            state.isPaused = false;
+          }),
           
-          // GameEngineも停止
-          if (state.gameEngine) {
-            state.gameEngine.stop();
-          }
-        }),
+          pause: () => set((state) => {
+            state.isPlaying = false;
+            state.isPaused = true;
+          }),
+          
+          stop: () => set((state) => {
+            state.isPlaying = false;
+            state.isPaused = false;
+            state.currentTime = 0;
+            state.activeNotes.clear();
+            state.engineActiveNotes = [];
+            
+            // GameEngineも停止
+            if (state.gameEngine) {
+              state.gameEngine.stop();
+            }
+          }),
         
         seek: (time) => {
           const state = get();
