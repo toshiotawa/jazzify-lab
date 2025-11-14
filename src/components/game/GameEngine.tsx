@@ -72,6 +72,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     setLastKeyHighlight: state.setLastKeyHighlight,
     openResultModal: state.openResultModal
   }));
+
+  const isLegendMode = mode === 'performance';
+  const hitEffectsEnabled = settings.enableEffects && !isLegendMode;
   
   const [isEngineReady, setIsEngineReady] = useState(false);
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -112,6 +115,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // 楽曲読み込み時の音声設定
   useEffect(() => {
+    if (isLegendMode) {
+      setAudioLoaded(true);
+      return;
+    }
+
     if (currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current) {
       const audio = audioRef.current;
       
@@ -184,7 +192,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     } else {
       setAudioLoaded(false);
     }
-  }, [currentSong?.audioFile, settings.musicVolume]);
+  }, [currentSong?.audioFile, settings.musicVolume, isLegendMode]);
   
   // 再生状態同期
   useEffect(() => {
@@ -193,7 +201,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     const run = async () => {
       if (isPlaying) {
         // 音声ファイルありの場合とnしの場合で分岐
-        const hasAudio = currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
+        const hasAudio = !isLegendMode && currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
         
         if (hasAudio) {
           // === 音声ありモード ===
@@ -357,7 +365,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, audioLoaded, gameEngine]);
+  }, [isPlaying, audioLoaded, gameEngine, isLegendMode]);
   
   // 設定モーダルが開いた時に音楽を一時停止
   useEffect(() => {
@@ -369,14 +377,17 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // 音量変更の同期
   useEffect(() => {
+    if (isLegendMode) {
+      return;
+    }
     if (audioRef.current) {
       audioRef.current.volume = settings.musicVolume;
     }
-  }, [settings.musicVolume]);
+  }, [settings.musicVolume, isLegendMode]);
   
   // 再生スピード変更の同期
   useEffect(() => {
-    if (audioRef.current) {
+    if (!isLegendMode && audioRef.current) {
       audioRef.current.playbackRate = settings.playbackSpeed;
 
       // ピッチを保持
@@ -405,7 +416,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (gameEngine) {
       updateEngineSettings();
     }
-  }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, currentTime]);
+  }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, currentTime, isLegendMode]);
   
   // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
   const timeIntervalRef = useRef<number | null>(null);
@@ -424,7 +435,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       let newTime = 0;
       const audio = audioRef.current;
       const audioCtx = audioContextRef.current;
-      const hasAudio = currentSong?.audioFile && audio && audioLoaded;
+        const hasAudio = !isLegendMode && currentSong?.audioFile && audio && audioLoaded;
       
       if (hasAudio && !audio.paused && audioCtx) {
         // 音声ありモード：audio要素の時刻を基準
@@ -482,7 +493,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   // シーク機能（音声ありと音声なし両方対応）
   useEffect(() => {
     if (audioContextRef.current && gameEngine) {
-      const hasAudio = currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
+        const hasAudio = !isLegendMode && currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
       
       if (hasAudio) {
         // 音声ありの場合: 音声とゲームエンジンの同期
@@ -537,7 +548,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
       }
     }
-  }, [currentTime, audioLoaded, gameEngine, settings.playbackSpeed]);
+    }, [currentTime, audioLoaded, gameEngine, settings.playbackSpeed, isLegendMode]);
   
   // MIDIController管理用のRef
   const midiControllerRef = useRef<any>(null);
@@ -779,7 +790,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pianoHeight: settings.pianoHeight,
         transpose: settings.transpose,
         transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
+        practiceGuide: settings.practiceGuide ?? 'key',
+        hitEffectsEnabled
       });
     }
     // AudioControllerに音声入力設定を反映
@@ -788,7 +800,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pyinThreshold: settings.pyinThreshold
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
+    }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold, hitEffectsEnabled]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
@@ -922,7 +934,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       pianoHeight: settings.pianoHeight,
       transpose: settings.transpose,
       transposingInstrument: settings.transposingInstrument,
-      practiceGuide: settings.practiceGuide ?? 'key'
+        practiceGuide: settings.practiceGuide ?? 'key',
+        hitEffectsEnabled
     });
     
     // ピアノキーボードのクリックイベントを接続
@@ -970,7 +983,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-    }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
+    }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice, hitEffectsEnabled]);
 
     useEffect(() => {
       if (!pixiRenderer) {

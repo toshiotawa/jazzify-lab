@@ -210,6 +210,7 @@ interface RendererSettings {
   showHitLine: boolean;
   viewportHeight: number;
   timingAdjustment: number;
+    hitEffectsEnabled: boolean;
 }
 
 // ===== テクスチャキャッシュ =====
@@ -322,7 +323,8 @@ export class PIXINotesRendererInstance {
     practiceGuide: 'off',
     showHitLine: true,
     viewportHeight: 200, // pianoHeightと同じ値に設定
-    timingAdjustment: 0
+      timingAdjustment: 0,
+      hitEffectsEnabled: true
   };
   
   private onDragActive: boolean = false;
@@ -2366,106 +2368,22 @@ export class PIXINotesRendererInstance {
   }
   
   private createHitEffect(x: number, y: number): void {
-    // 常にヒットエフェクトを生成（呼び出し側で判定済み）
-    log.info(`⚡ Generating hit effect at (${x.toFixed(1)}, ${y.toFixed(1)})`);
-    
-    // メインエフェクトコンテナ
-    const effectContainer = new PIXI.Container();
-    effectContainer.name = 'HitEffect'; // デバッグ用名前付け
-    
-    // === ポインターイベントを完全無効化 ===
-    (effectContainer as any).eventMode = 'none';
-    effectContainer.interactive = false;
-    
-    // ===== 1. 縦レーンライト（新機能） =====
-    const laneLight = new PIXI.Graphics();
-    (laneLight as any).eventMode = 'none';
-    
-    // レーンライトの幅とグラデーション
-    const laneWidth = 8; // レーンライト幅
-    const laneHeight = this.settings.hitLineY; // 画面上端からピアノまで
-    
-    // グラデーション風の複数ライン（中央が明るく、外側に向かって暗く）
-    for (let i = 0; i < 3; i++) {
-      const lineWidth = laneWidth - (i * 2);
-      const alpha = 0.8 - (i * 0.2); // 中央ほど明るく
-      const color = i === 0 ? 0xFFFFFF : this.settings.colors.good; // 中央は白、外側は緑
-      
-      laneLight.lineStyle(lineWidth, color, alpha);
-      laneLight.moveTo(0, 0);
-      laneLight.lineTo(0, laneHeight);
+    if (!this.settings.hitEffectsEnabled) {
+      return;
     }
     
-    laneLight.x = x;
-    laneLight.y = 0; // 画面上端から開始
-    effectContainer.addChild(laneLight);
+    const circle = new PIXI.Graphics();
+    circle.beginFill(this.settings.colors.good, 0.85);
+    circle.drawCircle(0, 0, 10);
+    circle.endFill();
+    circle.x = x;
+    circle.y = y;
+    circle.alpha = 0.9;
     
-    // ===== 2. 既存の円形エフェクト =====
-    // 外側の円（小さく）
-    const outerCircle = new PIXI.Graphics();
-    outerCircle.beginFill(this.settings.colors.good, 0.6);
-    outerCircle.drawCircle(0, 0, 15);
-    outerCircle.endFill();
-    
-    // 中間の円
-    const middleCircle = new PIXI.Graphics();
-    middleCircle.beginFill(this.settings.colors.good, 0.8);
-    middleCircle.drawCircle(0, 0, 10);
-    middleCircle.endFill();
-    
-    // 内側の明るい円
-    const innerCircle = new PIXI.Graphics();
-    innerCircle.beginFill(0xFFFFFF, 1.0);
-    innerCircle.drawCircle(0, 0, 6);
-    innerCircle.endFill();
-    
-    // 円形エフェクトコンテナ
-    const circleContainer = new PIXI.Container();
-    circleContainer.addChild(outerCircle);
-    circleContainer.addChild(middleCircle);
-    circleContainer.addChild(innerCircle);
-    circleContainer.x = x;
-    circleContainer.y = y;
-    effectContainer.addChild(circleContainer);
-    
-    effectContainer.alpha = 1.0;
-    
-    // エフェクトコンテナを最前面に強制配置
-    this.effectsContainer.addChild(effectContainer);
-    this.container.setChildIndex(this.effectsContainer, this.container.children.length - 1);
-    
-    log.info(`⚡ Effect with lane light added. Children count: ${this.effectsContainer.children.length}`);
-    
-    // ===== 3. アニメーション =====
-    const duration = 0.15; // 持続時間を短縮（0.3 → 0.15秒）
-    let elapsed = 0;
-    
-    // 初期状態で最大サイズ・最大明度に設定（瞬時に光る）
-    circleContainer.scale.set(1.0); // スケールアニメーション削除、最初から最大サイズ
-    laneLight.alpha = 1.0;
-    circleContainer.alpha = 1.0;
-    
-    const animateTicker = (delta: number) => {
-      elapsed += delta * (1 / 60);
-      const progress = Math.min(elapsed / duration, 1);
-      
-      // 両方のエフェクトを同時に急速フェードアウト
-      const fadeAlpha = 1 - progress;
-      
-      laneLight.alpha = fadeAlpha;
-      circleContainer.alpha = fadeAlpha;
-      
-      if (progress >= 1) {
-        log.info(`⚡ Flash effect completed, removing from container`);
-        this.app.ticker.remove(animateTicker);
-        if (effectContainer.parent) {
-          this.effectsContainer.removeChild(effectContainer);
-        }
-        effectContainer.destroy({ children: true });
-      }
-    };
-    
-    this.app.ticker.add(animateTicker);
+    this.effectsContainer.addChild(circle);
+    this.fadeOutLater(circle, 0.12, () => {
+      circle.destroy({ children: true });
+    });
   }
   
   private getStateColor(state: ActiveNote['state'], pitch?: number): number {
@@ -3054,6 +2972,9 @@ export class PIXINotesRendererInstance {
    * GameEngine の判定を待たずに視覚フィードバックを返すための補助メソッド。
    */
   public triggerKeyPressEffect(midiNote: number): void {
+    if (!this.settings.hitEffectsEnabled) {
+      return;
+    }
     // 現在表示中のノートスプライトから一致するものを探す
     const targetSprite = Array.from(this.noteSprites.values()).find((ns) => {
       const rawMidi = ns.noteData.pitch + this.settings.transpose;

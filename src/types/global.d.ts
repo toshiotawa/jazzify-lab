@@ -1,16 +1,8 @@
+type ToneInstance = typeof import('tone');
+
 declare global {
   interface Window {
-    Tone: {
-      Context: typeof AudioContext;
-      Sampler: unknown;
-      Frequency: unknown;
-      setContext: (context: AudioContext) => void;
-      loaded: () => Promise<void>;
-      start: () => Promise<void>;
-      context: {
-        state: string;
-      };
-    };
+    Tone?: ToneInstance;
     webkitAudioContext?: typeof AudioContext;
     performanceMonitor?: {
       getFPS(): number;

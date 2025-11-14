@@ -510,24 +510,6 @@ export interface MidiAccess {
   sysexEnabled: boolean;
 }
 
-export interface ToneSampler {
-  toDestination(): ToneSampler;
-  triggerAttack(note: string | number, time?: number, velocity?: number): void;
-  triggerRelease(note: string | number, time?: number): void;
-  connect(destination: any): void;
-  dispose(): void;
-}
-
-export interface ToneFrequency {
-  toFrequency(): number;
-}
-
-export interface ToneStatic {
-  Sampler: new (options: any) => ToneSampler;
-  Frequency: new (note: string | number) => ToneFrequency;
-  context: any;
-}
-
 export interface MidiControllerOptions {
   onNoteOn: (note: number, velocity?: number) => void;
   onNoteOff: (note: number) => void;
