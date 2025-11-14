@@ -580,15 +580,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           });
 
           // PIXIレンダラーが既に準備完了している場合はコールバックを設定
-          if (pixiRenderer) {
-            audioControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-              pixiRenderer.highlightKey(note, active);
-            });
-            audioControllerRef.current.setKeyPressEffectCallback((note: number) => {
-              pixiRenderer.triggerKeyPressEffect(note);
-            });
-            log.info('✅ AudioController ↔ PIXIレンダラー コールバック再設定');
-          }
+            if (pixiRenderer) {
+              audioControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+                pixiRenderer.highlightKey(note, active);
+              });
+              log.info('✅ AudioController ↔ PIXIレンダラー コールバック再設定');
+            }
         } else if (audioControllerRef.current && settings.inputMode === 'midi') {
           // MIDI専用モードの場合、AudioControllerを停止
           await audioControllerRef.current.disconnect();
@@ -619,29 +616,25 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   useEffect(() => {
     const linkMidiAndPixi = async () => {
       // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-        
-        // 1. 鍵盤ハイライト用のコールバックを設定
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRenderer.highlightKey(note, active);
-          if (active) {
-            pixiRenderer.triggerKeyPressEffect(note);
+        if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
+          // 1. 鍵盤ハイライト用のコールバックを設定
+          midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+            pixiRenderer.highlightKey(note, active);
+          });
+          
+          // 2. デバイスに再接続して、設定したコールバックを有効化
+          log.info(`🔧 Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
+          const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
+          if (success) {
+            log.info('✅ MIDI device successfully linked to renderer.');
+          } else {
+            log.warn('⚠️ Failed to link MIDI device to renderer.');
           }
-        });
-        
-        // 2. デバイスに再接続して、設定したコールバックを有効化
-        log.info(`🔧 Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        if (success) {
-          log.info('✅ MIDI device successfully linked to renderer.');
-        } else {
-          log.warn('⚠️ Failed to link MIDI device to renderer.');
+        } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
+          // デバイス選択が解除された場合は切断
+          midiControllerRef.current.disconnect();
+          log.info('🔌 MIDIデバイス切断');
         }
-      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-        // デバイス選択が解除された場合は切断
-        midiControllerRef.current.disconnect();
-        log.info('🔌 MIDIデバイス切断');
-      }
     };
 
     linkMidiAndPixi();
@@ -917,10 +910,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (midiControllerRef.current) {
       midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
         renderer.highlightKey(note, active);
-        // アクティブ(ノートオン)時に即時エフェクトを発火
-        if (active) {
-          renderer.triggerKeyPressEffect(note);
-        }
       });
       
       log.info('✅ MIDIController ↔ PIXIレンダラー連携完了');
@@ -930,11 +919,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (audioControllerRef.current) {
       audioControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
         renderer.highlightKey(note, active);
-      });
-      
-      // AudioControllerにキープレスエフェクト機能を設定
-      audioControllerRef.current.setKeyPressEffectCallback((note: number) => {
-        renderer.triggerKeyPressEffect(note);
       });
       
       // 既に接続済みのデバイスがある場合、接続状態を確認して再設定

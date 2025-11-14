@@ -2014,38 +2014,37 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    // ===== 不要なスプライトをバッチ削除 =====
-    for (const noteId of spritesToRemove) {
-      this.removeNoteSprite(noteId);
-    }
-    
-  }
-  
-  /**
-   * 二分探索で指定時刻に対応するノートインデックスを取得
-   */
-  private findNoteIndexByTime(targetTime: number): number {
-    if (this.allNotes.length === 0) return 0;
-    
-    const baseFallDuration = 5.0;
-    const appearanceTime = targetTime + baseFallDuration;
-    
-    let left = 0;
-    let right = this.allNotes.length - 1;
-    
-    while (left <= right) {
-      const mid = Math.floor((left + right) / 2);
-      const noteTime = this.allNotes[mid].time;
-      
-      if (noteTime <= appearanceTime) {
-        left = mid + 1;
-      } else {
-        right = mid - 1;
+      // ===== 不要なスプライトをバッチ削除 =====
+      for (const noteId of spritesToRemove) {
+        this.removeNoteSprite(noteId);
       }
     }
     
-    return left; // 最初の「まだ表示していない」ノートのインデックス
-  }
+    /**
+     * 二分探索で指定時刻に対応するノートインデックスを取得
+     */
+    private findNoteIndexByTime(targetTime: number): number {
+      if (this.allNotes.length === 0) return 0;
+      
+      const baseFallDuration = 15.0;
+      const appearanceTime = targetTime + baseFallDuration;
+      
+      let left = 0;
+      let right = this.allNotes.length - 1;
+      
+      while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        const noteTime = this.allNotes[mid].time;
+        
+        if (noteTime <= appearanceTime) {
+          left = mid + 1;
+        } else {
+          right = mid - 1;
+        }
+      }
+      
+      return left; // 最初の「まだ表示していない」ノートのインデックス
+    }
   
   private createNoteSprite(note: ActiveNote): NoteSprite {
     const effectivePitch = note.pitch + this.settings.transpose;
@@ -2881,13 +2880,7 @@ export class PIXINotesRendererInstance {
   /**
    * 内部キープレスハンドラー
    */
-  private handleKeyPress(midiNote: number): void {
-    log.info('🎹 handleKeyPress called', { 
-      midiNote, 
-      hasOnKeyPress: !!this.onKeyPress,
-      destroyed: this.isDestroyed
-    });
-    
+    private handleKeyPress(midiNote: number): void {
     // アクティブキープレス状態に追加
     this.activeKeyPresses.add(midiNote);
 
@@ -2898,11 +2891,9 @@ export class PIXINotesRendererInstance {
     this.triggerKeyPressEffect(midiNote);
 
     // 外部コールバック呼び出し（GameEngine経由で状態更新）
-    if (this.onKeyPress) {
-      this.onKeyPress(midiNote);
-    } else {
-      log.warn(`⚠️ No onKeyPress callback set! Note: ${midiNote}`);
-    }
+      if (this.onKeyPress) {
+        this.onKeyPress(midiNote);
+      }
   }
   
   /**

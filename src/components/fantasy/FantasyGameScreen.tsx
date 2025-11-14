@@ -618,10 +618,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         if (midiControllerRef.current) {
           midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
             renderer.highlightKey(note, active);
-            // アクティブ(ノートオン)時に即時エフェクトを発火
-            if (active) {
-              renderer.triggerKeyPressEffect(note);
-            }
           });
           
           devLog.debug('✅ ファンタジーモードMIDIController ↔ PIXIレンダラー連携完了');
