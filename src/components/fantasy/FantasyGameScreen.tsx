@@ -714,7 +714,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
     
-    let animationId: number;
     let lastUpdateTime = 0;
     const updateInterval = 1000 / 60; // 60fps
     
@@ -738,7 +737,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
       if (timestamp - lastUpdateTime < updateInterval) {
-        animationId = requestAnimationFrame(updateTaikoNotes);
         return;
       }
       lastUpdateTime = timestamp;
@@ -764,7 +762,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           }
         }
         fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
-        animationId = requestAnimationFrame(updateTaikoNotes);
         return;
       }
       
@@ -777,8 +774,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 通常のノーツ（現在ループのみ表示）
       gameState.taikoNotes.forEach((note, index) => {
         // 2週目以降は全てのノーツを表示対象とする
-        const loopCount = Math.floor(currentTime / loopDuration);
-
         // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
         if (note.isHit) return;
 
@@ -864,17 +859,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       } else {
         fantasyPixiInstance.updateOverlayText(null);
       }
-      
-      animationId = requestAnimationFrame(updateTaikoNotes);
     };
     
-    // 初回実行
-    animationId = requestAnimationFrame(updateTaikoNotes);
+    const unsubscribe = sharedAnimationLoop.add(({ timestamp }) => updateTaikoNotes(timestamp));
     
     return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
+      unsubscribe();
     };
   }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage]);
   

@@ -360,11 +360,11 @@ export class PIXINotesRendererInstance {
     log.info(`🎹 White key width: ${whiteKeyWidth.toFixed(2)}px, Note width: ${this.settings.noteWidth.toFixed(2)}px`);
     
     // PIXI.js アプリケーション初期化（統合レンダリングループ版）
-    this.app = new PIXI.Application({
+      this.app = new PIXI.Application({
       width,
       height: adjustedHeight, // ★ 最小高さを保証した高さを使用
       // 🎯 統合フレーム制御を使用して競合ループを回避
-      autoStart: false, // 自動開始を無効化
+        autoStart: true, // 共有Tickerに委譲し自動レンダリング
       backgroundColor: 0x0A0A0F, // より暗い宇宙的な背景
       antialias: true,
       resolution: 1, // 解像度を固定して一貫性を保つ
@@ -417,8 +417,9 @@ export class PIXINotesRendererInstance {
       log.error('❌ PIXI setup failed:', error);
     }
     
-    // ===== 新設計: Ticker管理を一元化 =====
-    this.setupTickerSystem();
+      // ===== 新設計: Ticker管理を一元化 =====
+      this.setupTickerSystem();
+      this.app.start();
     
     // グローバルpointerupイベントで保険を掛ける（音が伸び続けるバグの最終防止）
     this.app.stage.on('globalpointerup', () => {
@@ -428,9 +429,6 @@ export class PIXINotesRendererInstance {
       }
       this.activeKeyPresses.clear();
     });
-    
-    // 🎯 統合フレーム制御でPIXIアプリケーションを開始
-    this.startUnifiedRendering();
     
     log.info('✅ PIXI.js renderer initialized successfully');
   }
@@ -501,54 +499,6 @@ export class PIXINotesRendererInstance {
     log.debug('✅ Ticker system setup completed');
   }
 
-  /**
-   * 🎯 統合フレーム制御でPIXIアプリケーションを開始
-   */
-  // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
-  private startUnifiedRendering(): void {
-    if (!window.unifiedFrameController) {
-      log.warn('⚠️ unifiedFrameController not available, using default PIXI ticker');
-      this.app.start();
-      return;
-    }
-    
-    // 統合フレーム制御を使用してPIXIアプリケーションを制御
-    const renderFrame = () => {
-      const currentTime = performance.now();
-      
-      // 統合フレーム制御でフレームスキップ判定
-      if (window.unifiedFrameController.shouldSkipFrame(currentTime)) {
-        // フレームをスキップ
-        requestAnimationFrame(renderFrame);
-        return;
-      }
-      
-      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
-      if (this.isDestroyed) {
-        // 破棄済みの場合はレンダリングループを停止
-        return;
-      }
-      
-      try {
-        if (this.app && this.app.renderer) {
-          this.app.render();
-        }
-      } catch (error) {
-        log.warn('⚠️ PIXI render error (likely destroyed):', error);
-        // レンダリングループを停止
-        return;
-      }
-      
-      // 次のフレームをスケジュール
-      requestAnimationFrame(renderFrame);
-    };
-    
-    // レンダリングループを開始
-    renderFrame();
-    
-    log.info('🎯 PIXI.js unified frame control started');
-  }
-  
   /**
    * ノーツテクスチャを事前生成
    */
