@@ -10,6 +10,8 @@ import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
 import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
+import { unifiedFrameLoop, FRAME_PRIORITIES } from '@/utils/unifiedFrameLoop';
+import type { FrameContext } from '@/utils/unifiedFrameLoop';
 
 const PIXI_LOOKAHEAD_SECONDS = 15;
 
@@ -289,8 +291,10 @@ export class PIXINotesRendererInstance {
 
   
   // Ticker関数への参照（削除用）
-  private mainUpdateFunction?: (delta: number) => void;
-  private effectUpdateFunction?: (delta: number) => void;
+    private mainUpdateFunction?: (delta: number) => void;
+    private effectUpdateFunction?: (normalizedDelta: number) => void;
+    private frameUpdateCleanup?: () => void;
+    private renderLoopCleanup?: () => void;
   
   // リアルタイムアニメーション用
   // リアルタイムアニメーション用（将来の拡張用）
@@ -442,30 +446,27 @@ export class PIXINotesRendererInstance {
    * 1. 更新ループとオブジェクトの結び付きを外せる構造
    * 2. 破棄時に適切にTicker関数を削除
    */
-  private setupTickerSystem(): void {
-    // メイン更新関数（ノートUpdater管理）
-    this.mainUpdateFunction = (delta: number) => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
-      
-      // 全ノートUpdaterを更新
-      for (const [noteId, updater] of this.noteUpdaters) {
-        if (!updater.active) {
-          this.noteUpdaters.delete(noteId);
-          continue;
+    private setupTickerSystem(): void {
+      const baseFrameMs = 1000 / 60;
+
+      this.mainUpdateFunction = (delta: number) => {
+        if (this.isDestroyed || this.disposeManager.disposed) {
+          return;
         }
-        updater.update(delta);
-      }
-    };
 
-    // エフェクト更新関数（低頻度実行）
-    this.effectUpdateFunction = () => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
+        for (const [noteId, updater] of this.noteUpdaters) {
+          if (!updater.active) {
+            this.noteUpdaters.delete(noteId);
+            continue;
+          }
+          updater.update(delta);
+        }
+      };
 
-      const deltaMs = PIXI.Ticker.shared.deltaMS;
-      this.effectsElapsed += deltaMs;
-
-      if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
-        const normalizedDelta = this.effectsElapsed / 16;
+      this.effectUpdateFunction = (normalizedDelta: number) => {
+        if (this.isDestroyed || this.disposeManager.disposed) {
+          return;
+        }
 
         for (const updater of this.effectUpdaters) {
           if (!updater.active) {
@@ -476,78 +477,73 @@ export class PIXINotesRendererInstance {
         }
 
         this.updateHitEffects(this.effectsElapsed);
-        this.effectsElapsed = 0;
-      }
-    };
+      };
 
-    // Tickerに登録
-    PIXI.Ticker.shared.add(this.mainUpdateFunction);
-    PIXI.Ticker.shared.add(this.effectUpdateFunction);
+      const runFrame = ({ delta }: FrameContext): void => {
+        if (this.isDestroyed || this.disposeManager.disposed) {
+          return;
+        }
 
-    // 破棄時にTicker関数を削除するよう登録
-    this.disposeManager.add(() => {
-      if (this.mainUpdateFunction) {
-        PIXI.Ticker.shared.remove(this.mainUpdateFunction);
+        const scaledDelta = Math.min(5, Math.max(0.1, delta / baseFrameMs));
+        this.mainUpdateFunction?.(scaledDelta);
+
+        this.effectsElapsed += delta;
+
+        if (this.effectsElapsed >= 16) {
+          const normalizedDelta = this.effectsElapsed / 16;
+          this.effectUpdateFunction?.(normalizedDelta);
+          this.effectsElapsed = 0;
+        }
+      };
+
+      this.frameUpdateCleanup = unifiedFrameLoop.subscribe(runFrame, FRAME_PRIORITIES.pixiUpdates);
+
+      this.disposeManager.add(() => {
+        if (this.frameUpdateCleanup) {
+          this.frameUpdateCleanup();
+          this.frameUpdateCleanup = undefined;
+        }
         this.mainUpdateFunction = undefined;
-      }
-      if (this.effectUpdateFunction) {
-        PIXI.Ticker.shared.remove(this.effectUpdateFunction);
         this.effectUpdateFunction = undefined;
-      }
-    });
+      });
 
-
-
-    log.debug('✅ Ticker system setup completed');
-  }
+      log.debug('✅ Ticker system setup completed');
+    }
 
   /**
    * 🎯 統合フレーム制御でPIXIアプリケーションを開始
    */
   // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
-  private startUnifiedRendering(): void {
-    if (!window.unifiedFrameController) {
-      log.warn('⚠️ unifiedFrameController not available, using default PIXI ticker');
-      this.app.start();
-      return;
-    }
-    
-    // 統合フレーム制御を使用してPIXIアプリケーションを制御
-    const renderFrame = () => {
-      const currentTime = performance.now();
-      
-      // 統合フレーム制御でフレームスキップ判定
-      if (window.unifiedFrameController.shouldSkipFrame(currentTime)) {
-        // フレームをスキップ
-        requestAnimationFrame(renderFrame);
+    private startUnifiedRendering(): void {
+      if (this.renderLoopCleanup) {
         return;
       }
-      
-      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
-      if (this.isDestroyed) {
-        // 破棄済みの場合はレンダリングループを停止
-        return;
-      }
-      
-      try {
-        if (this.app && this.app.renderer) {
-          this.app.render();
+
+      const renderFrame = (): void => {
+        if (this.isDestroyed || this.disposeManager.disposed) {
+          return;
         }
-      } catch (error) {
-        log.warn('⚠️ PIXI render error (likely destroyed):', error);
-        // レンダリングループを停止
-        return;
-      }
+
+        try {
+          this.app.render();
+        } catch (error) {
+          log.warn('⚠️ PIXI render error (likely destroyed):', error);
+        }
+      };
+
+      this.renderLoopCleanup = unifiedFrameLoop.subscribe(() => {
+        renderFrame();
+      }, FRAME_PRIORITIES.pixiRender);
+
+      this.disposeManager.add(() => {
+        if (this.renderLoopCleanup) {
+          this.renderLoopCleanup();
+          this.renderLoopCleanup = undefined;
+        }
+      });
       
-      // 次のフレームをスケジュール
-      requestAnimationFrame(renderFrame);
-    };
-    
-    // レンダリングループを開始
-    renderFrame();
-    
-    log.info('🎯 PIXI.js unified frame control started');
-  }
+      log.info('🎯 PIXI.js unified frame control started');
+    }
   
   /**
    * ノーツテクスチャを事前生成
