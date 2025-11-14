@@ -5,27 +5,64 @@
 
 type LogLevel = 'silent' | 'error' | 'warn' | 'info' | 'debug';
 
-// プロダクション環境でもログを有効化（デバッグ用）
-let currentLevel: LogLevel = 'debug';  // import.meta.env.PROD ? 'silent' : 'debug';
+const LOG_LEVEL_STORAGE_KEY = 'jazzgame:logLevel';
+
+const isLogLevel = (value: string | null): value is LogLevel => {
+  return value === 'silent' ||
+    value === 'error' ||
+    value === 'warn' ||
+    value === 'info' ||
+    value === 'debug';
+};
+
+const loadPersistedLogLevel = (): LogLevel | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.localStorage?.getItem(LOG_LEVEL_STORAGE_KEY);
+    if (isLogLevel(stored)) {
+      return stored;
+    }
+  } catch {
+    // localStorageが利用できない場合は無視
+  }
+  return null;
+};
+
+const defaultLogLevel: LogLevel = loadPersistedLogLevel()
+  ?? (import.meta.env.PROD ? 'warn' : 'info');
+
+let currentLevel: LogLevel = defaultLogLevel;
+
+const persistLogLevel = (level: LogLevel): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage?.setItem(LOG_LEVEL_STORAGE_KEY, level);
+  } catch {
+    // localStorageが利用できない場合は無視
+  }
+};
 
 /**
- * ログレベルを動的に変更（プロダクションでは無効）
+ * ログレベルを動的に変更
  */
-export function setLogLevel(level: LogLevel): void {
-  if (!import.meta.env.PROD) {
-    currentLevel = level;
+export function setLogLevel(level: LogLevel, options: { persist?: boolean } = {}): void {
+  currentLevel = level;
+  if (options.persist !== false) {
+    persistLogLevel(level);
   }
 }
 
 /**
  * URL パラメータでログレベルを制御（開発環境のみ）
  */
-if (typeof window !== 'undefined' && !import.meta.env.PROD) {
+if (typeof window !== 'undefined') {
   const params = new URLSearchParams(window.location.search);
   if (params.get('debug') === 'true') {
-    currentLevel = 'debug';
+    setLogLevel('debug', { persist: false });
   } else if (params.get('silent') === 'true') {
-    currentLevel = 'silent';
+    setLogLevel('silent', { persist: false });
+  } else if (isLogLevel(params.get('logLevel'))) {
+    setLogLevel(params.get('logLevel') as LogLevel, { persist: false });
   }
 }
 
