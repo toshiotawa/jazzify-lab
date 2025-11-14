@@ -8,11 +8,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useGameStore } from '@/stores/gameStore';
+import { useGameSelector } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
-import { devLog, log, perfLog } from '@/utils/logger';
+import { devLog, log } from '@/utils/logger';
 
 // iOS検出関数
 const isIOS = (): boolean => {
@@ -28,7 +29,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 }) => {
   const {
     gameEngine,
-    engineActiveNotes,
     isPlaying,
     currentSong,
     currentTime,
@@ -36,7 +36,20 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     score,
     mode,
     lastKeyHighlight,
-    isSettingsOpen,
+    isSettingsOpen
+  } = useGameSelector((state) => ({
+    gameEngine: state.gameEngine,
+    isPlaying: state.isPlaying,
+    currentSong: state.currentSong,
+    currentTime: state.currentTime,
+    settings: state.settings,
+    score: state.score,
+    mode: state.mode,
+    lastKeyHighlight: state.lastKeyHighlight,
+    isSettingsOpen: state.isSettingsOpen
+  }));
+
+  const {
     initializeGameEngine,
     destroyGameEngine,
     handleNoteInput,
@@ -47,7 +60,21 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     pause,
     setLastKeyHighlight,
     openResultModal
-  } = useGameStore();
+  } = useGameStore((state) => ({
+    initializeGameEngine: state.initializeGameEngine,
+    destroyGameEngine: state.destroyGameEngine,
+    handleNoteInput: state.handleNoteInput,
+    updateEngineSettings: state.updateEngineSettings,
+    updateSettings: state.updateSettings,
+    updateTime: state.updateTime,
+    stop: state.stop,
+    pause: state.pause,
+    setLastKeyHighlight: state.setLastKeyHighlight,
+    openResultModal: state.openResultModal
+  }));
+
+  const isLegendMode = mode === 'performance';
+  const hitEffectsEnabled = settings.enableEffects && !isLegendMode;
   
   const [isEngineReady, setIsEngineReady] = useState(false);
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -88,6 +115,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // 楽曲読み込み時の音声設定
   useEffect(() => {
+    if (isLegendMode) {
+      setAudioLoaded(true);
+      return;
+    }
+
     if (currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current) {
       const audio = audioRef.current;
       
@@ -160,7 +192,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     } else {
       setAudioLoaded(false);
     }
-  }, [currentSong?.audioFile, settings.musicVolume]);
+  }, [currentSong?.audioFile, settings.musicVolume, isLegendMode]);
   
   // 再生状態同期
   useEffect(() => {
@@ -169,7 +201,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     const run = async () => {
       if (isPlaying) {
         // 音声ファイルありの場合とnしの場合で分岐
-        const hasAudio = currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
+        const hasAudio = !isLegendMode && currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
         
         if (hasAudio) {
           // === 音声ありモード ===
@@ -333,7 +365,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, audioLoaded, gameEngine]);
+  }, [isPlaying, audioLoaded, gameEngine, isLegendMode]);
   
   // 設定モーダルが開いた時に音楽を一時停止
   useEffect(() => {
@@ -345,14 +377,17 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // 音量変更の同期
   useEffect(() => {
+    if (isLegendMode) {
+      return;
+    }
     if (audioRef.current) {
       audioRef.current.volume = settings.musicVolume;
     }
-  }, [settings.musicVolume]);
+  }, [settings.musicVolume, isLegendMode]);
   
   // 再生スピード変更の同期
   useEffect(() => {
-    if (audioRef.current) {
+    if (!isLegendMode && audioRef.current) {
       audioRef.current.playbackRate = settings.playbackSpeed;
 
       // ピッチを保持
@@ -381,7 +416,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (gameEngine) {
       updateEngineSettings();
     }
-  }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, currentTime]);
+  }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, currentTime, isLegendMode]);
   
   // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
   const timeIntervalRef = useRef<number | null>(null);
@@ -400,7 +435,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       let newTime = 0;
       const audio = audioRef.current;
       const audioCtx = audioContextRef.current;
-      const hasAudio = currentSong?.audioFile && audio && audioLoaded;
+        const hasAudio = !isLegendMode && currentSong?.audioFile && audio && audioLoaded;
       
       if (hasAudio && !audio.paused && audioCtx) {
         // 音声ありモード：audio要素の時刻を基準
@@ -458,7 +493,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   // シーク機能（音声ありと音声なし両方対応）
   useEffect(() => {
     if (audioContextRef.current && gameEngine) {
-      const hasAudio = currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
+        const hasAudio = !isLegendMode && currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
       
       if (hasAudio) {
         // 音声ありの場合: 音声とゲームエンジンの同期
@@ -513,7 +548,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
       }
     }
-  }, [currentTime, audioLoaded, gameEngine, settings.playbackSpeed]);
+    }, [currentTime, audioLoaded, gameEngine, settings.playbackSpeed, isLegendMode]);
   
   // MIDIController管理用のRef
   const midiControllerRef = useRef<any>(null);
@@ -755,7 +790,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pianoHeight: settings.pianoHeight,
         transpose: settings.transpose,
         transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
+        practiceGuide: settings.practiceGuide ?? 'key',
+        hitEffectsEnabled
       });
     }
     // AudioControllerに音声入力設定を反映
@@ -764,7 +800,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pyinThreshold: settings.pyinThreshold
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
+    }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold, hitEffectsEnabled]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
@@ -898,7 +934,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       pianoHeight: settings.pianoHeight,
       transpose: settings.transpose,
       transposingInstrument: settings.transposingInstrument,
-      practiceGuide: settings.practiceGuide ?? 'key'
+        practiceGuide: settings.practiceGuide ?? 'key',
+        hitEffectsEnabled
     });
     
     // ピアノキーボードのクリックイベントを接続
@@ -946,7 +983,30 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
+    }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice, hitEffectsEnabled]);
+
+    useEffect(() => {
+      if (!pixiRenderer) {
+        return;
+      }
+
+      const unsubscribe = useGameStore.subscribe(
+        (state) => ({
+          activeNotes: state.engineActiveNotes,
+          time: state.currentTime
+        }),
+        ({ activeNotes, time }) => {
+          if (!pixiRenderer) {
+            return;
+          }
+          pixiRenderer.updateNotes(activeNotes, time);
+        }
+      );
+
+      return () => {
+        unsubscribe();
+      };
+    }, [pixiRenderer]);
   
   // キーボード入力処理（テスト用）
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
@@ -1025,29 +1085,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   return (
     <div className={cn("h-full w-full flex flex-col", className)}>
-      {/* ==== フローティング ステータスメニュー ==== */}
-      <div className="fixed bottom-20 left-4 z-40 pointer-events-none select-none">
-        <div className="bg-black bg-opacity-70 text-white text-xs rounded-md shadow px-3 py-2 space-y-1">
-          <div className="flex items-center space-x-2">
-            <div className={cn(
-              "w-2.5 h-2.5 rounded-full",
-              isEngineReady ? "bg-green-400" : "bg-yellow-400"
-            )} />
-            <span>ゲームエンジン: {isEngineReady ? "準備完了" : "初期化中..."}</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className={cn(
-              "w-2.5 h-2.5 rounded-full",
-              audioLoaded ? "bg-green-400" : "bg-red-500"
-            )} />
-            <span>音声: {audioLoaded ? "読み込み完了" : "読み込み中..."}</span>
-          </div>
-          <div className="text-right">
-            アクティブノーツ: {engineActiveNotes.length}
-          </div>
-        </div>
-      </div>
-      
       {/* Phase 3: PIXI.js ノーツ表示エリア - フル高さ */}
       <div 
         ref={gameAreaRef}
@@ -1105,28 +1142,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               }}>
                 {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
                 
-                <PIXINotesRenderer
-                  activeNotes={engineActiveNotes}
-                  width={idealWidth}
-                  height={gameAreaSize.height}
-                  currentTime={currentTime}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
+                  <PIXINotesRenderer
+                    width={idealWidth}
+                    height={gameAreaSize.height}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
                 <ChordOverlay />
               </div>
             </div>
           );
         })()}
         
-        {/* PIXI.js デバッグ情報 */}
-        {pixiRenderer && (
-          <div className="fixed top-4 right-4 bg-black bg-opacity-60 text-white text-xs p-2 rounded z-30 pointer-events-none">
-            <div>PIXI.js レンダラー: 稼働中</div>
-            <div>アクティブノーツ: {engineActiveNotes.length}</div>
-            <div>解像度: {gameAreaSize.width}×{gameAreaSize.height}</div>
-          </div>
-        )}
       </div>
       
       {/* HTML5 Audio Element（楽曲再生用） */}
@@ -1145,8 +1172,4 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   );
 };
 
-// ===== サブコンポーネント =====
-// 注：Phase 3でPIXI.jsレンダリングに移行済み
-// HTMLベースのピアノキーボードは削除し、PIXI.js側で統一
-
-export default GameEngineComponent; 
+export default GameEngineComponent;

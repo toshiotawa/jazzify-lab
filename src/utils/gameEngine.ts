@@ -13,8 +13,8 @@ import type {
   GameScore,
   JudgmentResult
 } from '@/types';
-import { unifiedFrameController, performanceMonitor } from './performanceOptimizer';
-import { log, perfLog, devLog } from './logger';
+import { unifiedFrameController } from './performanceOptimizer';
+import { log } from './logger';
 import * as PIXI from 'pixi.js';
 
 // ===== 定数定義 =====
@@ -32,6 +32,14 @@ export const MISSED_CLEANUP_TIME = 2.0; // Miss 判定後 2秒間は残す
 // ===== 描画関連定数 =====
 /** PIXI.js ノートスプライトの高さ(px) と合わせる */
 const NOTE_SPRITE_HEIGHT = 5;
+
+interface NotePositionParams {
+  startY: number;
+  hitLineY: number;
+  minY: number;
+  maxY: number;
+  pixelsPerSecond: number;
+}
 
 // ===== 型定義 =====
 
@@ -57,6 +65,7 @@ export class GameEngine {
   private notes: NoteData[] = [];
   private activeNotes: Map<string, ActiveNote> = new Map();
   private settings: GameSettings;
+  private notePositionParams: NotePositionParams;
   private score: GameScore = {
     totalNotes: 0,
     goodCount: 0,
@@ -79,11 +88,11 @@ export class GameEngine {
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
   
-  private lastPerformanceWarning: number | null = null;
   private isGameLoopRunning: boolean = false; // ゲームループの状態を追跡
   
   constructor(settings: GameSettings) {
     this.settings = { ...settings };
+    this.notePositionParams = this.computeNotePositionParams(this.settings);
   }
   
   setUpdateCallback(callback: (data: GameEngineUpdate) => void): void {
@@ -277,6 +286,7 @@ export class GameEngine {
 
     // 設定更新
     this.settings = settings;
+      this.notePositionParams = this.computeNotePositionParams(this.settings);
 
     // 本番モードでは練習モードガイドを無効化
     if (this.settings.practiceGuide !== 'off') {
@@ -507,7 +517,6 @@ export class GameEngine {
     // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
     const frameStartTime = performance.now();
     if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
-      // perfLog.debug('🎯 GameEngine: 判定・状態更新ループ実行'); // 60FPSログを削除
       this.updateNoteLogic(currentTime);
       unifiedFrameController.markNoteUpdate(frameStartTime);
     }
@@ -550,9 +559,7 @@ export class GameEngine {
    * 重い処理（判定、状態変更、削除）のみ
    */
   private updateNoteLogic(currentTime: number): void {
-    const logicStartTime = performance.now();
     const notesToDelete: string[] = [];
-    const activeNotesCount = this.activeNotes.size;
     
     for (const [noteId, note] of this.activeNotes) {
       const isRecentNote = Math.abs(currentTime - note.time) < 2.0; // 判定時間の±2秒以内
@@ -593,11 +600,6 @@ export class GameEngine {
       this.activeNotes.delete(noteId);
     }
     
-    // パフォーマンス監視（条件付きログ）
-    const logicDuration = performance.now() - logicStartTime;
-    if (logicDuration > 8 || activeNotesCount > 50) { // 8ms超過または50ノーツ超過時のみ
-      perfLog.info(`🎯 GameEngine判定ループ: ${logicDuration.toFixed(2)}ms | Notes: ${activeNotesCount} | Deleted: ${notesToDelete.length}`);
-    }
   }
   
   private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
@@ -658,13 +660,10 @@ export class GameEngine {
   }
 
   private checkHitLineCrossing(note: ActiveNote, currentTime: number): void {
-    // 動的レイアウト対応: 設定値からヒットラインを計算
-    const screenHeight = this.settings.viewportHeight ?? 600;
-    const pianoHeight = this.settings.pianoHeight ?? 80;
-    const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
+    const hitLineY = this.notePositionParams.hitLineY;
 
-    const noteCenter = (note.y || 0);
-    const prevNoteCenter = (note.previousY || 0);
+    const noteCenter = note.y ?? 0;
+    const prevNoteCenter = note.previousY ?? 0;
     
     // ▼ crossing 判定用の "表示上の" 到達時刻を利用
     const displayTime = note.time + this.getTimingAdjSec();
@@ -745,44 +744,33 @@ export class GameEngine {
     }
   }
   
-  private calculateNoteY(note: NoteData, currentTime: number): number {
-    // ▼ timeToHit の計算を変更
-    const displayTime = note.time + this.getTimingAdjSec();
-    const timeToHit = displayTime - currentTime;
-    
-    // 動的レイアウト対応
-    const screenHeight = this.settings.viewportHeight ?? 600;
-    const pianoHeight = this.settings.pianoHeight ?? 80;
-    const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
+    private calculateNoteY(note: NoteData, currentTime: number): number {
+      const { hitLineY, minY, maxY, pixelsPerSecond } = this.notePositionParams;
+      const displayTime = note.time + this.getTimingAdjSec();
+      const timeToHit = displayTime - currentTime;
+      const targetY = hitLineY - (timeToHit * pixelsPerSecond);
+      const clampedY = Math.max(minY, Math.min(maxY, targetY));
+      return Math.round(clampedY * 10) / 10;
+    }
 
-    const noteHeight = NOTE_SPRITE_HEIGHT;
-    
-    // **改善されたタイミング計算 (ver.2)**
-    // GameEngine では "ノート中心" が y に入る → 判定ラインに中心が到達するのが演奏タイミング
-    // 基本の降下時間は LOOKAHEAD_TIME だが、視覚速度が変わると実際の降下時間も変わるため
-    // appearTime と整合させるため動的な lookahead を使用
-    const baseFallDuration = LOOKAHEAD_TIME; // 3秒を基準にしたまま速度倍率で伸縮
-    const visualSpeedMultiplier = this.settings.notesSpeed; // ビジュアル速度乗数
-
-    // 実際の物理降下距離とタイミング
-    const startYCenter = -noteHeight;            // ノート中心が画面上端より少し上から開始
-    const endYCenter   = hitLineY;               // ノート中心が判定ラインに到達
-    const totalDistance = endYCenter - startYCenter; // 総降下距離（中心基準）
-    
-    // **高精度計算**: 速度設定は見た目の速度のみ、タイミングは変更しない
-    const pixelsPerSecond = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
-    
-    // timeToHit = 0 の瞬間にノーツ中心が判定ラインに到達するように計算
-    const perfectY = endYCenter - (timeToHit * pixelsPerSecond);
-    
-    // 表示範囲制限（画面外は描画しない）
-    const minY = startYCenter - 100; // 上端より上
-    const maxY = screenHeight + 100; // 下端より下
-    
-    const finalY = Math.max(minY, Math.min(perfectY, maxY));
-    
-    return Math.round(finalY * 10) / 10; // 小数点第1位まで精度を保つ
-  }
+    private computeNotePositionParams(settings: GameSettings): NotePositionParams {
+      const screenHeight = settings.viewportHeight ?? 600;
+      const pianoHeight = settings.pianoHeight ?? 80;
+      const hitLineY = screenHeight - pianoHeight;
+      const startY = -NOTE_SPRITE_HEIGHT;
+      const lookaheadDuration = Math.max(0.1, this.getLookaheadTime());
+      const totalDistance = hitLineY - startY;
+      const pixelsPerSecond = totalDistance / lookaheadDuration;
+      const minY = startY - 100;
+      const maxY = screenHeight + 100;
+      return {
+        startY,
+        hitLineY,
+        minY,
+        maxY,
+        pixelsPerSecond
+      };
+    }
   
   private checkABRepeatLoop(_currentTime: number): void {
     // Managed in store now
@@ -795,9 +783,6 @@ export class GameEngine {
 
     const gameLoop = () => {
       const frameStartTime = performance.now();
-      
-      // パフォーマンス監視開始
-      performanceMonitor.startFrame();
       
       // フレームスキップ制御
       if (unifiedFrameController.shouldSkipFrame(frameStartTime)) {
@@ -860,28 +845,6 @@ export class GameEngine {
           enabled: false
         }
       });
-      
-      // パフォーマンス監視終了
-      performanceMonitor.endFrame();
-      
-      // FPS更新（軽量化）
-      const fps = performanceMonitor.updateFPS();
-      
-      // パフォーマンス劣化時の自動調整（頻度制限、重複警告防止）
-      if (!performanceMonitor.isPerformanceGood() && fps < 20) {
-        // 警告頻度を制限（20秒に1回まで）
-        const now = performance.now();
-        if (!this.lastPerformanceWarning || (now - this.lastPerformanceWarning) > 20000) {
-          log.warn(`⚠️ パフォーマンス低下検出 (FPS: ${fps}), 軽量化モードに切り替え`);
-          this.lastPerformanceWarning = now;
-          
-          unifiedFrameController.updateConfig({
-            reduceEffects: true,
-            limitActiveNotes: 15,
-            effectUpdateInterval: 100
-          });
-        }
-      }
     };
     
     this.tickerListener = gameLoop;
