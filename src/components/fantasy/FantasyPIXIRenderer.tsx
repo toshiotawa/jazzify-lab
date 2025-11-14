@@ -10,6 +10,7 @@ import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
+import { sharedAnimationLoop } from '@/utils/sharedAnimationLoop';
 
 // ===== 型定義 =====
 
@@ -250,10 +251,10 @@ export class FantasyPIXIInstance {
   // 太鼓の達人風ノーツ関連
   private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
-  private judgeLineX: number = 100; // 判定ラインのX座標
-  
-  private isDestroyed: boolean = false;
-  private animationFrameId: number | null = null;
+    private judgeLineX: number = 100; // 判定ラインのX座標
+    
+    private isDestroyed: boolean = false;
+    private unsubscribeFromLoop: (() => void) | null = null;
   
   // 画面揺れ関連のプロパティ（誤って削除されていたため復元）
   private screenShakeState: {
@@ -1678,21 +1679,23 @@ export class FantasyPIXIInstance {
 
 
 
-  // アニメーションループ
-  private startAnimationLoop(): void {
-    const animate = () => {
-      if (this.isDestroyed) return;
+    // アニメーションループ
+    private startAnimationLoop(): void {
+      if (this.unsubscribeFromLoop) {
+        return;
+      }
       
-      this.updateMonsterAnimation();
-      this.updateMagicCircles();
-      this.updateDamageNumbers();
-      this.updateScreenShake(); // 画面揺れの更新を追加
-      
-      this.animationFrameId = requestAnimationFrame(animate);
-    };
-    
-    animate();
-  }
+      this.unsubscribeFromLoop = sharedAnimationLoop.add(() => {
+        if (this.isDestroyed) {
+          return;
+        }
+        
+        this.updateMonsterAnimation();
+        this.updateMagicCircles();
+        this.updateDamageNumbers();
+        this.updateScreenShake(); // 画面揺れの更新を追加
+      });
+    }
 
   // モンスターアニメーション更新
   private updateMonsterAnimation(): void {
@@ -2243,10 +2246,10 @@ export class FantasyPIXIInstance {
     this._timeouts.forEach((id) => clearTimeout(id));
     this._timeouts.clear();
     
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
+      if (this.unsubscribeFromLoop) {
+        this.unsubscribeFromLoop();
+        this.unsubscribeFromLoop = null;
+      }
     
     // マルチモンスターのクリーンアップ時に怒りエフェクトも削除
     this.monsterSprites.forEach(data => {
