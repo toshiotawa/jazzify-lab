@@ -8,7 +8,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useGameStore } from '@/stores/gameStore';
-import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import ChordOverlay from './ChordOverlay';
@@ -37,21 +36,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     score,
     mode,
     lastKeyHighlight,
-    isSettingsOpen
-  } = useGameSelector((state) => ({
-    gameEngine: state.gameEngine,
-    engineActiveNotes: state.engineActiveNotes,
-    isPlaying: state.isPlaying,
-    currentSong: state.currentSong,
-    currentTime: state.currentTime,
-    settings: state.settings,
-    score: state.score,
-    mode: state.mode,
-    lastKeyHighlight: state.lastKeyHighlight,
-    isSettingsOpen: state.isSettingsOpen
-  }));
-
-  const {
+    isSettingsOpen,
     initializeGameEngine,
     destroyGameEngine,
     handleNoteInput,
@@ -62,7 +47,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     pause,
     setLastKeyHighlight,
     openResultModal
-  } = useGameActions();
+  } = useGameStore();
   
   const [isEngineReady, setIsEngineReady] = useState(false);
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -770,7 +755,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pianoHeight: settings.pianoHeight,
         transpose: settings.transpose,
         transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
+        practiceGuide: settings.practiceGuide ?? 'key',
+        performanceMode: settings.performanceMode
       });
     }
     // AudioControllerに音声入力設定を反映
@@ -779,7 +765,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pyinThreshold: settings.pyinThreshold
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
+  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.performanceMode, settings.pyinThreshold]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
@@ -913,7 +899,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       pianoHeight: settings.pianoHeight,
       transpose: settings.transpose,
       transposingInstrument: settings.transposingInstrument,
-      practiceGuide: settings.practiceGuide ?? 'key'
+      practiceGuide: settings.practiceGuide ?? 'key',
+      performanceMode: settings.performanceMode
     });
     
     // ピアノキーボードのクリックイベントを接続

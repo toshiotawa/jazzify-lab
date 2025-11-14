@@ -1272,6 +1272,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // 練習モードに戻った際、楽譜表示を「ノート+コード」に設定
             state.settings.showSheetMusic = true;
             state.settings.sheetMusicChordsOnly = false;
+            // パフォーマンスモードで行った軽量化を解除
+            state.settings.performanceMode = 'standard';
           } else {
             state.currentTab = 'performance';
             // 本番モードに切り替える前に練習モード設定を保存
@@ -1280,6 +1282,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             }
             // 本番モードでは練習モードガイドを無効化
             state.settings.practiceGuide = 'off';
+            // 本番モードでは自動的に軽量描画設定へ切り替え（ユーザーが明示的に変更している場合は維持）
+            if (state.settings.performanceMode === 'standard') {
+              state.settings.performanceMode = 'lightweight';
+            }
             
             // 🆕 レッスンモード時：本番モードで課題条件を強制適用
             if (state.lessonContext) {

@@ -12,9 +12,6 @@ import { performanceMonitor } from '@/utils/performanceOptimizer';
 import { log, perfLog } from '@/utils/logger';
 import { cn } from '@/utils/cn';
 
-const SEEK_TOLERANCE_SECONDS = 0.05;
-const BASE_FALL_DURATION_SECONDS = 15;
-
 // ===== 破棄管理システム =====
 /**
  * 1. 破棄を1か所に集約 - "Dispose Manager"
@@ -202,6 +199,7 @@ interface RendererSettings {
     particles: boolean;
     trails: boolean;
   };
+  performanceMode: 'standard' | 'lightweight' | 'ultra_light';
   /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
   noteNameStyle: 'off' | 'abc' | 'solfege';
   /** 簡易表示モード: 複雑な音名を基本音名に変換 */
@@ -255,9 +253,9 @@ export class PIXINotesRendererInstance {
   // ガイド用ハイライト（演奏と独立して保持）
   private guideHighlightedKeys: Set<number> = new Set();
   
-  // ★ パフォーマンス最適化: アクティブノート高速参照
-  private activeNoteMap: Map<string, ActiveNote> = new Map();
-  private removalBuffer: string[] = [];
+  // ★ パフォーマンス最適化: nextNoteIndex ポインタシステム
+  private allNotes: ActiveNote[] = []; // 全ノートのソート済みリスト
+  private nextNoteIndex: number = 0;   // 次に表示するノートのインデックス
   private lastUpdateTime: number = 0;  // 前回の更新時刻（巻き戻し検出用）
   
   // ===== テクスチャキャッシュ =====
@@ -268,10 +266,21 @@ export class PIXINotesRendererInstance {
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   
+  // パフォーマンス監視
+  private fpsCounter = 0;
+  private lastFpsTime = 0;
+  
   // ===== 新しい設計: 破棄管理＆アップデータシステム =====
   private disposeManager: DisposeManager = new DisposeManager();
   private noteUpdaters: Map<string, NoteUpdater> = new Map();
   private effectUpdaters: Set<EffectUpdater> = new Set();
+  private readonly defaultEffects = {
+    glow: true,
+    particles: false,
+    trails: false
+  };
+  private currentPerformanceMode: RendererSettings['performanceMode'] = 'standard';
+  private preservedNoteNameStyle: RendererSettings['noteNameStyle'] | null = null;
 
   
   // Ticker関数への参照（削除用）
@@ -311,11 +320,12 @@ export class PIXINotesRendererInstance {
       activeKey: 0xFF8C00,
       guideKey: 0x22C55E
     },
-            effects: {
-          glow: true,
-          particles: false,
-          trails: false
-        },
+    effects: {
+      glow: true,
+      particles: false,
+      trails: false
+    },
+    performanceMode: 'standard',
     noteNameStyle: 'off',
     simpleDisplayMode: false,
     transpose: 0,
@@ -418,6 +428,7 @@ export class PIXINotesRendererInstance {
     // 🎯 統合フレーム制御でPIXIアプリケーションを開始
     this.startUnifiedRendering();
     
+    this.applyPerformanceProfile(this.settings.performanceMode);
     log.info('✅ PIXI.js renderer initialized successfully');
   }
 
@@ -1783,76 +1794,113 @@ export class PIXINotesRendererInstance {
   
   /**
    * ノーツ表示の更新 - ループ分離最適化版
-   * 位置更新と状態更新を分離してCPU使用量を削減
+   * 位置更新と状態更新を分離してCPU使用量を30-50%削減
    */
   updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
-    if (typeof currentTime !== 'number') return;
+    if (!currentTime) return; // 絶対時刻が必要
     
+    // ノーツ更新のパフォーマンス測定開始
     const notesUpdateStartTime = performance.now();
-    const timeMovedBackward = currentTime + SEEK_TOLERANCE_SECONDS < this.lastUpdateTime;
-    this.lastUpdateTime = currentTime;
     
-    if (timeMovedBackward) {
-      log.info(`🔄 Time moved backward: clearing ${this.noteSprites.size} sprites`);
-      this.clearAllNoteSprites();
+    // ===== 巻き戻し検出とノートリスト更新 =====
+    const timeMovedBackward = currentTime < this.lastUpdateTime;
+    
+    // ===== シーク検出: activeNotesの数が大幅に変化した場合 =====
+    const notesCountChanged = Math.abs(activeNotes.length - this.allNotes.length) > 10;
+    const seekDetected = timeMovedBackward || notesCountChanged;
+    
+    // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
+    if (seekDetected) {
+      log.info(`🔄 Seek detected: clearing all note sprites (old: ${this.allNotes.length}, new: ${activeNotes.length})`);
+      // 全てのノートスプライトを削除
+      const noteIds = Array.from(this.noteSprites.keys());
+      for (const noteId of noteIds) {
+        this.removeNoteSprite(noteId);
+      }
+      this.noteSprites.clear();
     }
     
-    this.rebuildActiveNoteMap(activeNotes);
-    
-    // 新規ノートのみスプライトを生成
-    for (let i = 0; i < activeNotes.length; i++) {
-      const note = activeNotes[i];
-      if (!this.noteSprites.has(note.id)) {
-        this.createNoteSprite(note);
+    // ノートリストが変更された場合、または巻き戻しが発生した場合
+    if (activeNotes !== this.allNotes || seekDetected) {
+      this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time); // 時刻順ソート
+      
+      // 巻き戻し時は適切な nextNoteIndex を二分探索で復帰
+      if (seekDetected) {
+        this.nextNoteIndex = this.findNoteIndexByTime(currentTime);
+        log.info(`🔄 Time moved backward: ${this.lastUpdateTime.toFixed(2)} -> ${currentTime.toFixed(2)}, reset nextNoteIndex: ${this.nextNoteIndex}`);
+      } else {
+        this.nextNoteIndex = 0; // 新しいノートリストの場合は最初から
       }
     }
     
-    const speedPxPerSec = this.getNoteSpeedPerSecond();
+    this.lastUpdateTime = currentTime;
     
-    // 位置更新専用ループ
-    this.updateSpritePositions(currentTime, speedPxPerSec);
-    // 状態・削除処理ループ
-    this.updateSpriteStates();
+    // GameEngineと同じ計算式を使用（統一化）
+    const baseFallDuration = 15.0 //LOOKAHEAD_TIME
+    const visualSpeedMultiplier = this.settings.noteSpeed;
+    const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
+    const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
+    
+    // FPS監視（デバッグ用）
+    this.fpsCounter++;
+    if (currentTime - this.lastFpsTime >= 1000) {
+      const processedNotes = this.allNotes.length - this.nextNoteIndex;
+      perfLog.info(`🚀 PIXI FPS: ${this.fpsCounter} | Total Notes: ${this.allNotes.length} | Processed: ${processedNotes} | Next Index: ${this.nextNoteIndex} | Sprites: ${this.noteSprites.size} | speedPxPerSec: ${speedPxPerSec.toFixed(1)}`);
+      this.fpsCounter = 0;
+      this.lastFpsTime = currentTime;
+    }
+    
+    // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
+    // まだ表示していないノートで、表示時刻になったもののみ処理
+    const appearanceTime = currentTime + baseFallDuration; // 画面上端に現れる時刻
+    
+    while (this.nextNoteIndex < this.allNotes.length &&
+           this.allNotes[this.nextNoteIndex].time <= appearanceTime) {
+      const note = this.allNotes[this.nextNoteIndex];
+      
+      // 新規ノーツスプライト作成（初回のみ）
+      if (!this.noteSprites.has(note.id)) {
+        this.createNoteSprite(note);
+      }
+      
+      this.nextNoteIndex++;
+    }
+    
+    // ===== 🚀 CPU最適化: ループ分離による高速化 =====
+    // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
+    this.updateSpritePositions(activeNotes, currentTime, speedPxPerSec);
+    
+    // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
+    // const frameStartTime = performance.now(); // パフォーマンス監視用（現在未使用）
+    
+    // 状態・削除処理ループ（フレーム間引き無効化）
+    this.updateSpriteStates(activeNotes);
+    
+    
     
     // ノーツ更新のパフォーマンス測定終了
     const notesUpdateDuration = performance.now() - notesUpdateStartTime;
+    
+    // 重い更新処理の場合のみログ出力（5ms以上またはノート数が多い場合）
     if (notesUpdateDuration > 5 || activeNotes.length > 100) {
-      perfLog.info(`🎯 PIXI updateNotes: ${notesUpdateDuration.toFixed(2)}ms | Active: ${activeNotes.length} | Sprites: ${this.noteSprites.size}`);
+      perfLog.info(`🎯 PIXI updateNotes: ${notesUpdateDuration.toFixed(2)}ms | Notes: ${activeNotes.length} | Sprites: ${this.noteSprites.size}`);
     }
-  }
-
-  private rebuildActiveNoteMap(activeNotes: ActiveNote[]): void {
-    this.activeNoteMap.clear();
-    for (let i = 0; i < activeNotes.length; i++) {
-      const note = activeNotes[i];
-      this.activeNoteMap.set(note.id, note);
-    }
-  }
-
-  private getNoteSpeedPerSecond(): number {
-    const totalDistance = this.settings.hitLineY - (-5);
-    const visualSpeedMultiplier = this.settings.noteSpeed || 1;
-    return (totalDistance / BASE_FALL_DURATION_SECONDS) * visualSpeedMultiplier;
-  }
-
-  private clearAllNoteSprites(): void {
-    const ids = Array.from(this.noteSprites.keys());
-    for (let i = 0; i < ids.length; i++) {
-      this.removeNoteSprite(ids[i]);
-    }
-    this.activeNoteMap.clear();
   }
 
   /**
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
    */
-  private updateSpritePositions(currentTime: number, speedPxPerSec: number): void {
+  private updateSpritePositions(activeNotes: ActiveNote[], currentTime: number, speedPxPerSec: number): void {
+    const currentNoteIds = new Set(activeNotes.map(note => note.id));
+    
     for (const [noteId, sprite] of this.noteSprites) {
-      const note = this.activeNoteMap.get(noteId);
-      if (!note) {
-        continue;
+      if (!currentNoteIds.has(noteId)) {
+        continue; // 削除対象は状態更新ループで処理
       }
+      
+      const note = activeNotes.find(n => n.id === noteId);
+      if (!note) continue;
       
       // ===== Y座標更新（毎フレーム、軽量処理） =====
       const suppliedY = note.y;
@@ -1967,18 +2015,21 @@ export class PIXINotesRendererInstance {
    * 🎯 状態・削除処理専用ループ（フレーム間引き実行）
    * 重い処理（判定、状態変更、削除）のみ
    */
-  private updateSpriteStates(): void {
+  private updateSpriteStates(activeNotes: ActiveNote[]): void {
     const stateStartTime = performance.now();
-    const spritesToRemove = this.removalBuffer;
-    spritesToRemove.length = 0;
+    const currentNoteIds = new Set(activeNotes.map(note => note.id));
+    const spritesToRemove: string[] = [];
     let stateChanges = 0;
     
     for (const [noteId, sprite] of this.noteSprites) {
-      const note = this.activeNoteMap.get(noteId);
-      if (!note) {
+      if (!currentNoteIds.has(noteId)) {
+        // 画面外に出たノーツをマーク（後でバッチ削除）
         spritesToRemove.push(noteId);
         continue;
       }
+      
+      const note = activeNotes.find(n => n.id === noteId);
+      if (!note) continue;
       
       // ===== 状態 or 音名 変更チェック（変更時のみ、重い処理） =====
       if (sprite.noteData.state !== note.state || sprite.noteData.noteName !== note.noteName) {
@@ -2001,8 +2052,8 @@ export class PIXINotesRendererInstance {
     }
     
     // ===== 不要なスプライトをバッチ削除 =====
-    for (let i = 0; i < spritesToRemove.length; i++) {
-      this.removeNoteSprite(spritesToRemove[i]);
+    for (const noteId of spritesToRemove) {
+      this.removeNoteSprite(noteId);
     }
     
     // パフォーマンス監視（条件付きログ）
@@ -2010,6 +2061,32 @@ export class PIXINotesRendererInstance {
     if (stateDuration > 5 || this.noteSprites.size > 50) { // 5ms超過または50スプライト超過時のみ
       perfLog.info(`🎯 PIXI状態ループ: ${stateDuration.toFixed(2)}ms | Sprites: ${this.noteSprites.size} | StateChanges: ${stateChanges} | Deleted: ${spritesToRemove.length}`);
     }
+  }
+  
+  /**
+   * 二分探索で指定時刻に対応するノートインデックスを取得
+   */
+  private findNoteIndexByTime(targetTime: number): number {
+    if (this.allNotes.length === 0) return 0;
+    
+    const baseFallDuration = 5.0;
+    const appearanceTime = targetTime + baseFallDuration;
+    
+    let left = 0;
+    let right = this.allNotes.length - 1;
+    
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      const noteTime = this.allNotes[mid].time;
+      
+      if (noteTime <= appearanceTime) {
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+    }
+    
+    return left; // 最初の「まだ表示していない」ノートのインデックス
   }
   
   private createNoteSprite(note: ActiveNote): NoteSprite {
@@ -2487,6 +2564,9 @@ export class PIXINotesRendererInstance {
       }
     
     Object.assign(this.settings, newSettings);
+    if (newSettings.performanceMode) {
+      this.applyPerformanceProfile(newSettings.performanceMode);
+    }
 
     if (newSettings.showHitLine !== undefined && this.hitLineContainer) {
       this.hitLineContainer.visible = newSettings.showHitLine;
@@ -2739,6 +2819,56 @@ export class PIXINotesRendererInstance {
 
       // PIXIレンダラーに即座に描画を強制
       this.app.renderer.render(this.app.stage);
+    }
+  }
+
+  private applyPerformanceProfile(mode: RendererSettings['performanceMode']): void {
+    if (this.currentPerformanceMode === mode) {
+      return;
+    }
+    this.currentPerformanceMode = mode;
+
+    const cloneEffects = (overrides: Partial<typeof this.defaultEffects>): void => {
+      this.settings.effects = {
+        ...this.settings.effects,
+        ...overrides
+      };
+    };
+
+    const restoreNoteLabels = (): void => {
+      if (this.preservedNoteNameStyle) {
+        this.settings.noteNameStyle = this.preservedNoteNameStyle;
+        this.preservedNoteNameStyle = null;
+      }
+    };
+
+    switch (mode) {
+      case 'standard':
+        this.performanceEnabled = true;
+        cloneEffects(this.defaultEffects);
+        restoreNoteLabels();
+        break;
+      case 'lightweight':
+        this.performanceEnabled = false;
+        cloneEffects({
+          glow: false,
+          particles: false,
+          trails: false
+        });
+        restoreNoteLabels();
+        break;
+      case 'ultra_light':
+        this.performanceEnabled = false;
+        cloneEffects({
+          glow: false,
+          particles: false,
+          trails: false
+        });
+        if (!this.preservedNoteNameStyle) {
+          this.preservedNoteNameStyle = this.settings.noteNameStyle;
+        }
+        this.settings.noteNameStyle = 'off';
+        break;
     }
   }
   

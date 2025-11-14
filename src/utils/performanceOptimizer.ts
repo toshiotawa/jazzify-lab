@@ -204,16 +204,30 @@ export class PerformanceMonitor {
   private isInitializationPhase = true;
   private animationFrameId: number | null = null;
   private isMonitoring = false;
+  private autoMonitoringEnabled = false;
   
-  constructor() {
-    // 自動的にフレーム監視を開始
-    this.startMonitoring();
+  constructor(autoStart: boolean = !import.meta.env.PROD) {
+    if (autoStart) {
+      this.enableAutoMonitoring();
+    }
+  }
+  
+  enableAutoMonitoring(): void {
+    if (this.autoMonitoringEnabled) return;
+    this.autoMonitoringEnabled = true;
+    this.startMonitoringLoop();
+  }
+  
+  disableAutoMonitoring(): void {
+    if (!this.autoMonitoringEnabled) return;
+    this.autoMonitoringEnabled = false;
+    this.stopMonitoring();
   }
   
   /**
    * 自動フレーム監視を開始
    */
-  private startMonitoring(): void {
+  private startMonitoringLoop(): void {
     if (this.isMonitoring) return;
     this.isMonitoring = true;
     
@@ -392,6 +406,7 @@ export class PerformanceDebugger {
     if (this.isEnabled) return;
     this.isEnabled = true;
     
+    performanceMonitor.enableAutoMonitoring();
     this.createDebugUI();
     this.startMonitoring();
   }
@@ -566,6 +581,7 @@ declare global {
     unifiedFrameController: UnifiedFrameController;
     renderOptimizer: RenderOptimizer;
     performanceDebugger: PerformanceDebugger;
+    __ENABLE_PERF_MONITOR__?: boolean;
   }
 }
 
@@ -582,4 +598,7 @@ if (typeof window !== 'undefined') {
   window.renderOptimizer = renderOptimizer;
   window.performanceMonitor = performanceMonitor;
   window.performanceDebugger = performanceDebugger;
-} 
+  if (window.__ENABLE_PERF_MONITOR__) {
+    performanceMonitor.enableAutoMonitoring();
+  }
+}
