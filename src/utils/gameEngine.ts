@@ -59,6 +59,15 @@ export class GameEngine {
   private noteIndexMap: Map<string, number> = new Map();
   private nextNoteIndex = 0;
   private settings: GameSettings;
+  private timingAdjustmentSec = 0;
+  private cachedLookahead = LOOKAHEAD_TIME;
+  private cachedCleanupTime = CLEANUP_TIME;
+  private cachedMissCleanupTime = MISSED_CLEANUP_TIME;
+  private cachedHitLineY = 0;
+  private cachedPixelsPerSecond = 0;
+  private cachedScreenHeight = 600;
+  private cachedPianoHeight = 80;
+  private readonly noteStartY = -NOTE_SPRITE_HEIGHT;
   private score: GameScore = {
     totalNotes: 0,
     goodCount: 0,
@@ -86,6 +95,7 @@ export class GameEngine {
   
   constructor(settings: GameSettings) {
     this.settings = { ...settings };
+    this.refreshTimingCaches();
   }
   
   setUpdateCallback(callback: (data: GameEngineUpdate) => void): void {
@@ -103,11 +113,12 @@ export class GameEngine {
   
   // ★ 追加: 設定値を秒へ変換して返すヘルパー
   private getTimingAdjSec(): number {
-    return (this.settings.timingAdjustment ?? 0) / 1000;
+    return this.timingAdjustmentSec;
   }
   
   loadSong(notes: NoteData[]): void {
     log.info(`🎵 GameEngine: ${notes.length}ノーツを読み込み開始`);
+    this.refreshTimingCaches();
     
     // ▼ appearTime 計算を timingAdjustment 込みに
     this.noteIndexMap.clear();
@@ -152,6 +163,25 @@ export class GameEngine {
     }
   }
 
+  private refreshTimingCaches(): void {
+    const viewportHeight = this.settings.viewportHeight ?? 600;
+    const pianoHeight = this.settings.pianoHeight ?? 80;
+    const notesSpeed = this.settings.notesSpeed ?? 1;
+    const clampedSpeed = Math.max(0.1, Math.min(4, notesSpeed));
+    const speedScale = 1 / clampedSpeed;
+
+    this.timingAdjustmentSec = (this.settings.timingAdjustment ?? 0) / 1000;
+    this.cachedScreenHeight = viewportHeight;
+    this.cachedPianoHeight = pianoHeight;
+    this.cachedHitLineY = viewportHeight - pianoHeight;
+    this.cachedLookahead = LOOKAHEAD_TIME * speedScale;
+    this.cachedCleanupTime = CLEANUP_TIME * speedScale;
+    this.cachedMissCleanupTime = MISSED_CLEANUP_TIME * speedScale;
+
+    const totalDistance = this.cachedHitLineY - this.noteStartY;
+    this.cachedPixelsPerSecond = (totalDistance / LOOKAHEAD_TIME) * clampedSpeed;
+  }
+
   private enqueueUpcomingNotes(currentTime: number): void {
     const lookahead = this.getLookaheadTime();
     const cleanupWindow = this.getCleanupTime();
@@ -159,7 +189,7 @@ export class GameEngine {
     while (this.nextNoteIndex < this.notes.length) {
       const note = this.notes[this.nextNoteIndex];
       if (!note.appearTime) {
-        note.appearTime = note.time + this.getTimingAdjSec() - lookahead;
+        note.appearTime = note.time + this.timingAdjustmentSec - lookahead;
       }
       
       if (currentTime < note.appearTime) {
@@ -323,6 +353,7 @@ export class GameEngine {
 
     // 設定更新
     this.settings = settings;
+    this.refreshTimingCaches();
 
     // 本番モードでは練習モードガイドを無効化
     if (this.settings.practiceGuide !== 'off') {
@@ -758,42 +789,16 @@ export class GameEngine {
   }
   
   private calculateNoteY(note: NoteData, currentTime: number): number {
-    // ▼ timeToHit の計算を変更
-    const displayTime = note.time + this.getTimingAdjSec();
+    const displayTime = note.time + this.timingAdjustmentSec;
     const timeToHit = displayTime - currentTime;
+    const perfectY = this.cachedHitLineY - (timeToHit * this.cachedPixelsPerSecond);
     
-    // 動的レイアウト対応
-    const screenHeight = this.settings.viewportHeight ?? 600;
-    const pianoHeight = this.settings.pianoHeight ?? 80;
-    const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
-
-    const noteHeight = NOTE_SPRITE_HEIGHT;
-    
-    // **改善されたタイミング計算 (ver.2)**
-    // GameEngine では "ノート中心" が y に入る → 判定ラインに中心が到達するのが演奏タイミング
-    // 基本の降下時間は LOOKAHEAD_TIME だが、視覚速度が変わると実際の降下時間も変わるため
-    // appearTime と整合させるため動的な lookahead を使用
-    const baseFallDuration = LOOKAHEAD_TIME; // 3秒を基準にしたまま速度倍率で伸縮
-    const visualSpeedMultiplier = this.settings.notesSpeed; // ビジュアル速度乗数
-
-    // 実際の物理降下距離とタイミング
-    const startYCenter = -noteHeight;            // ノート中心が画面上端より少し上から開始
-    const endYCenter   = hitLineY;               // ノート中心が判定ラインに到達
-    const totalDistance = endYCenter - startYCenter; // 総降下距離（中心基準）
-    
-    // **高精度計算**: 速度設定は見た目の速度のみ、タイミングは変更しない
-    const pixelsPerSecond = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
-    
-    // timeToHit = 0 の瞬間にノーツ中心が判定ラインに到達するように計算
-    const perfectY = endYCenter - (timeToHit * pixelsPerSecond);
-    
-    // 表示範囲制限（画面外は描画しない）
-    const minY = startYCenter - 100; // 上端より上
-    const maxY = screenHeight + 100; // 下端より下
+    const minY = this.noteStartY - 100;
+    const maxY = this.cachedScreenHeight + 100;
     
     const finalY = Math.max(minY, Math.min(perfectY, maxY));
     
-    return Math.round(finalY * 10) / 10; // 小数点第1位まで精度を保つ
+    return Math.round(finalY * 10) / 10;
   }
   
   private checkABRepeatLoop(_currentTime: number): void {
@@ -915,24 +920,21 @@ export class GameEngine {
    * notesSpeed < 1 (遅い) ならスケール > 1、 notesSpeed > 1 (速い) なら < 1
    */
   private getSpeedScale(): number {
-    const speed = this.settings.notesSpeed || 1;
-    // safety guard – clamp to avoid division by zero or extreme values
-    const clamped = Math.max(0.1, Math.min(4, speed));
-    return 1 / clamped;
+    return this.cachedLookahead / LOOKAHEAD_TIME;
   }
 
   /** 現在の設定に基づくノーツ出現(先読み)時間 */
   private getLookaheadTime(): number {
-    return LOOKAHEAD_TIME * this.getSpeedScale();
+    return this.cachedLookahead;
   }
 
   /** 現在の設定に基づくクリーンアップ時間 */
   private getCleanupTime(): number {
-    return CLEANUP_TIME * this.getSpeedScale();
+    return this.cachedCleanupTime;
   }
 
   /** Miss 判定後の残存時間 */
   private getMissedCleanupTime(): number {
-    return MISSED_CLEANUP_TIME * this.getSpeedScale();
+    return this.cachedMissCleanupTime;
   }
 }

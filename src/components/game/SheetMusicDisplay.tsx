@@ -14,6 +14,7 @@ interface SheetMusicDisplayProps {
 interface TimeMappingEntry {
   timeMs: number;
   xPosition: number;
+  measureNumber: number;
 }
 
 /**
@@ -32,6 +33,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   
   // timeMappingはアニメーションループで使うため、useRefで状態の即時反映を保証
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
+  const measurePositionsRef = useRef<Map<number, number>>(new Map());
+  const mappingCursorRef = useRef(0);
+  const lastRenderedMeasureRef = useRef<number | null>(null);
   
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
@@ -155,6 +159,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
 
     const mapping: TimeMappingEntry[] = [];
+    const measurePositions = new Map<number, number>();
+    mappingCursorRef.current = 0;
+    lastRenderedMeasureRef.current = null;
     const graphicSheet = osmdRef.current.GraphicSheet;
     
     if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
@@ -199,27 +206,35 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
     // マッピングを作成
     for (const graphicNote of osmdPlayableNotes) {
-                  if (noteIndex < notes.length) {
-                    const note = notes[noteIndex];
-                    // 音符の中心X座標を計算
-                    const positionAndShape = graphicNote.PositionAndShape as any;
-                    const noteHeadX = positionAndShape?.AbsolutePosition?.x;
+      if (noteIndex < notes.length) {
+        const note = notes[noteIndex];
+        const positionAndShape = graphicNote.PositionAndShape as any;
+        const noteHeadX = positionAndShape?.AbsolutePosition?.x;
 
-                    if (noteHeadX !== undefined) {
-                      let centerX = noteHeadX;
-                      // BoundingBox が存在し、widthが定義されている場合のみ幅を考慮して中心を計算
-                      if (positionAndShape?.BoundingBox?.width !== undefined) {
-                        const noteHeadWidth = positionAndShape.BoundingBox.width;
-                        centerX += noteHeadWidth / 2;
-                      }
+        if (noteHeadX !== undefined) {
+          let centerX = noteHeadX;
+          if (positionAndShape?.BoundingBox?.width !== undefined) {
+            const noteHeadWidth = positionAndShape.BoundingBox.width;
+            centerX += noteHeadWidth / 2;
+          }
 
-                      mapping.push({
-                        timeMs: note.time * 1000, // 秒をミリ秒に変換
-                        // 動的に計算したスケール係数を使用
-                        xPosition: centerX * scaleFactorRef.current
-                      });
-                    }
-                    noteIndex++;
+          const scaledX = centerX * scaleFactorRef.current;
+          const measureNumber = graphicNote.sourceNote?.ParentMeasure?.MeasureNumber ?? 0;
+
+          mapping.push({
+            timeMs: note.time * 1000,
+            xPosition: scaledX,
+            measureNumber
+          });
+
+          const noteWidth = (positionAndShape?.BoundingBox?.width ?? 0) * scaleFactorRef.current;
+          const candidateStart = Math.max(0, (noteHeadX * scaleFactorRef.current) - (noteWidth / 2));
+          const existingStart = measurePositions.get(measureNumber);
+          if (existingStart === undefined || candidateStart < existingStart) {
+            measurePositions.set(measureNumber, candidateStart);
+          }
+        }
+        noteIndex++;
       }
     }
     
@@ -233,7 +248,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       log.error(`ノート数の不一致: OSMD(${osmdPlayableNoteCount}) vs JSON(${notes.length}). プレイヘッドがずれる可能性があります。`);
     }
     
-    timeMappingRef.current = mapping; // refを更新
+    timeMappingRef.current = mapping;
+    measurePositionsRef.current = measurePositions;
   }, [notes]);
 
   // isPlaying状態がfalseになったときにアニメーションフレームをキャンセルする副作用
@@ -253,66 +269,44 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
   }, [isPlaying]);
 
-  // currentTimeが変更されるたびにスクロール位置を更新
-  // 停止時・再生時に関わらず、プレイヘッドの位置を更新
+  // currentTimeが変更されるたびに小節単位でスクロール
   useEffect(() => {
-    if (scoreWrapperRef.current) {
-      const mapping = timeMappingRef.current;
-      if (mapping.length === 0) return;
+    const wrapper = scoreWrapperRef.current;
+    const mapping = timeMappingRef.current;
+    if (!wrapper || mapping.length === 0) return;
 
-      const currentTimeMs = currentTime * 1000;
-      let targetX = 0;
+    const currentTimeMs = currentTime * 1000;
+    let cursor = mappingCursorRef.current;
 
-      // 1. 現在の再生時間の直後にあるノートのエントリを探す
-      const nextEntryIndex = mapping.findIndex(entry => entry.timeMs > currentTimeMs);
-
-      if (nextEntryIndex === -1) {
-        // 2. 最後のノートを過ぎた場合：最後のノート位置に固定
-        targetX = mapping.length > 0 ? mapping[mapping.length - 1].xPosition : 0;
-      } else if (nextEntryIndex === 0) {
-        // 3. 最初のノートより前の場合：曲の開始(x=0)から最初のノートまでを補間
-        const nextEntry = mapping[0];
-        if (nextEntry.timeMs > 0) {
-          const progress = currentTimeMs / nextEntry.timeMs;
-          targetX = nextEntry.xPosition * progress;
-        } else {
-          targetX = 0; // 最初のノートが時刻0なら位置も0
-        }
-      } else {
-        // 4. 2つのノートの間の場合：線形補間
-        const prevEntry = mapping[nextEntryIndex - 1];
-        const nextEntry = mapping[nextEntryIndex];
-        
-        const segmentDuration = nextEntry.timeMs - prevEntry.timeMs;
-        const timeIntoSegment = currentTimeMs - prevEntry.timeMs;
-        const progress = segmentDuration > 0 ? timeIntoSegment / segmentDuration : 0;
-        
-        targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
+    if (currentTimeMs >= mapping[cursor].timeMs) {
+      while (cursor < mapping.length - 1 && currentTimeMs >= mapping[cursor + 1].timeMs) {
+        cursor++;
       }
-      
-      const playheadPosition = 120; // プレイヘッドの画面上のX座標 (px)
-      const scrollX = isPlaying
-        ? Math.max(0, targetX - playheadPosition)
-        : targetX - playheadPosition;
-      
-      // 再生中は滑らかなアニメーション、停止時は即座に移動
-      if (isPlaying) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-      } else {
-        // 停止時はアニメーションを無効化して即座に移動
-        scoreWrapperRef.current.style.transition = 'none';
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-        // 次のフレームでアニメーションを再有効化
-        requestAnimationFrame(() => {
-          if (scoreWrapperRef.current) {
-            scoreWrapperRef.current.style.transition = '';
-          }
-        });
+    } else {
+      while (cursor > 0 && currentTimeMs < mapping[cursor].timeMs) {
+        cursor--;
       }
     }
-    // notesの変更はtimeMappingRefの更新をトリガーするが、このeffectの再実行は不要な場合がある。
-    // しかし、マッピングが更新された直後のフレームで正しい位置に描画するために含めておく。
-  }, [currentTime, isPlaying, notes]);
+
+    mappingCursorRef.current = cursor;
+    const entry = mapping[cursor];
+    const targetMeasure = entry.measureNumber ?? 0;
+    const lastRendered = lastRenderedMeasureRef.current;
+
+    if (isPlaying && lastRendered === targetMeasure) {
+      return;
+    }
+
+    lastRenderedMeasureRef.current = targetMeasure;
+
+    const measurePositions = measurePositionsRef.current;
+    const anchorX = measurePositions.get(targetMeasure) ?? entry.xPosition;
+    const playheadPosition = 120;
+    const scrollX = Math.max(0, anchorX - playheadPosition);
+
+    wrapper.style.transition = isPlaying ? 'transform 220ms ease-out' : 'none';
+    wrapper.style.transform = `translateX(-${scrollX}px)`;
+  }, [currentTime, isPlaying, musicXml]);
 
   // ホイールスクロール制御
   useEffect(() => {
