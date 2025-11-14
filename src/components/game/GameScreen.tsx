@@ -680,10 +680,9 @@ const SongSelectionScreen: React.FC = () => {
         
         {/* 楽曲リスト - 軽量化されたレイアウト */}
         <div className="space-y-2">
-          {sortedSongs.map((song) => {
-            const accessible = rankAllowed((profile?.rank ?? 'free') as MembershipRank, song.min_rank as MembershipRank);
-            const songStat = songStats[song.id];
-            console.log('🔍 [DEBUG] Song stats for', song.title, ':', songStat);
+            {sortedSongs.map((song) => {
+              const accessible = rankAllowed((profile?.rank ?? 'free') as MembershipRank, song.min_rank as MembershipRank);
+              const songStat = songStats[song.id];
             return (
               <SongListItem 
                 key={song.id} 

@@ -2,19 +2,17 @@
  * 統一ログシステム - プロダクション最適化版
  * 本番環境では全ログを無効化し、CPU消費を完全に削減
  */
-
+/* eslint-disable no-console */
 type LogLevel = 'silent' | 'error' | 'warn' | 'info' | 'debug';
 
-// プロダクション環境でもログを有効化（デバッグ用）
-let currentLevel: LogLevel = 'debug';  // import.meta.env.PROD ? 'silent' : 'debug';
+const defaultLevel: LogLevel = import.meta.env.PROD ? 'silent' : 'debug';
+let currentLevel: LogLevel = defaultLevel;
 
 /**
  * ログレベルを動的に変更（プロダクションでは無効）
  */
 export function setLogLevel(level: LogLevel): void {
-  if (!import.meta.env.PROD) {
-    currentLevel = level;
-  }
+  currentLevel = level;
 }
 
 /**
@@ -28,11 +26,6 @@ if (typeof window !== 'undefined' && !import.meta.env.PROD) {
     currentLevel = 'silent';
   }
 }
-
-/**
- * プロダクション環境用空関数
- */
-const noop = () => {};
 
 /**
  * 統一ログインターフェース - プロダクション最適化
