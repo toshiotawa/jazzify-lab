@@ -56,6 +56,7 @@ export interface ActiveNote extends NoteData {
   previousY?: number; // 前フレームのY座標（判定ライン通過検出用）
   judged?: boolean; // Miss判定の重複を防ぐフラグ
   crossingLogged?: boolean; // 判定ライン通過ログの重複を防ぐフラグ
+  creationIndex?: number;
 }
 
 export interface JudgmentTiming {

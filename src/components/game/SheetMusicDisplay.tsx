@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
-import platform from '@/platform';
-import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -20,14 +18,28 @@ interface TimeMappingEntry {
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
  */
+const findCursorIndex = (mapping: TimeMappingEntry[], currentTimeMs: number): number => {
+  if (mapping.length === 0) return 0;
+  let low = 0;
+  let high = mapping.length - 1;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (mapping[mid].timeMs <= currentTimeMs) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return Math.min(low, mapping.length - 1);
+};
+
 const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const scrollAnimationRef = useRef<number | null>(null);
-  const pendingScrollXRef = useRef<number | null>(null);
+  const measureMappingRef = useRef<TimeMappingEntry[]>([]);
+  const measureCursorRef = useRef<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scaleFactorRef = useRef<number>(10); // デフォルトは以前のマジックナンバー
@@ -50,6 +62,107 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   
   // const gameActions = useGameActions(); // 現在未使用
   
+  // 音符の時刻とX座標のマッピングを作成
+  const createTimeMapping = useCallback((timeFactor: number) => {
+    if (!osmdRef.current || !notes || notes.length === 0) {
+      log.warn('タイムマッピング作成スキップ: OSMD未初期化またはノートデータなし');
+      return;
+    }
+
+    const mapping: TimeMappingEntry[] = [];
+    const measureMapping: TimeMappingEntry[] = [];
+    const seenMeasures = new Set<number>();
+    const graphicSheet = osmdRef.current.GraphicSheet;
+    
+    if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
+      log.warn('楽譜のグラフィック情報が取得できません');
+      return;
+    }
+
+    let noteIndex = 0;
+    let osmdPlayableNoteCount = 0;
+    
+    log.info(`📊 OSMD Note Extraction Starting: ${notes.length} JSON notes to match`);
+    
+    // 全ての音符を走査して演奏可能なノートのみを抽出
+    const osmdPlayableNotes = [];
+    for (const page of graphicSheet.MusicPages) {
+      for (const system of page.MusicSystems) {
+        for (const staffLine of system.StaffLines) {
+          for (const measure of staffLine.Measures) {
+            const sourceMeasure = (measure as any).ParentMeasure?.SourceMeasure ?? (measure as any).ParentSourceMeasure ?? (measure as any).SourceMeasure;
+            const measureNumber: number | undefined = sourceMeasure?.measureNumber ?? sourceMeasure?.MeasureNumber;
+            if (measureNumber !== undefined && !seenMeasures.has(measureNumber)) {
+              const absoluteTimestamp = sourceMeasure?.AbsoluteTimestamp?.RealValue ?? sourceMeasure?.absoluteTimestamp?.realValue ?? 0;
+              const measureTimeMs = absoluteTimestamp * timeFactor * 1000;
+              const graphicalMeasure = measure as any;
+              const measureX = (graphicalMeasure.PositionAndShape?.AbsolutePosition?.x ?? 0) * scaleFactorRef.current;
+              measureMapping.push({
+                timeMs: measureTimeMs,
+                xPosition: measureX
+              });
+              seenMeasures.add(measureNumber);
+            }
+            for (const staffEntry of measure.staffEntries) {
+              for (const voice of staffEntry.graphicalVoiceEntries) {
+                for (const graphicNote of voice.notes) {
+                  if (!graphicNote.sourceNote || (graphicNote.sourceNote as any).isRest?.()) {
+                    continue;
+                  }
+                  
+                  if (graphicNote.sourceNote.NoteTie && !graphicNote.sourceNote.NoteTie.StartNote) {
+                    continue;
+                  }
+                  
+                  osmdPlayableNotes.push(graphicNote);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    osmdPlayableNoteCount = osmdPlayableNotes.length;
+
+    for (const graphicNote of osmdPlayableNotes) {
+      if (noteIndex < notes.length) {
+        const note = notes[noteIndex];
+        const positionAndShape = (graphicNote.PositionAndShape as any);
+        const noteHeadX = positionAndShape?.AbsolutePosition?.x;
+
+        if (noteHeadX !== undefined) {
+          let centerX = noteHeadX;
+          if (positionAndShape?.BoundingBox?.width !== undefined) {
+            const noteHeadWidth = positionAndShape.BoundingBox.width;
+            centerX += noteHeadWidth / 2;
+          }
+
+          mapping.push({
+            timeMs: note.time * 1000,
+            xPosition: centerX * scaleFactorRef.current
+          });
+        }
+        noteIndex++;
+      }
+    }
+    
+    log.info(`📊 OSMD Note Extraction Summary:
+    OSMD playable notes: ${osmdPlayableNoteCount}
+    JSON notes count: ${notes.length}
+    Mapped notes: ${mapping.length}
+    Match status: ${osmdPlayableNoteCount === notes.length ? '✅ Perfect match!' : '❌ Mismatch!'}`);
+    
+    if (osmdPlayableNoteCount !== notes.length) {
+      log.error(`ノート数の不一致: OSMD(${osmdPlayableNoteCount}) vs JSON(${notes.length}). プレイヘッドがずれる可能性があります。`);
+    }
+    
+    timeMappingRef.current = mapping;
+    mappingCursorRef.current = 0;
+    measureMappingRef.current = measureMapping.sort((a, b) => a.timeMs - b.timeMs);
+    measureCursorRef.current = 0;
+  }, [notes]);
+
   // OSMDの初期化とレンダリング
   const loadAndRenderSheet = useCallback(async () => {
     if (!shouldRenderSheet) {
@@ -136,8 +249,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         scaleFactorRef.current = 10;
       }
       
-      // タイムマッピングを作成
-        createTimeMapping();
+        // タイムマッピングを作成
+        const sheetDuration = (osmdRef.current?.Sheet as any)?.Duration?.realValue ?? null;
+        const lastNoteTime = notes.length > 0 ? notes[notes.length - 1].time : null;
+        const timeFactor =
+          sheetDuration && lastNoteTime !== null && sheetDuration > 0
+            ? lastNoteTime / sheetDuration
+            : 1;
+        createTimeMapping(timeFactor);
       
       log.info(`✅ OSMD initialized and rendered successfully - transpose reflected`);
       
@@ -148,14 +267,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       setIsLoading(false);
     }
     }, [
-      shouldRenderSheet,
-    musicXml,
-    notes,
-    settings.simpleDisplayMode,
-    settings.noteNameStyle,
-    settings.sheetMusicChordsOnly,
-    settings.transpose
-  ]); // 簡易表示設定とトランスポーズを依存関係に追加
+        shouldRenderSheet,
+      musicXml,
+      notes,
+      settings.simpleDisplayMode,
+      settings.noteNameStyle,
+      settings.sheetMusicChordsOnly,
+      settings.transpose,
+      createTimeMapping
+    ]); // 簡易表示設定とトランスポーズを依存関係に追加
 
   // musicXmlが変更されたら楽譜を再読み込み・再レンダリング
   useEffect(() => {
@@ -170,104 +290,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
   }, [shouldRenderSheet]);
 
-  // 音符の時刻とX座標のマッピングを作成
-  const createTimeMapping = useCallback(() => {
-    if (!osmdRef.current || !notes || notes.length === 0) {
-      log.warn('タイムマッピング作成スキップ: OSMD未初期化またはノートデータなし');
-      return;
-    }
-
-    const mapping: TimeMappingEntry[] = [];
-    const graphicSheet = osmdRef.current.GraphicSheet;
-    
-    if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
-      log.warn('楽譜のグラフィック情報が取得できません');
-      return;
-    }
-
-    let noteIndex = 0;
-    let osmdPlayableNoteCount = 0;
-    
-    log.info(`📊 OSMD Note Extraction Starting: ${notes.length} JSON notes to match`);
-    
-    // 全ての音符を走査して演奏可能なノートのみを抽出
-    const osmdPlayableNotes = [];
-    for (const page of graphicSheet.MusicPages) {
-      for (const system of page.MusicSystems) {
-        for (const staffLine of system.StaffLines) {
-          for (const measure of staffLine.Measures) {
-            for (const staffEntry of measure.staffEntries) {
-              for (const voice of staffEntry.graphicalVoiceEntries) {
-                for (const graphicNote of voice.notes) {
-                  // isRest() が true、または sourceNote がない場合は休符と見なす
-                  if (!graphicNote.sourceNote || (graphicNote.sourceNote as any).isRest?.()) {
-                    continue;
-                  }
-                  
-                  // タイで結ばれた後続音符はスキップ (OSMDの公式な方法)
-                  if (graphicNote.sourceNote.NoteTie && !graphicNote.sourceNote.NoteTie.StartNote) {
-                    continue;
-                  }
-                  
-                  osmdPlayableNotes.push(graphicNote);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    osmdPlayableNoteCount = osmdPlayableNotes.length;
-
-    // マッピングを作成
-    for (const graphicNote of osmdPlayableNotes) {
-                  if (noteIndex < notes.length) {
-                    const note = notes[noteIndex];
-                    // 音符の中心X座標を計算
-                    const positionAndShape = graphicNote.PositionAndShape as any;
-                    const noteHeadX = positionAndShape?.AbsolutePosition?.x;
-
-                    if (noteHeadX !== undefined) {
-                      let centerX = noteHeadX;
-                      // BoundingBox が存在し、widthが定義されている場合のみ幅を考慮して中心を計算
-                      if (positionAndShape?.BoundingBox?.width !== undefined) {
-                        const noteHeadWidth = positionAndShape.BoundingBox.width;
-                        centerX += noteHeadWidth / 2;
-                      }
-
-                      mapping.push({
-                        timeMs: note.time * 1000, // 秒をミリ秒に変換
-                        // 動的に計算したスケール係数を使用
-                        xPosition: centerX * scaleFactorRef.current
-                      });
-                    }
-                    noteIndex++;
-      }
-    }
-    
-    log.info(`📊 OSMD Note Extraction Summary:
-    OSMD playable notes: ${osmdPlayableNoteCount}
-    JSON notes count: ${notes.length}
-    Mapped notes: ${mapping.length}
-    Match status: ${osmdPlayableNoteCount === notes.length ? '✅ Perfect match!' : '❌ Mismatch!'}`);
-    
-    if (osmdPlayableNoteCount !== notes.length) {
-      log.error(`ノート数の不一致: OSMD(${osmdPlayableNoteCount}) vs JSON(${notes.length}). プレイヘッドがずれる可能性があります。`);
-    }
-    
-    timeMappingRef.current = mapping; // refを更新
-    mappingCursorRef.current = 0;
-  }, [notes]);
-
-  // isPlaying状態がfalseになったときにアニメーションフレームをキャンセルする副作用
-  useEffect(() => {
-    if (!isPlaying && animationFrameRef.current) {
-      platform.cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-  }, [isPlaying]);
-
   // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
   useEffect(() => {
     if (isPlaying && scrollContainerRef.current) {
@@ -278,78 +300,66 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }, [isPlaying]);
 
   // currentTimeが変更されるたびにスクロール位置を更新
-  useEffect(() => {
-    const mapping = timeMappingRef.current;
-    if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
-      return;
-    }
-
-    const currentTimeMs = currentTime * 1000;
-
-    const findCursorIndex = () => {
-      let low = 0;
-      let high = mapping.length - 1;
-      while (low <= high) {
-        const mid = Math.floor((low + high) / 2);
-        if (mapping[mid].timeMs <= currentTimeMs) {
-          low = mid + 1;
+    useEffect(() => {
+      if (!shouldRenderSheet || !scoreWrapperRef.current) {
+        return;
+      }
+  
+      const currentTimeMs = currentTime * 1000;
+      const playheadPosition = 120;
+      const wrapper = scoreWrapperRef.current;
+  
+      const applyScroll = (scrollX: number, animated: boolean) => {
+        if (animated) {
+          wrapper.style.transition = 'transform 0.25s ease-out';
         } else {
-          high = mid - 1;
+          wrapper.style.transition = 'none';
+        }
+        wrapper.style.transform = `translateX(-${Math.max(0, scrollX)}px)`;
+        if (!animated) {
+          requestAnimationFrame(() => {
+            if (wrapper) {
+              wrapper.style.transition = '';
+            }
+          });
+        }
+      };
+  
+      const measureMapping = measureMappingRef.current;
+      if (measureMapping.length > 0) {
+        const cursor = findCursorIndex(measureMapping, currentTimeMs);
+        if (cursor !== measureCursorRef.current || !isPlaying) {
+          measureCursorRef.current = cursor;
+          const entry = measureMapping[cursor];
+          const scrollX = entry.xPosition - playheadPosition;
+          applyScroll(scrollX, isPlaying);
+        }
+        return;
+      }
+  
+      const mapping = timeMappingRef.current;
+      if (mapping.length === 0) {
+        return;
+      }
+  
+      const cursor = findCursorIndex(mapping, currentTimeMs);
+      mappingCursorRef.current = cursor;
+      const nextEntry = mapping[cursor] ?? mapping[mapping.length - 1];
+      const prevEntry = cursor > 0 ? mapping[cursor - 1] : null;
+  
+      let targetX = nextEntry.xPosition;
+      if (prevEntry) {
+        const segmentDuration = nextEntry.timeMs - prevEntry.timeMs;
+        if (segmentDuration > 0) {
+          const timeIntoSegment = currentTimeMs - prevEntry.timeMs;
+          const progress = Math.max(0, Math.min(1, timeIntoSegment / segmentDuration));
+          targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
         }
       }
-      return Math.min(low, mapping.length - 1);
-    };
-
-    const cursor = findCursorIndex();
-    mappingCursorRef.current = cursor;
-
-    const nextEntry = mapping[cursor] ?? mapping[mapping.length - 1];
-    const prevEntry = cursor > 0 ? mapping[cursor - 1] : null;
-
-    let targetX = nextEntry.xPosition;
-    if (prevEntry) {
-      const segmentDuration = nextEntry.timeMs - prevEntry.timeMs;
-      if (segmentDuration > 0) {
-        const timeIntoSegment = currentTimeMs - prevEntry.timeMs;
-        const progress = Math.max(0, Math.min(1, timeIntoSegment / segmentDuration));
-        targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
-      }
-    }
-
-    const playheadPosition = 120;
-    const scrollX = isPlaying ? Math.max(0, targetX - playheadPosition) : targetX - playheadPosition;
-
-    if (isPlaying) {
-      pendingScrollXRef.current = scrollX;
-      if (scrollAnimationRef.current === null) {
-        const animate = () => {
-          const value = pendingScrollXRef.current;
-          if (value === null) {
-            scrollAnimationRef.current = null;
-            return;
-          }
-          pendingScrollXRef.current = null;
-          if (scoreWrapperRef.current) {
-            scoreWrapperRef.current.style.transform = `translateX(-${value}px)`;
-          }
-          scrollAnimationRef.current = platform.requestAnimationFrame(animate);
-        };
-        scrollAnimationRef.current = platform.requestAnimationFrame(animate);
-      }
-    } else {
-      if (scrollAnimationRef.current !== null) {
-        platform.cancelAnimationFrame(scrollAnimationRef.current);
-        scrollAnimationRef.current = null;
-      }
-      scoreWrapperRef.current.style.transition = 'none';
-      scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-      requestAnimationFrame(() => {
-        if (scoreWrapperRef.current) {
-          scoreWrapperRef.current.style.transition = '';
-        }
-      });
-    }
-  }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+  
+      const scrollX = targetX - playheadPosition;
+      applyScroll(scrollX, isPlaying);
+    }, [currentTime, isPlaying, shouldRenderSheet]);
 
   // ホイールスクロール制御
   useEffect(() => {
@@ -377,13 +387,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     return () => {
       if (osmdRef.current) {
         osmdRef.current.clear();
-      }
-      if (animationFrameRef.current) {
-        platform.cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (scrollAnimationRef.current) {
-        platform.cancelAnimationFrame(scrollAnimationRef.current);
-        scrollAnimationRef.current = null;
       }
     };
   }, []);

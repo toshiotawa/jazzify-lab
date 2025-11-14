@@ -769,7 +769,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pianoHeight: settings.pianoHeight,
         transpose: settings.transpose,
         transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
+        practiceGuide: settings.practiceGuide ?? 'key',
+        noteSpeed: settings.notesSpeed,
+        timingAdjustment: settings.timingAdjustment,
+        viewportHeight: settings.viewportHeight
       });
     }
     // AudioControllerに音声入力設定を反映
@@ -778,7 +781,21 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pyinThreshold: settings.pyinThreshold
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
+    }, [
+      gameEngine,
+      updateEngineSettings,
+      pixiRenderer,
+      settings.noteNameStyle,
+      settings.simpleDisplayMode,
+      settings.pianoHeight,
+      settings.transpose,
+      settings.transposingInstrument,
+      settings.practiceGuide,
+      settings.pyinThreshold,
+      settings.notesSpeed,
+      settings.timingAdjustment,
+      settings.viewportHeight
+    ]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   

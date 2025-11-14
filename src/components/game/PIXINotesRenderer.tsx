@@ -10,8 +10,9 @@ import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
 import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
+import { subscribeFrameLoop } from '@/utils/frameLoop';
 
-const PIXI_LOOKAHEAD_SECONDS = 15;
+const PIXI_LOOKAHEAD_SECONDS = 5;
 
 // ===== 破棄管理システム =====
 /**
@@ -183,6 +184,7 @@ interface RendererSettings {
   hitLineY: number;
   pianoHeight: number;
   noteSpeed: number;
+  enableEffects: boolean;
   colors: {
     visible: number;
     visibleBlack: number;
@@ -239,6 +241,13 @@ interface ActiveHitEffect {
   elapsed: number;
 }
 
+interface FadeAnimation {
+  target: PIXI.DisplayObject & { alpha: number };
+  duration: number;
+  elapsed: number;
+  onComplete?: () => void;
+}
+
 
 // ===== PIXI.js レンダラークラス =====
 
@@ -282,22 +291,19 @@ export class PIXINotesRendererInstance {
   
   // ===== 新しい設計: 破棄管理＆アップデータシステム =====
   private disposeManager: DisposeManager = new DisposeManager();
-    private noteUpdaters: Map<string, NoteUpdater> = new Map();
-    private effectUpdaters: Set<EffectUpdater> = new Set();
-    private activeHitEffects: Set<ActiveHitEffect> = new Set();
-    private readonly hitEffectDurationMs = 120;
-
-  
-  // Ticker関数への参照（削除用）
-  private mainUpdateFunction?: (delta: number) => void;
-  private effectUpdateFunction?: (delta: number) => void;
+  private noteUpdaters: Map<string, NoteUpdater> = new Map();
+  private effectUpdaters: Set<EffectUpdater> = new Set();
+  private activeHitEffects: Set<ActiveHitEffect> = new Set();
+  private readonly hitEffectDurationMs = 120;
+  private frameLoopUnsubscribe?: () => void;
+  private fadeAnimations: Set<FadeAnimation> = new Set();
   
   // リアルタイムアニメーション用
   // リアルタイムアニメーション用（将来の拡張用）
   private _currentTime: number = 0;
   private _animationSpeed: number = 1.0;
   private lastFrameTime: number = performance.now();
-  private effectsElapsed: number = 0; // エフェクト更新用の経過時間カウンター
+  private effectsElapsedMs: number = 0; // エフェクト更新用の経過時間カウンター
   
   // パフォーマンス監視フラグ
   private performanceEnabled: boolean = true;
@@ -307,12 +313,13 @@ export class PIXINotesRendererInstance {
   
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
-  public readonly settings: RendererSettings = {
-    noteWidth: 28,
-    noteHeight: 4,
-    hitLineY: 0,
-    pianoHeight: 200, // viewportHeightと同じ値に設定
-    noteSpeed: 400,
+    public readonly settings: RendererSettings = {
+      noteWidth: 28,
+      noteHeight: 4,
+      hitLineY: 0,
+      pianoHeight: 200, // viewportHeightと同じ値に設定
+      noteSpeed: 1,
+    enableEffects: true,
     colors: {
       visible: 0x4A90E2,
       visibleBlack: 0x2C5282,
@@ -417,8 +424,7 @@ export class PIXINotesRendererInstance {
       log.error('❌ PIXI setup failed:', error);
     }
     
-    // ===== 新設計: Ticker管理を一元化 =====
-    this.setupTickerSystem();
+    this.startFrameLoop();
     
     // グローバルpointerupイベントで保険を掛ける（音が伸び続けるバグの最終防止）
     this.app.stage.on('globalpointerup', () => {
@@ -429,124 +435,92 @@ export class PIXINotesRendererInstance {
       this.activeKeyPresses.clear();
     });
     
-    // 🎯 統合フレーム制御でPIXIアプリケーションを開始
-    this.startUnifiedRendering();
-    
     log.info('✅ PIXI.js renderer initialized successfully');
   }
 
 
   
-  /**
-   * ===== 新設計: Tickerシステムのセットアップ =====
-   * 1. 更新ループとオブジェクトの結び付きを外せる構造
-   * 2. 破棄時に適切にTicker関数を削除
-   */
-  private setupTickerSystem(): void {
-    // メイン更新関数（ノートUpdater管理）
-    this.mainUpdateFunction = (delta: number) => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
-      
-      // 全ノートUpdaterを更新
-      for (const [noteId, updater] of this.noteUpdaters) {
-        if (!updater.active) {
-          this.noteUpdaters.delete(noteId);
-          continue;
-        }
-        updater.update(delta);
-      }
-    };
-
-    // エフェクト更新関数（低頻度実行）
-    this.effectUpdateFunction = () => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
-
-      const deltaMs = PIXI.Ticker.shared.deltaMS;
-      this.effectsElapsed += deltaMs;
-
-      if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
-        const normalizedDelta = this.effectsElapsed / 16;
-
-        for (const updater of this.effectUpdaters) {
-          if (!updater.active) {
-            this.effectUpdaters.delete(updater);
-            continue;
-          }
-          updater.update(normalizedDelta);
-        }
-
-        this.updateHitEffects(this.effectsElapsed);
-        this.effectsElapsed = 0;
-      }
-    };
-
-    // Tickerに登録
-    PIXI.Ticker.shared.add(this.mainUpdateFunction);
-    PIXI.Ticker.shared.add(this.effectUpdateFunction);
-
-    // 破棄時にTicker関数を削除するよう登録
-    this.disposeManager.add(() => {
-      if (this.mainUpdateFunction) {
-        PIXI.Ticker.shared.remove(this.mainUpdateFunction);
-        this.mainUpdateFunction = undefined;
-      }
-      if (this.effectUpdateFunction) {
-        PIXI.Ticker.shared.remove(this.effectUpdateFunction);
-        this.effectUpdateFunction = undefined;
-      }
-    });
-
-
-
-    log.debug('✅ Ticker system setup completed');
-  }
-
-  /**
-   * 🎯 統合フレーム制御でPIXIアプリケーションを開始
-   */
-  // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
-  private startUnifiedRendering(): void {
-    if (!window.unifiedFrameController) {
-      log.warn('⚠️ unifiedFrameController not available, using default PIXI ticker');
-      this.app.start();
+  private startFrameLoop(): void {
+    if (this.frameLoopUnsubscribe) {
       return;
     }
-    
-    // 統合フレーム制御を使用してPIXIアプリケーションを制御
-    const renderFrame = () => {
-      const currentTime = performance.now();
-      
-      // 統合フレーム制御でフレームスキップ判定
-      if (window.unifiedFrameController.shouldSkipFrame(currentTime)) {
-        // フレームをスキップ
-        requestAnimationFrame(renderFrame);
+
+    this.frameLoopUnsubscribe = subscribeFrameLoop((deltaMs) => {
+      if (this.isDestroyed || this.disposeManager.disposed) {
         return;
       }
-      
-      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
-      if (this.isDestroyed) {
-        // 破棄済みの場合はレンダリングループを停止
-        return;
-      }
-      
+
+      const delta = deltaMs / (1000 / 60);
+      this.updateNoteUpdaters(delta);
+      this.updateEffects(deltaMs);
+      this.updateFadeAnimations(deltaMs);
+
       try {
         if (this.app && this.app.renderer) {
           this.app.render();
         }
       } catch (error) {
-        log.warn('⚠️ PIXI render error (likely destroyed):', error);
-        // レンダリングループを停止
-        return;
+        log.warn('⚠️ PIXI render error:', error);
       }
-      
-      // 次のフレームをスケジュール
-      requestAnimationFrame(renderFrame);
-    };
-    
-    // レンダリングループを開始
-    renderFrame();
-    
-    log.info('🎯 PIXI.js unified frame control started');
+    });
+
+    this.disposeManager.add(() => {
+      if (this.frameLoopUnsubscribe) {
+        this.frameLoopUnsubscribe();
+        this.frameLoopUnsubscribe = undefined;
+      }
+    });
+
+    log.debug('✅ Frame loop attached');
+  }
+
+  private updateNoteUpdaters(delta: number): void {
+    for (const [noteId, updater] of this.noteUpdaters) {
+      if (!updater.active) {
+        this.noteUpdaters.delete(noteId);
+        continue;
+      }
+      updater.update(delta);
+    }
+  }
+
+  private updateEffects(deltaMs: number): void {
+    this.effectsElapsedMs += deltaMs;
+    if (this.effectsElapsedMs < 16) {
+      return;
+    }
+
+    const normalizedDelta = this.effectsElapsedMs / 16;
+    for (const updater of this.effectUpdaters) {
+      if (!updater.active) {
+        this.effectUpdaters.delete(updater);
+        continue;
+      }
+      updater.update(normalizedDelta);
+    }
+    this.updateHitEffects(this.effectsElapsedMs);
+    this.effectsElapsedMs = 0;
+  }
+
+  private updateFadeAnimations(deltaMs: number): void {
+    if (!this.fadeAnimations.size) {
+      return;
+    }
+
+    const finished: FadeAnimation[] = [];
+    this.fadeAnimations.forEach((animation) => {
+      animation.elapsed += deltaMs;
+      const progress = Math.min(1, animation.elapsed / animation.duration);
+      animation.target.alpha = 1 - progress;
+      if (progress >= 1) {
+        finished.push(animation);
+        animation.onComplete?.();
+      }
+    });
+
+    finished.forEach((animation) => {
+      this.fadeAnimations.delete(animation);
+    });
   }
   
   /**
@@ -1806,7 +1780,6 @@ export class PIXINotesRendererInstance {
     
     // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
     if (seekDetected) {
-      // 全てのノートスプライトを削除
       const noteIds = Array.from(this.noteSprites.keys());
       for (const noteId of noteIds) {
         this.removeNoteSprite(noteId);
@@ -1814,7 +1787,6 @@ export class PIXINotesRendererInstance {
       this.noteSprites.clear();
     }
     
-    // ノートリストが変更された場合、または巻き戻しが発生した場合
     if (seekDetected) {
       this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time);
       this.nextNoteIndex = 0;
@@ -1826,77 +1798,97 @@ export class PIXINotesRendererInstance {
     this.lastUpdateTime = currentTime;
     this.refreshActiveNoteLookup(activeNotes);
     
-    // GameEngineと同じ計算式を使用（統一化）
-      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
-    const visualSpeedMultiplier = this.settings.noteSpeed;
-    const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
-    const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
+    const fallDuration = this.getLookaheadSeconds();
+    const timingAdjustmentSec = this.getTimingAdjustmentSec();
+    const visibilityThreshold = currentTime + fallDuration;
     
-    // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
-    // まだ表示していないノートで、表示時刻になったもののみ処理
-    const appearanceTime = currentTime + baseFallDuration; // 画面上端に現れる時刻
-    
-    while (this.nextNoteIndex < this.allNotes.length &&
-           this.allNotes[this.nextNoteIndex].time <= appearanceTime) {
+    while (this.nextNoteIndex < this.allNotes.length) {
       const note = this.allNotes[this.nextNoteIndex];
+      const noteAppear = this.computeAppearanceTime(note, fallDuration, timingAdjustmentSec);
+      if (noteAppear > visibilityThreshold) {
+        break;
+      }
       
-      // 新規ノーツスプライト作成（初回のみ）
       if (!this.noteSprites.has(note.id)) {
-        this.createNoteSprite(note);
+        this.createNoteSprite(note, currentTime, fallDuration, timingAdjustmentSec);
       }
       
       this.nextNoteIndex++;
     }
     
-    // ===== 🚀 CPU最適化: ループ分離による高速化 =====
-    // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
-    this.updateSpritePositions(this.activeNoteLookup, currentTime, speedPxPerSec);
-    
-    // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
-    // const frameStartTime = performance.now(); // パフォーマンス監視用（現在未使用）
-    
-    // 状態・削除処理ループ（フレーム間引き無効化）
+    this.updateSpritePositions(this.activeNoteLookup, currentTime, fallDuration, timingAdjustmentSec);
     this.updateSpriteStates(this.activeNoteLookup);
-    
-    
-    
+  }
+
+  private clampValue(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  private getSpeedScale(): number {
+    const speed = this.settings.noteSpeed ?? 1;
+    const clamped = this.clampValue(speed, 0.1, 4);
+    return 1 / clamped;
+  }
+
+  private getLookaheadSeconds(): number {
+    return PIXI_LOOKAHEAD_SECONDS * this.getSpeedScale();
+  }
+
+  private getTimingAdjustmentSec(): number {
+    return (this.settings.timingAdjustment || 0) / 1000;
+  }
+
+  private computeAppearanceTime(note: ActiveNote, fallDuration: number, timingAdjustmentSec: number): number {
+    if (typeof note.appearTime === 'number') {
+      return note.appearTime;
+    }
+    const displayTime = note.time + timingAdjustmentSec;
+    return displayTime - fallDuration;
+  }
+
+  private computeFreefallY(
+    note: ActiveNote,
+    currentTime: number,
+    fallDuration: number,
+    timingAdjustmentSec: number
+  ): number {
+    const startY = -this.settings.noteHeight;
+    const endY = this.settings.hitLineY;
+    const appearanceTime = this.computeAppearanceTime(note, fallDuration, timingAdjustmentSec);
+    const progress = this.clampValue((currentTime - appearanceTime) / fallDuration, 0, 1);
+    return startY + progress * (endY - startY);
   }
 
   /**
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
    */
-  private updateSpritePositions(activeNoteLookup: Map<string, ActiveNote>, currentTime: number, speedPxPerSec: number): void {
-    for (const [noteId, sprite] of this.noteSprites) {
-      const note = activeNoteLookup.get(noteId);
-      if (!note) {
-        continue;
-      }
-      
-      // ===== Y座標更新（毎フレーム、軽量処理） =====
-      const suppliedY = note.y;
-      let newY: number;
+  private updateSpritePositions(
+    activeNoteLookup: Map<string, ActiveNote>,
+    currentTime: number,
+    fallDuration: number,
+    timingAdjustmentSec: number
+  ): void {
+      for (const [noteId, sprite] of this.noteSprites) {
+        const note = activeNoteLookup.get(noteId);
+        if (!note) {
+          continue;
+        }
+        
+        const previousY = sprite.sprite.y;
+        const newY = this.computeFreefallY(note, currentTime, fallDuration, timingAdjustmentSec);
 
-      if (suppliedY !== undefined) {
-        newY = suppliedY; // Engine提供の絶対座標を最優先
-      } else {
-        // フォールバック: 自前計算
-        newY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
-      }
-
-      sprite.sprite.y = newY;
-      if (sprite.label) sprite.label.y = newY - 8;
-      if (sprite.glowSprite) sprite.glowSprite.y = newY;
-      
-      // ===== X座標更新（ピッチ変更時のみ） =====
-      if (sprite.noteData.pitch !== note.pitch) {
-        const x = this.pitchToX(note.pitch);
-        sprite.sprite.x = x;
-        if (sprite.label) sprite.label.x = x;
-        if (sprite.glowSprite) sprite.glowSprite.x = x;
-      }
-      
-      // ===== トランスポーズ変更検出 =====
+        sprite.sprite.y = newY;
+        if (sprite.label) sprite.label.y = newY - 8;
+        if (sprite.glowSprite) sprite.glowSprite.y = newY;
+        
+        if (sprite.noteData.pitch !== note.pitch) {
+          const x = this.pitchToX(note.pitch);
+          sprite.sprite.x = x;
+          if (sprite.label) sprite.label.x = x;
+          if (sprite.glowSprite) sprite.glowSprite.x = x;
+        }
+        
       if (sprite.transposeAtCreation !== this.settings.transpose) {
         const effectivePitch = note.pitch + this.settings.transpose;
         const isBlackNote = this.isBlackKey(effectivePitch);
@@ -1969,16 +1961,14 @@ export class PIXINotesRendererInstance {
         sprite.transposeAtCreation = this.settings.transpose;
       }
       
-      // ===== 🚀 位置関連プロパティのみ部分更新（state保持） =====
-      // 新しいオブジェクトを作成し、座標のみ更新、状態は元のまま保持
-      sprite.noteData = {
-        ...sprite.noteData,  // state は保持
-        y: note.y,
-        previousY: note.previousY,
-        time: note.time,
-        pitch: note.pitch,
-        crossingLogged: note.crossingLogged // crossingLogged を同期してハイライト多重発火を防止
-      };
+        sprite.noteData = {
+          ...sprite.noteData,
+          y: newY,
+          previousY,
+          time: note.time,
+          pitch: note.pitch,
+          crossingLogged: note.crossingLogged
+        };
     }
   }
 
@@ -2057,9 +2047,15 @@ export class PIXINotesRendererInstance {
       return left; // 最初の「まだ表示していない」ノートのインデックス
     }
   
-  private createNoteSprite(note: ActiveNote): NoteSprite {
+  private createNoteSprite(
+    note: ActiveNote,
+    currentTime: number,
+    fallDuration: number,
+    timingAdjustmentSec: number
+  ): NoteSprite {
     const effectivePitch = note.pitch + this.settings.transpose;
     const x = this.pitchToX(note.pitch);
+    const initialY = this.computeFreefallY(note, currentTime, fallDuration, timingAdjustmentSec);
     
     // ===== 適切なテクスチャを選択 =====
     const isBlackNote = this.isBlackKey(effectivePitch);
@@ -2073,7 +2069,7 @@ export class PIXINotesRendererInstance {
     ;(sprite as any).interactiveChildren = false;
     sprite.anchor.set(0.5, 0.5);
     sprite.x = x;
-    sprite.y = 0; // 後で設定
+    sprite.y = initialY;
     
     // 音名ラベル（MusicXMLから取得した音名を優先）
     let label: PIXI.Sprite | undefined;
@@ -2110,8 +2106,8 @@ export class PIXINotesRendererInstance {
         if (labelTexture) {
           label = new PIXI.Sprite(labelTexture);
           label.anchor.set(0.5, 1);
-          label.x = x;
-          label.y = 0; // 後で設定
+            label.x = x;
+            label.y = initialY - 8;
           
           // 通常のContainerへ追加
           try {
@@ -2131,9 +2127,9 @@ export class PIXINotesRendererInstance {
     // グロー効果スプライト（デフォルトOFF、必要時のみ）
     let glowSprite: PIXI.Graphics | undefined;
     if (this.settings.effects.glow) {
-      glowSprite = new PIXI.Graphics();
-      glowSprite.x = x;
-      glowSprite.y = 0; // 後で設定
+        glowSprite = new PIXI.Graphics();
+        glowSprite.x = x;
+        glowSprite.y = initialY;
       this.effectsContainer.addChild(glowSprite);
     }
     
@@ -2149,7 +2145,10 @@ export class PIXINotesRendererInstance {
     const noteSprite: NoteSprite = {
       sprite,
       glowSprite,
-      noteData: note,
+      noteData: {
+        ...note,
+        y: initialY
+      },
       label,
       effectPlayed: false,
       transposeAtCreation: this.settings.transpose
@@ -2820,6 +2819,11 @@ export class PIXINotesRendererInstance {
     // 破棄状態フラグを設定（レンダリングループを停止）
     this.isDestroyed = true;
     
+    if (this.frameLoopUnsubscribe) {
+      this.frameLoopUnsubscribe();
+      this.frameLoopUnsubscribe = undefined;
+    }
+    
       try {
         // アクティブキープレス状態をクリア（音が伸び続けるバグ防止）
         for (const midiNote of this.activeKeyPresses) {
@@ -2988,20 +2992,21 @@ export class PIXINotesRendererInstance {
    * 指定秒数かけて alpha を 0 にし、完了したら onComplete を呼ぶ。
    */
   private fadeOutLater(display: PIXI.DisplayObject & { alpha: number }, duration: number, onComplete?: () => void): void {
-    const total = Math.max(0.01, duration);
-    let elapsed = 0;
-    const tickerFunc = () => {
-      // deltaMS は毎フレーム呼ばれるので秒単位へ変換
-      const dt = this.app.ticker.deltaMS / 1000;
-      elapsed += dt;
-      const progress = Math.min(1, elapsed / total);
-      display.alpha = 1 - progress;
-      if (progress >= 1) {
-        this.app.ticker.remove(tickerFunc);
-        if (onComplete) onComplete();
+    const totalMs = Math.max(10, duration * 1000);
+    const duplicates: FadeAnimation[] = [];
+    this.fadeAnimations.forEach((animation) => {
+      if (animation.target === display) {
+        duplicates.push(animation);
       }
-    };
-    this.app.ticker.add(tickerFunc);
+    });
+    duplicates.forEach((animation) => this.fadeAnimations.delete(animation));
+
+    this.fadeAnimations.add({
+      target: display,
+      duration: totalMs,
+      elapsed: 0,
+      onComplete
+    });
   }
 
     // 外部からのガイド設定（ピッチクラス配列 0-11）
