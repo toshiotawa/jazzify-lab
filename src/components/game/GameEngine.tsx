@@ -8,6 +8,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useGameStore } from '@/stores/gameStore';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import ChordOverlay from './ChordOverlay';
@@ -36,7 +37,21 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     score,
     mode,
     lastKeyHighlight,
-    isSettingsOpen,
+    isSettingsOpen
+  } = useGameSelector((state) => ({
+    gameEngine: state.gameEngine,
+    engineActiveNotes: state.engineActiveNotes,
+    isPlaying: state.isPlaying,
+    currentSong: state.currentSong,
+    currentTime: state.currentTime,
+    settings: state.settings,
+    score: state.score,
+    mode: state.mode,
+    lastKeyHighlight: state.lastKeyHighlight,
+    isSettingsOpen: state.isSettingsOpen
+  }));
+
+  const {
     initializeGameEngine,
     destroyGameEngine,
     handleNoteInput,
@@ -47,7 +62,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     pause,
     setLastKeyHighlight,
     openResultModal
-  } = useGameStore();
+  } = useGameActions();
   
   const [isEngineReady, setIsEngineReady] = useState(false);
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
