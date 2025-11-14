@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { unifiedFrameController } from './performanceOptimizer';
+import { unifiedFrameController, PRODUCTION_CONFIG } from './performanceOptimizer';
 
 type FrameSubscriber = (deltaMs: number, frameStartTime: number) => void;
 
@@ -37,6 +37,12 @@ const detachTicker = () => {
 };
 
 export const subscribeFrameLoop = (callback: FrameSubscriber): (() => void) => {
+  if (subscribers.size === 0) {
+    unifiedFrameController.updateConfig({
+      skipFrameThreshold: PRODUCTION_CONFIG.skipFrameThreshold,
+      maxSkipFrames: 0
+    });
+  }
   subscribers.add(callback);
   ensureTicker();
 
@@ -44,6 +50,10 @@ export const subscribeFrameLoop = (callback: FrameSubscriber): (() => void) => {
     subscribers.delete(callback);
     if (subscribers.size === 0) {
       detachTicker();
+      unifiedFrameController.updateConfig({
+        skipFrameThreshold: PRODUCTION_CONFIG.skipFrameThreshold,
+        maxSkipFrames: PRODUCTION_CONFIG.maxSkipFrames
+      });
     }
   };
 };

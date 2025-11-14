@@ -27,7 +27,7 @@ export interface PerformanceConfig {
 export const PRODUCTION_CONFIG: PerformanceConfig = {
   targetFPS: 60, // 60FPSを維持
   skipFrameThreshold: 16, // 16ms (60FPS)
-  maxSkipFrames: 1, // 最大1フレームスキップ
+  maxSkipFrames: 0, // スキップをデフォルト無効化
   
   enableHardwareAcceleration: true,
   reduceEffects: true, // エフェクト軽量化
@@ -84,6 +84,7 @@ export class UnifiedFrameController {
   private config: PerformanceConfig;
   private lastNoteUpdateTime = 0;
   private lastEffectUpdateTime = 0;
+  private skipEnabled = true;
   
   constructor(config: PerformanceConfig = PRODUCTION_CONFIG) {
     this.config = config;
@@ -93,8 +94,19 @@ export class UnifiedFrameController {
     const deltaTime = currentTime - this.lastFrameTime;
     
     if (deltaTime < this.config.skipFrameThreshold) {
+      if (!this.skipEnabled) {
+        this.lastFrameTime = currentTime;
+        return false;
+      }
       this.frameSkipCount++;
-      return this.frameSkipCount < this.config.maxSkipFrames;
+      const shouldSkip = this.frameSkipCount < this.config.maxSkipFrames;
+      if (shouldSkip) {
+        return true;
+      }
+      // スキップしなかった場合は次回に備えて初期化
+      this.frameSkipCount = 0;
+      this.lastFrameTime = currentTime;
+      return false;
     }
     
     this.frameSkipCount = 0;
@@ -120,6 +132,9 @@ export class UnifiedFrameController {
   
   updateConfig(config: Partial<PerformanceConfig>): void {
     this.config = { ...this.config, ...config };
+    if (config.maxSkipFrames !== undefined) {
+      this.skipEnabled = config.maxSkipFrames > 0;
+    }
   }
   
   getConfig(): PerformanceConfig {

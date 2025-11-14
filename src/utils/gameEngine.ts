@@ -56,6 +56,8 @@ export interface GameEngineState {
 export class GameEngine {
   private notes: NoteData[] = [];
   private activeNotes: Map<string, ActiveNote> = new Map();
+  private nextNoteIndex = 0;
+  private cleanupQueue: ActiveNote[] = [];
   private settings: GameSettings;
   private score: GameScore = {
     totalNotes: 0,
@@ -123,7 +125,9 @@ export class GameEngine {
     });
     
     // アクティブノーツをクリア
-    this.activeNotes.clear();
+      this.activeNotes.clear();
+      this.cleanupQueue = [];
+      this.nextNoteIndex = 0;
     
     // スコアリセット
     this.resetScore();
@@ -173,7 +177,7 @@ export class GameEngine {
   seek(time: number): void {
     if (this.audioContext) {
       const safeTime = Math.max(0, time);
-      const oldActiveCount = this.activeNotes.size;
+        const oldActiveCount = this.activeNotes.size;
       
       // 🔧 修正: 再生速度を考慮したstartTime計算
       // safeTimeは論理時間、audioContext.currentTimeは実時間のため、
@@ -183,7 +187,9 @@ export class GameEngine {
       this.pausedTime = 0;
       
       // **完全なアクティブノーツリセット**
-      this.activeNotes.clear();
+        this.activeNotes.clear();
+        this.cleanupQueue = [];
+        this.nextNoteIndex = this.findNoteIndexByTime(safeTime);
       
       // シーク位置より後のノートの処理済みフラグとappearTimeをクリア
       this.notes.forEach(note => {
@@ -199,6 +205,28 @@ export class GameEngine {
     }
   }
   
+  private findNoteIndexByTime(targetTime: number): number {
+    if (this.notes.length === 0) return 0;
+    
+    let left = 0;
+    let right = this.notes.length - 1;
+    const dynamicLookahead = this.getLookaheadTime();
+    const appearanceTime = targetTime + dynamicLookahead;
+    
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      const noteTime = this.notes[mid].time;
+      
+      if (noteTime <= appearanceTime) {
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+    }
+    
+    return left;
+  }
+
   handleInput(inputNote: number): NoteHit | null {
     const currentTime = this.getCurrentTime();
     const adjustedInput = this.adjustInputNote(inputNote);
@@ -468,51 +496,45 @@ export class GameEngine {
   }
   
   private updateNotes(currentTime: number): ActiveNote[] {
-    const visibleNotes: ActiveNote[] = [];
+    const dynamicLookahead = this.getLookaheadTime();
+    const appearanceTime = currentTime + dynamicLookahead;
     
-    // **新しいノーツを表示開始 - 重複防止の改善**
-    for (const note of this.notes) {
-      // ▼ まだ appearTime 未計算の場合も同様
-      if (!note.appearTime) {
-        note.appearTime = note.time + this.getTimingAdjSec() - this.getLookaheadTime();
+    // 新規出現ノートを順番に処理
+    while (this.nextNoteIndex < this.notes.length) {
+      const note = this.notes[this.nextNoteIndex];
+      const noteAppear = (note.appearTime ??= note.time + this.getTimingAdjSec() - dynamicLookahead);
+      
+      if (noteAppear > appearanceTime) {
+        break;
       }
       
-      // ノート生成条件を厳密に制限
-      const shouldAppear = currentTime >= note.appearTime && 
-                          currentTime < note.time + this.getCleanupTime(); // <= から < に変更
       const alreadyActive = this.activeNotes.has(note.id);
-      
-      // 一度削除されたノートは二度と生成しない
       const wasProcessed = (note as any)._wasProcessed;
-      
-      if (shouldAppear && !alreadyActive && !wasProcessed) {
+      if (!alreadyActive && !wasProcessed) {
         const activeNote: ActiveNote = {
           ...note,
           state: 'visible',
-          y: this.calculateNoteY(note, currentTime)
+          y: this.calculateNoteY(note, currentTime),
+          creationIndex: this.nextNoteIndex
         };
-        
         this.activeNotes.set(note.id, activeNote);
-        // デバッグログを条件付きで表示
-        // if (Math.abs(currentTime - note.time) < 4.0) { // 判定時間の±4秒以内のみログ
-        //   console.log(`🎵 新しいノート出現: ${note.id} (pitch=${note.pitch}, time=${note.time}, y=${activeNote.y?.toFixed(1) || 'undefined'})`);
-        // }
       }
+      
+      this.nextNoteIndex++;
     }
     
-    // ===== 🚀 CPU最適化: ループ分離による高速化 =====
-    // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
     this.updateNotePositions(currentTime);
     
-    // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
-    const frameStartTime = performance.now();
-    if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
-      // 判定・状態更新ループ（ログ出力は削除）
-      this.updateNoteLogic(currentTime);
-      unifiedFrameController.markNoteUpdate(frameStartTime);
+    this.updateNoteLogic(currentTime);
+    
+    if (this.cleanupQueue.length > 0) {
+      for (const note of this.cleanupQueue) {
+        this.activeNotes.delete(note.id);
+      }
+      this.cleanupQueue = [];
     }
     
-    // visibleNotes配列を構築（軽量）
+    const visibleNotes: ActiveNote[] = [];
     for (const note of this.activeNotes.values()) {
       if (note.state !== 'completed') {
         visibleNotes.push(note);
@@ -549,12 +571,8 @@ export class GameEngine {
    * 🎯 判定・状態更新専用ループ（フレーム間引き実行）
    * 重い処理（判定、状態変更、削除）のみ
    */
-  private updateNoteLogic(currentTime: number): void {
-    const logicStartTime = performance.now();
-    const notesToDelete: string[] = [];
-    const activeNotesCount = this.activeNotes.size;
-    
-    for (const [noteId, note] of this.activeNotes) {
+    private updateNoteLogic(currentTime: number): void {
+      for (const [noteId, note] of this.activeNotes) {
       const isRecentNote = Math.abs(currentTime - note.time) < 2.0; // 判定時間の±2秒以内
       
       // 🎯 STEP 1: 判定ライン通過検出を先に実行（オートプレイ処理含む）
@@ -571,28 +589,16 @@ export class GameEngine {
       if (isRecentNote && updatedNote.state !== latestNote.state) {
       }
       
-      if (updatedNote.state === 'completed') {
-        // 削除対象としてマーク（ループ中の削除を避ける）
-        notesToDelete.push(noteId);
-        
-        // 削除時に元ノートにフラグを設定
-        const originalNote = this.notes.find(n => n.id === noteId);
-        if (originalNote) {
-          (originalNote as any)._wasProcessed = true;
+        if (updatedNote.state === 'completed') {
+          const creationIndex = updatedNote.creationIndex ?? this.notes.findIndex(n => n.id === noteId);
+          if (creationIndex >= 0) {
+            (this.notes[creationIndex] as any)._wasProcessed = true;
+          }
+          this.cleanupQueue.push(updatedNote);
+        } else {
+          this.activeNotes.set(noteId, updatedNote);
         }
-        
-        if (isRecentNote) {
-        }
-      } else {
-        this.activeNotes.set(noteId, updatedNote);
       }
-    }
-    
-    // バッチ削除（ループ後に実行）
-    for (const noteId of notesToDelete) {
-      this.activeNotes.delete(noteId);
-    }
-    
   }
   
   private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
@@ -808,37 +814,27 @@ export class GameEngine {
 
       const currentTime = this.getCurrentTime();
       
-      // ノーツ更新の頻度制御
-      let activeNotes: ActiveNote[] = [];
-      if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
-        activeNotes = this.updateNotes(currentTime);
-        unifiedFrameController.markNoteUpdate(frameStartTime);
-        
-        // Miss判定処理（重複処理を防ぐ）
-        for (const note of activeNotes) {
-          if (note.state === 'missed' && !note.judged) {
-            const missJudgment: JudgmentResult = {
-              type: 'miss',
-              timingError: 0,
-              noteId: note.id,
-              timestamp: currentTime
-            };
-            this.updateScore(missJudgment);
-            
-            // 重複判定を防ぐフラグ - 新しいオブジェクトを作成して置き換え
-            const updatedNote: ActiveNote = {
-              ...note,
-              judged: true
-            };
-            this.activeNotes.set(note.id, updatedNote);
+      const activeNotes = this.updateNotes(currentTime);
+      
+      // Miss判定処理（重複処理を防ぐ）
+      for (const note of activeNotes) {
+        if (note.state === 'missed' && !note.judged) {
+          const missJudgment: JudgmentResult = {
+            type: 'miss',
+            timingError: 0,
+            noteId: note.id,
+            timestamp: currentTime
+          };
+          this.updateScore(missJudgment);
+          
+          const updatedNote: ActiveNote = {
+            ...note,
+            judged: true
+          };
+          this.activeNotes.set(note.id, updatedNote);
 
-            // イベント通知
-            this.onJudgment?.(missJudgment);
-          }
+          this.onJudgment?.(missJudgment);
         }
-      } else {
-        // 前回の activeNotes を再利用
-        activeNotes = Array.from(this.activeNotes.values());
       }
       
       // ABリピートチェック（軽量化）
