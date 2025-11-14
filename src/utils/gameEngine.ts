@@ -29,10 +29,6 @@ export const LOOKAHEAD_TIME = 5.0; // 5秒先まで表示（より長く表示�
 export const CLEANUP_TIME = 3.0;        // 3秒後にクリーンアップ（より長く残す）
 export const MISSED_CLEANUP_TIME = 2.0; // Miss 判定後 2秒間は残す
 
-// ===== 描画関連定数 =====
-/** PIXI.js ノートスプライトの高さ(px) と合わせる */
-const NOTE_SPRITE_HEIGHT = 5;
-
 // ===== 型定義 =====
 
 export interface GameEngineUpdate {
@@ -175,34 +171,17 @@ export class GameEngine {
   }
   
   seek(time: number): void {
-    if (this.audioContext) {
-      const safeTime = Math.max(0, time);
-        const oldActiveCount = this.activeNotes.size;
-      
-      // 🔧 修正: 再生速度を考慮したstartTime計算
-      // safeTimeは論理時間、audioContext.currentTimeは実時間のため、
-      // 論理時間を実時間に変換してからオフセットを計算する
-      const realTimeElapsed = safeTime / (this.settings.playbackSpeed ?? 1);
-      this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
-      this.pausedTime = 0;
-      
-      // **完全なアクティブノーツリセット**
-        this.activeNotes.clear();
-        this.cleanupQueue = [];
-        this.nextNoteIndex = this.findNoteIndexByTime(safeTime);
-      
-      // シーク位置より後のノートの処理済みフラグとappearTimeをクリア
-      this.notes.forEach(note => {
-        if (note.time >= safeTime) {
-          delete (note as any)._wasProcessed;
-          // Fix: Reset appearTime to force recalculation based on new seek position
-          delete (note as any).appearTime;
-        }
-      });
-      
-      // ログ削除: FPS最適化のため
-      // devLog.debug(`🎮 GameEngine.seek: ${safeTime.toFixed(2)}s`);
+    if (!this.audioContext) {
+      return;
     }
+
+    const safeTime = Math.max(0, time);
+    const realTimeElapsed = safeTime / (this.settings.playbackSpeed ?? 1);
+    this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
+    this.pausedTime = 0;
+
+    this.resetProcessedFlags();
+    this.regenerateActiveNotes(safeTime);
   }
   
   private findNoteIndexByTime(targetTime: number): number {
@@ -225,6 +204,39 @@ export class GameEngine {
     }
     
     return left;
+  }
+
+  private regenerateActiveNotes(currentTime: number): void {
+    this.activeNotes.clear();
+    this.cleanupQueue = [];
+    const lookAhead = this.getLookaheadTime();
+    const lookBehind = this.getCleanupTime();
+    const startTime = Math.max(0, currentTime - lookBehind);
+    const endTime = currentTime + lookAhead;
+    const startIndex = Math.max(0, this.findNoteIndexByTime(startTime) - 10);
+    const endIndex = Math.min(this.notes.length, this.findNoteIndexByTime(endTime) + 10);
+    
+    for (let i = startIndex; i < endIndex; i++) {
+      const note = this.notes[i];
+      const appearTime = (note.appearTime ??= note.time + this.getTimingAdjSec() - lookAhead);
+      if (note.time < startTime || appearTime > endTime) {
+        continue;
+      }
+      const activeNote: ActiveNote = {
+        ...note,
+        state: 'visible',
+        creationIndex: i
+      };
+      this.activeNotes.set(activeNote.id, activeNote);
+    }
+    
+    this.nextNoteIndex = this.findNoteIndexByTime(currentTime);
+  }
+  
+  private resetProcessedFlags(): void {
+    for (const note of this.notes) {
+      delete (note as any)._wasProcessed;
+    }
   }
 
   handleInput(inputNote: number): NoteHit | null {
@@ -300,36 +312,23 @@ export class GameEngine {
   
   updateSettings(settings: GameSettings): void {
     const prevSpeed = this.settings.playbackSpeed ?? 1;
-    // 現在の論理時間を保持（旧スピードで計算）
     const currentLogicalTime = this.getCurrentTime();
 
-    // 設定更新
     this.settings = settings;
 
-    // 本番モードでは練習モードガイドを無効化
     if (this.settings.practiceGuide !== 'off') {
-      // ゲームモードを確認するために、ストアから現在のモードを取得
-      // この処理はストア側で行われるため、ここでは設定のみを更新
-      // 実際の無効化はストアのsetMode/setCurrentTabで行われる
+      // 実際の制御はストア側で行う
     }
 
     const newSpeed = this.settings.playbackSpeed ?? 1;
 
-    // スピードが変化した場合、startTime を調整してタイムラインを連続に保つ
     if (this.audioContext && prevSpeed !== newSpeed) {
-      // 🔧 修正: seekメソッドと同じ計算方式に統一
-      // 論理時間を新しい速度での実時間に変換してからstartTimeを計算
       const realTimeElapsed = currentLogicalTime / newSpeed;
       this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
-      
-      // ログ削除: FPS最適化のため
-      // devLog.debug(`🔧 GameEngine.updateSettings: 速度変更 ${prevSpeed}x → ${newSpeed}x`);
     }
 
-    // notesSpeed が変化した場合、未処理ノートの appearTime を更新
     const dynamicLookahead = this.getLookaheadTime();
     this.notes.forEach((note) => {
-      // まだ appearTime を計算済みでも更新（タイミング調整を含める）
       note.appearTime = note.time + this.getTimingAdjSec() - dynamicLookahead;
     });
   }
@@ -368,30 +367,22 @@ export class GameEngine {
     const staticNotes: ActiveNote[] = [];
     const dynamicLookahead = this.getLookaheadTime();
     
-    // 現在時刻の前後の表示範囲を計算
-    const lookBehind = 2.0; // 過去2秒
-    const lookAhead = dynamicLookahead; // 未来は動的先読み時間
+    const lookBehind = 2.0;
+    const lookAhead = dynamicLookahead;
     
     for (const note of this.notes) {
       const timeFromCurrent = note.time - currentTime;
       
-      // 表示範囲内のノートのみ生成
       if (timeFromCurrent >= -lookBehind && timeFromCurrent <= lookAhead) {
-        // 停止中は基本的に visible 状態で表示
         let state: ActiveNote['state'] = 'visible';
         
-        // 過去のノートは missed 状態で表示（視覚的に区別）
-        if (timeFromCurrent < -0.5) { // 判定時間を500ms過ぎた場合
+        if (timeFromCurrent < -0.5) {
           state = 'missed';
         }
         
         const activeNote: ActiveNote = {
           ...note,
           state,
-          y: this.calculateNoteY(note, currentTime),
-          // 停止中なので previousY は undefined
-          previousY: undefined,
-          // 停止中は crossingLogged を false にリセット
           crossingLogged: false
         };
         
@@ -514,7 +505,6 @@ export class GameEngine {
         const activeNote: ActiveNote = {
           ...note,
           state: 'visible',
-          y: this.calculateNoteY(note, currentTime),
           creationIndex: this.nextNoteIndex
         };
         this.activeNotes.set(note.id, activeNote);
@@ -522,8 +512,6 @@ export class GameEngine {
       
       this.nextNoteIndex++;
     }
-    
-    this.updateNotePositions(currentTime);
     
     this.updateNoteLogic(currentTime);
     
@@ -545,60 +533,25 @@ export class GameEngine {
   }
 
   /**
-   * 🚀 位置更新専用ループ（毎フレーム実行）
-   * Y座標計算のみの軽量処理
-   */
-  private updateNotePositions(currentTime: number): void {
-    for (const [noteId, note] of this.activeNotes) {
-      // 前フレームのY座標を保存
-      const previousY = note.y;
-      
-      // 新しいY座標を計算（軽量処理）
-      const newY = this.calculateNoteY(note, currentTime);
-      
-      // 新しいオブジェクトを作成して置き換え（Immer不要の軽量更新）
-      const updatedNote: ActiveNote = {
-        ...note,
-        previousY,
-        y: newY
-      };
-      
-      this.activeNotes.set(noteId, updatedNote);
-    }
-  }
-
-  /**
    * 🎯 判定・状態更新専用ループ（フレーム間引き実行）
    * 重い処理（判定、状態変更、削除）のみ
    */
-    private updateNoteLogic(currentTime: number): void {
-      for (const [noteId, note] of this.activeNotes) {
-      const isRecentNote = Math.abs(currentTime - note.time) < 2.0; // 判定時間の±2秒以内
-      
-      // 🎯 STEP 1: 判定ライン通過検出を先に実行（オートプレイ処理含む）
+  private updateNoteLogic(currentTime: number): void {
+    for (const [noteId, note] of this.activeNotes) {
       this.checkHitLineCrossing(note, currentTime);
-      
-      // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
       const latestNote = this.activeNotes.get(noteId) || note;
-      if (isRecentNote && latestNote.state !== note.state) {
-        // ログ削除: FPS最適化のため
-        // devLog.debug(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
-      }
-      
       const updatedNote = this.updateNoteState(latestNote, currentTime);
-      if (isRecentNote && updatedNote.state !== latestNote.state) {
-      }
       
-        if (updatedNote.state === 'completed') {
-          const creationIndex = updatedNote.creationIndex ?? this.notes.findIndex(n => n.id === noteId);
-          if (creationIndex >= 0) {
-            (this.notes[creationIndex] as any)._wasProcessed = true;
-          }
-          this.cleanupQueue.push(updatedNote);
-        } else {
-          this.activeNotes.set(noteId, updatedNote);
+      if (updatedNote.state === 'completed') {
+        const creationIndex = updatedNote.creationIndex ?? this.notes.findIndex((n) => n.id === noteId);
+        if (creationIndex >= 0) {
+          (this.notes[creationIndex] as any)._wasProcessed = true;
         }
+        this.cleanupQueue.push(updatedNote);
+      } else {
+        this.activeNotes.set(noteId, updatedNote);
       }
+    }
   }
   
   private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
@@ -647,142 +600,53 @@ export class GameEngine {
       return { ...note, state: 'completed' };
     }
     
-    // 前フレームのY座標を保存してから新しいY座標を計算
-    const previousY = note.y;
-    const newY = this.calculateNoteY(note, currentTime);
-    
-    return {
-      ...note,
-      previousY,
-      y: newY
-    };
+    return { ...note };
   }
 
   private checkHitLineCrossing(note: ActiveNote, currentTime: number): void {
-    // 動的レイアウト対応: 設定値からヒットラインを計算
-    const screenHeight = this.settings.viewportHeight ?? 600;
-    const pianoHeight = this.settings.pianoHeight ?? 80;
-    const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
-
-    const noteCenter = (note.y || 0);
-    const prevNoteCenter = (note.previousY || 0);
-    
-    // ▼ crossing 判定用の "表示上の" 到達時刻を利用
     const displayTime = note.time + this.getTimingAdjSec();
+    if (note.state !== 'visible' || note.crossingLogged) {
+      return;
+    }
     
-    // 判定ラインを通過した瞬間を検出（中心がラインに到達したフレームも含む）
-    if (note.previousY !== undefined && 
-        prevNoteCenter <= hitLineY && 
-        noteCenter >= hitLineY &&
-        note.state === 'visible' &&
-        !note.crossingLogged) { // 重複ログ防止
-
-      const timeError = (currentTime - displayTime) * 1000;   // ms
-
-      // 重複ログ防止フラグを即座に設定
-      const updatedNote: ActiveNote = {
-        ...note,
-        crossingLogged: true
+    if (currentTime < displayTime) {
+      return;
+    }
+    
+    const timeError = (currentTime - displayTime) * 1000;
+    note.crossingLogged = true;
+    this.activeNotes.set(note.id, note);
+    
+    const practiceGuide = this.settings.practiceGuide ?? 'key';
+    if (practiceGuide === 'off') {
+      return;
+    }
+    
+    const effectivePitch = note.pitch + this.settings.transpose;
+    if (this.onKeyHighlight) {
+      this.onKeyHighlight(effectivePitch, currentTime);
+    }
+    
+    if (practiceGuide === 'key_auto') {
+      const autoHit: NoteHit = {
+        noteId: note.id,
+        inputNote: effectivePitch,
+        timingError: Math.abs(timeError),
+        judgment: 'good',
+        timestamp: currentTime
       };
-      this.activeNotes.set(note.id, updatedNote);
-
-      // 練習モードガイド処理
-      const practiceGuide = this.settings.practiceGuide ?? 'key';
-      if (practiceGuide !== 'off') {
-        const effectivePitch = note.pitch + this.settings.transpose;
-        
-        // キーハイライト通知を送信（key、key_auto両方で実行）
-        if (this.onKeyHighlight) {
-          this.onKeyHighlight(effectivePitch, currentTime);
-        }
-        
-        if (practiceGuide === 'key_auto') {
-          // オートプレイ: 自動的にノーツをヒット判定
-          // ログ削除: FPS最適化のため
-          // devLog.debug(`🤖 オートプレイ実行開始: ノート ${note.id} (pitch=${effectivePitch})`);
-          
-          // 自動判定を実行
-          const autoHit: NoteHit = {
-            noteId: note.id,
-            inputNote: effectivePitch,
-            timingError: Math.abs(timeError),
-            judgment: 'good',
-            timestamp: currentTime
-          };
-          
-          // 判定処理を実行（これによりノーツが'hit'状態になりスコアも更新される）
-          const judgment = this.processHit(autoHit);
-          // ログ削除: FPS最適化のため
-          // devLog.debug(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
-          
-          // 強制的にノーツ状態を確認
-          const updatedNoteAfterHit = this.activeNotes.get(note.id);
-          if (updatedNoteAfterHit) {
-            // ログ削除: FPS最適化のため
-            // devLog.debug(`🔍 オートプレイ後ノート状態確認: ${note.id} - state: ${updatedNoteAfterHit.state}, hitTime: ${updatedNoteAfterHit.hitTime}`);
-            
-            // 念のため再度状態をセット（確実にhit状態にする）
-            if (updatedNoteAfterHit.state !== 'hit') {
-              log.warn(`⚠️ オートプレイ後の状態が異常: ${note.id} - 期待値: hit, 実際値: ${updatedNoteAfterHit.state}`);
-              const forcedHitNote: ActiveNote = {
-                ...updatedNoteAfterHit,
-                state: 'hit',
-                hitTime: currentTime,
-                timingError: Math.abs(timeError)
-              };
-              this.activeNotes.set(note.id, forcedHitNote);
-              // ログ削除: FPS最適化のため
-              // devLog.debug(`🔧 強制修正完了: ${note.id} - state を 'hit' に変更`);
-            } else {
-              // ログ削除: FPS最適化のため
-              // devLog.debug(`✅ オートプレイ状態確認OK: ${note.id} - 正常にhit状態です`);
-            }
-          } else {
-            log.warn(`⚠️ オートプレイ後にノートが見つからない: ${note.id}`);
-          }
-        }
-        
+      this.processHit(autoHit);
+      const updatedNoteAfterHit = this.activeNotes.get(note.id);
+      if (updatedNoteAfterHit && updatedNoteAfterHit.state !== 'hit') {
+        const forcedHitNote: ActiveNote = {
+          ...updatedNoteAfterHit,
+          state: 'hit',
+          hitTime: currentTime,
+          timingError: Math.abs(timeError)
+        };
+        this.activeNotes.set(note.id, forcedHitNote);
       }
     }
-  }
-  
-  private calculateNoteY(note: NoteData, currentTime: number): number {
-    // ▼ timeToHit の計算を変更
-    const displayTime = note.time + this.getTimingAdjSec();
-    const timeToHit = displayTime - currentTime;
-    
-    // 動的レイアウト対応
-    const screenHeight = this.settings.viewportHeight ?? 600;
-    const pianoHeight = this.settings.pianoHeight ?? 80;
-    const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
-
-    const noteHeight = NOTE_SPRITE_HEIGHT;
-    
-    // **改善されたタイミング計算 (ver.2)**
-    // GameEngine では "ノート中心" が y に入る → 判定ラインに中心が到達するのが演奏タイミング
-    // 基本の降下時間は LOOKAHEAD_TIME だが、視覚速度が変わると実際の降下時間も変わるため
-    // appearTime と整合させるため動的な lookahead を使用
-    const baseFallDuration = LOOKAHEAD_TIME; // 3秒を基準にしたまま速度倍率で伸縮
-    const visualSpeedMultiplier = this.settings.notesSpeed; // ビジュアル速度乗数
-
-    // 実際の物理降下距離とタイミング
-    const startYCenter = -noteHeight;            // ノート中心が画面上端より少し上から開始
-    const endYCenter   = hitLineY;               // ノート中心が判定ラインに到達
-    const totalDistance = endYCenter - startYCenter; // 総降下距離（中心基準）
-    
-    // **高精度計算**: 速度設定は見た目の速度のみ、タイミングは変更しない
-    const pixelsPerSecond = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
-    
-    // timeToHit = 0 の瞬間にノーツ中心が判定ラインに到達するように計算
-    const perfectY = endYCenter - (timeToHit * pixelsPerSecond);
-    
-    // 表示範囲制限（画面外は描画しない）
-    const minY = startYCenter - 100; // 上端より上
-    const maxY = screenHeight + 100; // 下端より下
-    
-    const finalY = Math.max(minY, Math.min(perfectY, maxY));
-    
-    return Math.round(finalY * 10) / 10; // 小数点第1位まで精度を保つ
   }
   
   private checkABRepeatLoop(_currentTime: number): void {
