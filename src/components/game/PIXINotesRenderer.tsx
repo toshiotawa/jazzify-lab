@@ -11,6 +11,8 @@ import type { ActiveNote } from '@/types';
 import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
 
+const PIXI_LOOKAHEAD_SECONDS = 15;
+
 // ===== 破棄管理システム =====
 /**
  * 1. 破棄を1か所に集約 - "Dispose Manager"
@@ -1796,7 +1798,7 @@ export class PIXINotesRendererInstance {
     // ===== 巻き戻し検出とノートリスト更新 =====
     const timeMovedBackward = currentTime < this.lastUpdateTime;
     const timeDelta = Math.abs(currentTime - this.lastUpdateTime);
-    const jumpThreshold = LOOKAHEAD_TIME > 0 ? LOOKAHEAD_TIME * 0.5 : 1;
+    const jumpThreshold = PIXI_LOOKAHEAD_SECONDS > 0 ? PIXI_LOOKAHEAD_SECONDS * 0.5 : 1;
     
     // ===== シーク検出: activeNotesの数が大幅に変化した場合 =====
     const notesCountChanged = Math.abs(activeNotes.length - this.allNotes.length) > 10;
@@ -1826,7 +1828,7 @@ export class PIXINotesRendererInstance {
     this.refreshActiveNoteLookup(activeNotes);
     
     // GameEngineと同じ計算式を使用（統一化）
-    const baseFallDuration = 15.0 //LOOKAHEAD_TIME
+      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
     const visualSpeedMultiplier = this.settings.noteSpeed;
     const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
     const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
