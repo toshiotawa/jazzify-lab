@@ -1,5 +1,5 @@
 declare global {
-  interface Window {
+    interface Window {
     Tone: {
       Context: typeof AudioContext;
       Sampler: unknown;
@@ -12,10 +12,6 @@ declare global {
       };
     };
     webkitAudioContext?: typeof AudioContext;
-    performanceMonitor?: {
-      getFPS(): number;
-      stopMonitoring(): void;
-    };
   }
   
   interface Navigator {

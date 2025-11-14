@@ -874,29 +874,29 @@ const GamePlayScreen: React.FC = () => {
         <div className="text-center">
           <div className="text-6xl mb-4">🎵</div>
           <h3 className="text-xl text-gray-300 mb-4">楽曲を選択してください</h3>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={() => gameActions.setCurrentTab('songs')}
-              className="btn btn-primary"
-            >
-              楽曲選択に移動
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  const { initializeAudioSystem } = await import('@/utils/MidiController');
-                  await initializeAudioSystem();
-                  console.log('✅ Manual audio system initialization successful');
-                } catch (error) {
-                  console.error('❌ Manual audio system initialization failed:', error);
-                  alert('音声システムの初期化に失敗しました。ページを再読み込みしてください。');
-                }
-              }}
-              className="btn btn-secondary text-sm"
-            >
-              音声システム初期化
-            </button>
-          </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={() => gameActions.setCurrentTab('songs')}
+                className="btn btn-primary"
+              >
+                楽曲選択に移動
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const { initializeAudioSystem } = await import('@/utils/MidiController');
+                    await initializeAudioSystem({ light: true });
+                    console.log('✅ Manual audio system initialization successful');
+                  } catch (error) {
+                    console.error('❌ Manual audio system initialization failed:', error);
+                    alert('音声システムの初期化に失敗しました。ページを再読み込みしてください。');
+                  }
+                }}
+                className="btn btn-secondary text-sm"
+              >
+                音声システム初期化
+              </button>
+            </div>
         </div>
       </div>
     );

@@ -12,7 +12,7 @@ import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
-import { devLog, log, perfLog } from '@/utils/logger';
+import { devLog, log } from '@/utils/logger';
 
 // iOS検出関数
 const isIOS = (): boolean => {
@@ -49,7 +49,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     openResultModal
   } = useGameStore();
   
-  const [isEngineReady, setIsEngineReady] = useState(false);
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
@@ -533,7 +532,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       try {
         const { initializeAudioSystem } = await import('@/utils/MidiController');
         const { default: MIDIController } = await import('@/utils/MidiController');
-        await initializeAudioSystem();
+        await initializeAudioSystem({ light: true });
         log.info('✅ 共通音声システム初期化完了');
         
         // MIDIController インスタンスを作成
@@ -694,20 +693,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
   // ゲームエンジン初期化
   useEffect(() => {
-    const initEngine = async () => {
-      if (!gameEngine && currentSong) {
-        await initializeGameEngine();
-        setIsEngineReady(true);
-      }
-    };
+      const initEngine = async () => {
+        if (!gameEngine && currentSong) {
+          await initializeGameEngine();
+        }
+      };
     
     initEngine();
     
     return () => {
-      if (gameEngine) {
-        destroyGameEngine();
-        setIsEngineReady(false);
-      }
+        if (gameEngine) {
+          destroyGameEngine();
+        }
     };
   }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine]);
   
@@ -1030,29 +1027,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   return (
     <div className={cn("h-full w-full flex flex-col", className)}>
-      {/* ==== フローティング ステータスメニュー ==== */}
-      <div className="fixed bottom-20 left-4 z-40 pointer-events-none select-none">
-        <div className="bg-black bg-opacity-70 text-white text-xs rounded-md shadow px-3 py-2 space-y-1">
-          <div className="flex items-center space-x-2">
-            <div className={cn(
-              "w-2.5 h-2.5 rounded-full",
-              isEngineReady ? "bg-green-400" : "bg-yellow-400"
-            )} />
-            <span>ゲームエンジン: {isEngineReady ? "準備完了" : "初期化中..."}</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className={cn(
-              "w-2.5 h-2.5 rounded-full",
-              audioLoaded ? "bg-green-400" : "bg-red-500"
-            )} />
-            <span>音声: {audioLoaded ? "読み込み完了" : "読み込み中..."}</span>
-          </div>
-          <div className="text-right">
-            アクティブノーツ: {engineActiveNotes.length}
-          </div>
-        </div>
-      </div>
-      
       {/* Phase 3: PIXI.js ノーツ表示エリア - フル高さ */}
       <div 
         ref={gameAreaRef}
@@ -1124,14 +1098,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           );
         })()}
         
-        {/* PIXI.js デバッグ情報 */}
-        {pixiRenderer && (
-          <div className="fixed top-4 right-4 bg-black bg-opacity-60 text-white text-xs p-2 rounded z-30 pointer-events-none">
-            <div>PIXI.js レンダラー: 稼働中</div>
-            <div>アクティブノーツ: {engineActiveNotes.length}</div>
-            <div>解像度: {gameAreaSize.width}×{gameAreaSize.height}</div>
-          </div>
-        )}
       </div>
       
       {/* HTML5 Audio Element（楽曲再生用） */}

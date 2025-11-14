@@ -13,8 +13,8 @@ import type {
   GameScore,
   JudgmentResult
 } from '@/types';
-import { unifiedFrameController, performanceMonitor } from './performanceOptimizer';
-import { log, perfLog, devLog } from './logger';
+import { unifiedFrameController } from './performanceOptimizer';
+import { log, devLog } from './logger';
 import * as PIXI from 'pixi.js';
 
 // ===== 定数定義 =====
@@ -79,7 +79,6 @@ export class GameEngine {
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
   
-  private lastPerformanceWarning: number | null = null;
   private isGameLoopRunning: boolean = false; // ゲームループの状態を追跡
   
   constructor(settings: GameSettings) {
@@ -507,7 +506,7 @@ export class GameEngine {
     // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
     const frameStartTime = performance.now();
     if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
-      // perfLog.debug('🎯 GameEngine: 判定・状態更新ループ実行'); // 60FPSログを削除
+      // 判定・状態更新ループ（ログ出力は削除）
       this.updateNoteLogic(currentTime);
       unifiedFrameController.markNoteUpdate(frameStartTime);
     }
@@ -593,11 +592,6 @@ export class GameEngine {
       this.activeNotes.delete(noteId);
     }
     
-    // パフォーマンス監視（条件付きログ）
-    const logicDuration = performance.now() - logicStartTime;
-    if (logicDuration > 8 || activeNotesCount > 50) { // 8ms超過または50ノーツ超過時のみ
-      perfLog.info(`🎯 GameEngine判定ループ: ${logicDuration.toFixed(2)}ms | Notes: ${activeNotesCount} | Deleted: ${notesToDelete.length}`);
-    }
   }
   
   private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
@@ -793,16 +787,13 @@ export class GameEngine {
     // PIXI.Ticker.shared を使用し、unifiedFrameController と同期
     const ticker = PIXI.Ticker.shared;
 
-    const gameLoop = () => {
-      const frameStartTime = performance.now();
-      
-      // パフォーマンス監視開始
-      performanceMonitor.startFrame();
-      
-      // フレームスキップ制御
-      if (unifiedFrameController.shouldSkipFrame(frameStartTime)) {
-        return; // スキップ時はロジック・描画を行わず、次のTicker呼び出しを待つ
-      }
+      const gameLoop = () => {
+        const frameStartTime = performance.now();
+        
+        // フレームスキップ制御
+        if (unifiedFrameController.shouldSkipFrame(frameStartTime)) {
+          return; // スキップ時はロジック・描画を行わず、次のTicker呼び出しを待つ
+        }
       
       const currentTime = this.getCurrentTime();
       
@@ -861,27 +852,6 @@ export class GameEngine {
         }
       });
       
-      // パフォーマンス監視終了
-      performanceMonitor.endFrame();
-      
-      // FPS更新（軽量化）
-      const fps = performanceMonitor.updateFPS();
-      
-      // パフォーマンス劣化時の自動調整（頻度制限、重複警告防止）
-      if (!performanceMonitor.isPerformanceGood() && fps < 20) {
-        // 警告頻度を制限（20秒に1回まで）
-        const now = performance.now();
-        if (!this.lastPerformanceWarning || (now - this.lastPerformanceWarning) > 20000) {
-          log.warn(`⚠️ パフォーマンス低下検出 (FPS: ${fps}), 軽量化モードに切り替え`);
-          this.lastPerformanceWarning = now;
-          
-          unifiedFrameController.updateConfig({
-            reduceEffects: true,
-            limitActiveNotes: 15,
-            effectUpdateInterval: 100
-          });
-        }
-      }
     };
     
     this.tickerListener = gameLoop;

@@ -8,7 +8,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
-import { log, perfLog } from '@/utils/logger';
+import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
 
 // ===== 破棄管理システム =====
@@ -272,9 +272,6 @@ export class PIXINotesRendererInstance {
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   
-  // パフォーマンス監視
-  private fpsCounter = 0;
-  private lastFpsTime = 0;
   
   // ===== 新しい設計: 破棄管理＆アップデータシステム =====
   private disposeManager: DisposeManager = new DisposeManager();
@@ -1786,9 +1783,6 @@ export class PIXINotesRendererInstance {
   updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
     if (!currentTime) return; // 絶対時刻が必要
     
-    // ノーツ更新のパフォーマンス測定開始
-    const notesUpdateStartTime = performance.now();
-    
     // ===== 巻き戻し検出とノートリスト更新 =====
     const timeMovedBackward = currentTime < this.lastUpdateTime;
     
@@ -1827,15 +1821,6 @@ export class PIXINotesRendererInstance {
     const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
     const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
     
-    // FPS監視（デバッグ用）
-    this.fpsCounter++;
-    if (currentTime - this.lastFpsTime >= 1000) {
-      const processedNotes = this.allNotes.length - this.nextNoteIndex;
-      perfLog.info(`🚀 PIXI FPS: ${this.fpsCounter} | Total Notes: ${this.allNotes.length} | Processed: ${processedNotes} | Next Index: ${this.nextNoteIndex} | Sprites: ${this.noteSprites.size} | speedPxPerSec: ${speedPxPerSec.toFixed(1)}`);
-      this.fpsCounter = 0;
-      this.lastFpsTime = currentTime;
-    }
-    
     // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
     // まだ表示していないノートで、表示時刻になったもののみ処理
     const appearanceTime = currentTime + baseFallDuration; // 画面上端に現れる時刻
@@ -1864,13 +1849,6 @@ export class PIXINotesRendererInstance {
     
     
     
-    // ノーツ更新のパフォーマンス測定終了
-    const notesUpdateDuration = performance.now() - notesUpdateStartTime;
-    
-    // 重い更新処理の場合のみログ出力（5ms以上またはノート数が多い場合）
-    if (notesUpdateDuration > 5 || activeNotes.length > 100) {
-      perfLog.info(`🎯 PIXI updateNotes: ${notesUpdateDuration.toFixed(2)}ms | Notes: ${activeNotes.length} | Sprites: ${this.noteSprites.size}`);
-    }
   }
 
   /**
@@ -2005,7 +1983,6 @@ export class PIXINotesRendererInstance {
    * 重い処理（判定、状態変更、削除）のみ
    */
   private updateSpriteStates(activeNoteLookup: Map<string, ActiveNote>): void {
-    const stateStartTime = performance.now();
     const spritesToRemove: string[] = [];
     let stateChanges = 0;
     
@@ -2042,11 +2019,6 @@ export class PIXINotesRendererInstance {
       this.removeNoteSprite(noteId);
     }
     
-    // パフォーマンス監視（条件付きログ）
-    const stateDuration = performance.now() - stateStartTime;
-    if (stateDuration > 5 || this.noteSprites.size > 50) { // 5ms超過または50スプライト超過時のみ
-      perfLog.info(`🎯 PIXI状態ループ: ${stateDuration.toFixed(2)}ms | Sprites: ${this.noteSprites.size} | StateChanges: ${stateChanges} | Deleted: ${spritesToRemove.length}`);
-    }
   }
   
   /**
@@ -2831,12 +2803,7 @@ export class PIXINotesRendererInstance {
     // 破棄状態フラグを設定（レンダリングループを停止）
     this.isDestroyed = true;
     
-    try {
-        // 🎯 統合フレーム制御を停止
-        if (window.performanceMonitor) {
-          window.performanceMonitor.stopMonitoring();
-        }
-        
+      try {
         // アクティブキープレス状態をクリア（音が伸び続けるバグ防止）
         for (const midiNote of this.activeKeyPresses) {
           this.handleKeyRelease(midiNote);

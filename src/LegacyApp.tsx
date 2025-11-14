@@ -326,75 +326,9 @@ const App: React.FC = () => {
         {/* メインコンテンツ */}
         {MainContent}
         
-        {/* グローバルな状態表示 */}
-        {settings.showFPS && (
-          <FPSCounter />
-        )}
-        
-        {/* デバッグ情報（開発時のみ） */}
-        {false && process.env.NODE_ENV === 'development' && (
-          <DebugInfo />
-        )}
-        
-
         <ToastContainer />
       </div>
     </ErrorBoundary>
-  );
-};
-
-/**
- * FPSカウンター（パフォーマンス監視用）
- */
-const FPSCounter: React.FC = () => {
-  const [fps, setFps] = useState(60);
-  const debug = useGameStore((state) => state.debug);
-  
-  useEffect(() => {
-    // ❌ 独立したrequestAnimationFrameループを削除
-    // ✅ unifiedFrameControllerのパフォーマンス情報を使用
-    
-    const updateFPSFromPerformanceMonitor = () => {
-      if (window.performanceMonitor) {
-        const currentFPS = window.performanceMonitor.getFPS();
-        setFps(currentFPS);
-        
-        // ストアのデバッグ情報も更新
-        useGameStore.getState().updateDebugInfo({ fps: currentFPS });
-      }
-    };
-    
-    // 1秒間隔で更新（競合しない軽量な方式）
-    const intervalId = setInterval(updateFPSFromPerformanceMonitor, 1000);
-    
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, []);
-  
-  return (
-    <div className="fixed top-4 right-4 z-50 bg-black bg-opacity-70 text-green-400 px-4 py-2 rounded text-lg font-mono">
-      FPS: {fps}
-      <br />
-      Render: {debug.renderTime.toFixed(1)}ms
-    </div>
-  );
-};
-
-/**
- * デバッグ情報表示（開発時のみ）
- */
-const DebugInfo: React.FC = () => {
-  const debug = useGameStore((state) => state.debug);
-  const isPlaying = useGameStore((state) => state.isPlaying);
-  const currentTime = useGameStore((state) => state.currentTime);
-  
-  return (
-    <div className="fixed bottom-4 left-4 z-50 bg-black bg-opacity-70 text-yellow-400 px-4 py-3 rounded text-base font-mono max-w-sm">
-      <div>Playing: {isPlaying ? 'YES' : 'NO'}</div>
-      <div>Time: {currentTime.toFixed(2)}s</div>
-      <div>Audio Latency: {debug.audioLatency.toFixed(1)}ms</div>
-    </div>
   );
 };
 
