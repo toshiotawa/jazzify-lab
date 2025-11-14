@@ -3,6 +3,8 @@
  * ノーツ降下の軽量化のための設定とヘルパー関数
  */
 
+import { log } from './logger';
+
 export interface PerformanceConfig {
   // フレームレート制御
   targetFPS: number;
@@ -192,6 +194,8 @@ export class ObjectPool<T> {
 /**
  * パフォーマンス監視
  */
+const PERFORMANCE_MONITOR_ENABLED = import.meta.env.DEV;
+
 export class PerformanceMonitor {
   private frameCount = 0;
   private lastTime = 0;
@@ -204,17 +208,32 @@ export class PerformanceMonitor {
   private isInitializationPhase = true;
   private animationFrameId: number | null = null;
   private isMonitoring = false;
+  private isEnabled: boolean;
   
-  constructor() {
-    // 自動的にフレーム監視を開始
-    this.startMonitoring();
+  constructor(enabled: boolean = PERFORMANCE_MONITOR_ENABLED) {
+    this.isEnabled = enabled;
+    if (this.isEnabled) {
+      this.startMonitoring();
+    }
+  }
+  
+  setEnabled(enabled: boolean): void {
+    if (enabled === this.isEnabled) {
+      return;
+    }
+    this.isEnabled = enabled;
+    if (this.isEnabled) {
+      this.startMonitoring();
+    } else {
+      this.stopMonitoring();
+    }
   }
   
   /**
    * 自動フレーム監視を開始
    */
   private startMonitoring(): void {
-    if (this.isMonitoring) return;
+    if (!this.isEnabled || this.isMonitoring) return;
     this.isMonitoring = true;
     
     const monitorFrame = () => {
@@ -247,20 +266,25 @@ export class PerformanceMonitor {
   }
   
   startFrame(): void {
+    if (!this.isEnabled) return;
     this.frameStartTime = performance.now();
     
     // 初期化フェーズの判定（最初の15秒間に延長）
     if (this.isInitializationPhase && (this.frameStartTime - this.initializationTime) > 15000) {
       this.isInitializationPhase = false;
-      console.log('🎯 パフォーマンス監視開始 - 初期化フェーズ完了');
+      log.info('🎯 パフォーマンス監視開始 - 初期化フェーズ完了');
     }
   }
   
   endFrame(): void {
+    if (!this.isEnabled) return;
     this.frameDuration = performance.now() - this.frameStartTime;
   }
   
   updateFPS(): number {
+    if (!this.isEnabled) {
+      return 0;
+    }
     this.frameCount++;
     const now = performance.now();
     
@@ -287,6 +311,7 @@ export class PerformanceMonitor {
   }
   
   isPerformanceGood(): boolean {
+    if (!this.isEnabled) return true;
     // 初期化フェーズでは常に正常と判定
     if (this.isInitializationPhase) return true;
     return this.fps >= 50 && this.frameDuration <= 20; // 50FPS以上、20ms以下
@@ -296,6 +321,7 @@ export class PerformanceMonitor {
    * 最適化の健全性チェック（頻度制限強化）
    */
   private checkOptimizationHealth(): void {
+    if (!this.isEnabled) return;
     const now = performance.now();
     // チェック間隔を10秒に延長（警告頻度を大幅削減）
     if (now - this.lastOptimizationCheck < 10000) return;
@@ -317,12 +343,12 @@ export class PerformanceMonitor {
     }
     
     // 統合フレーム制御の動作確認（1回のみ）
-    if (!window.unifiedFrameController) {
+    if (typeof window !== 'undefined' && !window.unifiedFrameController) {
       this.warnOnce('MISSING_FRAME_CONTROLLER', '🔴 統合フレーム制御が無効化されています！');
     }
     
     // レンダー最適化の動作確認（1回のみ）
-    if (!window.renderOptimizer) {
+    if (typeof window !== 'undefined' && !window.renderOptimizer) {
       this.warnOnce('MISSING_RENDER_OPTIMIZER', '🔴 レンダー最適化が無効化されています！');
     }
   }
@@ -331,9 +357,10 @@ export class PerformanceMonitor {
    * 重複警告を防ぐワーニングシステム（強化版）
    */
   private warnOnce(key: string, message: string): void {
+    if (!this.isEnabled) return;
     if (!this.optimizationWarnings.has(key)) {
       // 軽量なワーニング出力
-      console.warn(message);
+      log.warn(message);
       this.optimizationWarnings.add(key);
       
       // 警告のリセット時間を延長（10分後）
@@ -358,6 +385,20 @@ export class PerformanceMonitor {
       unifiedControl: boolean;
     };
   } {
+    if (!this.isEnabled) {
+      return {
+        fps: 0,
+        frameDuration: 0,
+        isHealthy: true,
+        warnings: [],
+        isInitializing: false,
+        optimizations: {
+          frameController: typeof window !== 'undefined' ? !!window.unifiedFrameController : false,
+          renderOptimizer: typeof window !== 'undefined' ? !!window.renderOptimizer : false,
+          unifiedControl: typeof window !== 'undefined' ? !!window.unifiedFrameController?.getConfig : false
+        }
+      };
+    }
     return {
       fps: this.fps,
       frameDuration: this.frameDuration,
@@ -365,9 +406,9 @@ export class PerformanceMonitor {
       warnings: Array.from(this.optimizationWarnings),
       isInitializing: this.isInitializationPhase,
       optimizations: {
-        frameController: !!window.unifiedFrameController,
-        renderOptimizer: !!window.renderOptimizer,
-        unifiedControl: !!window.unifiedFrameController?.getConfig
+        frameController: typeof window !== 'undefined' ? !!window.unifiedFrameController : false,
+        renderOptimizer: typeof window !== 'undefined' ? !!window.renderOptimizer : false,
+        unifiedControl: typeof window !== 'undefined' ? !!window.unifiedFrameController?.getConfig : false
       }
     };
   }
@@ -534,30 +575,34 @@ export const performanceUtils = {
     return value >= min && value <= max;
   },
   
-  /**
-   * デバウンス処理
-   */
-  debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
-    let timeout: NodeJS.Timeout;
-    return ((...args: any[]) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(null, args), wait);
-    }) as T;
-  },
-  
-  /**
-   * スロットル処理
-   */
-  throttle<T extends (...args: any[]) => any>(func: T, limit: number): T {
-    let inThrottle: boolean;
-    return ((...args: any[]) => {
-      if (!inThrottle) {
-        func.apply(null, args);
-        inThrottle = true;
-        setTimeout(() => inThrottle = false, limit);
-      }
-    }) as T;
-  }
+    /**
+     * デバウンス処理
+     */
+    debounce<T extends (...args: unknown[]) => unknown>(func: T, wait: number): T {
+      let timeout: ReturnType<typeof setTimeout>;
+      return ((...args: Parameters<T>) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          func(...args);
+        }, wait);
+      }) as T;
+    },
+    
+    /**
+     * スロットル処理
+     */
+    throttle<T extends (...args: unknown[]) => unknown>(func: T, limit: number): T {
+      let inThrottle = false;
+      return ((...args: Parameters<T>) => {
+        if (!inThrottle) {
+          func(...args);
+          inThrottle = true;
+          setTimeout(() => {
+            inThrottle = false;
+          }, limit);
+        }
+      }) as T;
+    }
 };
 
 // グローバル公開（デバッグ・検証用）
@@ -572,7 +617,7 @@ declare global {
 // シングルトンインスタンス
 export const unifiedFrameController = new UnifiedFrameController(PRODUCTION_CONFIG);
 export const frameController = new FrameRateController(LIGHTWEIGHT_CONFIG);
-export const performanceMonitor = new PerformanceMonitor();
+export const performanceMonitor = new PerformanceMonitor(PERFORMANCE_MONITOR_ENABLED);
 export const renderOptimizer = new RenderOptimizer();
 export const performanceDebugger = PerformanceDebugger.getInstance();
 

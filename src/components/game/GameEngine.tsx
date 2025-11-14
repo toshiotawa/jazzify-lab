@@ -525,10 +525,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   // 共通音声システム + MIDIController + AudioController初期化
   useEffect(() => {
     const initAudio = async () => {
-      try {
-        const { initializeAudioSystem } = await import('@/utils/MidiController');
-        const { default: MIDIController } = await import('@/utils/MidiController');
-        await initializeAudioSystem();
+        try {
+          const { initializeAudioSystem } = await import('@/utils/MidiController');
+          const { default: MIDIController } = await import('@/utils/MidiController');
+          await initializeAudioSystem({ light: true });
         log.info('✅ 共通音声システム初期化完了');
         
         // MIDIController インスタンスを作成
@@ -543,7 +543,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             onConnectionChange: (connected: boolean) => {
               log.info(`🎹 MIDI接続状態変更: ${connected ? '接続' : '切断'}`);
             },
-            playMidiSound: true // 通常曲モードでは音声再生を有効
+              playMidiSound: true,
+              lightAudio: true // Legendモードでは軽量合成音を使用
           });
           
           await midiControllerRef.current.initialize();

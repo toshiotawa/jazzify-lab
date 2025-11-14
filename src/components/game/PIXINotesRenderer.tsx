@@ -273,6 +273,9 @@ export class PIXINotesRendererInstance {
   private disposeManager: DisposeManager = new DisposeManager();
   private noteUpdaters: Map<string, NoteUpdater> = new Map();
   private effectUpdaters: Set<EffectUpdater> = new Set();
+  private lastHitEffectTime = 0;
+  private maxConcurrentHitEffects = 8;
+  private hitEffectCooldownMs = 90;
 
   
   // Ticker関数への参照（削除用）
@@ -2367,9 +2370,28 @@ export class PIXINotesRendererInstance {
     graphics.endFill();
   }
   
+  private canSpawnHitEffect(): boolean {
+    if (!this.settings.hitEffect?.enabled) {
+      return false;
+    }
+    const activeEffects = this.effectsContainer?.children?.length ?? 0;
+    if (activeEffects >= this.maxConcurrentHitEffects) {
+      return false;
+    }
+    const fps = typeof performanceMonitor.getFPS === 'function' ? performanceMonitor.getFPS() : 60;
+    const cooldown = fps < 40 ? this.hitEffectCooldownMs * 1.5 : this.hitEffectCooldownMs;
+    const now = performance.now();
+    if (now - this.lastHitEffectTime < cooldown) {
+      return false;
+    }
+    this.lastHitEffectTime = now;
+    return true;
+  }
+
   private createHitEffect(x: number, y: number): void {
-    // 常にヒットエフェクトを生成（呼び出し側で判定済み）
-    log.info(`⚡ Generating hit effect at (${x.toFixed(1)}, ${y.toFixed(1)})`);
+    if (!this.canSpawnHitEffect()) {
+      return;
+    }
     
     // メインエフェクトコンテナ
     const effectContainer = new PIXI.Container();
@@ -2436,8 +2458,6 @@ export class PIXINotesRendererInstance {
     this.effectsContainer.addChild(effectContainer);
     this.container.setChildIndex(this.effectsContainer, this.container.children.length - 1);
     
-    log.info(`⚡ Effect with lane light added. Children count: ${this.effectsContainer.children.length}`);
-    
     // ===== 3. アニメーション =====
     const duration = 0.15; // 持続時間を短縮（0.3 → 0.15秒）
     let elapsed = 0;
@@ -2447,25 +2467,24 @@ export class PIXINotesRendererInstance {
     laneLight.alpha = 1.0;
     circleContainer.alpha = 1.0;
     
-    const animateTicker = (delta: number) => {
-      elapsed += delta * (1 / 60);
-      const progress = Math.min(elapsed / duration, 1);
-      
-      // 両方のエフェクトを同時に急速フェードアウト
-      const fadeAlpha = 1 - progress;
-      
-      laneLight.alpha = fadeAlpha;
-      circleContainer.alpha = fadeAlpha;
-      
-      if (progress >= 1) {
-        log.info(`⚡ Flash effect completed, removing from container`);
-        this.app.ticker.remove(animateTicker);
-        if (effectContainer.parent) {
-          this.effectsContainer.removeChild(effectContainer);
+      const animateTicker = (delta: number) => {
+        elapsed += delta * (1 / 60);
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // 両方のエフェクトを同時に急速フェードアウト
+        const fadeAlpha = 1 - progress;
+        
+        laneLight.alpha = fadeAlpha;
+        circleContainer.alpha = fadeAlpha;
+        
+        if (progress >= 1) {
+          this.app.ticker.remove(animateTicker);
+          if (effectContainer.parent) {
+            this.effectsContainer.removeChild(effectContainer);
+          }
+          effectContainer.destroy({ children: true });
         }
-        effectContainer.destroy({ children: true });
-      }
-    };
+      };
     
     this.app.ticker.add(animateTicker);
   }
