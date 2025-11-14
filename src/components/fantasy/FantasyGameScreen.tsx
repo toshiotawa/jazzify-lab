@@ -1373,29 +1373,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                     });
                   }
                 }}
-              >
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
+                >
+                  <PIXINotesRenderer
+                    width={pixiWidth}
+                    height={120} // ★★★ 高さを120に固定 ★★★
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
               </div>
             );
           } else {
             // スクロールが不要な場合（全画面表示）
             return (
-              <div className="absolute inset-0 overflow-hidden">
-                <PIXINotesRenderer
-                  activeNotes={[]}
-                  width={pixiWidth}
-                  height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
+                <div className="absolute inset-0 overflow-hidden">
+                  <PIXINotesRenderer
+                    width={pixiWidth}
+                    height={120} // ★★★ 高さを120に固定 ★★★
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
               </div>
             );
           }

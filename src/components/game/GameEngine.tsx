@@ -8,6 +8,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useGameStore } from '@/stores/gameStore';
+import { useGameSelector } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import ChordOverlay from './ChordOverlay';
@@ -28,7 +29,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 }) => {
   const {
     gameEngine,
-    engineActiveNotes,
     isPlaying,
     currentSong,
     currentTime,
@@ -36,7 +36,20 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     score,
     mode,
     lastKeyHighlight,
-    isSettingsOpen,
+    isSettingsOpen
+  } = useGameSelector((state) => ({
+    gameEngine: state.gameEngine,
+    isPlaying: state.isPlaying,
+    currentSong: state.currentSong,
+    currentTime: state.currentTime,
+    settings: state.settings,
+    score: state.score,
+    mode: state.mode,
+    lastKeyHighlight: state.lastKeyHighlight,
+    isSettingsOpen: state.isSettingsOpen
+  }));
+
+  const {
     initializeGameEngine,
     destroyGameEngine,
     handleNoteInput,
@@ -47,7 +60,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     pause,
     setLastKeyHighlight,
     openResultModal
-  } = useGameStore();
+  } = useGameStore((state) => ({
+    initializeGameEngine: state.initializeGameEngine,
+    destroyGameEngine: state.destroyGameEngine,
+    handleNoteInput: state.handleNoteInput,
+    updateEngineSettings: state.updateEngineSettings,
+    updateSettings: state.updateSettings,
+    updateTime: state.updateTime,
+    stop: state.stop,
+    pause: state.pause,
+    setLastKeyHighlight: state.setLastKeyHighlight,
+    openResultModal: state.openResultModal
+  }));
   
   const [isEngineReady, setIsEngineReady] = useState(false);
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -946,7 +970,30 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
+    }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
+
+    useEffect(() => {
+      if (!pixiRenderer) {
+        return;
+      }
+
+      const unsubscribe = useGameStore.subscribe(
+        (state) => ({
+          activeNotes: state.engineActiveNotes,
+          time: state.currentTime
+        }),
+        ({ activeNotes, time }) => {
+          if (!pixiRenderer) {
+            return;
+          }
+          pixiRenderer.updateNotes(activeNotes, time);
+        }
+      );
+
+      return () => {
+        unsubscribe();
+      };
+    }, [pixiRenderer]);
   
   // キーボード入力処理（テスト用）
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
@@ -1042,9 +1089,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             )} />
             <span>音声: {audioLoaded ? "読み込み完了" : "読み込み中..."}</span>
           </div>
-          <div className="text-right">
-            アクティブノーツ: {engineActiveNotes.length}
-          </div>
+            <div className="text-right">
+              アクティブノーツ: <ActiveNoteCount />
+            </div>
         </div>
       </div>
       
@@ -1105,14 +1152,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               }}>
                 {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
                 
-                <PIXINotesRenderer
-                  activeNotes={engineActiveNotes}
-                  width={idealWidth}
-                  height={gameAreaSize.height}
-                  currentTime={currentTime}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
+                  <PIXINotesRenderer
+                    width={idealWidth}
+                    height={gameAreaSize.height}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
                 <ChordOverlay />
               </div>
             </div>
@@ -1123,7 +1168,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         {pixiRenderer && (
           <div className="fixed top-4 right-4 bg-black bg-opacity-60 text-white text-xs p-2 rounded z-30 pointer-events-none">
             <div>PIXI.js レンダラー: 稼働中</div>
-            <div>アクティブノーツ: {engineActiveNotes.length}</div>
+            <div>アクティブノーツ: <ActiveNoteCount /></div>
             <div>解像度: {gameAreaSize.width}×{gameAreaSize.height}</div>
           </div>
         )}
@@ -1149,4 +1194,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 // 注：Phase 3でPIXI.jsレンダリングに移行済み
 // HTMLベースのピアノキーボードは削除し、PIXI.js側で統一
 
-export default GameEngineComponent; 
+const ActiveNoteCount: React.FC = () => {
+  const count = useGameStore((state) => state.engineActiveNotes.length);
+  return <>{count}</>;
+};
+
+export default GameEngineComponent;

@@ -158,10 +158,8 @@ const isHitState = (state: ActiveNote['state']) =>
 // ===== 型定義 =====
 
 interface PIXINotesRendererProps {
-  activeNotes: ActiveNote[];
   width: number;
   height: number;
-  currentTime: number; // 現在時刻を追加（アニメーション同期用）
   /** レンダラー準備完了・破棄通知。null で破棄を示す */
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
@@ -3195,10 +3193,8 @@ export class PIXINotesRendererInstance {
 // ===== React コンポーネント =====
 
 export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
-  activeNotes,
   width,
   height,
-  currentTime,
   onReady,
   className
 }) => {
@@ -3280,14 +3276,6 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       onReady?.(rendererRef.current);
     }
   }, [onReady]);
-  
-  // ノーツ更新
-  useEffect(() => {
-    if (rendererRef.current) {
-      rendererRef.current.updateNotes(activeNotes, currentTime);
-    }
-  }, [activeNotes, currentTime]);
-  
   
   // リサイズ対応
   useEffect(() => {
