@@ -39,6 +39,29 @@ let usingPianoInstrument = false;
 let audioSystemInitialized = false;
 let userInteracted = false;
 
+const SALAMANDER_BASE_URL = 'https://tonejs.github.io/audio/salamander/';
+const LIGHT_SAMPLER_URLS: Record<string, string> = {
+  A2: 'A2.mp3',
+  'D#3': 'Ds3.mp3',
+  A3: 'A3.mp3',
+  C4: 'C4.mp3'
+};
+const FULL_SAMPLER_URLS: Record<string, string> = {
+  A1: 'A1.mp3',
+  C2: 'C2.mp3',
+  'D#2': 'Ds2.mp3',
+  'F#2': 'Fs2.mp3',
+  A2: 'A2.mp3',
+  C3: 'C3.mp3',
+  'D#3': 'Ds3.mp3',
+  'F#3': 'Fs3.mp3',
+  A3: 'A3.mp3',
+  C4: 'C4.mp3'
+};
+type SamplerQuality = 'none' | 'light' | 'full';
+let samplerQuality: SamplerQuality = 'none';
+let samplerUpgradePromise: Promise<void> | null = null;
+
 // アクティブなノートを追跡するSet
 const activeNotes = new Set<string>();
 // サスティン状態（フォールバック用）
@@ -78,6 +101,50 @@ const detectUserInteraction = (): Promise<void> => {
     document.addEventListener('touchstart', handleUserInteraction);
     document.addEventListener('keydown', handleUserInteraction);
   });
+};
+
+const disposeSampler = (sampler: ToneSampler | null): void => {
+  if (!sampler) return;
+  try {
+    if (typeof (sampler as any).dispose === 'function') {
+      (sampler as any).dispose();
+    }
+  } catch (error) {
+    console.warn('⚠️ Failed to dispose sampler:', error);
+  }
+};
+
+const scheduleFullSamplerUpgrade = (): void => {
+  if (samplerQuality === 'full' || samplerUpgradePromise || usingPianoInstrument) {
+    return;
+  }
+
+  const Tone = (typeof window !== 'undefined') ? (window as any).Tone : null;
+  if (!Tone) return;
+
+  samplerUpgradePromise = (async () => {
+    try {
+      const upgradedSampler: ToneSampler = new Tone.Sampler({
+        urls: FULL_SAMPLER_URLS,
+        baseUrl: SALAMANDER_BASE_URL
+      }).toDestination();
+
+      await Tone.loaded();
+
+      const previousVolume = (globalSampler as any)?.volume?.value ?? 0;
+      disposeSampler(globalSampler);
+      globalSampler = upgradedSampler;
+      if ((globalSampler as any).volume && Number.isFinite(previousVolume)) {
+        (globalSampler as any).volume.value = previousVolume;
+      }
+      samplerQuality = 'full';
+      console.log('✅ Salamander sampler upgraded to full quality');
+      samplerUpgradePromise = null;
+    } catch (error) {
+      console.warn('⚠️ Failed to upgrade Salamander sampler:', error);
+      samplerUpgradePromise = null;
+    }
+  })();
 };
 
 /**
@@ -133,9 +200,11 @@ export const initializeAudioSystem = async (opts?: { light?: boolean }): Promise
     
     console.log('✅ Tone.js context optimized for low latency');
 
+    const lightMode = opts?.light ?? true;
+
     // 軽量モードでなければ高品質ピアノを試す
     let usedPiano = false;
-    if (!opts?.light) {
+    if (!lightMode) {
       try {
         // Piano 本体のみを直接 import して、Node の events 依存を避ける
         const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
@@ -160,40 +229,24 @@ export const initializeAudioSystem = async (opts?: { light?: boolean }): Promise
 
     // 軽量モード or ピアノ失敗時は Salamander サンプラー
     if (!usedPiano) {
-      const samplerUrls = opts?.light ? {
-        // 軽量: マッピングを減らし、初期ダウンロードを軽くする（ピッチシフトで補完）
-        "A2": "A2.mp3",
-        "D#3": "Ds3.mp3",
-        "A3": "A3.mp3",
-        "C4": "C4.mp3"
-      } : {
-        // 通常: 広いレンジでより自然な音色
-        "A1": "A1.mp3",
-        "C2": "C2.mp3",
-        "D#2": "Ds2.mp3",
-        "F#2": "Fs2.mp3",
-        "A2": "A2.mp3",
-        "C3": "C3.mp3",
-        "D#3": "Ds3.mp3",
-        "F#3": "Fs3.mp3",
-        "A3": "A3.mp3",
-        "C4": "C4.mp3"
-      };
+      const samplerUrls = lightMode ? LIGHT_SAMPLER_URLS : FULL_SAMPLER_URLS;
 
       globalSampler = new (window.Tone as any).Sampler({
         urls: samplerUrls,
-        baseUrl: "https://tonejs.github.io/audio/salamander/"
+        baseUrl: SALAMANDER_BASE_URL
       }).toDestination();
+      samplerQuality = lightMode ? 'light' : 'full';
 
       if (globalSampler && (globalSampler as any).envelope) {
         (globalSampler as any).envelope.attack = 0.001;
       }
 
-      if (opts?.light) {
+      if (lightMode) {
         // 軽量モード: バックグラウンドでロード。初期化をブロックしない
         (window.Tone as any).loaded().then(() => {
           console.log('✅ Sampler audio samples loaded (background, light mode)');
         }).catch(() => {});
+        scheduleFullSamplerUpgrade();
       } else {
         await (window.Tone as any).loaded();
         console.log('✅ Sampler audio samples preloaded and decoded');
@@ -388,7 +441,7 @@ export class MIDIController {
     this.onNoteOff = options.onNoteOff;
     this.onConnectionChange = options.onConnectionChange || null;
     this.playMidiSound = options.playMidiSound ?? true; // デフォルトは音を鳴らす
-    this.lightAudio = (options as any).lightAudio ?? false;
+    this.lightAudio = (options as any).lightAudio ?? true;
 
     console.log('🎹 MIDI Controller initialized (using global audio system)');
   }

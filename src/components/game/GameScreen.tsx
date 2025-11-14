@@ -34,8 +34,7 @@ const GameScreen: React.FC = () => {
 
   // レッスン曲とミッション曲の自動読み込み処理を追加
   useEffect(() => {
-    const handleLessonPlay = async (hash: string) => {
-      console.log('🎵 レッスン曲読み込み開始');
+      const handleLessonPlay = async (hash: string) => {
       setIsLoadingLessonSong(true);
       
       const params = new URLSearchParams(hash.split('?')[1] || '');
@@ -228,8 +227,7 @@ const GameScreen: React.FC = () => {
       }
     };
 
-    const handleMissionPlay = async (hash: string) => {
-      console.log('🎵 ミッション曲読み込み開始');
+      const handleMissionPlay = async (hash: string) => {
       setIsLoadingLessonSong(true);
       
       // 権限制御: Standard(Global)はミッションプレイ不可
@@ -246,19 +244,11 @@ const GameScreen: React.FC = () => {
       const songId = params.get('song');
       const missionId = params.get('mission');
       
-      console.log('🎵 Mission play parameters:', { songId, missionId, fullHash: hash });
-      
       if (songId && missionId) {
         try {
-          console.log('🔍 ミッション曲の条件を取得中:', { songId, missionId });
-          
           // ミッション曲の条件をデータベースから取得
           const challengeSongs = await getChallengeSongs(missionId);
-          console.log('🔍 challengeSongs取得完了:', { challengeSongs });
-          
           const challengeSong = challengeSongs.find(cs => cs.song_id === songId);
-          console.log('🔍 challengeSong検索結果:', { challengeSong });
-          
           if (!challengeSong) {
             console.error('❌ ミッション曲が見つかりません:', { 
               songId, 
@@ -273,11 +263,9 @@ const GameScreen: React.FC = () => {
             return;
           }
           
-          // 曲データを取得
-          console.log('🔍 曲データを取得中:', { songId });
+            // 曲データを取得
           const songs = await fetchSongs();
           const song = songs.find(s => s.id === songId);
-          console.log('🔍 曲データ検索結果:', { song: song ? { id: song.id, title: song.title } : null });
           
           if (!song) {
             console.error('❌ 曲が見つかりません:', {
@@ -375,8 +363,7 @@ const GameScreen: React.FC = () => {
             sheetMusicChordsOnly: challengeSong.notation_setting === 'chords_only'
           });
           
-          // 曲をロード（設定適用後に実行）
-          console.log('🎵 Loading mission song:', song.title);
+            // 曲をロード（設定適用後に実行）
           await gameActions.loadSong({
             id: song.id,
             title: song.title,
@@ -386,16 +373,11 @@ const GameScreen: React.FC = () => {
             musicXmlFile: song.xml_url || null
           }, mapped);
           
-          console.log('✅ Mission song loaded successfully, switching to practice tab');
-          
           // 画面遷移
           gameActions.setCurrentTab('practice');
           setIsLoadingLessonSong(false);
-          
-          console.log('🔧 ミッション曲読み込み完了、practiceタブに遷移中');
           setTimeout(() => {
             window.location.hash = '#practice';
-            console.log('🔧 ハッシュを#practiceに変更完了');
           }, 10);
           
         } catch (error) {
@@ -419,7 +401,6 @@ const GameScreen: React.FC = () => {
 
     const checkLessonPlay = async () => {
       const hash = window.location.hash;
-      console.log('🔍 checkLessonPlay 実行:', { hash });
       
       if (hash.startsWith('#play-lesson')) {
         await handleLessonPlay(hash);
@@ -431,7 +412,6 @@ const GameScreen: React.FC = () => {
         return;
       }
       
-      console.log('🔍 非該当ハッシュ:', { hash });
       setIsLoadingLessonSong(false);
     };
     
@@ -450,27 +430,15 @@ const GameScreen: React.FC = () => {
   // ただし、レッスン曲読み込み中（#play-lesson）またはミッション曲読み込み中（#play-mission）は除外
   useEffect(() => {
     const isPlayLessonHash = window.location.hash.startsWith('#play-lesson') || window.location.hash.startsWith('#play-mission');
-    console.log('🔧 Auto-redirect check:', { 
-      currentSong: !!currentSong, 
-      currentTab, 
-      isPlayLessonHash, 
-      isLoadingLessonSong, 
-      hash: window.location.hash,
-      willRedirect: !currentSong && currentTab !== 'songs' && !isPlayLessonHash && !isLoadingLessonSong
-    });
     
     // レッスン曲・ミッション曲読み込み中は曲選択画面へのリダイレクトをスキップ
     const isStandardGlobal = useAuthStore.getState().profile?.rank === 'standard_global';
     if (!currentSong && currentTab !== 'songs' && !isPlayLessonHash && !isLoadingLessonSong) {
       if (isStandardGlobal) {
         // 権限制御: standard_global は曲選択タブへ飛ばさない
-        console.log('🔧 Auto-redirect suppressed for Standard(Global)');
         return;
       }
-      console.log('🔧 Auto-redirecting to songs tab');
       gameActions.setCurrentTab('songs');
-    } else if (isPlayLessonHash || isLoadingLessonSong) {
-      console.log('🔧 Auto-redirect skipped (lesson/mission loading)');
     }
   }, [currentSong, currentTab, gameActions, isLoadingLessonSong]);
 
@@ -581,14 +549,11 @@ const SongSelectionScreen: React.FC = () => {
         setDbSongs(allSongs);
         
         // ユーザー統計を取得
-        if (user) {
-          console.log('🔍 [DEBUG] User found, fetching stats for user:', user.id);
-          const { fetchUserSongStatsMap } = await import('@/platform/unifiedSongProgress');
-          const statsMap = await fetchUserSongStatsMap(user.id);
-          setSongStats(statsMap);
-        } else {
-          console.log('🔍 [DEBUG] No user found, skipping stats fetch');
-        }
+      if (user) {
+        const { fetchUserSongStatsMap } = await import('@/platform/unifiedSongProgress');
+        const statsMap = await fetchUserSongStatsMap(user.id);
+        setSongStats(statsMap);
+      }
       } catch (e) {
         console.error('🔍 [DEBUG] 曲一覧取得失敗', e);
         console.error('🔍 [DEBUG] Error details:', {
@@ -683,7 +648,6 @@ const SongSelectionScreen: React.FC = () => {
           {sortedSongs.map((song) => {
             const accessible = rankAllowed((profile?.rank ?? 'free') as MembershipRank, song.min_rank as MembershipRank);
             const songStat = songStats[song.id];
-            console.log('🔍 [DEBUG] Song stats for', song.title, ':', songStat);
             return (
               <SongListItem 
                 key={song.id} 
@@ -704,7 +668,6 @@ const SongSelectionScreen: React.FC = () => {
                   gameActions.stop();
                   gameActions.clearSong();
                   
-                  console.log(`曲を選択: ${song.title}`);
                   try {
                     // JSONデータの取得（json_urlがある場合はそちらを優先）
                     let notesData: any;
@@ -760,11 +723,10 @@ const SongSelectionScreen: React.FC = () => {
                         // CORS対応: Supabaseストレージからの音声ファイル用
                         audio.crossOrigin = 'anonymous';
                         await new Promise((resolve, reject) => {
-                          const loadedHandler = () => {
-                            duration = Math.floor(audio.duration) || 60;
-                            console.log(`🎵 音声ファイル時間取得成功: ${duration}秒`);
-                            resolve(void 0);
-                          };
+                            const loadedHandler = () => {
+                              duration = Math.floor(audio.duration) || 60;
+                              resolve(void 0);
+                            };
                           const errorHandler = (e: any) => {
                             console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用', e);
                             resolve(void 0);
@@ -874,29 +836,28 @@ const GamePlayScreen: React.FC = () => {
         <div className="text-center">
           <div className="text-6xl mb-4">🎵</div>
           <h3 className="text-xl text-gray-300 mb-4">楽曲を選択してください</h3>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={() => gameActions.setCurrentTab('songs')}
-              className="btn btn-primary"
-            >
-              楽曲選択に移動
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  const { initializeAudioSystem } = await import('@/utils/MidiController');
-                  await initializeAudioSystem();
-                  console.log('✅ Manual audio system initialization successful');
-                } catch (error) {
-                  console.error('❌ Manual audio system initialization failed:', error);
-                  alert('音声システムの初期化に失敗しました。ページを再読み込みしてください。');
-                }
-              }}
-              className="btn btn-secondary text-sm"
-            >
-              音声システム初期化
-            </button>
-          </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={() => gameActions.setCurrentTab('songs')}
+                className="btn btn-primary"
+              >
+                楽曲選択に移動
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const { initializeAudioSystem } = await import('@/utils/MidiController');
+                    await initializeAudioSystem({ light: true });
+                  } catch (error) {
+                    console.error('❌ Manual audio system initialization failed:', error);
+                    alert('音声システムの初期化に失敗しました。ページを再読み込みしてください。');
+                  }
+                }}
+                className="btn btn-secondary text-sm"
+              >
+                音声システム初期化
+              </button>
+            </div>
         </div>
       </div>
     );

@@ -12,7 +12,7 @@ import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
-import { devLog, log, perfLog } from '@/utils/logger';
+import { devLog, log } from '@/utils/logger';
 
 // iOS検出関数
 const isIOS = (): boolean => {
@@ -49,7 +49,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     openResultModal
   } = useGameStore();
   
-  const [isEngineReady, setIsEngineReady] = useState(false);
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
@@ -117,16 +116,21 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         devLog.debug('🎵 音声再生可能状態に到達');
       };
       
-      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.addEventListener('error', handleError);
-      audio.addEventListener('canplay', handleCanPlay);
-      
-      log.info(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
-      // CORS対応: Supabaseストレージからの音声ファイルでWeb Audio APIを使用するため
-      audio.crossOrigin = 'anonymous';
-      audio.src = currentSong.audioFile;
-      audio.volume = settings.musicVolume;
-      audio.preload = 'metadata';
+        audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+        audio.addEventListener('error', handleError);
+        audio.addEventListener('canplay', handleCanPlay);
+        
+        log.info(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
+        // CORS対応: Supabaseストレージからの音声ファイルでWeb Audio APIを使用するため
+        audio.crossOrigin = 'anonymous';
+        audio.src = currentSong.audioFile;
+        audio.volume = settings.musicVolume;
+        audio.preload = 'auto';
+        try {
+          audio.load();
+        } catch (loadError) {
+          devLog.debug('audio.load failed (likely Safari):', loadError);
+        }
       
       return () => {
         // 旧リスナー解除
@@ -528,7 +532,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       try {
         const { initializeAudioSystem } = await import('@/utils/MidiController');
         const { default: MIDIController } = await import('@/utils/MidiController');
-        await initializeAudioSystem();
+        await initializeAudioSystem({ light: true });
         log.info('✅ 共通音声システム初期化完了');
         
         // MIDIController インスタンスを作成
@@ -576,15 +580,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           });
 
           // PIXIレンダラーが既に準備完了している場合はコールバックを設定
-          if (pixiRenderer) {
-            audioControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-              pixiRenderer.highlightKey(note, active);
-            });
-            audioControllerRef.current.setKeyPressEffectCallback((note: number) => {
-              pixiRenderer.triggerKeyPressEffect(note);
-            });
-            log.info('✅ AudioController ↔ PIXIレンダラー コールバック再設定');
-          }
+            if (pixiRenderer) {
+              audioControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+                pixiRenderer.highlightKey(note, active);
+              });
+              log.info('✅ AudioController ↔ PIXIレンダラー コールバック再設定');
+            }
         } else if (audioControllerRef.current && settings.inputMode === 'midi') {
           // MIDI専用モードの場合、AudioControllerを停止
           await audioControllerRef.current.disconnect();
@@ -615,29 +616,25 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   useEffect(() => {
     const linkMidiAndPixi = async () => {
       // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-      if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-        
-        // 1. 鍵盤ハイライト用のコールバックを設定
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRenderer.highlightKey(note, active);
-          if (active) {
-            pixiRenderer.triggerKeyPressEffect(note);
+        if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
+          // 1. 鍵盤ハイライト用のコールバックを設定
+          midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+            pixiRenderer.highlightKey(note, active);
+          });
+          
+          // 2. デバイスに再接続して、設定したコールバックを有効化
+          log.info(`🔧 Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
+          const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
+          if (success) {
+            log.info('✅ MIDI device successfully linked to renderer.');
+          } else {
+            log.warn('⚠️ Failed to link MIDI device to renderer.');
           }
-        });
-        
-        // 2. デバイスに再接続して、設定したコールバックを有効化
-        log.info(`🔧 Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-        const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        if (success) {
-          log.info('✅ MIDI device successfully linked to renderer.');
-        } else {
-          log.warn('⚠️ Failed to link MIDI device to renderer.');
+        } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
+          // デバイス選択が解除された場合は切断
+          midiControllerRef.current.disconnect();
+          log.info('🔌 MIDIデバイス切断');
         }
-      } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-        // デバイス選択が解除された場合は切断
-        midiControllerRef.current.disconnect();
-        log.info('🔌 MIDIデバイス切断');
-      }
     };
 
     linkMidiAndPixi();
@@ -689,20 +686,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
   // ゲームエンジン初期化
   useEffect(() => {
-    const initEngine = async () => {
-      if (!gameEngine && currentSong) {
-        await initializeGameEngine();
-        setIsEngineReady(true);
-      }
-    };
+      const initEngine = async () => {
+        if (!gameEngine && currentSong) {
+          await initializeGameEngine();
+        }
+      };
     
     initEngine();
     
     return () => {
-      if (gameEngine) {
-        destroyGameEngine();
-        setIsEngineReady(false);
-      }
+        if (gameEngine) {
+          destroyGameEngine();
+        }
     };
   }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine]);
   
@@ -915,10 +910,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (midiControllerRef.current) {
       midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
         renderer.highlightKey(note, active);
-        // アクティブ(ノートオン)時に即時エフェクトを発火
-        if (active) {
-          renderer.triggerKeyPressEffect(note);
-        }
       });
       
       log.info('✅ MIDIController ↔ PIXIレンダラー連携完了');
@@ -928,11 +919,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (audioControllerRef.current) {
       audioControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
         renderer.highlightKey(note, active);
-      });
-      
-      // AudioControllerにキープレスエフェクト機能を設定
-      audioControllerRef.current.setKeyPressEffectCallback((note: number) => {
-        renderer.triggerKeyPressEffect(note);
       });
       
       // 既に接続済みのデバイスがある場合、接続状態を確認して再設定
@@ -1025,29 +1011,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   return (
     <div className={cn("h-full w-full flex flex-col", className)}>
-      {/* ==== フローティング ステータスメニュー ==== */}
-      <div className="fixed bottom-20 left-4 z-40 pointer-events-none select-none">
-        <div className="bg-black bg-opacity-70 text-white text-xs rounded-md shadow px-3 py-2 space-y-1">
-          <div className="flex items-center space-x-2">
-            <div className={cn(
-              "w-2.5 h-2.5 rounded-full",
-              isEngineReady ? "bg-green-400" : "bg-yellow-400"
-            )} />
-            <span>ゲームエンジン: {isEngineReady ? "準備完了" : "初期化中..."}</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className={cn(
-              "w-2.5 h-2.5 rounded-full",
-              audioLoaded ? "bg-green-400" : "bg-red-500"
-            )} />
-            <span>音声: {audioLoaded ? "読み込み完了" : "読み込み中..."}</span>
-          </div>
-          <div className="text-right">
-            アクティブノーツ: {engineActiveNotes.length}
-          </div>
-        </div>
-      </div>
-      
       {/* Phase 3: PIXI.js ノーツ表示エリア - フル高さ */}
       <div 
         ref={gameAreaRef}
@@ -1119,14 +1082,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           );
         })()}
         
-        {/* PIXI.js デバッグ情報 */}
-        {pixiRenderer && (
-          <div className="fixed top-4 right-4 bg-black bg-opacity-60 text-white text-xs p-2 rounded z-30 pointer-events-none">
-            <div>PIXI.js レンダラー: 稼働中</div>
-            <div>アクティブノーツ: {engineActiveNotes.length}</div>
-            <div>解像度: {gameAreaSize.width}×{gameAreaSize.height}</div>
-          </div>
-        )}
       </div>
       
       {/* HTML5 Audio Element（楽曲再生用） */}
