@@ -683,7 +683,6 @@ const SongSelectionScreen: React.FC = () => {
           {sortedSongs.map((song) => {
             const accessible = rankAllowed((profile?.rank ?? 'free') as MembershipRank, song.min_rank as MembershipRank);
             const songStat = songStats[song.id];
-            console.log('🔍 [DEBUG] Song stats for', song.title, ':', songStat);
             return (
               <SongListItem 
                 key={song.id} 
@@ -704,7 +703,6 @@ const SongSelectionScreen: React.FC = () => {
                   gameActions.stop();
                   gameActions.clearSong();
                   
-                  console.log(`曲を選択: ${song.title}`);
                   try {
                     // JSONデータの取得（json_urlがある場合はそちらを優先）
                     let notesData: any;

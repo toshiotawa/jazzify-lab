@@ -242,6 +242,8 @@ export class PIXINotesRendererInstance {
   private particles!: PIXI.Container; // パーティクル用コンテナ
   
   private noteSprites: Map<string, NoteSprite> = new Map();
+  private readonly whiteKeyCount: number;
+  private activeNoteMap: Map<string, ActiveNote> = new Map();
 
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
   private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
@@ -333,16 +335,16 @@ export class PIXINotesRendererInstance {
   // キープレス状態追跡（音が伸び続けるバグ防止の保険）
   private activeKeyPresses: Set<number> = new Set();
   
-  
-  constructor(width: number, height: number) {
+    
+    constructor(width: number, height: number) {
+      this.whiteKeyCount = this.calculateTotalWhiteKeys();
     log.info(`🎯 PIXINotesRenderer constructor: ${width}x${height}`);
     
     // 指定された高さをそのまま使用
     const adjustedHeight = height;
     
     // ★ まず白鍵幅を求めてnoteWidthを設定
-    const totalWhite = this.calculateTotalWhiteKeys();
-    const whiteKeyWidth = width / totalWhite;
+      const whiteKeyWidth = width / this.whiteKeyCount;
     this.settings.noteWidth = whiteKeyWidth - 2;   // 1px ずつ余白
     log.info(`🎹 White key width: ${whiteKeyWidth.toFixed(2)}px, Note width: ${this.settings.noteWidth.toFixed(2)}px`);
     
@@ -1098,13 +1100,7 @@ export class PIXINotesRendererInstance {
     const minNote = 21;
     const maxNote = 108;
     
-    // 白鍵の総数を計算
-    let totalWhiteKeys = 0;
-    for (let note = minNote; note <= maxNote; note++) {
-      if (!this.isBlackKey(note)) {
-        totalWhiteKeys++;
-      }
-    }
+    const totalWhiteKeys = this.whiteKeyCount;
     
     // 画面幅に合わせて白鍵幅を動的計算（最小12px確保）
     const whiteKeyWidth = Math.max(this.app.screen.width / totalWhiteKeys, 12);
@@ -1701,7 +1697,7 @@ export class PIXINotesRendererInstance {
     keySprite.clear();
     
     // 基本的な寸法を再計算（createBlackKeyと同じ値）
-    const whiteKeyWidth = this.app.screen.width / this.calculateTotalWhiteKeys();
+    const whiteKeyWidth = this.app.screen.width / this.whiteKeyCount;
     const blackKeyWidthRatio = 0.8;
     const adjustedWidth = whiteKeyWidth * blackKeyWidthRatio;
     const blackKeyHeight = this.settings.pianoHeight * 0.65;
@@ -1778,10 +1774,17 @@ export class PIXINotesRendererInstance {
    * 88鍵中の白鍵幅（ピクセル）を返す
    */
   private getWhiteKeyWidth(): number {
-    const totalWhite = this.calculateTotalWhiteKeys();   // 52鍵
-    return this.app.screen.width / totalWhite;
+    return this.app.screen.width / this.whiteKeyCount;
   }
   
+  private rebuildActiveNoteMap(activeNotes: ActiveNote[]): Map<string, ActiveNote> {
+    this.activeNoteMap.clear();
+    for (const note of activeNotes) {
+      this.activeNoteMap.set(note.id, note);
+    }
+    return this.activeNoteMap;
+  }
+
   /**
    * ノーツ表示の更新 - ループ分離最適化版
    * 位置更新と状態更新を分離してCPU使用量を30-50%削減
@@ -1856,15 +1859,18 @@ export class PIXINotesRendererInstance {
       this.nextNoteIndex++;
     }
     
+    // 現在のアクティブノートをマップ化して O(1) アクセスを実現
+    const activeNoteMap = this.rebuildActiveNoteMap(activeNotes);
+
     // ===== 🚀 CPU最適化: ループ分離による高速化 =====
     // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
-    this.updateSpritePositions(activeNotes, currentTime, speedPxPerSec);
+    this.updateSpritePositions(activeNoteMap, currentTime, speedPxPerSec);
     
     // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
     // const frameStartTime = performance.now(); // パフォーマンス監視用（現在未使用）
     
     // 状態・削除処理ループ（フレーム間引き無効化）
-    this.updateSpriteStates(activeNotes);
+    this.updateSpriteStates(activeNoteMap);
     
     
     
@@ -1881,16 +1887,12 @@ export class PIXINotesRendererInstance {
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
    */
-  private updateSpritePositions(activeNotes: ActiveNote[], currentTime: number, speedPxPerSec: number): void {
-    const currentNoteIds = new Set(activeNotes.map(note => note.id));
-    
+  private updateSpritePositions(activeNoteMap: Map<string, ActiveNote>, currentTime: number, speedPxPerSec: number): void {
     for (const [noteId, sprite] of this.noteSprites) {
-      if (!currentNoteIds.has(noteId)) {
-        continue; // 削除対象は状態更新ループで処理
+      const note = activeNoteMap.get(noteId);
+      if (!note) {
+        continue;
       }
-      
-      const note = activeNotes.find(n => n.id === noteId);
-      if (!note) continue;
       
       // ===== Y座標更新（毎フレーム、軽量処理） =====
       const suppliedY = note.y;
@@ -2005,21 +2007,18 @@ export class PIXINotesRendererInstance {
    * 🎯 状態・削除処理専用ループ（フレーム間引き実行）
    * 重い処理（判定、状態変更、削除）のみ
    */
-  private updateSpriteStates(activeNotes: ActiveNote[]): void {
+  private updateSpriteStates(activeNoteMap: Map<string, ActiveNote>): void {
     const stateStartTime = performance.now();
-    const currentNoteIds = new Set(activeNotes.map(note => note.id));
     const spritesToRemove: string[] = [];
     let stateChanges = 0;
     
     for (const [noteId, sprite] of this.noteSprites) {
-      if (!currentNoteIds.has(noteId)) {
-        // 画面外に出たノーツをマーク（後でバッチ削除）
+      const note = activeNoteMap.get(noteId);
+      if (!note) {
+        // 既に非アクティブになったノーツをマーク
         spritesToRemove.push(noteId);
         continue;
       }
-      
-      const note = activeNotes.find(n => n.id === noteId);
-      if (!note) continue;
       
       // ===== 状態 or 音名 変更チェック（変更時のみ、重い処理） =====
       if (sprite.noteData.state !== note.state || sprite.noteData.noteName !== note.noteName) {

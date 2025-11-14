@@ -206,14 +206,12 @@ export class PerformanceMonitor {
   private isMonitoring = false;
   
   constructor() {
-    // 自動的にフレーム監視を開始
-    this.startMonitoring();
   }
   
   /**
    * 自動フレーム監視を開始
    */
-  private startMonitoring(): void {
+  startMonitoring(): void {
     if (this.isMonitoring) return;
     this.isMonitoring = true;
     
@@ -400,6 +398,8 @@ export class PerformanceDebugger {
     if (!this.isEnabled) return;
     this.isEnabled = false;
     
+    performanceMonitor.stopMonitoring();
+    
     if (this.debugElement) {
       this.debugElement.remove();
       this.debugElement = null;
@@ -426,6 +426,7 @@ export class PerformanceDebugger {
   }
   
   private startMonitoring(): void {
+    performanceMonitor.startMonitoring();
     const updateDebugInfo = () => {
       if (!this.isEnabled || !this.debugElement) return;
       
