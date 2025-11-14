@@ -10,6 +10,7 @@ import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
 import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
+import { frameScheduler } from '@/utils/performanceOptimizer';
 
 const PIXI_LOOKAHEAD_SECONDS = 15;
 
@@ -287,10 +288,12 @@ export class PIXINotesRendererInstance {
     private activeHitEffects: Set<ActiveHitEffect> = new Set();
     private readonly hitEffectDurationMs = 120;
 
+    private stopFrameLoop?: () => void;
+  
   
   // Ticker関数への参照（削除用）
   private mainUpdateFunction?: (delta: number) => void;
-  private effectUpdateFunction?: (delta: number) => void;
+    private effectUpdateFunction?: (elapsedMs: number) => void;
   
   // リアルタイムアニメーション用
   // リアルタイムアニメーション用（将来の拡張用）
@@ -429,8 +432,8 @@ export class PIXINotesRendererInstance {
       this.activeKeyPresses.clear();
     });
     
-    // 🎯 統合フレーム制御でPIXIアプリケーションを開始
-    this.startUnifiedRendering();
+      // 🎯 統合フレーム制御でPIXIアプリケーションを開始
+      this.startFrameLoop();
     
     log.info('✅ PIXI.js renderer initialized successfully');
   }
@@ -458,95 +461,77 @@ export class PIXINotesRendererInstance {
     };
 
     // エフェクト更新関数（低頻度実行）
-    this.effectUpdateFunction = () => {
+    this.effectUpdateFunction = (elapsedMs: number) => {
       if (this.isDestroyed || this.disposeManager.disposed) return;
 
-      const deltaMs = PIXI.Ticker.shared.deltaMS;
-      this.effectsElapsed += deltaMs;
+      const normalizedDelta = elapsedMs / 16;
 
-      if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
-        const normalizedDelta = this.effectsElapsed / 16;
-
-        for (const updater of this.effectUpdaters) {
-          if (!updater.active) {
-            this.effectUpdaters.delete(updater);
-            continue;
-          }
-          updater.update(normalizedDelta);
+      for (const updater of this.effectUpdaters) {
+        if (!updater.active) {
+          this.effectUpdaters.delete(updater);
+          continue;
         }
-
-        this.updateHitEffects(this.effectsElapsed);
-        this.effectsElapsed = 0;
+        updater.update(normalizedDelta);
       }
+
+      this.updateHitEffects(elapsedMs);
     };
 
-    // Tickerに登録
-    PIXI.Ticker.shared.add(this.mainUpdateFunction);
-    PIXI.Ticker.shared.add(this.effectUpdateFunction);
-
-    // 破棄時にTicker関数を削除するよう登録
+    // 破棄時にループを停止
     this.disposeManager.add(() => {
-      if (this.mainUpdateFunction) {
-        PIXI.Ticker.shared.remove(this.mainUpdateFunction);
-        this.mainUpdateFunction = undefined;
+      if (this.stopFrameLoop) {
+        this.stopFrameLoop();
+        this.stopFrameLoop = undefined;
       }
-      if (this.effectUpdateFunction) {
-        PIXI.Ticker.shared.remove(this.effectUpdateFunction);
-        this.effectUpdateFunction = undefined;
-      }
+      this.mainUpdateFunction = undefined;
+      this.effectUpdateFunction = undefined;
     });
-
-
 
     log.debug('✅ Ticker system setup completed');
   }
 
-  /**
-   * 🎯 統合フレーム制御でPIXIアプリケーションを開始
-   */
-  // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
-  private startUnifiedRendering(): void {
-    if (!window.unifiedFrameController) {
-      log.warn('⚠️ unifiedFrameController not available, using default PIXI ticker');
-      this.app.start();
+  private startFrameLoop(): void {
+    if (this.stopFrameLoop) {
       return;
     }
-    
-    // 統合フレーム制御を使用してPIXIアプリケーションを制御
-    const renderFrame = () => {
-      const currentTime = performance.now();
-      
-      // 統合フレーム制御でフレームスキップ判定
-      if (window.unifiedFrameController.shouldSkipFrame(currentTime)) {
-        // フレームをスキップ
-        requestAnimationFrame(renderFrame);
+
+    this.stopFrameLoop = frameScheduler.subscribe(({ deltaMs }) => {
+      if (this.isDestroyed || this.disposeManager.disposed) {
         return;
       }
-      
-      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
-      if (this.isDestroyed) {
-        // 破棄済みの場合はレンダリングループを停止
-        return;
+
+      const normalizedDelta = deltaMs / (1000 / 60);
+      if (this.mainUpdateFunction) {
+        this.mainUpdateFunction(normalizedDelta);
       }
-      
-      try {
-        if (this.app && this.app.renderer) {
-          this.app.render();
-        }
-      } catch (error) {
-        log.warn('⚠️ PIXI render error (likely destroyed):', error);
-        // レンダリングループを停止
-        return;
+
+      this.effectsElapsed += deltaMs;
+      if (this.effectsElapsed >= 16 && this.effectUpdateFunction) {
+        const elapsed = this.effectsElapsed;
+        this.effectsElapsed = 0;
+        this.effectUpdateFunction(elapsed);
       }
-      
-      // 次のフレームをスケジュール
-      requestAnimationFrame(renderFrame);
-    };
-    
-    // レンダリングループを開始
-    renderFrame();
-    
+
+      this.safeRender();
+    });
+
     log.info('🎯 PIXI.js unified frame control started');
+  }
+
+  private safeRender(): void {
+    if (this.isDestroyed || !this.app || !this.app.renderer) {
+      return;
+    }
+
+    try {
+      this.app.render();
+    } catch (error) {
+      log.warn('⚠️ PIXI render error (likely destroyed):', error);
+      if (this.stopFrameLoop) {
+        this.stopFrameLoop();
+        this.stopFrameLoop = undefined;
+      }
+    }
   }
   
   /**
@@ -2816,11 +2801,16 @@ export class PIXINotesRendererInstance {
   /**
    * リソース解放
    */
-  destroy(): void {
-    // 破棄状態フラグを設定（レンダリングループを停止）
-    this.isDestroyed = true;
-    
-      try {
+    destroy(): void {
+      // 破棄状態フラグを設定（レンダリングループを停止）
+      this.isDestroyed = true;
+      
+        if (this.stopFrameLoop) {
+          this.stopFrameLoop();
+          this.stopFrameLoop = undefined;
+        }
+      
+        try {
         // アクティブキープレス状態をクリア（音が伸び続けるバグ防止）
         for (const midiNote of this.activeKeyPresses) {
           this.handleKeyRelease(midiNote);
