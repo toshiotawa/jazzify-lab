@@ -17,6 +17,8 @@ import { unifiedFrameController } from './performanceOptimizer';
 import { log, devLog } from './logger';
 import * as PIXI from 'pixi.js';
 
+type InternalNote = NoteData & { _wasProcessed?: boolean };
+
 // ===== 定数定義 =====
 
 export const JUDGMENT_TIMING: JudgmentTiming = {
@@ -166,6 +168,8 @@ export class GameEngine {
   stop(): void {
     this.pausedTime = 0;
     this.stopGameLoop();
+    this.activeNotes.clear();
+    this.resetNoteProcessing(0);
     this.resetScore();
   }
   
@@ -185,13 +189,7 @@ export class GameEngine {
       this.activeNotes.clear();
       
       // シーク位置より後のノートの処理済みフラグとappearTimeをクリア
-      this.notes.forEach(note => {
-        if (note.time >= safeTime) {
-          delete (note as any)._wasProcessed;
-          // Fix: Reset appearTime to force recalculation based on new seek position
-          delete (note as any).appearTime;
-        }
-      });
+      this.resetNoteProcessing(safeTime);
       
       // ログ削除: FPS最適化のため
       // devLog.debug(`🎮 GameEngine.seek: ${safeTime.toFixed(2)}s`);
@@ -464,6 +462,16 @@ export class GameEngine {
       score: 0,
       rank: 'D'
     };
+  }
+
+  private resetNoteProcessing(startTime = 0): void {
+    const notes = this.notes as InternalNote[];
+    for (const note of notes) {
+      if (note.time >= startTime) {
+        delete note._wasProcessed;
+        delete note.appearTime;
+      }
+    }
   }
   
   private updateNotes(currentTime: number): ActiveNote[] {
