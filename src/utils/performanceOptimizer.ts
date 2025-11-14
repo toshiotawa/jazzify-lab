@@ -204,17 +204,23 @@ export class PerformanceMonitor {
   private isInitializationPhase = true;
   private animationFrameId: number | null = null;
   private isMonitoring = false;
+    private readonly isEnabled: boolean;
   
-  constructor() {
-    // 自動的にフレーム監視を開始
-    this.startMonitoring();
+    constructor() {
+      const isDevEnv = typeof import.meta !== 'undefined' && Boolean(import.meta.env?.DEV);
+      const forceEnable = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('perfMonitor') === 'true';
+      this.isEnabled = isDevEnv || forceEnable;
+      if (this.isEnabled) {
+        // 自動的にフレーム監視を開始
+        this.startMonitoring();
+      }
   }
   
   /**
    * 自動フレーム監視を開始
    */
   private startMonitoring(): void {
-    if (this.isMonitoring) return;
+      if (!this.isEnabled || this.isMonitoring) return;
     this.isMonitoring = true;
     
     const monitorFrame = () => {
@@ -239,14 +245,16 @@ export class PerformanceMonitor {
    * 監視を停止
    */
   stopMonitoring(): void {
-    this.isMonitoring = false;
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
+      if (!this.isEnabled) return;
+      this.isMonitoring = false;
+      if (this.animationFrameId) {
+        cancelAnimationFrame(this.animationFrameId);
+        this.animationFrameId = null;
+      }
   }
   
   startFrame(): void {
+      if (!this.isEnabled) return;
     this.frameStartTime = performance.now();
     
     // 初期化フェーズの判定（最初の15秒間に延長）
@@ -257,10 +265,14 @@ export class PerformanceMonitor {
   }
   
   endFrame(): void {
+      if (!this.isEnabled) return;
     this.frameDuration = performance.now() - this.frameStartTime;
   }
   
   updateFPS(): number {
+      if (!this.isEnabled) {
+        return this.fps;
+      }
     this.frameCount++;
     const now = performance.now();
     
@@ -296,6 +308,7 @@ export class PerformanceMonitor {
    * 最適化の健全性チェック（頻度制限強化）
    */
   private checkOptimizationHealth(): void {
+      if (!this.isEnabled) return;
     const now = performance.now();
     // チェック間隔を10秒に延長（警告頻度を大幅削減）
     if (now - this.lastOptimizationCheck < 10000) return;
@@ -331,6 +344,7 @@ export class PerformanceMonitor {
    * 重複警告を防ぐワーニングシステム（強化版）
    */
   private warnOnce(key: string, message: string): void {
+      if (!this.isEnabled) return;
     if (!this.optimizationWarnings.has(key)) {
       // 軽量なワーニング出力
       console.warn(message);
@@ -358,18 +372,40 @@ export class PerformanceMonitor {
       unifiedControl: boolean;
     };
   } {
-    return {
-      fps: this.fps,
-      frameDuration: this.frameDuration,
-      isHealthy: this.isPerformanceGood(),
-      warnings: Array.from(this.optimizationWarnings),
-      isInitializing: this.isInitializationPhase,
-      optimizations: {
-        frameController: !!window.unifiedFrameController,
-        renderOptimizer: !!window.renderOptimizer,
-        unifiedControl: !!window.unifiedFrameController?.getConfig
+      const frameControllerActive =
+        typeof window !== 'undefined' ? !!window.unifiedFrameController : false;
+      const renderOptimizerActive =
+        typeof window !== 'undefined' ? !!window.renderOptimizer : false;
+      const unifiedControlActive =
+        typeof window !== 'undefined' ? !!window.unifiedFrameController?.getConfig : false;
+      
+      if (!this.isEnabled) {
+        return {
+          fps: 0,
+          frameDuration: 0,
+          isHealthy: true,
+          warnings: [],
+          isInitializing: false,
+          optimizations: {
+            frameController: frameControllerActive,
+            renderOptimizer: renderOptimizerActive,
+            unifiedControl: unifiedControlActive
+          }
+        };
       }
-    };
+      
+      return {
+        fps: this.fps,
+        frameDuration: this.frameDuration,
+        isHealthy: this.isPerformanceGood(),
+        warnings: Array.from(this.optimizationWarnings),
+        isInitializing: this.isInitializationPhase,
+        optimizations: {
+          frameController: frameControllerActive,
+          renderOptimizer: renderOptimizerActive,
+          unifiedControl: unifiedControlActive
+        }
+      };
   }
 }
 

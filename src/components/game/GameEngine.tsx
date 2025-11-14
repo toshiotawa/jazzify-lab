@@ -13,6 +13,7 @@ import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRendere
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
 import { devLog, log, perfLog } from '@/utils/logger';
+import { useShallow } from 'zustand/react/shallow';
 
 // iOS検出関数
 const isIOS = (): boolean => {
@@ -28,12 +29,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 }) => {
   const {
     gameEngine,
-    engineActiveNotes,
     isPlaying,
     currentSong,
     currentTime,
     settings,
-    score,
     mode,
     lastKeyHighlight,
     isSettingsOpen,
@@ -47,7 +46,35 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     pause,
     setLastKeyHighlight,
     openResultModal
-  } = useGameStore();
+  } = useGameStore(
+    useShallow((state) => ({
+      gameEngine: state.gameEngine,
+      isPlaying: state.isPlaying,
+      currentSong: state.currentSong,
+      currentTime: state.currentTime,
+      settings: state.settings,
+      mode: state.mode,
+      lastKeyHighlight: state.lastKeyHighlight,
+      isSettingsOpen: state.isSettingsOpen,
+      initializeGameEngine: state.initializeGameEngine,
+      destroyGameEngine: state.destroyGameEngine,
+      handleNoteInput: state.handleNoteInput,
+      updateEngineSettings: state.updateEngineSettings,
+      updateSettings: state.updateSettings,
+      updateTime: state.updateTime,
+      stop: state.stop,
+      pause: state.pause,
+      setLastKeyHighlight: state.setLastKeyHighlight,
+      openResultModal: state.openResultModal
+    }))
+  );
+  const engineActiveNoteCount = useGameStore((state) => state.engineActiveNotes.length);
+  const { goodCount, missCount } = useGameStore(
+    useShallow((state) => ({
+      goodCount: state.score.goodCount,
+      missCount: state.score.missCount
+    }))
+  );
   
   const [isEngineReady, setIsEngineReady] = useState(false);
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -1042,9 +1069,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             )} />
             <span>音声: {audioLoaded ? "読み込み完了" : "読み込み中..."}</span>
           </div>
-          <div className="text-right">
-            アクティブノーツ: {engineActiveNotes.length}
-          </div>
+            <div className="text-right">
+              アクティブノーツ: {engineActiveNoteCount}
+            </div>
         </div>
       </div>
       
@@ -1054,13 +1081,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         className="relative flex-1 bg-gray-900 rounded-lg overflow-hidden"
       >
         {/* GOOD / MISS オーバーレイ */}
-        {mode === 'performance' && (
-        <div className="absolute top-3 left-3 z-20 text-lg font-bold bg-black bg-opacity-70 px-3 py-2 rounded-lg pointer-events-none">
-          <span className="text-green-400">✓ {score.goodCount}</span>
-          <span className="mx-3 text-gray-500">|</span>
-          <span className="text-red-400">× {score.missCount}</span>
-        </div>
-        )}
+          {mode === 'performance' && (
+          <div className="absolute top-3 left-3 z-20 text-lg font-bold bg-black bg-opacity-70 px-3 py-2 rounded-lg pointer-events-none">
+            <span className="text-green-400">✓ {goodCount}</span>
+            <span className="mx-3 text-gray-500">|</span>
+            <span className="text-red-400">× {missCount}</span>
+          </div>
+          )}
         {/* PIXI.js ノーツレンダラー（統合済み） */}
         {(() => {
           const TOTAL_WHITE_KEYS = 52; // 88鍵ピアノの白鍵数
@@ -1105,28 +1132,26 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               }}>
                 {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
                 
-                <PIXINotesRenderer
-                  activeNotes={engineActiveNotes}
-                  width={idealWidth}
-                  height={gameAreaSize.height}
-                  currentTime={currentTime}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-                <ChordOverlay />
+                  <PixiRendererHost
+                    width={idealWidth}
+                    height={gameAreaSize.height}
+                    currentTime={currentTime}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
               </div>
             </div>
           );
         })()}
         
         {/* PIXI.js デバッグ情報 */}
-        {pixiRenderer && (
-          <div className="fixed top-4 right-4 bg-black bg-opacity-60 text-white text-xs p-2 rounded z-30 pointer-events-none">
-            <div>PIXI.js レンダラー: 稼働中</div>
-            <div>アクティブノーツ: {engineActiveNotes.length}</div>
-            <div>解像度: {gameAreaSize.width}×{gameAreaSize.height}</div>
-          </div>
-        )}
+          {pixiRenderer && (
+            <div className="fixed top-4 right-4 bg-black bg-opacity-60 text-white text-xs p-2 rounded z-30 pointer-events-none">
+              <div>PIXI.js レンダラー: 稼働中</div>
+              <div>アクティブノーツ: {engineActiveNoteCount}</div>
+              <div>解像度: {gameAreaSize.width}×{gameAreaSize.height}</div>
+            </div>
+          )}
       </div>
       
       {/* HTML5 Audio Element（楽曲再生用） */}
@@ -1150,3 +1175,31 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 // HTMLベースのピアノキーボードは削除し、PIXI.js側で統一
 
 export default GameEngineComponent; 
+
+interface PixiRendererHostProps {
+  width: number;
+  height: number;
+  currentTime: number;
+  onReady: (renderer: PIXINotesRendererInstance | null) => void;
+  className?: string;
+}
+
+const PixiRendererHost = React.memo(({ width, height, currentTime, onReady, className }: PixiRendererHostProps) => {
+  const engineActiveNotes = useGameStore((state) => state.engineActiveNotes);
+  
+  return (
+    <>
+      <PIXINotesRenderer
+        activeNotes={engineActiveNotes}
+        width={width}
+        height={height}
+        currentTime={currentTime}
+        onReady={onReady}
+        className={className}
+      />
+      <ChordOverlay />
+    </>
+  );
+});
+
+PixiRendererHost.displayName = 'PixiRendererHost';

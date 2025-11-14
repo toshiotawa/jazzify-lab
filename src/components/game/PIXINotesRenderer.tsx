@@ -236,12 +236,14 @@ export class PIXINotesRendererInstance {
   private whiteNotes!: PIXI.ParticleContainer; // 白鍵ノーツ専用コンテナ
   private blackNotes!: PIXI.ParticleContainer; // 黒鍵ノーツ専用コンテナ
   private labelsContainer!: PIXI.Container; // ラベル専用コンテナ
-  private effectsContainer!: PIXI.Container;
-  private hitLineContainer!: PIXI.Container;
-  private pianoContainer!: PIXI.Container;
-  private particles!: PIXI.Container; // パーティクル用コンテナ
-  
-  private noteSprites: Map<string, NoteSprite> = new Map();
+    private effectsContainer!: PIXI.Container;
+    private hitLineContainer!: PIXI.Container;
+    private pianoContainer!: PIXI.Container;
+    private particles!: PIXI.Container; // パーティクル用コンテナ
+    
+    private noteSprites: Map<string, NoteSprite> = new Map();
+    private activeNoteLookup: Map<string, ActiveNote> = new Map();
+    private activeNoteIds: Set<string> = new Set();
 
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
   private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
@@ -1774,13 +1776,22 @@ export class PIXINotesRendererInstance {
     return count;
   }
   
-  /**
-   * 88鍵中の白鍵幅（ピクセル）を返す
-   */
-  private getWhiteKeyWidth(): number {
-    const totalWhite = this.calculateTotalWhiteKeys();   // 52鍵
-    return this.app.screen.width / totalWhite;
-  }
+    /**
+     * 88鍵中の白鍵幅（ピクセル）を返す
+     */
+    private getWhiteKeyWidth(): number {
+      const totalWhite = this.calculateTotalWhiteKeys();   // 52鍵
+      return this.app.screen.width / totalWhite;
+    }
+
+    private syncActiveNotesCache(activeNotes: ActiveNote[]): void {
+      this.activeNoteLookup.clear();
+      this.activeNoteIds.clear();
+      for (const note of activeNotes) {
+        this.activeNoteLookup.set(note.id, note);
+        this.activeNoteIds.add(note.id);
+      }
+    }
   
   /**
    * ノーツ表示の更新 - ループ分離最適化版
@@ -1824,6 +1835,7 @@ export class PIXINotesRendererInstance {
     }
     
     this.lastUpdateTime = currentTime;
+    this.syncActiveNotesCache(activeNotes);
     
     // GameEngineと同じ計算式を使用（統一化）
     const baseFallDuration = 15.0 //LOOKAHEAD_TIME
@@ -1858,13 +1870,13 @@ export class PIXINotesRendererInstance {
     
     // ===== 🚀 CPU最適化: ループ分離による高速化 =====
     // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
-    this.updateSpritePositions(activeNotes, currentTime, speedPxPerSec);
+    this.updateSpritePositions(this.activeNoteIds, this.activeNoteLookup, currentTime, speedPxPerSec);
     
     // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
     // const frameStartTime = performance.now(); // パフォーマンス監視用（現在未使用）
     
     // 状態・削除処理ループ（フレーム間引き無効化）
-    this.updateSpriteStates(activeNotes);
+    this.updateSpriteStates(this.activeNoteIds, this.activeNoteLookup);
     
     
     
@@ -1881,15 +1893,13 @@ export class PIXINotesRendererInstance {
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
    */
-  private updateSpritePositions(activeNotes: ActiveNote[], currentTime: number, speedPxPerSec: number): void {
-    const currentNoteIds = new Set(activeNotes.map(note => note.id));
-    
+  private updateSpritePositions(activeNoteIds: Set<string>, noteLookup: Map<string, ActiveNote>, currentTime: number, speedPxPerSec: number): void {
     for (const [noteId, sprite] of this.noteSprites) {
-      if (!currentNoteIds.has(noteId)) {
-        continue; // 削除対象は状態更新ループで処理
+      if (!activeNoteIds.has(noteId)) {
+        continue;
       }
       
-      const note = activeNotes.find(n => n.id === noteId);
+      const note = noteLookup.get(noteId);
       if (!note) continue;
       
       // ===== Y座標更新（毎フレーム、軽量処理） =====
@@ -2005,20 +2015,19 @@ export class PIXINotesRendererInstance {
    * 🎯 状態・削除処理専用ループ（フレーム間引き実行）
    * 重い処理（判定、状態変更、削除）のみ
    */
-  private updateSpriteStates(activeNotes: ActiveNote[]): void {
+  private updateSpriteStates(activeNoteIds: Set<string>, noteLookup: Map<string, ActiveNote>): void {
     const stateStartTime = performance.now();
-    const currentNoteIds = new Set(activeNotes.map(note => note.id));
     const spritesToRemove: string[] = [];
     let stateChanges = 0;
     
     for (const [noteId, sprite] of this.noteSprites) {
-      if (!currentNoteIds.has(noteId)) {
+      if (!activeNoteIds.has(noteId)) {
         // 画面外に出たノーツをマーク（後でバッチ削除）
         spritesToRemove.push(noteId);
         continue;
       }
       
-      const note = activeNotes.find(n => n.id === noteId);
+      const note = noteLookup.get(noteId);
       if (!note) continue;
       
       // ===== 状態 or 音名 変更チェック（変更時のみ、重い処理） =====
