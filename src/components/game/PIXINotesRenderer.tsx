@@ -1795,10 +1795,13 @@ export class PIXINotesRendererInstance {
     
     // ===== 巻き戻し検出とノートリスト更新 =====
     const timeMovedBackward = currentTime < this.lastUpdateTime;
+    const timeDelta = Math.abs(currentTime - this.lastUpdateTime);
+    const jumpThreshold = LOOKAHEAD_TIME > 0 ? LOOKAHEAD_TIME * 0.5 : 1;
     
     // ===== シーク検出: activeNotesの数が大幅に変化した場合 =====
     const notesCountChanged = Math.abs(activeNotes.length - this.allNotes.length) > 10;
-    const seekDetected = timeMovedBackward || notesCountChanged;
+    const jumpedFar = timeDelta > jumpThreshold;
+    const seekDetected = timeMovedBackward || notesCountChanged || jumpedFar;
     
     // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
     if (seekDetected) {
