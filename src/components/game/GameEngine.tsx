@@ -417,75 +417,78 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }
     }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying]);
   
-  // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
-  const timeIntervalRef = useRef<number | null>(null);
+  const timeRafRef = useRef<number | null>(null);
+  const settingsRef = useRef(settings);
+  const songRef = useRef(currentSong);
+  const audioLoadedRef = useRef(audioLoaded);
+  
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+  
+  useEffect(() => {
+    songRef.current = currentSong;
+  }, [currentSong]);
+  
+  useEffect(() => {
+    audioLoadedRef.current = audioLoaded;
+  }, [audioLoaded]);
   
   const startTimeSync = () => {
-    // ❌ requestAnimationFrameループは使わない
-    // ✅ 軽量なsetIntervalで時間更新（60FPSより低頻度で競合回避）
-    
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
+    if (timeRafRef.current !== null) {
+      cancelAnimationFrame(timeRafRef.current);
     }
     
-    const updateGameTime = () => {
-      if (!useGameStore.getState().isPlaying) return;
+    const tick = () => {
+      if (!useGameStore.getState().isPlaying) {
+        timeRafRef.current = null;
+        return;
+      }
       
       let newTime = 0;
       const audio = audioRef.current;
       const audioCtx = audioContextRef.current;
-      const hasAudio = currentSong?.audioFile && audio && audioLoaded;
+      const currentSongSnapshot = songRef.current;
+      const hasAudio = currentSongSnapshot?.audioFile && audio && audioLoadedRef.current;
+      const currentSettings = settingsRef.current;
       
-      if (hasAudio && !audio.paused && audioCtx) {
-        // 音声ありモード：audio要素の時刻を基準
+      if (hasAudio && audio && !audio.paused && audioCtx) {
         newTime = audio.currentTime;
       } else if (audioCtx) {
-        // 音声なしモード：AudioContextの時刻とオフセットで計算
-        const realTimeElapsed = (audioCtx.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
+        const realTimeElapsed = (audioCtx.currentTime - baseOffsetRef.current) * currentSettings.playbackSpeed;
         newTime = Math.max(0, realTimeElapsed);
       } else {
-        // フォールバック
-        newTime = useGameStore.getState().currentTime + (50 / 1000); // 50ms進行と仮定
+        newTime = useGameStore.getState().currentTime + (1 / 60);
       }
       
-      // 🎯 重要：時間を進行させる！
       updateTime(newTime);
       
-      // 楽曲終了チェックをrequestIdleCallbackで実行
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => {
-          const songDuration = useGameStore.getState().currentSong?.duration || 0;
-          if (songDuration > 0 && newTime >= songDuration) {
-            useGameStore.getState().stop();
-            
-            // 本番モード時にリザルトモーダルを開く
-            if (useGameStore.getState().mode === 'performance') {
-              useGameStore.getState().openResultModal();
-            }
-          }
-        });
-      } else {
-        // requestIdleCallbackが無い場合は通常実行
+      const finalizeSong = () => {
         const songDuration = useGameStore.getState().currentSong?.duration || 0;
         if (songDuration > 0 && newTime >= songDuration) {
           useGameStore.getState().stop();
-          
-          // 本番モード時にリザルトモーダルを開く
           if (useGameStore.getState().mode === 'performance') {
             useGameStore.getState().openResultModal();
           }
         }
+      };
+      
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(finalizeSong);
+      } else {
+        finalizeSong();
       }
+      
+      timeRafRef.current = requestAnimationFrame(tick);
     };
     
-    // 30ms間隔で時間更新（33FPS相当、楽譜スクロールを滑らかに）
-    timeIntervalRef.current = window.setInterval(updateGameTime, 30);
+    timeRafRef.current = requestAnimationFrame(tick);
   };
   
   const stopTimeSync = useCallback(() => {
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
-      timeIntervalRef.current = null;
+    if (timeRafRef.current !== null) {
+      cancelAnimationFrame(timeRafRef.current);
+      timeRafRef.current = null;
     }
   }, []);
   

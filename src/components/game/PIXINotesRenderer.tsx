@@ -175,6 +175,7 @@ interface NoteSprite {
   label?: PIXI.Sprite; // Text から Sprite に変更（テクスチャアトラス用）
   effectPlayed?: boolean; // エフェクト重複生成防止
   transposeAtCreation?: number; // 作成時のトランスポーズ値を記録
+  targetY?: number;
 }
 
 interface RendererSettings {
@@ -297,6 +298,7 @@ export class PIXINotesRendererInstance {
   private _animationSpeed: number = 1.0;
   private lastFrameTime: number = performance.now();
   private renderLoopHandle?: number;
+  private frameDeltaMs: number = 16.7;
   private effectsElapsed: number = 0; // エフェクト更新用の経過時間カウンター
 
   private stopRenderLoop(): void {
@@ -394,6 +396,15 @@ export class PIXINotesRendererInstance {
     // モバイルスクロールのため、ステージレベルでは`static`に設定
     // 背景エリアは`none`で、ピアノキーのみ`static`で個別に制御
     this.app.stage.eventMode = 'static';
+    const interaction = (this.app.renderer as PIXI.Renderer).plugins?.interaction;
+    if (interaction) {
+      interaction.moveWhenInside = true;
+      interaction.autoPreventDefault = false;
+    }
+    const canvasView = this.app.view as HTMLCanvasElement;
+    canvasView.style.willChange = 'transform';
+    canvasView.style.contain = 'strict';
+    canvasView.style.touchAction = 'pan-x';
     
     // 判定ラインをピアノの上端に正確に配置
     const actualHeight = this.app.view.height;
@@ -510,6 +521,7 @@ export class PIXINotesRendererInstance {
         }
         const deltaMs = timestamp - this.lastFrameTime;
         this.lastFrameTime = timestamp;
+        this.frameDeltaMs = Number.isFinite(deltaMs) && deltaMs > 0 ? deltaMs : 16.7;
   
         const frameController = window.unifiedFrameController;
         if (frameController && frameController.shouldSkipFrame(timestamp, 'render')) {
@@ -524,6 +536,7 @@ export class PIXINotesRendererInstance {
         if (this.effectUpdateFunction) {
           this.effectUpdateFunction(deltaMs);
         }
+        this.animateSpritePositions(this.frameDeltaMs);
   
         try {
           this.app.render();
@@ -1867,12 +1880,12 @@ export class PIXINotesRendererInstance {
       const suppliedY = note.y;
       const fallbackY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
       const targetY = suppliedY !== undefined ? suppliedY : fallbackY;
-      const previousSpriteY = Number.isFinite(sprite.sprite.y) ? sprite.sprite.y : targetY;
-      const newY = previousSpriteY + (targetY - previousSpriteY) * 0.35;
-
-      sprite.sprite.y = newY;
-      if (sprite.label) sprite.label.y = newY - 8;
-      if (sprite.glowSprite) sprite.glowSprite.y = newY;
+      sprite.targetY = targetY;
+      if (!Number.isFinite(sprite.sprite.y)) {
+        sprite.sprite.y = targetY;
+        if (sprite.label) sprite.label.y = targetY - 8;
+        if (sprite.glowSprite) sprite.glowSprite.y = targetY;
+      }
       
       // ===== X座標更新（ピッチ変更時のみ） =====
       if (sprite.noteData.pitch !== note.pitch) {
@@ -1968,6 +1981,18 @@ export class PIXINotesRendererInstance {
     }
   }
 
+  private animateSpritePositions(deltaMs: number): void {
+    const smoothing = Math.min(1, deltaMs / 16.7);
+    for (const sprite of this.noteSprites.values()) {
+      const targetY = sprite.targetY ?? sprite.sprite.y;
+      const currentY = sprite.sprite.y ?? targetY;
+      const newY = currentY + (targetY - currentY) * smoothing;
+      sprite.sprite.y = newY;
+      if (sprite.label) sprite.label.y = newY - 8;
+      if (sprite.glowSprite) sprite.glowSprite.y = newY;
+    }
+  }
+
   private refreshActiveNoteLookup(notes: ActiveNote[]): void {
     this.activeNoteLookup.clear();
     for (const note of notes) {
@@ -2051,7 +2076,7 @@ export class PIXINotesRendererInstance {
     const isBlackNote = this.isBlackKey(effectivePitch);
     const texture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
     
-    // メインノートスプライト（位置は後でupdateNotesで設定）
+    // メインノートスプライト（位置は後で更新）
     const sprite = new PIXI.Sprite(texture);
     // ノーツスプライトは完全にイベント非対象（クリック透過）
     ;(sprite as any).eventMode = 'none';
@@ -2132,13 +2157,19 @@ export class PIXINotesRendererInstance {
       log.error(`❌ Failed to add note sprite to container:`, error);
     }
     
+    const initialY = Number.isFinite(note.y) ? (note.y as number) : this.settings.hitLineY;
+    sprite.y = initialY;
+    if (label) label.y = initialY - 8;
+    if (glowSprite) glowSprite.y = initialY;
+    
     const noteSprite: NoteSprite = {
       sprite,
       glowSprite,
       noteData: note,
       label,
       effectPlayed: false,
-      transposeAtCreation: this.settings.transpose
+      transposeAtCreation: this.settings.transpose,
+      targetY: initialY
     };
     
     this.noteSprites.set(note.id, noteSprite);
