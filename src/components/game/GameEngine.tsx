@@ -1085,16 +1085,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                 WebkitTouchCallout: 'none',
                 position: 'relative'
               }}>
-                {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
-                
-                <PIXINotesRenderer
-                  activeNotes={engineActiveNotes}
-                  width={idealWidth}
-                  height={gameAreaSize.height}
-                  currentTime={currentTime}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
+                  {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
+                  <PIXINotesRenderer
+                    activeNotes={engineActiveNotes}
+                    width={idealWidth}
+                    height={gameAreaSize.height}
+                    currentTime={currentTime}
+                    isPlaying={isPlaying}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
                 <ChordOverlay />
               </div>
             </div>
