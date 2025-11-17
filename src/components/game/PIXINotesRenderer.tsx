@@ -37,9 +37,9 @@ class DisposeManager {
     for (const fn of this.disposables) {
       try {
         fn();
-      } catch (error) {
-        log.error('⚠️ Dispose error:', error);
-      }
+        } catch (error) {
+          log.error('⚠️ Dispose error:', error);
+        }
     }
     this.disposables.length = 0;
     this.isDisposed = true;
@@ -162,7 +162,6 @@ interface PIXINotesRendererProps {
   activeNotes: ActiveNote[];
   width: number;
   height: number;
-  currentTime: number; // 現在時刻を追加（アニメーション同期用）
   /** レンダラー準備完了・破棄通知。null で破棄を示す */
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
@@ -296,6 +295,9 @@ export class PIXINotesRendererInstance {
   // リアルタイムアニメーション用（将来の拡張用）
   private _currentTime: number = 0;
   private _animationSpeed: number = 1.0;
+    private timeProvider: (() => number) | null = null;
+    private speedPxPerSec: number = 0;
+    private positionsDirty = false;
   private lastFrameTime: number = performance.now();
   private effectsElapsed: number = 0; // エフェクト更新用の経過時間カウンター
   
@@ -391,6 +393,7 @@ export class PIXINotesRendererInstance {
     // 判定ラインをピアノの上端に正確に配置
     const actualHeight = this.app.view.height;
     this.settings.hitLineY = actualHeight - this.settings.pianoHeight;
+    this.speedPxPerSec = this.computeSpeedPxPerSec();
     
     // サイズ不整合がある場合のみ警告
     if (width !== this.app.view.width || height !== this.app.view.height) {
@@ -455,6 +458,8 @@ export class PIXINotesRendererInstance {
         }
         updater.update(delta);
       }
+      
+      this.updateTimelineFrame(PIXI.Ticker.shared.deltaMS);
     };
 
     // エフェクト更新関数（低頻度実行）
@@ -1788,12 +1793,23 @@ export class PIXINotesRendererInstance {
     return this.app.screen.width / totalWhite;
   }
   
+  private computeSpeedPxPerSec(): number {
+    const baseFallDuration = PIXI_LOOKAHEAD_SECONDS || 1;
+    const totalDistance = this.settings.hitLineY - (-5);
+    const visualSpeedMultiplier = this.settings.noteSpeed;
+    return (totalDistance / baseFallDuration) * visualSpeedMultiplier;
+  }
+  
   /**
    * ノーツ表示の更新 - ループ分離最適化版
    * 位置更新と状態更新を分離してCPU使用量を30-50%削減
    */
-  updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
-    if (typeof currentTime !== 'number') return; // 絶対時刻が必要
+  updateNotes(activeNotes: ActiveNote[]): void {
+    const providedTime = this.timeProvider?.();
+    if (typeof providedTime === 'number' && Number.isFinite(providedTime)) {
+      this._currentTime = providedTime;
+    }
+    const currentTime = this._currentTime;
     
     // ===== 巻き戻し検出とノートリスト更新 =====
     const timeMovedBackward = currentTime < this.lastUpdateTime;
@@ -1831,6 +1847,7 @@ export class PIXINotesRendererInstance {
     const visualSpeedMultiplier = this.settings.noteSpeed;
     const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
     const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
+    this.speedPxPerSec = speedPxPerSec;
     
     // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
     // まだ表示していないノートで、表示時刻になったもののみ処理
@@ -1857,9 +1874,11 @@ export class PIXINotesRendererInstance {
     
     // 状態・削除処理ループ（フレーム間引き無効化）
     this.updateSpriteStates(this.activeNoteLookup);
-    
-    
-    
+    this.positionsDirty = true;
+  }
+
+  setTimeProvider(provider: (() => number) | null): void {
+    this.timeProvider = provider ?? null;
   }
 
   /**
@@ -1979,6 +1998,34 @@ export class PIXINotesRendererInstance {
         pitch: note.pitch,
         crossingLogged: note.crossingLogged // crossingLogged を同期してハイライト多重発火を防止
       };
+    }
+  
+    private resolveTimelineTime(deltaMs: number): number {
+      const providedTime = this.timeProvider?.();
+      if (typeof providedTime === 'number' && Number.isFinite(providedTime)) {
+        this._currentTime = providedTime;
+        return providedTime;
+      }
+      
+      const fallback = this._currentTime + (deltaMs / 1000) * this._animationSpeed;
+      this._currentTime = fallback;
+      return fallback;
+    }
+  
+    private updateTimelineFrame(deltaMs: number): void {
+      if (this.noteSprites.size === 0 && !this.positionsDirty) {
+        return;
+      }
+      
+      const resolvedTime = this.resolveTimelineTime(deltaMs);
+      const timeUnchanged = resolvedTime === this.lastUpdateTime;
+      if (timeUnchanged && !this.positionsDirty) {
+        return;
+      }
+      
+      this.updateSpritePositions(this.activeNoteLookup, resolvedTime, this.speedPxPerSec);
+      this.lastUpdateTime = resolvedTime;
+      this.positionsDirty = false;
     }
   }
 
@@ -2569,6 +2616,8 @@ export class PIXINotesRendererInstance {
       // 修正: app.view.height を使用
       this.settings.hitLineY = this.app.view.height - this.settings.pianoHeight;
       log.info(`🔧 Updated hitLineY: ${this.settings.hitLineY}`);
+        this.speedPxPerSec = this.computeSpeedPxPerSec();
+        this.positionsDirty = true;
 
       // 既存のヒットラインを削除して再描画
       if (this.hitLineContainer) {
@@ -2811,6 +2860,11 @@ export class PIXINotesRendererInstance {
       // PIXIレンダラーに即座に描画を強制
       this.app.renderer.render(this.app.stage);
     }
+      
+      if (newSettings.noteSpeed !== undefined) {
+        this.speedPxPerSec = this.computeSpeedPxPerSec();
+        this.positionsDirty = true;
+      }
   }
   
   /**
@@ -3079,6 +3133,8 @@ export class PIXINotesRendererInstance {
     // 修正: リサイズ後の高さを使用
     this.settings.hitLineY = height - this.settings.pianoHeight;
     log.info(`🔧 Resize hitLineY: ${this.settings.hitLineY}`);
+    this.speedPxPerSec = this.computeSpeedPxPerSec();
+    this.positionsDirty = true;
     
     // ピアノとヒットラインの再描画
     if (this.pianoContainer) {
@@ -3194,7 +3250,6 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   activeNotes,
   width,
   height,
-  currentTime,
   onReady,
   className
 }) => {
@@ -3280,9 +3335,9 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   // ノーツ更新
   useEffect(() => {
     if (rendererRef.current) {
-      rendererRef.current.updateNotes(activeNotes, currentTime);
+      rendererRef.current.updateNotes(activeNotes);
     }
-  }, [activeNotes, currentTime]);
+  }, [activeNotes]);
   
   
   // リサイズ対応
