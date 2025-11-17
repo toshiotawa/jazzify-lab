@@ -266,9 +266,6 @@ export class PIXINotesRendererInstance {
   // ガイド用ハイライト（演奏と独立して保持）
   private guideHighlightedKeys: Set<number> = new Set();
   
-  // ★ パフォーマンス最適化: nextNoteIndex ポインタシステム
-  private allNotes: ActiveNote[] = []; // 全ノートのソート済みリスト
-  private nextNoteIndex: number = 0;   // 次に表示するノートのインデックス
   private lastUpdateTime: number = 0;  // 前回の更新時刻（巻き戻し検出用）
   
   // ===== テクスチャキャッシュ =====
@@ -282,10 +279,10 @@ export class PIXINotesRendererInstance {
   
   // ===== 新しい設計: 破棄管理＆アップデータシステム =====
   private disposeManager: DisposeManager = new DisposeManager();
-    private noteUpdaters: Map<string, NoteUpdater> = new Map();
-    private effectUpdaters: Set<EffectUpdater> = new Set();
-    private activeHitEffects: Set<ActiveHitEffect> = new Set();
-    private readonly hitEffectDurationMs = 120;
+  private noteUpdaters: Map<string, NoteUpdater> = new Map();
+  private effectUpdaters: Set<EffectUpdater> = new Set();
+  private activeHitEffects: Set<ActiveHitEffect> = new Set();
+  private readonly hitEffectDurationMs = 120;
 
   
   // Ticker関数への参照（削除用）
@@ -1804,48 +1801,23 @@ export class PIXINotesRendererInstance {
     const jumpedFar = timeDelta > jumpThreshold;
     const seekDetected = timeMovedBackward || jumpedFar;
     
-    // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
     if (seekDetected) {
-      // 全てのノートスプライトを削除
-      const noteIds = Array.from(this.noteSprites.keys());
-      for (const noteId of noteIds) {
-        this.removeNoteSprite(noteId);
-      }
-      this.noteSprites.clear();
-    }
-    
-    // ノートリストが変更された場合、または巻き戻しが発生した場合
-    if (seekDetected) {
-      this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time);
-      this.nextNoteIndex = 0;
-    } else {
-      this.allNotes = activeNotes;
-      this.nextNoteIndex = Math.min(this.nextNoteIndex, this.allNotes.length);
+      this.resetNoteSpriteCache();
     }
     
     this.lastUpdateTime = currentTime;
     this.refreshActiveNoteLookup(activeNotes);
     
     // GameEngineと同じ計算式を使用（統一化）
-      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
+    const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
     const visualSpeedMultiplier = this.settings.noteSpeed;
     const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
     const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
     
-    // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
-    // まだ表示していないノートで、表示時刻になったもののみ処理
-    const appearanceTime = currentTime + baseFallDuration; // 画面上端に現れる時刻
-    
-    while (this.nextNoteIndex < this.allNotes.length &&
-           this.allNotes[this.nextNoteIndex].time <= appearanceTime) {
-      const note = this.allNotes[this.nextNoteIndex];
-      
-      // 新規ノーツスプライト作成（初回のみ）
+    for (const note of activeNotes) {
       if (!this.noteSprites.has(note.id)) {
         this.createNoteSprite(note);
       }
-      
-      this.nextNoteIndex++;
     }
     
     // ===== 🚀 CPU最適化: ループ分離による高速化 =====
@@ -1853,15 +1825,22 @@ export class PIXINotesRendererInstance {
     this.updateSpritePositions(this.activeNoteLookup, currentTime, speedPxPerSec);
     
     // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
-    // const frameStartTime = performance.now(); // パフォーマンス監視用（現在未使用）
-    
-    // 状態・削除処理ループ（フレーム間引き無効化）
     this.updateSpriteStates(this.activeNoteLookup);
-    
-    
-    
   }
-
+  
+  private resetNoteSpriteCache(): void {
+    if (this.noteSprites.size === 0) {
+      this.noteUpdaters.clear();
+      return;
+    }
+    
+    const noteIds = Array.from(this.noteSprites.keys());
+    for (const noteId of noteIds) {
+      this.removeNoteSprite(noteId);
+    }
+    this.noteUpdaters.clear();
+  }
+  
   /**
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
@@ -2031,32 +2010,6 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    /**
-     * 二分探索で指定時刻に対応するノートインデックスを取得
-     */
-    private findNoteIndexByTime(targetTime: number): number {
-      if (this.allNotes.length === 0) return 0;
-      
-      const baseFallDuration = 15.0;
-      const appearanceTime = targetTime + baseFallDuration;
-      
-      let left = 0;
-      let right = this.allNotes.length - 1;
-      
-      while (left <= right) {
-        const mid = Math.floor((left + right) / 2);
-        const noteTime = this.allNotes[mid].time;
-        
-        if (noteTime <= appearanceTime) {
-          left = mid + 1;
-        } else {
-          right = mid - 1;
-        }
-      }
-      
-      return left; // 最初の「まだ表示していない」ノートのインデックス
-    }
-  
   private createNoteSprite(note: ActiveNote): NoteSprite {
     const effectivePitch = note.pitch + this.settings.transpose;
     const x = this.pitchToX(note.pitch);
