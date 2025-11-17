@@ -958,7 +958,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       return;
     }
     
-    log.info('🎮 PIXI.js renderer ready, setting up callbacks...');
+      log.info('🎮 PIXI.js renderer ready, setting up callbacks...');
     setPixiRenderer(renderer);
     renderBridgeRef.current?.attachRenderer(renderer);
     
