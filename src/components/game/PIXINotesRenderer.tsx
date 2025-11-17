@@ -159,10 +159,8 @@ const isHitState = (state: ActiveNote['state']) =>
 // ===== 型定義 =====
 
 interface PIXINotesRendererProps {
-  activeNotes: ActiveNote[];
   width: number;
   height: number;
-  currentTime: number; // 現在時刻を追加（アニメーション同期用）
   /** レンダラー準備完了・破棄通知。null で破棄を示す */
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
@@ -256,6 +254,10 @@ export class PIXINotesRendererInstance {
   private noteSprites: Map<string, NoteSprite> = new Map();
   private hitEffectPool: HitEffectInstance[] = [];
   private activeNoteLookup: Map<string, ActiveNote> = new Map();
+  private latestActiveNotes: ActiveNote[] = [];
+  private activeNotesSignature: string | null = null;
+  private needsLookupRefresh: boolean = false;
+  private currentSpeedPxPerSec: number = 0;
 
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
   private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
@@ -1789,77 +1791,93 @@ export class PIXINotesRendererInstance {
   }
   
   /**
-   * ノーツ表示の更新 - ループ分離最適化版
-   * 位置更新と状態更新を分離してCPU使用量を30-50%削減
+   * ノーツ表示の更新 - データキャッシュ + フレーム同期版
    */
   updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
-    if (typeof currentTime !== 'number') return; // 絶対時刻が必要
+    this.latestActiveNotes = activeNotes;
+    this.needsLookupRefresh = true;
     
-    // ===== 巻き戻し検出とノートリスト更新 =====
+    if (activeNotes.length === 0) {
+      this.resetAllNoteSprites();
+      this.activeNotesSignature = null;
+      this.allNotes = [];
+      this.nextNoteIndex = 0;
+      return;
+    }
+    
+    const signature = this.computeNotesSignature(activeNotes);
+    const signatureChanged = signature !== this.activeNotesSignature;
+    this.activeNotesSignature = signature;
+    
+    const effectiveTime = typeof currentTime === 'number'
+      ? currentTime
+      : this.lastUpdateTime;
+    
+    if (typeof effectiveTime === 'number') {
+      this.syncToTime(effectiveTime, signatureChanged);
+    }
+  }
+  
+  /**
+   * 現在時刻のみの更新（requestAnimationFrame から呼び出し）
+   */
+  updateCurrentTime(currentTime: number): void {
+    if (!Number.isFinite(currentTime)) {
+      return;
+    }
+    this.syncToTime(currentTime);
+  }
+  
+  private syncToTime(currentTime: number, forceResync = false): void {
+    if (this.latestActiveNotes.length === 0) {
+      this.resetAllNoteSprites();
+      this.activeNoteLookup.clear();
+      this.lastUpdateTime = currentTime;
+      return;
+    }
+    
+    if (this.needsLookupRefresh) {
+      this.refreshActiveNoteLookup(this.latestActiveNotes);
+      this.needsLookupRefresh = false;
+    }
+    
     const timeMovedBackward = currentTime < this.lastUpdateTime;
     const timeDelta = Math.abs(currentTime - this.lastUpdateTime);
     const jumpThreshold = PIXI_LOOKAHEAD_SECONDS > 0 ? PIXI_LOOKAHEAD_SECONDS * 0.5 : 1;
+    const seekDetected = forceResync || timeMovedBackward || timeDelta > jumpThreshold;
     
-    // ===== シーク検出: 時間が逆行または大きく飛んだ場合のみ =====
-    const jumpedFar = timeDelta > jumpThreshold;
-    const seekDetected = timeMovedBackward || jumpedFar;
-    
-    // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
     if (seekDetected) {
-      // 全てのノートスプライトを削除
-      const noteIds = Array.from(this.noteSprites.keys());
-      for (const noteId of noteIds) {
-        this.removeNoteSprite(noteId);
-      }
-      this.noteSprites.clear();
-    }
-    
-    // ノートリストが変更された場合、または巻き戻しが発生した場合
-    if (seekDetected) {
-      this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time);
+      this.resetAllNoteSprites();
+      this.allNotes = [...this.latestActiveNotes].sort((a, b) => a.time - b.time);
       this.nextNoteIndex = 0;
-    } else {
-      this.allNotes = activeNotes;
+    } else if (this.allNotes !== this.latestActiveNotes) {
+      this.allNotes = this.latestActiveNotes;
       this.nextNoteIndex = Math.min(this.nextNoteIndex, this.allNotes.length);
+    } else if (!this.allNotes.length) {
+      this.allNotes = [...this.latestActiveNotes];
+      this.nextNoteIndex = 0;
     }
     
     this.lastUpdateTime = currentTime;
-    this.refreshActiveNoteLookup(activeNotes);
     
-    // GameEngineと同じ計算式を使用（統一化）
-      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
-    const visualSpeedMultiplier = this.settings.noteSpeed;
-    const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
-    const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
+    const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
+    const totalDistance = this.settings.hitLineY - (-5);
+    this.currentSpeedPxPerSec = (totalDistance / baseFallDuration) * this.settings.noteSpeed;
     
-    // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
-    // まだ表示していないノートで、表示時刻になったもののみ処理
-    const appearanceTime = currentTime + baseFallDuration; // 画面上端に現れる時刻
-    
-    while (this.nextNoteIndex < this.allNotes.length &&
-           this.allNotes[this.nextNoteIndex].time <= appearanceTime) {
+    const appearanceTime = currentTime + baseFallDuration;
+    while (
+      this.nextNoteIndex < this.allNotes.length &&
+      this.allNotes[this.nextNoteIndex].time <= appearanceTime
+    ) {
       const note = this.allNotes[this.nextNoteIndex];
-      
-      // 新規ノーツスプライト作成（初回のみ）
       if (!this.noteSprites.has(note.id)) {
         this.createNoteSprite(note);
       }
-      
       this.nextNoteIndex++;
     }
     
-    // ===== 🚀 CPU最適化: ループ分離による高速化 =====
-    // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
-    this.updateSpritePositions(this.activeNoteLookup, currentTime, speedPxPerSec);
-    
-    // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
-    // const frameStartTime = performance.now(); // パフォーマンス監視用（現在未使用）
-    
-    // 状態・削除処理ループ（フレーム間引き無効化）
+    this.updateSpritePositions(this.activeNoteLookup, currentTime, this.currentSpeedPxPerSec);
     this.updateSpriteStates(this.activeNoteLookup);
-    
-    
-    
   }
 
   /**
@@ -2030,6 +2048,26 @@ export class PIXINotesRendererInstance {
         this.removeNoteSprite(noteId);
       }
     }
+  
+  private resetAllNoteSprites(): void {
+    if (this.noteSprites.size === 0) {
+      return;
+    }
+    const noteIds = Array.from(this.noteSprites.keys());
+    for (const noteId of noteIds) {
+      this.removeNoteSprite(noteId);
+    }
+    this.nextNoteIndex = 0;
+  }
+  
+  private computeNotesSignature(notes: ActiveNote[]): string {
+    if (!notes.length) {
+      return '0';
+    }
+    const first = notes[0];
+    const last = notes[notes.length - 1];
+    return `${notes.length}:${first.id}:${first.state}:${last.id}:${last.state}:${first.time}:${last.time}`;
+  }
     
     /**
      * 二分探索で指定時刻に対応するノートインデックスを取得
@@ -3191,10 +3229,8 @@ export class PIXINotesRendererInstance {
 // ===== React コンポーネント =====
 
 export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
-  activeNotes,
   width,
   height,
-  currentTime,
   onReady,
   className
 }) => {
@@ -3276,14 +3312,6 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       onReady?.(rendererRef.current);
     }
   }, [onReady]);
-  
-  // ノーツ更新
-  useEffect(() => {
-    if (rendererRef.current) {
-      rendererRef.current.updateNotes(activeNotes, currentTime);
-    }
-  }, [activeNotes, currentTime]);
-  
   
   // リサイズ対応
   useEffect(() => {
