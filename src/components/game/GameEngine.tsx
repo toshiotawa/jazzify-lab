@@ -292,16 +292,23 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           } catch (err) {
             log.error('Tone.connect failed:', err);
           }
-        } else if (pitchShiftRef.current) {
-          try {
-            pitchShiftRef.current.dispose();
-          } catch (err) {
-            log.warn('PitchShift dispose failed', err);
+        } else {
+          if (pitchShiftRef.current) {
+            try {
+              pitchShiftRef.current.dispose();
+            } catch (err) {
+              log.warn('PitchShift dispose failed', err);
+            }
+            pitchShiftRef.current = null;
           }
-          pitchShiftRef.current = null;
           try {
             mediaSourceRef.current.disconnect();
           } catch (_) {/* ignore */}
+          try {
+            mediaSourceRef.current.connect(audioContext.destination);
+          } catch (err) {
+            log.error('MediaElementAudioSourceNode connect failed:', err);
+          }
         }
 
         // 5) AudioContext を resume し、再生位置を同期
