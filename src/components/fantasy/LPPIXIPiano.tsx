@@ -194,7 +194,6 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
             activeNotes={[]}
             width={canvasWidth}
             height={height}
-            currentTime={0}
             onReady={handleRendererReady}
             className="min-w-full"
           />
