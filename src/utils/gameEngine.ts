@@ -536,45 +536,9 @@ export class GameEngine {
       }
     }
     
-      if (this.shouldEmitRendererFrame(visibleNotes)) {
-        this.rendererBridge?.(visibleNotes, currentTime);
-      }
+      this.rendererBridge?.(visibleNotes, currentTime);
     return visibleNotes;
   }
-
-    private shouldEmitRendererFrame(notes: ActiveNote[]): boolean {
-      const nextMap = new Map<string, string>();
-      let changed = false;
-      for (const note of notes) {
-        const signature = this.buildNoteSignature(note);
-        nextMap.set(note.id, signature);
-        const previous = this.lastRenderedNotes.get(note.id);
-        if (!previous || previous !== signature) {
-          changed = true;
-        }
-      }
-      if (!changed && this.lastRenderedNotes.size !== nextMap.size) {
-        changed = true;
-      }
-      if (!changed) {
-        for (const key of this.lastRenderedNotes.keys()) {
-          if (!nextMap.has(key)) {
-            changed = true;
-            break;
-          }
-        }
-      }
-      this.lastRenderedNotes = nextMap;
-      return changed;
-    }
-
-    private buildNoteSignature(note: ActiveNote): string {
-      const yValue = Number.isFinite(note.y) ? Math.round((note.y ?? 0) * 1000) : -1;
-      const prevY = Number.isFinite(note.previousY) ? Math.round((note.previousY ?? 0) * 1000) : -1;
-      const crossing = note.crossingLogged ? 1 : 0;
-      const judged = note.judged ? 1 : 0;
-      return `${note.id}|${note.state}|${note.pitch}|${yValue}|${prevY}|${note.noteName ?? ''}|${crossing}|${judged}`;
-    }
 
   /**
    * 🚀 位置更新専用ループ（毎フレーム実行）

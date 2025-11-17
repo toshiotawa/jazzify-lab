@@ -1857,12 +1857,18 @@ export class PIXINotesRendererInstance {
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
    */
+  private warningActive = false;
   private updateSpritePositions(activeNoteLookup: Map<string, ActiveNote>, currentTime: number, speedPxPerSec: number): void {
     for (const [noteId, sprite] of this.noteSprites) {
       const note = activeNoteLookup.get(noteId);
       if (!note) {
+        if (!this.warningActive) {
+          log.warn(`[PIXINotesRenderer] Missing ActiveNote for sprite ${noteId}. activeNotes size=${this.activeNoteLookup.size}, sprites=${this.noteSprites.size}`);
+          this.warningActive = true;
+        }
         continue;
       }
+      this.warningActive = false;
       
       // ===== Y座標更新（毎フレーム、軽量処理） =====
       const suppliedY = note.y;
