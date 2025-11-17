@@ -51,18 +51,20 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     isSettingsOpen: state.isSettingsOpen
   }));
 
-  const {
-    initializeGameEngine,
-    destroyGameEngine,
-    handleNoteInput,
-    updateEngineSettings,
-    updateSettings,
-    updateTime,
-    stop,
-    pause,
-    setLastKeyHighlight,
-    openResultModal
-  } = useGameActions();
+    const hasAudioFile = Boolean(currentSong?.audioFile && currentSong.audioFile.trim() !== '');
+    const songDuration = currentSong?.duration ?? 0;
+
+    const {
+      initializeGameEngine,
+      destroyGameEngine,
+      handleNoteInput,
+      updateEngineSettings,
+      updateSettings,
+      stop,
+      pause,
+      setLastKeyHighlight,
+      openResultModal
+    } = useGameActions();
   
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
@@ -84,14 +86,29 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const pitchShiftRef = useRef<Tone.PitchShift | null>(null);
   // GameEngine と updateTime に渡すための AudioContext ベースのタイムスタンプ
-  const baseOffsetRef = useRef<number>(0); // currentTime = audioCtx.time - baseOffset
-    const animationFrameRef = useRef<number | null>(null);
+    const baseOffsetRef = useRef<number>(0); // currentTime = audioCtx.time - baseOffset
     const currentTimeRef = useRef(currentTime);
   
     // 現在時刻の参照を最新化（高頻度の依存関係排除用）
     useEffect(() => {
       currentTimeRef.current = currentTime;
     }, [currentTime]);
+
+    // AudioContextタイムラインとHTMLAudioの実時間を定期的に突き合わせて微調整
+    useEffect(() => {
+      if (!isPlaying || !audioLoaded || !audioRef.current || !gameEngine || !hasAudioFile) {
+        return;
+      }
+      const mediaTime = audioRef.current.currentTime;
+      if (Number.isNaN(mediaTime)) {
+        return;
+      }
+      const drift = mediaTime - currentTime;
+      const driftThreshold = 0.012;
+      if (Math.abs(drift) > driftThreshold && typeof gameEngine.syncToMediaTime === 'function') {
+        gameEngine.syncToMediaTime(mediaTime);
+      }
+    }, [currentTime, isPlaying, audioLoaded, gameEngine, hasAudioFile]);
 
     // 🔧 追加: グローバルアクセス用に参照を公開（再生中のシーク対応）
   useEffect(() => {
@@ -176,7 +193,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         } catch {}
         
         // 再生同期ループ停止
-        stopTimeSync();
       };
     } else if (currentSong && (!currentSong.audioFile || currentSong.audioFile.trim() === '')) {
       // 音声ファイルなしの楽曲の場合
@@ -324,8 +340,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
         }
 
-        startTimeSync();
-
         // 音声入力開始（再生中のみ）
         if (audioControllerRef.current && settings.inputMode === 'audio') {
           audioControllerRef.current.startListening();
@@ -352,7 +366,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         //   audioContextRef.current.suspend();
         // }
 
-        stopTimeSync();
       }
     };
 
@@ -406,77 +419,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }
     }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying]);
   
-  // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
-  const timeIntervalRef = useRef<number | null>(null);
-  
-  const startTimeSync = () => {
-    // ❌ requestAnimationFrameループは使わない
-    // ✅ 軽量なsetIntervalで時間更新（60FPSより低頻度で競合回避）
-    
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
-    }
-    
-    const updateGameTime = () => {
-      if (!useGameStore.getState().isPlaying) return;
-      
-      let newTime = 0;
-      const audio = audioRef.current;
-      const audioCtx = audioContextRef.current;
-      const hasAudio = currentSong?.audioFile && audio && audioLoaded;
-      
-      if (hasAudio && !audio.paused && audioCtx) {
-        // 音声ありモード：audio要素の時刻を基準
-        newTime = audio.currentTime;
-      } else if (audioCtx) {
-        // 音声なしモード：AudioContextの時刻とオフセットで計算
-        const realTimeElapsed = (audioCtx.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-        newTime = Math.max(0, realTimeElapsed);
-      } else {
-        // フォールバック
-        newTime = useGameStore.getState().currentTime + (50 / 1000); // 50ms進行と仮定
-      }
-      
-      // 🎯 重要：時間を進行させる！
-      updateTime(newTime);
-      
-      // 楽曲終了チェックをrequestIdleCallbackで実行
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => {
-          const songDuration = useGameStore.getState().currentSong?.duration || 0;
-          if (songDuration > 0 && newTime >= songDuration) {
-            useGameStore.getState().stop();
-            
-            // 本番モード時にリザルトモーダルを開く
-            if (useGameStore.getState().mode === 'performance') {
-              useGameStore.getState().openResultModal();
-            }
-          }
-        });
-      } else {
-        // requestIdleCallbackが無い場合は通常実行
-        const songDuration = useGameStore.getState().currentSong?.duration || 0;
-        if (songDuration > 0 && newTime >= songDuration) {
-          useGameStore.getState().stop();
-          
-          // 本番モード時にリザルトモーダルを開く
-          if (useGameStore.getState().mode === 'performance') {
-            useGameStore.getState().openResultModal();
-          }
-        }
-      }
-    };
-    
-    // 30ms間隔で時間更新（33FPS相当、楽譜スクロールを滑らかに）
-    timeIntervalRef.current = window.setInterval(updateGameTime, 30);
-  };
-  
-  const stopTimeSync = useCallback(() => {
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
-      timeIntervalRef.current = null;
-    }
-  }, []);
   
   // シーク機能（音声ありと音声なし両方対応）
   useEffect(() => {
@@ -506,9 +448,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             audioControllerRef.current.pauseProcessingForSeek();
           }
           
-          // ✅ ストアのcurrentTimeを即時更新して二重シークを防止
-          updateTime(safeTime);
-          
           devLog.debug(`🔄 Audio & GameEngine synced to ${safeTime.toFixed(2)}s`);
         }
       } else {
@@ -529,14 +468,25 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             audioControllerRef.current.pauseProcessingForSeek();
           }
           
-          // ✅ currentTime を即時更新して二重シークを防止
-          updateTime(safeTime);
-          
           devLog.debug(`🔄 GameEngine (音声なし) synced to ${safeTime.toFixed(2)}s`);
         }
       }
     }
   }, [currentTime, audioLoaded, gameEngine, settings.playbackSpeed]);
+
+    // 楽曲終了を監視してリザルトモーダルを開く
+    useEffect(() => {
+      if (!isPlaying || songDuration <= 0) {
+        return;
+      }
+      if (currentTime + 0.01 < songDuration) {
+        return;
+      }
+      stop();
+      if (mode === 'performance') {
+        openResultModal();
+      }
+    }, [currentTime, songDuration, isPlaying, mode, stop, openResultModal]);
   
   // MIDIController管理用のRef
   const midiControllerRef = useRef<any>(null);
@@ -1112,7 +1062,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         onLoadedMetadata={() => log.info('🎵 音声メタデータ読み込み完了')}
         onError={(e) => log.error('🚨 音声読み込みエラー:', e)}
         onTimeUpdate={() => {
-          // 時間同期はstartTimeSyncで別途処理
+            // 時間同期はGameEngineの内部更新で処理
         }}
       />
     </div>

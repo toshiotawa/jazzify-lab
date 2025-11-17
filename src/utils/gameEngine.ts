@@ -195,6 +195,30 @@ export class GameEngine {
       // devLog.debug(`🎮 GameEngine.seek: ${safeTime.toFixed(2)}s`);
     }
   }
+
+  /**
+   * 外部メディア（HTMLAudio要素など）の経過時間に合わせて
+   * AudioContextベースの内部タイムラインを微調整する
+   */
+  syncToMediaTime(mediaTime: number, toleranceSec = 0.008): void {
+    if (!this.audioContext || Number.isNaN(mediaTime)) return;
+    const playbackSpeed = this.settings.playbackSpeed ?? 1;
+    const desiredStartTime = this.audioContext.currentTime - (mediaTime / playbackSpeed) - this.latencyOffset;
+    const drift = desiredStartTime - this.startTime;
+
+    if (Math.abs(drift) < toleranceSec) {
+      return;
+    }
+
+    // 大きなドリフトは即座に補正、小さなドリフトはなだらかに補正
+    if (Math.abs(drift) > 0.2) {
+      this.startTime = desiredStartTime;
+      return;
+    }
+
+    const limitedDrift = Math.max(-0.02, Math.min(0.02, drift));
+    this.startTime += limitedDrift;
+  }
   
   handleInput(inputNote: number): NoteHit | null {
     const currentTime = this.getCurrentTime();
