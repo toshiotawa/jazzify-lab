@@ -221,10 +221,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           }
         }
 
-          const requiresPitchShift = settings.transpose !== 0;
-
-          // 3) Tone.js PitchShift エフェクトを初期化（初回のみ必要時のみ）
-          if (requiresPitchShift && !pitchShiftRef.current) {
+          // 3) Tone.js PitchShift エフェクトを初期化（初回のみ）
+          if (!pitchShiftRef.current) {
             try {
               await Tone.start();
             } catch (err) {
@@ -242,34 +240,17 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
           }
 
-          // 4) Web Audio → Tone.js エフェクトへ橋渡し or 直接出力
+          // 4) Web Audio → Tone.js エフェクトへ橋渡し
           try {
             mediaSourceRef.current.disconnect();
           } catch (_) {/* already disconnected */}
 
-          if (requiresPitchShift && pitchShiftRef.current) {
-            try {
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-              // @ts-ignore
-              Tone.connect(mediaSourceRef.current, pitchShiftRef.current);
-            } catch (err) {
-              log.error('Tone.connect failed:', err);
-            }
-          } else {
-            if (pitchShiftRef.current) {
-              try {
-                pitchShiftRef.current.disconnect();
-                pitchShiftRef.current.dispose?.();
-              } catch (err) {
-                log.warn('⚠️ PitchShift disposal failed:', err);
-              }
-              pitchShiftRef.current = null;
-            }
-            try {
-              mediaSourceRef.current.connect(audioContext.destination);
-            } catch (err) {
-              log.error('🚨 MediaElementAudioSourceNode direct connect failed:', err);
-            }
+          try {
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            Tone.connect(mediaSourceRef.current, pitchShiftRef.current);
+          } catch (err) {
+            log.error('Tone.connect failed:', err);
           }
 
         // 5) AudioContext を resume し、再生位置を同期
@@ -864,69 +845,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // トランスポーズに合わせてオーディオのピッチを変更（tempo も変わるが簡易実装）
     useEffect(() => {
-      const audioContext = audioContextRef.current;
-      const mediaSource = mediaSourceRef.current;
-      if (!audioContext || !mediaSource) {
-        return;
+      if (pitchShiftRef.current) {
+        (pitchShiftRef.current as any).pitch = settings.transpose;
       }
-
-      const requiresPitchShift = settings.transpose !== 0;
-
-      if (!requiresPitchShift) {
-        if (pitchShiftRef.current) {
-          try {
-            pitchShiftRef.current.disconnect();
-            pitchShiftRef.current.dispose?.();
-          } catch (err) {
-            log.warn('⚠️ PitchShift disposal failed:', err);
-          }
-          pitchShiftRef.current = null;
-        }
-        try {
-          mediaSource.disconnect();
-        } catch (_) {/* already disconnected */}
-        try {
-          mediaSource.connect(audioContext.destination);
-        } catch (err) {
-          log.error('🚨 MediaElementAudioSourceNode direct connect failed:', err);
-        }
-        return;
-      }
-
-      const ensurePitchShift = async () => {
-        if (!pitchShiftRef.current) {
-          try {
-            await Tone.start();
-          } catch (err) {
-            log.warn('Tone.start() failed or was already started', err);
-          }
-          try {
-            if ((Tone as any).setContext) {
-              (Tone as any).setContext(audioContext);
-            }
-          } catch (err) {
-            log.warn('Tone context assignment failed', err);
-          }
-          pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
-        } else {
-          (pitchShiftRef.current as any).pitch = settings.transpose;
-        }
-
-        try {
-          mediaSource.disconnect();
-        } catch (_) {/* already disconnected */}
-        if (pitchShiftRef.current) {
-          try {
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            Tone.connect(mediaSource, pitchShiftRef.current);
-          } catch (err) {
-            log.error('Tone.connect failed:', err);
-          }
-        }
-      };
-
-      void ensurePitchShift();
     }, [settings.transpose]);
   
   // ゲームエリアのリサイズ対応（ResizeObserver 使用）

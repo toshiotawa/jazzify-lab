@@ -654,10 +654,16 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             const state = get();
             const { GameEngine } = await import('@/utils/gameEngine');
             const engine = new GameEngine({ ...state.settings });
-
+            const ENGINE_TIME_SYNC_THRESHOLD = 0.2; // 200ms 以上ずれた場合のみストアを同期
             const handleEngineUpdate = (data: GameEngineUpdate) => {
               const storeState = get();
               const { abRepeat } = storeState;
+
+              if (Math.abs(storeState.currentTime - data.currentTime) > ENGINE_TIME_SYNC_THRESHOLD || data.currentTime < storeState.currentTime) {
+                set((draft) => {
+                  draft.currentTime = data.currentTime;
+                });
+              }
 
               if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
                 if (data.currentTime >= abRepeat.endTime) {
