@@ -159,10 +159,8 @@ const isHitState = (state: ActiveNote['state']) =>
 // ===== 型定義 =====
 
 interface PIXINotesRendererProps {
-  activeNotes: ActiveNote[];
   width: number;
   height: number;
-  currentTime: number; // 現在時刻を追加（アニメーション同期用）
   /** レンダラー準備完了・破棄通知。null で破棄を示す */
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
@@ -291,6 +289,7 @@ export class PIXINotesRendererInstance {
   // Ticker関数への参照（削除用）
   private mainUpdateFunction?: (delta: number) => void;
   private effectUpdateFunction?: (delta: number) => void;
+    private renderLoop?: (delta: number) => void;
   
   // リアルタイムアニメーション用
   // リアルタイムアニメーション用（将来の拡張用）
@@ -430,7 +429,7 @@ export class PIXINotesRendererInstance {
     });
     
     // 🎯 統合フレーム制御でPIXIアプリケーションを開始
-    this.startUnifiedRendering();
+    this.attachSharedRenderLoop();
     
     log.info('✅ PIXI.js renderer initialized successfully');
   }
@@ -501,52 +500,33 @@ export class PIXINotesRendererInstance {
     log.debug('✅ Ticker system setup completed');
   }
 
-  /**
-   * 🎯 統合フレーム制御でPIXIアプリケーションを開始
-   */
-  // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
-  private startUnifiedRendering(): void {
-    if (!window.unifiedFrameController) {
-      log.warn('⚠️ unifiedFrameController not available, using default PIXI ticker');
-      this.app.start();
-      return;
-    }
-    
-    // 統合フレーム制御を使用してPIXIアプリケーションを制御
-    const renderFrame = () => {
-      const currentTime = performance.now();
-      
-      // 統合フレーム制御でフレームスキップ判定
-      if (window.unifiedFrameController.shouldSkipFrame(currentTime, 'render')) {
-        // フレームをスキップ
-        requestAnimationFrame(renderFrame);
-        return;
-      }
-      
-      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
+  private attachSharedRenderLoop(): void {
+    const renderLoop = () => {
       if (this.isDestroyed) {
-        // 破棄済みの場合はレンダリングループを停止
         return;
       }
-      
+      const frameTime = performance.now();
+      if (window.unifiedFrameController?.shouldSkipFrame(frameTime, 'render')) {
+        return;
+      }
       try {
-        if (this.app && this.app.renderer) {
-          this.app.render();
-        }
+        this.app.render();
       } catch (error) {
-        log.warn('⚠️ PIXI render error (likely destroyed):', error);
-        // レンダリングループを停止
-        return;
+        log.warn('⚠️ PIXI render error (shared loop):', error);
       }
-      
-      // 次のフレームをスケジュール
-      requestAnimationFrame(renderFrame);
     };
-    
-    // レンダリングループを開始
-    renderFrame();
-    
-    log.info('🎯 PIXI.js unified frame control started');
+
+    this.renderLoop = renderLoop;
+    PIXI.Ticker.shared.add(renderLoop, undefined, PIXI.UPDATE_PRIORITY.LOW);
+
+    this.disposeManager.add(() => {
+      if (this.renderLoop) {
+        PIXI.Ticker.shared.remove(this.renderLoop);
+        this.renderLoop = undefined;
+      }
+    });
+
+    log.info('🎯 PIXI.js shared ticker render loop attached');
   }
   
   /**
@@ -3191,10 +3171,8 @@ export class PIXINotesRendererInstance {
 // ===== React コンポーネント =====
 
 export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
-  activeNotes,
   width,
   height,
-  currentTime,
   onReady,
   className
 }) => {
@@ -3276,14 +3254,6 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       onReady?.(rendererRef.current);
     }
   }, [onReady]);
-  
-  // ノーツ更新
-  useEffect(() => {
-    if (rendererRef.current) {
-      rendererRef.current.updateNotes(activeNotes, currentTime);
-    }
-  }, [activeNotes, currentTime]);
-  
   
   // リサイズ対応
   useEffect(() => {
