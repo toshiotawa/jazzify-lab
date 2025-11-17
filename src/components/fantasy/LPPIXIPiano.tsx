@@ -195,6 +195,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
             width={canvasWidth}
             height={height}
             currentTime={0}
+              isPlaying={false}
             onReady={handleRendererReady}
             className="min-w-full"
           />

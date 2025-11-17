@@ -163,6 +163,7 @@ interface PIXINotesRendererProps {
   width: number;
   height: number;
   currentTime: number; // 現在時刻を追加（アニメーション同期用）
+  isPlaying: boolean;
   /** レンダラー準備完了・破棄通知。null で破棄を示す */
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
@@ -183,6 +184,7 @@ interface RendererSettings {
   hitLineY: number;
   pianoHeight: number;
   noteSpeed: number;
+  enableEffects: boolean;
   colors: {
     visible: number;
     visibleBlack: number;
@@ -304,16 +306,25 @@ export class PIXINotesRendererInstance {
   
   // 破棄状態の追跡
   private isDestroyed: boolean = false;
+    
+    // タイムライン補間
+    private lastTimelineSyncTime: number = 0;
+    private lastTimelineSyncAt: number = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    private timelineSynced: boolean = false;
+    private currentSpeedPxPerSec: number = 0;
+    private readonly maxInterpolationWindowMs = 160;
+    private isPlaybackActive: boolean = false;
   
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
-  public readonly settings: RendererSettings = {
-    noteWidth: 28,
-    noteHeight: 4,
-    hitLineY: 0,
-    pianoHeight: 200, // viewportHeightと同じ値に設定
-    noteSpeed: 400,
-    colors: {
+    public readonly settings: RendererSettings = {
+      noteWidth: 28,
+      noteHeight: 4,
+      hitLineY: 0,
+      pianoHeight: 200, // viewportHeightと同じ値に設定
+      noteSpeed: 400,
+      enableEffects: true,
+      colors: {
       visible: 0x4A90E2,
       visibleBlack: 0x2C5282,
       hit: 0x48BB78,
@@ -523,31 +534,55 @@ export class PIXINotesRendererInstance {
         return;
       }
       
-      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
-      if (this.isDestroyed) {
-        // 破棄済みの場合はレンダリングループを停止
-        return;
-      }
-      
-      try {
-        if (this.app && this.app.renderer) {
-          this.app.render();
+        // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
+        if (this.isDestroyed) {
+          // 破棄済みの場合はレンダリングループを停止
+          return;
         }
-      } catch (error) {
-        log.warn('⚠️ PIXI render error (likely destroyed):', error);
-        // レンダリングループを停止
-        return;
-      }
+
+        try {
+          if (this.app && this.app.renderer) {
+            this.applyInterpolatedPositions(currentTime);
+            this.app.render();
+          }
+        } catch (error) {
+          log.warn('⚠️ PIXI render error (likely destroyed):', error);
+          // レンダリングループを停止
+          return;
+        }
       
       // 次のフレームをスケジュール
       requestAnimationFrame(renderFrame);
     };
     
-    // レンダリングループを開始
-    renderFrame();
-    
-    log.info('🎯 PIXI.js unified frame control started');
-  }
+      // レンダリングループを開始
+      renderFrame();
+      
+      log.info('🎯 PIXI.js unified frame control started');
+    }
+
+    private applyInterpolatedPositions(frameTimestamp: number): void {
+      if (!this.isPlaybackActive || !this.timelineSynced) {
+        return;
+      }
+      if (this.activeNoteLookup.size === 0) {
+        return;
+      }
+      if (!Number.isFinite(this.currentSpeedPxPerSec) || this.currentSpeedPxPerSec === 0) {
+        return;
+      }
+      const elapsedMs = frameTimestamp - this.lastTimelineSyncAt;
+      if (elapsedMs <= 0 || elapsedMs > this.maxInterpolationWindowMs) {
+        return;
+      }
+      const interpolatedTime = this.lastTimelineSyncTime + (elapsedMs / 1000);
+      this.updateSpritePositions(
+        this.activeNoteLookup,
+        interpolatedTime,
+        this.currentSpeedPxPerSec,
+        { forceRecalculate: true, skipNoteDataSync: true }
+      );
+    }
   
   /**
    * ノーツテクスチャを事前生成
@@ -1831,6 +1866,10 @@ export class PIXINotesRendererInstance {
     const visualSpeedMultiplier = this.settings.noteSpeed;
     const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
     const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
+      this.currentSpeedPxPerSec = speedPxPerSec;
+      this.lastTimelineSyncTime = currentTime;
+      this.lastTimelineSyncAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      this.timelineSynced = true;
     
     // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
     // まだ表示していないノートで、表示時刻になったもののみ処理
@@ -1866,23 +1905,28 @@ export class PIXINotesRendererInstance {
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
    */
-  private updateSpritePositions(activeNoteLookup: Map<string, ActiveNote>, currentTime: number, speedPxPerSec: number): void {
-    for (const [noteId, sprite] of this.noteSprites) {
-      const note = activeNoteLookup.get(noteId);
-      if (!note) {
-        continue;
-      }
-      
-      // ===== Y座標更新（毎フレーム、軽量処理） =====
-      const suppliedY = note.y;
-      let newY: number;
+  private updateSpritePositions(
+    activeNoteLookup: Map<string, ActiveNote>,
+    currentTime: number,
+    speedPxPerSec: number,
+    options?: { forceRecalculate?: boolean; skipNoteDataSync?: boolean }
+  ): void {
+    if (!Number.isFinite(speedPxPerSec) || speedPxPerSec === 0) {
+      return;
+    }
+    const forceRecalculate = options?.forceRecalculate ?? false;
+    const skipNoteDataSync = options?.skipNoteDataSync ?? false;
+      for (const [noteId, sprite] of this.noteSprites) {
+        const note = activeNoteLookup.get(noteId);
+        if (!note) {
+          continue;
+        }
 
-      if (suppliedY !== undefined) {
-        newY = suppliedY; // Engine提供の絶対座標を最優先
-      } else {
-        // フォールバック: 自前計算
-        newY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
-      }
+        // ===== Y座標更新（毎フレーム、軽量処理） =====
+        const suppliedY = note.y;
+        const useEngineY = !forceRecalculate && typeof suppliedY === 'number';
+        const recalculatedY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
+        const newY = useEngineY ? (suppliedY as number) : recalculatedY;
 
       sprite.sprite.y = newY;
       if (sprite.label) sprite.label.y = newY - 8;
@@ -1969,16 +2013,18 @@ export class PIXINotesRendererInstance {
         sprite.transposeAtCreation = this.settings.transpose;
       }
       
-      // ===== 🚀 位置関連プロパティのみ部分更新（state保持） =====
-      // 新しいオブジェクトを作成し、座標のみ更新、状態は元のまま保持
-      sprite.noteData = {
-        ...sprite.noteData,  // state は保持
-        y: note.y,
-        previousY: note.previousY,
-        time: note.time,
-        pitch: note.pitch,
-        crossingLogged: note.crossingLogged // crossingLogged を同期してハイライト多重発火を防止
-      };
+        // ===== 🚀 位置関連プロパティのみ部分更新（state保持） =====
+        // 新しいオブジェクトを作成し、座標のみ更新、状態は元のまま保持
+        if (!skipNoteDataSync) {
+          sprite.noteData = {
+            ...sprite.noteData,  // state は保持
+            y: note.y,
+            previousY: note.previousY,
+            time: note.time,
+            pitch: note.pitch,
+            crossingLogged: note.crossingLogged // crossingLogged を同期してハイライト多重発火を防止
+          };
+        }
     }
   }
 
@@ -3069,6 +3115,13 @@ export class PIXINotesRendererInstance {
     this.createHitEffect(targetSprite.sprite.x, targetSprite.sprite.y);
   }
 
+  public setPlaybackState(isPlaying: boolean): void {
+    this.isPlaybackActive = isPlaying;
+    if (!isPlaying) {
+      this.timelineSynced = false;
+    }
+  }
+
   /**
    * リサイズ対応
    */
@@ -3195,6 +3248,7 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   width,
   height,
   currentTime,
+  isPlaying,
   onReady,
   className
 }) => {
@@ -3283,6 +3337,12 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       rendererRef.current.updateNotes(activeNotes, currentTime);
     }
   }, [activeNotes, currentTime]);
+
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.setPlaybackState(isPlaying);
+    }
+  }, [isPlaying]);
   
   
   // リサイズ対応
