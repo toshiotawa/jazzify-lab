@@ -284,16 +284,17 @@ export class AudioController {
 
       // デバイスのアクセス許可を取得
       console.log('マイク許可を要求...');
-      try {
-        this.mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            deviceId: deviceId ? { exact: deviceId } : undefined,
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          },
-          video: false
-        });
+        try {
+          this.mediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              deviceId: deviceId ? { exact: deviceId } : undefined,
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              channelCount: 1
+            },
+            video: false
+          });
         console.log('マイク許可を取得しました:', 
           this.mediaStream.getAudioTracks().map(t => t.label).join(', '));
       } catch (getUserMediaError) {

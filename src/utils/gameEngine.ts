@@ -75,9 +75,9 @@ export class GameEngine {
   private startTime: number = 0;
   private pausedTime: number = 0;
   private latencyOffset: number = 0;
-  
   private tickerListener: ((delta: number) => void) | null = null;
   private onUpdate?: (data: GameEngineUpdate) => void;
+  private readonly updateListeners = new Set<(data: GameEngineUpdate) => void>();
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
   
@@ -89,6 +89,13 @@ export class GameEngine {
   
   setUpdateCallback(callback: (data: GameEngineUpdate) => void): void {
     this.onUpdate = callback;
+  }
+
+  addUpdateListener(listener: (data: GameEngineUpdate) => void): () => void {
+    this.updateListeners.add(listener);
+    return () => {
+      this.updateListeners.delete(listener);
+    };
   }
   
   /** 判定イベント受信側を登録 */
@@ -847,8 +854,8 @@ export class GameEngine {
         latencyOffset: this.latencyOffset
       };
       
-      // UI更新（毎フレーム必要）
-      this.onUpdate?.({
+        // UI更新（毎フレーム必要）
+        const frameUpdate: GameEngineUpdate = {
         currentTime,
         activeNotes,
         timing,
@@ -858,7 +865,17 @@ export class GameEngine {
           end: null,
           enabled: false
         }
-      });
+        };
+        this.onUpdate?.(frameUpdate);
+        if (this.updateListeners.size > 0) {
+          this.updateListeners.forEach((listener) => {
+            try {
+              listener(frameUpdate);
+            } catch (error) {
+              log.warn('⚠️ GameEngine update listener error:', error);
+            }
+          });
+        }
       
     };
     
