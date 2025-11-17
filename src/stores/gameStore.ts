@@ -81,6 +81,10 @@ interface PerformanceMetrics {
   };
 }
 
+const TIME_BROADCAST_INTERVAL_MS = 32;
+const TIME_BROADCAST_THRESHOLD_SEC = 0.05;
+let lastTimeBroadcastMs = 0;
+
 // ===== デフォルト値 =====
 
 const defaultScore: GameScore = {
@@ -651,16 +655,26 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         practiceModeSettings: defaultPracticeModeSettings,
         
         // Phase 2: ゲームエンジン制御
-        initializeGameEngine: async () => {
+          initializeGameEngine: async () => {
           const state = get();
           const { GameEngine } = await import('@/utils/gameEngine');
           const engine = new GameEngine({ ...state.settings });
+            lastTimeBroadcastMs = 0;
           
           // エンジンの更新コールバック設定
           engine.setUpdateCallback((data: any) => {
             set((state) => {
-              // currentTime は AudioContext 同期ループで更新する
               state.engineActiveNotes = data.activeNotes;
+                
+                const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+                const timeDifference = Math.abs(data.currentTime - state.currentTime);
+                if (
+                  nowMs - lastTimeBroadcastMs >= TIME_BROADCAST_INTERVAL_MS ||
+                  timeDifference >= TIME_BROADCAST_THRESHOLD_SEC
+                ) {
+                  state.currentTime = data.currentTime;
+                  lastTimeBroadcastMs = nowMs;
+                }
               
               // キーハイライト処理はPIXIRenderer側で直接実行されるため、ストア経由の処理は不要
               
