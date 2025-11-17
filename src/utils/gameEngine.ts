@@ -80,6 +80,7 @@ export class GameEngine {
   private onUpdate?: (data: GameEngineUpdate) => void;
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
+  private rendererBridge?: (notes: ActiveNote[], currentTime: number) => void;
   
   private isGameLoopRunning: boolean = false; // ゲームループの状態を追跡
   
@@ -98,6 +99,10 @@ export class GameEngine {
   
   setKeyHighlightCallback(callback: (pitch: number, timestamp: number) => void): void {
     this.onKeyHighlight = callback;
+  }
+  
+  setRendererBridge(callback?: (notes: ActiveNote[], currentTime: number) => void): void {
+    this.rendererBridge = callback;
   }
   
   // ★ 追加: 設定値を秒へ変換して返すヘルパー
@@ -305,6 +310,7 @@ export class GameEngine {
   
   destroy(): void {
     this.stopGameLoop();
+    this.rendererBridge = undefined;
   }
   
   getState(): GameEngineState {
@@ -526,6 +532,7 @@ export class GameEngine {
       }
     }
     
+    this.rendererBridge?.(visibleNotes, currentTime);
     return visibleNotes;
   }
 

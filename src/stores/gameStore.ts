@@ -657,11 +657,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const engine = new GameEngine({ ...state.settings });
           
           // エンジンの更新コールバック設定
-          engine.setUpdateCallback((data: any) => {
-            set((state) => {
-              // currentTime は AudioContext 同期ループで更新する
-              state.engineActiveNotes = data.activeNotes;
-              
+            engine.setUpdateCallback((data: any) => {
+              set((state) => {
+                // currentTime は AudioContext 同期ループで更新する
+                
               // キーハイライト処理はPIXIRenderer側で直接実行されるため、ストア経由の処理は不要
               
               // ===== ABリピート自動ループ =====
