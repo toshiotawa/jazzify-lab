@@ -81,10 +81,6 @@ interface PerformanceMetrics {
   };
 }
 
-const TIME_BROADCAST_INTERVAL_MS = 32;
-const TIME_BROADCAST_THRESHOLD_SEC = 0.05;
-let lastTimeBroadcastMs = 0;
-
 // ===== デフォルト値 =====
 
 const defaultScore: GameScore = {
@@ -246,6 +242,10 @@ const defaultPerformanceMetrics: PerformanceMetrics = {
     lastProcessTime: 0
   }
 };
+
+const TIME_BROADCAST_INTERVAL_MS = 32;
+const TIME_BROADCAST_THRESHOLD_SEC = 0.05;
+let lastTimeBroadcastMs = 0;
 
 const defaultState: GameState = {
   // ゲーム基本状態
@@ -618,6 +618,12 @@ interface GameStoreState extends GameState {
   clearMissionContext: () => void;
 }
 
+const resetScoreState = (state: GameStoreState): void => {
+  const totalNotes = state.notes.length || state.score.totalNotes;
+  state.score = { ...defaultScore, totalNotes };
+  state.judgmentHistory = [];
+};
+
 // ===== ヘルパー関数 =====
 
 const calculateAccuracy = (goodCount: number, totalNotes: number): number => {
@@ -655,35 +661,32 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         practiceModeSettings: defaultPracticeModeSettings,
         
         // Phase 2: ゲームエンジン制御
-          initializeGameEngine: async () => {
+        initializeGameEngine: async () => {
           const state = get();
           const { GameEngine } = await import('@/utils/gameEngine');
           const engine = new GameEngine({ ...state.settings });
-            lastTimeBroadcastMs = 0;
+          lastTimeBroadcastMs = 0;
           
           // エンジンの更新コールバック設定
           engine.setUpdateCallback((data: any) => {
             set((state) => {
               state.engineActiveNotes = data.activeNotes;
-                
-                const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-                const timeDifference = Math.abs(data.currentTime - state.currentTime);
-                if (
-                  nowMs - lastTimeBroadcastMs >= TIME_BROADCAST_INTERVAL_MS ||
-                  timeDifference >= TIME_BROADCAST_THRESHOLD_SEC
-                ) {
-                  state.currentTime = data.currentTime;
-                  lastTimeBroadcastMs = nowMs;
-                }
               
-              // キーハイライト処理はPIXIRenderer側で直接実行されるため、ストア経由の処理は不要
+              const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+              const timeDifference = Math.abs(data.currentTime - state.currentTime);
+              if (
+                nowMs - lastTimeBroadcastMs >= TIME_BROADCAST_INTERVAL_MS ||
+                timeDifference >= TIME_BROADCAST_THRESHOLD_SEC
+              ) {
+                state.currentTime = data.currentTime;
+                lastTimeBroadcastMs = nowMs;
+              }
               
               // ===== ABリピート自動ループ =====
               const { abRepeat } = state;
               if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
                 if (state.currentTime >= abRepeat.endTime) {
                   console.log(`🔄 ABリピート(Store): ${state.currentTime.toFixed(2)}s → ${abRepeat.startTime.toFixed(2)}s`);
-                  // 🔧 修正: get()の代わりにuseGameStore.getState()を使用
                   const seekTime = abRepeat.startTime;
                   setTimeout(() => {
                     const store = useGameStore.getState();
@@ -692,7 +695,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 }
               }
               
-              // デバッグ情報更新（オプション）
               if (state.settings.showFPS) {
                 state.debug.renderTime = performance.now() % 1000;
               }
@@ -919,6 +921,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             if (state.gameEngine) {
               state.gameEngine.stop();
             }
+
+            if (state.mode === 'performance') {
+              resetScoreState(state);
+            }
           }),
         
         seek: (time) => {
@@ -928,6 +934,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           set((state) => {
             state.currentTime = newTime;
             state.activeNotes.clear();
+            
+            if (state.mode === 'performance' && newTime === 0) {
+              resetScoreState(state);
+            }
           });
           
           // GameEngineにもシーク処理を伝達
@@ -1049,9 +1059,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         }),
         
         resetScore: () => set((state) => {
-          const totalNotes = state.score.totalNotes;
-          state.score = { ...defaultScore, totalNotes };
-          state.judgmentHistory = [];
+          resetScoreState(state);
         }),
         
         calculateFinalScore: () => set((state) => {
@@ -1496,7 +1504,12 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // 新規追加: 移調制御
         transpose: (semitones: number) => {
-          const { settings, setTranspose } = get();
+          const { settings, setTranspose, mode } = get();
+          if (mode === 'performance') {
+            set((state) => {
+              resetScoreState(state);
+            });
+          }
           const nextValue = settings.transpose + semitones;
           setTranspose(nextValue);
         },
@@ -1507,7 +1520,12 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
 
           // 処理がなければ早期リターン
           if (!currentSong || rawNotes.length === 0) {
-            set(state => { state.settings.transpose = clamped; });
+            set((state) => {
+              state.settings.transpose = clamped;
+              if (state.mode === 'performance') {
+                resetScoreState(state);
+              }
+            });
             updateEngineSettings();
             return;
           }
@@ -1574,6 +1592,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.notes = finalNotes;
             state.musicXml = finalXml;
             state.chords = finalChords;
+            
+            if (state.mode === 'performance') {
+              resetScoreState(state);
+            }
             
             // GameEngineにも更新を通知
             if (state.gameEngine) {
