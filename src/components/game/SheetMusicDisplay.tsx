@@ -277,35 +277,26 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       }
 
       const currentTimeMs = currentTime * 1000;
+      let cursor = Math.min(mappingCursorRef.current, mapping.length - 1);
 
-      const findCursorIndex = () => {
-        let low = 0;
-        let high = mapping.length - 1;
-        while (low <= high) {
-          const mid = Math.floor((low + high) / 2);
-          if (mapping[mid].timeMs <= currentTimeMs) {
-            low = mid + 1;
-          } else {
-            high = mid - 1;
-          }
-        }
-        return Math.min(low, mapping.length - 1);
-      };
+      while (cursor > 0 && mapping[cursor].timeMs > currentTimeMs) {
+        cursor -= 1;
+      }
+      while (cursor + 1 < mapping.length && mapping[cursor + 1].timeMs <= currentTimeMs) {
+        cursor += 1;
+      }
 
-      const cursor = findCursorIndex();
       mappingCursorRef.current = cursor;
 
       const nextEntry = mapping[cursor] ?? mapping[mapping.length - 1];
       const prevEntry = cursor > 0 ? mapping[cursor - 1] : null;
 
       let targetX = nextEntry.xPosition;
-      if (prevEntry) {
+      if (prevEntry && nextEntry.timeMs > prevEntry.timeMs) {
         const segmentDuration = nextEntry.timeMs - prevEntry.timeMs;
-        if (segmentDuration > 0) {
-          const timeIntoSegment = currentTimeMs - prevEntry.timeMs;
-          const progress = Math.max(0, Math.min(1, timeIntoSegment / segmentDuration));
-          targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
-        }
+        const timeIntoSegment = currentTimeMs - prevEntry.timeMs;
+        const progress = Math.max(0, Math.min(1, timeIntoSegment / segmentDuration));
+        targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
       }
 
       const playheadPosition = 120;
@@ -315,9 +306,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       if (!isPlaying && scoreWrapperRef.current) {
         currentScrollXRef.current = scrollX;
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+        scoreWrapperRef.current.style.transform = `translate3d(-${scrollX}px, 0, 0)`;
       }
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+    }, [currentTime, isPlaying, shouldRenderSheet]);
 
     useEffect(() => {
       if (!shouldRenderSheet) {
@@ -333,11 +324,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           platform.cancelAnimationFrame(scrollLoopRef.current);
           scrollLoopRef.current = null;
         }
-        if (scoreWrapperRef.current) {
-          const target = targetScrollXRef.current;
-          currentScrollXRef.current = target;
-          scoreWrapperRef.current.style.transform = `translateX(-${target}px)`;
-        }
+          if (scoreWrapperRef.current) {
+            const target = targetScrollXRef.current;
+            currentScrollXRef.current = target;
+            scoreWrapperRef.current.style.transform = `translate3d(-${target}px, 0, 0)`;
+          }
         return;
       }
 
@@ -357,7 +348,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           currentScrollXRef.current = current + delta * 0.2;
         }
 
-        scoreWrapperRef.current.style.transform = `translateX(-${currentScrollXRef.current}px)`;
+          scoreWrapperRef.current.style.transform = `translate3d(-${currentScrollXRef.current}px, 0, 0)`;
         scrollLoopRef.current = platform.requestAnimationFrame(animate);
       };
 
