@@ -290,41 +290,21 @@ export class PIXINotesRendererInstance {
   
   // Ticker関数への参照（削除用）
   private mainUpdateFunction?: (delta: number) => void;
-    private effectUpdateFunction?: (deltaMs: number) => void;
-  
+  private effectUpdateFunction?: (deltaMs: number) => void;
+
   // リアルタイムアニメーション用
-  // リアルタイムアニメーション用（将来の拡張用）
   private _currentTime: number = 0;
   private _animationSpeed: number = 1.0;
-    private lastFrameTime: number = performance.now();
-    private renderLoopHandle?: number;
-    private targetTimeline: number = 0;
-    private displayTimeline: number = 0;
-    private timelineInitialized = false;
-    private noteFallSpeed = 0;
-    private effectsElapsed: number = 0; // エフェクト更新用の経過時間カウンター
-    private stopRenderLoop(): void {
-      if (this.renderLoopHandle !== undefined) {
-        cancelAnimationFrame(this.renderLoopHandle);
-        this.renderLoopHandle = undefined;
-      }
+  private lastFrameTime: number = performance.now();
+  private renderLoopHandle?: number;
+  private effectsElapsed: number = 0; // エフェクト更新用の経過時間カウンター
+
+  private stopRenderLoop(): void {
+    if (this.renderLoopHandle !== undefined) {
+      cancelAnimationFrame(this.renderLoopHandle);
+      this.renderLoopHandle = undefined;
     }
-  
-    private advanceTimeline(deltaMs: number): void {
-      if (!this.timelineInitialized) {
-        return;
-      }
-      const deltaSeconds = deltaMs / 1000;
-      const lerpFactor = Math.min(1, deltaSeconds * 8);
-      this.displayTimeline += (this.targetTimeline - this.displayTimeline) * lerpFactor;
-    }
-  
-    private calculateNoteSpeed(): number {
-      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
-      const totalDistance = this.settings.hitLineY - (-5);
-      const visualSpeedMultiplier = this.settings.noteSpeed;
-      return (totalDistance / baseFallDuration) * visualSpeedMultiplier;
-    }
+  }
   
   // パフォーマンス監視フラグ
   private performanceEnabled: boolean = true;
@@ -544,7 +524,6 @@ export class PIXINotesRendererInstance {
         if (this.effectUpdateFunction) {
           this.effectUpdateFunction(deltaMs);
         }
-        this.advanceTimeline(deltaMs);
   
         try {
           this.app.render();
@@ -1835,17 +1814,13 @@ export class PIXINotesRendererInstance {
       this.nextNoteIndex = Math.min(this.nextNoteIndex, this.allNotes.length);
     }
     
-      this.targetTimeline = currentTime;
-      if (!this.timelineInitialized) {
-        this.displayTimeline = currentTime;
-        this.timelineInitialized = true;
-      }
-      this.lastUpdateTime = currentTime;
+    this.lastUpdateTime = currentTime;
     this.refreshActiveNoteLookup(activeNotes);
     
-      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
-      const speedPxPerSec = this.calculateNoteSpeed();
-      this.noteFallSpeed = speedPxPerSec;
+    const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
+    const visualSpeedMultiplier = this.settings.noteSpeed;
+    const totalDistance = this.settings.hitLineY - (-5);
+    const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
     
     // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
     // まだ表示していないノートで、表示時刻になったもののみ処理
@@ -1865,7 +1840,7 @@ export class PIXINotesRendererInstance {
     
     // ===== 🚀 CPU最適化: ループ分離による高速化 =====
     // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
-      this.updateSpritePositions(this.activeNoteLookup);
+    this.updateSpritePositions(this.activeNoteLookup, currentTime, speedPxPerSec);
     
     // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
     // const frameStartTime = performance.now(); // パフォーマンス監視用（現在未使用）
@@ -1881,34 +1856,33 @@ export class PIXINotesRendererInstance {
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
    */
-    private updateSpritePositions(activeNoteLookup: Map<string, ActiveNote>): void {
-      const timeline = this.timelineInitialized ? this.displayTimeline : this.targetTimeline;
-      const speedPxPerSec = this.noteFallSpeed || this.calculateNoteSpeed();
-  
-      for (const [noteId, sprite] of this.noteSprites) {
-        const note = activeNoteLookup.get(noteId);
-        if (!note) {
-          continue;
-        }
-        
-        // ===== Y座標更新（毎フレーム、軽量処理） =====
-        const suppliedY = note.y;
-        const fallbackY = this.settings.hitLineY - (note.time - timeline) * speedPxPerSec;
-        const newY = suppliedY !== undefined ? (fallbackY * 0.7 + suppliedY * 0.3) : fallbackY;
-  
-        sprite.sprite.y = newY;
-        if (sprite.label) sprite.label.y = newY - 8;
-        if (sprite.glowSprite) sprite.glowSprite.y = newY;
-        
-        // ===== X座標更新（ピッチ変更時のみ） =====
-        if (sprite.noteData.pitch !== note.pitch) {
-          const x = this.pitchToX(note.pitch);
-          sprite.sprite.x = x;
-          if (sprite.label) sprite.label.x = x;
-          if (sprite.glowSprite) sprite.glowSprite.x = x;
-        }
-        
-        // ===== トランスポーズ変更検出 =====
+  private updateSpritePositions(activeNoteLookup: Map<string, ActiveNote>, currentTime: number, speedPxPerSec: number): void {
+    for (const [noteId, sprite] of this.noteSprites) {
+      const note = activeNoteLookup.get(noteId);
+      if (!note) {
+        continue;
+      }
+      
+      // ===== Y座標更新（毎フレーム、軽量処理） =====
+      const suppliedY = note.y;
+      const fallbackY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
+      const targetY = suppliedY !== undefined ? suppliedY : fallbackY;
+      const previousSpriteY = Number.isFinite(sprite.sprite.y) ? sprite.sprite.y : targetY;
+      const newY = previousSpriteY + (targetY - previousSpriteY) * 0.35;
+
+      sprite.sprite.y = newY;
+      if (sprite.label) sprite.label.y = newY - 8;
+      if (sprite.glowSprite) sprite.glowSprite.y = newY;
+      
+      // ===== X座標更新（ピッチ変更時のみ） =====
+      if (sprite.noteData.pitch !== note.pitch) {
+        const x = this.pitchToX(note.pitch);
+        sprite.sprite.x = x;
+        if (sprite.label) sprite.label.x = x;
+        if (sprite.glowSprite) sprite.glowSprite.x = x;
+      }
+      
+      // ===== トランスポーズ変更検出 =====
       if (sprite.transposeAtCreation !== this.settings.transpose) {
         const effectivePitch = note.pitch + this.settings.transpose;
         const isBlackNote = this.isBlackKey(effectivePitch);
