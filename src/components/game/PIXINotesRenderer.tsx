@@ -270,6 +270,7 @@ export class PIXINotesRendererInstance {
   private allNotes: ActiveNote[] = []; // 全ノートのソート済みリスト
   private nextNoteIndex: number = 0;   // 次に表示するノートのインデックス
   private lastUpdateTime: number = 0;  // 前回の更新時刻（巻き戻し検出用）
+  private lastNotesSignature: string = ''; // ノートリストの署名（変更検出用）
   
   // ===== テクスチャキャッシュ =====
   private noteTextures!: NoteTextures;
@@ -304,6 +305,9 @@ export class PIXINotesRendererInstance {
   
   // 破棄状態の追跡
   private isDestroyed: boolean = false;
+  
+  // 時間取得関数（毎フレーム位置補間用）
+  private timeProvider?: () => number;
   
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
@@ -527,6 +531,18 @@ export class PIXINotesRendererInstance {
       if (this.isDestroyed) {
         // 破棄済みの場合はレンダリングループを停止
         return;
+      }
+      
+      // 🚀 毎フレーム位置補間: timeProviderから現在時刻を取得して位置更新
+      if (this.timeProvider && this.activeNoteLookup.size > 0) {
+        const gameTime = this.timeProvider();
+        const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
+        const visualSpeedMultiplier = this.settings.noteSpeed;
+        const totalDistance = this.settings.hitLineY - (-5);
+        const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
+        
+        // 位置更新のみ実行（軽量処理）
+        this.updateSpritePositions(this.activeNoteLookup, gameTime, speedPxPerSec);
       }
       
       try {
@@ -1814,12 +1830,24 @@ export class PIXINotesRendererInstance {
       this.noteSprites.clear();
     }
     
+    // 🚀 ノートリスト変更検出: 内容署名で判定（配列参照ではなく）
+    const notesSignature = `${activeNotes.length}-${activeNotes[0]?.id || ''}-${activeNotes[activeNotes.length - 1]?.id || ''}`;
+    const notesChanged = notesSignature !== this.lastNotesSignature;
+    
     // ノートリストが変更された場合、または巻き戻しが発生した場合
-    if (seekDetected) {
-      this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time);
-      this.nextNoteIndex = 0;
+    if (seekDetected || notesChanged) {
+      // シーク時のみソート（通常時はactiveNotesが既にソート済みと仮定）
+      if (seekDetected) {
+        this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time);
+        this.nextNoteIndex = 0;
+      } else {
+        // 通常の変更時はソート不要（既にソート済み）
+        this.allNotes = activeNotes;
+        this.nextNoteIndex = Math.min(this.nextNoteIndex, this.allNotes.length);
+      }
+      this.lastNotesSignature = notesSignature;
     } else {
-      this.allNotes = activeNotes;
+      // ノートリストが変更されていない場合は既存のallNotesを維持
       this.nextNoteIndex = Math.min(this.nextNoteIndex, this.allNotes.length);
     }
     
@@ -2533,6 +2561,13 @@ export class PIXINotesRendererInstance {
     return this.settings.hitLineY + 100;
   }
   
+  /**
+   * 時間取得関数を設定（毎フレーム位置補間用）
+   */
+  setTimeProvider(provider: () => number): void {
+    this.timeProvider = provider;
+  }
+
   /**
    * 設定更新
    */
