@@ -5,6 +5,7 @@
 import { createWithEqualityFn } from 'zustand/traditional';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { emitGameFrame } from '@/utils/gameFrameBus';
 import type {
   GameState,
   GameMode,
@@ -454,7 +455,6 @@ const validateStateTransition = (currentState: GameState, action: string, params
 interface GameStoreState extends GameState {
   // Phase 2: ゲームエンジン統合
   gameEngine: any | null; // GameEngine型は動的インポートで使用
-  engineActiveNotes: ActiveNote[];
   
   // 練習モードガイド: キーハイライト情報
   lastKeyHighlight?: {
@@ -644,46 +644,62 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // Phase 2: ゲームエンジン
         gameEngine: null,
-        engineActiveNotes: [],
         lastKeyHighlight: undefined,
         
         // 練習モード専用設定
         practiceModeSettings: defaultPracticeModeSettings,
         
         // Phase 2: ゲームエンジン制御
-        initializeGameEngine: async () => {
-          const state = get();
-          const { GameEngine } = await import('@/utils/gameEngine');
-          const engine = new GameEngine({ ...state.settings });
-          
-          // エンジンの更新コールバック設定
-          engine.setUpdateCallback((data: any) => {
-            set((state) => {
-              // currentTime は AudioContext 同期ループで更新する
-              state.engineActiveNotes = data.activeNotes;
+          initializeGameEngine: async () => {
+            const state = get();
+            const { GameEngine } = await import('@/utils/gameEngine');
+            const engine = new GameEngine({ ...state.settings });
+            
+            // エンジンの更新コールバック設定
+            engine.setUpdateCallback((data: any) => {
+              let abRepeatSeekTime: number | null = null;
+              emitGameFrame({
+                activeNotes: data.activeNotes,
+                currentTime: data.currentTime
+              });
               
-              // キーハイライト処理はPIXIRenderer側で直接実行されるため、ストア経由の処理は不要
+              set((state) => {
+                state.currentTime = data.currentTime;
+                
+                const { abRepeat } = state;
+                if (
+                  abRepeat.enabled &&
+                  abRepeat.startTime !== null &&
+                  abRepeat.endTime !== null &&
+                  data.currentTime >= abRepeat.endTime
+                ) {
+                  console.log(
+                    `🔄 ABリピート(Store): ${data.currentTime.toFixed(2)}s → ${abRepeat.startTime.toFixed(2)}s`
+                  );
+                  abRepeatSeekTime = abRepeat.startTime;
+                }
+                
+                if (state.settings.showFPS) {
+                  state.debug.renderTime = performance.now() % 1000;
+                }
+              });
               
-              // ===== ABリピート自動ループ =====
-              const { abRepeat } = state;
-              if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
-                if (state.currentTime >= abRepeat.endTime) {
-                  console.log(`🔄 ABリピート(Store): ${state.currentTime.toFixed(2)}s → ${abRepeat.startTime.toFixed(2)}s`);
-                  // 🔧 修正: get()の代わりにuseGameStore.getState()を使用
-                  const seekTime = abRepeat.startTime;
-                  setTimeout(() => {
-                    const store = useGameStore.getState();
-                    store.seek(seekTime);
-                  }, 0);
+              if (abRepeatSeekTime !== null) {
+                requestAnimationFrame(() => {
+                  const store = useGameStore.getState();
+                  store.seek(abRepeatSeekTime as number);
+                });
+              }
+              
+              const store = useGameStore.getState();
+              const songDuration = store.currentSong?.duration ?? 0;
+              if (songDuration > 0 && data.currentTime >= songDuration && store.isPlaying) {
+                store.stop();
+                if (store.mode === 'performance') {
+                  store.openResultModal();
                 }
               }
-              
-              // デバッグ情報更新（オプション）
-              if (state.settings.showFPS) {
-                state.debug.renderTime = performance.now() % 1000;
-              }
             });
-          });
           
           // 判定イベントコールバック登録
           engine.setJudgmentCallback((judgment) => {
@@ -725,7 +741,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           if (state.gameEngine) {
             state.gameEngine.destroy();
             state.gameEngine = null;
-            state.engineActiveNotes = [];
           }
         }),
         
@@ -899,7 +914,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.isPaused = false;
             state.currentTime = 0;
             state.activeNotes.clear();
-            state.engineActiveNotes = [];
             
             // GameEngineも停止
             if (state.gameEngine) {
@@ -921,10 +935,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.gameEngine.seek(newTime);
             console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
             
-            const engineSnapshot = state.gameEngine.getState();
-            set((draft) => {
-              draft.engineActiveNotes = engineSnapshot.activeNotes;
-            });
           }
           
           // 🔧 追加: 再生中の音声を即座にシーク
@@ -1170,20 +1180,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           // set の外側で最新の設定値を取得し、GameEngine へ反映
           const { gameEngine, settings, currentSong, rawNotes } = get();
           if (gameEngine) {
-            // Proxy（Immer Draft）が revoke されるのを防ぐため、プレーンオブジェクトを渡す
-            gameEngine.updateSettings({ ...settings });
-            
-                          // 🔧 停止中の移調変更対応: 移調設定が変更された場合、停止中でも強制的にengineActiveNotesを更新
-              if ('transpose' in newSettings && !get().isPlaying) {
-              const engineState = gameEngine.getState();
-              // 別のsetコールで更新
-              setTimeout(() => {
-                set((state) => {
-                  state.engineActiveNotes = engineState.activeNotes;
-                });
-                console.log(`🔄 停止中の移調設定変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
-              }, 0);
-            }
+              // Proxy（Immer Draft）が revoke されるのを防ぐため、プレーンオブジェクトを渡す
+              gameEngine.updateSettings({ ...settings });
           }
           
           // 移調楽器の設定が変更された場合、楽譜を再処理
@@ -1566,12 +1564,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               state.gameEngine.loadSong(finalNotes);
               console.log(`🎵 GameEngineに移調後のノートを再ロード: ${finalNotes.length}ノーツ`);
               
-              // 🔧 停止中の移調変更対応: 停止中でも強制的にengineActiveNotesを更新
-              if (!state.isPlaying) {
-                const engineState = state.gameEngine.getState();
-                state.engineActiveNotes = engineState.activeNotes;
-                console.log(`🔄 停止中の移調変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
-              }
             }
           });
           

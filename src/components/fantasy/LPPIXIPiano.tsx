@@ -189,16 +189,14 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
           touchAction: 'pan-x'
         }}
       >
-        <Suspense fallback={<div className="text-center text-gray-300 text-sm">PIXIを読み込み中...</div>}>
-          <LazyPIXINotes
-            activeNotes={[]}
-            width={canvasWidth}
-            height={height}
-            currentTime={0}
-            onReady={handleRendererReady}
-            className="min-w-full"
-          />
-        </Suspense>
+          <Suspense fallback={<div className="text-center text-gray-300 text-sm">PIXIを読み込み中...</div>}>
+            <LazyPIXINotes
+              width={canvasWidth}
+              height={height}
+              onReady={handleRendererReady}
+              className="min-w-full"
+            />
+          </Suspense>
       </div>
 
       {showPrompt && (
