@@ -795,15 +795,10 @@ export class GameEngine {
     // PIXI.Ticker.shared を使用し、unifiedFrameController と同期
     const ticker = PIXI.Ticker.shared;
 
-      const gameLoop = () => {
-        const frameStartTime = performance.now();
-        
-        // フレームスキップ制御
-        if (unifiedFrameController.shouldSkipFrame(frameStartTime, 'logic')) {
-          return; // スキップ時はロジック・描画を行わず、次のTicker呼び出しを待つ
-        }
-      
-      const currentTime = this.getCurrentTime();
+    const gameLoop = () => {
+      const frameStartTime = performance.now();
+    
+    const currentTime = this.getCurrentTime();
       
       // ノーツ更新の頻度制御
       let activeNotes: ActiveNote[] = [];
