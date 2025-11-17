@@ -467,8 +467,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }
     };
     
-    // 30ms間隔で時間更新（33FPS相当、楽譜スクロールを滑らかに）
-    timeIntervalRef.current = window.setInterval(updateGameTime, 30);
+    // 🎯 最適化: 60ms間隔で時間更新（16.67FPS相当、パフォーマンス向上）
+    // ノーツ下降はPIXIのrequestAnimationFrameで滑らかに描画されるため、時間更新は低頻度で十分
+    timeIntervalRef.current = window.setInterval(updateGameTime, 60);
   };
   
   const stopTimeSync = useCallback(() => {
@@ -861,12 +862,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   // ================= ピアノキー演奏ハンドラー =================
   const handlePianoKeyPress = useCallback(async (note: number) => {
     try {
-      // 共通音声システムで音を鳴らす
-      const { playNote } = await import('@/utils/MidiController');
-      await playNote(note, 64); // マウス/タッチ用の固定velocity
-      
-      // ゲームエンジンにノート入力（ハイライトはGameEngineの状態更新に委ねる）
+      // 🎯 最適化: 音を即座に鳴らす（非同期処理をブロックしない）
+      // ゲームエンジンにノート入力を先に実行してレイテンシを削減
       handleNoteInput(note);
+      
+      // 共通音声システムで音を鳴らす（非同期で実行、ブロックしない）
+      import('@/utils/MidiController').then(({ playNote }) => {
+        playNote(note, 64).catch((err) => {
+          log.warn('⚠️ Note play error (non-blocking):', err);
+        });
+      });
       
       // 注意: キーハイライトは削除し、GameEngineの判定ロジックに完全に委ねました
       // これにより、マウスクリックとキーボード入力で一貫したエフェクト表示が実現されます

@@ -532,14 +532,30 @@ export class GameEngine {
   /**
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標計算のみの軽量処理
+   * 🎯 最適化: 表示範囲外のノートは位置更新をスキップ
    */
   private updateNotePositions(currentTime: number): void {
+    const screenHeight = this.settings.viewportHeight ?? 600;
+    const pianoHeight = this.settings.pianoHeight ?? 80;
+    const hitLineY = screenHeight - pianoHeight;
+    
+    // 表示範囲のマージン（画面外でも少し余裕を持たせる）
+    const viewportMargin = 200; // 画面外200pxまでは更新
+    const minY = -viewportMargin;
+    const maxY = screenHeight + viewportMargin;
+    
     for (const [noteId, note] of this.activeNotes) {
-      // 前フレームのY座標を保存
-      const previousY = note.y;
-      
       // 新しいY座標を計算（軽量処理）
       const newY = this.calculateNoteY(note, currentTime);
+      
+      // 🎯 最適化: 表示範囲外のノートは位置更新をスキップ
+      if (newY < minY || newY > maxY) {
+        // 表示範囲外のノートは位置更新をスキップ（ただし、状態変更は必要）
+        continue;
+      }
+      
+      // 前フレームのY座標を保存
+      const previousY = note.y;
       
       // 新しいオブジェクトを作成して置き換え（Immer不要の軽量更新）
       const updatedNote: ActiveNote = {
