@@ -14,6 +14,7 @@ import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRendere
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
 import { devLog, log } from '@/utils/logger';
+import { subscribeGameFrame } from '@/utils/gameFrameBus';
 
 // iOS検出関数
 const isIOS = (): boolean => {
@@ -27,29 +28,27 @@ interface GameEngineComponentProps {
 export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({ 
   className 
 }) => {
-  const {
-    gameEngine,
-    engineActiveNotes,
-    isPlaying,
-    currentSong,
-    currentTime,
-    settings,
-    score,
-    mode,
-    lastKeyHighlight,
-    isSettingsOpen
-  } = useGameSelector((state) => ({
-    gameEngine: state.gameEngine,
-    engineActiveNotes: state.engineActiveNotes,
-    isPlaying: state.isPlaying,
-    currentSong: state.currentSong,
-    currentTime: state.currentTime,
-    settings: state.settings,
-    score: state.score,
-    mode: state.mode,
-    lastKeyHighlight: state.lastKeyHighlight,
-    isSettingsOpen: state.isSettingsOpen
-  }));
+    const {
+      gameEngine,
+      isPlaying,
+      currentSong,
+      currentTime,
+      settings,
+      score,
+      mode,
+      lastKeyHighlight,
+      isSettingsOpen
+    } = useGameSelector((state) => ({
+      gameEngine: state.gameEngine,
+      isPlaying: state.isPlaying,
+      currentSong: state.currentSong,
+      currentTime: state.currentTime,
+      settings: state.settings,
+      score: state.score,
+      mode: state.mode,
+      lastKeyHighlight: state.lastKeyHighlight,
+      isSettingsOpen: state.isSettingsOpen
+    }));
 
   const {
     initializeGameEngine,
@@ -64,12 +63,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     openResultModal
   } = useGameActions();
   
-  const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
+    const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
+    const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
-  const pianoScrollRef = useRef<HTMLDivElement | null>(null);
-  const hasUserScrolledRef = useRef(false);
-  const isProgrammaticScrollRef = useRef(false);
+    const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
+    const pianoScrollRef = useRef<HTMLDivElement | null>(null);
+    const hasUserScrolledRef = useRef(false);
+    const isProgrammaticScrollRef = useRef(false);
+    const lastViewportHeightRef = useRef<number | null>(null);
+    const lastPianoHeightRef = useRef<number | null>(null);
+    const seekbarInitializedRef = useRef(false);
   const handlePianoScroll = useCallback(() => {
     if (!isProgrammaticScrollRef.current) {
       hasUserScrolledRef.current = true;
@@ -78,7 +81,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // 音声再生用の要素
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [audioLoaded, setAudioLoaded] = useState(false);
+    const [audioLoaded, setAudioLoaded] = useState(false);
   // === オーディオタイミング同期用 ===
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -94,17 +97,26 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }, [currentTime]);
 
     // 🔧 追加: グローバルアクセス用に参照を公開（再生中のシーク対応）
-  useEffect(() => {
-    (window as any).__gameAudioRef = audioRef;
-    (window as any).__gameAudioContextRef = audioContextRef;
-    (window as any).__gameBaseOffsetRef = baseOffsetRef;
-    
-    return () => {
-      delete (window as any).__gameAudioRef;
-      delete (window as any).__gameAudioContextRef;
-      delete (window as any).__gameBaseOffsetRef;
-    };
-  }, []);
+    useEffect(() => {
+      (window as any).__gameAudioRef = audioRef;
+      (window as any).__gameAudioContextRef = audioContextRef;
+      (window as any).__gameBaseOffsetRef = baseOffsetRef;
+      
+      return () => {
+        delete (window as any).__gameAudioRef;
+        delete (window as any).__gameAudioContextRef;
+        delete (window as any).__gameBaseOffsetRef;
+      };
+    }, []);
+
+    useEffect(() => {
+      const unsubscribe = subscribeGameFrame(({ activeNotes, currentTime }) => {
+        if (pixiRendererRef.current) {
+          pixiRendererRef.current.updateNotes(activeNotes, currentTime);
+        }
+      });
+      return unsubscribe;
+    }, []);
   
   // 楽曲読み込み時の音声設定
   useEffect(() => {
@@ -175,8 +187,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           }
         } catch {}
         
-        // 再生同期ループ停止
-        stopTimeSync();
       };
     } else if (currentSong && (!currentSong.audioFile || currentSong.audioFile.trim() === '')) {
       // 音声ファイルなしの楽曲の場合
@@ -324,8 +334,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
         }
 
-        startTimeSync();
-
         // 音声入力開始（再生中のみ）
         if (audioControllerRef.current && settings.inputMode === 'audio') {
           audioControllerRef.current.startListening();
@@ -352,7 +360,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         //   audioContextRef.current.suspend();
         // }
 
-        stopTimeSync();
       }
     };
 
@@ -406,77 +413,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }
     }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying]);
   
-  // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
-  const timeIntervalRef = useRef<number | null>(null);
-  
-  const startTimeSync = () => {
-    // ❌ requestAnimationFrameループは使わない
-    // ✅ 軽量なsetIntervalで時間更新（60FPSより低頻度で競合回避）
-    
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
-    }
-    
-    const updateGameTime = () => {
-      if (!useGameStore.getState().isPlaying) return;
-      
-      let newTime = 0;
-      const audio = audioRef.current;
-      const audioCtx = audioContextRef.current;
-      const hasAudio = currentSong?.audioFile && audio && audioLoaded;
-      
-      if (hasAudio && !audio.paused && audioCtx) {
-        // 音声ありモード：audio要素の時刻を基準
-        newTime = audio.currentTime;
-      } else if (audioCtx) {
-        // 音声なしモード：AudioContextの時刻とオフセットで計算
-        const realTimeElapsed = (audioCtx.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-        newTime = Math.max(0, realTimeElapsed);
-      } else {
-        // フォールバック
-        newTime = useGameStore.getState().currentTime + (50 / 1000); // 50ms進行と仮定
-      }
-      
-      // 🎯 重要：時間を進行させる！
-      updateTime(newTime);
-      
-      // 楽曲終了チェックをrequestIdleCallbackで実行
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => {
-          const songDuration = useGameStore.getState().currentSong?.duration || 0;
-          if (songDuration > 0 && newTime >= songDuration) {
-            useGameStore.getState().stop();
-            
-            // 本番モード時にリザルトモーダルを開く
-            if (useGameStore.getState().mode === 'performance') {
-              useGameStore.getState().openResultModal();
-            }
-          }
-        });
-      } else {
-        // requestIdleCallbackが無い場合は通常実行
-        const songDuration = useGameStore.getState().currentSong?.duration || 0;
-        if (songDuration > 0 && newTime >= songDuration) {
-          useGameStore.getState().stop();
-          
-          // 本番モード時にリザルトモーダルを開く
-          if (useGameStore.getState().mode === 'performance') {
-            useGameStore.getState().openResultModal();
-          }
-        }
-      }
-    };
-    
-    // 30ms間隔で時間更新（33FPS相当、楽譜スクロールを滑らかに）
-    timeIntervalRef.current = window.setInterval(updateGameTime, 30);
-  };
-  
-  const stopTimeSync = useCallback(() => {
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
-      timeIntervalRef.current = null;
-    }
-  }, []);
   
   // シーク機能（音声ありと音声なし両方対応）
   useEffect(() => {
@@ -791,7 +727,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [settings.transpose]);
   
   // ゲームエリアのリサイズ対応（ResizeObserver 使用）
-  useEffect(() => {
+    useEffect(() => {
     if (!gameAreaRef.current) return;
 
     let resizeTimer: number | null = null;
@@ -802,22 +738,41 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         width: rect.width || 800,
         height: rect.height || 600
       };
-      setGameAreaSize(newSize);
+        setGameAreaSize(newSize);
 
-      // 小さい画面では鍵盤高さを縮小（横幅ベースで算出）
-      const dynamicPianoHeight = Math.max(40, Math.min(100, newSize.width / 6));
+        // 小さい画面では鍵盤高さを縮小（横幅ベースで算出）
+        const dynamicPianoHeight = Math.max(40, Math.min(100, newSize.width / 6));
 
-      // 横スクロールが必要かチェック（画面幅が1100px未満の場合）
-      const needsHorizontalScroll = newSize.width < 1100;
+        // 横スクロールが必要かチェック（画面幅が1100px未満の場合）
+        const needsHorizontalScroll = newSize.width < 1100;
 
-      // ストアに反映
-      updateSettings({
-        viewportHeight: newSize.height,
-        pianoHeight: dynamicPianoHeight,
-        // 横スクロールが必要な場合、シークバーをデフォルトで非表示
-        ...(settings.showSeekbar === undefined && needsHorizontalScroll ? { showSeekbar: false } : {})
-      });
-      updateEngineSettings();
+        const nextViewportHeight = newSize.height;
+        const shouldUpdateViewport = lastViewportHeightRef.current !== nextViewportHeight;
+        const shouldUpdatePiano = lastPianoHeightRef.current !== dynamicPianoHeight;
+        const shouldHideSeekbar =
+          settings.showSeekbar === undefined && needsHorizontalScroll && !seekbarInitializedRef.current;
+
+        if (shouldUpdateViewport || shouldUpdatePiano || shouldHideSeekbar) {
+          const payload: Partial<typeof settings> = {};
+          if (shouldUpdateViewport) {
+            payload.viewportHeight = nextViewportHeight;
+            lastViewportHeightRef.current = nextViewportHeight;
+          }
+          if (shouldUpdatePiano) {
+            payload.pianoHeight = dynamicPianoHeight;
+            lastPianoHeightRef.current = dynamicPianoHeight;
+          }
+          if (shouldHideSeekbar) {
+            payload.showSeekbar = false;
+            seekbarInitializedRef.current = true;
+          }
+          if (Object.keys(payload).length > 0) {
+            updateSettings(payload);
+            if (shouldUpdateViewport || shouldUpdatePiano) {
+              updateEngineSettings();
+            }
+          }
+        }
     };
 
     // デバウンス付きのサイズ更新
@@ -856,42 +811,32 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       observer.disconnect();
       window.removeEventListener('resize', debouncedUpdateSize);
     };
-  }, [updateSettings, updateEngineSettings, settings]);
+    }, [updateSettings, updateEngineSettings, settings.showSeekbar]);
   
   // ================= ピアノキー演奏ハンドラー =================
-  const handlePianoKeyPress = useCallback(async (note: number) => {
-    try {
-      // 共通音声システムで音を鳴らす
-      const { playNote } = await import('@/utils/MidiController');
-      await playNote(note, 64); // マウス/タッチ用の固定velocity
-      
-      // ゲームエンジンにノート入力（ハイライトはGameEngineの状態更新に委ねる）
-      handleNoteInput(note);
-      
-      // 注意: キーハイライトは削除し、GameEngineの判定ロジックに完全に委ねました
-      // これにより、マウスクリックとキーボード入力で一貫したエフェクト表示が実現されます
-      
-      // ログ削除: FPS最適化のため
-    // devLog.debug(`🎹 Piano key played: ${note}`);
-    } catch (error) {
-      log.error('❌ Piano key play error:', error);
-    }
+  const handlePianoKeyPress = useCallback((note: number) => {
+    // ゲームエンジンにノート入力（ハイライトはGameEngineの状態更新に委ねる）
+    handleNoteInput(note);
+    
+    // 共通音声システムで音を鳴らす（非同期で実行し判定遅延を排除）
+    import('@/utils/MidiController')
+      .then(({ playNote }) => {
+        void playNote(note, 64); // マウス/タッチ用の固定velocity
+      })
+      .catch((error) => {
+        log.error('❌ Piano key play error:', error);
+      });
   }, [handleNoteInput]);
 
   // ================= ピアノキーリリースハンドラー =================
-  const handlePianoKeyRelease = useCallback(async (note: number) => {
-    try {
-      // 共通音声システムで音を止める
-      const { stopNote } = await import('@/utils/MidiController');
-      stopNote(note);
-      
-      // 注意: ハイライト解除も削除し、GameEngineの状態更新に完全に委ねました
-      
-      // ログ削除: FPS最適化のため
-    // devLog.debug(`🎹 Piano key released: ${note}`);
-    } catch (error) {
-      log.error('❌ Piano key release error:', error);
-    }
+  const handlePianoKeyRelease = useCallback((note: number) => {
+    import('@/utils/MidiController')
+      .then(({ stopNote }) => {
+        stopNote(note);
+      })
+      .catch((error) => {
+        log.error('❌ Piano key release error:', error);
+      });
   }, []);
 
   // ================= PIXI.js レンダラー準備完了ハンドラー =================
@@ -899,11 +844,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (!renderer) {
       // 破棄通知
       setPixiRenderer(null);
+      pixiRendererRef.current = null;
       return;
     }
     
     log.info('🎮 PIXI.js renderer ready, setting up callbacks...');
     setPixiRenderer(renderer);
+    pixiRendererRef.current = renderer;
     
     // 初期設定を反映
     renderer.updateSettings({
@@ -1087,14 +1034,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               }}>
                 {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
                 
-                <PIXINotesRenderer
-                  activeNotes={engineActiveNotes}
-                  width={idealWidth}
-                  height={gameAreaSize.height}
-                  currentTime={currentTime}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
+                  <PIXINotesRenderer
+                    width={idealWidth}
+                    height={gameAreaSize.height}
+                    onReady={handlePixiReady}
+                    className="w-full h-full"
+                  />
                 <ChordOverlay />
               </div>
             </div>

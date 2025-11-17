@@ -159,10 +159,8 @@ const isHitState = (state: ActiveNote['state']) =>
 // ===== 型定義 =====
 
 interface PIXINotesRendererProps {
-  activeNotes: ActiveNote[];
   width: number;
   height: number;
-  currentTime: number; // 現在時刻を追加（アニメーション同期用）
   /** レンダラー準備完了・破棄通知。null で破棄を示す */
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
@@ -286,6 +284,10 @@ export class PIXINotesRendererInstance {
     private effectUpdaters: Set<EffectUpdater> = new Set();
     private activeHitEffects: Set<ActiveHitEffect> = new Set();
     private readonly hitEffectDurationMs = 120;
+    private readonly noteSpritePool: PIXI.Sprite[] = [];
+    private readonly glowSpritePool: PIXI.Graphics[] = [];
+    private readonly maxSpritePoolSize = 256;
+    private readonly maxGlowPoolSize = 128;
 
   
   // Ticker関数への参照（削除用）
@@ -2057,6 +2059,55 @@ export class PIXINotesRendererInstance {
       return left; // 最初の「まだ表示していない」ノートのインデックス
     }
   
+  private acquireNoteSprite(texture: PIXI.Texture): PIXI.Sprite {
+    const sprite = this.noteSpritePool.pop() ?? new PIXI.Sprite(texture);
+    if (!(sprite as any).__initialized) {
+      ;(sprite as any).__initialized = true;
+      ;(sprite as any).eventMode = 'none';
+      ;(sprite as any).interactive = false;
+      ;(sprite as any).interactiveChildren = false;
+      sprite.anchor.set(0.5, 0.5);
+    }
+    sprite.texture = texture;
+    sprite.alpha = 1;
+    sprite.visible = true;
+    sprite.scale.set(1);
+    return sprite;
+  }
+  
+  private recycleNoteSprite(sprite: PIXI.Sprite): void {
+    if (sprite.parent) {
+      sprite.parent.removeChild(sprite);
+    }
+    sprite.alpha = 1;
+    sprite.visible = false;
+    if (this.noteSpritePool.length < this.maxSpritePoolSize) {
+      this.noteSpritePool.push(sprite);
+    } else {
+      sprite.destroy({ children: true, texture: false, baseTexture: false });
+    }
+  }
+  
+  private acquireGlowSprite(): PIXI.Graphics {
+    const graphic = this.glowSpritePool.pop() ?? new PIXI.Graphics();
+    graphic.clear();
+    graphic.visible = true;
+    return graphic;
+  }
+  
+  private recycleGlowSprite(graphic: PIXI.Graphics): void {
+    graphic.clear();
+    graphic.visible = false;
+    if (graphic.parent) {
+      graphic.parent.removeChild(graphic);
+    }
+    if (this.glowSpritePool.length < this.maxGlowPoolSize) {
+      this.glowSpritePool.push(graphic);
+    } else {
+      graphic.destroy({ children: true, texture: false, baseTexture: false });
+    }
+  }
+  
   private createNoteSprite(note: ActiveNote): NoteSprite {
     const effectivePitch = note.pitch + this.settings.transpose;
     const x = this.pitchToX(note.pitch);
@@ -2066,12 +2117,7 @@ export class PIXINotesRendererInstance {
     const texture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
     
     // メインノートスプライト（位置は後でupdateNotesで設定）
-    const sprite = new PIXI.Sprite(texture);
-    // ノーツスプライトは完全にイベント非対象（クリック透過）
-    ;(sprite as any).eventMode = 'none';
-    ;(sprite as any).interactive = false;
-    ;(sprite as any).interactiveChildren = false;
-    sprite.anchor.set(0.5, 0.5);
+    const sprite = this.acquireNoteSprite(texture);
     sprite.x = x;
     sprite.y = 0; // 後で設定
     
@@ -2131,7 +2177,7 @@ export class PIXINotesRendererInstance {
     // グロー効果スプライト（デフォルトOFF、必要時のみ）
     let glowSprite: PIXI.Graphics | undefined;
     if (this.settings.effects.glow) {
-      glowSprite = new PIXI.Graphics();
+      glowSprite = this.acquireGlowSprite();
       glowSprite.x = x;
       glowSprite.y = 0; // 後で設定
       this.effectsContainer.addChild(glowSprite);
@@ -2291,26 +2337,18 @@ export class PIXINotesRendererInstance {
         if (this.labelsContainer.children.includes(noteSprite.label)) {
           this.labelsContainer.removeChild(noteSprite.label);
         }
-        noteSprite.label.destroy({ children: true, texture: false, baseTexture: false });
+          noteSprite.label.destroy({ children: true, texture: false, baseTexture: false });
+          noteSprite.label = undefined;
       }
 
-      // メインスプライト削除
-      if (noteSprite.sprite && noteSprite.sprite.parent) {
-        noteSprite.sprite.parent.removeChild(noteSprite.sprite);
-      }
-      if (noteSprite.sprite && !noteSprite.sprite.destroyed) {
-        noteSprite.sprite.destroy({ children: true, texture: false, baseTexture: false });
-      }
-      
-      // グロースプライト削除
-      if (noteSprite.glowSprite) {
-        if (noteSprite.glowSprite.parent) {
-          noteSprite.glowSprite.parent.removeChild(noteSprite.glowSprite);
+        if (noteSprite.sprite) {
+          this.recycleNoteSprite(noteSprite.sprite);
         }
-        if (!noteSprite.glowSprite.destroyed) {
-          noteSprite.glowSprite.destroy({ children: true, texture: false, baseTexture: false });
+        
+        if (noteSprite.glowSprite) {
+          this.recycleGlowSprite(noteSprite.glowSprite);
+          noteSprite.glowSprite = undefined;
         }
-      }
           } catch (error) {
         log.warn(`⚠️ Note sprite cleanup error for ${noteId}:`, error);
       }
@@ -3191,10 +3229,8 @@ export class PIXINotesRendererInstance {
 // ===== React コンポーネント =====
 
 export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
-  activeNotes,
   width,
   height,
-  currentTime,
   onReady,
   className
 }) => {
@@ -3276,14 +3312,6 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       onReady?.(rendererRef.current);
     }
   }, [onReady]);
-  
-  // ノーツ更新
-  useEffect(() => {
-    if (rendererRef.current) {
-      rendererRef.current.updateNotes(activeNotes, currentTime);
-    }
-  }, [activeNotes, currentTime]);
-  
   
   // リサイズ対応
   useEffect(() => {

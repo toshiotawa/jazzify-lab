@@ -245,13 +245,9 @@ export class GameEngine {
     // ノーツの状態更新 - 新しいオブジェクトを作成して置き換え
     const note = this.activeNotes.get(hit.noteId);
     if (note) {
-      const updatedNote: ActiveNote = {
-        ...note,
-        state: 'hit',
-        hitTime: hit.timestamp,
-        timingError: hit.timingError
-      };
-      this.activeNotes.set(hit.noteId, updatedNote);
+        note.state = 'hit';
+        note.hitTime = hit.timestamp;
+        note.timingError = hit.timingError;
     }
     
     return judgment;
@@ -533,24 +529,12 @@ export class GameEngine {
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標計算のみの軽量処理
    */
-  private updateNotePositions(currentTime: number): void {
-    for (const [noteId, note] of this.activeNotes) {
-      // 前フレームのY座標を保存
-      const previousY = note.y;
-      
-      // 新しいY座標を計算（軽量処理）
-      const newY = this.calculateNoteY(note, currentTime);
-      
-      // 新しいオブジェクトを作成して置き換え（Immer不要の軽量更新）
-      const updatedNote: ActiveNote = {
-        ...note,
-        previousY,
-        y: newY
-      };
-      
-      this.activeNotes.set(noteId, updatedNote);
+    private updateNotePositions(currentTime: number): void {
+      for (const note of this.activeNotes.values()) {
+        note.previousY = note.y;
+        note.y = this.calculateNoteY(note, currentTime);
+      }
     }
-  }
 
   /**
    * 🎯 判定・状態更新専用ループ（フレーム間引き実行）
@@ -602,62 +586,50 @@ export class GameEngine {
     
   }
   
-  private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
-    const timePassed = currentTime - note.time;
-    
-    // 🛡️ Hit状態のノートは保護し、エフェクト描画のため一定時間後に削除
-    if (note.state === 'hit') {
-      // hitTime が記録されているか確認
-      if (note.hitTime) {
-        // 約3フレーム (50ms) 表示を維持してエフェクト描画を確保してから削除
-        if (currentTime - note.hitTime > 0.05) {
-          // ログ削除: FPS最適化のため
-        // devLog.debug(`✅ Hitノートをクリーンアップ: ${note.id}`);
-          return { ...note, state: 'completed' };
+    private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
+      const timePassed = currentTime - note.time;
+      
+      // 🛡️ Hit状態のノートは保護し、エフェクト描画のため一定時間後に削除
+      if (note.state === 'hit') {
+        if (note.hitTime) {
+          if (currentTime - note.hitTime > 0.05) {
+            note.state = 'completed';
+          }
+        } else {
+          log.warn(`⚠️ HitノートにhitTimeがありません: ${note.id}`);
+          note.state = 'completed';
         }
-      } else {
-        // hitTime がない場合は、即座に完了させる (フォールバック)
-        log.warn(`⚠️ HitノートにhitTimeがありません: ${note.id}`);
-        return { ...note, state: 'completed' };
+        return note;
       }
-      // 50ms経過していない場合は状態を維持してエフェクト描画を許可
+      
+      // Miss判定チェック - 判定ライン通過後500ms後にmiss判定
+      const missDelayAfterHitLine = 0.5; // 500ms
+      if (note.state === 'visible' && timePassed > missDelayAfterHitLine) {
+        const noteAge = currentTime - (note.appearTime || note.time - this.getLookaheadTime());
+        const gracePeriod = 2.0;
+        
+        if (noteAge > gracePeriod) {
+          note.state = 'missed';
+        }
+      }
+      
+      // Missed ノーツは速度に応じた時間残してから削除
+      if (note.state === 'missed' && timePassed > this.getMissedCleanupTime()) {
+        note.state = 'completed';
+        return note;
+      }
+      
+      // 通常のクリーンアップチェック (速度に応じて延長)
+      if (timePassed > this.getCleanupTime()) {
+        note.state = 'completed';
+        return note;
+      }
+      
+      note.previousY = note.y;
+      note.y = this.calculateNoteY(note, currentTime);
+      
       return note;
     }
-    
-    // *自動ヒットは checkHitLineCrossing で処理*
-    
-    // Miss判定チェック - 判定ライン通過後500ms後にmiss判定
-    const missDelayAfterHitLine = 0.5; // 500ms
-    if (note.state === 'visible' && timePassed > missDelayAfterHitLine) {
-      // シーク直後とノーツ生成直後の猶予期間を設ける
-      const noteAge = currentTime - (note.appearTime || note.time - this.getLookaheadTime());
-      const gracePeriod = 2.0; // 2秒の猶予期間（生成直後の保護）
-      
-      if (noteAge > gracePeriod) {
-        return { ...note, state: 'missed' };
-      }
-    }
-    
-    // Missed ノーツは速度に応じた時間残してから削除
-    if (note.state === 'missed' && timePassed > this.getMissedCleanupTime()) {
-      return { ...note, state: 'completed' };
-    }
-    
-    // 通常のクリーンアップチェック (速度に応じて延長)
-    if (timePassed > this.getCleanupTime()) {
-      return { ...note, state: 'completed' };
-    }
-    
-    // 前フレームのY座標を保存してから新しいY座標を計算
-    const previousY = note.y;
-    const newY = this.calculateNoteY(note, currentTime);
-    
-    return {
-      ...note,
-      previousY,
-      y: newY
-    };
-  }
 
   private checkHitLineCrossing(note: ActiveNote, currentTime: number): void {
     // 動的レイアウト対応: 設定値からヒットラインを計算
@@ -681,11 +653,8 @@ export class GameEngine {
       const timeError = (currentTime - displayTime) * 1000;   // ms
 
       // 重複ログ防止フラグを即座に設定
-      const updatedNote: ActiveNote = {
-        ...note,
-        crossingLogged: true
-      };
-      this.activeNotes.set(note.id, updatedNote);
+        note.crossingLogged = true;
+        this.activeNotes.set(note.id, note);
 
       // 練習モードガイド処理
       const practiceGuide = this.settings.practiceGuide ?? 'key';
