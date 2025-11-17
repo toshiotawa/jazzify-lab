@@ -464,8 +464,9 @@ export class PIXINotesRendererInstance {
       const deltaMs = PIXI.Ticker.shared.deltaMS;
       this.effectsElapsed += deltaMs;
 
-      if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
-        const normalizedDelta = this.effectsElapsed / 16;
+      // 🎯 最適化: 更新頻度を約30fps（33ms）に制限（パフォーマンス向上）
+      if (this.effectsElapsed >= 33) {
+        const normalizedDelta = this.effectsElapsed / 33;
 
         for (const updater of this.effectUpdaters) {
           if (!updater.active) {
@@ -1865,8 +1866,14 @@ export class PIXINotesRendererInstance {
   /**
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
+   * 🎯 最適化: 表示範囲外のノートは位置更新をスキップ
    */
   private updateSpritePositions(activeNoteLookup: Map<string, ActiveNote>, currentTime: number, speedPxPerSec: number): void {
+    // 表示範囲のマージン（画面外でも少し余裕を持たせる）
+    const viewportMargin = 200; // 画面外200pxまでは更新
+    const minY = -viewportMargin;
+    const maxY = this.settings.height + viewportMargin;
+    
     for (const [noteId, sprite] of this.noteSprites) {
       const note = activeNoteLookup.get(noteId);
       if (!note) {
@@ -1882,6 +1889,12 @@ export class PIXINotesRendererInstance {
       } else {
         // フォールバック: 自前計算
         newY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
+      }
+
+      // 🎯 最適化: 表示範囲外のノートは位置更新をスキップ
+      if (newY < minY || newY > maxY) {
+        // 表示範囲外のノートは位置更新をスキップ（ただし、状態変更は必要）
+        continue;
       }
 
       sprite.sprite.y = newY;
@@ -1992,6 +2005,7 @@ export class PIXINotesRendererInstance {
   /**
    * 🎯 状態・削除処理専用ループ（フレーム間引き実行）
    * 重い処理（判定、状態変更、削除）のみ
+   * 🎯 最適化: 状態変更がないノートはスキップ
    */
   private updateSpriteStates(activeNoteLookup: Map<string, ActiveNote>): void {
     const spritesToRemove: string[] = [];
@@ -2005,8 +2019,18 @@ export class PIXINotesRendererInstance {
         continue;
       }
       
+      // 🎯 最適化: 状態・音名・ピッチが変更されていない場合はスキップ
+      const stateChanged = sprite.noteData.state !== note.state;
+      const noteNameChanged = sprite.noteData.noteName !== note.noteName;
+      const pitchChanged = sprite.noteData.pitch !== note.pitch;
+      
+      if (!stateChanged && !noteNameChanged && !pitchChanged) {
+        // 変更がない場合はスキップ（パフォーマンス向上）
+        continue;
+      }
+      
       // ===== 状態 or 音名 変更チェック（変更時のみ、重い処理） =====
-      if (sprite.noteData.state !== note.state || sprite.noteData.noteName !== note.noteName) {
+      if (stateChanged || noteNameChanged) {
         // 🚀 ヒット系判定時は即座処理
         if (isHitState(note.state)) {
           // エフェクトは updateNoteState 内で生成するためここでは作成しない
