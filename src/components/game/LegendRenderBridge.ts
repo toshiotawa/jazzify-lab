@@ -12,7 +12,6 @@ export class LegendRenderBridge {
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
   private lastFrame: BridgeFrame | null = null;
-  private lastNoteHash: string | null = null;
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
@@ -66,11 +65,6 @@ export class LegendRenderBridge {
   }
 
   private handleEngineUpdate(update: GameEngineUpdate): void {
-    const nextHash = this.computeNoteHash(update.activeNotes);
-    if (this.lastNoteHash && this.lastNoteHash === nextHash) {
-      return;
-    }
-    this.lastNoteHash = nextHash;
     this.lastFrame = {
       activeNotes: update.activeNotes,
       currentTime: update.currentTime
@@ -80,7 +74,6 @@ export class LegendRenderBridge {
 
   private primeFromEngine(engine: GameEngine): void {
     const snapshot = engine.getState();
-    this.lastNoteHash = this.computeNoteHash(snapshot.activeNotes);
     this.lastFrame = {
       activeNotes: snapshot.activeNotes,
       currentTime: snapshot.currentTime
@@ -95,12 +88,4 @@ export class LegendRenderBridge {
     this.renderer.updateNotes(this.lastFrame.activeNotes, this.lastFrame.currentTime);
   }
 
-  private computeNoteHash(notes: ActiveNote[]): string {
-    let hash = '';
-    for (let i = 0; i < notes.length; i += 1) {
-      const note = notes[i];
-      hash += `${note.id}:${note.state};`;
-    }
-    return hash;
-  }
 }
