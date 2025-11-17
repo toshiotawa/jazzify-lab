@@ -6,50 +6,63 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useEffect, useCallback, useState, useRef } from 'react';
-import { useGameStore } from '@/stores/gameStore';
-import { useGameSelector, useGameActions } from '@/stores/helpers';
-import { cn } from '@/utils/cn';
-import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
-import ChordOverlay from './ChordOverlay';
-import * as Tone from 'tone';
-import { devLog, log } from '@/utils/logger';
+import React, { useEffect, useCallback, useState, useRef } from "react";
+import { useGameStore } from "@/stores/gameStore";
+import { useGameActions } from "@/stores/helpers";
+import { cn } from "@/utils/cn";
+import {
+  PIXINotesRenderer,
+  PIXINotesRendererInstance,
+} from "./PIXINotesRenderer";
+import ChordOverlay from "./ChordOverlay";
+import * as Tone from "tone";
+import { devLog, log } from "@/utils/logger";
 
 // iOS検出関数
 const isIOS = (): boolean => {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) && !("MSStream" in window)
+  );
 };
 
 interface GameEngineComponentProps {
   className?: string;
 }
 
-export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({ 
-  className 
+export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
+  className,
 }) => {
-  const {
-    gameEngine,
-    engineActiveNotes,
-    isPlaying,
-    currentSong,
-    currentTime,
-    settings,
-    score,
-    mode,
-    lastKeyHighlight,
-    isSettingsOpen
-  } = useGameSelector((state) => ({
-    gameEngine: state.gameEngine,
-    engineActiveNotes: state.engineActiveNotes,
-    isPlaying: state.isPlaying,
-    currentSong: state.currentSong,
-    currentTime: state.currentTime,
-    settings: state.settings,
-    score: state.score,
-    mode: state.mode,
-    lastKeyHighlight: state.lastKeyHighlight,
-    isSettingsOpen: state.isSettingsOpen
-  }));
+  const gameEngine = useGameStore((state) => state.gameEngine);
+  const engineActiveNotes = useGameStore((state) => state.engineActiveNotes);
+  const isPlaying = useGameStore((state) => state.isPlaying);
+  const currentSong = useGameStore((state) => state.currentSong);
+  const score = useGameStore((state) => state.score);
+  const mode = useGameStore((state) => state.mode);
+  const lastKeyHighlight = useGameStore((state) => state.lastKeyHighlight);
+  const isSettingsOpen = useGameStore((state) => state.isSettingsOpen);
+  const musicVolume = useGameStore((state) => state.settings.musicVolume);
+  const playbackSpeed = useGameStore((state) => state.settings.playbackSpeed);
+  const transpose = useGameStore((state) => state.settings.transpose);
+  const noteNameStyle = useGameStore((state) => state.settings.noteNameStyle);
+  const simpleDisplayMode = useGameStore(
+    (state) => state.settings.simpleDisplayMode,
+  );
+  const pianoHeight = useGameStore((state) => state.settings.pianoHeight);
+  const transposingInstrument = useGameStore(
+    (state) => state.settings.transposingInstrument,
+  );
+  const practiceGuide = useGameStore(
+    (state) => state.settings.practiceGuide ?? "key",
+  );
+  const pyinThreshold = useGameStore((state) => state.settings.pyinThreshold);
+  const inputMode = useGameStore((state) => state.settings.inputMode);
+  const selectedMidiDevice = useGameStore(
+    (state) => state.settings.selectedMidiDevice,
+  );
+  const selectedAudioDevice = useGameStore(
+    (state) => state.settings.selectedAudioDevice,
+  );
+  const showSeekbar = useGameStore((state) => state.settings.showSeekbar);
 
   const {
     initializeGameEngine,
@@ -61,10 +74,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     stop,
     pause,
     setLastKeyHighlight,
-    openResultModal
+    openResultModal,
   } = useGameActions();
-  
-  const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
+
+  const [pixiRenderer, setPixiRenderer] =
+    useState<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
@@ -75,7 +89,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       hasUserScrolledRef.current = true;
     }
   }, []);
-  
+
   // 音声再生用の要素
   const audioRef = useRef<HTMLAudioElement>(null);
   const [audioLoaded, setAudioLoaded] = useState(false);
@@ -85,32 +99,51 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const pitchShiftRef = useRef<Tone.PitchShift | null>(null);
   // GameEngine と updateTime に渡すための AudioContext ベースのタイムスタンプ
   const baseOffsetRef = useRef<number>(0); // currentTime = audioCtx.time - baseOffset
-    const animationFrameRef = useRef<number | null>(null);
-    const currentTimeRef = useRef(currentTime);
-  
-    // 現在時刻の参照を最新化（高頻度の依存関係排除用）
-    useEffect(() => {
-      currentTimeRef.current = currentTime;
-    }, [currentTime]);
+  const animationFrameRef = useRef<number | null>(null);
+  const currentTimeRef = useRef(useGameStore.getState().currentTime);
+  const currentSongRef = useRef(currentSong);
+  const playbackSpeedRef = useRef(playbackSpeed);
+  const audioLoadedRef = useRef(audioLoaded);
+  const gameEngineRef = useRef(gameEngine);
 
-    // 🔧 追加: グローバルアクセス用に参照を公開（再生中のシーク対応）
+  useEffect(() => {
+    currentSongRef.current = currentSong;
+  }, [currentSong]);
+
+  useEffect(() => {
+    playbackSpeedRef.current = playbackSpeed;
+  }, [playbackSpeed]);
+
+  useEffect(() => {
+    audioLoadedRef.current = audioLoaded;
+  }, [audioLoaded]);
+
+  useEffect(() => {
+    gameEngineRef.current = gameEngine;
+  }, [gameEngine]);
+
+  // 🔧 追加: グローバルアクセス用に参照を公開（再生中のシーク対応）
   useEffect(() => {
     (window as any).__gameAudioRef = audioRef;
     (window as any).__gameAudioContextRef = audioContextRef;
     (window as any).__gameBaseOffsetRef = baseOffsetRef;
-    
+
     return () => {
       delete (window as any).__gameAudioRef;
       delete (window as any).__gameAudioContextRef;
       delete (window as any).__gameBaseOffsetRef;
     };
   }, []);
-  
+
   // 楽曲読み込み時の音声設定
   useEffect(() => {
-    if (currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current) {
+    if (
+      currentSong?.audioFile &&
+      currentSong.audioFile.trim() !== "" &&
+      audioRef.current
+    ) {
       const audio = audioRef.current;
-      
+
       const handleLoadedMetadata = () => {
         setAudioLoaded(true);
         log.info(`🎵 音声ファイル読み込み完了: ${audio.duration}秒`);
@@ -118,51 +151,55 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           src: audio.src,
           duration: audio.duration,
           readyState: audio.readyState,
-          networkState: audio.networkState
+          networkState: audio.networkState,
         });
       };
-      
+
       const handleError = (e: any) => {
         log.error(`🚨 音声読み込みエラー詳細:`, {
           error: e,
           src: audio.src,
           readyState: audio.readyState,
           networkState: audio.networkState,
-          lastError: audio.error
+          lastError: audio.error,
         });
         setAudioLoaded(false);
       };
-      
+
       const handleCanPlay = () => {
-        devLog.debug('🎵 音声再生可能状態に到達');
+        devLog.debug("🎵 音声再生可能状態に到達");
       };
-      
-        audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-        audio.addEventListener('error', handleError);
-        audio.addEventListener('canplay', handleCanPlay);
-        
-        log.info(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
-        // CORS対応: Supabaseストレージからの音声ファイルでWeb Audio APIを使用するため
-        audio.crossOrigin = 'anonymous';
-        audio.src = currentSong.audioFile;
-        audio.volume = settings.musicVolume;
-        audio.preload = 'auto';
-        try {
-          audio.load();
-        } catch (loadError) {
-          devLog.debug('audio.load failed (likely Safari):', loadError);
-        }
-      
+
+      audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.addEventListener("error", handleError);
+      audio.addEventListener("canplay", handleCanPlay);
+
+      log.info(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
+      // CORS対応: Supabaseストレージからの音声ファイルでWeb Audio APIを使用するため
+      audio.crossOrigin = "anonymous";
+      audio.src = currentSong.audioFile;
+      audio.volume = musicVolume;
+      audio.preload = "auto";
+      try {
+        audio.load();
+      } catch (loadError) {
+        devLog.debug("audio.load failed (likely Safari):", loadError);
+      }
+
       return () => {
         // 旧リスナー解除
-        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        audio.removeEventListener('error', handleError);
-        audio.removeEventListener('canplay', handleCanPlay);
-        
+        audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+        audio.removeEventListener("error", handleError);
+        audio.removeEventListener("canplay", handleCanPlay);
+
         // 旧音声の停止と解放
-        try { audio.pause(); } catch {}
-        try { audio.currentTime = 0; } catch {}
-        
+        try {
+          audio.pause();
+        } catch {}
+        try {
+          audio.currentTime = 0;
+        } catch {}
+
         // AudioNode/Toneノードの切断と解放
         try {
           if (mediaSourceRef.current) {
@@ -174,19 +211,22 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             pitchShiftRef.current.disconnect();
           }
         } catch {}
-        
+
         // 再生同期ループ停止
         stopTimeSync();
       };
-    } else if (currentSong && (!currentSong.audioFile || currentSong.audioFile.trim() === '')) {
+    } else if (
+      currentSong &&
+      (!currentSong.audioFile || currentSong.audioFile.trim() === "")
+    ) {
       // 音声ファイルなしの楽曲の場合
       log.info(`🎵 音声なしモードで楽曲を読み込み: ${currentSong.title}`);
       setAudioLoaded(true); // 音声なしでも "読み込み完了" として扱う
     } else {
       setAudioLoaded(false);
     }
-  }, [currentSong?.audioFile, settings.musicVolume]);
-  
+  }, [currentSong?.audioFile, musicVolume]);
+
   // 再生状態同期
   useEffect(() => {
     if (!gameEngine) return;
@@ -194,159 +234,182 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     const run = async () => {
       if (isPlaying) {
         // 音声ファイルありの場合とnしの場合で分岐
-        const hasAudio = currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
-        
+        const hasAudio =
+          currentSong?.audioFile &&
+          currentSong.audioFile.trim() !== "" &&
+          audioRef.current &&
+          audioLoaded;
+
         if (hasAudio) {
           // === 音声ありモード ===
           const audio = audioRef.current!;
 
-        // 1) AudioContext を初期化 (存在しなければ)
-        if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        }
-        const audioContext = audioContextRef.current!;
-
-        // 2) MediaElementSource を生成（初回のみ）
-        if (!mediaSourceRef.current) {
-          try {
-            mediaSourceRef.current = audioContext.createMediaElementSource(audio);
-            log.info('✅ MediaElementAudioSourceNode created successfully');
-          } catch (error) {
-            log.error('🚨 MediaElementAudioSourceNode creation failed:', error);
-            throw error;
-          }
-        }
-
-        // 3) Tone.js PitchShift エフェクトを初期化（初回のみ）
-        if (!pitchShiftRef.current) {
-          try {
-            await Tone.start();
-          } catch (err) {
-            log.warn('Tone.start() failed or was already started', err);
-          }
-
-          // Tone.js が独自の AudioContext を持っている場合、現在のものに切り替え
-          try {
-            // Tone v14 以降は setContext が存在
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            if (Tone.setContext) {
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-              // @ts-ignore
-              Tone.setContext(audioContext);
-            } else {
-              // 旧API - コンテキストの直接代入は避ける
-              log.warn('Unable to set Tone.js context - using default context');
-            }
-          } catch (err) {
-            log.warn('Tone context assignment failed', err);
-          }
-
-          pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
-        }
-
-        // 4) Web Audio → Tone.js エフェクトへ橋渡し
-        try {
-          mediaSourceRef.current.disconnect();
-        } catch (_) {/* already disconnected */}
-
-        try {
-          // Tone.connect を使用するとネイティブ AudioNode と ToneAudioNode を安全に接続できる
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          Tone.connect(mediaSourceRef.current, pitchShiftRef.current);
-        } catch (err) {
-          log.error('Tone.connect failed:', err);
-        }
-
-        // 5) AudioContext を resume し、再生位置を同期
-        // 🔧 非同期でresumeしてUIブロックを防ぐ
-        const resumePromise = audioContext.resume();
-
-        // ==== 再生スピード適用 ====
-        audio.playbackRate = settings.playbackSpeed;
-        // ピッチ保持を試みる（ブラウザによって実装が異なる）
-        try {
-          // @ts-ignore - ベンダープレフィックス対応
-          audio.preservesPitch = true;
-          // @ts-ignore
-          audio.mozPreservesPitch = true;
-          // @ts-ignore
-          audio.webkitPreservesPitch = true;
-        } catch (_) {/* ignore */}
-
-        // 🔧 修正: シークバー位置を維持 - ストアのcurrentTimeを優先使用
-        const syncTime = Math.max(0, currentTime);
-        audio.currentTime = syncTime;
-
-        // 6) AudioContext と HTMLAudio のオフセットを記録
-        // 再生速度を考慮した正確な baseOffset 計算
-        const realTimeElapsed = syncTime / settings.playbackSpeed;
-        baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
-
-        // 7) GameEngine を AudioContext に紐付けて開始
-        gameEngine.start(audioContext);
-        gameEngine.seek(syncTime);
-
-        // 8) HTMLAudio 再生 (AudioContext と同軸)
-        // resumeが完了してから再生開始
-        resumePromise.then(() => {
-          // iOS向けの追加待機時間（バッファリング）
-          if (isIOS()) {
-            return new Promise(resolve => setTimeout(resolve, 100));
-          }
-          return Promise.resolve();
-        }).then(() => {
-          audio.play().catch(e => log.error('音声再生エラー:', e));
-        }).catch(e => log.error('AudioContext resume エラー:', e));
-        } else {
-          // === 音声なしモード ===
-          log.info('🎵 音声なしモードでゲームエンジンを開始');
-          
-          // AudioContextを簡易作成
+          // 1) AudioContext を初期化 (存在しなければ)
           if (!audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            audioContextRef.current = new (window.AudioContext ||
+              (window as any).webkitAudioContext)();
           }
           const audioContext = audioContextRef.current!;
-          
+
+          // 2) MediaElementSource を生成（初回のみ）
+          if (!mediaSourceRef.current) {
+            try {
+              mediaSourceRef.current =
+                audioContext.createMediaElementSource(audio);
+              log.info("✅ MediaElementAudioSourceNode created successfully");
+            } catch (error) {
+              log.error(
+                "🚨 MediaElementAudioSourceNode creation failed:",
+                error,
+              );
+              throw error;
+            }
+          }
+
+          // 3) Tone.js PitchShift エフェクトを初期化（初回のみ）
+          if (!pitchShiftRef.current) {
+            try {
+              await Tone.start();
+            } catch (err) {
+              log.warn("Tone.start() failed or was already started", err);
+            }
+
+            // Tone.js が独自の AudioContext を持っている場合、現在のものに切り替え
+            try {
+              // Tone v14 以降は setContext が存在
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore
+              if (Tone.setContext) {
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                Tone.setContext(audioContext);
+              } else {
+                // 旧API - コンテキストの直接代入は避ける
+                log.warn(
+                  "Unable to set Tone.js context - using default context",
+                );
+              }
+            } catch (err) {
+              log.warn("Tone context assignment failed", err);
+            }
+
+            pitchShiftRef.current = new Tone.PitchShift({
+              pitch: transpose,
+            }).toDestination();
+          }
+
+          // 4) Web Audio → Tone.js エフェクトへ橋渡し
+          try {
+            mediaSourceRef.current.disconnect();
+          } catch (_) {
+            /* already disconnected */
+          }
+
+          try {
+            // Tone.connect を使用するとネイティブ AudioNode と ToneAudioNode を安全に接続できる
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            Tone.connect(mediaSourceRef.current, pitchShiftRef.current);
+          } catch (err) {
+            log.error("Tone.connect failed:", err);
+          }
+
+          // 5) AudioContext を resume し、再生位置を同期
           // 🔧 非同期でresumeしてUIブロックを防ぐ
-          audioContext.resume().catch(e => log.warn('AudioContext resume エラー:', e));
+          const resumePromise = audioContext.resume();
+
+          // ==== 再生スピード適用 ====
+          audio.playbackRate = playbackSpeed;
+          // ピッチ保持を試みる（ブラウザによって実装が異なる）
+          try {
+            // @ts-ignore - ベンダープレフィックス対応
+            audio.preservesPitch = true;
+            // @ts-ignore
+            audio.mozPreservesPitch = true;
+            // @ts-ignore
+            audio.webkitPreservesPitch = true;
+          } catch (_) {
+            /* ignore */
+          }
+
+          // 🔧 修正: シークバー位置を維持 - ストアのcurrentTimeを優先使用
+          const syncTime = Math.max(0, currentTimeRef.current);
+          audio.currentTime = syncTime;
+
+          // 6) AudioContext と HTMLAudio のオフセットを記録
+          // 再生速度を考慮した正確な baseOffset 計算
+          const realTimeElapsed = syncTime / playbackSpeed;
+          baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
+
+          // 7) GameEngine を AudioContext に紐付けて開始
+          gameEngine.start(audioContext);
+          gameEngine.seek(syncTime);
+
+          // 8) HTMLAudio 再生 (AudioContext と同軸)
+          // resumeが完了してから再生開始
+          resumePromise
+            .then(() => {
+              // iOS向けの追加待機時間（バッファリング）
+              if (isIOS()) {
+                return new Promise((resolve) => setTimeout(resolve, 100));
+              }
+              return Promise.resolve();
+            })
+            .then(() => {
+              audio.play().catch((e) => log.error("音声再生エラー:", e));
+            })
+            .catch((e) => log.error("AudioContext resume エラー:", e));
+        } else {
+          // === 音声なしモード ===
+          log.info("🎵 音声なしモードでゲームエンジンを開始");
+
+          // AudioContextを簡易作成
+          if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext ||
+              (window as any).webkitAudioContext)();
+          }
+          const audioContext = audioContextRef.current!;
+
+          // 🔧 非同期でresumeしてUIブロックを防ぐ
+          audioContext
+            .resume()
+            .catch((e) => log.warn("AudioContext resume エラー:", e));
 
           // 🔧 修正: 音声なしモードでもシークバー位置を維持 - ストアのcurrentTimeを優先使用
-          const syncTime = Math.max(0, currentTime);
-          
+          const syncTime = Math.max(0, currentTimeRef.current);
+
           // ゲームエンジンを開始（音声同期なし）
           gameEngine.start(audioContext);
           gameEngine.seek(syncTime);
-          
+
           // 音声なしモードでも baseOffset を適切に設定
-          const realTimeElapsed = syncTime / settings.playbackSpeed;
+          const realTimeElapsed = syncTime / playbackSpeed;
           baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
         }
 
         startTimeSync();
 
         // 音声入力開始（再生中のみ）
-        if (audioControllerRef.current && settings.inputMode === 'audio') {
+        if (audioControllerRef.current && inputMode === "audio") {
           audioControllerRef.current.startListening();
-          log.info('🎤 音声ピッチ検出開始');
+          log.info("🎤 音声ピッチ検出開始");
         }
       } else {
         // 一時停止処理
         if (audioRef.current) {
           audioRef.current.pause();
         }
-        
+
         // GameEngineを一時停止
         gameEngine.pause();
-        log.info('🎮 GameEngine paused');
+        log.info("🎮 GameEngine paused");
 
         // 音声入力停止
         if (audioControllerRef.current) {
           audioControllerRef.current.stopListening();
-          log.info('🎤 音声ピッチ検出停止');
+          log.info("🎤 音声ピッチ検出停止");
         }
-        
+
         // AudioContext の suspend は行わない（頻繁なsuspend/resumeを防ぐ）
         // if (audioContextRef.current) {
         //   audioContextRef.current.suspend();
@@ -359,185 +422,186 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, audioLoaded, gameEngine]);
-  
+
   // 設定モーダルが開いた時に音楽を一時停止
   useEffect(() => {
     if (isSettingsOpen && isPlaying) {
       pause();
-      log.info('⚙️ 設定モーダルを開いたため音楽を一時停止しました');
+      log.info("⚙️ 設定モーダルを開いたため音楽を一時停止しました");
     }
   }, [isSettingsOpen, isPlaying, pause]);
-  
+
   // 音量変更の同期
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = settings.musicVolume;
+      audioRef.current.volume = musicVolume;
     }
-  }, [settings.musicVolume]);
-  
-    // 再生スピード変更の同期
-    useEffect(() => {
-      if (audioRef.current) {
-        audioRef.current.playbackRate = settings.playbackSpeed;
+  }, [musicVolume]);
 
-        // ピッチを保持
-        try {
-          // @ts-ignore
-          audioRef.current.preservesPitch = true;
-          // @ts-ignore
-          audioRef.current.mozPreservesPitch = true;
-          // @ts-ignore
-          audioRef.current.webkitPreservesPitch = true;
-        } catch (_) {/* ignore */}
-      }
+  // 再生スピード変更の同期
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackSpeed;
 
-      // 🔧 追加: 再生中に速度が変更された場合、baseOffsetRefを再計算
-      if (audioContextRef.current && isPlaying) {
-        const newElapsedReal = currentTimeRef.current / settings.playbackSpeed;
-        baseOffsetRef.current = audioContextRef.current.currentTime - newElapsedReal;
-        
-        // ログ削除: FPS最適化のため
-        // devLog.debug(`🔧 再生速度変更: ${settings.playbackSpeed}x - baseOffset再計算完了`);
+      // ピッチを保持
+      try {
+        // @ts-ignore
+        audioRef.current.preservesPitch = true;
+        // @ts-ignore
+        audioRef.current.mozPreservesPitch = true;
+        // @ts-ignore
+        audioRef.current.webkitPreservesPitch = true;
+      } catch (_) {
+        /* ignore */
       }
-
-      // GameEngine にも設定を反映
-      if (gameEngine) {
-        updateEngineSettings();
-      }
-    }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying]);
-  
-  // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
-  const timeIntervalRef = useRef<number | null>(null);
-  
-  const startTimeSync = () => {
-    // ❌ requestAnimationFrameループは使わない
-    // ✅ 軽量なsetIntervalで時間更新（60FPSより低頻度で競合回避）
-    
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
     }
-    
-    const updateGameTime = () => {
-      if (!useGameStore.getState().isPlaying) return;
-      
-      let newTime = 0;
-      const audio = audioRef.current;
-      const audioCtx = audioContextRef.current;
-      const hasAudio = currentSong?.audioFile && audio && audioLoaded;
-      
-      if (hasAudio && !audio.paused && audioCtx) {
-        // 音声ありモード：audio要素の時刻を基準
-        newTime = audio.currentTime;
-      } else if (audioCtx) {
-        // 音声なしモード：AudioContextの時刻とオフセットで計算
-        const realTimeElapsed = (audioCtx.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-        newTime = Math.max(0, realTimeElapsed);
-      } else {
-        // フォールバック
-        newTime = useGameStore.getState().currentTime + (50 / 1000); // 50ms進行と仮定
-      }
-      
-      // 🎯 重要：時間を進行させる！
-      updateTime(newTime);
-      
-      // 楽曲終了チェックをrequestIdleCallbackで実行
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => {
-          const songDuration = useGameStore.getState().currentSong?.duration || 0;
-          if (songDuration > 0 && newTime >= songDuration) {
-            useGameStore.getState().stop();
-            
-            // 本番モード時にリザルトモーダルを開く
-            if (useGameStore.getState().mode === 'performance') {
-              useGameStore.getState().openResultModal();
-            }
-          }
-        });
-      } else {
-        // requestIdleCallbackが無い場合は通常実行
-        const songDuration = useGameStore.getState().currentSong?.duration || 0;
-        if (songDuration > 0 && newTime >= songDuration) {
-          useGameStore.getState().stop();
-          
-          // 本番モード時にリザルトモーダルを開く
-          if (useGameStore.getState().mode === 'performance') {
-            useGameStore.getState().openResultModal();
-          }
+
+    // 🔧 追加: 再生中に速度が変更された場合、baseOffsetRefを再計算
+    if (audioContextRef.current && isPlaying) {
+      const newElapsedReal = currentTimeRef.current / playbackSpeed;
+      baseOffsetRef.current =
+        audioContextRef.current.currentTime - newElapsedReal;
+
+      // ログ削除: FPS最適化のため
+      // devLog.debug(`🔧 再生速度変更: ${playbackSpeed}x - baseOffset再計算完了`);
+    }
+
+    // GameEngine にも設定を反映
+    if (gameEngine) {
+      updateEngineSettings();
+    }
+  }, [playbackSpeed, gameEngine, updateEngineSettings, isPlaying]);
+
+  const computePlaybackTime = useCallback((): number => {
+    const audioElement = audioRef.current;
+    const audioCtx = audioContextRef.current;
+    const playbackRate = playbackSpeedRef.current || 1;
+    const songHasAudio = Boolean(
+      currentSongRef.current?.audioFile &&
+        currentSongRef.current?.audioFile.trim() !== "",
+    );
+    const audioReady = Boolean(
+      audioElement && songHasAudio && audioLoadedRef.current,
+    );
+
+    if (audioReady && audioElement && !audioElement.paused) {
+      return audioElement.currentTime;
+    }
+
+    if (audioCtx) {
+      const realTimeElapsed =
+        (audioCtx.currentTime - baseOffsetRef.current) * playbackRate;
+      return Math.max(0, realTimeElapsed);
+    }
+
+    return currentTimeRef.current;
+  }, []);
+
+  const checkSongCompletion = useCallback(
+    (playheadTime: number) => {
+      const songDuration = useGameStore.getState().currentSong?.duration || 0;
+      if (songDuration > 0 && playheadTime >= songDuration) {
+        stop();
+        if (useGameStore.getState().mode === "performance") {
+          openResultModal();
         }
       }
-    };
-    
-    // 30ms間隔で時間更新（33FPS相当、楽譜スクロールを滑らかに）
-    timeIntervalRef.current = window.setInterval(updateGameTime, 30);
-  };
-  
+    },
+    [stop, openResultModal],
+  );
+
   const stopTimeSync = useCallback(() => {
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
-      timeIntervalRef.current = null;
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
   }, []);
-  
-  // シーク機能（音声ありと音声なし両方対応）
-  useEffect(() => {
-    if (audioContextRef.current && gameEngine) {
-      const hasAudio = currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
-      
-      if (hasAudio) {
-        // 音声ありの場合: 音声とゲームエンジンの同期
-      const audioTime = (audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-      const timeDiff = Math.abs(audioTime - currentTime);
-      // 0.3秒以上のずれがある場合のみシーク（より厳密な同期）
-      if (timeDiff > 0.3) {
-        const safeTime = Math.max(0, Math.min(currentTime, (currentSong?.duration || currentTime)));
-        if (audioRef.current) audioRef.current.currentTime = safeTime;
-        
-        // オフセット再計算（再生速度を考慮）
-        if (audioContextRef.current) {
-          const realTimeElapsed = safeTime / settings.playbackSpeed;
-          baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
-        }
-        
-        // GameEngineも同時にシーク
-          gameEngine.seek(safeTime);
-          
-          // AudioControllerの音声ピッチ検出を一時停止（シーク時の誤検出防止）
-          if (audioControllerRef.current) {
-            audioControllerRef.current.pauseProcessingForSeek();
-          }
-          
-          // ✅ ストアのcurrentTimeを即時更新して二重シークを防止
-          updateTime(safeTime);
-          
-          devLog.debug(`🔄 Audio & GameEngine synced to ${safeTime.toFixed(2)}s`);
-        }
-      } else {
-        // 音声なしの場合: ゲームエンジンのみシーク
-        const timeDiff = Math.abs((audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed - currentTime);
-        if (timeDiff > 0.3) {
-          const safeTime = Math.max(0, Math.min(currentTime, (currentSong?.duration || currentTime)));
-          
-          // オフセット再計算（音声なしモード、再生速度を考慮）
-          const realTimeElapsed = safeTime / settings.playbackSpeed;
-          baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
-          
-          // GameEngineシーク
-          gameEngine.seek(safeTime);
-          
-          // AudioControllerの音声ピッチ検出を一時停止（シーク時の誤検出防止）
-          if (audioControllerRef.current) {
-            audioControllerRef.current.pauseProcessingForSeek();
-          }
-          
-          // ✅ currentTime を即時更新して二重シークを防止
-          updateTime(safeTime);
-          
-          devLog.debug(`🔄 GameEngine (音声なし) synced to ${safeTime.toFixed(2)}s`);
-        }
-      }
+
+  const runTimeSync = useCallback(() => {
+    if (!useGameStore.getState().isPlaying) {
+      animationFrameRef.current = null;
+      return;
     }
-  }, [currentTime, audioLoaded, gameEngine, settings.playbackSpeed]);
-  
+
+    const newTime = computePlaybackTime();
+    updateTime(newTime);
+    checkSongCompletion(newTime);
+    animationFrameRef.current = requestAnimationFrame(runTimeSync);
+  }, [computePlaybackTime, updateTime, checkSongCompletion]);
+
+  const startTimeSync = useCallback(() => {
+    stopTimeSync();
+    animationFrameRef.current = requestAnimationFrame(runTimeSync);
+  }, [runTimeSync, stopTimeSync]);
+
+  const handleTimeDrift = useCallback(
+    (targetTime: number) => {
+      const engine = gameEngineRef.current;
+      const audioCtx = audioContextRef.current;
+      if (!engine || !audioCtx) return;
+
+      const playbackRate = playbackSpeedRef.current || 1;
+      const songHasAudio = Boolean(
+        currentSongRef.current?.audioFile &&
+          currentSongRef.current?.audioFile.trim() !== "",
+      );
+      const audioElement = audioRef.current;
+      const hasAudioPlayback = Boolean(
+        audioElement && songHasAudio && audioLoadedRef.current,
+      );
+
+      const clampToSong = (time: number): number => {
+        const duration = currentSongRef.current?.duration ?? time;
+        if (duration <= 0) return Math.max(0, time);
+        return Math.max(0, Math.min(time, duration));
+      };
+
+      if (hasAudioPlayback && audioElement) {
+        const diff = Math.abs(audioElement.currentTime - targetTime);
+        if (diff <= 0.3) {
+          return;
+        }
+        const safeTime = clampToSong(targetTime);
+        audioElement.currentTime = safeTime;
+        const realTimeElapsed = safeTime / playbackRate;
+        baseOffsetRef.current = audioCtx.currentTime - realTimeElapsed;
+        engine.seek(safeTime);
+        audioControllerRef.current?.pauseProcessingForSeek();
+        if (Math.abs(safeTime - targetTime) > 0.001) {
+          updateTime(safeTime);
+        }
+        return;
+      }
+
+      const computedTime =
+        (audioCtx.currentTime - baseOffsetRef.current) * playbackRate;
+      if (Math.abs(computedTime - targetTime) <= 0.3) {
+        return;
+      }
+
+      const safeTime = clampToSong(targetTime);
+      const realTimeElapsed = safeTime / playbackRate;
+      baseOffsetRef.current = audioCtx.currentTime - realTimeElapsed;
+      engine.seek(safeTime);
+      audioControllerRef.current?.pauseProcessingForSeek();
+      if (Math.abs(safeTime - targetTime) > 0.001) {
+        updateTime(safeTime);
+      }
+    },
+    [updateTime],
+  );
+
+  useEffect(() => {
+    const unsubscribe = useGameStore.subscribe(
+      (state) => state.currentTime,
+      (nextTime) => {
+        currentTimeRef.current = nextTime;
+        handleTimeDrift(nextTime);
+      },
+    );
+    return unsubscribe;
+  }, [handleTimeDrift]);
+
   // MIDIController管理用のRef
   const midiControllerRef = useRef<any>(null);
   // AudioController管理用のRef（音声入力）
@@ -549,11 +613,15 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   useEffect(() => {
     const initAudio = async () => {
       try {
-        const { initializeAudioSystem } = await import('@/utils/MidiController');
-        const { default: MIDIController } = await import('@/utils/MidiController');
+        const { initializeAudioSystem } = await import(
+          "@/utils/MidiController"
+        );
+        const { default: MIDIController } = await import(
+          "@/utils/MidiController"
+        );
         await initializeAudioSystem({ light: true });
-        log.info('✅ 共通音声システム初期化完了');
-        
+        log.info("✅ 共通音声システム初期化完了");
+
         // MIDIController インスタンスを作成
         if (!midiControllerRef.current) {
           midiControllerRef.current = new MIDIController({
@@ -564,60 +632,65 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               // ノートオフの処理（必要に応じて）
             },
             onConnectionChange: (connected: boolean) => {
-              log.info(`🎹 MIDI接続状態変更: ${connected ? '接続' : '切断'}`);
+              log.info(`🎹 MIDI接続状態変更: ${connected ? "接続" : "切断"}`);
             },
-            playMidiSound: true // 通常曲モードでは音声再生を有効
+            playMidiSound: true, // 通常曲モードでは音声再生を有効
           });
-          
+
           await midiControllerRef.current.initialize();
-          log.info('✅ MIDIController初期化完了');
+          log.info("✅ MIDIController初期化完了");
           // 初期化完了を通知（この後の接続用エフェクトを確実に動かす）
           setIsMidiReady(true);
         }
 
         // AudioController インスタンスを作成（音声入力が有効な場合）
-        if (!audioControllerRef.current && settings.inputMode === 'audio') {
-          const { AudioController } = await import('../../../AudioController');
+        if (!audioControllerRef.current && inputMode === "audio") {
+          const { AudioController } = await import("../../../AudioController");
           audioControllerRef.current = new AudioController({
             onNoteOn: (note: number, velocity?: number) => {
               handleNoteInput(note);
-              log.info(`🎤 Audio detected note: ${note}`);
+              devLog.debug("🎤 Audio detected note", note);
             },
             onNoteOff: (note: number) => {
               // ノートオフの処理（必要に応じて）
             },
             onConnectionChange: (connected: boolean) => {
-              log.info(`🎤 Audio接続状態変更: ${connected ? '接続' : '切断'}`);
-            }
+              log.info(`🎤 Audio接続状態変更: ${connected ? "接続" : "切断"}`);
+            },
           });
-          
-          log.info('✅ AudioController初期化完了');
+
+          log.info("✅ AudioController初期化完了");
 
           // 初期設定を反映
           audioControllerRef.current.updateConfig({
-            pyinThreshold: settings.pyinThreshold
+            pyinThreshold,
           });
 
           // PIXIレンダラーが既に準備完了している場合はコールバックを設定
-            if (pixiRenderer) {
-              audioControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+          if (pixiRenderer) {
+            audioControllerRef.current.setKeyHighlightCallback(
+              (note: number, active: boolean) => {
                 pixiRenderer.highlightKey(note, active);
-              });
-              log.info('✅ AudioController ↔ PIXIレンダラー コールバック再設定');
-            }
-        } else if (audioControllerRef.current && settings.inputMode === 'midi') {
+              },
+            );
+            log.info("✅ AudioController ↔ PIXIレンダラー コールバック再設定");
+          }
+        } else if (audioControllerRef.current && inputMode === "midi") {
           // MIDI専用モードの場合、AudioControllerを停止
           await audioControllerRef.current.disconnect();
           audioControllerRef.current = null;
-          log.info('🔌 AudioController無効化（MIDI専用モード）');
+          log.info("🔌 AudioController無効化（MIDI専用モード）");
         }
       } catch (audioError) {
-        log.warn('⚠️ 音声/MIDIシステム初期化に失敗 (ユーザーインタラクション後に再試行):', audioError);
+        log.warn(
+          "⚠️ 音声/MIDIシステム初期化に失敗 (ユーザーインタラクション後に再試行):",
+          audioError,
+        );
       }
     };
-    
+
     initAudio();
-    
+
     // クリーンアップ
     return () => {
       if (midiControllerRef.current) {
@@ -629,44 +702,49 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         audioControllerRef.current = null;
       }
     };
-  }, [handleNoteInput, settings.inputMode]);
+  }, [handleNoteInput, inputMode]);
 
   // MIDIとPIXIの連携を管理する専用のuseEffect
   useEffect(() => {
     const linkMidiAndPixi = async () => {
       // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-        if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
-          // 1. 鍵盤ハイライト用のコールバックを設定
-          midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+      if (midiControllerRef.current && pixiRenderer && selectedMidiDevice) {
+        // 1. 鍵盤ハイライト用のコールバックを設定
+        midiControllerRef.current.setKeyHighlightCallback(
+          (note: number, active: boolean) => {
             pixiRenderer.highlightKey(note, active);
-          });
-          
-          // 2. デバイスに再接続して、設定したコールバックを有効化
-          log.info(`🔧 Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
-          const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-          if (success) {
-            log.info('✅ MIDI device successfully linked to renderer.');
-          } else {
-            log.warn('⚠️ Failed to link MIDI device to renderer.');
-          }
-        } else if (midiControllerRef.current && !settings.selectedMidiDevice) {
-          // デバイス選択が解除された場合は切断
-          midiControllerRef.current.disconnect();
-          log.info('🔌 MIDIデバイス切断');
+          },
+        );
+
+        // 2. デバイスに再接続して、設定したコールバックを有効化
+        log.info(
+          `🔧 Linking MIDI device (${selectedMidiDevice}) to PIXI renderer.`,
+        );
+        const success =
+          await midiControllerRef.current.connectDevice(selectedMidiDevice);
+        if (success) {
+          log.info("✅ MIDI device successfully linked to renderer.");
+        } else {
+          log.warn("⚠️ Failed to link MIDI device to renderer.");
         }
+      } else if (midiControllerRef.current && !selectedMidiDevice) {
+        // デバイス選択が解除された場合は切断
+        midiControllerRef.current.disconnect();
+        log.info("🔌 MIDIデバイス切断");
+      }
     };
 
     linkMidiAndPixi();
-    
-  }, [pixiRenderer, settings.selectedMidiDevice, isMidiReady]); // MIDI初期化完了後にも発火させる
+  }, [pixiRenderer, selectedMidiDevice, isMidiReady]); // MIDI初期化完了後にも発火させる
 
   // 楽曲変更時にMIDI接続を確認・復元
   useEffect(() => {
     const restoreMidiConnection = async () => {
-      if (midiControllerRef.current && settings.selectedMidiDevice && pixiRenderer) {
-        const isRestored = await midiControllerRef.current.checkAndRestoreConnection();
+      if (midiControllerRef.current && selectedMidiDevice && pixiRenderer) {
+        const isRestored =
+          await midiControllerRef.current.checkAndRestoreConnection();
         if (isRestored) {
-          log.info('✅ 楽曲変更後のMIDI接続を復元しました');
+          log.info("✅ 楽曲変更後のMIDI接続を復元しました");
         }
       }
     };
@@ -674,79 +752,90 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     // 少し遅延を入れて確実に復元
     const timer = setTimeout(restoreMidiConnection, 200);
     return () => clearTimeout(timer);
-  }, [currentSong, settings.selectedMidiDevice, pixiRenderer, isMidiReady]); // MIDI初期化完了後にも復元を試行
+  }, [currentSong, selectedMidiDevice, pixiRenderer, isMidiReady]); // MIDI初期化完了後にも復元を試行
 
   // 音声デバイス選択変更監視
   useEffect(() => {
     const connectAudioDevice = async () => {
-      if (audioControllerRef.current && settings.selectedAudioDevice) {
-        log.info(`🎤 音声デバイス接続試行: ${settings.selectedAudioDevice}`);
-        
+      if (audioControllerRef.current && selectedAudioDevice) {
+        log.info(`🎤 音声デバイス接続試行: ${selectedAudioDevice}`);
+
         // PIXIレンダラーが準備完了していない場合は接続を延期
         if (!pixiRenderer) {
           return;
         }
-        
-        const success = await audioControllerRef.current.connectDevice(settings.selectedAudioDevice);
+
+        const success =
+          await audioControllerRef.current.connectDevice(selectedAudioDevice);
         if (success) {
-          log.info('✅ 音声デバイス接続成功');
+          log.info("✅ 音声デバイス接続成功");
         } else {
-          log.warn('⚠️ 音声デバイス接続失敗');
+          log.warn("⚠️ 音声デバイス接続失敗");
         }
-      } else if (audioControllerRef.current && !settings.selectedAudioDevice) {
+      } else if (audioControllerRef.current && !selectedAudioDevice) {
         // デバイス選択が解除された場合は切断
         await audioControllerRef.current.disconnect();
-        log.info('🔌 音声デバイス切断');
+        log.info("🔌 音声デバイス切断");
       }
     };
-    
+
     connectAudioDevice();
-  }, [settings.selectedAudioDevice, pixiRenderer]);
+  }, [selectedAudioDevice, pixiRenderer]);
 
   // ゲームエンジン初期化
   useEffect(() => {
-      const initEngine = async () => {
-        if (!gameEngine && currentSong) {
-          await initializeGameEngine();
-        }
-      };
-    
+    const initEngine = async () => {
+      if (!gameEngine && currentSong) {
+        await initializeGameEngine();
+      }
+    };
+
     initEngine();
-    
+
     return () => {
-        if (gameEngine) {
-          destroyGameEngine();
-        }
+      if (gameEngine) {
+        destroyGameEngine();
+      }
     };
   }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine]);
-  
+
   // 練習モードガイド: GameEngineのキーハイライトコールバック設定
   useEffect(() => {
     if (gameEngine) {
       // GameEngine から渡される timestamp は AudioContext のタイムラインを基準としているため、
       // React 側のパフォーマンスタイムラインと整合しない場合がある。
       // UI 側では performance.now() ベースで扱うことで、過去 0.5s 以内かどうかを正しく判定できるようにする。
-      gameEngine.setKeyHighlightCallback((pitch: number, _timestamp: number) => {
-        // performance.now() は ms 単位なので秒に変換
-        const wallClockSec = performance.now() / 1000;
-        setLastKeyHighlight(pitch, wallClockSec);
-      });
-      log.info('🎹 練習モードガイド: GameEngineキーハイライトコールバック設定完了');
+      gameEngine.setKeyHighlightCallback(
+        (pitch: number, _timestamp: number) => {
+          // performance.now() は ms 単位なので秒に変換
+          const wallClockSec = performance.now() / 1000;
+          setLastKeyHighlight(pitch, wallClockSec);
+        },
+      );
+      log.info(
+        "🎹 練習モードガイド: GameEngineキーハイライトコールバック設定完了",
+      );
     }
   }, [gameEngine, setLastKeyHighlight]);
-  
+
   // 練習モードガイド: キーハイライト処理
   useEffect(() => {
-    if (lastKeyHighlight && pixiRenderer && settings.practiceGuide !== 'off' && isPlaying) {
+    if (
+      lastKeyHighlight &&
+      pixiRenderer &&
+      practiceGuide !== "off" &&
+      isPlaying
+    ) {
       const { pitch, timestamp } = lastKeyHighlight;
       const currentTimestamp = performance.now() / 1000;
-      
+
       // タイムスタンプが新しい場合のみハイライトを実行（重複防止）
-      if (currentTimestamp - timestamp < 0.5) { // 0.5秒以内の通知のみ処理
-        
+      if (currentTimestamp - timestamp < 0.5) {
+        // 0.5秒以内の通知のみ処理
+
         // キーをハイライト
         pixiRenderer.highlightKey(pitch, true);
-        
+
         // 一定時間後にハイライトを解除
         setTimeout(() => {
           if (pixiRenderer) {
@@ -755,8 +844,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }, 150); // 150ms後にハイライト解除（マウスクリックと同じ長さ）
       }
     }
-  }, [lastKeyHighlight, pixiRenderer, settings.practiceGuide, isPlaying]);
-  
+  }, [lastKeyHighlight, pixiRenderer, practiceGuide, isPlaying]);
+
   // 設定変更時の更新（transpose を含む）
   useEffect(() => {
     if (gameEngine) {
@@ -764,32 +853,43 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     if (pixiRenderer) {
       pixiRenderer.updateSettings({
-        noteNameStyle: settings.noteNameStyle,
-        simpleDisplayMode: settings.simpleDisplayMode,
-        pianoHeight: settings.pianoHeight,
-        transpose: settings.transpose,
-        transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
+        noteNameStyle,
+        simpleDisplayMode,
+        pianoHeight,
+        transpose,
+        transposingInstrument,
+        practiceGuide,
       });
     }
     // AudioControllerに音声入力設定を反映
     if (audioControllerRef.current) {
       audioControllerRef.current.updateConfig({
-        pyinThreshold: settings.pyinThreshold
+        pyinThreshold,
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
-  
+  }, [
+    gameEngine,
+    updateEngineSettings,
+    pixiRenderer,
+    noteNameStyle,
+    simpleDisplayMode,
+    pianoHeight,
+    transpose,
+    transposingInstrument,
+    practiceGuide,
+    pyinThreshold,
+  ]);
+
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
-  
+
   // トランスポーズに合わせてオーディオのピッチを変更（tempo も変わるが簡易実装）
   useEffect(() => {
     if (pitchShiftRef.current) {
       // Tone.PitchShift の pitch プロパティは semitones
-      (pitchShiftRef.current as any).pitch = settings.transpose;
+      (pitchShiftRef.current as any).pitch = transpose;
     }
-  }, [settings.transpose]);
-  
+  }, [transpose]);
+
   // ゲームエリアのリサイズ対応（ResizeObserver 使用）
   useEffect(() => {
     if (!gameAreaRef.current) return;
@@ -800,7 +900,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       const rect = gameAreaRef.current.getBoundingClientRect();
       const newSize = {
         width: rect.width || 800,
-        height: rect.height || 600
+        height: rect.height || 600,
       };
       setGameAreaSize(newSize);
 
@@ -815,7 +915,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         viewportHeight: newSize.height,
         pianoHeight: dynamicPianoHeight,
         // 横スクロールが必要な場合、シークバーをデフォルトで非表示
-        ...(settings.showSeekbar === undefined && needsHorizontalScroll ? { showSeekbar: false } : {})
+        ...(showSeekbar === undefined && needsHorizontalScroll
+          ? { showSeekbar: false }
+          : {}),
       });
       updateEngineSettings();
     };
@@ -837,154 +939,182 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     const observer = new ResizeObserver((entries) => {
       // ResizeObserver loop エラーを防ぐためのガード
       if (!entries || entries.length === 0) return;
-      
+
       // requestAnimationFrameを使用してレイアウト計算を次のフレームに延期
       requestAnimationFrame(() => {
         debouncedUpdateSize();
       });
     });
-    
+
     observer.observe(gameAreaRef.current);
 
     // サブで window サイズ変化も監視（iOS Safari 回転等に保険）
-    window.addEventListener('resize', debouncedUpdateSize);
+    window.addEventListener("resize", debouncedUpdateSize);
 
     return () => {
       if (resizeTimer !== null) {
         clearTimeout(resizeTimer);
       }
       observer.disconnect();
-      window.removeEventListener('resize', debouncedUpdateSize);
+      window.removeEventListener("resize", debouncedUpdateSize);
     };
-  }, [updateSettings, updateEngineSettings, settings]);
-  
+    }, [updateSettings, updateEngineSettings, showSeekbar]);
+
   // ================= ピアノキー演奏ハンドラー =================
-  const handlePianoKeyPress = useCallback(async (note: number) => {
-    try {
-      // 共通音声システムで音を鳴らす
-      const { playNote } = await import('@/utils/MidiController');
-      await playNote(note, 64); // マウス/タッチ用の固定velocity
-      
-      // ゲームエンジンにノート入力（ハイライトはGameEngineの状態更新に委ねる）
-      handleNoteInput(note);
-      
-      // 注意: キーハイライトは削除し、GameEngineの判定ロジックに完全に委ねました
-      // これにより、マウスクリックとキーボード入力で一貫したエフェクト表示が実現されます
-      
-      // ログ削除: FPS最適化のため
-    // devLog.debug(`🎹 Piano key played: ${note}`);
-    } catch (error) {
-      log.error('❌ Piano key play error:', error);
-    }
-  }, [handleNoteInput]);
+  const handlePianoKeyPress = useCallback(
+    async (note: number) => {
+      try {
+        // 共通音声システムで音を鳴らす
+        const { playNote } = await import("@/utils/MidiController");
+        await playNote(note, 64); // マウス/タッチ用の固定velocity
+
+        // ゲームエンジンにノート入力（ハイライトはGameEngineの状態更新に委ねる）
+        handleNoteInput(note);
+
+        // 注意: キーハイライトは削除し、GameEngineの判定ロジックに完全に委ねました
+        // これにより、マウスクリックとキーボード入力で一貫したエフェクト表示が実現されます
+
+        // ログ削除: FPS最適化のため
+        // devLog.debug(`🎹 Piano key played: ${note}`);
+      } catch (error) {
+        log.error("❌ Piano key play error:", error);
+      }
+    },
+    [handleNoteInput],
+  );
 
   // ================= ピアノキーリリースハンドラー =================
   const handlePianoKeyRelease = useCallback(async (note: number) => {
     try {
       // 共通音声システムで音を止める
-      const { stopNote } = await import('@/utils/MidiController');
+      const { stopNote } = await import("@/utils/MidiController");
       stopNote(note);
-      
+
       // 注意: ハイライト解除も削除し、GameEngineの状態更新に完全に委ねました
-      
+
       // ログ削除: FPS最適化のため
-    // devLog.debug(`🎹 Piano key released: ${note}`);
+      // devLog.debug(`🎹 Piano key released: ${note}`);
     } catch (error) {
-      log.error('❌ Piano key release error:', error);
+      log.error("❌ Piano key release error:", error);
     }
   }, []);
 
   // ================= PIXI.js レンダラー準備完了ハンドラー =================
-  const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
-    if (!renderer) {
-      // 破棄通知
-      setPixiRenderer(null);
-      return;
-    }
-    
-    log.info('🎮 PIXI.js renderer ready, setting up callbacks...');
-    setPixiRenderer(renderer);
-    
-    // 初期設定を反映
-    renderer.updateSettings({
-      noteNameStyle: settings.noteNameStyle,
-      simpleDisplayMode: settings.simpleDisplayMode,
-      pianoHeight: settings.pianoHeight,
-      transpose: settings.transpose,
-      transposingInstrument: settings.transposingInstrument,
-      practiceGuide: settings.practiceGuide ?? 'key'
-    });
-    
-    // ピアノキーボードのクリックイベントを接続
-    renderer.setKeyCallbacks(
-      (note: number) => {
-        handlePianoKeyPress(note);
-      }, // キー押下
-      (note: number) => {
-        handlePianoKeyRelease(note);
-      } // キー解放
-    );
-    
-    // MIDIControllerにキーハイライト機能を設定
-    if (midiControllerRef.current) {
-      midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-        renderer.highlightKey(note, active);
-      });
-      
-      log.info('✅ MIDIController ↔ PIXIレンダラー連携完了');
-    }
-
-    // AudioControllerにキーハイライト機能を設定
-    if (audioControllerRef.current) {
-      audioControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-        renderer.highlightKey(note, active);
-      });
-      
-      // 既に接続済みのデバイスがある場合、接続状態を確認して再設定
-      if (audioControllerRef.current.isConnected() && settings.selectedAudioDevice) {
-        audioControllerRef.current.connectDevice(settings.selectedAudioDevice).catch((error: unknown) => {
-          log.warn('⚠️ 音声デバイス再接続エラー:', error);
-        });
+  const handlePixiReady = useCallback(
+    (renderer: PIXINotesRendererInstance | null) => {
+      if (!renderer) {
+        // 破棄通知
+        setPixiRenderer(null);
+        return;
       }
-      
-      log.info('✅ AudioController ↔ PIXIレンダラー連携完了');
-    }
-    
-    log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
-  
+
+      log.info("🎮 PIXI.js renderer ready, setting up callbacks...");
+      renderer.setTimeProvider(computePlaybackTime);
+      setPixiRenderer(renderer);
+
+      // 初期設定を反映
+      renderer.updateSettings({
+        noteNameStyle,
+        simpleDisplayMode,
+        pianoHeight,
+        transpose,
+        transposingInstrument,
+        practiceGuide,
+      });
+
+      // ピアノキーボードのクリックイベントを接続
+      renderer.setKeyCallbacks(
+        (note: number) => {
+          handlePianoKeyPress(note);
+        }, // キー押下
+        (note: number) => {
+          handlePianoKeyRelease(note);
+        }, // キー解放
+      );
+
+      // MIDIControllerにキーハイライト機能を設定
+      if (midiControllerRef.current) {
+        midiControllerRef.current.setKeyHighlightCallback(
+          (note: number, active: boolean) => {
+            renderer.highlightKey(note, active);
+          },
+        );
+
+        log.info("✅ MIDIController ↔ PIXIレンダラー連携完了");
+      }
+
+      // AudioControllerにキーハイライト機能を設定
+      if (audioControllerRef.current) {
+        audioControllerRef.current.setKeyHighlightCallback(
+          (note: number, active: boolean) => {
+            renderer.highlightKey(note, active);
+          },
+        );
+
+        // 既に接続済みのデバイスがある場合、接続状態を確認して再設定
+        if (audioControllerRef.current.isConnected() && selectedAudioDevice) {
+          audioControllerRef.current
+            .connectDevice(selectedAudioDevice)
+            .catch((error: unknown) => {
+              log.warn("⚠️ 音声デバイス再接続エラー:", error);
+            });
+        }
+
+        log.info("✅ AudioController ↔ PIXIレンダラー連携完了");
+      }
+
+      log.info("🎮 PIXI.js ノーツレンダラー準備完了");
+    },
+    [
+      handlePianoKeyPress,
+      handlePianoKeyRelease,
+      noteNameStyle,
+      simpleDisplayMode,
+      pianoHeight,
+      transpose,
+      transposingInstrument,
+      selectedMidiDevice,
+      practiceGuide,
+      selectedAudioDevice,
+      computePlaybackTime,
+    ],
+  );
+
   // キーボード入力処理（テスト用）
-  const handleKeyPress = useCallback((event: KeyboardEvent) => {
-    if (!isPlaying || !gameEngine) return;
-    
-    // シンプルなキーボードマッピング（C4オクターブ）
-    const keyToNote: { [key: string]: number } = {
-      'z': 60, // C
-      's': 61, // C#
-      'x': 62, // D
-      'd': 63, // D#
-      'c': 64, // E
-      'v': 65, // F
-      'g': 66, // F#
-      'b': 67, // G
-      'h': 68, // G#
-      'n': 69, // A
-      'j': 70, // A#
-      'm': 71, // B
-    };
-    
-    const note = keyToNote[event.key.toLowerCase()];
-    if (note) {
-      handlePianoKeyPress(note);
-    }
-  }, [isPlaying, gameEngine, handlePianoKeyPress]);
-  
+  const handleKeyPress = useCallback(
+    (event: KeyboardEvent) => {
+      if (!isPlaying || !gameEngine) return;
+
+      // シンプルなキーボードマッピング（C4オクターブ）
+      const keyToNote: { [key: string]: number } = {
+        z: 60, // C
+        s: 61, // C#
+        x: 62, // D
+        d: 63, // D#
+        c: 64, // E
+        v: 65, // F
+        g: 66, // F#
+        b: 67, // G
+        h: 68, // G#
+        n: 69, // A
+        j: 70, // A#
+        m: 71, // B
+      };
+
+      const note = keyToNote[event.key.toLowerCase()];
+      if (note) {
+        handlePianoKeyPress(note);
+      }
+    },
+    [isPlaying, gameEngine, handlePianoKeyPress],
+  );
+
   // キーボードイベント登録
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
   }, [handleKeyPress]);
-  
+
   // ===== 初期スクロール位置: C4を中央に =====
   useEffect(() => {
     const container = pianoScrollRef.current;
@@ -1000,7 +1130,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       const C4_WHITE_INDEX = 23; // A0=0 ... C4=23
       const whiteKeyWidth = contentWidth / TOTAL_WHITE_KEYS;
       const c4CenterX = (C4_WHITE_INDEX + 0.5) * whiteKeyWidth;
-      const desiredScroll = Math.max(0, Math.min(contentWidth - viewportWidth, c4CenterX - viewportWidth / 2));
+      const desiredScroll = Math.max(
+        0,
+        Math.min(contentWidth - viewportWidth, c4CenterX - viewportWidth / 2),
+      );
       isProgrammaticScrollRef.current = true;
       container.scrollLeft = desiredScroll;
       requestAnimationFrame(() => {
@@ -1010,44 +1143,46 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
     const raf = requestAnimationFrame(centerC4);
     const handleResize = () => requestAnimationFrame(centerC4);
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
   if (!currentSong) {
     return (
-      <div className={cn(
-        "flex items-center justify-center h-64 bg-gray-100 rounded-lg",
-        className
-      )}>
+      <div
+        className={cn(
+          "flex items-center justify-center h-64 bg-gray-100 rounded-lg",
+          className,
+        )}
+      >
         <p className="text-gray-500">楽曲を選択してください</p>
       </div>
     );
   }
-  
+
   return (
     <div className={cn("h-full w-full flex flex-col", className)}>
       {/* Phase 3: PIXI.js ノーツ表示エリア - フル高さ */}
-      <div 
+      <div
         ref={gameAreaRef}
         className="relative flex-1 bg-gray-900 rounded-lg overflow-hidden"
       >
         {/* GOOD / MISS オーバーレイ */}
-        {mode === 'performance' && (
-        <div className="absolute top-3 left-3 z-20 text-lg font-bold bg-black bg-opacity-70 px-3 py-2 rounded-lg pointer-events-none">
-          <span className="text-green-400">✓ {score.goodCount}</span>
-          <span className="mx-3 text-gray-500">|</span>
-          <span className="text-red-400">× {score.missCount}</span>
-        </div>
+        {mode === "performance" && (
+          <div className="absolute top-3 left-3 z-20 text-lg font-bold bg-black bg-opacity-70 px-3 py-2 rounded-lg pointer-events-none">
+            <span className="text-green-400">✓ {score.goodCount}</span>
+            <span className="mx-3 text-gray-500">|</span>
+            <span className="text-red-400">× {score.missCount}</span>
+          </div>
         )}
         {/* PIXI.js ノーツレンダラー（統合済み） */}
         {(() => {
           const TOTAL_WHITE_KEYS = 52; // 88鍵ピアノの白鍵数
           const VISIBLE_WHITE_KEYS = 24; // モバイルで画面に収めたい白鍵数(約2オクターブ)
-          const MIN_WHITE_KEY_PX = 22;   // PC での最小白鍵幅
+          const MIN_WHITE_KEY_PX = 22; // PC での最小白鍵幅
 
           const fullWidthAtMin = TOTAL_WHITE_KEYS * MIN_WHITE_KEY_PX; // 1144px
           const adjustedThreshold = 1100; // paddingを考慮した実用的な閾値
@@ -1057,60 +1192,60 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           if (gameAreaSize.width >= adjustedThreshold) {
             // PC 等、画面が十分広い → 88鍵全表示（スクロール不要）
             idealWidth = gameAreaSize.width;
-            displayMode = 'PC_FULL_88_KEYS';
+            displayMode = "PC_FULL_88_KEYS";
           } else {
             // モバイル等、画面が狭い → 横スクロール表示
             const whiteKeyWidth = gameAreaSize.width / VISIBLE_WHITE_KEYS;
             idealWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
-            displayMode = 'MOBILE_SCROLL';
+            displayMode = "MOBILE_SCROLL";
           }
-          
-          
+
           return (
-            <div 
-              className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x pixi-mobile-scroll custom-game-scrollbar" 
-              style={{ 
-                WebkitOverflowScrolling: 'touch',
-                scrollSnapType: 'none',
-                scrollBehavior: 'auto'
+            <div
+              className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x pixi-mobile-scroll custom-game-scrollbar"
+              style={{
+                WebkitOverflowScrolling: "touch",
+                scrollSnapType: "none",
+                scrollBehavior: "auto",
               }}
               onScroll={handlePianoScroll}
               ref={pianoScrollRef}
             >
-              <div style={{ 
-                width: idealWidth, 
-                height: '100%',
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
-                WebkitTouchCallout: 'none',
-                position: 'relative'
-              }}>
+              <div
+                style={{
+                  width: idealWidth,
+                  height: "100%",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                  WebkitTouchCallout: "none",
+                  position: "relative",
+                }}
+              >
                 {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
-                
+
                 <PIXINotesRenderer
                   activeNotes={engineActiveNotes}
                   width={idealWidth}
                   height={gameAreaSize.height}
-                  currentTime={currentTime}
                   onReady={handlePixiReady}
                   className="w-full h-full"
+                  timeProvider={computePlaybackTime}
                 />
                 <ChordOverlay />
               </div>
             </div>
           );
         })()}
-        
       </div>
-      
+
       {/* HTML5 Audio Element（楽曲再生用） */}
       <audio
         ref={audioRef}
         crossOrigin="anonymous"
         preload="metadata"
-        style={{ display: 'none' }}
-        onLoadedMetadata={() => log.info('🎵 音声メタデータ読み込み完了')}
-        onError={(e) => log.error('🚨 音声読み込みエラー:', e)}
+        style={{ display: "none" }}
+        onLoadedMetadata={() => log.info("🎵 音声メタデータ読み込み完了")}
+        onError={(e) => log.error("🚨 音声読み込みエラー:", e)}
         onTimeUpdate={() => {
           // 時間同期はstartTimeSyncで別途処理
         }}
@@ -1123,4 +1258,4 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 // 注：Phase 3でPIXI.jsレンダリングに移行済み
 // HTMLベースのピアノキーボードは削除し、PIXI.js側で統一
 
-export default GameEngineComponent; 
+export default GameEngineComponent;

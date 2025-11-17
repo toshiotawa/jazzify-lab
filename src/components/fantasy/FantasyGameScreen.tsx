@@ -1374,7 +1374,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   activeNotes={[]}
                   width={pixiWidth}
                   height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
                   onReady={handlePixiReady}
                   className="w-full h-full"
                 />
@@ -1388,7 +1387,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   activeNotes={[]}
                   width={pixiWidth}
                   height={120} // ★★★ 高さを120に固定 ★★★
-                  currentTime={0}
                   onReady={handlePixiReady}
                   className="w-full h-full"
                 />
