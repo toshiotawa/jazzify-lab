@@ -633,6 +633,9 @@ const calculateScore = (goodCount: number, _maxCombo: number, _accuracy: number)
   return goodCount * 1000;
 };
 
+const CURRENT_TIME_DISPATCH_INTERVAL = 1 / 30;
+let lastCurrentTimeDispatch = 0;
+
 // ===== ストア作成 =====
 
 export const useGameStore = createWithEqualityFn<GameStoreState>()(
@@ -653,6 +656,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const state = get();
           const { GameEngine } = await import('@/utils/gameEngine');
           const engine = new GameEngine({ ...state.settings });
+          lastCurrentTimeDispatch = 0;
           
             // エンジンの更新コールバック設定
             engine.setUpdateCallback((data: any) => {
@@ -676,9 +680,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 });
               }
 
-              set((state) => {
-                state.currentTime = data.currentTime;
-              });
+              const shouldDispatchTime =
+                data.currentTime < lastCurrentTimeDispatch ||
+                data.currentTime - lastCurrentTimeDispatch >= CURRENT_TIME_DISPATCH_INTERVAL;
+              if (shouldDispatchTime) {
+                lastCurrentTimeDispatch = data.currentTime;
+                set((state) => {
+                  state.currentTime = data.currentTime;
+                });
+              }
             });
           
           // 判定イベントコールバック登録

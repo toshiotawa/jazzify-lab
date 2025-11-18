@@ -605,12 +605,21 @@ export class GameEngine {
   }
 
   private buildVisibleBuffer(): ActiveNote[] {
-    this.visibleNotesBuffer.length = 0;
+    let writeIndex = 0;
     this.activeNotes.forEach((note) => {
       if (note.state !== 'completed') {
-        this.visibleNotesBuffer.push(note);
+        const snapshot: ActiveNote = {
+          ...note
+        };
+        if (writeIndex < this.visibleNotesBuffer.length) {
+          this.visibleNotesBuffer[writeIndex] = snapshot;
+        } else {
+          this.visibleNotesBuffer.push(snapshot);
+        }
+        writeIndex += 1;
       }
     });
+    this.visibleNotesBuffer.length = writeIndex;
     return this.visibleNotesBuffer;
   }
 
