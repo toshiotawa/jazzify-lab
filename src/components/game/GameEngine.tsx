@@ -15,6 +15,8 @@ import { LegendRenderBridge } from './LegendRenderBridge';
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
 import { devLog, log } from '@/utils/logger';
+import { setPerformanceMode } from '@/utils/lightweightConfig';
+import { unifiedFrameController, PRODUCTION_CONFIG, LIGHTWEIGHT_CONFIG } from '@/utils/performanceOptimizer';
 
 // iOS検出関数
 const isIOS = (): boolean => {
@@ -105,6 +107,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       bridge.attachEngine(null);
     };
   }, [gameEngine]);
+
+  useEffect(() => {
+    const prefersLightweight = mode === 'performance' || settings.performanceMode !== 'standard';
+    setPerformanceMode(prefersLightweight);
+    const frameConfig =
+      settings.performanceMode === 'ultra_light'
+        ? { ...LIGHTWEIGHT_CONFIG, targetFPS: 30, noteUpdateInterval: 24, limitActiveNotes: 18 }
+        : prefersLightweight
+          ? LIGHTWEIGHT_CONFIG
+          : PRODUCTION_CONFIG;
+    unifiedFrameController.updateConfig(frameConfig);
+  }, [mode, settings.performanceMode]);
 
   useEffect(() => {
     if (!isPlaying) {
