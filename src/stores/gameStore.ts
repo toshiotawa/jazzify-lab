@@ -10,7 +10,8 @@ import type {
   GameMode,
   InstrumentMode,
   SongMetadata,
-  NoteData,
+    NoteData,
+    NoteHit,
   GameScore,
   JudgmentResult,
   GameSettings,
@@ -524,7 +525,7 @@ interface GameStoreState extends GameState {
   // Phase 2: ゲームエンジン制御
   initializeGameEngine: () => void;
   destroyGameEngine: () => void;
-  handleNoteInput: (inputNote: number) => void;
+  handleNoteInput: (inputNote: number) => NoteHit | null;
   updateEngineSettings: () => void;
   
   // ノーツ管理
@@ -654,15 +655,14 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const { GameEngine } = await import('@/utils/gameEngine');
           const engine = new GameEngine({ ...state.settings });
           
-          // エンジンの更新コールバック設定
-            engine.setUpdateCallback((data: any) => {
+            // エンジンの更新コールバック設定
+            engine.setUpdateCallback((data) => {
               const storeSnapshot = useGameStore.getState();
               const { abRepeat } = storeSnapshot;
               
               if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
                 if (data.currentTime >= abRepeat.endTime) {
                   const seekTime = abRepeat.startTime;
-                  console.log(`🔄 ABリピート(Store): ${data.currentTime.toFixed(2)}s → ${seekTime.toFixed(2)}s`);
                   setTimeout(() => {
                     const store = useGameStore.getState();
                     store.seek(seekTime);
@@ -670,10 +670,19 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 }
               }
               
-              if (storeSnapshot.settings.showFPS) {
-                set((state) => {
+              set((state) => {
+                state.currentTime = data.currentTime;
+                if (storeSnapshot.settings.showFPS) {
                   state.debug.renderTime = performance.now() % 1000;
-                });
+                }
+              });
+              
+              const duration = storeSnapshot.currentSong?.duration || 0;
+              if (duration > 0 && data.currentTime >= duration) {
+                storeSnapshot.stop();
+                if (storeSnapshot.mode === 'performance') {
+                  storeSnapshot.openResultModal();
+                }
               }
             });
           
@@ -722,13 +731,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         handleNoteInput: (inputNote: number) => {
           const state = get();
-          if (!state.gameEngine || !state.isPlaying) return;
+          if (!state.gameEngine || !state.isPlaying) return null;
           
           const hit = state.gameEngine.handleInput(inputNote);
           if (hit) {
             // エンジンに判定を任せ、コールバックで結果を受け取る
             state.gameEngine.processHit(hit);
+            return hit;
           }
+          return null;
         },
         
         updateEngineSettings: () => {
@@ -907,10 +918,9 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           });
           
           // GameEngineにもシーク処理を伝達
-          if (state.gameEngine) {
-            state.gameEngine.seek(newTime);
-            console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
-          }
+            if (state.gameEngine) {
+              state.gameEngine.seek(newTime);
+            }
           
           // 🔧 追加: 再生中の音声を即座にシーク
           // グローバルにアクセス可能な音声要素とbaseOffsetRefを更新
@@ -921,14 +931,9 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             const settings = state.settings;
             
             if (audioRef.current && audioContextRef.current && baseOffsetRef) {
-              // 音声を即座にシーク
-              audioRef.current.currentTime = newTime;
-              
-              // baseOffsetRefを再計算（再生速度を考慮）
-              const realTimeElapsed = newTime / settings.playbackSpeed;
-              baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
-              
-              console.log(`🎵 Audio seek to ${newTime.toFixed(2)}s (再生中)`);
+                audioRef.current.currentTime = newTime;
+                const realTimeElapsed = newTime / settings.playbackSpeed;
+                baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
             }
           }
         },
