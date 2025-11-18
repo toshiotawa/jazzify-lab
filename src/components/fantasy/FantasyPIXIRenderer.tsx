@@ -2149,14 +2149,19 @@ export class FantasyPIXIInstance {
         this.notesContainer.addChild(note);
         this.activeNotes.set(noteData.id, note);
       } else {
+        const existing = note as PIXI.Container;
         // 破棄済みなら作り直す
-        if ((note as any).destroyed || !(note as any).transform) {
+        if ((existing as any).destroyed || !(existing as any).transform) {
           note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
           this.notesContainer.addChild(note);
           this.activeNotes.set(noteData.id, note);
         } else {
-          // 既存のノーツの位置を更新
-          note.x = noteData.x;
+          // 既存のノーツの位置をスムージングして更新
+          const targetX = noteData.x;
+          const currentX = typeof existing.x === 'number' ? existing.x : 0;
+          const delta = targetX - currentX;
+          // 線形補間でカクつきを低減
+          existing.x = currentX + delta * 0.45;
         }
       }
     });
