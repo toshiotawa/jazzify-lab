@@ -533,6 +533,7 @@ export interface MidiControllerOptions {
   onNoteOff: (note: number) => void;
   onConnectionChange?: (connected: boolean) => void;
   playMidiSound?: boolean; // 音声再生の有効/無効（デフォルト: true）
+  lightAudio?: boolean;
 }
 
 // ===== 音声入力・ピッチ検出関連 =====

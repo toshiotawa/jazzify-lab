@@ -198,6 +198,7 @@ interface RendererSettings {
     particles: boolean;
     trails: boolean;
   };
+    enableEffects?: boolean;
   /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
   noteNameStyle: 'off' | 'abc' | 'solfege';
   /** 簡易表示モード: 複雑な音名を基本音名に変換 */
@@ -211,6 +212,7 @@ interface RendererSettings {
   showHitLine: boolean;
   viewportHeight: number;
   timingAdjustment: number;
+    performanceMode: 'standard' | 'ultra_light';
 }
 
 // ===== テクスチャキャッシュ =====
@@ -325,6 +327,7 @@ export class PIXINotesRendererInstance {
           particles: false,
           trails: false
         },
+      enableEffects: true,
     noteNameStyle: 'off',
     simpleDisplayMode: false,
     transpose: 0,
@@ -332,7 +335,8 @@ export class PIXINotesRendererInstance {
     practiceGuide: 'off',
       showHitLine: true,
       viewportHeight: 600,
-    timingAdjustment: 0
+      timingAdjustment: 0,
+      performanceMode: 'standard'
   };
   
   private onDragActive: boolean = false;
@@ -340,6 +344,49 @@ export class PIXINotesRendererInstance {
   
   // キープレス状態追跡（音が伸び続けるバグ防止の保険）
   private activeKeyPresses: Set<number> = new Set();
+
+    private isUltraLightMode(): boolean {
+      return this.settings.performanceMode === 'ultra_light';
+    }
+
+    private clearDecorations(): void {
+      this.noteSprites.forEach((sprite) => {
+        if (sprite.label) {
+          if (sprite.label.parent) {
+            sprite.label.parent.removeChild(sprite.label);
+          }
+          sprite.label.destroy();
+          sprite.label = undefined;
+        }
+        if (sprite.glowSprite) {
+          if (sprite.glowSprite.parent) {
+            sprite.glowSprite.parent.removeChild(sprite.glowSprite);
+          }
+          sprite.glowSprite.destroy();
+          sprite.glowSprite = undefined;
+        }
+      });
+      this.effectsContainer.removeChildren();
+    }
+
+    private applyPerformanceMode(mode: 'standard' | 'ultra_light'): void {
+      this.settings.performanceMode = mode;
+      if (mode === 'ultra_light') {
+        this.settings.effects.glow = false;
+        this.settings.enableEffects = false;
+        this.settings.noteNameStyle = 'off';
+        this.settings.simpleDisplayMode = true;
+        if (this.hitLineContainer) {
+          this.hitLineContainer.visible = false;
+        }
+        this.clearDecorations();
+        this.highlightedKeys.clear();
+        this.guideHighlightedKeys.clear();
+      } else if (this.hitLineContainer) {
+        this.settings.enableEffects = true;
+        this.hitLineContainer.visible = this.settings.showHitLine;
+      }
+    }
   
   
   constructor(width: number, height: number) {
@@ -1661,6 +1708,10 @@ export class PIXINotesRendererInstance {
    * ピアノキーの状態更新（演奏時のハイライト）
    */
   highlightKey(midiNote: number, active: boolean): void {
+    if (this.isUltraLightMode()) {
+      return;
+    }
+    
     const keySprite = this.pianoSprites.get(midiNote);
     if (!keySprite) {
       log.warn(`⚠️ Key sprite not found for note: ${midiNote}`);
@@ -1890,7 +1941,7 @@ export class PIXINotesRendererInstance {
         }
         
         // 新しい音名でラベルを再生成
-        if (this.settings.noteNameStyle !== 'off') {
+        if (!this.isUltraLightMode() && this.settings.noteNameStyle !== 'off') {
           let newNoteName: string | undefined;
           
           // 音名決定ロジック（MECE構造）
@@ -2039,7 +2090,8 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    if (noteNameForLabel && this.settings.noteNameStyle !== 'off') {
+    const shouldRenderLabels = !this.isUltraLightMode() && this.settings.noteNameStyle !== 'off';
+    if (noteNameForLabel && shouldRenderLabels) {
       try {
         const labelTexture = this.getLabelTexture(noteNameForLabel);
         if (labelTexture) {
@@ -2065,7 +2117,7 @@ export class PIXINotesRendererInstance {
     
     // グロー効果スプライト（デフォルトOFF、必要時のみ）
     let glowSprite: PIXI.Graphics | undefined;
-    if (this.settings.effects.glow) {
+    if (this.settings.effects.glow && !this.isUltraLightMode()) {
       glowSprite = new PIXI.Graphics();
       glowSprite.x = x;
       glowSprite.y = 0; // 後で設定
@@ -2119,7 +2171,7 @@ export class PIXINotesRendererInstance {
       }
       
       // 新しい音名でラベルを生成
-      if (this.settings.noteNameStyle !== 'off') {
+        if (!this.isUltraLightMode() && this.settings.noteNameStyle !== 'off') {
         let newNoteName: string | undefined;
         
         // 音名決定ロジック（MECE構造）
@@ -2383,7 +2435,7 @@ export class PIXINotesRendererInstance {
   }
   
   private createHitEffect(x: number, y: number): void {
-    if (!this.settings.enableEffects) {
+    if (!this.settings.enableEffects || this.isUltraLightMode()) {
       return;
     }
     const effect = this.acquireHitEffect();
@@ -2481,11 +2533,12 @@ export class PIXINotesRendererInstance {
       return;
     }
 
-    const prevPianoHeight = this.settings.pianoHeight;
+      const prevPianoHeight = this.settings.pianoHeight;
     const prevTranspose = this.settings.transpose;
     const prevNoteNameStyle = this.settings.noteNameStyle;
     const prevSimpleDisplayMode = this.settings.simpleDisplayMode;
     const prevTransposingInstrument = this.settings.transposingInstrument;
+      const prevPerformanceMode = this.settings.performanceMode;
     
           // ★ ピアノ高さの最小値を保証
       if (newSettings.pianoHeight !== undefined) {
@@ -2493,6 +2546,10 @@ export class PIXINotesRendererInstance {
       }
     
     Object.assign(this.settings, newSettings);
+
+      if (newSettings.performanceMode && newSettings.performanceMode !== prevPerformanceMode) {
+        this.applyPerformanceMode(newSettings.performanceMode);
+      }
 
     if (newSettings.showHitLine !== undefined && this.hitLineContainer) {
       this.hitLineContainer.visible = newSettings.showHitLine;
@@ -2941,6 +2998,11 @@ export class PIXINotesRendererInstance {
 
     // 外部からのガイド設定（ピッチクラス配列 0-11）
   public setGuideHighlightsByPitchClasses(pitchClasses: number[]): void {
+    if (this.isUltraLightMode()) {
+      this.guideHighlightedKeys.clear();
+      return;
+    }
+    
     const normalized = new Set(pitchClasses.map(pc => ((pc % 12) + 12) % 12));
     const target: Set<number> = new Set();
     for (let midi = 21; midi <= 108; midi++) {
@@ -2966,6 +3028,10 @@ export class PIXINotesRendererInstance {
 
   // 見た目適用（ガイド/演奏の合算状態を前提）
   private applyKeyHighlightVisual(midiNote: number, highlighted: boolean): void {
+    if (this.isUltraLightMode()) {
+      return;
+    }
+    
     const keySprite = this.pianoSprites.get(midiNote);
     if (!keySprite) return;
     if (this.isBlackKey(midiNote)) {
@@ -2987,6 +3053,10 @@ export class PIXINotesRendererInstance {
    * GameEngine の判定を待たずに視覚フィードバックを返すための補助メソッド。
    */
   public triggerKeyPressEffect(midiNote: number): void {
+    if (this.isUltraLightMode()) {
+      return;
+    }
+    
     // 現在表示中のノートスプライトから一致するものを探す
     const targetSprite = Array.from(this.noteSprites.values()).find((ns) => {
       const rawMidi = ns.noteData.pitch + this.settings.transpose;
@@ -3069,6 +3139,11 @@ export class PIXINotesRendererInstance {
 
   // 出題オクターブのみのガイド表示用：MIDI番号で直接指定
   public setGuideHighlightsByMidiNotes(midiNotes: number[]): void {
+    if (this.isUltraLightMode()) {
+      this.guideHighlightedKeys.clear();
+      return;
+    }
+    
     const clamped = new Set<number>();
     for (const n of midiNotes) {
       const midi = Math.round(n);
@@ -3096,6 +3171,12 @@ export class PIXINotesRendererInstance {
    * すべてのハイライト状態（演奏・ガイド）をクリア
    */
   public clearAllHighlights(): void {
+    if (this.isUltraLightMode()) {
+      this.highlightedKeys.clear();
+      this.guideHighlightedKeys.clear();
+      return;
+    }
+    
     // まず演奏ハイライトを消す（ガイドと重複していないもののみ）
     for (const midi of Array.from(this.highlightedKeys)) {
       if (!this.guideHighlightedKeys.has(midi)) {
@@ -3114,6 +3195,11 @@ export class PIXINotesRendererInstance {
    * 演奏ハイライトのみをクリア（ガイドは維持）
    */
   public clearActiveHighlights(): void {
+    if (this.isUltraLightMode()) {
+      this.highlightedKeys.clear();
+      return;
+    }
+    
     for (const midi of Array.from(this.highlightedKeys)) {
       if (!this.guideHighlightedKeys.has(midi)) {
         this.applyKeyHighlightVisual(midi, false);

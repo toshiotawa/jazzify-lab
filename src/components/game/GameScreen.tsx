@@ -28,6 +28,38 @@ const GameScreen: React.FC = () => {
   }));
 
   const gameActions = useGameActions();
+
+  useEffect(() => {
+    if (settings.performanceMode !== 'ultra_light') {
+      gameActions.updateSettings({
+        performanceMode: 'ultra_light',
+        enableEffects: false,
+        keyPressEffect: {
+          enabled: false,
+          proximityThreshold: 1.5,
+          sizeMultiplier: 0,
+          duration: 0
+        },
+        hitEffect: {
+          enabled: false,
+          sizeMultiplier: 0,
+          duration: 0,
+          opacity: 0
+        },
+        practiceGuide: 'off',
+        showNoteNames: false,
+        noteNameStyle: 'off',
+        simpleDisplayMode: true,
+        inputMode: 'midi',
+        selectedAudioDevice: null
+      });
+      return;
+    }
+
+    if (settings.inputMode !== 'midi') {
+      gameActions.updateSettings({ inputMode: 'midi' });
+    }
+  }, [settings.performanceMode, settings.inputMode, gameActions]);
   
   // レッスン曲読み込み中の状態管理を追加
   const [isLoadingLessonSong, setIsLoadingLessonSong] = useState(false);

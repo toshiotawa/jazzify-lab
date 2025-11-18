@@ -510,12 +510,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const [isMidiReady, setIsMidiReady] = useState(false);
 
   // 共通音声システム + MIDIController + AudioController初期化
-  useEffect(() => {
-    const initAudio = async () => {
-      try {
-        const midiModule = await ensureMidiModule();
-        const { initializeAudioSystem, default: MIDIController } = midiModule;
-        await initializeAudioSystem({ light: true });
+    useEffect(() => {
+      const initAudio = async () => {
+        try {
+          const midiModule = await ensureMidiModule();
+          const { initializeAudioSystem, default: MIDIController } = midiModule;
+          const preferLightAudio = settings.performanceMode === 'ultra_light';
+          await initializeAudioSystem({ light: preferLightAudio });
         log.info('✅ 共通音声システム初期化完了');
         
         // MIDIController インスタンスを作成
@@ -530,7 +531,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             onConnectionChange: (connected: boolean) => {
               log.info(`🎹 MIDI接続状態変更: ${connected ? '接続' : '切断'}`);
             },
-            playMidiSound: true // 通常曲モードでは音声再生を有効
+              playMidiSound: true, // 通常曲モードでは音声再生を有効
+              lightAudio: preferLightAudio
           });
           
           await midiControllerRef.current.initialize();
@@ -540,7 +542,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
 
         // AudioController インスタンスを作成（音声入力が有効な場合）
-        if (!audioControllerRef.current && settings.inputMode === 'audio') {
+          const allowAudioInput = settings.performanceMode !== 'ultra_light';
+          if (!allowAudioInput && audioControllerRef.current) {
+            await audioControllerRef.current.disconnect();
+            audioControllerRef.current = null;
+            log.info('🔇 AudioController disabled for ultra-light mode');
+          } else if (allowAudioInput && !audioControllerRef.current && settings.inputMode === 'audio') {
           const { AudioController } = await import('../../../AudioController');
           audioControllerRef.current = new AudioController({
             onNoteOn: (note: number, velocity?: number) => {
@@ -569,7 +576,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               });
               log.info('✅ AudioController ↔ PIXIレンダラー コールバック再設定');
             }
-        } else if (audioControllerRef.current && settings.inputMode === 'midi') {
+          } else if (audioControllerRef.current && (!allowAudioInput || settings.inputMode === 'midi')) {
           // MIDI専用モードの場合、AudioControllerを停止
           await audioControllerRef.current.disconnect();
           audioControllerRef.current = null;
@@ -593,7 +600,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         audioControllerRef.current = null;
       }
     };
-  }, [handleNoteInput, settings.inputMode, ensureMidiModule]);
+    }, [handleNoteInput, settings.inputMode, ensureMidiModule, settings.performanceMode]);
 
     useEffect(() => {
       let isMounted = true;
@@ -745,23 +752,25 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (gameEngine) {
       updateEngineSettings();
     }
-    if (pixiRenderer) {
-      pixiRenderer.updateSettings({
-        noteNameStyle: settings.noteNameStyle,
-        simpleDisplayMode: settings.simpleDisplayMode,
-        pianoHeight: settings.pianoHeight,
-        transpose: settings.transpose,
-        transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
-      });
-    }
+      if (pixiRenderer) {
+        pixiRenderer.updateSettings({
+          noteNameStyle: settings.noteNameStyle,
+          simpleDisplayMode: settings.simpleDisplayMode,
+          pianoHeight: settings.pianoHeight,
+          transpose: settings.transpose,
+          transposingInstrument: settings.transposingInstrument,
+          practiceGuide: settings.practiceGuide ?? 'key',
+          performanceMode: settings.performanceMode,
+          showHitLine: settings.performanceMode !== 'ultra_light'
+        });
+      }
     // AudioControllerに音声入力設定を反映
     if (audioControllerRef.current) {
       audioControllerRef.current.updateConfig({
         pyinThreshold: settings.pyinThreshold
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
+    }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold, settings.performanceMode]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
@@ -884,7 +893,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }, [ensureMidiModule]);
 
   // ================= PIXI.js レンダラー準備完了ハンドラー =================
-  const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
+    const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
     if (!renderer) {
       // 破棄通知
       renderBridgeRef.current?.attachRenderer(null);
@@ -897,14 +906,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     renderBridgeRef.current?.attachRenderer(renderer);
     
     // 初期設定を反映
-    renderer.updateSettings({
-      noteNameStyle: settings.noteNameStyle,
-      simpleDisplayMode: settings.simpleDisplayMode,
-      pianoHeight: settings.pianoHeight,
-      transpose: settings.transpose,
-      transposingInstrument: settings.transposingInstrument,
-      practiceGuide: settings.practiceGuide ?? 'key'
-    });
+      renderer.updateSettings({
+        noteNameStyle: settings.noteNameStyle,
+        simpleDisplayMode: settings.simpleDisplayMode,
+        pianoHeight: settings.pianoHeight,
+        transpose: settings.transpose,
+        transposingInstrument: settings.transposingInstrument,
+        practiceGuide: settings.practiceGuide ?? 'key',
+        performanceMode: settings.performanceMode,
+        showHitLine: settings.performanceMode !== 'ultra_light'
+      });
     
     // ピアノキーボードのクリックイベントを接続
     renderer.setKeyCallbacks(
@@ -942,7 +953,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
+    }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice, settings.performanceMode]);
   
   // キーボード入力処理（テスト用）
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
