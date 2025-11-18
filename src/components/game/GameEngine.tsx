@@ -13,7 +13,6 @@ import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import { LegendRenderBridge } from './LegendRenderBridge';
 import ChordOverlay from './ChordOverlay';
-import * as Tone from 'tone';
 import { devLog, log } from '@/utils/logger';
 import type { ClockSyncPayload } from '@/workers/gameLogicTypes';
 import type { JudgmentResult } from '@/types';
@@ -601,23 +600,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
-  
-  // トランスポーズに合わせてオーディオのピッチを変更（tempo も変わるが簡易実装）
-  useEffect(() => {
-    if (!pitchShiftRef.current) {
-      return;
-    }
-    if (settings.transpose === 0) {
-      try {
-        pitchShiftRef.current.dispose();
-      } catch (err) {
-        log.warn('PitchShift dispose failed', err);
-      }
-      pitchShiftRef.current = null;
-      return;
-    }
-    (pitchShiftRef.current as any).pitch = settings.transpose;
-  }, [settings.transpose]);
   
   // ゲームエリアのリサイズ対応（ResizeObserver 使用）
   useEffect(() => {

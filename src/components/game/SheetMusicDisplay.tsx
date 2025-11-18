@@ -75,7 +75,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     setIsLoading(true);
     setError(null);
 
-    try {
+      try {
       // 既存のOSMDインスタンスをクリア（移調時の即時反映のため）
       if (osmdRef.current) {
         osmdRef.current.clear();
@@ -87,6 +87,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         noteNameStyle: settings.noteNameStyle,
         chordsOnly: settings.sheetMusicChordsOnly
       });
+        if (!processedMusicXml || processedMusicXml.trim().length === 0) {
+          setError('楽譜データが読み込めませんでした');
+          setIsLoading(false);
+          return;
+        }
       
       log.info(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}`);
       
