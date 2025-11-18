@@ -10,6 +10,7 @@ import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
+import { PERFORMANCE_CONFIG as TAIKO_PERFORMANCE_CONFIG } from './TaikoNoteSystem';
 
 // ===== 型定義 =====
 
@@ -249,6 +250,8 @@ export class FantasyPIXIInstance {
   
   // 太鼓の達人風ノーツ関連
   private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
+  private noteTargetPositions: Map<string, number> = new Map();
+  private lastNoteSmoothingTime = 0;
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
   private judgeLineX: number = 100; // 判定ラインのX座標
   
@@ -1687,6 +1690,7 @@ export class FantasyPIXIInstance {
       this.updateMagicCircles();
       this.updateDamageNumbers();
       this.updateScreenShake(); // 画面揺れの更新を追加
+      this.updateTaikoNoteAnimation();
       
       this.animationFrameId = requestAnimationFrame(animate);
     };
@@ -2129,35 +2133,43 @@ export class FantasyPIXIInstance {
   
   // ノーツを更新（太鼓の達人風）
   updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
+    const visibleIds = new Set(notes.map(note => note.id));
+    
     this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
+      if (!visibleIds.has(id)) {
         try {
-          if (note && !(note as any).destroyed) note.destroy({ children: true });
+          if (note && !(note as any).destroyed) {
+            note.destroy({ children: true });
+          }
         } catch {}
         this.activeNotes.delete(id);
+        this.noteTargetPositions.delete(id);
       }
     });
     
-    // 新しいノーツを追加・更新
     notes.forEach(noteData => {
       let note = this.activeNotes.get(noteData.id);
+      let recreated = false;
       
-      if (!note) {
-        // 新しいノーツを作成
+      if (!note || (note as any).destroyed || !(note as any).transform) {
+        try {
+          if (note && !(note as any).destroyed) {
+            note.destroy({ children: true });
+          }
+        } catch {}
         note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+        note.y = this.app.screen.height / 2;
         this.notesContainer.addChild(note);
         this.activeNotes.set(noteData.id, note);
+        recreated = true;
       } else {
-        // 破棄済みなら作り直す
-        if ((note as any).destroyed || !(note as any).transform) {
-          note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-          this.notesContainer.addChild(note);
-          this.activeNotes.set(noteData.id, note);
-        } else {
-          // 既存のノーツの位置を更新
-          note.x = noteData.x;
-        }
+        note.y = this.app.screen.height / 2;
+      }
+      
+      this.noteTargetPositions.set(noteData.id, noteData.x);
+      
+      if (recreated && note) {
+        note.x = noteData.x;
       }
     });
   }
@@ -2176,7 +2188,56 @@ export class FantasyPIXIInstance {
       // ノーツもクリア
       this.activeNotes.forEach(note => note.destroy());
       this.activeNotes.clear();
+      this.noteTargetPositions.clear();
+      this.lastNoteSmoothingTime = 0;
     }
+  }
+  
+  private updateTaikoNoteAnimation(): void {
+    if (this.activeNotes.size === 0) {
+      this.lastNoteSmoothingTime = 0;
+      return;
+    }
+    
+    const now = performance.now();
+    
+    if (this.lastNoteSmoothingTime === 0) {
+      this.lastNoteSmoothingTime = now;
+      this.activeNotes.forEach((note, id) => {
+        const targetX = this.noteTargetPositions.get(id);
+        if (typeof targetX === 'number' && note && !(note as any).destroyed && (note as any).transform) {
+          note.x = targetX;
+        }
+      });
+      return;
+    }
+    
+    const deltaMs = now - this.lastNoteSmoothingTime;
+    this.lastNoteSmoothingTime = now;
+    
+    const baseInterval = TAIKO_PERFORMANCE_CONFIG.NOTE_UPDATE_INTERVAL || 16;
+    const lerpFactor = TAIKO_PERFORMANCE_CONFIG.LERP_FACTOR;
+    const smoothingExponent = Math.max(0.001, deltaMs / baseInterval);
+    const normalizedLerp = Math.min(
+      1,
+      Math.max(
+        0,
+        1 - Math.pow(Math.max(0, 1 - lerpFactor), smoothingExponent)
+      )
+    );
+    
+    this.activeNotes.forEach((note, id) => {
+      if (!note || (note as any).destroyed || !(note as any).transform) return;
+      const targetX = this.noteTargetPositions.get(id);
+      if (typeof targetX !== 'number') return;
+      
+      const diff = targetX - note.x;
+      if (Math.abs(diff) <= 0.5) {
+        note.x = targetX;
+        return;
+      }
+      note.x += diff * normalizedLerp;
+    });
   }
   
   // ノーツヒット時のエフェクト

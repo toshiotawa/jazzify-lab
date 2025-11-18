@@ -10,6 +10,7 @@ import { MIDIController } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
+import { unifiedFrameController } from '@/utils/performanceOptimizer';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState } from './FantasyGameEngine';
 import { TaikoNote } from './TaikoNoteSystem';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
@@ -158,13 +159,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.countInMeasures ?? 0,
         settings.bgmVolume ?? 0.7
       );
-      // ★ デモプレイ開始時にフル音源へアップグレード（軽量→@tonejs/piano）
-      (async () => {
-        try {
-          const { upgradeAudioSystemToFull } = await import('@/utils/MidiController');
-          await upgradeAudioSystemToFull();
-        } catch {}
-      })();
     }
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume]);
@@ -713,13 +707,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
+    const stage = gameState.currentStage;
+    if (!stage) return;
     
     let animationId: number;
-    let lastUpdateTime = 0;
-    const updateInterval = 1000 / 60; // 60fps
+    let disposed = false;
     
     // ループ情報を事前計算
-    const stage = gameState.currentStage!;
     const secPerBeat = 60 / (stage.bpm || 120);
     const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
     const loopDuration = (stage.measureCount || 8) * secPerMeasure;
@@ -736,12 +730,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       : [];
     
     const updateTaikoNotes = (timestamp: number) => {
-      // フレームレート制御
-      if (timestamp - lastUpdateTime < updateInterval) {
+      if (disposed) {
+        return;
+      }
+      
+      if (unifiedFrameController.shouldSkipFrame(timestamp, 'render')) {
         animationId = requestAnimationFrame(updateTaikoNotes);
         return;
       }
-      lastUpdateTime = timestamp;
+      
+      if (!unifiedFrameController.shouldUpdateNotes(timestamp)) {
+        animationId = requestAnimationFrame(updateTaikoNotes);
+        return;
+      }
+      unifiedFrameController.markNoteUpdate(timestamp);
       
       const currentTime = bgmManager.getCurrentMusicTime();
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
@@ -776,9 +778,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // 通常のノーツ（現在ループのみ表示）
       gameState.taikoNotes.forEach((note, index) => {
-        // 2週目以降は全てのノーツを表示対象とする
-        const loopCount = Math.floor(currentTime / loopDuration);
-
         // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
         if (note.isHit) return;
 
@@ -872,6 +871,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     animationId = requestAnimationFrame(updateTaikoNotes);
     
     return () => {
+      disposed = true;
       if (animationId) {
         cancelAnimationFrame(animationId);
       }
