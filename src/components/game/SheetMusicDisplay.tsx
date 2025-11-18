@@ -283,7 +283,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       const currentTimeMs = currentTime * 1000;
 
-      const findCursorIndex = () => {
+      const findNextIndex = () => {
         let low = 0;
         let high = mapping.length - 1;
         while (low <= high) {
@@ -297,19 +297,20 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         return Math.min(low, mapping.length - 1);
       };
 
-      const cursor = findCursorIndex();
-      mappingCursorRef.current = cursor;
+      const nextIndex = findNextIndex();
+      const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
+      mappingCursorRef.current = activeIndex;
 
-      const targetEntry = mapping[cursor] ?? mapping[mapping.length - 1];
+      const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
       const playheadPosition = 120;
       const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
 
-      const needsIndexUpdate = cursor !== lastRenderedIndexRef.current;
+      const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
 
       if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
         scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-        lastRenderedIndexRef.current = cursor;
+        lastRenderedIndexRef.current = activeIndex;
         lastScrollXRef.current = scrollX;
       }
     }, [currentTime, isPlaying, notes, shouldRenderSheet]);
