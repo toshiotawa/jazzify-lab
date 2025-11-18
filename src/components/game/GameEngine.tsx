@@ -11,7 +11,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
-import { LegendRenderBridge } from './LegendRenderBridge';
+import type { LegendSharedMemoryViews } from '@/engines/legend/sharedMemory';
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
 import { devLog, log } from '@/utils/logger';
@@ -30,46 +30,44 @@ interface GameEngineComponentProps {
 export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({ 
   className 
 }) => {
-  const {
-  gameEngine,
-  isPlaying,
-    currentSong,
-    currentTime,
-    settings,
-    score,
-    mode,
-    lastKeyHighlight,
-    isSettingsOpen
-  } = useGameSelector((state) => ({
-    gameEngine: state.gameEngine,
-    isPlaying: state.isPlaying,
-    currentSong: state.currentSong,
-    currentTime: state.currentTime,
-    settings: state.settings,
-    score: state.score,
-    mode: state.mode,
-    lastKeyHighlight: state.lastKeyHighlight,
-    isSettingsOpen: state.isSettingsOpen
-  }));
+    const {
+      gameEngine,
+      isPlaying,
+      currentSong,
+      currentTime,
+      settings,
+      score,
+      mode,
+      lastKeyHighlight,
+      isSettingsOpen,
+      notes
+    } = useGameSelector((state) => ({
+      gameEngine: state.gameEngine,
+      isPlaying: state.isPlaying,
+      currentSong: state.currentSong,
+      currentTime: state.currentTime,
+      settings: state.settings,
+      score: state.score,
+      mode: state.mode,
+      lastKeyHighlight: state.lastKeyHighlight,
+      isSettingsOpen: state.isSettingsOpen,
+      notes: state.notes
+    }));
 
-  const {
-    initializeGameEngine,
-    destroyGameEngine,
-    handleNoteInput,
-    updateEngineSettings,
-    updateSettings,
-    updateTime,
-    stop,
-    pause,
-    setLastKeyHighlight,
-    openResultModal
-  } = useGameActions();
+    const {
+      initializeGameEngine,
+      destroyGameEngine,
+      handleNoteInput,
+      updateEngineSettings,
+      updateSettings,
+      stop,
+      pause,
+      setLastKeyHighlight,
+      openResultModal
+    } = useGameActions();
   
-  const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
-  const renderBridgeRef = useRef<LegendRenderBridge | null>(null);
-  if (!renderBridgeRef.current) {
-    renderBridgeRef.current = new LegendRenderBridge();
-  }
+    const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
+    const [sharedState, setSharedState] = useState<LegendSharedMemoryViews | null>(null);
   const midiModuleRef = useRef<MidiModule | null>(null);
   const ensureMidiModule = useCallback(async (): Promise<MidiModule> => {
     if (midiModuleRef.current) {
@@ -79,6 +77,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     midiModuleRef.current = module;
     return module;
   }, []);
+    useEffect(() => {
+      if (gameEngine) {
+        setSharedState(gameEngine.getSharedViews());
+      } else {
+        setSharedState(null);
+      }
+    }, [gameEngine]);
+    useEffect(() => {
+      if (gameEngine && audioContextRef.current) {
+        gameEngine.bindAudioContext(audioContextRef.current);
+      }
+    }, [gameEngine]);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
@@ -90,27 +100,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
   }, []);
 
-  useEffect(() => {
-    return () => {
-      renderBridgeRef.current?.dispose();
-    };
-  }, []);
-
-  useEffect(() => {
-    const bridge = renderBridgeRef.current;
-    if (!bridge) return;
-    bridge.attachEngine(gameEngine);
-    return () => {
-      bridge.attachEngine(null);
-    };
-  }, [gameEngine]);
-
-  useEffect(() => {
-    if (!isPlaying) {
-      renderBridgeRef.current?.syncFromEngine();
-    }
-  }, [currentTime, settings.transpose, settings.notesSpeed, isPlaying]);
-  
   // 音声再生用の要素
   const audioRef = useRef<HTMLAudioElement>(null);
   const [audioLoaded, setAudioLoaded] = useState(false);
@@ -118,7 +107,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const pitchShiftRef = useRef<Tone.PitchShift | null>(null);
-  // GameEngine と updateTime に渡すための AudioContext ベースのタイムスタンプ
+    // GameEngine に渡すための AudioContext ベースのタイムスタンプ
   const baseOffsetRef = useRef<number>(0); // currentTime = audioCtx.time - baseOffset
     const animationFrameRef = useRef<number | null>(null);
     const currentTimeRef = useRef(currentTime);
@@ -211,7 +200,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         } catch {}
         
         // 再生同期ループ停止
-        stopTimeSync();
       };
     } else if (currentSong && (!currentSong.audioFile || currentSong.audioFile.trim() === '')) {
       // 音声ファイルなしの楽曲の場合
@@ -336,9 +324,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         const realTimeElapsed = syncTime / settings.playbackSpeed;
         baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
 
-        // 7) GameEngine を AudioContext に紐付けて開始
-        gameEngine.start(audioContext);
-        gameEngine.seek(syncTime);
+          // 7) Worker ランタイムを AudioContext に紐付けて開始
+          gameEngine.bindAudioContext(audioContext);
+          gameEngine.start(syncTime, audioContext.currentTime);
 
         // 8) HTMLAudio 再生 (AudioContext と同軸)
         // resumeが完了してから再生開始
@@ -367,16 +355,15 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           // 🔧 修正: 音声なしモードでもシークバー位置を維持 - ストアのcurrentTimeを優先使用
           const syncTime = Math.max(0, currentTime);
           
-          // ゲームエンジンを開始（音声同期なし）
-          gameEngine.start(audioContext);
-          gameEngine.seek(syncTime);
+            // ゲームエンジンを開始（音声同期なし）
+            gameEngine.bindAudioContext(audioContext);
+            gameEngine.start(syncTime, audioContext.currentTime);
           
           // 音声なしモードでも baseOffset を適切に設定
           const realTimeElapsed = syncTime / settings.playbackSpeed;
           baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
         }
 
-        startTimeSync();
 
         // 音声入力開始（再生中のみ）
         if (audioControllerRef.current && settings.inputMode === 'audio') {
@@ -389,8 +376,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           audioRef.current.pause();
         }
         
-        // GameEngineを一時停止
-        gameEngine.pause();
+          // GameEngineを一時停止
+          gameEngine.pause(audioContextRef.current?.currentTime);
         log.info('🎮 GameEngine paused');
 
         // 音声入力停止
@@ -404,7 +391,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         //   audioContextRef.current.suspend();
         // }
 
-        stopTimeSync();
       }
     };
 
@@ -458,78 +444,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }
     }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying]);
   
-  // ===== 時間更新処理を軽量なsetIntervalで復活（競合ループ回避） =====
-  const timeIntervalRef = useRef<number | null>(null);
-  
-  const startTimeSync = () => {
-    // ❌ requestAnimationFrameループは使わない
-    // ✅ 軽量なsetIntervalで時間更新（60FPSより低頻度で競合回避）
-    
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
-    }
-    
-    const updateGameTime = () => {
-      if (!useGameStore.getState().isPlaying) return;
-      
-      let newTime = 0;
-      const audio = audioRef.current;
-      const audioCtx = audioContextRef.current;
-      const hasAudio = currentSong?.audioFile && audio && audioLoaded;
-      
-      if (hasAudio && !audio.paused && audioCtx) {
-        // 音声ありモード：audio要素の時刻を基準
-        newTime = audio.currentTime;
-      } else if (audioCtx) {
-        // 音声なしモード：AudioContextの時刻とオフセットで計算
-        const realTimeElapsed = (audioCtx.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-        newTime = Math.max(0, realTimeElapsed);
-      } else {
-        // フォールバック
-        newTime = useGameStore.getState().currentTime + (50 / 1000); // 50ms進行と仮定
-      }
-      
-      // 🎯 重要：時間を進行させる！
-      updateTime(newTime);
-      
-      // 楽曲終了チェックをrequestIdleCallbackで実行
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => {
-          const songDuration = useGameStore.getState().currentSong?.duration || 0;
-          if (songDuration > 0 && newTime >= songDuration) {
-            useGameStore.getState().stop();
-            
-            // 本番モード時にリザルトモーダルを開く
-            if (useGameStore.getState().mode === 'performance') {
-              useGameStore.getState().openResultModal();
-            }
-          }
-        });
-      } else {
-        // requestIdleCallbackが無い場合は通常実行
-        const songDuration = useGameStore.getState().currentSong?.duration || 0;
-        if (songDuration > 0 && newTime >= songDuration) {
-          useGameStore.getState().stop();
-          
-          // 本番モード時にリザルトモーダルを開く
-          if (useGameStore.getState().mode === 'performance') {
-            useGameStore.getState().openResultModal();
-          }
-        }
-      }
-    };
-    
-    // 30ms間隔で時間更新（33FPS相当、楽譜スクロールを滑らかに）
-    timeIntervalRef.current = window.setInterval(updateGameTime, 30);
-  };
-  
-  const stopTimeSync = useCallback(() => {
-    if (timeIntervalRef.current) {
-      clearInterval(timeIntervalRef.current);
-      timeIntervalRef.current = null;
-    }
-  }, []);
-  
   // シーク機能（音声ありと音声なし両方対応）
   useEffect(() => {
     if (audioContextRef.current && gameEngine) {
@@ -558,9 +472,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             audioControllerRef.current.pauseProcessingForSeek();
           }
           
-          // ✅ ストアのcurrentTimeを即時更新して二重シークを防止
-          updateTime(safeTime);
-          
           devLog.debug(`🔄 Audio & GameEngine synced to ${safeTime.toFixed(2)}s`);
         }
       } else {
@@ -580,9 +491,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           if (audioControllerRef.current) {
             audioControllerRef.current.pauseProcessingForSeek();
           }
-          
-          // ✅ currentTime を即時更新して二重シークを防止
-          updateTime(safeTime);
           
           devLog.debug(`🔄 GameEngine (音声なし) synced to ${safeTime.toFixed(2)}s`);
         }
@@ -776,21 +684,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     };
   }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine]);
   
-  // 練習モードガイド: GameEngineのキーハイライトコールバック設定
-  useEffect(() => {
-    if (gameEngine) {
-      // GameEngine から渡される timestamp は AudioContext のタイムラインを基準としているため、
-      // React 側のパフォーマンスタイムラインと整合しない場合がある。
-      // UI 側では performance.now() ベースで扱うことで、過去 0.5s 以内かどうかを正しく判定できるようにする。
-      gameEngine.setKeyHighlightCallback((pitch: number, _timestamp: number) => {
-        // performance.now() は ms 単位なので秒に変換
-        const wallClockSec = performance.now() / 1000;
-        setLastKeyHighlight(pitch, wallClockSec);
-      });
-      log.info('🎹 練習モードガイド: GameEngineキーハイライトコールバック設定完了');
-    }
-  }, [gameEngine, setLastKeyHighlight]);
-  
   // 練習モードガイド: キーハイライト処理
   useEffect(() => {
     if (lastKeyHighlight && pixiRenderer && settings.practiceGuide !== 'off' && isPlaying) {
@@ -825,7 +718,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pianoHeight: settings.pianoHeight,
         transpose: settings.transpose,
         transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
+          practiceGuide: settings.practiceGuide ?? 'key',
+          effectsEnabled: settings.enableEffects
       });
     }
     // AudioControllerに音声入力設定を反映
@@ -950,17 +844,14 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [ensureMidiModule]);
 
   // ================= PIXI.js レンダラー準備完了ハンドラー =================
-  const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
-    if (!renderer) {
-      // 破棄通知
-      renderBridgeRef.current?.attachRenderer(null);
-      setPixiRenderer(null);
-      return;
-    }
-    
-      log.info('🎮 PIXI.js renderer ready, setting up callbacks...');
-    setPixiRenderer(renderer);
-    renderBridgeRef.current?.attachRenderer(renderer);
+    const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
+      if (!renderer) {
+        setPixiRenderer(null);
+        return;
+      }
+      
+        log.info('🎮 PIXI.js renderer ready, setting up callbacks...');
+      setPixiRenderer(renderer);
     
     // 初期設定を反映
     renderer.updateSettings({
@@ -969,7 +860,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       pianoHeight: settings.pianoHeight,
       transpose: settings.transpose,
       transposingInstrument: settings.transposingInstrument,
-      practiceGuide: settings.practiceGuide ?? 'key'
+        practiceGuide: settings.practiceGuide ?? 'key',
+        effectsEnabled: settings.enableEffects
     });
     
     // ピアノキーボードのクリックイベントを接続
@@ -1148,7 +1040,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                     width={idealWidth}
                     height={gameAreaSize.height}
                     onReady={handlePixiReady}
-                    className="w-full h-full"
+                      className="w-full h-full"
+                      sharedState={sharedState}
+                      noteRegistry={notes}
                   />
                 <ChordOverlay />
               </div>
@@ -1166,9 +1060,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         style={{ display: 'none' }}
         onLoadedMetadata={() => log.info('🎵 音声メタデータ読み込み完了')}
         onError={(e) => log.error('🚨 音声読み込みエラー:', e)}
-        onTimeUpdate={() => {
-          // 時間同期はstartTimeSyncで別途処理
-        }}
+          onTimeUpdate={() => {
+            // 時間同期は Worker 側で処理
+          }}
       />
     </div>
   );

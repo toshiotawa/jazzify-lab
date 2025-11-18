@@ -5,6 +5,7 @@
 import { createWithEqualityFn } from 'zustand/traditional';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { LegendRuntime } from '@/engines/legend/runtime';
 import type {
   GameState,
   GameMode,
@@ -453,7 +454,7 @@ const validateStateTransition = (currentState: GameState, action: string, params
 
 interface GameStoreState extends GameState {
   // Phase 2: ゲームエンジン統合
-  gameEngine: any | null; // GameEngine型は動的インポートで使用
+    gameEngine: LegendRuntime | null;
   
   // 練習モードガイド: キーハイライト情報
   lastKeyHighlight?: {
@@ -650,86 +651,74 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // Phase 2: ゲームエンジン制御
         initializeGameEngine: async () => {
+          if (typeof window === 'undefined') {
+            return;
+          }
           const state = get();
-          const { GameEngine } = await import('@/utils/gameEngine');
-          const engine = new GameEngine({ ...state.settings });
-          
-          // エンジンの更新コールバック設定
-            engine.setUpdateCallback((data: any) => {
-              const storeSnapshot = useGameStore.getState();
-              const { abRepeat } = storeSnapshot;
-              
-              if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
-                if (data.currentTime >= abRepeat.endTime) {
+          if (state.gameEngine) {
+            return;
+          }
+            const runtime = new LegendRuntime({
+              settings: { ...state.settings },
+              onState: ({ currentTime, score }) => {
+                set((draft) => {
+                  draft.currentTime = currentTime;
+                  draft.score = { ...score };
+                });
+                const storeSnapshot = useGameStore.getState();
+                const { abRepeat } = storeSnapshot;
+                if (
+                  abRepeat.enabled &&
+                  abRepeat.startTime !== null &&
+                  abRepeat.endTime !== null &&
+                  currentTime >= abRepeat.endTime
+                ) {
                   const seekTime = abRepeat.startTime;
-                  console.log(`🔄 ABリピート(Store): ${data.currentTime.toFixed(2)}s → ${seekTime.toFixed(2)}s`);
                   setTimeout(() => {
-                    const store = useGameStore.getState();
-                    store.seek(seekTime);
+                    useGameStore.getState().seek(seekTime);
                   }, 0);
                 }
-              }
-              
-              if (storeSnapshot.settings.showFPS) {
-                set((state) => {
-                  state.debug.renderTime = performance.now() % 1000;
-                });
-              }
-            });
-          
-          // 判定イベントコールバック登録
-          engine.setJudgmentCallback((judgment) => {
-            set((state) => {
-              // スコア・コンボ管理
-              if (judgment.type === 'good') {
-                state.score.goodCount += 1;
-                state.score.combo += 1;
-                state.score.maxCombo = Math.max(state.score.maxCombo, state.score.combo);
-
-                // 成功ノートをアクティブセットに追加
-                state.activeNotes.add(judgment.noteId);
-              } else {
-                state.score.missCount += 1;
-                state.score.combo = 0;
-              }
-
-              const totalJudged = state.score.goodCount + state.score.missCount;
-              state.score.accuracy = totalJudged > 0 ? state.score.goodCount / totalJudged : 0;
-              state.score.score = state.score.goodCount * 1000;
-              state.score.rank = calculateRank(state.score.accuracy);
-
-              // 履歴保存
-              state.judgmentHistory.push(judgment);
-            });
+              },
+            onJudgment: (judgment) => {
+              set((draft) => {
+                if (judgment.type === 'good') {
+                  draft.activeNotes.add(judgment.noteId);
+                } else {
+                  draft.activeNotes.delete(judgment.noteId);
+                }
+                draft.judgmentHistory.push(judgment);
+              });
+            },
+            onGuideHighlight: ({ pitch, timestamp }) => {
+              set((draft) => {
+                draft.lastKeyHighlight = { pitch, timestamp };
+              });
+            },
           });
-          
-          set((state) => {
-            state.gameEngine = engine;
-            
-            // 既存の楽曲がある場合はロード
-            if (state.notes.length > 0) {
-              engine.loadSong(state.notes);
+
+          set((draft) => {
+            draft.gameEngine = runtime;
+            draft.initialization.gameEngineReady = true;
+            if (draft.notes.length > 0) {
+              runtime.loadSong(draft.notes);
             }
           });
         },
         
-        destroyGameEngine: () => set((state) => {
-          if (state.gameEngine) {
-            state.gameEngine.destroy();
-            state.gameEngine = null;
-          }
-        }),
+          destroyGameEngine: () => set((state) => {
+            if (state.gameEngine) {
+              state.gameEngine.dispose();
+              state.gameEngine = null;
+              state.initialization.gameEngineReady = false;
+            }
+          }),
         
-        handleNoteInput: (inputNote: number) => {
-          const state = get();
-          if (!state.gameEngine || !state.isPlaying) return;
-          
-          const hit = state.gameEngine.handleInput(inputNote);
-          if (hit) {
-            // エンジンに判定を任せ、コールバックで結果を受け取る
-            state.gameEngine.processHit(hit);
-          }
-        },
+          handleNoteInput: (inputNote: number) => {
+            const state = get();
+            if (!state.gameEngine || !state.isPlaying) return;
+            
+            state.gameEngine.noteOn(inputNote);
+          },
         
         updateEngineSettings: () => {
           const { gameEngine, settings } = get();
@@ -1790,12 +1779,12 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // ===== 新機能: エラー管理強化 =====
         addError: (category: keyof GameStoreState['errors'], error: string) =>
-          set((state: GameStoreState) => {
+          set((state => {
             state.errors[category].push(error);
           }),
         
         clearErrors: (category?: keyof GameStoreState['errors']) =>
-          set((state: GameStoreState) => {
+          set((state => {
             if (category) {
               state.errors[category] = [];
             } else {
@@ -1826,17 +1815,17 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // リザルトモーダル
         openResultModal: () =>
-          set((state: GameStoreState) => {
+          set((state => {
             state.resultModalOpen = true;
           }),
         closeResultModal: () =>
-          set((state: GameStoreState) => {
+          set((state => {
             state.resultModalOpen = false;
           }),
         
         // 音名情報更新
         updateNoteNames: (noteNamesMap: Record<string, string>) =>
-          set((state: GameStoreState) => {
+          set((state => {
             // notesに音名情報を追加
             state.notes = state.notes.map(note => ({
               ...note,
@@ -1846,7 +1835,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // レッスンコンテキスト
         setLessonContext: (lessonId: string, clearConditions: ClearConditions) =>
-          set((state: GameStoreState) => {
+          set((state => {
             state.lessonContext = {
               lessonId,
               clearConditions
@@ -1854,13 +1843,13 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           }),
         
         clearLessonContext: () =>
-          set((state: GameStoreState) => {
+          set((state => {
             state.lessonContext = undefined;
           }),
         
         // ミッションコンテキスト
         setMissionContext: (missionId: string, songId: string, clearConditions?: ClearConditions) =>
-          set((state: GameStoreState) => {
+          set((state => {
             state.missionContext = {
               missionId,
               songId,
@@ -1869,7 +1858,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           }),
         
         clearMissionContext: () =>
-          set((state: GameStoreState) => {
+          set((state => {
             state.missionContext = undefined;
           }),
       }))

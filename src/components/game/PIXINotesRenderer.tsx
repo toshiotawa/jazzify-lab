@@ -7,9 +7,18 @@
 
 import React, { useEffect, useRef } from 'react';
 import * as PIXI from 'pixi.js';
-import type { ActiveNote } from '@/types';
+import type { ActiveNote, NoteData, NoteState } from '@/types';
 import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
+import type { LegendSharedMemoryViews } from '@/engines/legend/sharedMemory';
+import {
+  readFrameId,
+  readActiveCount,
+  readClockValue,
+  ClockIndex,
+  SharedNoteField,
+  SharedNoteState,
+} from '@/engines/legend/sharedMemory';
 
 const PIXI_LOOKAHEAD_SECONDS = 15;
 
@@ -164,6 +173,8 @@ interface PIXINotesRendererProps {
   /** レンダラー準備完了・破棄通知。null で破棄を示す */
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
+  sharedState?: LegendSharedMemoryViews | null;
+  noteRegistry?: NoteData[];
 }
 
 interface NoteSprite {
@@ -198,6 +209,7 @@ interface RendererSettings {
     particles: boolean;
     trails: boolean;
   };
+    effectsEnabled: boolean;
   /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
   noteNameStyle: 'off' | 'abc' | 'solfege';
   /** 簡易表示モード: 複雑な音名を基本音名に変換 */
@@ -253,7 +265,13 @@ export class PIXINotesRendererInstance {
   
   private noteSprites: Map<string, NoteSprite> = new Map();
   private hitEffectPool: HitEffectInstance[] = [];
-  private activeNoteLookup: Map<string, ActiveNote> = new Map();
+    private activeNoteLookup: Map<string, ActiveNote> = new Map();
+    private sharedState: LegendSharedMemoryViews | null = null;
+    private sharedFrameId: number = -1;
+    private sharedActiveNotes: ActiveNote[] = [];
+    private sharedNoteCache: Map<number, ActiveNote> = new Map();
+    private sharedNotesSeen: Set<number> = new Set();
+    private noteRegistry: NoteData[] = [];
 
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
   private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
@@ -325,6 +343,7 @@ export class PIXINotesRendererInstance {
           particles: false,
           trails: false
         },
+      effectsEnabled: true,
     noteNameStyle: 'off',
     simpleDisplayMode: false,
     transpose: 0,
@@ -430,6 +449,16 @@ export class PIXINotesRendererInstance {
     log.info('✅ PIXI.js renderer initialized successfully');
   }
 
+    public attachSharedState(shared: LegendSharedMemoryViews | null): void {
+      this.sharedState = shared;
+      this.sharedFrameId = -1;
+    }
+
+    public updateNoteRegistry(notes: NoteData[]): void {
+      this.noteRegistry = notes;
+      this.sharedNoteCache.clear();
+    }
+
 
   
   /**
@@ -441,6 +470,7 @@ export class PIXINotesRendererInstance {
     // メイン更新関数（ノートUpdater管理）
     this.mainUpdateFunction = (delta: number) => {
       if (this.isDestroyed || this.disposeManager.disposed) return;
+        this.consumeSharedState();
       
       // 全ノートUpdaterを更新
       for (const [noteId, updater] of this.noteUpdaters) {
@@ -1992,6 +2022,82 @@ export class PIXINotesRendererInstance {
       }
     }
     
+    private consumeSharedState(): void {
+      const shared = this.sharedState;
+      if (!shared) {
+        return;
+      }
+      const frameId = readFrameId(shared.control);
+      if (frameId === this.sharedFrameId) {
+        return;
+      }
+      this.sharedFrameId = frameId;
+      const activeCount = Math.min(readActiveCount(shared.control), shared.maxNotes);
+      const stride = shared.noteStride;
+      this.sharedActiveNotes.length = activeCount;
+      const currentTime = readClockValue(shared.clock, ClockIndex.LogicalTimeNs);
+      const seen = this.sharedNotesSeen;
+      seen.clear();
+      for (let i = 0; i < activeCount; i++) {
+        const base = i * stride;
+        const numericId = Math.max(0, Math.floor(shared.notes[base + SharedNoteField.Id] ?? 0));
+        seen.add(numericId);
+        const cached = this.getOrCreateSharedNote(numericId);
+        const registryNote = this.noteRegistry[numericId];
+        if (registryNote) {
+          cached.id = registryNote.id;
+          cached.noteName = registryNote.noteName;
+        } else {
+          cached.id = `shared-note-${numericId}`;
+          cached.noteName = undefined;
+        }
+        cached.pitch = shared.notes[base + SharedNoteField.Pitch] ?? cached.pitch ?? 0;
+        cached.time = shared.notes[base + SharedNoteField.StartTime] ?? 0;
+        cached.state = this.mapSharedStateValue(shared.notes[base + SharedNoteField.State]);
+        const y = shared.notes[base + SharedNoteField.Y];
+        cached.y = Number.isFinite(y) ? y : undefined;
+        const prevY = shared.notes[base + SharedNoteField.Spare];
+        cached.previousY = Number.isFinite(prevY) ? prevY : undefined;
+        const timingError = shared.notes[base + SharedNoteField.Velocity];
+        cached.timingError = Number.isFinite(timingError) ? timingError : undefined;
+        this.sharedActiveNotes[i] = cached;
+      }
+      for (const id of Array.from(this.sharedNoteCache.keys())) {
+        if (!seen.has(id)) {
+          this.sharedNoteCache.delete(id);
+        }
+      }
+      this.updateNotes(this.sharedActiveNotes, currentTime);
+    }
+
+    private getOrCreateSharedNote(numericId: number): ActiveNote {
+      let cached = this.sharedNoteCache.get(numericId);
+      if (!cached) {
+        cached = {
+          id: `shared-note-${numericId}`,
+          pitch: 0,
+          time: 0,
+          state: 'visible',
+        };
+        this.sharedNoteCache.set(numericId, cached);
+      }
+      return cached;
+    }
+
+    private mapSharedStateValue(value: number | undefined): NoteState {
+      const numeric = Number.isFinite(value) ? Math.floor(value as number) : SharedNoteState.Hidden;
+      switch (numeric) {
+        case SharedNoteState.Visible:
+          return 'visible';
+        case SharedNoteState.Hit:
+          return 'hit';
+        case SharedNoteState.Missed:
+          return 'missed';
+        default:
+          return 'waiting';
+      }
+    }
+    
   private createNoteSprite(note: ActiveNote): NoteSprite {
     const effectivePitch = note.pitch + this.settings.transpose;
     const x = this.pitchToX(note.pitch);
@@ -2382,8 +2488,8 @@ export class PIXINotesRendererInstance {
     target.endFill();
   }
   
-  private createHitEffect(x: number, y: number): void {
-    if (!this.settings.enableEffects) {
+    private createHitEffect(x: number, y: number): void {
+      if (!this.settings.effectsEnabled) {
       return;
     }
     const effect = this.acquireHitEffect();
@@ -3129,7 +3235,9 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   width,
   height,
   onReady,
-  className
+  className,
+  sharedState,
+  noteRegistry = [],
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<PIXINotesRendererInstance | null>(null);
@@ -3138,7 +3246,7 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   const actualHeight = height;
   
   // ===== PIXI.js レンダラー初期化 (一度だけ) =====
-  useEffect(() => {
+    useEffect(() => {
     if (!containerRef.current || rendererRef.current) return;
 
     // 初期ローディング時にフェードイン
@@ -3150,6 +3258,8 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
 
     const renderer = new PIXINotesRendererInstance(width, actualHeight);
     rendererRef.current = renderer;
+      renderer.attachSharedState(sharedState ?? null);
+      renderer.updateNoteRegistry(noteRegistry);
     
     // ===== 簡略デバッグ（パフォーマンス重視） =====
     log.info('🔍 Basic check: Canvas size:', renderer.view.width, 'x', renderer.view.height);
@@ -3202,6 +3312,17 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       onReady?.(null);
     };
   }, []); // 初回のみ
+    useEffect(() => {
+      if (rendererRef.current) {
+        rendererRef.current.attachSharedState(sharedState ?? null);
+      }
+    }, [sharedState]);
+
+    useEffect(() => {
+      if (rendererRef.current) {
+        rendererRef.current.updateNoteRegistry(noteRegistry);
+      }
+    }, [noteRegistry]);
 
   // onReady が変更された場合にも現在の renderer を通知
   useEffect(() => {
