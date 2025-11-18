@@ -110,7 +110,7 @@ const defaultSettings: GameSettings = {
   notesSpeed: 1.0,
   playbackSpeed: 1.0,
   instrumentMode: 'piano',
-  inputMode: 'midi',
+    inputMode: 'midi',
   
   // 判定設定
   allowOctaveError: false,
@@ -318,7 +318,7 @@ const validateSettings = (settings: Partial<GameSettings>): { valid: boolean; er
     errors.push('MIDI音量は0-1の範囲で設定してください');
     normalized.midiVolume = Math.max(0, Math.min(1, normalized.midiVolume));
   }
-  
+    
   if (normalized.bgmVolume < 0 || normalized.bgmVolume > 1) {
     errors.push('BGM音量は0-1の範囲で設定してください');
     normalized.bgmVolume = Math.max(0, Math.min(1, normalized.bgmVolume));

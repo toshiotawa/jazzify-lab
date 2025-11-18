@@ -38,14 +38,10 @@ let globalPiano: PianoInstrument | null = null;
 let usingPianoInstrument = false;
 let audioSystemInitialized = false;
 let userInteracted = false;
+let resolveUserInteraction: (() => void) | null = null;
+let pendingInteractionPromise: Promise<void> | null = null;
 
 const SALAMANDER_BASE_URL = 'https://tonejs.github.io/audio/salamander/';
-const LIGHT_SAMPLER_URLS: Record<string, string> = {
-  A2: 'A2.mp3',
-  'D#3': 'Ds3.mp3',
-  A3: 'A3.mp3',
-  C4: 'C4.mp3'
-};
 const FULL_SAMPLER_URLS: Record<string, string> = {
   A1: 'A1.mp3',
   C2: 'C2.mp3',
@@ -60,7 +56,7 @@ const FULL_SAMPLER_URLS: Record<string, string> = {
 };
 type SamplerQuality = 'none' | 'light' | 'full';
 let samplerQuality: SamplerQuality = 'none';
-let samplerUpgradePromise: Promise<void> | null = null;
+let initializingPromise: Promise<void> | null = null;
 
 // アクティブなノートを追跡するSet
 const activeNotes = new Set<string>();
@@ -68,40 +64,51 @@ const activeNotes = new Set<string>();
 let sustainOn = false;
 const sustainedNotes = new Set<string>();
 
+const ensureUserInteractionListeners = () => {
+  if (typeof document === 'undefined' || userInteracted || pendingInteractionPromise) {
+    return;
+  }
+  pendingInteractionPromise = new Promise((resolve) => {
+    resolveUserInteraction = resolve;
+  });
+  const events: Array<keyof DocumentEventMap> = ['pointerdown', 'touchstart', 'keydown'];
+  const handleInteraction = () => {
+    userInteracted = true;
+    events.forEach((eventName) => document.removeEventListener(eventName, handleInteraction, true));
+    resolveUserInteraction?.();
+    resolveUserInteraction = null;
+  };
+  events.forEach((eventName) =>
+    document.addEventListener(eventName, handleInteraction, { passive: true, capture: true })
+  );
+};
+
 /**
  * ユーザーインタラクションの検出
  */
 const detectUserInteraction = (): Promise<void> => {
-  return new Promise((resolve) => {
-    if (userInteracted) {
-      resolve();
-      return;
-    }
+  if (userInteracted) {
+    return Promise.resolve();
+  }
 
-    // If Tone audio context is already running (e.g. Tone.start() was invoked),
-    // treat it as an interaction to avoid requiring a second click.
-    try {
-      const tone: any = (typeof window !== 'undefined') ? (window as any).Tone : null;
-      if (tone?.context?.state === 'running') {
-        userInteracted = true;
-        resolve();
-        return;
-      }
-    } catch {}
-    
-    const handleUserInteraction = () => {
+  try {
+    const tone: any = typeof window !== 'undefined' ? (window as any).Tone : null;
+    if (tone?.context?.state === 'running') {
       userInteracted = true;
-      document.removeEventListener('click', handleUserInteraction);
-      document.removeEventListener('touchstart', handleUserInteraction);
-      document.removeEventListener('keydown', handleUserInteraction);
-      resolve();
-    };
+      return Promise.resolve();
+    }
+  } catch {}
 
-    document.addEventListener('click', handleUserInteraction);
-    document.addEventListener('touchstart', handleUserInteraction);
-    document.addEventListener('keydown', handleUserInteraction);
-  });
+  ensureUserInteractionListeners();
+  if (pendingInteractionPromise) {
+    return pendingInteractionPromise;
+  }
+  return Promise.resolve();
 };
+
+if (typeof document !== 'undefined') {
+  ensureUserInteractionListeners();
+}
 
 const disposeSampler = (sampler: ToneSampler | null): void => {
   if (!sampler) return;
@@ -114,200 +121,118 @@ const disposeSampler = (sampler: ToneSampler | null): void => {
   }
 };
 
-const scheduleFullSamplerUpgrade = (): void => {
-  if (samplerQuality === 'full' || samplerUpgradePromise || usingPianoInstrument) {
-    return;
-  }
-
-  const Tone = (typeof window !== 'undefined') ? (window as any).Tone : null;
-  if (!Tone) return;
-
-  samplerUpgradePromise = (async () => {
-    try {
-      const upgradedSampler: ToneSampler = new Tone.Sampler({
-        urls: FULL_SAMPLER_URLS,
-        baseUrl: SALAMANDER_BASE_URL
-      }).toDestination();
-
-      await Tone.loaded();
-
-      const previousVolume = (globalSampler as any)?.volume?.value ?? 0;
-      disposeSampler(globalSampler);
-      globalSampler = upgradedSampler;
-      if ((globalSampler as any).volume && Number.isFinite(previousVolume)) {
-        (globalSampler as any).volume.value = previousVolume;
-      }
-      samplerQuality = 'full';
-      console.log('✅ Salamander sampler upgraded to full quality');
-      samplerUpgradePromise = null;
-    } catch (error) {
-      console.warn('⚠️ Failed to upgrade Salamander sampler:', error);
-      samplerUpgradePromise = null;
+const disposeGlobalPianoInstance = () => {
+  if (!globalPiano) return;
+  try {
+    if (typeof (globalPiano as any).dispose === 'function') {
+      (globalPiano as any).dispose();
     }
-  })();
+  } catch (error) {
+    console.warn('⚠️ Failed to dispose piano instrument:', error);
+  }
+  globalPiano = null;
+  usingPianoInstrument = false;
+};
+
+const resetSamplerState = () => {
+  disposeSampler(globalSampler);
+  globalSampler = null;
+  samplerQuality = 'none';
+};
+
+const ensureToneAvailable = async (): Promise<typeof import('tone')> => {
+  if (typeof window === 'undefined') {
+    throw new Error('Tone.js is not available in this environment');
+  }
+  if (!(window as any).Tone) {
+    const ToneModule = await import('tone');
+    (window as any).Tone = ToneModule;
+    return ToneModule;
+  }
+  return (window as any).Tone;
+};
+
+const loadPianoInstrument = async (Tone: typeof import('tone')): Promise<PianoInstrument> => {
+  const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
+  const PianoCtor = PianoModule.Piano ?? PianoModule.default ?? PianoModule;
+  const piano: PianoInstrument = new PianoCtor({
+    velocities: 5,
+    release: true,
+    pedal: true,
+  }).toDestination();
+  await piano.load();
+  return piano;
 };
 
 /**
- * 音声システムの初期化（遅延最適化設定付き）
+ * 音声システムの初期化（高音質ピアノを既定で読み込む）
  */
-export const initializeAudioSystem = async (opts?: { light?: boolean }): Promise<void> => {
-  if (audioSystemInitialized) {
-    console.log('🎹 Audio system already initialized');
-    return;
+export const initializeAudioSystem = async (forceReload: boolean = false): Promise<void> => {
+  if (initializingPromise) {
+    if (!forceReload) {
+      await initializingPromise;
+      return;
+    }
+    await initializingPromise;
   }
 
-  try {
-    console.log('🎹 Initializing optimized audio system...');
-    
-    // ユーザーインタラクションを待つ
-    await detectUserInteraction();
-    
-    // Tone.jsの存在確認
-    if (typeof window === 'undefined' || !window.Tone) {
-      console.warn('⚠️ Tone.js not available, attempting to load...');
-      let retryCount = 0;
-      const maxRetries = 3;
-      
-      while (retryCount < maxRetries) {
-        try {
-          const Tone = await import('tone');
-          (window as any).Tone = Tone;
-          console.log('✅ Tone.js loaded dynamically');
-          break;
-        } catch (toneError) {
-          retryCount++;
-          console.warn(`⚠️ Dynamic import attempt ${retryCount} failed:`, toneError);
-          
-          if (retryCount >= maxRetries) {
-            console.error('❌ All dynamic import attempts failed');
-            throw new Error(`音声/MIDIシステム初期化に失敗 (ユーザーインタラクション後に再試行): ${toneError instanceof Error ? toneError.message : 'Unknown error'}`);
-          }
-          
-          // 指数バックオフで再試行
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount - 1)));
-        }
-      }
+  initializingPromise = (async () => {
+    if (audioSystemInitialized && !forceReload) {
+      return;
     }
 
-    // 遅延最適化設定: "interactive" モード + lookAhead=0
-    const optimizedContext = new window.Tone.Context({
-      latencyHint: "interactive",
-      lookAhead: 0
-    } as any);
-    
-    // Tone.jsのコンテキストを最適化済みに切り替え
-    window.Tone.setContext(optimizedContext);
-    
-    console.log('✅ Tone.js context optimized for low latency');
+    if (forceReload) {
+      disposeGlobalPianoInstance();
+      resetSamplerState();
+      audioSystemInitialized = false;
+    }
 
-    const lightMode = opts?.light ?? true;
+    if (!userInteracted) {
+      await detectUserInteraction();
+    }
 
-    // 軽量モードでなければ高品質ピアノを試す
-    let usedPiano = false;
-    if (!lightMode) {
+    const Tone = await ensureToneAvailable();
+
+    try {
+      const optimizedContext = new Tone.Context({
+        latencyHint: 'interactive',
+        lookAhead: 0,
+      } as any);
+      Tone.setContext(optimizedContext);
+    } catch (contextError) {
+      console.warn('⚠️ Tone.js context optimization failed:', contextError);
+    }
+
+    if (Tone.context?.state !== 'running') {
       try {
-        // Piano 本体のみを直接 import して、Node の events 依存を避ける
-        const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
-        const PianoCtor = PianoModule.Piano ?? PianoModule.default ?? PianoModule;
-        const piano: PianoInstrument = new PianoCtor({
-          velocities: 5,
-          release: true,
-          pedal: true
-        }).toDestination();
-        globalPiano = piano;
-        usingPianoInstrument = true;
-        console.log('🎹 Using @tonejs/piano instrument');
-
-        // すべてのサンプルを事前読み込み
-        await piano.load();
-        console.log('✅ Piano samples loaded');
-        usedPiano = true;
-      } catch (e) {
-        console.warn('⚠️ Failed to initialize @tonejs/piano. Falling back to Tone.Sampler:', e);
-      }
+        await Tone.context.resume();
+      } catch {}
     }
 
-    // 軽量モード or ピアノ失敗時は Salamander サンプラー
-    if (!usedPiano) {
-      const samplerUrls = lightMode ? LIGHT_SAMPLER_URLS : FULL_SAMPLER_URLS;
+    disposeGlobalPianoInstance();
+    resetSamplerState();
 
-      globalSampler = new (window.Tone as any).Sampler({
-        urls: samplerUrls,
-        baseUrl: SALAMANDER_BASE_URL
+    try {
+      globalPiano = await loadPianoInstrument(Tone);
+      usingPianoInstrument = true;
+    } catch (pianoError) {
+      console.warn('⚠️ Failed to load @tonejs/piano. Falling back to Salamander sampler:', pianoError);
+      usingPianoInstrument = false;
+      globalSampler = new (Tone as any).Sampler({
+        urls: FULL_SAMPLER_URLS,
+        baseUrl: SALAMANDER_BASE_URL,
       }).toDestination();
-      samplerQuality = lightMode ? 'light' : 'full';
-
-      if (globalSampler && (globalSampler as any).envelope) {
-        (globalSampler as any).envelope.attack = 0.001;
-      }
-
-      if (lightMode) {
-        // 軽量モード: バックグラウンドでロード。初期化をブロックしない
-        (window.Tone as any).loaded().then(() => {
-          console.log('✅ Sampler audio samples loaded (background, light mode)');
-        }).catch(() => {});
-        scheduleFullSamplerUpgrade();
-      } else {
-        await (window.Tone as any).loaded();
-        console.log('✅ Sampler audio samples preloaded and decoded');
-      }
+      samplerQuality = 'full';
+      await (Tone as any).loaded().catch(() => {});
     }
 
     audioSystemInitialized = true;
-    console.log('✅ Optimized audio system initialized successfully');
-    
-  } catch (error) {
-    console.error('❌ Audio system initialization failed:', error);
-    throw error;
-  }
-};
+  })();
 
-/**
- * 既に軽量サンプラーで初期化済みでも、@tonejs/piano へアップグレードする
- */
-export const upgradeAudioSystemToFull = async (): Promise<void> => {
   try {
-    // すでにピアノ音源なら何もしない
-    if (usingPianoInstrument && globalPiano) return;
-
-    // ユーザーインタラクションを確保
-    await detectUserInteraction();
-
-    // Toneが無ければ読み込み
-    if (typeof window === 'undefined' || !window.Tone) {
-      try {
-        const Tone = await import('tone');
-        (window as any).Tone = Tone;
-      } catch (e) {
-        console.warn('⚠️ Failed to import tone for upgrade:', e);
-        return;
-      }
-    }
-
-    // コンテキストを低遅延に整備
-    try {
-      const optimizedContext = new (window.Tone as any).Context({ latencyHint: 'interactive', lookAhead: 0 });
-      (window.Tone as any).setContext(optimizedContext);
-      if ((window.Tone as any).context?.state !== 'running') {
-        await (window.Tone as any).context.resume();
-      }
-    } catch {}
-
-    // @tonejs/piano を構築
-    try {
-      const PianoModule: any = await import('@tonejs/piano/build/piano/Piano.js');
-      const PianoCtor = PianoModule.Piano ?? PianoModule.default ?? PianoModule;
-      const piano: PianoInstrument = new PianoCtor({ velocities: 5, release: true, pedal: true }).toDestination();
-      // ロード完了まで待つ
-      await piano.load();
-      globalPiano = piano;
-      usingPianoInstrument = true;
-      console.log('🎹 Upgraded to @tonejs/piano instrument');
-    } catch (e) {
-      console.warn('⚠️ Failed to upgrade to @tonejs/piano:', e);
-    }
-  } catch (error) {
-    console.warn('⚠️ upgradeAudioSystemToFull failed:', error);
+    await initializingPromise;
+  } finally {
+    initializingPromise = null;
   }
 };
 
@@ -434,15 +359,12 @@ export class MIDIController {
   
   // 音声再生制御フラグ
   private readonly playMidiSound: boolean;
-  private readonly lightAudio: boolean;
 
   constructor(options: MidiControllerOptions & { playMidiSound?: boolean }) {
     this.onNoteOn = options.onNoteOn;
     this.onNoteOff = options.onNoteOff;
     this.onConnectionChange = options.onConnectionChange || null;
     this.playMidiSound = options.playMidiSound ?? true; // デフォルトは音を鳴らす
-    this.lightAudio = (options as any).lightAudio ?? true;
-
     console.log('🎹 MIDI Controller initialized (using global audio system)');
   }
 
@@ -454,7 +376,7 @@ export class MIDIController {
 
     try {
       // 共通音声システムを初期化（LPなど軽量指定の考慮）
-      await initializeAudioSystem({ light: this.lightAudio });
+        await initializeAudioSystem();
       
       // MIDI API の存在確認
       if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) {
