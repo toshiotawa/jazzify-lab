@@ -1,4 +1,4 @@
-import type { ActiveNote } from '@/types';
+import type { ActiveNote, NoteHit } from '@/types';
 import type { GameEngine, GameEngineUpdate } from '@/utils/gameEngine';
 import type { PIXINotesRendererInstance } from './PIXINotesRenderer';
 
@@ -11,13 +11,16 @@ export class LegendRenderBridge {
   private renderer: PIXINotesRendererInstance | null = null;
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
+  private hitUnsubscribe: (() => void) | null = null;
   private lastFrame: BridgeFrame | null = null;
+  private pendingHits: NoteHit[] = [];
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+    this.detachHitListener();
 
     this.engine = engine;
 
@@ -28,6 +31,9 @@ export class LegendRenderBridge {
 
     this.unsubscribe = engine.addUpdateListener((update: GameEngineUpdate) => {
       this.handleEngineUpdate(update);
+    });
+    this.hitUnsubscribe = engine.addHitListener((hit) => {
+      this.handleHitEvent(hit);
     });
 
     this.primeFromEngine(engine);
@@ -62,6 +68,8 @@ export class LegendRenderBridge {
     this.renderer = null;
     this.engine = null;
     this.lastFrame = null;
+    this.pendingHits = [];
+    this.detachHitListener();
   }
 
   private handleEngineUpdate(update: GameEngineUpdate): void {
@@ -86,6 +94,32 @@ export class LegendRenderBridge {
       return;
     }
     this.renderer.updateNotes(this.lastFrame.activeNotes, this.lastFrame.currentTime);
+    this.flushPendingHits();
+  }
+
+  private handleHitEvent(hit: NoteHit): void {
+    if (!this.renderer) {
+      this.pendingHits.push(hit);
+      return;
+    }
+    this.renderer.handleImmediateHit(hit.noteId, hit.inputNote);
+  }
+
+  private flushPendingHits(): void {
+    if (!this.renderer || this.pendingHits.length === 0) {
+      return;
+    }
+    for (const hit of this.pendingHits) {
+      this.renderer.handleImmediateHit(hit.noteId, hit.inputNote);
+    }
+    this.pendingHits = [];
+  }
+
+  private detachHitListener(): void {
+    if (this.hitUnsubscribe) {
+      this.hitUnsubscribe();
+      this.hitUnsubscribe = null;
+    }
   }
 
 }

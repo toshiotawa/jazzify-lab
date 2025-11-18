@@ -111,12 +111,21 @@ export class UnifiedFrameController {
     const state = this.getChannelState(channel);
     const deltaTime = currentTime - state.lastFrameTime;
     
-    if (deltaTime < this.config.skipFrameThreshold) {
-      state.skipCount += 1;
-      return state.skipCount < this.config.maxSkipFrames;
+    if (state.lastFrameTime === 0) {
+      state.lastFrameTime = currentTime;
+      return false;
     }
     
-    state.skipCount = 0;
+    if (deltaTime > this.config.skipFrameThreshold) {
+      if (state.skipCount < this.config.maxSkipFrames) {
+        state.skipCount += 1;
+        state.lastFrameTime = currentTime;
+        return true;
+      }
+    } else {
+      state.skipCount = 0;
+    }
+    
     state.lastFrameTime = currentTime;
     return false;
   }

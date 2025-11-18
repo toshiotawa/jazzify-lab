@@ -254,6 +254,7 @@ export class PIXINotesRendererInstance {
   private noteSprites: Map<string, NoteSprite> = new Map();
   private hitEffectPool: HitEffectInstance[] = [];
   private activeNoteLookup: Map<string, ActiveNote> = new Map();
+  private pendingHitRemovals: Set<string> = new Set();
 
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
   private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
@@ -2092,6 +2093,10 @@ export class PIXINotesRendererInstance {
     
     this.noteSprites.set(note.id, noteSprite);
     
+    if (this.pendingHitRemovals.has(note.id)) {
+      this.tryHandleImmediateHit(note.id);
+    }
+    
     // ===== 新設計: NoteUpdaterを作成してTicker管理 =====
     const noteUpdater = new NoteUpdater(noteSprite, this.settings, this.disposeManager);
     this.noteUpdaters.set(note.id, noteUpdater);
@@ -2251,6 +2256,20 @@ export class PIXINotesRendererInstance {
       }
     
     this.noteSprites.delete(noteId);
+  }
+  
+  private tryHandleImmediateHit(noteId: string): boolean {
+    const noteSprite = this.noteSprites.get(noteId);
+    if (!noteSprite) {
+      return false;
+    }
+    this.pendingHitRemovals.delete(noteId);
+    if (!noteSprite.effectPlayed) {
+      this.createHitEffect(noteSprite.sprite.x, noteSprite.sprite.y);
+      noteSprite.effectPlayed = true;
+    }
+    this.removeNoteSprite(noteId);
+    return true;
   }
   
   private drawGlowShape(graphics: PIXI.Graphics, state: ActiveNote['state'], pitch?: number): void {
@@ -2768,6 +2787,7 @@ export class PIXINotesRendererInstance {
           this.removeNoteSprite(noteId);
         }
         this.noteSprites.clear();
+        this.pendingHitRemovals.clear();
         this.activeHitEffects.forEach(({ instance }) => {
           this.releaseHitEffect(instance);
         });
@@ -3002,6 +3022,13 @@ export class PIXINotesRendererInstance {
 
     // 見つかったノートの現在位置を使用してエフェクトを生成
     this.createHitEffect(targetSprite.sprite.x, targetSprite.sprite.y);
+  }
+  
+  public handleImmediateHit(noteId: string, _midiNote?: number): void {
+    if (this.tryHandleImmediateHit(noteId)) {
+      return;
+    }
+    this.pendingHitRemovals.add(noteId);
   }
 
   /**
