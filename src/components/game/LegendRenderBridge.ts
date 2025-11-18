@@ -1,6 +1,6 @@
 import type { ActiveNote } from '@/types';
 import type { GameEngine, GameEngineUpdate } from '@/utils/gameEngine';
-import type { PIXINotesRendererInstance } from './PIXINotesRenderer';
+import type { LegendCanvasRendererInstance } from './LegendCanvasRenderer';
 
 interface BridgeFrame {
   activeNotes: ActiveNote[];
@@ -8,7 +8,7 @@ interface BridgeFrame {
 }
 
 export class LegendRenderBridge {
-  private renderer: PIXINotesRendererInstance | null = null;
+  private renderer: LegendCanvasRendererInstance | null = null;
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
   private lastFrame: BridgeFrame | null = null;
@@ -33,7 +33,7 @@ export class LegendRenderBridge {
     this.primeFromEngine(engine);
   }
 
-  attachRenderer(renderer: PIXINotesRendererInstance | null): void {
+  attachRenderer(renderer: LegendCanvasRendererInstance | null): void {
     this.renderer = renderer;
 
     if (!renderer) {
