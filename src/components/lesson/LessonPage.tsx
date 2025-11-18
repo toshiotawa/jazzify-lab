@@ -18,6 +18,7 @@ import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
 import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
+import { useHighQualityPianoPreload } from '@/hooks/useHighQualityPianoPreload';
 
 /**
  * レッスン学習画面
@@ -47,6 +48,8 @@ const LessonPage: React.FC = () => {
       userRank: profile?.rank,
     });
   }, [lessons, progress, profile?.rank]);
+
+  useHighQualityPianoPreload({ context: 'lesson-page', enabled: open });
 
   useEffect(() => {
     const checkHash = () => {
