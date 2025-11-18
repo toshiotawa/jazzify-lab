@@ -34,6 +34,8 @@ interface FantasyGameScreenProps {
 
 // 不要な定数とインターフェースを削除（PIXI側で処理）
 
+const TAIKO_NOTE_SPEED = 400;
+
 const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   stage,
   autoStart = false, // ★ 追加
@@ -149,23 +151,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // Ready 終了時に BGM 再生（ゲームSEはFSMが担当、鍵盤はマウス時のみローカル再生）
   useEffect(() => {
-    if (!isReady) {
-      bgmManager.play(
-        stage.bgmUrl ?? '/demo-1.mp3',
-        stage.bpm || 120,
-        stage.timeSignature || 4,
-        stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0,
-        settings.bgmVolume ?? 0.7
-      );
-      // ★ デモプレイ開始時にフル音源へアップグレード（軽量→@tonejs/piano）
-      (async () => {
-        try {
-          const { upgradeAudioSystemToFull } = await import('@/utils/MidiController');
-          await upgradeAudioSystemToFull();
-        } catch {}
-      })();
-    }
+      if (!isReady) {
+        bgmManager.play(
+          stage.bgmUrl ?? '/demo-1.mp3',
+          stage.bpm || 120,
+          stage.timeSignature || 4,
+          stage.measureCount ?? 8,
+          stage.countInMeasures ?? 0,
+          settings.bgmVolume ?? 0.7
+        );
+      }
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume]);
   
@@ -744,32 +739,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       lastUpdateTime = timestamp;
       
       const currentTime = bgmManager.getCurrentMusicTime();
-      const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
-      const noteSpeed = 400; // ピクセル/秒
+      const noteSpeed = TAIKO_NOTE_SPEED; // ピクセル/秒
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
       
-      // カウントイン中は複数ノーツを先行表示
-      if (currentTime < 0) {
-        const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
-        const maxPreCountNotes = 6;
-        for (let i = 0; i < gameState.taikoNotes.length; i++) {
-          const note = gameState.taikoNotes[i];
-          const timeUntilHit = note.hitTime - currentTime; // currentTime は負値
-          if (timeUntilHit > lookAheadTime) break;
-          if (timeUntilHit >= -0.5) {
-            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-            notesToDisplay.push({ id: note.id, chord: note.chord.displayName, x });
-            if (notesToDisplay.length >= maxPreCountNotes) break;
+        // カウントイン中は複数ノーツを先行表示
+        if (currentTime < 0) {
+          const notesToDisplay: Array<{ id: string; chord: string; remainingTime: number; noteSpeed: number }> = [];
+          const maxPreCountNotes = 6;
+          for (let i = 0; i < gameState.taikoNotes.length; i++) {
+            const note = gameState.taikoNotes[i];
+            const timeUntilHit = note.hitTime - currentTime; // currentTime は負値
+            if (timeUntilHit > lookAheadTime) break;
+            if (timeUntilHit >= -0.5) {
+              notesToDisplay.push({
+                id: note.id,
+                chord: note.chord.displayName,
+                remainingTime: timeUntilHit,
+                noteSpeed
+              });
+              if (notesToDisplay.length >= maxPreCountNotes) break;
+            }
           }
+          fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+          animationId = requestAnimationFrame(updateTaikoNotes);
+          return;
         }
-        fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
-        animationId = requestAnimationFrame(updateTaikoNotes);
-        return;
-      }
-      
-      // 表示するノーツを収集
-      const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+        
+        // 表示するノーツを収集
+        const notesToDisplay: Array<{ id: string; chord: string; remainingTime: number; noteSpeed: number }> = [];
       
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
@@ -793,12 +791,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
         // 表示範囲内のノーツ（現在ループのみ）
         if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
-          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          notesToDisplay.push({
-            id: note.id,
-            chord: note.chord.displayName,
-            x
-          });
+            notesToDisplay.push({
+              id: note.id,
+              chord: note.chord.displayName,
+              remainingTime: timeUntilHit,
+              noteSpeed
+            });
         }
       });
       
@@ -831,12 +829,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           // 2小節分だけに制限
           if (timeUntilHit > previewWindow) break;
 
-          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          notesToDisplay.push({
-            id: `${note.id}_loop`,
-            chord: note.chord.displayName,
-            x
-          });
+            notesToDisplay.push({
+              id: `${note.id}_loop`,
+              chord: note.chord.displayName,
+              remainingTime: timeUntilHit,
+              noteSpeed
+            });
         }
       }
       

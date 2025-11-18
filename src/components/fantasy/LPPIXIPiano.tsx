@@ -115,17 +115,15 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
 
   // MIDIの初期化とキーのハイライト連携
   useEffect(() => {
-    const controller = new MIDIController({
-      onNoteOn: (note: number) => {
-        if (rendererReady) rendererReady.highlightKey?.(note, true);
-      },
-      onNoteOff: (note: number) => {
-        if (rendererReady) rendererReady.highlightKey?.(note, false);
-      },
-      playMidiSound: true,
-      // LPデモ用: 軽量音源モードを有効化
-      ...( { lightAudio: true } as any )
-    });
+      const controller = new MIDIController({
+        onNoteOn: (note: number) => {
+          if (rendererReady) rendererReady.highlightKey?.(note, true);
+        },
+        onNoteOff: (note: number) => {
+          if (rendererReady) rendererReady.highlightKey?.(note, false);
+        },
+        playMidiSound: true
+      });
     midiControllerRef.current = controller;
 
     let cancelled = false;
@@ -158,7 +156,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     (async () => {
       try {
         const { initializeAudioSystem } = await import('@/utils/MidiController');
-        await initializeAudioSystem({ light: true });
+          await initializeAudioSystem();
         if (!cancelled) setAudioReady(true);
       } catch {
         if (!cancelled) setAudioReady(false);
@@ -172,7 +170,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     try { await (window as any).Tone?.start?.(); } catch {}
     try {
       const { initializeAudioSystem } = await import('@/utils/MidiController');
-      await initializeAudioSystem({ light: true });
+        await initializeAudioSystem();
     } catch {}
     setShowPrompt(false);
     setAudioReady(true);

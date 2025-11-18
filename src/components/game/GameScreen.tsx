@@ -847,7 +847,7 @@ const GamePlayScreen: React.FC = () => {
                 onClick={async () => {
                   try {
                     const { initializeAudioSystem } = await import('@/utils/MidiController');
-                    await initializeAudioSystem({ light: true });
+                    await initializeAudioSystem();
                   } catch (error) {
                     console.error('❌ Manual audio system initialization failed:', error);
                     alert('音声システムの初期化に失敗しました。ページを再読み込みしてください。');
