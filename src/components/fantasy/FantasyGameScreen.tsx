@@ -174,6 +174,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ノート入力のハンドリング用ref
   const handleNoteInputRef = useRef<(note: number, source?: 'mouse' | 'midi') => void>();
+  const smoothedMusicTimeRef = useRef(0);
   
   // 再生中のノートを追跡
   const activeNotesRef = useRef<Set<number>>(new Set());
@@ -711,12 +712,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [fantasyPixiInstance, gameState.isTaikoMode]);
   
   // 太鼓の達人モードのノーツ表示更新（最適化版）
-  useEffect(() => {
-    if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
-    
-    let animationId: number;
-    let lastUpdateTime = 0;
-    const updateInterval = 1000 / 60; // 60fps
+    useEffect(() => {
+      if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
+      
+      let animationId: number;
+      let lastUpdateTime = performance.now();
+      const updateInterval = 1000 / 60; // 60fps
+      smoothedMusicTimeRef.current = bgmManager.getCurrentMusicTime();
     
     // ループ情報を事前計算
     const stage = gameState.currentStage!;
@@ -735,15 +737,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           .sort((a, b) => a.time - b.time)
       : [];
     
-    const updateTaikoNotes = (timestamp: number) => {
-      // フレームレート制御
-      if (timestamp - lastUpdateTime < updateInterval) {
-        animationId = requestAnimationFrame(updateTaikoNotes);
-        return;
-      }
-      lastUpdateTime = timestamp;
-      
-      const currentTime = bgmManager.getCurrentMusicTime();
+      const updateTaikoNotes = (timestamp: number) => {
+        // フレームレート制御
+        const elapsedMs = timestamp - lastUpdateTime;
+        if (elapsedMs < updateInterval) {
+          animationId = requestAnimationFrame(updateTaikoNotes);
+          return;
+        }
+        lastUpdateTime = timestamp;
+        
+        const rawCurrentTime = bgmManager.getCurrentMusicTime();
+        const deltaSeconds = Math.min(elapsedMs / 1000, 0.12);
+        if (!Number.isFinite(rawCurrentTime)) {
+          animationId = requestAnimationFrame(updateTaikoNotes);
+          return;
+        }
+        const smoothing = deltaSeconds > 0 ? 1 - Math.exp(-deltaSeconds * 10) : 1;
+        const blendedTime = smoothedMusicTimeRef.current + (rawCurrentTime - smoothedMusicTimeRef.current) * smoothing;
+        smoothedMusicTimeRef.current = blendedTime;
+        const currentTime = blendedTime;
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
