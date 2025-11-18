@@ -493,7 +493,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       try {
         const midiModule = await ensureMidiModule();
         const { initializeAudioSystem, default: MIDIController } = midiModule;
-        await initializeAudioSystem({ light: true });
+        await initializeAudioSystem();
         log.info('✅ 共通音声システム初期化完了');
         
         if (!midiControllerRef.current) {
@@ -531,11 +531,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
     useEffect(() => {
       let isMounted = true;
-      void ensureMidiModule()
-        .then(async (module) => {
+        void ensureMidiModule()
+          .then(async (module) => {
           if (!isMounted) return;
           try {
-            await module.initializeAudioSystem({ light: true });
+              await module.initializeAudioSystem();
           } catch (warmupError) {
             log.warn('⚠️ Audio system warmup failed:', warmupError);
           }

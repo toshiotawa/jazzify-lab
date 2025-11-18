@@ -295,18 +295,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const cursor = findCursorIndex();
       mappingCursorRef.current = cursor;
 
-      const nextEntry = mapping[cursor] ?? mapping[mapping.length - 1];
-      const prevEntry = cursor > 0 ? mapping[cursor - 1] : null;
-
-      let targetX = nextEntry.xPosition;
-      if (prevEntry) {
-        const segmentDuration = nextEntry.timeMs - prevEntry.timeMs;
-        if (segmentDuration > 0) {
-          const timeIntoSegment = currentTimeMs - prevEntry.timeMs;
-          const progress = Math.max(0, Math.min(1, timeIntoSegment / segmentDuration));
-          targetX = prevEntry.xPosition + (nextEntry.xPosition - prevEntry.xPosition) * progress;
-        }
-      }
+      const snapEntry = mapping[cursor] ?? mapping[mapping.length - 1];
+      const targetX = snapEntry?.xPosition ?? 0;
 
       const playheadPosition = 120;
       const scrollX = isPlaying ? Math.max(0, targetX - playheadPosition) : targetX - playheadPosition;

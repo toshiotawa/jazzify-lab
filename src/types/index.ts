@@ -289,6 +289,12 @@ export interface MidiDevice {
   connected: boolean;
 }
 
+export interface AudioDevice {
+  deviceId: string;
+  label: string;
+  kind: string;
+}
+
 // ===== 描画システム =====
 
 export interface RenderData {
