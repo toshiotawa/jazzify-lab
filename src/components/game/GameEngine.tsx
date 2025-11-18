@@ -596,6 +596,29 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [handleNoteInput, settings.inputMode, ensureMidiModule]);
 
     useEffect(() => {
+      if (mode !== 'performance') {
+        return;
+      }
+      let isMounted = true;
+      const upgrade = async () => {
+        try {
+          const midiModule = await ensureMidiModule();
+          if (!isMounted) {
+            return;
+          }
+          await midiModule.upgradeAudioSystemToFull();
+          log.info('🎹 Legend/Performance mode using high quality piano');
+        } catch (error) {
+          log.warn('⚠️ Failed to switch to high quality piano for Legend mode:', error);
+        }
+      };
+      void upgrade();
+      return () => {
+        isMounted = false;
+      };
+    }, [mode, ensureMidiModule]);
+
+    useEffect(() => {
       let isMounted = true;
       void ensureMidiModule()
         .then(async (module) => {
