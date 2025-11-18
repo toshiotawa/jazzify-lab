@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
+import { OpenSheetMusicDisplay, IOSMDOptions, IOSMDEngravingRules } from 'opensheetmusicdisplay';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import platform from '@/platform';
 import { useGameStore } from '@/stores/gameStore';
@@ -15,6 +15,76 @@ interface TimeMappingEntry {
   timeMs: number;
   xPosition: number;
 }
+
+const OSMD_LIGHT_OPTIONS: IOSMDOptions = {
+  autoResize: false,
+  backend: 'svg',
+  drawingParameters: 'compacttight',
+  disableCursor: true,
+  followCursor: false,
+  autoBeam: false,
+  drawCredits: false,
+  drawTitle: false,
+  drawSubtitle: false,
+  drawComposer: false,
+  drawLyricist: false,
+  drawMetronomeMarks: false,
+  drawPartNames: false,
+  drawPartAbbreviations: false,
+  drawMeasureNumbers: false,
+  drawMeasureNumbersOnlyAtSystemStart: false,
+  drawTimeSignatures: true,
+  drawFingerings: false,
+  drawLyrics: false,
+  drawSlurs: false,
+  renderSingleHorizontalStaffline: true,
+  stretchLastSystemLine: false,
+  pageFormat: 'Endless',
+  pageBackgroundColor: '#ffffff',
+  defaultColorNotehead: '#000000',
+  defaultColorStem: '#000000',
+  defaultColorRest: '#000000',
+  defaultColorLabel: '#000000',
+  defaultColorTitle: '#000000',
+  fillEmptyMeasuresWithWholeRest: 0,
+  tupletsRatioed: false,
+  tupletsBracketed: false,
+  tripletsBracketed: false,
+  autoGenerateMultipleRestMeasuresFromRestMeasures: false,
+  preferredSkyBottomLineBatchCalculatorBackend: 0,
+  skyBottomLineBatchMinMeasures: 9999,
+};
+
+const applyUltraLightEngravingRules = (
+  rules?: IOSMDEngravingRules,
+  shouldRenderChordSymbols = false
+) => {
+  if (!rules) {
+    return;
+  }
+
+  rules.AutoBeamNotes = false;
+  rules.AutoBeamTabs = false;
+  rules.RenderChordSymbols = shouldRenderChordSymbols;
+  rules.RenderLyrics = false;
+  rules.RenderFingerings = false;
+  rules.RenderMeasureNumbers = false;
+  rules.RenderMeasureNumbersOnlyAtSystemStart = false;
+  rules.RenderRehearsalMarks = false;
+  rules.RenderMultipleRestMeasures = false;
+  rules.AutoGenerateMultipleRestMeasuresFromRestMeasures = false;
+  rules.RenderArpeggios = false;
+  rules.RenderGlissandi = false;
+  rules.RenderSlurs = false;
+  rules.RenderPedals = false;
+  rules.RenderStringNumbersClassical = false;
+  rules.TupletsBracketed = false;
+  rules.TripletsBracketed = false;
+  rules.TupletsRatioed = false;
+  rules.RenderSingleHorizontalStaffline = true;
+  rules.SkyBottomLineBatchMinMeasures = Math.max(rules.SkyBottomLineBatchMinMeasures ?? 0, 9999);
+  rules.PreferredSkyBottomLineBatchCalculatorBackend = 0;
+};
 
 /**
  * 楽譜表示コンポーネント
@@ -87,29 +157,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         noteNameStyle: settings.noteNameStyle,
         chordsOnly: settings.sheetMusicChordsOnly
       });
-      
       log.info(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}`);
-      
+
       // OSMDインスタンスを毎回新規作成（移調時の確実な反映のため）
-      const options: IOSMDOptions = {
-        autoResize: true,
-        backend: 'svg',
-        drawTitle: false,
-        drawComposer: false,
-        drawLyricist: false,
-        drawPartNames: false,
-        drawingParameters: 'compacttight',
-        renderSingleHorizontalStaffline: true,
-        pageFormat: 'Endless',
-        pageBackgroundColor: '#ffffff',
-        defaultColorNotehead: '#000000',
-        defaultColorStem: '#000000',
-        defaultColorRest: '#000000',
-        defaultColorLabel: '#000000',
-        defaultColorTitle: '#000000'
-      };
+      const options: IOSMDOptions = { ...OSMD_LIGHT_OPTIONS };
       osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
-      
+      applyUltraLightEngravingRules(osmdRef.current.EngravingRules, settings.sheetMusicChordsOnly);
+      log.info('⚡ OSMD超軽量設定を適用しました');
+
       // 前処理されたMusicXMLを使用
       await osmdRef.current.load(processedMusicXml);
       osmdRef.current.render();
@@ -135,12 +190,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         log.warn('⚠️ Could not calculate OSMD scale factor, falling back to default 10.');
         scaleFactorRef.current = 10;
       }
-      
       // タイムマッピングを作成
-        createTimeMapping();
-      
+      createTimeMapping();
+
       log.info(`✅ OSMD initialized and rendered successfully - transpose reflected`);
-      
+
     } catch (err) {
       log.error('楽譜の読み込みまたはレンダリングエラー:', err);
       setError(err instanceof Error ? err.message : '楽譜の処理中にエラーが発生しました');
