@@ -72,6 +72,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     renderBridgeRef.current = new LegendRenderBridge();
   }
   const midiModuleRef = useRef<MidiModule | null>(null);
+  const requestedFullPianoRef = useRef(false);
   const ensureMidiModule = useCallback(async (): Promise<MidiModule> => {
     if (midiModuleRef.current) {
       return midiModuleRef.current;
@@ -642,6 +643,32 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     linkMidiAndPixi();
     
   }, [pixiRenderer, settings.selectedMidiDevice, isMidiReady]); // MIDI初期化完了後にも発火させる
+
+  useEffect(() => {
+    if (requestedFullPianoRef.current) return;
+    if (!isMidiReady) return;
+    if (settings.instrumentMode !== 'piano') return;
+
+    requestedFullPianoRef.current = true;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const midiModule = await ensureMidiModule();
+        await midiModule.upgradeAudioSystemToFull();
+        if (!cancelled) {
+          log.info('🎹 High-quality piano instrument prepared for Legend mode');
+        }
+      } catch (error) {
+        log.warn('⚠️ Failed to upgrade piano instrument:', error);
+        requestedFullPianoRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ensureMidiModule, isMidiReady, settings.instrumentMode]);
 
   // 楽曲変更時にMIDI接続を確認・復元
   useEffect(() => {
