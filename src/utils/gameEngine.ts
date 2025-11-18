@@ -14,8 +14,18 @@ import type {
   JudgmentResult
 } from '@/types';
 import { unifiedFrameController } from './performanceOptimizer';
-import { log, devLog } from './logger';
-import * as PIXI from 'pixi.js';
+import { log } from './logger';
+
+export interface FrameTicker {
+  add(callback: (delta: number) => void): void;
+  remove(callback: (delta: number) => void): void;
+}
+
+export interface AudioClock {
+  readonly currentTime: number;
+  readonly baseLatency?: number;
+  readonly outputLatency?: number;
+}
 
 type InternalNote = NoteData & { _wasProcessed?: boolean };
 
@@ -70,8 +80,8 @@ export class GameEngine {
     rank: 'D'
   };
   
-  // 音楽同期
-  private audioContext: AudioContext | null = null;
+    // 音楽同期
+    private audioContext: AudioClock | null = null;
   private startTime: number = 0;
   private pausedTime: number = 0;
   private latencyOffset: number = 0;
@@ -82,9 +92,11 @@ export class GameEngine {
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
   
   private isGameLoopRunning: boolean = false; // ゲームループの状態を追跡
+  private readonly ticker: FrameTicker;
   
-  constructor(settings: GameSettings) {
+  constructor(settings: GameSettings, ticker: FrameTicker) {
     this.settings = { ...settings };
+    this.ticker = ticker;
   }
   
   setUpdateCallback(callback: (data: GameEngineUpdate) => void): void {
@@ -140,7 +152,7 @@ export class GameEngine {
     this.score.totalNotes = this.notes.length;
   }
   
-  start(audioContext: AudioContext): void {
+    start(audioContext: AudioClock): void {
     this.audioContext = audioContext;
     this.calculateLatency();
     this.startTime = audioContext.currentTime;
@@ -182,8 +194,7 @@ export class GameEngine {
   
   seek(time: number): void {
     if (this.audioContext) {
-      const safeTime = Math.max(0, time);
-      const oldActiveCount = this.activeNotes.size;
+        const safeTime = Math.max(0, time);
       
       // 🔧 修正: 再生速度を考慮したstartTime計算
       // safeTimeは論理時間、audioContext.currentTimeは実時間のため、
@@ -797,12 +808,10 @@ export class GameEngine {
     // Managed in store now
   }
   
-  private startGameLoop(): void {
-    this.isGameLoopRunning = true;
-    // PIXI.Ticker.shared を使用し、unifiedFrameController と同期
-    const ticker = PIXI.Ticker.shared;
+    private startGameLoop(): void {
+      this.isGameLoopRunning = true;
 
-      const gameLoop = () => {
+        const gameLoop = () => {
         const frameStartTime = performance.now();
         
         // フレームスキップ制御
@@ -879,15 +888,14 @@ export class GameEngine {
       
     };
     
-    this.tickerListener = gameLoop;
-    ticker.add(gameLoop);
+      this.tickerListener = gameLoop;
+      this.ticker.add(gameLoop);
   }
   
   private stopGameLoop(): void {
     this.isGameLoopRunning = false;
-    const ticker = PIXI.Ticker.shared;
     if (this.tickerListener) {
-      ticker.remove(this.tickerListener);
+        this.ticker.remove(this.tickerListener);
       this.tickerListener = null;
     }
   }

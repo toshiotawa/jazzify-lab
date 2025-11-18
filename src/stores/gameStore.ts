@@ -651,8 +651,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         // Phase 2: ゲームエンジン制御
         initializeGameEngine: async () => {
           const state = get();
-          const { GameEngine } = await import('@/utils/gameEngine');
-          const engine = new GameEngine({ ...state.settings });
+          const { LegendWorkerGameEngine } = await import('@/legend/LegendWorkerGameEngine');
+          const engine = new LegendWorkerGameEngine({ ...state.settings });
           
           // エンジンの更新コールバック設定
             engine.setUpdateCallback((data: any) => {
@@ -702,8 +702,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               state.judgmentHistory.push(judgment);
             });
           });
-          
-          set((state) => {
+            
+            await engine.ready();
+            
+            set((state) => {
             state.gameEngine = engine;
             
             // 既存の楽曲がある場合はロード
@@ -724,11 +726,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const state = get();
           if (!state.gameEngine || !state.isPlaying) return;
           
-          const hit = state.gameEngine.handleInput(inputNote);
-          if (hit) {
-            // エンジンに判定を任せ、コールバックで結果を受け取る
-            state.gameEngine.processHit(hit);
-          }
+          state.gameEngine.handleInput(inputNote);
         },
         
         updateEngineSettings: () => {

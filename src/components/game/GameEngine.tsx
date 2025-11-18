@@ -99,15 +99,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   useEffect(() => {
     const bridge = renderBridgeRef.current;
     if (!bridge) return;
-    bridge.attachEngine(gameEngine);
+    const sharedReader = (gameEngine && typeof (gameEngine as any).getSharedNotesReader === 'function')
+      ? (gameEngine as any).getSharedNotesReader()
+      : null;
+    bridge.attachReader(sharedReader);
     return () => {
-      bridge.attachEngine(null);
+      bridge.attachReader(null);
     };
   }, [gameEngine]);
 
   useEffect(() => {
     if (!isPlaying) {
-      renderBridgeRef.current?.syncFromEngine();
+      renderBridgeRef.current?.sync();
     }
   }, [currentTime, settings.transpose, settings.notesSpeed, isPlaying]);
   

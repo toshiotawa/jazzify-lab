@@ -1,91 +1,67 @@
-import type { ActiveNote } from '@/types';
-import type { GameEngine, GameEngineUpdate } from '@/utils/gameEngine';
+import type { LegendSharedNotesReader } from '@/legend/LegendSharedNotesBuffer';
 import type { PIXINotesRendererInstance } from './PIXINotesRenderer';
-
-interface BridgeFrame {
-  activeNotes: ActiveNote[];
-  currentTime: number;
-}
 
 export class LegendRenderBridge {
   private renderer: PIXINotesRendererInstance | null = null;
-  private engine: GameEngine | null = null;
-  private unsubscribe: (() => void) | null = null;
-  private lastFrame: BridgeFrame | null = null;
-
-  attachEngine(engine: GameEngine | null): void {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-    }
-
-    this.engine = engine;
-
-    if (!engine) {
-      this.lastFrame = null;
-      return;
-    }
-
-    this.unsubscribe = engine.addUpdateListener((update: GameEngineUpdate) => {
-      this.handleEngineUpdate(update);
-    });
-
-    this.primeFromEngine(engine);
-  }
+  private reader: LegendSharedNotesReader | null = null;
+  private rafId: number | null = null;
+  private lastFrameId: number = -1;
 
   attachRenderer(renderer: PIXINotesRendererInstance | null): void {
     this.renderer = renderer;
-
-    if (!renderer) {
-      return;
-    }
-
-    if (!this.lastFrame && this.engine) {
-      this.primeFromEngine(this.engine);
-      return;
-    }
-
-    this.flush();
+    this.updateLoopState();
   }
 
-  syncFromEngine(): void {
-    if (this.engine) {
-      this.primeFromEngine(this.engine);
-    }
+  attachReader(reader: LegendSharedNotesReader | null): void {
+    this.reader = reader;
+    this.lastFrameId = -1;
+    this.updateLoopState();
+  }
+
+  sync(): void {
+    this.flushFrame();
   }
 
   dispose(): void {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-    }
+    this.stopLoop();
     this.renderer = null;
-    this.engine = null;
-    this.lastFrame = null;
+    this.reader = null;
   }
 
-  private handleEngineUpdate(update: GameEngineUpdate): void {
-    this.lastFrame = {
-      activeNotes: update.activeNotes,
-      currentTime: update.currentTime
+  private updateLoopState(): void {
+    if (this.renderer && this.reader) {
+      if (this.rafId === null) {
+        this.startLoop();
+      }
+    } else {
+      this.stopLoop();
+    }
+  }
+
+  private startLoop(): void {
+    const loop = () => {
+      this.rafId = requestAnimationFrame(loop);
+      this.flushFrame();
     };
-    this.flush();
+    this.rafId = requestAnimationFrame(loop);
   }
 
-  private primeFromEngine(engine: GameEngine): void {
-    const snapshot = engine.getState();
-    this.lastFrame = {
-      activeNotes: snapshot.activeNotes,
-      currentTime: snapshot.currentTime
-    };
-    this.flush();
+  private stopLoop(): void {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
   }
 
-  private flush(): void {
-    if (!this.renderer || !this.lastFrame) {
+  private flushFrame(): void {
+    if (!this.renderer || !this.reader) {
       return;
     }
-    this.renderer.updateNotes(this.lastFrame.activeNotes, this.lastFrame.currentTime);
+    const frame = this.reader.readFrame();
+    if (!frame || frame.frameId === this.lastFrameId) {
+      return;
+    }
+    this.lastFrameId = frame.frameId;
+    this.renderer.updateNotes(frame.activeNotes, frame.currentTime);
   }
-
 }
