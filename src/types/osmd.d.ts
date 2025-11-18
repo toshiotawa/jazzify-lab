@@ -1,24 +1,70 @@
 declare module 'opensheetmusicdisplay' {
   export interface IOSMDOptions {
+    alignRests?: number;
+    autoBeam?: boolean;
+    autoBeamOptions?: unknown;
     autoResize?: boolean;
     backend?: 'svg' | 'canvas';
-    drawTitle?: boolean;
-    drawComposer?: boolean;
-    drawLyricist?: boolean;
-    drawPartNames?: boolean;
-    drawingParameters?: string;
-    renderSingleHorizontalStaffline?: boolean;
-    stretchLastSystemLine?: boolean;
-    pageFormat?: string;
-    pageBackgroundColor?: string;
+    coloringEnabled?: boolean;
+    colorStemsLikeNoteheads?: boolean;
+    defaultColorMusic?: string;
     defaultColorNotehead?: string;
     defaultColorStem?: string;
     defaultColorRest?: string;
     defaultColorLabel?: string;
     defaultColorTitle?: string;
+    defaultFontFamily?: string;
+    defaultFontStyle?: number;
+    disableCursor?: boolean;
+    followCursor?: boolean;
+    drawingParameters?: string;
+    drawCredits?: boolean;
+    drawTitle?: boolean;
+    drawSubtitle?: boolean;
+    drawComposer?: boolean;
+    drawLyricist?: boolean;
+    drawMetronomeMarks?: boolean;
+    drawPartNames?: boolean;
+    drawPartAbbreviations?: boolean;
+    drawMeasureNumbers?: boolean;
+    drawMeasureNumbersOnlyAtSystemStart?: boolean;
+    measureNumberInterval?: number;
+    drawFingerings?: boolean;
+    drawLyrics?: boolean;
+    drawSlurs?: boolean;
+    drawFromMeasureNumber?: number;
+    drawUpToMeasureNumber?: number;
+    drawUpToSystemNumber?: number;
+    drawUpToPageNumber?: number;
+    pageFormat?: string;
+    pageBackgroundColor?: string;
+    renderSingleHorizontalStaffline?: boolean;
+    stretchLastSystemLine?: boolean;
+    setWantedStemDirectionByXml?: boolean;
+    tupletsBracketed?: boolean;
+    tripletsBracketed?: boolean;
+    autoGenerateMultipleRestMeasuresFromRestMeasures?: boolean;
+    spacingFactorSoftmax?: number;
+    preferredSkyBottomLineBatchCalculatorBackend?: number;
+    skyBottomLineBatchMinMeasures?: number;
   }
 
-  export interface GraphicalNote {
+  export interface BoundingBoxLike {
+    AbsolutePosition?: {
+      x: number;
+      y: number;
+    };
+    RelativePosition?: {
+      x: number;
+      y: number;
+    };
+    Size?: {
+      width: number;
+      height: number;
+    };
+  }
+
+    export interface GraphicalNote {
     sourceNote: {
       NoteTie?: {
         StartNote: boolean;
@@ -32,12 +78,7 @@ declare module 'opensheetmusicdisplay' {
         Accidental?: number;
       };
     };
-    PositionAndShape: {
-      AbsolutePosition: {
-        x: number;
-        y: number;
-      };
-    };
+      PositionAndShape: BoundingBoxLike;
   }
 
   export interface GraphicalVoiceEntry {
@@ -48,7 +89,13 @@ declare module 'opensheetmusicdisplay' {
     graphicalVoiceEntries: GraphicalVoiceEntry[];
   }
 
-  export interface GraphicalMeasure {
+    export interface GraphicalMeasure {
+      MeasureNumber?: number;
+      parentSourceMeasure?: {
+        MeasureNumber?: number;
+        measureListIndex?: number;
+      };
+      PositionAndShape?: BoundingBoxLike;
     staffEntries: GraphicalStaffEntry[];
   }
 

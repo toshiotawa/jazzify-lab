@@ -251,6 +251,44 @@ interface MeasureTimeInfo {
   totalDivisions: number; // その小節の総division数
 }
 
+export interface MeasureTimelineEntry {
+  measureNumber: number;
+  startTime: number;
+  endTime: number;
+  duration: number;
+}
+
+export function buildMeasureTimeline(musicXmlText: string, jsonNotes: NoteData[] = []): MeasureTimelineEntry[] {
+  if (!musicXmlText || jsonNotes.length === 0) {
+    return [];
+  }
+
+  if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
+    return [];
+  }
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(musicXmlText, 'text/xml');
+    const notePositions = extractNotePositions(doc);
+
+    if (notePositions.length === 0) {
+      return [];
+    }
+
+    const measureInfo = estimateMeasureTimeInfo(notePositions, jsonNotes);
+
+    return measureInfo.map((info) => ({
+      measureNumber: info.measureNumber,
+      startTime: info.startTime,
+      endTime: info.startTime + info.duration,
+      duration: info.duration
+    }));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * JSONノーツから小節の時間情報を推定
  */
