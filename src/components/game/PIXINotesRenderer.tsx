@@ -13,144 +13,6 @@ import { cn } from '@/utils/cn';
 
 const PIXI_LOOKAHEAD_SECONDS = 15;
 
-// ===== 破棄管理システム =====
-/**
- * 1. 破棄を1か所に集約 - "Dispose Manager"
- * バラバラのdestroy()呼び出しは漏れや二重実行が起こりがちなので一元管理する
- */
-class DisposeManager {
-  private disposables: (() => void)[] = [];
-  private isDisposed: boolean = false;
-
-  add(fn: () => void): void {
-    if (this.isDisposed) {
-      log.warn('⚠️ DisposeManager already disposed, ignoring new disposable');
-      return;
-    }
-    this.disposables.push(fn);
-  }
-
-  flush(): void {
-    if (this.isDisposed) return;
-    
-    log.debug(`🗑️ Disposing ${this.disposables.length} resources`);
-    for (const fn of this.disposables) {
-      try {
-        fn();
-      } catch (error) {
-        log.error('⚠️ Dispose error:', error);
-      }
-    }
-    this.disposables.length = 0;
-    this.isDisposed = true;
-  }
-
-  get disposed(): boolean {
-    return this.isDisposed;
-  }
-}
-
-// ===== アップデータシステム =====
-/**
- * 2. "更新ループ ⇔ オブジェクト" の結び付けを外せる構造
- * 各オブジェクトの更新処理を独立したクラスに分離し、
- * Tickerに登録/解除することで破棄されたオブジェクトを触らない仕組みを作る
- */
-
-/**
- * ノートスプライト用アップデータ
- */
-class NoteUpdater {
-  private isActive: boolean = true;
-
-  constructor(
-    private noteSprite: NoteSprite,
-    private settings: RendererSettings,
-    private disposeManager: DisposeManager
-  ) {
-    // 破棄処理を自動登録
-    disposeManager.add(() => this.dispose());
-  }
-
-  update = (delta: number): void => {
-    // ★ホットスポット: ここだけで破棄チェック
-    if (!this.isActive || this.noteSprite.sprite.destroyed) {
-      return;
-    }
-
-    try {
-      // 安全にスプライト更新
-      const sprite = this.noteSprite.sprite;
-      const noteData = this.noteSprite.noteData;
-      
-      // 位置更新（例）
-      if (sprite.parent && !sprite.destroyed) {
-      }
-    } catch (error) {
-      log.warn('⚠️ NoteUpdater error, disposing:', error);
-      this.dispose();
-    }
-  };
-
-  dispose(): void {
-    this.isActive = false;
-  }
-
-  get active(): boolean {
-    return this.isActive;
-  }
-}
-
-/**
- * エフェクト用アップデータ
- */
-class EffectUpdater {
-  private isActive: boolean = true;
-  private elapsed: number = 0;
-
-  constructor(
-    private effectContainer: PIXI.Container,
-    private duration: number,
-    private disposeManager: DisposeManager
-  ) {
-    disposeManager.add(() => this.dispose());
-  }
-
-  update = (delta: number): void => {
-    if (!this.isActive || this.effectContainer.destroyed) {
-      return;
-    }
-
-    try {
-      this.elapsed += delta * 16; // deltaTimeをミリ秒に変換
-      
-      if (this.elapsed >= this.duration) {
-        this.dispose();
-        return;
-      }
-
-      // エフェクト更新処理
-      const progress = this.elapsed / this.duration;
-      this.effectContainer.alpha = 1 - progress;
-      
-    } catch (error) {
-      log.warn('⚠️ EffectUpdater error, disposing:', error);
-      this.dispose();
-    }
-  };
-
-  dispose(): void {
-    this.isActive = false;
-    if (this.effectContainer && !this.effectContainer.destroyed) {
-      this.effectContainer.visible = false; // 即座に非表示
-    }
-  }
-
-  get active(): boolean {
-    return this.isActive;
-  }
-}
-
 // ===== ノート状態判定ヘルパー =====
 // Renderer 側では "good" / "perfect" / "hit" をすべて "当たり" とみなす
 const isHitState = (state: ActiveNote['state']) =>
@@ -169,9 +31,7 @@ interface PIXINotesRendererProps {
 interface NoteSprite {
   sprite: PIXI.Sprite; // Graphics から Sprite に変更
   noteData: ActiveNote;
-  glowSprite?: PIXI.Graphics;
   label?: PIXI.Sprite; // Text から Sprite に変更（テクスチャアトラス用）
-  effectPlayed?: boolean; // エフェクト重複生成防止
   transposeAtCreation?: number; // 作成時のトランスポーズ値を記録
 }
 
@@ -226,17 +86,6 @@ interface LabelTextures {
   solfege: Map<string, PIXI.Texture>;
 }
 
-interface HitEffectInstance {
-  container: PIXI.Container;
-  laneLight: PIXI.Graphics;
-  circleContainer: PIXI.Container;
-}
-
-interface ActiveHitEffect {
-  instance: HitEffectInstance;
-  elapsed: number;
-}
-
 
 // ===== PIXI.js レンダラークラス =====
 
@@ -246,13 +95,10 @@ export class PIXINotesRendererInstance {
   private whiteNotes!: PIXI.ParticleContainer; // 白鍵ノーツ専用コンテナ
   private blackNotes!: PIXI.ParticleContainer; // 黒鍵ノーツ専用コンテナ
   private labelsContainer!: PIXI.Container; // ラベル専用コンテナ
-  private effectsContainer!: PIXI.Container;
   private hitLineContainer!: PIXI.Container;
   private pianoContainer!: PIXI.Container;
-  private particles!: PIXI.Container; // パーティクル用コンテナ
   
   private noteSprites: Map<string, NoteSprite> = new Map();
-  private hitEffectPool: HitEffectInstance[] = [];
   private activeNoteLookup: Map<string, ActiveNote> = new Map();
 
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
@@ -275,17 +121,10 @@ export class PIXINotesRendererInstance {
   private onKeyRelease?: (note: number) => void;
   
   
-  // ===== 新しい設計: 破棄管理＆アップデータシステム =====
-  private disposeManager: DisposeManager = new DisposeManager();
-    private noteUpdaters: Map<string, NoteUpdater> = new Map();
-    private effectUpdaters: Set<EffectUpdater> = new Set();
-    private activeHitEffects: Set<ActiveHitEffect> = new Set();
-    private readonly hitEffectDurationMs = 120;
-
-  
-  // Ticker関数への参照（削除用）
-  private mainUpdateFunction?: (delta: number) => void;
-  private effectUpdateFunction?: (delta: number) => void;
+    // ===== パフォーマンス最適化用のスプライトプール =====
+    private whiteSpritePool: PIXI.Sprite[] = [];
+    private blackSpritePool: PIXI.Sprite[] = [];
+    private renderPending = false;
   
   // リアルタイムアニメーション用
   // リアルタイムアニメーション用（将来の拡張用）
@@ -412,9 +251,6 @@ export class PIXINotesRendererInstance {
       log.error('❌ PIXI setup failed:', error);
     }
     
-    // ===== 新設計: Ticker管理を一元化 =====
-    this.setupTickerSystem();
-    
     // グローバルpointerupイベントで保険を掛ける（音が伸び続けるバグの最終防止）
     this.app.stage.on('globalpointerup', () => {
       // アクティブなキープレスを全て解除
@@ -424,109 +260,69 @@ export class PIXINotesRendererInstance {
       this.activeKeyPresses.clear();
     });
     
-    // 🎯 統合フレーム制御でPIXIアプリケーションを開始
-    this.startUnifiedRendering();
+    this.requestRender();
     
     log.info('✅ PIXI.js renderer initialized successfully');
   }
 
-
-  
-  /**
-   * ===== 新設計: Tickerシステムのセットアップ =====
-   * 1. 更新ループとオブジェクトの結び付きを外せる構造
-   * 2. 破棄時に適切にTicker関数を削除
-   */
-  private setupTickerSystem(): void {
-    // メイン更新関数（ノートUpdater管理）
-    this.mainUpdateFunction = (delta: number) => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
-      
-      // 全ノートUpdaterを更新
-      for (const [noteId, updater] of this.noteUpdaters) {
-        if (!updater.active) {
-          this.noteUpdaters.delete(noteId);
-          continue;
-        }
-        updater.update(delta);
-      }
-    };
-
-    // エフェクト更新関数（低頻度実行）
-    this.effectUpdateFunction = () => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
-
-      const deltaMs = PIXI.Ticker.shared.deltaMS;
-      this.effectsElapsed += deltaMs;
-
-      if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
-        const normalizedDelta = this.effectsElapsed / 16;
-
-        for (const updater of this.effectUpdaters) {
-          if (!updater.active) {
-            this.effectUpdaters.delete(updater);
-            continue;
-          }
-          updater.update(normalizedDelta);
-        }
-
-        this.updateHitEffects(this.effectsElapsed);
-        this.effectsElapsed = 0;
-      }
-    };
-
-    // Tickerに登録
-    PIXI.Ticker.shared.add(this.mainUpdateFunction);
-    PIXI.Ticker.shared.add(this.effectUpdateFunction);
-
-    // 破棄時にTicker関数を削除するよう登録
-    this.disposeManager.add(() => {
-      if (this.mainUpdateFunction) {
-        PIXI.Ticker.shared.remove(this.mainUpdateFunction);
-        this.mainUpdateFunction = undefined;
-      }
-      if (this.effectUpdateFunction) {
-        PIXI.Ticker.shared.remove(this.effectUpdateFunction);
-        this.effectUpdateFunction = undefined;
-      }
-    });
-
-
-
-    log.debug('✅ Ticker system setup completed');
+  private acquireSpriteFromPool(isBlackNote: boolean, texture: PIXI.Texture): PIXI.Sprite {
+    const pool = isBlackNote ? this.blackSpritePool : this.whiteSpritePool;
+    const sprite = pool.pop();
+    if (sprite) {
+      sprite.texture = texture;
+      sprite.alpha = 1;
+      sprite.visible = true;
+      sprite.scale.set(1, 1);
+      sprite.rotation = 0;
+      sprite.tint = 0xffffff;
+      return sprite;
+    }
+    const freshSprite = new PIXI.Sprite(texture);
+    ;(freshSprite as any).eventMode = 'none';
+    ;(freshSprite as any).interactive = false;
+    ;(freshSprite as any).interactiveChildren = false;
+    freshSprite.anchor.set(0.5, 0.5);
+    return freshSprite;
   }
 
-  /**
-   * 🎯 統合フレーム制御でPIXIアプリケーションを開始
-   */
-  // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
-  private startUnifiedRendering(): void {
-    const ticker = this.app.ticker;
-    const renderStep = () => {
-      const currentTime = performance.now();
-      const controller = (window as any).unifiedFrameController;
-      if (controller && controller.shouldSkipFrame(currentTime, 'render')) {
-        return;
-      }
+  private releaseSpriteToPool(sprite: PIXI.Sprite, isBlackNote: boolean): void {
+    sprite.removeFromParent();
+    sprite.alpha = 1;
+    sprite.visible = false;
+    sprite.scale.set(1, 1);
+    sprite.rotation = 0;
+    sprite.tint = 0xffffff;
+    const pool = isBlackNote ? this.blackSpritePool : this.whiteSpritePool;
+    pool.push(sprite);
+  }
 
+  private quantizeNotePosition(y: number): number {
+    const step = Math.max(12, this.settings.noteHeight * 12);
+    if (y >= this.settings.hitLineY - step) {
+      return this.settings.hitLineY - this.settings.noteHeight * 0.5;
+    }
+    return Math.round(y / step) * step;
+  }
+
+  private requestRender(): void {
+    if (this.renderPending || this.isDestroyed) {
+      return;
+    }
+    this.renderPending = true;
+    requestAnimationFrame(() => {
+      this.renderPending = false;
       if (this.isDestroyed) {
         return;
       }
-
       try {
         this.app.render();
       } catch (error) {
-        log.warn('⚠️ PIXI render error (likely destroyed):', error);
+        log.warn('⚠️ PIXI render skipped due to error:', error);
       }
-    };
-
-    ticker.add(renderStep);
-    this.disposeManager.add(() => {
-      ticker.remove(renderStep);
     });
-
-    log.info('🎯 PIXI.js unified frame control started (shared ticker)');
   }
+
+
   
   /**
    * ノーツテクスチャを事前生成
@@ -974,12 +770,6 @@ export class PIXINotesRendererInstance {
     this.labelsContainer.zIndex = 14;
     this.container.addChild(this.labelsContainer);
 
-    // エフェクト用コンテナ
-    this.effectsContainer = new PIXI.Container();
-    this.effectsContainer.eventMode = 'none';
-    this.effectsContainer.zIndex = 16;
-    this.container.addChild(this.effectsContainer);
-
     // ヒットライン用コンテナ
     this.hitLineContainer = new PIXI.Container();
     this.hitLineContainer.zIndex = 20;
@@ -1041,11 +831,6 @@ export class PIXINotesRendererInstance {
     });
     
     this.container.addChild(this.pianoContainer);
-
-    // パーティクル用コンテナ
-    this.particles = new PIXI.Container();
-    this.particles.zIndex = 18;
-    this.container.addChild(this.particles);
 
     // ヒットライン表示
     this.setupHitLine();
@@ -1819,6 +1604,7 @@ export class PIXINotesRendererInstance {
     // 状態・削除処理ループ（フレーム間引き無効化）
     this.updateSpriteStates(this.activeNoteLookup);
     
+      this.requestRender();
     
     
   }
@@ -1845,16 +1631,15 @@ export class PIXINotesRendererInstance {
         newY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
       }
 
-      sprite.sprite.y = newY;
-      if (sprite.label) sprite.label.y = newY - 8;
-      if (sprite.glowSprite) sprite.glowSprite.y = newY;
+        const quantizedY = this.quantizeNotePosition(newY);
+        sprite.sprite.y = quantizedY;
+        if (sprite.label) sprite.label.y = quantizedY - 8;
       
       // ===== X座標更新（ピッチ変更時のみ） =====
       if (sprite.noteData.pitch !== note.pitch) {
         const x = this.pitchToX(note.pitch);
         sprite.sprite.x = x;
-        if (sprite.label) sprite.label.x = x;
-        if (sprite.glowSprite) sprite.glowSprite.x = x;
+          if (sprite.label) sprite.label.x = x;
       }
       
       // ===== トランスポーズ変更検出 =====
@@ -2001,12 +1786,7 @@ export class PIXINotesRendererInstance {
     const texture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
     
     // メインノートスプライト（位置は後でupdateNotesで設定）
-    const sprite = new PIXI.Sprite(texture);
-    // ノーツスプライトは完全にイベント非対象（クリック透過）
-    ;(sprite as any).eventMode = 'none';
-    ;(sprite as any).interactive = false;
-    ;(sprite as any).interactiveChildren = false;
-    sprite.anchor.set(0.5, 0.5);
+    const sprite = this.acquireSpriteFromPool(isBlackNote, texture);
     sprite.x = x;
     sprite.y = 0; // 後で設定
     
@@ -2063,15 +1843,6 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    // グロー効果スプライト（デフォルトOFF、必要時のみ）
-    let glowSprite: PIXI.Graphics | undefined;
-    if (this.settings.effects.glow) {
-      glowSprite = new PIXI.Graphics();
-      glowSprite.x = x;
-      glowSprite.y = 0; // 後で設定
-      this.effectsContainer.addChild(glowSprite);
-    }
-    
     try {
       // 適切なコンテナにノーツを追加（白鍵 or 黒鍵）
       const targetContainer = isBlackNote ? this.blackNotes : this.whiteNotes;
@@ -2083,18 +1854,12 @@ export class PIXINotesRendererInstance {
     
     const noteSprite: NoteSprite = {
       sprite,
-      glowSprite,
       noteData: note,
       label,
-      effectPlayed: false,
       transposeAtCreation: this.settings.transpose
     };
     
     this.noteSprites.set(note.id, noteSprite);
-    
-    // ===== 新設計: NoteUpdaterを作成してTicker管理 =====
-    const noteUpdater = new NoteUpdater(noteSprite, this.settings, this.disposeManager);
-    this.noteUpdaters.set(note.id, noteUpdater);
     
     return noteSprite;
   }
@@ -2170,14 +1935,8 @@ export class PIXINotesRendererInstance {
       }
     }
 
-    // ===== ヒット系判定時はエフェクトを生成してから削除 =====
+    // ===== ヒット系判定時は即座に非表示 =====
     if (isHitState(note.state)) {
-      if (!noteSprite.effectPlayed) {
-        // エフェクトを生成（state に依存しない）
-        this.createHitEffect(noteSprite.sprite.x, noteSprite.sprite.y);
-        noteSprite.effectPlayed = true;
-      }
-
       // ノーツを透明にする
       noteSprite.sprite.alpha = 0;
       // ラベルも即非表示
@@ -2198,11 +1957,6 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    // グロー効果の更新
-      if (noteSprite.glowSprite) {
-        this.drawGlowShape(noteSprite.glowSprite, note.state, note.pitch);
-      }
-      
         // ラベルもαで同期させる（visibleだとGCがズレる）
     if (noteSprite.label) {
       noteSprite.label.alpha = (note.state as any) === 'hit' ? 0 : 1;
@@ -2229,184 +1983,15 @@ export class PIXINotesRendererInstance {
         noteSprite.label.destroy({ children: true, texture: false, baseTexture: false });
       }
 
-      // メインスプライト削除
-      if (noteSprite.sprite && noteSprite.sprite.parent) {
-        noteSprite.sprite.parent.removeChild(noteSprite.sprite);
+      if (noteSprite.sprite) {
+        const isBlack = this.isBlackKey(noteSprite.noteData.pitch + this.settings.transpose);
+        this.releaseSpriteToPool(noteSprite.sprite, isBlack);
       }
-      if (noteSprite.sprite && !noteSprite.sprite.destroyed) {
-        noteSprite.sprite.destroy({ children: true, texture: false, baseTexture: false });
-      }
-      
-      // グロースプライト削除
-      if (noteSprite.glowSprite) {
-        if (noteSprite.glowSprite.parent) {
-          noteSprite.glowSprite.parent.removeChild(noteSprite.glowSprite);
-        }
-        if (!noteSprite.glowSprite.destroyed) {
-          noteSprite.glowSprite.destroy({ children: true, texture: false, baseTexture: false });
-        }
-      }
-          } catch (error) {
-        log.warn(`⚠️ Note sprite cleanup error for ${noteId}:`, error);
-      }
-    
+    } catch (error) {
+      log.warn(`⚠️ Note sprite cleanup error for ${noteId}:`, error);
+    }
+  
     this.noteSprites.delete(noteId);
-  }
-  
-  private drawGlowShape(graphics: PIXI.Graphics, state: ActiveNote['state'], pitch?: number): void {
-    graphics.clear();
-    
-    // GOOD 判定後のノーツは透明のためグローを描画しない
-    if (state === 'hit') {
-      return;
-    }
-    // ミス時は拡大したグローを描かない
-    if (state === 'missed') {
-      return;
-    }
-
-    const color = this.getStateColor(state, pitch);
-    const { noteWidth, noteHeight } = this.settings;
-    
-    // グロー効果（半透明の大きな矩形）
-    graphics.beginFill(color, 0.3);
-    graphics.drawRoundedRect(
-      -noteWidth / 2 - 4,
-      -noteHeight / 2 - 4,
-      noteWidth + 8,
-      noteHeight + 8,
-      Math.min(4, noteHeight / 2) // 高さに応じて角丸を調整
-    );
-    graphics.endFill();
-  }
-  
-  private acquireHitEffect(): HitEffectInstance {
-    const pooled = this.hitEffectPool.pop();
-    if (pooled) {
-      return pooled;
-    }
-  
-    const container = new PIXI.Container();
-    container.name = 'HitEffect';
-    (container as any).eventMode = 'none';
-    container.interactive = false;
-  
-    const laneLight = new PIXI.Graphics();
-    laneLight.name = 'laneLight';
-    (laneLight as any).eventMode = 'none';
-    container.addChild(laneLight);
-  
-    const circleContainer = new PIXI.Container();
-    circleContainer.name = 'circleContainer';
-  
-    const outerCircle = new PIXI.Graphics();
-    outerCircle.name = 'outerCircle';
-    circleContainer.addChild(outerCircle);
-  
-    const middleCircle = new PIXI.Graphics();
-    middleCircle.name = 'middleCircle';
-    circleContainer.addChild(middleCircle);
-  
-    const innerCircle = new PIXI.Graphics();
-    innerCircle.name = 'innerCircle';
-    circleContainer.addChild(innerCircle);
-  
-    container.addChild(circleContainer);
-  
-    return { container, laneLight, circleContainer };
-  }
-  
-  private releaseHitEffect(effect: HitEffectInstance): void {
-    effect.container.removeFromParent();
-    effect.container.alpha = 1;
-    effect.laneLight.alpha = 1;
-    effect.circleContainer.alpha = 1;
-    this.hitEffectPool.push(effect);
-  }
-
-  private updateHitEffects(deltaMs: number): void {
-    if (this.activeHitEffects.size === 0) {
-      return;
-    }
-    const finished: HitEffectInstance[] = [];
-    for (const effectData of this.activeHitEffects) {
-      effectData.elapsed += deltaMs;
-      const progress = Math.min(1, effectData.elapsed / this.hitEffectDurationMs);
-      const alpha = 1 - progress;
-      effectData.instance.laneLight.alpha = alpha;
-      effectData.instance.circleContainer.alpha = alpha;
-      if (progress >= 1) {
-        finished.push(effectData.instance);
-        this.activeHitEffects.delete(effectData);
-      }
-    }
-    finished.forEach((instance) => {
-      this.releaseHitEffect(instance);
-    });
-  }
-  
-  private redrawLaneLight(graphics: PIXI.Graphics): void {
-    const laneWidth = 8;
-    const laneHeight = this.settings.hitLineY;
-    graphics.clear();
-    for (let i = 0; i < 3; i++) {
-      const lineWidth = laneWidth - i * 2;
-      const alpha = 0.8 - i * 0.2;
-      const color = i === 0 ? 0xffffff : this.settings.colors.good;
-      graphics.lineStyle(lineWidth, color, alpha);
-      graphics.moveTo(0, 0);
-      graphics.lineTo(0, laneHeight);
-    }
-  }
-  
-  private redrawCircleSprites(circleContainer: PIXI.Container): void {
-    const outerCircle = circleContainer.getChildByName('outerCircle') as PIXI.Graphics | null;
-    const middleCircle = circleContainer.getChildByName('middleCircle') as PIXI.Graphics | null;
-    const innerCircle = circleContainer.getChildByName('innerCircle') as PIXI.Graphics | null;
-  
-    if (outerCircle) {
-      this.drawCircleGraphic(outerCircle, 15, 0.6, this.settings.colors.good);
-    }
-    if (middleCircle) {
-      this.drawCircleGraphic(middleCircle, 10, 0.8, this.settings.colors.good);
-    }
-    if (innerCircle) {
-      this.drawCircleGraphic(innerCircle, 6, 1, 0xffffff);
-    }
-  }
-  
-  private drawCircleGraphic(target: PIXI.Graphics, radius: number, alpha: number, color: number): void {
-    target.clear();
-    target.beginFill(color, alpha);
-    target.drawCircle(0, 0, radius);
-    target.endFill();
-  }
-  
-  private createHitEffect(x: number, y: number): void {
-    if (!this.settings.enableEffects) {
-      return;
-    }
-    const effect = this.acquireHitEffect();
-    const { container, laneLight, circleContainer } = effect;
-  
-    this.redrawLaneLight(laneLight);
-    this.redrawCircleSprites(circleContainer);
-  
-    laneLight.x = x;
-    laneLight.y = 0;
-    circleContainer.x = x;
-    circleContainer.y = y;
-  
-    container.alpha = 1;
-    laneLight.alpha = 1;
-    circleContainer.alpha = 1;
-  
-    if (!container.parent) {
-      this.effectsContainer.addChild(container);
-    }
-    this.container.setChildIndex(this.effectsContainer, this.container.children.length - 1);
-  
-    this.activeHitEffects.add({ instance: effect, elapsed: 0 });
   }
   
   private getStateColor(state: ActiveNote['state'], pitch?: number): number {
@@ -2656,7 +2241,6 @@ export class PIXINotesRendererInstance {
         const newX = this.pitchToX(pitch); // transpose を内部で考慮
         noteSprite.sprite.x = newX;
         if (noteSprite.label) noteSprite.label.x = newX;
-        if (noteSprite.glowSprite) noteSprite.glowSprite.x = newX;
 
         // 2) ラベル更新（テクスチャアトラス使用）
         // 音名決定ロジック（MECE構造）
@@ -2738,14 +2322,13 @@ export class PIXINotesRendererInstance {
           targetContainer.addChild(noteSprite.sprite);
         }
 
-        if (noteSprite.glowSprite) {
-          this.drawGlowShape(noteSprite.glowSprite, noteData.state, noteData.pitch);
-        }
       });
 
-      // PIXIレンダラーに即座に描画を強制
-      this.app.renderer.render(this.app.stage);
+        // PIXIレンダラーに即座に描画を強制
+        this.app.renderer.render(this.app.stage);
     }
+
+      this.requestRender();
   }
   
   /**
@@ -2768,15 +2351,6 @@ export class PIXINotesRendererInstance {
           this.removeNoteSprite(noteId);
         }
         this.noteSprites.clear();
-        this.activeHitEffects.forEach(({ instance }) => {
-          this.releaseHitEffect(instance);
-        });
-        this.activeHitEffects.clear();
-        this.hitEffectPool.forEach(effect => {
-          effect.container.destroy({ children: true });
-        });
-        this.hitEffectPool.length = 0;
-
         // ピアノスプライトをクリア
         this.pianoSprites.clear();
         this.highlightedKeys.clear();
@@ -2809,7 +2383,19 @@ export class PIXINotesRendererInstance {
       }
       
 
-      // PIXI.jsアプリケーションを破棄
+        // プールしているスプライトを破棄
+        const releasePool = (pool: PIXI.Sprite[]) => {
+          pool.forEach((sprite) => {
+            if (!sprite.destroyed) {
+              sprite.destroy({ children: true, texture: false, baseTexture: false });
+            }
+          });
+          pool.length = 0;
+        };
+        releasePool(this.whiteSpritePool);
+        releasePool(this.blackSpritePool);
+
+        // PIXI.jsアプリケーションを破棄
       if (this.app && (this.app as any)._destroyed !== true) {
         this.app.destroy(true, { 
           children: true, 
@@ -2974,34 +2560,23 @@ export class PIXINotesRendererInstance {
     } else {
       if (!highlighted) {
         (keySprite as any).tint = 0xFFFFFF;
+        this.requestRender();
         return;
       }
       // ガイドのみの点灯は緑、演奏中はオレンジ
       const isActive = this.highlightedKeys.has(midiNote);
       (keySprite as any).tint = isActive ? this.settings.colors.activeKey : this.settings.colors.guideKey;
     }
+    this.requestRender();
   }
 
   /**
    * キー押下に応じた即時ヒットエフェクトを発火
    * GameEngine の判定を待たずに視覚フィードバックを返すための補助メソッド。
    */
-  public triggerKeyPressEffect(midiNote: number): void {
-    // 現在表示中のノートスプライトから一致するものを探す
-    const targetSprite = Array.from(this.noteSprites.values()).find((ns) => {
-      const rawMidi = ns.noteData.pitch + this.settings.transpose;
-      return rawMidi === midiNote && ns.noteData.state === 'visible';
-    });
-
-    if (!targetSprite) return;
-
-    // 早押し時の誤エフェクト防止
-    const distanceToHitLine = Math.abs(targetSprite.sprite.y - this.settings.hitLineY);
-    const threshold = this.settings.noteHeight * 1.5;
-    if (distanceToHitLine > threshold) return;
-
-    // 見つかったノートの現在位置を使用してエフェクトを生成
-    this.createHitEffect(targetSprite.sprite.x, targetSprite.sprite.y);
+  public triggerKeyPressEffect(_midiNote: number): void {
+    // レジェンドモード軽量化のため、ヒットエフェクトは無効化
+    this.requestRender();
   }
 
   /**
@@ -3065,6 +2640,8 @@ export class PIXINotesRendererInstance {
         }
       });
     }
+
+      this.requestRender();
   }
 
   // 出題オクターブのみのガイド表示用：MIDI番号で直接指定
