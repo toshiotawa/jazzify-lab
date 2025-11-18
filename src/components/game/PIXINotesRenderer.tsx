@@ -181,6 +181,7 @@ interface RendererSettings {
   hitLineY: number;
   pianoHeight: number;
   noteSpeed: number;
+  enableEffects: boolean;
   colors: {
     visible: number;
     visibleBlack: number;
@@ -281,6 +282,13 @@ export class PIXINotesRendererInstance {
     private effectUpdaters: Set<EffectUpdater> = new Set();
     private activeHitEffects: Set<ActiveHitEffect> = new Set();
     private readonly hitEffectDurationMs = 120;
+        private lowPowerMode = false;
+        private lowPowerSnapshot: {
+          noteNameStyle: RendererSettings['noteNameStyle'];
+          simpleDisplayMode: boolean;
+          enableEffects: boolean;
+          showHitLine: boolean;
+        } | null = null;
 
   
   // Ticker関数への参照（削除用）
@@ -307,7 +315,8 @@ export class PIXINotesRendererInstance {
     noteHeight: 4,
     hitLineY: 0,
       pianoHeight: 80, // デフォルトのピアノ高さをストアに合わせる
-    noteSpeed: 400,
+      noteSpeed: 400,
+      enableEffects: true,
     colors: {
       visible: 0x4A90E2,
       visibleBlack: 0x2C5282,
@@ -2468,6 +2477,54 @@ export class PIXINotesRendererInstance {
     return this.settings.hitLineY + 100;
   }
   
+  setLowPowerMode(enabled: boolean): void {
+    if (this.lowPowerMode === enabled) {
+      return;
+    }
+
+    if (enabled) {
+      if (!this.lowPowerSnapshot) {
+        this.lowPowerSnapshot = {
+          noteNameStyle: this.settings.noteNameStyle,
+          simpleDisplayMode: this.settings.simpleDisplayMode,
+          enableEffects: this.settings.enableEffects,
+          showHitLine: this.settings.showHitLine
+        };
+      }
+      this.settings.enableEffects = false;
+      this.settings.noteNameStyle = 'off';
+      this.settings.simpleDisplayMode = true;
+      this.settings.showHitLine = false;
+      if (this.labelsContainer) {
+        this.labelsContainer.visible = false;
+      }
+      if (this.effectsContainer) {
+        this.effectsContainer.visible = false;
+      }
+      if (this.hitLineContainer) {
+        this.hitLineContainer.visible = false;
+      }
+    } else if (this.lowPowerSnapshot) {
+      const snapshot = this.lowPowerSnapshot;
+      this.settings.enableEffects = snapshot.enableEffects;
+      this.settings.noteNameStyle = snapshot.noteNameStyle;
+      this.settings.simpleDisplayMode = snapshot.simpleDisplayMode;
+      this.settings.showHitLine = snapshot.showHitLine;
+      if (this.labelsContainer) {
+        this.labelsContainer.visible = this.settings.noteNameStyle !== 'off';
+      }
+      if (this.effectsContainer) {
+        this.effectsContainer.visible = this.settings.enableEffects;
+      }
+      if (this.hitLineContainer) {
+        this.hitLineContainer.visible = this.settings.showHitLine;
+      }
+      this.lowPowerSnapshot = null;
+    }
+
+    this.lowPowerMode = enabled;
+  }
+
   /**
    * 設定更新
    */

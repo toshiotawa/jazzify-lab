@@ -2129,9 +2129,10 @@ export class FantasyPIXIInstance {
   
   // ノーツを更新（太鼓の達人風）
   updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
+    const nextIds = new Set(notes.map(n => n.id));
+
     this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
+      if (!nextIds.has(id)) {
         try {
           if (note && !(note as any).destroyed) note.destroy({ children: true });
         } catch {}
@@ -2139,25 +2140,15 @@ export class FantasyPIXIInstance {
       }
     });
     
-    // 新しいノーツを追加・更新
     notes.forEach(noteData => {
       let note = this.activeNotes.get(noteData.id);
       
-      if (!note) {
-        // 新しいノーツを作成
+      if (!note || (note as any).destroyed || !(note as any).transform) {
         note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
         this.notesContainer.addChild(note);
         this.activeNotes.set(noteData.id, note);
       } else {
-        // 破棄済みなら作り直す
-        if ((note as any).destroyed || !(note as any).transform) {
-          note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-          this.notesContainer.addChild(note);
-          this.activeNotes.set(noteData.id, note);
-        } else {
-          // 既存のノーツの位置を更新
-          note.x = noteData.x;
-        }
+        note.x = noteData.x;
       }
     });
   }
