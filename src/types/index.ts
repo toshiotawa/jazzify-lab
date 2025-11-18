@@ -225,6 +225,18 @@ export interface GameSettings {
   performanceMode: 'standard' | 'lightweight' | 'ultra_light';
 }
 
+export interface ModeSettingsSnapshot {
+  enableEffects: boolean;
+  keyPressEffectEnabled: boolean;
+  hitEffectEnabled: boolean;
+  inputMode: InputMode;
+  performanceMode: GameSettings['performanceMode'];
+  showNoteNames: boolean;
+  noteNameStyle: GameSettings['noteNameStyle'];
+  simpleDisplayMode: boolean;
+  showSheetMusic: boolean;
+}
+
 // ===== 採点システム =====
 
 export interface JudgmentResult {
@@ -303,6 +315,7 @@ export interface GameState {
     songId: string;
     clearConditions?: ClearConditions;
   };
+  modeSettingsBackup: ModeSettingsSnapshot | null;
 }
 
 // ===== 入力システム =====

@@ -752,7 +752,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pianoHeight: settings.pianoHeight,
         transpose: settings.transpose,
         transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
+          practiceGuide: settings.practiceGuide ?? 'key',
+          enableEffects: settings.enableEffects,
+          performanceMode: settings.performanceMode
       });
     }
     // AudioControllerに音声入力設定を反映
@@ -1022,12 +1024,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   return (
     <div className={cn("h-full w-full flex flex-col", className)}>
       {/* Phase 3: PIXI.js ノーツ表示エリア - フル高さ */}
-      <div 
+        <div 
         ref={gameAreaRef}
         className="relative flex-1 bg-gray-900 rounded-lg overflow-hidden"
       >
         {/* GOOD / MISS オーバーレイ */}
-        {mode === 'performance' && (
+          {mode === 'performance' && settings.performanceMode !== 'ultra_light' && (
         <div className="absolute top-3 left-3 z-20 text-lg font-bold bg-black bg-opacity-70 px-3 py-2 rounded-lg pointer-events-none">
           <span className="text-green-400">✓ {score.goodCount}</span>
           <span className="mx-3 text-gray-500">|</span>

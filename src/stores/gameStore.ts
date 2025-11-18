@@ -18,7 +18,9 @@ import type {
   ActiveNote,
   GameError,
   ChordInfo,
-  ClearConditions
+  ClearConditions,
+  InputMode,
+  ModeSettingsSnapshot
 } from '@/types';
 // GameEngine は実行時にのみ必要なため、型のみインポート
 // import { GameEngine } from '@/utils/gameEngine';
@@ -290,6 +292,7 @@ const defaultState: GameState = {
   
   // ミッション情報
   missionContext: undefined,
+  modeSettingsBackup: null,
 };
 
 // 練習モード専用設定のデフォルト値
@@ -631,6 +634,48 @@ const calculateRank = (accuracy: number): ScoreRank => {
 const calculateScore = (goodCount: number, _maxCombo: number, _accuracy: number): number => {
   // GOOD 1 回あたり 1000 点、MISS は 0 点
   return goodCount * 1000;
+};
+
+const applyUltraLightPerformanceSettings = (state: GameStoreState): void => {
+  if (!state.modeSettingsBackup) {
+    state.modeSettingsBackup = {
+      enableEffects: state.settings.enableEffects,
+      keyPressEffectEnabled: state.settings.keyPressEffect.enabled,
+      hitEffectEnabled: state.settings.hitEffect.enabled,
+      inputMode: state.settings.inputMode,
+      performanceMode: state.settings.performanceMode,
+      showNoteNames: state.settings.showNoteNames,
+      noteNameStyle: state.settings.noteNameStyle,
+      simpleDisplayMode: state.settings.simpleDisplayMode,
+      showSheetMusic: state.settings.showSheetMusic,
+    };
+  }
+  state.settings.performanceMode = 'ultra_light';
+  state.settings.enableEffects = false;
+  state.settings.keyPressEffect.enabled = false;
+  state.settings.hitEffect.enabled = false;
+  state.settings.inputMode = 'midi';
+  state.settings.showNoteNames = false;
+  state.settings.noteNameStyle = 'off';
+  state.settings.simpleDisplayMode = true;
+  state.settings.showSheetMusic = false;
+};
+
+const restorePerformanceSettings = (state: GameStoreState): void => {
+  if (!state.modeSettingsBackup) {
+    return;
+  }
+  const snapshot = state.modeSettingsBackup;
+  state.settings.enableEffects = snapshot.enableEffects;
+  state.settings.keyPressEffect.enabled = snapshot.keyPressEffectEnabled;
+  state.settings.hitEffect.enabled = snapshot.hitEffectEnabled;
+  state.settings.inputMode = snapshot.inputMode;
+  state.settings.performanceMode = snapshot.performanceMode;
+  state.settings.showNoteNames = snapshot.showNoteNames;
+  state.settings.noteNameStyle = snapshot.noteNameStyle;
+  state.settings.simpleDisplayMode = snapshot.simpleDisplayMode;
+  state.settings.showSheetMusic = snapshot.showSheetMusic;
+  state.modeSettingsBackup = null;
 };
 
 const CURRENT_TIME_DISPATCH_INTERVAL = 1 / 30;
@@ -1236,23 +1281,25 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const previousMode = state.mode;
           state.mode = mode;
           
-          if (mode === 'practice') {
-            state.currentTab = 'practice';
-            // 練習モードでは保存された設定を復元
-            if (state.practiceModeSettings.practiceGuide) {
-              state.settings.practiceGuide = state.practiceModeSettings.practiceGuide;
-            }
-            // 練習モードに戻った際、楽譜表示を「ノート+コード」に設定
-            state.settings.showSheetMusic = true;
-            state.settings.sheetMusicChordsOnly = false;
-          } else {
-            state.currentTab = 'performance';
-            // 本番モードに切り替える前に練習モード設定を保存
-            if (previousMode === 'practice') {
-              state.practiceModeSettings.practiceGuide = state.settings.practiceGuide ?? 'key';
-            }
-            // 本番モードでは練習モードガイドを無効化
-            state.settings.practiceGuide = 'off';
+        if (mode === 'practice') {
+          restorePerformanceSettings(state);
+          state.currentTab = 'practice';
+          // 練習モードでは保存された設定を復元
+          if (state.practiceModeSettings.practiceGuide) {
+            state.settings.practiceGuide = state.practiceModeSettings.practiceGuide;
+          }
+          // 練習モードに戻った際、楽譜表示を「ノート+コード」に設定
+          state.settings.showSheetMusic = true;
+          state.settings.sheetMusicChordsOnly = false;
+        } else {
+          state.currentTab = 'performance';
+          // 本番モードに切り替える前に練習モード設定を保存
+          if (previousMode === 'practice') {
+            state.practiceModeSettings.practiceGuide = state.settings.practiceGuide ?? 'key';
+          }
+          // 本番モードでは練習モードガイドを無効化
+          state.settings.practiceGuide = 'off';
+          applyUltraLightPerformanceSettings(state);
             
             // 🆕 レッスンモード時：本番モードで課題条件を強制適用
             if (state.lessonContext) {
@@ -1367,19 +1414,21 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           state.currentTab = tab;
           
           // タブ変更時にゲームモードも同期
-          if (tab === 'practice') {
-            state.mode = 'practice';
-            // 練習モードに戻った時は保存した設定を復元
-            state.settings.practiceGuide = state.practiceModeSettings.practiceGuide ?? 'key';
-          } else if (tab === 'performance') {
-            state.mode = 'performance';
-            // 本番モードに切り替える前に練習モード設定を保存
-            if (previousTab === 'practice') {
-              state.practiceModeSettings.practiceGuide = state.settings.practiceGuide ?? 'key';
-            }
-            // 本番モードでは練習モードガイドを無効化
-            state.settings.practiceGuide = 'off';
+        if (tab === 'practice') {
+          restorePerformanceSettings(state);
+          state.mode = 'practice';
+          // 練習モードに戻った時は保存した設定を復元
+          state.settings.practiceGuide = state.practiceModeSettings.practiceGuide ?? 'key';
+        } else if (tab === 'performance') {
+          state.mode = 'performance';
+          // 本番モードに切り替える前に練習モード設定を保存
+          if (previousTab === 'practice') {
+            state.practiceModeSettings.practiceGuide = state.settings.practiceGuide ?? 'key';
           }
+          // 本番モードでは練習モードガイドを無効化
+          state.settings.practiceGuide = 'off';
+          applyUltraLightPerformanceSettings(state);
+        }
           
           // 練習・本番モード間の切り替え時は再生停止するが、時刻はリセットしない
           if ((previousTab === 'practice' && tab === 'performance') || 

@@ -70,6 +70,13 @@ interface DamageNumberData {
   maxLife: number;
 }
 
+interface TaikoNoteSpriteState {
+  container: PIXI.Container;
+  targetX: number;
+  shouldBeVisible: boolean;
+  lastSeen: number;
+}
+
 interface MagicType {
   name: string; // 通常魔法名
   color: number; // 通常魔法の色
@@ -248,9 +255,10 @@ export class FantasyPIXIInstance {
   private activeFukidashi: Map<string, PIXI.Sprite> = new Map();  // アクティブな吹き出しを管理
   
   // 太鼓の達人風ノーツ関連
-  private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
+  private activeNotes: Map<string, TaikoNoteSpriteState> = new Map(); // 表示中のノーツ
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
   private judgeLineX: number = 100; // 判定ラインのX座標
+  private lastTaikoAnimationTime: number = performance.now();
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
@@ -1682,11 +1690,15 @@ export class FantasyPIXIInstance {
   private startAnimationLoop(): void {
     const animate = () => {
       if (this.isDestroyed) return;
+      const now = performance.now();
+      const deltaMs = now - this.lastTaikoAnimationTime;
+      this.lastTaikoAnimationTime = now;
       
       this.updateMonsterAnimation();
       this.updateMagicCircles();
       this.updateDamageNumbers();
       this.updateScreenShake(); // 画面揺れの更新を追加
+      this.updateTaikoNoteAnimations(deltaMs);
       
       this.animationFrameId = requestAnimationFrame(animate);
     };
@@ -2129,35 +2141,68 @@ export class FantasyPIXIInstance {
   
   // ノーツを更新（太鼓の達人風）
   updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
-    this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
-        try {
-          if (note && !(note as any).destroyed) note.destroy({ children: true });
-        } catch {}
-        this.activeNotes.delete(id);
-      }
+    const now = performance.now();
+    // まず全ノーツを「非表示候補」にマーク
+    this.activeNotes.forEach(state => {
+      state.shouldBeVisible = false;
     });
     
-    // 新しいノーツを追加・更新
     notes.forEach(noteData => {
-      let note = this.activeNotes.get(noteData.id);
+      let state = this.activeNotes.get(noteData.id);
       
-      if (!note) {
-        // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-        this.notesContainer.addChild(note);
-        this.activeNotes.set(noteData.id, note);
-      } else {
-        // 破棄済みなら作り直す
-        if ((note as any).destroyed || !(note as any).transform) {
-          note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-          this.notesContainer.addChild(note);
-          this.activeNotes.set(noteData.id, note);
-        } else {
-          // 既存のノーツの位置を更新
-          note.x = noteData.x;
-        }
+      if (!state || this.isSpriteInvalid(state.container)) {
+        const container = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+        container.alpha = 0;
+        container.visible = true;
+        this.notesContainer.addChild(container);
+        state = {
+          container,
+          targetX: noteData.x,
+          shouldBeVisible: true,
+          lastSeen: now
+        };
+        this.activeNotes.set(noteData.id, state);
+      }
+      
+      state.targetX = noteData.x;
+      state.shouldBeVisible = true;
+      state.lastSeen = now;
+      
+      // 念のためコンテナを表示状態に
+      if (!this.notesContainer.children.includes(state.container)) {
+        this.notesContainer.addChild(state.container);
+      }
+    });
+  }
+
+  private updateTaikoNoteAnimations(deltaMs: number): void {
+    if (this.activeNotes.size === 0) {
+      return;
+    }
+    const normalizedDelta = Math.min(2, deltaMs / (1000 / 60));
+    this.activeNotes.forEach((state, id) => {
+      const { container } = state;
+      if (this.isSpriteInvalid(container)) {
+        this.activeNotes.delete(id);
+        return;
+      }
+      
+      const lerpFactor = Math.min(1, normalizedDelta * 0.45);
+      container.x += (state.targetX - container.x) * lerpFactor;
+      
+      const desiredAlpha = state.shouldBeVisible ? 0.95 : 0;
+      const fadeFactor = Math.min(1, normalizedDelta * 0.5);
+      container.alpha += (desiredAlpha - container.alpha) * fadeFactor;
+      container.visible = container.alpha > 0.02;
+      
+      if (!state.shouldBeVisible && (performance.now() - state.lastSeen) > 450) {
+        try {
+          if (container.parent) {
+            container.parent.removeChild(container);
+          }
+          container.destroy({ children: true });
+        } catch {}
+        this.activeNotes.delete(id);
       }
     });
   }
@@ -2174,8 +2219,15 @@ export class FantasyPIXIInstance {
       // シングルモードの場合、判定ラインを非表示
       this.judgeLineContainer.visible = false;
       // ノーツもクリア
-      this.activeNotes.forEach(note => note.destroy());
-      this.activeNotes.clear();
+      this.activeNotes.forEach((state, id) => {
+        try {
+          if (state.container.parent) {
+            state.container.parent.removeChild(state.container);
+          }
+          state.container.destroy({ children: true });
+        } catch {}
+        this.activeNotes.delete(id);
+      });
     }
   }
   

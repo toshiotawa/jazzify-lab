@@ -198,6 +198,7 @@ interface RendererSettings {
     particles: boolean;
     trails: boolean;
   };
+  enableEffects: boolean;
   /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
   noteNameStyle: 'off' | 'abc' | 'solfege';
   /** 簡易表示モード: 複雑な音名を基本音名に変換 */
@@ -211,6 +212,7 @@ interface RendererSettings {
   showHitLine: boolean;
   viewportHeight: number;
   timingAdjustment: number;
+  performanceMode: 'standard' | 'lightweight' | 'ultra_light';
 }
 
 // ===== テクスチャキャッシュ =====
@@ -325,6 +327,7 @@ export class PIXINotesRendererInstance {
           particles: false,
           trails: false
         },
+      enableEffects: true,
     noteNameStyle: 'off',
     simpleDisplayMode: false,
     transpose: 0,
@@ -332,7 +335,8 @@ export class PIXINotesRendererInstance {
     practiceGuide: 'off',
       showHitLine: true,
       viewportHeight: 600,
-    timingAdjustment: 0
+      timingAdjustment: 0,
+      performanceMode: 'standard'
   };
   
   private onDragActive: boolean = false;
@@ -414,6 +418,7 @@ export class PIXINotesRendererInstance {
     
     // ===== 新設計: Ticker管理を一元化 =====
     this.setupTickerSystem();
+      this.applyPerformanceProfile();
     
     // グローバルpointerupイベントで保険を掛ける（音が伸び続けるバグの最終防止）
     this.app.stage.on('globalpointerup', () => {
@@ -2481,11 +2486,12 @@ export class PIXINotesRendererInstance {
       return;
     }
 
-    const prevPianoHeight = this.settings.pianoHeight;
-    const prevTranspose = this.settings.transpose;
-    const prevNoteNameStyle = this.settings.noteNameStyle;
-    const prevSimpleDisplayMode = this.settings.simpleDisplayMode;
-    const prevTransposingInstrument = this.settings.transposingInstrument;
+      const prevPianoHeight = this.settings.pianoHeight;
+      const prevTranspose = this.settings.transpose;
+      const prevNoteNameStyle = this.settings.noteNameStyle;
+      const prevSimpleDisplayMode = this.settings.simpleDisplayMode;
+      const prevTransposingInstrument = this.settings.transposingInstrument;
+      const prevPerformanceMode = this.settings.performanceMode;
     
           // ★ ピアノ高さの最小値を保証
       if (newSettings.pianoHeight !== undefined) {
@@ -2494,9 +2500,16 @@ export class PIXINotesRendererInstance {
     
     Object.assign(this.settings, newSettings);
 
-    if (newSettings.showHitLine !== undefined && this.hitLineContainer) {
-      this.hitLineContainer.visible = newSettings.showHitLine;
+      if (newSettings.showHitLine !== undefined && this.hitLineContainer) {
+        this.hitLineContainer.visible = this.settings.showHitLine && this.settings.performanceMode !== 'ultra_light';
     }
+      if (newSettings.enableEffects !== undefined && this.effectsContainer) {
+        this.effectsContainer.visible = this.settings.enableEffects && this.settings.performanceMode !== 'ultra_light';
+      }
+
+      if (newSettings.performanceMode !== undefined && newSettings.performanceMode !== prevPerformanceMode) {
+        this.applyPerformanceProfile();
+      }
 
     // ピアノ高さが変更された場合、判定ラインと背景を再配置
     if (newSettings.pianoHeight !== undefined && newSettings.pianoHeight !== prevPianoHeight) {
@@ -2748,6 +2761,19 @@ export class PIXINotesRendererInstance {
     }
   }
   
+  private applyPerformanceProfile(): void {
+    const isUltraLight = this.settings.performanceMode === 'ultra_light';
+    if (this.labelsContainer) {
+      this.labelsContainer.visible = !isUltraLight;
+    }
+    if (this.effectsContainer) {
+      this.effectsContainer.visible = this.settings.enableEffects && !isUltraLight;
+    }
+    if (this.hitLineContainer) {
+      this.hitLineContainer.visible = !isUltraLight && this.settings.showHitLine;
+    }
+  }
+
   /**
    * リソース解放
    */

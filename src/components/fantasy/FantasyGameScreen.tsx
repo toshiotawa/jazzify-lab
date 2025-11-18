@@ -148,26 +148,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   // Ready 終了時に BGM 再生（ゲームSEはFSMが担当、鍵盤はマウス時のみローカル再生）
-  useEffect(() => {
-    if (!isReady) {
-      bgmManager.play(
-        stage.bgmUrl ?? '/demo-1.mp3',
-        stage.bpm || 120,
-        stage.timeSignature || 4,
-        stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0,
-        settings.bgmVolume ?? 0.7
-      );
-      // ★ デモプレイ開始時にフル音源へアップグレード（軽量→@tonejs/piano）
-      (async () => {
-        try {
-          const { upgradeAudioSystemToFull } = await import('@/utils/MidiController');
-          await upgradeAudioSystemToFull();
-        } catch {}
-      })();
-    }
-    return () => bgmManager.stop();
-  }, [isReady, stage, settings.bgmVolume]);
+    useEffect(() => {
+      if (!isReady) {
+        bgmManager.play(
+          stage.bgmUrl ?? '/demo-1.mp3',
+          stage.bpm || 120,
+          stage.timeSignature || 4,
+          stage.measureCount ?? 8,
+          stage.countInMeasures ?? 0,
+          settings.bgmVolume ?? 0.7
+        );
+      }
+      return () => bgmManager.stop();
+    }, [isReady, stage, settings.bgmVolume]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
