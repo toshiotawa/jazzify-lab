@@ -302,11 +302,11 @@ export class PIXINotesRendererInstance {
   
   
   // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
-  public readonly settings: RendererSettings = {
+    public readonly settings: RendererSettings = {
     noteWidth: 28,
     noteHeight: 4,
     hitLineY: 0,
-    pianoHeight: 200, // viewportHeightと同じ値に設定
+      pianoHeight: 80, // デフォルトのピアノ高さをストアに合わせる
     noteSpeed: 400,
     colors: {
       visible: 0x4A90E2,
@@ -330,8 +330,8 @@ export class PIXINotesRendererInstance {
     transpose: 0,
     transposingInstrument: 'concert_pitch',
     practiceGuide: 'off',
-    showHitLine: true,
-    viewportHeight: 200, // pianoHeightと同じ値に設定
+      showHitLine: true,
+      viewportHeight: 600,
     timingAdjustment: 0
   };
   

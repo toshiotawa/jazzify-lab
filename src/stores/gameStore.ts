@@ -654,7 +654,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const { GameEngine } = await import('@/utils/gameEngine');
           const engine = new GameEngine({ ...state.settings });
           
-          // エンジンの更新コールバック設定
+            // エンジンの更新コールバック設定
             engine.setUpdateCallback((data: any) => {
               const storeSnapshot = useGameStore.getState();
               const { abRepeat } = storeSnapshot;
@@ -675,6 +675,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   state.debug.renderTime = performance.now() % 1000;
                 });
               }
+
+              set((state) => {
+                state.currentTime = data.currentTime;
+              });
             });
           
           // 判定イベントコールバック登録
@@ -901,35 +905,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const state = get();
           const newTime = Math.max(0, Math.min(time, state.currentSong?.duration || time));
           
-          set((state) => {
-            state.currentTime = newTime;
-            state.activeNotes.clear();
+          set((draft) => {
+            draft.currentTime = newTime;
+            draft.activeNotes.clear();
           });
           
           // GameEngineにもシーク処理を伝達
           if (state.gameEngine) {
             state.gameEngine.seek(newTime);
             console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
-          }
-          
-          // 🔧 追加: 再生中の音声を即座にシーク
-          // グローバルにアクセス可能な音声要素とbaseOffsetRefを更新
-          if (state.isPlaying && (window as any).__gameAudioRef) {
-            const audioRef = (window as any).__gameAudioRef;
-            const audioContextRef = (window as any).__gameAudioContextRef;
-            const baseOffsetRef = (window as any).__gameBaseOffsetRef;
-            const settings = state.settings;
-            
-            if (audioRef.current && audioContextRef.current && baseOffsetRef) {
-              // 音声を即座にシーク
-              audioRef.current.currentTime = newTime;
-              
-              // baseOffsetRefを再計算（再生速度を考慮）
-              const realTimeElapsed = newTime / settings.playbackSpeed;
-              baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
-              
-              console.log(`🎵 Audio seek to ${newTime.toFixed(2)}s (再生中)`);
-            }
           }
         },
         
