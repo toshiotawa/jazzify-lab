@@ -158,7 +158,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     (async () => {
       try {
         const { initializeAudioSystem } = await import('@/utils/MidiController');
-        await initializeAudioSystem({ light: true });
+        await initializeAudioSystem();
         if (!cancelled) setAudioReady(true);
       } catch {
         if (!cancelled) setAudioReady(false);
@@ -172,7 +172,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
     try { await (window as any).Tone?.start?.(); } catch {}
     try {
       const { initializeAudioSystem } = await import('@/utils/MidiController');
-      await initializeAudioSystem({ light: true });
+      await initializeAudioSystem();
     } catch {}
     setShowPrompt(false);
     setAudioReady(true);

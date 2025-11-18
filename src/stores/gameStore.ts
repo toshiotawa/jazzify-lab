@@ -110,7 +110,6 @@ const defaultSettings: GameSettings = {
   notesSpeed: 1.0,
   playbackSpeed: 1.0,
   instrumentMode: 'piano',
-  inputMode: 'midi',
   
   // 判定設定
   allowOctaveError: false,
@@ -136,10 +135,6 @@ const defaultSettings: GameSettings = {
   
   // 入力デバイス
   selectedMidiDevice: null,
-  selectedAudioDevice: null,
-  
-  // 音声入力設定
-  pyinThreshold: 0.1,          // デフォルト10%
   
   // キー設定
   transpose: 0,
@@ -152,23 +147,6 @@ const defaultSettings: GameSettings = {
   
   // 練習モードガイド
   practiceGuide: 'key',
-  
-  // ===== エフェクト設定 =====
-  enableEffects: true,
-  
-  keyPressEffect: {
-    enabled: true,
-    proximityThreshold: 1.5, // ノート高さの1.5倍以内
-    sizeMultiplier: 1.0,
-    duration: 0.3
-  },
-  
-  hitEffect: {
-    enabled: true,
-    sizeMultiplier: 1.0,
-    duration: 0.3,
-    opacity: 1.0
-  },
   
   performanceMode: 'standard'
 };
@@ -362,41 +340,6 @@ const validateSettings = (settings: Partial<GameSettings>): { valid: boolean; er
   if (normalized.pianoHeight < 80 || normalized.pianoHeight > 300) {
     errors.push('ピアノの高さは80-300pxの範囲で設定してください');
     normalized.pianoHeight = Math.max(80, Math.min(300, normalized.pianoHeight));
-  }
-  
-  // ===== エフェクト設定の検証 =====
-  if (normalized.keyPressEffect) {
-    if (normalized.keyPressEffect.proximityThreshold < 0.5 || normalized.keyPressEffect.proximityThreshold > 5.0) {
-      errors.push('キー押下エフェクトの近接閾値は0.5-5.0の範囲で設定してください');
-      normalized.keyPressEffect.proximityThreshold = Math.max(0.5, Math.min(5.0, normalized.keyPressEffect.proximityThreshold));
-    }
-    
-    if (normalized.keyPressEffect.sizeMultiplier < 0.1 || normalized.keyPressEffect.sizeMultiplier > 3.0) {
-      errors.push('キー押下エフェクトのサイズ倍率は0.1-3.0の範囲で設定してください');
-      normalized.keyPressEffect.sizeMultiplier = Math.max(0.1, Math.min(3.0, normalized.keyPressEffect.sizeMultiplier));
-    }
-    
-    if (normalized.keyPressEffect.duration < 0.1 || normalized.keyPressEffect.duration > 2.0) {
-      errors.push('キー押下エフェクトの持続時間は0.1-2.0秒の範囲で設定してください');
-      normalized.keyPressEffect.duration = Math.max(0.1, Math.min(2.0, normalized.keyPressEffect.duration));
-    }
-  }
-  
-  if (normalized.hitEffect) {
-    if (normalized.hitEffect.sizeMultiplier < 0.1 || normalized.hitEffect.sizeMultiplier > 3.0) {
-      errors.push('ヒットエフェクトのサイズ倍率は0.1-3.0の範囲で設定してください');
-      normalized.hitEffect.sizeMultiplier = Math.max(0.1, Math.min(3.0, normalized.hitEffect.sizeMultiplier));
-    }
-    
-    if (normalized.hitEffect.duration < 0.1 || normalized.hitEffect.duration > 2.0) {
-      errors.push('ヒットエフェクトの持続時間は0.1-2.0秒の範囲で設定してください');
-      normalized.hitEffect.duration = Math.max(0.1, Math.min(2.0, normalized.hitEffect.duration));
-    }
-    
-    if (normalized.hitEffect.opacity < 0.0 || normalized.hitEffect.opacity > 1.0) {
-      errors.push('ヒットエフェクトの透明度は0.0-1.0の範囲で設定してください');
-      normalized.hitEffect.opacity = Math.max(0.0, Math.min(1.0, normalized.hitEffect.opacity));
-    }
   }
   
   return {
