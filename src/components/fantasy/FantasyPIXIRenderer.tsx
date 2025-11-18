@@ -10,6 +10,7 @@ import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
+import { PERFORMANCE_CONFIG } from './TaikoNoteSystem';
 
 // ===== 型定義 =====
 
@@ -69,6 +70,8 @@ interface DamageNumberData {
   life: number;
   maxLife: number;
 }
+
+type TaikoNoteDisplay = PIXI.Container & { targetX?: number };
 
 interface MagicType {
   name: string; // 通常魔法名
@@ -248,12 +251,13 @@ export class FantasyPIXIInstance {
   private activeFukidashi: Map<string, PIXI.Sprite> = new Map();  // アクティブな吹き出しを管理
   
   // 太鼓の達人風ノーツ関連
-  private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
+    private activeNotes: Map<string, TaikoNoteDisplay> = new Map(); // 表示中のノーツ
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
   private judgeLineX: number = 100; // 判定ラインのX座標
   
   private isDestroyed: boolean = false;
-  private animationFrameId: number | null = null;
+    private animationFrameId: number | null = null;
+    private lastFrameTime = 0;
   
   // 画面揺れ関連のプロパティ（誤って削除されていたため復元）
   private screenShakeState: {
@@ -1679,20 +1683,24 @@ export class FantasyPIXIInstance {
 
 
   // アニメーションループ
-  private startAnimationLoop(): void {
-    const animate = () => {
-      if (this.isDestroyed) return;
-      
-      this.updateMonsterAnimation();
-      this.updateMagicCircles();
-      this.updateDamageNumbers();
-      this.updateScreenShake(); // 画面揺れの更新を追加
+    private startAnimationLoop(): void {
+      const animate = (time: number) => {
+        if (this.isDestroyed) return;
+        
+        const delta = this.lastFrameTime === 0 ? 16.67 : time - this.lastFrameTime;
+        this.lastFrameTime = time;
+        
+        this.updateMonsterAnimation();
+        this.updateMagicCircles();
+        this.updateDamageNumbers();
+        this.updateScreenShake(); // 画面揺れの更新を追加
+        this.updateTaikoNotePositions(delta);
+        
+        this.animationFrameId = requestAnimationFrame(animate);
+      };
       
       this.animationFrameId = requestAnimationFrame(animate);
-    };
-    
-    animate();
-  }
+    }
 
   // モンスターアニメーション更新
   private updateMonsterAnimation(): void {
@@ -1814,6 +1822,28 @@ export class FantasyPIXIInstance {
       devLog.debug('⚠️ モンスターアニメーション更新エラー:', error);
     }
   }
+    
+    private updateTaikoNotePositions(deltaMs: number): void {
+      if (this.activeNotes.size === 0) return;
+      
+      const lerpFactor = PERFORMANCE_CONFIG.LERP_FACTOR ?? 0.15;
+      const smoothing = Math.min(1, (deltaMs / 16.67) * lerpFactor);
+      
+      this.activeNotes.forEach(note => {
+        if (!note || (note as any).destroyed || !(note as any).transform) {
+          return;
+        }
+        if (typeof note.targetX !== 'number') {
+          return;
+        }
+        const diff = note.targetX - note.x;
+        if (Math.abs(diff) < 0.1) {
+          note.x = note.targetX;
+          return;
+        }
+        note.x += diff * smoothing;
+      });
+    }
 
   // オーバーレイテキスト更新（全モンスターの頭上に表示/非表示）
   updateOverlayText(text: string | null): void {
@@ -2059,8 +2089,8 @@ export class FantasyPIXIInstance {
   }
   
   // 太鼓の達人風ノーツを作成
-  createTaikoNote(noteId: string, chordName: string, x: number): PIXI.Container {
-    const noteContainer = new PIXI.Container();
+    createTaikoNote(noteId: string, chordName: string, x: number): TaikoNoteDisplay {
+      const noteContainer = new PIXI.Container() as TaikoNoteDisplay;
     
     // ノーツの円を作成
     const noteCircle = new PIXI.Graphics();
@@ -2122,45 +2152,42 @@ export class FantasyPIXIInstance {
     noteContainer.addChild(chordText);
 
     noteContainer.x = x;
+    noteContainer.targetX = x;
     noteContainer.y = this.app.screen.height / 2;
 
     return noteContainer;
   }
   
   // ノーツを更新（太鼓の達人風）
-  updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
-    this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
-        try {
-          if (note && !(note as any).destroyed) note.destroy({ children: true });
-        } catch {}
-        this.activeNotes.delete(id);
-      }
-    });
-    
-    // 新しいノーツを追加・更新
-    notes.forEach(noteData => {
-      let note = this.activeNotes.get(noteData.id);
+    updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
+      const ids = new Set(notes.map(n => n.id));
+      // 既存のノーツをクリーンアップ
+      this.activeNotes.forEach((note, id) => {
+        if (!ids.has(id)) {
+          try {
+            if (note && !(note as any).destroyed) {
+              if (note.parent) note.parent.removeChild(note);
+              note.destroy({ children: true });
+            }
+          } catch {}
+          this.activeNotes.delete(id);
+        }
+      });
       
-      if (!note) {
-        // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-        this.notesContainer.addChild(note);
-        this.activeNotes.set(noteData.id, note);
-      } else {
-        // 破棄済みなら作り直す
-        if ((note as any).destroyed || !(note as any).transform) {
+      // 新しいノーツを追加・更新
+      notes.forEach(noteData => {
+        let note = this.activeNotes.get(noteData.id);
+        
+        if (!note || (note as any).destroyed || !(note as any).transform) {
           note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
           this.notesContainer.addChild(note);
           this.activeNotes.set(noteData.id, note);
-        } else {
-          // 既存のノーツの位置を更新
-          note.x = noteData.x;
+          return;
         }
-      }
-    });
-  }
+        
+        note.targetX = noteData.x;
+      });
+    }
 
   // 太鼓モードの切り替え
   updateTaikoMode(isTaikoMode: boolean): void {

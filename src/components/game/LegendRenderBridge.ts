@@ -12,6 +12,8 @@ export class LegendRenderBridge {
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
   private lastFrame: BridgeFrame | null = null;
+  private pendingFrame: BridgeFrame | null = null;
+  private rafId: number | null = null;
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
@@ -23,6 +25,11 @@ export class LegendRenderBridge {
 
     if (!engine) {
       this.lastFrame = null;
+      this.pendingFrame = null;
+      if (this.rafId !== null) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
       return;
     }
 
@@ -45,7 +52,10 @@ export class LegendRenderBridge {
       return;
     }
 
-    this.flush();
+    if (this.lastFrame) {
+      this.pendingFrame = { ...this.lastFrame };
+      this.scheduleFlush();
+    }
   }
 
   syncFromEngine(): void {
@@ -62,29 +72,44 @@ export class LegendRenderBridge {
     this.renderer = null;
     this.engine = null;
     this.lastFrame = null;
+    this.pendingFrame = null;
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
   }
 
   private handleEngineUpdate(update: GameEngineUpdate): void {
-    this.lastFrame = {
+    this.pendingFrame = {
       activeNotes: update.activeNotes,
       currentTime: update.currentTime
     };
-    this.flush();
+    this.scheduleFlush();
   }
 
   private primeFromEngine(engine: GameEngine): void {
     const snapshot = engine.getState();
-    this.lastFrame = {
+    this.pendingFrame = {
       activeNotes: snapshot.activeNotes,
       currentTime: snapshot.currentTime
     };
-    this.flush();
+    this.scheduleFlush();
+  }
+
+  private scheduleFlush(): void {
+    if (this.rafId !== null) return;
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null;
+      this.flush();
+    });
   }
 
   private flush(): void {
-    if (!this.renderer || !this.lastFrame) {
+    if (!this.renderer || !this.pendingFrame) {
       return;
     }
+    this.lastFrame = this.pendingFrame;
+    this.pendingFrame = null;
     this.renderer.updateNotes(this.lastFrame.activeNotes, this.lastFrame.currentTime);
   }
 
